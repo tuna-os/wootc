@@ -1,0 +1,46 @@
+#!/bin/bash
+# init — PID 1 in the wootc deployer initramfs.
+# Mounts essential filesystems, starts networking, runs wootc-deploy.
+
+set -e
+
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+# ── Mount essentials ────────────────────────────────────────────────────────
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t tmpfs tmpfs /run
+mkdir -p /dev/pts /dev/shm
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /dev/shm
+
+# ── Load kernel modules ─────────────────────────────────────────────────────
+modprobe loop 2>/dev/null || true
+modprobe fuse 2>/dev/null || true
+modprobe ntfs3 2>/dev/null || true
+
+# ── Start network ───────────────────────────────────────────────────────────
+# Systemd-networkd would be ideal, but in a minimal initramfs we
+# just run dhclient on the first active interface.
+for iface in $(ls /sys/class/net/ | grep -v lo); do
+    if [[ -d "/sys/class/net/${iface}/device" ]]; then
+        echo "[wootc] Bringing up ${iface}..."
+        ip link set "$iface" up
+        dhclient -v "$iface" 2>&1 | while read line; do
+            echo "[wootc/dhcp] $line"
+        done &
+        break
+    fi
+done
+
+# Wait for DHCP
+sleep 5
+
+# ── Run the deployer ────────────────────────────────────────────────────────
+echo "[wootc] Starting deployer..."
+/usr/bin/wootc-deploy
+
+# ── If deployer exits (shouldn't — it reboots), drop to shell ───────────────
+echo "[wootc] Deployer exited unexpectedly. Dropping to shell."
+exec /bin/bash
