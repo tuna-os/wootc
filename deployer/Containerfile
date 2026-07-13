@@ -6,11 +6,11 @@
 # bootc install to-filesystem, Flatpaks, hostname, kernel cmdline.
 # The wootc deployer just sets up the loop device and points fisherman at it.
 #
-# Build:
-#   podman build -t wootc-deployer .
-#   podman run --rm -v $(pwd)/out:/out wootc-deployer
+# Build from repo root (so fisherman submodule is in context):
+#   podman build -f deployer/Containerfile -t wootc-deployer .
+#   podman run --rm -v $(pwd)/deployer/out:/out wootc-deployer
 #
-# Output: out/vmlinuz, out/initramfs.img (~200MB with fisherman)
+# Output: deployer/out/vmlinuz, deployer/out/initramfs.img (~200MB)
 
 FROM quay.io/fedora/fedora:44 AS builder
 
@@ -19,16 +19,18 @@ RUN dnf install -y \
     systemd systemd-udev dracut dracut-network \
     podman skopeo \
     util-linux e2fsprogs dosfstools \
-    ntfs3 ntfsprogs fuse3 \
+    ntfsprogs \
+    parted xfsprogs btrfs-progs \
+    kernel-core kernel-modules kernel-modules-extra \
     NetworkManager iproute dhcp-client \
     curl ca-certificates jq \
     && dnf clean all
 
 # ── Build fisherman statically ──────────────────────────────────────────────
 # Fisherman is a Go binary — build it statically so it needs no runtime deps.
-FROM golang:1.24 AS gobuilder
+FROM docker.io/library/golang:1.24 AS gobuilder
 COPY fisherman /src/fisherman
-WORKDIR /src/fisherman
+WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
 
 # ── Copy fisherman into the initramfs builder ───────────────────────────────
@@ -36,27 +38,27 @@ FROM builder
 COPY --from=gobuilder /fisherman /usr/bin/fisherman
 
 # ── Deployer script ─────────────────────────────────────────────────────────
-COPY deploy.sh /usr/bin/wootc-deploy
+COPY deployer/deploy.sh /usr/bin/wootc-deploy
 RUN chmod +x /usr/bin/wootc-deploy
 
 # ── Init script (PID 1 in the initramfs) ────────────────────────────────────
-COPY init /init
+COPY deployer/init /init
 RUN chmod +x /init
 
 # ── Dracut module ───────────────────────────────────────────────────────────
 RUN mkdir -p /usr/lib/dracut/modules.d/99wootc
-COPY module-setup.sh /usr/lib/dracut/modules.d/99wootc/module-setup.sh
+COPY deployer/module-setup.sh /usr/lib/dracut/modules.d/99wootc/module-setup.sh
 RUN chmod +x /usr/lib/dracut/modules.d/99wootc/module-setup.sh
 
 # ── Build the initramfs ─────────────────────────────────────────────────────
-RUN KERNEL_VER=$(ls /lib/modules | head -1) && \
+RUN mkdir -p /out && \
+    KERNEL_VER=$(ls /lib/modules | head -1) && \
     dracut \
         --force \
         --no-hostonly \
-        --add "network kernel-modules kernel-modules-extra 99wootc" \
+        --add "network kernel-modules kernel-modules-extra wootc" \
         --install "podman skopeo fisherman \
-                   ntfs3 mount.ntfs \
-                   parted mkfs.ext4 mkfs.vfat mkfs.xfs \
+                   parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
                    losetup dmsetup \
                    curl dhclient ip NetworkManager jq" \
         --kernel-cmdline "rd.neednet=1 ip=dhcp quiet" \
@@ -66,4 +68,4 @@ RUN KERNEL_VER=$(ls /lib/modules | head -1) && \
 RUN cp /boot/vmlinuz-* /out/vmlinuz 2>/dev/null || \
     cp /lib/modules/*/vmlinuz /out/vmlinuz 2>/dev/null || true
 
-VOLUME /out
+# Extract: podman run --rm localhost/wootc-deployer cat /out/initramfs.img > deployer/out/initramfs.img

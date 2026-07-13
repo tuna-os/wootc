@@ -1,13 +1,14 @@
 #!/bin/bash
-# module-setup.sh — dracut module for wootc deployer.
-# Ensures the deployer script, init, and dependencies are in the initramfs.
+# module-setup.sh — dracut module for wootc deployer initramfs.
+# Ensures the deployer script, init, fisherman, and network stack
+# are included in the initramfs.
 
 check() {
     return 0
 }
 
 depends() {
-    echo network kernel-modules
+    echo "network kernel-modules"
     return 0
 }
 
@@ -17,19 +18,14 @@ install() {
     inst /init
     inst /usr/bin/fisherman
 
-    # Required binaries (dracut auto-resolves libraries)
+    # Required binaries
     inst_multiple \
         podman skopeo \
-        ntfs3 mount.ntfs \
-        parted mkfs.ext4 mkfs.vfat mkfs.xfs \
+        parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
         losetup dmsetup \
-        curl dhclient ip \
-        mount umount reboot sleep
+        curl dhclient ip NetworkManager \
+        mount umount reboot sleep cat sed
 
-    # FUSE for ntfs-3g
-    inst_multiple fusermount fusermount3
-    inst_rules 99-fuse.rules
-
-    # Loop module
-    instmods loop
+    # Kernel modules for NTFS and loop
+    instmods ntfs3 loop
 }
