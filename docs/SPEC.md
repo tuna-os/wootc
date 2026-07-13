@@ -125,33 +125,190 @@ systemd-boot
        → boots deployer
 ```
 
-### 1.3 The Loop Root Challenge
+### 1.3 The Loop Root Challenge — Solved with Dracut Hooks
 
 The critical piece inherited from Wubi: the initramfs must know how to
 boot from a root filesystem that lives inside a loop device backed by an
 NTFS-hosted file.
 
-Wubi solved this with **lupin** — Ubuntu-specific initramfs-tools scripts
-that handle `loop=` and `root=UUID=<host>` kernel parameters. For wootc,
-this needs to work with dracut (Fedora/EL) and other initramfs systems.
+Wubi solved this with **lupin** — Ubuntu-specific initramfs-tools scripts.
+For wootc, this is reimplemented as a dracut module. Dracut's hook-based
+architecture lets us intercept the boot chain without rewriting the storage
+stack — the module hooks into the `cmdline` and `mount` phases.
 
-The kernel cmdline for subsequent boots:
+#### Kernel cmdline
 
 ```
 root=UUID=<ntfs-partition-uuid> loop=/wootc/disks/root.disk ro quiet
 ```
 
-The initramfs (dracut module `99wootc-boot`) must:
+#### Dracut module layout: `99wootc-boot`
 
-1. Parse `loop=` from cmdline
-2. Mount the NTFS partition (identified by `root=UUID=`)
-3. `losetup -f /host/wootc/disks/root.disk`
-4. Mount the loop device as the real root
-5. Proceed with normal root pivot
+Injected into the installed system at `/usr/lib/dracut/modules.d/99wootc-boot/`
+by fisherman's post-install hook. Three files:
 
-This is a dracut module that gets embedded into the installed system's
-initramfs by fisherman during deployment (as a post-install hook, similar
-to how Wubi's post-installer.sh installed `10_lupin` and `loop-remount`).
+```
+99wootc-boot/
+├── module-setup.sh          # registers hooks, binaries, kernel modules
+├── wootc-parse-cmdline.sh   # Hook 1: cmdline phase — intercepts root=
+└── wootc-mount-loop.sh      # Hook 2: mount phase  — NTFS → loop → $NEWROOT
+```
+
+#### `module-setup.sh`
+
+```bash
+#!/bin/bash
+# /usr/lib/dracut/modules.d/99wootc-boot/module-setup.sh
+
+check() {
+    return 0
+}
+
+depends() {
+    echo "base"
+}
+
+installkernel() {
+    instmods ntfs3 loop xfs
+}
+
+install() {
+    inst_hook cmdline 10 "$moddir/wootc-parse-cmdline.sh"
+    inst_hook mount 99 "$moddir/wootc-mount-loop.sh"
+    inst_multiple losetup mount mkdir modprobe blockdev sed sleep
+}
+```
+
+#### `wootc-parse-cmdline.sh` (Hook 1)
+
+Dracut natively tries to mount whatever block device is passed via `root=`.
+If it sees `root=UUID=<ntfs-uuid>`, it will attempt to mount the Windows
+partition directly as the Linux root, causing a kernel panic. This hook
+intercepts the arguments, extracts the variables, and hijacks the root
+handler so our custom mount hook takes control.
+
+```bash
+#!/bin/bash
+# /usr/lib/dracut/modules.d/99wootc-boot/wootc-parse-cmdline.sh
+
+LOOP_PATH=$(getarg loop=)
+
+if [ -n "$LOOP_PATH" ]; then
+    ORIG_ROOT=$(getarg root=)
+
+    if [[ "$ORIG_ROOT" == UUID=* ]]; then
+        WOOTC_HOST_UUID="${ORIG_ROOT#UUID=}"
+
+        echo "wootc_host_uuid=\"$WOOTC_HOST_UUID\"" > /tmp/wootc.env
+        echo "wootc_loop_path=\"$LOOP_PATH\""       >> /tmp/wootc.env
+
+        # Hijack the standard root assignment. Setting it to 'wootc'
+        # stops systemd/dracut from trying to mount the NTFS block directly.
+        root="wootc"
+        rootok=1
+    fi
+fi
+```
+
+#### `wootc-mount-loop.sh` (Hook 2)
+
+Executes inside dracut's mount cycle. Waits for the Windows partition via
+udev, mounts it read-write, binds root.disk to a loop device, and maps
+the result to `$NEWROOT` (/sysroot).
+
+```bash
+#!/bin/bash
+# /usr/lib/dracut/modules.d/99wootc-boot/wootc-mount-loop.sh
+
+if [ "$root" = "wootc" ]; then
+    if [ -f /tmp/wootc.env ]; then
+        . /tmp/wootc.env
+    fi
+
+    if [ -z "$wootc_host_uuid" ] || [ -z "$wootc_loop_path" ]; then
+        die "wootc: missing host UUID or loop path"
+    fi
+
+    modprobe ntfs3 2>/dev/null
+    modprobe loop 2>/dev/null
+
+    HOST_DEV="/dev/disk/by-uuid/$wootc_host_uuid"
+
+    if [ ! -b "$HOST_DEV" ]; then
+        local i=0
+        while [ ! -b "$HOST_DEV" ] && [ $i -lt 15 ]; do
+            sleep 0.5
+            i=$((i+1))
+        done
+    fi
+
+    if [ ! -b "$HOST_DEV" ]; then
+        die "wootc: host partition $HOST_DEV did not appear"
+    fi
+
+    HOST_MNT="/sysroot/host"
+    mkdir -p "$HOST_MNT"
+
+    # CRITICAL: must mount read-write. If the host is ro, the loop
+    # device inherits the physical write block, rendering the guest
+    # OS filesystem read-only.
+    if ! mount -t ntfs3 -o rw,nobarrier,async "$HOST_DEV" "$HOST_MNT"; then
+        warn "wootc: standard ntfs3 mount failed (dirty partition?). Trying force..."
+        if ! mount -t ntfs3 -o rw,force "$HOST_DEV" "$HOST_MNT"; then
+            die "wootc: cannot mount host NTFS partition rw"
+        fi
+    fi
+
+    FULL_LOOP_PATH="$HOST_MNT/$wootc_loop_path"
+    FULL_LOOP_PATH=$(echo "$FULL_LOOP_PATH" | sed 's/\/\//\//g')
+
+    if [ ! -f "$FULL_LOOP_PATH" ]; then
+        die "wootc: root.disk not found at $FULL_LOOP_PATH"
+    fi
+
+    LOOP_DEV=$(losetup -f --show "$FULL_LOOP_PATH")
+    if [ -z "$LOOP_DEV" ]; then
+        die "wootc: losetup failed"
+    fi
+
+    blockdev --setra 2048 "$LOOP_DEV"
+
+    if ! mount -t xfs -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
+        die "wootc: failed to mount loop root to \$NEWROOT"
+    fi
+
+    rootok=1
+fi
+```
+
+#### The Remount Trap
+
+Standard Linux init scripts often attempt a generic root remount
+(`mount -o remount,rw /`) late in the boot sequence. Because the real
+root is nested inside a loop device backed by a secondary mount context
+(`/sysroot/host`), a standard remount command cannot reach through both
+layers and will fail silently or break the root filesystem.
+
+To prevent this, fisherman's post-install hook writes an fstab entry
+that preserves the nesting hierarchy:
+
+```
+# /etc/fstab inside root.disk
+/host/wootc/disks/root.disk  /  xfs  defaults,noatime,loop  0  0
+```
+
+This tells the installed system: "the root device is the loop file on
+the host, not a block device." Standard remounts resolve correctly
+through the loop layer.
+
+#### NTFS Mount Mode: Why Read-Write
+
+Unlike the deployer (which can safely mount NTFS read-only since it only
+reads root.disk to set up the loop device), the installed system **must**
+write to its root filesystem. If the host NTFS is mounted read-only, the
+loop device inherits the physical write block — every write to the Linux
+root fails at the block layer. The `force` recovery mount handles the
+case where Windows left the volume marked dirty (Fast Startup).
 
 ---
 
@@ -167,14 +324,14 @@ populate root.disk with the chosen bootc image.
 | Fedora 44 kernel | Boots on wide range of hardware |
 | [fisherman](https://github.com/projectbluefin/fisherman) | Go binary: partition, format, bootc install to-filesystem |
 | podman + skopeo | Pull OCI images, run bootc container |
-| ntfs-3g | Mount Windows NTFS partition |
+| ntfs3 (in-kernel) | Mount Windows NTFS partition (no FUSE overhead) |
 | dracut + network modules | DHCP, DNS |
 
 ### 2.2 Flow
 
 ```
 1. Kernel boots, init runs
-2. Load kernel modules (loop, fuse, ntfs3)
+2. Load kernel modules (loop, ntfs3)
 3. Start DHCP on first active interface
 4. Parse kernel cmdline:
      wootc.image=ghcr.io/tuna-os/yellowfin:gnome   (required)
@@ -182,7 +339,7 @@ populate root.disk with the chosen bootc image.
      wootc.flatpaks=org.mozilla.firefox,...          (optional)
      wootc.debug                                      (optional)
 5. Find NTFS partition containing /wootc/disks/root.disk
-6. Mount NTFS read-write at /mnt/ntfs
+6. Mount NTFS read-write at /mnt/ntfs (in-kernel ntfs3 driver, Linux 5.15+)
 7. losetup -fP /mnt/ntfs/wootc/disks/root.disk
 8. Write fisherman recipe JSON → /tmp/recipe.json
 9. Run: fisherman /tmp/recipe.json
@@ -275,7 +432,92 @@ sparse file creation — replaces the ISO download and preseed generation.
 6. First boot runs deployer (~5-15 min depending on network)
 7. Second boot: full TunaOS desktop
 
-### 3.3 Image Catalog
+### 3.5 Windows Hazard Mitigation
+
+The Windows installer must detect and mitigate two silent failure modes
+before the user ever reboots. If left unchecked, both cause confusing
+first-boot failures.
+
+#### BitLocker Detection
+
+If the Windows C: drive is encrypted with BitLocker, the deployer
+initramfs will see the NTFS volume as random noise and fail to find
+`/wootc/disks/root.disk`.
+
+**Detection** — the installer queries volume status before creating any files:
+
+```cmd
+manage-bde -status C:
+```
+
+**Logic:**
+
+| BitLocker status | Action |
+|---|---|
+| Protection On | **Hard block.** Show UI: "BitLocker is enabled on C:. wootc requires an unencrypted NTFS volume. Suspend BitLocker in Windows Settings, then retry." |
+| Encryption In Progress | **Hard block.** Show UI: "Windows is currently encrypting C:. Wait for encryption to complete or cancel it, then retry." |
+| Protection Off / Fully Decrypted | Proceed normally. |
+
+Per-directory encryption (the default on modern Windows 11 Home) does
+not block wootc — only full-volume BitLocker does.
+
+#### Fast Startup Mitigation
+
+Windows Fast Startup doesn't shut down; it hibernates the kernel and
+marks NTFS volumes as "dirty." The Linux ntfs3 driver will refuse to
+mount read-write, causing the deployer loop setup to fail.
+
+**Mitigation** — the installer disables Fast Startup programmatically:
+
+```cmd
+REG ADD "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /v HiberbootEnabled /t REG_DWORD /d 0 /f
+```
+
+On next shutdown, Windows performs a full shutdown, leaving NTFS clean.
+This is non-destructive and safe — it only disables the hibernation-on-
+shutdown behaviour. The user can re-enable it later from Windows power
+settings if needed.
+
+**Alternative** (more aggressive): `powercfg /h off` disables hibernation
+entirely, ensuring pristine NTFS state on every reboot. Only used if the
+registry approach fails or on Windows editions that don't respect the
+registry key.
+
+### 3.6 NTFS Fragmentation Prevention
+
+When wootc.exe creates `root.disk` as a sparse file, Windows allocates
+space on demand. When fisherman streams gigabytes of container layers into
+that file, the clusters will be scattered across the physical disk —
+especially on spinning drives or fragmented SSDs. Because every I/O to the
+installed system passes through both the loop layer and the NTFS cluster
+mapping, fragmentation can silently bottleneck disk performance.
+
+**Mitigation** — pre-allocate contiguous clusters during file creation:
+
+```c
+// Instead of: SetFilePointerEx + SetEndOfFile (sparse, lazy allocation)
+// Use: SetFileValidData after SetEndOfFile to force immediate allocation
+
+HANDLE h = CreateFileW(path, GENERIC_WRITE, 0, NULL,
+                        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+
+LARGE_INTEGER size;
+size.QuadPart = (LONGLONG)size_gb * 1024 * 1024 * 1024;
+SetFilePointerEx(h, size, NULL, FILE_BEGIN);
+SetEndOfFile(h);
+SetFileValidData(h, size.QuadPart);  // force pre-allocation
+CloseHandle(h);
+```
+
+`SetFileValidData` requires `SE_MANAGE_VOLUME_NAME` privilege (admin).
+wootc.exe already runs elevated, so this is available. On SSDs, the
+performance difference is minimal (random access is fast). On spinning
+disks, contiguous pre-allocation can be 2-5x faster for sustained I/O.
+
+**Fallback**: If contiguous space isn't available (disk too full), fall
+back to the sparse creation path with a warning: "Disk is fragmented.
+Performance may be reduced. Consider freeing space and defragmenting
+before installing."
 
 The Windows installer presents available images from `data/images.json`
 — the same catalog format used by fisherman and tuna-installer:
@@ -461,33 +703,24 @@ wootc/
 
 ---
 
-## Open Questions
+## 8. Open Questions
 
-1. **dracut loop-root module**: The `99wootc-boot` module needs to handle
-   NTFS mount + losetup + root pivot in the initramfs. This is the
-   critical blocker for subsequent boots. The Wubi lupin scripts are the
-   reference implementation but they're initramfs-tools (Ubuntu), not
-   dracut (Fedora/EL). Needs a from-scratch dracut implementation.
-
-3. **bitlocker interaction**: If the Windows partition is BitLocker-
-   encrypted, wootc can't read root.disk. Detection and clear error
-   message needed in the Windows installer. Full-disk BitLocker makes
-   wootc impossible. Per-directory encryption (the default on modern
-   Windows) should not affect `C:\wootc\`.
-
-4. **fast startup**: Windows Fast Startup leaves NTFS in a hibernated
-   state. The Linux ntfs-3g driver will refuse to mount it read-write.
-   The Windows installer must detect this and either disable Fast Startup
-   or warn the user. GRUB2's ntfs.mod handles this (read-only is fine for
-   GRUB), but the deployer needs read-write.
-
-5. **Secure Boot with GRUB2**: WubiUEFI uses shim for Secure Boot. wootc
+1. **Secure Boot with GRUB2**: WubiUEFI uses shim for Secure Boot. wootc
    inherits this for the GRUB2 path. systemd-boot has native Secure Boot
-   support via signed UKIs.
+   support via signed UKIs. Signing pipeline and key management TBD.
 
-6. **ARM64 Windows**: WubiUEFI supports x86_64 only. ARM64 Windows
-   devices (Surface Pro X, etc.) use a completely different boot chain.
-   Deferred.
+2. **ARM64 Windows**: WubiUEFI supports x86_64 only. ARM64 Windows devices
+   (Surface Pro X, etc.) use a completely different boot chain. Deferred.
+
+3. **ntfs3 force mount safety**: The `force` flag in the mount hook handles
+   dirty NTFS volumes (Fast Startup), but writes to a dirty NTFS partition
+   carry theoretical corruption risk. In practice, ntfs3's `force` mode
+   has been stable since Linux 6.1. Should still be tested extensively.
+
+4. **systemd-boot kernel sync hook**: The `bootc post-transaction` hook
+   that copies kernels from inside root.disk to the ESP needs to handle
+   the case where root.disk is not yet mounted at hook execution time.
+   May need to be a systemd path unit instead.
 
 ---
 

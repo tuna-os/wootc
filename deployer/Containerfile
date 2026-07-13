@@ -19,7 +19,7 @@ RUN dnf install -y \
     systemd systemd-udev dracut dracut-network \
     podman skopeo \
     util-linux e2fsprogs dosfstools \
-    ntfs-3g ntfsprogs fuse3 \
+    ntfs3 ntfsprogs fuse3 \
     NetworkManager iproute dhcp-client \
     curl ca-certificates jq \
     && dnf clean all
@@ -55,7 +55,7 @@ RUN KERNEL_VER=$(ls /lib/modules | head -1) && \
         --no-hostonly \
         --add "network kernel-modules kernel-modules-extra 99wootc" \
         --install "podman skopeo fisherman \
-                   ntfs-3g mount.ntfs-3g \
+                   ntfs3 mount.ntfs \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs \
                    losetup dmsetup \
                    curl dhclient ip NetworkManager jq" \

@@ -20,7 +20,7 @@ install() {
     # Required binaries (dracut auto-resolves libraries)
     inst_multiple \
         podman skopeo \
-        ntfs-3g mount.ntfs-3g mount.ntfs \
+        ntfs3 mount.ntfs \
         parted mkfs.ext4 mkfs.vfat mkfs.xfs \
         losetup dmsetup \
         curl dhclient ip \

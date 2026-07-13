@@ -47,8 +47,7 @@ NTFS_PART=""
 for dev in /dev/sd* /dev/nvme* /dev/vd*; do
     [[ -b "$dev" ]] || continue
     mkdir -p /mnt/scan
-    if mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null || \
-       mount -t ntfs-3g -o ro "$dev" /mnt/scan 2>/dev/null; then
+    if mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null; then
         if [[ -f "/mnt/scan${ROOT_DISK_PATH}" ]]; then
             NTFS_PART="$dev"
             log "Found ${ROOT_DISK_PATH} on ${NTFS_PART}"
@@ -66,7 +65,7 @@ fi
 
 # ── Mount NTFS read-write ───────────────────────────────────────────────────
 mkdir -p /mnt/ntfs
-mount -t ntfs-3g "$NTFS_PART" /mnt/ntfs
+mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs
 DISK="/mnt/ntfs/wootc/disks/root.disk"
 
 # ── Set up loop device ──────────────────────────────────────────────────────

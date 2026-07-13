@@ -17,7 +17,6 @@ mount -t tmpfs tmpfs /dev/shm
 
 # ── Load kernel modules ─────────────────────────────────────────────────────
 modprobe loop 2>/dev/null || true
-modprobe fuse 2>/dev/null || true
 modprobe ntfs3 2>/dev/null || true
 
 # ── Start network ───────────────────────────────────────────────────────────
