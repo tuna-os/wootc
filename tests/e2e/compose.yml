@@ -1,0 +1,37 @@
+services:
+  windows:
+    image: dockurr/windows
+    container_name: wootc-e2e-windows
+    stop_grace_period: 2m
+    environment:
+      VERSION: "11"
+      EDITION: "pro"                 # Pro required for WinRM / RDP
+      USERNAME: "wootc"
+      PASSWORD: "wootc-test-123!"
+      CPU_CORES: "4"
+      RAM_SIZE: "8G"
+      DISK_SIZE: "80G"
+      DISK_FMT: "qcow2"
+      BOOT_MODE: "windows_secure"    # UEFI + Secure Boot (realistic)
+      MANUAL: "N"                    # Unattended install
+      LANGUAGE: "en-US"
+      KEYBOARD: "en-US"
+      # We pass a custom autounattend.xml to enable WinRM
+      # This is baked into the ISO by dockur/windows when
+      # we mount it into /custom inside the container.
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "8006:8006"      # noVNC web console (manual debugging)
+      - "3389:3389"      # RDP (reserve, not used in automation)
+      - "5985:5985"      # WinRM HTTP
+      - "5986:5986"      # WinRM HTTPS (reserve)
+      - "5900:5900"      # VNC (for keystroke automation fallback)
+    volumes:
+      - ./storage:/storage               # VM disk + QEMU artifacts
+      - ./wootc-files:/wootc:ro          # deployer files injected into Windows
+      - ./autounattend.xml:/custom/autounattend.xml:ro  # WinRM + RDP enable
+    restart: "no"     # don't restart — test exits after verification

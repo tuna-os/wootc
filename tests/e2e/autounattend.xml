@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+
+  <!--
+    wootc E2E autounattend.xml
+    - Enables RDP
+    - Enables WinRM (HTTP, basic auth)
+    - Disables UAC prompts
+    - Disables Windows Defender real-time scanning
+    - Auto-login as wootc user
+  -->
+
+  <settings pass="windowsPE">
+    <component name="Microsoft-Windows-Setup" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <UserData>
+        <ProductKey>
+          <!-- Generic Windows 10/11 Pro KMS client key -->
+          <Key>W269N-WFGWX-YVC9B-4J6C9-T83GX</Key>
+        </ProductKey>
+        <AcceptEula>true</AcceptEula>
+      </UserData>
+    </component>
+  </settings>
+
+  <settings pass="offlineServicing">
+    <component name="Microsoft-Windows-LUA-Settings" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <EnableLUA>false</EnableLUA>
+    </component>
+  </settings>
+
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-TerminalServices-LocalSessionManager" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <fDenyTSConnections>false</fDenyTSConnections>
+    </component>
+    <component name="Microsoft-Windows-TerminalServices-RDP-WinStationExtensions" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <UserAuthentication>0</UserAuthentication>
+    </component>
+    <component name="Networking-MPSSVC-Svc" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <FirewallGroups>
+        <FirewallGroup wcm:action="add">
+          <Active>true</Active>
+          <Group>Remote Desktop</Group>
+          <Profile>all</Profile>
+        </FirewallGroup>
+      </FirewallGroups>
+    </component>
+  </settings>
+
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-Shell-Setup" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideLocalAccountScreen>true</HideLocalAccountScreen>
+        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+      <UserAccounts>
+        <LocalAccounts>
+          <LocalAccount wcm:action="add">
+            <Name>wootc</Name>
+            <DisplayName>wootc E2E Test</DisplayName>
+            <Password>
+              <Value>wootc-test-123!</Value>
+              <PlainText>true</PlainText>
+            </Password>
+            <Group>Administrators</Group>
+          </LocalAccount>
+        </LocalAccounts>
+      </UserAccounts>
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <Username>wootc</Username>
+        <Password>
+          <Value>wootc-test-123!</Value>
+          <PlainText>true</PlainText>
+        </Password>
+      </AutoLogon>
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <CommandLine>powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'ConsentPromptBehaviorAdmin' -Value 0 -Force"</CommandLine>
+          <Description>Disable UAC admin prompts</Description>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <CommandLine>powershell.exe -Command "Set-MpPreference -DisableRealtimeMonitoring $true"</CommandLine>
+          <Description>Disable Windows Defender real-time scanning</Description>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>3</Order>
+          <CommandLine>powershell.exe -Command "Enable-PSRemoting -Force; Set-Item WSMan:\localhost\Client\TrustedHosts -Value '*' -Force; winrm set winrm/config/service '@{AllowUnencrypted=\"true\"}' ; winrm set winrm/config/service/auth '@{Basic=\"true\"}' ; New-NetFirewallRule -DisplayName 'WinRM HTTP' -Direction Inbound -LocalPort 5985 -Protocol TCP -Action Allow"</CommandLine>
+          <Description>Enable WinRM (HTTP, basic auth, any host)</Description>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>4</Order>
+          <CommandLine>powershell.exe -Command "Set-Service -Name WinRM -StartupType Automatic; Restart-Service WinRM"</CommandLine>
+          <Description>Start WinRM service</Description>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>5</Order>
+          <CommandLine>powershell.exe -Command "Remove-Item -Path 'C:\Users\Public\Desktop\*.lnk' -Force -ErrorAction SilentlyContinue"</CommandLine>
+          <Description>Clean up desktop</Description>
+        </SynchronousCommand>
+      </FirstLogonCommands>
+    </component>
+  </settings>
+
+</unattend>
