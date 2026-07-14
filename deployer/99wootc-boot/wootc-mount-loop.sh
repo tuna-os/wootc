@@ -42,10 +42,10 @@ if [ "$root" = "wootc" ]; then
     # OS filesystem permanently read-only.
     info "wootc: mounting Windows partition ($HOST_DEV)..."
     if ! mount -t ntfs3 -o rw,nobarrier,async "$HOST_DEV" "$HOST_MNT"; then
-        warn "wootc: standard mount failed (dirty partition?). Trying force..."
-        if ! mount -t ntfs3 -o rw,force "$HOST_DEV" "$HOST_MNT"; then
-            die "wootc: cannot mount host NTFS partition rw"
-        fi
+        die "wootc: cannot mount host NTFS partition rw. " \
+            "Windows may not have been shut down cleanly. " \
+            "Please boot Windows once, perform a full shutdown " \
+            "(not restart), and try again."
     fi
 
     FULL_LOOP_PATH="$HOST_MNT/$wootc_loop_path"
@@ -64,7 +64,7 @@ if [ "$root" = "wootc" ]; then
     blockdev --setra 2048 "$LOOP_DEV"
 
     info "wootc: mounting loop root to \$NEWROOT..."
-    if ! mount -t xfs -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
+    if ! mount -t btrfs -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
         die "wootc: failed to mount loop root"
     fi
 

@@ -12,6 +12,16 @@ Ubuntu-specific pipeline (ISO → casper → ubiquity → preseed) with
 downloads, no installer wizard, same system whether running from loop file
 or real disk.
 
+### Terminology
+
+wootc has three distinct runtime phases, referred to throughout this spec:
+
+| Phase | Runs where | Purpose |
+|---|---|---|
+| **Installer** | Windows (`wootc.exe`) | Downloads deployer, creates root.disk, configures BCD |
+| **Deployer** | Initramfs (first boot) | Finds root.disk, runs fisherman, deploys bootc image |
+| **Runtime** | Installed system (subsequent boots) | Full Linux desktop, loop-root boot via dracut module |
+
 ---
 
 ## 1. Boot Chain
@@ -169,7 +179,7 @@ depends() {
 }
 
 installkernel() {
-    instmods ntfs3 loop xfs
+    instmods ntfs3 loop btrfs
 }
 
 install() {
@@ -249,14 +259,15 @@ if [ "$root" = "wootc" ]; then
     HOST_MNT="/sysroot/host"
     mkdir -p "$HOST_MNT"
 
-    # CRITICAL: must mount read-write. If the host is ro, the loop
-    # device inherits the physical write block, rendering the guest
-    # OS filesystem read-only.
+    # Mount the host NTFS partition read-write.
+    # If Windows was not shut down cleanly, ntfs3 will refuse rw mount.
+    # Rather than forcing (which risks corruption), we tell the user to
+    # boot Windows once and perform a full shutdown.
     if ! mount -t ntfs3 -o rw,nobarrier,async "$HOST_DEV" "$HOST_MNT"; then
-        warn "wootc: standard ntfs3 mount failed (dirty partition?). Trying force..."
-        if ! mount -t ntfs3 -o rw,force "$HOST_DEV" "$HOST_MNT"; then
-            die "wootc: cannot mount host NTFS partition rw"
-        fi
+        die "wootc: cannot mount host NTFS partition rw. " \
+            "Windows may not have been shut down cleanly. " \
+            "Please boot Windows once, perform a full shutdown " \
+            "(not restart), and try again."
     fi
 
     FULL_LOOP_PATH="$HOST_MNT/$wootc_loop_path"
@@ -273,7 +284,7 @@ if [ "$root" = "wootc" ]; then
 
     blockdev --setra 2048 "$LOOP_DEV"
 
-    if ! mount -t xfs -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
+    if ! mount -t btrfs -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
         die "wootc: failed to mount loop root to \$NEWROOT"
     fi
 
@@ -294,7 +305,7 @@ that preserves the nesting hierarchy:
 
 ```
 # /etc/fstab inside root.disk
-/host/wootc/disks/root.disk  /  xfs  defaults,noatime,loop  0  0
+/host/wootc/disks/root.disk  /  btrfs  defaults,noatime,loop,compress=zstd  0  0
 ```
 
 This tells the installed system: "the root device is the loop file on
@@ -307,8 +318,12 @@ Unlike the deployer (which can safely mount NTFS read-only since it only
 reads root.disk to set up the loop device), the installed system **must**
 write to its root filesystem. If the host NTFS is mounted read-only, the
 loop device inherits the physical write block — every write to the Linux
-root fails at the block layer. The `force` recovery mount handles the
-case where Windows left the volume marked dirty (Fast Startup).
+root fails at the block layer.
+
+If ntfs3 refuses to mount (because Windows was hibernated or not shut
+down cleanly), wootc directs the user to boot Windows once and perform
+a full shutdown. It does **not** use `mount -o force` — writing to a
+dirty NTFS volume risks silent corruption of the Windows filesystem.
 
 ---
 
@@ -347,14 +362,31 @@ populate root.disk with the chosen bootc image.
 11. reboot
 ```
 
-### 2.3 Fisherman Recipe
+### 2.3 Filesystem: Btrfs by Default
+
+wootc defaults to **Btrfs** for the root filesystem inside `root.disk`.
+Btrfs is a better match for immutable bootc systems than XFS:
+
+- **Transparent compression** (zstd): reduces disk usage inside the
+  already-space-constrained loop file
+- **Snapshots and rollback**: pairs naturally with bootc's atomic
+  update model — snapshot before `bootc update`, rollback if needed
+- **Reflinks** (`cp --reflink`): OCI layer extraction uses copy-on-write
+  instead of full copies, dramatically reducing deploy time and disk usage
+- **Send/receive**: efficient backup and migration of the root filesystem
+- **Subvolumes**: `/` and `/home` on separate subvolumes, same filesystem
+
+Fisherman supports Btrfs natively, including `@` and `@home` subvolume
+layout when `btrfsSubvolumes: true` is set in the recipe.
+
+### 2.4 Fisherman Recipe
 
 Generated at deploy time from kernel cmdline args:
 
 ```json
 {
   "disk": "/dev/loop0",
-  "filesystem": "xfs",
+  "filesystem": "btrfs",
   "composeFsBackend": false,
   "bootloader": "grub2",
   "image": "ghcr.io/tuna-os/yellowfin:gnome",
@@ -371,7 +403,7 @@ handles:
 - **Install**: `podman run --privileged <image> bootc install to-filesystem /target`
 - **Post**: flatpak copy, hostname write, Plymouth args, LUKS args, Bluetooth/WiFi sync, audio config, cache warm, fstrim/remount-ro/fsfreeze finalize
 
-### 2.4 Post-deployment: loop-root dracut module
+### 2.5 Post-deployment: loop-root dracut module
 
 After bootc install to-filesystem completes, fisherman runs a post-install
 hook that injects the `99wootc-boot` dracut module into the installed
@@ -438,11 +470,14 @@ The Windows installer must detect and mitigate two silent failure modes
 before the user ever reboots. If left unchecked, both cause confusing
 first-boot failures.
 
-#### BitLocker Detection
+#### BitLocker: Suspend, Don't Block
 
 If the Windows C: drive is encrypted with BitLocker, the deployer
 initramfs will see the NTFS volume as random noise and fail to find
-`/wootc/disks/root.disk`.
+`/wootc/disks/root.disk`. Rather than blocking installation entirely,
+wootc can **temporarily suspend** BitLocker protection for one reboot —
+the disk remains encrypted, but the key is cached in the TPM for the
+next boot cycle.
 
 **Detection** — the installer queries volume status before creating any files:
 
@@ -454,12 +489,22 @@ manage-bde -status C:
 
 | BitLocker status | Action |
 |---|---|
-| Protection On | **Hard block.** Show UI: "BitLocker is enabled on C:. wootc requires an unencrypted NTFS volume. Suspend BitLocker in Windows Settings, then retry." |
-| Encryption In Progress | **Hard block.** Show UI: "Windows is currently encrypting C:. Wait for encryption to complete or cancel it, then retry." |
-| Protection Off / Fully Decrypted | Proceed normally. |
+| Protection On | **Offer suspension.** Show: "BitLocker is enabled. wootc can temporarily suspend protection for one reboot. The disk remains encrypted and protection resumes automatically when you next boot Windows. [Suspend and Continue] [Learn More] [Cancel]" |
+| Encryption In Progress | **Hard block.** Show: "Windows is currently encrypting C:. Wait for encryption to complete or cancel it, then retry." |
+| Protection Off | Proceed normally. |
+| Fully Decrypted | Proceed normally. |
 
-Per-directory encryption (the default on modern Windows 11 Home) does
-not block wootc — only full-volume BitLocker does.
+**Suspension command** (run with user consent):
+
+```cmd
+manage-bde -protectors -disable C:
+```
+
+This leaves the disk encrypted but suspends protection for one reboot.
+After the deployer runs and the user boots back into Windows, BitLocker
+reactivates automatically. Per-directory encryption (Windows 11 Home
+default) does not block wootc at all — only full-volume BitLocker
+requires this step.
 
 #### Fast Startup Mitigation
 
@@ -573,69 +618,124 @@ ESP:\EFI\systemd\               # systemd-boot path
 
 ---
 
-## 4. Migration Path: wootc → Native Linux
+## 4. Migration: Transparent Passthrough + Staged Native Conversion
 
-wootc is a reversible on-ramp. Users who decide to stay can graduate to a
-proper native install — reclaiming the full disk, removing Windows, and
-bringing their data.
+wootc's defining feature is **transparent passthrough**: instead of
+immediately copying everything, the installed system uses Windows
+resources directly. Documents, Pictures, Downloads, Steam libraries,
+and browser profiles are accessible from day one via bind mounts into
+the Linux home directory. No long initial copy. No "where are my files?"
 
-### 4.1 The bootc advantage
+Weeks or months later, the user can choose to convert to native Linux
+storage — one category at a time, at their own pace.
 
-The system is defined by the OCI image, not the installation method. A
-wootc system running from `root.disk` is identical to the same image
-installed to a real partition. Migration is deploying the same image to
-real disk and moving user data.
+### 4.1 Transparent Passthrough (Day One)
 
-### 4.2 Three-phase migration
-
-#### Phase 1: Assessment
-
-The migration tool (run from within the wootc system before repartitioning)
-scans the Windows NTFS partition and presents a summary:
+On first boot into the installed system, the `99wootc-boot` dracut module
+mounts the Windows NTFS partition at `/sysroot/host`. A systemd service
+(`wootc-passthrough.service`) then creates bind mounts:
 
 ```
-┌──────────────────────────────────────────────┐
-│ Windows partition: /dev/nvme0n1p3 (NTFS)     │
-│                                               │
-│ Total:    475 GB                              │
-│ Used:     189 GB                              │
-│                                               │
-│ User data found:                              │
-│   ☑ Users/james/Documents      12.3 GB       │
-│   ☑ Users/james/Pictures        8.1 GB       │
-│   ☑ Users/james/Downloads       4.2 GB       │
-│   ☐ Users/james/AppData        15.7 GB       │
-│   ☐ Windows/                   42.1 GB       │
-│                                               │
-│ [Select what to migrate]  [Start Migration]   │
-└──────────────────────────────────────────────┘
+/host/Users/<name>/Documents    →  /home/<name>/Documents
+/host/Users/<name>/Pictures     →  /home/<name>/Pictures
+/host/Users/<name>/Downloads    →  /home/<name>/Downloads
+/host/Users/<name>/Music        →  /home/<name>/Music
+/host/Users/<name>/Videos       →  /home/<name>/Videos
+/host/Users/<name>/Desktop      →  /home/<name>/Desktop
 ```
 
-fisherman already has **Slurp** — a Windows data extraction subsystem
-that reads NTFS user directories before partitioning. The migration tool
-exposes this to the user as a selection UI.
+The user sees their Windows files immediately inside their Linux home
+directory. No copy. No import wizard. Files are writable from Linux
+(via the rw NTFS mount).
 
-#### Phase 2: Data extraction
+**Steam libraries** are detected and reused in-place:
 
-User selects categories. fisherman's Slurp extracts them from NTFS to a
-staging area in RAM (/run/fisherman-slurp).
+```
+/host/Program Files (x86)/Steam/steamapps/  →  detected by Steam Linux
+```
 
-#### Phase 3: Repartition and install
+The system writes a `libraryfolders.vdf` that points to the Windows
+Steam library. Games appear immediately — no re-download. Proton handles
+compatibility automatically.
 
-1. Shrink the NTFS partition (or confirm full wipe)
-2. Run fisherman with a recipe that:
-   - Targets the real disk (not a loop device)
-   - Uses `slurp` field to inject extracted data post-install
-3. User data lands in `/home/` on the new native install
-4. Old NTFS can be kept as a data partition or wiped
+**Browser profiles** are detected and offered for import:
 
-### 4.3 End state options
+| Windows browser | Linux equivalent | What migrates |
+|---|---|---|
+| Chrome | Chrome (Flatpak) | bookmarks, history, passwords (with consent) |
+| Edge | Chrome (Flatpak) | bookmarks, history |
+| Firefox | Firefox (Flatpak) | bookmarks, history, passwords, extensions |
 
-| Option | Layout |
+### 4.2 Staged Native Conversion
+
+At any point, the user can open the wootc migration panel and convert
+individual categories to native Linux storage:
+
+```
+┌──────────────────────────────────────────────────┐
+│ wootc Migration                                   │
+│                                                   │
+│ ☑ Windows Documents → Linux    (12.3 GB)  [Done] │
+│ ☑ Steam libraries → Linux      (45.1 GB)  [Done] │
+│ ☐ Browser profile              (0.2 GB)   [Move] │
+│ ☐ Pictures → Linux             (8.1 GB)   [Move] │
+│ ☐ Keep Windows dual-boot                     [ ] │
+│                                                   │
+│ Stage 5: Remove Windows       (frees 189 GB) [ → ]│
+└──────────────────────────────────────────────────┘
+```
+
+Each stage is independent and reversible (before deletion):
+
+| Stage | Action | Reversible? |
+|---|---|---|
+| 1. Use Windows Documents | Bind-mount into `$HOME` | Yes (undo bind mount) |
+| 2. Use Steam libraries | Detect and reference in-place | Yes (nothing changed) |
+| 3. Import browser profile | Copy bookmarks/passwords/history | Yes (delete imported profile) |
+| 4. Convert Documents to native | Copy files, update bind mount | Yes (files still on NTFS until stage 6) |
+| 5. Convert home to native | Move `$HOME` to native Linux filesystem | Yes (snapshot rollback) |
+| 6. Remove Windows | Delete Windows partition, expand Linux | **No** (Windows is gone) |
+
+### 4.3 App Detection
+
+During installation, the deployer scans the Windows partition for
+installed applications and offers Linux equivalents via Flatpak:
+
+| Windows app detected | Linux equivalent |
 |---|---|
-| Full Linux, keep data | ESP + /boot + / (xfs) + /data (NTFS, old files) |
-| Full Linux, clean | ESP + /boot + / (xfs) + /home (xfs) |
-| Keep dual-boot, native Linux | ESP + Windows (NTFS, shrunk) + /boot + / (xfs) |
+| Visual Studio Code | `com.visualstudio.code` |
+| Discord | `com.discordapp.Discord` |
+| Spotify | `com.spotify.Client` |
+| Steam | `com.valvesoftware.Steam` |
+| Firefox | `org.mozilla.firefox` |
+| Chrome | `com.google.Chrome` |
+| OBS Studio | `com.obsproject.Studio` |
+| GIMP | `org.gimp.GIMP` |
+| VLC | `org.videolan.VLC` |
+
+These are added to the fisherman recipe's `flatpaks` field and
+pre-installed during deployment.
+
+### 4.4 Windows-Style Mode
+
+On first login, the system can optionally adopt the Windows host's
+aesthetics to reduce the visual shock of switching OS:
+
+- Same wallpaper (extracted via fisherman's Slurp)
+- Same accent color
+- Same hostname
+- Same timezone and keyboard layout
+- Browser set to the same homepage
+
+This is a "first boot only" mode. The user can switch to the distro's
+native defaults at any time from the settings panel.
+
+### 4.5 The bootc advantage
+
+Throughout this entire migration, the OS itself never changes. The same
+OCI image boots whether the root filesystem is inside `root.disk` on NTFS
+or on a native Btrfs partition. Migration is deploying the same image to
+real disk and updating fstab. No reinstall, no reconfiguration.
 
 ---
 
@@ -664,7 +764,24 @@ clean ESP entries.
 
 ---
 
-## 6. Key Dependencies
+## 6. License
+
+The Windows installer component (`windows/`) is adapted from
+[WubiUEFI](https://github.com/hakuna-m/wubiuefi) which is licensed under
+**GPL-2.0**. Any code derived from or incorporating WubiUEFI source must
+retain the GPL-2.0 license.
+
+The deployer initramfs and GRUB configuration are original work and
+licensed under **MIT**.
+
+Fisherman, bootc, bootupd, podman, and skopeo are each distributed under
+their own licenses (Apache-2.0 for all listed). These are linked or
+executed as separate binaries at runtime, not incorporated into wootc
+source. This architectural separation — GPL-2.0 Windows installer
+communicating with an MIT-licensed deployer over a process boundary
+(WinRM → initramfs) — ensures clean license boundaries.
+
+## 7. Key Dependencies
 
 | Project | Role | License |
 |---|---|---|
@@ -677,7 +794,7 @@ clean ESP entries.
 
 ---
 
-## 7. Project Structure
+## 8. Project Structure
 
 ```
 wootc/
@@ -703,7 +820,7 @@ wootc/
 
 ---
 
-## 8. Open Questions
+## 9. Open Questions
 
 1. **Secure Boot with GRUB2**: WubiUEFI uses shim for Secure Boot. wootc
    inherits this for the GRUB2 path. systemd-boot has native Secure Boot
@@ -712,31 +829,44 @@ wootc/
 2. **ARM64 Windows**: WubiUEFI supports x86_64 only. ARM64 Windows devices
    (Surface Pro X, etc.) use a completely different boot chain. Deferred.
 
-3. **ntfs3 force mount safety**: The `force` flag in the mount hook handles
-   dirty NTFS volumes (Fast Startup), but writes to a dirty NTFS partition
-   carry theoretical corruption risk. In practice, ntfs3's `force` mode
-   has been stable since Linux 6.1. Should still be tested extensively.
-
-4. **systemd-boot kernel sync hook**: The `bootc post-transaction` hook
+3. **systemd-boot kernel sync hook**: The `bootc post-transaction` hook
    that copies kernels from inside root.disk to the ESP needs to handle
    the case where root.disk is not yet mounted at hook execution time.
    May need to be a systemd path unit instead.
 
----
+4. **root.vhdx vs root.disk**: Consider using VHDX format instead of raw
+   disk images. Windows tooling natively understands VHD/VHDX for
+   mounting, backup, and resizing. Linux supports them well. A user could
+   mount their Linux disk from within Windows for recovery. Deferred to
+   post-MVP.
 
-## 9. Build & Test
+5. **Integrity verification**: OCI digest, deployer initramfs checksum,
+   kernel checksum, and root.disk integrity should be verified before
+   every boot. Corruption should trigger a repair path rather than a
+   kernel panic. Deferred.
+
+6. **Migration reversibility**: Snapshots before each migration stage
+   would allow the user to undo. Btrfs snapshots inside root.disk make
+   this possible. Deferred until btrfs is the default.
+
+## 10. Build & Test
 
 ```bash
 # Clone with submodules
 git clone --recurse-submodules https://github.com/tuna-os/wootc.git
 cd wootc
 
-# Build deployer initramfs
-cd deployer
-podman build -t wootc-deployer .
-podman run --rm -v $(pwd)/out:/out wootc-deployer
-# → out/vmlinuz, out/initramfs.img
+# Build deployer initramfs (from repo root)
+podman build -f deployer/Containerfile -t wootc-deployer .
+mkdir -p deployer/out
+podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+    /out/initramfs.img > deployer/out/initramfs.img
+podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+    /out/vmlinuz > deployer/out/vmlinuz
 
-# Test with QEMU (requires an NTFS partition image with C:\wootc\ structure)
-# TBD: test harness using qemu + Windows PE + wootc files
+# Full e2e test (requires KVM)
+cd tests/e2e && ./run-e2e.sh
+
+# CI-only tests (no KVM needed)
+shellcheck --severity=warning deployer/*.sh deployer/99wootc-boot/*.sh tests/e2e/run-e2e.sh
 ```

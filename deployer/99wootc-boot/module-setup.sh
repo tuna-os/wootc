@@ -12,7 +12,7 @@ depends() {
 }
 
 installkernel() {
-    instmods ntfs3 loop xfs
+    instmods ntfs3 loop btrfs
 }
 
 install() {

@@ -92,7 +92,8 @@ RECIPE="/tmp/recipe.json"
 cat > "$RECIPE" << EOF
 {
   "disk": "${LOOP_DEV}",
-  "filesystem": "xfs",
+  "filesystem": "btrfs",
+  "btrfsSubvolumes": true,
   "composeFsBackend": false,
   "unifiedStorage": false,
   "selinuxDisabled": false,
