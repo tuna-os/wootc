@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: ShellCheck
+        run: |
+          shellcheck deployer/deploy.sh
+          shellcheck deployer/init
+          shellcheck deployer/module-setup.sh
+          shellcheck deployer/99wootc-boot/*.sh
+          shellcheck tests/e2e/run-e2e.sh
+          shellcheck grub/*.cfg || true  # GRUB cfg is not bash
+
+      - name: yamllint
+        run: |
+          pip install yamllint
+          yamllint tests/e2e/compose.yml
+
+      - name: Validate autounattend.xml
+        run: |
+          pip install xmlschema
+          python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('tests/e2e/autounattend.xml')
+          print('XML is well-formed')
+          root = tree.getroot()
+          assert root.tag == '{urn:schemas-microsoft-com:unattend}unattend'
+          print('Root element is unattend')
+          "
+
+  build-deployer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build deployer
+        run: |
+          podman build -f deployer/Containerfile -t wootc-deployer .
+
+      - name: Extract artifacts
+        run: |
+          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/initramfs.img > deployer-initramfs.img
+          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/vmlinuz > deployer-vmlinuz
+          ls -lah deployer-initramfs.img deployer-vmlinuz
+
+      - name: Upload deployer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wootc-deployer
+          path: |
+            deployer-initramfs.img
+            deployer-vmlinuz
+          retention-days: 7
+
+  validate-recipe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build fisherman
+        run: |
+          cd fisherman/fisherman
+          go build -o /tmp/fisherman ./cmd/fisherman/
+
+      - name: Validate default recipe
+        run: |
+          cat > /tmp/test-recipe.json << 'EOF'
+          {
+            "disk": "/dev/loop0",
+            "filesystem": "xfs",
+            "composeFsBackend": false,
+            "bootloader": "grub2",
+            "image": "ghcr.io/tuna-os/yellowfin:gnome",
+            "hostname": "wootc-test",
+            "flatpaks": []
+          }
+          EOF
+          /tmp/fisherman validate /tmp/test-recipe.json
