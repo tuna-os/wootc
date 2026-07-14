@@ -855,7 +855,10 @@ real disk and updating fstab. No reinstall, no reconfiguration.
 
 ## 5. Uninstall
 
-wootc is fully reversible:
+wootc is fully reversible. The uninstall flow adapts based on where
+root.disk was stored.
+
+### 5.1 Normal Uninstall (root.disk on C:)
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -872,9 +875,81 @@ wootc is fully reversible:
 └──────────────────────────────────────────────┘
 ```
 
+### 5.2 Partition-Aware Uninstall (root.disk on D:)
+
+When wootc created a separate partition (BitLocker mode or user choice),
+the uninstaller detects this and offers to clean it up:
+
+```
+┌───────────────────────────────────────────────────┐
+│ wootc Uninstaller                                  │
+│                                                    │
+│ wootc is installed on drive D: (wootc-data).       │
+│                                                    │
+│ This will:                                         │
+│  ☑ Remove the wootc boot entry from Windows        │
+│  ☑ Delete D:\wootc\ (including root.disk)          │
+│  ☑ Remove GRUB from ESP                            │
+│                                                    │
+│ D: was created by wootc and only contains Linux.   │
+│                                                    │
+│  ☐ Also remove D: and return space to C:           │
+│      This will extend C: by 60 GB                  │
+│                                                    │
+│ [Uninstall + Remove Partition]  [Uninstall Only]   │
+│ [Cancel]                                           │
+└───────────────────────────────────────────────────┘
+```
+
+**Detection logic** — the uninstaller inspects the partition before
+offering cleanup:
+
+```powershell
+# Check if D: was created by wootc (only contains wootc directory)
+$items = Get-ChildItem D:\ -Force | Where-Object {
+    $_.Name -ne '$RECYCLE.BIN' -and
+    $_.Name -ne 'System Volume Information' -and
+    $_.Name -ne 'wootc'
+}
+
+if ($items.Count -eq 0) {
+    # D: was created by wootc and contains only wootc data.
+    # Offer to remove the partition and extend C: back.
+    $wasCreatedByWootc = $true
+}
+```
+
+**Partition removal + C: extension:**
+
+```powershell
+# 1. Remove D: partition
+$partition = Get-Partition -DriveLetter D
+$diskNumber = $partition.DiskNumber
+Remove-Partition -DriveLetter D -Confirm:$false
+
+# 2. Extend C: into the freed space
+$cPartition = Get-Partition -DriveLetter C
+Resize-Partition -DriveLetter C -Size ($cPartition.Size + $partition.Size)
+```
+
+If D: contains other user files (not just wootc), the "remove D:"
+option is hidden — the user only sees "Uninstall [Keep D:]".
+
+### 5.3 ESP Cleanup
+
+Both modes clean the EFI System Partition:
+
+```powershell
+# Remove GRUB2
+Remove-Item "$($esp.DriveLetter):\EFI\wootc" -Recurse -Force -ErrorAction SilentlyContinue
+
+# Remove systemd-boot (if used)
+Remove-Item "$($esp.DriveLetter):\EFI\systemd" -Recurse -Force -ErrorAction SilentlyContinue
+```
+
 Implementation: `wubi.exe` already has an uninstall mode that removes BCD
-entries and deletes the installation directory. wootc extends this to also
-clean ESP entries.
+entries and deletes the installation directory. wootc extends this with
+partition detection, ESP cleanup, and optional partition undo.
 
 ---
 
