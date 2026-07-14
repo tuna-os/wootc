@@ -396,17 +396,128 @@ populate root.disk with the chosen bootc image.
      wootc.flatpaks=org.mozilla.firefox,...          (optional)
      wootc.luks=none|tpm2-luks|luks-passphrase       (optional)
      wootc.luks-passphrase=...                        (optional)
-     wootc.debug                                      (optional)
+     wootc.vault=/wootc/install/vault.json          (optional, secure credentials)
 5. Find NTFS partition containing /wootc/disks/root.disk
 6. Mount NTFS read-write at /mnt/ntfs (in-kernel ntfs3 driver, Linux 5.15+)
-7. losetup -fP /mnt/ntfs/wootc/disks/root.disk
-8. Write fisherman recipe JSON → /tmp/recipe.json
-9. Run: fisherman /tmp/recipe.json
-10. losetup -d, umount
-11. reboot
+7. If wootc.vault= is set: ingest vault.json, shred it from NTFS
+8. losetup -fP /mnt/ntfs/wootc/disks/root.disk
+9. Write fisherman recipe JSON → /tmp/recipe.json
+10. Run: fisherman /tmp/recipe.json
+11. losetup -d, umount
+12. reboot
 ```
 
-### 2.3 Filesystem Selection
+### 2.3 Secure Credential Handoff (vault.json)
+
+Passing user credentials from Windows to the non-interactive Linux
+deployer requires care: plain-text passwords must never appear in
+`/proc/cmdline` (readable by unprivileged processes and captured in
+logs) or persist on the unencrypted NTFS partition after deployment.
+
+wootc uses a **transient host-file payload with client-side hashing**:
+
+```
+┌────────────────────────────────────────────────────────┐
+│ WINDOWS (wootc.exe)                                    │
+│ 1. Hash password → $y$ yescrypt / $6$ SHA-512         │
+│ 2. Write C:\wootc\install\vault.json (ACL-restricted)  │
+└───────────────────────────┬────────────────────────────┘
+                            │ Reboot
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│ DEPLOYER INITRAMFS                                     │
+│ 3. Mount NTFS, read vault.json                         │
+│ 4. Merge credentials into fisherman recipe             │
+│ 5. shred -u vault.json                                 │
+└───────────────────────────┬────────────────────────────┘
+                            │ fisherman runs
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│ TARGET SYSTEM                                          │
+│ 6. User account, hostname, timezone injected           │
+└────────────────────────────────────────────────────────┘
+```
+
+#### Windows Side: Hash Before Storage
+
+wootc.exe does not store or forward raw passwords. It uses a bundled
+native `libcrypt` implementation to hash credentials before they leave
+the process:
+
+- **Yescrypt (`$y$`)** for Fedora/RHEL derivatives
+- **SHA-512 (`$6$`)** for Enterprise Linux compatibility
+- A random crypt-compliant salt is generated per installation
+
+**vault.json** is written to `C:\wootc\install\vault.json` with
+Windows ACLs restricting read access to `SYSTEM` and `Administrators`:
+
+```json
+{
+  "hostname": "tunaos",
+  "username": "james",
+  "password_hash": "$y$j9T$RlhOWV...$v9zZ291aEF...",
+  "timezone": "America/New_York",
+  "locale": "en_US.UTF-8"
+}
+```
+
+#### Bootloader Link
+
+A **single reference** is passed via the kernel cmdline — no credentials
+ever appear in the bootloader config or `/proc/cmdline`:
+
+```
+wootc.vault=/wootc/install/vault.json
+```
+
+#### Deployer Side: Ingest, Merge, Shred
+
+The deployer initramfs handles the vault in three steps:
+
+1. **Mount NTFS** — the host partition is already mounted at
+   `/run/initramfs/wootc-host`.
+2. **Locate vault** — reads `wootc.vault` from `/proc/cmdline`,
+   confirms the file exists, parses JSON into in-memory variables.
+3. **Merge into recipe** — injects credentials into the fisherman
+   recipe's `user` field:
+
+```json
+{
+  "disk": "/dev/loop0",
+  "image": "ghcr.io/tuna-os/yellowfin:gnome",
+  "hostname": "tunaos",
+  "user": {
+    "username": "james",
+    "password": "$y$j9T$RlhOWV...",
+    "groups": ["wheel", "video", "audio"]
+  }
+}
+```
+
+#### Self-Destruct
+
+Before fisherman begins deployment, the vault file is securely erased:
+
+```bash
+shred -u /run/initramfs/wootc-host/wootc/install/vault.json
+```
+
+This runs **before** a single OCI layer is extracted. Even if the
+machine loses power mid-installation, no authentication metadata
+persists on the unencrypted NTFS partition.
+
+#### Target Provisioning
+
+fisherman's post-install hooks write the hashed password into
+`/target/etc/shadow`, the username into `/target/etc/passwd`, the
+hostname into `/target/etc/hostname`, and the timezone/locale into
+`/target/etc/localtime` and `/target/etc/locale.conf`.
+
+On first boot, the display manager presents a login prompt. The user
+types the same password they chose on Screen 1 — it matches the hash.
+No cleartext ever touched disk.
+
+### 2.4 Filesystem Selection
 
 wootc supports three root filesystems. The default is chosen based on
 the target distro's native preference:
@@ -430,9 +541,9 @@ integration with bootc's atomic update model, transparent zstd
 compression (saves space inside the loop file), and reflink copy
 (accelerates OCI layer extraction).
 
-### 2.4 Fisherman Recipe
+### 2.5 Fisherman Recipe
 
-Generated at deploy time from kernel cmdline args:
+Generated at deploy time from kernel cmdline args (and vault.json if provided):
 
 ```json
 {
@@ -446,6 +557,11 @@ Generated at deploy time from kernel cmdline args:
   "image": "ghcr.io/tuna-os/yellowfin:gnome",
   "hostname": "tunaos",
   "flatpaks": ["org.mozilla.firefox"],
+  "user": {
+    "username": "james",
+    "password": "$y$j9T$RlhOWV...",
+    "groups": ["wheel", "video", "audio"]
+  },
   "slurpWallpapers": true
 }
 ```
@@ -457,7 +573,7 @@ handles:
 - **Install**: `podman run --privileged <image> bootc install to-filesystem /target`
 - **Post**: flatpak copy, hostname write, Plymouth args, LUKS args, Bluetooth/WiFi sync, audio config, cache warm, fstrim/remount-ro/fsfreeze finalize
 
-### 2.5 LUKS Encryption
+### 2.6 LUKS Encryption
 
 wootc supports LUKS encryption of the root filesystem inside root.disk.
 This protects the Linux system even though the host NTFS partition is
@@ -500,7 +616,7 @@ deployer initramfs where `/dev/tpm0` is accessible. fisherman's
 If Secure Boot is not available, PCR 0+1 (firmware + configuration)
 fallback is used.
 
-### 2.6 Post-deployment: loop-root dracut module
+### 2.7 Post-deployment: loop-root dracut module
 
 After bootc install to-filesystem completes, fisherman runs a post-install
 hook that injects the `99wootc-boot` dracut module into the installed
@@ -588,8 +704,19 @@ the seamless dual-boot experience wootc aims for.
 | Mode | C: status | root.disk location | UX |
 |---|---|---|---|
 | **Normal** | No BitLocker | `C:\wootc\disks\root.disk` | Best — just works |
-| **BitLocker** | BitLocker-protected C: | Separate unencrypted NTFS partition (e.g. `D:\wootc\disks\root.disk`) | Good — user picks or creates a data partition |
+| **BitLocker (auto)** | BitLocker-protected C: | Auto-created D: partition | Good — one click, C: stays protected |
+| **BitLocker (manual)** | BitLocker-protected C: | User-selected unencrypted partition | OK — user picks an existing drive |
 | **Native** | Any | Native Linux partition (post-migration) | Best — no NTFS dependency |
+
+> **Why "Suspend BitLocker" alone doesn't work**: BitLocker suspension
+> writes the VMK to volume metadata so Windows can boot without TPM,
+> but the sectors remain encrypted. Linux's `ntfs3` driver cannot
+> decrypt BitLocker volumes — it sees raw ciphertext. The deployer
+> would fail to find `/wootc/disks/root.disk` on an encrypted volume
+> regardless of suspension state.
+>
+> The only viable BitLocker paths are: (a) use an unencrypted data
+> partition for root.disk, or (b) fully decrypt C: before installing.
 
 **Normal mode detection** — the installer queries volume status:
 
@@ -600,8 +727,15 @@ manage-bde -status C:
 | BitLocker status | Action |
 |---|---|
 | Fully Decrypted | Proceed in Normal mode. |
-| Protection On | Present BitLocker mode options (see below). |
+| Protection On | Offer auto-create D: or manual partition selection. |
 | Encryption In Progress | Hard block. "Windows is encrypting C:. Wait for completion." |
+
+> **Why no "suspend and continue" option**: BitLocker suspension allows
+> Windows to boot without TPM by writing the VMK to volume metadata, but
+> the NTFS sectors remain encrypted on disk. Linux's `ntfs3` driver has
+> no BitLocker decryption capability — it would see raw ciphertext and
+> fail to find root.disk. The only viable path is storing root.disk on
+> an unencrypted partition.
 
 **BitLocker mode UX — auto-create a data partition:**
 
@@ -847,8 +981,8 @@ If a hazard is found, a modal interrupts the flow:
 +-------------------------------------------------------------------------+
 | ⚠ BitLocker Drive Encryption Active                                     |
 +-------------------------------------------------------------------------+
-| wootc cannot host a Linux loop-root file inside an active BitLocker     |
-| encrypted volume. Choose an option below to proceed safely:            |
+| wootc cannot read an encrypted NTFS volume from Linux.                   |
+| The root.disk file must live on an unencrypted partition.                |
 |                                                                         |
 |  (•) Automatically Create an Unencrypted Data Partition                 |
 |      Shrink C: non-destructively by 60 GB to generate a new D:\ drive   |
@@ -856,9 +990,6 @@ If a hazard is found, a modal interrupts the flow:
 |                                                                         |
 |  ( ) Install to an alternative unencrypted data partition               |
 |      Target Drive: [ E:\ (Backup Drive - 180 GB Free)               | 🠟 ] |
-|                                                                         |
-|  ( ) Temporarily Suspend BitLocker                                      |
-|      Suspends encryption for a single boot window to perform setup.     |
 |                                                                         |
 |                        [ Proceed ]    [ Abort Installation ]            |
 +-------------------------------------------------------------------------+
@@ -982,7 +1113,7 @@ mode (dedicated D: partition):
 | Initial State | User Action | UI Transition | Execution |
 |---|---|---|---|
 | Fresh Host | Launch wootc.exe | → Screen 1 (Launchpad) | Parameter validation |
-| Fresh Host | Click "Install" with BitLocker active | → Screen 1.5 (Case A) | Drive resize automation |
+| Fresh Host | Click "Install" with BitLocker active | → Screen 1.5 (Case A) | Auto-create D: or manual partition selection |
 | Fresh Host | All checks green | → Screen 2 (Progress) | BCD alteration + reboot |
 | Deployed Host | Launch wootc.exe | → Screen 3 (Control Panel) | Route splitting |
 | Deployed Host | Click "Launch VM" | → Minimize to tray | QEMU via WHPX on root.disk |

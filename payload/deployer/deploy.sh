@@ -35,12 +35,30 @@ read_cmdline() {
     echo "$default"
 }
 
+# ── Parse kernel cmdline ────────────────────────────────────────────────────
+read_cmdline() {
+    local key="$1" default="${2:-}"
+    local arg source="${3:-/proc/cmdline}"
+    # Read the full cmdline (may be one space-separated line),
+    # split into words, and find the matching key=value pair
+    while IFS= read -r line; do
+        # shellcheck disable=SC2013  # intentional word splitting on cmdline
+        for arg in $line; do
+            case "$arg" in
+                "${key}="*) echo "${arg#*=}"; return ;;
+            esac
+        done
+    done < "$source"
+    echo "$default"
+}
+
 IMAGE="$(read_cmdline wootc.image)"
 FILESYSTEM="$(read_cmdline wootc.filesystem xfs)"
 HOSTNAME="$(read_cmdline wootc.hostname tunaos)"
 FLATPAKS="$(read_cmdline wootc.flatpaks)"
 LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
+VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
 
 if [[ -z "$IMAGE" ]]; then
@@ -84,6 +102,27 @@ losetup -fP "$DISK"
 LOOP_DEV=$(losetup -j "$DISK" | cut -d: -f1)
 log "Loop device: ${LOOP_DEV}"
 
+# ── Ingest vault.json (secure credential handoff) ───────────────────────────
+VAULT_USER=""
+VAULT_PASSWORD_HASH=""
+if [[ -n "$VAULT_PATH" ]]; then
+    VAULT_FILE="/mnt/ntfs${VAULT_PATH}"
+    if [[ -f "$VAULT_FILE" ]]; then
+        log "Ingesting vault.json from ${VAULT_FILE}..."
+        VAULT_USER=$(jq -r '.username // empty' "$VAULT_FILE" 2>/dev/null || true)
+        VAULT_PASSWORD_HASH=$(jq -r '.password_hash // empty' "$VAULT_FILE" 2>/dev/null || true)
+        VAULT_HOSTNAME=$(jq -r '.hostname // empty' "$VAULT_FILE" 2>/dev/null || true)
+        if [[ -n "$VAULT_HOSTNAME" ]]; then
+            HOSTNAME="$VAULT_HOSTNAME"
+        fi
+        # Shred before deployment — no credentials persist on NTFS
+        log "Shredding vault.json..."
+        shred -u "$VAULT_FILE" 2>/dev/null || rm -f "$VAULT_FILE"
+    else
+        log "vault.json not found at ${VAULT_FILE} — using cmdline defaults"
+    fi
+fi
+
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
 # Flatpaks, and kernel cmdline injection. We just point it at the loop device.
@@ -103,6 +142,12 @@ if [[ "$LUKS_TYPE" != "none" ]]; then
     fi
 fi
 
+# Build user JSON if vault provided credentials
+USER_JSON=""
+if [[ -n "$VAULT_USER" && -n "$VAULT_PASSWORD_HASH" ]]; then
+    USER_JSON=",\"user\": { \"username\": \"${VAULT_USER}\", \"password\": \"${VAULT_PASSWORD_HASH}\", \"groups\": [\"wheel\", \"video\", \"audio\"] }"
+fi
+
 RECIPE="/tmp/recipe.json"
 cat > "$RECIPE" << EOF
 {
@@ -114,7 +159,7 @@ cat > "$RECIPE" << EOF
   ${LUKS_JSON},
   "image": "${IMAGE}",
   "hostname": "${HOSTNAME}",
-  "flatpaks": ${FLATPAKS_JSON}
+  "flatpaks": ${FLATPAKS_JSON}${USER_JSON}
 }
 EOF
 
