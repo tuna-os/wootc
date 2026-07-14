@@ -812,7 +812,7 @@ storage — one category at a time, at their own pace.
 ### 4.1 Transparent Passthrough (Day One)
 
 On first boot into the installed system, the `99wootc-boot` dracut module
-mounts the Windows NTFS partition at `/sysroot/host`. A systemd service
+mounts the Windows NTFS partition at `/run/initramfs/wootc-host`. A systemd service
 (`wootc-passthrough.service`) then creates bind mounts:
 
 ```
