@@ -64,7 +64,7 @@ if [ "$root" = "wootc" ]; then
     blockdev --setra 2048 "$LOOP_DEV"
 
     info "wootc: mounting loop root to \$NEWROOT..."
-    if ! mount -t btrfs -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
+    if ! mount -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
         die "wootc: failed to mount loop root"
     fi
 

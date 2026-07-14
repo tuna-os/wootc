@@ -179,7 +179,7 @@ depends() {
 }
 
 installkernel() {
-    instmods ntfs3 loop btrfs
+    instmods ntfs3 loop
 }
 
 install() {
@@ -284,7 +284,7 @@ if [ "$root" = "wootc" ]; then
 
     blockdev --setra 2048 "$LOOP_DEV"
 
-    if ! mount -t btrfs -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
+    if ! mount -o rw,noatime "$LOOP_DEV" "$NEWROOT"; then
         die "wootc: failed to mount loop root to \$NEWROOT"
     fi
 
@@ -305,7 +305,7 @@ that preserves the nesting hierarchy:
 
 ```
 # /etc/fstab inside root.disk
-/host/wootc/disks/root.disk  /  btrfs  defaults,noatime,loop,compress=zstd  0  0
+/host/wootc/disks/root.disk  /  auto  defaults,noatime,loop  0  0
 ```
 
 This tells the installed system: "the root device is the loop file on
@@ -362,22 +362,29 @@ populate root.disk with the chosen bootc image.
 11. reboot
 ```
 
-### 2.3 Filesystem: Btrfs by Default
+### 2.3 Filesystem Selection
 
-wootc defaults to **Btrfs** for the root filesystem inside `root.disk`.
-Btrfs is a better match for immutable bootc systems than XFS:
+wootc supports three root filesystems. The default is chosen based on
+the target distro's native preference:
 
-- **Transparent compression** (zstd): reduces disk usage inside the
-  already-space-constrained loop file
-- **Snapshots and rollback**: pairs naturally with bootc's atomic
-  update model — snapshot before `bootc update`, rollback if needed
-- **Reflinks** (`cp --reflink`): OCI layer extraction uses copy-on-write
-  instead of full copies, dramatically reducing deploy time and disk usage
-- **Send/receive**: efficient backup and migration of the root filesystem
-- **Subvolumes**: `/` and `/home` on separate subvolumes, same filesystem
+| Distro family | Default FS | Reason |
+|---|---|---|
+| Fedora, Rawhide, Arch, openSUSE, Gentoo | **btrfs** | Native support, compression, snapshots |
+| AlmaLinux, CentOS Stream, RHEL (EL10) | **xfs** | Red Hat's default; Btrfs not shipped |
+| Ubuntu, Debian | **ext4** | Lowest common denominator, widely compatible |
 
-Fisherman supports Btrfs natively, including `@` and `@home` subvolume
-layout when `btrfsSubvolumes: true` is set in the recipe.
+The user can override via `wootc.filesystem=btrfs|xfs|ext4` on the kernel
+cmdline. The deployer passes this through to the fisherman recipe, which
+handles `mkfs.<type>` and the correct mount options.
+
+The dracut mount hook auto-detects the filesystem type from the
+loop device (`mount` without `-t`), so the installed system boots
+correctly regardless of which filesystem was chosen at deploy time.
+
+**Btrfs** is recommended where available for its snapshot/rollback
+integration with bootc's atomic update model, transparent zstd
+compression (saves space inside the loop file), and reflink copy
+(accelerates OCI layer extraction).
 
 ### 2.4 Fisherman Recipe
 
@@ -386,7 +393,7 @@ Generated at deploy time from kernel cmdline args:
 ```json
 {
   "disk": "/dev/loop0",
-  "filesystem": "btrfs",
+  "filesystem": "xfs",
   "composeFsBackend": false,
   "bootloader": "grub2",
   "image": "ghcr.io/tuna-os/yellowfin:gnome",
@@ -466,45 +473,70 @@ sparse file creation — replaces the ISO download and preseed generation.
 
 ### 3.5 Windows Hazard Mitigation
 
-The Windows installer must detect and mitigate two silent failure modes
-before the user ever reboots. If left unchecked, both cause confusing
-first-boot failures.
+The Windows installer must detect and mitigate silent failure modes
+before the user reboots.
 
-#### BitLocker: Suspend, Don't Block
+#### BitLocker: The Fundamental Constraint
 
-If the Windows C: drive is encrypted with BitLocker, the deployer
-initramfs will see the NTFS volume as random noise and fail to find
-`/wootc/disks/root.disk`. Rather than blocking installation entirely,
-wootc can **temporarily suspend** BitLocker protection for one reboot —
-the disk remains encrypted, but the key is cached in the TPM for the
-next boot cycle.
+wootc stores `root.disk` on the Windows NTFS partition. The installed
+system must mount that NTFS partition read-write on **every boot** to
+access the loop device.
 
-**Detection** — the installer queries volume status before creating any files:
+BitLocker encrypts the NTFS volume at the sector level. Once Windows
+Boot Manager hands off to Linux, the decrypted NTFS filesystem is no
+longer accessible — Linux sees only encrypted sectors. Windows Boot
+Manager cannot expose a decrypted NTFS volume to a non-Windows boot
+chain; that's inherent to how BitLocker and the TPM trust chain work.
+
+Linux *can* unlock BitLocker volumes via `cryptsetup` or `dislocker`
+if the user provides a recovery key or password — but this would mean
+prompting for a BitLocker password on every Linux boot, which defeats
+the seamless dual-boot experience wootc aims for.
+
+**wootc supports three modes:**
+
+| Mode | C: status | root.disk location | UX |
+|---|---|---|---|
+| **Normal** | No BitLocker | `C:\wootc\disks\root.disk` | Best — just works |
+| **BitLocker** | BitLocker-protected C: | Separate unencrypted NTFS partition (e.g. `D:\wootc\disks\root.disk`) | Good — user picks or creates a data partition |
+| **Native** | Any | Native Linux partition (post-migration) | Best — no NTFS dependency |
+
+**Normal mode detection** — the installer queries volume status:
 
 ```cmd
 manage-bde -status C:
 ```
 
-**Logic:**
-
 | BitLocker status | Action |
 |---|---|
-| Protection On | **Offer suspension.** Show: "BitLocker is enabled. wootc can temporarily suspend protection for one reboot. The disk remains encrypted and protection resumes automatically when you next boot Windows. [Suspend and Continue] [Learn More] [Cancel]" |
-| Encryption In Progress | **Hard block.** Show: "Windows is currently encrypting C:. Wait for encryption to complete or cancel it, then retry." |
-| Protection Off | Proceed normally. |
-| Fully Decrypted | Proceed normally. |
+| Fully Decrypted | Proceed in Normal mode. |
+| Protection On | Present BitLocker mode options (see below). |
+| Encryption In Progress | Hard block. "Windows is encrypting C:. Wait for completion." |
 
-**Suspension command** (run with user consent):
+**BitLocker mode UX:**
 
-```cmd
-manage-bde -protectors -disable C:
+```
+┌──────────────────────────────────────────────────┐
+│ BitLocker detected on C:                          │
+│                                                   │
+│ wootc cannot store the Linux system on an         │
+│ encrypted drive. You have two options:            │
+│                                                   │
+│ (Recommended) Choose a different drive             │
+│     Select an unencrypted partition for root.disk  │
+│     Available: D: (Data, 200 GB free)             │
+│                                                   │
+│ Suspend BitLocker temporarily                     │
+│     Protection resumes on next Windows boot.      │
+│     ⚠ Only works for the install — you'll need    │
+│     a data partition for everyday dual-booting.   │
+│                                                   │
+│ [Choose Drive...]  [Suspend]  [Cancel]            │
+└──────────────────────────────────────────────────┘
 ```
 
-This leaves the disk encrypted but suspends protection for one reboot.
-After the deployer runs and the user boots back into Windows, BitLocker
-reactivates automatically. Per-directory encryption (Windows 11 Home
-default) does not block wootc at all — only full-volume BitLocker
-requires this step.
+Per-directory encryption (Windows 11 Home default) does not block
+wootc — only full-volume BitLocker requires these options.
 
 #### Fast Startup Mitigation
 

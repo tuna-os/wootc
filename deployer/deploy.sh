@@ -9,9 +9,8 @@
 #   wootc.image=ghcr.io/tuna-os/yellowfin:gnome   (required)
 #   wootc.hostname=myhost                          (optional, default: tunaos)
 #   wootc.debug                                     (optional, drops to shell)
+#   wootc.filesystem=xfs|btrfs|ext4                (optional, default: xfs for EL10, btrfs for Fedora)
 #   wootc.flatpaks=org.mozilla.firefox,...          (optional)
-
-set -euo pipefail
 
 log() { printf '\033[1;32m[wootc]\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2; }
@@ -34,6 +33,7 @@ read_cmdline() {
 }
 
 IMAGE="$(read_cmdline wootc.image)"
+FILESYSTEM="$(read_cmdline wootc.filesystem xfs)"
 HOSTNAME="$(read_cmdline wootc.hostname tunaos)"
 FLATPAKS="$(read_cmdline wootc.flatpaks)"
 DEBUG="$(read_cmdline wootc.debug)"
@@ -92,8 +92,7 @@ RECIPE="/tmp/recipe.json"
 cat > "$RECIPE" << EOF
 {
   "disk": "${LOOP_DEV}",
-  "filesystem": "btrfs",
-  "btrfsSubvolumes": true,
+  "filesystem": "${FILESYSTEM}",
   "composeFsBackend": false,
   "unifiedStorage": false,
   "selinuxDisabled": false,
