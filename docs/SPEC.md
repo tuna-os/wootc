@@ -798,7 +798,195 @@ ESP:\EFI\systemd\               # systemd-boot path
 
 ---
 
-## 4. Migration: Transparent Passthrough + Staged Native Conversion
+### 3.7 GUI Flow
+
+The Windows installer (`wootc.exe`) has four screens:
+
+#### Screen 1: Launchpad (Initial Configuration)
+
+```
++-------------------------------------------------------------------------+
+|  🐠 wootc — Windows bootc Installer                                  _ 🗙 |
++-------------------------------------------------------------------------+
+|                                                                         |
+|  Select a Linux Distribution Variant:                                   |
+|  [ 🐠 Yellowfin GNOME (AlmaLinux Kitten 10)                        | 🠟 ] |
+|    Modern GNOME desktop on Enterprise Linux. Reliable and stable.       |
+|                                                                         |
+|  Virtual Disk Size:                                                     |
+|  [======================o---------------------] 40 GB                  |
+|  (Minimum: 20 GB. Available unallocated or disk space: 240 GB)          |
+|                                                                         |
+|  Linux User Credentials:                                                |
+|  Username: [ James               ] Target Hostname: [ tunaos          ] |
+|  Password: [ ****************   ] Confirm:         [ **************** ] |
+|                                                                         |
+|  +-------------------------------------------------------------------+  |
+|  | Options: [x] Pre-allocate contiguous disk clusters (Recommended)  |  |
+|  |          [ ] Enable systemd-boot path instead of default GRUB2    |  |
+|  +-------------------------------------------------------------------+  |
+|                                                                         |
+|                        [ Try in VM ]    [ Install ]    [ Cancel ]       |
++-------------------------------------------------------------------------+
+```
+
+**Button actions:**
+- **[Try in VM]**: Bypasses BCD modification. Launches a background Alpine
+  builder VM to pull the OCI image into a local virtual disk and starts
+  QEMU immediately (§6.1). No reboot.
+- **[Install]**: Validates fields, proceeds to pre-flight checks.
+
+#### Screen 1.5: Pre-Flight Mitigation (Conditional)
+
+Before writing any data, the installer runs background system checks.
+If a hazard is found, a modal interrupts the flow:
+
+**Case A: BitLocker Detected on C:**
+
+```
++-------------------------------------------------------------------------+
+| ⚠ BitLocker Drive Encryption Active                                     |
++-------------------------------------------------------------------------+
+| wootc cannot host a Linux loop-root file inside an active BitLocker     |
+| encrypted volume. Choose an option below to proceed safely:            |
+|                                                                         |
+|  (•) Automatically Create an Unencrypted Data Partition                 |
+|      Shrink C: non-destructively by 60 GB to generate a new D:\ drive   |
+|      dedicated to wootc. Your C: drive remains protected by BitLocker.  |
+|                                                                         |
+|  ( ) Install to an alternative unencrypted data partition               |
+|      Target Drive: [ E:\ (Backup Drive - 180 GB Free)               | 🠟 ] |
+|                                                                         |
+|  ( ) Temporarily Suspend BitLocker                                      |
+|      Suspends encryption for a single boot window to perform setup.     |
+|                                                                         |
+|                        [ Proceed ]    [ Abort Installation ]            |
++-------------------------------------------------------------------------+
+```
+
+**Case B: Fast Startup Warning**
+
+```
++-------------------------------------------------------------------------+
+| ⚙ Fast Startup Deactivation Required                                    |
++-------------------------------------------------------------------------+
+| Windows Fast Startup prevents clean partition unmounting on shutdown,    |
+| which will cause the Linux deployment engine to fail.                  |
+|                                                                         |
+| [x] Automatically disable Windows Fast Startup via Registry injection   |
+|     (Highly recommended. Non-destructive).                              |
+|                                                                         |
+|                        [ Continue ]    [ Abort Installation ]           |
++-------------------------------------------------------------------------+
+```
+
+#### Screen 2: Deployment Progress
+
+Once pre-flight checks pass, the installer transitions to an active
+progress view:
+
+```
++-------------------------------------------------------------------------+
+|  🐠 wootc — Running Installation Pipeline                             _ 🗙 |
++-------------------------------------------------------------------------+
+|                                                                         |
+|  Step 1: Allocating Virtual Storage File...                             |
+|  [======================================================] 100% (Done)   |
+|                                                                         |
+|  Step 2: Downloading Deployer Kernel and Initrd Components...           |
+|  [==========================>---------------------------] 52% (4.2 MB/s) |
+|                                                                         |
+|  Step 3: Building EFI System Partition Structures & BCD Entries...      |
+|  [------------------------------------------------------] 0%            |
+|                                                                         |
+|  Current Status: Fetching 'deployer-initramfs.img' from GitHub CDN...   |
+|                                                                         |
+|                                                         [ Cancel ]      |
++-------------------------------------------------------------------------+
+```
+
+On completion, a dialog appears:
+
+```
+┌─────────────────────────────────────────────┐
+│ ✅ Installation Success!                     │
+│                                              │
+│ Your system layout is primed. A new boot     │
+│ menu option marked "wootc" has been added    │
+│ to the Windows Boot Manager.                 │
+│                                              │
+│        [ Reboot Now ]   [ Close ]            │
+└─────────────────────────────────────────────┘
+```
+
+#### Screen 3: Maintenance Control Panel (Subsequent Launches)
+
+When wootc.exe detects an existing `root.disk` installation:
+
+```
++-------------------------------------------------------------------------+
+|  🐠 wootc — System Management Panel                                   _ 🗙 |
++-------------------------------------------------------------------------+
+|                                                                         |
+|  Detected Installation: TunaOS (Yellowfin GNOME)                       |
+|  Location: C:\wootc\disks\root.disk                                     |
+|  Allocated Capacity: 40 GB                                              |
+|                                                                         |
+|  +-------------------------------------------------------------------+  |
+|  |  🚀 Boot Linux Directly Inside Windows (Virtual Machine Mode)      |  |
+|  |  Launches your actual Linux system inside a QEMU hardware-        |  |
+|  |  accelerated window using the Windows Hypervisor Platform.        |  |
+|  |  [ Launch VM ]                                                     |  |
+|  +-------------------------------------------------------------------+  |
+|                                                                         |
+|  +-------------------------------------------------------------------+  |
+|  |  🧹 Safe System Uninstallation                                    |  |
+|  |  Completely purges the Linux runtime, clears out wootc BCD entries,|  |
+|  |  reclaims the host storage space, and cleans the ESP.             |  |
+|  |  [ Uninstall wootc ]                                               |  |
+|  +-------------------------------------------------------------------+  |
+|                                                                         |
+|                                                         [ Close ]       |
++-------------------------------------------------------------------------+
+```
+
+#### Screen 4: Uninstall Wizard
+
+Adapts based on whether the system used Normal mode (C:) or BitLocker
+mode (dedicated D: partition):
+
+```
++-------------------------------------------------------------------------+
+|  🧹 wootc System Uninstallation Wizard                                 _ 🗙 |
++-------------------------------------------------------------------------+
+|                                                                         |
+|  This process will permanently delete all data stored inside your       |
+|  Linux root.disk container file.                                        |
+|                                                                         |
+|  The uninstaller will execute the following sequences:                  |
+|  ✔ Remove the 'wootc' selection item from Windows Boot Manager          |
+|  ✔ Erase the parent payload target file structure located at C:\wootc\  |
+|  ✔ Clean up wootc files from the EFI System Partition (ESP)            |
+|                                                                         |
+|  [Conditional — displayed only if separate D: partition exists]         |
+|  [x] Automatically delete partition D: (wootc-data) and extend C:       |
+|                                                                         |
+|  ⚠ Ensure all files inside the Linux sandbox are backed up!             |
+|                                                                         |
+|                        [ Confirm Uninstallation ]     [ Abort ]         |
++-------------------------------------------------------------------------+
+```
+
+#### Navigation Topology
+
+| Initial State | User Action | UI Transition | Execution |
+|---|---|---|---|
+| Fresh Host | Launch wootc.exe | → Screen 1 (Launchpad) | Parameter validation |
+| Fresh Host | Click "Install" with BitLocker active | → Screen 1.5 (Case A) | Drive resize automation |
+| Fresh Host | All checks green | → Screen 2 (Progress) | BCD alteration + reboot |
+| Deployed Host | Launch wootc.exe | → Screen 3 (Control Panel) | Route splitting |
+| Deployed Host | Click "Launch VM" | → Minimize to tray | QEMU via WHPX on root.disk |
+| Deployed Host | Click "Uninstall wootc" | → Screen 4 (Uninstaller) | Disk geometry reversion + BCD purge |
 
 wootc's defining feature is **transparent passthrough**: instead of
 immediately copying everything, the installed system uses Windows
@@ -1025,82 +1213,133 @@ wootc can boot bootc images directly on Windows using QEMU with WHPX
 (Windows Hypervisor Platform) acceleration. No reboot. Near-native
 performance. Two distinct modes:
 
-### 6.1 Fresh VM from OCI Image
+### 6.1 Fresh VM from OCI Image (Two-Stage QEMU Handoff)
 
-Pull a bootc image, build a raw disk image, and boot it in a QEMU window.
-"Try before you install" — the user can experiment with the OS, install
-packages, configure settings, all inside a VM. If they like it, the same
-disk image becomes their permanent install.
+"Try before you install" — the user clicks **[Try in VM]** on the
+Launchpad, and wootc builds a bootable disk image and launches it in
+a QEMU window. No reboot. No BCD modification. If the user likes it,
+the same disk image becomes their permanent install.
 
-```
-┌──────────────────────────────────────────────────┐
-│ Try TunaOS before installing                      │
-│                                                    │
-│  ┌──────────────────────────────────────────┐     │
-│  │            QEMU Window                    │     │
-│  │                                           │     │
-│  │     🐠 Yellowfin GNOME booting...          │     │
-│  │                                           │     │
-│  └──────────────────────────────────────────┘     │
-│                                                    │
-│  Disk: 20 GB    RAM: 4 GB    CPU: 4 cores          │
-│                                                    │
-│  [Open SSH: localhost:2222]                        │
-│                                                    │
-│  Like it?  [Install for real]  [Keep as VM]        │
-│  [Shut down]                                       │
-└──────────────────────────────────────────────────┘
-```
+Because Windows cannot natively handle Linux loopback block allocation,
+ext4/btrfs/xfs formatting, or OSTree deployments, wootc uses a
+**two-stage handoff**: a headless builder VM does the heavy lifting,
+then an interactive QEMU window takes over for the user-facing preview.
 
-**Architecture:**
+#### Stage 1: Headless Builder VM
 
-```
-1. Pull OCI image (skopeo, or download pre-built .raw)
-2. If OCI: build disk image via tiny bundled Linux VM
-     tiny-vm:
-       podman pull <image>
-       bootc install to-disk --generic-image --via-loopback /out/disk.raw
-   If pre-built: download disk.raw directly
-3. Start QEMU:
-     qemu-system-x86_64.exe
-       -accel whpx
-       -m 4G -smp 4
-       -drive file=disk.raw,format=raw
-       -nic user,hostfwd=tcp::2222-:22
-       -bios edk2-x86_64-code.fd
-       -display gtk
-4. Boots in a window. TunaOS desktop appears.
-```
+**1. Workspace Initialization (host)**
 
-**How the disk image is built** (no bootc on Windows needed):
+wootc.exe creates a temporary workspace at `%TEMP%\wootc-preview\`.
+A 20GB sparse disk file `preview.raw` is created using
+`CreateFileW` + `FSCTL_SET_SPARSE`. No BCD or partition changes.
+wootc opens a local TCP loopback socket (`127.0.0.1:9099`) or a
+named pipe to receive progress events from the guest.
 
-wootc bundles a tiny Alpine Linux VM (~15MB kernel + initramfs with
-podman, skopeo, bootc). This "builder VM" runs once to convert an OCI
-image into a raw disk image:
+**2. Builder Launch (host → guest)**
+
+wootc launches the bundled QEMU binary **headless** (`-display none`),
+booting the micro-Alpine kernel and initramfs directly with `preview.raw`
+mapped as a VirtIO block device:
 
 ```
-┌──────────────┐     ┌─────────────────┐     ┌──────────────┐
-│ wootc.exe     │ ──→ │ Builder VM       │ ──→ │ disk.raw      │
-│               │     │ (Alpine, 15MB)   │     │ (5-10 GB)     │
-│ image ref     │     │ podman pull      │     │               │
-│ → temp dir    │     │ bootc install    │     │ → QEMU boots  │
-└──────────────┘     └─────────────────┘     └──────────────┘
+qemu-system-x86_64.exe
+  -display none                    # no window during build
+  -m 2G                            # builder needs 2GB (RAM-backed podman)
+  -kernel builder-vmlinuz
+  -initrd builder-initramfs.img
+  -drive file=preview.raw,format=raw,if=virtio
+  -chardev socket,id=ipc,host=127.0.0.1,port=9099
+  -device virtio-serial
+  -device virtserialport,chardev=ipc,name=wootc.ipc
 ```
 
-Alternatively, wootc can download a **pre-built disk image** for each
-variant — hosted alongside the OCI images on GHCR. This is larger (~5-10GB
-per variant) but eliminates the builder VM entirely. The tradeoff: faster
-"try now" experience vs. more storage on the registry.
+**3. In-Memory OCI Processing (guest)**
+
+The Alpine initramfs boots in sub-second time entirely out of RAM.
+The embedded startup script:
+
+1. **IPC handshake** — opens `/dev/virtio-ports/wootc.ipc`, sends a
+   JSON progress event (`{"step":"pulling","pct":0}`) back to the
+   Windows GUI to advance the frontend progress bar.
+2. **RAM-backed podman** — configures podman with the `vfs` storage
+   driver on a tmpfs mount to avoid wearing the disk or requiring
+   secondary storage during OCI layer extraction.
+3. **Target detection** — identifies the VirtIO block device
+   (`/dev/vda`) mapped from `preview.raw`.
+4. **Deployment** — runs:
+   ```bash
+   podman pull "${IMAGE_REF}"
+   podman run --rm --privileged \
+       -v /dev:/dev \
+       "${IMAGE_REF}" \
+       bootc install to-disk --generic-image --via-loopback /dev/vda
+   ```
+   This partitions `/dev/vda`, configures sub-volumes if btrfs,
+   handles filesystem generation, and unpacks the immutable
+   deployment trees directly onto the virtual disk.
+
+#### Stage 2: Graceful Teardown & Interactive Preview
+
+**4. Handoff Signal (guest → host)**
+
+Once `bootc install` returns clean (exit code 0), the Alpine script
+sends `STATUS=SUCCESS` over the VirtIO serial channel and executes
+`poweroff -f`.
+
+Back on the host, wootc.exe:
+- Traps the closure of the background QEMU process handle
+- Closes the loopback IPC socket
+- Verifies the integrity of `preview.raw`
+
+**5. Interactive Preview Launch**
+
+wootc immediately spawns a **fresh**, user-visible QEMU instance.
+The Alpine builder components are dropped entirely. The new instance
+targets `preview.raw` with full hardware visualization and native
+OVMF UEFI firmware:
+
+```
+qemu-system-x86_64.exe
+  -accel whpx
+  -m 4G -smp 4
+  -drive file=preview.raw,format=raw,if=virtio
+  -nic user,hostfwd=tcp::2222-:22
+  -bios edk2-x86_64-code.fd
+  -display gtk
+```
+
+The window appears on the user's desktop showing the GRUB bootloader
+menu of the target distribution loading directly off the virtual disk.
+
+#### Engineering Nuances
+
+**RAM sizing**: The builder phase requires at least **2GB** allocated
+to the VM. Podman pulls compressed OCI layers into a RAM-backed tmpfs
+before extracting them sequentially onto the raw target drive. A
+standard 512MB or 1GB mini-initramfs footprint will run out of
+allocatable memory mid-stream. Once deployment finishes, the
+interactive preview scales up to **4GB** for comfortable desktop use.
+
+**Live commit bridge**: If the user experiments inside the interactive
+preview and clicks **[Install for Real]** on the Windows GUI:
+
+1. wootc stops the interactive QEMU session.
+2. Instead of running a fresh OCI pull, it reuses the built image.
+3. Moves `%TEMP%\wootc-preview\preview.raw` → `C:\wootc\disks\root.disk`.
+4. Configures the Windows Boot Manager entry targeting this image.
+
+On the next bare-metal reboot, any settings changes, profile configs,
+or package installations made inside the VM preview are preserved
+perfectly — it's the same disk image.
 
 **Bundled components:**
 
 | Component | Size | Source |
 |---|---|---|
 | `qemu-system-x86_64.exe` | ~8 MB | [QEMU Windows builds](https://qemu.weilnetz.de/) (MSYS2) |
-| `qemu-img.exe` | ~1 MB | Same |
 | `edk2-x86_64-code.fd` | ~2 MB | EDK2 OVMF UEFI firmware |
 | `builder-vmlinuz` + `builder-initramfs.img` | ~15 MB | Alpine with podman, skopeo, bootc |
-| **Total bundled** | **~26 MB** | Plus downloaded disk image |
+| **Total bundled** | **~25 MB** |
 
 ### 6.2 Boot Existing root.disk as VM
 
@@ -1179,12 +1418,13 @@ qemu-system-x86_64.exe
 ### 6.4 VM-to-Native Bridge
 
 Both VM modes share the same disk image as the dual-boot install.
-If the user tries a fresh VM and decides to commit:
+If the user tries a fresh VM and clicks **[Install for Real]**:
 
-1. QEMU shuts down
-2. The raw disk image is converted to root.disk or copied to a partition
-3. GRUB2 and BCD entries are set up
-4. User reboots into the same system — no reinstall, no reconfigure
+1. QEMU shuts down.
+2. `%TEMP%\wootc-preview\preview.raw` is moved to `C:\wootc\disks\root.disk`
+   (no re-download, no re-deployment).
+3. GRUB2 and BCD entries are set up.
+4. User reboots into the same system — all VM-made changes are preserved.
 
 The reverse is also true: a system installed via dual-boot can be booted
 in a VM at any time via §6.2.
