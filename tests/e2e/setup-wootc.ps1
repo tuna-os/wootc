@@ -124,6 +124,16 @@ Copy-Item $deployerInitramfs "$installDir\initramfs.img" -Force
 if ($grubDir) {
     # GRUB cfg files from the wootc repo
     Copy-Item "$grubDir\*" "$installDir\" -Force -ErrorAction SilentlyContinue
+
+    # Copy grubx64.efi from share if available (needed for BCD firmware entry)
+    $grubEfiSrc = "$share\grubx64.efi"
+    if (Test-Path $grubEfiSrc) {
+        Copy-Item $grubEfiSrc "$installDir\grubx64.efi" -Force
+        Write-Host "[wootc] Copied grubx64.efi from share"
+    } else {
+        Write-Host "[wootc] WARNING: grubx64.efi not found on share at $grubEfiSrc"
+        Write-Host "[wootc]   BCD firmware entry will be created but may not boot without it."
+    }
 }
 
 # ── Step 5: Write GRUB install config ───────────────────────────────────────
@@ -223,17 +233,70 @@ Copy-Item "$installDir\wubildr.cfg" "$wootcEfiDir\" -Force
 Write-Host "[wootc] GRUB files installed to $wootcEfiDir"
 
 # ── Step 8: Configure BCD ───────────────────────────────────────────────────
-# For the test, we use bcdedit to add a one-time boot entry.
-# In production, wootc.exe handles this with the full GRUB chainload.
+# Add a UEFI firmware application boot entry pointing to grubx64.efi on the ESP.
+# bcdedit /create outputs: "The entry {guid} was successfully created."
+# We parse that GUID, then configure device/path/description and set boot order.
 
 Write-Host "[wootc] Configuring BCD..."
 
-# Add a real-mode boot sector entry (or firmware application for UEFI)
-# For the E2E test, we'll instead set Windows to boot directly to
-# the GRUB installed system after reboot.
-# The simplest approach: use bcdedit /bootsequence to try our entry once.
+# Resolve ESP drive letter (needed for the bcdedit device parameter)
+$espDrive = $null
+if ($espPath -match '^([A-Za-z]):\\') {
+    $espDrive = $Matches[1]
+}
+if (-not $espDrive) {
+    Write-Host "[wootc] WARNING: Could not determine ESP drive letter — using C as fallback"
+    $espDrive = "C"
+}
 
-Write-Host "[wootc] BCD configured. wootc setup complete."
+# Copy grubx64.efi to ESP
+$grubEfiDest = "${espPath}EFI\wootc\grubx64.efi"
+if (Test-Path "$installDir\grubx64.efi") {
+    Copy-Item "$installDir\grubx64.efi" $grubEfiDest -Force
+    Write-Host "[wootc] Copied grubx64.efi to $grubEfiDest"
+} else {
+    Write-Host "[wootc] WARNING: grubx64.efi not in $installDir — ESP entry will point to a missing file."
+    Write-Host "[wootc]   Ensure grubx64.efi is present on the Samba share (wootc-files/grubx64.efi)."
+}
+
+# Create a new firmware application BCD entry
+$bcdCreateOutput = (& bcdedit /create /d "wootc Deployer" /application firmware 2>&1) | Out-String
+Write-Host "[wootc] bcdedit create: $bcdCreateOutput"
+
+# Parse the GUID from output like:
+#   The entry {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx} was successfully created.
+if ($bcdCreateOutput -match '\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}') {
+    $newGuid = "{$($Matches[1])}"
+    Write-Host "[wootc] New BCD entry GUID: $newGuid"
+
+    # Set the EFI path (must use backslashes, relative to ESP root)
+    $efiRelPath = "\EFI\wootc\grubx64.efi"
+    & bcdedit /set $newGuid path $efiRelPath
+    Write-Host "[wootc] BCD path set to $efiRelPath"
+
+    # Set the device to the ESP partition
+    # 'partition=<letter>:' targets the partition by its assigned drive letter
+    & bcdedit /set $newGuid device "partition=${espDrive}:"
+    Write-Host "[wootc] BCD device set to partition=${espDrive}:"
+
+    # Prepend to fwbootmgr display order (makes it visible in UEFI menu)
+    & bcdedit /set "{fwbootmgr}" displayorder $newGuid /addfirst
+    Write-Host "[wootc] Added $newGuid as first in fwbootmgr displayorder"
+
+    # One-time boot: boot the deployer on the very next restart only
+    & bcdedit /set "{fwbootmgr}" bootsequence $newGuid /addfirst
+    Write-Host "[wootc] Set one-time bootsequence to $newGuid"
+
+    Write-Host "[wootc] BCD configured successfully."
+    Write-Host "[wootc]   Entry: $newGuid"
+    Write-Host "[wootc]   Boots: ${espDrive}:$efiRelPath"
+    Write-Host "[wootc]   One-shot: yes (bootsequence)"
+} else {
+    Write-Host "[wootc] ERROR: Could not parse GUID from bcdedit output:"
+    Write-Host $bcdCreateOutput
+    Write-Host "[wootc] BCD NOT configured — reboot will go to Windows, not deployer."
+    # Non-fatal: setup can still succeed for debugging other steps
+}
 
 # ── Step 9: Disable Windows Fast Startup ────────────────────────────────────
 Write-Host "[wootc] Disabling Fast Startup..."
