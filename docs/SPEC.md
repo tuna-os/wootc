@@ -103,6 +103,11 @@ OSTree deployments change the kernel path with every upgrade
 (e.g. `/boot/ostree/yellowfin-<hash>/vmlinuz`), so the hook
 reads BLS entries to find the correct source paths.
 
+For reliability, the installer configures `/etc/fstab` to mount the
+physical ESP by UUID with `x-systemd.automount` — ensuring the hook
+can reliably access the ESP on-demand during `bootc update`, even if
+it was unmounted or locked by firmware.
+
 The tradeoff: simpler bootloader (no GRUB complexity), native UKI
 and Secure Boot support, but requires the sync hook and consumes
 ~100-200MB of ESP space per deployment.
@@ -281,7 +286,7 @@ if [ "$root" = "wootc" ]; then
     # If Windows was not shut down cleanly, ntfs3 will refuse rw mount.
     # Rather than forcing (which risks corruption), we tell the user to
     # boot Windows once and perform a full shutdown.
-    if ! mount -t ntfs3 -o rw,nobarrier,async "$HOST_DEV" "$HOST_MNT"; then
+    if ! mount -t ntfs3 -o rw,nobarrier,async,prealloc "$HOST_DEV" "$HOST_MNT"; then
         die "wootc: cannot mount host NTFS partition rw. " \
             "Windows may not have been shut down cleanly. " \
             "Please boot Windows once, perform a full shutdown " \
@@ -1132,7 +1137,32 @@ storage — one category at a time, at their own pace.
 
 On first boot into the installed system, the `99wootc-boot` dracut module
 mounts the Windows NTFS partition at `/run/initramfs/wootc-host`. A systemd service
-(`wootc-passthrough.service`) then creates bind mounts:
+(`wootc-passthrough.service`) then creates bind mounts. It explicitly
+depends on `wootc-host-bind.service` and tears down before it on
+shutdown:
+
+```ini
+# /etc/systemd/system/wootc-passthrough.service
+[Unit]
+Description=Bind Windows User Profiles to Home
+DefaultDependencies=no
+After=wootc-host-bind.service
+Requires=wootc-host-bind.service
+Before=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/wootc-mount-user-dirs
+ExecStop=/usr/local/bin/wootc-umount-user-dirs
+
+[Install]
+WantedBy=local-fs.target
+```
+
+This ordering ensures that on shutdown, the user directory bind mounts
+are torn down (`ExecStop`) **before** `wootc-host-bind.service` unmounts
+`/host` — avoiding a "target is busy" failure from nested bind mounts.
 
 ```
 /host/Users/<name>/Documents    →  /home/<name>/Documents
@@ -1685,9 +1715,23 @@ wootc/
 
 ## 9. Open Questions
 
-1. **Secure Boot with GRUB2**: WubiUEFI uses shim for Secure Boot. wootc
-   inherits this for the GRUB2 path. systemd-boot has native Secure Boot
-   support via signed UKIs. Signing pipeline and key management TBD.
+1. **Secure Boot with GRUB2**: WubiUEFI uses shim for Secure Boot.
+   wootc inherits this for the GRUB2 path. The shim must be signed by
+   Microsoft's 3rd-party UEFI CA (the standard path for community
+   distributions). Machine Owner Keys (MOK) enrollment via `mokutil`
+   is the fallback for custom or localized keys — the user sees the
+   blue MOK management screen on first boot, enrolls the wootc key,
+   and Secure Boot works thereafter.
+
+   Signing pipeline: wootc's build system signs the GRUB2 EFI binary
+   (`grubx64.efi`) with the project's Secure Boot key. The signed
+   binary + shim are placed on the ESP. For `systemd-boot`, UKIs
+   are signed directly with the same key — no shim needed.
+
+   Key management: the private signing key is held in CI secrets
+   (GitHub Actions encrypted secrets) and used only during release
+   builds. The public certificate is embedded in the shim for MOK
+   enrollment fallback.
 
 2. **ARM64 Windows**: WubiUEFI supports x86_64 only. ARM64 Windows devices
    (Surface Pro X, etc.) use a completely different boot chain. Deferred.
@@ -1697,11 +1741,14 @@ wootc/
    the case where root.disk is not yet mounted at hook execution time.
    May need to be a systemd path unit instead.
 
-4. **root.vhdx vs root.disk**: Consider using VHDX format instead of raw
-   disk images. Windows tooling natively understands VHD/VHDX for
-   mounting, backup, and resizing. Linux supports them well. A user could
-   mount their Linux disk from within Windows for recovery. Deferred to
-   post-MVP.
+4. **root.vhdx vs root.disk**: VHDX includes an internal allocation log
+   that guards against block metadata corruption during sudden power
+   failures. Unlike raw disk images, a VHDX file can be natively
+   mounted inside Windows Disk Management for recovery without booting
+   a Linux live environment. The tradeoff: slightly larger file size
+   (~5MB metadata overhead) and the need to use `qemu-nbd` or a
+   VHDX-aware loop driver on Linux. Elevated to post-MVP priority
+   given the recovery UX benefits.
 
 5. **Integrity verification**: OCI digest, deployer initramfs checksum,
    kernel checksum, and root.disk integrity should be verified before

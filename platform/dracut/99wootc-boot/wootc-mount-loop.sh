@@ -41,7 +41,7 @@ if [ "$root" = "wootc" ]; then
     # device inherits the physical write block, rendering the guest
     # OS filesystem permanently read-only.
     info "wootc: mounting Windows partition ($HOST_DEV)..."
-    if ! mount -t ntfs3 -o rw,nobarrier,async "$HOST_DEV" "$HOST_MNT"; then
+    if ! mount -t ntfs3 -o rw,nobarrier,async,prealloc "$HOST_DEV" "$HOST_MNT"; then
         die "wootc: cannot mount host NTFS partition rw. " \
             "Windows may not have been shut down cleanly. " \
             "Please boot Windows once, perform a full shutdown " \
