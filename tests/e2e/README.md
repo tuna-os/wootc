@@ -39,17 +39,37 @@ pipeline: Windows setup → GRUB chainload → deployer → bootc system boot.
 ## Quick Start
 
 ```bash
-# Build the deployer initramfs first
-cd ../../deployer
-podman build -t wootc-deployer .
-podman run --rm -v $(pwd)/out:/out wootc-deployer
+# On any Linux machine with KVM:
+curl -sSL https://raw.githubusercontent.com/tuna-os/wootc/main/tests/e2e/setup-kvm-runner.sh | bash
+cd tests/e2e && ./run-e2e.sh
 
-# Copy deployer output to test directory
-cp out/vmlinuz out/initramfs.img ../tests/e2e/wootc-files/
+# Or test a specific image:
+./run-e2e.sh ghcr.io/tuna-os/bonito:gnome
+```
 
-# Run the e2e test
-cd ../tests/e2e
-./run-e2e.sh
+## Manual Setup
+
+```bash
+# Clone with submodules
+git clone --recurse-submodules https://github.com/tuna-os/wootc.git
+cd wootc
+
+# Install prerequisites
+pip install pywinrm    # WinRM client for automation
+
+# Build the deployer initramfs
+podman build -f deployer/Containerfile -t wootc-deployer .
+mkdir -p deployer/out tests/e2e/wootc-files/grub
+podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+    /out/initramfs.img > deployer/out/initramfs.img
+podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+    /out/vmlinuz > deployer/out/vmlinuz
+cp deployer/out/vmlinuz tests/e2e/wootc-files/
+cp deployer/out/initramfs.img tests/e2e/wootc-files/
+cp grub/*.cfg tests/e2e/wootc-files/grub/
+
+# Run the e2e test (~30-45 minutes)
+cd tests/e2e && ./run-e2e.sh
 ```
 
 ## Prerequisites

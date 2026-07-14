@@ -82,13 +82,23 @@ $deployerInitramfs = $null
 $grubDir = $null
 
 # Try Samba share
+# Strategy 1: Check dockur/windows Samba share
+# dockur/windows mounts /shared as \\host.lan\Data
+# We mount our wootc-files at /shared in the container
+
 $sharePaths = @(
-    "\\host.lan\wootc",
-    "\\10.0.2.2\wootc",
-    "\\10.0.3.2\wootc"
+    "\\host.lan\Data",
+    "\\10.0.2.2\Data"
 )
 
 foreach ($share in $sharePaths) {
+    Write-Host "[wootc] Trying Samba share: $share"
+    # Try to list the share to verify access
+    $result = net use $share 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[wootc] Share $share not accessible, trying next..."
+        continue
+    }
     if (Test-Path "$share\vmlinuz") {
         Write-Host "[wootc] Found deployer files at $share"
         $deployerVmlinuz = "$share\vmlinuz"

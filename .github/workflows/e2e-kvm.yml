@@ -1,0 +1,60 @@
+name: E2E (KVM)
+
+# Runs on a self-hosted runner with KVM support.
+# Label the runner: kvm, linux, x64
+#
+# To set up a self-hosted runner:
+#   https://github.com/tuna-os/wootc/settings/actions/runners/new
+
+on:
+  workflow_dispatch:        # manual trigger
+  schedule:
+    - cron: '0 6 * * 1'    # every Monday at 06:00 UTC
+
+jobs:
+  e2e:
+    runs-on: [self-hosted, kvm]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          pip3 install pywinrm
+
+      - name: Build deployer
+        run: |
+          podman build -f deployer/Containerfile -t wootc-deployer .
+          mkdir -p deployer/out tests/e2e/wootc-files tests/e2e/wootc-files/grub
+          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+            /out/initramfs.img > deployer/out/initramfs.img
+          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+            /out/vmlinuz > deployer/out/vmlinuz
+          cp deployer/out/vmlinuz tests/e2e/wootc-files/
+          cp deployer/out/initramfs.img tests/e2e/wootc-files/
+          cp grub/*.cfg tests/e2e/wootc-files/grub/
+
+      - name: Run e2e test
+        timeout-minutes: 60
+        run: |
+          cd tests/e2e
+          ./run-e2e.sh ghcr.io/tuna-os/yellowfin:gnome
+        env:
+          IMAGE_REF: ghcr.io/tuna-os/yellowfin:gnome
+
+      - name: Upload QEMU console log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-console
+          path: tests/e2e/storage/qemu.pty
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          cd tests/e2e
+          docker compose -f compose.yml down --volumes 2>/dev/null || true
+          podman system prune -f 2>/dev/null || true

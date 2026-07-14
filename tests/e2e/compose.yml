@@ -32,6 +32,6 @@ services:
       - "5900:5900"      # VNC (for keystroke automation fallback)
     volumes:
       - ./storage:/storage               # VM disk + QEMU artifacts
-      - ./wootc-files:/wootc:ro          # deployer files injected into Windows
+      - ./wootc-files:/shared:ro       # deployer files (shared via Samba by dockur)
       - ./autounattend.xml:/custom/autounattend.xml:ro  # WinRM + RDP enable
     restart: "no"     # don't restart — test exits after verification
