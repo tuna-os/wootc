@@ -85,9 +85,27 @@ disk image — no kernel sync needed.
 **systemd-boot** is supported but requires a kernel-sync mechanism:
 after deployment and after every `bootc update`, the new kernel+initrd
 (or UKI) must be copied from inside root.disk to the ESP. This is handled
-by a `bootc post-transaction` hook that fisherman installs during
-deployment. The tradeoff: simpler bootloader (no GRUB complexity), native
-UKI and Secure Boot support, but requires the sync hook.
+by an OSTree transaction hook installed during deployment.
+
+The hook (`/etc/ostree/hooks.d/99-wootc-esp-sync`) runs after every
+successful `bootc update`:
+
+1. Detect the ESP and mount it if not already at `/boot/efi`
+2. Read the active BLS entries from the new deployment
+3. Hard-copy the new kernel + initrd to `ESP:/EFI/wootc/active/`
+4. Move the previous deployment to `ESP:/EFI/wootc/backup/`
+   (so system rollback works if the new image fails to boot)
+5. Clean up old, unreferenced kernels to prevent filling the
+   typically small (~100MB) Windows ESP
+
+FAT32 doesn't support symlinks, so hard copies are necessary.
+OSTree deployments change the kernel path with every upgrade
+(e.g. `/boot/ostree/yellowfin-<hash>/vmlinuz`), so the hook
+reads BLS entries to find the correct source paths.
+
+The tradeoff: simpler bootloader (no GRUB complexity), native UKI
+and Secure Boot support, but requires the sync hook and consumes
+~100-200MB of ESP space per deployment.
 
 #### GRUB2 boot flow (detailed)
 
@@ -256,7 +274,7 @@ if [ "$root" = "wootc" ]; then
         die "wootc: host partition $HOST_DEV did not appear"
     fi
 
-    HOST_MNT="/sysroot/host"
+    HOST_MNT="/run/initramfs/wootc-host"
     mkdir -p "$HOST_MNT"
 
     # Mount the host NTFS partition read-write.
@@ -292,25 +310,48 @@ if [ "$root" = "wootc" ]; then
 fi
 ```
 
-#### The Remount Trap
+#### The Remount Trap — Solved with initramfs-hosted Mount
 
-Standard Linux init scripts often attempt a generic root remount
+Standard Linux init scripts attempt a generic root remount
 (`mount -o remount,rw /`) late in the boot sequence. Because the real
-root is nested inside a loop device backed by a secondary mount context
-(`/sysroot/host`), a standard remount command cannot reach through both
-layers and will fail silently or break the root filesystem.
+root is nested inside a loop device backed by a host mount, a standard
+remount command cannot reach through both layers and will fail.
 
-To prevent this, fisherman's post-install hook writes an fstab entry
-that preserves the nesting hierarchy:
+**The bigger problem: systemd shutdown dependency cycle.**
+If `/host` is a systemd-managed mount, shutdown will try to unmount it.
+But `/host` can't be unmounted because `/` (the loop device) holds an
+open file descriptor on `/host/wootc/disks/root.disk`. Systemd waits 90
+seconds, force-kills services, and leaves NTFS dirty — causing a boot
+loop on next start (ntfs3 refuses rw mount on dirty volume).
 
+**Fix:** Mount the NTFS host to `/run/initramfs/wootc-host` inside the
+dracut hook — `/run` is a tmpfs, not managed by local-fs unmount targets.
+After pivot-root, a systemd service bind-mounts the host directory to
+`/host` for user convenience:
+
+```ini
+# /etc/systemd/system/wootc-host-bind.service
+[Unit]
+Description=Bind wootc host mount to /host
+DefaultDependencies=no
+Before=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/mount --bind /run/initramfs/wootc-host /host
+ExecStop=/usr/bin/umount /host
+
+[Install]
+WantedBy=local-fs.target
 ```
-# /etc/fstab inside root.disk
-/host/wootc/disks/root.disk  /  auto  defaults,noatime,loop  0  0
-```
 
-This tells the installed system: "the root device is the loop file on
-the host, not a block device." Standard remounts resolve correctly
-through the loop layer.
+No fstab entry needed for the loop root — dracut handles mounting it
+to `$NEWROOT` during the mount phase. The bind-mount to `/host` is a
+convenience, not a boot requirement.
+
+The bind is reversed on shutdown (`ExecStop`) before systemd attempts
+to unmount anything — breaking the dependency cycle cleanly.
 
 #### NTFS Mount Mode: Why Read-Write
 
@@ -588,34 +629,43 @@ manage-bde -status C:
 └──────────────────────────────────────────────────────┘
 ```
 
-**Auto-create implementation** — the installer uses Windows disk
-management to shrink C: non-destructively:
+**Auto-create implementation** — the installer suspends BitLocker
+(if active), shrinks C:, creates D:, then resumes protection:
 
 ```powershell
-# Query maximum shrink size
+# 1. Check and suspend BitLocker if active
+$bitlocker = Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue
+if ($bitlocker -and $bitlocker.ProtectionStatus -eq "On") {
+    Suspend-BitLocker -MountPoint "C:" -RebootCount 1
+    Write-Host "BitLocker suspended for resize"
+}
+
+# 2. Query maximum shrink size
 $partition = Get-Partition -DriveLetter C
 $maxShrink = Get-PartitionSupportedSize -DriveLetter C
-$targetSize = 60GB  # default for root.disk + breathing room
+$targetSize = 60GB
 
+# 3. Shrink C: and create D:
 if ($maxShrink.SizeMax - $maxShrink.SizeMin -gt ($targetSize * 1.1GB)) {
-    # Shrink C: by targetSize
     Resize-Partition -DriveLetter C -Size ($maxShrink.SizeMax - ($targetSize * 1GB))
-    
-    # Create new partition in freed space
     $newPart = New-Partition -DiskNumber $partition.DiskNumber `
         -UseMaximumSize -DriveLetter D
-    
-    # Format as NTFS
     Format-Volume -DriveLetter D -FileSystem NTFS `
         -NewFileSystemLabel "wootc-data" -Confirm:$false
-    
     Write-Host "Created D: ($targetSize GB) for wootc"
+}
+
+# 4. Resume BitLocker (or let it auto-resume on reboot)
+if ($bitlocker -and $bitlocker.ProtectionStatus -eq "On") {
+    Resume-BitLocker -MountPoint "C:"
 }
 ```
 
-This is non-destructive: Windows Disk Management has been doing this
-safely since Windows 7. The freed space becomes a new partition visible
-to both Windows and Linux.
+**Why this is safe:** `Suspend-BitLocker -RebootCount 1` writes the
+encryption key to the volume metadata in the clear — the disk stays
+encrypted, but offline tools (and the partition manager) can manipulate
+the structure. Protection resumes automatically on the next Windows
+boot. No decryption, no re-encryption, no performance impact.
 
 Per-directory encryption (Windows 11 Home default) does not block
 wootc — only full-volume BitLocker requires these options.
@@ -644,39 +694,55 @@ registry key.
 
 ### 3.6 NTFS Fragmentation Prevention
 
-When wootc.exe creates `root.disk` as a sparse file, Windows allocates
-space on demand. When fisherman streams gigabytes of container layers into
-that file, the clusters will be scattered across the physical disk —
-especially on spinning drives or fragmented SSDs. Because every I/O to the
-installed system passes through both the loop layer and the NTFS cluster
-mapping, fragmentation can silently bottleneck disk performance.
+When wootc.exe creates `root.disk`, performance depends on cluster
+allocation. On spinning disks, fragmented sparse files cause significant
+I/O overhead through the loop layer.
 
-**Mitigation** — pre-allocate contiguous clusters during file creation:
+**Approach: sparse allocation + in-Linux TRIM.**
+
+Rather than using `SetFileValidData` (which exposes raw unzeroed disk
+blocks containing previously deleted Windows data — a privacy risk),
+wootc creates the file as **sparse** and lets the deployer initramfs
+issue a fast discard:
+
+**Windows side** — create sparse file:
 
 ```c
-// Instead of: SetFilePointerEx + SetEndOfFile (sparse, lazy allocation)
-// Use: SetFileValidData after SetEndOfFile to force immediate allocation
-
 HANDLE h = CreateFileW(path, GENERIC_WRITE, 0, NULL,
-                        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+                        CREATE_NEW,
+                        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SPARSE_FILE,
+                        NULL);
 
 LARGE_INTEGER size;
 size.QuadPart = (LONGLONG)size_gb * 1024 * 1024 * 1024;
 SetFilePointerEx(h, size, NULL, FILE_BEGIN);
 SetEndOfFile(h);
-SetFileValidData(h, size.QuadPart);  // force pre-allocation
+
+// Mark as sparse — NTFS allocates on demand
+DWORD tmp;
+DeviceIoControl(h, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, &tmp, NULL);
 CloseHandle(h);
 ```
 
-`SetFileValidData` requires `SE_MANAGE_VOLUME_NAME` privilege (admin).
-wootc.exe already runs elevated, so this is available. On SSDs, the
-performance difference is minimal (random access is fast). On spinning
-disks, contiguous pre-allocation can be 2-5x faster for sustained I/O.
+**Linux side** — after `losetup`, before `mkfs`:
 
-**Fallback**: If contiguous space isn't available (disk too full), fall
-back to the sparse creation path with a warning: "Disk is fragmented.
-Performance may be reduced. Consider freeing space and defragmenting
-before installing."
+```bash
+# Discard all unused blocks on the loop device.
+# On SSDs this is instant (ATA TRIM). On spinning disks
+# this causes NTFS to allocate contiguous clusters.
+blkdiscard -f "$LOOP_DEV"
+```
+
+`blkdiscard` on a loop device backed by a sparse NTFS file causes
+NTFS to allocate the blocks. The allocation pattern is contiguous
+if the volume has free space — giving near-`SetFileValidData`
+performance without the security risk of reading stale Windows data.
+
+**Why this is safe:** `blkdiscard` writes nothing to the file's data
+blocks — it only tells the filesystem "these blocks are now in use."
+NTFS allocates them from the free space pool. The guest sees
+discarded (zeroed) blocks because the loop device honors the discard
+by returning zeros for unmapped regions.
 
 The Windows installer presents available images from `data/images.json`
 — the same catalog format used by fisherman and tuna-installer:
@@ -1255,7 +1321,7 @@ wootc/
 2. **ARM64 Windows**: WubiUEFI supports x86_64 only. ARM64 Windows devices
    (Surface Pro X, etc.) use a completely different boot chain. Deferred.
 
-3. **systemd-boot kernel sync hook**: The `bootc post-transaction` hook
+3. **systemd-boot kernel sync hook**: The OSTree transaction hook
    that copies kernels from inside root.disk to the ESP needs to handle
    the case where root.disk is not yet mounted at hook execution time.
    May need to be a systemd path unit instead.

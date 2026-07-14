@@ -34,7 +34,7 @@ if [ "$root" = "wootc" ]; then
         die "wootc: host partition $HOST_DEV did not appear"
     fi
 
-    HOST_MNT="/sysroot/host"
+    HOST_MNT="/run/initramfs/wootc-host"
     mkdir -p "$HOST_MNT"
 
     # CRITICAL: must mount read-write. If the host is ro, the loop
