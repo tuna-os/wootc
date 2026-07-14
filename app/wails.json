@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "wootc",
+  "outputfilename": "wootc",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "info": {
+    "companyName": "TunaOS",
+    "productName": "wootc",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2025 TunaOS Contributors",
+    "comments": "Install TunaOS from Windows — no USB, no repartitioning."
+  },
+  "author": {
+    "name": "James Reilly",
+    "email": "jreilly1821@gmail.com"
+  }
+}
