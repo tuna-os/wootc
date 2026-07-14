@@ -11,6 +11,9 @@
 #   wootc.debug                                     (optional, drops to shell)
 #   wootc.filesystem=xfs|btrfs|ext4                (optional, default: xfs for EL10, btrfs for Fedora)
 #   wootc.flatpaks=org.mozilla.firefox,...          (optional)
+#   wootc.luks=none|luks-passphrase|tpm2-luks       (optional)
+#   wootc.luks-passphrase=...                        (optional)
+#   wootc.debug                                      (optional, drops to shell)
 
 log() { printf '\033[1;32m[wootc]\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2; }
@@ -36,6 +39,8 @@ IMAGE="$(read_cmdline wootc.image)"
 FILESYSTEM="$(read_cmdline wootc.filesystem xfs)"
 HOSTNAME="$(read_cmdline wootc.hostname tunaos)"
 FLATPAKS="$(read_cmdline wootc.flatpaks)"
+LUKS_TYPE="$(read_cmdline wootc.luks none)"
+LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 DEBUG="$(read_cmdline wootc.debug)"
 
 if [[ -z "$IMAGE" ]]; then
@@ -88,6 +93,16 @@ if [[ -n "$FLATPAKS" ]]; then
     FLATPAKS_JSON="[$(echo "$FLATPAKS" | sed 's/,/","/g' | sed 's/^/"/;s/$/"/')]"
 fi
 
+# Build LUKS encryption JSON
+LUKS_JSON='"encryption": { "type": "none" }'
+if [[ "$LUKS_TYPE" != "none" ]]; then
+    if [[ -n "$LUKS_PASSPHRASE" ]]; then
+        LUKS_JSON="\"encryption\": { \"type\": \"${LUKS_TYPE}\", \"passphrase\": \"${LUKS_PASSPHRASE}\" }"
+    else
+        LUKS_JSON="\"encryption\": { \"type\": \"${LUKS_TYPE}\" }"
+    fi
+fi
+
 RECIPE="/tmp/recipe.json"
 cat > "$RECIPE" << EOF
 {
@@ -96,9 +111,7 @@ cat > "$RECIPE" << EOF
   "composeFsBackend": false,
   "unifiedStorage": false,
   "selinuxDisabled": false,
-  "encryption": {
-    "type": "none"
-  },
+  ${LUKS_JSON},
   "image": "${IMAGE}",
   "hostname": "${HOSTNAME}",
   "flatpaks": ${FLATPAKS_JSON}

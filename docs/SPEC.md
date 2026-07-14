@@ -351,7 +351,10 @@ populate root.disk with the chosen bootc image.
 4. Parse kernel cmdline:
      wootc.image=ghcr.io/tuna-os/yellowfin:gnome   (required)
      wootc.hostname=tunaos                           (optional)
+     wootc.filesystem=xfs|btrfs|ext4                 (optional, per-distro default)
      wootc.flatpaks=org.mozilla.firefox,...          (optional)
+     wootc.luks=none|tpm2-luks|luks-passphrase       (optional)
+     wootc.luks-passphrase=...                        (optional)
      wootc.debug                                      (optional)
 5. Find NTFS partition containing /wootc/disks/root.disk
 6. Mount NTFS read-write at /mnt/ntfs (in-kernel ntfs3 driver, Linux 5.15+)
@@ -396,6 +399,9 @@ Generated at deploy time from kernel cmdline args:
   "filesystem": "xfs",
   "composeFsBackend": false,
   "bootloader": "grub2",
+  "encryption": {
+    "type": "none"
+  },
   "image": "ghcr.io/tuna-os/yellowfin:gnome",
   "hostname": "tunaos",
   "flatpaks": ["org.mozilla.firefox"],
@@ -410,7 +416,50 @@ handles:
 - **Install**: `podman run --privileged <image> bootc install to-filesystem /target`
 - **Post**: flatpak copy, hostname write, Plymouth args, LUKS args, Bluetooth/WiFi sync, audio config, cache warm, fstrim/remount-ro/fsfreeze finalize
 
-### 2.5 Post-deployment: loop-root dracut module
+### 2.5 LUKS Encryption
+
+wootc supports LUKS encryption of the root filesystem inside root.disk.
+This protects the Linux system even though the host NTFS partition is
+unencrypted — if the disk is stolen, the loop file yields only encrypted
+blocks.
+
+fisherman already supports three LUKS modes (passed via the recipe's
+`encryption` field):
+
+| Mode | Key source | UX |
+|---|---|---|
+| `luks-passphrase` | User-chosen passphrase | Prompted on every boot |
+| `tpm2-luks` | TPM2 chip | Automatic — no prompt |
+| `tpm2-luks-passphrase` | TPM2 + fallback passphrase | Auto, with recovery passphrase |
+
+For loop-file deployments, `tpm2-luks` is the recommended mode:
+the TPM2 chip on the motherboard unlocks the LUKS volume automatically.
+If the disk is moved to another machine, the TPM measurement changes
+and the volume stays locked.
+
+**Deployer cmdline for LUKS:**
+
+```
+wootc.luks=tpm2-luks
+wootc.luks-passphrase=hunter2    # only for passphrase modes
+```
+
+The deployer writes these into the fisherman recipe's `encryption`
+field. fisherman handles `luksFormat`, `luksOpen`, `cryptsetup`,
+and injects `rd.luks.name=<UUID>=root` into every BLS boot entry.
+
+The dracut `99wootc-boot` mount hook works transparently with LUKS:
+by the time the mount hook runs, systemd has already activated the
+LUKS volume (via `rd.luks.name` in the kernel cmdline), and the loop
+device exposes the decrypted block device.
+
+For TPM2 modes on loop files: the TPM2 enrollment happens inside the
+deployer initramfs where `/dev/tpm0` is accessible. fisherman's
+`luks.EnrollTPM2()` binds the LUKS key to PCR 7 (Secure Boot state).
+If Secure Boot is not available, PCR 0+1 (firmware + configuration)
+fallback is used.
+
+### 2.6 Post-deployment: loop-root dracut module
 
 After bootc install to-filesystem completes, fisherman runs a post-install
 hook that injects the `99wootc-boot` dracut module into the installed
@@ -513,27 +562,60 @@ manage-bde -status C:
 | Protection On | Present BitLocker mode options (see below). |
 | Encryption In Progress | Hard block. "Windows is encrypting C:. Wait for completion." |
 
-**BitLocker mode UX:**
+**BitLocker mode UX — auto-create a data partition:**
 
 ```
-┌──────────────────────────────────────────────────┐
-│ BitLocker detected on C:                          │
-│                                                   │
-│ wootc cannot store the Linux system on an         │
-│ encrypted drive. You have two options:            │
-│                                                   │
-│ (Recommended) Choose a different drive             │
-│     Select an unencrypted partition for root.disk  │
-│     Available: D: (Data, 200 GB free)             │
-│                                                   │
-│ Suspend BitLocker temporarily                     │
-│     Protection resumes on next Windows boot.      │
-│     ⚠ Only works for the install — you'll need    │
-│     a data partition for everyday dual-booting.   │
-│                                                   │
-│ [Choose Drive...]  [Suspend]  [Cancel]            │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│ BitLocker detected on C:                              │
+│                                                       │
+│ wootc cannot store Linux on an encrypted drive.       │
+│                                                       │
+│ (Recommended) Create a shared data partition           │
+│     Shrink C: by 60 GB, create D: for root.disk       │
+│     C: stays BitLocker-protected                      │
+│     D: is unencrypted, shared between both OSes       │
+│                                                       │
+│ Choose existing partition                              │
+│     Select an unencrypted drive you already have      │
+│     Available: E: (Backup, 200 GB free)               │
+│                                                       │
+│ Suspend BitLocker temporarily                          │
+│     Protection resumes on next Windows boot.          │
+│     ⚠ Only works for the install — you'll need       │
+│       a data partition for everyday dual-booting.     │
+│                                                       │
+│ [Create Partition]  [Choose Drive]  [Suspend]  [Cancel]│
+└──────────────────────────────────────────────────────┘
 ```
+
+**Auto-create implementation** — the installer uses Windows disk
+management to shrink C: non-destructively:
+
+```powershell
+# Query maximum shrink size
+$partition = Get-Partition -DriveLetter C
+$maxShrink = Get-PartitionSupportedSize -DriveLetter C
+$targetSize = 60GB  # default for root.disk + breathing room
+
+if ($maxShrink.SizeMax - $maxShrink.SizeMin -gt ($targetSize * 1.1GB)) {
+    # Shrink C: by targetSize
+    Resize-Partition -DriveLetter C -Size ($maxShrink.SizeMax - ($targetSize * 1GB))
+    
+    # Create new partition in freed space
+    $newPart = New-Partition -DiskNumber $partition.DiskNumber `
+        -UseMaximumSize -DriveLetter D
+    
+    # Format as NTFS
+    Format-Volume -DriveLetter D -FileSystem NTFS `
+        -NewFileSystemLabel "wootc-data" -Confirm:$false
+    
+    Write-Host "Created D: ($targetSize GB) for wootc"
+}
+```
+
+This is non-destructive: Windows Disk Management has been doing this
+safely since Windows 7. The freed space becomes a new partition visible
+to both Windows and Linux.
 
 Per-directory encryption (Windows 11 Home default) does not block
 wootc — only full-volume BitLocker requires these options.
