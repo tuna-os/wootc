@@ -19,11 +19,12 @@ err()  { printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2; }
 # ── Parse kernel cmdline ────────────────────────────────────────────────────
 read_cmdline() {
     local key="$1" default="${2:-}"
-    for arg in $(cat /proc/cmdline); do
+    local arg
+    while IFS= read -r arg; do
         case "$arg" in
             "${key}="*) echo "${arg#*=}"; return ;;
         esac
-    done
+    done < /proc/cmdline
     echo "$default"
 }
 

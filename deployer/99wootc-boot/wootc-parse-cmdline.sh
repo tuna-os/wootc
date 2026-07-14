@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2154,SC2034  # root, rootok are set/used by dracut
 # /usr/lib/dracut/modules.d/99wootc-boot/wootc-parse-cmdline.sh
 # Hook 1: cmdline phase. Intercepts root= and loop= from the kernel
 # command line. If loop= is present, hijacks the root handler so dracut

@@ -22,11 +22,13 @@ modprobe ntfs3 2>/dev/null || true
 # ── Start network ───────────────────────────────────────────────────────────
 # Systemd-networkd would be ideal, but in a minimal initramfs we
 # just run dhclient on the first active interface.
-for iface in $(ls /sys/class/net/ | grep -v lo); do
+for iface in /sys/class/net/*/; do
+    iface=$(basename "$iface")
+    [[ "$iface" == "lo" ]] && continue
     if [[ -d "/sys/class/net/${iface}/device" ]]; then
         echo "[wootc] Bringing up ${iface}..."
         ip link set "$iface" up
-        dhclient -v "$iface" 2>&1 | while read line; do
+        dhclient -v "$iface" 2>&1 | while IFS= read -r line; do
             echo "[wootc/dhcp] $line"
         done &
         break

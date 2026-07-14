@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2154,SC2034,SC2168,SC1091  # root, rootok, local, /tmp/wootc.env are dracut env
 # /usr/lib/dracut/modules.d/99wootc-boot/wootc-mount-loop.sh
 # Hook 2: mount phase. When root="wootc" (set by the cmdline hook),
 # mounts the Windows NTFS partition, binds root.disk to a loop device,

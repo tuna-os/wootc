@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034,SC2317,SC2329  # ENCODED_SCRIPT in heredoc, cleanup via trap
 # run-e2e.sh — wootc end-to-end test orchestrator
 #
 # Prerequisites:

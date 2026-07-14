@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2154  # moddir is set by dracut
 # /usr/lib/dracut/modules.d/99wootc-boot/module-setup.sh
 # Registers hooks, binaries, and kernel modules for loop-root booting.
 
