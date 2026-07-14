@@ -953,7 +953,177 @@ partition detection, ESP cleanup, and optional partition undo.
 
 ---
 
-## 6. License
+## 6. VM Modes: Try Before You Commit
+
+wootc can boot bootc images directly on Windows using QEMU with WHPX
+(Windows Hypervisor Platform) acceleration. No reboot. Near-native
+performance. Two distinct modes:
+
+### 6.1 Fresh VM from OCI Image
+
+Pull a bootc image, build a raw disk image, and boot it in a QEMU window.
+"Try before you install" — the user can experiment with the OS, install
+packages, configure settings, all inside a VM. If they like it, the same
+disk image becomes their permanent install.
+
+```
+┌──────────────────────────────────────────────────┐
+│ Try TunaOS before installing                      │
+│                                                    │
+│  ┌──────────────────────────────────────────┐     │
+│  │            QEMU Window                    │     │
+│  │                                           │     │
+│  │     🐠 Yellowfin GNOME booting...          │     │
+│  │                                           │     │
+│  └──────────────────────────────────────────┘     │
+│                                                    │
+│  Disk: 20 GB    RAM: 4 GB    CPU: 4 cores          │
+│                                                    │
+│  [Open SSH: localhost:2222]                        │
+│                                                    │
+│  Like it?  [Install for real]  [Keep as VM]        │
+│  [Shut down]                                       │
+└──────────────────────────────────────────────────┘
+```
+
+**Architecture:**
+
+```
+1. Pull OCI image (skopeo, or download pre-built .raw)
+2. If OCI: build disk image via tiny bundled Linux VM
+     tiny-vm:
+       podman pull <image>
+       bootc install to-disk --generic-image --via-loopback /out/disk.raw
+   If pre-built: download disk.raw directly
+3. Start QEMU:
+     qemu-system-x86_64.exe
+       -accel whpx
+       -m 4G -smp 4
+       -drive file=disk.raw,format=raw
+       -nic user,hostfwd=tcp::2222-:22
+       -bios edk2-x86_64-code.fd
+       -display gtk
+4. Boots in a window. TunaOS desktop appears.
+```
+
+**How the disk image is built** (no bootc on Windows needed):
+
+wootc bundles a tiny Alpine Linux VM (~15MB kernel + initramfs with
+podman, skopeo, bootc). This "builder VM" runs once to convert an OCI
+image into a raw disk image:
+
+```
+┌──────────────┐     ┌─────────────────┐     ┌──────────────┐
+│ wootc.exe     │ ──→ │ Builder VM       │ ──→ │ disk.raw      │
+│               │     │ (Alpine, 15MB)   │     │ (5-10 GB)     │
+│ image ref     │     │ podman pull      │     │               │
+│ → temp dir    │     │ bootc install    │     │ → QEMU boots  │
+└──────────────┘     └─────────────────┘     └──────────────┘
+```
+
+Alternatively, wootc can download a **pre-built disk image** for each
+variant — hosted alongside the OCI images on GHCR. This is larger (~5-10GB
+per variant) but eliminates the builder VM entirely. The tradeoff: faster
+"try now" experience vs. more storage on the registry.
+
+**Bundled components:**
+
+| Component | Size | Source |
+|---|---|---|
+| `qemu-system-x86_64.exe` | ~8 MB | [QEMU Windows builds](https://qemu.weilnetz.de/) (MSYS2) |
+| `qemu-img.exe` | ~1 MB | Same |
+| `edk2-x86_64-code.fd` | ~2 MB | EDK2 OVMF UEFI firmware |
+| `builder-vmlinuz` + `builder-initramfs.img` | ~15 MB | Alpine with podman, skopeo, bootc |
+| **Total bundled** | **~26 MB** | Plus downloaded disk image |
+
+### 6.2 Boot Existing root.disk as VM
+
+If the user already has a dual-boot wootc install, they can boot that
+same root.disk directly in QEMU — running their Linux system inside
+Windows without rebooting. The same image, same state, same files.
+
+```
+┌──────────────────────────────────────────────────┐
+│ wootc — Your Linux is already installed            │
+│                                                    │
+│  Boot your existing TunaOS system in a VM:          │
+│                                                    │
+│  Source: C:\wootc\disks\root.disk (40 GB)           │
+│                                                    │
+│  This is your actual Linux system. Changes          │
+│  made in the VM persist on disk.                    │
+│                                                    │
+│  [Boot in VM]  [Reboot to Linux]  [Cancel]         │
+└──────────────────────────────────────────────────┘
+```
+
+**Implementation** — QEMU boots the root.disk file directly:
+
+```
+qemu-system-x86_64.exe
+  -accel whpx
+  -m 4G -smp 4
+  -drive file=C:\wootc\disks\root.disk,format=raw,if=virtio
+  -nic user,hostfwd=tcp::2222-:22
+  -bios edk2-x86_64-code.fd
+  -display gtk
+```
+
+The root.disk already has a GPT partition table, ESP, and root filesystem
+— all set up by fisherman during the initial deployer run. QEMU boots it
+like any raw disk image.
+
+**When the user is already dual-booting and wants to switch:**
+
+| From | To | How |
+|---|---|---|
+| Windows | Linux (VM) | QEMU boots root.disk in a window |
+| Windows | Linux (native) | Reboot → dual-boot via GRUB2 |
+| Linux (native) | Windows | Reboot → Windows Boot Manager |
+| Linux (VM) | Windows | Close QEMU window |
+
+**Shared state**: both the VM and the dual-boot path use the same
+root.disk. Changes in one appear in the other — it's the same filesystem.
+The only difference is whether the kernel runs on bare metal or inside
+QEMU.
+
+### 6.3 Boot a Real Partition as VM
+
+After migration to a native partition (e.g. D: is now a real Linux
+filesystem, not a loop file), QEMU can still boot it:
+
+```
+# Boot from raw partition D:
+qemu-system-x86_64.exe
+  -accel whpx
+  -drive file=\\.\D:,format=raw,if=virtio
+  -nic user,hostfwd=tcp::2222-:22
+  -bios edk2-x86_64-code.fd
+  -display gtk
+```
+
+`\\.\D:` is the Windows raw device path for the D: volume.
+
+> **Warning**: This gives QEMU direct block-level access to the partition.
+> Do not simultaneously mount D: in Windows while it's in use by QEMU —
+> that guarantees filesystem corruption. wootc ensures Windows doesn't
+> mount the partition before starting QEMU by removing the drive letter
+> temporarily.
+
+### 6.4 VM-to-Native Bridge
+
+Both VM modes share the same disk image as the dual-boot install.
+If the user tries a fresh VM and decides to commit:
+
+1. QEMU shuts down
+2. The raw disk image is converted to root.disk or copied to a partition
+3. GRUB2 and BCD entries are set up
+4. User reboots into the same system — no reinstall, no reconfigure
+
+The reverse is also true: a system installed via dual-boot can be booted
+in a VM at any time via §6.2.
+
+## 7. License
 
 The Windows installer component (`windows/`) is adapted from
 [WubiUEFI](https://github.com/hakuna-m/wubiuefi) which is licensed under
@@ -983,29 +1153,96 @@ communicating with an MIT-licensed deployer over a process boundary
 
 ---
 
-## 8. Project Structure
+## 8. Architecture: Two-Layer Design
+
+wootc has a strict architectural boundary between platform tooling and
+the bootc payload:
+
+```
+┌─────────────────────────────────────────────────┐
+│                  wootc.exe                        │
+│           (Windows installer frontend)            │
+└──────────────┬────────────────────┬──────────────┘
+               │                    │
+    ┌──────────▼──────────┐  ┌─────▼──────────────┐
+    │  Platform Tooling    │  │  bootc Payload      │
+    │  (generic, reusable) │  │  (bootc-specific)   │
+    │                      │  │                     │
+    │  • QEMU + WHPX       │  │  • Fisherman recipes │
+    │  • GRUB2 chainload   │  │  • OCI image pull    │
+    │  • BCD manipulation  │  │  • bootc install     │
+    │  • ESP management    │  │  • Migration (slurp) │
+    │  • NTFS mount/loop   │  │  • Passthrough       │
+    │  • WinRM automation  │  │  • Flatpak injection │
+    │  • VM modes          │  │                     │
+    │                      │  │                     │
+    │  Works with ANY      │  │  Requires bootc-    │
+    │  Linux, not just     │  │  based images       │
+    │  bootc-based ones    │  │                     │
+    └──────────────────────┘  └─────────────────────┘
+```
+
+**Why this boundary matters:**
+
+- The platform layer could be reused to boot any Linux (Ubuntu loop-file,
+  Arch VM, Fedora dual-boot) — it's generic infrastructure.
+- The payload layer is what makes it wootc instead of Wubi2.
+- Testing is cleaner: platform tests don't need OCI registries, payload
+  tests don't need Windows.
+- Dependencies flow one way: payload depends on platform, never vice versa.
+
+### 8.1 Directory Layout
 
 ```
 wootc/
-├── SPEC.md                    ← THIS FILE — consolidated specification
-├── README.md                  ← user-facing overview
-├── deployer/
-│   ├── Containerfile          ← builds deployer initramfs (~200MB)
-│   ├── deploy.sh              ← deployer script (finds NTFS → losetup → fisherman)
-│   ├── init                   ← PID 1 init script
-│   ├── module-setup.sh        ← dracut module for wootc-deploy
-│   └── 99wootc-boot/          ← dracut module injected into installed system
-│       ├── module-setup.sh
-│       └── wootc-boot.sh      ← loop-root mount logic for subsequent boots
-├── grub/
-│   ├── wubildr-bootstrap.cfg  ← GRUB entry point (embedded in core image)
-│   ├── wubildr.cfg            ← main GRUB config (dual-mode: boot OS or deployer)
-│   └── grub.install.cfg       ← first-boot menu → boots deployer
-├── windows/                    ← adaptation of wubiuefi's Python/Win32 app
-│   └── (to be built)
-├── fisherman/                  ← git submodule: github.com/projectbluefin/fisherman
-└── .gitignore
+├── platform/                      ← GENERIC LINUX/WINDOWS TOOLING
+│   ├── grub/
+│   │   ├── wubildr-bootstrap.cfg
+│   │   ├── wubildr.cfg
+│   │   └── grub.install.cfg
+│   ├── dracut/
+│   │   └── 99wootc-boot/          ← loop-root boot (works for any Linux)
+│   │       ├── module-setup.sh
+│   │       ├── wootc-parse-cmdline.sh
+│   │       └── wootc-mount-loop.sh
+│   ├── qemu/                       ← QEMU bundling + VM management
+│   │   └── (to be built)
+│   └── windows/                    ← BCD, ESP, NTFS, WinRM
+│       └── (to be built)
+│
+├── payload/                        ← BOOTC-SPECIFIC PAYLOAD
+│   ├── deployer/
+│   │   ├── Containerfile
+│   │   ├── deploy.sh              ← finds root.disk → fisherman recipe
+│   │   ├── init
+│   │   └── module-setup.sh
+│   ├── migration/
+│   │   └── (wootc-passthrough.service, slurp configs)
+│   └── recipes/
+│       └── (image catalogs, default recipes)
+│
+├── fisherman/                      ← git submodule: projectbluefin/fisherman
+├── tests/
+│   ├── e2e/                        ← full KVM e2e test
+│   └── unit/                       ← platform + payload unit tests
+├── docs/
+│   └── SPEC.md
+├── .github/workflows/
+│   ├── ci.yml
+│   └── e2e-kvm.yml
+└── README.md
 ```
+
+### 8.2 Key Dependencies
+
+| Project | Role | License |
+|---|---|---|
+| [WubiUEFI](https://github.com/hakuna-m/wubiuefi) | Windows installer, BCD, GRUB core images | GPL-2.0 |
+| [fisherman](https://github.com/projectbluefin/fisherman) | Disk partitioning, bootc install, data slurp | Apache-2.0 |
+| [bootc](https://github.com/containers/bootc) | Container-native OS install and updates | Apache-2.0 |
+| [bootupd](https://github.com/coreos/bootupd) | Bootloader installation (invoked by bootc) | Apache-2.0 |
+| [podman](https://github.com/containers/podman) | OCI image pull and container execution | Apache-2.0 |
+| [skopeo](https://github.com/containers/skopeo) | Image inspection, OCI layout export | Apache-2.0 |
 
 ---
 
@@ -1046,16 +1283,16 @@ git clone --recurse-submodules https://github.com/tuna-os/wootc.git
 cd wootc
 
 # Build deployer initramfs (from repo root)
-podman build -f deployer/Containerfile -t wootc-deployer .
-mkdir -p deployer/out
+podman build -f payload/deployer/Containerfile -t wootc-deployer .
+mkdir -p payload/deployer/out
 podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-    /out/initramfs.img > deployer/out/initramfs.img
+    /out/initramfs.img > payload/deployer/out/initramfs.img
 podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-    /out/vmlinuz > deployer/out/vmlinuz
+    /out/vmlinuz > payload/deployer/out/vmlinuz
 
 # Full e2e test (requires KVM)
 cd tests/e2e && ./run-e2e.sh
 
 # CI-only tests (no KVM needed)
-shellcheck --severity=warning deployer/*.sh deployer/99wootc-boot/*.sh tests/e2e/run-e2e.sh
+shellcheck --severity=warning payload/deployer/*.sh platform/dracut/99wootc-boot/*.sh tests/e2e/run-e2e.sh
 ```

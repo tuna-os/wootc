@@ -1,16 +1,9 @@
-# Deployer initramfs Containerfile
-# Builds a minimal initramfs that mounts a root.disk loop file from NTFS
-# and runs fisherman to deploy a bootc OCI image into it.
-#
-# Fisherman handles all the real work: partitioning, formatting,
-# bootc install to-filesystem, Flatpaks, hostname, kernel cmdline.
-# The wootc deployer just sets up the loop device and points fisherman at it.
-#
 # Build from repo root (so fisherman submodule is in context):
-#   podman build -f deployer/Containerfile -t wootc-deployer .
-#   podman run --rm -v $(pwd)/deployer/out:/out wootc-deployer
+#   podman build -f payload/deployer/Containerfile -t wootc-deployer .
+#   podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+#       /out/initramfs.img > payload/deployer/out/initramfs.img
 #
-# Output: deployer/out/vmlinuz, deployer/out/initramfs.img (~200MB)
+# Output: payload/deployer/out/vmlinuz, payload/deployer/out/initramfs.img (~200MB)
 
 FROM quay.io/fedora/fedora:44 AS builder
 
@@ -38,16 +31,16 @@ FROM builder
 COPY --from=gobuilder /fisherman /usr/bin/fisherman
 
 # ── Deployer script ─────────────────────────────────────────────────────────
-COPY deployer/deploy.sh /usr/bin/wootc-deploy
+COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
 RUN chmod +x /usr/bin/wootc-deploy
 
 # ── Init script (PID 1 in the initramfs) ────────────────────────────────────
-COPY deployer/init /init
+COPY payload/deployer/init /init
 RUN chmod +x /init
 
 # ── Dracut module ───────────────────────────────────────────────────────────
 RUN mkdir -p /usr/lib/dracut/modules.d/99wootc
-COPY deployer/module-setup.sh /usr/lib/dracut/modules.d/99wootc/module-setup.sh
+COPY payload/deployer/module-setup.sh /usr/lib/dracut/modules.d/99wootc/module-setup.sh
 RUN chmod +x /usr/lib/dracut/modules.d/99wootc/module-setup.sh
 
 # ── Build the initramfs ─────────────────────────────────────────────────────

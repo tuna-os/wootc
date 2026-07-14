@@ -71,22 +71,23 @@ $DOCKER pull dockurr/windows
 
 # ── Build deployer ─────────────────────────────────────────────────────────
 info "Building wootc deployer initramfs..."
-if [ -f deployer/Containerfile ]; then
-    podman build -f deployer/Containerfile -t wootc-deployer .
-    mkdir -p deployer/out
-    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/initramfs.img > deployer/out/initramfs.img
-    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/vmlinuz > deployer/out/vmlinuz
-    ls -lah deployer/out/vmlinuz deployer/out/initramfs.img
+if [ -f payload/deployer/Containerfile ]; then
+    podman build -f payload/deployer/Containerfile -t wootc-deployer .
+    mkdir -p payload/deployer/out
+    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/initramfs.img > payload/deployer/out/initramfs.img
+    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/vmlinuz > payload/deployer/out/vmlinuz
+    ls -lah payload/deployer/out/vmlinuz payload/deployer/out/initramfs.img
 else
     # Running from tests/e2e/ — try relative path
     cd ../..
-    podman build -f deployer/Containerfile -t wootc-deployer .
-    mkdir -p deployer/out tests/e2e/wootc-files
-    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/initramfs.img > deployer/out/initramfs.img
-    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/vmlinuz > deployer/out/vmlinuz
-    cp deployer/out/vmlinuz tests/e2e/wootc-files/
-    cp deployer/out/initramfs.img tests/e2e/wootc-files/
-    cp grub/*.cfg tests/e2e/wootc-files/grub/ 2>/dev/null || true
+    podman build -f payload/deployer/Containerfile -t wootc-deployer .
+    mkdir -p payload/deployer/out tests/e2e/wootc-files tests/e2e/wootc-files/grub
+    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/initramfs.img > payload/deployer/out/initramfs.img
+    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/vmlinuz > payload/deployer/out/vmlinuz
+    cp payload/deployer/out/vmlinuz tests/e2e/wootc-files/
+    cp payload/deployer/out/initramfs.img tests/e2e/wootc-files/
+    cp platform/grub/*.cfg tests/e2e/wootc-files/grub/ 2>/dev/null || true
+    cp platform/grub/*.cfg tests/e2e/wootc-files/grub/ 2>/dev/null || true
 fi
 
 info "Setup complete!"

@@ -18,10 +18,8 @@ jobs:
       - name: ShellCheck
         run: |
           shellcheck --severity=warning \
-            deployer/deploy.sh \
-            deployer/init \
-            deployer/module-setup.sh \
-            deployer/99wootc-boot/*.sh \
+            payload/deployer/*.sh \
+            platform/dracut/99wootc-boot/*.sh \
             tests/e2e/run-e2e.sh
 
       - name: yamllint
@@ -54,7 +52,7 @@ jobs:
 
       - name: Build deployer
         run: |
-          podman build -f deployer/Containerfile -t wootc-deployer .
+          podman build -f payload/deployer/Containerfile -t wootc-deployer .
 
       - name: Extract artifacts
         run: |

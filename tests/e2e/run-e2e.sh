@@ -76,7 +76,7 @@ if [ "$SKIP_BUILD" = false ]; then
     
     # Copy GRUB configs
     mkdir -p "$SCRIPT_DIR/wootc-files/grub"
-    cp "$REPO_ROOT/grub/"*.cfg "$SCRIPT_DIR/wootc-files/grub/" 2>/dev/null || true
+    cp "$REPO_ROOT/platform/grub/"*.cfg "$SCRIPT_DIR/wootc-files/grub/" 2>/dev/null || true
     
     pass "Deployer built: $(du -sh "$SCRIPT_DIR/wootc-files/vmlinuz" | cut -f1) kernel, $(du -sh "$SCRIPT_DIR/wootc-files/initramfs.img" | cut -f1) initramfs"
     cd "$SCRIPT_DIR"

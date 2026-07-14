@@ -58,15 +58,16 @@ cd wootc
 pip install pywinrm    # WinRM client for automation
 
 # Build the deployer initramfs
-podman build -f deployer/Containerfile -t wootc-deployer .
-mkdir -p deployer/out tests/e2e/wootc-files/grub
+podman build -f payload/deployer/Containerfile -t wootc-deployer .
+mkdir -p payload/deployer/out tests/e2e/wootc-files/grub
 podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-    /out/initramfs.img > deployer/out/initramfs.img
+    /out/initramfs.img > payload/deployer/out/initramfs.img
 podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-    /out/vmlinuz > deployer/out/vmlinuz
-cp deployer/out/vmlinuz tests/e2e/wootc-files/
-cp deployer/out/initramfs.img tests/e2e/wootc-files/
-cp grub/*.cfg tests/e2e/wootc-files/grub/
+    /out/vmlinuz > payload/deployer/out/vmlinuz
+cp payload/deployer/out/vmlinuz tests/e2e/wootc-files/
+cp payload/deployer/out/initramfs.img tests/e2e/wootc-files/
+cp platform/grub/*.cfg tests/e2e/wootc-files/grub/
+cp platform/grub/*.cfg tests/e2e/wootc-files/grub/
 
 # Run the e2e test (~30-45 minutes)
 cd tests/e2e && ./run-e2e.sh
