@@ -123,7 +123,7 @@ Copy-Item $deployerInitramfs "$installDir\deployer-initramfs.img" -Force
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────
 if ($grubDir) {
     # GRUB cfg files from the wootc repo
-    Copy-Item "$grubDir\*" "$installDir\" -Force -ErrorAction SilentlyContinue
+    Copy-Item "$grubDir\*" $installDir -Force -ErrorAction SilentlyContinue
 
     # Copy wubildr.efi from share if available (custom GRUB core image with embedded config)
     $grubEfiSrc = "$payloadRoot\wubildr.efi"
@@ -218,7 +218,9 @@ if (-not $espDrive) {
     throw "EFI System Partition has no drive letter after assignment."
 }
 
-$espPath = "${espDrive}:\"
+# Avoid a double-quoted path ending in `\`: Windows PowerShell treats the
+# final quote as unterminated in this form. Build the separator explicitly.
+$espPath = "${espDrive}:" + [System.IO.Path]::DirectorySeparatorChar
 Write-Host "[wootc] EFI System Partition mounted at $espPath"
 
 # Create wootc GRUB directory on ESP
@@ -229,7 +231,7 @@ New-Item -ItemType Directory -Force -Path $wootcEfiDir | Out-Null
 # bootstrap config, ntfs + loopback modules).
 
 # Copy GRUB config files to ESP
-Copy-Item "$installDir\wubildr.cfg" "$wootcEfiDir\" -Force
+Copy-Item "$installDir\wubildr.cfg" $wootcEfiDir -Force
 
 Write-Host "[wootc] GRUB files installed to $wootcEfiDir"
 
