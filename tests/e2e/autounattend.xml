@@ -95,6 +95,23 @@
       <ComputerName>wootc-test</ComputerName>
       <TimeZone>UTC</TimeZone>
     </component>
+    <!-- FirstLogonCommands has proven unreliable in the Dockur-customized
+         Windows 11 installer. Install an explicit machine RunOnce value while
+         specialize is running instead; it is consumed at the administrator's
+         first desktop logon, after C:\OEM has been copied by $OEM$. -->
+    <component name="Microsoft-Windows-Deployment"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>50</Order>
+          <Path>reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "wootc-e2e-setup" /t REG_SZ /d "cmd.exe /d /c C:\OEM\install.bat" /f</Path>
+          <Description>Schedule the local wootc OEM setup for first logon</Description>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+    </component>
     <component name="Microsoft-Windows-TerminalServices-LocalSessionManager"
                processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35"
@@ -166,18 +183,6 @@
         </Password>
         <LogonCount>65432</LogonCount>
       </AutoLogon>
-
-      <!-- Dockur copies /oem to C:\OEM. Run the local setup directly after the
-           first automatic desktop logon. Avoid Dockur's asynchronous `start`
-           wrapper: the setup script owns its reboot into the one-shot BCD
-           entry, and there are no ordering-sensitive WinRM or SMB commands. -->
-      <FirstLogonCommands>
-        <SynchronousCommand wcm:action="add">
-          <Order>1</Order>
-          <CommandLine>cmd.exe /d /c C:\OEM\install.bat</CommandLine>
-          <Description>Run the local wootc OEM setup payload</Description>
-        </SynchronousCommand>
-      </FirstLogonCommands>
 
     </component>
   </settings>
