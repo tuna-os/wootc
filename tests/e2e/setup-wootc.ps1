@@ -269,6 +269,10 @@ if ($bcdCreateOutput -match '\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-
     $newGuid = "{$($Matches[1])}"
     Write-Host "[wootc] New BCD entry GUID: $newGuid"
 
+    # The E2E runner needs this stable identifier to schedule the second,
+    # explicit one-shot boot that exercises the installed Phase 2 Linux root.
+    Set-Content -Path "$installDir\bcd-guid.txt" -Value $newGuid -Encoding ASCII
+
     # Set the EFI path (device is inherited from bootmgr — partition=E:)
     $efiRelPath = "\EFI\wootc\wubildr.efi"
     & bcdedit /set $newGuid path $efiRelPath

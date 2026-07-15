@@ -20,6 +20,23 @@ set -Eeuo pipefail
 log() { printf '\033[1;32m[wootc]\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2; }
 
+# A failed target-side dracut run must not leave the Windows volume, loop
+# devices, or chroot bind mounts busy.  That would prevent a useful retry from
+# the deployer shell and can otherwise make the next boot non-deterministic.
+NTFS_PART=""
+LOOP_DEV=""
+VERIFY_LOOP=""
+cleanup() {
+    local mount
+    for mount in /mnt/verify/sys /mnt/verify/proc /mnt/verify/dev \
+        /mnt/verify/boot /mnt/verify /mnt/ntfs; do
+        mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
+    done
+    [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
+    [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
+}
+trap cleanup EXIT
+
 # ── Parse kernel cmdline ────────────────────────────────────────────────────
 read_cmdline() {
     local key="$1" default="${2:-}"
@@ -57,7 +74,6 @@ ROOT_DISK_PATH="/wootc/disks/root.disk"
 # ── Find NTFS partition containing root.disk ────────────────────────────────
 log "Searching for ${ROOT_DISK_PATH}..."
 
-NTFS_PART=""
 for dev in /dev/sd* /dev/nvme* /dev/vd*; do
     [[ -b "$dev" ]] || continue
     mkdir -p /mnt/scan
@@ -262,6 +278,7 @@ else
 fi
 
 losetup -d "$VERIFY_LOOP"
+VERIFY_LOOP=""
 
 log "Verification complete. Rebooting..."
 log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"

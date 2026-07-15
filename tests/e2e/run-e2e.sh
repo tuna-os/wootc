@@ -229,6 +229,56 @@ _fix_routing() {
     info "PREROUTING rules added for ports 5985/5986 → $vm_ip"
 }
 
+winrm_probe() {
+    python3 "$SCRIPT_DIR/winrm-check.py" >/dev/null 2>&1
+}
+
+wait_for_winrm() {
+    local label="$1" timeout="$2" elapsed=0
+    step "Waiting for WinRM: $label..."
+    while [ "$elapsed" -lt "$timeout" ]; do
+        _fix_routing 2>/dev/null || true
+        if winrm_probe; then
+            pass "WinRM available: $label"
+            return 0
+        fi
+        sleep 10
+        elapsed=$((elapsed + 10))
+        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for WinRM ($label)... ($(( elapsed / 60 ))m)"
+    done
+    fail "WinRM did not become available for $label within $((timeout / 60)) minutes"
+    return 1
+}
+
+wait_for_winrm_reboot() {
+    local label="$1" elapsed=0
+    info "Waiting for WinRM to go away before $label..."
+    while [ "$elapsed" -lt 120 ]; do
+        if ! winrm_probe; then
+            wait_for_winrm "$label" 600
+            return
+        fi
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+    fail "Windows did not begin rebooting before $label"
+    return 1
+}
+
+wait_for_winrm_down() {
+    local label="$1" elapsed=0
+    info "Waiting for WinRM to go away before $label..."
+    while [ "$elapsed" -lt 120 ]; do
+        if ! winrm_probe; then
+            return 0
+        fi
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+    fail "Windows did not begin rebooting before $label"
+    return 1
+}
+
 # Wait for container to start iptables, then add our rules
 sleep 5
 _fix_routing
@@ -419,10 +469,10 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         echo "$NEW_LINES" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_LINES" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_LINES" | grep -E '\[PASS\]' | tail -1)"
         echo "$NEW_LINES" | grep -qE "\[WARN\]" && info "wootc: $(echo "$NEW_LINES" | grep -E '\[WARN\]' | tail -1)"
-        echo "$NEW_LINES" | grep -q "VERIFICATION_SUMMARY" && pass "wootc: deployment verification complete"
-        if echo "$NEW_LINES" | grep -q "Installation complete"; then
+        if echo "$NEW_LINES" | grep -q "VERIFICATION_SUMMARY"; then
             DEPLOY_COMPLETE=true
-            pass "fisherman: installation complete!"
+            pass "wootc: deployment verification complete"
+            LAST_LINE=$CURRENT_LINE
             break
         fi
         if echo "$NEW_LINES" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
@@ -445,9 +495,25 @@ done
     exit 1
 }
 
-# ── Step 8: Verify bootc system boots ────────────────────────────────────────
-step "Waiting for bootc system to boot..."
-sleep 15
+# ── Step 8: Schedule and verify Phase 2 Linux boot ──────────────────────────
+# The initial BCD bootsequence entry is intentionally one-shot. The deployer
+# returns to Windows after laying down root.disk; re-arm it once to boot the
+# installed Phase 2 Linux root through the custom EFI loader.
+wait_for_winrm_reboot "Windows after deployer"
+
+step "Scheduling one-shot Phase 2 Linux boot..."
+# shellcheck disable=SC2016 # PowerShell variables must remain literal here.
+PHASE2_GUID=$(python3 "$SCRIPT_DIR/winrm-run.py" \
+    '$guid = (Get-Content C:\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid')
+PHASE2_GUID=$(printf '%s' "$PHASE2_GUID" | tr -d '\r\n')
+[ -n "$PHASE2_GUID" ] || { fail "Could not read wootc BCD GUID from Windows"; exit 1; }
+
+python3 "$SCRIPT_DIR/winrm-run.py" \
+    "bcdedit /set '{fwbootmgr}' bootsequence $PHASE2_GUID /addfirst; shutdown /r /t 5 /f" >/dev/null
+pass "Phase 2 Linux boot scheduled through BCD one-shot entry"
+wait_for_winrm_down "Phase 2 Linux boot"
+
+step "Waiting for Phase 2 Linux system to boot..."
 
 ELAPSED=0
 TIMEOUT=300
@@ -459,7 +525,7 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         NEW_LINES=$(tail -n $((CURRENT_LINE - LAST_LINE)) "$PTY")
         if echo "$NEW_LINES" | grep -qE "ostree=|Starting version|Welcome to|login:"; then
             BOOT_SUCCESS=true
-            pass "Bootc system booted!"
+            pass "Phase 2 Linux system booted!"
             break
         fi
         if echo "$NEW_LINES" | grep -qE "No bootable device|BOOTMGR is missing|kernel panic"; then
@@ -473,7 +539,7 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
 done
 
 [ "$BOOT_SUCCESS" = true ] || {
-    fail "Bootc system did not boot within $((TIMEOUT/60)) minutes"
+    fail "Phase 2 Linux system did not boot within $((TIMEOUT/60)) minutes"
     tail -30 "$PTY"
     exit 1
 }
@@ -539,6 +605,12 @@ if [ "$PASSTHROUGH_OK" = true ]; then
 else
     info "Passthrough verification: errors found (see above) — migration may fail"
 fi
+
+# ── Step 10: Verify the one-shot entry returns to Windows ───────────────────
+step "Rebooting Phase 2 Linux and verifying return to Windows..."
+$DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
+wait_for_winrm_reboot "Windows return after Phase 2 Linux"
+pass "One-shot Phase 2 boot consumed; Windows returned successfully"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
