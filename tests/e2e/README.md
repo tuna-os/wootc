@@ -21,16 +21,17 @@ it waits for installation.
 │  │                                               │    │
 │  │  1. Windows boots (auto-install via answer)   │    │
 │  │  2. Dockur copies ./oem to C:\\OEM             │    │
-│  │  3. SYSTEM task runs C:\\OEM\\install.bat       │    │
-│  │  4. Setup creates root.disk and BCD entry      │    │
-│  │  5. Reboot → wubildr → deployer initramfs      │    │
-│  │  6. Deployer pulls image, runs fisherman       │    │
-│  │  7. Reboot → installed Phase 2 Linux           │    │
+│  │  3. SYSTEM task installs QEMU Guest Agent       │    │
+│  │  4. QGA runs setup and exposes logs             │    │
+│  │  5. Setup creates root.disk and BCD entry       │    │
+│  │  6. Reboot → wubildr → deployer initramfs       │    │
+│  │  7. Deployer pulls image, runs fisherman        │    │
+│  │  8. Reboot → installed Phase 2 Linux            │    │
 │  │                                               │    │
 │  │  QEMU serial console: $STORAGE/qemu.pty       │    │
 │  │  QEMU monitor: $STORAGE/qemu.monitor          │    │
 │  │  VNC: port 5900                                │    │
-│  │  WinRM: port 5985 (inside container)           │    │
+│  │  QGA: /run/shm/qga.sock (private virtio channel)│   │
 │  └──────────────────────────────────────────────┘    │
 │                                                       │
 │  Shared volumes:                                       │
@@ -67,7 +68,7 @@ git clone --recurse-submodules https://github.com/tuna-os/wootc.git
 cd wootc
 
 # Install prerequisites
-pip install pywinrm    # WinRM client for automation
+# The QGA client uses only Python's standard library.
 
 # Build the deployer initramfs
 podman build -f payload/deployer/Containerfile -t wootc-deployer .
@@ -92,8 +93,6 @@ cd tests/e2e && ./run-e2e.sh
 - Docker or Podman
 - At least 8 GB RAM available
 - At least 80 GB free disk space
-- `pywinrm` Python package (`pip install pywinrm`)
-- `websocat` for VNC automation (`brew install websocat`)
 - `tests/e2e/wootc-files/wubildr.efi`: the custom GRUB core image with its
   embedded NTFS bootstrap configuration. A stock `grubx64.efi` cannot replace it.
 
@@ -102,9 +101,11 @@ cd tests/e2e && ./run-e2e.sh
 1. Stage the local OEM payload and start dockur/windows.
 2. Wait for the unattended Windows install. During `specialize`, the answer
    file creates a one-shot SYSTEM task; at the first automatic desktop logon it
-   runs `C:\OEM\install.bat` with the privileges needed for BCD and the ESP.
-   No guest networking, SMB, or WinRM is needed for this initial handoff.
-3. `setup-wootc.ps1` runs from that OEM payload and:
+   installs the cached QEMU Guest Agent MSI and starts the agent service.
+3. The runner waits for QGA and uses its private virtio-serial channel to run
+   PowerShell as SYSTEM, retrieve `C:\OEM` logs, and invoke `setup-wootc.ps1`.
+   No guest networking, SMB, WinRM, or Windows password is needed.
+4. `setup-wootc.ps1` runs from that OEM payload and:
    - Create C:\wootc\disks\root.disk (2GB sparse, enough for test)
    - Copy deployer kernel, initramfs, and wubildr.efi from C:\OEM
    - Install wubildr to the ESP and add a one-shot BCD entry
@@ -114,9 +115,8 @@ cd tests/e2e && ./run-e2e.sh
    - "fisherman: Partitioning disk"
    - "Deploying image"
    - "Installation complete!"
-5. Re-arm the one-shot BCD entry and verify the installed Phase 2 Linux system
-   boots, then verify the entry returns to Windows.
+6. Re-arm the one-shot BCD entry through QGA and verify the installed Phase 2
+   Linux system boots, then verify the entry returns to Windows through QGA.
 
-WinRM is still used by the Phase 2 re-arm assertion today. It is deliberately
-not a dependency of the Windows installation or initial wootc handoff; a QEMU
-Guest Agent control path is the planned replacement for that remaining step.
+See the repository-root [HANDOFF.md](../../HANDOFF.md) for the QGA migration
+design, package cache details, and troubleshooting evidence.

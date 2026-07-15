@@ -1,15 +1,10 @@
 # wootc e2e test — Windows 11 VM via dockur/windows
 #
-# Key networking facts (to prevent future WinRM headaches):
+# Key control-plane facts:
 #
-#   dockur/windows uses a TAP bridge (172.30.x.x) inside the container.
-#   Preferred flow: runner enters the container network namespace and connects
-#   directly to VM:172.30.x.x:5985. This avoids stale host-port DNAT state.
-#   Fallback flow: host:5985 ──podman──► container:5985 ──iptables PREROUTING──► VM:172.30.x.x:5985
-#
-#   The dockur PREROUTING rule matches eth0 only, while Podman port-mapped
-#   traffic can arrive on lo (loopback). run-e2e.sh uses a lo rule only for
-#   its unprivileged host-port fallback.
+#   dockur/windows uses a TAP bridge (172.30.x.x) inside the container, but
+#   the E2E control plane does not require guest networking. QGA runs over the
+#   private virtio-serial socket below.
 #
 #   autounattend.xml mounts at /custom/autounattend.xml — dockur bakes it
 #   into the Windows installer ISO automatically.
@@ -21,7 +16,7 @@ services:
     stop_grace_period: 2m
     environment:
       VERSION: "11"
-      EDITION: "pro"          # Pro edition required for WinRM + Group Policy
+      EDITION: "pro"          # Pro edition required by the Windows target
       USERNAME: "wootc"
       PASSWORD: "wootc-test-123!"
       CPU_CORES: "4"
@@ -33,9 +28,14 @@ services:
       MANUAL: "N"                   # Fully unattended install
       LANGUAGE: "en-US"
       KEYBOARD: "en-US"
-      # USER_PORTS is NOT needed here: we use TAP bridged networking (not SLiRP),
-      # so port forwarding from container → VM is handled by iptables PREROUTING
-      # rules managed by run-e2e.sh / `just fix-routing`, not by QEMU USER_PORTS.
+      # Private host-to-guest control channel. The Windows OEM bootstrap
+      # installs qemu-ga-x86_64.msi, after which the runner uses guest-exec and
+      # guest-file-* instead of WinRM or guest networking.
+      ARGUMENTS: >-
+        -chardev socket,id=qga0,path=/run/shm/qga.sock,server=on,wait=off
+        -device virtio-serial
+        -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
+      # USER_PORTS is not needed: QGA is private and does not use guest TCP.
     devices:
       - /dev/kvm
       - /dev/net/tun
@@ -49,8 +49,6 @@ services:
     ports:
       - "8006:8006"    # noVNC web console  — browse to http://localhost:8006 to watch/debug
       - "3389:3389"    # RDP                — for manual debugging
-      - "5985:5985"    # WinRM HTTP         — used by run-e2e.sh
-      - "5986:5986"    # WinRM HTTPS        — reserved for future use
       - "5900:5900"    # QEMU VNC           — fallback debugging
     volumes:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
@@ -58,9 +56,9 @@ services:
       # Deployer files: deployer-vmlinuz, deployer-initramfs.img, grubx64.efi, grub configs — shared as Samba \\host.lan\Data
       - ./wootc-files:/shared
       # OEM files are injected by Dockur into C:\OEM during setup. They provide
-      # a local fallback when external WinRM is unavailable.
+      # a local QGA bootstrap and the wootc payload.
       - ./oem:/oem:ro
       # Custom Windows answer file — dockur expects this at /custom.xml (a FILE, not a directory).
-      # This enables WinRM, sets network to Private, configures autologon.
+      # This configures unattended GPT setup and the SYSTEM bootstrap task.
       - ./autounattend.xml:/custom.xml:ro
     restart: "no"     # Don't auto-restart — test orchestrator manages lifecycle

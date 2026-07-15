@@ -5,3 +5,5 @@ out/
 tests/e2e/oem/payload/
 tests/e2e/oem/setup-wootc.ps1
 tests/e2e/iso-cache/
+tests/e2e/oem/qemu-ga-x86_64.msi
+tests/e2e/qga-cache/

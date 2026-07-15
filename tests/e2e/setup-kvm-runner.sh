@@ -42,10 +42,6 @@ else
     err "Unsupported package manager. Install podman, python3, jq manually."
 fi
 
-# ── Install pywinrm ────────────────────────────────────────────────────────
-pip3 install pywinrm || sudo pip3 install pywinrm
-python3 -c "import winrm; print('pywinrm OK')" || err "pywinrm install failed"
-
 # ── Verify Docker/Podman ───────────────────────────────────────────────────
 if command -v docker &>/dev/null; then
     DOCKER="docker"
@@ -97,9 +93,9 @@ info "  cd tests/e2e && ./run-e2e.sh"
 info ""
 info "This will:"
 info "  1. Start Windows 11 VM (~10-15 min auto-install)"
-info "  2. Wait for WinRM connectivity"
-info "  3. Run wootc setup inside Windows"
+info "  2. Wait for QEMU Guest Agent readiness"
+info "  3. Run wootc setup through QGA as SYSTEM"
 info "  4. Reboot → deployer → fisherman → bootc install"
-info "  5. Verify bootc system boots"
+info "  5. Verify bootc system boots and Windows returns"
 info ""
 info "Total runtime: ~30-45 minutes"

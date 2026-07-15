@@ -4,7 +4,7 @@
 #
 # Prerequisites:
 #   podman (or docker) with /dev/kvm access
-#   pip install pywinrm
+#   Python 3 (the QGA client uses only the standard library)
 #
 # Usage:
 #   ./run-e2e.sh                               # full e2e with default image
@@ -52,17 +52,9 @@ STORAGE_DIR="$SCRIPT_DIR/storage"
 # file, so it must receive a copy rather than the only cached source image.
 ISO_CACHE_DIR="$SCRIPT_DIR/iso-cache"
 WINDOWS_ISO_CACHE="${WOOTC_WINDOWS_ISO:-$ISO_CACHE_DIR/windows-11.iso}"
-WINRM_HOST="127.0.0.1"
-WINRM_PORT="5985"
-WINRM_USER="wootc"
-WINRM_PASS="wootc-test-123!"
-# Prefer reaching the guest from the Dockur container's network namespace.
-# Rootful Podman/Netavark can retain a stale host-port DNAT target across
-# repeated compose runs, while the container namespace always has a route to
-# the current TAP guest.  Host-port forwarding remains a non-root fallback.
-WINRM_TRANSPORT="host-port"
-WINRM_GUEST_IP=""
-WINRM_CONTAINER_PID=""
+QGA_CACHE_DIR="$SCRIPT_DIR/qga-cache"
+QGA_MSI="${WOOTC_QGA_MSI:-$QGA_CACHE_DIR/qemu-ga-x86_64.msi}"
+QGA_MSI_URL="${WOOTC_QGA_MSI_URL:-https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-qemu-ga/qemu-ga-x86_64.msi}"
 # Override for hosts whose pip-enabled interpreter is versioned (for example,
 # PYTHON_BIN=python3.14 on Homebrew systems).
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -82,6 +74,14 @@ capture_vm_diagnostics() {
     info "Collecting Windows VM diagnostics..."
     $DOCKER logs --tail 150 "$CONTAINER_NAME" 2>&1 || true
     $DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true
+    if qga_probe; then
+        info "QGA guest-info:"
+        qga_call info || true
+        info "QGA C:\\OEM\\wootc-e2e.log:"
+        qga_read 'C:\OEM\wootc-e2e.log' 2>/dev/null || true
+        info "QGA C:\\OEM\\e2e-setup-failed.txt:"
+        qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true
+    fi
     $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/screenshot.py" 2>/dev/null || true
     $DOCKER exec "$CONTAINER_NAME" python3 /tmp/screenshot.py 2>/dev/null || true
     $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" /tmp/wootc-e2e-failure.png 2>/dev/null || true
@@ -106,6 +106,61 @@ if [ "$DOCKER" = "podman" ] && command -v podman-compose &>/dev/null; then
 else
     COMPOSE="$DOCKER compose"
 fi
+
+# ── QEMU Guest Agent control plane ───────────────────────────────────────────
+# qga.py is copied into Dockur after QEMU starts. Keeping the client in the
+# container lets it reach the private Unix socket without exposing a port.
+qga_call() {
+    $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"
+}
+
+qga_probe() {
+    qga_call ping >/dev/null 2>&1
+}
+
+qga_wait() {
+    local label="$1" timeout="$2" elapsed=0
+    step "Waiting for QGA: $label..."
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if qga_probe; then
+            pass "QGA available: $label"
+            return 0
+        fi
+        sleep 10
+        elapsed=$((elapsed + 10))
+        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA ($label)... ($(( elapsed / 60 ))m)"
+    done
+    fail "QGA did not become available for $label within $((timeout / 60)) minutes"
+    return 1
+}
+
+qga_wait_down() {
+    local label="$1" timeout="${2:-120}" elapsed=0
+    info "Waiting for QGA to go away before $label..."
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if ! qga_probe; then
+            return 0
+        fi
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+    fail "QGA did not go away before $label"
+    return 1
+}
+
+qga_wait_reboot() {
+    local label="$1"
+    qga_wait_down "$label" 120
+    qga_wait "$label" 600
+}
+
+qga_powershell() {
+    qga_call powershell "$1"
+}
+
+qga_read() {
+    qga_call read "$1"
+}
 
 # ── Step 0: Build deployer initramfs ─────────────────────────────────────────
 if [ "$SKIP_BUILD" = false ]; then
@@ -200,6 +255,7 @@ cp "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" "$OEM_PAYLOAD/deployer-vmlinuz"
 cp "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" "$OEM_PAYLOAD/deployer-initramfs.img"
 cp "$SCRIPT_DIR/wootc-files/wubildr.efi" "$OEM_PAYLOAD/wubildr.efi"
 cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
+cp "$SCRIPT_DIR/qga.py" "$OEM_DIR/qga.py"
 
 # ── Step 1: Check prerequisites ──────────────────────────────────────────────
 step "Checking prerequisites..."
@@ -207,16 +263,20 @@ step "Checking prerequisites..."
 [ -e /dev/kvm ] || { fail "/dev/kvm not available — KVM required"; exit 1; }
 command -v "$DOCKER" &>/dev/null || { fail "$DOCKER not found"; exit 1; }
 command -v "$PYTHON_BIN" &>/dev/null || { fail "$PYTHON_BIN not found"; exit 1; }
-"$PYTHON_BIN" -c "import winrm" 2>/dev/null || {
-    info "Installing pywinrm..."
-    "$PYTHON_BIN" -m pip install pywinrm || {
-        fail "Could not install pywinrm with $PYTHON_BIN -m pip"
-        exit 1
-    }
-}
-"$PYTHON_BIN" -c "import winrm" 2>/dev/null || { fail "pywinrm unavailable"; exit 1; }
+command -v curl &>/dev/null || { fail "curl is required to cache the QGA MSI"; exit 1; }
 
-pass "Prerequisites OK ($DOCKER, pywinrm)"
+mkdir -p "$QGA_CACHE_DIR"
+if [ ! -s "$QGA_MSI" ]; then
+    step "Caching QEMU Guest Agent MSI..."
+    tmp_msi="$QGA_MSI.tmp.$$"
+    curl --fail --location --retry 3 --output "$tmp_msi" "$QGA_MSI_URL"
+    mv "$tmp_msi" "$QGA_MSI"
+fi
+[ -s "$QGA_MSI" ] || { fail "QGA MSI is empty: $QGA_MSI"; exit 1; }
+sha256sum "$QGA_MSI" > "$QGA_MSI.sha256"
+cp "$QGA_MSI" "$OEM_DIR/qemu-ga-x86_64.msi"
+
+pass "Prerequisites OK ($DOCKER, QGA MSI $(du -h "$QGA_MSI" | cut -f1))"
 
 # Windows PowerShell treats a double-quoted literal ending in a backslash as
 # unterminated. This payload is parsed only after the full Windows install, so
@@ -313,131 +373,13 @@ if [[ "$QEMU_CMD" != *"-tpmdev emulator"* || "$QEMU_CMD" != *"property=secure,va
     exit 1
 fi
 pass "QEMU is KVM-accelerated with TPM 2.0 and Secure Boot"
-
-# ── Select WinRM transport ───────────────────────────────────────────────────
-# Dockur owns a private TAP bridge inside the container.  Talking from that
-# namespace bypasses host-port DNAT entirely.  This is essential on runners
-# where Netavark has retained a mapping to a previous compose network.
-_guest_ip() {
-    local vm_ip
-    # Dockur publishes the actual guest URL. Do not infer it from the
-    # container's route table: that path points at the bridge/gateway (.3 on
-    # Kanpur), while Windows is normally .2.
-    vm_ip=$($DOCKER exec "$CONTAINER_NAME" sh -c \
-        'sed -nE "s#^https?://([^:/]+).*#\1#p" /run/shm/qemu.url 2>/dev/null' \
-        2>/dev/null | head -n 1) || true
-
-    if [[ ! "$vm_ip" =~ ^172\.30\.[0-9]+\.[0-9]+$ ]]; then
-        vm_ip="172.30.1.2"
-        info "WARNING: Dockur guest URL unavailable; falling back to $vm_ip" >&2
-    fi
-
-    printf '%s\n' "$vm_ip"
-}
-
-# Fallback for unprivileged/rootless runs.  dockur/windows' own PREROUTING
-# rule only applies to eth0; Podman port-mapped traffic arrives on lo.
-_fix_routing() {
-    local vm_ip
-    vm_ip=$(_guest_ip)
-
-    info "VM IP: $vm_ip"
-
-    for port in 5985 5986; do
-        $DOCKER exec "$CONTAINER_NAME" iptables -t nat -C PREROUTING \
-            -i lo -p tcp --dport "$port" \
-            -j DNAT --to-destination "${vm_ip}:${port}" 2>/dev/null || \
-            $DOCKER exec "$CONTAINER_NAME" iptables -t nat -I PREROUTING \
-                -i lo -p tcp --dport "$port" \
-                -j DNAT --to-destination "${vm_ip}:${port}" 2>/dev/null || true
-    done
-    info "Fallback PREROUTING rules added for ports 5985/5986 → $vm_ip"
-}
-
-configure_winrm_transport() {
-    WINRM_GUEST_IP=$(_guest_ip)
-    WINRM_CONTAINER_PID=$($DOCKER inspect -f '{{.State.Pid}}' "$CONTAINER_NAME" 2>/dev/null || true)
-
-    if [ "${EUID:-$(id -u)}" -eq 0 ] && command -v nsenter >/dev/null 2>&1 && \
-        [[ "$WINRM_CONTAINER_PID" =~ ^[1-9][0-9]*$ ]]; then
-        if nsenter -t "$WINRM_CONTAINER_PID" -n sh -c \
-            "ip route get '$WINRM_GUEST_IP' >/dev/null 2>&1"; then
-            WINRM_TRANSPORT="container-netns"
-            info "WinRM transport: Dockur network namespace → $WINRM_GUEST_IP"
-            return
-        fi
-    fi
-
-    WINRM_TRANSPORT="host-port"
-    info "WinRM transport: host port mapping fallback"
-    _fix_routing
-}
-
-winrm_python() {
-    if [ "$WINRM_TRANSPORT" = "container-netns" ]; then
-        # Only enter the network namespace; keep the runner's filesystem so
-        # its selected Python environment and test scripts remain available.
-        nsenter -t "$WINRM_CONTAINER_PID" -n env WINRM_HOST="$WINRM_GUEST_IP" \
-            "$PYTHON_BIN" "$@"
-    else
-        WINRM_HOST="$WINRM_HOST" "$PYTHON_BIN" "$@"
-    fi
-}
-
-winrm_probe() {
-    winrm_python "$SCRIPT_DIR/winrm-check.py" >/dev/null 2>&1
-}
-
-wait_for_winrm() {
-    local label="$1" timeout="$2" elapsed=0
-    step "Waiting for WinRM: $label..."
-    while [ "$elapsed" -lt "$timeout" ]; do
-        [ "$WINRM_TRANSPORT" = "container-netns" ] || _fix_routing 2>/dev/null || true
-        if winrm_probe; then
-            pass "WinRM available: $label"
-            return 0
-        fi
-        sleep 10
-        elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for WinRM ($label)... ($(( elapsed / 60 ))m)"
-    done
-    fail "WinRM did not become available for $label within $((timeout / 60)) minutes"
-    return 1
-}
-
-wait_for_winrm_reboot() {
-    local label="$1" elapsed=0
-    info "Waiting for WinRM to go away before $label..."
-    while [ "$elapsed" -lt 120 ]; do
-        if ! winrm_probe; then
-            wait_for_winrm "$label" 600
-            return
-        fi
-        sleep 5
-        elapsed=$((elapsed + 5))
-    done
-    fail "Windows did not begin rebooting before $label"
-    return 1
-}
-
-wait_for_winrm_down() {
-    local label="$1" elapsed=0
-    info "Waiting for WinRM to go away before $label..."
-    while [ "$elapsed" -lt 120 ]; do
-        if ! winrm_probe; then
-            return 0
-        fi
-        sleep 5
-        elapsed=$((elapsed + 5))
-    done
-    fail "Windows did not begin rebooting before $label"
-    return 1
-}
-
-# Wait for container to start iptables, then add our rules
-sleep 5
-step "Selecting deterministic WinRM transport..."
-configure_winrm_transport
+if [[ "$QEMU_CMD" != *"qga0"* || "$QEMU_CMD" != *"org.qemu.guest_agent.0"* ]]; then
+    fail "QEMU is missing the QGA virtio-serial channel"
+    capture_vm_diagnostics
+    exit 1
+fi
+$DOCKER cp "$SCRIPT_DIR/qga.py" "$CONTAINER_NAME:/tmp/qga.py"
+pass "QGA virtio-serial channel configured"
 
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
@@ -480,6 +422,16 @@ else
     info "Windows installation is still running; waiting for its OEM handoff..."
 fi
 
+# The QGA service is installed by the SYSTEM OEM bootstrap before the wootc
+# payload runs. Its availability is the real Windows-ready signal; no guest
+# IP, WinRM listener, or Windows password is involved.
+qga_wait "Windows guest" 2700
+qga_call info || true
+
+step "Starting OEM setup through QGA..."
+qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
+pass "OEM setup process started through QGA as SYSTEM"
+
 # ── Step 4: Wait for Windows install and OEM handoff ─────────────────────────
 # The deployer serial marker is the end-to-end assertion: it can only appear
 # after the local Windows script creates root.disk, installs wubildr.efi,
@@ -513,6 +465,12 @@ LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
     snapshot_serial || true
+    OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
+    if [ -n "$OEM_FAILURE" ]; then
+        fail "Windows OEM setup failed (read through QGA):"
+        echo "$OEM_FAILURE" >&2
+        break
+    fi
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
 
@@ -558,19 +516,19 @@ done
 # The initial BCD bootsequence entry is intentionally one-shot. The deployer
 # returns to Windows after laying down root.disk; re-arm it once to boot the
 # installed Phase 2 Linux root through the custom EFI loader.
-wait_for_winrm_reboot "Windows after deployer"
+qga_wait_reboot "Windows after deployer"
 
 step "Scheduling one-shot Phase 2 Linux boot..."
 # shellcheck disable=SC2016 # PowerShell variables must remain literal here.
-PHASE2_GUID=$(winrm_python "$SCRIPT_DIR/winrm-run.py" \
+PHASE2_GUID=$(qga_powershell \
     '$guid = (Get-Content C:\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid')
 PHASE2_GUID=$(printf '%s' "$PHASE2_GUID" | tr -d '\r\n')
 [ -n "$PHASE2_GUID" ] || { fail "Could not read wootc BCD GUID from Windows"; exit 1; }
 
-winrm_python "$SCRIPT_DIR/winrm-run.py" \
+qga_powershell \
     "bcdedit /set '{fwbootmgr}' bootsequence $PHASE2_GUID /addfirst; shutdown /r /t 5 /f" >/dev/null
 pass "Phase 2 Linux boot scheduled through BCD one-shot entry"
-wait_for_winrm_down "Phase 2 Linux boot"
+qga_wait_down "Phase 2 Linux boot"
 
 step "Waiting for Phase 2 Linux system to boot..."
 
@@ -672,7 +630,7 @@ fi
 # ── Step 10: Verify the one-shot entry returns to Windows ───────────────────
 step "Rebooting Phase 2 Linux and verifying return to Windows..."
 $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
-wait_for_winrm_reboot "Windows return after Phase 2 Linux"
+qga_wait "Windows return after Phase 2 Linux" 600
 pass "One-shot Phase 2 boot consumed; Windows returned successfully"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
