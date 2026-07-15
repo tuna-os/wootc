@@ -178,11 +178,35 @@ pass "Prerequisites OK ($DOCKER, pywinrm)"
 # ── Step 2: Start Windows VM ─────────────────────────────────────────────────
 step "Starting Windows VM..."
 cd "$SCRIPT_DIR"
+mkdir -p "$STORAGE_DIR"
 
 if [ "$SKIP_INSTALL" = false ]; then
     # Clean previous run's disk so autounattend runs fresh
     $COMPOSE -f compose.yml down --volumes 2>/dev/null || true
     rm -rf storage/data.qcow2
+
+    # dockur mutates the downloaded installer ISO in place and its cache key
+    # does not include /custom.xml. Reusing that ISO silently embeds an older
+    # answer file (including an older disk layout), so fingerprint the input
+    # and discard the processed ISO whenever the answer file changes.
+    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
+    ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
+    if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
+        info "autounattend.xml changed; rebuilding Dockur's processed installer ISO"
+        find "$STORAGE_DIR" -maxdepth 1 -type f -name '*.iso' -delete
+        rm -f "$STORAGE_DIR/windows.base" "$STORAGE_DIR/windows.boot"
+        ANSWER_REFRESH=true
+    else
+        ANSWER_REFRESH=false
+    fi
+else
+    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
+    ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
+    if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
+        fail "autounattend.xml changed since this disk was prepared; rerun without --skip-install"
+        exit 1
+    fi
+    ANSWER_REFRESH=false
 fi
 
 mkdir -p storage wootc-files
@@ -316,6 +340,9 @@ else
     fi
 
     pass "Windows installed ($(( ELAPSED / 60 ))m)"
+    if [ "$ANSWER_REFRESH" = true ]; then
+        printf '%s\n' "$ANSWER_SHA" > "$ANSWER_STAMP"
+    fi
     info "Windows is booting into OOBE / first-logon setup..."
     # Give OOBE + FirstLogonCommands time to run
     sleep 60
