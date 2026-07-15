@@ -298,21 +298,27 @@ pass "QEMU is KVM-accelerated with TPM 2.0 and Secure Boot"
 step "Fixing container routing for WinRM (lo PREROUTING)..."
 _fix_routing() {
     local vm_ip
-    # Detect the VM IP from dockur's bridge (172.30.x.x range)
-    vm_ip=$($DOCKER exec "$CONTAINER_NAME" ip route show 172.30.0.0/16 2>/dev/null \
-        | awk '/172\.30\.[0-9]+\.[0-9]+/{print $NF; exit}') || true
+    # Dockur publishes the actual guest URL. Do not infer it from the
+    # container's route table: that path points at the bridge/gateway (.3 on
+    # Kanpur), while Windows is normally .2.
+    vm_ip=$($DOCKER exec "$CONTAINER_NAME" sh -c \
+        'sed -nE "s#^https?://([^:/]+).*#\1#p" /run/shm/qemu.url 2>/dev/null' \
+        2>/dev/null | head -n 1) || true
 
-    # Fallback: look for first host on 172.30.x.x/24
-    if [ -z "$vm_ip" ]; then
-        vm_ip="172.30.1.3"
+    if [[ ! "$vm_ip" =~ ^172\.30\.[0-9]+\.[0-9]+$ ]]; then
+        vm_ip="172.30.1.2"
+        info "WARNING: Dockur guest URL unavailable; falling back to $vm_ip"
     fi
 
     info "VM IP: $vm_ip"
 
     for port in 5985 5986; do
-        $DOCKER exec "$CONTAINER_NAME" iptables -t nat -I PREROUTING \
+        $DOCKER exec "$CONTAINER_NAME" iptables -t nat -C PREROUTING \
             -i lo -p tcp --dport "$port" \
-            -j DNAT --to-destination "${vm_ip}:${port}" 2>/dev/null || true
+            -j DNAT --to-destination "${vm_ip}:${port}" 2>/dev/null || \
+            $DOCKER exec "$CONTAINER_NAME" iptables -t nat -I PREROUTING \
+                -i lo -p tcp --dport "$port" \
+                -j DNAT --to-destination "${vm_ip}:${port}" 2>/dev/null || true
     done
     info "PREROUTING rules added for ports 5985/5986 → $vm_ip"
 }
