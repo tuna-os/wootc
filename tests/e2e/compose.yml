@@ -28,12 +28,10 @@ services:
       MANUAL: "N"                   # Fully unattended install
       LANGUAGE: "en-US"
       KEYBOARD: "en-US"
-      # Override Dockur's default SERIAL=mon:stdio to write directly to a
-      # persistent file on the mounted /storage volume.  The QEMU monitor is
-      # still available via the Unix socket in /run/shm/monitor.sock for live
-      # diagnostics.  This file survives container teardown and single-handedly
-      # made the Secure-Boot-rejects-wubildr bug visible.
-      SERIAL: "file:/storage/deployer-serial.log"
+      # Keep SERIAL at Dockur's default (mon:stdio) — Dockur reads the
+      # serial console to detect QEMU boot progress.  Add a second serial
+      # port backed by a file in ARGUMENTS for persistent post-mortem logs.
+      # SERIAL: "file:/storage/deployer-serial.log"
       # QEMU internal debug log — captures firmware TPL state, PCI enumeration,
       # boot device selection, and verbose errors.  Disabled by default because
       # it is extremely verbose (~10 MB per boot).  Set to "Y" when tracking
