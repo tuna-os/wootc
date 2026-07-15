@@ -161,11 +161,22 @@ fi
 # wubildr is a custom GRUB core image, not an interchangeable stock GRUB EFI.
 # Refuse to mutate the Windows boot entry when it is absent, including in
 # --skip-build runs that reuse artifacts.
-cp "$SCRIPT_DIR/setup-wootc.ps1" "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 [ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] || {
     fail "Missing wootc-files/wubildr.efi (custom GRUB core image required)"
     exit 1
 }
+
+# Dockur copies /oem into C:\OEM and runs install.bat at the end of automatic
+# setup. Stage every input locally so the guest setup does not depend on SMB,
+# WinRM, or a working guest network.
+OEM_DIR="$SCRIPT_DIR/oem"
+OEM_PAYLOAD="$OEM_DIR/payload"
+mkdir -p "$OEM_PAYLOAD/grub"
+cp "$SCRIPT_DIR/setup-wootc.ps1" "$OEM_DIR/setup-wootc.ps1"
+cp "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" "$OEM_PAYLOAD/deployer-vmlinuz"
+cp "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" "$OEM_PAYLOAD/deployer-initramfs.img"
+cp "$SCRIPT_DIR/wootc-files/wubildr.efi" "$OEM_PAYLOAD/wubildr.efi"
+cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
 
 # ── Step 1: Check prerequisites ──────────────────────────────────────────────
 step "Checking prerequisites..."
@@ -362,40 +373,16 @@ else
     if [ "$ANSWER_REFRESH" = true ]; then
         printf '%s\n' "$ANSWER_SHA" > "$ANSWER_STAMP"
     fi
-    info "Windows is booting into OOBE / first-logon setup..."
-    # Give OOBE + FirstLogonCommands time to run
-    sleep 60
+    info "Windows is handing off to the Dockur OEM setup hook..."
+    sleep 20
 fi
 
-# ── Step 4: Wait for local Windows setup ─────────────────────────────────────
-# FirstLogonCommands invokes setup-wootc.ps1 from the Samba share inside the
-# guest. This deliberately does not depend on WinRM or container NAT.
-step "Waiting for local Windows wootc setup..."
-TIMEOUT=900
-ELAPSED=0
-SETUP_COMPLETE=false
-while [ $ELAPSED -lt $TIMEOUT ]; do
-    if [ -f "$SCRIPT_DIR/wootc-files/e2e-setup-complete.txt" ]; then
-        SETUP_COMPLETE=true
-        break
-    fi
-    if [ -f "$SCRIPT_DIR/wootc-files/e2e-setup-failed.txt" ]; then
-        fail "Local Windows setup reported failure:"
-        cat "$SCRIPT_DIR/wootc-files/e2e-setup-failed.txt"
-        exit 1
-    fi
-    sleep 10
-    ELAPSED=$((ELAPSED + 10))
-    [ $((ELAPSED % 60)) -eq 0 ] && info "Waiting for local setup... ($(( ELAPSED / 60 ))m)"
-done
-
-[ "$SETUP_COMPLETE" = true ] || {
-    fail "Local Windows setup did not complete within $((TIMEOUT / 60)) minutes"
-    capture_vm_diagnostics
-    exit 1
-}
-pass "Local Windows setup completed; guest is rebooting into deployer"
-sleep 15
+# ── Step 4: Wait for OEM setup to hand off to deployer ───────────────────────
+# The deployer serial marker is the end-to-end assertion: it can only appear
+# after the local Windows script creates root.disk, installs wubildr.efi,
+# creates the one-shot BCD entry, and reboots.
+step "Waiting for Dockur OEM setup to hand off to deployer..."
+sleep 10
 
 # ── Step 7: Monitor deployer via QEMU serial console ─────────────────────────
 step "Monitoring deployer (QEMU serial console)..."

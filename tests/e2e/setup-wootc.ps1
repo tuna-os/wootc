@@ -12,7 +12,10 @@
 param(
     [string]$ImageRef = "ghcr.io/tuna-os/yellowfin:gnome",
     [string]$Hostname = "wootc-test",
-    [int]$DiskSizeGB = 10
+    [int]$DiskSizeGB = 10,
+    # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
+    # makes setup self-contained and avoids requiring SMB/WinRM to be ready.
+    [string]$PayloadDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -80,6 +83,18 @@ Write-Host "[wootc] Looking for deployer files..."
 $deployerVmlinuz = $null
 $deployerInitramfs = $null
 $grubDir = $null
+$payloadRoot = $null
+
+if ($PayloadDir) {
+    Write-Host "[wootc] Trying local payload: $PayloadDir"
+    if (Test-Path "$PayloadDir\deployer-vmlinuz") {
+        $deployerVmlinuz = "$PayloadDir\deployer-vmlinuz"
+        $deployerInitramfs = "$PayloadDir\deployer-initramfs.img"
+        $grubDir = "$PayloadDir\grub"
+        $payloadRoot = $PayloadDir
+        Write-Host "[wootc] Found local deployer files at $PayloadDir"
+    }
+}
 
 # Try Samba share
 # Strategy 1: Check dockur/windows Samba share
@@ -91,20 +106,23 @@ $sharePaths = @(
     "\\10.0.2.2\Data"
 )
 
-foreach ($share in $sharePaths) {
-    Write-Host "[wootc] Trying Samba share: $share"
-    # Try to list the share to verify access
-    $result = net use $share 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[wootc] Share $share not accessible, trying next..."
-        continue
-    }
-    if (Test-Path "$share\deployer-vmlinuz") {
-        Write-Host "[wootc] Found deployer files at $share"
-        $deployerVmlinuz = "$share\deployer-vmlinuz"
-        $deployerInitramfs = "$share\deployer-initramfs.img"
-        $grubDir = "$share\grub"
-        break
+if (-not $deployerVmlinuz) {
+    foreach ($share in $sharePaths) {
+        Write-Host "[wootc] Trying Samba share: $share"
+        # Try to list the share to verify access
+        $result = net use $share 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[wootc] Share $share not accessible, trying next..."
+            continue
+        }
+        if (Test-Path "$share\deployer-vmlinuz") {
+            Write-Host "[wootc] Found deployer files at $share"
+            $deployerVmlinuz = "$share\deployer-vmlinuz"
+            $deployerInitramfs = "$share\deployer-initramfs.img"
+            $grubDir = "$share\grub"
+            $payloadRoot = $share
+            break
+        }
     }
 }
 
@@ -126,7 +144,7 @@ if ($grubDir) {
     Copy-Item "$grubDir\*" "$installDir\" -Force -ErrorAction SilentlyContinue
 
     # Copy wubildr.efi from share if available (custom GRUB core image with embedded config)
-    $grubEfiSrc = "$share\wubildr.efi"
+    $grubEfiSrc = "$payloadRoot\wubildr.efi"
     if (Test-Path $grubEfiSrc) {
         Copy-Item $grubEfiSrc "$installDir\wubildr.efi" -Force
         Write-Host "[wootc] Copied wubildr.efi from share"

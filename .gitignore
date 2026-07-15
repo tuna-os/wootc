@@ -2,3 +2,5 @@ out/
 *.img
 *.qcow2
 .sofa/
+tests/e2e/oem/payload/
+tests/e2e/oem/setup-wootc.ps1

@@ -158,40 +158,6 @@
         <LogonCount>99</LogonCount>
       </AutoLogon>
 
-      <FirstLogonCommands>
-        <!-- Consolidated WinRM setup: network Private → enable → configure auth -->
-        <SynchronousCommand wcm:action="add">
-          <Order>1</Order>
-          <Description>Set network to Private + enable WinRM + configure Basic auth</Description>
-          <CommandLine>powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private; Enable-PSRemoting -Force -SkipNetworkProfileCheck; winrm set winrm/config/service/auth '@{Basic=\"true\"}'; winrm set winrm/config/service '@{AllowUnencrypted=\"true\"}'; winrm set winrm/config/client '@{TrustedHosts=\"*\"}'; netsh advfirewall firewall add rule name=\"WinRM HTTP\" dir=in action=allow protocol=TCP localport=5985 profile=any; netsh advfirewall firewall set rule group=\"remote administration\" new enable=yes; Set-Service WinRM -StartupType Automatic; Restart-Service WinRM -Force"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-
-        <!-- Disable Defender real-time scanning (e2e test speed) -->
-        <SynchronousCommand wcm:action="add">
-          <Order>2</Order>
-          <Description>Disable Defender real-time scanning</Description>
-          <CommandLine>powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-
-        <!-- Write ready sentinel -->
-        <SynchronousCommand wcm:action="add">
-          <Order>3</Order>
-          <Description>Write winrm-ready sentinel</Description>
-          <CommandLine>cmd /c mkdir C:\wootc 2&gt;nul &amp; echo ready &gt; C:\wootc\winrm-ready.txt</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-
-        <!-- Primary E2E transport: run the setup locally, not through WinRM.
-             The host observes completion through Dockur's Samba Data share. -->
-        <SynchronousCommand wcm:action="add">
-          <Order>4</Order>
-          <Description>Run wootc E2E setup locally and reboot into deployer</Description>
-          <CommandLine>powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $share='\\host.lan\Data'; for ($i=0; $i -lt 60 -and -not (Test-Path &quot;$share\setup-wootc.ps1&quot;); $i++) { Start-Sleep -Seconds 2 }; &amp; &quot;$share\setup-wootc.ps1&quot; -ImageRef 'ghcr.io/tuna-os/yellowfin:gnome' -Hostname 'wootc-test'; 'ok' | Set-Content -Path &quot;$share\e2e-setup-complete.txt&quot; -Encoding ASCII; shutdown /r /t 5 /f"</CommandLine>
-          <RequiresUserInput>false</RequiresUserInput>
-        </SynchronousCommand>
-      </FirstLogonCommands>
     </component>
   </settings>
 
