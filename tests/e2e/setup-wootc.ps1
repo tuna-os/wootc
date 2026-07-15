@@ -31,7 +31,7 @@ New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 New-Item -ItemType Directory -Force -Path $disksDir | Out-Null
 
 # ── Step 2: Create root.disk (sparse file) ──────────────────────────────────
-Write-Host ("[wootc] Creating root.disk (" + $DiskSizeGB + " GB)...")
+Write-Host "[wootc] Creating root.disk ($DiskSizeGB GB)..."
 $diskPath = "$disksDir\root.disk"
 $sizeBytes = [long]$DiskSizeGB * 1024 * 1024 * 1024
 
@@ -49,7 +49,7 @@ try {
     $fileStream.Close()
 }
 
-Write-Host ("[wootc] root.disk created: " + $diskPath + " (" + $DiskSizeGB + " GB)")
+Write-Host "[wootc] root.disk created: $diskPath ($DiskSizeGB GB)"
 
 # ── Step 3: Copy deployer files ─────────────────────────────────────────────
 # Files should be available via a shared volume or SMB.
@@ -303,8 +303,8 @@ Write-Host ""
 Write-Host "=== wootc setup complete ==="
 Write-Host "  Image:       $ImageRef"
 Write-Host "  Hostname:    $Hostname"
-Write-Host ("  root.disk:   " + $diskPath + " (" + $DiskSizeGB + " GB)")
-Write-Host ("  Install dir: " + $installDir)
+Write-Host "  root.disk:   $diskPath ($DiskSizeGB GB)"
+Write-Host "  Install dir: $installDir"
 Write-Host ""
 Write-Host 'Ready to reboot. The system will boot into the wootc deployer.'
 Write-Host ""
