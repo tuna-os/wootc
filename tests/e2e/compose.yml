@@ -42,12 +42,13 @@ services:
       # Private host-to-guest control channel. The Windows OEM bootstrap
       # installs qemu-ga-x86_64.msi, after which the runner uses guest-exec and
       # guest-file-* instead of WinRM or guest networking.
+      # Deployer disk (storage/deployer.qcow2): a small FAT32 volume holding
+      # the deployer kernel+initramfs so GRUB (via shim/Secure Boot) can load
+      # them without NTFS support.
       ARGUMENTS: >-
         -chardev socket,id=qga0,path=/run/shm/qga.sock,server=on,wait=off
         -device virtio-serial
         -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
-        # Deployer disk: a small FAT32 volume holding the deployer kernel and
-        # initramfs so GRUB (via shim/Secure Boot) can load them without NTFS.
         -drive file=/storage/deployer.qcow2,id=deployer,format=qcow2,if=none
         -device virtio-blk-pci,drive=deployer
       # USER_PORTS is not needed: QGA is private and does not use guest TCP.
