@@ -229,7 +229,7 @@ for _ in $(seq 1 20); do
     [ -n "$QEMU_CMD" ] && break
     sleep 3
 done
-if [[ "$QEMU_CMD" != *"-accel=kvm"* || "$QEMU_CMD" != *"-enable-kvm"* ]]; then
+if [[ ( "$QEMU_CMD" != *"-accel=kvm"* && "$QEMU_CMD" != *"accel=kvm"* ) || "$QEMU_CMD" != *"-enable-kvm"* ]]; then
     fail "QEMU is not using KVM acceleration"
     capture_vm_diagnostics
     exit 1
