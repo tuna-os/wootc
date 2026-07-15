@@ -48,6 +48,9 @@ WINRM_HOST="127.0.0.1"
 WINRM_PORT="5985"
 WINRM_USER="wootc"
 WINRM_PASS="wootc-test-123!"
+# Override for hosts whose pip-enabled interpreter is versioned (for example,
+# PYTHON_BIN=python3.14 on Homebrew systems).
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 cleanup() {
     if [ "$KEEP_CONTAINER" = false ]; then
@@ -167,11 +170,15 @@ step "Checking prerequisites..."
 
 [ -e /dev/kvm ] || { fail "/dev/kvm not available — KVM required"; exit 1; }
 command -v "$DOCKER" &>/dev/null || { fail "$DOCKER not found"; exit 1; }
-python3 -c "import winrm" 2>/dev/null || {
+command -v "$PYTHON_BIN" &>/dev/null || { fail "$PYTHON_BIN not found"; exit 1; }
+"$PYTHON_BIN" -c "import winrm" 2>/dev/null || {
     info "Installing pywinrm..."
-    pip install pywinrm
+    "$PYTHON_BIN" -m pip install pywinrm || {
+        fail "Could not install pywinrm with $PYTHON_BIN -m pip"
+        exit 1
+    }
 }
-python3 -c "import winrm" 2>/dev/null || { fail "pywinrm unavailable"; exit 1; }
+"$PYTHON_BIN" -c "import winrm" 2>/dev/null || { fail "pywinrm unavailable"; exit 1; }
 
 pass "Prerequisites OK ($DOCKER, pywinrm)"
 
@@ -254,7 +261,7 @@ _fix_routing() {
 }
 
 winrm_probe() {
-    python3 "$SCRIPT_DIR/winrm-check.py" >/dev/null 2>&1
+    "$PYTHON_BIN" "$SCRIPT_DIR/winrm-check.py" >/dev/null 2>&1
 }
 
 wait_for_winrm() {
@@ -375,7 +382,7 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     fi
 
     # Method 2: direct WinRM probe
-    if python3 -c "
+    if "$PYTHON_BIN" -c "
 import winrm, sys
 try:
     s = winrm.Session(
@@ -418,7 +425,7 @@ step "Setting up wootc inside Windows via WinRM..."
 SETUP_SCRIPT=$(cat "$SCRIPT_DIR/setup-wootc.ps1")
 ENCODED_SCRIPT=$(echo "$SETUP_SCRIPT" | base64 -w0)
 
-python3 << PYEOF
+"$PYTHON_BIN" << PYEOF
 import winrm, sys, time
 
 s = winrm.Session(
@@ -457,7 +464,7 @@ pass "wootc setup inside Windows completed"
 # ── Step 6: Reboot into deployer ─────────────────────────────────────────────
 step "Rebooting Windows into wootc deployer..."
 
-python3 -c "
+"$PYTHON_BIN" -c "
 import winrm
 s = winrm.Session('$WINRM_HOST', auth=('$WINRM_USER', '$WINRM_PASS'), transport='basic', server_cert_validation='ignore')
 s.run_ps('shutdown /r /t 5 /f')
@@ -530,12 +537,12 @@ wait_for_winrm_reboot "Windows after deployer"
 
 step "Scheduling one-shot Phase 2 Linux boot..."
 # shellcheck disable=SC2016 # PowerShell variables must remain literal here.
-PHASE2_GUID=$(python3 "$SCRIPT_DIR/winrm-run.py" \
+PHASE2_GUID=$("$PYTHON_BIN" "$SCRIPT_DIR/winrm-run.py" \
     '$guid = (Get-Content C:\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid')
 PHASE2_GUID=$(printf '%s' "$PHASE2_GUID" | tr -d '\r\n')
 [ -n "$PHASE2_GUID" ] || { fail "Could not read wootc BCD GUID from Windows"; exit 1; }
 
-python3 "$SCRIPT_DIR/winrm-run.py" \
+"$PYTHON_BIN" "$SCRIPT_DIR/winrm-run.py" \
     "bcdedit /set '{fwbootmgr}' bootsequence $PHASE2_GUID /addfirst; shutdown /r /t 5 /f" >/dev/null
 pass "Phase 2 Linux boot scheduled through BCD one-shot entry"
 wait_for_winrm_down "Phase 2 Linux boot"
