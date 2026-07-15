@@ -211,6 +211,22 @@ command -v "$PYTHON_BIN" &>/dev/null || { fail "$PYTHON_BIN not found"; exit 1; 
 
 pass "Prerequisites OK ($DOCKER, pywinrm)"
 
+# Windows PowerShell treats a double-quoted literal ending in a backslash as
+# unterminated. This payload is parsed only after the full Windows install, so
+# reject that typo locally rather than losing an E2E iteration to a late guest
+# parser error.
+validate_windows_payload() {
+    local invalid
+    invalid=$(grep -n '\\\\"$' "$SCRIPT_DIR/setup-wootc.ps1" || true)
+    if [ -n "$invalid" ]; then
+        fail "setup-wootc.ps1 contains a double-quoted string ending in a backslash"
+        echo "$invalid" >&2
+        exit 1
+    fi
+}
+
+validate_windows_payload
+
 # ── Step 2: Start Windows VM ─────────────────────────────────────────────────
 step "Starting Windows VM..."
 cd "$SCRIPT_DIR"
