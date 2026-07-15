@@ -14,6 +14,12 @@ the current iteration: guest networking, Netavark DNAT state, Windows account
 credentials, WinRM authentication, the firewall, and encrypted offline disk
 inspection.
 
+The first implementation slice is merged and pushed in commits `377a2ff` and
+`246826a`: QGA wiring, MSI caching/bootstrap, the JSON-lines client, and
+QGA-based setup/reboot/log control are now in the runner. The first Kanpur run
+reached `guest-ping`; a follow-up run is validating the corrected PowerShell
+payload.
+
 ## Current target
 
 Phase 2 is the acceptance target:
