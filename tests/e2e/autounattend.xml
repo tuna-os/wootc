@@ -167,6 +167,18 @@
         <LogonCount>65432</LogonCount>
       </AutoLogon>
 
+      <!-- Dockur copies /oem to C:\OEM. This single self-contained command is
+           intentionally retained from Dockur's template: it starts the local
+           wootc setup after the first automatic desktop logon. There are no
+           ordering-sensitive WinRM or SMB commands here. -->
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <CommandLine>cmd /C if exist "C:\OEM\install.bat" start "Install" "cmd /C C:\OEM\install.bat"</CommandLine>
+          <Description>Run the local wootc OEM setup payload</Description>
+        </SynchronousCommand>
+      </FirstLogonCommands>
+
     </component>
   </settings>
 

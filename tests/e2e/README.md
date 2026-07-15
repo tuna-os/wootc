@@ -100,9 +100,9 @@ cd tests/e2e && ./run-e2e.sh
 ## Test Steps (automated by run-e2e.sh)
 
 1. Stage the local OEM payload and start dockur/windows.
-2. Wait for the unattended Windows install. At its final setup step Dockur
-   executes `C:\OEM\install.bat`; no guest networking, SMB, or WinRM is needed
-   for this initial handoff.
+2. Wait for the unattended Windows install. At the first automatic desktop
+   logon, the E2E answer file executes `C:\OEM\install.bat`; no guest
+   networking, SMB, or WinRM is needed for this initial handoff.
 3. `setup-wootc.ps1` runs from that OEM payload and:
    - Create C:\wootc\disks\root.disk (2GB sparse, enough for test)
    - Copy deployer kernel, initramfs, and wubildr.efi from C:\OEM

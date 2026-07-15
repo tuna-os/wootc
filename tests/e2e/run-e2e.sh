@@ -182,9 +182,9 @@ fi
     exit 1
 }
 
-# Dockur copies /oem into C:\OEM and runs install.bat at the end of automatic
-# setup. Stage every input locally so the guest setup does not depend on SMB,
-# WinRM, or a working guest network.
+# Dockur copies /oem into C:\OEM; our answer file starts install.bat at the
+# first automatic desktop logon. Stage every input locally so that handoff
+# does not depend on SMB, WinRM, or a working guest network.
 OEM_DIR="$SCRIPT_DIR/oem"
 OEM_PAYLOAD="$OEM_DIR/payload"
 mkdir -p "$OEM_PAYLOAD/grub"
