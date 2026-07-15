@@ -164,10 +164,10 @@ set show_panic_message=true
 
 if search -s -f -n /wootc/disks/root.disk; then
     if loopback loopw0 /wootc/disks/root.disk; then
-        set root=(loopw0)
-        if [ -e /boot/grub2/grub.cfg ]; then
-            set prefix=($root)'/boot/grub2'
-            if configfile /boot/grub2/grub.cfg; then
+        if [ -e (loopw0,gpt2)/grub2/grub.cfg ]; then
+            set root=(loopw0,gpt2)
+            set prefix=($root)'/grub2'
+            if configfile /grub2/grub.cfg; then
                 set show_panic_message=false
             fi
         fi

@@ -42,7 +42,8 @@ COPY platform/dracut/99wootc-boot /usr/lib/wootc/99wootc-boot
 RUN chmod +x /usr/lib/dracut/modules.d/99wootc/module-setup.sh /usr/lib/dracut/modules.d/99wootc/deploy-hook.sh
 
 # ── Build the initramfs ─────────────────────────────────────────────────────
-RUN mkdir -p /out && \
+RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
+    mkdir -p /out && \
     KERNEL_VER=$(ls /lib/modules | head -1) && \
     dracut \
         --force \
