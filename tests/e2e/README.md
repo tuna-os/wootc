@@ -2,7 +2,8 @@
 
 Automated testing using [dockur/windows](https://github.com/dockur/windows) — Windows
 running inside a Docker container via QEMU. Tests verify the full wootc
-pipeline: Windows setup → GRUB chainload → deployer → bootc system boot.
+pipeline: Windows setup → one-shot wubildr chainload → deployer → bootc
+system boot.
 
 The Windows 11 VM uses UEFI Secure Boot and a TPM 2.0 emulator. The harness
 verifies those features and KVM acceleration from QEMU's command line before
@@ -19,14 +20,12 @@ it waits for installation.
 │  │ QEMU VM (Windows 11)                          │    │
 │  │                                               │    │
 │  │  1. Windows boots (auto-install via answer)   │    │
-│  │  2. WinRM enabled (port 5985)                 │    │
-│  │  3. RDP enabled (port 3389)                   │    │
-│  │  4. Test script connects via WinRM            │    │
-│  │  5. setup-wootc.ps1: creates root.disk,       │    │
-│  │     installs GRUB, copies deployer files       │    │
-│  │  6. Reboot → GRUB2 → deployer initramfs       │    │
-│  │  7. Deployer pulls image, runs fisherman       │    │
-│  │  8. Reboot → installed bootc system            │    │
+│  │  2. Dockur copies ./oem to C:\\OEM             │    │
+│  │  3. C:\\OEM\\install.bat runs setup-wootc.ps1  │    │
+│  │  4. Setup creates root.disk and BCD entry      │    │
+│  │  5. Reboot → wubildr → deployer initramfs      │    │
+│  │  6. Deployer pulls image, runs fisherman       │    │
+│  │  7. Reboot → installed Phase 2 Linux           │    │
 │  │                                               │    │
 │  │  QEMU serial console: $STORAGE/qemu.pty       │    │
 │  │  QEMU monitor: $STORAGE/qemu.monitor          │    │
@@ -35,8 +34,8 @@ it waits for installation.
 │  └──────────────────────────────────────────────┘    │
 │                                                       │
 │  Shared volumes:                                       │
-│    ./wootc-files:/wootc  — deployer + GRUB injected    │
-│    ./storage:/storage   — VM disk + QEMU artifacts     │
+│    ./oem:/oem:ro         — local setup + boot payload  │
+│    ./storage:/storage    — VM disk + QEMU artifacts    │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -49,6 +48,15 @@ cd tests/e2e && ./run-e2e.sh
 
 # Or test a specific image:
 ./run-e2e.sh ghcr.io/tuna-os/bonito:gnome
+```
+
+To avoid re-downloading the multi-gigabyte installer, keep a pristine Windows
+ISO at `tests/e2e/iso-cache/windows-11.iso`. The runner makes a separate,
+copy-on-write working copy at `storage/custom.iso`, so Dockur cannot alter the
+cache. A different cache location can be selected with:
+
+```bash
+WOOTC_WINDOWS_ISO=/srv/iso/windows-11.iso ./run-e2e.sh --skip-build
 ```
 
 ## Manual Setup
@@ -91,20 +99,23 @@ cd tests/e2e && ./run-e2e.sh
 
 ## Test Steps (automated by run-e2e.sh)
 
-1. Start dockur/windows container
-2. Wait for Windows auto-install (monitor qemu.pty for "Windows is ready")
-3. Wait for RDP port 3389 to accept connections
-4. Connect via WinRM
-5. Run setup-wootc.ps1 inside Windows:
+1. Stage the local OEM payload and start dockur/windows.
+2. Wait for the unattended Windows install. At its final setup step Dockur
+   executes `C:\OEM\install.bat`; no guest networking, SMB, or WinRM is needed
+   for this initial handoff.
+3. `setup-wootc.ps1` runs from that OEM payload and:
    - Create C:\wootc\disks\root.disk (2GB sparse, enough for test)
-   - Copy deployer kernel + initramfs from shared volume
-   - Install GRUB2 to ESP, add BCD entry
+   - Copy deployer kernel, initramfs, and wubildr.efi from C:\OEM
+   - Install wubildr to the ESP and add a one-shot BCD entry
    - Configure Windows to boot wootc once
-6. Reboot the VM
-7. Monitor qemu.pty for deployer progress:
+4. Monitor qemu.pty for deployer progress:
    - "[wootc] Searching for /wootc/disks/root.disk..."
    - "fisherman: Partitioning disk"
    - "Deploying image"
    - "Installation complete!"
-8. Verify the installed system boots (login prompt on serial)
-9. (Optional) Connect via SSH to verify bootc status
+5. Re-arm the one-shot BCD entry and verify the installed Phase 2 Linux system
+   boots, then verify the entry returns to Windows.
+
+WinRM is still used by the Phase 2 re-arm assertion today. It is deliberately
+not a dependency of the Windows installation or initial wootc handoff; a QEMU
+Guest Agent control path is the planned replacement for that remaining step.

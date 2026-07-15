@@ -12,6 +12,9 @@
 #   ./run-e2e.sh --skip-build                  # skip deployer rebuild
 #   ./run-e2e.sh --keep                        # keep container after test
 #   ./run-e2e.sh --skip-install                # skip Windows install wait (reuse existing disk)
+#   Wootc Windows ISO cache (optional):
+#     tests/e2e/iso-cache/windows-11.iso       # default offline installer cache
+#     WOOTC_WINDOWS_ISO=/path/to/windows.iso ./run-e2e.sh
 
 set -euo pipefail
 
@@ -44,6 +47,11 @@ step() { echo -e "${CYAN}[STEP]${NC} $*"; }
 
 CONTAINER_NAME="wootc-e2e-windows"
 STORAGE_DIR="$SCRIPT_DIR/storage"
+# Keep the pristine Windows installer separate from Dockur's mutable working
+# directory.  Dockur can generate derived ISO images while preparing an answer
+# file, so it must receive a copy rather than the only cached source image.
+ISO_CACHE_DIR="$SCRIPT_DIR/iso-cache"
+WINDOWS_ISO_CACHE="${WOOTC_WINDOWS_ISO:-$ISO_CACHE_DIR/windows-11.iso}"
 WINRM_HOST="127.0.0.1"
 WINRM_PORT="5985"
 WINRM_USER="wootc"
@@ -221,6 +229,24 @@ if [ "$SKIP_INSTALL" = false ]; then
         ANSWER_REFRESH=true
     else
         ANSWER_REFRESH=false
+    fi
+
+    # When a cached ISO is available, always make a fresh working copy for
+    # Dockur.  `--reflink=auto` is instantaneous on CoW filesystems (including
+    # the XFS volume on our runners) and degrades safely to a normal copy.
+    # The cache itself therefore survives test cleanup and installer rebuilds.
+    if [ -f "$WINDOWS_ISO_CACHE" ]; then
+        mkdir -p "$ISO_CACHE_DIR"
+        rm -f "$STORAGE_DIR/custom.iso"
+        cp --reflink=auto --sparse=always "$WINDOWS_ISO_CACHE" "$STORAGE_DIR/custom.iso"
+        info "Using cached Windows ISO: $WINDOWS_ISO_CACHE"
+    elif [ -n "${WOOTC_WINDOWS_ISO:-}" ]; then
+        fail "WOOTC_WINDOWS_ISO does not exist: $WINDOWS_ISO_CACHE"
+        exit 1
+    elif [ -f "$STORAGE_DIR/custom.iso" ]; then
+        info "Using user-supplied Windows ISO: $STORAGE_DIR/custom.iso"
+    else
+        info "No cached Windows ISO; Dockur will download one. Save a verified installer under $ISO_CACHE_DIR to avoid this next time."
     fi
 else
     ANSWER_SHA=$({ sha256sum autounattend.xml; find oem -type f -print0 | sort -z | xargs -0 -r sha256sum; } | sha256sum | awk '{print $1}')
