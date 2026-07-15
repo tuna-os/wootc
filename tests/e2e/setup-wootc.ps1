@@ -51,10 +51,15 @@ try {
 
 # Try SetFileValidData for contiguous pre-allocation
 try {
-    $Kernel32 = Add-Type -MemberDefinition @"
+    # Here-string terminators must appear on a line by themselves. Keeping the
+    # Add-Type arguments on the terminator line makes PowerShell consume the
+    # remainder of this script as an unterminated string, which only becomes
+    # visible once the Windows OEM payload actually executes it.
+    $kernel32Definition = @"
 [DllImport("kernel32.dll", SetLastError = true)]
 public static extern bool SetFileValidData(IntPtr hFile, long ValidDataLength);
-"@ -Name "Kernel32" -Namespace "Win32" -PassThru
+"@
+    $Kernel32 = Add-Type -MemberDefinition $kernel32Definition -Name "Kernel32" -Namespace "Win32" -PassThru
 
     $fs = [System.IO.File]::Open($diskPath,
         [System.IO.FileMode]::Open,
