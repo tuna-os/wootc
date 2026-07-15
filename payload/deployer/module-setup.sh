@@ -32,7 +32,16 @@ install() {
         useradd chpasswd restorecon \
         curl dhclient ip NetworkManager \
         mount umount mountpoint reboot sleep cat sed grep cut \
-        shred chroot install udevadm jq
+        shred chroot install udevadm jq truncate
+
+    # podman/skopeo runtime prerequisites: without policy.json podman pull
+    # fails instantly with exit 125, and Go's TLS stack needs the CA bundle.
+    inst_multiple -o \
+        /etc/containers/policy.json \
+        /etc/containers/registries.conf \
+        /etc/containers/registries.conf.d/*.conf
+    inst_simple "$(readlink -f /etc/pki/tls/certs/ca-bundle.crt)" \
+        /etc/pki/tls/certs/ca-bundle.crt
 
     # Kernel modules for NTFS and loop
     instmods ntfs3 loop

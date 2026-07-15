@@ -26,13 +26,16 @@ err()  { printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2; }
 NTFS_PART=""
 LOOP_DEV=""
 VERIFY_LOOP=""
+SCRATCH_LOOP=""
+SCRATCH_IMG=""
 cleanup() {
     local mount
     for mount in /mnt/verify/sys /mnt/verify/proc /mnt/verify/dev \
-        /mnt/verify/boot /mnt/verify /mnt/ntfs; do
+        /mnt/verify/boot /mnt/verify /var/lib/containers /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
     [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
+    [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
     [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -119,6 +122,32 @@ fi
 mkdir -p /mnt/ntfs
 mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs
 DISK="/mnt/ntfs/wootc/disks/root.disk"
+
+# ── Container storage scratch ───────────────────────────────────────────────
+# The initramfs root is tmpfs: /var/lib/containers there cannot hold a
+# multi-GB image pull. Back it with an ext4 loop file on the Windows NTFS
+# partition (overlay needs a real POSIX fs, so not NTFS directly) and delete
+# the file after deployment.
+SCRATCH_IMG="/mnt/ntfs/wootc/cache/podman-scratch.img"
+log "Creating container-storage scratch at ${SCRATCH_IMG}..."
+mkdir -p /mnt/ntfs/wootc/cache /var/lib/containers
+truncate -s 20G "$SCRATCH_IMG"
+mkfs.ext4 -q -F "$SCRATCH_IMG"
+SCRATCH_LOOP=$(losetup -f --show "$SCRATCH_IMG")
+mount "$SCRATCH_LOOP" /var/lib/containers
+
+# ── Registry pre-flight ─────────────────────────────────────────────────────
+# Surface DNS/TLS/registry problems with a real error message on the console
+# instead of a bare podman exit status buried inside fisherman.
+log "Registry pre-flight for ${IMAGE}..."
+if [[ ! -s /etc/resolv.conf ]]; then
+    cp /run/NetworkManager/resolv.conf /etc/resolv.conf 2>/dev/null || true
+fi
+log "resolv.conf: $(cat /etc/resolv.conf 2>/dev/null || echo '<missing>')"
+if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
+    err "cannot reach registry for ${IMAGE} (see skopeo error above)"
+    if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
+fi
 
 # ── Set up loop device ──────────────────────────────────────────────────────
 losetup -fP "$DISK"
@@ -301,6 +330,15 @@ fi
 
 losetup -d "$VERIFY_LOOP"
 VERIFY_LOOP=""
+
+# Tear down the scratch store and leave the NTFS volume clean before the
+# forced reboot (reboot -f syncs but does not unmount; a still-mounted rw
+# NTFS would be flagged dirty and block the Phase 2 rw mount).
+umount /var/lib/containers 2>/dev/null || true
+[[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
+SCRATCH_LOOP=""
+rm -f "$SCRATCH_IMG"
+umount /mnt/ntfs
 
 log "Verification complete. Rebooting..."
 log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"
