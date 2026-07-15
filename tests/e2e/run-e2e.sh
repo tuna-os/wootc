@@ -75,7 +75,11 @@ DOCKER="podman"
 if ! command -v podman &>/dev/null; then
     DOCKER="docker"
 fi
-COMPOSE="$DOCKER compose"
+if [ "$DOCKER" = "podman" ] && command -v podman-compose &>/dev/null; then
+    COMPOSE="podman-compose"
+else
+    COMPOSE="$DOCKER compose"
+fi
 
 # ── Step 0: Build deployer initramfs ─────────────────────────────────────────
 if [ "$SKIP_BUILD" = false ]; then
