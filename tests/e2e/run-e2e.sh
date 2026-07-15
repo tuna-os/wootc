@@ -220,8 +220,15 @@ mkdir -p storage wootc-files
 $COMPOSE -f compose.yml up -d windows
 info "Container $CONTAINER_NAME started"
 
-sleep 3
-QEMU_CMD=$($DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true)
+# Dockur may need to prepare (or re-use) a Windows ISO before starting QEMU.
+# Poll rather than treating a fixed three-second delay as an acceleration
+# failure; this also makes --skip-install reliable on a just-prepared disk.
+QEMU_CMD=""
+for _ in $(seq 1 20); do
+    QEMU_CMD=$($DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true)
+    [ -n "$QEMU_CMD" ] && break
+    sleep 3
+done
 if [[ "$QEMU_CMD" != *"-accel=kvm"* || "$QEMU_CMD" != *"-enable-kvm"* ]]; then
     fail "QEMU is not using KVM acceleration"
     capture_vm_diagnostics
