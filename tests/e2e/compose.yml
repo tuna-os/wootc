@@ -37,15 +37,10 @@ services:
       # it is extremely verbose (~10 MB per boot).  Set to "Y" when tracking
       # UEFI / Secure Boot / firmware-path issues.
       # QEMU_LOG: "Y"
-      # Private host-to-guest control channel. The Windows OEM bootstrap
-      # installs qemu-ga-x86_64.msi, after which the runner uses guest-exec and
-      # guest-file-* instead of WinRM or guest networking.
       ARGUMENTS: >-
         -chardev socket,id=qga0,path=/run/shm/qga.sock,server=on,wait=off
         -device virtio-serial
         -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
-        -drive file=/storage/deployer.qcow2,id=deployer,format=qcow2,if=none
-        -device scsi-hd,drive=deployer,bus=data3b.0
       # USER_PORTS is not needed: QGA is private and does not use guest TCP.
     devices:
       - /dev/kvm
