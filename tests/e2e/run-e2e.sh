@@ -214,7 +214,7 @@ if [ "$SKIP_INSTALL" = false ]; then
     rm -rf storage/data.qcow2
     rm -f wootc-files/e2e-setup-complete.txt wootc-files/e2e-setup-failed.txt
 
-    # dockur mutates the downloaded installer ISO in place and its cache key
+    # Dockur mutates the downloaded installer ISO in place and its cache key
     # does not include /custom.xml. Reusing that ISO silently embeds an older
     # answer file (including an older disk layout), so fingerprint the input
     # and discard the processed ISO whenever the answer file changes.
@@ -378,7 +378,9 @@ else
         sleep 20
         ELAPSED=$((ELAPSED + 20))
 
-        # dockur writes a file when install completes
+        # `windows.ver` is written after Dockur has prepared the installer and
+        # started QEMU. It is not a Windows guest-complete marker; the serial
+        # deployer marker below is the real end-to-end completion signal.
         if $DOCKER exec "$CONTAINER_NAME" test -f /storage/windows.ver 2>/dev/null; then
             INSTALL_DONE=true
             break
@@ -395,7 +397,7 @@ else
         exit 1
     fi
 
-    pass "Windows installed ($(( ELAPSED / 60 ))m)"
+    pass "Windows installer prepared and QEMU booted ($(( ELAPSED / 60 ))m)"
     if [ "$ANSWER_REFRESH" = true ]; then
         printf '%s\n' "$ANSWER_SHA" > "$ANSWER_STAMP"
     fi
@@ -414,7 +416,10 @@ sleep 10
 step "Monitoring deployer (QEMU serial console)..."
 info "Watching for fisherman deployment markers..."
 
-TIMEOUT=1200
+# A standard Windows install plus the local OEM handoff routinely takes
+# 20–30 minutes even under KVM. Do not turn Dockur's installer-ready file into
+# a premature test failure; only the deployer's serial marker proves success.
+TIMEOUT=2700
 ELAPSED=0
 DEPLOY_COMPLETE=false
 PTY="$STORAGE_DIR/qemu.pty"
