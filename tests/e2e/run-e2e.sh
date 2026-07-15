@@ -81,6 +81,14 @@ capture_vm_diagnostics() {
     info "If captured, failure screenshot: /tmp/wootc-e2e-failure.png"
 }
 
+# Dockur keeps the QEMU serial capture in its tmpfs, not in the /storage bind
+# mount. Snapshot it into the test directory so every subsequent assertion can
+# inspect the same host-side file without relying on guest networking.
+SERIAL_SOURCE="/run/shm/qemu.pty"
+snapshot_serial() {
+    $DOCKER cp "$CONTAINER_NAME:$SERIAL_SOURCE" "$PTY" >/dev/null 2>&1
+}
+
 # Detect podman vs docker
 DOCKER="podman"
 if ! command -v podman &>/dev/null; then
@@ -424,38 +432,42 @@ ELAPSED=0
 DEPLOY_COMPLETE=false
 PTY="$STORAGE_DIR/qemu.pty"
 
-# Wait for PTY to appear
+# Wait for Dockur's serial capture to appear and create the first local
+# snapshot. `qemu.pty` contains control bytes and does not reliably add a
+# newline per serial write, so all offsets below are bytes rather than lines.
 for i in $(seq 1 30); do
-    [ -f "$PTY" ] && break
+    snapshot_serial && [ -f "$PTY" ] && break
     sleep 5
 done
 
 [ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY"; exit 1; }
-LAST_LINE=$(wc -l < "$PTY" 2>/dev/null || echo 0)
+LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
-    CURRENT_LINE=$(wc -l < "$PTY" 2>/dev/null || echo 0)
+    snapshot_serial || true
+    CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+    [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
 
-    if [ "$CURRENT_LINE" -gt "$LAST_LINE" ]; then
-        NEW_LINES=$(tail -n $((CURRENT_LINE - LAST_LINE)) "$PTY")
+    if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
+        NEW_OUTPUT=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
 
-        echo "$NEW_LINES" | grep -q "\[wootc\]"               && info "wootc: deployer active"
-        echo "$NEW_LINES" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
-        echo "$NEW_LINES" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
-        echo "$NEW_LINES" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_LINES" | grep -E '\[PASS\]' | tail -1)"
-        echo "$NEW_LINES" | grep -qE "\[WARN\]" && info "wootc: $(echo "$NEW_LINES" | grep -E '\[WARN\]' | tail -1)"
-        if echo "$NEW_LINES" | grep -q "VERIFICATION_SUMMARY"; then
+        echo "$NEW_OUTPUT" | grep -q "\[wootc\]"               && info "wootc: deployer active"
+        echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
+        echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
+        echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
+        echo "$NEW_OUTPUT" | grep -qE "\[WARN\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[WARN\]' | tail -1)"
+        if echo "$NEW_OUTPUT" | grep -q "VERIFICATION_SUMMARY"; then
             DEPLOY_COMPLETE=true
             pass "wootc: deployment verification complete"
-            LAST_LINE=$CURRENT_LINE
+            LAST_BYTE=$CURRENT_BYTE
             break
         fi
-        if echo "$NEW_LINES" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
+        if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
             fail "Deployer error:"
-            echo "$NEW_LINES" | grep -E "fatal|panic|kernel panic|\[FAIL\]"
+            echo "$NEW_OUTPUT" | grep -E "fatal|panic|kernel panic|\[FAIL\]"
             break
         fi
-        LAST_LINE=$CURRENT_LINE
+        LAST_BYTE=$CURRENT_BYTE
     fi
 
     sleep 5
@@ -495,19 +507,21 @@ TIMEOUT=300
 BOOT_SUCCESS=false
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
-    CURRENT_LINE=$(wc -l < "$PTY" 2>/dev/null || echo 0)
-    if [ "$CURRENT_LINE" -gt "$LAST_LINE" ]; then
-        NEW_LINES=$(tail -n $((CURRENT_LINE - LAST_LINE)) "$PTY")
-        if echo "$NEW_LINES" | grep -qE "ostree=|Starting version|Welcome to|login:"; then
+    snapshot_serial || true
+    CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+    [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
+    if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
+        NEW_OUTPUT=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
+        if echo "$NEW_OUTPUT" | grep -qE "ostree=|Starting version|Welcome to|login:"; then
             BOOT_SUCCESS=true
             pass "Phase 2 Linux system booted!"
             break
         fi
-        if echo "$NEW_LINES" | grep -qE "No bootable device|BOOTMGR is missing|kernel panic"; then
+        if echo "$NEW_OUTPUT" | grep -qE "No bootable device|BOOTMGR is missing|kernel panic"; then
             fail "Boot failure detected"
             break
         fi
-        LAST_LINE=$CURRENT_LINE
+        LAST_BYTE=$CURRENT_BYTE
     fi
     sleep 5
     ELAPSED=$((ELAPSED + 5))
@@ -534,11 +548,13 @@ PASSTHROUGH_ELAPSED=0
 PASSTHROUGH_MARKERS=""
 
 while [ $PASSTHROUGH_ELAPSED -lt $PASSTHROUGH_TIMEOUT ]; do
-    CURRENT_LINE=$(wc -l < "$PTY" 2>/dev/null || echo 0)
-    if [ "$CURRENT_LINE" -gt "$LAST_LINE" ]; then
-        PASSTHROUGH_MARKERS+=$(tail -n $((CURRENT_LINE - LAST_LINE)) "$PTY")
+    snapshot_serial || true
+    CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+    [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
+    if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
+        PASSTHROUGH_MARKERS+=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
         PASSTHROUGH_MARKERS+=$'\n'
-        LAST_LINE=$CURRENT_LINE
+        LAST_BYTE=$CURRENT_BYTE
     fi
     sleep 2
     PASSTHROUGH_ELAPSED=$((PASSTHROUGH_ELAPSED + 2))
