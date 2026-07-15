@@ -50,7 +50,7 @@ services:
         -device virtio-serial
         -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
         -drive file=/storage/deployer.qcow2,id=deployer,format=qcow2,if=none
-        -device virtio-blk-pci,drive=deployer
+        -device ide-hd,drive=deployer,bus=ahci9.1
       # USER_PORTS is not needed: QGA is private and does not use guest TCP.
     devices:
       - /dev/kvm
