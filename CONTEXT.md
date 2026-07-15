@@ -16,6 +16,14 @@
 
 **wubildr**: A custom GRUB2 EFI core image with embedded bootstrap config and the `ntfs` + `loopback` modules. It chainloads from Windows Boot Manager and searches for `wubildr.cfg` on the Windows NTFS partition, enabling bare-metal boot without modifying the Windows partition table.
 
+**shim**: A small EFI bootloader **signed by Microsoft** that is accepted by UEFI Secure Boot. Shim loads `grubx64.efi` (signed by a distribution's key, embedded in shim's MOK database) from the same directory. The boot chain is:
+
+UEFI firmware → Windows Boot Manager → bootsequence → shimx64.efi (MS-signed) → grubx64.efi (distro-signed) → grub.cfg (on ESP) → deployer or Phase 2 Linux
+
+This replaces the unsigned `wubildr.efi` which Secure Boot rejects with `Access Denied`.
+
+**grub modules**: Fedora's signed `grubx64.efi` is a minimal image that loads additional modules (`ntfs.mod`, `loopback.mod`) from the ESP at runtime via `insmod`. These `.mod` files live on the FAT32 ESP alongside `grub.cfg`. Without them, GRUB cannot read the Windows NTFS partition and cannot find `root.disk`.
+
 **BCD Entry**: A Windows Boot Manager entry (created via `bcdedit /copy {bootmgr}`) that points UEFI at `\EFI\wootc\wubildr.efi` on the ESP. Uses `bootsequence` for one-shot boots (test the deployer, test Phase 2) or `displayorder` for persistent dual-boot setups.
 
 **vault.json**: A transient JSON file written to `C:\wootc\install\` during installation, containing the hashed user password ($6$ SHA-512), username, and hostname. The deployer initramfs reads it, injects credentials into the fisherman recipe, and shreds the file before a single OCI layer is extracted.
@@ -30,6 +38,12 @@
 
 **VM Boot** (Phase 1): QEMU boots `root.disk` as a raw block device (`-drive file=root.disk,if=virtio`). No NTFS dependency — QEMU provides its own block layer. Works while Windows is running. This is the recommended first experience after installation.
 
-**Native Boot** (Phase 2): UEFI → Windows Boot Manager → wubildr (GRUB) → ntfs3 mount of Windows partition → losetup root.disk → boot installed OS. Requires Windows to be shut down cleanly (ntfs3 refuses read-write mount on dirty/hibernated volumes). Entered by rebooting and selecting "wootc" from the Windows boot menu.
+**Native Boot** (Phase 2): UEFI Secure Boot → Windows Boot Manager → bootsequence →
+shimx64.efi (MS-signed) → grubx64.efi (Fedora-signed) → grub.cfg →
+ntfs3 mount of Windows partition → losetup root.disk → boot installed OS.
+Requires Windows to be shut down cleanly (ntfs3 refuses read-write mount on
+dirty/hibernated volumes). Also requires the ESP to contain `ntfs.mod` and
+`loopback.mod` alongside `grub.cfg` for GRUB to read NTFS, since Fedora's
+signed grub does not embed these modules.
 
 **Install Path**: The wootc.exe installer creates root.disk and runs the Deployer to populate it with the chosen bootc image. On completion, the user is offered "Boot in VM now" (Phase 1) or "Reboot to Linux" (Phase 2). There is no separate "Try in VM" preview — the VM IS the primary experience.

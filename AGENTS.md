@@ -73,6 +73,60 @@ Custom GRUB core image (1.3MB) with embedded bootstrap config, ntfs +
 loopback modules. Built via `grub2-mkimage` inside the deployer container.
 Stock Fedora grubx64.efi drops to rescue shell — wubildr.efi fixes this.
 
+### Secure Boot chainload — shim + signed grub (not yet green)
+
+`wubildr.efi` is **unsigned**, so Secure Boot rejects it with `Access Denied`
+on the serial console. The fix is a Microsoft-signed intermediate bootloader:
+
+**UEFI → shimx64.efi → grubx64.efi → grub.cfg → deployer**
+
+| Component | Signer | Source |
+|-----------|--------|--------|
+| `shimx64.efi` | Microsoft | Fedora `shim-x64` package |
+| `grubx64.efi` | Fedora (in-shim MOK) | Fedora `grub2-efi-x64` package |
+| `grub.cfg` | N/A (on ESP) | same logic as `wubildr.cfg` |
+| `ntfs.mod`, `loopback.mod` | N/A (loaded by grub from ESP) | Fedora `grub2-efi-x64-modules` |
+
+**Critical:** Fedora's signed `grubx64.efi` does NOT embed ntfs+loopback
+modules. Place them as separate `.mod` files on the ESP and `insmod ntfs`
+`insmod loopback` in `grub.cfg` BEFORE any search/loopback commands.
+
+### E2E boot chain progress
+Each row is a separate reboot from one step to the next:
+
+| Step | Status | Evidence |
+|------|--------|----------|
+| OEM setup complete | ✅ | root.disk created, BCD configured, Fast Startup disabled |
+| Boot via wubildr.efi | ❌ | `Access Denied` — unsigned binary, Secure Boot blocks it |
+| Boot via shimx64.efi | ✅ | `BdsDxe: starting Boot0005...shimx64.efi` — no Access Denied |
+| GRUB loads grub.cfg | ✅ | `GRUB version 2.12` visible on serial console |
+| GRUB loads ntfs.mod | ❌ | `error: no such device:` — modules not on ESP |
+| GRUB finds root.disk | ❌ | Blocked by missing modules |
+| Deployer boots | ❌ | Not yet reached |
+| fisherman runs | ❌ | Not yet reached |
+| Linux installed + Windows returns | ❌ | Not yet reached |
+
+### Serial logging
+
+The `compose.yml` overrides Dockur's default `SERIAL=mon:stdio` with
+`SERIAL=file:/storage/deployer-serial.log` so the deployer's console output
+is written to a persistent file on the mounted `/storage` volume. This file
+**survives container teardown** and single-handedly made the Secure Boot
+rejection visible.
+
+### Snapshot before Phase 2
+
+Always copy `storage/data.qcow2` before the first deployer boot. If the
+deployer fails or corrupts the disk, restore from the snapshot and retry
+without reinstalling Windows:
+
+```bash
+cp storage/data.qcow2 storage/data.qcow2.snap
+# ... attempt deployer boot, fails ...
+cp storage/data.qcow2.snap storage/data.qcow2
+# restart VM --skip-install
+```
+
 ### PowerShell safety rules — Established (commit 09060c4)
 
 Three rules that have burned multiple E2E cycles. Always validate
@@ -82,10 +136,10 @@ before committing changes to `setup-wootc.ps1` or any Windows script.
 `\"` as an escaped quote and the string never terminates. The runner has a
 pre-flight check: `grep -n '\\\\"$' setup-wootc.ps1`.
 
-**R2: No `-f` format strings inside parenthesized expressions.** The `)`
-in strings like `"({1} GB)"` causes PowerShell to see it as closing the
-outer `(` expression grouping. Use `+` concatenation instead — it's
-already used throughout `setup-wootc.ps1` and is proven safe.
+**R2: Use variable expansion — no `-f` or `+` concatenation inside parenthesized expressions.**
+Both `-f` format strings and `+` concatenation inside `(...)` trigger parser
+confusion with closing parentheses. Use plain variable expansion:
+`Write-Host "  root.disk: $diskPath ($DiskSizeGB GB)"`
 
 **R3: Single-quote here-strings for GRUB config.** GRUB config contains
 `$prefix`, `$root`, `{` etc. Use `@'...'@` not `@"..."@`.
