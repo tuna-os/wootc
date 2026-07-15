@@ -74,22 +74,44 @@ ROOT_DISK_PATH="/wootc/disks/root.disk"
 # ── Find NTFS partition containing root.disk ────────────────────────────────
 log "Searching for ${ROOT_DISK_PATH}..."
 
-for dev in /dev/sd* /dev/nvme* /dev/vd*; do
-    [[ -b "$dev" ]] || continue
-    mkdir -p /mnt/scan
-    if mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null; then
-        if [[ -f "/mnt/scan${ROOT_DISK_PATH}" ]]; then
-            NTFS_PART="$dev"
-            log "Found ${ROOT_DISK_PATH} on ${NTFS_PART}"
+# The initqueue/online hook fires when the network is up, which can beat SCSI
+# disk enumeration by seconds. Retry the scan until the disk appears instead
+# of failing on the first pass.
+modprobe ntfs3 2>/dev/null || true
+modprobe virtio_scsi 2>/dev/null || true
+
+scan_for_root_disk() {
+    local dev
+    for dev in /dev/sd* /dev/nvme* /dev/vd*; do
+        [[ -b "$dev" ]] || continue
+        mkdir -p /mnt/scan
+        if mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null; then
+            if [[ -f "/mnt/scan${ROOT_DISK_PATH}" ]]; then
+                NTFS_PART="$dev"
+                umount /mnt/scan
+                return 0
+            fi
             umount /mnt/scan
-            break
         fi
-        umount /mnt/scan
+    done
+    return 1
+}
+
+for attempt in {1..24}; do
+    udevadm settle --timeout=10 2>/dev/null || true
+    if scan_for_root_disk; then
+        log "Found ${ROOT_DISK_PATH} on ${NTFS_PART}"
+        break
     fi
+    log "root.disk not found (attempt ${attempt}/24); retrying in 5s..."
+    [[ "$attempt" -eq 1 ]] && { err "block devices seen so far:"; cat /proc/partitions >&2 || true; }
+    sleep 5
 done
 
 if [[ -z "$NTFS_PART" ]]; then
     err "Could not find ${ROOT_DISK_PATH} on any partition"
+    err "final /proc/partitions:"
+    cat /proc/partitions >&2 || true
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
 

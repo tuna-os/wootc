@@ -106,6 +106,15 @@
                language="neutral" versionScope="nonSxS"
                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
       <RunSynchronous>
+        <!-- Windows 11 auto-enables BitLocker device encryption during OOBE
+             on TPM+Secure Boot machines. That leaves C: as FVE ciphertext,
+             which the deployer's ntfs3 mount cannot read (SPEC §3.5). Block
+             it before OOBE runs; decrypting afterwards takes far longer. -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>40</Order>
+          <Path>reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\BitLocker" /v PreventDeviceEncryption /t REG_DWORD /d 1 /f</Path>
+          <Description>Prevent automatic BitLocker device encryption</Description>
+        </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Order>50</Order>
           <Path>schtasks.exe /Create /TN "wootc-e2e-setup" /SC ONLOGON /RU SYSTEM /RL HIGHEST /TR "cmd.exe /d /c C:\OEM\install.bat" /F</Path>

@@ -10,5 +10,17 @@ guard=/run/wootc-deployer-started
 echo "[wootc] Network is online; starting deployer..."
 /usr/bin/wootc-deploy
 status=$?
-echo "[wootc] Deployer exited with status $status; opening an emergency shell."
-exec /bin/bash
+echo "[wootc] Deployer exited with status $status"
+
+# On success the deployer reboots the machine itself, so reaching this point
+# means failure. An interactive shell is only useful with wootc.debug (the
+# E2E serial console has no input); otherwise emit the failure marker for the
+# serial monitor and return to Windows so QGA-based diagnostics work again.
+if grep -q 'wootc\.debug' /proc/cmdline 2>/dev/null; then
+    echo "[wootc] wootc.debug set; opening an emergency shell."
+    exec /bin/bash
+fi
+
+echo "[wootc] [FAIL] deployer failed with status $status; rebooting to Windows in 30s"
+sleep 30
+reboot -f
