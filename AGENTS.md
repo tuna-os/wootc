@@ -90,6 +90,13 @@ already used throughout `setup-wootc.ps1` and is proven safe.
 **R3: Single-quote here-strings for GRUB config.** GRUB config contains
 `$prefix`, `$root`, `{` etc. Use `@'...'@` not `@"..."@`.
 
+**R4: CRLF line endings + UTF-8 BOM for Windows PowerShell 5.1.**
+PowerShell 5.1's `Get-Content -Raw` and internal script parser corrupt
+UTF-8 files with LF-only line endings. The E2E runner automatically
+converts `setup-wootc.ps1` before staging it in the OEM payload.
+Always use `printf '\xEF\xBB\xBF' > file.ps1; sed 's/$/\r/' file.ps1 >> file.ps1.crlf`
+when writing PowerShell scripts intended for Windows 10/11 VMs.
+
 ### Kanpur quirks
 
 The E2E host (kanpur) is Bluefin (Fedora Silverblue, immutable). These

@@ -173,7 +173,8 @@ if [ "$SKIP_BUILD" = false ]; then
     }
 
     mkdir -p "$SCRIPT_DIR/wootc-files"
-    cp "$SCRIPT_DIR/setup-wootc.ps1" "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
+    printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
+    sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
     podman run --rm \
         -v "$SCRIPT_DIR/wootc-files:/out" \
         wootc-deployer || {
@@ -250,7 +251,13 @@ fi
 OEM_DIR="$SCRIPT_DIR/oem"
 OEM_PAYLOAD="$OEM_DIR/payload"
 mkdir -p "$OEM_PAYLOAD/grub"
-cp "$SCRIPT_DIR/setup-wootc.ps1" "$OEM_DIR/setup-wootc.ps1"
+# Convert to CRLF line endings: PowerShell 5.1 on Windows misparses LF-only
+# files (Get-Content -Raw and the internal script parser both corrupt them).
+printf '\xEF\xBB\xBF' > "$OEM_DIR/setup-wootc.ps1"
+sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$OEM_DIR/setup-wootc.ps1"
+# Also convert the wootc-files copy used by subsequent steps
+printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
+sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 cp "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" "$OEM_PAYLOAD/deployer-vmlinuz"
 cp "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" "$OEM_PAYLOAD/deployer-initramfs.img"
 cp "$SCRIPT_DIR/wootc-files/wubildr.efi" "$OEM_PAYLOAD/wubildr.efi"
