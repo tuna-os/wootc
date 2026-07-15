@@ -35,6 +35,15 @@ build-deployer:
     echo "Deployer built:"
     ls -lh "$E2E_DIR/wootc-files/deployer-vmlinuz" "$E2E_DIR/wootc-files/deployer-initramfs.img"
     just fetch-grub-efi
+    just build-wubildr
+
+# Build the custom GRUB core image needed to discover configuration on NTFS.
+build-wubildr:
+    #!/usr/bin/env bash
+    podman build -t wootc-wubildr -f payload/wubildr/Containerfile .
+    mkdir -p "$E2E_DIR/wootc-files"
+    podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi > "$E2E_DIR/wootc-files/wubildr.efi"
+    ls -lh "$E2E_DIR/wootc-files/wubildr.efi"
 
 # Copy grubx64.efi from the host into wootc-files/ (needed for BCD firmware entry)
 # Searches common paths for grub2-efi-x64 / grub-efi-amd64 packages.

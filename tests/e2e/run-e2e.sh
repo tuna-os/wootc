@@ -95,6 +95,13 @@ if [ "$SKIP_BUILD" = false ]; then
         exit 1
     }
 
+    podman build -t wootc-wubildr -f payload/wubildr/Containerfile . || {
+        fail "wubildr EFI build failed"
+        exit 1
+    }
+    podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi \
+        > "$SCRIPT_DIR/wootc-files/wubildr.efi"
+
     for f in deployer-vmlinuz deployer-initramfs.img; do
         if [ ! -f "$SCRIPT_DIR/wootc-files/$f" ]; then
             fail "Deployer output missing: wootc-files/$f"

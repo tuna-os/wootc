@@ -1,0 +1,11 @@
+FROM quay.io/fedora/fedora:44
+
+RUN dnf install -y grub2-tools grub2-efi-x64-modules && dnf clean all
+
+COPY payload/wubildr/bootstrap.cfg /tmp/bootstrap.cfg
+
+RUN mkdir -p /out && \
+    grub2-mkimage -O x86_64-efi -p /EFI/wootc -o /out/wubildr.efi \
+      -c /tmp/bootstrap.cfg \
+      ntfs loopback search configfile part_gpt part_msdos fat normal \
+      echo test regexp all_video gfxterm

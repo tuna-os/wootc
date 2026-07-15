@@ -1,64 +1,76 @@
-# wootc — Windows bootc Installer
+# wootc — Windows-hosted bootc Linux
 
-Install bootc-based Linux images from Windows — no USB drive, no
-repartitioning, no risk. Downloads a bootc OCI image, deploys it to a
-file on your Windows partition, and sets up dual-boot automatically.
+wootc installs a bootc-based Linux system into `root.disk`, a sparse file on
+an unencrypted Windows NTFS volume. It is a Wubi-style design: no repartitioning
+of the Windows OS volume is required, and removal is deleting the installation
+directory and its Windows boot entry.
 
-> **Specification**: [docs/SPEC.md](docs/SPEC.md) — the canonical technical spec.
-
-**wootc** is a spiritual successor to [Wubi](https://github.com/hakuna-m/wubiuefi)
-(WubiUEFI), replacing Ubuntu's ISO + casper + ubiquity model with a
-minimal bootc deployer. The result: smaller downloads (deltas, not full
-ISOs), faster installs (no live environment), and direct-to-bootc-image
-deployment.
-
-## How It Works
+This is early, boot-path-focused development. The project currently targets a
+specific acceptance path:
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ Windows                                                      │
-│  1. wootc.exe downloads deployer kernel + initramfs (~150MB) │
-│  2. Creates root.disk (empty virtual disk on NTFS)           │
-│  3. Adds Windows Boot Manager → GRUB2 chainload entry        │
-└──────────────────────────┬───────────────────────────────────┘
-                           │ reboot
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│ GRUB2 (first boot)                                           │
-│  4. Loop-mounts root.disk                                    │
-│  5. Finds no OS → boots deployer initramfs                   │
-│  6. Deployer: pulls bootc OCI image, bootc to-disk →         │
-│     populates root.disk                                      │
-│  7. Reboot                                                    │
-└──────────────────────────┬───────────────────────────────────┘
-                           │ reboot
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│ GRUB2 (subsequent boots)                                     │
-│  8. Loop-mounts root.disk                                    │
-│  9. Finds installed OS → boots it directly                   │
-│ 10. Full bootc immutable Linux system, running from NTFS     │
-└──────────────────────────────────────────────────────────────┘
+Windows 11 → wootc deployer → native Linux from root.disk → Windows 11
 ```
 
-## Why This Over a Normal Install
+The same `root.disk` will later support an in-Windows QEMU experience, but
+native loop-root boot is the implementation priority.
 
-- **No USB drive needed** — install directly from Windows
-- **No repartitioning** — the OS lives in a file on your existing NTFS partition
-- **Uninstall is trivial** — delete the file from Windows, remove the boot entry
-- **Small download** — the deployer is ~150MB, and OCI pulls are delta-only
-- **Pre-configured** — bootc images are ready to boot, no "installer wizard" step
-- **Immutable** — bootc gives you atomic updates and rollback
+## Current architecture
 
-## Status
+1. The Windows installer creates `C:\wootc\disks\root.disk`, downloads the
+   deployer kernel/initramfs and custom `wubildr.efi`, and writes a one-shot
+   Windows Boot Manager entry.
+2. `wubildr.efi` is a GRUB core image with NTFS and loopback support. It finds
+   `C:\wootc\install\wubildr.cfg`, then either starts the deployer or loads
+   the installed disk image's GPT `/boot` partition.
+3. The deployer mounts the Windows NTFS volume, attaches `root.disk` to a loop
+   device, and uses fisherman to partition and populate it from a bootc image.
+4. After deployment, it adds the `99wootc-boot` dracut module to the target,
+   adds `wootc.host_uuid` and `loop=/wootc/disks/root.disk` to the target BLS
+   entries, and regenerates initramfs.
+5. On the Phase 2 boot, dracut mounts the NTFS host volume read-write, attaches
+   `root.disk`, and mounts the target root. A subsequent reboot returns to
+   Windows because the BCD handoff is one-shot.
 
-Early development. The deployer initramfs is being built. The Windows
-installer is planned as an adaptation of wubiuefi's Win32 GUI.
+## Repository layout
 
-## Architecture
+- `app/` — Wails Windows installer.
+- `payload/deployer/` — one-shot initramfs and deploy script.
+- `payload/wubildr/` — reproducible custom GRUB EFI build.
+- `platform/dracut/99wootc-boot/` — Phase 2 loop-root hook.
+- `platform/grub/` — external GRUB configuration.
+- `tests/e2e/` — KVM-backed Windows 11 test harness.
 
-See [docs/SPEC.md](docs/SPEC.md) for the full specification.
+## E2E expectations
 
-## License
+The E2E VM requires KVM, UEFI Secure Boot, and TPM 2.0. The harness verifies
+those QEMU features before waiting for Windows installation and captures a
+console screenshot on VM startup failures.
 
-GPL-2.0 (inherited from wubiuefi)
+Build the needed artifacts with:
+
+```bash
+just build-deployer
+```
+
+Then run the test on a KVM-capable Linux host:
+
+```bash
+just e2e
+```
+
+The full test is still under active development. In particular, its final
+Windows → Phase 2 Linux → Windows orchestration is being completed alongside
+the boot path; do not yet treat it as a released installer.
+
+## Constraints
+
+- The Windows host volume must be unencrypted. BitLocker-protected volumes are
+  not directly mountable by Linux's NTFS driver.
+- Windows Fast Startup must be disabled; Linux needs a clean, writable NTFS
+  volume.
+- `wubildr.efi` is unsigned, so physical Secure Boot support needs a signing
+  path. The E2E VM uses a test firmware configuration.
+
+See [docs/SPEC.md](docs/SPEC.md) for the broader design and
+[CONTEXT.md](CONTEXT.md) for the project vocabulary.
