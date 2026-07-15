@@ -303,8 +303,8 @@ Write-Host ""
 Write-Host "=== wootc setup complete ==="
 Write-Host "  Image:       $ImageRef"
 Write-Host "  Hostname:    $Hostname"
-Write-Host ("  root.disk:   " + $diskPath + " (" + $DiskSizeGB + " GB)")
-Write-Host "  Install dir: $installDir"
+Write-Host ("  root.disk:   {0} ({1} GB)" -f $diskPath, $DiskSizeGB)
+Write-Host ("  Install dir: {0}" -f $installDir)
 Write-Host ""
-Write-Host "Ready to reboot. The system will boot into the wootc deployer."
+Write-Host 'Ready to reboot. The system will boot into the wootc deployer.'
 Write-Host ""
