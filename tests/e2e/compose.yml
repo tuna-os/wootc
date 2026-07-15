@@ -49,7 +49,10 @@ services:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
       - ./storage:/storage
       # Deployer files: deployer-vmlinuz, deployer-initramfs.img, grubx64.efi, grub configs — shared as Samba \\host.lan\Data
-      - ./wootc-files:/shared:ro
+      - ./wootc-files:/shared
+      # OEM files are injected by Dockur into C:\OEM during setup. They provide
+      # a local fallback when external WinRM is unavailable.
+      - ./oem:/oem:ro
       # Custom Windows answer file — dockur expects this at /custom.xml (a FILE, not a directory).
       # This enables WinRM, sets network to Private, configures autologon.
       - ./autounattend.xml:/custom.xml:ro

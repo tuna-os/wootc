@@ -182,6 +182,15 @@
           <CommandLine>cmd /c mkdir C:\wootc 2&gt;nul &amp; echo ready &gt; C:\wootc\winrm-ready.txt</CommandLine>
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
+
+        <!-- Primary E2E transport: run the setup locally, not through WinRM.
+             The host observes completion through Dockur's Samba Data share. -->
+        <SynchronousCommand wcm:action="add">
+          <Order>4</Order>
+          <Description>Run wootc E2E setup locally and reboot into deployer</Description>
+          <CommandLine>powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $share='\\host.lan\Data'; for ($i=0; $i -lt 60 -and -not (Test-Path &quot;$share\setup-wootc.ps1&quot;); $i++) { Start-Sleep -Seconds 2 }; &amp; &quot;$share\setup-wootc.ps1&quot; -ImageRef 'ghcr.io/tuna-os/yellowfin:gnome' -Hostname 'wootc-test'; 'ok' | Set-Content -Path &quot;$share\e2e-setup-complete.txt&quot; -Encoding ASCII; shutdown /r /t 5 /f"</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
       </FirstLogonCommands>
     </component>
   </settings>

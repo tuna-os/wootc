@@ -95,6 +95,7 @@ if [ "$SKIP_BUILD" = false ]; then
     }
 
     mkdir -p "$SCRIPT_DIR/wootc-files"
+    cp "$SCRIPT_DIR/setup-wootc.ps1" "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
     podman run --rm \
         -v "$SCRIPT_DIR/wootc-files:/out" \
         wootc-deployer || {
@@ -160,6 +161,7 @@ fi
 # wubildr is a custom GRUB core image, not an interchangeable stock GRUB EFI.
 # Refuse to mutate the Windows boot entry when it is absent, including in
 # --skip-build runs that reuse artifacts.
+cp "$SCRIPT_DIR/setup-wootc.ps1" "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 [ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] || {
     fail "Missing wootc-files/wubildr.efi (custom GRUB core image required)"
     exit 1
@@ -191,12 +193,13 @@ if [ "$SKIP_INSTALL" = false ]; then
     # Clean previous run's disk so autounattend runs fresh
     $COMPOSE -f compose.yml down --volumes 2>/dev/null || true
     rm -rf storage/data.qcow2
+    rm -f wootc-files/e2e-setup-complete.txt wootc-files/e2e-setup-failed.txt
 
     # dockur mutates the downloaded installer ISO in place and its cache key
     # does not include /custom.xml. Reusing that ISO silently embeds an older
     # answer file (including an older disk layout), so fingerprint the input
     # and discard the processed ISO whenever the answer file changes.
-    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
+    ANSWER_SHA=$({ sha256sum autounattend.xml; find oem -type f -print0 | sort -z | xargs -0 -r sha256sum; } | sha256sum | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         info "autounattend.xml changed; rebuilding Dockur's processed installer ISO"
@@ -207,7 +210,7 @@ if [ "$SKIP_INSTALL" = false ]; then
         ANSWER_REFRESH=false
     fi
 else
-    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
+    ANSWER_SHA=$({ sha256sum autounattend.xml; find oem -type f -print0 | sort -z | xargs -0 -r sha256sum; } | sha256sum | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         fail "autounattend.xml changed since this disk was prepared; rerun without --skip-install"
@@ -362,123 +365,34 @@ else
     sleep 60
 fi
 
-# ── Step 4: Wait for WinRM ───────────────────────────────────────────────────
-step "Waiting for WinRM to become available..."
-info "  WinRM endpoint: $WINRM_HOST:$WINRM_PORT"
-info "  Monitoring for sentinel file: storage/winrm-ready.txt (or direct probe)"
-
-TIMEOUT=600  # 10 minutes for first-logon + WinRM startup
+# ── Step 4: Wait for local Windows setup ─────────────────────────────────────
+# FirstLogonCommands invokes setup-wootc.ps1 from the Samba share inside the
+# guest. This deliberately does not depend on WinRM or container NAT.
+step "Waiting for local Windows wootc setup..."
+TIMEOUT=900
 ELAPSED=0
-WINRM_READY=false
-
+SETUP_COMPLETE=false
 while [ $ELAPSED -lt $TIMEOUT ]; do
+    if [ -f "$SCRIPT_DIR/wootc-files/e2e-setup-complete.txt" ]; then
+        SETUP_COMPLETE=true
+        break
+    fi
+    if [ -f "$SCRIPT_DIR/wootc-files/e2e-setup-failed.txt" ]; then
+        fail "Local Windows setup reported failure:"
+        cat "$SCRIPT_DIR/wootc-files/e2e-setup-failed.txt"
+        exit 1
+    fi
     sleep 10
     ELAPSED=$((ELAPSED + 10))
-
-    # Re-apply routing fix in case iptables got reset
-    if [ $((ELAPSED % 60)) -eq 0 ]; then
-        _fix_routing 2>/dev/null || true
-    fi
-
-    # Method 1: sentinel file written by FirstLogonCommands order-7
-    if [ -f "$SCRIPT_DIR/wootc-files/winrm-ready.txt" ]; then
-        info "Sentinel file detected"
-        sleep 5  # let WinRM service fully start
-        WINRM_READY=true
-        break
-    fi
-
-    # Method 2: direct WinRM probe
-    if "$PYTHON_BIN" -c "
-import winrm, sys
-try:
-    s = winrm.Session(
-        '$WINRM_HOST',
-        auth=('$WINRM_USER', '$WINRM_PASS'),
-        transport='basic',
-        server_cert_validation='ignore'
-    )
-    r = s.run_ps('Write-Host ok')
-    if r.status_code == 0 and b'ok' in r.std_out:
-        sys.exit(0)
-except:
-    pass
-sys.exit(1)
-" 2>/dev/null; then
-        WINRM_READY=true
-        break
-    fi
-
-    if [ $((ELAPSED % 60)) -eq 0 ]; then
-        info "Waiting for WinRM... ($(( ELAPSED / 60 ))m)"
-    fi
+    [ $((ELAPSED % 60)) -eq 0 ] && info "Waiting for local setup... ($(( ELAPSED / 60 ))m)"
 done
 
-if [ "$WINRM_READY" = false ]; then
-    fail "WinRM did not become available within $((TIMEOUT/60)) minutes"
-    info "Troubleshooting hints:"
-    info "  1. Open http://localhost:8006 to see Windows desktop"
-    info "  2. Check if WinRM is listening: run-just.sh fix-winrm (or: just fix-winrm)"
-    info "  3. Check iptables in container: podman exec $CONTAINER_NAME iptables -t nat -L PREROUTING -n"
-    info "  4. Check VM IP: podman exec $CONTAINER_NAME ip route"
+[ "$SETUP_COMPLETE" = true ] || {
+    fail "Local Windows setup did not complete within $((TIMEOUT / 60)) minutes"
+    capture_vm_diagnostics
     exit 1
-fi
-
-pass "WinRM is available on $WINRM_HOST:$WINRM_PORT"
-
-# ── Step 5: Run wootc setup via WinRM ────────────────────────────────────────
-step "Setting up wootc inside Windows via WinRM..."
-
-SETUP_SCRIPT=$(cat "$SCRIPT_DIR/setup-wootc.ps1")
-ENCODED_SCRIPT=$(echo "$SETUP_SCRIPT" | base64 -w0)
-
-"$PYTHON_BIN" << PYEOF
-import winrm, sys, time
-
-s = winrm.Session(
-    '$WINRM_HOST',
-    auth=('$WINRM_USER', '$WINRM_PASS'),
-    transport='basic',
-    server_cert_validation='ignore'
-)
-
-# Write the setup script
-r = s.run_ps(r'''
-\$b64 = "$ENCODED_SCRIPT"
-\$bytes = [System.Convert]::FromBase64String(\$b64)
-\$script = [System.Text.Encoding]::UTF8.GetString(\$bytes)
-New-Item -ItemType Directory -Force -Path "C:\\wootc" | Out-Null
-Set-Content -Path "C:\\wootc\\setup-wootc.ps1" -Value \$script -Encoding UTF8
-Write-Host "Script written: C:\\wootc\\setup-wootc.ps1"
-''')
-print("Write script:", r.status_code, r.std_out.decode()[:200])
-if r.status_code != 0:
-    print("STDERR:", r.std_err.decode()[:500])
-    sys.exit(1)
-
-# Run the setup
-r = s.run_ps(r'C:\\wootc\\setup-wootc.ps1 -ImageRef "$IMAGE_REF" -Hostname "wootc-test"')
-print("Setup stdout:", r.std_out.decode())
-if r.std_err:
-    print("Setup stderr:", r.std_err.decode()[:500])
-if r.status_code != 0:
-    print("SETUP FAILED with status", r.status_code)
-    sys.exit(1)
-PYEOF
-
-pass "wootc setup inside Windows completed"
-
-# ── Step 6: Reboot into deployer ─────────────────────────────────────────────
-step "Rebooting Windows into wootc deployer..."
-
-"$PYTHON_BIN" -c "
-import winrm
-s = winrm.Session('$WINRM_HOST', auth=('$WINRM_USER', '$WINRM_PASS'), transport='basic', server_cert_validation='ignore')
-s.run_ps('shutdown /r /t 5 /f')
-print('Reboot triggered')
-" 2>/dev/null || true
-
-info "Waiting for Windows to shut down..."
+}
+pass "Local Windows setup completed; guest is rebooting into deployer"
 sleep 15
 
 # ── Step 7: Monitor deployer via QEMU serial console ─────────────────────────
