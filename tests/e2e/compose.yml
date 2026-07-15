@@ -3,11 +3,13 @@
 # Key networking facts (to prevent future WinRM headaches):
 #
 #   dockur/windows uses a TAP bridge (172.30.x.x) inside the container.
-#   Traffic flow:  host:5985 ──podman──► container:5985 ──iptables PREROUTING──► VM:172.30.1.x:5985
+#   Preferred flow: runner enters the container network namespace and connects
+#   directly to VM:172.30.x.x:5985. This avoids stale host-port DNAT state.
+#   Fallback flow: host:5985 ──podman──► container:5985 ──iptables PREROUTING──► VM:172.30.x.x:5985
 #
-#   The dockur PREROUTING rule matches eth0 only, but podman port-mapped
-#   traffic arrives on lo (loopback) inside the container namespace.
-#   run-e2e.sh and `just fix-routing` add the missing lo PREROUTING rule.
+#   The dockur PREROUTING rule matches eth0 only, while Podman port-mapped
+#   traffic can arrive on lo (loopback). run-e2e.sh uses a lo rule only for
+#   its unprivileged host-port fallback.
 #
 #   autounattend.xml mounts at /custom/autounattend.xml — dockur bakes it
 #   into the Windows installer ISO automatically.

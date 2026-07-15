@@ -56,6 +56,13 @@ WINRM_HOST="127.0.0.1"
 WINRM_PORT="5985"
 WINRM_USER="wootc"
 WINRM_PASS="wootc-test-123!"
+# Prefer reaching the guest from the Dockur container's network namespace.
+# Rootful Podman/Netavark can retain a stale host-port DNAT target across
+# repeated compose runs, while the container namespace always has a route to
+# the current TAP guest.  Host-port forwarding remains a non-root fallback.
+WINRM_TRANSPORT="host-port"
+WINRM_GUEST_IP=""
+WINRM_CONTAINER_PID=""
 # Override for hosts whose pip-enabled interpreter is versioned (for example,
 # PYTHON_BIN=python3.14 on Homebrew systems).
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -307,12 +314,11 @@ if [[ "$QEMU_CMD" != *"-tpmdev emulator"* || "$QEMU_CMD" != *"property=secure,va
 fi
 pass "QEMU is KVM-accelerated with TPM 2.0 and Secure Boot"
 
-# ── Fix container routing (WinRM via podman port mapping) ────────────────────
-# dockur/windows' PREROUTING rule only applies to traffic on eth0 (external NIC).
-# Podman maps host:5985 → container:5985 by injecting on lo (loopback).
-# We add a PREROUTING rule on lo so traffic reaches the Windows VM.
-step "Fixing container routing for WinRM (lo PREROUTING)..."
-_fix_routing() {
+# ── Select WinRM transport ───────────────────────────────────────────────────
+# Dockur owns a private TAP bridge inside the container.  Talking from that
+# namespace bypasses host-port DNAT entirely.  This is essential on runners
+# where Netavark has retained a mapping to a previous compose network.
+_guest_ip() {
     local vm_ip
     # Dockur publishes the actual guest URL. Do not infer it from the
     # container's route table: that path points at the bridge/gateway (.3 on
@@ -323,8 +329,17 @@ _fix_routing() {
 
     if [[ ! "$vm_ip" =~ ^172\.30\.[0-9]+\.[0-9]+$ ]]; then
         vm_ip="172.30.1.2"
-        info "WARNING: Dockur guest URL unavailable; falling back to $vm_ip"
+        info "WARNING: Dockur guest URL unavailable; falling back to $vm_ip" >&2
     fi
+
+    printf '%s\n' "$vm_ip"
+}
+
+# Fallback for unprivileged/rootless runs.  dockur/windows' own PREROUTING
+# rule only applies to eth0; Podman port-mapped traffic arrives on lo.
+_fix_routing() {
+    local vm_ip
+    vm_ip=$(_guest_ip)
 
     info "VM IP: $vm_ip"
 
@@ -336,18 +351,48 @@ _fix_routing() {
                 -i lo -p tcp --dport "$port" \
                 -j DNAT --to-destination "${vm_ip}:${port}" 2>/dev/null || true
     done
-    info "PREROUTING rules added for ports 5985/5986 → $vm_ip"
+    info "Fallback PREROUTING rules added for ports 5985/5986 → $vm_ip"
+}
+
+configure_winrm_transport() {
+    WINRM_GUEST_IP=$(_guest_ip)
+    WINRM_CONTAINER_PID=$($DOCKER inspect -f '{{.State.Pid}}' "$CONTAINER_NAME" 2>/dev/null || true)
+
+    if [ "${EUID:-$(id -u)}" -eq 0 ] && command -v nsenter >/dev/null 2>&1 && \
+        [[ "$WINRM_CONTAINER_PID" =~ ^[1-9][0-9]*$ ]]; then
+        if nsenter -t "$WINRM_CONTAINER_PID" -n sh -c \
+            "ip route get '$WINRM_GUEST_IP' >/dev/null 2>&1"; then
+            WINRM_TRANSPORT="container-netns"
+            info "WinRM transport: Dockur network namespace → $WINRM_GUEST_IP"
+            return
+        fi
+    fi
+
+    WINRM_TRANSPORT="host-port"
+    info "WinRM transport: host port mapping fallback"
+    _fix_routing
+}
+
+winrm_python() {
+    if [ "$WINRM_TRANSPORT" = "container-netns" ]; then
+        # Only enter the network namespace; keep the runner's filesystem so
+        # its selected Python environment and test scripts remain available.
+        nsenter -t "$WINRM_CONTAINER_PID" -n env WINRM_HOST="$WINRM_GUEST_IP" \
+            "$PYTHON_BIN" "$@"
+    else
+        WINRM_HOST="$WINRM_HOST" "$PYTHON_BIN" "$@"
+    fi
 }
 
 winrm_probe() {
-    "$PYTHON_BIN" "$SCRIPT_DIR/winrm-check.py" >/dev/null 2>&1
+    winrm_python "$SCRIPT_DIR/winrm-check.py" >/dev/null 2>&1
 }
 
 wait_for_winrm() {
     local label="$1" timeout="$2" elapsed=0
     step "Waiting for WinRM: $label..."
     while [ "$elapsed" -lt "$timeout" ]; do
-        _fix_routing 2>/dev/null || true
+        [ "$WINRM_TRANSPORT" = "container-netns" ] || _fix_routing 2>/dev/null || true
         if winrm_probe; then
             pass "WinRM available: $label"
             return 0
@@ -391,7 +436,8 @@ wait_for_winrm_down() {
 
 # Wait for container to start iptables, then add our rules
 sleep 5
-_fix_routing
+step "Selecting deterministic WinRM transport..."
+configure_winrm_transport
 
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
@@ -431,16 +477,16 @@ else
     if [ "$ANSWER_REFRESH" = true ]; then
         printf '%s\n' "$ANSWER_SHA" > "$ANSWER_STAMP"
     fi
-    info "Windows is handing off to the Dockur OEM setup hook..."
-    sleep 20
+    info "Windows installation is still running; waiting for its OEM handoff..."
 fi
 
-# ── Step 4: Wait for OEM setup to hand off to deployer ───────────────────────
+# ── Step 4: Wait for Windows install and OEM handoff ─────────────────────────
 # The deployer serial marker is the end-to-end assertion: it can only appear
 # after the local Windows script creates root.disk, installs wubildr.efi,
-# creates the one-shot BCD entry, and reboots.
-step "Waiting for Dockur OEM setup to hand off to deployer..."
-sleep 10
+# creates the one-shot BCD entry, and reboots.  `windows.ver` merely proves
+# Dockur prepared its installer; it is deliberately not presented as a guest
+# completion signal above.
+step "Waiting for Windows install and Dockur OEM handoff..."
 
 # ── Step 7: Monitor deployer via QEMU serial console ─────────────────────────
 step "Monitoring deployer (QEMU serial console)..."
@@ -478,6 +524,10 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
         echo "$NEW_OUTPUT" | grep -qE "\[WARN\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[WARN\]' | tail -1)"
+        if echo "$NEW_OUTPUT" | grep -q "\[wootc-oem\] Setup failed:"; then
+            fail "Windows OEM setup failed; see the serial marker above"
+            break
+        fi
         if echo "$NEW_OUTPUT" | grep -q "VERIFICATION_SUMMARY"; then
             DEPLOY_COMPLETE=true
             pass "wootc: deployment verification complete"
@@ -512,12 +562,12 @@ wait_for_winrm_reboot "Windows after deployer"
 
 step "Scheduling one-shot Phase 2 Linux boot..."
 # shellcheck disable=SC2016 # PowerShell variables must remain literal here.
-PHASE2_GUID=$("$PYTHON_BIN" "$SCRIPT_DIR/winrm-run.py" \
+PHASE2_GUID=$(winrm_python "$SCRIPT_DIR/winrm-run.py" \
     '$guid = (Get-Content C:\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid')
 PHASE2_GUID=$(printf '%s' "$PHASE2_GUID" | tr -d '\r\n')
 [ -n "$PHASE2_GUID" ] || { fail "Could not read wootc BCD GUID from Windows"; exit 1; }
 
-"$PYTHON_BIN" "$SCRIPT_DIR/winrm-run.py" \
+winrm_python "$SCRIPT_DIR/winrm-run.py" \
     "bcdedit /set '{fwbootmgr}' bootsequence $PHASE2_GUID /addfirst; shutdown /r /t 5 /f" >/dev/null
 pass "Phase 2 Linux boot scheduled through BCD one-shot entry"
 wait_for_winrm_down "Phase 2 Linux boot"

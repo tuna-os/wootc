@@ -5,10 +5,27 @@ $logPath = Join-Path $oemDir "wootc-e2e.log"
 $completePath = Join-Path $oemDir "e2e-setup-complete.txt"
 $failedPath = Join-Path $oemDir "e2e-setup-failed.txt"
 
+function Write-E2ESerial([string]$Message) {
+    # QEMU exposes COM1 in its captured serial stream.  These compact markers
+    # keep late OEM failures observable even when WinRM or offline disk reads
+    # are unavailable (for example, TPM-backed Windows Device Encryption).
+    try {
+        $port = New-Object System.IO.Ports.SerialPort
+        $port.PortName = "COM1"
+        $port.BaudRate = 115200
+        $port.Open()
+        $port.WriteLine($Message)
+        $port.Close()
+    } catch {
+        # A missing virtual serial port must not block installation.
+    }
+}
+
 function Write-E2ELog([string]$Message) {
     $line = "$(Get-Date -Format o) [wootc-e2e] $Message"
     Write-Host $line
     Add-Content -Path $logPath -Value $line
+    Write-E2ESerial "[wootc-oem] $Message"
 }
 
 try {
@@ -26,12 +43,15 @@ try {
         winrm quickconfig -quiet | Out-Null
         Set-Service -Name WinRM -StartupType Automatic
         Start-Service -Name WinRM -ErrorAction SilentlyContinue
+        Set-Item -Path WSMan:\localhost\Service\AllowUnencrypted -Value $true
+        Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $true
         netsh advfirewall firewall set rule group="Windows Remote Management" new enable=Yes | Out-Null
         Write-E2ELog "WinRM configured for the later Phase 2 assertion"
     } catch {
         Write-E2ELog "WinRM configuration deferred: $($_.Exception.Message)"
     }
 
+    Write-E2ELog "Invoking setup-wootc payload"
     & "$oemDir\setup-wootc.ps1" `
         -ImageRef "ghcr.io/tuna-os/yellowfin:gnome" `
         -Hostname "wootc-test" `
