@@ -6,19 +6,14 @@
 # doesn't try to mount the NTFS block device directly.
 
 LOOP_PATH=$(getarg loop=)
+WOOTC_HOST_UUID=$(getarg wootc.host_uuid=)
 
-if [ -n "$LOOP_PATH" ]; then
-    ORIG_ROOT=$(getarg root=)
+if [ -n "$LOOP_PATH" ] && [ -n "$WOOTC_HOST_UUID" ]; then
+    echo "wootc_host_uuid=\"$WOOTC_HOST_UUID\"" > /tmp/wootc.env
+    echo "wootc_loop_path=\"$LOOP_PATH\""       >> /tmp/wootc.env
 
-    if [[ "$ORIG_ROOT" == UUID=* ]]; then
-        WOOTC_HOST_UUID="${ORIG_ROOT#UUID=}"
-
-        echo "wootc_host_uuid=\"$WOOTC_HOST_UUID\"" > /tmp/wootc.env
-        echo "wootc_loop_path=\"$LOOP_PATH\""       >> /tmp/wootc.env
-
-        # Hijack the standard root assignment. Setting it to 'wootc'
-        # stops systemd/dracut from trying to mount the NTFS block directly.
-        root="wootc"
-        rootok=1
-    fi
+    # Keep the target's normal root= argument intact in its BLS entry, but
+    # take ownership of mounting it through the Windows-backed loop device.
+    root="wootc"
+    rootok=1
 fi

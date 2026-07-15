@@ -28,7 +28,7 @@ New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 New-Item -ItemType Directory -Force -Path $disksDir | Out-Null
 
 # ── Step 2: Create root.disk (sparse file) ──────────────────────────────────
-Write-Host "[wootc] Creating root.disk ($DiskSizeGB GB)..."
+Write-Host ("[wootc] Creating root.disk (" + $DiskSizeGB + " GB)...")
 $diskPath = "$disksDir\root.disk"
 $sizeBytes = [long]$DiskSizeGB * 1024 * 1024 * 1024
 
@@ -64,7 +64,7 @@ public static extern bool SetFileValidData(IntPtr hFile, long ValidDataLength);
     Write-Host "[wootc] root.disk: contiguous pre-allocation failed (disk may be fragmented). Continuing..."
 }
 
-Write-Host "[wootc] root.disk created: $diskPath ($DiskSizeGB GB)"
+Write-Host ("[wootc] root.disk created: " + $diskPath + " (" + $DiskSizeGB + " GB)")
 
 # ── Step 3: Copy deployer files ─────────────────────────────────────────────
 # Files should be available via a shared volume or SMB.
@@ -99,10 +99,10 @@ foreach ($share in $sharePaths) {
         Write-Host "[wootc] Share $share not accessible, trying next..."
         continue
     }
-    if (Test-Path "$share\vmlinuz") {
+    if (Test-Path "$share\deployer-vmlinuz") {
         Write-Host "[wootc] Found deployer files at $share"
-        $deployerVmlinuz = "$share\vmlinuz"
-        $deployerInitramfs = "$share\initramfs.img"
+        $deployerVmlinuz = "$share\deployer-vmlinuz"
+        $deployerInitramfs = "$share\deployer-initramfs.img"
         $grubDir = "$share\grub"
         break
     }
@@ -115,23 +115,23 @@ if (-not $deployerVmlinuz) {
 
 # Copy deployer files
 Write-Host "[wootc] Copying deployer kernel..."
-Copy-Item $deployerVmlinuz "$installDir\vmlinuz" -Force
+Copy-Item $deployerVmlinuz "$installDir\deployer-vmlinuz" -Force
 
 Write-Host "[wootc] Copying deployer initramfs..."
-Copy-Item $deployerInitramfs "$installDir\initramfs.img" -Force
+Copy-Item $deployerInitramfs "$installDir\deployer-initramfs.img" -Force
 
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────
 if ($grubDir) {
     # GRUB cfg files from the wootc repo
     Copy-Item "$grubDir\*" "$installDir\" -Force -ErrorAction SilentlyContinue
 
-    # Copy grubx64.efi from share if available (needed for BCD firmware entry)
-    $grubEfiSrc = "$share\grubx64.efi"
+    # Copy wubildr.efi from share if available (custom GRUB core image with embedded config)
+    $grubEfiSrc = "$share\wubildr.efi"
     if (Test-Path $grubEfiSrc) {
-        Copy-Item $grubEfiSrc "$installDir\grubx64.efi" -Force
-        Write-Host "[wootc] Copied grubx64.efi from share"
+        Copy-Item $grubEfiSrc "$installDir\wubildr.efi" -Force
+        Write-Host "[wootc] Copied wubildr.efi from share"
     } else {
-        Write-Host "[wootc] WARNING: grubx64.efi not found on share at $grubEfiSrc"
+        Write-Host "[wootc] WARNING: wubildr.efi not found on share at $grubEfiSrc"
         Write-Host "[wootc]   BCD firmware entry will be created but may not boot without it."
     }
 }
@@ -144,13 +144,13 @@ set default=0
 set timeout=5
 
 menuentry "Install wootc (automatic)" {
-    linux /wootc/install/vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname quiet
-    initrd /wootc/install/initramfs.img
+    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname quiet
+    initrd /wootc/install/deployer-initramfs.img
 }
 
 menuentry "Install wootc (debug)" {
-    linux /wootc/install/vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname wootc.debug
-    initrd /wootc/install/initramfs.img
+    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname wootc.debug
+    initrd /wootc/install/deployer-initramfs.img
 }
 "@
 
@@ -223,9 +223,8 @@ if (-not $espPath) {
 $wootcEfiDir = "$espPath\EFI\wootc\wubildr"
 New-Item -ItemType Directory -Force -Path $wootcEfiDir | Out-Null
 
-# Copy GRUB EFI binary (in a real install we'd use shim + grubx64.efi;
-# for testing we use the QEMU VM's existing GRUB or chainload differently)
-# For now, we rely on the existing Windows Boot Manager chainload via BCD
+# Copy GRUB EFI binary (wubildr.efi — custom GRUB core image with embedded
+# bootstrap config, ntfs + loopback modules).
 
 # Copy GRUB config files to ESP
 Copy-Item "$installDir\wubildr.cfg" "$wootcEfiDir\" -Force
@@ -233,7 +232,7 @@ Copy-Item "$installDir\wubildr.cfg" "$wootcEfiDir\" -Force
 Write-Host "[wootc] GRUB files installed to $wootcEfiDir"
 
 # ── Step 8: Configure BCD ───────────────────────────────────────────────────
-# Add a UEFI firmware application boot entry pointing to grubx64.efi on the ESP.
+# Add a UEFI firmware application boot entry pointing to wubildr.efi on the ESP.
 # bcdedit /create outputs: "The entry {guid} was successfully created."
 # We parse that GUID, then configure device/path/description and set boot order.
 
@@ -249,41 +248,34 @@ if (-not $espDrive) {
     $espDrive = "C"
 }
 
-# Copy grubx64.efi to ESP
-$grubEfiDest = "${espPath}EFI\wootc\grubx64.efi"
-if (Test-Path "$installDir\grubx64.efi") {
-    Copy-Item "$installDir\grubx64.efi" $grubEfiDest -Force
-    Write-Host "[wootc] Copied grubx64.efi to $grubEfiDest"
+# Copy wubildr.efi to ESP (custom GRUB with ntfs+loopback modules, embedded bootstrap config)
+$grubEfiDest = "${espPath}EFI\wootc\wubildr.efi"
+if (Test-Path "$installDir\wubildr.efi") {
+    Copy-Item "$installDir\wubildr.efi" $grubEfiDest -Force
+    Write-Host "[wootc] Copied wubildr.efi to $grubEfiDest"
 } else {
-    Write-Host "[wootc] WARNING: grubx64.efi not in $installDir — ESP entry will point to a missing file."
-    Write-Host "[wootc]   Ensure grubx64.efi is present on the Samba share (wootc-files/grubx64.efi)."
+    Write-Host "[wootc] WARNING: wubildr.efi not in $installDir — ESP entry will point to a missing file."
+    Write-Host "[wootc]   Ensure wubildr.efi is present on the Samba share (wootc-files/wubildr.efi)."
 }
 
-# Create a new firmware application BCD entry
-$bcdCreateOutput = (& bcdedit /create /d "wootc Deployer" /application firmware 2>&1) | Out-String
-Write-Host "[wootc] bcdedit create: $bcdCreateOutput"
+# Create a new BCD entry by cloning the Windows Boot Manager.
+# This inherits device/partition settings — we only need to set the path.
+$bcdCreateOutput = (& bcdedit /copy "{bootmgr}" /d "wootc Deployer" 2>&1) | Out-String
+Write-Host "[wootc] bcdedit copy: $bcdCreateOutput"
 
 # Parse the GUID from output like:
-#   The entry {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx} was successfully created.
+#   The entry was successfully copied to {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}.
 if ($bcdCreateOutput -match '\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}') {
     $newGuid = "{$($Matches[1])}"
     Write-Host "[wootc] New BCD entry GUID: $newGuid"
 
-    # Set the EFI path (must use backslashes, relative to ESP root)
-    $efiRelPath = "\EFI\wootc\grubx64.efi"
+    # Set the EFI path (device is inherited from bootmgr — partition=E:)
+    $efiRelPath = "\EFI\wootc\wubildr.efi"
     & bcdedit /set $newGuid path $efiRelPath
     Write-Host "[wootc] BCD path set to $efiRelPath"
 
-    # Set the device to the ESP partition
-    # 'partition=<letter>:' targets the partition by its assigned drive letter
-    & bcdedit /set $newGuid device "partition=${espDrive}:"
-    Write-Host "[wootc] BCD device set to partition=${espDrive}:"
-
-    # Prepend to fwbootmgr display order (makes it visible in UEFI menu)
-    & bcdedit /set "{fwbootmgr}" displayorder $newGuid /addfirst
-    Write-Host "[wootc] Added $newGuid as first in fwbootmgr displayorder"
-
-    # One-time boot: boot the deployer on the very next restart only
+    # One-time boot: boot the deployer on the very next restart only.
+    # Do NOT add to displayorder — we only want a one-shot test, not a persistent entry.
     & bcdedit /set "{fwbootmgr}" bootsequence $newGuid /addfirst
     Write-Host "[wootc] Set one-time bootsequence to $newGuid"
 
@@ -313,7 +305,7 @@ Write-Host ""
 Write-Host "=== wootc setup complete ==="
 Write-Host "  Image:       $ImageRef"
 Write-Host "  Hostname:    $Hostname"
-Write-Host "  root.disk:   $diskPath ($DiskSizeGB GB)"
+Write-Host ("  root.disk:   " + $diskPath + " (" + $DiskSizeGB + " GB)")
 Write-Host "  Install dir: $installDir"
 Write-Host ""
 Write-Host "Ready to reboot. The system will boot into the wootc deployer."

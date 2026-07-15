@@ -2,52 +2,128 @@
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
 
   <!--
-    wootc E2E autounattend.xml
-    - Enables RDP
-    - Enables WinRM (HTTP, basic auth)
-    - Disables UAC prompts
-    - Disables Windows Defender real-time scanning
-    - Auto-login as wootc user
+    wootc E2E autounattend.xml — v3
+    Key fixes from testing:
+      - Removed EnableLUA=false (breaks Windows 11 boot)
+      - Added DiskConfiguration block (UEFI GPT partitioning)
+      - Merged WinRM setup into fewer FirstLogonCommands
   -->
 
+  <!-- ── windowsPE pass ────────────────────────────────────────────────── -->
   <settings pass="windowsPE">
-    <component name="Microsoft-Windows-Setup" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+    <component name="Microsoft-Windows-International-Core-WinPE"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <SetupUILanguage><UILanguage>en-US</UILanguage></SetupUILanguage>
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+    <component name="Microsoft-Windows-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <DiskConfiguration>
+        <Disk wcm:action="add">
+          <DiskID>0</DiskID>
+          <WillWipeDisk>true</WillWipeDisk>
+          <CreatePartitions>
+            <CreatePartition wcm:action="add">
+              <Order>1</Order>
+              <Type>EFI</Type>
+              <Size>100</Size>
+            </CreatePartition>
+            <CreatePartition wcm:action="add">
+              <Order>2</Order>
+              <Type>MSR</Type>
+              <Size>16</Size>
+            </CreatePartition>
+            <CreatePartition wcm:action="add">
+              <Order>3</Order>
+              <Type>Primary</Type>
+              <Extend>true</Extend>
+            </CreatePartition>
+          </CreatePartitions>
+          <ModifyPartitions>
+            <ModifyPartition wcm:action="add">
+              <Format>FAT32</Format>
+              <Label>System</Label>
+              <Order>1</Order>
+              <PartitionID>1</PartitionID>
+            </ModifyPartition>
+            <ModifyPartition wcm:action="add">
+              <Format>NTFS</Format>
+              <Label>OS</Label>
+              <Letter>C</Letter>
+              <Order>2</Order>
+              <PartitionID>3</PartitionID>
+            </ModifyPartition>
+          </ModifyPartitions>
+        </Disk>
+      </DiskConfiguration>
+      <ImageInstall>
+        <OSImage>
+          <InstallTo>
+            <DiskID>0</DiskID>
+            <PartitionID>3</PartitionID>
+          </InstallTo>
+        </OSImage>
+      </ImageInstall>
       <UserData>
         <ProductKey>
-          <!-- Generic Windows 10/11 Pro KMS client key -->
-          <Key>W269N-WFGWX-YVC9B-4J6C9-T83GX</Key>
+          <Key>NPPR9-FWDCX-D2C8J-H872K-2YT43</Key>
         </ProductKey>
         <AcceptEula>true</AcceptEula>
+        <FullName>wootc</FullName>
+        <Organization>wootc-test</Organization>
       </UserData>
     </component>
   </settings>
 
-  <settings pass="offlineServicing">
-    <component name="Microsoft-Windows-LUA-Settings" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-      <EnableLUA>false</EnableLUA>
-    </component>
-  </settings>
-
+  <!-- ── specialize pass ───────────────────────────────────────────────── -->
   <settings pass="specialize">
-    <component name="Microsoft-Windows-TerminalServices-LocalSessionManager" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <ComputerName>wootc-test</ComputerName>
+      <TimeZone>UTC</TimeZone>
+    </component>
+    <component name="Microsoft-Windows-TerminalServices-LocalSessionManager"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
       <fDenyTSConnections>false</fDenyTSConnections>
     </component>
-    <component name="Microsoft-Windows-TerminalServices-RDP-WinStationExtensions" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-      <UserAuthentication>0</UserAuthentication>
-    </component>
-    <component name="Networking-MPSSVC-Svc" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+    <component name="Networking-MPSSVC-Svc"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
       <FirewallGroups>
         <FirewallGroup wcm:action="add">
           <Active>true</Active>
-          <Group>Remote Desktop</Group>
+          <Group>Windows Remote Management</Group>
           <Profile>all</Profile>
         </FirewallGroup>
       </FirewallGroups>
     </component>
   </settings>
 
+  <!-- ── oobeSystem pass ───────────────────────────────────────────────── -->
   <settings pass="oobeSystem">
-    <component name="Microsoft-Windows-Shell-Setup" language="neutral" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
         <HideLocalAccountScreen>true</HideLocalAccountScreen>
@@ -55,53 +131,56 @@
         <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <ProtectYourPC>3</ProtectYourPC>
+        <NetworkLocation>Work</NetworkLocation>
       </OOBE>
+
       <UserAccounts>
         <LocalAccounts>
           <LocalAccount wcm:action="add">
             <Name>wootc</Name>
             <DisplayName>wootc E2E Test</DisplayName>
             <Password>
-              <Value>wootc-test-123!</Value>
-              <PlainText>true</PlainText>
+              <Value>d29vdGMtdGVzdC0xMjMh</Value>
+              <PlainText>false</PlainText>
             </Password>
             <Group>Administrators</Group>
           </LocalAccount>
         </LocalAccounts>
       </UserAccounts>
+
       <AutoLogon>
         <Enabled>true</Enabled>
         <Username>wootc</Username>
         <Password>
-          <Value>wootc-test-123!</Value>
-          <PlainText>true</PlainText>
+          <Value>d29vdGMtdGVzdC0xMjMh</Value>
+          <PlainText>false</PlainText>
         </Password>
+        <LogonCount>99</LogonCount>
       </AutoLogon>
+
       <FirstLogonCommands>
+        <!-- Consolidated WinRM setup: network Private → enable → configure auth -->
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <CommandLine>powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'ConsentPromptBehaviorAdmin' -Value 0 -Force"</CommandLine>
-          <Description>Disable UAC admin prompts</Description>
+          <Description>Set network to Private + enable WinRM + configure Basic auth</Description>
+          <CommandLine>powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private; Enable-PSRemoting -Force -SkipNetworkProfileCheck; winrm set winrm/config/service/auth '@{Basic=\"true\"}'; winrm set winrm/config/service '@{AllowUnencrypted=\"true\"}'; winrm set winrm/config/client '@{TrustedHosts=\"*\"}'; netsh advfirewall firewall add rule name=\"WinRM HTTP\" dir=in action=allow protocol=TCP localport=5985 profile=any; netsh advfirewall firewall set rule group=\"remote administration\" new enable=yes; Set-Service WinRM -StartupType Automatic; Restart-Service WinRM -Force"</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
+
+        <!-- Disable Defender real-time scanning (e2e test speed) -->
         <SynchronousCommand wcm:action="add">
           <Order>2</Order>
-          <CommandLine>powershell.exe -Command "Set-MpPreference -DisableRealtimeMonitoring $true"</CommandLine>
-          <Description>Disable Windows Defender real-time scanning</Description>
+          <Description>Disable Defender real-time scanning</Description>
+          <CommandLine>powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue"</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
+
+        <!-- Write ready sentinel -->
         <SynchronousCommand wcm:action="add">
           <Order>3</Order>
-          <CommandLine>powershell.exe -Command "Enable-PSRemoting -Force; Set-Item WSMan:\localhost\Client\TrustedHosts -Value '*' -Force; winrm set winrm/config/service '@{AllowUnencrypted=\"true\"}' ; winrm set winrm/config/service/auth '@{Basic=\"true\"}' ; New-NetFirewallRule -DisplayName 'WinRM HTTP' -Direction Inbound -LocalPort 5985 -Protocol TCP -Action Allow"</CommandLine>
-          <Description>Enable WinRM (HTTP, basic auth, any host)</Description>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>4</Order>
-          <CommandLine>powershell.exe -Command "Set-Service -Name WinRM -StartupType Automatic; Restart-Service WinRM"</CommandLine>
-          <Description>Start WinRM service</Description>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>5</Order>
-          <CommandLine>powershell.exe -Command "Remove-Item -Path 'C:\Users\Public\Desktop\*.lnk' -Force -ErrorAction SilentlyContinue"</CommandLine>
-          <Description>Clean up desktop</Description>
+          <Description>Write winrm-ready sentinel</Description>
+          <CommandLine>cmd /c mkdir C:\wootc 2&gt;nul &amp; echo ready &gt; C:\wootc\winrm-ready.txt</CommandLine>
+          <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
       </FirstLogonCommands>
     </component>

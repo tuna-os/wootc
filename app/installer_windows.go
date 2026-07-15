@@ -22,7 +22,7 @@ func getSystemInfo() SystemInfo {
 	info := SystemInfo{IsUEFI: isUEFI()}
 
 	// OS version
-	v, _ := windows.RtlGetVersion()
+	v := windows.RtlGetVersion()
 	if v != nil {
 		info.OSVersion = fmt.Sprintf("Windows %d.%d.%d", v.MajorVersion, v.MinorVersion, v.BuildNumber)
 	}
@@ -84,11 +84,11 @@ func secureBootEnabled() bool {
 }
 
 func fastStartupEnabled() bool {
-	key, err := windows.RegOpenKeyEx(
+	var key windows.Handle
+	err := windows.RegOpenKeyEx(
 		windows.HKEY_LOCAL_MACHINE,
 		windows.StringToUTF16Ptr(`SYSTEM\CurrentControlSet\Control\Session Manager\Power`),
-		0,
-		windows.KEY_READ,
+		0, windows.KEY_READ, &key,
 	)
 	if err != nil {
 		return false
@@ -164,8 +164,8 @@ func createRootDisk(sizeGB int) error {
 	size := int64(sizeGB) * 1024 * 1024 * 1024
 	lo := uint32(size & 0xFFFFFFFF)
 	hi := int32(size >> 32)
-	if err := windows.SetFilePointer(h, lo, &hi, windows.FILE_BEGIN); err != windows.NTStatus(0) {
-		// SetFilePointer returns a DWORD, error handling is via GetLastError
+	if _, err := windows.SetFilePointer(h, int32(lo), &hi, windows.FILE_BEGIN); err != nil {
+		return fmt.Errorf("SetFilePointer: %w", err)
 	}
 	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
 	setEOF := kernel32.NewProc("SetEndOfFile")
@@ -183,7 +183,7 @@ const deployerBaseURL = "https://github.com/tuna-os/wootc/releases/latest/downlo
 
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	installDir := filepath.Join(wootcDir(), "install")
-	files := []string{"deployer-vmlinuz", "deployer-initramfs.img"}
+	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "wubildr.efi"}
 
 	for i, name := range files {
 		dest := filepath.Join(installDir, name)
@@ -211,12 +211,12 @@ set default=0
 set timeout=5
 
 menuentry "Install wootc (automatic)" {
-    linux /wootc/install/deployer-vmlinuz wootc.image=%s wootc.hostname=%s quiet
+    linux /wootc/install/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json quiet
     initrd /wootc/install/deployer-initramfs.img
 }
 
 menuentry "Install wootc (debug)" {
-    linux /wootc/install/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.debug
+    linux /wootc/install/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json wootc.debug
     initrd /wootc/install/deployer-initramfs.img
 }
 `, cfg.ImageRef, cfg.Hostname, cfg.ImageRef, cfg.Hostname)
@@ -225,8 +225,24 @@ menuentry "Install wootc (debug)" {
 		return err
 	}
 
-	// wubildr.cfg is platform-generic; ship it embedded in the binary in production.
-	// For now copy from the repo's platform/grub/ tree if available.
+	// Write wubildr.cfg — the main dual-mode GRUB config (embedded in binary)
+	wubildrCfg, err := platformAssets.ReadFile("grub/wubildr.cfg")
+	if err != nil {
+		return fmt.Errorf("read embedded wubildr.cfg: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "wubildr.cfg"), wubildrCfg, 0o644); err != nil {
+		return fmt.Errorf("write wubildr.cfg: %w", err)
+	}
+
+	// Write wubildr-bootstrap.cfg — GRUB entry point from Windows Boot Manager
+	bootstrapCfg, err := platformAssets.ReadFile("grub/wubildr-bootstrap.cfg")
+	if err != nil {
+		return fmt.Errorf("read embedded wubildr-bootstrap.cfg: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "wubildr-bootstrap.cfg"), bootstrapCfg, 0o644); err != nil {
+		return fmt.Errorf("write wubildr-bootstrap.cfg: %w", err)
+	}
+
 	return nil
 }
 
@@ -247,7 +263,7 @@ func setupESP(bootloader string) error {
 }
 
 func setupGRUB2(espPath string) error {
-	wootcEFI := filepath.Join(espPath, "EFI", "wootc", "wubildr")
+	wootcEFI := filepath.Join(espPath, "EFI", "wootc")
 	if err := os.MkdirAll(wootcEFI, 0o755); err != nil {
 		return err
 	}
@@ -255,7 +271,7 @@ func setupGRUB2(espPath string) error {
 	installDir := filepath.Join(wootcDir(), "install")
 
 	// Copy GRUB EFI binaries if available
-	for _, name := range []string{"grubx64.efi", "shimx64.efi"} {
+	for _, name := range []string{"wubildr.efi"} {
 		src := filepath.Join(installDir, name)
 		dst := filepath.Join(wootcEFI, name)
 		if _, err := os.Stat(src); err == nil {
@@ -307,11 +323,13 @@ func configureBCD(bootloader string) error {
 	case "systemd-boot":
 		efiRelPath = `\EFI\systemd\systemd-bootx64.efi`
 	default:
-		efiRelPath = `\EFI\wootc\wubildr\grubx64.efi`
+		efiRelPath = `\EFI\wootc\wubildr.efi`
 	}
 
-	// bcdedit /create /d "wootc" /application firmware
-	out, err := runCmd("bcdedit", "/create", "/d", "wootc", "/application", "firmware")
+	// bcdedit /copy {bootmgr} /d "wootc" — clones the Windows Boot Manager entry,
+	// inheriting device/partition settings. We then change the path to our EFI binary.
+	// This is the proven approach from WubiUEFI (millions of users).
+	out, err := runCmd("bcdedit", "/copy", "{bootmgr}", "/d", "wootc")
 	if err != nil {
 		return fmt.Errorf("bcdedit /create: %w (output: %s)", err, out)
 	}
@@ -326,7 +344,6 @@ func configureBCD(bootloader string) error {
 
 	cmds := [][]string{
 		{"bcdedit", "/set", guid, "path", efiRelPath},
-		{"bcdedit", "/set", guid, "device", "partition=" + espDrive + ":"},
 		{"bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/addfirst"},
 		{"bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"},
 	}
@@ -336,31 +353,6 @@ func configureBCD(bootloader string) error {
 		}
 	}
 	return nil
-}
-
-// ── vault.json ────────────────────────────────────────────────────────────────
-
-// writeVault writes C:\wootc\install\vault.json with a hashed credential.
-// The plaintext password never leaves this function.
-func writeVault(cfg InstallConfig) error {
-	// In production: use a bundled libcrypt to hash with yescrypt ($y$) or SHA-512 ($6$).
-	// For the scaffold, we write a placeholder — real impl in vault_windows.go.
-	vault := map[string]string{
-		"username": cfg.Username,
-		"hostname": cfg.Hostname,
-		"image":    cfg.ImageRef,
-		// "password_hash": hash(cfg.Password),  -- TODO
-	}
-	data, err := marshalJSON(vault)
-	if err != nil {
-		return err
-	}
-	vaultPath := filepath.Join(wootcDir(), "install", "vault.json")
-	if err := os.WriteFile(vaultPath, data, 0o600); err != nil {
-		return err
-	}
-	// Restrict ACL: only SYSTEM and Administrators
-	return restrictFileACL(vaultPath)
 }
 
 // ── Uninstall ─────────────────────────────────────────────────────────────────
@@ -448,3 +440,6 @@ func restrictFileACL(path string) error {
 	)
 	return err
 }
+
+// wootcDir returns the Windows installation directory.
+func wootcDir() string { return `C:\wootc` }

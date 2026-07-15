@@ -60,6 +60,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+capture_vm_diagnostics() {
+    info "Collecting Windows VM diagnostics..."
+    $DOCKER logs --tail 150 "$CONTAINER_NAME" 2>&1 || true
+    $DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true
+    $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/screenshot.py" 2>/dev/null || true
+    $DOCKER exec "$CONTAINER_NAME" python3 /tmp/screenshot.py 2>/dev/null || true
+    $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" /tmp/wootc-e2e-failure.png 2>/dev/null || true
+    info "If captured, failure screenshot: /tmp/wootc-e2e-failure.png"
+}
+
 # Detect podman vs docker
 DOCKER="podman"
 if ! command -v podman &>/dev/null; then
@@ -85,12 +95,17 @@ if [ "$SKIP_BUILD" = false ]; then
         exit 1
     }
 
-    for f in vmlinuz initramfs.img; do
+    for f in deployer-vmlinuz deployer-initramfs.img; do
         if [ ! -f "$SCRIPT_DIR/wootc-files/$f" ]; then
             fail "Deployer output missing: wootc-files/$f"
             exit 1
         fi
     done
+
+    [ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] || {
+        fail "Missing wootc-files/wubildr.efi (custom GRUB core image required)"
+        exit 1
+    }
 
     mkdir -p "$SCRIPT_DIR/wootc-files/grub"
     cp "$REPO_ROOT/platform/grub/"*.cfg "$SCRIPT_DIR/wootc-files/grub/" 2>/dev/null || true
@@ -124,9 +139,17 @@ if [ "$SKIP_BUILD" = false ]; then
         info "  or manually copy a grubx64.efi to $SCRIPT_DIR/wootc-files/grubx64.efi"
     fi
 
-    pass "Deployer built: $(du -sh "$SCRIPT_DIR/wootc-files/vmlinuz" | cut -f1) kernel, $(du -sh "$SCRIPT_DIR/wootc-files/initramfs.img" | cut -f1) initramfs"
+    pass "Deployer built: $(du -sh "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" | cut -f1) kernel, $(du -sh "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" | cut -f1) initramfs"
     cd "$SCRIPT_DIR"
 fi
+
+# wubildr is a custom GRUB core image, not an interchangeable stock GRUB EFI.
+# Refuse to mutate the Windows boot entry when it is absent, including in
+# --skip-build runs that reuse artifacts.
+[ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] || {
+    fail "Missing wootc-files/wubildr.efi (custom GRUB core image required)"
+    exit 1
+}
 
 # ── Step 1: Check prerequisites ──────────────────────────────────────────────
 step "Checking prerequisites..."
@@ -154,6 +177,20 @@ fi
 mkdir -p storage wootc-files
 $COMPOSE -f compose.yml up -d windows
 info "Container $CONTAINER_NAME started"
+
+sleep 3
+QEMU_CMD=$($DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true)
+if [[ "$QEMU_CMD" != *"-accel=kvm"* || "$QEMU_CMD" != *"-enable-kvm"* ]]; then
+    fail "QEMU is not using KVM acceleration"
+    capture_vm_diagnostics
+    exit 1
+fi
+if [[ "$QEMU_CMD" != *"-tpmdev emulator"* || "$QEMU_CMD" != *"property=secure,value=on"* ]]; then
+    fail "Windows 11 VM is missing TPM 2.0 or Secure Boot"
+    capture_vm_diagnostics
+    exit 1
+fi
+pass "QEMU is KVM-accelerated with TPM 2.0 and Secure Boot"
 
 # ── Fix container routing (WinRM via podman port mapping) ────────────────────
 # dockur/windows' PREROUTING rule only applies to traffic on eth0 (external NIC).
@@ -206,15 +243,6 @@ else
             break
         fi
 
-        # Also watch for VM disk growing past 5GB (means install copied files)
-        if [ -f "$STORAGE_DIR/data.qcow2" ]; then
-            QCOW_SIZE=$(du -s "$STORAGE_DIR/data.qcow2" 2>/dev/null | cut -f1)
-            if [ "${QCOW_SIZE:-0}" -gt 5000000 ]; then  # >5GB
-                INSTALL_DONE=true
-                break
-            fi
-        fi
-
         if [ $((ELAPSED % 300)) -eq 0 ]; then
             info "Still installing... ($(( ELAPSED / 60 ))m elapsed)"
         fi
@@ -222,6 +250,7 @@ else
 
     if [ "$INSTALL_DONE" = false ]; then
         fail "Windows install did not complete within $((TIMEOUT/60)) minutes"
+        capture_vm_diagnostics
         exit 1
     fi
 
@@ -377,14 +406,17 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         echo "$NEW_LINES" | grep -q "\[wootc\]"               && info "wootc: deployer active"
         echo "$NEW_LINES" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_LINES" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
+        echo "$NEW_LINES" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_LINES" | grep -E '\[PASS\]' | tail -1)"
+        echo "$NEW_LINES" | grep -qE "\[WARN\]" && info "wootc: $(echo "$NEW_LINES" | grep -E '\[WARN\]' | tail -1)"
+        echo "$NEW_LINES" | grep -q "VERIFICATION_SUMMARY" && pass "wootc: deployment verification complete"
         if echo "$NEW_LINES" | grep -q "Installation complete"; then
             DEPLOY_COMPLETE=true
             pass "fisherman: installation complete!"
             break
         fi
-        if echo "$NEW_LINES" | grep -qE "fatal|panic|kernel panic"; then
+        if echo "$NEW_LINES" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
             fail "Deployer error:"
-            echo "$NEW_LINES" | grep -E "fatal|panic|kernel panic"
+            echo "$NEW_LINES" | grep -E "fatal|panic|kernel panic|\[FAIL\]"
             break
         fi
         LAST_LINE=$CURRENT_LINE
@@ -434,6 +466,68 @@ done
     tail -30 "$PTY"
     exit 1
 }
+
+# ── Step 9: Verify passthrough/migration setup ──────────────────────────────
+step "Verifying passthrough and migration setup..."
+
+# Collect additional boot output for passthrough verification.
+# The installed system should show:
+#   - Host NTFS bind-mount (/host or wootc-host-bind)
+#   - Loop device setup (losetup root.disk)
+#   - No mount failures or kernel panics
+info "Collecting boot-time passthrough markers from serial console..."
+
+PASSTHROUGH_TIMEOUT=60
+PASSTHROUGH_ELAPSED=0
+PASSTHROUGH_MARKERS=""
+
+while [ $PASSTHROUGH_ELAPSED -lt $PASSTHROUGH_TIMEOUT ]; do
+    CURRENT_LINE=$(wc -l < "$PTY" 2>/dev/null || echo 0)
+    if [ "$CURRENT_LINE" -gt "$LAST_LINE" ]; then
+        PASSTHROUGH_MARKERS+=$(tail -n $((CURRENT_LINE - LAST_LINE)) "$PTY")
+        PASSTHROUGH_MARKERS+=$'\n'
+        LAST_LINE=$CURRENT_LINE
+    fi
+    sleep 2
+    PASSTHROUGH_ELAPSED=$((PASSTHROUGH_ELAPSED + 2))
+done
+
+# ── Passthrough checks ────────────────────────────────────────────────────
+PASSTHROUGH_OK=true
+
+# Look for wootc host bind mount
+if echo "$PASSTHROUGH_MARKERS" | grep -qiE "wootc-host-bind|/host|ntfs3.*wootc"; then
+    pass "Passthrough: host NTFS bind-mount detected"
+else
+    info "Passthrough: host NTFS bind-mount NOT detected in serial output (may need console=ttyS0)"
+fi
+
+# Look for loop device setup
+if echo "$PASSTHROUGH_MARKERS" | grep -qiE "losetup|loop0|/dev/loop"; then
+    pass "Passthrough: loop device setup detected"
+else
+    info "Passthrough: loop device setup NOT detected (may need console=ttyS0)"
+fi
+
+# Check for fatal errors that would block migration
+if echo "$PASSTHROUGH_MARKERS" | grep -qiE "failed.*host|host.*failed|panic|kernel BUG|ntfs3.*error|ntfs3.*refus"; then
+    fail "Passthrough: errors detected in boot output:"
+    echo "$PASSTHROUGH_MARKERS" | grep -iE "failed.*host|host.*failed|panic|kernel BUG|ntfs3.*error|ntfs3.*refus"
+    PASSTHROUGH_OK=false
+fi
+
+# Look for wootc passthrough systemd service
+if echo "$PASSTHROUGH_MARKERS" | grep -qiE "wootc-passthrough|passthrough.*service"; then
+    pass "Passthrough: wootc-passthrough service detected"
+else
+    info "Passthrough: wootc-passthrough service NOT detected (may need console=ttyS0)"
+fi
+
+if [ "$PASSTHROUGH_OK" = true ]; then
+    pass "Passthrough verification: no errors detected"
+else
+    info "Passthrough verification: errors found (see above) — migration may fail"
+fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""

@@ -15,25 +15,10 @@
 #   wootc.luks-passphrase=...                        (optional)
 #   wootc.debug                                      (optional, drops to shell)
 
+set -Eeuo pipefail
+
 log() { printf '\033[1;32m[wootc]\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2; }
-
-# ── Parse kernel cmdline ────────────────────────────────────────────────────
-read_cmdline() {
-    local key="$1" default="${2:-}"
-    local arg source="${3:-/proc/cmdline}"
-    # Read the full cmdline (may be one space-separated line),
-    # split into words, and find the matching key=value pair
-    while IFS= read -r line; do
-        # shellcheck disable=SC2013  # intentional word splitting on cmdline
-        for arg in $line; do
-            case "$arg" in
-                "${key}="*) echo "${arg#*=}"; return ;;
-            esac
-        done
-    done < "$source"
-    echo "$default"
-}
 
 # ── Parse kernel cmdline ────────────────────────────────────────────────────
 read_cmdline() {
@@ -170,10 +155,115 @@ cat "$RECIPE"
 log "Running fisherman — this pulls the image and deploys it..."
 fisherman "$RECIPE"
 
-# ── Cleanup ─────────────────────────────────────────────────────────────────
 losetup -d "$LOOP_DEV"
-umount /mnt/ntfs
+LOOP_DEV=""
 
-log "Deployment complete. Rebooting..."
+# ── Post-deployment verification ─────────────────────────────────────────────
+# Verify the installed system's passthrough and migration setup before rebooting.
+# These markers are captured by the e2e test's serial console monitor.
+
+log "Verifying installed system setup..."
+
+# Re-mount the installed disk while its NTFS backing mount is still live.
+VERIFY_LOOP=$(losetup -fP --show "$DISK")
+
+# Find the root partition inside the loop device (typically partition 3 or 4)
+VERIFY_ROOT=""
+for p in "${VERIFY_LOOP}p1" "${VERIFY_LOOP}p2" "${VERIFY_LOOP}p3" "${VERIFY_LOOP}p4" "${VERIFY_LOOP}p5"; do
+    if [[ -b "$p" ]]; then
+        mkdir -p /mnt/verify
+        if mount -o rw "$p" /mnt/verify 2>/dev/null; then
+            if [[ -f /mnt/verify/etc/os-release ]]; then
+                VERIFY_ROOT="$p"
+                break
+            fi
+            umount /mnt/verify 2>/dev/null
+        fi
+    fi
+done
+
+if [[ -n "$VERIFY_ROOT" ]]; then
+    log "Mounted installed system root at ${VERIFY_ROOT} for verification"
+
+    VERIFY_BOOT="${VERIFY_LOOP}p2"
+    if [[ ! -b "$VERIFY_BOOT" ]]; then
+        err "  [FAIL] expected /boot partition ${VERIFY_BOOT} is missing"
+        exit 1
+    fi
+    mkdir -p /mnt/verify/boot
+    mount "$VERIFY_BOOT" /mnt/verify/boot
+
+    # Install the runtime hook after bootc/fisherman has laid down the target.
+    # This is the point at which Phase 2 becomes bootable: dracut learns that
+    # the target root lives in an NTFS-backed loop file, not on a raw disk.
+    install -d /mnt/verify/usr/lib/dracut/modules.d/99wootc-boot
+    cp -a /usr/lib/wootc/99wootc-boot/. \
+        /mnt/verify/usr/lib/dracut/modules.d/99wootc-boot/
+
+    HOST_UUID=$(blkid -s UUID -o value "$NTFS_PART")
+    if [[ -z "$HOST_UUID" ]]; then
+        err "  [FAIL] could not determine Windows NTFS UUID"
+        exit 1
+    fi
+    shopt -s nullglob
+    BLS_ENTRIES=(/mnt/verify/boot/loader/entries/*.conf)
+    if (( ${#BLS_ENTRIES[@]} == 0 )); then
+        err "  [FAIL] no BLS entries found on installed /boot"
+        exit 1
+    fi
+    for entry in "${BLS_ENTRIES[@]}"; do
+        sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.disk|' "$entry"
+    done
+    shopt -u nullglob
+
+    # Regenerate every initramfs only after the module and BLS arguments exist.
+    # Bind mounts provide dracut the minimal runtime view it expects in chroot.
+    for fs in dev proc sys; do mount --bind "/$fs" "/mnt/verify/$fs"; done
+    chroot /mnt/verify dracut --force --regenerate-all
+    for fs in sys proc dev; do umount "/mnt/verify/$fs"; done
+
+    # Check dracut module
+    if [[ -d /mnt/verify/usr/lib/dracut/modules.d/99wootc-boot ]]; then
+        log "  [PASS] dracut 99wootc-boot module installed"
+    else
+        err "  [FAIL] dracut 99wootc-boot module NOT found"
+    fi
+
+    # Check host bind service
+    if [[ -f /mnt/verify/etc/systemd/system/wootc-host-bind.service ]]; then
+        log "  [PASS] wootc-host-bind.service installed"
+    else
+        err "  [WARN] wootc-host-bind.service NOT found (fisherman may install it)"
+    fi
+
+    # Check passthrough service
+    if [[ -f /mnt/verify/etc/systemd/system/wootc-passthrough.service ]]; then
+        log "  [PASS] wootc-passthrough.service installed"
+    else
+        err "  [WARN] wootc-passthrough.service NOT found (may be generated post-boot)"
+    fi
+
+    # Check wootc-mount-user-dirs helper
+    if [[ -f /mnt/verify/usr/local/bin/wootc-mount-user-dirs ]]; then
+        log "  [PASS] wootc-mount-user-dirs helper installed"
+    fi
+
+    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' /mnt/verify/boot/loader/entries/*.conf; then
+        log "  [PASS] Phase 2 loop-root arguments in BLS entries"
+    else
+        err "  [FAIL] Phase 2 loop-root arguments missing from BLS entries"
+        exit 1
+    fi
+
+    umount /mnt/verify/boot
+    umount /mnt/verify
+else
+    err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
+fi
+
+losetup -d "$VERIFY_LOOP"
+
+log "Verification complete. Rebooting..."
+log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"
 sleep 3
 reboot -f

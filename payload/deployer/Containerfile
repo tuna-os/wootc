@@ -34,14 +34,12 @@ COPY --from=gobuilder /fisherman /usr/bin/fisherman
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
 RUN chmod +x /usr/bin/wootc-deploy
 
-# ── Init script (PID 1 in the initramfs) ────────────────────────────────────
-COPY payload/deployer/init /init
-RUN chmod +x /init
-
-# ── Dracut module ───────────────────────────────────────────────────────────
+ # ── Dracut module ───────────────────────────────────────────────────────────
 RUN mkdir -p /usr/lib/dracut/modules.d/99wootc
 COPY payload/deployer/module-setup.sh /usr/lib/dracut/modules.d/99wootc/module-setup.sh
-RUN chmod +x /usr/lib/dracut/modules.d/99wootc/module-setup.sh
+COPY payload/deployer/deploy-hook.sh /usr/lib/dracut/modules.d/99wootc/deploy-hook.sh
+COPY platform/dracut/99wootc-boot /usr/lib/wootc/99wootc-boot
+RUN chmod +x /usr/lib/dracut/modules.d/99wootc/module-setup.sh /usr/lib/dracut/modules.d/99wootc/deploy-hook.sh
 
 # ── Build the initramfs ─────────────────────────────────────────────────────
 RUN mkdir -p /out && \
@@ -53,12 +51,13 @@ RUN mkdir -p /out && \
         --install "podman skopeo fisherman \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
                    losetup dmsetup \
-                   curl dhclient ip NetworkManager jq" \
+                   curl dhclient ip NetworkManager jq blkid chroot shred logger" \
         --kernel-cmdline "rd.neednet=1 ip=dhcp quiet" \
-        /out/initramfs.img \
+        /out/deployer-initramfs.img \
         "$KERNEL_VER"
 
-RUN cp /boot/vmlinuz-* /out/vmlinuz 2>/dev/null || \
-    cp /lib/modules/*/vmlinuz /out/vmlinuz 2>/dev/null || true
+RUN cp /boot/vmlinuz-* /out/deployer-vmlinuz 2>/dev/null || \
+    cp /lib/modules/*/vmlinuz /out/deployer-vmlinuz 2>/dev/null || true
 
-# Extract: podman run --rm localhost/wootc-deployer cat /out/initramfs.img > deployer/out/initramfs.img
+# Extract: podman run --rm localhost/wootc-deployer cat /out/deployer-vmlinuz > deployer/out/deployer-vmlinuz
+# Extract: podman run --rm localhost/wootc-deployer cat /out/deployer-initramfs.img > deployer/out/deployer-initramfs.img

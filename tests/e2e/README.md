@@ -4,6 +4,10 @@ Automated testing using [dockur/windows](https://github.com/dockur/windows) — 
 running inside a Docker container via QEMU. Tests verify the full wootc
 pipeline: Windows setup → GRUB chainload → deployer → bootc system boot.
 
+The Windows 11 VM uses UEFI Secure Boot and a TPM 2.0 emulator. The harness
+verifies those features and KVM acceleration from QEMU's command line before
+it waits for installation.
+
 ## Architecture
 
 ```
@@ -61,11 +65,12 @@ pip install pywinrm    # WinRM client for automation
 podman build -f payload/deployer/Containerfile -t wootc-deployer .
 mkdir -p payload/deployer/out tests/e2e/wootc-files/grub
 podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-    /out/initramfs.img > payload/deployer/out/initramfs.img
+    /out/deployer-initramfs.img > payload/deployer/out/deployer-initramfs.img
 podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-    /out/vmlinuz > payload/deployer/out/vmlinuz
-cp payload/deployer/out/vmlinuz tests/e2e/wootc-files/
-cp payload/deployer/out/initramfs.img tests/e2e/wootc-files/
+    /out/deployer-vmlinuz > payload/deployer/out/deployer-vmlinuz
+cp payload/deployer/out/deployer-vmlinuz tests/e2e/wootc-files/
+cp payload/deployer/out/deployer-initramfs.img tests/e2e/wootc-files/
+cp /path/to/wubildr.efi tests/e2e/wootc-files/
 cp platform/grub/*.cfg tests/e2e/wootc-files/grub/
 cp platform/grub/*.cfg tests/e2e/wootc-files/grub/
 
@@ -81,6 +86,8 @@ cd tests/e2e && ./run-e2e.sh
 - At least 80 GB free disk space
 - `pywinrm` Python package (`pip install pywinrm`)
 - `websocat` for VNC automation (`brew install websocat`)
+- `tests/e2e/wootc-files/wubildr.efi`: the custom GRUB core image with its
+  embedded NTFS bootstrap configuration. A stock `grubx64.efi` cannot replace it.
 
 ## Test Steps (automated by run-e2e.sh)
 

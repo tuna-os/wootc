@@ -1,6 +1,6 @@
 #!/bin/bash
 # module-setup.sh — dracut module for wootc deployer initramfs.
-# Ensures the deployer script, init, fisherman, and network stack
+# Ensures the deployer script, fisherman, and network stack
 # are included in the initramfs.
 
 check() {
@@ -13,9 +13,9 @@ depends() {
 }
 
 install() {
-    # Deployer script and init
+    # dracut generates /init itself; run the deployer once networking is online.
     inst /usr/bin/wootc-deploy
-    inst /init
+    inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh
     inst /usr/bin/fisherman
 
     # Required binaries
@@ -24,7 +24,7 @@ install() {
         parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
         losetup dmsetup \
         curl dhclient ip NetworkManager \
-        mount umount reboot sleep cat sed
+        mount umount reboot sleep cat sed grep cut shred blkid chroot
 
     # Kernel modules for NTFS and loop
     instmods ntfs3 loop

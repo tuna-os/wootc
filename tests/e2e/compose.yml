@@ -1,3 +1,17 @@
+# wootc e2e test — Windows 11 VM via dockur/windows
+#
+# Key networking facts (to prevent future WinRM headaches):
+#
+#   dockur/windows uses a TAP bridge (172.30.x.x) inside the container.
+#   Traffic flow:  host:5985 ──podman──► container:5985 ──iptables PREROUTING──► VM:172.30.1.x:5985
+#
+#   The dockur PREROUTING rule matches eth0 only, but podman port-mapped
+#   traffic arrives on lo (loopback) inside the container namespace.
+#   run-e2e.sh and `just fix-routing` add the missing lo PREROUTING rule.
+#
+#   autounattend.xml mounts at /custom/autounattend.xml — dockur bakes it
+#   into the Windows installer ISO automatically.
+
 services:
   windows:
     image: dockurr/windows
@@ -5,33 +19,38 @@ services:
     stop_grace_period: 2m
     environment:
       VERSION: "11"
-      EDITION: "pro"                 # Pro required for WinRM / RDP
+      EDITION: "pro"          # Pro edition required for WinRM + Group Policy
       USERNAME: "wootc"
       PASSWORD: "wootc-test-123!"
       CPU_CORES: "4"
       RAM_SIZE: "8G"
       DISK_SIZE: "80G"
       DISK_FMT: "qcow2"
-      BOOT_MODE: "windows_secure"    # UEFI + Secure Boot (realistic)
-      MANUAL: "N"                    # Unattended install
+      BOOT_MODE: "windows_secure"   # UEFI + Secure Boot
+      TPM: "Y"                      # Windows 11 setup requires TPM 2.0
+      MANUAL: "N"                   # Fully unattended install
       LANGUAGE: "en-US"
       KEYBOARD: "en-US"
-      # We pass a custom autounattend.xml to enable WinRM
-      # This is baked into the ISO by dockur/windows when
-      # we mount it into /custom inside the container.
+      # USER_PORTS is NOT needed here: we use TAP bridged networking (not SLiRP),
+      # so port forwarding from container → VM is handled by iptables PREROUTING
+      # rules managed by run-e2e.sh / `just fix-routing`, not by QEMU USER_PORTS.
     devices:
       - /dev/kvm
       - /dev/net/tun
     cap_add:
       - NET_ADMIN
     ports:
-      - "8006:8006"      # noVNC web console (manual debugging)
-      - "3389:3389"      # RDP (reserve, not used in automation)
-      - "5985:5985"      # WinRM HTTP
-      - "5986:5986"      # WinRM HTTPS (reserve)
-      - "5900:5900"      # VNC (for keystroke automation fallback)
+      - "8006:8006"    # noVNC web console  — browse to http://localhost:8006 to watch/debug
+      - "3389:3389"    # RDP                — for manual debugging
+      - "5985:5985"    # WinRM HTTP         — used by run-e2e.sh
+      - "5986:5986"    # WinRM HTTPS        — reserved for future use
+      - "5900:5900"    # QEMU VNC           — fallback debugging
     volumes:
-      - ./storage:/storage               # VM disk + QEMU artifacts
-      - ./wootc-files:/shared:ro       # deployer files (shared via Samba by dockur)
-      - ./autounattend.xml:/custom/autounattend.xml:ro  # WinRM + RDP enable
-    restart: "no"     # don't restart — test exits after verification
+      # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
+      - ./storage:/storage
+      # Deployer files: deployer-vmlinuz, deployer-initramfs.img, grubx64.efi, grub configs — shared as Samba \\host.lan\Data
+      - ./wootc-files:/shared:ro
+      # Custom Windows answer file — dockur expects this at /custom.xml (a FILE, not a directory).
+      # This enables WinRM, sets network to Private, configures autologon.
+      - ./autounattend.xml:/custom.xml:ro
+    restart: "no"     # Don't auto-restart — test orchestrator manages lifecycle

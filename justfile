@@ -33,7 +33,7 @@ build-deployer:
     mkdir -p "$E2E_DIR/wootc-files"
     podman run --rm -v "$E2E_DIR/wootc-files:/out" wootc-deployer
     echo "Deployer built:"
-    ls -lh "$E2E_DIR/wootc-files/vmlinuz" "$E2E_DIR/wootc-files/initramfs.img"
+    ls -lh "$E2E_DIR/wootc-files/deployer-vmlinuz" "$E2E_DIR/wootc-files/deployer-initramfs.img"
     just fetch-grub-efi
 
 # Copy grubx64.efi from the host into wootc-files/ (needed for BCD firmware entry)
