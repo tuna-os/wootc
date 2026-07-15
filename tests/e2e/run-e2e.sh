@@ -203,7 +203,9 @@ if [ "$SKIP_INSTALL" = false ]; then
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         info "autounattend.xml changed; rebuilding Dockur's processed installer ISO"
-        find "$STORAGE_DIR" -maxdepth 1 -type f -name '*.iso' -delete
+        # Keep a user-supplied custom.iso (for example an offline Windows ISO)
+        # and discard only Dockur's derived installer images.
+        find "$STORAGE_DIR" -maxdepth 1 -type f -name '*.iso' ! -name 'custom.iso' -delete
         rm -f "$STORAGE_DIR/windows.base" "$STORAGE_DIR/windows.boot"
         ANSWER_REFRESH=true
     else
