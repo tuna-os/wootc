@@ -212,30 +212,30 @@ Write-Host "[wootc] Wrote wubildr.cfg"
 # ── Step 7: Install GRUB2 to ESP and configure BCD ──────────────────────────
 Write-Host "[wootc] Setting up Windows Boot Manager entry..."
 
-# Mount ESP (EFI System Partition)
-$espMount = "$wootcDir\esp"
-New-Item -ItemType Directory -Force -Path $espMount | Out-Null
+# Find the real EFI System Partition and assign it a drive letter. `Get-Volume`
+# reports the usual unlettered FAT32 ESP with an empty DriveLetter; constructing
+# `:\` from that empty value used to make the EFI copy fail or fall back to C:.
+$espPart = Get-Partition |
+    Where-Object { $_.Type -eq "System" -or $_.GptType -eq "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}" } |
+    Select-Object -First 1
 
-# Find and mount the ESP
-$espVolume = Get-Volume | Where-Object { $_.FileSystemType -eq "FAT32" -and $_.Size -lt 1GB }
-if (-not $espVolume) {
-    # Try to find by partition type
-    $espPart = Get-Partition | Where-Object { $_.Type -eq "System" -or $_.GptType -eq "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}" }
-    if ($espPart) {
-        $espLetter = if ($espPart.DriveLetter) { $espPart.DriveLetter } else { "S" }
-        if (-not $espPart.DriveLetter) {
-            $espPart | Add-PartitionAccessPath -AssignDriveLetter -ErrorAction SilentlyContinue
-        }
-        $espPath = "$($espPart.DriveLetter):\"
-    }
-} else {
-    $espPath = "$($espVolume.DriveLetter):\"
+if (-not $espPart) {
+    throw "Could not find the EFI System Partition; refusing to place wubildr on C:."
 }
 
-if (-not $espPath) {
-    Write-Host "[wootc] Could not find ESP — using C: as fallback (non-UEFI or test env)"
-    $espPath = "C:\"
+if (-not $espPart.DriveLetter) {
+    Write-Host "[wootc] Assigning a drive letter to the EFI System Partition..."
+    $espPart | Add-PartitionAccessPath -AssignDriveLetter -ErrorAction Stop
+    $espPart = Get-Partition -DiskNumber $espPart.DiskNumber -PartitionNumber $espPart.PartitionNumber
 }
+
+$espDrive = $espPart.DriveLetter
+if (-not $espDrive) {
+    throw "EFI System Partition has no drive letter after assignment."
+}
+
+$espPath = "${espDrive}:\"
+Write-Host "[wootc] EFI System Partition mounted at $espPath"
 
 # Create wootc GRUB directory on ESP
 $wootcEfiDir = "$espPath\EFI\wootc\wubildr"
@@ -255,16 +255,6 @@ Write-Host "[wootc] GRUB files installed to $wootcEfiDir"
 # We parse that GUID, then configure device/path/description and set boot order.
 
 Write-Host "[wootc] Configuring BCD..."
-
-# Resolve ESP drive letter (needed for the bcdedit device parameter)
-$espDrive = $null
-if ($espPath -match '^([A-Za-z]):\\') {
-    $espDrive = $Matches[1]
-}
-if (-not $espDrive) {
-    Write-Host "[wootc] WARNING: Could not determine ESP drive letter — using C as fallback"
-    $espDrive = "C"
-}
 
 # Copy wubildr.efi to ESP (custom GRUB with ntfs+loopback modules, embedded bootstrap config)
 $grubEfiDest = "${espPath}EFI\wootc\wubildr.efi"
