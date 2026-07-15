@@ -39,6 +39,11 @@ services:
       - /dev/net/tun
     cap_add:
       - NET_ADMIN
+    # Kanpur's default rootful Podman DNS path intermittently cannot resolve
+    # Microsoft's download hosts. Use a reachable public resolver for the
+    # one-time Windows installer acquisition.
+    dns:
+      - 1.1.1.1
     ports:
       - "8006:8006"    # noVNC web console  — browse to http://localhost:8006 to watch/debug
       - "3389:3389"    # RDP                — for manual debugging
