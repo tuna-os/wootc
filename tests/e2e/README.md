@@ -21,7 +21,7 @@ it waits for installation.
 │  │                                               │    │
 │  │  1. Windows boots (auto-install via answer)   │    │
 │  │  2. Dockur copies ./oem to C:\\OEM             │    │
-│  │  3. C:\\OEM\\install.bat runs setup-wootc.ps1  │    │
+│  │  3. SYSTEM task runs C:\\OEM\\install.bat       │    │
 │  │  4. Setup creates root.disk and BCD entry      │    │
 │  │  5. Reboot → wubildr → deployer initramfs      │    │
 │  │  6. Deployer pulls image, runs fisherman       │    │
@@ -100,9 +100,10 @@ cd tests/e2e && ./run-e2e.sh
 ## Test Steps (automated by run-e2e.sh)
 
 1. Stage the local OEM payload and start dockur/windows.
-2. Wait for the unattended Windows install. At the first automatic desktop
-   logon, the E2E answer file executes `C:\OEM\install.bat`; no guest
-   networking, SMB, or WinRM is needed for this initial handoff.
+2. Wait for the unattended Windows install. During `specialize`, the answer
+   file creates a one-shot SYSTEM task; at the first automatic desktop logon it
+   runs `C:\OEM\install.bat` with the privileges needed for BCD and the ESP.
+   No guest networking, SMB, or WinRM is needed for this initial handoff.
 3. `setup-wootc.ps1` runs from that OEM payload and:
    - Create C:\wootc\disks\root.disk (2GB sparse, enough for test)
    - Copy deployer kernel, initramfs, and wubildr.efi from C:\OEM

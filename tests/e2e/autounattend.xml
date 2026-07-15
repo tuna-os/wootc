@@ -95,10 +95,11 @@
       <ComputerName>wootc-test</ComputerName>
       <TimeZone>UTC</TimeZone>
     </component>
-    <!-- FirstLogonCommands has proven unreliable in the Dockur-customized
-         Windows 11 installer. Install an explicit machine RunOnce value while
-         specialize is running instead; it is consumed at the administrator's
-         first desktop logon, after C:\OEM has been copied by $OEM$. -->
+    <!-- FirstLogonCommands and RunOnce run in the auto-logon user's context,
+         which cannot reliably write C:\OEM or configure BCD with UAC enabled.
+         Create a highest-privilege SYSTEM task during specialize instead. It
+         fires at the first automatic logon, after $OEM$ has populated C:\OEM;
+         run-wootc-e2e.ps1 deletes the task immediately so it is one-shot. -->
     <component name="Microsoft-Windows-Deployment"
                processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35"
@@ -107,8 +108,8 @@
       <RunSynchronous>
         <RunSynchronousCommand wcm:action="add">
           <Order>50</Order>
-          <Path>reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "wootc-e2e-setup" /t REG_SZ /d "cmd.exe /d /c C:\OEM\install.bat" /f</Path>
-          <Description>Schedule the local wootc OEM setup for first logon</Description>
+          <Path>schtasks.exe /Create /TN "wootc-e2e-setup" /SC ONLOGON /RU SYSTEM /RL HIGHEST /TR "cmd.exe /d /c C:\OEM\install.bat" /F</Path>
+          <Description>Schedule one-shot elevated local wootc OEM setup</Description>
         </RunSynchronousCommand>
       </RunSynchronous>
     </component>

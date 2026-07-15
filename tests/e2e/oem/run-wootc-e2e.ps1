@@ -12,6 +12,10 @@ function Write-E2ELog([string]$Message) {
 }
 
 try {
+    # The answer file schedules this task at first logon as SYSTEM. Remove it
+    # before doing work so a later Windows boot (including Phase 2) cannot
+    # replay the destructive first-install handoff.
+    schtasks.exe /Delete /TN "wootc-e2e-setup" /F 2>&1 | Out-Null
     Write-E2ELog "Starting local OEM setup"
 
     # The initial setup never waits on WinRM, but the existing Phase 2
