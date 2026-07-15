@@ -2,11 +2,12 @@
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
 
   <!--
-    wootc E2E autounattend.xml — v3
-    Key fixes from testing:
-      - Removed EnableLUA=false (breaks Windows 11 boot)
-      - Added DiskConfiguration block (UEFI GPT partitioning)
-      - Merged WinRM setup into fewer FirstLogonCommands
+    wootc E2E autounattend.xml — v4
+    Key points:
+      - Explicit UEFI GPT DiskConfiguration avoids the interactive disk picker.
+      - Account/password placeholders intentionally match Dockur's supported
+        answer-file format. Dockur replaces them using USERNAME and PASSWORD.
+      - EnableLUA remains at its Windows 11 default (enabled).
   -->
 
   <!-- ── windowsPE pass ────────────────────────────────────────────────── -->
@@ -131,31 +132,39 @@
         <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <ProtectYourPC>3</ProtectYourPC>
-        <NetworkLocation>Work</NetworkLocation>
+        <NetworkLocation>Home</NetworkLocation>
+        <SkipUserOOBE>true</SkipUserOOBE>
+        <SkipMachineOOBE>true</SkipMachineOOBE>
       </OOBE>
 
+      <!-- Keep these exact Dockur-compatible placeholders. `updateXML` in
+           dockurr/windows turns them into the correctly encoded credentials
+           for USERNAME and PASSWORD before Windows Setup sees this file. -->
       <UserAccounts>
         <LocalAccounts>
           <LocalAccount wcm:action="add">
-            <Name>wootc</Name>
-            <DisplayName>wootc E2E Test</DisplayName>
+            <Name>Docker</Name>
             <Password>
-              <Value>d29vdGMtdGVzdC0xMjMh</Value>
-              <PlainText>false</PlainText>
+              <Value />
+              <PlainText>true</PlainText>
             </Password>
             <Group>Administrators</Group>
           </LocalAccount>
         </LocalAccounts>
+        <AdministratorPassword>
+          <Value>password</Value>
+          <PlainText>true</PlainText>
+        </AdministratorPassword>
       </UserAccounts>
 
       <AutoLogon>
         <Enabled>true</Enabled>
-        <Username>wootc</Username>
+        <Username>Docker</Username>
         <Password>
-          <Value>d29vdGMtdGVzdC0xMjMh</Value>
-          <PlainText>false</PlainText>
+          <Value />
+          <PlainText>true</PlainText>
         </Password>
-        <LogonCount>99</LogonCount>
+        <LogonCount>65432</LogonCount>
       </AutoLogon>
 
     </component>

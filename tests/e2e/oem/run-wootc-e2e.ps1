@@ -13,6 +13,21 @@ function Write-E2ELog([string]$Message) {
 
 try {
     Write-E2ELog "Starting local OEM setup"
+
+    # The initial setup never waits on WinRM, but the existing Phase 2
+    # assertion reconnects after the deployer returns to Windows. Configure
+    # that service from inside the guest rather than racing a host connection
+    # during OOBE. A later QEMU Guest Agent path will remove this dependency.
+    try {
+        winrm quickconfig -quiet | Out-Null
+        Set-Service -Name WinRM -StartupType Automatic
+        Start-Service -Name WinRM -ErrorAction SilentlyContinue
+        netsh advfirewall firewall set rule group="Windows Remote Management" new enable=Yes | Out-Null
+        Write-E2ELog "WinRM configured for the later Phase 2 assertion"
+    } catch {
+        Write-E2ELog "WinRM configuration deferred: $($_.Exception.Message)"
+    }
+
     & "$oemDir\setup-wootc.ps1" `
         -ImageRef "ghcr.io/tuna-os/yellowfin:gnome" `
         -Hostname "wootc-test" `
