@@ -18,13 +18,21 @@ install() {
     inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh
     inst /usr/bin/fisherman
 
-    # Required binaries
+    # Required binaries. fisherman's host-tool contract (checkRequiredTools in
+    # cmd/fisherman/main.go plus its runner.Run call sites) needs sfdisk,
+    # mkfs.fat, partprobe, blockdev, fsfreeze, fstrim, wipefs, lsblk, mkswap,
+    # swapon/swapoff, fuser, useradd, chpasswd, restorecon. deploy.sh itself
+    # needs install, mountpoint, udevadm, jq.
     inst_multiple \
         podman skopeo \
-        parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
-        losetup dmsetup \
+        parted sfdisk partprobe wipefs \
+        mkfs.ext4 mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
+        losetup dmsetup blockdev blkid lsblk \
+        fsfreeze fstrim swapon swapoff fuser \
+        useradd chpasswd restorecon \
         curl dhclient ip NetworkManager \
-        mount umount reboot sleep cat sed grep cut shred blkid chroot
+        mount umount mountpoint reboot sleep cat sed grep cut \
+        shred chroot install udevadm jq
 
     # Kernel modules for NTFS and loop
     instmods ntfs3 loop
