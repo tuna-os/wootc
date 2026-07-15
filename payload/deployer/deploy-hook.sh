@@ -8,8 +8,10 @@ guard=/run/wootc-deployer-started
 : >"$guard"
 
 echo "[wootc] Network is online; starting deployer..."
-/usr/bin/wootc-deploy
-status=$?
+# This hook is sourced by dracut-initqueue, which may run under set -e: a
+# bare failing command would abort the hook before the status capture line.
+status=0
+/usr/bin/wootc-deploy || status=$?
 echo "[wootc] Deployer exited with status $status"
 
 # On success the deployer reboots the machine itself, so reaching this point
