@@ -46,6 +46,10 @@ services:
         -chardev socket,id=qga0,path=/run/shm/qga.sock,server=on,wait=off
         -device virtio-serial
         -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
+        # Deployer disk: a small FAT32 volume holding the deployer kernel and
+        # initramfs so GRUB (via shim/Secure Boot) can load them without NTFS.
+        -drive file=/storage/deployer.qcow2,id=deployer,format=qcow2,if=none
+        -device virtio-blk-pci,drive=deployer
       # USER_PORTS is not needed: QGA is private and does not use guest TCP.
     devices:
       - /dev/kvm
