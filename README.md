@@ -12,10 +12,11 @@ specific acceptance path:
 Windows 11 → wootc deployer → native Linux from root.disk → Windows 11
 ```
 
-The same `root.disk` will later support an in-Windows QEMU experience, but
-native loop-root boot is the implementation priority.
+Native loop-root boot is the implementation priority. The VM experience,
+graphical installer, User Data Bridge, and Windows-removal migration are not
+implemented yet.
 
-## Current architecture
+## Implemented path: Phase 2 native boot
 
 1. The Windows installer creates `C:\wootc\disks\root.disk`, downloads the
    deployer kernel/initramfs and custom `wubildr.efi`, and writes a one-shot
@@ -31,6 +32,28 @@ native loop-root boot is the implementation priority.
 5. On the Phase 2 boot, dracut mounts the NTFS host volume read-write, attaches
    `root.disk`, and mounts the target root. A subsequent reboot returns to
    Windows because the BCD handoff is one-shot.
+
+## Future phases (not implemented)
+
+### Phase 1: VM boot and User Data Bridge
+
+The intended first-use experience is to boot the same `root.disk` in QEMU
+while Windows remains running. Windows data would be presented to Linux through
+a User Data Bridge (virtio or network sharing) at the same canonical paths that
+native boot will later use.
+
+This repository does not currently provide the QEMU launcher, Windows
+Hypervisor Platform integration, shared-folder bridge, user-directory mapping,
+or the graphical UI/control panel for this phase.
+
+### Phase 3: standalone Linux
+
+After a user has migrated data from Windows storage to native Linux storage,
+the intended final state is removal of Windows and the NTFS dependency. At that
+point `root.disk` may be replaced by a native disk layout.
+
+No data-migration assistant, storage conversion, Windows removal workflow, or
+rollback UX has been implemented.
 
 ## Repository layout
 
