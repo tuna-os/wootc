@@ -49,29 +49,6 @@ try {
     $fileStream.Close()
 }
 
-# Try SetFileValidData for contiguous pre-allocation
-try {
-    # Here-string terminators must appear on a line by themselves. Keeping the
-    # Add-Type arguments on the terminator line makes PowerShell consume the
-    # remainder of this script as an unterminated string, which only becomes
-    # visible once the Windows OEM payload actually executes it.
-    $kernel32Definition = @"
-[DllImport("kernel32.dll", SetLastError = true)]
-public static extern bool SetFileValidData(IntPtr hFile, long ValidDataLength);
-"@
-    $Kernel32 = Add-Type -MemberDefinition $kernel32Definition -Name "Kernel32" -Namespace "Win32" -PassThru
-
-    $fs = [System.IO.File]::Open($diskPath,
-        [System.IO.FileMode]::Open,
-        [System.IO.FileAccess]::Write,
-        [System.IO.FileShare]::None)
-    $Kernel32::SetFileValidData($fs.SafeFileHandle.DangerousGetHandle(), $sizeBytes)
-    $fs.Close()
-    Write-Host "[wootc] root.disk: contiguous pre-allocation successful"
-} catch {
-    Write-Host "[wootc] root.disk: contiguous pre-allocation failed (disk may be fragmented). Continuing..."
-}
-
 Write-Host ("[wootc] root.disk created: " + $diskPath + " (" + $DiskSizeGB + " GB)")
 
 # ── Step 3: Copy deployer files ─────────────────────────────────────────────
@@ -160,58 +137,60 @@ if ($grubDir) {
 }
 
 # ── Step 5: Write GRUB install config ───────────────────────────────────────
-# This is the first-boot GRUB menu that boots the deployer
-$grubInstallCfg = @"
-# wootc first-boot installer menu
-set default=0
-set timeout=5
+# This is the first-boot GRUB menu that boots the deployer. Keep it as an
+# explicit line array: Windows PowerShell's parser has proved less forgiving
+# than pwsh when several interpolated here-strings and native interop coexist.
+$grubInstallLines = @(
+    '# wootc first-boot installer menu'
+    'set default=0'
+    'set timeout=5'
+    ''
+    'menuentry "Install wootc (automatic)" {'
+    "    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname quiet"
+    '    initrd /wootc/install/deployer-initramfs.img'
+    '}'
+    ''
+    'menuentry "Install wootc (debug)" {'
+    "    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname wootc.debug"
+    '    initrd /wootc/install/deployer-initramfs.img'
+    '}'
+)
 
-menuentry "Install wootc (automatic)" {
-    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname quiet
-    initrd /wootc/install/deployer-initramfs.img
-}
-
-menuentry "Install wootc (debug)" {
-    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname wootc.debug
-    initrd /wootc/install/deployer-initramfs.img
-}
-"@
-
-Set-Content -Path "$installDir\grub.install.cfg" -Value $grubInstallCfg -Encoding ASCII
+Set-Content -Path "$installDir\grub.install.cfg" -Value $grubInstallLines -Encoding ASCII
 Write-Host "[wootc] Wrote grub.install.cfg"
 
 # ── Step 6: Write wubildr.cfg ───────────────────────────────────────────────
-# Main GRUB config — dual-mode: boot installed OS or fall to installer
-$wubildrCfg = @'
-set show_panic_message=true
+# Main GRUB config — dual-mode: boot installed OS or fall to installer.
+$wubildrLines = @(
+    'set show_panic_message=true'
+    ''
+    'if search -s -f -n /wootc/disks/root.disk; then'
+    '    if loopback loopw0 /wootc/disks/root.disk; then'
+    '        if [ -e (loopw0,gpt2)/grub2/grub.cfg ]; then'
+    '            set root=(loopw0,gpt2)'
+    '            set prefix=($root)/grub2'
+    '            if configfile /grub2/grub.cfg; then'
+    '                set show_panic_message=false'
+    '            fi'
+    '        fi'
+    '    fi'
+    'fi'
+    ''
+    'if [ ${show_panic_message} = true ]; then'
+    '    if search -s -f -n /wootc/install/grub.install.cfg; then'
+    '        if configfile /wootc/install/grub.install.cfg; then'
+    '            set show_panic_message=false'
+    '        fi'
+    '    fi'
+    'fi'
+    ''
+    'if [ ${show_panic_message} = true ]; then'
+    '    echo "wootc: Could not boot — installation may be incomplete."'
+    '    echo "Please reboot into Windows and check C:\wootc\\"'
+    'fi'
+)
 
-if search -s -f -n /wootc/disks/root.disk; then
-    if loopback loopw0 /wootc/disks/root.disk; then
-        if [ -e (loopw0,gpt2)/grub2/grub.cfg ]; then
-            set root=(loopw0,gpt2)
-            set prefix=($root)'/grub2'
-            if configfile /grub2/grub.cfg; then
-                set show_panic_message=false
-            fi
-        fi
-    fi
-fi
-
-if [ ${show_panic_message} = true ]; then
-    if search -s -f -n /wootc/install/grub.install.cfg; then
-        if configfile /wootc/install/grub.install.cfg; then
-            set show_panic_message=false
-        fi
-    fi
-fi
-
-if [ ${show_panic_message} = true ]; then
-    echo "wootc: Could not boot — installation may be incomplete."
-    echo "Please reboot into Windows and check C:\wootc\"
-fi
-'@
-
-Set-Content -Path "$installDir\wubildr.cfg" -Value $wubildrCfg -Encoding ASCII
+Set-Content -Path "$installDir\wubildr.cfg" -Value $wubildrLines -Encoding ASCII
 Write-Host "[wootc] Wrote wubildr.cfg"
 
 # ── Step 7: Install GRUB2 to ESP and configure BCD ──────────────────────────
