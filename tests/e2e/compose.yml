@@ -37,13 +37,13 @@ services:
       # it is extremely verbose (~10 MB per boot).  Set to "Y" when tracking
       # UEFI / Secure Boot / firmware-path issues.
       # QEMU_LOG: "Y"
+      # Private host-to-guest control channel. The Windows OEM bootstrap
+      # installs qemu-ga-x86_64.msi, after which the runner uses guest-exec and
+      # guest-file-* instead of WinRM or guest networking.
       ARGUMENTS: >-
         -chardev socket,id=qga0,path=/run/shm/qga.sock,server=on,wait=off
         -device virtio-serial
         -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
-        # Deployer disk on the existing virtio-scsi bus (same controller as
-        # data3, different LUN) — Windows Setup enumerates SCSI before AHCI
-        # so this won't hijack DiskID 0 from the autounattend.xml config.
         -drive file=/storage/deployer.qcow2,id=deployer,format=qcow2,if=none
         -device scsi-hd,drive=deployer,bus=data3b.0
       # USER_PORTS is not needed: QGA is private and does not use guest TCP.
