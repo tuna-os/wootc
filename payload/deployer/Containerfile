@@ -63,7 +63,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # restorecon once dropped conmon/crun/podman and cost a full E2E debug
 # cycle), so the build must fail loudly here instead.
 RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
-        mkfs.xfs qemu-ga df sync truncate journalctl jq; do \
+        mkfs.xfs qemu-ga df sync truncate journalctl jq tee which head; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \

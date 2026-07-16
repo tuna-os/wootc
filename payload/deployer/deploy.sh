@@ -212,8 +212,16 @@ mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # 13G: with disk-backed default storage fisherman pulls the full extracted
 # image (~10G) here plus transient blob staging; the target disk holds only
 # the ostree deployment.
-truncate -s 13G "$SCRATCH_IMG"
-mkfs.ext4 -q -F "$SCRATCH_IMG"
+#
+# Reuse an existing scratch: containers-storage inside it caches the pulled
+# image, turning the multi-minute pull into a digest check on retries.
+if [[ ! -f "$SCRATCH_IMG" ]] || [[ "$(blkid -o value -s TYPE "$SCRATCH_IMG" 2>/dev/null)" != "ext4" ]]; then
+    log "Initializing new scratch filesystem..."
+    truncate -s 13G "$SCRATCH_IMG"
+    mkfs.ext4 -q -F "$SCRATCH_IMG"
+else
+    log "Reusing existing scratch (cached container storage)"
+fi
 SCRATCH_LOOP=$(losetup -f --show "$SCRATCH_IMG")
 mount "$SCRATCH_LOOP" /var/fisherman-tmp
 # Catch anything that still lands in default podman storage.
