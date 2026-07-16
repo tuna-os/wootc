@@ -24,7 +24,7 @@ install() {
     # swapon/swapoff, fuser, useradd, chpasswd, restorecon. deploy.sh itself
     # needs install, mountpoint, udevadm, jq.
     inst_multiple \
-        podman skopeo \
+        podman skopeo conmon crun \
         parted sfdisk partprobe wipefs \
         mkfs.ext4 mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
         losetup dmsetup blockdev blkid lsblk \
@@ -33,6 +33,11 @@ install() {
         curl dhclient ip NetworkManager \
         mount umount mountpoint reboot sleep cat sed grep cut \
         shred chroot install udevadm jq truncate
+
+    # podman network backend for podman run (bootc install stage).
+    inst_multiple -o \
+        /usr/libexec/podman/netavark \
+        /usr/libexec/podman/aardvark-dns
 
     # podman/skopeo runtime prerequisites: without policy.json podman pull
     # fails instantly with exit 125, and Go's TLS stack needs the CA bundle.
