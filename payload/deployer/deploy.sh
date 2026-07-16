@@ -406,7 +406,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     for fs in dev proc sys; do mount --bind "/$fs" "$DEPLOY_ROOT/$fs"; done
     KVER=$(ls "$DEPLOY_ROOT/usr/lib/modules" 2>/dev/null | head -1)
     shopt -s nullglob
-    OSTREE_INITRDS=("$DEPLOY_ROOT"/boot/ostree/*/initramfs.img)
+    OSTREE_INITRDS=("$DEPLOY_ROOT"/boot/ostree/*/initramfs*.img)
     shopt -u nullglob
     if [[ -n "$KVER" ]] && (( ${#OSTREE_INITRDS[@]} > 0 )); then
         INITRD_CHROOT_PATH="${OSTREE_INITRDS[0]#"$DEPLOY_ROOT"}"
@@ -485,7 +485,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                   /mnt/esp/EFI/wootc/phase2-initramfs.img
             shopt -s nullglob
             kernels=("$DEPLOY_ROOT"/boot/ostree/*/vmlinuz* "$DEPLOY_ROOT"/boot/vmlinuz-*)
-            initrds=("$DEPLOY_ROOT"/boot/ostree/*/initramfs.img "$DEPLOY_ROOT"/boot/initramfs-*.img)
+            initrds=("$DEPLOY_ROOT"/boot/ostree/*/initramfs*.img "$DEPLOY_ROOT"/boot/initramfs-*.img)
             shopt -u nullglob
             KERNEL_SRC="${kernels[0]:-}"
             INITRD_SRC="${initrds[0]:-}"
