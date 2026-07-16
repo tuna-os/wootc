@@ -424,7 +424,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             --fwdir /run/wootc-nofw \
             --omit "plymouth crypt lvm mdraid dm multipath iscsi nbd nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
             "$INITRD_CHROOT_PATH" "$KVER"
-        REGEN_SIZE=$(ls -l "${OSTREE_INITRDS[0]}" | awk '"'"'{print $5}'"'"')
+        REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}")
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
     else
         chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
