@@ -153,20 +153,35 @@ Operational invariants (violations cost a debug cycle each):
 - The hook is **sourced under `set -e`**: capture exit codes as
   `status=0; cmd || status=$?`.
 
-## Known limitation — Phase-2 Linux boot under Secure Boot
+## Phase-2 Linux boot (ESP kernel-sync + loop-attach)
 
-The runner's final step re-arms the wootc BCD entry to boot the *installed*
-OS from inside `root.disk`. The wubildr design (GRUB loop-mounts root.disk
-over NTFS) cannot work with the signed GRUB: `ntfs.mod` is unsigned and the
-signed image doesn't embed it. Options, per SPEC §1.2:
+The signed GRUB cannot read NTFS (`ntfs.mod` is unsigned and not embedded),
+so the installed kernel inside root.disk is unreachable from GRUB. The
+implemented resolution is **ESP kernel-sync** with a systemd-native
+**loop-attach** initramfs hook:
 
-1. **ESP kernel-sync** (systemd-boot-style): deployer copies the installed
-   kernel+initramfs to the ESP and writes a GRUB entry with the loop-root
-   cmdline; the installed initramfs (99wootc-boot) mounts NTFS itself via
-   kernel ntfs3 — no GRUB NTFS needed. Fits the existing chain unchanged.
-2. **MOK-enroll a custom signed GRUB** (wubildr with ntfs+loopback):
-   preserves kernel-inside-root.disk loading but adds a one-time MokManager
-   enrollment step.
+```mermaid
+flowchart TD
+    stage["Deployer verification (ostree-aware):<br/>find /ostree/deploy/&lt;stateroot&gt;/deploy/&lt;hash&gt;.0<br/>inject 99wootc-boot module → regen initramfs<br/>patch BLS options (+wootc.host_uuid, +loop=)<br/>copy kernel+initramfs → ESP:/EFI/wootc/phase2-*<br/>write Phase-2 grub.cfg from BLS options"]
+    boot["Phase-2 boot: BCD one-shot → shim → GRUB<br/>loads phase2 kernel from ESP<br/>cmdline: root=UUID=&lt;target&gt; ostree=… wootc.host_uuid=… loop=…"]
+    hook["99wootc-boot initqueue hook:<br/>mount NTFS rw at /run/initramfs/wootc-host<br/>losetup -P root.disk → partitions + UUIDs appear"]
+    sysd["systemd sysroot.mount (root=UUID) +<br/>ostree-prepare-root → pivot to deployment"]
+    stage --> boot --> hook --> sysd
+```
 
-(1) is recommended for the E2E and matches the OSTree sync-hook design
-already specified for the systemd-boot path.
+Design notes:
+
+- **No root= hijack.** The BLS entry keeps its normal `root=UUID=<target>`;
+  the hook merely makes that UUID exist by attaching the loop with
+  partition scanning. systemd's fstab-generator, `sysroot.mount`, and
+  ostree-prepare-root all run their standard paths.
+- **ostree layout throughout.** bootc roots have no top-level `/etc`; all
+  staging operates on the deployment dir, and the initramfs regen targets
+  the live `/boot/ostree/<dir>/initramfs.img` for the deployment's kernel.
+- The deployer's ESP-sync overwrites `EFI/fedora/grub.cfg` with the Phase-2
+  entry as its final act, so the ESP flips from "boot the deployer" to
+  "boot the installed system" atomically with a successful deployment.
+- The MOK-enrollment alternative (custom signed GRUB with ntfs+loopback,
+  kernel loaded from inside root.disk) remains a fallback if kernel-sync
+  proves insufficient; it would restore SPEC §1.2's no-sync property at the
+  cost of a one-time MokManager enrollment.

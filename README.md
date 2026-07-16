@@ -41,35 +41,27 @@ when default storage is RAM-backed (single-copy space model), post-install
 coreutils in the initramfs, and a scratch that persists as an image cache
 (retries skip the 3.7 GB pull).
 
-**Active blockers, in order:**
+**Active work, in order:**
 
-0. **Phase-2 boot staging skipped: ostree-unaware verification.** deploy.sh
-   detects the installed root by `/etc/os-release` at the filesystem top
-   level, but ostree deployments keep it under
-   `/ostree/deploy/default/deploy/<hash>/etc` — the check never matches, so
-   the dracut-module inject, BLS argument patch, and ESP kernel-sync are
-   silently skipped (verification "passes" in 0.5 s). Fix: detect `/ostree`,
-   operate on the deployment path, and run the ESP sync unconditionally.
-
-1. **~~Deployer completion — one untested fix out.~~ Done (see milestone).** The last run failed the
-   registry pre-flight with `x509: certificate signed by unknown authority`;
-   the CA-bundle path fix is committed (`4ac3174`) but the deployer initramfs
-   has not been rebuilt and re-deployed to the ESP since. Root cause of the
-   long exit-125 saga was a monolithic dracut `inst_multiple` that failed
-   silently on missing `restorecon`, dropping conmon/crun/podman from the
-   image (`b105a08`).
-2. **Phase-2 Linux boot — implemented, untested.** The signed GRUB cannot
-   load `ntfs.mod` under Secure Boot, so the installed kernel inside
-   `root.disk` is unreachable from GRUB. The ESP kernel-sync resolution
-   (deployer copies installed kernel+initramfs to the ESP; `99wootc-boot`
-   dracut module does the NTFS/loop work via kernel ntfs3) is implemented in
-   `220756a` and needs its first end-to-end run.
-3. **Fresh clean-slate E2E run.** The current VM has accumulated manual
-   state (BitLocker decrypted by hand, chkdsk cycles, hand-patched
-   initramfs). A from-scratch `run-e2e.sh` run must validate the committed
-   fixes — including `PreventDeviceEncryption` in `autounattend.xml`, which
-   stops Windows 11 OOBE from BitLocker-encrypting C: (unreadable from
-   Linux) on new installs.
+1. **Phase-2 Linux boot — staged, validation run in progress.** Two fixes
+   landed (`a3a7cca`): the verification/staging block is now ostree-aware
+   (the old top-level `/etc/os-release` check never matched a bootc root, so
+   dracut inject, BLS patch, and ESP kernel-sync silently skipped), and the
+   `99wootc-boot` dracut module was redesigned for systemd + ostree — an
+   initqueue hook attaches the NTFS-backed root.disk with partition
+   scanning so the BLS `root=UUID` appears naturally and systemd's
+   `sysroot.mount` + `ostree-prepare-root` proceed unchanged (the previous
+   design mounted the raw partitioned loop as root, which could never
+   boot). A staging deployer run is validating this now; the Phase-2 boot
+   test (one-shot to the synced ESP kernel) follows immediately.
+2. **Fresh clean-slate E2E run.** The current VM has accumulated manual
+   state (BitLocker decrypted by hand, chkdsk cycles). A from-scratch
+   `run-e2e.sh` run must validate all committed fixes — including
+   `PreventDeviceEncryption` in `autounattend.xml`, which stops Windows 11
+   OOBE from BitLocker-encrypting C: (unreadable from Linux) on new
+   installs.
+3. **Phase 1: installer App UI + User Data Bridge** — next scope once
+   Phase 2 is fully green (see Future phases below).
 
 The MOK-enrollment alternative (custom signed GRUB with ntfs+loopback) stays
 on the table if ESP kernel-sync proves insufficient. A BitLocker-mode E2E
