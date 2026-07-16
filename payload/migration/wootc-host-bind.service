@@ -1,0 +1,13 @@
+[Unit]
+Description=Bind wootc host mount to /host
+DefaultDependencies=no
+Before=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/mount --bind /run/initramfs/wootc-host /host
+ExecStop=/usr/bin/umount /host
+
+[Install]
+WantedBy=local-fs.target

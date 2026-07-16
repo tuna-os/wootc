@@ -1,0 +1,16 @@
+#!/bin/bash
+# /usr/local/bin/wootc-umount-user-dirs
+# Reverses wootc-mount-user-dirs on shutdown (ExecStop of
+# wootc-passthrough.service), so wootc-host-bind.service can unmount /host
+# cleanly afterward without "target is busy" from nested bind mounts.
+
+set -Eeuo pipefail
+
+FOLDERS=(Documents Pictures Downloads Music Videos Desktop)
+
+for home in /home/*/; do
+    for folder in "${FOLDERS[@]}"; do
+        dst="${home}${folder}"
+        mountpoint -q "$dst" 2>/dev/null && umount "$dst" 2>/dev/null || true
+    done
+done

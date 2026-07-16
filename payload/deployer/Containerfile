@@ -40,6 +40,7 @@ RUN mkdir -p /usr/lib/dracut/modules.d/99wootc
 COPY payload/deployer/module-setup.sh /usr/lib/dracut/modules.d/99wootc/module-setup.sh
 COPY payload/deployer/deploy-hook.sh /usr/lib/dracut/modules.d/99wootc/deploy-hook.sh
 COPY platform/dracut/99wootc-boot /usr/lib/wootc/99wootc-boot
+COPY payload/migration /usr/lib/wootc/migration
 RUN chmod +x /usr/lib/dracut/modules.d/99wootc/module-setup.sh /usr/lib/dracut/modules.d/99wootc/deploy-hook.sh
 
 # ── Build the initramfs ─────────────────────────────────────────────────────
@@ -70,7 +71,9 @@ RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
     lsinitrd /out/deployer-initramfs.img | grep -q "etc/pki/tls/certs/ca-bundle.crt" || \
         { echo "FATAL: CA bundle missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh" || \
-        { echo "FATAL: 99wootc-boot payload missing from initramfs"; exit 1; }
+        { echo "FATAL: 99wootc-boot payload missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-passthrough.service" || \
+        { echo "FATAL: User Data Bridge migration payload missing from initramfs"; exit 1; }
 
 RUN cp /boot/vmlinuz-* /out/deployer-vmlinuz 2>/dev/null || \
     cp /lib/modules/*/vmlinuz /out/deployer-vmlinuz 2>/dev/null || true

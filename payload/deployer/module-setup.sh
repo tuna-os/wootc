@@ -44,6 +44,13 @@ install() {
     inst /usr/lib/wootc/99wootc-boot/module-setup.sh
     inst /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh
 
+    # User Data Bridge (native passthrough) unit files, injected into the
+    # installed system during verification the same way as 99wootc-boot.
+    inst /usr/lib/wootc/migration/wootc-host-bind.service
+    inst /usr/lib/wootc/migration/wootc-passthrough.service
+    inst /usr/lib/wootc/migration/wootc-mount-user-dirs
+    inst /usr/lib/wootc/migration/wootc-umount-user-dirs
+
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \
         /usr/libexec/podman/netavark \

@@ -1,0 +1,15 @@
+[Unit]
+Description=Bind Windows User Profiles to Home
+DefaultDependencies=no
+After=wootc-host-bind.service
+Requires=wootc-host-bind.service
+Before=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/wootc-mount-user-dirs
+ExecStop=/usr/local/bin/wootc-umount-user-dirs
+
+[Install]
+WantedBy=local-fs.target

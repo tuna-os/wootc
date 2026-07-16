@@ -438,18 +438,36 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] dracut 99wootc-boot module NOT found"
     fi
 
-    # Check host bind service
+    # ── User Data Bridge (native passthrough) ─────────────────────────────
+    # fisherman does not install these — inject them the same way as the
+    # 99wootc-boot dracut module, and enable them via local-fs.target.wants
+    # symlinks (systemctl --root needs D-Bus/policy that isn't available
+    # here; a plain symlink is exactly what `systemctl enable` would create
+    # for a WantedBy=local-fs.target oneshot unit).
+    install -m644 /usr/lib/wootc/migration/wootc-host-bind.service \
+        "$DEPLOY_ROOT/etc/systemd/system/wootc-host-bind.service"
+    install -m644 /usr/lib/wootc/migration/wootc-passthrough.service \
+        "$DEPLOY_ROOT/etc/systemd/system/wootc-passthrough.service"
+    install -m755 /usr/lib/wootc/migration/wootc-mount-user-dirs \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-mount-user-dirs"
+    install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-umount-user-dirs"
+    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
+    ln -sf ../wootc-host-bind.service \
+        "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
+    ln -sf ../wootc-passthrough.service \
+        "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-passthrough.service"
+
     if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-host-bind.service" ]]; then
         log "  [PASS] wootc-host-bind.service installed"
     else
-        err "  [WARN] wootc-host-bind.service NOT found (fisherman may install it)"
+        err "  [FAIL] wootc-host-bind.service install failed"
     fi
 
-    # Check passthrough service
     if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-passthrough.service" ]]; then
         log "  [PASS] wootc-passthrough.service installed"
     else
-        err "  [WARN] wootc-passthrough.service NOT found (may be generated post-boot)"
+        err "  [FAIL] wootc-passthrough.service install failed"
     fi
 
     if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
