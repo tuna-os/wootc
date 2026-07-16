@@ -183,11 +183,12 @@ if [ "$SKIP_BUILD" = false ]; then
     }
 
     podman build -t wootc-wubildr -f payload/wubildr/Containerfile . || {
-        fail "wubildr EFI build failed"
-        exit 1
+        info "wubildr EFI build failed (non-fatal — using signed shim chain instead)"
     }
-    podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi \
-        > "$SCRIPT_DIR/wootc-files/wubildr.efi"
+    if podman image exists wootc-wubildr 2>/dev/null; then
+        podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi \
+            > "$SCRIPT_DIR/wootc-files/wubildr.efi" 2>/dev/null || true
+    fi
 
     for f in deployer-vmlinuz deployer-initramfs.img; do
         if [ ! -f "$SCRIPT_DIR/wootc-files/$f" ]; then
@@ -196,54 +197,49 @@ if [ "$SKIP_BUILD" = false ]; then
         fi
     done
 
-    [ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] || {
-        fail "Missing wootc-files/wubildr.efi (custom GRUB core image required)"
-        exit 1
-    }
-
     mkdir -p "$SCRIPT_DIR/wootc-files/grub"
     cp "$REPO_ROOT/platform/grub/"*.cfg "$SCRIPT_DIR/wootc-files/grub/" 2>/dev/null || true
 
-    # Locate grubx64.efi from the host system's grub2-efi package.
-    # This binary is served via Samba to the Windows VM and copied to the ESP
-    # by setup-wootc.ps1 Step 8 (BCD firmware entry).
-    GRUB_EFI_CANDIDATES=(
-        /usr/lib/grub/x86_64-efi/monolithic/grubx64.efi  # Debian/Ubuntu grub-efi-amd64
-        /boot/efi/EFI/fedora/grubx64.efi                  # Fedora (already installed)
-        /boot/efi/EFI/almalinux/grubx64.efi               # AlmaLinux
-        /boot/efi/EFI/centos/grubx64.efi                  # CentOS
-        /usr/share/grub2/grubx64.efi                      # openSUSE
-        /usr/lib64/efi/grub.efi                            # openSUSE alt
-    )
-    GRUB_EFI_SRC=""
-    for candidate in "${GRUB_EFI_CANDIDATES[@]}"; do
-        if [ -f "$candidate" ]; then
-            GRUB_EFI_SRC="$candidate"
-            break
+    # Extract signed shim + GRUB from a Fedora container. These are
+    # Microsoft/Fedora-signed and form the Secure Boot chain:
+    #   firmware → shimx64.efi → grubx64.efi → grub.cfg
+    # setup-wootc.ps1 copies them to the ESP via the Samba share.
+    if [ ! -f "$SCRIPT_DIR/wootc-files/shimx64.efi" ] || \
+       [ ! -f "$SCRIPT_DIR/wootc-files/grubx64.efi" ]; then
+        info "Extracting signed shim + GRUB from Fedora container..."
+        CID=$(podman run -d --rm quay.io/fedora/fedora:44 \
+            bash -c "dnf install -y -q shim-x64 grub2-efi-x64 2>/dev/null && \
+              cp /boot/efi/EFI/fedora/shimx64.efi /tmp/ && \
+              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && echo DONE")
+        podman wait "$CID" >/dev/null 2>&1 || true
+        podman cp "$CID:/tmp/shimx64.efi" "${SCRIPT_DIR}/wootc-files/shimx64.efi" 2>/dev/null || true
+        podman cp "$CID:/tmp/grubx64.efi" "${SCRIPT_DIR}/wootc-files/grubx64.efi" 2>/dev/null || true
+        if [ -s "$SCRIPT_DIR/wootc-files/shimx64.efi" ]; then
+            info "shimx64.efi: $(du -sh "$SCRIPT_DIR/wootc-files/shimx64.efi" | cut -f1)"
         fi
-    done
-
-    if [ -n "$GRUB_EFI_SRC" ]; then
-        cp "$GRUB_EFI_SRC" "$SCRIPT_DIR/wootc-files/grubx64.efi"
-        info "grubx64.efi: copied from $GRUB_EFI_SRC ($(du -sh "$SCRIPT_DIR/wootc-files/grubx64.efi" | cut -f1))"
+        if [ -s "$SCRIPT_DIR/wootc-files/grubx64.efi" ]; then
+            info "grubx64.efi: $(du -sh "$SCRIPT_DIR/wootc-files/grubx64.efi" | cut -f1)"
+        fi
     else
-        info "WARNING: grubx64.efi not found on this host."
-        info "  BCD firmware entry will be created but the EFI binary will be missing."
-        info "  To fix: install grub2-efi-x64 (Fedora/RHEL) or grub-efi-amd64 (Debian/Ubuntu),"
-        info "  or manually copy a grubx64.efi to $SCRIPT_DIR/wootc-files/grubx64.efi"
+        info "Signed shim + GRUB already cached in wootc-files/"
     fi
+
+    # Fail if signed EFI chain is missing — Secure Boot needs it.
+    [ -s "$SCRIPT_DIR/wootc-files/shimx64.efi" ] || {
+        fail "Missing wootc-files/shimx64.efi (signed Fedora shim required for Secure Boot)"
+        exit 1
+    }
+    [ -s "$SCRIPT_DIR/wootc-files/grubx64.efi" ] || {
+        fail "Missing wootc-files/grubx64.efi (signed Fedora GRUB required for Secure Boot)"
+        exit 1
+    }
 
     pass "Deployer built: $(du -sh "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" | cut -f1) kernel, $(du -sh "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" | cut -f1) initramfs"
     cd "$SCRIPT_DIR"
 fi
 
-# wubildr is a custom GRUB core image, not an interchangeable stock GRUB EFI.
-# Refuse to mutate the Windows boot entry when it is absent, including in
-# --skip-build runs that reuse artifacts.
-[ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] || {
-    fail "Missing wootc-files/wubildr.efi (custom GRUB core image required)"
-    exit 1
-}
+# wubildr is no longer required for Secure Boot (we use the signed shim chain).
+# Keep the file around for reference if it was built.
 
 # Dockur copies /oem into C:\OEM; our answer file starts install.bat at the
 # first automatic desktop logon. Stage every input locally so that handoff
@@ -260,7 +256,10 @@ printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 cp "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" "$OEM_PAYLOAD/deployer-vmlinuz"
 cp "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" "$OEM_PAYLOAD/deployer-initramfs.img"
-cp "$SCRIPT_DIR/wootc-files/wubildr.efi" "$OEM_PAYLOAD/wubildr.efi"
+cp "$SCRIPT_DIR/wootc-files/shimx64.efi" "$OEM_PAYLOAD/shimx64.efi"
+cp "$SCRIPT_DIR/wootc-files/grubx64.efi" "$OEM_PAYLOAD/grubx64.efi"
+[ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] && \
+    cp "$SCRIPT_DIR/wootc-files/wubildr.efi" "$OEM_PAYLOAD/wubildr.efi"
 cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
 cp "$SCRIPT_DIR/qga.py" "$OEM_DIR/qga.py"
 

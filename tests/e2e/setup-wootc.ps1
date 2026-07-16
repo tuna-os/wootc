@@ -122,17 +122,19 @@ Copy-Item $deployerInitramfs "$installDir\deployer-initramfs.img" -Force
 
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────
 if ($grubDir) {
-    # GRUB cfg files from the wootc repo
+    # GRUB cfg files from the wootc repo (legacy, for NTFS-based install)
     Copy-Item "$grubDir\*" $installDir -Force -ErrorAction SilentlyContinue
 
-    # Copy wubildr.efi from share if available (custom GRUB core image with embedded config)
-    $grubEfiSrc = "$payloadRoot\wubildr.efi"
-    if (Test-Path $grubEfiSrc) {
-        Copy-Item $grubEfiSrc "$installDir\wubildr.efi" -Force
-        Write-Host "[wootc] Copied wubildr.efi from share"
+    # Copy signed EFI binaries from share to install dir for ESP staging
+    $shimSrc = "$payloadRoot\shimx64.efi"
+    $grubEfiSrc = "$payloadRoot\grubx64.efi"
+    if ((Test-Path $shimSrc) -and (Test-Path $grubEfiSrc)) {
+        Copy-Item $shimSrc "$installDir\shimx64.efi" -Force
+        Copy-Item $grubEfiSrc "$installDir\grubx64.efi" -Force
+        Write-Host "[wootc] Copied signed shim + GRUB from share"
     } else {
-        Write-Host "[wootc] WARNING: wubildr.efi not found on share at $grubEfiSrc"
-        Write-Host "[wootc]   BCD firmware entry will be created but may not boot without it."
+        Write-Host "[wootc] WARNING: shimx64.efi and/or grubx64.efi not found on share"
+        Write-Host "[wootc]   Secure Boot chain will be incomplete."
     }
 }
 
@@ -193,18 +195,19 @@ $wubildrLines = @(
 Set-Content -Path "$installDir\wubildr.cfg" -Value $wubildrLines -Encoding ASCII
 Write-Host "[wootc] Wrote wubildr.cfg"
 
-# ── Step 7: Install GRUB2 to ESP and configure BCD ──────────────────────────
-Write-Host "[wootc] Setting up Windows Boot Manager entry..."
+# ── Step 7: Install signed shim + GRUB to ESP ──────────────────────────────
+# Under Secure Boot, unsigned EFI binaries are rejected. Use the Fedora-signed
+# shim → GRUB chain. Deployer kernel+initramfs go on the FAT32 ESP so GRUB can
+# load them (the signed GRUB cannot load unsigned ntfs.mod).
+Write-Host "[wootc] Setting up Secure Boot chain on ESP..."
 
-# Find the real EFI System Partition and assign it a drive letter. `Get-Volume`
-# reports the usual unlettered FAT32 ESP with an empty DriveLetter; constructing
-# `:\` from that empty value used to make the EFI copy fail or fall back to C:.
+# Find the real EFI System Partition and assign a drive letter.
 $espPart = Get-Partition |
     Where-Object { $_.Type -eq "System" -or $_.GptType -eq "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}" } |
     Select-Object -First 1
 
 if (-not $espPart) {
-    throw "Could not find the EFI System Partition; refusing to place wubildr on C:."
+    throw "Could not find the EFI System Partition; refusing to place EFI files on C:."
 }
 
 if (-not $espPart.DriveLetter) {
@@ -217,75 +220,82 @@ $espDrive = $espPart.DriveLetter
 if (-not $espDrive) {
     throw "EFI System Partition has no drive letter after assignment."
 }
-
-# Avoid a double-quoted path ending in `\`: Windows PowerShell treats the
-# final quote as unterminated in this form. Build the separator explicitly.
 $espPath = "${espDrive}:" + [System.IO.Path]::DirectorySeparatorChar
 Write-Host "[wootc] EFI System Partition mounted at $espPath"
 
-# Create wootc GRUB directory on ESP
-$wootcEfiDir = "$espPath\EFI\wootc\wubildr"
-New-Item -ItemType Directory -Force -Path $wootcEfiDir | Out-Null
+# Create directory structure on ESP:
+#   EFI/fedora/   — signed GRUB's embedded prefix (where grub.cfg is read)
+#   EFI/wootc/    — deployer kernel + initramfs
+New-Item -ItemType Directory -Force -Path "$espPath\EFI\fedora" | Out-Null
+New-Item -ItemType Directory -Force -Path "$espPath\EFI\wootc" | Out-Null
 
-# Copy GRUB EFI binary (wubildr.efi — custom GRUB core image with embedded
-# bootstrap config, ntfs + loopback modules).
+# Copy the signed EFI chain.
+if (Test-Path "$installDir\shimx64.efi") {
+    Copy-Item "$installDir\shimx64.efi" "$espPath\EFI\fedora\shimx64.efi" -Force
+    Write-Host "[wootc] Copied shimx64.efi to ESP:EFI/fedora/"
+}
+if (Test-Path "$installDir\grubx64.efi") {
+    Copy-Item "$installDir\grubx64.efi" "$espPath\EFI\fedora\grubx64.efi" -Force
+    Write-Host "[wootc] Copied grubx64.efi to ESP:EFI/fedora/"
+}
 
-# Copy GRUB config files to ESP
-Copy-Item "$installDir\wubildr.cfg" $wootcEfiDir -Force
+# Copy deployer kernel + initramfs to ESP (GRUB reads FAT32 but not NTFS).
+if (Test-Path "$installDir\deployer-vmlinuz") {
+    Copy-Item "$installDir\deployer-vmlinuz" "$espPath\EFI\wootc\deployer-vmlinuz" -Force
+}
+if (Test-Path "$installDir\deployer-initramfs.img") {
+    Copy-Item "$installDir\deployer-initramfs.img" "$espPath\EFI\wootc\deployer-initramfs.img" -Force
+}
+Write-Host "[wootc] Deployer kernel + initramfs copied to ESP:EFI/wootc/"
 
-Write-Host "[wootc] GRUB files installed to $wootcEfiDir"
+# Write the deployer grub.cfg at the signed GRUB's embedded prefix.
+$grubCfgLines = @(
+    '# wootc deployer — one-shot Linux installation',
+    'set default=0',
+    'set timeout=5',
+    '',
+    'menuentry "Install wootc (automatic)" {',
+    "    linux /EFI/wootc/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname quiet console=ttyS0",
+    '    initrd /EFI/wootc/deployer-initramfs.img',
+    '}',
+    '',
+    'menuentry "Install wootc (debug)" {',
+    "    linux /EFI/wootc/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname wootc.debug console=ttyS0",
+    '    initrd /EFI/wootc/deployer-initramfs.img',
+    '}'
+)
+Set-Content -Path "$espPath\EFI\fedora\grub.cfg" -Value $grubCfgLines -Encoding ASCII
+Write-Host "[wootc] Wrote deployer grub.cfg to ESP:EFI/fedora/grub.cfg"
 
 # ── Step 8: Configure BCD ───────────────────────────────────────────────────
-# Add a UEFI firmware application boot entry pointing to wubildr.efi on the ESP.
-# bcdedit /create outputs: "The entry {guid} was successfully created."
-# We parse that GUID, then configure device/path/description and set boot order.
+# Add a one-shot UEFI firmware entry pointing to the signed shim → GRUB chain.
 
 Write-Host "[wootc] Configuring BCD..."
 
-# Copy wubildr.efi to ESP (custom GRUB with ntfs+loopback modules, embedded bootstrap config)
-$grubEfiDest = "${espPath}EFI\wootc\wubildr.efi"
-if (Test-Path "$installDir\wubildr.efi") {
-    Copy-Item "$installDir\wubildr.efi" $grubEfiDest -Force
-    Write-Host "[wootc] Copied wubildr.efi to $grubEfiDest"
-} else {
-    Write-Host "[wootc] WARNING: wubildr.efi not in $installDir — ESP entry will point to a missing file."
-    Write-Host "[wootc]   Ensure wubildr.efi is present on the Samba share (wootc-files/wubildr.efi)."
-}
-
 # Create a new BCD entry by cloning the Windows Boot Manager.
-# This inherits device/partition settings — we only need to set the path.
 $bcdCreateOutput = (& bcdedit /copy "{bootmgr}" /d "wootc Deployer" 2>&1) | Out-String
 Write-Host "[wootc] bcdedit copy: $bcdCreateOutput"
 
-# Parse the GUID from output like:
-#   The entry was successfully copied to {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}.
 if ($bcdCreateOutput -match '\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}') {
     $newGuid = "{$($Matches[1])}"
     Write-Host "[wootc] New BCD entry GUID: $newGuid"
 
-    # The E2E runner needs this stable identifier to schedule the second,
-    # explicit one-shot boot that exercises the installed Phase 2 Linux root.
+    # Persist the GUID so the E2E runner can re-arm the one-shot for Phase 2.
     Set-Content -Path "$installDir\bcd-guid.txt" -Value $newGuid -Encoding ASCII
 
-    # Set the EFI path (device is inherited from bootmgr — partition=E:)
-    $efiRelPath = "\EFI\wootc\wubildr.efi"
-    & bcdedit /set $newGuid path $efiRelPath
-    Write-Host "[wootc] BCD path set to $efiRelPath"
+    # Point to the shim (Microsoft-signed, Fedora build). Shim verifies
+    # grubx64.efi (Fedora-signed), which loads grub.cfg from EFI/fedora/.
+    & bcdedit /set $newGuid path "\EFI\fedora\shimx64.efi"
+    Write-Host "[wootc] BCD path set to \EFI\fedora\shimx64.efi"
 
     # One-time boot: boot the deployer on the very next restart only.
-    # Do NOT add to displayorder — we only want a one-shot test, not a persistent entry.
     & bcdedit /set "{fwbootmgr}" bootsequence $newGuid /addfirst
     Write-Host "[wootc] Set one-time bootsequence to $newGuid"
 
     Write-Host "[wootc] BCD configured successfully."
-    Write-Host "[wootc]   Entry: $newGuid"
-    Write-Host "[wootc]   Boots: ${espDrive}:$efiRelPath"
-    Write-Host "[wootc]   One-shot: yes (bootsequence)"
 } else {
     Write-Host "[wootc] ERROR: Could not parse GUID from bcdedit output:"
     Write-Host $bcdCreateOutput
-    Write-Host "[wootc] BCD NOT configured — reboot will go to Windows, not deployer."
-    # Non-fatal: setup can still succeed for debugging other steps
 }
 
 # ── Step 9: Disable Windows Fast Startup ────────────────────────────────────

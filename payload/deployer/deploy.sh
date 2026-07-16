@@ -53,7 +53,7 @@ cleanup() {
         sync || true
     fi
     for mount in /mnt/verify/sys /mnt/verify/proc /mnt/verify/dev \
-        /mnt/verify/boot /mnt/verify /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
+        /mnt/verify/boot /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
     [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
@@ -355,6 +355,56 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     else
         err "  [FAIL] Phase 2 loop-root arguments missing from BLS entries"
         exit 1
+    fi
+
+    # ── ESP kernel-sync for Phase-2 Secure Boot boot ──────────────────────
+    # The signed GRUB cannot read NTFS (unsigned ntfs.mod rejected under
+    # Secure Boot), so the installed kernel and initramfs must live on the
+    # FAT32 ESP. Copy them there and write a Phase-2 grub.cfg with the
+    # loop-root cmdline from the patched BLS entries.
+    log "Syncing Phase-2 kernel to ESP..."
+
+    # ESP is partition 1 of the disk containing the NTFS partition.
+    # /dev/sda3 → /dev/sda1, /dev/nvme0n1p3 → /dev/nvme0n1p1
+    ESP_DEV=$(printf '%s' "$NTFS_PART" | sed -E 's/(p?)[0-9]+$/\11/')
+    if [[ ! -b "$ESP_DEV" ]]; then
+        err "  [WARN] ESP device ${ESP_DEV} not found; Phase-2 boot will fail"
+    else
+        mkdir -p /mnt/esp
+        if mount -t vfat "$ESP_DEV" /mnt/esp 2>/dev/null; then
+            mkdir -p /mnt/esp/EFI/wootc
+            KERNEL_SRC=$(ls -1 /mnt/verify/boot/vmlinuz-* 2>/dev/null | head -1)
+            INITRD_SRC=$(ls -1 /mnt/verify/boot/initramfs-*.img 2>/dev/null | head -1)
+
+            if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" ]] && \
+               [[ -n "$INITRD_SRC" && -s "$INITRD_SRC" ]]; then
+                cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img
+                log "  Copied kernel and initramfs to ESP:EFI/wootc/"
+
+                # Pull the kernel cmdline from the patched BLS entry.
+                ROOT_OPTIONS=$(grep '^options ' /mnt/verify/boot/loader/entries/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
+
+                # Write Phase-2 grub.cfg at the signed GRUB's embedded prefix.
+                mkdir -p /mnt/esp/EFI/fedora
+                cat > /mnt/esp/EFI/fedora/grub.cfg <<GRUBEOF
+# wootc Phase 2 — boot installed system from root.disk
+set default=0
+set timeout=5
+
+menuentry "wootc Linux" {
+    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=ttyS0
+    initrd /EFI/wootc/phase2-initramfs.img
+}
+GRUBEOF
+                log "  [PASS] Phase-2 grub.cfg written to EFI/fedora/grub.cfg"
+            else
+                err "  [FAIL] No kernel/initramfs found in installed /boot"
+            fi
+            umount /mnt/esp
+        else
+            err "  [WARN] Could not mount ESP ${ESP_DEV}; Phase-2 boot will fail"
+        fi
     fi
 
     umount /mnt/verify/boot
