@@ -29,10 +29,13 @@ install() {
         mkfs.ext4 mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
         losetup dmsetup blockdev blkid lsblk \
         fsfreeze fstrim swapon swapoff fuser \
-        useradd chpasswd restorecon \
+        useradd chpasswd \
         curl dhclient ip NetworkManager \
         mount umount mountpoint reboot sleep cat sed grep cut \
         shred chroot install udevadm jq truncate
+
+    # restorecon (policycoreutils) may not be installed in the build container.
+    inst_multiple -o restorecon
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \
