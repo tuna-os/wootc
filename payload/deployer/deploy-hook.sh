@@ -8,6 +8,18 @@ guard=/run/wootc-deployer-started
 : >"$guard"
 
 echo "[wootc] Network is online; starting deployer..."
+
+# Start the QEMU guest agent on the same virtio-serial channel Windows uses:
+# the host's qga.py control plane then works during the deployer phase too
+# (live guest-exec for df/journalctl, file reads, interactive debugging).
+if command -v qemu-ga >/dev/null 2>&1; then
+    ga_dev=/dev/virtio-ports/org.qemu.guest_agent.0
+    [ -e "$ga_dev" ] || ga_dev=$(ls /dev/vport*p* 2>/dev/null | head -1)
+    if [ -n "$ga_dev" ] && [ -e "$ga_dev" ]; then
+        qemu-ga --daemonize -m virtio-serial -p "$ga_dev" 2>/dev/null \
+            && echo "[wootc] qemu-ga started on $ga_dev" > /dev/kmsg
+    fi
+fi
 # Dead-man watchdog: late failures (after dracut's root-device timeout puts
 # systemd in emergency mode) have wedged the VM with the failure path below
 # never reached. A successful deployer reboots the machine well inside this

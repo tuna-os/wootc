@@ -10,13 +10,14 @@ FROM quay.io/fedora/fedora:44 AS builder
 # ── Install system packages ─────────────────────────────────────────────────
 RUN dnf install -y \
     systemd systemd-udev dracut dracut-network \
-    podman skopeo \
-    util-linux e2fsprogs dosfstools \
+    podman skopeo conmon crun netavark aardvark-dns \
+    util-linux util-linux-core e2fsprogs dosfstools \
     ntfsprogs \
     parted xfsprogs btrfs-progs \
     kernel-core kernel-modules kernel-modules-extra \
     NetworkManager iproute dhcp-client \
     curl ca-certificates jq \
+    qemu-guest-agent psmisc shadow-utils policycoreutils \
     && dnf clean all
 
 # ── Build fisherman statically ──────────────────────────────────────────────
@@ -56,6 +57,18 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
         --kernel-cmdline "rd.neednet=1 ip=dhcp quiet" \
         /out/deployer-initramfs.img \
         "$KERNEL_VER"
+
+# Assert critical binaries actually landed in the image. dracut's
+# inst_multiple fails SILENTLY when any one entry is missing (a missing
+# restorecon once dropped conmon/crun/podman and cost a full E2E debug
+# cycle), so the build must fail loudly here instead.
+RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
+        mkfs.xfs qemu-ga df sync truncate journalctl jq; do \
+        lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
+            { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
+    done && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "etc/pki/tls/certs/ca-bundle.crt" || \
+        { echo "FATAL: CA bundle missing from initramfs"; exit 1; }
 
 RUN cp /boot/vmlinuz-* /out/deployer-vmlinuz 2>/dev/null || \
     cp /lib/modules/*/vmlinuz /out/deployer-vmlinuz 2>/dev/null || true

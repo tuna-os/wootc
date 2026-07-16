@@ -32,7 +32,7 @@ install() {
         useradd chpasswd \
         curl dhclient ip NetworkManager \
         mount umount mountpoint reboot sleep cat sed grep cut sync \
-        shred chroot install udevadm jq truncate
+        shred chroot install udevadm jq truncate df awk qemu-ga journalctl
 
     # restorecon (policycoreutils) may not be installed in the build container.
     inst_multiple -o restorecon

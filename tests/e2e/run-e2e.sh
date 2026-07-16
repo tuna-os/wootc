@@ -483,6 +483,12 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         NEW_OUTPUT=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
 
+        # Per-run telemetry timeline: every [wootc]/fisherman marker with a
+        # wall-clock timestamp, including phase transitions and heartbeats
+        # (phase= and scratch/mem usage come from the deployer's kmsg lines).
+        echo "$NEW_OUTPUT" | strings | grep -aE "\[wootc\]|fisherman|VERIFICATION_SUMMARY|\[FAIL\]" \
+            | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
+
         echo "$NEW_OUTPUT" | grep -q "\[wootc\]"               && info "wootc: deployer active"
         echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"

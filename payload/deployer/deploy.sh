@@ -28,6 +28,17 @@ err() {
     printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2
     printf '[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
 }
+# Current phase, read by the heartbeat and useful over QGA.
+phase() {
+    echo "$*" > /run/wootc-phase 2>/dev/null || true
+    log "phase: $*"
+}
+
+# Cap dirty page cache so multi-GB writeback streams to disk continuously.
+# Unbounded dirty pages (default: 20% of RAM) made the final sync/umount sit
+# in D-state for tens of minutes after a large image pull, wedging the VM.
+echo 268435456 > /proc/sys/vm/dirty_bytes 2>/dev/null || true
+echo 134217728 > /proc/sys/vm/dirty_background_bytes 2>/dev/null || true
 
 # A failed target-side dracut run must not leave the Windows volume, loop
 # devices, or chroot bind mounts busy.  That would prevent a useful retry from
@@ -37,8 +48,12 @@ LOOP_DEV=""
 VERIFY_LOOP=""
 SCRATCH_LOOP=""
 SCRATCH_IMG=""
+JOURNAL_STREAM_PID=""
+HEARTBEAT_PID=""
 cleanup() {
     local mount
+    [[ -n "$JOURNAL_STREAM_PID" ]] && kill "$JOURNAL_STREAM_PID" 2>/dev/null || true
+    [[ -n "$HEARTBEAT_PID" ]] && kill "$HEARTBEAT_PID" 2>/dev/null || true
     # Persist the boot journal to NTFS while it is still mounted: the VM has
     # no console input, so this is the only way to read fisherman/podman
     # errors after the fail-path reboot to Windows.
@@ -150,6 +165,36 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
 fi
 DISK="/mnt/ntfs/wootc/disks/root.disk"
 
+# ── Live telemetry ──────────────────────────────────────────────────────────
+# Stream the journal to NTFS continuously: the exit-trap post-mortem is
+# written by exactly the code that can hang, so a wedge must still leave a
+# fresh journal on disk. Heartbeat gives the serial monitor a liveness and
+# resource signal (a 7-minute image pull must look different from a hang).
+LOG_DIR=/mnt/ntfs/wootc/logs
+mkdir -p "$LOG_DIR"
+(
+    while true; do
+        { journalctl -b --no-pager 2>/dev/null | tail -c 2000000; } \
+            > "$LOG_DIR/live-journal.log.tmp" 2>/dev/null &&
+            mv -f "$LOG_DIR/live-journal.log.tmp" "$LOG_DIR/live-journal.log" 2>/dev/null
+        sync 2>/dev/null
+        sleep 15
+    done
+) &
+JOURNAL_STREAM_PID=$!
+(
+    while true; do
+        printf '[wootc] heartbeat phase=%s scratch=%s mem_avail=%skB\n' \
+            "$(cat /run/wootc-phase 2>/dev/null || echo unset)" \
+            "$(df -h /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3"/"$2}')" \
+            "$(awk '/MemAvailable/{print $2}' /proc/meminfo 2>/dev/null)" \
+            > /dev/kmsg 2>/dev/null || true
+        sleep 30
+    done
+) &
+HEARTBEAT_PID=$!
+phase "ntfs-mounted"
+
 # ── Container storage scratch ───────────────────────────────────────────────
 # The initramfs root is ramfs: a multi-GB image pull there exhausts RAM.
 # fisherman does all heavy I/O under its scratch dir /var/fisherman-tmp
@@ -157,6 +202,7 @@ DISK="/mnt/ntfs/wootc/disks/root.disk"
 # ext4 loop file on the Windows NTFS partition (fisherman's overlay probe
 # needs a real POSIX fs, so not NTFS directly). Deleted after deployment.
 SCRATCH_IMG="/mnt/ntfs/wootc/cache/deployer-scratch.img"
+phase "scratch-setup"
 log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 truncate -s 30G "$SCRATCH_IMG"
@@ -174,6 +220,7 @@ mount --bind /var/fisherman-tmp/var-tmp /var/tmp
 # ── Registry pre-flight ─────────────────────────────────────────────────────
 # Surface DNS/TLS/registry problems with a real error message on the console
 # instead of a bare podman exit status buried inside fisherman.
+phase "registry-preflight"
 log "Registry pre-flight for ${IMAGE}..."
 if [[ ! -s /etc/resolv.conf ]]; then
     cp /run/NetworkManager/resolv.conf /etc/resolv.conf 2>/dev/null || true
@@ -254,6 +301,7 @@ log "Fisherman recipe:"
 cat "$RECIPE"
 
 # ── Run fisherman ───────────────────────────────────────────────────────────
+phase "fisherman"
 log "Running fisherman — this pulls the image and deploys it..."
 fisherman "$RECIPE"
 
@@ -264,6 +312,7 @@ LOOP_DEV=""
 # Verify the installed system's passthrough and migration setup before rebooting.
 # These markers are captured by the e2e test's serial console monitor.
 
+phase "verification"
 log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
@@ -427,6 +476,7 @@ SCRATCH_LOOP=""
 rm -f "$SCRATCH_IMG"
 umount /mnt/ntfs
 
+phase "reboot"
 log "Verification complete. Rebooting..."
 log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"
 sleep 3
