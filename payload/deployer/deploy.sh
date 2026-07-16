@@ -461,6 +461,14 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         mkdir -p /mnt/esp
         if mount -t vfat "$ESP_DEV" /mnt/esp 2>/dev/null; then
             mkdir -p /mnt/esp/EFI/wootc
+            # The deployer kernel+initramfs (~153M) are dead weight on the
+            # ESP after deployment, and a 256M ESP cannot hold both them and
+            # the Phase-2 pair (canonical copies remain in C:\wootc\install).
+            # Also clear any partial Phase-2 files from earlier attempts.
+            rm -f /mnt/esp/EFI/wootc/deployer-vmlinuz \
+                  /mnt/esp/EFI/wootc/deployer-initramfs.img \
+                  /mnt/esp/EFI/wootc/phase2-vmlinuz \
+                  /mnt/esp/EFI/wootc/phase2-initramfs.img
             shopt -s nullglob
             kernels=("$DEPLOY_ROOT"/boot/ostree/*/vmlinuz* "$DEPLOY_ROOT"/boot/vmlinuz-*)
             initrds=("$DEPLOY_ROOT"/boot/ostree/*/initramfs.img "$DEPLOY_ROOT"/boot/initramfs-*.img)
