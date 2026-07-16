@@ -416,7 +416,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # chrooted under a foreign running kernel, so omit every dracut
         # module the NTFS-loop boot cannot need. ntfs3/loop/virtio ride in
         # via kernel-modules + the 99wootc-boot module.
+        # --fwdir at an empty dir: the journal showed amdgpu/nvidia firmware
+        # blobs dominating the 241M image; no firmware is needed to reach
+        # the NTFS-loop root (virtio/ahci/nvme need none).
+        mkdir -p "$DEPLOY_ROOT/run/wootc-nofw"
         chroot "$DEPLOY_ROOT" dracut --force --hostonly \
+            --fwdir /run/wootc-nofw \
             --omit "plymouth crypt lvm mdraid dm multipath iscsi nbd nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
             "$INITRD_CHROOT_PATH" "$KVER"
         REGEN_SIZE=$(ls -l "${OSTREE_INITRDS[0]}" | awk '"'"'{print $5}'"'"')
