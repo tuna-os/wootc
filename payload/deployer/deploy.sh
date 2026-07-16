@@ -173,6 +173,7 @@ DISK="/mnt/ntfs/wootc/disks/root.disk"
 LOG_DIR=/mnt/ntfs/wootc/logs
 mkdir -p "$LOG_DIR"
 (
+    set +eu  # telemetry must survive any single command failing
     while true; do
         { journalctl -b --no-pager 2>/dev/null | tail -c 2000000; } \
             > "$LOG_DIR/live-journal.log.tmp" 2>/dev/null &&
@@ -183,6 +184,7 @@ mkdir -p "$LOG_DIR"
 ) &
 JOURNAL_STREAM_PID=$!
 (
+    set +eu  # df fails until the scratch is mounted; keep beating anyway
     while true; do
         printf '[wootc] heartbeat phase=%s scratch=%s mem_avail=%skB\n' \
             "$(cat /run/wootc-phase 2>/dev/null || echo unset)" \
@@ -205,7 +207,11 @@ SCRATCH_IMG="/mnt/ntfs/wootc/cache/deployer-scratch.img"
 phase "scratch-setup"
 log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
-truncate -s 30G "$SCRATCH_IMG"
+# ntfs3 allocates the full size on truncate (no sparse support), so this
+# must fit in C:'s free space alongside the fully-allocated root.disk.
+# 12G covers blob staging (/var/tmp, ~4G compressed) with margin; fisherman
+# keeps its containers-root inside the target disk, not here.
+truncate -s 12G "$SCRATCH_IMG"
 mkfs.ext4 -q -F "$SCRATCH_IMG"
 SCRATCH_LOOP=$(losetup -f --show "$SCRATCH_IMG")
 mount "$SCRATCH_LOOP" /var/fisherman-tmp
