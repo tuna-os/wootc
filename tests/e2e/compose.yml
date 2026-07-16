@@ -11,7 +11,12 @@
 
 services:
   windows:
-    image: dockurr/windows
+    # localhost/wootc-e2e-windows-ssh:latest = dockurr/windows + baked-in
+    # sshd (key-only, dedicated e2e keypair) so debug sessions can `ssh`
+    # straight into the container instead of nesting `podman exec` through
+    # heredocs. Build it once with tests/e2e/build-ssh-image.sh; override
+    # with WOOTC_E2E_IMAGE=dockurr/windows to use the plain upstream image.
+    image: ${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}
     container_name: wootc-e2e-windows
     stop_grace_period: 2m
     environment:
@@ -56,6 +61,7 @@ services:
       - "8006:8006"    # noVNC web console  — browse to http://localhost:8006 to watch/debug
       - "3389:3389"    # RDP                — for manual debugging
       - "5900:5900"    # QEMU VNC           — fallback debugging
+      - "2222:22"      # sshd (wootc-e2e-windows-ssh image only) — debug shell into the container
     volumes:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
       - ./storage:/storage
