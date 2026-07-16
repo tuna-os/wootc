@@ -490,11 +490,45 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             KERNEL_SRC="${kernels[0]:-}"
             INITRD_SRC="${initrds[0]:-}"
 
+            # ── Target-signed Secure Boot chain ───────────────────────────
+            # GRUB's shim_lock verifier rejects the target kernel unless the
+            # shim's vendor cert trusts the kernel's signing key. The Fedora
+            # deployer shim trusts only Fedora; the target kernel is signed by
+            # its own distro (e.g. AlmaLinux/Red Hat). So swap the ESP chain
+            # to the TARGET's own shim+grub (shipped signed inside the image
+            # under bootupd) for the Phase-2 boot. All shims are MS-signed, so
+            # UEFI still accepts the swapped shim at the BCD-referenced path.
+            TARGET_SHIM=""
+            TARGET_GRUB=""
+            TARGET_VENDOR=""
+            shopt -s nullglob
+            for sd in "$DEPLOY_ROOT"/usr/lib/bootupd/updates/EFI/*/ \
+                      "$DEPLOY_ROOT"/usr/lib/ostree-boot/efi/EFI/*/ ; do
+                if [[ -f "${sd}shimx64.efi" && -f "${sd}grubx64.efi" ]]; then
+                    TARGET_SHIM="${sd}shimx64.efi"
+                    TARGET_GRUB="${sd}grubx64.efi"
+                    TARGET_VENDOR=$(basename "$sd")
+                    break
+                fi
+            done
+            shopt -u nullglob
+
             if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" ]] && \
                [[ -n "$INITRD_SRC" && -s "$INITRD_SRC" ]] && \
+               [[ -n "$TARGET_SHIM" && -n "$TARGET_GRUB" ]] && \
                cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz && \
                cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
                 log "  Copied kernel and initramfs to ESP:EFI/wootc/"
+
+                # BCD loads \EFI\fedora\shimx64.efi; the target shim then loads
+                # grubx64.efi from that same dir. Overwrite both with the
+                # target-signed pair (deployment is done — this ESP now boots
+                # Phase-2, not the deployer).
+                cp "$TARGET_SHIM" /mnt/esp/EFI/fedora/shimx64.efi
+                cp "$TARGET_GRUB" /mnt/esp/EFI/fedora/grubx64.efi
+                cp "$DEPLOY_ROOT/usr/lib/bootupd/updates/EFI/$TARGET_VENDOR/mmx64.efi" \
+                   /mnt/esp/EFI/fedora/mmx64.efi 2>/dev/null || true
+                log "  Installed target-signed shim+grub (vendor: $TARGET_VENDOR)"
 
                 # Kernel cmdline from the patched BLS entry (keeps root=UUID
                 # and ostree=; the loop-attach hook makes that UUID appear).
@@ -503,9 +537,10 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 # grub.cfg; drop tokens containing '$'.
                 ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | tr '\n' ' ')
 
-                # Write Phase-2 grub.cfg at the signed GRUB's embedded prefix.
-                mkdir -p /mnt/esp/EFI/fedora
-                cat > /mnt/esp/EFI/fedora/grub.cfg <<GRUBEOF
+                # The target grub's embedded prefix is /EFI/<vendor>; it reads
+                # $prefix/grub.cfg. Write the Phase-2 menu there.
+                mkdir -p "/mnt/esp/EFI/$TARGET_VENDOR"
+                cat > "/mnt/esp/EFI/$TARGET_VENDOR/grub.cfg" <<GRUBEOF
 # wootc Phase 2 — boot installed system from root.disk
 set default=0
 set timeout=5
@@ -515,7 +550,7 @@ menuentry "wootc Linux" {
     initrd /EFI/wootc/phase2-initramfs.img
 }
 GRUBEOF
-                log "  [PASS] Phase-2 grub.cfg written to EFI/fedora/grub.cfg"
+                log "  [PASS] Phase-2 grub.cfg written to EFI/$TARGET_VENDOR/grub.cfg"
             else
                 # Never leave the ESP kernel-less: the deployer pair was
                 # removed above to make room, so restore it from the
