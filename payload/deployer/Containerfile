@@ -17,7 +17,7 @@ RUN dnf install -y \
     kernel-core kernel-modules kernel-modules-extra \
     NetworkManager iproute dhcp-client \
     curl ca-certificates jq \
-    qemu-guest-agent psmisc shadow-utils policycoreutils \
+    qemu-guest-agent psmisc shadow-utils policycoreutils which \
     && dnf clean all
 
 # ── Build fisherman statically ──────────────────────────────────────────────
