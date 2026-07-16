@@ -17,8 +17,17 @@
 
 set -Eeuo pipefail
 
-log() { printf '\033[1;32m[wootc]\033[0m %s\n' "$*"; }
-err()  { printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2; }
+# Write through /dev/kmsg when available: stdout of a sourced initqueue hook
+# lands in the journal but is not reliably forwarded to the serial console,
+# which made several failures invisible to the E2E monitor.
+log() {
+    printf '\033[1;32m[wootc]\033[0m %s\n' "$*"
+    printf '[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+}
+err() {
+    printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2
+    printf '[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+}
 
 # A failed target-side dracut run must not leave the Windows volume, loop
 # devices, or chroot bind mounts busy.  That would prevent a useful retry from
@@ -133,7 +142,12 @@ fi
 
 # ── Mount NTFS read-write ───────────────────────────────────────────────────
 mkdir -p /mnt/ntfs
-mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs
+if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
+    err "cannot mount ${NTFS_PART} read-write — the NTFS volume is likely dirty"
+    err "(Windows hibernated, Fast Startup, or an unclean shutdown)."
+    err "Boot Windows once, perform a full shutdown, and retry."
+    if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
+fi
 DISK="/mnt/ntfs/wootc/disks/root.disk"
 
 # ── Container storage scratch ───────────────────────────────────────────────
