@@ -209,9 +209,10 @@ log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # ntfs3 allocates the full size on truncate (no sparse support), so this
 # must fit in C:'s free space alongside the fully-allocated root.disk.
-# 12G covers blob staging (/var/tmp, ~4G compressed) with margin; fisherman
-# keeps its containers-root inside the target disk, not here.
-truncate -s 12G "$SCRATCH_IMG"
+# 13G: with disk-backed default storage fisherman pulls the full extracted
+# image (~10G) here plus transient blob staging; the target disk holds only
+# the ostree deployment.
+truncate -s 13G "$SCRATCH_IMG"
 mkfs.ext4 -q -F "$SCRATCH_IMG"
 SCRATCH_LOOP=$(losetup -f --show "$SCRATCH_IMG")
 mount "$SCRATCH_LOOP" /var/fisherman-tmp
