@@ -18,26 +18,45 @@ implemented yet.
 
 ## Current status (2026-07-16)
 
-**Deployer execution is green.** The deployer boots under Secure Boot via the
-Fedora shim → signed GRUB chain, mounts the NTFS volume, builds the ext4
-scratch loop, and runs fisherman to completion. Verification succeeds and the
-system reboots cleanly back to Windows.
+**Working and verified on the E2E rig** (Windows 11 + TPM + Secure Boot under
+KVM; see [docs/e2e-architecture.md](docs/e2e-architecture.md)):
 
-**Phase-2 Linux boot is the active blocker.** The installed kernel and
-initramfs live inside `root.disk` on NTFS. The signed GRUB cannot load
-unsigned modules (ntfs.mod) under Secure Boot, so it can neither read
-`root.disk` from the NTFS volume nor loop-mount the boot partition.
+- Secure Boot chain: BCD one-shot → Fedora `shimx64.efi` → signed
+  `grubx64.efi` → `grub.cfg` at the embedded `/EFI/fedora` prefix → signed
+  deployer kernel from the FAT32 ESP. No Access Denied, no unsigned modules.
+- Deployer robustness: disk-scan retry, dirty-NTFS detection, `/dev/kmsg`
+  serial markers, journal persisted to `C:\wootc\logs\` on failure,
+  watchdog + direct-syscall reboot back to Windows on every failure path.
+- fisherman reaches the pull stage with podman fully provisioned (conmon,
+  crun, netavark, policy.json, registries.conf) and heavy I/O redirected to
+  an ext4 scratch loop on the Windows partition (`/var/fisherman-tmp`).
 
-Two resolution paths exist (see [docs/e2e-architecture.md](docs/e2e-architecture.md)):
+**Active blockers, in order:**
 
-1. **ESP kernel-sync** (recommended): the deployer copies the installed
-   kernel + initramfs to the EFI System Partition during verification.
-   The GRUB entry loads them directly; the installed dracut module
-   (`99wootc-boot`) handles NTFS mount and loop root attachment via kernel
-   ntfs3 — no GRUB NTFS needed.
-2. **MOK-enroll a custom signed GRUB** (wubildr with ntfs+loopback):
-   preserves the root.disk-resident kernel design but adds a one-time
-   MokManager enrollment step.
+1. **Deployer completion — one untested fix out.** The last run failed the
+   registry pre-flight with `x509: certificate signed by unknown authority`;
+   the CA-bundle path fix is committed (`4ac3174`) but the deployer initramfs
+   has not been rebuilt and re-deployed to the ESP since. Root cause of the
+   long exit-125 saga was a monolithic dracut `inst_multiple` that failed
+   silently on missing `restorecon`, dropping conmon/crun/podman from the
+   image (`b105a08`).
+2. **Phase-2 Linux boot — implemented, untested.** The signed GRUB cannot
+   load `ntfs.mod` under Secure Boot, so the installed kernel inside
+   `root.disk` is unreachable from GRUB. The ESP kernel-sync resolution
+   (deployer copies installed kernel+initramfs to the ESP; `99wootc-boot`
+   dracut module does the NTFS/loop work via kernel ntfs3) is implemented in
+   `220756a` and needs its first end-to-end run.
+3. **Fresh clean-slate E2E run.** The current VM has accumulated manual
+   state (BitLocker decrypted by hand, chkdsk cycles, hand-patched
+   initramfs). A from-scratch `run-e2e.sh` run must validate the committed
+   fixes — including `PreventDeviceEncryption` in `autounattend.xml`, which
+   stops Windows 11 OOBE from BitLocker-encrypting C: (unreadable from
+   Linux) on new installs.
+
+The MOK-enrollment alternative (custom signed GRUB with ntfs+loopback) stays
+on the table if ESP kernel-sync proves insufficient. A BitLocker-mode E2E
+variant (root.disk on a dedicated unencrypted partition, per SPEC §3.5) is
+worth adding once the normal path is green.
 
 ## Implemented path: Phase 2 native boot
 
@@ -51,11 +70,13 @@ Two resolution paths exist (see [docs/e2e-architecture.md](docs/e2e-architecture
    device, and uses fisherman to partition and populate it from a bootc image.
 4. After deployment, it adds the `99wootc-boot` dracut module to the target,
    adds `wootc.host_uuid` and `loop=/wootc/disks/root.disk` to the target BLS
-   entries, and regenerates initramfs. (Verification succeeds as of 2026-07-16.)
-5. **BLOCKED:** On the Phase 2 boot, dracut mounts the NTFS host volume
-   read-write, attaches `root.disk`, and mounts the target root — but the signed
-   GRUB chain cannot load the kernel from inside `root.disk` on NTFS. See
-   resolution paths above.
+   entries, regenerates the initramfs, and syncs the installed
+   kernel+initramfs to `ESP:/EFI/wootc/phase2-*` with a matching GRUB entry
+   (ESP kernel-sync, `220756a`).
+5. On the Phase 2 boot, GRUB loads the synced kernel from the ESP; dracut
+   (`99wootc-boot`) mounts the NTFS host volume read-write, attaches
+   `root.disk`, and pivots to the target root. **Not yet exercised
+   end-to-end** — see Active blockers above.
 
 ## Future phases (not implemented)
 
