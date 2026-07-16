@@ -31,7 +31,7 @@ install() {
         fsfreeze fstrim swapon swapoff fuser \
         useradd chpasswd \
         curl dhclient ip NetworkManager \
-        mount umount mountpoint reboot sleep cat sed grep cut \
+        mount umount mountpoint reboot sleep cat sed grep cut sync \
         shred chroot install udevadm jq truncate
 
     # restorecon (policycoreutils) may not be installed in the build container.
@@ -48,7 +48,7 @@ install() {
         /etc/containers/policy.json \
         /etc/containers/registries.conf \
         /etc/containers/registries.conf.d/*.conf
-    inst_simple "$(readlink -f /etc/pki/tls/certs/ca-bundle.crt)" \
+    inst_simple /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
         /etc/pki/tls/certs/ca-bundle.crt
 
     # Kernel modules for NTFS and loop
