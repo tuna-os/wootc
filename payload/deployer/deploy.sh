@@ -411,11 +411,16 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     if [[ -n "$KVER" ]] && (( ${#OSTREE_INITRDS[@]} > 0 )); then
         INITRD_CHROOT_PATH="${OSTREE_INITRDS[0]#"$DEPLOY_ROOT"}"
         log "  Regenerating ${INITRD_CHROOT_PATH} for kernel ${KVER}..."
-        # --hostonly: the deployer runs on the same machine Phase-2 will boot
-        # on, so a host-tailored initramfs is correct — and it must stay small
-        # enough for the ESP copy below (generic bootc initramfs exceed 190M,
-        # which overflows a 256M ESP alongside Microsoft's boot files).
-        chroot "$DEPLOY_ROOT" dracut --force --hostonly "$INITRD_CHROOT_PATH" "$KVER"
+        # The initramfs must stay small enough for the ESP copy below.
+        # --hostonly degrades to all-drivers+firmware (241M measured) when
+        # chrooted under a foreign running kernel, so omit every dracut
+        # module the NTFS-loop boot cannot need. ntfs3/loop/virtio ride in
+        # via kernel-modules + the 99wootc-boot module.
+        chroot "$DEPLOY_ROOT" dracut --force --hostonly \
+            --omit "plymouth crypt lvm mdraid dm multipath iscsi nbd nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
+            "$INITRD_CHROOT_PATH" "$KVER"
+        REGEN_SIZE=$(ls -l "${OSTREE_INITRDS[0]}" | awk '"'"'{print $5}'"'"')
+        log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
     else
         chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
     fi
