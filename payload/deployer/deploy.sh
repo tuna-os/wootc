@@ -67,8 +67,12 @@ cleanup() {
         # correct-size file full of zeros).
         sync || true
     fi
-    for mount in /mnt/verify/sys /mnt/verify/proc /mnt/verify/dev \
-        /mnt/verify/boot /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
+    # Deployment bind paths live deep under /mnt/verify (ostree layout);
+    # unmount everything below it in reverse depth order.
+    for mount in $(awk '$2 ~ "^/mnt/verify" {print $2}' /proc/mounts 2>/dev/null | sort -r); do
+        umount "$mount" 2>/dev/null || true
+    done
+    for mount in /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
     [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
@@ -332,39 +336,52 @@ log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
 VERIFY_LOOP=$(losetup -fP --show "$DISK")
+udevadm settle --timeout=10 2>/dev/null || true
 
-# Find the root partition inside the loop device (typically partition 3 or 4)
+# Find the root partition inside the loop device. bootc/ostree roots have no
+# top-level /etc — the OS tree lives under /ostree/deploy/<stateroot>/deploy/.
 VERIFY_ROOT=""
-for p in "${VERIFY_LOOP}p1" "${VERIFY_LOOP}p2" "${VERIFY_LOOP}p3" "${VERIFY_LOOP}p4" "${VERIFY_LOOP}p5"; do
-    if [[ -b "$p" ]]; then
-        mkdir -p /mnt/verify
-        if mount -o rw "$p" /mnt/verify 2>/dev/null; then
-            if [[ -f /mnt/verify/etc/os-release ]]; then
-                VERIFY_ROOT="$p"
-                break
-            fi
-            umount /mnt/verify 2>/dev/null
+for p in "${VERIFY_LOOP}"p*; do
+    [[ -b "$p" ]] || continue
+    mkdir -p /mnt/verify
+    if mount -o rw "$p" /mnt/verify 2>/dev/null; then
+        if [[ -d /mnt/verify/ostree/deploy || -f /mnt/verify/etc/os-release ]]; then
+            VERIFY_ROOT="$p"
+            break
         fi
+        umount /mnt/verify 2>/dev/null
     fi
 done
 
 if [[ -n "$VERIFY_ROOT" ]]; then
     log "Mounted installed system root at ${VERIFY_ROOT} for verification"
 
+    # Resolve the OS tree: the ostree deployment dir when present, the
+    # filesystem root otherwise (classic layout).
+    shopt -s nullglob
+    deployments=(/mnt/verify/ostree/deploy/*/deploy/*.0)
+    shopt -u nullglob
+    if (( ${#deployments[@]} > 0 )); then
+        DEPLOY_ROOT="${deployments[0]}"
+        log "  ostree deployment: ${DEPLOY_ROOT#/mnt/verify}"
+    else
+        DEPLOY_ROOT="/mnt/verify"
+    fi
+
     VERIFY_BOOT="${VERIFY_LOOP}p2"
     if [[ ! -b "$VERIFY_BOOT" ]]; then
         err "  [FAIL] expected /boot partition ${VERIFY_BOOT} is missing"
         exit 1
     fi
-    mkdir -p /mnt/verify/boot
-    mount "$VERIFY_BOOT" /mnt/verify/boot
+    mkdir -p "$DEPLOY_ROOT/boot"
+    mount "$VERIFY_BOOT" "$DEPLOY_ROOT/boot"
 
     # Install the runtime hook after bootc/fisherman has laid down the target.
-    # This is the point at which Phase 2 becomes bootable: dracut learns that
-    # the target root lives in an NTFS-backed loop file, not on a raw disk.
-    install -d /mnt/verify/usr/lib/dracut/modules.d/99wootc-boot
+    # This is the point at which Phase 2 becomes bootable: the initramfs
+    # learns to attach the NTFS-backed loop so the root UUID appears.
+    install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
-        /mnt/verify/usr/lib/dracut/modules.d/99wootc-boot/
+        "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
 
     HOST_UUID=$(blkid -s UUID -o value "$NTFS_PART")
     if [[ -z "$HOST_UUID" ]]; then
@@ -372,49 +389,56 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         exit 1
     fi
     shopt -s nullglob
-    BLS_ENTRIES=(/mnt/verify/boot/loader/entries/*.conf)
+    BLS_ENTRIES=("$DEPLOY_ROOT"/boot/loader/entries/*.conf)
     if (( ${#BLS_ENTRIES[@]} == 0 )); then
         err "  [FAIL] no BLS entries found on installed /boot"
         exit 1
     fi
     for entry in "${BLS_ENTRIES[@]}"; do
-        sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.disk|' "$entry"
+        grep -q 'wootc.host_uuid=' "$entry" || \
+            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.disk|' "$entry"
     done
     shopt -u nullglob
 
-    # Regenerate every initramfs only after the module and BLS arguments exist.
-    # Bind mounts provide dracut the minimal runtime view it expects in chroot.
-    for fs in dev proc sys; do mount --bind "/$fs" "/mnt/verify/$fs"; done
-    chroot /mnt/verify dracut --force --regenerate-all
-    for fs in sys proc dev; do umount "/mnt/verify/$fs"; done
+    # Regenerate the initramfs with the module and BLS arguments in place.
+    # ostree keeps the live initramfs on the boot partition under
+    # /boot/ostree/<stateroot>-<csum>/ — regenerate that exact file.
+    for fs in dev proc sys; do mount --bind "/$fs" "$DEPLOY_ROOT/$fs"; done
+    KVER=$(ls "$DEPLOY_ROOT/usr/lib/modules" 2>/dev/null | head -1)
+    shopt -s nullglob
+    OSTREE_INITRDS=("$DEPLOY_ROOT"/boot/ostree/*/initramfs.img)
+    shopt -u nullglob
+    if [[ -n "$KVER" ]] && (( ${#OSTREE_INITRDS[@]} > 0 )); then
+        INITRD_CHROOT_PATH="${OSTREE_INITRDS[0]#"$DEPLOY_ROOT"}"
+        log "  Regenerating ${INITRD_CHROOT_PATH} for kernel ${KVER}..."
+        chroot "$DEPLOY_ROOT" dracut --force "$INITRD_CHROOT_PATH" "$KVER"
+    else
+        chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
+    fi
+    for fs in sys proc dev; do umount "$DEPLOY_ROOT/$fs"; done
 
     # Check dracut module
-    if [[ -d /mnt/verify/usr/lib/dracut/modules.d/99wootc-boot ]]; then
+    if [[ -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot" ]]; then
         log "  [PASS] dracut 99wootc-boot module installed"
     else
         err "  [FAIL] dracut 99wootc-boot module NOT found"
     fi
 
     # Check host bind service
-    if [[ -f /mnt/verify/etc/systemd/system/wootc-host-bind.service ]]; then
+    if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-host-bind.service" ]]; then
         log "  [PASS] wootc-host-bind.service installed"
     else
         err "  [WARN] wootc-host-bind.service NOT found (fisherman may install it)"
     fi
 
     # Check passthrough service
-    if [[ -f /mnt/verify/etc/systemd/system/wootc-passthrough.service ]]; then
+    if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-passthrough.service" ]]; then
         log "  [PASS] wootc-passthrough.service installed"
     else
         err "  [WARN] wootc-passthrough.service NOT found (may be generated post-boot)"
     fi
 
-    # Check wootc-mount-user-dirs helper
-    if [[ -f /mnt/verify/usr/local/bin/wootc-mount-user-dirs ]]; then
-        log "  [PASS] wootc-mount-user-dirs helper installed"
-    fi
-
-    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' /mnt/verify/boot/loader/entries/*.conf; then
+    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
         log "  [PASS] Phase 2 loop-root arguments in BLS entries"
     else
         err "  [FAIL] Phase 2 loop-root arguments missing from BLS entries"
@@ -437,8 +461,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         mkdir -p /mnt/esp
         if mount -t vfat "$ESP_DEV" /mnt/esp 2>/dev/null; then
             mkdir -p /mnt/esp/EFI/wootc
-            KERNEL_SRC=$(ls -1 /mnt/verify/boot/vmlinuz-* 2>/dev/null | head -1)
-            INITRD_SRC=$(ls -1 /mnt/verify/boot/initramfs-*.img 2>/dev/null | head -1)
+            shopt -s nullglob
+            kernels=("$DEPLOY_ROOT"/boot/ostree/*/vmlinuz* "$DEPLOY_ROOT"/boot/vmlinuz-*)
+            initrds=("$DEPLOY_ROOT"/boot/ostree/*/initramfs.img "$DEPLOY_ROOT"/boot/initramfs-*.img)
+            shopt -u nullglob
+            KERNEL_SRC="${kernels[0]:-}"
+            INITRD_SRC="${initrds[0]:-}"
 
             if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" ]] && \
                [[ -n "$INITRD_SRC" && -s "$INITRD_SRC" ]]; then
@@ -446,8 +474,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img
                 log "  Copied kernel and initramfs to ESP:EFI/wootc/"
 
-                # Pull the kernel cmdline from the patched BLS entry.
-                ROOT_OPTIONS=$(grep '^options ' /mnt/verify/boot/loader/entries/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
+                # Kernel cmdline from the patched BLS entry (keeps root=UUID
+                # and ostree=; the loop-attach hook makes that UUID appear).
+                ROOT_OPTIONS=$(grep '^options ' "$DEPLOY_ROOT"/boot/loader/entries/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
+                # BLS $kernelopts-style variables never resolve in our
+                # grub.cfg; drop tokens containing '$'.
+                ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | tr '\n' ' ')
 
                 # Write Phase-2 grub.cfg at the signed GRUB's embedded prefix.
                 mkdir -p /mnt/esp/EFI/fedora
@@ -457,7 +489,7 @@ set default=0
 set timeout=5
 
 menuentry "wootc Linux" {
-    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=ttyS0
+    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200
     initrd /EFI/wootc/phase2-initramfs.img
 }
 GRUBEOF
@@ -471,7 +503,7 @@ GRUBEOF
         fi
     fi
 
-    umount /mnt/verify/boot
+    umount "$DEPLOY_ROOT/boot"
     umount /mnt/verify
 else
     err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
