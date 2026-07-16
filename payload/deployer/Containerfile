@@ -68,7 +68,9 @@ RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
     lsinitrd /out/deployer-initramfs.img | grep -q "etc/pki/tls/certs/ca-bundle.crt" || \
-        { echo "FATAL: CA bundle missing from initramfs"; exit 1; }
+        { echo "FATAL: CA bundle missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh" || \
+        { echo "FATAL: 99wootc-boot payload missing from initramfs"; exit 1; }
 
 RUN cp /boot/vmlinuz-* /out/deployer-vmlinuz 2>/dev/null || \
     cp /lib/modules/*/vmlinuz /out/deployer-vmlinuz 2>/dev/null || true

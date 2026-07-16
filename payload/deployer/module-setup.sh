@@ -38,6 +38,12 @@ install() {
     # restorecon (policycoreutils) may not be installed in the build container.
     inst_multiple -o restorecon
 
+    # The 99wootc-boot dracut module payload, injected into the installed
+    # system during verification (deploy.sh copies this tree into the
+    # target's /usr/lib/dracut/modules.d/).
+    inst /usr/lib/wootc/99wootc-boot/module-setup.sh
+    inst /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh
+
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \
         /usr/libexec/podman/netavark \
