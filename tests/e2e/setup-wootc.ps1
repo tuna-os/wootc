@@ -12,7 +12,11 @@
 param(
     [string]$ImageRef = "ghcr.io/tuna-os/yellowfin:gnome",
     [string]$Hostname = "wootc-test",
-    [int]$DiskSizeGB = 10,
+    # 25 GB minimum: fisherman redirects podman storage INTO the target disk
+    # (.fisherman-scratch) and unpacks the image into the target's ostree repo,
+    # so the loop file must hold extracted image (~10 GB for yellowfin:gnome)
+    # + blob scratch + filesystem overhead. 10 GB ENOSPC'd during the pull.
+    [int]$DiskSizeGB = 25,
     # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
     # makes setup self-contained and avoids requiring SMB/WinRM to be ready.
     [string]$PayloadDir = ""
