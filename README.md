@@ -31,9 +31,27 @@ KVM; see [docs/e2e-architecture.md](docs/e2e-architecture.md)):
   crun, netavark, policy.json, registries.conf) and heavy I/O redirected to
   an ext4 scratch loop on the Windows partition (`/var/fisherman-tmp`).
 
+**Milestone (2026-07-16 08:00 UTC): the deployer E2E loop is green.** A full
+autonomous cycle completed on the rig: Windows → BCD one-shot → shim/GRUB →
+deployer → fisherman → `bootc install` of yellowfin:gnome into root.disk →
+`VERIFICATION_SUMMARY` → clean reboot → Windows with a clean NTFS volume.
+Fixes that landed on the way: qualified containers-storage ref for the OCI
+export, host networking for the install container, storage redirect only
+when default storage is RAM-backed (single-copy space model), post-install
+coreutils in the initramfs, and a scratch that persists as an image cache
+(retries skip the 3.7 GB pull).
+
 **Active blockers, in order:**
 
-1. **Deployer completion — one untested fix out.** The last run failed the
+0. **Phase-2 boot staging skipped: ostree-unaware verification.** deploy.sh
+   detects the installed root by `/etc/os-release` at the filesystem top
+   level, but ostree deployments keep it under
+   `/ostree/deploy/default/deploy/<hash>/etc` — the check never matches, so
+   the dracut-module inject, BLS argument patch, and ESP kernel-sync are
+   silently skipped (verification "passes" in 0.5 s). Fix: detect `/ostree`,
+   operate on the deployment path, and run the ESP sync unconditionally.
+
+1. **~~Deployer completion — one untested fix out.~~ Done (see milestone).** The last run failed the
    registry pre-flight with `x509: certificate signed by unknown authority`;
    the CA-bundle path fix is committed (`4ac3174`) but the deployer initramfs
    has not been rebuilt and re-deployed to the ESP since. Root cause of the
