@@ -380,4 +380,7 @@ umount /mnt/ntfs
 log "Verification complete. Rebooting..."
 log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"
 sleep 3
-reboot -f
+sync || true
+# reboot -f is systemctl reboot -f and hangs under emergency mode; use the
+# direct syscall (everything is unmounted by this point).
+reboot -ff || reboot -f

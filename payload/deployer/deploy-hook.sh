@@ -12,7 +12,16 @@ echo "[wootc] Network is online; starting deployer..."
 # systemd in emergency mode) have wedged the VM with the failure path below
 # never reached. A successful deployer reboots the machine well inside this
 # window; the watchdog only fires on a hang.
-( sleep 2700; echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot"; reboot -f ) &
+# reboot -f resolves to systemctl reboot -f, which still routes through the
+# systemd manager and hangs once emergency mode has been entered; -ff issues
+# the syscall directly, with sysrq as a last resort.
+force_reboot() {
+    sync 2>/dev/null || true
+    reboot -ff 2>/dev/null || true
+    echo 1 > /proc/sys/kernel/sysrq 2>/dev/null || true
+    echo b > /proc/sysrq-trigger 2>/dev/null || true
+}
+( sleep 2700; echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg; force_reboot ) &
 # This hook is sourced by dracut-initqueue, which may run under set -e: a
 # bare failing command would abort the hook before the status capture line.
 status=0
@@ -28,6 +37,6 @@ if grep -q 'wootc\.debug' /proc/cmdline 2>/dev/null; then
     exec /bin/bash
 fi
 
-echo "[wootc] [FAIL] deployer failed with status $status; rebooting to Windows in 30s"
+echo "[wootc] [FAIL] deployer failed with status $status; rebooting to Windows in 30s" > /dev/kmsg
 sleep 30
-reboot -f
+force_reboot
