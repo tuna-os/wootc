@@ -43,23 +43,24 @@ coreutils in the initramfs, and a scratch that persists as an image cache
 
 **Active work, in order:**
 
-1. **Phase-2 Linux boot — staged, validation run in progress.** Two fixes
-   landed (`a3a7cca`): the verification/staging block is now ostree-aware
-   (the old top-level `/etc/os-release` check never matched a bootc root, so
-   dracut inject, BLS patch, and ESP kernel-sync silently skipped), and the
-   `99wootc-boot` dracut module was redesigned for systemd + ostree — an
-   initqueue hook attaches the NTFS-backed root.disk with partition
-   scanning so the BLS `root=UUID` appears naturally and systemd's
-   `sysroot.mount` + `ostree-prepare-root` proceed unchanged (the previous
-   design mounted the raw partitioned loop as root, which could never
-   boot). A staging deployer run is validating this now; the Phase-2 boot
-   test (one-shot to the synced ESP kernel) follows immediately.
-2. **Fresh clean-slate E2E run.** The current VM has accumulated manual
-   state (BitLocker decrypted by hand, chkdsk cycles). A from-scratch
-   `run-e2e.sh` run must validate all committed fixes — including
-   `PreventDeviceEncryption` in `autounattend.xml`, which stops Windows 11
-   OOBE from BitLocker-encrypting C: (unreadable from Linux) on new
-   installs.
+1. **Phase-2 ESP kernel-sync — iterating on initramfs size (run in
+   progress).** The ostree-aware staging works end-to-end on the rig:
+   deployment detection, `99wootc-boot` module inject, BLS patch, and
+   in-chroot initramfs regen all PASS. The remaining fight is fitting the
+   regenerated initramfs on the 256 MB ESP: `--hostonly` degrades to
+   all-drivers-plus-firmware (241 MB measured) when chrooted under a
+   foreign running kernel, so the regen now also omits every unneeded
+   dracut module and excludes firmware entirely (`--fwdir` at an empty
+   dir — the journal showed amdgpu/nvidia blobs dominating the image). A
+   failed sync can no longer strand the machine: the deployer pair is
+   restored to the ESP and the run still completes back to Windows.
+   The Phase-2 Linux boot test (one-shot into the synced kernel;
+   loop-attach initqueue hook makes the target root UUID appear) follows
+   the first fitting sync.
+2. **Fresh clean-slate E2E run** with the new 512 MB ESP
+   (`autounattend.xml`), which removes the size pressure structurally and
+   validates all committed fixes from scratch — including BitLocker
+   prevention.
 3. **Phase 1: installer App UI + User Data Bridge** — next scope once
    Phase 2 is fully green (see Future phases below).
 
