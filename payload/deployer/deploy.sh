@@ -481,9 +481,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             INITRD_SRC="${initrds[0]:-}"
 
             if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" ]] && \
-               [[ -n "$INITRD_SRC" && -s "$INITRD_SRC" ]]; then
-                cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
-                cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img
+               [[ -n "$INITRD_SRC" && -s "$INITRD_SRC" ]] && \
+               cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz && \
+               cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
                 log "  Copied kernel and initramfs to ESP:EFI/wootc/"
 
                 # Kernel cmdline from the patched BLS entry (keeps root=UUID
@@ -507,7 +507,13 @@ menuentry "wootc Linux" {
 GRUBEOF
                 log "  [PASS] Phase-2 grub.cfg written to EFI/fedora/grub.cfg"
             else
-                err "  [FAIL] No kernel/initramfs found in installed /boot"
+                # Never leave the ESP kernel-less: the deployer pair was
+                # removed above to make room, so restore it from the
+                # canonical NTFS copies before failing.
+                err "  [FAIL] Phase-2 ESP sync failed (missing or unwritable kernel/initramfs)"
+                rm -f /mnt/esp/EFI/wootc/phase2-vmlinuz /mnt/esp/EFI/wootc/phase2-initramfs.img
+                cp /mnt/ntfs/wootc/install/deployer-vmlinuz /mnt/esp/EFI/wootc/deployer-vmlinuz 2>/dev/null || true
+                cp /mnt/ntfs/wootc/install/deployer-initramfs.img /mnt/esp/EFI/wootc/deployer-initramfs.img 2>/dev/null || true
             fi
             umount /mnt/esp
         else
