@@ -8,6 +8,11 @@ guard=/run/wootc-deployer-started
 : >"$guard"
 
 echo "[wootc] Network is online; starting deployer..."
+# Dead-man watchdog: late failures (after dracut's root-device timeout puts
+# systemd in emergency mode) have wedged the VM with the failure path below
+# never reached. A successful deployer reboots the machine well inside this
+# window; the watchdog only fires on a hang.
+( sleep 2700; echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot"; reboot -f ) &
 # This hook is sourced by dracut-initqueue, which may run under set -e: a
 # bare failing command would abort the hook before the status capture line.
 status=0
