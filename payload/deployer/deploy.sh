@@ -37,10 +37,14 @@ cleanup() {
         mkdir -p /mnt/ntfs/wootc/logs 2>/dev/null || true
         { journalctl -b --no-pager 2>&1 | tail -c 2000000; } \
             > /mnt/ntfs/wootc/logs/deployer-last-journal.log || true
-        df -h > /mnt/ntfs/wootc/logs/deployer-last-df.log 2>&1 || true
+        cat /proc/mounts > /mnt/ntfs/wootc/logs/deployer-last-mounts.log 2>&1 || true
+        # reboot -f follows an unmount failure here; without an explicit sync
+        # the log data never reaches the NTFS volume (observed as a
+        # correct-size file full of zeros).
+        sync || true
     fi
     for mount in /mnt/verify/sys /mnt/verify/proc /mnt/verify/dev \
-        /mnt/verify/boot /mnt/verify /var/fisherman-tmp /var/lib/containers /mnt/ntfs; do
+        /mnt/verify/boot /mnt/verify /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
     [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
@@ -148,6 +152,10 @@ mount "$SCRATCH_LOOP" /var/fisherman-tmp
 # Catch anything that still lands in default podman storage.
 mkdir -p /var/fisherman-tmp/host-containers
 mount --bind /var/fisherman-tmp/host-containers /var/lib/containers
+# containers/image stages large pull blobs in /var/tmp regardless of the
+# storage --root; on the initramfs ramfs that exhausts RAM mid-pull.
+mkdir -p /var/fisherman-tmp/var-tmp /var/tmp
+mount --bind /var/fisherman-tmp/var-tmp /var/tmp
 
 # ── Registry pre-flight ─────────────────────────────────────────────────────
 # Surface DNS/TLS/registry problems with a real error message on the console
@@ -347,6 +355,7 @@ VERIFY_LOOP=""
 # Tear down the scratch store and leave the NTFS volume clean before the
 # forced reboot (reboot -f syncs but does not unmount; a still-mounted rw
 # NTFS would be flagged dirty and block the Phase 2 rw mount).
+umount /var/tmp 2>/dev/null || true
 umount /var/lib/containers 2>/dev/null || true
 umount /var/fisherman-tmp 2>/dev/null || true
 [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
