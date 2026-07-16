@@ -411,7 +411,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     if [[ -n "$KVER" ]] && (( ${#OSTREE_INITRDS[@]} > 0 )); then
         INITRD_CHROOT_PATH="${OSTREE_INITRDS[0]#"$DEPLOY_ROOT"}"
         log "  Regenerating ${INITRD_CHROOT_PATH} for kernel ${KVER}..."
-        chroot "$DEPLOY_ROOT" dracut --force "$INITRD_CHROOT_PATH" "$KVER"
+        # --hostonly: the deployer runs on the same machine Phase-2 will boot
+        # on, so a host-tailored initramfs is correct — and it must stay small
+        # enough for the ESP copy below (generic bootc initramfs exceed 190M,
+        # which overflows a 256M ESP alongside Microsoft's boot files).
+        chroot "$DEPLOY_ROOT" dracut --force --hostonly "$INITRD_CHROOT_PATH" "$KVER"
     else
         chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
     fi
