@@ -30,8 +30,17 @@ SCRATCH_LOOP=""
 SCRATCH_IMG=""
 cleanup() {
     local mount
+    # Persist the boot journal to NTFS while it is still mounted: the VM has
+    # no console input, so this is the only way to read fisherman/podman
+    # errors after the fail-path reboot to Windows.
+    if mountpoint -q /mnt/ntfs 2>/dev/null; then
+        mkdir -p /mnt/ntfs/wootc/logs 2>/dev/null || true
+        { journalctl -b --no-pager 2>&1 | tail -c 2000000; } \
+            > /mnt/ntfs/wootc/logs/deployer-last-journal.log || true
+        df -h > /mnt/ntfs/wootc/logs/deployer-last-df.log 2>&1 || true
+    fi
     for mount in /mnt/verify/sys /mnt/verify/proc /mnt/verify/dev \
-        /mnt/verify/boot /mnt/verify /var/lib/containers /mnt/ntfs; do
+        /mnt/verify/boot /mnt/verify /var/fisherman-tmp /var/lib/containers /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
     [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
@@ -124,17 +133,21 @@ mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs
 DISK="/mnt/ntfs/wootc/disks/root.disk"
 
 # ── Container storage scratch ───────────────────────────────────────────────
-# The initramfs root is tmpfs: /var/lib/containers there cannot hold a
-# multi-GB image pull. Back it with an ext4 loop file on the Windows NTFS
-# partition (overlay needs a real POSIX fs, so not NTFS directly) and delete
-# the file after deployment.
-SCRATCH_IMG="/mnt/ntfs/wootc/cache/podman-scratch.img"
-log "Creating container-storage scratch at ${SCRATCH_IMG}..."
-mkdir -p /mnt/ntfs/wootc/cache /var/lib/containers
-truncate -s 20G "$SCRATCH_IMG"
+# The initramfs root is ramfs: a multi-GB image pull there exhausts RAM.
+# fisherman does all heavy I/O under its scratch dir /var/fisherman-tmp
+# (podman --root, OCI cache, bootc /var/tmp bind), so back that path with an
+# ext4 loop file on the Windows NTFS partition (fisherman's overlay probe
+# needs a real POSIX fs, so not NTFS directly). Deleted after deployment.
+SCRATCH_IMG="/mnt/ntfs/wootc/cache/deployer-scratch.img"
+log "Creating fisherman scratch at ${SCRATCH_IMG}..."
+mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
+truncate -s 30G "$SCRATCH_IMG"
 mkfs.ext4 -q -F "$SCRATCH_IMG"
 SCRATCH_LOOP=$(losetup -f --show "$SCRATCH_IMG")
-mount "$SCRATCH_LOOP" /var/lib/containers
+mount "$SCRATCH_LOOP" /var/fisherman-tmp
+# Catch anything that still lands in default podman storage.
+mkdir -p /var/fisherman-tmp/host-containers
+mount --bind /var/fisherman-tmp/host-containers /var/lib/containers
 
 # ── Registry pre-flight ─────────────────────────────────────────────────────
 # Surface DNS/TLS/registry problems with a real error message on the console
@@ -335,6 +348,7 @@ VERIFY_LOOP=""
 # forced reboot (reboot -f syncs but does not unmount; a still-mounted rw
 # NTFS would be flagged dirty and block the Phase 2 rw mount).
 umount /var/lib/containers 2>/dev/null || true
+umount /var/fisherman-tmp 2>/dev/null || true
 [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
 SCRATCH_LOOP=""
 rm -f "$SCRATCH_IMG"
