@@ -72,7 +72,128 @@ func collectLook() error {
 		}
 	}
 
+	// Language + keyboard layout (SPEC §4.4/§4.6 tier-1 auto-apply). The
+	// primary UI language is a BCP-47 tag; derive a coarse XKB layout from it.
+	if v, err := runPowerShellOutput(`(Get-WinUserLanguageList)[0].LanguageTag`); err == nil {
+		tag := strings.TrimSpace(v)
+		if tag != "" {
+			look["language"] = tag
+			if xkb := xkbFromLanguageTag(tag); xkb != "" {
+				look["keyboardLayout"] = xkb
+			}
+		}
+	}
+
+	// Taskbar pins + desktop shortcuts (SPEC §4.4 Windows-Style Mode): bring
+	// the user's own quick-access set over so the Linux dock/desktop feels
+	// familiar. We record the resolved app name + target exe; the target maps
+	// to a Linux .desktop id on first login (wootc-apply-look), only for apps
+	// that actually exist on the deployed system.
+	if taskbar, desktop := collectPinnedApps(); len(taskbar) > 0 || len(desktop) > 0 {
+		if len(taskbar) > 0 {
+			look["taskbarApps"] = taskbar
+		}
+		if len(desktop) > 0 {
+			look["desktopApps"] = desktop
+		}
+	}
+
 	return marshalJSONToFile(filepath.Join(slurpDir, "slurp.json"), look)
+}
+
+// pinnedApp is one Windows shortcut resolved to its target executable.
+type pinnedApp struct {
+	Name string `json:"name"`
+	Exe  string `json:"exe"`
+}
+
+// collectPinnedApps resolves the .lnk shortcuts the user pinned to the
+// taskbar and placed on the desktop, in on-screen order, to (name, exe).
+// Best-effort: any COM/registry failure yields empty lists, never an error.
+func collectPinnedApps() (taskbar, desktop []pinnedApp) {
+	// One PowerShell pass resolves every shortcut's TargetPath via WScript.Shell
+	// and prints `bucket|name|exe` lines. Taskbar order follows the shell's
+	// FavoritesResolve ordering registry value when present, else file order.
+	const ps = `
+$ErrorActionPreference='SilentlyContinue'
+$sh = New-Object -ComObject WScript.Shell
+function emit($bucket,$dir){
+  if(!(Test-Path $dir)){return}
+  Get-ChildItem -Path $dir -Filter *.lnk -File | Sort-Object Name | ForEach-Object {
+    $t = $sh.CreateShortcut($_.FullName).TargetPath
+    $exe = if($t){Split-Path $t -Leaf}else{''}
+    $name = $_.BaseName
+    "$bucket|$name|$exe"
+  }
+}
+emit taskbar "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+emit desktop "$env:USERPROFILE\Desktop"
+emit desktop "$env:PUBLIC\Desktop"
+`
+	out, err := runPowerShellOutput(ps)
+	if err != nil {
+		return nil, nil
+	}
+	seen := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		parts := strings.SplitN(strings.TrimSpace(line), "|", 3)
+		if len(parts) != 3 || parts[1] == "" {
+			continue
+		}
+		app := pinnedApp{Name: parts[1], Exe: strings.ToLower(parts[2])}
+		key := parts[0] + "|" + strings.ToLower(app.Name)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		switch parts[0] {
+		case "taskbar":
+			taskbar = append(taskbar, app)
+		case "desktop":
+			desktop = append(desktop, app)
+		}
+	}
+	return taskbar, desktop
+}
+
+// xkbFromLanguageTag maps a Windows BCP-47 UI language tag (e.g. "en-US",
+// "pt-BR", "en-GB") to an XKB layout code. Region-specific keyboards win
+// over the bare language default; unmapped tags return "" (skipped, so the
+// distro default stays). A full KLID→XKB table is future work.
+func xkbFromLanguageTag(tag string) string {
+	t := strings.ToLower(tag)
+	// Region overrides first.
+	switch t {
+	case "en-gb":
+		return "gb"
+	case "pt-br":
+		return "br"
+	case "en-us", "en-ca":
+		return "us"
+	case "fr-ca":
+		return "ca"
+	case "de-ch", "fr-ch":
+		return "ch"
+	case "es-es":
+		return "es"
+	case "es-mx", "es-us", "es-ar", "es-co", "es-cl":
+		return "latam"
+	}
+	lang := t
+	if i := strings.IndexByte(t, '-'); i > 0 {
+		lang = t[:i]
+	}
+	byLang := map[string]string{
+		"en": "us", "de": "de", "fr": "fr", "es": "es", "it": "it",
+		"pt": "pt", "ru": "ru", "uk": "ua", "pl": "pl", "nl": "nl",
+		"sv": "se", "no": "no", "nb": "no", "da": "dk", "fi": "fi",
+		"cs": "cz", "sk": "sk", "hu": "hu", "ro": "ro", "el": "gr",
+		"tr": "tr", "he": "il", "ar": "ara", "fa": "ir", "th": "th",
+		"ja": "jp", "ko": "kr", "zh": "cn", "hi": "in", "vi": "vn",
+		"id": "us", "sr": "rs", "hr": "hr", "bg": "bg", "lt": "lt",
+		"lv": "lv", "et": "ee", "sl": "si", "is": "is",
+	}
+	return byLang[lang]
 }
 
 // windowsToIANA covers the common cases; unmapped zones are skipped on the

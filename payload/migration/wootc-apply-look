@@ -43,6 +43,97 @@ for w in "$SLURP_DIR"/wallpaper.*; do WALLPAPER="$w"; break; done
 shopt -u nullglob
 DARK=$(json darkMode)          # "true" / "false" / ""
 ACCENT=$(json accentColor)     # "#RRGGBB" or ""
+KBD=$(json keyboardLayout)     # xkb code, e.g. "us" / "de" / ""
+
+# ── Taskbar/desktop app bring-over (SPEC §4.4) ──────────────────────────────
+# Emits `bucket exe name` lines for pinned taskbar and desktop shortcuts.
+pinned_lines() {
+    python3 - "$SLURP_DIR/slurp.json" <<'PYEOF'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+for bucket in ("taskbarApps", "desktopApps"):
+    for a in d.get(bucket, []) or []:
+        exe = (a.get("exe") or "").lower()
+        name = (a.get("name") or "").replace("\n", " ").strip()
+        print(f"{bucket}\t{exe}\t{name}")
+PYEOF
+}
+
+# map_candidates <exe> <name> — echo space-separated candidate .desktop ids
+# (without the .desktop suffix), most-preferred first. Matches on the Windows
+# target exe, falling back to keywords in the shortcut's friendly name so UWP
+# pins (which have no TargetPath) still resolve.
+map_candidates() {
+    local exe="$1" name="${2,,}" c=""
+    case "$exe" in
+        firefox.exe)              c="org.mozilla.firefox firefox" ;;
+        chrome.exe)               c="com.google.Chrome google-chrome google-chrome-stable chromium" ;;
+        msedge.exe|microsoftedge*.exe) c="com.microsoft.Edge microsoft-edge com.google.Chrome org.mozilla.firefox" ;;
+        brave.exe)                c="com.brave.Browser brave-browser" ;;
+        opera.exe)                c="com.opera.Opera opera" ;;
+        code.exe)                 c="com.visualstudio.code code code-oss" ;;
+        discord.exe|update.exe)   [[ "$name" == *discord* ]] && c="com.discordapp.Discord discord" ;;
+        spotify.exe)              c="com.spotify.Client spotify" ;;
+        slack.exe)                c="com.slack.Slack slack" ;;
+        teams.exe|ms-teams.exe)   c="com.github.IsmaelMartinez.teams_for_linux teams-for-linux" ;;
+        telegram.exe)             c="org.telegram.desktop telegram-desktop" ;;
+        signal.exe)               c="org.signal.Signal signal-desktop" ;;
+        thunderbird.exe)          c="org.mozilla.Thunderbird thunderbird" ;;
+        zoom.exe)                 c="us.zoom.Zoom Zoom zoom" ;;
+        obs64.exe|obs32.exe|obs.exe) c="com.obsproject.Studio obs" ;;
+        steam.exe)                c="com.valvesoftware.Steam steam" ;;
+        vlc.exe)                  c="org.videolan.VLC vlc" ;;
+        winword.exe)              c="org.libreoffice.LibreOffice-writer libreoffice-writer org.libreoffice.LibreOffice" ;;
+        excel.exe)                c="org.libreoffice.LibreOffice-calc libreoffice-calc org.libreoffice.LibreOffice" ;;
+        powerpnt.exe)             c="org.libreoffice.LibreOffice-impress libreoffice-impress org.libreoffice.LibreOffice" ;;
+        acrord32.exe|acrobat.exe) c="org.gnome.Evince org.gnome.Papers evince" ;;
+        notepad.exe|notepad++.exe) c="org.gnome.TextEditor org.gnome.gedit gedit" ;;
+        wt.exe|windowsterminal.exe|cmd.exe|powershell.exe) c="org.gnome.Ptyxis org.gnome.Console org.gnome.Terminal konsole" ;;
+        explorer.exe|"")          : ;;  # generic shell target — resolve by name below
+    esac
+    if [[ -z "$c" ]]; then
+        case "$name" in
+            *firefox*)   c="org.mozilla.firefox firefox" ;;
+            *chrome*)    c="com.google.Chrome google-chrome" ;;
+            *edge*)      c="com.microsoft.Edge microsoft-edge" ;;
+            *whatsapp*)  c="com.rtosta.zapzap io.github.mimbrero.WhatsAppDesktop" ;;
+            *telegram*)  c="org.telegram.desktop telegram-desktop" ;;
+            *spotify*)   c="com.spotify.Client spotify" ;;
+            *discord*)   c="com.discordapp.Discord discord" ;;
+            *outlook*|*mail*) c="org.mozilla.Thunderbird thunderbird" ;;
+            *word*)      c="org.libreoffice.LibreOffice-writer libreoffice-writer" ;;
+            *excel*)     c="org.libreoffice.LibreOffice-calc libreoffice-calc" ;;
+            *powerpoint*) c="org.libreoffice.LibreOffice-impress libreoffice-impress" ;;
+            *steam*)     c="com.valvesoftware.Steam steam" ;;
+            *file?explorer*|*explorer*) c="org.gnome.Nautilus org.kde.dolphin nautilus" ;;
+        esac
+    fi
+    echo "$c"
+}
+
+# desktop_dirs — where installed .desktop files live (system, user, flatpak).
+desktop_dirs() {
+    printf '%s\n' \
+        /usr/share/applications \
+        /usr/local/share/applications \
+        "$HOME/.local/share/applications" \
+        /var/lib/flatpak/exports/share/applications \
+        "$HOME/.local/share/flatpak/exports/share/applications"
+}
+
+# resolve_desktop — echo the first candidate .desktop id that exists, "" if none.
+resolve_desktop() {
+    local id
+    for id in $(map_candidates "$1" "$2"); do
+        while IFS= read -r dir; do
+            [[ -f "$dir/$id.desktop" ]] && { echo "$id.desktop"; return; }
+        done < <(desktop_dirs)
+    done
+    echo ""
+}
 
 # Map an #RRGGBB accent to the nearest named accent for DEs with fixed
 # palettes (GNOME 47+). Euclidean distance in RGB is good enough here.
@@ -79,6 +170,30 @@ apply_gnome() {
     if [[ -n "$ACCENT" ]]; then
         run gsettings set org.gnome.desktop.interface accent-color "$(nearest_gnome_accent "$ACCENT")"
     fi
+    if [[ -n "$KBD" ]]; then
+        run gsettings set org.gnome.desktop.input-sources sources "[('xkb', '$KBD')]"
+    fi
+}
+
+# apply_gnome_favorites — set the dash favorites to the ordered, resolved
+# taskbar pins, appended to the distro defaults (dedup, order preserved).
+apply_gnome_favorites() {
+    local ids=() line bucket exe name id
+    while IFS=$'\t' read -r bucket exe name; do
+        [[ "$bucket" == "taskbarApps" ]] || continue
+        id=$(resolve_desktop "$exe" "$name")
+        [[ -n "$id" ]] || continue
+        printf '%s\n' "${ids[@]}" | grep -qxF "$id" 2>/dev/null || ids+=("$id")
+    done < <(pinned_lines)
+    [[ ${#ids[@]} -gt 0 ]] || { log "no taskbar pins resolved to installed apps"; return; }
+    local gv="[" first=1 i
+    for i in "${ids[@]}"; do
+        [[ $first -eq 1 ]] && first=0 || gv+=", "
+        gv+="'$i'"
+    done
+    gv+="]"
+    run gsettings set org.gnome.shell favorite-apps "$gv"
+    log "dock favorites set from ${#ids[@]} taskbar pins"
 }
 
 apply_kde() {
@@ -94,18 +209,50 @@ apply_kde() {
         run kwriteconfig6 --file kdeglobals --group General --key AccentColor \
             "$(printf '%d,%d,%d' 0x${ACCENT:1:2} 0x${ACCENT:3:2} 0x${ACCENT:5:2})"
     fi
+    if [[ -n "$KBD" ]]; then
+        run kwriteconfig6 --file kxkbrc --group Layout --key LayoutList "$KBD"
+        run kwriteconfig6 --file kxkbrc --group Layout --key Use true
+    fi
+}
+
+# apply_desktop_shortcuts — recreate the user's desktop shortcuts as launchers
+# for the apps that exist on Linux. DE-agnostic (~/Desktop + trusted flag).
+apply_desktop_shortcuts() {
+    local ddir="$HOME/Desktop" bucket exe name id src placed=0
+    [[ -d "$ddir" ]] || { mkdir -p "$ddir" 2>/dev/null || return; }
+    while IFS=$'\t' read -r bucket exe name; do
+        [[ "$bucket" == "desktopApps" ]] || continue
+        id=$(resolve_desktop "$exe" "$name")
+        [[ -n "$id" ]] || continue
+        while IFS= read -r dir; do
+            [[ -f "$dir/$id" ]] && { src="$dir/$id"; break; }
+        done < <(desktop_dirs)
+        [[ -n "${src:-}" && ! -e "$ddir/$id" ]] || continue
+        if [[ "${WOOTC_DRYRUN:-0}" = "1" ]]; then
+            printf 'DRYRUN: install desktop launcher %s\n' "$id"
+        else
+            cp "$src" "$ddir/$id" && chmod +x "$ddir/$id"
+            gio set "$ddir/$id" metadata::trusted true 2>/dev/null || true
+        fi
+        placed=$((placed + 1))
+        src=""
+    done < <(pinned_lines)
+    [[ $placed -gt 0 ]] && log "placed $placed desktop shortcut(s)"
 }
 
 # ── DE detection and dispatch ───────────────────────────────────────────────
 DE="${XDG_CURRENT_DESKTOP:-}"
 applied=""
 case "${DE,,}" in
-    *gnome*)          apply_gnome; applied=gnome ;;
+    *gnome*)          apply_gnome; apply_gnome_favorites; applied=gnome ;;
     *kde*|*plasma*)   apply_kde;   applied=kde ;;
     *)
         log "desktop '$DE' has no look mapping yet — skipping (add an apply_<de> function)"
         ;;
 esac
+
+# Desktop shortcuts are DE-agnostic (freedesktop .desktop on ~/Desktop).
+apply_desktop_shortcuts
 
 mkdir -p "$(dirname "$MARKER")"
 printf 'de=%s\napplied=%s\nat=%s\n' "$DE" "${applied:-none}" "$(date -u +%FT%TZ)" > "$MARKER"
