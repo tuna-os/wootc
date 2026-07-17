@@ -58,10 +58,10 @@ services:
     dns:
       - 1.1.1.1
     ports:
-      - "8006:8006"    # noVNC web console  — browse to http://localhost:8006 to watch/debug
-      - "3389:3389"    # RDP                — for manual debugging
-      - "5900:5900"    # QEMU VNC           — fallback debugging
-      - "2222:22"      # sshd (wootc-e2e-windows-ssh image only) — debug shell into the container
+      - "${WOOTC_E2E_NOVNC_PORT:-8006}:8006"  # noVNC web console
+      - "${WOOTC_E2E_RDP_PORT:-3389}:3389"    # RDP
+      - "${WOOTC_E2E_VNC_PORT:-5900}:5900"    # QEMU VNC fallback
+      - "${WOOTC_E2E_SSH_PORT:-2222}:22"      # sshd debug shell
     volumes:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
       - ./storage:/storage
