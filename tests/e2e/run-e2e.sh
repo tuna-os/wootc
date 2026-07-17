@@ -374,14 +374,20 @@ $COMPOSE -f compose.yml up -d windows
 info "Container $CONTAINER_NAME started"
 
 # Dockur may need to prepare (or re-use) a Windows ISO before starting QEMU.
-# Poll rather than treating a fixed three-second delay as an acceleration
-# failure; this also makes --skip-install reliable on a just-prepared disk.
+# A first run extracts the ISO, injects drivers, and rebuilds the installer
+# image — several minutes on slower disks — so poll long (up to 15 min) and
+# distinguish "QEMU never started" from a real acceleration failure.
 QEMU_CMD=""
-for _ in $(seq 1 20); do
+for _ in $(seq 1 300); do
     QEMU_CMD=$($DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true)
     [ -n "$QEMU_CMD" ] && break
     sleep 3
 done
+if [ -z "$QEMU_CMD" ]; then
+    fail "QEMU did not start within 15 minutes (Dockur still preparing the image, or it crashed)"
+    capture_vm_diagnostics
+    exit 1
+fi
 if [[ ( "$QEMU_CMD" != *"-accel=kvm"* && "$QEMU_CMD" != *"accel=kvm"* ) || "$QEMU_CMD" != *"-enable-kvm"* ]]; then
     fail "QEMU is not using KVM acceleration"
     capture_vm_diagnostics
