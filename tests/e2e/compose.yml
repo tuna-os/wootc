@@ -18,6 +18,10 @@ services:
     # with WOOTC_E2E_IMAGE=dockurr/windows to use the plain upstream image.
     image: ${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}
     container_name: wootc-e2e-windows
+    # Rootless runners can select slirp4netns to bypass a host's broken
+    # bridge/Aardvark forwarding path: WOOTC_E2E_NETWORK_MODE=slirp4netns.
+    # The normal bridge remains the default for KVM-capable rootful runners.
+    network_mode: ${WOOTC_E2E_NETWORK_MODE:-bridge}
     stop_grace_period: 2m
     environment:
       VERSION: "11"
