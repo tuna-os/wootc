@@ -219,9 +219,12 @@ qga_probe() {
     local probe_pid=$!
     (sleep 5; kill $probe_pid 2>/dev/null) &
     local kill_pid=$!
-    wait $probe_pid 2>/dev/null || true
+    wait $probe_pid 2>/dev/null
+    local rc=$?
     kill $kill_pid 2>/dev/null || true
     wait $kill_pid 2>/dev/null || true
+    return $rc
+}
 
 qga_wait() {
     local label="$1" timeout="$2" elapsed=0
