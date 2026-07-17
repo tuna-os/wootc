@@ -257,7 +257,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			})
 		}},
 		{"Writing GRUB config", 55, func() error { return writeGrubConfig(cfg) }},
-		{"Setting up ESP", 65, func() error { return setupESP(cfg.Bootloader) }},
+		{"Setting up ESP", 65, func() error { return setupESP(cfg) }},
 		{"Configuring BCD", 80, func() error { return configureBCD(cfg.Bootloader) }},
 		{"Writing vault.json", 85, func() error { return writeVault(cfg) }},
 		{"Finalizing", 95, func() error {

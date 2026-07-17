@@ -53,6 +53,7 @@ install() {
     inst /usr/lib/wootc/migration/wootc-steam-bridge
     inst /usr/lib/wootc/migration/wootc-import-browser
     inst /usr/lib/wootc/migration/wootc-convert-dir
+    inst /usr/lib/wootc/migration/org.tunaos.wootc.policy
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

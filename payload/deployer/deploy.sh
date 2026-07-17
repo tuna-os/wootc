@@ -472,6 +472,8 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-import-browser"
     install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
         "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
+    install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
+        "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
     ln -sf ../wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"

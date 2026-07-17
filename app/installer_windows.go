@@ -53,6 +53,10 @@ func checkSystem() error {
 	if !isAdmin() {
 		return fmt.Errorf("wootc must be run as Administrator")
 	}
+	if !isUEFI() {
+		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — wootc needs UEFI. " +
+			"Most PCs made after 2012 support UEFI; it can usually be enabled in firmware setup")
+	}
 	return nil
 }
 
@@ -167,7 +171,9 @@ const deployerBaseURL = "https://github.com/tuna-os/wootc/releases/latest/downlo
 
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	installDir := filepath.Join(wootcDir(), "install")
-	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "wubildr.efi"}
+	// The signed shim+grub pair carries the Secure Boot chain; wubildr.efi
+	// remains only for the legacy NTFS fallback path.
+	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi", "wubildr.efi"}
 
 	for i, name := range files {
 		dest := filepath.Join(installDir, name)
@@ -232,48 +238,102 @@ menuentry "Install wootc (debug)" {
 
 // ── ESP setup ─────────────────────────────────────────────────────────────────
 
-func setupESP(bootloader string) error {
+// wootcGrubMarker identifies a grub.cfg written by wootc, so reinstalls
+// can overwrite it while a real Linux distro's config is protected.
+const wootcGrubMarker = "# wootc deployer"
+
+func setupESP(cfg InstallConfig) error {
 	espPath, err := findESP()
 	if err != nil {
 		return err
 	}
 
-	switch bootloader {
+	switch cfg.Bootloader {
 	case "systemd-boot":
 		return setupSystemdBoot(espPath)
 	default:
-		return setupGRUB2(espPath)
+		return setupSignedChain(espPath, cfg)
 	}
 }
 
-func setupGRUB2(espPath string) error {
-	wootcEFI := filepath.Join(espPath, "EFI", "wootc")
-	if err := os.MkdirAll(wootcEFI, 0o755); err != nil {
-		return err
-	}
-
+// setupSignedChain stages the E2E-proven Secure Boot chain:
+// BCD → EFI\fedora\shimx64.efi (MS-signed) → grubx64.efi (embedded prefix
+// \EFI\fedora) → grub.cfg → deployer kernel+initramfs on the ESP (the
+// signed GRUB cannot read NTFS, so the pair must live on FAT32).
+func setupSignedChain(espPath string, cfg InstallConfig) error {
 	installDir := filepath.Join(wootcDir(), "install")
+	fedoraEFI := filepath.Join(espPath, "EFI", "fedora")
+	wootcEFI := filepath.Join(espPath, "EFI", "wootc")
+	grubCfg := filepath.Join(fedoraEFI, "grub.cfg")
 
-	// Copy GRUB EFI binaries if available
-	for _, name := range []string{"wubildr.efi"} {
-		src := filepath.Join(installDir, name)
-		dst := filepath.Join(wootcEFI, name)
-		if _, err := os.Stat(src); err == nil {
-			if err := copyFile(src, dst); err != nil {
-				return fmt.Errorf("copy %s: %w", name, err)
-			}
+	// D1 guard: a machine dual-booting a real Fedora-family install owns
+	// EFI\fedora — overwriting its grub.cfg would break that Linux. Refuse
+	// unless the existing config is ours (reinstall).
+	if data, err := os.ReadFile(grubCfg); err == nil {
+		if !strings.Contains(string(data), wootcGrubMarker) {
+			return fmt.Errorf("this PC already has a Linux bootloader at EFI\\fedora — " +
+				"installing wootc would break it. Dual-boot alongside an existing " +
+				"Linux install is not supported yet")
 		}
 	}
 
-	// Copy GRUB configs
-	for _, name := range []string{"wubildr.cfg", "grub.install.cfg"} {
-		src := filepath.Join(installDir, name)
-		dst := filepath.Join(wootcEFI, name)
-		if _, err := os.Stat(src); err == nil {
-			if err := copyFile(src, dst); err != nil {
-				return fmt.Errorf("copy %s: %w", name, err)
-			}
+	// D2 gate: the deployer pair must fit on the ESP. Measure before
+	// copying so the failure is a clear sentence, not a mid-copy ENOSPC.
+	var need int64
+	for _, name := range []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi"} {
+		st, err := os.Stat(filepath.Join(installDir, name))
+		if err != nil {
+			return fmt.Errorf("%s is missing from %s — the download step did not complete: %w", name, installDir, err)
 		}
+		need += st.Size()
+	}
+	var freeBytes uint64
+	espPtr, _ := syscall.UTF16PtrFromString(espPath)
+	if err := windows.GetDiskFreeSpaceEx(espPtr, &freeBytes, nil, nil); err == nil {
+		const slack = 4 << 20
+		if int64(freeBytes) < need+slack {
+			return fmt.Errorf("the EFI system partition is too small: it has %d MB free but the "+
+				"Linux starter needs %d MB. This PC's boot partition cannot hold wootc",
+				freeBytes>>20, (need+slack)>>20)
+		}
+	}
+
+	for _, dir := range []string{fedoraEFI, wootcEFI} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+
+	// Signed chain into EFI\fedora, deployer pair into EFI\wootc.
+	for src, dst := range map[string]string{
+		filepath.Join(installDir, "shimx64.efi"):            filepath.Join(fedoraEFI, "shimx64.efi"),
+		filepath.Join(installDir, "grubx64.efi"):            filepath.Join(fedoraEFI, "grubx64.efi"),
+		filepath.Join(installDir, "deployer-vmlinuz"):       filepath.Join(wootcEFI, "deployer-vmlinuz"),
+		filepath.Join(installDir, "deployer-initramfs.img"): filepath.Join(wootcEFI, "deployer-initramfs.img"),
+	} {
+		if err := copyFile(src, dst); err != nil {
+			return fmt.Errorf("copy %s: %w", filepath.Base(src), err)
+		}
+	}
+
+	// Deployer menu at the signed GRUB's embedded prefix.
+	menu := fmt.Sprintf(`%s - one-shot Linux installation
+set default=0
+set timeout=5
+
+menuentry "Install wootc (automatic)" {
+    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json quiet
+    initrd /EFI/wootc/deployer-initramfs.img
+}
+
+menuentry "Install wootc (debug)" {
+    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json wootc.debug
+    initrd /EFI/wootc/deployer-initramfs.img
+}
+`, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, cfg.ImageRef, cfg.Hostname)
+
+	if err := os.WriteFile(grubCfg, []byte(menu), 0o644); err != nil {
+		return fmt.Errorf("write deployer grub.cfg: %w", err)
 	}
 	return nil
 }
@@ -346,10 +406,15 @@ func uninstall(ctx context.Context) error {
 		runCmd("bcdedit", "/delete", m[1]) //nolint:errcheck
 	}
 
-	// 2. Remove ESP files
+	// 2. Remove ESP files. EFI\fedora is only removed when its grub.cfg
+	// carries the wootc marker — never touch a real distro's chain.
 	espPath, err := findESP()
 	if err == nil {
 		os.RemoveAll(filepath.Join(espPath, "EFI", "wootc")) //nolint:errcheck
+		grubCfg := filepath.Join(espPath, "EFI", "fedora", "grub.cfg")
+		if data, err := os.ReadFile(grubCfg); err == nil && strings.Contains(string(data), wootcGrubMarker) {
+			os.RemoveAll(filepath.Join(espPath, "EFI", "fedora")) //nolint:errcheck
+		}
 	}
 
 	// 3. Remove C:\wootc\install\ (NOT root.vhdx — user deletes that manually)
