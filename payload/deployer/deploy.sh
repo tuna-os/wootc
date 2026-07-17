@@ -16,6 +16,7 @@
 #   wootc.bootloader=grub2|systemd                   (optional)
 #   wootc.composefs=0|1                              (optional)
 #   wootc.debug                                      (optional, drops to shell)
+#   wootc.debug_ssh_key=<base64 pubkey>              (optional, enables root SSH)
 
 set -Eeuo pipefail
 
@@ -120,6 +121,21 @@ DEBUG="$(read_cmdline wootc.debug)"
 BOOTLOADER="$(read_cmdline wootc.bootloader grub2)"
 COMPOSEFS="$(read_cmdline wootc.composefs 0)"
 
+# Debug SSH access into the deployed Phase-2 system (mirrors corral): a public
+# key enables passwordless SSH for troubleshooting migrations and drives E2E
+# verification over ssh instead of the serial console. Sources, in order:
+#   1. a staged file  /mnt/ntfs/wootc/install/debug_authorized_keys
+#   2. base64 on the cmdline  wootc.debug_ssh_key=<base64 pubkey>
+# When a key is present we also force sshd on via a kernel karg, because the
+# desktop images ship sshd disabled by preset.
+DEBUG_SSH_KEY=""
+DEBUG_SSH_KEY_B64="$(read_cmdline wootc.debug_ssh_key)"
+if [[ -n "$DEBUG_SSH_KEY_B64" ]]; then
+    DEBUG_SSH_KEY="$(printf '%s' "$DEBUG_SSH_KEY_B64" | base64 -d 2>/dev/null || true)"
+fi
+# The staged file is read later (after the NTFS mount); recorded here as a flag.
+DEBUG_SSH_KEY_FILE="/mnt/ntfs/wootc/install/debug_authorized_keys"
+
 case "$BOOTLOADER" in grub2|systemd) ;; *) err "unsupported bootloader: $BOOTLOADER"; exit 1 ;; esac
 case "$COMPOSEFS" in 0|1) ;; *) err "unsupported composefs value: $COMPOSEFS"; exit 1 ;; esac
 
@@ -193,6 +209,16 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
 DISK="/mnt/ntfs/wootc/disks/root.vhdx"
+
+# Now that NTFS is mounted, pick up a staged debug SSH key if the cmdline did
+# not carry one, and derive the sshd-enable kernel karg (empty when no key).
+if [[ -z "$DEBUG_SSH_KEY" && -f "$DEBUG_SSH_KEY_FILE" ]]; then
+    DEBUG_SSH_KEY="$(grep -E '^(ssh-|ecdsa-|sk-)' "$DEBUG_SSH_KEY_FILE" 2>/dev/null | head -1 || true)"
+fi
+SSHD_KARG=""
+if [[ -n "$DEBUG_SSH_KEY" ]]; then
+    SSHD_KARG="systemd.wants=sshd.service"
+fi
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
@@ -466,6 +492,31 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     mkdir -p "$DEPLOY_ROOT/boot"
     mount "$VERIFY_BOOT" "$DEPLOY_ROOT/boot"
 
+    # ── [generic] Debug SSH key for root (mirrors corral) ────────────────
+    # On ostree, /root is a symlink to /var/roothome and /var lives in the
+    # stateroot (…/deploy/<stateroot>/var), not in the deployment tree — so
+    # write the key there. The matching sshd-enable karg is already on the
+    # Phase-2 BLS entry (SSHD_KARG). No key ⇒ nothing enabled (production safe).
+    if [[ -n "$DEBUG_SSH_KEY" ]]; then
+        SSH_ROOTHOME=""
+        if [[ "$DEPLOY_ROOT" == *"/ostree/deploy/"* ]]; then
+            SSH_ROOTHOME="$(dirname "$(dirname "$DEPLOY_ROOT")")/var/roothome"
+        elif [[ -d "$DEPLOY_ROOT/var/roothome" ]]; then
+            SSH_ROOTHOME="$DEPLOY_ROOT/var/roothome"
+        else
+            SSH_ROOTHOME="$DEPLOY_ROOT/root"
+        fi
+        if mkdir -p "$SSH_ROOTHOME/.ssh" 2>/dev/null; then
+            printf '%s\n' "$DEBUG_SSH_KEY" > "$SSH_ROOTHOME/.ssh/authorized_keys"
+            chmod 700 "$SSH_ROOTHOME/.ssh"
+            chmod 600 "$SSH_ROOTHOME/.ssh/authorized_keys"
+            chown -R 0:0 "$SSH_ROOTHOME/.ssh" 2>/dev/null || true
+            log "  [PASS] debug SSH key installed for root; sshd forced on via karg"
+        else
+            err "  [WARN] could not create ${SSH_ROOTHOME}/.ssh — debug SSH key not installed"
+        fi
+    fi
+
     # Install the runtime hook after bootc/fisherman has laid down the target.
     # This is the point at which Phase 2 becomes bootable: the initramfs
     # learns to attach the NTFS-backed VHDX so the root UUID appears.
@@ -672,7 +723,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
 title wootc Linux
 linux /EFI/wootc/phase2-vmlinuz
 initrd /EFI/wootc/phase2-initramfs.img
-options ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200
+options ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 ${SSHD_KARG}
 BLSEOF
                     rm -f /mnt/esp/loader/entries/wootc-deployer.conf
                     log "  [PASS] Phase-2 systemd-boot entry written"
@@ -749,7 +800,7 @@ set default=0
 set timeout=5
 
 menuentry "wootc Linux" {
-    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 earlycon=uart8250,io,0x3f8,115200n8 ignore_loglevel
+    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 earlycon=uart8250,io,0x3f8,115200n8 ignore_loglevel ${SSHD_KARG}
     initrd /EFI/wootc/phase2-initramfs.img
 }
 GRUBEOF
