@@ -1,0 +1,268 @@
+#!/bin/bash
+# /usr/local/bin/wootc-import — Linux-side "bring your Windows over" engine.
+#
+# Imports files and settings from a Windows installation that lives on a
+# DIFFERENT disk than the one Linux booted from: a second internal drive, an
+# external/USB disk, or a mounted backup. Handles BitLocker-encrypted volumes
+# by unlocking them read-only with the user's password or 48-digit recovery
+# key — the source volume is NEVER decrypted in place or modified.
+#
+# It reuses the same migration bridge as the installer (wootc-detect-apps,
+# wootc-import-browser, wootc-steam-bridge, wootc-mount-user-dirs,
+# wootc-office-bridge, wootc-apply-look) by bind-mounting the chosen Windows
+# volume at /host and pointing the bridge at a profile inside it.
+#
+# This is the engine. The friendly GTK front-end (wootc-import-gui) shells to
+# these subcommands via pkexec; every subcommand is scriptable and testable.
+#
+#   wootc-import scan                       JSON of candidate Windows volumes
+#   wootc-import unlock <dev> [opts]        BitLocker unlock (root)
+#   wootc-import mount <dev>                mount RO, print mountpoint (root)
+#   wootc-import profiles <mnt>             JSON of Windows user profiles
+#   wootc-import import <mnt> <winuser> ... run the bridge (root)
+#   wootc-import eject <mnt>                unmount + close BitLocker (root)
+#
+# Test hook: WOOTC_IMPORT_LSBLK / WOOTC_IMPORT_ROOT let the scan/profiles
+# parsers run against fixtures with no real disks.
+
+set -Eeuo pipefail
+
+log()  { printf '[wootc-import] %s\n' "$*" >&2; }
+die()  { printf '[wootc-import] ERROR: %s\n' "$*" >&2; exit 1; }
+need_root() { [[ "$(id -u)" -eq 0 ]] || die "$1 requires root (run via pkexec)"; }
+
+MNT_BASE="${WOOTC_IMPORT_MNTBASE:-/run/wootc-import}"
+MAPPER_PREFIX="wootc-bitlk"
+
+# ── scan ────────────────────────────────────────────────────────────────────
+# Emit a JSON array of candidate volumes. Each: device, size, label, fs
+# ("ntfs" | "bitlocker"), locked (bool), and whether it is the disk Linux is
+# running from (excluded). BitLocker volumes report fs="bitlocker" locked=true
+# until unlocked.
+cmd_scan() {
+    local lsblk_json
+    if [[ -n "${WOOTC_IMPORT_LSBLK:-}" ]]; then
+        lsblk_json=$(cat "$WOOTC_IMPORT_LSBLK")
+    else
+        # PATH,TYPE,FSTYPE,SIZE,LABEL,MOUNTPOINT,PKNAME for every partition.
+        lsblk_json=$(lsblk -b -J -o PATH,TYPE,FSTYPE,SIZE,LABEL,MOUNTPOINT,PKNAME 2>/dev/null || echo '{"blockdevices":[]}')
+    fi
+    # The disk backing the running root — exclude it and its partitions.
+    local root_src root_disk
+    if [[ -n "${WOOTC_IMPORT_ROOTDISK:-}" ]]; then
+        root_disk="$WOOTC_IMPORT_ROOTDISK"
+    else
+        root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+        root_disk=$(lsblk -no PKNAME "$root_src" 2>/dev/null | head -1 || true)
+    fi
+
+    ROOT_DISK="$root_disk" LSBLK_JSON="$lsblk_json" python3 - <<'PYEOF'
+import json, os, sys
+data = json.loads(os.environ.get("LSBLK_JSON", '{"blockdevices":[]}'))
+root_disk = os.environ.get("ROOT_DISK", "")
+out = []
+
+def walk(node):
+    for d in node:
+        fs = (d.get("fstype") or "").lower()
+        typ = (d.get("type") or "").lower()
+        pk = d.get("pkname") or ""
+        path = d.get("path") or ""
+        # Skip the running disk's partitions.
+        on_root = root_disk and (pk == root_disk or f"/dev/{root_disk}" == path)
+        is_bitlocker = fs in ("bitlocker", "crypto_bitlk")
+        is_ntfs = fs in ("ntfs", "ntfs3")
+        if typ == "part" and (is_bitlocker or is_ntfs) and not on_root:
+            out.append({
+                "device": path,
+                "size": int(d.get("size") or 0),
+                "label": d.get("label") or "",
+                "fs": "bitlocker" if is_bitlocker else "ntfs",
+                "locked": bool(is_bitlocker),
+                "mountpoint": d.get("mountpoint") or "",
+            })
+        if d.get("children"):
+            walk(d["children"])
+
+walk(data.get("blockdevices", []))
+json.dump(out, sys.stdout, indent=2)
+print()
+PYEOF
+}
+
+# ── unlock ──────────────────────────────────────────────────────────────────
+# BitLocker unlock via cryptsetup's native bitlk backend. Reads the secret on
+# stdin (never argv/env, so it can't leak into ps or logs). --recovery-key
+# treats the secret as a 48-digit recovery key; otherwise it's the passphrase.
+# Prints the unlocked mapper device path.
+cmd_unlock() {
+    need_root unlock
+    local dev="${1:?usage: unlock <device> [--recovery-key]}"; shift || true
+    local mode="passphrase"
+    [[ "${1:-}" == "--recovery-key" ]] && mode="recovery"
+    [[ -b "$dev" ]] || die "not a block device: $dev"
+    command -v cryptsetup >/dev/null || die "cryptsetup not installed"
+
+    local name="${MAPPER_PREFIX}-$(basename "$dev")"
+    if [[ -b "/dev/mapper/$name" ]]; then
+        echo "/dev/mapper/$name"; return 0
+    fi
+    local secret; IFS= read -r secret || true
+    [[ -n "$secret" ]] || die "no secret provided on stdin"
+
+    # cryptsetup 2.3+ opens BitLocker with a passphrase; recovery keys use the
+    # dedicated --type bitlk recovery path (2.7+). Try the modern flag first.
+    if [[ "$mode" == "recovery" ]]; then
+        if ! printf '%s' "$secret" | cryptsetup bitlkOpen --type bitlk --volume-key-file - "$dev" "$name" 2>/dev/null; then
+            printf '%s' "$secret" | cryptsetup bitlkOpen "$dev" "$name" --key-file=- \
+                || die "BitLocker unlock failed (recovery key). Check the 48-digit key."
+        fi
+    else
+        printf '%s' "$secret" | cryptsetup bitlkOpen "$dev" "$name" --key-file=- \
+            || die "BitLocker unlock failed. Wrong password?"
+    fi
+    echo "/dev/mapper/$name"
+}
+
+# ── mount ───────────────────────────────────────────────────────────────────
+# Mount a Windows volume READ-ONLY. Accepts a raw NTFS partition or an unlocked
+# BitLocker mapper device. Prints the mountpoint.
+cmd_mount() {
+    need_root mount
+    local dev="${1:?usage: mount <device>}"
+    [[ -b "$dev" ]] || die "not a block device: $dev"
+    local mnt="$MNT_BASE/mnt"
+    mkdir -p "$mnt"
+    if mountpoint -q "$mnt"; then
+        echo "$mnt"; return 0
+    fi
+    # ntfs3 (in-kernel) first; fall back to ntfs-3g (FUSE) if present.
+    modprobe ntfs3 2>/dev/null || true
+    if ! mount -t ntfs3 -o ro "$dev" "$mnt" 2>/dev/null; then
+        mount -o ro "$dev" "$mnt" 2>/dev/null \
+            || die "could not mount $dev read-only (dirty volume? boot Windows once and shut down fully)"
+    fi
+    echo "$mnt"
+}
+
+# ── profiles ────────────────────────────────────────────────────────────────
+# JSON array of Windows user profiles under <mnt>/Users, with a rough home
+# size and a flag for whether the profile has real user data (not a template).
+cmd_profiles() {
+    local mnt="${1:?usage: profiles <mountpoint>}"
+    local users="$mnt/Users"
+    [[ -d "$users" ]] || die "no Users directory under $mnt — is this a Windows volume?"
+    MNT="$mnt" python3 - "$users" <<'PYEOF'
+import json, os, sys
+users = sys.argv[1]
+skip = {"Public", "Default", "Default User", "All Users", "defaultuser0",
+        "WDAGUtilityAccount"}
+out = []
+for name in sorted(os.listdir(users)):
+    p = os.path.join(users, name)
+    if name in skip or not os.path.isdir(p):
+        continue
+    # Cheap signal that it's a real profile: has an NTUSER.dat or a Desktop.
+    has_profile = any(os.path.exists(os.path.join(p, m))
+                      for m in ("NTUSER.DAT", "ntuser.dat", "Desktop", "Documents"))
+    size = 0
+    for d in ("Documents", "Desktop", "Pictures", "Downloads", "Music", "Videos"):
+        dp = os.path.join(p, d)
+        if os.path.isdir(dp):
+            try:
+                for root, _, files in os.walk(dp):
+                    for f in files:
+                        try: size += os.path.getsize(os.path.join(root, f))
+                        except OSError: pass
+            except OSError: pass
+    out.append({"user": name, "hasProfile": has_profile, "dataBytes": size})
+json.dump(out, sys.stdout, indent=2)
+print()
+PYEOF
+}
+
+# ── import ──────────────────────────────────────────────────────────────────
+# Bind the chosen Windows volume at /host and run the migration bridge for one
+# Windows profile into a target Linux user's home. Categories default to all.
+#   import <mnt> <winuser> [--target <linuxuser>] [files|apps|browsers|steam|office|look]
+cmd_import() {
+    need_root import
+    local mnt="${1:?usage: import <mnt> <winuser> [opts]}"; shift
+    local winuser="${1:?usage: import <mnt> <winuser> [opts]}"; shift
+    local target="${SUDO_USER:-}"
+    local cats=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --target) target="$2"; shift 2 ;;
+            files|apps|browsers|steam|office|look) cats+=("$1"); shift ;;
+            *) die "unknown import arg: $1" ;;
+        esac
+    done
+    [[ -n "$target" ]] || die "no target Linux user (pass --target)"
+    getent passwd "$target" >/dev/null || die "no such Linux user: $target"
+    [[ -d "$mnt/Users/$winuser" ]] || die "no Windows profile $winuser under $mnt"
+    [[ ${#cats[@]} -gt 0 ]] || cats=(files apps browsers steam office look)
+
+    # Bind the external volume to /host so the existing bridge scripts (which
+    # expect /host) work unchanged. Undone on eject.
+    mkdir -p /host
+    if ! mountpoint -q /host; then
+        mount --bind "$mnt" /host
+        log "bound $mnt -> /host"
+    fi
+
+    local ran=()
+    for c in "${cats[@]}"; do
+        case "$c" in
+            apps)     _run wootc-detect-apps "$winuser" && ran+=(apps) ;;
+            browsers) _run wootc-import-browser "$winuser" "$target" && ran+=(browsers) ;;
+            steam)    _run wootc-steam-bridge "$winuser" "$target" && ran+=(steam) ;;
+            office)   _run wootc-office-bridge "$winuser" "$target" && ran+=(office) ;;
+            files)    _run wootc-mount-user-dirs "$winuser" "$target" && ran+=(files) ;;
+            look)     ran+=(look) ;;  # look applies on next login via autostart
+        esac
+    done
+    log "imported: ${ran[*]:-nothing}"
+    printf '{"imported": [%s]}\n' "$(printf '"%s",' "${ran[@]}" | sed 's/,$//')"
+}
+
+# _run <script> <args...> — run a bridge script if it exists; tolerate absence
+# so a partial deployment still imports what it can.
+_run() {
+    local s="$1"; shift
+    if command -v "$s" >/dev/null; then
+        log "run: $s $*"
+        "$s" "$@" || { log "non-fatal: $s failed"; return 1; }
+    else
+        log "skip: $s not installed"; return 1
+    fi
+}
+
+# ── eject ───────────────────────────────────────────────────────────────────
+# Unbind /host, unmount the volume, and close any BitLocker mapper.
+cmd_eject() {
+    need_root eject
+    local mnt="${1:-$MNT_BASE/mnt}"
+    mountpoint -q /host && umount /host 2>/dev/null || true
+    if mountpoint -q "$mnt"; then
+        local src; src=$(findmnt -no SOURCE "$mnt" 2>/dev/null || true)
+        umount "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null || true
+        if [[ "$src" == /dev/mapper/${MAPPER_PREFIX}-* ]]; then
+            cryptsetup close "$(basename "$src")" 2>/dev/null || true
+        fi
+    fi
+    log "ejected"
+}
+
+case "${1:-}" in
+    scan)      shift; cmd_scan "$@" ;;
+    unlock)    shift; cmd_unlock "$@" ;;
+    mount)     shift; cmd_mount "$@" ;;
+    profiles)  shift; cmd_profiles "$@" ;;
+    import)    shift; cmd_import "$@" ;;
+    eject)     shift; cmd_eject "$@" ;;
+    ""|-h|--help)
+        sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+        ;;
+    *) die "unknown subcommand: $1 (try --help)" ;;
+esac

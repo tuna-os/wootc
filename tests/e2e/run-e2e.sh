@@ -585,7 +585,31 @@ else
 fi
 
 mkdir -p storage wootc-files
-$COMPOSE -f compose.yml up -d windows
+
+# Self-healing container start. Rootless podman occasionally leaves a phantom
+# "podman0 already exists but is a Tun interface" in its network run-state
+# after a crashed run — netavark then refuses every bridge start until the
+# stale state is cleared. Detect that specific failure and auto-heal once so
+# the runner needs no manual host babysitting.
+compose_up_windows() {
+    local out
+    if out=$($COMPOSE -f compose.yml up -d windows 2>&1); then
+        printf '%s\n' "$out"
+        return 0
+    fi
+    printf '%s\n' "$out" >&2
+    if printf '%s' "$out" | grep -q "already exists but is a Tun interface"; then
+        warn "netavark phantom bridge detected — clearing stale rootless network state and retrying"
+        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
+        local netdir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/containers/networks"
+        rm -rf "${netdir:?}/"* 2>/dev/null || true
+        $DOCKER network reload --all 2>/dev/null || true
+        $COMPOSE -f compose.yml up -d windows
+        return $?
+    fi
+    return 1
+}
+compose_up_windows
 info "Container $CONTAINER_NAME started"
 
 # Dockur may need to prepare (or re-use) a Windows ISO before starting QEMU.
