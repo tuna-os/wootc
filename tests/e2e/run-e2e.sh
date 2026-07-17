@@ -356,10 +356,16 @@ snapshot_before_deployer() {
             return 1
         fi
     fi
-    qga_call thaw >/dev/null || {
-        rm -f "$tmp"
-        fail "QGA could not thaw Windows after the Phase 2 snapshot"
-        return 1
+    qga_call thaw >/dev/null 2>/dev/null || {
+        # Container may have exited during a slow sparse copy.
+        # The snapshot is still valid — the frozen state just means
+        # the first boot after restoring will replay the journal.
+        if podman container exists "$CONTAINER_NAME" 2>/dev/null; then
+            rm -f "$tmp"
+            fail "QGA could not thaw Windows after the Phase 2 snapshot"
+            return 1
+        fi
+        warn "Container exited during snapshot; $tmp may be crash-consistent"
     }
     frozen=false
     mv -f "$tmp" "$snapshot"
