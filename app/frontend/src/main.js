@@ -123,6 +123,9 @@ async function init() {
     if (!u.includes('dev')) state.config.username = 'james'; // placeholder
   } catch {}
 
+  if (existing) {
+    try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
+  }
   state.screen = existing ? 'control' : 'launchpad';
   render();
 }
@@ -428,13 +431,36 @@ function renderControlPanel() {
     <div class="screen-subtitle">An existing TunaOS installation was found on this PC.</div>
   `;
 
+  const u = state.uninstallInfo || {};
+  const path = u.diskPath || 'C:\\wootc\\disks\\root.vhdx';
+  const sizeStr = u.diskSizeGB ? ` (${Math.round(u.diskSizeGB)} GB)` : '';
   const card = el('div');
   card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;margin-top:8px';
   card.innerHTML = `
-    <div style="font-weight:600;font-size:14px">C:\\wootc\\disks\\root.vhdx</div>
-    <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives in this file. Deleting it will remove Linux but leave Windows intact.</div>
+    <div style="font-weight:600;font-size:14px">${path}${sizeStr}</div>
+    <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives here. Removing it leaves Windows completely intact.</div>
   `;
   screen.appendChild(card);
+
+  // Uninstall options (§5) — checkboxes drive UninstallWith.
+  state.uninstallOpts = state.uninstallOpts || { deleteRootDisk: false, removePartition: false };
+  const opts = el('div');
+  opts.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:6px';
+  const checkbox = (id, label, sub, danger) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12.5px';
+    row.innerHTML = `<input type="checkbox" ${state.uninstallOpts[id] ? 'checked' : ''} style="margin-top:2px">
+      <span><b style="${danger ? 'color:var(--danger)' : ''}">${label}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = (e) => { state.uninstallOpts[id] = e.target.checked; };
+    return row;
+  };
+  opts.appendChild(checkbox('deleteRootDisk', 'Also delete my Linux data',
+    'Removes root.disk. Your Linux files are permanently deleted. Leave unchecked to keep them for later.', true));
+  if (u.onDedicatedVol && u.reclaimGB) {
+    opts.appendChild(checkbox('removePartition', `Give the ${Math.round(u.reclaimGB)} GB back to Windows`,
+      `Removes the wootc-data drive (${u.storageDrive}:) and extends C: into the freed space.`, false));
+  }
+  screen.appendChild(opts);
 
   wrap.appendChild(screen);
 
@@ -672,9 +698,19 @@ function fmtSize(bytes) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-function confirmUninstall() {
-  if (confirm('Remove the TunaOS boot entry? (root.vhdx will NOT be deleted — remove it manually from C:\\wootc\\disks\\)')) {
-    import('../wailsjs/go/main/App').then(({ Uninstall }) => Uninstall());
+async function confirmUninstall() {
+  const o = state.uninstallOpts || {};
+  let msg = 'Remove TunaOS?\n\nThis removes the boot entry, the ESP files, and the deployer files.';
+  if (o.deleteRootDisk) msg += '\n\n⚠ Your Linux data (root.disk) will be permanently deleted.';
+  else msg += '\n\nYour Linux data (root.disk) will be kept.';
+  if (o.removePartition) msg += '\n⚠ The wootc-data drive will be removed and its space returned to C:.';
+  if (!confirm(msg)) return;
+  try {
+    await UninstallWith({ deleteRootDisk: !!o.deleteRootDisk, removePartition: !!o.removePartition });
+    alert('TunaOS has been removed. Windows is unchanged.');
+    window.wails?.Quit?.();
+  } catch (e) {
+    alert('Uninstall hit a problem: ' + e);
   }
 }
 
