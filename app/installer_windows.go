@@ -365,6 +365,11 @@ func configureBCD(bootloader string) error {
 		efiRelPath = `\EFI\fedora\shimx64.efi`
 	}
 
+	// Idempotency: sweep any wootc entries from earlier runs first, or every
+	// retried install piles up another firmware entry (three of them showed
+	// up on the first E2E day). Same discovery as uninstall.
+	deleteWootcBCDEntries()
+
 	// bcdedit /copy {bootmgr} /d "wootc" — clones the Windows Boot Manager entry,
 	// inheriting the ESP device/partition settings, so no drive letter is needed.
 	// This is the proven approach from WubiUEFI (millions of users).
@@ -396,15 +401,21 @@ func configureBCD(bootloader string) error {
 	return nil
 }
 
+// deleteWootcBCDEntries removes every firmware entry named exactly
+// "wootc" (identifier precedes description in bcdedit output).
+func deleteWootcBCDEntries() {
+	out, _ := runCmd("bcdedit", "/enum", "firmware")
+	re := regexp.MustCompile(`(?ms)identifier\s+(\{[^}]+\})[^{]*?description\s+wootc\s*$`)
+	for _, m := range re.FindAllStringSubmatch(out, -1) {
+		runCmd("bcdedit", "/delete", m[1]) //nolint:errcheck
+	}
+}
+
 // ── Uninstall ─────────────────────────────────────────────────────────────────
 
 func uninstall(ctx context.Context) error {
-	// 1. Find and remove BCD entry
-	out, _ := runCmd("bcdedit", "/enum", "firmware")
-	re := regexp.MustCompile(`(?m)description\s+wootc\s*\n.*identifier\s+(\{[^}]+\})`)
-	if m := re.FindStringSubmatch(out); m != nil {
-		runCmd("bcdedit", "/delete", m[1]) //nolint:errcheck
-	}
+	// 1. Remove all wootc BCD entries
+	deleteWootcBCDEntries()
 
 	// 2. Remove ESP files. EFI\fedora is only removed when its grub.cfg
 	// carries the wootc marker — never touch a real distro's chain.

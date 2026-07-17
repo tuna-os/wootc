@@ -54,6 +54,10 @@ $fw = bcdedit /enum firmware | Out-String
 Assert-True ($fw -match 'wootc') "BCD has a wootc firmware entry"
 Assert-True ($fw -match '\\EFI\\fedora\\shimx64\.efi') "wootc entry points at the signed shim"
 
+# Idempotency: retried installs must not pile up firmware entries.
+$wootcCount = ([regex]::Matches($fw, '(?m)^description\s+wootc\s*$')).Count
+Assert-True ($wootcCount -eq 1) "exactly one wootc BCD entry (found $wootcCount)"
+
 # The wootc GUID must be armed one-shot (bootsequence) and NOT promoted to
 # the permanent default (displayorder head).
 $guid = $null
@@ -66,6 +70,26 @@ if ($guid) {
     Assert-True ($mgr -match "bootsequence[\s\S]*$([regex]::Escape($guid))") "wootc GUID armed in one-shot bootsequence"
     $displayHead = ($mgr -split 'displayorder')[1] -split "`n" | Where-Object { $_ -match '\{' } | Select-Object -First 1
     Assert-True ($displayHead -notmatch [regex]::Escape($guid)) "wootc GUID is NOT the permanent default boot"
+}
+
+# ── User Data Bridge preconditions ──────────────────────────────────────────
+# Phase 3's bridge binds /host/Users/<linux-username>/ into $HOME. Verify the
+# raw material exists now so a rung-3 failure can't be a rung-1 oversight.
+$profiles = Get-ChildItem C:\Users -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notin @('Public', 'Default', 'Default User', 'All Users') }
+Assert-True ($profiles.Count -ge 1) "at least one real Windows user profile exists"
+
+$withDocs = $profiles | Where-Object { Test-Path (Join-Path $_.FullName 'Documents') }
+Assert-True ($withDocs.Count -ge 1) "a Windows profile has a Documents folder to bridge"
+
+# The bridge currently matches by exact username. Warn (not fail) when the
+# vault user has no matching Windows profile — a known design gap: the
+# dashboard should eventually offer profile *mapping* instead of requiring
+# equal names.
+$vaultUser = $null
+if ($vault -match '"username":\s*"([^"]+)"') { $vaultUser = $Matches[1] }
+if ($vaultUser -and -not (Test-Path "C:\Users\$vaultUser")) {
+    Write-Host "[WARN] vault user '$vaultUser' has no matching Windows profile — User Data Bridge will not bind for this account (profiles: $($profiles.Name -join ', '))"
 }
 
 # ── headless status ──────────────────────────────────────────────────────────

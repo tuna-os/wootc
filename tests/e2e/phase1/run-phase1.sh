@@ -44,6 +44,22 @@ step "Staging assert script..."
 printf '\xEF\xBB\xBF' > "$FILES_DIR/assert-phase1.ps1"
 sed 's/$/\r/' "$SCRIPT_DIR/assert-phase1.ps1" >> "$FILES_DIR/assert-phase1.ps1"
 
+# ── 2b. Migration payload baked into the deployer initramfs? ───────────────
+# Rung-3 data migration depends on these being present at deploy time; catch
+# a stale initramfs here rather than as a silent no-op after Phase 2.
+if command -v lsinitrd >/dev/null 2>&1 && [ -f "$FILES_DIR/deployer-initramfs.img" ]; then
+    step "Checking migration payload in deployer initramfs..."
+    LSOUT=$(lsinitrd "$FILES_DIR/deployer-initramfs.img" 2>/dev/null || true)
+    for f in wootc-mount-user-dirs wootc-steam-bridge wootc-import-browser \
+             wootc-convert-dir org.tunaos.wootc.policy; do
+        echo "$LSOUT" | grep -q "$f" \
+            && pass "initramfs carries $f" \
+            || fail "initramfs is missing $f — rebuild the deployer (just build-deployer)"
+    done
+else
+    echo "[SKIP] lsinitrd unavailable or no local initramfs — migration payload check skipped"
+fi
+
 # ── 3. QGA reachable? ────────────────────────────────────────────────────────
 step "Probing QGA..."
 qga "echo qga-ok" | grep -q qga-ok || fail "QGA not responsive in $CONTAINER"
