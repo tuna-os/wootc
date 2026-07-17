@@ -355,7 +355,11 @@ if [ "$SKIP_INSTALL" = false ]; then
     # does not include /custom.xml. Reusing that ISO silently embeds an older
     # answer file (including an older disk layout), so fingerprint the input
     # and discard the processed ISO whenever the answer file changes.
-    ANSWER_SHA=$({ sha256sum autounattend.xml; find oem -type f -print0 | sort -z | xargs -0 -r sha256sum; } | sha256sum | awk '{print $1}')
+    # The Windows disk layout is determined by autounattend.xml.  OEM payload
+    # changes are safe on a reused guest because qga_sync_oem refreshes them
+    # before each retry; including them here would falsely require a complete
+    # Windows reinstall for every deployer or QGA client change.
+    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         info "autounattend.xml changed; rebuilding Dockur's processed installer ISO"
@@ -386,7 +390,7 @@ if [ "$SKIP_INSTALL" = false ]; then
         info "No cached Windows ISO; Dockur will download one. Save a verified installer under $ISO_CACHE_DIR to avoid this next time."
     fi
 else
-    ANSWER_SHA=$({ sha256sum autounattend.xml; find oem -type f -print0 | sort -z | xargs -0 -r sha256sum; } | sha256sum | awk '{print $1}')
+    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         fail "autounattend.xml changed since this disk was prepared; rerun without --skip-install"
