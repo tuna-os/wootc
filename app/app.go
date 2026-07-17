@@ -38,6 +38,11 @@ type InstallConfig struct {
 	// to an unencrypted data volume so the deployer can mount it read-write
 	// every boot without a decryption prompt (SPEC §3.5). C: stays encrypted.
 	StorageDrive string `json:"storageDrive"`
+	// Encryption for the Linux root inside root.disk (SPEC §2.6):
+	// "none" | "tpm2-luks" (auto-unlock via TPM, recommended) |
+	// "luks-passphrase" (prompt every boot).
+	Encryption     string `json:"encryption"`
+	LuksPassphrase string `json:"luksPassphrase"`
 }
 
 // ProgressEvent is emitted during install for the frontend progress bar.

@@ -444,21 +444,29 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 		}
 	}
 
+	// LUKS type on the cmdline (never the passphrase — that travels in the
+	// ACL-restricted vault.json). tpm2-luks auto-unlocks; passphrase mode
+	// prompts at boot (SPEC §2.6).
+	luks := ""
+	if cfg.Encryption != "" && cfg.Encryption != "none" {
+		luks = " wootc.luks=" + cfg.Encryption
+	}
+
 	// Deployer menu at the signed GRUB's embedded prefix.
 	menu := fmt.Sprintf(`%s - one-shot Linux installation
 set default=0
 set timeout=5
 
 menuentry "Install wootc (automatic)" {
-    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json quiet
+    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json%s quiet
     initrd /EFI/wootc/deployer-initramfs.img
 }
 
 menuentry "Install wootc (debug)" {
-    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json wootc.debug
+    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json%s wootc.debug
     initrd /EFI/wootc/deployer-initramfs.img
 }
-`, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, cfg.ImageRef, cfg.Hostname)
+`, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, luks, cfg.ImageRef, cfg.Hostname, luks)
 
 	if err := os.WriteFile(grubCfg, []byte(menu), 0o644); err != nil {
 		return fmt.Errorf("write deployer grub.cfg: %w", err)
