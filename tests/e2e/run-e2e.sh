@@ -88,7 +88,7 @@ free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
 df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
 
 host_preflight() {
-    local mem_available_kib disk_available_kib required_free_gib=90
+    local mem_available_kib disk_available_kib required_free_gib=65
     mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
     disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
 
@@ -104,14 +104,14 @@ host_preflight() {
         return 1
     fi
     # Fresh installation needs room for the installer, pulls, and expanding
-    # qcow2. A reuse run already has those and needs only its allocated-extent
-    # safety snapshot plus diagnostics.
-    [ "$SKIP_INSTALL" = false ] || required_free_gib=40
-    # If a Windows ISO is already cached, the fresh-run peak drops ~10 GiB
+    # qcow2. Fresh-run peak drops ~10 GiB when the Windows ISO is already cached
     # (no re-download, custom.iso rebuild reuses cached extraction).
     if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
-        required_free_gib=75
+        required_free_gib=55
     fi
+    # A reuse run already has those and needs only its allocated-extent
+    # safety snapshot plus diagnostics.
+    [ "$SKIP_INSTALL" = false ] || required_free_gib=40
     if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
         fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
         return 1
