@@ -37,6 +37,9 @@ function makeApp(mock) {
     GetOfficeMigration: () => P(mock.office || { present: false }),
     ConvertCategory: () => P(),
     ImportBrowserData: () => P('ok'),
+    CreateDataPartition: () => P({ letter: 'D', label: 'wootc-data', freeGB: 60, encrypted: false }),
+    GetUninstallInfo: () => P(mock.uninstall || { found: false }),
+    UninstallWith: () => P(),
   };
 }
 

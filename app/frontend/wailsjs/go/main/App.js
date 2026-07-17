@@ -39,6 +39,18 @@ export function Uninstall() {
   return window['go']['main']['App']['Uninstall']();
 }
 
+export function CreateDataPartition(arg1) {
+  return window['go']['main']['App']['CreateDataPartition'](arg1);
+}
+
+export function GetUninstallInfo() {
+  return window['go']['main']['App']['GetUninstallInfo']();
+}
+
+export function UninstallWith(arg1) {
+  return window['go']['main']['App']['UninstallWith'](arg1);
+}
+
 export function GetMode() {
   return window['go']['main']['App']['GetMode']();
 }

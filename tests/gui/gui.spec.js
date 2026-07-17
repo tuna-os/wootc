@@ -85,6 +85,20 @@ test('control panel — existing install', async ({ page }) => {
   await shot(page, '05-control-panel');
 });
 
+test('installer — BitLocker offers unencrypted-partition path (no forced decrypt)', async ({ page }) => {
+  const sysinfo = { ...SYSINFO, bitLockerOn: true, bitLockerState: 'on',
+    dataPartitions: [{ letter: 'E', label: 'Backup', freeGB: 200, encrypted: false }] };
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo });
+  // The chooser must NOT mention decrypting C:.
+  const body = await page.locator('#app').innerText();
+  expect(body).toContain('keep C: fully encrypted');
+  expect(body.toLowerCase()).not.toContain('decrypt c:');
+  // Both options present: reuse existing unencrypted E:, or create new.
+  await expect(page.getByText(/Use drive E:/)).toBeVisible();
+  await expect(page.getByText(/Create a new space for Linux/)).toBeVisible();
+  await shot(page, '08-bitlocker');
+});
+
 test('branding — partner re-skin applies theme + copy', async ({ page }) => {
   const brand = {
     name: 'Acme Switch', tagline: 'Move to Acme Linux in minutes.', logoEmoji: '🅰️',

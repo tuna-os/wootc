@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -223,11 +223,9 @@ function renderLaunchpad() {
     screen.appendChild(si);
   }
 
-  // BitLocker warning
+  // BitLocker: never force decryption — offer an unencrypted home for Linux.
   if (state.sysinfo?.bitLockerOn) {
-    screen.appendChild(warningBanner(
-      'BitLocker is enabled on C:. wootc will create a separate partition for Linux, or you can choose an existing unencrypted drive.'
-    ));
+    screen.appendChild(renderBitlockerChooser());
   }
 
   // Image grid
@@ -708,6 +706,21 @@ async function startInstall() {
   render();
 
   try {
+    // BitLocker: resolve where Linux will live before the pipeline runs.
+    let storageDrive = '';
+    if (state.sysinfo?.bitLockerOn) {
+      const mode = state.config.bitlockerMode || 'create';
+      if (mode.startsWith('use:')) {
+        storageDrive = mode.slice(4);
+      } else {
+        state.progress.step = 'Creating space for Linux';
+        state.progress.message = 'Making an unencrypted partition (C: stays encrypted)…';
+        renderProgress();
+        const part = await CreateDataPartition(state.config.diskSizeGB + 5);
+        storageDrive = part.letter;
+      }
+    }
+
     await StartInstall({
       imageRef:   state.selected.imageRef,
       diskSizeGB: state.config.diskSizeGB,
@@ -715,6 +728,7 @@ async function startInstall() {
       password:   state.config.password,
       hostname:   state.config.hostname,
       bootloader: state.config.bootloader,
+      storageDrive,
     });
   } catch (e) {
     state.progress.error = String(e);
@@ -741,6 +755,47 @@ function chip(label, isWarn) {
   const c = el('div', 'chip' + (isWarn ? ' warn' : ' ok'));
   c.textContent = label;
   return c;
+}
+
+// BitLocker chooser: keep C: encrypted, put Linux on an unencrypted
+// volume — either an existing one or a new partition carved from C:.
+function renderBitlockerChooser() {
+  const wrap = el('div');
+  wrap.appendChild(warningBanner(
+    "Your C: drive is encrypted with BitLocker. Linux needs an unencrypted place to live — " +
+    "we'll keep C: fully encrypted and set up a separate space just for Linux. Nothing on C: is decrypted."
+  ));
+
+  const box = el('div');
+  box.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:8px;display:flex;flex-direction:column;gap:8px';
+
+  const existing = (state.sysinfo.dataPartitions || []).filter(p => !p.encrypted && p.freeGB >= state.config.diskSizeGB);
+  const opt = (id, title, sub, checked) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12.5px';
+    row.innerHTML = `<input type="radio" name="blmode" value="${id}" ${checked ? 'checked' : ''} style="margin-top:2px">
+      <span><b>${title}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = () => { state.config.bitlockerMode = id; refreshInstallValidity(); };
+    return row;
+  };
+
+  // Default to creating a partition (always available); existing volumes first if present.
+  if (existing.length) {
+    existing.forEach(p => {
+      box.appendChild(opt('use:' + p.letter,
+        `Use drive ${p.letter}: ${p.label ? '(' + p.label + ')' : ''}`,
+        `${Math.round(p.freeGB)} GB free, unencrypted — Linux will live here.`,
+        state.config.bitlockerMode === 'use:' + p.letter));
+    });
+  }
+  box.appendChild(opt('create',
+    'Create a new space for Linux (recommended)',
+    `Shrinks C: by ${state.config.diskSizeGB} GB and makes a new unencrypted drive just for Linux. C: stays BitLocker-protected.`,
+    !state.config.bitlockerMode || state.config.bitlockerMode === 'create' || !existing.length));
+
+  wrap.appendChild(box);
+  if (!state.config.bitlockerMode) state.config.bitlockerMode = existing.length ? 'use:' + existing[0].letter : 'create';
+  return wrap;
 }
 
 function warningBanner(text) {
