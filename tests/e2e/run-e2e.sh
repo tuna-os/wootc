@@ -175,12 +175,22 @@ if [ "$SKIP_BUILD" = false ]; then
     mkdir -p "$SCRIPT_DIR/wootc-files"
     printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
     sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
-    podman run --rm \
-        -v "$SCRIPT_DIR/wootc-files:/out" \
-        wootc-deployer || {
-        fail "Deployer extraction failed"
-        exit 1
-    }
+    # The image keeps its generated artifacts under /out. Do not bind-mount
+    # wootc-files there: that hides the image's /out and leaves the host with
+    # no deployer kernel or initramfs. Stream each artifact out first and
+    # rename it only after podman succeeds so a failed extraction cannot leave
+    # a plausible-looking partial payload for the OEM handoff.
+    for artifact in deployer-vmlinuz deployer-initramfs.img; do
+        output="$SCRIPT_DIR/wootc-files/$artifact"
+        tmp_output="$output.tmp.$$"
+        if ! podman run --rm --entrypoint /bin/cat wootc-deployer \
+            "/out/$artifact" > "$tmp_output"; then
+            rm -f "$tmp_output"
+            fail "Deployer extraction failed: $artifact"
+            exit 1
+        fi
+        mv -f "$tmp_output" "$output"
+    done
 
     podman build -t wootc-wubildr -f payload/wubildr/Containerfile . || {
         info "wubildr EFI build failed (non-fatal — using signed shim chain instead)"
@@ -207,13 +217,17 @@ if [ "$SKIP_BUILD" = false ]; then
     if [ ! -f "$SCRIPT_DIR/wootc-files/shimx64.efi" ] || \
        [ ! -f "$SCRIPT_DIR/wootc-files/grubx64.efi" ]; then
         info "Extracting signed shim + GRUB from Fedora container..."
-        CID=$(podman run -d --rm quay.io/fedora/fedora:44 \
+        # Keep the stopped container until after podman cp. With `--rm`, the
+        # previous `podman wait` deleted it before either signed EFI binary
+        # could be extracted.
+        CID=$(podman create quay.io/fedora/fedora:44 \
             bash -c "dnf install -y -q shim-x64 grub2-efi-x64 2>/dev/null && \
               cp /boot/efi/EFI/fedora/shimx64.efi /tmp/ && \
               cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && echo DONE")
-        podman wait "$CID" >/dev/null 2>&1 || true
+        podman start -a "$CID" >/dev/null 2>&1 || true
         podman cp "$CID:/tmp/shimx64.efi" "${SCRIPT_DIR}/wootc-files/shimx64.efi" 2>/dev/null || true
         podman cp "$CID:/tmp/grubx64.efi" "${SCRIPT_DIR}/wootc-files/grubx64.efi" 2>/dev/null || true
+        podman rm "$CID" >/dev/null 2>&1 || true
         if [ -s "$SCRIPT_DIR/wootc-files/shimx64.efi" ]; then
             info "shimx64.efi: $(du -sh "$SCRIPT_DIR/wootc-files/shimx64.efi" | cut -f1)"
         fi
