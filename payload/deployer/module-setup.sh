@@ -50,6 +50,9 @@ install() {
     inst /usr/lib/wootc/migration/wootc-passthrough.service
     inst /usr/lib/wootc/migration/wootc-mount-user-dirs
     inst /usr/lib/wootc/migration/wootc-umount-user-dirs
+    inst /usr/lib/wootc/migration/wootc-steam-bridge
+    inst /usr/lib/wootc/migration/wootc-import-browser
+    inst /usr/lib/wootc/migration/wootc-convert-dir
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

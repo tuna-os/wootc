@@ -1,0 +1,58 @@
+#!/bin/bash
+# /usr/local/bin/wootc-convert-dir <username> <Folder>
+# Stage-4 conversion (SPEC §4.2): copy one bridged Windows folder to
+# native Linux storage and replace the bind mount with the local copy.
+# Root-only (invoked from the migration dashboard via pkexec).
+#
+# Reversible by design: the Windows originals are never touched — until
+# the user removes Windows (stage 6), the data exists in both places.
+#
+# Progress protocol: emits "PROGRESS <0-100>" lines on stdout so the
+# dashboard can render a real progress bar (parsed from rsync -P output).
+
+set -Eeuo pipefail
+
+log() { printf '[wootc-convert-dir] %s\n' "$*"; }
+name="${1:?usage: wootc-convert-dir <username> <Folder>}"
+folder="${2:?usage: wootc-convert-dir <username> <Folder>}"
+
+case "$folder" in
+    Documents|Pictures|Downloads|Music|Videos|Desktop) ;;
+    *) log "ERROR: unsupported folder '$folder'"; exit 2 ;;
+esac
+
+home=$(getent passwd "$name" | cut -d: -f6)
+[[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
+src="/host/Users/$name/$folder"
+dst="$home/$folder"
+staging="$home/.wootc-convert-$folder.partial"
+
+[[ -d "$src" ]] || { log "ERROR: $src not found"; exit 1; }
+
+# 1. Copy Windows → native staging (resumable on re-run).
+mkdir -p "$staging"
+total_kb=$(du -sk "$src" 2>/dev/null | cut -f1)
+rsync -a --info=progress2 "$src/" "$staging/" | \
+    stdbuf -oL grep -oP '\d+(?=%)' | \
+    while read -r pct; do echo "PROGRESS $pct"; done || true
+# rsync exit status is lost in the pipe; verify by re-running quietly —
+# a clean second pass is cheap and proves completeness.
+rsync -a --quiet "$src/" "$staging/"
+echo "PROGRESS 100"
+
+# 2. Swap: unbind the Windows folder, move the native copy into place.
+if mountpoint -q "$dst"; then
+    umount "$dst"
+fi
+# $dst is now the (empty) mountpoint directory on the native filesystem.
+rmdir "$dst" 2>/dev/null || true
+mv "$staging" "$dst"
+chown -R "$name:" "$dst"
+
+# 3. Record the conversion so wootc-mount-user-dirs stops bridging it.
+state_dir="$home/.config/wootc"
+mkdir -p "$state_dir"
+touch "$state_dir/converted-$folder"
+chown -R "$name:" "$state_dir"
+
+log "converted $folder for $name (${total_kb:-?} KB) — Windows copy untouched"

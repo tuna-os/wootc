@@ -464,6 +464,14 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-mount-user-dirs"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
         "$DEPLOY_ROOT/usr/local/bin/wootc-umount-user-dirs"
+    # Extra bridge categories (SPEC §4.1–4.2): Steam, browser import, and
+    # the stage-4 folder conversion used by the migration dashboard.
+    install -m755 /usr/lib/wootc/migration/wootc-steam-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-steam-bridge"
+    install -m755 /usr/lib/wootc/migration/wootc-import-browser \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-import-browser"
+    install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
     ln -sf ../wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"

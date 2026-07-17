@@ -1,0 +1,117 @@
+#!/bin/bash
+# /usr/local/bin/wootc-steam-bridge
+# User Data Bridge, Steam category (SPEC §4.1): make Windows Steam
+# libraries visible to Linux Steam in place — no re-download.
+#
+# Detection is passive and reversible: we never modify the Windows
+# library. For each real user we record what was found in
+# ~/.config/wootc/bridge-steam.json so the migration dashboard can show
+# the category with its size; if Linux Steam is already initialized we
+# also register the Windows library path in its libraryfolders.vdf
+# (both native and Flatpak locations are handled).
+#
+# Runs from wootc-passthrough.service after /host is mounted; safe to run
+# repeatedly (idempotent).
+
+set -Eeuo pipefail
+
+log() { printf '[wootc-steam-bridge] %s\n' "$*"; }
+
+mountpoint -q /host || { log "skipped: /host not mounted"; exit 0; }
+
+# Windows Steam default library plus any extra libraries registered in
+# the Windows-side libraryfolders.vdf.
+WIN_STEAM="/host/Program Files (x86)/Steam"
+declare -a LIBS=()
+if [[ -d "$WIN_STEAM/steamapps" ]]; then
+    LIBS+=("$WIN_STEAM/steamapps")
+fi
+if [[ -f "$WIN_STEAM/steamapps/libraryfolders.vdf" ]]; then
+    # Extract "path" entries like  "path"  "D:\\SteamLibrary"  and map the
+    # drive-lettered path onto /host when it lives on the system drive.
+    while IFS= read -r winpath; do
+        rel="${winpath//\\\\/\/}"       # unescape VDF backslashes
+        rel="${rel//\\//}"              # any remaining single backslashes
+        drive="${rel%%:*}"
+        sub="${rel#*:}"
+        # Only the Windows system volume is mounted at /host; other drives
+        # are recorded as unreachable so the dashboard can explain why.
+        if [[ "${drive^^}" == "C" && -d "/host${sub}/steamapps" ]]; then
+            LIBS+=("/host${sub}/steamapps")
+        fi
+    done < <(grep -oP '"path"\s+"\K[^"]+' "$WIN_STEAM/steamapps/libraryfolders.vdf" 2>/dev/null || true)
+fi
+
+if [[ ${#LIBS[@]} -eq 0 ]]; then
+    log "no Windows Steam libraries found"
+    exit 0
+fi
+
+# Deduplicate.
+mapfile -t LIBS < <(printf '%s\n' "${LIBS[@]}" | sort -u)
+
+register_library() {
+    # Append the Windows library to a Linux Steam libraryfolders.vdf if
+    # Steam has been initialized there and the path is not yet present.
+    local steam_root="$1" lib="$2" vdf
+    vdf="$steam_root/steamapps/libraryfolders.vdf"
+    [[ -d "$steam_root/steamapps" ]] || return 1
+    if [[ -f "$vdf" ]] && grep -qF "$lib" "$vdf"; then
+        return 0
+    fi
+    # Steam rewrites this file itself; adding a well-formed folder block at
+    # the end of the list is the same operation its own "Add Library
+    # Folder" performs. Index = current count of entries.
+    local idx
+    idx=$(grep -cP '^\s*"\d+"' "$vdf" 2>/dev/null || echo 0)
+    python3 - "$vdf" "$idx" "$lib" <<'PYEOF' || return 1
+import sys, os, re
+vdf, idx, lib = sys.argv[1], sys.argv[2], sys.argv[3]
+lib_dir = os.path.dirname(lib)  # library root is the parent of steamapps/
+if not os.path.exists(vdf):
+    body = '"libraryfolders"\n{\n}\n'
+else:
+    body = open(vdf).read()
+entry = '\t"%s"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n' % (idx, lib_dir)
+# insert before the final closing brace
+i = body.rstrip().rfind('}')
+open(vdf, 'w').write(body[:i] + entry + body[i:])
+PYEOF
+}
+
+shopt -s nullglob
+for userhome in /home/*/; do
+    name=$(basename "$userhome")
+    uid=$(id -u "$name" 2>/dev/null) || continue
+    [[ "$uid" -ge 1000 ]] || continue
+
+    state_dir="$userhome.config/wootc"
+    mkdir -p "$state_dir"
+
+    registered=0
+    for steam_root in \
+        "$userhome.local/share/Steam" \
+        "$userhome.var/app/com.valvesoftware.Steam/.local/share/Steam"; do
+        for lib in "${LIBS[@]}"; do
+            if register_library "$steam_root" "$lib"; then
+                log "registered $lib for $name in $steam_root"
+                registered=1
+            fi
+        done
+    done
+
+    # Record findings for the migration dashboard regardless of whether
+    # Linux Steam is initialized yet.
+    {
+        printf '{\n  "libraries": [\n'
+        for i in "${!LIBS[@]}"; do
+            sep=$([[ $i -lt $((${#LIBS[@]} - 1)) ]] && echo ',' || echo '')
+            printf '    {"path": "%s"}%s\n' "${LIBS[$i]}" "$sep"
+        done
+        printf '  ],\n  "registered": %s\n}\n' "$registered"
+    } > "$state_dir/bridge-steam.json"
+    chown -R "$name:" "$state_dir" 2>/dev/null || true
+done
+shopt -u nullglob
+
+log "done"

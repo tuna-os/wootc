@@ -40,6 +40,8 @@ for winprofile in /host/Users/*/; do
         src="${winprofile}${folder}"
         dst="$home/$folder"
         [[ -d "$src" ]] || continue
+        # Converted to native storage (wootc-convert-dir) — stop bridging.
+        [[ -e "$home/.config/wootc/converted-$folder" ]] && continue
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"
@@ -48,3 +50,8 @@ for winprofile in /host/Users/*/; do
     done
 done
 shopt -u nullglob
+
+# Steam category (best-effort — never fail the mount service over it).
+if command -v wootc-steam-bridge >/dev/null; then
+    wootc-steam-bridge || log "steam bridge reported an error (non-fatal)"
+fi

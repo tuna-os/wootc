@@ -1,13 +1,16 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const state = {
-  screen: 'loading',   // loading | launchpad | progress | done | control
+  screen: 'loading',   // loading | launchpad | progress | done | control | migrate
+  mode: 'installer',   // installer (Windows) | migration (installed Linux)
   images: [],
   sysinfo: null,
+  categories: [],      // migration dashboard rows
+  converting: {},      // category id → percent while a conversion runs
   selected: null,      // selected Image
   config: {
     diskSizeGB: 40,
@@ -61,6 +64,32 @@ async function init() {
     if (state.screen === 'progress') renderProgress();
   });
 
+  // Conversion progress events from the migration dashboard backend.
+  EventsOn('migrate:progress', (p) => {
+    if (p.error) {
+      delete state.converting[p.category];
+      alert(`Something went wrong moving ${p.category}: ${p.error}\nYour files are safe — nothing was deleted.`);
+      refreshCategories();
+      return;
+    }
+    state.converting[p.category] = p.percent;
+    if (p.done) {
+      delete state.converting[p.category];
+      refreshCategories();
+      return;
+    }
+    if (state.screen === 'migrate') renderMigrateRows();
+  });
+
+  state.mode = await GetMode().catch(() => 'installer');
+
+  if (state.mode === 'migration') {
+    await refreshCategories();
+    state.screen = 'migrate';
+    render();
+    return;
+  }
+
   const [images, sysinfo, existing] = await Promise.all([
     GetImages(),
     GetSystemInfo(),
@@ -79,6 +108,16 @@ async function init() {
 
   state.screen = existing ? 'control' : 'launchpad';
   render();
+}
+
+async function refreshCategories() {
+  try {
+    state.categories = (await GetMigrationCategories()) || [];
+  } catch (e) {
+    console.error(e);
+    state.categories = [];
+  }
+  if (state.screen === 'migrate') render();
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -100,6 +139,7 @@ function render() {
     case 'progress':  content.appendChild(renderProgressScreen()); break;
     case 'done':      content.appendChild(renderDoneScreen()); break;
     case 'control':   content.appendChild(renderControlPanel()); break;
+    case 'migrate':   content.appendChild(renderMigrateScreen()); break;
     default:          content.innerHTML = '<div style="padding:40px;color:#666">Loading…</div>';
   }
 
@@ -125,6 +165,7 @@ function stepLabel() {
     progress:  'Step 2 of 3 — Installing',
     done:      'Step 3 of 3 — Done',
     control:   'Manage Installation',
+    migrate:   'Your Windows Data',
   };
   return labels[state.screen] || '';
 }
@@ -369,6 +410,165 @@ function renderControlPanel() {
   footer.appendChild(btn('Close', 'btn btn-primary', () => window.wails?.Quit?.()));
   wrap.appendChild(footer);
   return wrap;
+}
+
+// ── Screen 5: Migration dashboard (installed Linux system) ───────────────────
+
+const CATEGORY_ICONS = {
+  Documents: '📄', Pictures: '🖼️', Downloads: '📥',
+  Music: '🎵', Videos: '🎬', Desktop: '🖥️',
+  steam: '🎮', browser: '🌐',
+};
+
+function renderMigrateScreen() {
+  const wrap = el('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
+  const screen = el('div', 'screen');
+
+  const hdr = el('div');
+  hdr.innerHTML = `
+    <div class="screen-title">Your Windows files are already here</div>
+    <div class="screen-subtitle">
+      Everything below is available right now, straight from Windows — no copying needed.
+      When you're ready, move things over to Linux at your own pace.
+    </div>
+  `;
+  screen.appendChild(hdr);
+
+  const reassure = el('div', 'warning-banner');
+  reassure.style.cssText = 'background:rgba(74,222,128,0.07);border-color:rgba(74,222,128,0.3);color:var(--text-dim)';
+  reassure.innerHTML = `<span>🛡️</span><span>Moving something to Linux never deletes it from Windows. Until you choose to remove Windows entirely, your files exist safely in both places.</span>`;
+  screen.appendChild(reassure);
+
+  const list = el('div');
+  list.id = 'migrate-rows';
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:10px;overflow-y:auto';
+  list.appendChild(renderMigrateRowsInner());
+  screen.appendChild(list);
+
+  wrap.appendChild(screen);
+
+  const footer = el('div', 'footer');
+  footer.appendChild(btn('Refresh', 'btn btn-ghost', () => refreshCategories()));
+  footer.appendChild(btn('Close', 'btn btn-primary', () => window.wails?.Quit?.()));
+  wrap.appendChild(footer);
+  return wrap;
+}
+
+function renderMigrateRowsInner() {
+  const frag = document.createDocumentFragment();
+  if (!state.categories.length) {
+    const empty = el('div');
+    empty.style.cssText = 'padding:30px;text-align:center;color:var(--text-muted);font-size:13px';
+    empty.textContent = 'Looking for your Windows data…';
+    frag.appendChild(empty);
+    return frag;
+  }
+  state.categories.forEach(c => {
+    const row = el('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px';
+
+    const icon = el('span');
+    icon.style.fontSize = '20px';
+    icon.textContent = CATEGORY_ICONS[c.id] || '📁';
+    row.appendChild(icon);
+
+    const mid = el('div');
+    mid.style.cssText = 'flex:1;min-width:0';
+    const size = c.sizeBytes >= 0 ? ` · ${fmtSize(c.sizeBytes)}` : '';
+    mid.innerHTML = `
+      <div style="font-weight:600;font-size:13.5px">${c.label}<span style="font-weight:400;color:var(--text-muted)">${size}</span></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${c.description}</div>
+    `;
+    row.appendChild(mid);
+
+    row.appendChild(migrateAction(c));
+    frag.appendChild(row);
+  });
+  return frag;
+}
+
+function renderMigrateRows() {
+  const list = document.getElementById('migrate-rows');
+  if (!list) return;
+  list.innerHTML = '';
+  list.appendChild(renderMigrateRowsInner());
+}
+
+function migrateAction(c) {
+  const holder = el('div');
+  holder.style.cssText = 'display:flex;align-items:center;gap:8px;flex-shrink:0';
+
+  if (c.id in state.converting) {
+    const pct = Math.round(state.converting[c.id] || 0);
+    const track = el('div');
+    track.style.cssText = 'width:110px;height:6px;background:var(--border);border-radius:3px;overflow:hidden';
+    const fill = el('div');
+    fill.style.cssText = `width:${pct}%;height:100%;background:var(--accent, #4ade80);transition:width .3s`;
+    track.appendChild(fill);
+    const lbl = el('span');
+    lbl.style.cssText = 'font-size:11.5px;color:var(--text-muted);min-width:34px';
+    lbl.textContent = `${pct}%`;
+    holder.appendChild(track);
+    holder.appendChild(lbl);
+    return holder;
+  }
+
+  switch (c.state) {
+    case 'bridged': {
+      holder.appendChild(chip('Connected to Windows', false));
+      const b = btn('Move to Linux', 'btn btn-ghost', () => confirmConvert(c));
+      b.style.fontSize = '12px';
+      holder.appendChild(b);
+      break;
+    }
+    case 'native':
+      holder.appendChild(chip('✓ On Linux', false));
+      break;
+    case 'available': {
+      if (c.id === 'browser') {
+        const b = btn('Import', 'btn btn-ghost', () => runBrowserImport());
+        b.style.fontSize = '12px';
+        holder.appendChild(b);
+      } else {
+        holder.appendChild(chip('Found on Windows', false));
+      }
+      break;
+    }
+    default:
+      holder.appendChild(chip('Not found', false));
+  }
+  return holder;
+}
+
+function confirmConvert(c) {
+  const size = c.sizeBytes >= 0 ? ` (${fmtSize(c.sizeBytes)})` : '';
+  if (!confirm(
+    `Move ${c.label}${size} to Linux?\n\n` +
+    `Your files will be copied to fast Linux storage. The Windows copy stays exactly where it is — nothing is deleted.`
+  )) return;
+  state.converting[c.id] = 0;
+  renderMigrateRows();
+  ConvertCategory(c.id).catch(e => {
+    delete state.converting[c.id];
+    alert(`Something went wrong: ${e}\nYour files are safe — nothing was deleted.`);
+    refreshCategories();
+  });
+}
+
+async function runBrowserImport() {
+  try {
+    await ImportBrowserData();
+    await refreshCategories();
+  } catch (e) {
+    alert(`Browser import hit a snag: ${e}\nNothing was changed on the Windows side.`);
+  }
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 function confirmUninstall() {
