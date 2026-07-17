@@ -42,11 +42,22 @@ case "$command" in
             ffmpeg -y -loglevel warning -framerate 10 \
                 -i "$outdir/frames/f%06d.ppm" -c:v libvpx-vp9 -b:v 1M \
                 -pix_fmt yuv420p "$outdir/e2e.webm" </dev/null
+            ffmpeg -y -loglevel warning -framerate 10 \
+                -i "$outdir/frames/f%06d.ppm" \
+                -vf 'fps=5,scale=640:-2:flags=lanczos' -loop 0 \
+                -c:v libwebp -quality 60 -compression_level 6 \
+                "$outdir/preview.webp" </dev/null || true
         else
             "$RUNTIME" run --rm -v "$outdir:/work:Z" -w /work \
                 docker.io/linuxserver/ffmpeg -y -loglevel warning -framerate 10 \
                 -i frames/f%06d.ppm -c:v libvpx-vp9 -b:v 1M \
                 -pix_fmt yuv420p e2e.webm </dev/null
+            "$RUNTIME" run --rm -v "$outdir:/work:Z" -w /work \
+                docker.io/linuxserver/ffmpeg -y -loglevel warning -framerate 10 \
+                -i frames/f%06d.ppm \
+                -vf 'fps=5,scale=640:-2:flags=lanczos' -loop 0 \
+                -c:v libwebp -quality 60 -compression_level 6 \
+                preview.webp </dev/null || true
         fi
         ;;
     *) exit 2 ;;

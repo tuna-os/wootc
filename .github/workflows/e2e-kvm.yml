@@ -1,5 +1,14 @@
 name: E2E (KVM)
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: e2e-kvm-pages
+  cancel-in-progress: false
+
 # Runs on a self-hosted runner with KVM support.
 # Label the runner: kvm, linux, x64
 #
@@ -41,9 +50,54 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Prepare latest E2E walkthrough site
+        if: success()
+        run: |
+          video=$(find tests/e2e/storage/artifacts -type f -path '*/video/e2e.webm' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)
+          preview=$(find tests/e2e/storage/artifacts -type f -path '*/video/preview.webp' -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)
+          test -n "$video" && test -s "$video"
+          test -n "$preview" && test -s "$preview"
+          mkdir -p pages/e2e/latest
+          cp "$video" pages/e2e/latest/e2e.webm
+          cp "$preview" pages/e2e/latest/preview.webp
+          cp tests/e2e/storage/run-e2e.current pages/e2e/latest/run-e2e.current
+          cat > pages/e2e/latest/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+          <title>wootc latest E2E walkthrough</title>
+          <style>body{max-width:960px;margin:2rem auto;padding:0 1rem;background:#111;color:#eee;font:16px system-ui}video{width:100%;height:auto}a{color:#7dd3fc}</style>
+          <h1>wootc latest E2E walkthrough</h1>
+          <p>Sped-up capture of the latest successful Windows → deployer → Linux → Windows acceptance run.</p>
+          <video controls autoplay muted loop playsinline poster="preview.webp"><source src="e2e.webm" type="video/webm"></video>
+          <p><a href="e2e.webm">Open or save the WebM</a></p>
+          </html>
+          EOF
+
+      - name: Configure GitHub Pages
+        if: success()
+        uses: actions/configure-pages@v5
+
+      - name: Upload latest walkthrough to Pages
+        if: success()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+
       - name: Cleanup
         if: always()
         run: |
           cd tests/e2e
           docker compose -f compose.yml down --volumes 2>/dev/null || true
           podman system prune -f 2>/dev/null || true
+
+  deploy-pages:
+    if: ${{ success() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    needs: e2e
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish latest successful E2E walkthrough
+        id: deployment
+        uses: actions/deploy-pages@v4
