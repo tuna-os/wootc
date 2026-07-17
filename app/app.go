@@ -27,12 +27,12 @@ type Image struct {
 
 // InstallConfig is the parameters collected on Screen 1.
 type InstallConfig struct {
-	ImageRef    string `json:"imageRef"`
-	DiskSizeGB  int    `json:"diskSizeGB"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	Hostname    string `json:"hostname"`
-	Bootloader  string `json:"bootloader"` // "grub2" | "systemd-boot"
+	ImageRef   string `json:"imageRef"`
+	DiskSizeGB int    `json:"diskSizeGB"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Hostname   string `json:"hostname"`
+	Bootloader string `json:"bootloader"` // "grub2" | "systemd-boot"
 }
 
 // ProgressEvent is emitted during install for the frontend progress bar.
@@ -49,18 +49,18 @@ type InstallStatus struct {
 	Running  bool   `json:"running"`
 	Done     bool   `json:"done"`
 	Error    string `json:"error,omitempty"`
-	Existing bool   `json:"existing"` // root.disk already found on startup
+	Existing bool   `json:"existing"` // root.vhdx already found on startup
 }
 
 // SystemInfo describes the host Windows environment.
 type SystemInfo struct {
-	OSVersion      string  `json:"osVersion"`
-	FreeDiskGB     float64 `json:"freeDiskGB"`
-	TotalDiskGB    float64 `json:"totalDiskGB"`
-	BitLockerOn    bool    `json:"bitLockerOn"`
-	FastStartupOn  bool    `json:"fastStartupOn"`
-	IsUEFI         bool    `json:"isUefi"`
-	SecureBootOn   bool    `json:"secureBootOn"`
+	OSVersion     string  `json:"osVersion"`
+	FreeDiskGB    float64 `json:"freeDiskGB"`
+	TotalDiskGB   float64 `json:"totalDiskGB"`
+	BitLockerOn   bool    `json:"bitLockerOn"`
+	FastStartupOn bool    `json:"fastStartupOn"`
+	IsUEFI        bool    `json:"isUefi"`
+	SecureBootOn  bool    `json:"secureBootOn"`
 }
 
 // ── App struct ────────────────────────────────────────────────────────────────
@@ -82,6 +82,12 @@ func (a *App) startup(ctx context.Context) {
 	// Check for existing install on startup — routes to Control Panel screen.
 	a.status.Existing = a.existingInstallFound()
 }
+
+// previewMode reports whether the app is running as a UI test harness:
+// real WebView2 and real Go↔JS bindings, but destructive pipeline steps
+// are stubbed so Playwright-over-CDP can exercise the GUI on a CI runner
+// without touching BCD, disks, or the ESP. Set WOOTC_UI_PREVIEW=1.
+func previewMode() bool { return os.Getenv("WOOTC_UI_PREVIEW") == "1" }
 
 func (a *App) shutdown(ctx context.Context) {
 	if a.cancel != nil {
@@ -156,6 +162,69 @@ func (a *App) GetSystemInfo() SystemInfo {
 	return getSystemInfo()
 }
 
+// ── Branding ──────────────────────────────────────────────────────────────────
+
+// Branding lets partners ship a re-skinned migrator: product name,
+// tagline, logo emoji, and a color palette applied as CSS variables at
+// runtime. The frontend calls GetBranding() on startup.
+type Branding struct {
+	Name       string `json:"name"`
+	Tagline    string `json:"tagline"`
+	LogoEmoji  string `json:"logoEmoji"`
+	Version    string `json:"version"`
+	Accent     string `json:"accent"`     // primary action / highlight
+	AccentText string `json:"accentText"` // text on accent (contrast)
+	Background string `json:"background"`
+	Card       string `json:"card"`
+	Text       string `json:"text"`
+	// InstallVerb personalizes CTA copy ("Install", "Migrate", "Switch").
+	InstallVerb string `json:"installVerb"`
+}
+
+func defaultBranding() Branding {
+	return Branding{
+		Name: "wootc", Tagline: "Bring Windows to Linux — keep everything.",
+		LogoEmoji: "🐠", Version: "0.1.0",
+		Accent: "#5b6ee1", AccentText: "#ffffff",
+		Background: "#0a0a0f", Card: "#13131e", Text: "#e8e8f0",
+		InstallVerb: "Install",
+	}
+}
+
+// GetBranding returns the effective branding: the built-in default,
+// overlaid by C:\wootc\brand.json when present (enterprise / partner
+// re-skin). Unknown or empty fields fall back to the default.
+func (a *App) GetBranding() Branding {
+	b := defaultBranding()
+	custom := filepath.Join(wootcDir(), "brand.json")
+	if data, err := os.ReadFile(custom); err == nil {
+		var over Branding
+		if json.Unmarshal(data, &over) == nil {
+			mergeBranding(&b, over)
+		}
+	}
+	return b
+}
+
+// mergeBranding overlays non-empty fields of over onto base.
+func mergeBranding(base *Branding, over Branding) {
+	set := func(dst *string, v string) {
+		if v != "" {
+			*dst = v
+		}
+	}
+	set(&base.Name, over.Name)
+	set(&base.Tagline, over.Tagline)
+	set(&base.LogoEmoji, over.LogoEmoji)
+	set(&base.Version, over.Version)
+	set(&base.Accent, over.Accent)
+	set(&base.AccentText, over.AccentText)
+	set(&base.Background, over.Background)
+	set(&base.Card, over.Card)
+	set(&base.Text, over.Text)
+	set(&base.InstallVerb, over.InstallVerb)
+}
+
 // ── Install ───────────────────────────────────────────────────────────────────
 
 // StartInstall begins the install pipeline in a goroutine. Progress events
@@ -169,6 +238,13 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	ctx, cancel := context.WithCancel(a.ctx)
 	a.cancel = cancel
 	a.status = InstallStatus{Running: true}
+
+	// Preview mode: emit a scripted progress run so the GUI's progress and
+	// done screens can be driven under CDP without a real install.
+	if previewMode() {
+		go a.runPreviewInstall(ctx)
+		return nil
+	}
 
 	go func() {
 		err := a.runInstall(ctx, cfg)
@@ -210,7 +286,7 @@ func (a *App) Reboot() error {
 // ── Existing install detection ────────────────────────────────────────────────
 
 func (a *App) existingInstallFound() bool {
-	disk := filepath.Join(wootcDir(), "disks", "root.disk")
+	disk := filepath.Join(wootcDir(), "disks", "root.vhdx")
 	_, err := os.Stat(disk)
 	return err == nil
 }
@@ -222,7 +298,7 @@ func (a *App) ExistingInstallFound() bool {
 
 // ── Uninstall ─────────────────────────────────────────────────────────────────
 
-// Uninstall removes the BCD entry and C:\wootc\ (except root.disk which the
+// Uninstall removes the BCD entry and C:\wootc\ (except root.vhdx which the
 // user must delete separately to avoid accidental data loss).
 func (a *App) Uninstall() error {
 	return uninstall(a.ctx)
@@ -231,6 +307,13 @@ func (a *App) Uninstall() error {
 // ── Internal install pipeline ─────────────────────────────────────────────────
 
 func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
+	return runPipeline(ctx, cfg, a.emit)
+}
+
+// runPipeline executes the install steps, reporting progress through emit.
+// It is shared between the GUI (Wails events) and headless mode (stdout),
+// so E2E can exercise the exact production pipeline without a display.
+func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
 	steps := []struct {
 		name    string
 		percent float64
@@ -239,18 +322,27 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 		{"Checking system", 2, func() error { return checkSystem() }},
 		{"Disabling Fast Startup", 5, func() error { return disableFastStartup() }},
 		{"Creating directories", 8, func() error { return createDirectories() }},
-		{"Creating root.disk", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
-		{"Downloading deployer", 50, func() error { return downloadDeployer(ctx, func(p float64) {
-			a.emit(ProgressEvent{
-				Step:    "Downloading deployer",
-				Message: fmt.Sprintf("Downloading deployer kernel + initramfs… %.0f%%", p*35),
-				Percent: 15 + p*35,
+		{"Creating root.vhdx", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
+		{"Downloading deployer", 50, func() error {
+			return downloadDeployer(ctx, func(p float64) {
+				emit(ProgressEvent{
+					Step:    "Downloading deployer",
+					Message: fmt.Sprintf("Downloading deployer kernel + initramfs… %.0f%%", p*35),
+					Percent: 15 + p*35,
+				})
 			})
-		}) }},
+		}},
 		{"Writing GRUB config", 55, func() error { return writeGrubConfig(cfg) }},
-		{"Setting up ESP", 65, func() error { return setupESP(cfg.Bootloader) }},
+		{"Setting up ESP", 65, func() error { return setupESP(cfg) }},
 		{"Configuring BCD", 80, func() error { return configureBCD(cfg.Bootloader) }},
 		{"Writing vault.json", 85, func() error { return writeVault(cfg) }},
+		{"Collecting your look", 90, func() error {
+			// Best-effort: never fail the install over wallpaper slurping.
+			if err := collectLook(); err != nil {
+				fmt.Fprintf(os.Stderr, "[wootc] look collection skipped: %v\n", err)
+			}
+			return nil
+		}},
 		{"Finalizing", 95, func() error {
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)
@@ -264,17 +356,43 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 			return ctx.Err()
 		default:
 		}
-		a.emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
+		emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
 		if err := s.fn(); err != nil {
+			writeState(StateFailed, s.name, err.Error())
 			return fmt.Errorf("%s: %w", s.name, err)
 		}
 	}
+	writeState(StateArmed, "", "")
 	return nil
 }
 
 // emit sends a progress event to the frontend.
 func (a *App) emit(e ProgressEvent) {
 	runtime.EventsEmit(a.ctx, "install:progress", e)
+}
+
+// runPreviewInstall scripts a fast, harmless progress run for UI testing.
+func (a *App) runPreviewInstall(ctx context.Context) {
+	steps := []struct {
+		name    string
+		percent float64
+	}{
+		{"Checking system", 5}, {"Creating root.vhdx", 15},
+		{"Downloading deployer", 50}, {"Setting up ESP", 65},
+		{"Configuring BCD", 80}, {"Collecting your look", 90},
+	}
+	for _, s := range steps {
+		select {
+		case <-ctx.Done():
+			a.status.Running = false
+			return
+		case <-time.After(300 * time.Millisecond):
+		}
+		a.emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
+	}
+	a.status.Running = false
+	a.status.Done = true
+	a.emit(ProgressEvent{Step: "done", Message: "Installation complete (preview).", Percent: 100, Done: true})
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

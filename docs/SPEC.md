@@ -1266,6 +1266,62 @@ OCI image boots whether the root filesystem is inside `root.disk` on NTFS
 or on a native Btrfs partition. Migration is deploying the same image to
 real disk and updating fstab. No reinstall, no reconfiguration.
 
+### 4.6 Device and Connectivity Migration
+
+wootc should make the Linux desktop feel familiar without silently copying
+credentials or opaque Windows state. Migration actions therefore fall into
+three consent tiers:
+
+| Tier | Policy | Examples |
+|---|---|---|
+| Apply automatically | Non-secret preferences with an obvious Linux equivalent | timezone, keyboard layout, language, accessibility settings, wallpaper, accent color, hostname, browser homepage |
+| Offer with preview | Useful data or configuration whose effect the user can inspect | Wi-Fi profiles, browser data, Steam libraries, VPN endpoints, cloud-folder setup, developer tools, printers, display/audio preferences |
+| Never migrate silently | Secrets, identity material, executable automation, or controller-specific state | passwords, private keys, access tokens, certificates, Bluetooth pairing keys, enterprise Wi-Fi credentials, scheduled-task commands |
+
+The maintenance control panel includes a **Bring your setup over** dashboard.
+Each item states what will be imported, whether it contains sensitive data,
+what remains on Windows, and how to undo the Linux-side result.
+
+#### Wi-Fi profiles
+
+Wi-Fi is an opt-in, first-class migration feature. During Windows setup,
+wootc can export selected saved profiles using `netsh wlan export profile
+... key=clear`; this requires administrator privileges and exposes the
+network key in the exported profile. The transient export is handed to the
+first Linux boot, converted to NetworkManager connections, and securely
+removed immediately after import.
+
+Automatic import is limited to open networks and personal WPA-PSK/WPA3-SAE
+networks. Enterprise 802.1X/PEAP/EAP-TLS networks, captive portals,
+device-managed profiles, certificates, and user credentials are detected but
+not copied. The dashboard explains what was found and asks the user to finish
+authentication in Linux.
+
+#### Bluetooth devices
+
+wootc may inventory paired Bluetooth devices (friendly name, class, and
+address where available) and present a **Reconnect your devices** checklist
+for headsets, mice, keyboards, controllers, and BLE accessories. It must not
+copy Windows Bluetooth link keys, LE long-term keys, or controller-specific
+pairing databases into BlueZ. Those secrets are stack- and controller-specific
+and re-pairing is more reliable than attempting an opaque key conversion.
+
+#### Additional migration candidates
+
+The dashboard can offer the following independent, reversible import actions:
+
+| Category | Import behavior |
+|---|---|
+| Printers/scanners | Detect names and network addresses; offer driverless IPP setup, never copy Windows drivers. |
+| VPN | Import endpoint, protocol, and non-secret settings; require passwords, certificates, and MFA again. |
+| Browser | Import bookmarks by default; offer history, extensions, and password migration only with separate consent. |
+| Cloud folders | Detect OneDrive, Dropbox, Google Drive, Syncthing, and Nextcloud; reconnect a Linux client rather than sharing or copying sync databases. |
+| Developer setup | Detect VS Code, WSL, Git, containers, language toolchains, and repositories; generate an install/open plan. Copy public SSH keys and Git identity only by consent; never copy private keys or credential stores. |
+| Gaming | Discover Steam libraries, common save locations, and controllers; reuse libraries where compatible and show Proton guidance. |
+| Media | Offer portable music/photo library locations and compatible Plex/Jellyfin or OBS configuration exports. |
+| Desktop hardware | Offer display layout/scaling, preferred audio device, dock/monitor names, terminal fonts, color schemes, and Windows Terminal profiles as Linux suggestions. |
+| Scheduled tasks | Show user-created tasks as a reviewable conversion proposal for systemd timers; never enable a converted command automatically. |
+
 ---
 
 ## 5. Uninstall

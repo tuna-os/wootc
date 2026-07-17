@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wootc-deploy — runs inside the deployer initramfs.
 #
-# Finds root.disk on the NTFS partition, sets up a loop device,
+# Finds root.vhdx on the NTFS partition, attaches it through NBD,
 # writes a fisherman recipe, and runs fisherman to deploy the
 # bootc image into the loop file.
 #
@@ -75,9 +75,9 @@ cleanup() {
     for mount in /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
-    [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
+    [[ -n "$VERIFY_LOOP" ]] && qemu-nbd --disconnect "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
-    [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
+    [[ -n "$LOOP_DEV" ]] && qemu-nbd --disconnect "$LOOP_DEV" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -113,9 +113,9 @@ if [[ -z "$IMAGE" ]]; then
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
 
-ROOT_DISK_PATH="/wootc/disks/root.disk"
+ROOT_DISK_PATH="/wootc/disks/root.vhdx"
 
-# ── Find NTFS partition containing root.disk ────────────────────────────────
+# ── Find NTFS partition containing root.vhdx ────────────────────────────────
 log "Searching for ${ROOT_DISK_PATH}..."
 
 # The initqueue/online hook fires when the network is up, which can beat SCSI
@@ -147,7 +147,7 @@ for attempt in {1..24}; do
         log "Found ${ROOT_DISK_PATH} on ${NTFS_PART}"
         break
     fi
-    log "root.disk not found (attempt ${attempt}/24); retrying in 5s..."
+    log "root.vhdx not found (attempt ${attempt}/24); retrying in 5s..."
     [[ "$attempt" -eq 1 ]] && { err "block devices seen so far:"; cat /proc/partitions >&2 || true; }
     sleep 5
 done
@@ -167,7 +167,7 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     err "Boot Windows once, perform a full shutdown, and retry."
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
-DISK="/mnt/ntfs/wootc/disks/root.disk"
+DISK="/mnt/ntfs/wootc/disks/root.vhdx"
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
@@ -212,7 +212,7 @@ phase "scratch-setup"
 log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # ntfs3 allocates the full size on truncate (no sparse support), so this
-# must fit in C:'s free space alongside the fully-allocated root.disk.
+# must fit in C:'s free space alongside the dynamically allocated root.vhdx.
 # 13G: with disk-backed default storage fisherman pulls the full extracted
 # image (~10G) here plus transient blob staging; the target disk holds only
 # the ostree deployment.
@@ -246,14 +246,33 @@ if [[ ! -s /etc/resolv.conf ]]; then
 fi
 log "resolv.conf: $(cat /etc/resolv.conf 2>/dev/null || echo '<missing>')"
 if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
-    err "cannot reach registry for ${IMAGE} (see skopeo error above)"
-    if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
+    # Dockur's guest DHCP normally supplies its internal DNS forwarder. Some
+    # rootless runners can route Internet traffic but that forwarder cannot
+    # reach an upstream resolver; retry directly before treating the registry
+    # as unavailable.
+    FALLBACK_DNS="${WOOTC_FALLBACK_DNS:-1.1.1.1}"
+    log "DHCP DNS failed; retrying registry pre-flight with ${FALLBACK_DNS}..."
+    printf 'nameserver %s\n' "$FALLBACK_DNS" > /etc/resolv.conf
+    log "resolv.conf fallback: $(cat /etc/resolv.conf)"
+    if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
+        err "cannot reach registry for ${IMAGE} (see skopeo error above)"
+        if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
+    fi
 fi
 
-# ── Set up loop device ──────────────────────────────────────────────────────
-losetup -fP "$DISK"
-LOOP_DEV=$(losetup -j "$DISK" | cut -d: -f1)
-log "Loop device: ${LOOP_DEV}"
+# ── Attach dynamic VHDX through qemu-nbd ───────────────────────────────────
+# VHDX has an internal metadata log and is natively mountable by Windows. It
+# is not a byte-addressable raw image, so losetup must never be used here.
+VHDX_FORMAT=$(qemu-img info --output=json "$DISK" | jq -r '.format // empty')
+if [[ "$VHDX_FORMAT" != "vhdx" ]]; then
+    err "root.vhdx format check failed (detected: ${VHDX_FORMAT:-unknown})"
+    exit 1
+fi
+modprobe nbd nbds_max=4 max_part=16
+LOOP_DEV=/dev/nbd0
+qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$DISK"
+udevadm settle --timeout=10 2>/dev/null || true
+log "Attached dynamic VHDX ${DISK} as ${LOOP_DEV}"
 
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
@@ -275,6 +294,16 @@ if [[ -n "$VAULT_PATH" ]]; then
         log "vault.json not found at ${VAULT_FILE} — using cmdline defaults"
     fi
 fi
+
+# ╔═══════════════════════════════════════════════════════════════════════════
+# ║ PROVISIONER: bootc/fisherman — begins here.
+# ║ Everything above this line is generic orchestration (disk discovery, NTFS,
+# ║ telemetry, scratch, credential vault, block-device attach) and must stay
+# ║ free of bootc/ostree concepts. Everything from here to the matching END
+# ║ banner turns the attached block device into a bootable root and would be
+# ║ replaced wholesale when adapting wootc to another deployment method.
+# ║ Contract: docs/architecture-boundary.md.
+# ╚═══════════════════════════════════════════════════════════════════════════
 
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
@@ -324,7 +353,7 @@ phase "fisherman"
 log "Running fisherman — this pulls the image and deploys it..."
 fisherman "$RECIPE"
 
-losetup -d "$LOOP_DEV"
+qemu-nbd --disconnect "$LOOP_DEV"
 LOOP_DEV=""
 
 # ── Post-deployment verification ─────────────────────────────────────────────
@@ -335,7 +364,8 @@ phase "verification"
 log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
-VERIFY_LOOP=$(losetup -fP --show "$DISK")
+VERIFY_LOOP=/dev/nbd0
+qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
 
 # Find the root partition inside the loop device. bootc/ostree roots have no
@@ -378,10 +408,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
 
     # Install the runtime hook after bootc/fisherman has laid down the target.
     # This is the point at which Phase 2 becomes bootable: the initramfs
-    # learns to attach the NTFS-backed loop so the root UUID appears.
+    # learns to attach the NTFS-backed VHDX so the root UUID appears.
     install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
         "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
+    install -m755 "$(command -v qemu-nbd)" \
+        "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd"
 
     HOST_UUID=$(blkid -s UUID -o value "$NTFS_PART")
     if [[ -z "$HOST_UUID" ]]; then
@@ -396,7 +428,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     fi
     for entry in "${BLS_ENTRIES[@]}"; do
         grep -q 'wootc.host_uuid=' "$entry" || \
-            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.disk|' "$entry"
+            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.vhdx|' "$entry"
     done
     shopt -u nullglob
 
@@ -422,7 +454,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         mkdir -p "$DEPLOY_ROOT/run/wootc-nofw"
         chroot "$DEPLOY_ROOT" dracut --force --hostonly \
             --fwdir /run/wootc-nofw \
-            --omit "plymouth crypt lvm mdraid dm multipath iscsi nbd nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
+            --omit "plymouth crypt lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
             "$INITRD_CHROOT_PATH" "$KVER"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}")
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
@@ -438,7 +470,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] dracut 99wootc-boot module NOT found"
     fi
 
-    # ── User Data Bridge (native passthrough) ─────────────────────────────
+    # ── [generic] User Data Bridge (native passthrough) ──────────────────
+    # Distro-agnostic: installs units/scripts into the target root. Only
+    # its *placement inside* the verification mount is provisioner-hosted.
     # fisherman does not install these — inject them the same way as the
     # 99wootc-boot dracut module, and enable them via local-fs.target.wants
     # symlinks (systemctl --root needs D-Bus/policy that isn't available
@@ -452,6 +486,45 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-mount-user-dirs"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
         "$DEPLOY_ROOT/usr/local/bin/wootc-umount-user-dirs"
+    # Extra bridge categories (SPEC §4.1–4.2): Steam, browser import, and
+    # the stage-4 folder conversion used by the migration dashboard.
+    install -m755 /usr/lib/wootc/migration/wootc-steam-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-steam-bridge"
+    install -m755 /usr/lib/wootc/migration/wootc-import-browser \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-import-browser"
+    install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
+    install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
+        "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
+    # ESP self-healing sync: keeps the Windows-ESP kernel pair current
+    # after OS updates (variant-agnostic — BLS and classic layouts).
+    install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-esp-sync"
+    install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
+        "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
+    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+    ln -sf ../wootc-esp-sync.service \
+        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync.service"
+    install -m755 /usr/lib/wootc/migration/wootc-detect-apps \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-detect-apps"
+    install -m755 /usr/lib/wootc/migration/wootc-office-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-office-bridge"
+    # Windows-Style Mode: per-user look apply on first login.
+    install -m755 /usr/lib/wootc/migration/wootc-apply-look \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-apply-look"
+    install -D -m644 /usr/lib/wootc/migration/wootc-apply-look.desktop \
+        "$DEPLOY_ROOT/etc/xdg/autostart/wootc-apply-look.desktop"
+    # Slurped Windows look (wallpaper/theme/timezone), if the installer
+    # collected it. Timezone applies system-wide right here.
+    if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
+        mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
+        cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
+        if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
+            ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"
+            log "  Timezone set to $SLURP_TZ (from Windows)"
+        fi
+    fi
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
     ln -sf ../wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
@@ -470,14 +543,20 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] wootc-passthrough.service install failed"
     fi
 
-    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
+    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.vhdx' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
         log "  [PASS] Phase 2 loop-root arguments in BLS entries"
     else
         err "  [FAIL] Phase 2 loop-root arguments missing from BLS entries"
         exit 1
     fi
 
-    # ── ESP kernel-sync for Phase-2 Secure Boot boot ──────────────────────
+    # ── [mixed] ESP kernel-sync for Phase-2 Secure Boot boot ─────────────
+    # The *mechanics* (mount ESP, copy kernel pair, write grub.cfg) are
+    # generic; the *sources* are provisioner-owned: ostree kernel globs,
+    # BLS cmdline extraction, and the bootupd-shipped signed shim+grub.
+    # A non-bootc provisioner would return these three via the contract in
+    # docs/architecture-boundary.md and this block would keep its shape.
+    #
     # The signed GRUB cannot read NTFS (unsigned ntfs.mod rejected under
     # Secure Boot), so the installed kernel and initramfs must live on the
     # FAT32 ESP. Copy them there and write a Phase-2 grub.cfg with the
@@ -565,7 +644,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 # $prefix/grub.cfg. Write the Phase-2 menu there.
                 mkdir -p "/mnt/esp/EFI/$TARGET_VENDOR"
                 cat > "/mnt/esp/EFI/$TARGET_VENDOR/grub.cfg" <<GRUBEOF
-# wootc Phase 2 — boot installed system from root.disk
+# wootc Phase 2 — boot installed system from root.vhdx
 set default=0
 set timeout=5
 
@@ -575,6 +654,16 @@ menuentry "wootc Linux" {
 }
 GRUBEOF
                 log "  [PASS] Phase-2 grub.cfg written to EFI/$TARGET_VENDOR/grub.cfg"
+
+                # Record the Windows ESP identity so wootc-esp-sync can
+                # refresh this pair after OS updates inside the target.
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\n' "$ESP_UUID" \
+                        > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                    log "  [PASS] host-esp.conf written (UUID $ESP_UUID)"
+                fi
             else
                 # Never leave the ESP kernel-less: the deployer pair was
                 # removed above to make room, so restore it from the
@@ -596,8 +685,12 @@ else
     err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
 fi
 
-losetup -d "$VERIFY_LOOP"
+qemu-nbd --disconnect "$VERIFY_LOOP"
 VERIFY_LOOP=""
+
+# ╔═══════════════════════════════════════════════════════════════════════════
+# ║ PROVISIONER: bootc/fisherman — ENDS here. Generic teardown follows.
+# ╚═══════════════════════════════════════════════════════════════════════════
 
 # Tear down the scratch store and leave the NTFS volume clean before the
 # forced reboot (reboot -f syncs but does not unmount; a still-mounted rw

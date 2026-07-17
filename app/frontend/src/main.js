@@ -1,13 +1,19 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const state = {
-  screen: 'loading',   // loading | launchpad | progress | done | control
+  screen: 'loading',   // loading | launchpad | progress | done | control | migrate
+  mode: 'installer',   // installer (Windows) | migration (installed Linux)
   images: [],
   sysinfo: null,
+  brand: null,         // partner/enterprise branding (themeable)
+  categories: [],      // migration dashboard rows
+  apps: [],            // detected app migrations
+  office: null,        // MS Office → LibreOffice summary
+  converting: {},      // category id → percent while a conversion runs
   selected: null,      // selected Image
   config: {
     diskSizeGB: 40,
@@ -29,18 +35,32 @@ const INSTALL_STEPS = [
   'Checking system',
   'Disabling Fast Startup',
   'Creating directories',
-  'Creating root.disk',
+  'Creating root.vhdx',
   'Downloading deployer',
   'Writing GRUB config',
   'Setting up ESP',
   'Configuring BCD',
   'Writing vault.json',
+  'Collecting your look',
   'Finalizing',
 ];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+// Apply partner/enterprise branding as CSS variables + document title.
+function applyBranding(b) {
+  state.brand = b;
+  const r = document.documentElement.style;
+  if (b.accent)     { r.setProperty('--accent', b.accent); r.setProperty('--border-focus', b.accent); }
+  if (b.accentText)   r.setProperty('--accent-text', b.accentText);
+  if (b.background)   r.setProperty('--bg', b.background);
+  if (b.card)         r.setProperty('--bg-card', b.card);
+  if (b.text)         r.setProperty('--text', b.text);
+  document.title = `${b.name} — ${b.tagline}`;
+}
+
 async function init() {
+  try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'wootc', tagline: '', logoEmoji: '🐠', version: '0.1.0', installVerb: 'Install' }); }
   // Listen for progress events from Go backend
   EventsOn('install:progress', (e) => {
     state.progress.step = e.step;
@@ -60,6 +80,32 @@ async function init() {
     }
     if (state.screen === 'progress') renderProgress();
   });
+
+  // Conversion progress events from the migration dashboard backend.
+  EventsOn('migrate:progress', (p) => {
+    if (p.error) {
+      delete state.converting[p.category];
+      alert(`Something went wrong moving ${p.category}: ${p.error}\nYour files are safe — nothing was deleted.`);
+      refreshCategories();
+      return;
+    }
+    state.converting[p.category] = p.percent;
+    if (p.done) {
+      delete state.converting[p.category];
+      refreshCategories();
+      return;
+    }
+    if (state.screen === 'migrate') renderMigrateRows();
+  });
+
+  state.mode = await GetMode().catch(() => 'installer');
+
+  if (state.mode === 'migration') {
+    await refreshCategories();
+    state.screen = 'migrate';
+    render();
+    return;
+  }
 
   const [images, sysinfo, existing] = await Promise.all([
     GetImages(),
@@ -81,6 +127,23 @@ async function init() {
   render();
 }
 
+async function refreshCategories() {
+  try {
+    const [cats, apps, office] = await Promise.all([
+      GetMigrationCategories(),
+      GetAppMigrations().catch(() => []),
+      GetOfficeMigration().catch(() => null),
+    ]);
+    state.categories = cats || [];
+    state.apps = apps || [];
+    state.office = office && office.present ? office : null;
+  } catch (e) {
+    console.error(e);
+    state.categories = [];
+  }
+  if (state.screen === 'migrate') render();
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 function render() {
@@ -100,6 +163,7 @@ function render() {
     case 'progress':  content.appendChild(renderProgressScreen()); break;
     case 'done':      content.appendChild(renderDoneScreen()); break;
     case 'control':   content.appendChild(renderControlPanel()); break;
+    case 'migrate':   content.appendChild(renderMigrateScreen()); break;
     default:          content.innerHTML = '<div style="padding:40px;color:#666">Loading…</div>';
   }
 
@@ -109,14 +173,19 @@ function render() {
 // ── Title bar ─────────────────────────────────────────────────────────────────
 
 function renderTitleBar() {
+  const b = state.brand || { logoEmoji: '🐠', name: 'wootc', version: '0.1.0' };
   const bar = el('div', 'titlebar');
   bar.innerHTML = `
-    <span class="titlebar-logo">🐠</span>
-    <span class="titlebar-name">wootc</span>
-    <span class="titlebar-version">0.1.0</span>
+    <span class="titlebar-logo">${b.logoEmoji || '🐠'}</span>
+    <span class="titlebar-name">${b.name || 'wootc'}</span>
+    <span class="titlebar-version">${b.version || ''}</span>
     <span class="titlebar-step">${stepLabel()}</span>
   `;
   return bar;
+}
+
+function installVerb() {
+  return state.brand?.installVerb || 'Install';
 }
 
 function stepLabel() {
@@ -125,6 +194,7 @@ function stepLabel() {
     progress:  'Step 2 of 3 — Installing',
     done:      'Step 3 of 3 — Done',
     control:   'Manage Installation',
+    migrate:   'Your Windows Data',
   };
   return labels[state.screen] || '';
 }
@@ -137,8 +207,8 @@ function renderLaunchpad() {
   // Header
   const hdr = el('div');
   hdr.innerHTML = `
-    <div class="screen-title">Install TunaOS</div>
-    <div class="screen-subtitle">Choose a variant, set your disk size and credentials, then click Install.</div>
+    <div class="screen-title">${installVerb()} TunaOS</div>
+    <div class="screen-subtitle">${state.brand?.tagline || 'Choose a variant, set your disk size and credentials, then click Install.'}</div>
   `;
   screen.appendChild(hdr);
 
@@ -215,18 +285,25 @@ function renderLaunchpad() {
 
   // Password
   const row2 = el('div', 'field-row');
-  row2.appendChild(inputField('Password', 'password', state.config.password, v => state.config.password = v, ''));
-  row2.appendChild(inputField('Confirm Password', 'password', '', () => {}, ''));
+  row2.appendChild(inputField('Password', 'password', state.config.password, v => { state.config.password = v; refreshInstallValidity(); }, ''));
+  row2.appendChild(inputField('Confirm Password', 'password', state.config.passwordConfirm || '', v => { state.config.passwordConfirm = v; refreshInstallValidity(); }, ''));
   fields.appendChild(row2);
+
+  const hint = el('div');
+  hint.id = 'install-hint';
+  hint.style.cssText = 'font-size:11.5px;color:var(--text-muted);min-height:15px;margin-top:2px';
+  fields.appendChild(hint);
 
   screen.appendChild(fields);
 
   // Footer
   const footer = el('div', 'footer');
-  const installBtn = btn('Install →', 'btn btn-primary', () => startInstall());
-  installBtn.disabled = !state.selected;
+  const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
+  installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => window.wails?.Quit?.()));
   footer.appendChild(installBtn);
+  // Defer validity to after mount so the hint element exists.
+  setTimeout(refreshInstallValidity, 0);
 
   const wrap = el('div');
   wrap.style.display = 'flex';
@@ -356,7 +433,7 @@ function renderControlPanel() {
   const card = el('div');
   card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;margin-top:8px';
   card.innerHTML = `
-    <div style="font-weight:600;font-size:14px">C:\\wootc\\disks\\root.disk</div>
+    <div style="font-weight:600;font-size:14px">C:\\wootc\\disks\\root.vhdx</div>
     <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives in this file. Deleting it will remove Linux but leave Windows intact.</div>
   `;
   screen.appendChild(card);
@@ -371,13 +448,258 @@ function renderControlPanel() {
   return wrap;
 }
 
+// ── Screen 5: Migration dashboard (installed Linux system) ───────────────────
+
+const CATEGORY_ICONS = {
+  Documents: '📄', Pictures: '🖼️', Downloads: '📥',
+  Music: '🎵', Videos: '🎬', Desktop: '🖥️',
+  steam: '🎮', browser: '🌐',
+};
+
+function renderMigrateScreen() {
+  const wrap = el('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
+  const screen = el('div', 'screen');
+
+  const hdr = el('div');
+  hdr.innerHTML = `
+    <div class="screen-title">Your Windows files are already here</div>
+    <div class="screen-subtitle">
+      Everything below is available right now, straight from Windows — no copying needed.
+      When you're ready, move things over to Linux at your own pace.
+    </div>
+  `;
+  screen.appendChild(hdr);
+
+  const reassure = el('div', 'warning-banner');
+  reassure.style.cssText = 'background:rgba(74,222,128,0.07);border-color:rgba(74,222,128,0.3);color:var(--text-dim)';
+  reassure.innerHTML = `<span>🛡️</span><span>Moving something to Linux never deletes it from Windows. Until you choose to remove Windows entirely, your files exist safely in both places.</span>`;
+  screen.appendChild(reassure);
+
+  const scroll = el('div');
+  scroll.style.cssText = 'overflow-y:auto;display:flex;flex-direction:column;gap:16px;margin-top:10px';
+
+  const filesSection = el('div');
+  filesSection.appendChild(sectionLabel('Your files & games'));
+  const list = el('div');
+  list.id = 'migrate-rows';
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  list.appendChild(renderMigrateRowsInner());
+  filesSection.appendChild(list);
+  scroll.appendChild(filesSection);
+
+  if (state.apps.length) {
+    const appsSection = el('div');
+    appsSection.appendChild(sectionLabel('Your apps'));
+    const al = el('div');
+    al.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    state.apps.forEach(a => al.appendChild(renderAppRow(a)));
+    appsSection.appendChild(al);
+    scroll.appendChild(appsSection);
+  }
+
+  if (state.office) {
+    const off = el('div');
+    off.appendChild(sectionLabel('Microsoft Office → LibreOffice'));
+    const card = el('div');
+    card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px';
+    const moved = (state.office.migrated || []).map(m => ({
+      'custom-dictionary': 'custom dictionary', templates: 'templates', fonts: 'fonts',
+      autocorrect: 'AutoCorrect list', 'office-format-defaults': 'save-as-Office default',
+    }[m] || m));
+    card.innerHTML = `<div style="font-size:12.5px;color:var(--text-dim)">${state.office.note || ''}</div>` +
+      (moved.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${moved.map(m => `<span class="chip ok">✓ ${m}</span>`).join('')}</div>` : '');
+    off.appendChild(card);
+    scroll.appendChild(off);
+  }
+
+  screen.appendChild(scroll);
+  wrap.appendChild(screen);
+
+  const footer = el('div', 'footer');
+  footer.appendChild(btn('Refresh', 'btn btn-ghost', () => refreshCategories()));
+  footer.appendChild(btn('Close', 'btn btn-primary', () => window.wails?.Quit?.()));
+  wrap.appendChild(footer);
+  return wrap;
+}
+
+function renderMigrateRowsInner() {
+  const frag = document.createDocumentFragment();
+  if (!state.categories.length) {
+    const empty = el('div');
+    empty.style.cssText = 'padding:30px;text-align:center;color:var(--text-muted);font-size:13px';
+    empty.textContent = 'Looking for your Windows data…';
+    frag.appendChild(empty);
+    return frag;
+  }
+  state.categories.forEach(c => {
+    const row = el('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px';
+
+    const icon = el('span');
+    icon.style.fontSize = '20px';
+    icon.textContent = CATEGORY_ICONS[c.id] || '📁';
+    row.appendChild(icon);
+
+    const mid = el('div');
+    mid.style.cssText = 'flex:1;min-width:0';
+    const size = c.sizeBytes >= 0 ? ` · ${fmtSize(c.sizeBytes)}` : '';
+    mid.innerHTML = `
+      <div style="font-weight:600;font-size:13.5px">${c.label}<span style="font-weight:400;color:var(--text-muted)">${size}</span></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${c.description}</div>
+    `;
+    row.appendChild(mid);
+
+    row.appendChild(migrateAction(c));
+    frag.appendChild(row);
+  });
+  return frag;
+}
+
+function renderMigrateRows() {
+  const list = document.getElementById('migrate-rows');
+  if (!list) return;
+  list.innerHTML = '';
+  list.appendChild(renderMigrateRowsInner());
+}
+
+function sectionLabel(text) {
+  const l = el('div');
+  l.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px';
+  l.textContent = text;
+  return l;
+}
+
+const APP_ICONS = {
+  firefox: '🦊', chrome: '🌐', edge: '🌐', vscode: '💻', discord: '💬',
+  spotify: '🎧', slack: '💬', steam: '🎮', obs: '🎥', telegram: '✈️',
+  signal: '🔒', whatsapp: '💬', thunderbird: '📧', zoom: '🎦',
+};
+
+// The honest outcome badge, driven by the backend's session verdict.
+const SESSION_BADGE = {
+  portable: { label: '✓ Signed in', cls: 'ok' },
+  signin:   { label: 'Sign in once', cls: '' },
+  none:     { label: 'Re-link needed', cls: '' },
+};
+
+function renderAppRow(a) {
+  const row = el('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:10px 16px';
+  const badge = SESSION_BADGE[a.session] || SESSION_BADGE.signin;
+  row.innerHTML = `
+    <span style="font-size:18px">${APP_ICONS[a.app] || '📦'}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13px;text-transform:capitalize">${a.app}</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:1px">${a.note || ''}</div>
+    </div>
+    <span class="chip ${badge.cls}" style="flex-shrink:0">${badge.label}</span>
+  `;
+  return row;
+}
+
+function migrateAction(c) {
+  const holder = el('div');
+  holder.style.cssText = 'display:flex;align-items:center;gap:8px;flex-shrink:0';
+
+  if (c.id in state.converting) {
+    const pct = Math.round(state.converting[c.id] || 0);
+    const track = el('div');
+    track.style.cssText = 'width:110px;height:6px;background:var(--border);border-radius:3px;overflow:hidden';
+    const fill = el('div');
+    fill.style.cssText = `width:${pct}%;height:100%;background:var(--accent, #4ade80);transition:width .3s`;
+    track.appendChild(fill);
+    const lbl = el('span');
+    lbl.style.cssText = 'font-size:11.5px;color:var(--text-muted);min-width:34px';
+    lbl.textContent = `${pct}%`;
+    holder.appendChild(track);
+    holder.appendChild(lbl);
+    return holder;
+  }
+
+  switch (c.state) {
+    case 'bridged': {
+      holder.appendChild(chip('Connected to Windows', false));
+      const b = btn('Move to Linux', 'btn btn-ghost', () => confirmConvert(c));
+      b.style.fontSize = '12px';
+      holder.appendChild(b);
+      break;
+    }
+    case 'native':
+      holder.appendChild(chip('✓ On Linux', false));
+      break;
+    case 'available': {
+      if (c.id === 'browser') {
+        const b = btn('Import', 'btn btn-ghost', () => runBrowserImport());
+        b.style.fontSize = '12px';
+        holder.appendChild(b);
+      } else {
+        holder.appendChild(chip('Found on Windows', false));
+      }
+      break;
+    }
+    default:
+      holder.appendChild(chip('Not found', false));
+  }
+  return holder;
+}
+
+function confirmConvert(c) {
+  const size = c.sizeBytes >= 0 ? ` (${fmtSize(c.sizeBytes)})` : '';
+  if (!confirm(
+    `Move ${c.label}${size} to Linux?\n\n` +
+    `Your files will be copied to fast Linux storage. The Windows copy stays exactly where it is — nothing is deleted.`
+  )) return;
+  state.converting[c.id] = 0;
+  renderMigrateRows();
+  ConvertCategory(c.id).catch(e => {
+    delete state.converting[c.id];
+    alert(`Something went wrong: ${e}\nYour files are safe — nothing was deleted.`);
+    refreshCategories();
+  });
+}
+
+async function runBrowserImport() {
+  try {
+    await ImportBrowserData();
+    await refreshCategories();
+  } catch (e) {
+    alert(`Browser import hit a snag: ${e}\nNothing was changed on the Windows side.`);
+  }
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 function confirmUninstall() {
-  if (confirm('Remove the TunaOS boot entry? (root.disk will NOT be deleted — remove it manually from C:\\wootc\\disks\\)')) {
+  if (confirm('Remove the TunaOS boot entry? (root.vhdx will NOT be deleted — remove it manually from C:\\wootc\\disks\\)')) {
     import('../wailsjs/go/main/App').then(({ Uninstall }) => Uninstall());
   }
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
+
+// Gate the Install button on a valid form and show the reason why not.
+function refreshInstallValidity() {
+  const btn = document.getElementById('install-btn');
+  const hint = document.getElementById('install-hint');
+  if (!btn) return;
+  const c = state.config;
+  let reason = '';
+  if (!state.selected) reason = 'Choose a variant above.';
+  else if (!c.username.trim()) reason = 'Enter a Linux username.';
+  else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
+  else if (!c.password) reason = 'Set a password.';
+  else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
+  btn.disabled = reason !== '';
+  if (hint) {
+    hint.textContent = reason;
+    hint.style.color = reason ? 'var(--danger)' : 'var(--text-muted)';
+  }
+}
 
 async function startInstall() {
   if (!state.selected) return;

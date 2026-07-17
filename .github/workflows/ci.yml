@@ -69,6 +69,46 @@ jobs:
             deployer-vmlinuz
           retention-days: 7
 
+  build-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend
+        run: |
+          cd app/frontend
+          npm install
+          npm run build
+
+      - name: Build wootc.exe (windows/amd64)
+        run: |
+          cd app
+          GOOS=windows GOARCH=amd64 go build -tags desktop,production -ldflags "-w -s" -o wootc.exe .
+          GOOS=windows GOARCH=amd64 go vet ./...
+
+      - name: Build Linux migration dashboard
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q libgtk-3-dev libwebkit2gtk-4.1-dev
+          cd app
+          # ubuntu-24.04 ships webkit2gtk-4.1 only; wails needs the tag.
+          go build -tags desktop,production,webkit2_41 -o wootc-dashboard .
+          go vet ./...
+
+      - name: Upload wootc.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: wootc-exe
+          path: app/wootc.exe
+          retention-days: 7
+
   validate-recipe:
     runs-on: ubuntu-latest
     steps:

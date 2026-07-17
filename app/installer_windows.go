@@ -53,6 +53,10 @@ func checkSystem() error {
 	if !isAdmin() {
 		return fmt.Errorf("wootc must be run as Administrator")
 	}
+	if !isUEFI() {
+		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — wootc needs UEFI. " +
+			"Most PCs made after 2012 support UEFI; it can usually be enabled in firmware setup")
+	}
 	return nil
 }
 
@@ -127,53 +131,37 @@ func createDirectories() error {
 
 // ── Sparse file creation ──────────────────────────────────────────────────────
 
-// createRootDisk creates a sparse file of the requested size using native
-// Windows APIs (no data written, no zeroing — NTFS allocates on demand).
+// createRootDisk creates a dynamic VHDX of the requested virtual capacity.
+// DiskPart is part of supported Windows editions and creates a VHDX that is
+// natively attachable in Disk Management while allocating sparsely on NTFS.
 func createRootDisk(sizeGB int) error {
-	path := filepath.Join(wootcDir(), "disks", "root.disk")
+	path := filepath.Join(wootcDir(), "disks", "root.vhdx")
 	if _, err := os.Stat(path); err == nil {
 		return nil // already exists
 	}
 
-	pathPtr, err := windows.UTF16PtrFromString(path)
+	script, err := os.CreateTemp(filepath.Dir(path), "create-root-vhdx-*.txt")
 	if err != nil {
-		return err
+		return fmt.Errorf("create DiskPart script: %w", err)
+	}
+	scriptPath := script.Name()
+	defer os.Remove(scriptPath) //nolint:errcheck
+	commands := fmt.Sprintf("create vdisk file=\"%s\" maximum=%d type=expandable\r\n", path, sizeGB*1024)
+	if _, err := script.WriteString(commands); err != nil {
+		_ = script.Close()
+		return fmt.Errorf("write DiskPart script: %w", err)
+	}
+	if err := script.Close(); err != nil {
+		return fmt.Errorf("close DiskPart script: %w", err)
 	}
 
-	h, err := windows.CreateFile(
-		pathPtr,
-		windows.GENERIC_WRITE,
-		0, nil,
-		windows.CREATE_NEW,
-		windows.FILE_ATTRIBUTE_NORMAL|windows.FILE_FLAG_SEQUENTIAL_SCAN,
-		0,
-	)
+	out, err := exec.Command("diskpart.exe", "/s", scriptPath).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("CreateFile: %w", err)
+		return fmt.Errorf("DiskPart create dynamic VHDX: %w: %s", err, strings.TrimSpace(string(out)))
 	}
-	defer windows.CloseHandle(h) //nolint:errcheck
-
-	// Mark sparse
-	var dummy uint32
-	if err := windows.DeviceIoControl(h, windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, &dummy, nil); err != nil {
-		// Non-fatal: FAT32 or unsupported FS. Fall through.
-		_ = err
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("DiskPart did not create %s: %w", path, err)
 	}
-
-	// Set file size (no data written)
-	size := int64(sizeGB) * 1024 * 1024 * 1024
-	lo := uint32(size & 0xFFFFFFFF)
-	hi := int32(size >> 32)
-	if _, err := windows.SetFilePointer(h, int32(lo), &hi, windows.FILE_BEGIN); err != nil {
-		return fmt.Errorf("SetFilePointer: %w", err)
-	}
-	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
-	setEOF := kernel32.NewProc("SetEndOfFile")
-	r, _, le := setEOF.Call(uintptr(h))
-	if r == 0 {
-		return fmt.Errorf("SetEndOfFile: %w", le)
-	}
-
 	return nil
 }
 
@@ -183,7 +171,9 @@ const deployerBaseURL = "https://github.com/tuna-os/wootc/releases/latest/downlo
 
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	installDir := filepath.Join(wootcDir(), "install")
-	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "wubildr.efi"}
+	// The signed shim+grub pair carries the Secure Boot chain; wubildr.efi
+	// remains only for the legacy NTFS fallback path.
+	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi", "wubildr.efi"}
 
 	for i, name := range files {
 		dest := filepath.Join(installDir, name)
@@ -248,48 +238,102 @@ menuentry "Install wootc (debug)" {
 
 // ── ESP setup ─────────────────────────────────────────────────────────────────
 
-func setupESP(bootloader string) error {
+// wootcGrubMarker identifies a grub.cfg written by wootc, so reinstalls
+// can overwrite it while a real Linux distro's config is protected.
+const wootcGrubMarker = "# wootc deployer"
+
+func setupESP(cfg InstallConfig) error {
 	espPath, err := findESP()
 	if err != nil {
 		return err
 	}
 
-	switch bootloader {
+	switch cfg.Bootloader {
 	case "systemd-boot":
 		return setupSystemdBoot(espPath)
 	default:
-		return setupGRUB2(espPath)
+		return setupSignedChain(espPath, cfg)
 	}
 }
 
-func setupGRUB2(espPath string) error {
-	wootcEFI := filepath.Join(espPath, "EFI", "wootc")
-	if err := os.MkdirAll(wootcEFI, 0o755); err != nil {
-		return err
-	}
-
+// setupSignedChain stages the E2E-proven Secure Boot chain:
+// BCD → EFI\fedora\shimx64.efi (MS-signed) → grubx64.efi (embedded prefix
+// \EFI\fedora) → grub.cfg → deployer kernel+initramfs on the ESP (the
+// signed GRUB cannot read NTFS, so the pair must live on FAT32).
+func setupSignedChain(espPath string, cfg InstallConfig) error {
 	installDir := filepath.Join(wootcDir(), "install")
+	fedoraEFI := filepath.Join(espPath, "EFI", "fedora")
+	wootcEFI := filepath.Join(espPath, "EFI", "wootc")
+	grubCfg := filepath.Join(fedoraEFI, "grub.cfg")
 
-	// Copy GRUB EFI binaries if available
-	for _, name := range []string{"wubildr.efi"} {
-		src := filepath.Join(installDir, name)
-		dst := filepath.Join(wootcEFI, name)
-		if _, err := os.Stat(src); err == nil {
-			if err := copyFile(src, dst); err != nil {
-				return fmt.Errorf("copy %s: %w", name, err)
-			}
+	// D1 guard: a machine dual-booting a real Fedora-family install owns
+	// EFI\fedora — overwriting its grub.cfg would break that Linux. Refuse
+	// unless the existing config is ours (reinstall).
+	if data, err := os.ReadFile(grubCfg); err == nil {
+		if !strings.Contains(string(data), wootcGrubMarker) {
+			return fmt.Errorf("this PC already has a Linux bootloader at EFI\\fedora — " +
+				"installing wootc would break it. Dual-boot alongside an existing " +
+				"Linux install is not supported yet")
 		}
 	}
 
-	// Copy GRUB configs
-	for _, name := range []string{"wubildr.cfg", "grub.install.cfg"} {
-		src := filepath.Join(installDir, name)
-		dst := filepath.Join(wootcEFI, name)
-		if _, err := os.Stat(src); err == nil {
-			if err := copyFile(src, dst); err != nil {
-				return fmt.Errorf("copy %s: %w", name, err)
-			}
+	// D2 gate: the deployer pair must fit on the ESP. Measure before
+	// copying so the failure is a clear sentence, not a mid-copy ENOSPC.
+	var need int64
+	for _, name := range []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi"} {
+		st, err := os.Stat(filepath.Join(installDir, name))
+		if err != nil {
+			return fmt.Errorf("%s is missing from %s — the download step did not complete: %w", name, installDir, err)
 		}
+		need += st.Size()
+	}
+	var freeBytes uint64
+	espPtr, _ := syscall.UTF16PtrFromString(espPath)
+	if err := windows.GetDiskFreeSpaceEx(espPtr, &freeBytes, nil, nil); err == nil {
+		const slack = 4 << 20
+		if int64(freeBytes) < need+slack {
+			return fmt.Errorf("the EFI system partition is too small: it has %d MB free but the "+
+				"Linux starter needs %d MB. This PC's boot partition cannot hold wootc",
+				freeBytes>>20, (need+slack)>>20)
+		}
+	}
+
+	for _, dir := range []string{fedoraEFI, wootcEFI} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+
+	// Signed chain into EFI\fedora, deployer pair into EFI\wootc.
+	for src, dst := range map[string]string{
+		filepath.Join(installDir, "shimx64.efi"):            filepath.Join(fedoraEFI, "shimx64.efi"),
+		filepath.Join(installDir, "grubx64.efi"):            filepath.Join(fedoraEFI, "grubx64.efi"),
+		filepath.Join(installDir, "deployer-vmlinuz"):       filepath.Join(wootcEFI, "deployer-vmlinuz"),
+		filepath.Join(installDir, "deployer-initramfs.img"): filepath.Join(wootcEFI, "deployer-initramfs.img"),
+	} {
+		if err := copyFile(src, dst); err != nil {
+			return fmt.Errorf("copy %s: %w", filepath.Base(src), err)
+		}
+	}
+
+	// Deployer menu at the signed GRUB's embedded prefix.
+	menu := fmt.Sprintf(`%s - one-shot Linux installation
+set default=0
+set timeout=5
+
+menuentry "Install wootc (automatic)" {
+    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json quiet
+    initrd /EFI/wootc/deployer-initramfs.img
+}
+
+menuentry "Install wootc (debug)" {
+    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json wootc.debug
+    initrd /EFI/wootc/deployer-initramfs.img
+}
+`, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, cfg.ImageRef, cfg.Hostname)
+
+	if err := os.WriteFile(grubCfg, []byte(menu), 0o644); err != nil {
+		return fmt.Errorf("write deployer grub.cfg: %w", err)
 	}
 	return nil
 }
@@ -310,24 +354,24 @@ func setupSystemdBoot(espPath string) error {
 // ── BCD configuration ─────────────────────────────────────────────────────────
 
 func configureBCD(bootloader string) error {
-	espPath, err := findESP()
-	if err != nil {
-		return err
-	}
-
-	// Extract drive letter from path like "S:\"
-	espDrive := string([]rune(espPath)[0])
 	var efiRelPath string
 
 	switch bootloader {
 	case "systemd-boot":
 		efiRelPath = `\EFI\systemd\systemd-bootx64.efi`
 	default:
-		efiRelPath = `\EFI\wootc\wubildr.efi`
+		// The signed-shim chain proven by E2E: BCD → shimx64.efi →
+		// grubx64.efi (embedded prefix \EFI\fedora) → deployer menu.
+		efiRelPath = `\EFI\fedora\shimx64.efi`
 	}
 
+	// Idempotency: sweep any wootc entries from earlier runs first, or every
+	// retried install piles up another firmware entry (three of them showed
+	// up on the first E2E day). Same discovery as uninstall.
+	deleteWootcBCDEntries()
+
 	// bcdedit /copy {bootmgr} /d "wootc" — clones the Windows Boot Manager entry,
-	// inheriting device/partition settings. We then change the path to our EFI binary.
+	// inheriting the ESP device/partition settings, so no drive letter is needed.
 	// This is the proven approach from WubiUEFI (millions of users).
 	out, err := runCmd("bcdedit", "/copy", "{bootmgr}", "/d", "wootc")
 	if err != nil {
@@ -342,9 +386,11 @@ func configureBCD(bootloader string) error {
 	}
 	guid := "{" + m[1] + "}"
 
+	// One-shot bootsequence only: nothing permanent changes in the user's
+	// boot order until TunaOS is known to work. displayorder promotion is a
+	// post-deploy, user-confirmed action, not part of the install.
 	cmds := [][]string{
 		{"bcdedit", "/set", guid, "path", efiRelPath},
-		{"bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/addfirst"},
 		{"bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"},
 	}
 	for _, args := range cmds {
@@ -355,23 +401,34 @@ func configureBCD(bootloader string) error {
 	return nil
 }
 
+// deleteWootcBCDEntries removes every firmware entry named exactly
+// "wootc" (identifier precedes description in bcdedit output).
+func deleteWootcBCDEntries() {
+	out, _ := runCmd("bcdedit", "/enum", "firmware")
+	re := regexp.MustCompile(`(?ms)identifier\s+(\{[^}]+\})[^{]*?description\s+wootc\s*$`)
+	for _, m := range re.FindAllStringSubmatch(out, -1) {
+		runCmd("bcdedit", "/delete", m[1]) //nolint:errcheck
+	}
+}
+
 // ── Uninstall ─────────────────────────────────────────────────────────────────
 
 func uninstall(ctx context.Context) error {
-	// 1. Find and remove BCD entry
-	out, _ := runCmd("bcdedit", "/enum", "firmware")
-	re := regexp.MustCompile(`(?m)description\s+wootc\s*\n.*identifier\s+(\{[^}]+\})`)
-	if m := re.FindStringSubmatch(out); m != nil {
-		runCmd("bcdedit", "/delete", m[1]) //nolint:errcheck
-	}
+	// 1. Remove all wootc BCD entries
+	deleteWootcBCDEntries()
 
-	// 2. Remove ESP files
+	// 2. Remove ESP files. EFI\fedora is only removed when its grub.cfg
+	// carries the wootc marker — never touch a real distro's chain.
 	espPath, err := findESP()
 	if err == nil {
 		os.RemoveAll(filepath.Join(espPath, "EFI", "wootc")) //nolint:errcheck
+		grubCfg := filepath.Join(espPath, "EFI", "fedora", "grub.cfg")
+		if data, err := os.ReadFile(grubCfg); err == nil && strings.Contains(string(data), wootcGrubMarker) {
+			os.RemoveAll(filepath.Join(espPath, "EFI", "fedora")) //nolint:errcheck
+		}
 	}
 
-	// 3. Remove C:\wootc\install\ (NOT root.disk — user deletes that manually)
+	// 3. Remove C:\wootc\install\ (NOT root.vhdx — user deletes that manually)
 	os.RemoveAll(filepath.Join(wootcDir(), "install")) //nolint:errcheck
 
 	return nil

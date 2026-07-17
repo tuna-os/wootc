@@ -21,7 +21,7 @@
 
 set -Eeuo pipefail
 
-BASE_IMAGE="${WOOTC_E2E_BASE_IMAGE:-dockurr/windows}"
+BASE_IMAGE="${WOOTC_E2E_BASE_IMAGE:-docker.io/dockurr/windows}"
 TARGET_IMAGE="localhost/wootc-e2e-windows-ssh:latest"
 KEYFILE="${1:-$HOME/.ssh/wootc_e2e_ed25519}"
 BUILDER="wootc-ssh-builder"

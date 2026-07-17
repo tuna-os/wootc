@@ -11,7 +11,7 @@
 #   ./run-e2e.sh ghcr.io/tuna-os/bonito:gnome # test specific image
 #   ./run-e2e.sh --skip-build                  # skip deployer rebuild
 #   ./run-e2e.sh --keep                        # keep container after test
-#   ./run-e2e.sh --skip-install                # skip Windows install wait (reuse existing disk)
+#   ./run-e2e.sh --skip-install                # reuse Windows, refresh and reset the E2E handoff
 #   Wootc Windows ISO cache (optional):
 #     tests/e2e/iso-cache/windows-11.iso       # default offline installer cache
 #     WOOTC_WINDOWS_ISO=/path/to/windows.iso ./run-e2e.sh
@@ -43,10 +43,41 @@ NC='\033[0m'
 pass() { echo -e "${GREEN}[PASS]${NC} $*"; }
 fail() { echo -e "${RED}[FAIL]${NC} $*" >&2; }
 info() { echo -e "${YELLOW}[INFO]${NC} $*"; }
-step() { echo -e "${CYAN}[STEP]${NC} $*"; }
+step() { echo -e "${CYAN}[STEP]${NC} $*"; run_state "step: $*"; }
 
 CONTAINER_NAME="wootc-e2e-windows"
 STORAGE_DIR="$SCRIPT_DIR/storage"
+# A second orchestrator can otherwise race QGA cleanup and recreate the
+# disposable root disk while the first run is booting the deployer.  Keep the
+# advisory lock open for the lifetime of this shell; it is released
+# automatically if the runner exits or is killed.
+mkdir -p "$STORAGE_DIR"
+exec 9>"$STORAGE_DIR/.run-e2e.lock"
+if ! flock -n 9; then
+    echo "[FAIL] Another run-e2e.sh already owns $STORAGE_DIR/.run-e2e.lock" >&2
+    exit 1
+fi
+
+# Keep a small, atomic status record next to the VM disk.  Remote runners can
+# outlive the SSH command that launched them, so the process ID and run ID are
+# the authoritative way to tell an active test from an orphaned VM.
+RUN_ID="${WOOTC_E2E_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${HOSTNAME:-unknown}-$$}"
+RUN_STARTED_AT="$(date -u +%FT%TZ)"
+RUN_STATE_FILE="$STORAGE_DIR/run-e2e.current"
+run_state() {
+    local stage="$1" tmp="$RUN_STATE_FILE.tmp"
+    {
+        printf 'run_id=%s\n' "$RUN_ID"
+        printf 'pid=%s\n' "$$"
+        printf 'host=%s\n' "${HOSTNAME:-unknown}"
+        printf 'started_at=%s\n' "$RUN_STARTED_AT"
+        printf 'updated_at=%s\n' "$(date -u +%FT%TZ)"
+        printf 'stage=%s\n' "$stage"
+    } > "$tmp"
+    mv -f "$tmp" "$RUN_STATE_FILE"
+}
+run_state "started"
+info "Run ID: $RUN_ID (status: $RUN_STATE_FILE)"
 # Keep the pristine Windows installer separate from Dockur's mutable working
 # directory.  Dockur can generate derived ISO images while preparing an answer
 # file, so it must receive a copy rather than the only cached source image.
@@ -60,6 +91,8 @@ QGA_MSI_URL="${WOOTC_QGA_MSI_URL:-https://fedorapeople.org/groups/virt/virtio-wi
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 cleanup() {
+    local result=$?
+    run_state "exited (status $result)"
     if [ "$KEEP_CONTAINER" = false ]; then
         info "Cleaning up..."
         podman compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || \
@@ -67,6 +100,7 @@ cleanup() {
     else
         info "Container kept (--keep): $CONTAINER_NAME"
     fi
+    return "$result"
 }
 trap cleanup EXIT
 
@@ -154,12 +188,62 @@ qga_wait_reboot() {
     qga_wait "$label" 600
 }
 
+# QGA is present in both the Windows guest and our deployer initramfs.  A
+# successful ping alone therefore does not prove that it is safe to launch a
+# Windows PowerShell payload.  Probe the Windows executable explicitly.
+qga_windows_probe() {
+    qga_powershell '$env:OS' >/dev/null 2>&1
+}
+
+qga_wait_windows() {
+    local timeout="$1" elapsed=0
+    step "Waiting for QGA: Windows guest..."
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if qga_windows_probe; then
+            pass "QGA available: Windows guest"
+            return 0
+        fi
+        sleep 10
+        elapsed=$((elapsed + 10))
+        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m)"
+    done
+    fail "Windows QGA did not become available within $((timeout / 60)) minutes"
+    return 1
+}
+
 qga_powershell() {
     qga_call powershell "$1"
 }
 
 qga_read() {
     qga_call read "$1"
+}
+
+# A reused Windows VM contains C:\OEM from the original unattended install.
+# The host-side /oem bind mount is not live in the guest, so copying a new
+# deployer to the bind mount alone silently tests stale code.  QGA provides a
+# guest-file API that lets retries replace the payload without reinstalling
+# Windows or relying on its network stack.
+qga_sync_oem() {
+    step "Refreshing OEM payload in reused Windows guest..."
+    qga_powershell 'New-Item -ItemType Directory -Force -Path C:\OEM\payload\grub | Out-Null'
+    while IFS= read -r -d '' source; do
+        relative="${source#"$OEM_DIR"/}"
+        qga_call write "/oem/$relative" "C:\\OEM\\${relative//\//\\}"
+    done < <(find "$OEM_DIR" -type f -print0)
+    pass "OEM payload refreshed through QGA"
+}
+
+# `--skip-install` is a new deployment attempt on an existing disposable
+# Windows installation.  Reset just the handoff-owned guest state so failures
+# cannot leak root.disk/root.vhdx, failure markers, or a still-running setup
+# process into the next attempt.  Do not remove C: or the Windows disk.
+reset_oem_attempt() {
+    step "Resetting prior OEM handoff state..."
+    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    rm -f "$STORAGE_DIR/qemu.pty"
+    printf '%s run_id=%s reset prior OEM handoff state\n' "$(date -u +%FT%TZ)" "$RUN_ID" > "$STORAGE_DIR/e2e-timeline.log"
+    pass "Prior OEM handoff state cleared"
 }
 
 # ── Step 0: Build deployer initramfs ─────────────────────────────────────────
@@ -175,12 +259,22 @@ if [ "$SKIP_BUILD" = false ]; then
     mkdir -p "$SCRIPT_DIR/wootc-files"
     printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
     sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
-    podman run --rm \
-        -v "$SCRIPT_DIR/wootc-files:/out" \
-        wootc-deployer || {
-        fail "Deployer extraction failed"
-        exit 1
-    }
+    # The image keeps its generated artifacts under /out. Do not bind-mount
+    # wootc-files there: that hides the image's /out and leaves the host with
+    # no deployer kernel or initramfs. Stream each artifact out first and
+    # rename it only after podman succeeds so a failed extraction cannot leave
+    # a plausible-looking partial payload for the OEM handoff.
+    for artifact in deployer-vmlinuz deployer-initramfs.img; do
+        output="$SCRIPT_DIR/wootc-files/$artifact"
+        tmp_output="$output.tmp.$$"
+        if ! podman run --rm --entrypoint /bin/cat wootc-deployer \
+            "/out/$artifact" > "$tmp_output"; then
+            rm -f "$tmp_output"
+            fail "Deployer extraction failed: $artifact"
+            exit 1
+        fi
+        mv -f "$tmp_output" "$output"
+    done
 
     podman build -t wootc-wubildr -f payload/wubildr/Containerfile . || {
         info "wubildr EFI build failed (non-fatal — using signed shim chain instead)"
@@ -207,13 +301,17 @@ if [ "$SKIP_BUILD" = false ]; then
     if [ ! -f "$SCRIPT_DIR/wootc-files/shimx64.efi" ] || \
        [ ! -f "$SCRIPT_DIR/wootc-files/grubx64.efi" ]; then
         info "Extracting signed shim + GRUB from Fedora container..."
-        CID=$(podman run -d --rm quay.io/fedora/fedora:44 \
+        # Keep the stopped container until after podman cp. With `--rm`, the
+        # previous `podman wait` deleted it before either signed EFI binary
+        # could be extracted.
+        CID=$(podman create quay.io/fedora/fedora:44 \
             bash -c "dnf install -y -q shim-x64 grub2-efi-x64 2>/dev/null && \
               cp /boot/efi/EFI/fedora/shimx64.efi /tmp/ && \
               cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && echo DONE")
-        podman wait "$CID" >/dev/null 2>&1 || true
+        podman start -a "$CID" >/dev/null 2>&1 || true
         podman cp "$CID:/tmp/shimx64.efi" "${SCRIPT_DIR}/wootc-files/shimx64.efi" 2>/dev/null || true
         podman cp "$CID:/tmp/grubx64.efi" "${SCRIPT_DIR}/wootc-files/grubx64.efi" 2>/dev/null || true
+        podman rm "$CID" >/dev/null 2>&1 || true
         if [ -s "$SCRIPT_DIR/wootc-files/shimx64.efi" ]; then
             info "shimx64.efi: $(du -sh "$SCRIPT_DIR/wootc-files/shimx64.efi" | cut -f1)"
         fi
@@ -315,7 +413,11 @@ if [ "$SKIP_INSTALL" = false ]; then
     # does not include /custom.xml. Reusing that ISO silently embeds an older
     # answer file (including an older disk layout), so fingerprint the input
     # and discard the processed ISO whenever the answer file changes.
-    ANSWER_SHA=$({ sha256sum autounattend.xml; find oem -type f -print0 | sort -z | xargs -0 -r sha256sum; } | sha256sum | awk '{print $1}')
+    # The Windows disk layout is determined by autounattend.xml.  OEM payload
+    # changes are safe on a reused guest because qga_sync_oem refreshes them
+    # before each retry; including them here would falsely require a complete
+    # Windows reinstall for every deployer or QGA client change.
+    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         info "autounattend.xml changed; rebuilding Dockur's processed installer ISO"
@@ -346,7 +448,7 @@ if [ "$SKIP_INSTALL" = false ]; then
         info "No cached Windows ISO; Dockur will download one. Save a verified installer under $ISO_CACHE_DIR to avoid this next time."
     fi
 else
-    ANSWER_SHA=$({ sha256sum autounattend.xml; find oem -type f -print0 | sort -z | xargs -0 -r sha256sum; } | sha256sum | awk '{print $1}')
+    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         fail "autounattend.xml changed since this disk was prepared; rerun without --skip-install"
@@ -360,14 +462,20 @@ $COMPOSE -f compose.yml up -d windows
 info "Container $CONTAINER_NAME started"
 
 # Dockur may need to prepare (or re-use) a Windows ISO before starting QEMU.
-# Poll rather than treating a fixed three-second delay as an acceleration
-# failure; this also makes --skip-install reliable on a just-prepared disk.
+# A first run extracts the ISO, injects drivers, and rebuilds the installer
+# image — several minutes on slower disks — so poll long (up to 15 min) and
+# distinguish "QEMU never started" from a real acceleration failure.
 QEMU_CMD=""
-for _ in $(seq 1 20); do
+for _ in $(seq 1 300); do
     QEMU_CMD=$($DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true)
     [ -n "$QEMU_CMD" ] && break
     sleep 3
 done
+if [ -z "$QEMU_CMD" ]; then
+    fail "QEMU did not start within 15 minutes (Dockur still preparing the image, or it crashed)"
+    capture_vm_diagnostics
+    exit 1
+fi
 if [[ ( "$QEMU_CMD" != *"-accel=kvm"* && "$QEMU_CMD" != *"accel=kvm"* ) || "$QEMU_CMD" != *"-enable-kvm"* ]]; then
     fail "QEMU is not using KVM acceleration"
     capture_vm_diagnostics
@@ -431,8 +539,22 @@ fi
 # The QGA service is installed by the SYSTEM OEM bootstrap before the wootc
 # payload runs. Its availability is the real Windows-ready signal; no guest
 # IP, WinRM listener, or Windows password is involved.
-qga_wait "Windows guest" 2700
+if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
+    info "Previous deployer is still running; clearing UEFI BootNext before Windows retry"
+    # A failed initramfs can leave the UEFI one-shot entry set, causing every
+    # Ctrl-Alt-Del to loop back to the deployer instead of normal BootOrder.
+    qga_call exec /bin/sh -c 'rm -f /sys/firmware/efi/efivars/BootNext-*' || \
+        info "Could not clear UEFI BootNext from the deployer; continuing with reboot"
+    info "Rebooting prior deployer to Windows before retry"
+    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
+fi
+qga_wait_windows 2700
 qga_call info || true
+
+if [ "$SKIP_INSTALL" = true ]; then
+    qga_sync_oem
+    reset_oem_attempt
+fi
 
 step "Starting OEM setup through QGA..."
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null

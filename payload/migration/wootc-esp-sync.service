@@ -1,0 +1,12 @@
+[Unit]
+Description=Sync Phase-2 kernel to the Windows ESP after OS updates
+# Needs /boot (deployment kernels) and udev by-uuid links settled.
+After=local-fs.target systemd-udev-settle.service
+ConditionPathExists=/etc/wootc/host-esp.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wootc-esp-sync
+
+[Install]
+WantedBy=multi-user.target

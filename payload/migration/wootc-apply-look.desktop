@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=wootc first-login setup
+Comment=Applies your Windows wallpaper and theme, once
+Exec=/usr/local/bin/wootc-apply-look
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
