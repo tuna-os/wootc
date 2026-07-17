@@ -50,8 +50,15 @@ mounts present for the vault-created user, `wootc-convert-dir` round-trip
 on a seeded folder, dashboard backend (`GetMigrationCategories`) sane;
 then reboot back to Windows and assert it comes up clean.
 
-**Status:** components implemented (bridge scripts, dashboard, polkit);
-untested beyond builds until rung 2 stands.
+**Status:** components implemented AND unit-proven ahead of rung 2 —
+`tests/migration/test-bridge.sh` is **33/33 green** in a container
+(passthrough + write-through, Steam registration, browser import,
+reversible folder conversion + marker, DE look mapping GNOME/KDE, ESP
+sync on BLS *and* classic layouts, MS Office→LibreOffice). Live proof
+(binds actually appearing in a booted Phase-2 $HOME) still waits on
+rung 2. Session token migration is split out to GitHub issues #1
+(DPAPI rewrap) and #2 (guided re-link) — needs real per-service testing,
+not automation now; #3 tracks dashboard integration.
 
 ## Working agreement
 
