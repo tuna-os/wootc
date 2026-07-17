@@ -1,4 +1,4 @@
 [submodule "fisherman"]
 	path = fisherman
 	url = https://github.com/tuna-os/fisherman.git
-	branch = wootc/vhdx-fixes
+	branch = dev
