@@ -83,6 +83,12 @@ func (a *App) startup(ctx context.Context) {
 	a.status.Existing = a.existingInstallFound()
 }
 
+// previewMode reports whether the app is running as a UI test harness:
+// real WebView2 and real Go↔JS bindings, but destructive pipeline steps
+// are stubbed so Playwright-over-CDP can exercise the GUI on a CI runner
+// without touching BCD, disks, or the ESP. Set WOOTC_UI_PREVIEW=1.
+func previewMode() bool { return os.Getenv("WOOTC_UI_PREVIEW") == "1" }
+
 func (a *App) shutdown(ctx context.Context) {
 	if a.cancel != nil {
 		a.cancel()
@@ -233,6 +239,13 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	a.cancel = cancel
 	a.status = InstallStatus{Running: true}
 
+	// Preview mode: emit a scripted progress run so the GUI's progress and
+	// done screens can be driven under CDP without a real install.
+	if previewMode() {
+		go a.runPreviewInstall(ctx)
+		return nil
+	}
+
 	go func() {
 		err := a.runInstall(ctx, cfg)
 		a.status.Running = false
@@ -356,6 +369,30 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 // emit sends a progress event to the frontend.
 func (a *App) emit(e ProgressEvent) {
 	runtime.EventsEmit(a.ctx, "install:progress", e)
+}
+
+// runPreviewInstall scripts a fast, harmless progress run for UI testing.
+func (a *App) runPreviewInstall(ctx context.Context) {
+	steps := []struct {
+		name    string
+		percent float64
+	}{
+		{"Checking system", 5}, {"Creating root.vhdx", 15},
+		{"Downloading deployer", 50}, {"Setting up ESP", 65},
+		{"Configuring BCD", 80}, {"Collecting your look", 90},
+	}
+	for _, s := range steps {
+		select {
+		case <-ctx.Done():
+			a.status.Running = false
+			return
+		case <-time.After(300 * time.Millisecond):
+		}
+		a.emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
+	}
+	a.status.Running = false
+	a.status.Done = true
+	a.emit(ProgressEvent{Step: "done", Message: "Installation complete (preview).", Percent: 100, Done: true})
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
