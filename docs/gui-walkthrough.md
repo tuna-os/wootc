@@ -44,6 +44,17 @@ are instant.
 When a `root.vhdx` already exists, the app opens here instead: reinstall,
 uninstall (removes the boot entry, never the disk), or close.
 
+## BitLocker — an unencrypted home for Linux (no forced decrypt)
+
+![BitLocker chooser](screenshots/08-bitlocker.png)
+
+When C: is BitLocker-encrypted, wootc never asks the user to decrypt.
+Instead it offers to put Linux on an unencrypted volume — reuse an
+existing one, or carve a new `wootc-data` partition from C: while C:
+stays fully BitLocker-protected. `root.disk` + vault live on that
+unencrypted volume so the installed system can mount them read-write
+every boot without a decryption prompt (SPEC §3.5).
+
 ## 6. Branded re-skin
 
 ![Branded](screenshots/07-branded.png)

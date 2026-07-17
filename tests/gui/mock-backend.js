@@ -37,6 +37,12 @@ function makeApp(mock) {
     GetOfficeMigration: () => P(mock.office || { present: false }),
     ConvertCategory: () => P(),
     ImportBrowserData: () => P('ok'),
+    CreateDataPartition: () => P({ letter: 'D', label: 'wootc-data', freeGB: 60, encrypted: false }),
+    GetUninstallInfo: () => P(mock.uninstall || { found: false }),
+    UninstallWith: () => P(),
+    GetVMCapability: () => P(mock.vm || { available: false, reason: '' }),
+    BootInVM: () => P(),
+    DefragDrive: () => { if (mock.defragError) return Promise.reject(mock.defragError); return P(); },
   };
 }
 

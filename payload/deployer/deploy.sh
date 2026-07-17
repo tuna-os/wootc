@@ -13,9 +13,16 @@
 #   wootc.flatpaks=org.mozilla.firefox,...          (optional)
 #   wootc.luks=none|luks-passphrase|tpm2-luks       (optional)
 #   wootc.luks-passphrase=...                        (optional)
+#   wootc.bootloader=grub2|systemd                   (optional)
+#   wootc.composefs=0|1                              (optional)
 #   wootc.debug                                      (optional, drops to shell)
 
 set -Eeuo pipefail
+
+# Set once the Windows NTFS volume is mounted. Keep this log append-only so a
+# failed reboot or a later deployment attempt cannot erase the evidence from
+# the preceding one.
+PERSIST_LOG=""
 
 # Write through /dev/kmsg when available: stdout of a sourced initqueue hook
 # lands in the journal but is not reliably forwarded to the serial console,
@@ -23,10 +30,12 @@ set -Eeuo pipefail
 log() {
     printf '\033[1;32m[wootc]\033[0m %s\n' "$*"
     printf '[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    [ -z "$PERSIST_LOG" ] || printf '%s [wootc] %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 err() {
     printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2
     printf '[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    [ -z "$PERSIST_LOG" ] || printf '%s [wootc] ERROR: %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 # Current phase, read by the heartbeat and useful over QGA.
 phase() {
@@ -46,6 +55,7 @@ echo 134217728 > /proc/sys/vm/dirty_background_bytes 2>/dev/null || true
 NTFS_PART=""
 LOOP_DEV=""
 VERIFY_LOOP=""
+VERIFY_CRYPT=""
 SCRATCH_LOOP=""
 SCRATCH_IMG=""
 JOURNAL_STREAM_PID=""
@@ -75,6 +85,7 @@ cleanup() {
     for mount in /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
+    [[ -n "$VERIFY_CRYPT" ]] && cryptsetup close "$VERIFY_CRYPT" 2>/dev/null || true
     [[ -n "$VERIFY_LOOP" ]] && qemu-nbd --disconnect "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
     [[ -n "$LOOP_DEV" ]] && qemu-nbd --disconnect "$LOOP_DEV" 2>/dev/null || true
@@ -106,6 +117,20 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
+BOOTLOADER="$(read_cmdline wootc.bootloader grub2)"
+COMPOSEFS="$(read_cmdline wootc.composefs 0)"
+
+case "$BOOTLOADER" in grub2|systemd) ;; *) err "unsupported bootloader: $BOOTLOADER"; exit 1 ;; esac
+case "$COMPOSEFS" in 0|1) ;; *) err "unsupported composefs value: $COMPOSEFS"; exit 1 ;; esac
+
+case "$LUKS_TYPE" in
+    none|luks-passphrase|tpm2-luks|tpm2-luks-passphrase) ;;
+    *) err "unsupported wootc.luks type: $LUKS_TYPE"; exit 1 ;;
+esac
+if [[ "$LUKS_TYPE" == *passphrase && -z "$LUKS_PASSPHRASE" ]]; then
+    err "$LUKS_TYPE requires wootc.luks-passphrase"
+    exit 1
+fi
 
 if [[ -z "$IMAGE" ]]; then
     err "wootc.image= not set on kernel command line"
@@ -176,6 +201,8 @@ DISK="/mnt/ntfs/wootc/disks/root.vhdx"
 # resource signal (a 7-minute image pull must look different from a hang).
 LOG_DIR=/mnt/ntfs/wootc/logs
 mkdir -p "$LOG_DIR"
+PERSIST_LOG="$LOG_DIR/deployer.log"
+log "Persistent deployer log started: C:\\wootc\\logs\\deployer.log"
 (
     set +eu  # telemetry must survive any single command failing
     while true; do
@@ -270,7 +297,7 @@ if [[ "$VHDX_FORMAT" != "vhdx" ]]; then
 fi
 modprobe nbd nbds_max=4 max_part=16
 LOOP_DEV=/dev/nbd0
-qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$DISK"
+qemu-nbd --connect "$LOOP_DEV" --format=vhdx --discard=unmap "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
 log "Attached dynamic VHDX ${DISK} as ${LOOP_DEV}"
 
@@ -335,7 +362,8 @@ cat > "$RECIPE" << EOF
 {
   "disk": "${LOOP_DEV}",
   "filesystem": "${FILESYSTEM}",
-  "composeFsBackend": false,
+  "composeFsBackend": $([[ "$COMPOSEFS" == 1 ]] && echo true || echo false),
+	"bootloader": "${BOOTLOADER}",
   "unifiedStorage": false,
   "selinuxDisabled": false,
   ${LUKS_JSON},
@@ -346,7 +374,9 @@ cat > "$RECIPE" << EOF
 EOF
 
 log "Fisherman recipe:"
-cat "$RECIPE"
+# The serial console and journal are persisted for E2E diagnostics. Never put
+# the disk-unlock secret in either one.
+jq 'if .encryption.passphrase then .encryption.passphrase = "<redacted>" else . end' "$RECIPE"
 
 # ── Run fisherman ───────────────────────────────────────────────────────────
 phase "fisherman"
@@ -364,14 +394,44 @@ phase "verification"
 log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
-VERIFY_LOOP=/dev/nbd0
-qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx "$DISK"
-udevadm settle --timeout=10 2>/dev/null || true
+# Do not reuse nbd0 here: qemu-nbd disconnect is asynchronous and the old
+# partition nodes can briefly remain after Fisherman exits.  A separate NBD
+# device makes verification independent of that teardown race.
+VERIFY_LOOP=/dev/nbd1
+qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx --discard=unmap "$DISK"
+
+# qemu-nbd publishes the capacity change before the partition scan completes.
+# Wait for the root partition explicitly instead of treating a successful
+# udevadm settle as proof that /dev/nbd*p* nodes are ready.
+for _ in {1..20}; do
+    udevadm settle --timeout=1 2>/dev/null || true
+    [[ -b "${VERIFY_LOOP}p3" ]] && break
+    sleep 1
+done
+if [[ ! -b "${VERIFY_LOOP}p3" ]]; then
+    err "  [WARN] ${VERIFY_LOOP} partition nodes did not appear for verification"
+fi
+
+# Fisherman closes its mapper before returning. Re-open an encrypted root for
+# post-install verification; TPM modes use the token enrolled by fisherman,
+# while passphrase-only mode feeds the key over stdin (never argv or logs).
+VERIFY_ROOT_DEVICE="${VERIFY_LOOP}p3"
+if [[ "$LUKS_TYPE" != "none" && -b "$VERIFY_ROOT_DEVICE" ]]; then
+    VERIFY_CRYPT=wootc-verify-root
+    if [[ "$LUKS_TYPE" == tpm2-* ]]; then
+        /usr/lib/systemd/systemd-cryptsetup attach "$VERIFY_CRYPT" "$VERIFY_ROOT_DEVICE" - tpm2-device=auto
+    else
+        printf '%s' "$LUKS_PASSPHRASE" | \
+            cryptsetup open --key-file=- "$VERIFY_ROOT_DEVICE" "$VERIFY_CRYPT"
+    fi
+    VERIFY_ROOT_DEVICE="/dev/mapper/$VERIFY_CRYPT"
+    log "Opened encrypted root for verification"
+fi
 
 # Find the root partition inside the loop device. bootc/ostree roots have no
 # top-level /etc — the OS tree lives under /ostree/deploy/<stateroot>/deploy/.
 VERIFY_ROOT=""
-for p in "${VERIFY_LOOP}"p*; do
+for p in "$VERIFY_ROOT_DEVICE" "${VERIFY_LOOP}"p*; do
     [[ -b "$p" ]] || continue
     mkdir -p /mnt/verify
     if mount -o rw "$p" /mnt/verify 2>/dev/null; then
@@ -452,9 +512,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # blobs dominating the 241M image; no firmware is needed to reach
         # the NTFS-loop root (virtio/ahci/nvme need none).
         mkdir -p "$DEPLOY_ROOT/run/wootc-nofw"
+        DRACUT_OMIT="plymouth lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack"
+        [[ "$LUKS_TYPE" == "none" ]] && DRACUT_OMIT="$DRACUT_OMIT crypt"
         chroot "$DEPLOY_ROOT" dracut --force --hostonly \
             --fwdir /run/wootc-nofw \
-            --omit "plymouth crypt lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
+            --omit "$DRACUT_OMIT" \
             "$INITRD_CHROOT_PATH" "$KVER"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}")
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
@@ -587,6 +649,32 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             KERNEL_SRC="${kernels[0]:-}"
             INITRD_SRC="${initrds[0]:-}"
 
+            if [[ "$BOOTLOADER" == systemd ]]; then
+                if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" && -n "$INITRD_SRC" && -s "$INITRD_SRC" ]] && \
+                   cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz && \
+                   cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                    ROOT_OPTIONS=$(grep '^options ' "$DEPLOY_ROOT"/boot/loader/entries/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
+                    ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ')
+                    mkdir -p /mnt/esp/loader/entries
+                    cat > /mnt/esp/loader/entries/wootc.conf <<BLSEOF
+title wootc Linux
+linux /EFI/wootc/phase2-vmlinuz
+initrd /EFI/wootc/phase2-initramfs.img
+options ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200
+BLSEOF
+                    rm -f /mnt/esp/loader/entries/wootc-deployer.conf
+                    log "  [PASS] Phase-2 systemd-boot entry written"
+                else
+                    err "  [FAIL] Phase-2 systemd-boot ESP sync failed"
+                    exit 1
+                fi
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\n' "$ESP_UUID" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                fi
+            else
+
             # ── Target-signed Secure Boot chain ───────────────────────────
             # GRUB's shim_lock verifier rejects the target kernel unless the
             # shim's vendor cert trusts the kernel's signing key. The Fedora
@@ -673,6 +761,7 @@ GRUBEOF
                 cp /mnt/ntfs/wootc/install/deployer-vmlinuz /mnt/esp/EFI/wootc/deployer-vmlinuz 2>/dev/null || true
                 cp /mnt/ntfs/wootc/install/deployer-initramfs.img /mnt/esp/EFI/wootc/deployer-initramfs.img 2>/dev/null || true
             fi
+            fi
             umount /mnt/esp
         else
             err "  [WARN] Could not mount ESP ${ESP_DEV}; Phase-2 boot will fail"
@@ -685,6 +774,10 @@ else
     err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
 fi
 
+if [[ -n "$VERIFY_CRYPT" ]]; then
+    cryptsetup close "$VERIFY_CRYPT"
+    VERIFY_CRYPT=""
+fi
 qemu-nbd --disconnect "$VERIFY_LOOP"
 VERIFY_LOOP=""
 

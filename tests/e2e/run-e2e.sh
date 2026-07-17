@@ -64,6 +64,10 @@ fi
 RUN_ID="${WOOTC_E2E_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${HOSTNAME:-unknown}-$$}"
 RUN_STARTED_AT="$(date -u +%FT%TZ)"
 RUN_STATE_FILE="$STORAGE_DIR/run-e2e.current"
+ARTIFACT_DIR="$STORAGE_DIR/artifacts/$RUN_ID"
+VIDEO_DIR="$ARTIFACT_DIR/video"
+VIDEO_STARTED=false
+mkdir -p "$ARTIFACT_DIR"
 run_state() {
     local stage="$1" tmp="$RUN_STATE_FILE.tmp"
     {
@@ -78,6 +82,38 @@ run_state() {
 }
 run_state "started"
 info "Run ID: $RUN_ID (status: $RUN_STATE_FILE)"
+printf '%s\n' "$RUN_ID" > "$ARTIFACT_DIR/run-id.txt"
+uname -a > "$ARTIFACT_DIR/host-uname.txt" 2>&1 || true
+free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
+df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
+
+host_preflight() {
+    local mem_available_kib disk_available_kib required_free_gib=90
+    mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
+    disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
+
+    command -v podman >/dev/null || { fail "podman is required"; return 1; }
+    command -v python3 >/dev/null || { fail "python3 is required for QGA"; return 1; }
+    [ -r /dev/kvm ] && [ -w /dev/kvm ] || { fail "/dev/kvm is not accessible"; return 1; }
+    [ -c /dev/net/tun ] || { fail "/dev/net/tun is unavailable"; return 1; }
+    # Dockur reserves host headroom before launching QEMU. Six GiB available
+    # is enough to start a 4 GiB Windows 11 VM without its safety clamp
+    # reducing QEMU below Setup's hard minimum.
+    if [ "${mem_available_kib:-0}" -lt $((6 * 1024 * 1024)) ]; then
+        fail "Only $((mem_available_kib / 1024)) MiB host RAM is available; need at least 6144 MiB before starting Windows"
+        return 1
+    fi
+    # Fresh installation needs room for the installer, pulls, and expanding
+    # qcow2. A reuse run already has those and needs only its allocated-extent
+    # safety snapshot plus diagnostics.
+    [ "$SKIP_INSTALL" = false ] || required_free_gib=40
+    if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
+        fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
+        return 1
+    fi
+    pass "Host preflight: $((mem_available_kib / 1024)) MiB RAM available, $((disk_available_kib / 1024 / 1024)) GiB disk free, KVM/TUN ready"
+}
+host_preflight || exit 1
 # Keep the pristine Windows installer separate from Dockur's mutable working
 # directory.  Dockur can generate derived ISO images while preparing an answer
 # file, so it must receive a copy rather than the only cached source image.
@@ -93,6 +129,13 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 cleanup() {
     local result=$?
     run_state "exited (status $result)"
+    if [ "$VIDEO_STARTED" = true ]; then
+        WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" stop "$VIDEO_DIR" || true
+    fi
+    # Capture the final display and logs for successful and failed runs alike.
+    if $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
+        capture_vm_diagnostics || true
+    fi
     if [ "$KEEP_CONTAINER" = false ]; then
         info "Cleaning up..."
         podman compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || \
@@ -106,20 +149,26 @@ trap cleanup EXIT
 
 capture_vm_diagnostics() {
     info "Collecting Windows VM diagnostics..."
-    $DOCKER logs --tail 150 "$CONTAINER_NAME" 2>&1 || true
+    mkdir -p "$ARTIFACT_DIR"
+    $DOCKER inspect "$CONTAINER_NAME" > "$ARTIFACT_DIR/container-inspect.json" 2>&1 || true
+    $DOCKER logs "$CONTAINER_NAME" > "$ARTIFACT_DIR/container.log" 2>&1 || true
+    $DOCKER exec "$CONTAINER_NAME" ps -ef > "$ARTIFACT_DIR/guest-processes.txt" 2>&1 || true
     $DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true
+    $DOCKER cp "$CONTAINER_NAME:$SERIAL_SOURCE" "$ARTIFACT_DIR/qemu.pty" >/dev/null 2>&1 || true
     if qga_probe; then
         info "QGA guest-info:"
-        qga_call info || true
+        qga_call info | tee "$ARTIFACT_DIR/qga-info.json" || true
         info "QGA C:\\OEM\\wootc-e2e.log:"
-        qga_read 'C:\OEM\wootc-e2e.log' 2>/dev/null || true
+        qga_read 'C:\OEM\wootc-e2e.log' > "$ARTIFACT_DIR/oem-wootc-e2e.log" 2>&1 || true
         info "QGA C:\\OEM\\e2e-setup-failed.txt:"
-        qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true
+        qga_read 'C:\OEM\e2e-setup-failed.txt' > "$ARTIFACT_DIR/oem-setup-failed.txt" 2>&1 || true
+        qga_read 'C:\wootc\logs\deployer.log' > "$ARTIFACT_DIR/deployer.log" 2>&1 || true
+        qga_read 'C:\wootc\logs\live-journal.log' > "$ARTIFACT_DIR/deployer-live-journal.log" 2>&1 || true
     fi
     $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/screenshot.py" 2>/dev/null || true
     $DOCKER exec "$CONTAINER_NAME" python3 /tmp/screenshot.py 2>/dev/null || true
-    $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" /tmp/wootc-e2e-failure.png 2>/dev/null || true
-    info "If captured, failure screenshot: /tmp/wootc-e2e-failure.png"
+    $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" "$ARTIFACT_DIR/screenshot.png" 2>/dev/null || true
+    info "Failure artifacts: $ARTIFACT_DIR"
 }
 
 # Dockur keeps the QEMU serial capture in its tmpfs, not in the /storage bind
@@ -140,6 +189,7 @@ if [ "$DOCKER" = "podman" ] && command -v podman-compose &>/dev/null; then
 else
     COMPOSE="$DOCKER compose"
 fi
+$COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.yml" 2>&1 || true
 
 # ── QEMU Guest Agent control plane ───────────────────────────────────────────
 # qga.py is copied into Dockur after QEMU starts. Keeping the client in the
@@ -240,10 +290,56 @@ qga_sync_oem() {
 # process into the next attempt.  Do not remove C: or the Windows disk.
 reset_oem_attempt() {
     step "Resetting prior OEM handoff state..."
-    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
     rm -f "$STORAGE_DIR/qemu.pty"
     printf '%s run_id=%s reset prior OEM handoff state\n' "$(date -u +%FT%TZ)" "$RUN_ID" > "$STORAGE_DIR/e2e-timeline.log"
     pass "Prior OEM handoff state cleared"
+}
+
+# Preserve a retry point after Windows has staged the deployer and BootNext,
+# but before the first Phase 2 boot can modify root.disk. The OEM wrapper waits
+# for our guest marker before rebooting. Freezing Windows filesystems makes the
+# host-side sparse qcow2 copy crash-consistent; the temporary name prevents a
+# failed copy from masquerading as a usable snapshot.
+snapshot_before_deployer() {
+    local disk="$STORAGE_DIR/data.qcow2"
+    local snapshot="$STORAGE_DIR/data.qcow2.snap"
+    local tmp="$snapshot.tmp.$RUN_ID"
+    local frozen=false
+
+    [ -s "$disk" ] || { fail "Cannot snapshot missing VM disk: $disk"; return 1; }
+    step "Snapshotting Windows disk before first deployer boot..."
+    rm -f "$tmp"
+    if qga_call freeze >/dev/null; then
+        frozen=true
+    else
+        fail "QGA could not freeze Windows filesystems for the Phase 2 snapshot"
+        return 1
+    fi
+
+    # Prefer an instantaneous CoW reflink. Podman commonly marks VM storage
+    # NOCOW even on btrfs, so fall back to a sparse allocated-extent copy.
+    # The OEM barrier allows ten minutes and the guest stays frozen until the
+    # copy is complete, giving us a crash-consistent retry point either way.
+    if ! cp --reflink=always --sparse=auto "$disk" "$tmp"; then
+        warn "Runner storage does not support reflinks for the VM disk; copying allocated extents"
+        rm -f "$tmp"
+        if ! cp --reflink=never --sparse=always "$disk" "$tmp"; then
+            [ "$frozen" = false ] || qga_call thaw >/dev/null 2>&1 || true
+            rm -f "$tmp"
+            fail "Failed to copy the pre-deployer VM snapshot"
+            return 1
+        fi
+    fi
+    qga_call thaw >/dev/null || {
+        rm -f "$tmp"
+        fail "QGA could not thaw Windows after the Phase 2 snapshot"
+        return 1
+    }
+    frozen=false
+    mv -f "$tmp" "$snapshot"
+    qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
+    pass "Pre-deployer snapshot saved: $snapshot ($(du -h "$snapshot" | cut -f1))"
 }
 
 # ── Step 0: Build deployer initramfs ─────────────────────────────────────────
@@ -437,7 +533,7 @@ if [ "$SKIP_INSTALL" = false ]; then
     if [ -f "$WINDOWS_ISO_CACHE" ]; then
         mkdir -p "$ISO_CACHE_DIR"
         rm -f "$STORAGE_DIR/custom.iso"
-        cp --reflink=auto --sparse=always "$WINDOWS_ISO_CACHE" "$STORAGE_DIR/custom.iso"
+        cp --reflink=auto --sparse=auto "$WINDOWS_ISO_CACHE" "$STORAGE_DIR/custom.iso"
         info "Using cached Windows ISO: $WINDOWS_ISO_CACHE"
     elif [ -n "${WOOTC_WINDOWS_ISO:-}" ]; then
         fail "WOOTC_WINDOWS_ISO does not exist: $WINDOWS_ISO_CACHE"
@@ -481,6 +577,23 @@ if [[ ( "$QEMU_CMD" != *"-accel=kvm"* && "$QEMU_CMD" != *"accel=kvm"* ) || "$QEM
     capture_vm_diagnostics
     exit 1
 fi
+QEMU_RAM_MB=$(awk '{
+    for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+[MG]$/) {
+        value = $(i + 1)
+        unit = substr(value, length(value), 1)
+        sub(/[MG]$/, "", value)
+        if (unit == "G") value *= 1024
+        print value
+        exit
+    }
+}' <<<"$QEMU_CMD")
+if [ -z "$QEMU_RAM_MB" ] || [ "$QEMU_RAM_MB" -lt 4096 ]; then
+    fail "QEMU has ${QEMU_RAM_MB:-unknown} MB RAM; Windows 11 setup requires at least 4096 MB"
+    info "Free host memory or adjust WOOTC_E2E_RAM_SIZE after confirming runner capacity"
+    capture_vm_diagnostics
+    exit 1
+fi
+pass "QEMU memory allocation is ${QEMU_RAM_MB} MB"
 if [[ "$QEMU_CMD" != *"-tpmdev emulator"* || "$QEMU_CMD" != *"property=secure,value=on"* ]]; then
     fail "Windows 11 VM is missing TPM 2.0 or Secure Boot"
     capture_vm_diagnostics
@@ -494,6 +607,9 @@ if [[ "$QEMU_CMD" != *"qga0"* || "$QEMU_CMD" != *"org.qemu.guest_agent.0"* ]]; t
 fi
 $DOCKER cp "$SCRIPT_DIR/qga.py" "$CONTAINER_NAME:/tmp/qga.py"
 pass "QGA virtio-serial channel configured"
+WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" start "$VIDEO_DIR"
+VIDEO_STARTED=true
+pass "VM walkthrough recording started"
 
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
@@ -546,7 +662,7 @@ if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
     qga_call exec /bin/sh -c 'rm -f /sys/firmware/efi/efivars/BootNext-*' || \
         info "Could not clear UEFI BootNext from the deployer; continuing with reboot"
     info "Rebooting prior deployer to Windows before retry"
-    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
+    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
 fi
 qga_wait_windows 2700
 qga_call info || true
@@ -557,8 +673,37 @@ if [ "$SKIP_INSTALL" = true ]; then
 fi
 
 step "Starting OEM setup through QGA..."
+qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
 pass "OEM setup process started through QGA as SYSTEM"
+
+# The OEM wrapper deliberately pauses after staging BootNext. Do not permit
+# its first deployer reboot until a reusable, crash-consistent VM snapshot is
+# safely present on the host.
+step "Waiting for OEM setup to reach the pre-deployer snapshot barrier..."
+ELAPSED=0
+TIMEOUT=2700
+while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+    if qga_read 'C:\OEM\e2e-setup-complete.txt' >/dev/null 2>&1; then
+        snapshot_before_deployer
+        break
+    fi
+    OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
+    if [ -n "$OEM_FAILURE" ]; then
+        fail "Windows OEM setup failed before the snapshot barrier:"
+        echo "$OEM_FAILURE" >&2
+        capture_vm_diagnostics
+        exit 1
+    fi
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+    [ $((ELAPSED % 60)) -eq 0 ] && info "Waiting for OEM setup barrier... ($(( ELAPSED / 60 ))m)"
+done
+[ -s "$STORAGE_DIR/data.qcow2.snap" ] || {
+    fail "OEM setup did not reach the snapshot barrier within $((TIMEOUT/60)) minutes"
+    capture_vm_diagnostics
+    exit 1
+}
 
 # ── Step 4: Wait for Windows install and OEM handoff ─────────────────────────
 # The deployer serial marker is the end-to-end assertion: it can only appear
@@ -578,6 +723,7 @@ info "Watching for fisherman deployment markers..."
 TIMEOUT=2700
 ELAPSED=0
 DEPLOY_COMPLETE=false
+DEPLOYER_REBOOT_SEEN=false
 PTY="$STORAGE_DIR/qemu.pty"
 
 # Wait for Dockur's serial capture to appear and create the first local
@@ -599,6 +745,25 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         echo "$OEM_FAILURE" >&2
         break
     fi
+
+    # Serial output can be lost across the initramfs-to-Windows reboot.  Once
+    # the Windows QGA is back, the persisted deployer log is the authoritative
+    # completion record and survives that console handoff.
+    if qga_windows_probe; then
+        DEPLOYER_LOG=$(qga_read 'C:\wootc\logs\deployer.log' 2>/dev/null || true)
+        if echo "$DEPLOYER_LOG" | grep -q 'VERIFICATION_SUMMARY'; then
+            echo "$DEPLOYER_LOG" | grep 'VERIFICATION_SUMMARY' | tail -1 \
+                | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
+            DEPLOY_COMPLETE=true
+            pass "wootc: deployment verification complete (persistent log)"
+            break
+        elif [ "$DEPLOYER_REBOOT_SEEN" = true ]; then
+            DEPLOY_COMPLETE=true
+            pass "wootc: deployer rebooted and Windows QGA returned"
+            break
+        fi
+    fi
+
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
 
@@ -625,6 +790,10 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
             pass "wootc: deployment verification complete"
             LAST_BYTE=$CURRENT_BYTE
             break
+        fi
+        if echo "$NEW_OUTPUT" | grep -qE '(^|[^[:alpha:]])Rebooting\.?'; then
+            DEPLOYER_REBOOT_SEEN=true
+            info "wootc: deployer requested reboot"
         fi
         if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
             fail "Deployer error:"
@@ -763,7 +932,7 @@ fi
 
 # ── Step 10: Verify the one-shot entry returns to Windows ───────────────────
 step "Rebooting Phase 2 Linux and verifying return to Windows..."
-$DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
+$DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
 qga_wait "Windows return after Phase 2 Linux" 600
 pass "One-shot Phase 2 boot consumed; Windows returned successfully"
 

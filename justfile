@@ -12,7 +12,7 @@ E2E_DIR := justfile_directory() / "tests/e2e"
 STORAGE := E2E_DIR / "storage"
 FILES := E2E_DIR / "wootc-files"
 CTR := "wootc-e2e-windows"
-KANPUR := "kanpur"
+KANPUR := env_var_or_default("WOOTC_E2E_HOST", "kanpur")
 
 # ── Local E2E ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +28,17 @@ e2e-quick image=WOOTC_IMAGE:
 build:
     just build-deployer
     just build-wubildr
+    just bundle-systemd-boot
+
+# Bundle Fedora's reproducible unsigned systemd-boot build beside wootc.exe.
+# Secure-Boot machines reject this path unless CI substitutes a trusted
+# Authenticode-valid systemd-bootx64.efi.signed artifact.
+bundle-systemd-boot:
+    #!/usr/bin/env bash
+    mkdir -p app/build/bin/efi
+    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+        /out/systemd-bootx64.efi > app/build/bin/efi/systemd-bootx64.efi
+    test -s app/build/bin/efi/systemd-bootx64.efi
 
 # Build deployer initramfs
 build-deployer:
@@ -48,7 +59,7 @@ build-wubildr:
 # ── Kanpur E2E ────────────────────────────────────────────────────────────────
 
 # Fresh full E2E on Kanpur (~30 min)
-kanpur-e2e:
+remote-e2e:
     ssh {{ KANPUR }} 'cd ~/wootc && git pull && \
         sudo chown -R james:james tests/e2e/ && \
         kill $(pgrep rootlessport 2>/dev/null) && \
@@ -60,7 +71,7 @@ kanpur-e2e:
         > /tmp/wootc-e2e-qgaN.log 2>&1 & echo "PID=$!"'
 
 # Quick E2E on Kanpur (skip install + build)
-kanpur-e2e-quick:
+remote-e2e-quick:
     ssh {{ KANPUR }} 'cd ~/wootc && git pull && \
         sudo chown -R james:james tests/e2e/ && \
         sudo kill $(pgrep qemu-system swtpm 2>/dev/null) && \
@@ -71,30 +82,52 @@ kanpur-e2e-quick:
         > /tmp/wootc-e2e-qgaN.log 2>&1 & echo "PID=$!"'
 
 # Pull latest code on Kanpur
-kanpur-pull:
+remote-pull:
     ssh {{ KANPUR }} 'cd ~/wootc && git pull'
 
+# Push local commits, then hard-reset the E2E host's checkout to match origin
+# exactly (including submodules). Local edits made directly on the host via
+# ssh are easy to lose track of and silently diverge from what's committed —
+# this recipe is the guard against that: it always leaves the host on
+# exactly what's in git, never a hand-patched mix.
+remote-sync:
+    #!/usr/bin/env bash
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo "Local working tree has uncommitted changes — commit or stash before syncing." >&2
+        exit 1
+    fi
+    git push origin HEAD
+    ssh {{ KANPUR }} '
+        set -euo pipefail
+        cd ~/wootc
+        git fetch origin
+        git checkout main
+        git reset --hard origin/main
+        git submodule sync --recursive
+        git submodule update --init --recursive
+    '
+
 # Fix permissions
-kanpur-chown:
+remote-chown:
     ssh {{ KANPUR }} 'sudo chown -R james:james ~/wootc/tests/e2e/'
 
 # Kill stale processes
-kanpur-cleanup:
+remote-cleanup:
     ssh {{ KANPUR }} \
         'kill $(pgrep rootlessport 2>/dev/null); \
          sudo kill $(pgrep qemu-system swtpm 2>/dev/null)'
 
 # Stop container
-kanpur-stop:
+remote-stop:
     ssh {{ KANPUR }} 'podman stop {{ CTR }} 2>/dev/null; podman rm {{ CTR }} 2>/dev/null'
 
 # Restore disk from snapshot
-kanpur-restore name="snap":
+remote-restore name="snap":
     ssh {{ KANPUR }} 'cp ~/wootc/tests/e2e/storage/data.qcow2.{{ name }} \
         ~/wootc/tests/e2e/storage/data.qcow2'
 
 # Create deployer.qcow2 (obsolete with 256MB ESP, kept for reference)
-kanpur-deployer-disk:
+remote-deployer-disk:
     ssh {{ KANPUR }} \
         'qemu-img create -f qcow2 ~/wootc/tests/e2e/storage/deployer.qcow2 256M'
 
@@ -193,37 +226,37 @@ snapshot:
 # ── Monitoring ────────────────────────────────────────────────────────────────
 
 # Tail runner log
-kanpur-logs suffix="qga33":
+remote-logs suffix="qga33":
     ssh {{ KANPUR }} 'tail -f /tmp/wootc-e2e-{{ suffix }}.log'
 
 # Check runner progress
-kanpur-status suffix="qga33":
+remote-status suffix="qga33":
     ssh {{ KANPUR }} \
         'grep -E "PASS|FAIL|QGA.*avail|STEP|OEM|deploy" /tmp/wootc-e2e-{{ suffix }}.log | tail -10'
 
 # Watch serial console for deployer boot
-kanpur-serial:
+remote-serial:
     ssh {{ KANPUR }} \
         'podman logs {{ CTR }} 2>&1 | strings | grep -i \
         "linux\|initrd\|Booting\|kernel\|fisherman\|hd1\|scsi\|insmod\|error\|panic" | tail -25'
 
 # Check container
-kanpur-container:
+remote-container:
     ssh {{ KANPUR }} \
         'podman ps --format "{{"{{"}}.Names}} {{"{{"}}.Status}}" | grep {{ CTR }}'
 
 # Check QEMU process
-kanpur-qemu:
+remote-qemu:
     ssh {{ KANPUR }} \
         'podman exec {{ CTR }} ps -ef 2>/dev/null | grep "[q]emu" | head -1 | \
         awk "{print \$2, \$8}" || echo "QEMU not running"'
 
 # Show disk sizes
-kanpur-disks:
+remote-disks:
     ssh {{ KANPUR }} 'ls -lh ~/wootc/tests/e2e/storage/*.qcow2 2>/dev/null'
 
 # Check root.disk and deployer files
-kanpur-check-files:
+remote-check-files:
     ssh {{ KANPUR }} \
         'podman exec {{ CTR }} python3 /tmp/qga.py powershell \
         "Test-Path C:\\wootc\\disks\\root.disk; \

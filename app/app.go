@@ -23,6 +23,9 @@ type Image struct {
 	DesktopName string `json:"desktopName"`
 	ImageRef    string `json:"imageRef"`
 	Description string `json:"description"`
+	Bootloader  string `json:"bootloader"` // grub2 | systemd-boot
+	ComposeFS   bool   `json:"composeFs"`
+	Family      string `json:"family"` // el10 | fedora | arch | debian | custom
 }
 
 // InstallConfig is the parameters collected on Screen 1.
@@ -33,6 +36,17 @@ type InstallConfig struct {
 	Password   string `json:"password"`
 	Hostname   string `json:"hostname"`
 	Bootloader string `json:"bootloader"` // "grub2" | "systemd-boot"
+	ComposeFS  bool   `json:"composeFs"`
+	// StorageDrive is the drive letter (no colon) where root.disk + vault
+	// live. Empty means C:. On a BitLocker-protected C:, the GUI sets this
+	// to an unencrypted data volume so the deployer can mount it read-write
+	// every boot without a decryption prompt (SPEC §3.5). C: stays encrypted.
+	StorageDrive string `json:"storageDrive"`
+	// Encryption for the Linux root inside root.disk (SPEC §2.6):
+	// "none" | "tpm2-luks" (auto-unlock via TPM, recommended) |
+	// "luks-passphrase" (prompt every boot).
+	Encryption     string `json:"encryption"`
+	LuksPassphrase string `json:"luksPassphrase"`
 }
 
 // ProgressEvent is emitted during install for the frontend progress bar.
@@ -54,13 +68,32 @@ type InstallStatus struct {
 
 // SystemInfo describes the host Windows environment.
 type SystemInfo struct {
-	OSVersion     string  `json:"osVersion"`
-	FreeDiskGB    float64 `json:"freeDiskGB"`
-	TotalDiskGB   float64 `json:"totalDiskGB"`
-	BitLockerOn   bool    `json:"bitLockerOn"`
-	FastStartupOn bool    `json:"fastStartupOn"`
-	IsUEFI        bool    `json:"isUefi"`
-	SecureBootOn  bool    `json:"secureBootOn"`
+	OSVersion   string  `json:"osVersion"`
+	FreeDiskGB  float64 `json:"freeDiskGB"`
+	TotalDiskGB float64 `json:"totalDiskGB"`
+	BitLockerOn bool    `json:"bitLockerOn"`
+	// BitLockerState is the detailed C: encryption state (SPEC §3.5):
+	// "off" | "on" | "encrypting" | "decrypting". "encrypting" is a hard
+	// block; "on" offers the data-partition path.
+	BitLockerState  string `json:"bitLockerState"`
+	FastStartupOn   bool   `json:"fastStartupOn"`
+	IsUEFI          bool   `json:"isUefi"`
+	SecureBootOn    bool   `json:"secureBootOn"`
+	SecureBootKnown bool   `json:"secureBootKnown"`
+	// DefragRecommended is advisory only. Fragmentation affects VHDX
+	// performance on rotating media, not correctness (SPEC §3.6).
+	DefragRecommended bool `json:"defragRecommended"`
+	// DataPartitions lists unencrypted fixed volumes (other than C:) that
+	// could hold root.disk when C: is BitLocker-protected.
+	DataPartitions []DataPartition `json:"dataPartitions"`
+}
+
+// DataPartition is a candidate unencrypted volume for root.disk.
+type DataPartition struct {
+	Letter    string  `json:"letter"`
+	Label     string  `json:"label"`
+	FreeGB    float64 `json:"freeGB"`
+	Encrypted bool    `json:"encrypted"`
 }
 
 // ── App struct ────────────────────────────────────────────────────────────────
@@ -109,36 +142,42 @@ func (a *App) GetImages() ([]Image, error) {
 			Base: "AlmaLinux Kitten 10", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/yellowfin:gnome",
 			Description: "Modern GNOME desktop on Enterprise Linux. Stable and reliable.",
+			Bootloader:  "grub2", ComposeFS: false, Family: "el10",
 		},
 		{
 			ID: "yellowfin-kde", Name: "Yellowfin", Emoji: "🐠",
 			Base: "AlmaLinux Kitten 10", Desktop: "kde", DesktopName: "KDE Plasma",
 			ImageRef:    "ghcr.io/tuna-os/yellowfin:kde",
 			Description: "KDE Plasma desktop on Enterprise Linux.",
+			Bootloader:  "grub2", ComposeFS: false, Family: "el10",
 		},
 		{
 			ID: "bonito-gnome", Name: "Bonito", Emoji: "🎣",
 			Base: "Fedora 44", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/bonito:gnome",
 			Description: "Cutting-edge GNOME on Fedora. Latest upstream packages.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "fedora",
 		},
 		{
 			ID: "bonito-kde", Name: "Bonito", Emoji: "🎣",
 			Base: "Fedora 44", Desktop: "kde", DesktopName: "KDE Plasma",
 			ImageRef:    "ghcr.io/tuna-os/bonito:kde",
 			Description: "KDE Plasma on Fedora. Rolling updates, familiar interface.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "fedora",
 		},
 		{
 			ID: "marlin-gnome", Name: "Marlin", Emoji: "🚀",
 			Base: "Arch Linux", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/marlin:gnome",
 			Description: "GNOME on Arch Linux with CachyOS kernel. For power users.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "arch",
 		},
 		{
 			ID: "flounder-gnome", Name: "Flounder", Emoji: "🐡",
 			Base: "Debian 13 Trixie", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/flounder:gnome",
 			Description: "Rock-solid GNOME on Debian Stable.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "debian",
 		},
 	}
 
@@ -234,6 +273,27 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	if a.status.Running {
 		return fmt.Errorf("install already in progress")
 	}
+	if cfg.Bootloader == "" {
+		cfg.Bootloader = "grub2"
+	}
+	if cfg.Bootloader != "grub2" && cfg.Bootloader != "systemd-boot" {
+		return fmt.Errorf("unsupported bootloader %q", cfg.Bootloader)
+	}
+	if cfg.Encryption == "" {
+		cfg.Encryption = "tpm2-luks"
+	}
+	switch cfg.Encryption {
+	case "none", "tpm2-luks":
+	case "luks-passphrase":
+		if cfg.LuksPassphrase == "" {
+			return fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
+		}
+	default:
+		return fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
+	}
+	if err := validatePlatformConfig(cfg); err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithCancel(a.ctx)
 	a.cancel = cancel
@@ -264,6 +324,10 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 
 	return nil
 }
+
+// DefragDrive performs the optional NTFS optimization offered by the
+// launchpad preflight. It is never run automatically.
+func (a *App) DefragDrive() error { return defragDrive() }
 
 // CancelInstall aborts a running install. Partially-written files are cleaned up
 // by runInstall's deferred cleanup.
@@ -304,6 +368,34 @@ func (a *App) Uninstall() error {
 	return uninstall(a.ctx)
 }
 
+// UninstallInfo describes an existing install so the uninstaller can offer
+// the right options (SPEC §5): where root.disk lives and whether that
+// volume was created by wootc (and is therefore safe to remove entirely).
+type UninstallInfo struct {
+	Found          bool    `json:"found"`
+	StorageDrive   string  `json:"storageDrive"` // where root.disk lives
+	DiskPath       string  `json:"diskPath"`     // full path to root.disk
+	DiskSizeGB     float64 `json:"diskSizeGB"`
+	OnDedicatedVol bool    `json:"onDedicatedVol"` // wootc-created data partition
+	ReclaimGB      float64 `json:"reclaimGB"`      // space freed if the volume is removed
+}
+
+// GetUninstallInfo inspects the machine for an existing wootc install.
+func (a *App) GetUninstallInfo() UninstallInfo {
+	return getUninstallInfo()
+}
+
+// UninstallOptions controls how much the uninstaller removes (SPEC §5).
+type UninstallOptions struct {
+	DeleteRootDisk  bool `json:"deleteRootDisk"`  // delete root.disk (loses Linux data)
+	RemovePartition bool `json:"removePartition"` // remove the wootc data partition, extend C:
+}
+
+// UninstallWith performs a configurable uninstall.
+func (a *App) UninstallWith(opts UninstallOptions) error {
+	return uninstallWith(a.ctx, opts)
+}
+
 // ── Internal install pipeline ─────────────────────────────────────────────────
 
 func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
@@ -314,6 +406,8 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 // It is shared between the GUI (Wails events) and headless mode (stdout),
 // so E2E can exercise the exact production pipeline without a display.
 func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
+	// Direct root.disk + vault to the chosen (possibly unencrypted) volume.
+	setStorageDrive(cfg.StorageDrive)
 	steps := []struct {
 		name    string
 		percent float64

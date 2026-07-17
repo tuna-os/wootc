@@ -137,6 +137,15 @@ The E2E harness runs on Kanpur (a Bluefin/Fedora Silverblue KVM host) with
 QEMU Guest Agent as the control plane. The VM requires KVM, UEFI Secure Boot,
 and TPM 2.0.
 
+### Latest automated walkthrough
+
+[![Sped-up preview of the latest successful wootc E2E run](https://tuna-os.github.io/wootc/e2e/latest/preview.webp)](https://tuna-os.github.io/wootc/e2e/latest/)
+
+The scheduled and manually dispatched KVM workflow publishes this preview and
+the full [WebM recording](https://tuna-os.github.io/wootc/e2e/latest/e2e.webm)
+only after a successful acceptance run. Failed-run recordings remain available
+as workflow artifacts for diagnosis and never replace the stable walkthrough.
+
 ### Build and run
 
 ```bash

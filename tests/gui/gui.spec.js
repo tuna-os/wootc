@@ -79,10 +79,92 @@ test('installer — done screen', async ({ page }) => {
   await shot(page, '04-done');
 });
 
-test('control panel — existing install', async ({ page }) => {
-  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true });
+test('control panel — partition-aware uninstall options', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, storageDrive: 'D', diskPath: 'D:\\wootc\\disks\\root.vhdx',
+      diskSizeGB: 40, onDedicatedVol: true, reclaimGB: 60 } });
   await expect(page.locator('.screen-title')).toContainText('Manage TunaOS');
+  // Reversible by default: keeping data is the unchecked default.
+  await expect(page.getByText('Also delete my Linux data')).toBeVisible();
+  // Partition-aware option appears for a wootc-created volume.
+  await expect(page.getByText(/Give the 60 GB back to Windows/)).toBeVisible();
   await shot(page, '05-control-panel');
+});
+
+test('control panel — Boot in VM offered when available (§6.2)', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, storageDrive: 'C', diskPath: 'C:\\wootc\\disks\\root.vhdx', diskSizeGB: 40 },
+    vm: { available: true, accelerator: 'whpx', bundled: true, diskPath: 'C:\\wootc\\disks\\root.vhdx' } });
+  await expect(page.getByText('Try Linux in a window')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Boot in VM' })).toBeEnabled();
+  await shot(page, '09-vm-mode');
+});
+
+test('control panel — unavailable VM explains how to enable acceleration', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, diskPath: 'C:\\wootc\\disks\\root.vhdx' },
+    vm: { available: false, reason: "No supported VM accelerator is available. Enable Windows Hypervisor Platform in 'Turn Windows features on or off'." } });
+  await expect(page.getByText(/Enable Windows Hypervisor Platform/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Boot in VM' })).toBeDisabled();
+  await shot(page, '12-vm-unavailable');
+});
+
+test('installer — NTFS defrag recommendation is advisory and actionable (§3.6)', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, defragRecommended: true } });
+  await expect(page.getByText('Windows recommends optimizing C:')).toBeVisible();
+  await expect(page.getByText(/Installation remains safe if you skip this/)).toBeVisible();
+  await shot(page, '11-defrag-preflight');
+  await page.getByRole('button', { name: 'Defrag now' }).click();
+  await expect(page.getByText('Windows recommends optimizing C:')).toBeHidden();
+});
+
+test('installer — image metadata selects composefs/systemd-boot and warns for Secure Boot', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  await page.getByText('Bonito').first().click();
+  await page.getByText('Advanced boot options').click();
+  await expect(page.getByRole('checkbox', { name: /Use systemd-boot/ })).toBeChecked();
+  await expect(page.getByText(/requires a verified shim plus vendor-signed loader chain/)).toBeVisible();
+});
+
+test('installer — supported family custom OCI reference is accepted', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: { ...SYSINFO, secureBootOn: false } });
+  await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:stable');
+  await page.getByText('Advanced boot options').click();
+  await expect(page.getByText(/Secure Boot is off/)).toBeVisible();
+});
+
+test('installer — BitLocker offers unencrypted-partition path (no forced decrypt)', async ({ page }) => {
+  const sysinfo = { ...SYSINFO, bitLockerOn: true, bitLockerState: 'on',
+    dataPartitions: [{ letter: 'E', label: 'Backup', freeGB: 200, encrypted: false }] };
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo });
+  // The chooser must NOT mention decrypting C:.
+  const body = await page.locator('#app').innerText();
+  expect(body).toContain('keep C: fully encrypted');
+  expect(body.toLowerCase()).not.toContain('decrypt c:');
+  // Both options present: reuse existing unencrypted E:, or create new.
+  await expect(page.getByText(/Use drive E:/)).toBeVisible();
+  await expect(page.getByText(/Create a new space for Linux/)).toBeVisible();
+  await shot(page, '08-bitlocker');
+});
+
+test('installer — LUKS encryption options (§2.6) with TPM recommended', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  // Encryption section is visible with three radio options.
+  await expect(page.getByText('Disk Encryption')).toBeVisible();
+  await expect(page.getByText('No encryption')).toBeVisible();
+  await expect(page.getByText('TPM auto-unlock')).toBeVisible();
+  await expect(page.getByText('RECOMMENDED')).toBeVisible();
+  await expect(page.getByText('Passphrase')).toBeVisible();
+  // Default is TPM auto-unlock; no passphrase field shown.
+  const passCount = await page.locator('input[type="password"]').count();
+  // There should be exactly 2 password fields: Password + Confirm (no LUKS passphrase)
+  expect(passCount).toBe(2);
+  // Switching to passphrase mode reveals the LUKS passphrase input.
+  await page.getByText('Passphrase').click();
+  await page.waitForTimeout(200);
+  await expect(page.locator('input[type="password"]').nth(2)).toBeVisible();
+  await shot(page, '10-luks-encryption');
 });
 
 test('branding — partner re-skin applies theme + copy', async ({ page }) => {

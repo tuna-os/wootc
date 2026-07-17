@@ -9,3 +9,6 @@ tests/e2e/oem/qemu-ga-x86_64.msi
 tests/e2e/qga-cache/
 tests/e2e/wootc-files/
 .pi/
+*caveat*.txt
+app/wootc
+app/wootc.exe

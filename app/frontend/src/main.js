@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -21,6 +21,8 @@ const state = {
     password: '',
     hostname: 'tunaos',
     bootloader: 'grub2',
+    encryption: 'tpm2-luks',
+    luksPassphrase: '',
   },
   progress: {
     step: '',
@@ -116,6 +118,7 @@ async function init() {
   state.images = images || [];
   state.sysinfo = sysinfo;
   state.selected = state.images[0] || null;
+  applyImageDefaults(state.selected);
 
   // Pre-fill username from OS if available
   try {
@@ -123,6 +126,10 @@ async function init() {
     if (!u.includes('dev')) state.config.username = 'james'; // placeholder
   } catch {}
 
+  if (existing) {
+    try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
+    try { state.vmCapability = await GetVMCapability(); } catch { state.vmCapability = null; }
+  }
   state.screen = existing ? 'control' : 'launchpad';
   render();
 }
@@ -223,11 +230,30 @@ function renderLaunchpad() {
     screen.appendChild(si);
   }
 
-  // BitLocker warning
+  // BitLocker: never force decryption — offer an unencrypted home for Linux.
   if (state.sysinfo?.bitLockerOn) {
-    screen.appendChild(warningBanner(
-      'BitLocker is enabled on C:. wootc will create a separate partition for Linux, or you can choose an existing unencrypted drive.'
-    ));
+    screen.appendChild(renderBitlockerChooser());
+  }
+
+  if (state.sysinfo?.defragRecommended) {
+    const warning = el('div');
+    warning.style.cssText = 'background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:11px 13px;display:flex;gap:12px;align-items:center';
+    warning.innerHTML = `<div style="flex:1"><b style="font-size:12.5px">Windows recommends optimizing C:</b><br><span style="font-size:11.5px;color:var(--text-muted)">A fragmented NTFS volume can make the Linux virtual disk slower. Installation remains safe if you skip this.</span></div>`;
+    const optimize = btn('Defrag now', 'btn btn-ghost', async () => {
+      optimize.disabled = true;
+      optimize.textContent = 'Optimizing…';
+      try {
+        await DefragDrive();
+        state.sysinfo.defragRecommended = false;
+        render();
+      } catch (e) {
+        optimize.disabled = false;
+        optimize.textContent = 'Defrag now';
+        alert('Windows could not optimize C:: ' + e);
+      }
+    });
+    warning.appendChild(optimize);
+    screen.appendChild(warning);
   }
 
   // Image grid
@@ -247,10 +273,21 @@ function renderLaunchpad() {
       <div class="image-base">${img.base}</div>
       <div class="image-desc">${img.description}</div>
     `;
-    card.onclick = () => { state.selected = img; render(); };
+    card.onclick = () => { state.selected = img; applyImageDefaults(img); render(); };
     grid.appendChild(card);
   });
   screen.appendChild(grid);
+
+  const customRef = inputField('Custom supported OCI image', 'text', state.config.customImageRef || '', v => {
+    state.config.customImageRef = v.trim();
+    if (/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\/[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$/.test(state.config.customImageRef)) {
+      state.selected = { id: 'custom', name: 'Custom image', imageRef: state.config.customImageRef, bootloader: 'systemd-boot', composeFs: true };
+      applyImageDefaults(state.selected);
+      render();
+    }
+    refreshInstallValidity();
+  }, 'ghcr.io/ublue-os/image:tag');
+  screen.appendChild(customRef);
 
   // Config fields
   const fields = el('div', 'fields');
@@ -288,6 +325,60 @@ function renderLaunchpad() {
   row2.appendChild(inputField('Password', 'password', state.config.password, v => { state.config.password = v; refreshInstallValidity(); }, ''));
   row2.appendChild(inputField('Confirm Password', 'password', state.config.passwordConfirm || '', v => { state.config.passwordConfirm = v; refreshInstallValidity(); }, ''));
   fields.appendChild(row2);
+
+  // Disk encryption (SPEC §2.6)
+  const encSection = el('div');
+  encSection.style.cssText = 'margin-top:6px';
+  const encLabel = el('div');
+  encLabel.style.cssText = 'font-size:11.5px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px';
+  encLabel.textContent = 'Disk Encryption';
+  encSection.appendChild(encLabel);
+  const encOpts = el('div');
+  encOpts.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+  const encRadio = (value, title, sub, recommended) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px';
+    const checked = state.config.encryption === value;
+    row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} style="margin-top:1px">
+      <span><b>${title}${recommended ? ' <span style="color:var(--primary);font-size:10px;font-weight:500">RECOMMENDED</span>' : ''}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = () => { state.config.encryption = value; refreshInstallValidity(); render(); };
+    // Visual highlight for selected option
+    if (checked) row.style.borderColor = 'var(--primary)';
+    return row;
+  };
+  encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', false));
+  encOpts.appendChild(encRadio('tpm2-luks', 'TPM auto-unlock', 'LUKS encryption that unlocks automatically via the TPM chip. No prompt at boot.', true));
+  encOpts.appendChild(encRadio('luks-passphrase', 'Passphrase', 'LUKS encryption that asks for your Linux password every boot.', false));
+  encSection.appendChild(encOpts);
+
+  // Passphrase input (only when passphrase mode)
+  if (state.config.encryption === 'luks-passphrase') {
+    const ppRow = el('div', 'field-row');
+    ppRow.style.marginTop = '8px';
+    ppRow.appendChild(inputField('LUKS Passphrase', 'password', state.config.luksPassphrase, v => { state.config.luksPassphrase = v; refreshInstallValidity(); }, ''));
+    encSection.appendChild(ppRow);
+  }
+  fields.appendChild(encSection);
+
+  const advanced = el('details');
+  advanced.style.cssText = 'margin-top:6px;border:1px solid var(--border);border-radius:6px;padding:7px 9px';
+  advanced.innerHTML = `<summary style="cursor:pointer;font-size:12px;font-weight:600">Advanced boot options</summary>`;
+  const bootChoice = el('label');
+  bootChoice.style.cssText = 'display:flex;gap:8px;margin-top:8px;font-size:12px;align-items:flex-start';
+  bootChoice.innerHTML = `<input type="checkbox" ${state.config.bootloader === 'systemd-boot' ? 'checked' : ''}><span>Use systemd-boot<br><span style="color:var(--text-muted)">Required by composefs images. Uses a bundled EFI binary and ESP-synced kernel entries.</span></span>`;
+  bootChoice.querySelector('input').onchange = e => { state.config.bootloader = e.target.checked ? 'systemd-boot' : 'grub2'; render(); };
+  advanced.appendChild(bootChoice);
+  if (state.config.bootloader === 'systemd-boot') {
+    const sb = el('div');
+    sb.style.cssText = 'font-size:11.5px;color:var(--warning);margin-top:7px';
+    sb.textContent = state.sysinfo?.secureBootKnown === false
+      ? 'Secure Boot status is unknown. Installation requires a verified Microsoft-trusted shim plus vendor-signed systemd-boot chain.'
+      : state.sysinfo?.secureBootOn
+        ? 'Secure Boot is enabled. systemd-boot requires a verified shim plus vendor-signed loader chain; otherwise choose GRUB2.'
+        : 'Secure Boot is off. The bundled unsigned systemd-boot path is supported.';
+    advanced.appendChild(sb);
+  }
+  fields.appendChild(advanced);
 
   const hint = el('div');
   hint.id = 'install-hint';
@@ -430,15 +521,60 @@ function renderControlPanel() {
     <div class="screen-subtitle">An existing TunaOS installation was found on this PC.</div>
   `;
 
+  const u = state.uninstallInfo || {};
+  const path = u.diskPath || 'C:\\wootc\\disks\\root.vhdx';
+  const sizeStr = u.diskSizeGB ? ` (${Math.round(u.diskSizeGB)} GB)` : '';
   const card = el('div');
   card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;margin-top:8px';
   card.innerHTML = `
-    <div style="font-weight:600;font-size:14px">C:\\wootc\\disks\\root.vhdx</div>
-    <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives in this file. Deleting it will remove Linux but leave Windows intact.</div>
+    <div style="font-weight:600;font-size:14px">${path}${sizeStr}</div>
+    <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives here. Removing it leaves Windows completely intact.</div>
   `;
   screen.appendChild(card);
 
+  // Uninstall options (§5) — checkboxes drive UninstallWith.
+  state.uninstallOpts = state.uninstallOpts || { deleteRootDisk: false, removePartition: false };
+  const opts = el('div');
+  opts.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:6px';
+  const checkbox = (id, label, sub, danger) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12.5px';
+    row.innerHTML = `<input type="checkbox" ${state.uninstallOpts[id] ? 'checked' : ''} style="margin-top:2px">
+      <span><b style="${danger ? 'color:var(--danger)' : ''}">${label}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = (e) => { state.uninstallOpts[id] = e.target.checked; };
+    return row;
+  };
+  opts.appendChild(checkbox('deleteRootDisk', 'Also delete my Linux data',
+    'Removes root.disk. Your Linux files are permanently deleted. Leave unchecked to keep them for later.', true));
+  if (u.onDedicatedVol && u.reclaimGB) {
+    opts.appendChild(checkbox('removePartition', `Give the ${Math.round(u.reclaimGB)} GB back to Windows`,
+      `Removes the wootc-data drive (${u.storageDrive}:) and extends C: into the freed space.`, false));
+  }
+  screen.appendChild(opts);
+
   wrap.appendChild(screen);
+
+  // Boot-in-VM (§6.2): view Linux without rebooting, when the VM viewer is
+  // present and WHPX is on.
+  const vm = state.vmCapability;
+  if (vm) {
+    const vmCard = el('div');
+    vmCard.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-top:10px;display:flex;align-items:center;gap:12px';
+    vmCard.innerHTML = `<span style="font-size:20px">🖥️</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px">Try Linux in a window</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">${vm.available
+          ? `Boot your installed TunaOS in a window using ${String(vm.accelerator || 'hardware acceleration').toUpperCase()}. Changes persist — it's the same system.`
+          : vm.reason}</div>
+      </div>`;
+    const vmBtn = btn('Boot in VM', 'btn btn-ghost', async () => {
+      try { await BootInVM(); } catch (e) { alert('Could not start the VM: ' + e); }
+    });
+    vmBtn.style.flexShrink = '0';
+    vmBtn.disabled = !vm.available;
+    vmCard.appendChild(vmBtn);
+    screen.appendChild(vmCard);
+  }
 
   const footer = el('div', 'footer');
   footer.appendChild(btn('Reinstall', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); }));
@@ -674,9 +810,19 @@ function fmtSize(bytes) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-function confirmUninstall() {
-  if (confirm('Remove the TunaOS boot entry? (root.vhdx will NOT be deleted — remove it manually from C:\\wootc\\disks\\)')) {
-    import('../wailsjs/go/main/App').then(({ Uninstall }) => Uninstall());
+async function confirmUninstall() {
+  const o = state.uninstallOpts || {};
+  let msg = 'Remove TunaOS?\n\nThis removes the boot entry, the ESP files, and the deployer files.';
+  if (o.deleteRootDisk) msg += '\n\n⚠ Your Linux data (root.disk) will be permanently deleted.';
+  else msg += '\n\nYour Linux data (root.disk) will be kept.';
+  if (o.removePartition) msg += '\n⚠ The wootc-data drive will be removed and its space returned to C:.';
+  if (!confirm(msg)) return;
+  try {
+    await UninstallWith({ deleteRootDisk: !!o.deleteRootDisk, removePartition: !!o.removePartition });
+    alert('TunaOS has been removed. Windows is unchanged.');
+    window.wails?.Quit?.();
+  } catch (e) {
+    alert('Uninstall hit a problem: ' + e);
   }
 }
 
@@ -694,11 +840,19 @@ function refreshInstallValidity() {
   else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
   else if (!c.password) reason = 'Set a password.';
   else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
+  else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to TPM or no encryption.';
+  else if (!state.selected?.imageRef || !/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\//.test(state.selected.imageRef)) reason = 'Choose a supported TunaOS, Universal Blue, or Bluefin image.';
   btn.disabled = reason !== '';
   if (hint) {
     hint.textContent = reason;
     hint.style.color = reason ? 'var(--danger)' : 'var(--text-muted)';
   }
+}
+
+function applyImageDefaults(image) {
+  if (!image) return;
+  state.config.bootloader = image.bootloader || (image.family === 'el10' ? 'grub2' : 'systemd-boot');
+  state.config.composeFs = image.composeFs !== undefined ? !!image.composeFs : state.config.bootloader === 'systemd-boot';
 }
 
 async function startInstall() {
@@ -708,6 +862,21 @@ async function startInstall() {
   render();
 
   try {
+    // BitLocker: resolve where Linux will live before the pipeline runs.
+    let storageDrive = '';
+    if (state.sysinfo?.bitLockerOn) {
+      const mode = state.config.bitlockerMode || 'create';
+      if (mode.startsWith('use:')) {
+        storageDrive = mode.slice(4);
+      } else {
+        state.progress.step = 'Creating space for Linux';
+        state.progress.message = 'Making an unencrypted partition (C: stays encrypted)…';
+        renderProgress();
+        const part = await CreateDataPartition(state.config.diskSizeGB + 5);
+        storageDrive = part.letter;
+      }
+    }
+
     await StartInstall({
       imageRef:   state.selected.imageRef,
       diskSizeGB: state.config.diskSizeGB,
@@ -715,6 +884,10 @@ async function startInstall() {
       password:   state.config.password,
       hostname:   state.config.hostname,
       bootloader: state.config.bootloader,
+      composeFs:  state.config.composeFs,
+      storageDrive,
+      encryption:     state.config.encryption,
+      luksPassphrase: state.config.luksPassphrase,
     });
   } catch (e) {
     state.progress.error = String(e);
@@ -741,6 +914,47 @@ function chip(label, isWarn) {
   const c = el('div', 'chip' + (isWarn ? ' warn' : ' ok'));
   c.textContent = label;
   return c;
+}
+
+// BitLocker chooser: keep C: encrypted, put Linux on an unencrypted
+// volume — either an existing one or a new partition carved from C:.
+function renderBitlockerChooser() {
+  const wrap = el('div');
+  wrap.appendChild(warningBanner(
+    "Your C: drive is encrypted with BitLocker. Linux needs an unencrypted place to live — " +
+    "we'll keep C: fully encrypted and set up a separate space just for Linux. Nothing on C: is decrypted."
+  ));
+
+  const box = el('div');
+  box.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:8px;display:flex;flex-direction:column;gap:8px';
+
+  const existing = (state.sysinfo.dataPartitions || []).filter(p => !p.encrypted && p.freeGB >= state.config.diskSizeGB);
+  const opt = (id, title, sub, checked) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12.5px';
+    row.innerHTML = `<input type="radio" name="blmode" value="${id}" ${checked ? 'checked' : ''} style="margin-top:2px">
+      <span><b>${title}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = () => { state.config.bitlockerMode = id; refreshInstallValidity(); };
+    return row;
+  };
+
+  // Default to creating a partition (always available); existing volumes first if present.
+  if (existing.length) {
+    existing.forEach(p => {
+      box.appendChild(opt('use:' + p.letter,
+        `Use drive ${p.letter}: ${p.label ? '(' + p.label + ')' : ''}`,
+        `${Math.round(p.freeGB)} GB free, unencrypted — Linux will live here.`,
+        state.config.bitlockerMode === 'use:' + p.letter));
+    });
+  }
+  box.appendChild(opt('create',
+    'Create a new space for Linux (recommended)',
+    `Shrinks C: by ${state.config.diskSizeGB} GB and makes a new unencrypted drive just for Linux. C: stays BitLocker-protected.`,
+    !state.config.bitlockerMode || state.config.bitlockerMode === 'create' || !existing.length));
+
+  wrap.appendChild(box);
+  if (!state.config.bitlockerMode) state.config.bitlockerMode = existing.length ? 'use:' + existing[0].letter : 'create';
+  return wrap;
 }
 
 function warningBanner(text) {

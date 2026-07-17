@@ -12,6 +12,9 @@ export default defineConfig({
   timeout: 30000,
   fullyParallel: false,
   reporter: [['list']],
+  // cdp.spec.js drives a real wootc.exe over CDP (Windows E2E only); it runs
+  // only when WOOTC_CDP_URL is set. The mock suite runs everywhere.
+  testIgnore: process.env.WOOTC_CDP_URL ? [] : ['cdp.spec.js'],
   use: {
     // wootc's window is a fixed 820×620; match it so screenshots are honest.
     viewport: { width: 820, height: 620 },
