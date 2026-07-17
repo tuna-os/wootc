@@ -47,6 +47,16 @@ step() { echo -e "${CYAN}[STEP]${NC} $*"; }
 
 CONTAINER_NAME="wootc-e2e-windows"
 STORAGE_DIR="$SCRIPT_DIR/storage"
+# A second orchestrator can otherwise race QGA cleanup and recreate the
+# disposable root disk while the first run is booting the deployer.  Keep the
+# advisory lock open for the lifetime of this shell; it is released
+# automatically if the runner exits or is killed.
+mkdir -p "$STORAGE_DIR"
+exec 9>"$STORAGE_DIR/.run-e2e.lock"
+if ! flock -n 9; then
+    echo "[FAIL] Another run-e2e.sh already owns $STORAGE_DIR/.run-e2e.lock" >&2
+    exit 1
+fi
 # Keep the pristine Windows installer separate from Dockur's mutable working
 # directory.  Dockur can generate derived ISO images while preparing an answer
 # file, so it must receive a copy rather than the only cached source image.
