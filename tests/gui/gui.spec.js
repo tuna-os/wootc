@@ -91,6 +91,15 @@ test('control panel — partition-aware uninstall options', async ({ page }) => 
   await shot(page, '05-control-panel');
 });
 
+test('control panel — Boot in VM offered when available (§6.2)', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, storageDrive: 'C', diskPath: 'C:\\wootc\\disks\\root.vhdx', diskSizeGB: 40 },
+    vm: { available: true, diskPath: 'C:\\wootc\\disks\\root.vhdx' } });
+  await expect(page.getByText('Try Linux in a window')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Boot in VM' })).toBeEnabled();
+  await shot(page, '09-vm-mode');
+});
+
 test('installer — BitLocker offers unencrypted-partition path (no forced decrypt)', async ({ page }) => {
   const sysinfo = { ...SYSINFO, bitLockerOn: true, bitLockerState: 'on',
     dataPartitions: [{ letter: 'E', label: 'Backup', freeGB: 200, encrypted: false }] };

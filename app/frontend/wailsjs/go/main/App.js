@@ -51,6 +51,14 @@ export function UninstallWith(arg1) {
   return window['go']['main']['App']['UninstallWith'](arg1);
 }
 
+export function GetVMCapability() {
+  return window['go']['main']['App']['GetVMCapability']();
+}
+
+export function BootInVM() {
+  return window['go']['main']['App']['BootInVM']();
+}
+
 export function GetMode() {
   return window['go']['main']['App']['GetMode']();
 }

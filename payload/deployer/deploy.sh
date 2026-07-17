@@ -270,7 +270,7 @@ if [[ "$VHDX_FORMAT" != "vhdx" ]]; then
 fi
 modprobe nbd nbds_max=4 max_part=16
 LOOP_DEV=/dev/nbd0
-qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$DISK"
+qemu-nbd --connect "$LOOP_DEV" --format=vhdx --discard=unmap "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
 log "Attached dynamic VHDX ${DISK} as ${LOOP_DEV}"
 
@@ -365,7 +365,7 @@ log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
 VERIFY_LOOP=/dev/nbd0
-qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx "$DISK"
+qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx --discard=unmap "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
 
 # Find the root partition inside the loop device. bootc/ostree roots have no

@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -125,6 +125,7 @@ async function init() {
 
   if (existing) {
     try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
+    try { state.vmCapability = await GetVMCapability(); } catch { state.vmCapability = null; }
   }
   state.screen = existing ? 'control' : 'launchpad';
   render();
@@ -463,6 +464,28 @@ function renderControlPanel() {
   screen.appendChild(opts);
 
   wrap.appendChild(screen);
+
+  // Boot-in-VM (§6.2): view Linux without rebooting, when the VM viewer is
+  // present and WHPX is on.
+  const vm = state.vmCapability;
+  if (vm) {
+    const vmCard = el('div');
+    vmCard.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-top:10px;display:flex;align-items:center;gap:12px';
+    vmCard.innerHTML = `<span style="font-size:20px">🖥️</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px">Try Linux in a window</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">${vm.available
+          ? 'Boot your installed TunaOS in a window without restarting. Changes persist — it\'s the same system.'
+          : vm.reason}</div>
+      </div>`;
+    const vmBtn = btn('Boot in VM', 'btn btn-ghost', async () => {
+      try { await BootInVM(); } catch (e) { alert('Could not start the VM: ' + e); }
+    });
+    vmBtn.style.flexShrink = '0';
+    vmBtn.disabled = !vm.available;
+    vmCard.appendChild(vmBtn);
+    screen.appendChild(vmCard);
+  }
 
   const footer = el('div', 'footer');
   footer.appendChild(btn('Reinstall', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); }));

@@ -40,6 +40,8 @@ function makeApp(mock) {
     CreateDataPartition: () => P({ letter: 'D', label: 'wootc-data', freeGB: 60, encrypted: false }),
     GetUninstallInfo: () => P(mock.uninstall || { found: false }),
     UninstallWith: () => P(),
+    GetVMCapability: () => P(mock.vm || { available: false, reason: '' }),
+    BootInVM: () => P(),
   };
 }
 
