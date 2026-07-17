@@ -315,13 +315,19 @@ snapshot_before_deployer() {
         return 1
     fi
 
-    # A full 80 GiB copy would keep Windows frozen past the OEM barrier's
-    # deadline. Runner storage must support an instantaneous CoW reflink.
-    if ! cp --reflink=always --sparse=always "$disk" "$tmp"; then
-        [ "$frozen" = false ] || qga_call thaw >/dev/null 2>&1 || true
+    # Prefer an instantaneous CoW reflink. Podman commonly marks VM storage
+    # NOCOW even on btrfs, so fall back to a sparse allocated-extent copy.
+    # The OEM barrier allows ten minutes and the guest stays frozen until the
+    # copy is complete, giving us a crash-consistent retry point either way.
+    if ! cp --reflink=always --sparse=auto "$disk" "$tmp"; then
+        warn "Runner storage does not support reflinks for the VM disk; copying allocated extents"
         rm -f "$tmp"
-        fail "Failed to copy the pre-deployer VM snapshot"
-        return 1
+        if ! cp --reflink=never --sparse=always "$disk" "$tmp"; then
+            [ "$frozen" = false ] || qga_call thaw >/dev/null 2>&1 || true
+            rm -f "$tmp"
+            fail "Failed to copy the pre-deployer VM snapshot"
+            return 1
+        fi
     fi
     qga_call thaw >/dev/null || {
         rm -f "$tmp"
@@ -525,7 +531,7 @@ if [ "$SKIP_INSTALL" = false ]; then
     if [ -f "$WINDOWS_ISO_CACHE" ]; then
         mkdir -p "$ISO_CACHE_DIR"
         rm -f "$STORAGE_DIR/custom.iso"
-        cp --reflink=auto --sparse=always "$WINDOWS_ISO_CACHE" "$STORAGE_DIR/custom.iso"
+        cp --reflink=auto --sparse=auto "$WINDOWS_ISO_CACHE" "$STORAGE_DIR/custom.iso"
         info "Using cached Windows ISO: $WINDOWS_ISO_CACHE"
     elif [ -n "${WOOTC_WINDOWS_ISO:-}" ]; then
         fail "WOOTC_WINDOWS_ISO does not exist: $WINDOWS_ISO_CACHE"
