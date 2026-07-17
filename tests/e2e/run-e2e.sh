@@ -154,6 +154,29 @@ qga_wait_reboot() {
     qga_wait "$label" 600
 }
 
+# QGA is present in both the Windows guest and our deployer initramfs.  A
+# successful ping alone therefore does not prove that it is safe to launch a
+# Windows PowerShell payload.  Probe the Windows executable explicitly.
+qga_windows_probe() {
+    qga_powershell '$env:OS' >/dev/null 2>&1
+}
+
+qga_wait_windows() {
+    local timeout="$1" elapsed=0
+    step "Waiting for QGA: Windows guest..."
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if qga_windows_probe; then
+            pass "QGA available: Windows guest"
+            return 0
+        fi
+        sleep 10
+        elapsed=$((elapsed + 10))
+        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m)"
+    done
+    fail "Windows QGA did not become available within $((timeout / 60)) minutes"
+    return 1
+}
+
 qga_powershell() {
     qga_call powershell "$1"
 }
@@ -475,7 +498,11 @@ fi
 # The QGA service is installed by the SYSTEM OEM bootstrap before the wootc
 # payload runs. Its availability is the real Windows-ready signal; no guest
 # IP, WinRM listener, or Windows password is involved.
-qga_wait "Windows guest" 2700
+if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
+    info "Previous deployer is still running; rebooting it to Windows before retry"
+    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
+fi
+qga_wait_windows 2700
 qga_call info || true
 
 if [ "$SKIP_INSTALL" = true ]; then
