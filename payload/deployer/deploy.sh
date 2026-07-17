@@ -13,6 +13,8 @@
 #   wootc.flatpaks=org.mozilla.firefox,...          (optional)
 #   wootc.luks=none|luks-passphrase|tpm2-luks       (optional)
 #   wootc.luks-passphrase=...                        (optional)
+#   wootc.bootloader=grub2|systemd                   (optional)
+#   wootc.composefs=0|1                              (optional)
 #   wootc.debug                                      (optional, drops to shell)
 
 set -Eeuo pipefail
@@ -115,6 +117,11 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
+BOOTLOADER="$(read_cmdline wootc.bootloader grub2)"
+COMPOSEFS="$(read_cmdline wootc.composefs 0)"
+
+case "$BOOTLOADER" in grub2|systemd) ;; *) err "unsupported bootloader: $BOOTLOADER"; exit 1 ;; esac
+case "$COMPOSEFS" in 0|1) ;; *) err "unsupported composefs value: $COMPOSEFS"; exit 1 ;; esac
 
 case "$LUKS_TYPE" in
     none|luks-passphrase|tpm2-luks|tpm2-luks-passphrase) ;;
@@ -355,7 +362,8 @@ cat > "$RECIPE" << EOF
 {
   "disk": "${LOOP_DEV}",
   "filesystem": "${FILESYSTEM}",
-  "composeFsBackend": false,
+  "composeFsBackend": $([[ "$COMPOSEFS" == 1 ]] && echo true || echo false),
+	"bootloader": "${BOOTLOADER}",
   "unifiedStorage": false,
   "selinuxDisabled": false,
   ${LUKS_JSON},
@@ -641,6 +649,32 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             KERNEL_SRC="${kernels[0]:-}"
             INITRD_SRC="${initrds[0]:-}"
 
+            if [[ "$BOOTLOADER" == systemd ]]; then
+                if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" && -n "$INITRD_SRC" && -s "$INITRD_SRC" ]] && \
+                   cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz && \
+                   cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                    ROOT_OPTIONS=$(grep '^options ' "$DEPLOY_ROOT"/boot/loader/entries/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
+                    ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ')
+                    mkdir -p /mnt/esp/loader/entries
+                    cat > /mnt/esp/loader/entries/wootc.conf <<BLSEOF
+title wootc Linux
+linux /EFI/wootc/phase2-vmlinuz
+initrd /EFI/wootc/phase2-initramfs.img
+options ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200
+BLSEOF
+                    rm -f /mnt/esp/loader/entries/wootc-deployer.conf
+                    log "  [PASS] Phase-2 systemd-boot entry written"
+                else
+                    err "  [FAIL] Phase-2 systemd-boot ESP sync failed"
+                    exit 1
+                fi
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\n' "$ESP_UUID" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                fi
+            else
+
             # ── Target-signed Secure Boot chain ───────────────────────────
             # GRUB's shim_lock verifier rejects the target kernel unless the
             # shim's vendor cert trusts the kernel's signing key. The Fedora
@@ -726,6 +760,7 @@ GRUBEOF
                 rm -f /mnt/esp/EFI/wootc/phase2-vmlinuz /mnt/esp/EFI/wootc/phase2-initramfs.img
                 cp /mnt/ntfs/wootc/install/deployer-vmlinuz /mnt/esp/EFI/wootc/deployer-vmlinuz 2>/dev/null || true
                 cp /mnt/ntfs/wootc/install/deployer-initramfs.img /mnt/esp/EFI/wootc/deployer-initramfs.img 2>/dev/null || true
+            fi
             fi
             umount /mnt/esp
         else

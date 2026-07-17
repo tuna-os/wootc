@@ -9,6 +9,9 @@ export interface Image {
   desktopName: string;
   imageRef: string;
   description: string;
+  bootloader: 'grub2' | 'systemd-boot';
+  composeFs: boolean;
+  family: string;
 }
 
 export interface InstallConfig {
@@ -18,6 +21,7 @@ export interface InstallConfig {
   password: string;
   hostname: string;
   bootloader: string;
+  composeFs: boolean;
   storageDrive: string;
   encryption: 'none' | 'tpm2-luks' | 'luks-passphrase';
   luksPassphrase: string;
@@ -39,6 +43,7 @@ export interface SystemInfo {
   fastStartupOn: boolean;
   isUefi: boolean;
   secureBootOn: boolean;
+  secureBootKnown: boolean;
   defragRecommended: boolean;
   dataPartitions: Array<{letter: string; label: string; freeGB: number; encrypted: boolean}>;
 }

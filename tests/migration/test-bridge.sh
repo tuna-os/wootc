@@ -149,6 +149,12 @@ WOOTC_ESP_DIR=/tmp/esp WOOTC_BOOT_DIR=/tmp/boot WOOTC_CMDLINE=/tmp/cmdline \
     bash /scripts/wootc-esp-sync >/dev/null 2>&1 || true
 check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = new-kernel ]' "ESP sync: stale kernel refreshed from BLS entry"
 check 'grep -q "loop=/wootc/disks/root.vhdx" /tmp/esp/EFI/fedora/grub.cfg' "ESP sync: grub.cfg carries loop-attach args"
+# systemd-boot layout writes a BLS entry instead of touching GRUB.
+mkdir -p /tmp/esp/EFI/systemd
+echo efi > /tmp/esp/EFI/systemd/systemd-bootx64.efi
+WOOTC_ESP_DIR=/tmp/esp WOOTC_BOOT_DIR=/tmp/boot WOOTC_CMDLINE=/tmp/cmdline \
+    bash /scripts/wootc-esp-sync >/dev/null 2>&1 || true
+check 'grep -q "loop=/wootc/disks/root.vhdx" /tmp/esp/loader/entries/wootc.conf' "ESP sync: systemd-boot BLS entry carries loop-attach args"
 # Classic layout:
 rm -rf /tmp/boot; mkdir -p /tmp/boot
 echo classic-kernel > /tmp/boot/vmlinuz-6.2-generic

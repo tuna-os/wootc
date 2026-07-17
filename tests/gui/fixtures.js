@@ -2,15 +2,15 @@
 // screenshots double as documentation.
 
 export const IMAGES = [
-  { id: 'yellowfin-gnome', name: 'Yellowfin', emoji: '🐠', base: 'AlmaLinux Kitten 10', desktop: 'gnome', desktopName: 'GNOME', imageRef: 'ghcr.io/tuna-os/yellowfin:gnome', description: 'Modern GNOME desktop on Enterprise Linux. Stable and reliable.' },
+  { id: 'yellowfin-gnome', name: 'Yellowfin', emoji: '🐠', base: 'AlmaLinux Kitten 10', desktop: 'gnome', desktopName: 'GNOME', imageRef: 'ghcr.io/tuna-os/yellowfin:gnome', description: 'Modern GNOME desktop on Enterprise Linux. Stable and reliable.', bootloader: 'grub2', composeFs: false },
   { id: 'yellowfin-kde', name: 'Yellowfin', emoji: '🐠', base: 'AlmaLinux Kitten 10', desktop: 'kde', desktopName: 'KDE Plasma', imageRef: 'ghcr.io/tuna-os/yellowfin:kde', description: 'KDE Plasma desktop on Enterprise Linux.' },
-  { id: 'bonito-gnome', name: 'Bonito', emoji: '🎣', base: 'Fedora 44', desktop: 'gnome', desktopName: 'GNOME', imageRef: 'ghcr.io/tuna-os/bonito:gnome', description: 'Cutting-edge GNOME on Fedora. Latest upstream packages.' },
-  { id: 'marlin-gnome', name: 'Marlin', emoji: '🚀', base: 'Arch Linux', desktop: 'gnome', desktopName: 'GNOME', imageRef: 'ghcr.io/tuna-os/marlin:gnome', description: 'GNOME on Arch Linux with CachyOS kernel. For power users.' },
+  { id: 'bonito-gnome', name: 'Bonito', emoji: '🎣', base: 'Fedora 44', desktop: 'gnome', desktopName: 'GNOME', imageRef: 'ghcr.io/tuna-os/bonito:gnome', description: 'Cutting-edge GNOME on Fedora. Latest upstream packages.', bootloader: 'systemd-boot', composeFs: true },
+  { id: 'marlin-gnome', name: 'Marlin', emoji: '🚀', base: 'Arch Linux', desktop: 'gnome', desktopName: 'GNOME', imageRef: 'ghcr.io/tuna-os/marlin:gnome', description: 'GNOME on Arch Linux with CachyOS kernel. For power users.', bootloader: 'systemd-boot', composeFs: true },
 ];
 
 export const SYSINFO = {
   osVersion: 'Windows 11.0.22631', freeDiskGB: 214, totalDiskGB: 512,
-  bitLockerOn: false, fastStartupOn: true, isUefi: true, secureBootOn: true,
+  bitLockerOn: false, fastStartupOn: true, isUefi: true, secureBootOn: true, secureBootKnown: true,
 };
 
 export const INSTALL_STEPS = [

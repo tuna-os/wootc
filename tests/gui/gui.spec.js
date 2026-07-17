@@ -119,6 +119,21 @@ test('installer — NTFS defrag recommendation is advisory and actionable (§3.6
   await expect(page.getByText('Windows recommends optimizing C:')).toBeHidden();
 });
 
+test('installer — image metadata selects composefs/systemd-boot and warns for Secure Boot', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  await page.getByText('Bonito').first().click();
+  await page.getByText('Advanced boot options').click();
+  await expect(page.getByRole('checkbox', { name: /Use systemd-boot/ })).toBeChecked();
+  await expect(page.getByText(/requires a locally verified trusted signed EFI binary/)).toBeVisible();
+});
+
+test('installer — supported family custom OCI reference is accepted', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: { ...SYSINFO, secureBootOn: false } });
+  await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:stable');
+  await page.getByText('Advanced boot options').click();
+  await expect(page.getByText(/Secure Boot is off/)).toBeVisible();
+});
+
 test('installer — BitLocker offers unencrypted-partition path (no forced decrypt)', async ({ page }) => {
   const sysinfo = { ...SYSINFO, bitLockerOn: true, bitLockerState: 'on',
     dataPartitions: [{ letter: 'E', label: 'Backup', freeGB: 200, encrypted: false }] };

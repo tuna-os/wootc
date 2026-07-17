@@ -49,7 +49,7 @@ func getSystemInfo() SystemInfo {
 	info.FastStartupOn = fastStartupEnabled()
 
 	// Secure Boot
-	info.SecureBootOn = secureBootEnabled()
+	info.SecureBootOn, info.SecureBootKnown = secureBootState()
 
 	// Advisory NTFS fragmentation analysis (SPEC §3.6). Failure to analyze
 	// must not block installation.
@@ -129,6 +129,25 @@ func listDataPartitions() []DataPartition {
 
 // ── Pre-flight checks ─────────────────────────────────────────────────────────
 
+func validatePlatformConfig(cfg InstallConfig) error {
+	if cfg.Bootloader != "systemd-boot" {
+		return nil
+	}
+	_, signed, err := systemdBootAsset()
+	if err != nil {
+		return err
+	}
+	on, known := secureBootState()
+	if (on || !known) && !signed {
+		state := "enabled"
+		if !known {
+			state = "unknown"
+		}
+		return fmt.Errorf("Secure Boot is %s and systemd-boot is not verifiably trusted; choose GRUB2 or explicitly turn Secure Boot off", state)
+	}
+	return nil
+}
+
 func checkSystem() error {
 	if !isAdmin() {
 		return fmt.Errorf("wootc must be run as Administrator")
@@ -168,12 +187,24 @@ func isUEFI() bool {
 }
 
 func secureBootEnabled() bool {
+	on, _ := secureBootState()
+	return on
+}
+
+func secureBootState() (bool, bool) {
 	out, err := runCmd("powershell", "-NoProfile", "-NonInteractive",
-		"-Command", "Confirm-SecureBootUEFI 2>$null; $?")
+		"-Command", "try { if (Confirm-SecureBootUEFI -ErrorAction Stop) { 'on' } else { 'off' } } catch { 'unknown' }")
 	if err != nil {
-		return false
+		return false, false
 	}
-	return strings.TrimSpace(out) == "True"
+	switch strings.TrimSpace(out) {
+	case "on":
+		return true, true
+	case "off":
+		return false, true
+	default:
+		return false, false
+	}
 }
 
 func fastStartupEnabled() bool {
@@ -395,7 +426,7 @@ func setupESP(cfg InstallConfig) error {
 
 	switch cfg.Bootloader {
 	case "systemd-boot":
-		return setupSystemdBoot(espPath)
+		return setupSystemdBoot(espPath, cfg)
 	default:
 		return setupSignedChain(espPath, cfg)
 	}
@@ -468,6 +499,10 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	if cfg.Encryption != "" && cfg.Encryption != "none" {
 		luks = " wootc.luks=" + cfg.Encryption
 	}
+	installMode := " wootc.bootloader=grub2"
+	if cfg.ComposeFS {
+		installMode += " wootc.composefs=1"
+	}
 
 	// Deployer menu at the signed GRUB's embedded prefix.
 	menu := fmt.Sprintf(`%s - one-shot Linux installation
@@ -483,7 +518,7 @@ menuentry "Install wootc (debug)" {
     linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json%s wootc.debug
     initrd /EFI/wootc/deployer-initramfs.img
 }
-`, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, luks, cfg.ImageRef, cfg.Hostname, luks)
+`, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, luks+installMode, cfg.ImageRef, cfg.Hostname, luks+installMode)
 
 	if err := os.WriteFile(grubCfg, []byte(menu), 0o644); err != nil {
 		return fmt.Errorf("write deployer grub.cfg: %w", err)
@@ -491,7 +526,20 @@ menuentry "Install wootc (debug)" {
 	return nil
 }
 
-func setupSystemdBoot(espPath string) error {
+func setupSystemdBoot(espPath string, cfg InstallConfig) error {
+	src, signed, err := systemdBootAsset()
+	if err != nil {
+		return err
+	}
+	if on, known := secureBootState(); on || !known {
+		if !signed {
+			state := "enabled"
+			if !known {
+				state = "unknown"
+			}
+			return fmt.Errorf("Secure Boot is %s and the bundled systemd-boot EFI binary is not trusted; choose GRUB2 or disable Secure Boot explicitly", state)
+		}
+	}
 	sdEFI := filepath.Join(espPath, "EFI", "systemd")
 	if err := os.MkdirAll(sdEFI, 0o755); err != nil {
 		return err
@@ -500,8 +548,59 @@ func setupSystemdBoot(espPath string) error {
 	if err := os.MkdirAll(loaderEntries, 0o755); err != nil {
 		return err
 	}
-	// TODO: copy systemd-bootx64.efi + write BLS entries
-	return nil
+	wootcEFI := filepath.Join(espPath, "EFI", "wootc")
+	if err := os.MkdirAll(wootcEFI, 0o755); err != nil {
+		return err
+	}
+	installDir := filepath.Join(wootcDir(), "install")
+	for from, to := range map[string]string{
+		src: filepath.Join(sdEFI, "systemd-bootx64.efi"),
+		filepath.Join(installDir, "deployer-vmlinuz"):       filepath.Join(wootcEFI, "deployer-vmlinuz"),
+		filepath.Join(installDir, "deployer-initramfs.img"): filepath.Join(wootcEFI, "deployer-initramfs.img"),
+	} {
+		if err := copyFile(from, to); err != nil {
+			return fmt.Errorf("stage systemd-boot asset %s: %w", filepath.Base(from), err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(espPath, "loader", "loader.conf"), []byte("default wootc-deployer.conf\ntimeout 5\nconsole-mode keep\n"), 0o644); err != nil {
+		return err
+	}
+	compose := ""
+	if cfg.ComposeFS {
+		compose = " wootc.composefs=1"
+	}
+	entry := fmt.Sprintf("title wootc installer\nlinux /EFI/wootc/deployer-vmlinuz\ninitrd /EFI/wootc/deployer-initramfs.img\noptions wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json wootc.bootloader=systemd%s%s quiet\n", cfg.ImageRef, cfg.Hostname, luksCmdline(cfg), compose)
+	return os.WriteFile(filepath.Join(loaderEntries, "wootc-deployer.conf"), []byte(entry), 0o644)
+}
+
+func luksCmdline(cfg InstallConfig) string {
+	if cfg.Encryption == "" || cfg.Encryption == "none" {
+		return ""
+	}
+	return " wootc.luks=" + cfg.Encryption
+}
+
+func systemdBootAsset() (string, bool, error) {
+	exe, _ := os.Executable()
+	candidates := []string{
+		filepath.Join(filepath.Dir(exe), "efi", "systemd-bootx64.efi.signed"),
+		filepath.Join(filepath.Dir(exe), "efi", "systemd-bootx64.efi"),
+		filepath.Join(wootcDir(), "install", "systemd-bootx64.efi.signed"),
+		filepath.Join(wootcDir(), "install", "systemd-bootx64.efi"),
+	}
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		signed := false
+		if strings.HasSuffix(path, ".signed") {
+			quoted := strings.ReplaceAll(path, "'", "''")
+			out, _ := runPowerShellOutput("(Get-AuthenticodeSignature -LiteralPath '" + quoted + "').Status")
+			signed = strings.TrimSpace(out) == "Valid"
+		}
+		return path, signed, nil
+	}
+	return "", false, fmt.Errorf("systemd-boot is not bundled; expected efi\\systemd-bootx64.efi beside wootc.exe")
 }
 
 // ── BCD configuration ─────────────────────────────────────────────────────────

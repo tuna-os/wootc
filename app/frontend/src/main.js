@@ -118,6 +118,7 @@ async function init() {
   state.images = images || [];
   state.sysinfo = sysinfo;
   state.selected = state.images[0] || null;
+  applyImageDefaults(state.selected);
 
   // Pre-fill username from OS if available
   try {
@@ -272,10 +273,21 @@ function renderLaunchpad() {
       <div class="image-base">${img.base}</div>
       <div class="image-desc">${img.description}</div>
     `;
-    card.onclick = () => { state.selected = img; render(); };
+    card.onclick = () => { state.selected = img; applyImageDefaults(img); render(); };
     grid.appendChild(card);
   });
   screen.appendChild(grid);
+
+  const customRef = inputField('Custom supported OCI image', 'text', state.config.customImageRef || '', v => {
+    state.config.customImageRef = v.trim();
+    if (/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\/[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$/.test(state.config.customImageRef)) {
+      state.selected = { id: 'custom', name: 'Custom image', imageRef: state.config.customImageRef, bootloader: 'systemd-boot', composeFs: true };
+      applyImageDefaults(state.selected);
+      render();
+    }
+    refreshInstallValidity();
+  }, 'ghcr.io/ublue-os/image:tag');
+  screen.appendChild(customRef);
 
   // Config fields
   const fields = el('div', 'fields');
@@ -347,6 +359,26 @@ function renderLaunchpad() {
     encSection.appendChild(ppRow);
   }
   fields.appendChild(encSection);
+
+  const advanced = el('details');
+  advanced.style.cssText = 'margin-top:6px;border:1px solid var(--border);border-radius:6px;padding:7px 9px';
+  advanced.innerHTML = `<summary style="cursor:pointer;font-size:12px;font-weight:600">Advanced boot options</summary>`;
+  const bootChoice = el('label');
+  bootChoice.style.cssText = 'display:flex;gap:8px;margin-top:8px;font-size:12px;align-items:flex-start';
+  bootChoice.innerHTML = `<input type="checkbox" ${state.config.bootloader === 'systemd-boot' ? 'checked' : ''}><span>Use systemd-boot<br><span style="color:var(--text-muted)">Required by composefs images. Uses a bundled EFI binary and ESP-synced kernel entries.</span></span>`;
+  bootChoice.querySelector('input').onchange = e => { state.config.bootloader = e.target.checked ? 'systemd-boot' : 'grub2'; render(); };
+  advanced.appendChild(bootChoice);
+  if (state.config.bootloader === 'systemd-boot') {
+    const sb = el('div');
+    sb.style.cssText = 'font-size:11.5px;color:var(--warning);margin-top:7px';
+    sb.textContent = state.sysinfo?.secureBootKnown === false
+      ? 'Secure Boot status is unknown. Installation will stop unless the bundled EFI binary is verified as trusted.'
+      : state.sysinfo?.secureBootOn
+        ? 'Secure Boot is enabled. systemd-boot requires a locally verified trusted signed EFI binary; otherwise choose GRUB2.'
+        : 'Secure Boot is off. The bundled unsigned systemd-boot path is supported.';
+    advanced.appendChild(sb);
+  }
+  fields.appendChild(advanced);
 
   const hint = el('div');
   hint.id = 'install-hint';
@@ -809,11 +841,18 @@ function refreshInstallValidity() {
   else if (!c.password) reason = 'Set a password.';
   else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
   else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to TPM or no encryption.';
+  else if (!state.selected?.imageRef || !/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\//.test(state.selected.imageRef)) reason = 'Choose a supported TunaOS, Universal Blue, or Bluefin image.';
   btn.disabled = reason !== '';
   if (hint) {
     hint.textContent = reason;
     hint.style.color = reason ? 'var(--danger)' : 'var(--text-muted)';
   }
+}
+
+function applyImageDefaults(image) {
+  if (!image) return;
+  state.config.bootloader = image.bootloader || (image.family === 'el10' ? 'grub2' : 'systemd-boot');
+  state.config.composeFs = image.composeFs !== undefined ? !!image.composeFs : state.config.bootloader === 'systemd-boot';
 }
 
 async function startInstall() {
@@ -845,6 +884,7 @@ async function startInstall() {
       password:   state.config.password,
       hostname:   state.config.hostname,
       bootloader: state.config.bootloader,
+      composeFs:  state.config.composeFs,
       storageDrive,
       encryption:     state.config.encryption,
       luksPassphrase: state.config.luksPassphrase,

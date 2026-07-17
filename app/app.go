@@ -23,6 +23,9 @@ type Image struct {
 	DesktopName string `json:"desktopName"`
 	ImageRef    string `json:"imageRef"`
 	Description string `json:"description"`
+	Bootloader  string `json:"bootloader"` // grub2 | systemd-boot
+	ComposeFS   bool   `json:"composeFs"`
+	Family      string `json:"family"` // el10 | fedora | arch | debian | custom
 }
 
 // InstallConfig is the parameters collected on Screen 1.
@@ -33,6 +36,7 @@ type InstallConfig struct {
 	Password   string `json:"password"`
 	Hostname   string `json:"hostname"`
 	Bootloader string `json:"bootloader"` // "grub2" | "systemd-boot"
+	ComposeFS  bool   `json:"composeFs"`
 	// StorageDrive is the drive letter (no colon) where root.disk + vault
 	// live. Empty means C:. On a BitLocker-protected C:, the GUI sets this
 	// to an unencrypted data volume so the deployer can mount it read-write
@@ -71,10 +75,11 @@ type SystemInfo struct {
 	// BitLockerState is the detailed C: encryption state (SPEC §3.5):
 	// "off" | "on" | "encrypting" | "decrypting". "encrypting" is a hard
 	// block; "on" offers the data-partition path.
-	BitLockerState string `json:"bitLockerState"`
-	FastStartupOn  bool   `json:"fastStartupOn"`
-	IsUEFI         bool   `json:"isUefi"`
-	SecureBootOn   bool   `json:"secureBootOn"`
+	BitLockerState  string `json:"bitLockerState"`
+	FastStartupOn   bool   `json:"fastStartupOn"`
+	IsUEFI          bool   `json:"isUefi"`
+	SecureBootOn    bool   `json:"secureBootOn"`
+	SecureBootKnown bool   `json:"secureBootKnown"`
 	// DefragRecommended is advisory only. Fragmentation affects VHDX
 	// performance on rotating media, not correctness (SPEC §3.6).
 	DefragRecommended bool `json:"defragRecommended"`
@@ -137,36 +142,42 @@ func (a *App) GetImages() ([]Image, error) {
 			Base: "AlmaLinux Kitten 10", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/yellowfin:gnome",
 			Description: "Modern GNOME desktop on Enterprise Linux. Stable and reliable.",
+			Bootloader:  "grub2", ComposeFS: false, Family: "el10",
 		},
 		{
 			ID: "yellowfin-kde", Name: "Yellowfin", Emoji: "🐠",
 			Base: "AlmaLinux Kitten 10", Desktop: "kde", DesktopName: "KDE Plasma",
 			ImageRef:    "ghcr.io/tuna-os/yellowfin:kde",
 			Description: "KDE Plasma desktop on Enterprise Linux.",
+			Bootloader:  "grub2", ComposeFS: false, Family: "el10",
 		},
 		{
 			ID: "bonito-gnome", Name: "Bonito", Emoji: "🎣",
 			Base: "Fedora 44", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/bonito:gnome",
 			Description: "Cutting-edge GNOME on Fedora. Latest upstream packages.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "fedora",
 		},
 		{
 			ID: "bonito-kde", Name: "Bonito", Emoji: "🎣",
 			Base: "Fedora 44", Desktop: "kde", DesktopName: "KDE Plasma",
 			ImageRef:    "ghcr.io/tuna-os/bonito:kde",
 			Description: "KDE Plasma on Fedora. Rolling updates, familiar interface.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "fedora",
 		},
 		{
 			ID: "marlin-gnome", Name: "Marlin", Emoji: "🚀",
 			Base: "Arch Linux", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/marlin:gnome",
 			Description: "GNOME on Arch Linux with CachyOS kernel. For power users.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "arch",
 		},
 		{
 			ID: "flounder-gnome", Name: "Flounder", Emoji: "🐡",
 			Base: "Debian 13 Trixie", Desktop: "gnome", DesktopName: "GNOME",
 			ImageRef:    "ghcr.io/tuna-os/flounder:gnome",
 			Description: "Rock-solid GNOME on Debian Stable.",
+			Bootloader:  "systemd-boot", ComposeFS: true, Family: "debian",
 		},
 	}
 
@@ -265,8 +276,8 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	if cfg.Bootloader == "" {
 		cfg.Bootloader = "grub2"
 	}
-	if cfg.Bootloader != "grub2" {
-		return fmt.Errorf("unsupported bootloader %q: systemd-boot is not available until its EFI binary and kernel-sync hook are bundled", cfg.Bootloader)
+	if cfg.Bootloader != "grub2" && cfg.Bootloader != "systemd-boot" {
+		return fmt.Errorf("unsupported bootloader %q", cfg.Bootloader)
 	}
 	if cfg.Encryption == "" {
 		cfg.Encryption = "tpm2-luks"
@@ -279,6 +290,9 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 		}
 	default:
 		return fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
+	}
+	if err := validatePlatformConfig(cfg); err != nil {
+		return err
 	}
 
 	ctx, cancel := context.WithCancel(a.ctx)

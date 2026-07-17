@@ -28,6 +28,17 @@ e2e-quick image=WOOTC_IMAGE:
 build:
     just build-deployer
     just build-wubildr
+    just bundle-systemd-boot
+
+# Bundle Fedora's reproducible unsigned systemd-boot build beside wootc.exe.
+# Secure-Boot machines reject this path unless CI substitutes a trusted
+# Authenticode-valid systemd-bootx64.efi.signed artifact.
+bundle-systemd-boot:
+    #!/usr/bin/env bash
+    mkdir -p app/build/bin/efi
+    podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
+        /out/systemd-bootx64.efi > app/build/bin/efi/systemd-bootx64.efi
+    test -s app/build/bin/efi/systemd-bootx64.efi
 
 # Build deployer initramfs
 build-deployer:
