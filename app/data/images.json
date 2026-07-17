@@ -1,0 +1,80 @@
+[
+  {
+    "id": "yellowfin-gnome",
+    "name": "Yellowfin",
+    "emoji": "🐠",
+    "base": "AlmaLinux Kitten 10",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/yellowfin:gnome",
+    "description": "Modern GNOME desktop on Enterprise Linux. Stable and reliable.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10"
+  },
+  {
+    "id": "yellowfin-kde",
+    "name": "Yellowfin",
+    "emoji": "🐠",
+    "base": "AlmaLinux Kitten 10",
+    "desktop": "kde",
+    "desktopName": "KDE Plasma",
+    "imageRef": "ghcr.io/tuna-os/yellowfin:kde",
+    "description": "KDE Plasma desktop on Enterprise Linux.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10"
+  },
+  {
+    "id": "bonito-gnome",
+    "name": "Bonito",
+    "emoji": "🎣",
+    "base": "Fedora 44",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/bonito:gnome",
+    "description": "Cutting-edge GNOME on Fedora. Latest upstream packages.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "fedora"
+  },
+  {
+    "id": "bonito-kde",
+    "name": "Bonito",
+    "emoji": "🎣",
+    "base": "Fedora 44",
+    "desktop": "kde",
+    "desktopName": "KDE Plasma",
+    "imageRef": "ghcr.io/tuna-os/bonito:kde",
+    "description": "KDE Plasma on Fedora. Rolling updates, familiar interface.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "fedora"
+  },
+  {
+    "id": "marlin-gnome",
+    "name": "Marlin",
+    "emoji": "🚀",
+    "base": "Arch Linux",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/marlin:gnome",
+    "description": "GNOME on Arch Linux with CachyOS kernel. For power users.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "arch"
+  },
+  {
+    "id": "flounder-gnome",
+    "name": "Flounder",
+    "emoji": "🐡",
+    "base": "Debian 13 Trixie",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/flounder:gnome",
+    "description": "Rock-solid GNOME on Debian Stable.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "debian"
+  }
+]

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -101,7 +102,11 @@ type DataPartition struct {
 // App is the Wails application backend. All exported methods are callable
 // from the frontend via the generated wailsjs bindings.
 type App struct {
-	ctx    context.Context
+	ctx context.Context
+	// mu guards status and cancel. GetStatus() is polled from the frontend
+	// on a timer while the install goroutine mutates status concurrently —
+	// without the lock that is a data race the Go race detector flags.
+	mu     sync.Mutex
 	status InstallStatus
 	cancel context.CancelFunc
 }
@@ -110,10 +115,25 @@ func NewApp() *App {
 	return &App{}
 }
 
+// setStatus atomically replaces the install status.
+func (a *App) setStatus(s InstallStatus) {
+	a.mu.Lock()
+	a.status = s
+	a.mu.Unlock()
+}
+
+// mutateStatus applies fn to the status under the lock.
+func (a *App) mutateStatus(fn func(s *InstallStatus)) {
+	a.mu.Lock()
+	fn(&a.status)
+	a.mu.Unlock()
+}
+
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	// Check for existing install on startup — routes to Control Panel screen.
-	a.status.Existing = a.existingInstallFound()
+	existing := a.existingInstallFound()
+	a.mutateStatus(func(s *InstallStatus) { s.Existing = existing })
 }
 
 // previewMode reports whether the app is running as a UI test harness:
@@ -123,8 +143,11 @@ func (a *App) startup(ctx context.Context) {
 func previewMode() bool { return os.Getenv("WOOTC_UI_PREVIEW") == "1" }
 
 func (a *App) shutdown(ctx context.Context) {
-	if a.cancel != nil {
-		a.cancel()
+	a.mu.Lock()
+	cancel := a.cancel
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 }
 
@@ -134,54 +157,8 @@ func (a *App) shutdown(ctx context.Context) {
 // catalog. If C:\wootc\images.json exists it takes precedence (custom
 // deployments / enterprise override).
 func (a *App) GetImages() ([]Image, error) {
-	// In production: load from embedded data/images.json and/or C:\wootc\images.json
-	// For now: return the built-in TunaOS catalog.
-	catalog := []Image{
-		{
-			ID: "yellowfin-gnome", Name: "Yellowfin", Emoji: "🐠",
-			Base: "AlmaLinux Kitten 10", Desktop: "gnome", DesktopName: "GNOME",
-			ImageRef:    "ghcr.io/tuna-os/yellowfin:gnome",
-			Description: "Modern GNOME desktop on Enterprise Linux. Stable and reliable.",
-			Bootloader:  "grub2", ComposeFS: false, Family: "el10",
-		},
-		{
-			ID: "yellowfin-kde", Name: "Yellowfin", Emoji: "🐠",
-			Base: "AlmaLinux Kitten 10", Desktop: "kde", DesktopName: "KDE Plasma",
-			ImageRef:    "ghcr.io/tuna-os/yellowfin:kde",
-			Description: "KDE Plasma desktop on Enterprise Linux.",
-			Bootloader:  "grub2", ComposeFS: false, Family: "el10",
-		},
-		{
-			ID: "bonito-gnome", Name: "Bonito", Emoji: "🎣",
-			Base: "Fedora 44", Desktop: "gnome", DesktopName: "GNOME",
-			ImageRef:    "ghcr.io/tuna-os/bonito:gnome",
-			Description: "Cutting-edge GNOME on Fedora. Latest upstream packages.",
-			Bootloader:  "systemd-boot", ComposeFS: true, Family: "fedora",
-		},
-		{
-			ID: "bonito-kde", Name: "Bonito", Emoji: "🎣",
-			Base: "Fedora 44", Desktop: "kde", DesktopName: "KDE Plasma",
-			ImageRef:    "ghcr.io/tuna-os/bonito:kde",
-			Description: "KDE Plasma on Fedora. Rolling updates, familiar interface.",
-			Bootloader:  "systemd-boot", ComposeFS: true, Family: "fedora",
-		},
-		{
-			ID: "marlin-gnome", Name: "Marlin", Emoji: "🚀",
-			Base: "Arch Linux", Desktop: "gnome", DesktopName: "GNOME",
-			ImageRef:    "ghcr.io/tuna-os/marlin:gnome",
-			Description: "GNOME on Arch Linux with CachyOS kernel. For power users.",
-			Bootloader:  "systemd-boot", ComposeFS: true, Family: "arch",
-		},
-		{
-			ID: "flounder-gnome", Name: "Flounder", Emoji: "🐡",
-			Base: "Debian 13 Trixie", Desktop: "gnome", DesktopName: "GNOME",
-			ImageRef:    "ghcr.io/tuna-os/flounder:gnome",
-			Description: "Rock-solid GNOME on Debian Stable.",
-			Bootloader:  "systemd-boot", ComposeFS: true, Family: "debian",
-		},
-	}
-
-	// Override with C:\wootc\images.json if present
+	// C:\wootc\images.json (custom/enterprise override) takes precedence over
+	// the embedded built-in catalog.
 	custom := filepath.Join(wootcDir(), "images.json")
 	if data, err := os.ReadFile(custom); err == nil {
 		var override []Image
@@ -190,6 +167,10 @@ func (a *App) GetImages() ([]Image, error) {
 		}
 	}
 
+	var catalog []Image
+	if err := json.Unmarshal(catalogJSON, &catalog); err != nil {
+		return nil, fmt.Errorf("parse embedded catalog: %w", err)
+	}
 	return catalog, nil
 }
 
@@ -270,9 +251,6 @@ func mergeBranding(base *Branding, over Branding) {
 // are emitted via Wails runtime events (event: "install:progress").
 // Returns immediately — poll GetStatus() or listen to events.
 func (a *App) StartInstall(cfg InstallConfig) error {
-	if a.status.Running {
-		return fmt.Errorf("install already in progress")
-	}
 	if cfg.Bootloader == "" {
 		cfg.Bootloader = "grub2"
 	}
@@ -296,8 +274,19 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	}
 
 	ctx, cancel := context.WithCancel(a.ctx)
+
+	// Atomically claim the install slot: reject a concurrent StartInstall
+	// rather than spawn a second pipeline against the same disk. Preserve
+	// Existing so the Control Panel routing survives a re-install.
+	a.mu.Lock()
+	if a.status.Running {
+		a.mu.Unlock()
+		cancel()
+		return fmt.Errorf("install already in progress")
+	}
+	a.status = InstallStatus{Running: true, Existing: a.status.Existing}
 	a.cancel = cancel
-	a.status = InstallStatus{Running: true}
+	a.mu.Unlock()
 
 	// Preview mode: emit a scripted progress run so the GUI's progress and
 	// done screens can be driven under CDP without a real install.
@@ -308,14 +297,21 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 
 	go func() {
 		err := a.runInstall(ctx, cfg)
-		a.status.Running = false
+		// Always clear Running, including the cancellation path, so a cancelled
+		// install does not leave the GUI stuck on the progress screen.
+		a.mutateStatus(func(s *InstallStatus) {
+			s.Running = false
+			if err != nil && err != context.Canceled {
+				s.Error = err.Error()
+			} else if err == nil {
+				s.Done = true
+			}
+		})
 		if err != nil && err != context.Canceled {
-			a.status.Error = err.Error()
 			a.emit(ProgressEvent{
 				Step: "error", Message: err.Error(), Percent: 0, Error: err.Error(),
 			})
 		} else if err == nil {
-			a.status.Done = true
 			a.emit(ProgressEvent{
 				Step: "done", Message: "Installation complete. Reboot to start TunaOS.", Percent: 100, Done: true,
 			})
@@ -332,13 +328,18 @@ func (a *App) DefragDrive() error { return defragDrive() }
 // CancelInstall aborts a running install. Partially-written files are cleaned up
 // by runInstall's deferred cleanup.
 func (a *App) CancelInstall() {
-	if a.cancel != nil {
-		a.cancel()
+	a.mu.Lock()
+	cancel := a.cancel
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 }
 
 // GetStatus returns current install state.
 func (a *App) GetStatus() InstallStatus {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return a.status
 }
 
@@ -478,14 +479,16 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 	for _, s := range steps {
 		select {
 		case <-ctx.Done():
-			a.status.Running = false
+			a.mutateStatus(func(s *InstallStatus) { s.Running = false })
 			return
 		case <-time.After(300 * time.Millisecond):
 		}
 		a.emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
 	}
-	a.status.Running = false
-	a.status.Done = true
+	a.mutateStatus(func(s *InstallStatus) {
+		s.Running = false
+		s.Done = true
+	})
 	a.emit(ProgressEvent{Step: "done", Message: "Installation complete (preview).", Percent: 100, Done: true})
 }
 
