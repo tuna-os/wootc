@@ -791,10 +791,17 @@ BLSEOF
                 # UART console up immediately so the actual panic prints.
                 ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ')
 
-                # The target grub's embedded prefix is /EFI/<vendor>; it reads
-                # $prefix/grub.cfg. Write the Phase-2 menu there.
-                mkdir -p "/mnt/esp/EFI/$TARGET_VENDOR"
-                cat > "/mnt/esp/EFI/$TARGET_VENDOR/grub.cfg" <<GRUBEOF
+                # Write the Phase-2 menu to EVERY grub.cfg location the loaded
+                # grub could read. BCD chains \EFI\fedora\shimx64.efi, which
+                # loads \EFI\fedora\grubx64.efi (now the target-signed grub).
+                # That grub's embedded prefix has been observed to resolve to
+                # its own dir (/EFI/fedora) rather than /EFI/<vendor>, so a menu
+                # written only to /EFI/<vendor>/grub.cfg is never read and the
+                # STALE installer menu at /EFI/fedora (or /EFI/wootc) — which
+                # points at the now-deleted deployer-vmlinuz — wins, bricking the
+                # boot. Overwriting all three paths makes the handoff prefix-
+                # independent and removes the stale deployer menu.
+                PHASE2_GRUB_CFG=$(cat <<GRUBEOF
 # wootc Phase 2 — boot installed system from root.vhdx
 set default=0
 set timeout=5
@@ -804,7 +811,12 @@ menuentry "wootc Linux" {
     initrd /EFI/wootc/phase2-initramfs.img
 }
 GRUBEOF
-                log "  [PASS] Phase-2 grub.cfg written to EFI/$TARGET_VENDOR/grub.cfg"
+)
+                for gd in "$TARGET_VENDOR" fedora wootc; do
+                    mkdir -p "/mnt/esp/EFI/$gd"
+                    printf '%s\n' "$PHASE2_GRUB_CFG" > "/mnt/esp/EFI/$gd/grub.cfg"
+                done
+                log "  [PASS] Phase-2 grub.cfg written to EFI/{$TARGET_VENDOR,fedora,wootc}/grub.cfg"
 
                 # Record the Windows ESP identity so wootc-esp-sync can
                 # refresh this pair after OS updates inside the target.
