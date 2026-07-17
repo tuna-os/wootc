@@ -94,10 +94,29 @@ test('control panel — partition-aware uninstall options', async ({ page }) => 
 test('control panel — Boot in VM offered when available (§6.2)', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
     uninstall: { found: true, storageDrive: 'C', diskPath: 'C:\\wootc\\disks\\root.vhdx', diskSizeGB: 40 },
-    vm: { available: true, diskPath: 'C:\\wootc\\disks\\root.vhdx' } });
+    vm: { available: true, accelerator: 'whpx', bundled: true, diskPath: 'C:\\wootc\\disks\\root.vhdx' } });
   await expect(page.getByText('Try Linux in a window')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Boot in VM' })).toBeEnabled();
   await shot(page, '09-vm-mode');
+});
+
+test('control panel — unavailable VM explains how to enable acceleration', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, diskPath: 'C:\\wootc\\disks\\root.vhdx' },
+    vm: { available: false, reason: "No supported VM accelerator is available. Enable Windows Hypervisor Platform in 'Turn Windows features on or off'." } });
+  await expect(page.getByText(/Enable Windows Hypervisor Platform/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Boot in VM' })).toBeDisabled();
+  await shot(page, '12-vm-unavailable');
+});
+
+test('installer — NTFS defrag recommendation is advisory and actionable (§3.6)', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, defragRecommended: true } });
+  await expect(page.getByText('Windows recommends optimizing C:')).toBeVisible();
+  await expect(page.getByText(/Installation remains safe if you skip this/)).toBeVisible();
+  await shot(page, '11-defrag-preflight');
+  await page.getByRole('button', { name: 'Defrag now' }).click();
+  await expect(page.getByText('Windows recommends optimizing C:')).toBeHidden();
 });
 
 test('installer — BitLocker offers unencrypted-partition path (no forced decrypt)', async ({ page }) => {
@@ -112,6 +131,25 @@ test('installer — BitLocker offers unencrypted-partition path (no forced decry
   await expect(page.getByText(/Use drive E:/)).toBeVisible();
   await expect(page.getByText(/Create a new space for Linux/)).toBeVisible();
   await shot(page, '08-bitlocker');
+});
+
+test('installer — LUKS encryption options (§2.6) with TPM recommended', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  // Encryption section is visible with three radio options.
+  await expect(page.getByText('Disk Encryption')).toBeVisible();
+  await expect(page.getByText('No encryption')).toBeVisible();
+  await expect(page.getByText('TPM auto-unlock')).toBeVisible();
+  await expect(page.getByText('RECOMMENDED')).toBeVisible();
+  await expect(page.getByText('Passphrase')).toBeVisible();
+  // Default is TPM auto-unlock; no passphrase field shown.
+  const passCount = await page.locator('input[type="password"]').count();
+  // There should be exactly 2 password fields: Password + Confirm (no LUKS passphrase)
+  expect(passCount).toBe(2);
+  // Switching to passphrase mode reveals the LUKS passphrase input.
+  await page.getByText('Passphrase').click();
+  await page.waitForTimeout(200);
+  await expect(page.locator('input[type="password"]').nth(2)).toBeVisible();
+  await shot(page, '10-luks-encryption');
 });
 
 test('branding — partner re-skin applies theme + copy', async ({ page }) => {

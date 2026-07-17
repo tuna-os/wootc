@@ -59,6 +59,10 @@ export function BootInVM() {
   return window['go']['main']['App']['BootInVM']();
 }
 
+export function DefragDrive() {
+  return window['go']['main']['App']['DefragDrive']();
+}
+
 export function GetMode() {
   return window['go']['main']['App']['GetMode']();
 }

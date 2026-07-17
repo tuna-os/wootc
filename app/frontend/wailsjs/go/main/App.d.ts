@@ -18,6 +18,9 @@ export interface InstallConfig {
   password: string;
   hostname: string;
   bootloader: string;
+  storageDrive: string;
+  encryption: 'none' | 'tpm2-luks' | 'luks-passphrase';
+  luksPassphrase: string;
 }
 
 export interface InstallStatus {
@@ -32,9 +35,12 @@ export interface SystemInfo {
   freeDiskGB: number;
   totalDiskGB: number;
   bitLockerOn: boolean;
+  bitLockerState: 'off' | 'on' | 'encrypting' | 'decrypting';
   fastStartupOn: boolean;
   isUefi: boolean;
   secureBootOn: boolean;
+  defragRecommended: boolean;
+  dataPartitions: Array<{letter: string; label: string; freeGB: number; encrypted: boolean}>;
 }
 
 export interface BridgeCategory {
@@ -58,3 +64,4 @@ export function GetStatus(): Promise<InstallStatus>;
 export function Reboot(): Promise<void>;
 export function ExistingInstallFound(): Promise<boolean>;
 export function Uninstall(): Promise<void>;
+export function DefragDrive(): Promise<void>;

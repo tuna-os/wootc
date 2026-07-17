@@ -27,6 +27,7 @@ func getSystemInfo() SystemInfo {
 }
 
 func checkSystem() error        { return nil }
+func defragDrive() error        { return fmt.Errorf("defragmentation is only available on Windows") }
 func disableFastStartup() error { return nil }
 func createDirectories() error  { return os.MkdirAll("/tmp/wootc/install", 0o755) }
 func createRootDisk(sizeGB int) error {
@@ -68,11 +69,11 @@ func writeVault(cfg InstallConfig) error {
 	return marshalJSONToFile("/tmp/wootc/install/vault.json", vault)
 }
 
-func collectLook() error                  { return nil }
-func uninstall(ctx context.Context) error                 { return nil }
+func collectLook() error                                          { return nil }
+func uninstall(ctx context.Context) error                         { return nil }
 func uninstallWith(ctx context.Context, o UninstallOptions) error { return nil }
-func getUninstallInfo() UninstallInfo                      { return UninstallInfo{Found: false} }
-func rebootWindows() error                { return fmt.Errorf("reboot not available on %s", runtime.GOOS) }
+func getUninstallInfo() UninstallInfo                             { return UninstallInfo{Found: false} }
+func rebootWindows() error                                        { return fmt.Errorf("reboot not available on %s", runtime.GOOS) }
 
 // wootcDir returns the wootc data directory.
 // On non-Windows this points to /tmp/wootc for dev/testing.

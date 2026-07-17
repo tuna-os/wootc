@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -21,6 +21,8 @@ const state = {
     password: '',
     hostname: 'tunaos',
     bootloader: 'grub2',
+    encryption: 'tpm2-luks',
+    luksPassphrase: '',
   },
   progress: {
     step: '',
@@ -232,6 +234,27 @@ function renderLaunchpad() {
     screen.appendChild(renderBitlockerChooser());
   }
 
+  if (state.sysinfo?.defragRecommended) {
+    const warning = el('div');
+    warning.style.cssText = 'background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:11px 13px;display:flex;gap:12px;align-items:center';
+    warning.innerHTML = `<div style="flex:1"><b style="font-size:12.5px">Windows recommends optimizing C:</b><br><span style="font-size:11.5px;color:var(--text-muted)">A fragmented NTFS volume can make the Linux virtual disk slower. Installation remains safe if you skip this.</span></div>`;
+    const optimize = btn('Defrag now', 'btn btn-ghost', async () => {
+      optimize.disabled = true;
+      optimize.textContent = 'Optimizing…';
+      try {
+        await DefragDrive();
+        state.sysinfo.defragRecommended = false;
+        render();
+      } catch (e) {
+        optimize.disabled = false;
+        optimize.textContent = 'Defrag now';
+        alert('Windows could not optimize C:: ' + e);
+      }
+    });
+    warning.appendChild(optimize);
+    screen.appendChild(warning);
+  }
+
   // Image grid
   const gridLabel = el('div');
   gridLabel.innerHTML = `<div class="screen-title" style="font-size:13px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.6px">Choose a variant</div>`;
@@ -290,6 +313,40 @@ function renderLaunchpad() {
   row2.appendChild(inputField('Password', 'password', state.config.password, v => { state.config.password = v; refreshInstallValidity(); }, ''));
   row2.appendChild(inputField('Confirm Password', 'password', state.config.passwordConfirm || '', v => { state.config.passwordConfirm = v; refreshInstallValidity(); }, ''));
   fields.appendChild(row2);
+
+  // Disk encryption (SPEC §2.6)
+  const encSection = el('div');
+  encSection.style.cssText = 'margin-top:6px';
+  const encLabel = el('div');
+  encLabel.style.cssText = 'font-size:11.5px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px';
+  encLabel.textContent = 'Disk Encryption';
+  encSection.appendChild(encLabel);
+  const encOpts = el('div');
+  encOpts.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+  const encRadio = (value, title, sub, recommended) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px';
+    const checked = state.config.encryption === value;
+    row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} style="margin-top:1px">
+      <span><b>${title}${recommended ? ' <span style="color:var(--primary);font-size:10px;font-weight:500">RECOMMENDED</span>' : ''}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = () => { state.config.encryption = value; refreshInstallValidity(); render(); };
+    // Visual highlight for selected option
+    if (checked) row.style.borderColor = 'var(--primary)';
+    return row;
+  };
+  encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', false));
+  encOpts.appendChild(encRadio('tpm2-luks', 'TPM auto-unlock', 'LUKS encryption that unlocks automatically via the TPM chip. No prompt at boot.', true));
+  encOpts.appendChild(encRadio('luks-passphrase', 'Passphrase', 'LUKS encryption that asks for your Linux password every boot.', false));
+  encSection.appendChild(encOpts);
+
+  // Passphrase input (only when passphrase mode)
+  if (state.config.encryption === 'luks-passphrase') {
+    const ppRow = el('div', 'field-row');
+    ppRow.style.marginTop = '8px';
+    ppRow.appendChild(inputField('LUKS Passphrase', 'password', state.config.luksPassphrase, v => { state.config.luksPassphrase = v; refreshInstallValidity(); }, ''));
+    encSection.appendChild(ppRow);
+  }
+  fields.appendChild(encSection);
 
   const hint = el('div');
   hint.id = 'install-hint';
@@ -475,7 +532,7 @@ function renderControlPanel() {
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px">Try Linux in a window</div>
         <div style="font-size:11.5px;color:var(--text-muted)">${vm.available
-          ? 'Boot your installed TunaOS in a window without restarting. Changes persist — it\'s the same system.'
+          ? `Boot your installed TunaOS in a window using ${String(vm.accelerator || 'hardware acceleration').toUpperCase()}. Changes persist — it's the same system.`
           : vm.reason}</div>
       </div>`;
     const vmBtn = btn('Boot in VM', 'btn btn-ghost', async () => {
@@ -751,6 +808,7 @@ function refreshInstallValidity() {
   else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
   else if (!c.password) reason = 'Set a password.';
   else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
+  else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to TPM or no encryption.';
   btn.disabled = reason !== '';
   if (hint) {
     hint.textContent = reason;
@@ -788,6 +846,8 @@ async function startInstall() {
       hostname:   state.config.hostname,
       bootloader: state.config.bootloader,
       storageDrive,
+      encryption:     state.config.encryption,
+      luksPassphrase: state.config.luksPassphrase,
     });
   } catch (e) {
     state.progress.error = String(e);

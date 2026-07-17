@@ -20,9 +20,12 @@ import (
 
 // VMCapability tells the GUI whether "Boot in VM" can run and why not.
 type VMCapability struct {
-	Available bool   `json:"available"`
-	Reason    string `json:"reason"`
-	DiskPath  string `json:"diskPath"`
+	Available   bool   `json:"available"`
+	Reason      string `json:"reason"`
+	DiskPath    string `json:"diskPath"`
+	Accelerator string `json:"accelerator"`
+	QEMUPath    string `json:"qemuPath"`
+	Bundled     bool   `json:"bundled"`
 }
 
 func qemuDir() string  { return filepath.Join(wootcDir(), "qemu") }
@@ -35,16 +38,44 @@ func (a *App) GetVMCapability() VMCapability {
 	if !info.Found {
 		return VMCapability{Available: false, Reason: "No installed TunaOS disk was found."}
 	}
-	if _, err := os.Stat(qemuExe()); err != nil {
+	qemuPath, bundled := findQEMU()
+	if qemuPath == "" {
 		return VMCapability{Available: false, DiskPath: info.DiskPath,
-			Reason: "The VM viewer isn't installed. Reinstall wootc with the VM option to enable it."}
+			Reason: "QEMU isn't installed. Install QEMU for Windows or reinstall wootc with the VM viewer."}
 	}
-	if !whpxAvailable() {
+	if _, err := os.Stat(edk2Code()); err != nil {
 		return VMCapability{Available: false, DiskPath: info.DiskPath,
-			Reason: "Windows Hypervisor Platform is turned off. Enable it in " +
-				"'Turn Windows features on or off' to run Linux in a window."}
+			QEMUPath: qemuPath, Bundled: bundled,
+			Reason: "The VM firmware is missing. Reinstall wootc with the VM viewer."}
 	}
-	return VMCapability{Available: true, DiskPath: info.DiskPath}
+	accelerator := availableAccelerator()
+	if accelerator == "" {
+		return VMCapability{Available: false, DiskPath: info.DiskPath,
+			QEMUPath: qemuPath, Bundled: bundled,
+			Reason: "No supported VM accelerator is available. Enable Windows Hypervisor Platform in 'Turn Windows features on or off'."}
+	}
+	return VMCapability{Available: true, DiskPath: info.DiskPath, Accelerator: accelerator, QEMUPath: qemuPath, Bundled: bundled}
+}
+
+func findQEMU() (string, bool) {
+	if _, err := os.Stat(qemuExe()); err == nil {
+		return qemuExe(), true
+	}
+	path, err := exec.LookPath("qemu-system-x86_64.exe")
+	if err != nil {
+		return "", false
+	}
+	return path, false
+}
+
+func availableAccelerator() string {
+	if whpxAvailable() {
+		return "whpx"
+	}
+	if haxmAvailable() {
+		return "hax"
+	}
+	return ""
 }
 
 // BootInVM launches QEMU on the installed root.disk in its own window
@@ -56,7 +87,7 @@ func (a *App) BootInVM() error {
 		return fmt.Errorf("%s", cap.Reason)
 	}
 	args := []string{
-		"-accel", "whpx",
+		"-accel", cap.Accelerator,
 		"-m", "4G", "-smp", "4",
 		"-machine", "q35",
 		"-drive", "file=" + cap.DiskPath + ",format=vhdx,if=virtio",
@@ -65,8 +96,8 @@ func (a *App) BootInVM() error {
 		"-display", "gtk",
 		"-name", "TunaOS (VM)",
 	}
-	cmd := exec.Command(qemuExe(), args...)
-	cmd.Dir = qemuDir()
+	cmd := exec.Command(cap.QEMUPath, args...)
+	cmd.Dir = filepath.Dir(cap.QEMUPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: false}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launching QEMU: %w", err)
@@ -74,6 +105,11 @@ func (a *App) BootInVM() error {
 	// Detach: the VM window outlives this call.
 	go func() { _ = cmd.Wait() }()
 	return nil
+}
+
+func haxmAvailable() bool {
+	out, err := runPowerShellOutput(`(Get-Service -Name intelhaxm -ErrorAction SilentlyContinue).Status`)
+	return err == nil && strings.TrimSpace(out) == "Running"
 }
 
 // whpxAvailable checks whether the Windows Hypervisor Platform feature is

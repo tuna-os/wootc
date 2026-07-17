@@ -64,17 +64,20 @@ type InstallStatus struct {
 
 // SystemInfo describes the host Windows environment.
 type SystemInfo struct {
-	OSVersion     string  `json:"osVersion"`
-	FreeDiskGB    float64 `json:"freeDiskGB"`
-	TotalDiskGB   float64 `json:"totalDiskGB"`
-	BitLockerOn   bool    `json:"bitLockerOn"`
+	OSVersion   string  `json:"osVersion"`
+	FreeDiskGB  float64 `json:"freeDiskGB"`
+	TotalDiskGB float64 `json:"totalDiskGB"`
+	BitLockerOn bool    `json:"bitLockerOn"`
 	// BitLockerState is the detailed C: encryption state (SPEC §3.5):
 	// "off" | "on" | "encrypting" | "decrypting". "encrypting" is a hard
 	// block; "on" offers the data-partition path.
-	BitLockerState string  `json:"bitLockerState"`
-	FastStartupOn  bool    `json:"fastStartupOn"`
-	IsUEFI         bool    `json:"isUefi"`
-	SecureBootOn   bool    `json:"secureBootOn"`
+	BitLockerState string `json:"bitLockerState"`
+	FastStartupOn  bool   `json:"fastStartupOn"`
+	IsUEFI         bool   `json:"isUefi"`
+	SecureBootOn   bool   `json:"secureBootOn"`
+	// DefragRecommended is advisory only. Fragmentation affects VHDX
+	// performance on rotating media, not correctness (SPEC §3.6).
+	DefragRecommended bool `json:"defragRecommended"`
 	// DataPartitions lists unencrypted fixed volumes (other than C:) that
 	// could hold root.disk when C: is BitLocker-protected.
 	DataPartitions []DataPartition `json:"dataPartitions"`
@@ -82,10 +85,10 @@ type SystemInfo struct {
 
 // DataPartition is a candidate unencrypted volume for root.disk.
 type DataPartition struct {
-	Letter   string  `json:"letter"`
-	Label    string  `json:"label"`
-	FreeGB   float64 `json:"freeGB"`
-	Encrypted bool   `json:"encrypted"`
+	Letter    string  `json:"letter"`
+	Label     string  `json:"label"`
+	FreeGB    float64 `json:"freeGB"`
+	Encrypted bool    `json:"encrypted"`
 }
 
 // ── App struct ────────────────────────────────────────────────────────────────
@@ -259,6 +262,24 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	if a.status.Running {
 		return fmt.Errorf("install already in progress")
 	}
+	if cfg.Bootloader == "" {
+		cfg.Bootloader = "grub2"
+	}
+	if cfg.Bootloader != "grub2" {
+		return fmt.Errorf("unsupported bootloader %q: systemd-boot is not available until its EFI binary and kernel-sync hook are bundled", cfg.Bootloader)
+	}
+	if cfg.Encryption == "" {
+		cfg.Encryption = "tpm2-luks"
+	}
+	switch cfg.Encryption {
+	case "none", "tpm2-luks":
+	case "luks-passphrase":
+		if cfg.LuksPassphrase == "" {
+			return fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
+		}
+	default:
+		return fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
+	}
 
 	ctx, cancel := context.WithCancel(a.ctx)
 	a.cancel = cancel
@@ -289,6 +310,10 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 
 	return nil
 }
+
+// DefragDrive performs the optional NTFS optimization offered by the
+// launchpad preflight. It is never run automatically.
+func (a *App) DefragDrive() error { return defragDrive() }
 
 // CancelInstall aborts a running install. Partially-written files are cleaned up
 // by runInstall's deferred cleanup.
@@ -334,8 +359,8 @@ func (a *App) Uninstall() error {
 // volume was created by wootc (and is therefore safe to remove entirely).
 type UninstallInfo struct {
 	Found          bool    `json:"found"`
-	StorageDrive   string  `json:"storageDrive"`   // where root.disk lives
-	DiskPath       string  `json:"diskPath"`       // full path to root.disk
+	StorageDrive   string  `json:"storageDrive"` // where root.disk lives
+	DiskPath       string  `json:"diskPath"`     // full path to root.disk
 	DiskSizeGB     float64 `json:"diskSizeGB"`
 	OnDedicatedVol bool    `json:"onDedicatedVol"` // wootc-created data partition
 	ReclaimGB      float64 `json:"reclaimGB"`      // space freed if the volume is removed

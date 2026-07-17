@@ -4,14 +4,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"crypto/sha256"
-	"encoding/hex"
-	"io"
 	"strconv"
 	"strings"
 	"syscall"
@@ -51,7 +51,24 @@ func getSystemInfo() SystemInfo {
 	// Secure Boot
 	info.SecureBootOn = secureBootEnabled()
 
+	// Advisory NTFS fragmentation analysis (SPEC §3.6). Failure to analyze
+	// must not block installation.
+	info.DefragRecommended = defragRecommended(`C:`)
+
 	return info
+}
+
+func defragRecommended(vol string) bool {
+	out, _ := runCmd("defrag.exe", vol, "/A", "/V")
+	return strings.Contains(strings.ToLower(out), "you should defragment this volume")
+}
+
+func defragDrive() error {
+	out, err := runCmd("defrag.exe", `C:`, "/U", "/V")
+	if err != nil {
+		return fmt.Errorf("defragmenting C:: %w (output: %s)", err, strings.TrimSpace(out))
+	}
+	return nil
 }
 
 // bitlockerState classifies a volume's encryption using
@@ -629,7 +646,7 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	os.RemoveAll(filepath.Join(wootcDir(), "install")) //nolint:errcheck
 	if opts.DeleteRootDisk || opts.RemovePartition {
 		os.RemoveAll(filepath.Join(wootcDir(), "disks")) //nolint:errcheck
-		os.RemoveAll(wootcDir())                          //nolint:errcheck
+		os.RemoveAll(wootcDir())                         //nolint:errcheck
 	}
 
 	// 4. Optionally remove a wootc-created data partition and extend C:.

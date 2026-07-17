@@ -46,6 +46,7 @@ echo 134217728 > /proc/sys/vm/dirty_background_bytes 2>/dev/null || true
 NTFS_PART=""
 LOOP_DEV=""
 VERIFY_LOOP=""
+VERIFY_CRYPT=""
 SCRATCH_LOOP=""
 SCRATCH_IMG=""
 JOURNAL_STREAM_PID=""
@@ -75,6 +76,7 @@ cleanup() {
     for mount in /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
+    [[ -n "$VERIFY_CRYPT" ]] && cryptsetup close "$VERIFY_CRYPT" 2>/dev/null || true
     [[ -n "$VERIFY_LOOP" ]] && qemu-nbd --disconnect "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
     [[ -n "$LOOP_DEV" ]] && qemu-nbd --disconnect "$LOOP_DEV" 2>/dev/null || true
@@ -106,6 +108,15 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
+
+case "$LUKS_TYPE" in
+    none|luks-passphrase|tpm2-luks|tpm2-luks-passphrase) ;;
+    *) err "unsupported wootc.luks type: $LUKS_TYPE"; exit 1 ;;
+esac
+if [[ "$LUKS_TYPE" == *passphrase && -z "$LUKS_PASSPHRASE" ]]; then
+    err "$LUKS_TYPE requires wootc.luks-passphrase"
+    exit 1
+fi
 
 if [[ -z "$IMAGE" ]]; then
     err "wootc.image= not set on kernel command line"
@@ -346,7 +357,9 @@ cat > "$RECIPE" << EOF
 EOF
 
 log "Fisherman recipe:"
-cat "$RECIPE"
+# The serial console and journal are persisted for E2E diagnostics. Never put
+# the disk-unlock secret in either one.
+jq 'if .encryption.passphrase then .encryption.passphrase = "<redacted>" else . end' "$RECIPE"
 
 # ── Run fisherman ───────────────────────────────────────────────────────────
 phase "fisherman"
@@ -368,10 +381,26 @@ VERIFY_LOOP=/dev/nbd0
 qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx --discard=unmap "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
 
+# Fisherman closes its mapper before returning. Re-open an encrypted root for
+# post-install verification; TPM modes use the token enrolled by fisherman,
+# while passphrase-only mode feeds the key over stdin (never argv or logs).
+VERIFY_ROOT_DEVICE="${VERIFY_LOOP}p3"
+if [[ "$LUKS_TYPE" != "none" && -b "$VERIFY_ROOT_DEVICE" ]]; then
+    VERIFY_CRYPT=wootc-verify-root
+    if [[ "$LUKS_TYPE" == tpm2-* ]]; then
+        /usr/lib/systemd/systemd-cryptsetup attach "$VERIFY_CRYPT" "$VERIFY_ROOT_DEVICE" - tpm2-device=auto
+    else
+        printf '%s' "$LUKS_PASSPHRASE" | \
+            cryptsetup open --key-file=- "$VERIFY_ROOT_DEVICE" "$VERIFY_CRYPT"
+    fi
+    VERIFY_ROOT_DEVICE="/dev/mapper/$VERIFY_CRYPT"
+    log "Opened encrypted root for verification"
+fi
+
 # Find the root partition inside the loop device. bootc/ostree roots have no
 # top-level /etc — the OS tree lives under /ostree/deploy/<stateroot>/deploy/.
 VERIFY_ROOT=""
-for p in "${VERIFY_LOOP}"p*; do
+for p in "$VERIFY_ROOT_DEVICE" "${VERIFY_LOOP}"p*; do
     [[ -b "$p" ]] || continue
     mkdir -p /mnt/verify
     if mount -o rw "$p" /mnt/verify 2>/dev/null; then
@@ -452,9 +481,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # blobs dominating the 241M image; no firmware is needed to reach
         # the NTFS-loop root (virtio/ahci/nvme need none).
         mkdir -p "$DEPLOY_ROOT/run/wootc-nofw"
+        DRACUT_OMIT="plymouth lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack"
+        [[ "$LUKS_TYPE" == "none" ]] && DRACUT_OMIT="$DRACUT_OMIT crypt"
         chroot "$DEPLOY_ROOT" dracut --force --hostonly \
             --fwdir /run/wootc-nofw \
-            --omit "plymouth crypt lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
+            --omit "$DRACUT_OMIT" \
             "$INITRD_CHROOT_PATH" "$KVER"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}")
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
@@ -685,6 +716,10 @@ else
     err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
 fi
 
+if [[ -n "$VERIFY_CRYPT" ]]; then
+    cryptsetup close "$VERIFY_CRYPT"
+    VERIFY_CRYPT=""
+fi
 qemu-nbd --disconnect "$VERIFY_LOOP"
 VERIFY_LOOP=""
 
