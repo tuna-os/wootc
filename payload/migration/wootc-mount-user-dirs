@@ -55,3 +55,15 @@ shopt -u nullglob
 if command -v wootc-steam-bridge >/dev/null; then
     wootc-steam-bridge || log "steam bridge reported an error (non-fatal)"
 fi
+
+# App-data bridge: per-user detection + portable-state copy (best-effort).
+if command -v wootc-detect-apps >/dev/null; then
+    shopt -s nullglob
+    for userhome in /home/*/; do
+        uname=$(basename "$userhome")
+        uid=$(id -u "$uname" 2>/dev/null) || continue
+        [[ "$uid" -ge 1000 ]] || continue
+        wootc-detect-apps "$uname" || log "app detection failed for $uname (non-fatal)"
+    done
+    shopt -u nullglob
+fi

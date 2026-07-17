@@ -496,6 +496,33 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
         "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
+    # ESP self-healing sync: keeps the Windows-ESP kernel pair current
+    # after OS updates (variant-agnostic — BLS and classic layouts).
+    install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-esp-sync"
+    install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
+        "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
+    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+    ln -sf ../wootc-esp-sync.service \
+        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync.service"
+    install -m755 /usr/lib/wootc/migration/wootc-detect-apps \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-detect-apps"
+    # Windows-Style Mode: per-user look apply on first login.
+    install -m755 /usr/lib/wootc/migration/wootc-apply-look \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-apply-look"
+    install -D -m644 /usr/lib/wootc/migration/wootc-apply-look.desktop \
+        "$DEPLOY_ROOT/etc/xdg/autostart/wootc-apply-look.desktop"
+    # Slurped Windows look (wallpaper/theme/timezone), if the installer
+    # collected it. Timezone applies system-wide right here.
+    if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
+        mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
+        cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
+        if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
+            ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"
+            log "  Timezone set to $SLURP_TZ (from Windows)"
+        fi
+    fi
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
     ln -sf ../wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
@@ -625,6 +652,16 @@ menuentry "wootc Linux" {
 }
 GRUBEOF
                 log "  [PASS] Phase-2 grub.cfg written to EFI/$TARGET_VENDOR/grub.cfg"
+
+                # Record the Windows ESP identity so wootc-esp-sync can
+                # refresh this pair after OS updates inside the target.
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\n' "$ESP_UUID" \
+                        > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                    log "  [PASS] host-esp.conf written (UUID $ESP_UUID)"
+                fi
             else
                 # Never leave the ESP kernel-less: the deployer pair was
                 # removed above to make room, so restore it from the

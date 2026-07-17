@@ -1,0 +1,178 @@
+#!/bin/bash
+# /usr/local/bin/wootc-detect-apps <username>
+# App-data bridge (SPEC §4.3 + session portability): scan the Windows
+# profile for known applications, copy what is *honestly portable*, and
+# record per-app session portability for the migration dashboard.
+#
+# Session portability ground truth:
+#   PORTABLE      — plain-file state: Firefox (whole profile incl. logins),
+#                   VS Code (settings/keybindings/snippets + extension list).
+#   NOT PORTABLE  — Chromium/Electron "safeStorage": cookies and auth
+#                   tokens are DPAPI-encrypted against the Windows login
+#                   (Chrome, Edge, Discord, Slack, Spotify, Teams). Only a
+#                   fresh sign-in works; cloud-synced content returns on
+#                   login. We say so instead of pretending.
+#
+# The APP DATABASE below is the extension point: one entry per app —
+# detect path, flatpak id, portable copy function (optional), session
+# note. Output: ~/.config/wootc/bridge-apps.json for the dashboard, and
+# /run/wootc-detected-flatpaks (newline list) for the deployer to merge
+# into the fisherman recipe when run at deploy time.
+
+set -Eeuo pipefail
+log() { printf '[wootc-detect-apps] %s\n' "$*"; }
+name="${1:?usage: wootc-detect-apps <username>}"
+
+mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
+home=$(getent passwd "$name" | cut -d: -f6)
+[[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
+W="/host/Users/$name"
+[[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
+
+entries=()
+flatpaks=()
+
+# add <app> <flatpak> <session:portable|signin|none> <copied:yes|no> <note>
+add() {
+    entries+=("{\"app\":\"$1\",\"flatpak\":\"$2\",\"session\":\"$3\",\"copied\":$4,\"note\":\"$5\"}")
+    [[ -n "$2" ]] && flatpaks+=("$2")
+}
+
+# ── APP DATABASE ────────────────────────────────────────────────────────────
+
+# Firefox — whole profile is portable (wootc-import-browser owns the copy).
+if [[ -f "$W/AppData/Roaming/Mozilla/Firefox/profiles.ini" ]]; then
+    add firefox org.mozilla.firefox portable true \
+        "Everything moves: bookmarks, history, passwords, extensions, open tabs."
+fi
+
+# Chrome / Edge — bookmarks+history copy; sessions are DPAPI-locked.
+[[ -d "$W/AppData/Local/Google/Chrome/User Data" ]] && \
+    add chrome com.google.Chrome signin true \
+        "Bookmarks and history move. Sign in once and sync brings the rest."
+[[ -d "$W/AppData/Local/Microsoft/Edge/User Data" ]] && \
+    add edge com.google.Chrome signin true \
+        "Bookmarks and history move into Chrome. Passwords need a fresh sign-in."
+
+# VS Code — settings/keybindings/snippets + extension list are plain files.
+VSC="$W/AppData/Roaming/Code/User"
+if [[ -d "$VSC" ]]; then
+    dest="$home/.config/Code/User"
+    mkdir -p "$dest"
+    for f in settings.json keybindings.json; do
+        [[ -f "$VSC/$f" && ! -f "$dest/$f" ]] && cp "$VSC/$f" "$dest/$f"
+    done
+    [[ -d "$VSC/snippets" && ! -d "$dest/snippets" ]] && cp -r "$VSC/snippets" "$dest/snippets"
+    if [[ -d "$W/.vscode/extensions" ]]; then
+        ls -1 "$W/.vscode/extensions" 2>/dev/null | sed 's/-[0-9][0-9.]*$//' | sort -u \
+            > "$home/.config/wootc/vscode-extensions.txt" 2>/dev/null || true
+    fi
+    chown -R "$name:" "$dest" 2>/dev/null || true
+    add vscode com.visualstudio.code portable true \
+        "Settings, keybindings and snippets moved; extension list saved for reinstall. GitHub sign-in is fresh."
+fi
+
+# Discord — Electron safeStorage; nothing offline-portable.
+[[ -d "$W/AppData/Roaming/discord" ]] && \
+    add discord com.discordapp.Discord signin false \
+        "Your servers and messages live in your account — sign in once and everything is back."
+
+# Spotify — credentials are machine-bound; library is cloud-side anyway.
+[[ -d "$W/AppData/Roaming/Spotify" || -d "$W/AppData/Local/Packages/SpotifyAB.SpotifyMusic_zpdnekdrzrea0" ]] && \
+    add spotify com.spotify.Client signin false \
+        "Playlists and library are in your account — sign in once."
+
+# Slack / Teams — Electron, same story.
+[[ -d "$W/AppData/Roaming/Slack" ]] && \
+    add slack com.slack.Slack signin false "Workspaces return on sign-in."
+
+# Steam — handled by wootc-steam-bridge (games in place); note here for
+# the dashboard's app list completeness.
+[[ -d "/host/Program Files (x86)/Steam" ]] && \
+    add steam com.valvesoftware.Steam signin false \
+        "Your game files are already bridged — sign in once and they are playable without re-download."
+
+# Telegram Desktop — tdata carries the session by design (not DPAPI);
+# copying it signs you in with full chat cache. The classic happy case.
+TG="$W/AppData/Roaming/Telegram Desktop/tdata"
+if [[ -d "$TG" ]]; then
+    dest="$home/.var/app/org.telegram.desktop/data/TelegramDesktop/tdata"
+    if [[ ! -d "$dest" ]]; then
+        mkdir -p "$(dirname "$dest")"
+        cp -r "$TG" "$dest" 2>/dev/null && chown -R "$name:" "$home/.var" 2>/dev/null || true
+        add telegram org.telegram.desktop portable true \
+            "Your session and chats moved — Telegram opens signed in."
+    else
+        add telegram org.telegram.desktop portable false "Linux Telegram already has data; not overwritten."
+    fi
+fi
+
+# Signal Desktop — portable ONLY if the db key is still plaintext in
+# config.json (older installs). New installs DPAPI-encrypt it.
+SG="$W/AppData/Roaming/Signal"
+if [[ -d "$SG" ]]; then
+    if [[ -f "$SG/config.json" ]] && grep -q '"key"' "$SG/config.json" && ! grep -q 'encryptedKey' "$SG/config.json"; then
+        dest="$home/.var/app/org.signal.Signal/config/Signal"
+        if [[ ! -d "$dest" ]]; then
+            mkdir -p "$(dirname "$dest")"
+            cp -r "$SG" "$dest" 2>/dev/null && chown -R "$name:" "$home/.var" 2>/dev/null || true
+            add signal org.signal.Signal portable true "Message history moved (legacy key format)."
+        fi
+    else
+        add signal org.signal.Signal signin false \
+            "Signal locks its database to Windows. Re-link with your phone (Settings > Linked Devices); history stays on the phone."
+    fi
+fi
+
+# WhatsApp — Store/UWP app; no official Linux client.
+[[ -d "$W/AppData/Local/Packages" ]] && ls "$W/AppData/Local/Packages" 2>/dev/null | grep -qi whatsapp && \
+    add whatsapp "" signin false \
+        "No official Linux app. Use web.whatsapp.com — scan the QR with your phone and chats appear."
+
+# Thunderbird — profiles are portable like Firefox's.
+TB="$W/AppData/Roaming/Thunderbird"
+if [[ -f "$TB/profiles.ini" ]]; then
+    tbprof=$(awk -F= '/^Path=/{print $2; exit}' "$TB/profiles.ini")
+    if [[ -n "$tbprof" && -d "$TB/$tbprof" ]]; then
+        dest="$home/.thunderbird"
+        if [[ ! -d "$dest" ]]; then
+            mkdir -p "$dest/windows-import.wootc"
+            cp -r "$TB/$tbprof/." "$dest/windows-import.wootc/" 2>/dev/null || true
+            printf '[Profile0]\nName=Imported from Windows\nIsRelative=1\nPath=windows-import.wootc\nDefault=1\n\n[General]\nStartWithLastProfile=1\nVersion=2\n' > "$dest/profiles.ini"
+            chown -R "$name:" "$dest" 2>/dev/null || true
+        fi
+        add thunderbird org.mozilla.Thunderbird portable true \
+            "Mail accounts, local mail and settings moved."
+    fi
+fi
+
+# Zoom — cloud account; nothing portable.
+[[ -d "$W/AppData/Roaming/Zoom" ]] && \
+    add zoom us.zoom.Zoom signin false "Sign in once; meetings and settings are account-side."
+
+# OBS — plain-file scenes/profiles are portable.
+OBS="$W/AppData/Roaming/obs-studio"
+if [[ -d "$OBS" ]]; then
+    dest="$home/.var/app/com.obsproject.Studio/config/obs-studio"
+    if [[ ! -d "$dest" ]]; then
+        mkdir -p "$(dirname "$dest")"
+        cp -r "$OBS" "$dest" 2>/dev/null && chown -R "$name:" "$home/.var" 2>/dev/null || true
+    fi
+    add obs com.obsproject.Studio portable true "Scenes and profiles moved."
+fi
+
+# ── Output ──────────────────────────────────────────────────────────────────
+state_dir="$home/.config/wootc"
+mkdir -p "$state_dir"
+{
+    printf '{\n  "apps": [\n'
+    for i in "${!entries[@]}"; do
+        sep=$([[ $i -lt $((${#entries[@]} - 1)) ]] && echo ',' || echo '')
+        printf '    %s%s\n' "${entries[$i]}" "$sep"
+    done
+    printf '  ]\n}\n'
+} > "$state_dir/bridge-apps.json"
+chown -R "$name:" "$state_dir" 2>/dev/null || true
+
+printf '%s\n' "${flatpaks[@]}" | sort -u > /run/wootc-detected-flatpaks 2>/dev/null || true
+log "detected ${#entries[@]} apps for $name"

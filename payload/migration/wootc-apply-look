@@ -1,0 +1,112 @@
+#!/bin/bash
+# /usr/local/bin/wootc-apply-look
+# Windows-Style Mode (SPEC §4.4): apply the look collected from Windows
+# (wallpaper, dark mode, accent color) to the user's Linux desktop.
+# Runs once per user via /etc/xdg/autostart (self-guards with a marker).
+#
+# The per-DE knowledge lives in apply_<de>() functions — the "database"
+# of how each desktop environment receives each setting. Adding a DE is
+# adding one function; nothing else changes. Detection uses
+# XDG_CURRENT_DESKTOP (colon-separated list, case-insensitive).
+#
+# Test hook: WOOTC_DRYRUN=1 prints the commands instead of running them,
+# so the mapping is testable in a container with no desktop at all.
+
+set -Eeuo pipefail
+
+log() { printf '[wootc-apply-look] %s\n' "$*"; }
+
+SLURP_DIR="${WOOTC_SLURP_DIR:-/usr/share/wootc/slurp}"
+MARKER="${WOOTC_LOOK_MARKER:-$HOME/.config/wootc/look-applied}"
+
+[[ -f "$SLURP_DIR/slurp.json" ]] || { log "no slurp data; nothing to apply"; exit 0; }
+[[ -e "$MARKER" ]] && { log "already applied for $USER"; exit 0; }
+
+run() {
+    if [[ "${WOOTC_DRYRUN:-0}" = "1" ]]; then
+        printf 'DRYRUN: %s\n' "$*"
+    else
+        "$@" || log "non-fatal: $* failed"
+    fi
+}
+
+json() { python3 -c "
+import json, sys
+d = json.load(open('$SLURP_DIR/slurp.json'))
+v = d.get('$1', '')
+print(v if v is not None else '')
+"; }
+
+WALLPAPER=""
+shopt -s nullglob
+for w in "$SLURP_DIR"/wallpaper.*; do WALLPAPER="$w"; break; done
+shopt -u nullglob
+DARK=$(json darkMode)          # "true" / "false" / ""
+ACCENT=$(json accentColor)     # "#RRGGBB" or ""
+
+# Map an #RRGGBB accent to the nearest named accent for DEs with fixed
+# palettes (GNOME 47+). Euclidean distance in RGB is good enough here.
+nearest_gnome_accent() {
+    python3 - "$1" <<'PYEOF'
+import sys
+palette = {
+    "blue": (53, 132, 228), "teal": (33, 144, 164), "green": (58, 148, 74),
+    "yellow": (200, 136, 0), "orange": (237, 91, 0), "red": (230, 45, 66),
+    "pink": (213, 97, 153), "purple": (145, 65, 172), "slate": (111, 131, 150),
+}
+h = sys.argv[1].lstrip('#')
+try:
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+except (ValueError, IndexError):
+    print("blue"); sys.exit()
+print(min(palette, key=lambda n: sum((a - c) ** 2 for a, c in zip(palette[n], (r, g, b)))))
+PYEOF
+}
+
+# ── Per-DE database ─────────────────────────────────────────────────────────
+
+apply_gnome() {
+    if [[ -n "$WALLPAPER" ]]; then
+        run gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER"
+        run gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER"
+        run gsettings set org.gnome.desktop.background picture-options zoom
+    fi
+    if [[ "$DARK" = "true" ]]; then
+        run gsettings set org.gnome.desktop.interface color-scheme prefer-dark
+    elif [[ "$DARK" = "false" ]]; then
+        run gsettings set org.gnome.desktop.interface color-scheme default
+    fi
+    if [[ -n "$ACCENT" ]]; then
+        run gsettings set org.gnome.desktop.interface accent-color "$(nearest_gnome_accent "$ACCENT")"
+    fi
+}
+
+apply_kde() {
+    if [[ -n "$WALLPAPER" ]]; then
+        run plasma-apply-wallpaperimage "$WALLPAPER"
+    fi
+    if [[ "$DARK" = "true" ]]; then
+        run plasma-apply-colorscheme BreezeDark
+    elif [[ "$DARK" = "false" ]]; then
+        run plasma-apply-colorscheme BreezeLight
+    fi
+    if [[ -n "$ACCENT" ]]; then
+        run kwriteconfig6 --file kdeglobals --group General --key AccentColor \
+            "$(printf '%d,%d,%d' 0x${ACCENT:1:2} 0x${ACCENT:3:2} 0x${ACCENT:5:2})"
+    fi
+}
+
+# ── DE detection and dispatch ───────────────────────────────────────────────
+DE="${XDG_CURRENT_DESKTOP:-}"
+applied=""
+case "${DE,,}" in
+    *gnome*)          apply_gnome; applied=gnome ;;
+    *kde*|*plasma*)   apply_kde;   applied=kde ;;
+    *)
+        log "desktop '$DE' has no look mapping yet — skipping (add an apply_<de> function)"
+        ;;
+esac
+
+mkdir -p "$(dirname "$MARKER")"
+printf 'de=%s\napplied=%s\nat=%s\n' "$DE" "${applied:-none}" "$(date -u +%FT%TZ)" > "$MARKER"
+log "done (de=$DE mapped=${applied:-none})"

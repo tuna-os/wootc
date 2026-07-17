@@ -260,6 +260,13 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		{"Setting up ESP", 65, func() error { return setupESP(cfg) }},
 		{"Configuring BCD", 80, func() error { return configureBCD(cfg.Bootloader) }},
 		{"Writing vault.json", 85, func() error { return writeVault(cfg) }},
+		{"Collecting your look", 90, func() error {
+			// Best-effort: never fail the install over wallpaper slurping.
+			if err := collectLook(); err != nil {
+				fmt.Fprintf(os.Stderr, "[wootc] look collection skipped: %v\n", err)
+			}
+			return nil
+		}},
 		{"Finalizing", 95, func() error {
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)

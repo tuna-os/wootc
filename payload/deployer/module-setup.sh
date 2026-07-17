@@ -54,6 +54,11 @@ install() {
     inst /usr/lib/wootc/migration/wootc-import-browser
     inst /usr/lib/wootc/migration/wootc-convert-dir
     inst /usr/lib/wootc/migration/org.tunaos.wootc.policy
+    inst /usr/lib/wootc/migration/wootc-esp-sync
+    inst /usr/lib/wootc/migration/wootc-esp-sync.service
+    inst /usr/lib/wootc/migration/wootc-apply-look
+    inst /usr/lib/wootc/migration/wootc-apply-look.desktop
+    inst /usr/lib/wootc/migration/wootc-detect-apps
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

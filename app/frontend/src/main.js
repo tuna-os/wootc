@@ -38,6 +38,7 @@ const INSTALL_STEPS = [
   'Setting up ESP',
   'Configuring BCD',
   'Writing vault.json',
+  'Collecting your look',
   'Finalizing',
 ];
 

@@ -67,6 +67,7 @@ func writeVault(cfg InstallConfig) error {
 	return marshalJSONToFile("/tmp/wootc/install/vault.json", vault)
 }
 
+func collectLook() error                  { return nil }
 func uninstall(ctx context.Context) error { return nil }
 func rebootWindows() error                { return fmt.Errorf("reboot not available on %s", runtime.GOOS) }
 
