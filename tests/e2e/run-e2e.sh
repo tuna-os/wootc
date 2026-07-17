@@ -591,19 +591,54 @@ mkdir -p storage wootc-files
 # after a crashed run — netavark then refuses every bridge start until the
 # stale state is cleared. Detect that specific failure and auto-heal once so
 # the runner needs no manual host babysitting.
+# Free the host ports the compose file maps, in case a crashed run left a
+# rootlessport (or another container) holding one. A stale RDP/noVNC/VNC/ssh
+# binding otherwise fails the start with "address already in use".
+free_stale_ports() {
+    local p
+    for p in "${WOOTC_E2E_NOVNC_PORT:-8006}" "${WOOTC_E2E_RDP_PORT:-3389}" \
+             "${WOOTC_E2E_VNC_PORT:-5900}" "${WOOTC_E2E_SSH_PORT:-2222}"; do
+        fuser -k "${p}/tcp" 2>/dev/null || true
+    done
+}
+
+# Rebuild the baked-in-sshd image if it went missing (e.g. `podman system
+# prune` reclaimed it). Compose then fails trying to pull it from localhost.
+rebuild_ssh_image_if_missing() {
+    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
+    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 1
+    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || return 1
+    warn "e2e ssh image missing — rebuilding via build-ssh-image.sh"
+    bash "$SCRIPT_DIR/build-ssh-image.sh"
+}
+
 compose_up_windows() {
+    free_stale_ports
+    $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
     local out
     if out=$($COMPOSE -f compose.yml up -d windows 2>&1); then
         printf '%s\n' "$out"
         return 0
     fi
     printf '%s\n' "$out" >&2
+    # (1) netavark phantom bridge — clear stale rootless network run-state.
     if printf '%s' "$out" | grep -q "already exists but is a Tun interface"; then
         warn "netavark phantom bridge detected — clearing stale rootless network state and retrying"
         $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
         local netdir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/containers/networks"
         rm -rf "${netdir:?}/"* 2>/dev/null || true
         $DOCKER network reload --all 2>/dev/null || true
+        $COMPOSE -f compose.yml up -d windows
+        return $?
+    fi
+    # (2) the e2e ssh image was pruned — rebuild it, then retry.
+    if printf '%s' "$out" | grep -qiE "pinging container registry localhost|no such image|manifest unknown"; then
+        rebuild_ssh_image_if_missing && { $COMPOSE -f compose.yml up -d windows; return $?; }
+    fi
+    # (3) a stale port binding slipped through — free them and retry once.
+    if printf '%s' "$out" | grep -qi "address already in use"; then
+        warn "stale port binding — freeing mapped ports and retrying"
+        free_stale_ports; pkill -9 -f rootlessport 2>/dev/null || true; sleep 1
         $COMPOSE -f compose.yml up -d windows
         return $?
     fi
@@ -703,6 +738,18 @@ else
     pass "Windows installer prepared and QEMU booted ($(( ELAPSED / 60 ))m)"
     if [ "$ANSWER_REFRESH" = true ]; then
         printf '%s\n' "$ANSWER_SHA" > "$ANSWER_STAMP"
+    fi
+    # Cache Dockur's downloaded installer ISO so a later `podman system prune`
+    # or storage wipe never forces a fresh multi-GB re-download.
+    if [ ! -f "$WINDOWS_ISO_CACHE" ]; then
+        dl_iso=$($DOCKER exec "$CONTAINER_NAME" sh -c 'ls -1 /storage/*.iso 2>/dev/null | grep -v custom.iso | head -1' 2>/dev/null || true)
+        if [ -n "$dl_iso" ]; then
+            mkdir -p "$ISO_CACHE_DIR"
+            if $DOCKER cp "$CONTAINER_NAME:$dl_iso" "$WINDOWS_ISO_CACHE.tmp" 2>/dev/null; then
+                mv -f "$WINDOWS_ISO_CACHE.tmp" "$WINDOWS_ISO_CACHE"
+                info "Cached Windows ISO for future runs: $WINDOWS_ISO_CACHE"
+            fi
+        fi
     fi
     info "Windows installation is still running; waiting for its OEM handoff..."
 fi
