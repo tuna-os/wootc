@@ -363,9 +363,23 @@ phase "verification"
 log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
-VERIFY_LOOP=/dev/nbd0
+# Do not reuse nbd0 here: qemu-nbd disconnect is asynchronous and the old
+# partition nodes can briefly remain after Fisherman exits.  A separate NBD
+# device makes verification independent of that teardown race.
+VERIFY_LOOP=/dev/nbd1
 qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx "$DISK"
-udevadm settle --timeout=10 2>/dev/null || true
+
+# qemu-nbd publishes the capacity change before the partition scan completes.
+# Wait for the root partition explicitly instead of treating a successful
+# udevadm settle as proof that /dev/nbd*p* nodes are ready.
+for _ in {1..20}; do
+    udevadm settle --timeout=1 2>/dev/null || true
+    [[ -b "${VERIFY_LOOP}p3" ]] && break
+    sleep 1
+done
+if [[ ! -b "${VERIFY_LOOP}p3" ]]; then
+    err "  [WARN] ${VERIFY_LOOP} partition nodes did not appear for verification"
+fi
 
 # Find the root partition inside the loop device. bootc/ostree roots have no
 # top-level /etc — the OS tree lives under /ostree/deploy/<stateroot>/deploy/.
