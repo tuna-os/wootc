@@ -60,9 +60,13 @@ Assert-True ($wootcCount -eq 1) "exactly one wootc BCD entry (found $wootcCount)
 
 # The wootc GUID must be armed one-shot (bootsequence) and NOT promoted to
 # the permanent default (displayorder head).
+# Pair the identifier with its own block's description ([^{]*? cannot
+# cross into the next entry, whose identifier brace stops it) — splitting
+# on block headers proved fragile: the fwbootmgr preamble lists dangling
+# GUIDs that a loose regex happily picked up.
 $guid = $null
-$block = $fw -split "(?ms)(?=Firmware Application)" | Where-Object { $_ -match 'description\s+wootc' } | Select-Object -First 1
-if ($block -and $block -match '(\{[0-9a-fA-F-]{36}\})') { $guid = $Matches[1] }
+$m = [regex]::Match($fw, '(?ms)identifier\s+(\{[0-9a-fA-F-]{36}\})[^{]*?description\s+wootc\s*$')
+if ($m.Success) { $guid = $m.Groups[1].Value }
 Assert-True ($null -ne $guid) "wootc entry GUID parsed"
 
 $mgr = bcdedit /enum "{fwbootmgr}" | Out-String
