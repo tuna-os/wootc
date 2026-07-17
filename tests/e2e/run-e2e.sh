@@ -107,6 +107,11 @@ host_preflight() {
     # qcow2. A reuse run already has those and needs only its allocated-extent
     # safety snapshot plus diagnostics.
     [ "$SKIP_INSTALL" = false ] || required_free_gib=40
+    # If a Windows ISO is already cached, the fresh-run peak drops ~10 GiB
+    # (no re-download, custom.iso rebuild reuses cached extraction).
+    if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
+        required_free_gib=75
+    fi
     if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
         fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
         return 1
@@ -183,6 +188,17 @@ snapshot_serial() {
 DOCKER="podman"
 if ! command -v podman &>/dev/null; then
     DOCKER="docker"
+fi
+# Bootstrap podman-compose if missing — installs to ~/.local/bin on most distros
+if [ "$DOCKER" = "podman" ] && ! command -v podman-compose &>/dev/null; then
+    export PATH="$HOME/.local/bin:$PATH"
+    if command -v podman-compose &>/dev/null; then
+        :  # found after PATH fix
+    elif command -v python3 &>/dev/null; then
+        info "Installing podman-compose via pip..."
+        python3 -m pip install --user podman-compose 2>/dev/null || true
+        hash -r 2>/dev/null || true
+    fi
 fi
 if [ "$DOCKER" = "podman" ] && command -v podman-compose &>/dev/null; then
     COMPOSE="podman-compose"
