@@ -214,16 +214,43 @@ cmd_import() {
     local ran=()
     for c in "${cats[@]}"; do
         case "$c" in
-            apps)     _run wootc-detect-apps "$winuser" && ran+=(apps) ;;
+            apps)     _run wootc-detect-apps "$winuser" "$target" && ran+=(apps) ;;
             browsers) _run wootc-import-browser "$winuser" "$target" && ran+=(browsers) ;;
-            steam)    _run wootc-steam-bridge "$winuser" "$target" && ran+=(steam) ;;
+            steam)    _run wootc-steam-bridge && ran+=(steam) ;;
             office)   _run wootc-office-bridge "$winuser" "$target" && ran+=(office) ;;
-            files)    _run wootc-mount-user-dirs "$winuser" "$target" && ran+=(files) ;;
+            # An external/backup disk is removable, so COPY the profile media
+            # folders (never bind-mount — the drive gets unplugged).
+            files)    _import_files "$winuser" "$target" && ran+=(files) ;;
             look)     ran+=(look) ;;  # look applies on next login via autostart
         esac
     done
     log "imported: ${ran[*]:-nothing}"
     printf '{"imported": [%s]}\n' "$(printf '"%s",' "${ran[@]}" | sed 's/,$//')"
+}
+
+# _import_files <winuser> <linuxuser> — copy the standard profile media folders
+# from the mounted Windows profile (via /host) into the Linux user's home.
+# Read-only source; merges into existing folders without clobbering newer files.
+_import_files() {
+    local winuser="$1" target="$2"
+    local src="/host/Users/$winuser" home
+    home=$(getent passwd "$target" | cut -d: -f6)
+    [[ -d "$src" && -d "$home" ]] || { log "files: missing profile or home"; return 1; }
+    local copied=0 f
+    for f in Desktop Documents Downloads Pictures Music Videos; do
+        [[ -d "$src/$f" ]] || continue
+        mkdir -p "$home/$f"
+        # -a preserve, --update keep newer dest files, ignore per-file errors.
+        if command -v rsync >/dev/null; then
+            rsync -a --update --chown="$target:$target" "$src/$f/" "$home/$f/" 2>/dev/null || true
+        else
+            cp -an "$src/$f/." "$home/$f/" 2>/dev/null || true
+            chown -R "$target:" "$home/$f" 2>/dev/null || true
+        fi
+        copied=$((copied + 1))
+    done
+    log "files: copied $copied folder(s) for $winuser -> $target"
+    [[ $copied -gt 0 ]]
 }
 
 # _run <script> <args...> — run a bridge script if it exists; tolerate absence

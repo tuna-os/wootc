@@ -20,10 +20,11 @@
 set -Eeuo pipefail
 
 log() { printf '[wootc-import-browser] %s\n' "$*"; }
-name="${1:?usage: wootc-import-browser <username>}"
+name="${1:?usage: wootc-import-browser <username> [linuxuser]}"
+target="${2:-$name}"
 
 mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
-home=$(getent passwd "$name" | cut -d: -f6)
+home=$(getent passwd "$target" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
 winprofile="/host/Users/$name"
 [[ -d "$winprofile" ]] || { log "no Windows profile for $name"; exit 0; }
@@ -96,7 +97,7 @@ mkdir -p "$state_dir"
     done
     printf '],\n  "passwordsNote": "Chromium passwords are protected by your Windows login and cannot be moved automatically. Firefox passwords came across with the profile."\n}\n'
 } > "$state_dir/bridge-browser.json"
-chown -R "$name:" "$state_dir" 2>/dev/null || true
+chown -R "$target:" "$state_dir" 2>/dev/null || true
 
 if [[ ${#imported[@]} -eq 0 ]]; then
     log "nothing to import for $name"

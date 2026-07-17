@@ -24,10 +24,11 @@
 
 set -Eeuo pipefail
 log() { printf '[wootc-office-bridge] %s\n' "$*"; }
-name="${1:?usage: wootc-office-bridge <username>}"
+name="${1:?usage: wootc-office-bridge <username> [linuxuser]}"
+target="${2:-$name}"
 
 mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
-home=$(getent passwd "$name" | cut -d: -f6)
+home=$(getent passwd "$target" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
 W="/host/Users/$name"
 [[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
@@ -131,7 +132,7 @@ XCU
     did+=("office-format-defaults")
 fi
 
-chown -R "$name:" "$home/.config/libreoffice" "$home/.local/share/fonts" 2>/dev/null || true
+chown -R "$target:" "$home/.config/libreoffice" "$home/.local/share/fonts" 2>/dev/null || true
 
 # ── Record for the dashboard ────────────────────────────────────────────────
 state_dir="$home/.config/wootc"
@@ -144,6 +145,6 @@ mkdir -p "$state_dir"
     done
     printf '],\n  "note": "LibreOffice opens your Word/Excel/PowerPoint files directly and now saves in those formats by default. Fonts, templates and your custom dictionary came across; ribbon layout and macros do not transfer."\n}\n'
 } > "$state_dir/bridge-office.json"
-chown -R "$name:" "$state_dir" 2>/dev/null || true
+chown -R "$target:" "$state_dir" 2>/dev/null || true
 
 log "office bridge done: ${did[*]:-nothing found}"

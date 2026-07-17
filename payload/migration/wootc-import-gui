@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-import-gui — friendly Linux-side "Bring your Windows
+# over" wizard. Detects Windows installs on other disks (second internal,
+# external/USB, backup), unlocks BitLocker read-only, and runs the migration
+# bridge. All privileged work is delegated to `wootc-import` via pkexec; this
+# process stays unprivileged and just drives the flow.
+#
+# Deliberately braindead: Scan → pick a drive → (unlock) → pick your user →
+# Import. No settings screen, no knobs. Sensible defaults, one path through.
+#
+# Logic (engine calls + JSON parsing) is isolated in ImportEngine so it can be
+# smoke-tested without a display:  wootc-import-gui --self-test
+import json
+import os
+import subprocess
+import sys
+
+ENGINE = os.environ.get("WOOTC_IMPORT_BIN", "wootc-import")
+
+
+def human_size(n):
+    n = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+class ImportEngine:
+    """Unprivileged wrapper around the wootc-import CLI. Root subcommands go
+    through pkexec; read-only ones (scan/profiles) run directly."""
+
+    def __init__(self, engine=ENGINE, pkexec=True):
+        self.engine = engine
+        self.pkexec = pkexec
+
+    def _run(self, args, root=False, stdin=None, check=True):
+        cmd = (["pkexec", self.engine] if (root and self.pkexec) else [self.engine]) + args
+        p = subprocess.run(cmd, input=stdin, capture_output=True, text=True)
+        if check and p.returncode != 0:
+            raise RuntimeError(p.stderr.strip() or f"{' '.join(args)} failed")
+        return p.stdout
+
+    def scan(self):
+        return json.loads(self._run(["scan"]) or "[]")
+
+    def unlock(self, device, secret, recovery=False):
+        args = ["unlock", device] + (["--recovery-key"] if recovery else [])
+        return self._run(args, root=True, stdin=secret).strip()
+
+    def mount(self, device):
+        return self._run(["mount", device], root=True).strip()
+
+    def profiles(self, mnt):
+        return json.loads(self._run(["profiles", mnt], root=True) or "[]")
+
+    def do_import(self, mnt, winuser, target, categories):
+        args = ["import", mnt, winuser, "--target", target] + list(categories)
+        return self._run(args, root=True)
+
+    def eject(self, mnt):
+        return self._run(["eject", mnt], root=True, check=False)
+
+
+def self_test():
+    """Construct the engine against fixtures and exercise the parsers — no GUI."""
+    eng = ImportEngine(pkexec=False)
+    fixture = os.environ.get("WOOTC_IMPORT_LSBLK")
+    if fixture:
+        vols = eng.scan()
+        print(f"self-test: scan parsed {len(vols)} volume(s): "
+              f"{[(v['device'], v['fs'], v['locked']) for v in vols]}")
+    print("self-test: human_size(255000000000) =", human_size(255000000000))
+    print("OK")
+    return 0
+
+
+CATEGORIES = [
+    ("files", "Files & folders", "Documents, Pictures, Downloads, Music, Videos"),
+    ("browsers", "Browser data", "Bookmarks, history (Firefox: everything)"),
+    ("apps", "Apps", "Detect installed apps and their portable settings"),
+    ("steam", "Steam library", "Reuse installed games without re-downloading"),
+    ("office", "Office settings", "MS Office → LibreOffice styles and dictionary"),
+    ("look", "Desktop look", "Wallpaper, accent, taskbar pins on next login"),
+]
+
+
+def build_gui():
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw, Gtk, GLib  # noqa: E402
+
+    eng = ImportEngine()
+
+    class Win(Adw.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="Bring Your Windows Over")
+            self.set_default_size(560, 620)
+            self.mnt = None
+            self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT)
+            toolbar = Adw.ToolbarView()
+            header = Adw.HeaderBar()
+            toolbar.add_top_bar(header)
+            toolbar.set_content(self.stack)
+            self.set_content(toolbar)
+            self.page_scan()
+
+        # ── helpers ──────────────────────────────────────────────────────
+        def _page(self, name, title, subtitle):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                          margin_top=24, margin_bottom=24, margin_start=24, margin_end=24)
+            box.append(Gtk.Label(label=f"<b><big>{title}</big></b>", use_markup=True, xalign=0))
+            if subtitle:
+                lbl = Gtk.Label(label=subtitle, xalign=0, wrap=True)
+                lbl.add_css_class("dim-label")
+                box.append(lbl)
+            existing = self.stack.get_child_by_name(name)
+            if existing:
+                self.stack.remove(existing)
+            self.stack.add_named(box, name)
+            self.stack.set_visible_child_name(name)
+            return box
+
+        def _toast(self, text):
+            dlg = Adw.MessageDialog(transient_for=self, heading="Heads up", body=text)
+            dlg.add_response("ok", "OK")
+            dlg.present()
+
+        def _busy(self, box, text):
+            spin = Gtk.Spinner(spinning=True)
+            row = Gtk.Box(spacing=8)
+            row.append(spin)
+            row.append(Gtk.Label(label=text))
+            box.append(row)
+
+        # ── screens ──────────────────────────────────────────────────────
+        def page_scan(self):
+            box = self._page("scan", "Find your Windows drive",
+                             "Connect the disk or drive that has your Windows files, then scan.")
+            listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+            listbox.add_css_class("boxed-list")
+            box.append(listbox)
+
+            def refresh(*_):
+                child = listbox.get_first_child()
+                while child:
+                    listbox.remove(child)
+                    child = listbox.get_first_child()
+                try:
+                    vols = eng.scan()
+                except Exception as e:
+                    self._toast(f"Could not scan disks: {e}")
+                    return
+                if not vols:
+                    r = Adw.ActionRow(title="No Windows drives found",
+                                      subtitle="Plug in the drive and scan again.")
+                    listbox.append(r)
+                    return
+                for v in vols:
+                    label = v.get("label") or os.path.basename(v["device"])
+                    sub = f"{human_size(v['size'])} · {v['device']}"
+                    row = Adw.ActionRow(title=label, subtitle=sub)
+                    if v["locked"]:
+                        row.add_prefix(Gtk.Image.new_from_icon_name("channel-secure-symbolic"))
+                        btn = Gtk.Button(label="Unlock", valign=Gtk.Align.CENTER)
+                        btn.add_css_class("suggested-action")
+                        btn.connect("clicked", lambda _b, dev=v["device"]: self.page_unlock(dev))
+                        row.add_suffix(btn)
+                    else:
+                        btn = Gtk.Button(label="Open", valign=Gtk.Align.CENTER)
+                        btn.add_css_class("suggested-action")
+                        btn.connect("clicked", lambda _b, dev=v["device"]: self.open_volume(dev))
+                        row.add_suffix(btn)
+                    listbox.append(row)
+
+            scan_btn = Gtk.Button(label="Scan for drives")
+            scan_btn.add_css_class("pill")
+            scan_btn.add_css_class("suggested-action")
+            scan_btn.set_halign(Gtk.Align.CENTER)
+            scan_btn.connect("clicked", refresh)
+            box.append(scan_btn)
+            refresh()
+
+        def page_unlock(self, device):
+            box = self._page("unlock", "Unlock BitLocker",
+                             f"{device} is encrypted with BitLocker. Enter your password, or a "
+                             "48-digit recovery key. The drive is opened read-only — nothing on "
+                             "it is changed.")
+            entry = Gtk.PasswordEntry(show_peek_icon=True, hexpand=True)
+            box.append(entry)
+            recovery = Gtk.CheckButton(label="This is a 48-digit recovery key")
+            box.append(recovery)
+            btn = Gtk.Button(label="Unlock and open")
+            btn.add_css_class("suggested-action")
+            btn.set_halign(Gtk.Align.CENTER)
+
+            def do_unlock(*_):
+                secret = entry.get_text()
+                if not secret:
+                    self._toast("Enter your BitLocker password or recovery key.")
+                    return
+                try:
+                    mapper = eng.unlock(device, secret, recovery.get_active())
+                    self.open_volume(mapper)
+                except Exception as e:
+                    self._toast(f"Unlock failed: {e}")
+
+            btn.connect("clicked", do_unlock)
+            box.append(btn)
+
+        def open_volume(self, device):
+            box = self._page("mount", "Opening drive…", None)
+            self._busy(box, f"Mounting {device} read-only…")
+
+            def work():
+                try:
+                    self.mnt = eng.mount(device)
+                    profiles = eng.profiles(self.mnt)
+                    GLib.idle_add(self.page_profiles, profiles)
+                except Exception as e:
+                    GLib.idle_add(self._toast, f"Could not open the drive: {e}")
+                    GLib.idle_add(self.page_scan)
+            import threading
+            threading.Thread(target=work, daemon=True).start()
+
+        def page_profiles(self, profiles):
+            box = self._page("profiles", "Whose files?",
+                             "Pick the Windows user account to bring over.")
+            listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+            listbox.add_css_class("boxed-list")
+            box.append(listbox)
+            real = [p for p in profiles if p.get("hasProfile")]
+            for p in (real or profiles):
+                row = Adw.ActionRow(title=p["user"],
+                                    subtitle=f"{human_size(p['dataBytes'])} of documents & media")
+                btn = Gtk.Button(label="Choose", valign=Gtk.Align.CENTER)
+                btn.add_css_class("suggested-action")
+                btn.connect("clicked", lambda _b, u=p["user"]: self.page_categories(u))
+                row.add_suffix(btn)
+                listbox.append(row)
+            if not profiles:
+                listbox.append(Adw.ActionRow(title="No user profiles found on this drive"))
+
+        def page_categories(self, winuser):
+            box = self._page("categories", f"Bring over {winuser}'s stuff",
+                             "Everything below is optional and reversible. Secrets and passwords "
+                             "are never copied — you'll sign in again where needed.")
+            checks = {}
+            listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+            listbox.add_css_class("boxed-list")
+            for key, title, sub in CATEGORIES:
+                row = Adw.ActionRow(title=title, subtitle=sub)
+                chk = Gtk.CheckButton(active=True, valign=Gtk.Align.CENTER)
+                checks[key] = chk
+                row.add_prefix(chk)
+                row.set_activatable_widget(chk)
+                listbox.append(row)
+            box.append(listbox)
+            btn = Gtk.Button(label="Bring it over")
+            btn.add_css_class("pill")
+            btn.add_css_class("suggested-action")
+            btn.set_halign(Gtk.Align.CENTER)
+            btn.connect("clicked", lambda _b: self.run_import(
+                winuser, [k for k, c in checks.items() if c.get_active()]))
+            box.append(btn)
+
+        def run_import(self, winuser, categories):
+            box = self._page("importing", "Bringing your files over…",
+                             "This can take a few minutes for large libraries.")
+            self._busy(box, "Copying and configuring…")
+            target = os.environ.get("SUDO_USER") or os.environ.get("USER") or ""
+
+            def work():
+                try:
+                    eng.do_import(self.mnt, winuser, target, categories)
+                    GLib.idle_add(self.page_done)
+                except Exception as e:
+                    GLib.idle_add(self._toast, f"Import hit a problem: {e}")
+                finally:
+                    try:
+                        eng.eject(self.mnt)
+                    except Exception:
+                        pass
+            import threading
+            threading.Thread(target=work, daemon=True).start()
+
+        def page_done(self):
+            box = self._page("done", "All set 🎉",
+                             "Your files and settings are on this PC. Log out and back in to see "
+                             "your wallpaper and pinned apps. You can safely disconnect the drive.")
+            btn = Gtk.Button(label="Close")
+            btn.set_halign(Gtk.Align.CENTER)
+            btn.connect("clicked", lambda _b: self.close())
+            box.append(btn)
+
+    class App(Adw.Application):
+        def __init__(self):
+            super().__init__(application_id="org.tunaos.wootc.Import")
+
+        def do_activate(self):
+            Win(self).present()
+
+    return App()
+
+
+def main(argv):
+    if "--self-test" in argv:
+        return self_test()
+    app = build_gui()
+    return app.run([argv[0]])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

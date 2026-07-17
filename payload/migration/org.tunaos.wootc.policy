@@ -16,4 +16,16 @@
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/wootc-convert-dir</annotate>
   </action>
+
+  <action id="org.tunaos.wootc.import">
+    <description>Bring files and settings over from a Windows drive</description>
+    <message>wootc wants to read a Windows drive (unlocking BitLocker if needed) and copy your files and settings to this PC. The Windows drive is opened read-only and is not changed.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/wootc-import</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
 </policyconfig>

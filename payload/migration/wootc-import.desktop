@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Bring Your Windows Over
+GenericName=Windows Migration
+Comment=Import files and settings from a Windows drive, second disk, or backup
+Exec=wootc-import-gui
+Icon=drive-harddisk-usb
+Terminal=false
+Categories=System;Utility;
+Keywords=windows;migrate;import;bitlocker;transfer;backup;
+StartupNotify=true

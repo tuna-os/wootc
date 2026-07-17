@@ -558,6 +558,14 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
         "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
+    # Linux-side "Bring your Windows over" import tool (external disk / backup /
+    # BitLocker) + its GUI launcher. Post-install utility — no autostart.
+    install -m755 /usr/lib/wootc/migration/wootc-import \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-import"
+    install -m755 /usr/lib/wootc/migration/wootc-import-gui \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-import-gui"
+    install -D -m644 /usr/lib/wootc/migration/wootc-import.desktop \
+        "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after OS updates (variant-agnostic — BLS and classic layouts).
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \

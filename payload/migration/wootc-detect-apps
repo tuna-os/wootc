@@ -21,10 +21,11 @@
 
 set -Eeuo pipefail
 log() { printf '[wootc-detect-apps] %s\n' "$*"; }
-name="${1:?usage: wootc-detect-apps <username>}"
+name="${1:?usage: wootc-detect-apps <username> [linuxuser]}"
+target="${2:-$name}"
 
 mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
-home=$(getent passwd "$name" | cut -d: -f6)
+home=$(getent passwd "$target" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
 W="/host/Users/$name"
 [[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
@@ -67,7 +68,7 @@ if [[ -d "$VSC" ]]; then
         ls -1 "$W/.vscode/extensions" 2>/dev/null | sed 's/-[0-9][0-9.]*$//' | sort -u \
             > "$home/.config/wootc/vscode-extensions.txt" 2>/dev/null || true
     fi
-    chown -R "$name:" "$dest" 2>/dev/null || true
+    chown -R "$target:" "$dest" 2>/dev/null || true
     add vscode com.visualstudio.code portable true \
         "Settings, keybindings and snippets moved; extension list saved for reinstall. GitHub sign-in is fresh."
 fi
@@ -99,7 +100,7 @@ if [[ -d "$TG" ]]; then
     dest="$home/.var/app/org.telegram.desktop/data/TelegramDesktop/tdata"
     if [[ ! -d "$dest" ]]; then
         mkdir -p "$(dirname "$dest")"
-        cp -r "$TG" "$dest" 2>/dev/null && chown -R "$name:" "$home/.var" 2>/dev/null || true
+        cp -r "$TG" "$dest" 2>/dev/null && chown -R "$target:" "$home/.var" 2>/dev/null || true
         add telegram org.telegram.desktop portable true \
             "Your session and chats moved — Telegram opens signed in."
     else
@@ -115,7 +116,7 @@ if [[ -d "$SG" ]]; then
         dest="$home/.var/app/org.signal.Signal/config/Signal"
         if [[ ! -d "$dest" ]]; then
             mkdir -p "$(dirname "$dest")"
-            cp -r "$SG" "$dest" 2>/dev/null && chown -R "$name:" "$home/.var" 2>/dev/null || true
+            cp -r "$SG" "$dest" 2>/dev/null && chown -R "$target:" "$home/.var" 2>/dev/null || true
             add signal org.signal.Signal portable true "Message history moved (legacy key format)."
         fi
     else
@@ -139,7 +140,7 @@ if [[ -f "$TB/profiles.ini" ]]; then
             mkdir -p "$dest/windows-import.wootc"
             cp -r "$TB/$tbprof/." "$dest/windows-import.wootc/" 2>/dev/null || true
             printf '[Profile0]\nName=Imported from Windows\nIsRelative=1\nPath=windows-import.wootc\nDefault=1\n\n[General]\nStartWithLastProfile=1\nVersion=2\n' > "$dest/profiles.ini"
-            chown -R "$name:" "$dest" 2>/dev/null || true
+            chown -R "$target:" "$dest" 2>/dev/null || true
         fi
         add thunderbird org.mozilla.Thunderbird portable true \
             "Mail accounts, local mail and settings moved."
@@ -156,7 +157,7 @@ if [[ -d "$OBS" ]]; then
     dest="$home/.var/app/com.obsproject.Studio/config/obs-studio"
     if [[ ! -d "$dest" ]]; then
         mkdir -p "$(dirname "$dest")"
-        cp -r "$OBS" "$dest" 2>/dev/null && chown -R "$name:" "$home/.var" 2>/dev/null || true
+        cp -r "$OBS" "$dest" 2>/dev/null && chown -R "$target:" "$home/.var" 2>/dev/null || true
     fi
     add obs com.obsproject.Studio portable true "Scenes and profiles moved."
 fi
@@ -172,7 +173,7 @@ mkdir -p "$state_dir"
     done
     printf '  ]\n}\n'
 } > "$state_dir/bridge-apps.json"
-chown -R "$name:" "$state_dir" 2>/dev/null || true
+chown -R "$target:" "$state_dir" 2>/dev/null || true
 
 printf '%s\n' "${flatpaks[@]}" | sort -u > /run/wootc-detected-flatpaks 2>/dev/null || true
 log "detected ${#entries[@]} apps for $name"
