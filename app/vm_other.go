@@ -22,3 +22,15 @@ func (a *App) GetVMCapability() VMCapability {
 func (a *App) BootInVM() error {
 	return fmt.Errorf("the VM viewer is only available on Windows")
 }
+
+func (a *App) GetFreshVMCapability() VMCapability {
+	return VMCapability{Available: false, Reason: "Try in VM is only available on Windows."}
+}
+
+func (a *App) TryInVMFresh(imageRef string) error {
+	return fmt.Errorf("Try in VM is only available on Windows")
+}
+
+func (a *App) InstallPreviewForReal(cfg InstallConfig) error {
+	return fmt.Errorf("Try in VM is only available on Windows")
+}
