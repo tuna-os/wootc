@@ -42,6 +42,9 @@ function makeApp(mock) {
     UninstallWith: () => P(),
     GetVMCapability: () => P(mock.vm || { available: false, reason: '' }),
     BootInVM: () => P(),
+    GetFreshVMCapability: () => P(mock.freshVm || { available: false, reason: '' }),
+    TryInVMFresh: () => P(),
+    InstallPreviewForReal: () => P(),
     DefragDrive: () => { if (mock.defragError) return Promise.reject(mock.defragError); return P(); },
   };
 }

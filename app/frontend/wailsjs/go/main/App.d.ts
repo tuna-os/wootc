@@ -70,3 +70,8 @@ export function Reboot(): Promise<void>;
 export function ExistingInstallFound(): Promise<boolean>;
 export function Uninstall(): Promise<void>;
 export function DefragDrive(): Promise<void>;
+export function GetVMCapability(): Promise<any>;
+export function BootInVM(): Promise<void>;
+export function GetFreshVMCapability(): Promise<any>;
+export function TryInVMFresh(imageRef: string): Promise<void>;
+export function InstallPreviewForReal(cfg: InstallConfig): Promise<void>;

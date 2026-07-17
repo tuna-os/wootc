@@ -59,6 +59,18 @@ export function BootInVM() {
   return window['go']['main']['App']['BootInVM']();
 }
 
+export function GetFreshVMCapability() {
+  return window['go']['main']['App']['GetFreshVMCapability']();
+}
+
+export function TryInVMFresh(imageRef) {
+  return window['go']['main']['App']['TryInVMFresh'](imageRef);
+}
+
+export function InstallPreviewForReal(cfg) {
+  return window['go']['main']['App']['InstallPreviewForReal'](cfg);
+}
+
 export function DefragDrive() {
   return window['go']['main']['App']['DefragDrive']();
 }

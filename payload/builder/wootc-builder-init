@@ -1,0 +1,72 @@
+#!/bin/sh
+# /init for the wootc Try-in-VM builder initramfs (SPEC §6.1 stage 1).
+#
+# Boots in RAM in ~1s, pulls the OCI image, and runs `bootc install to-disk`
+# onto /dev/vda (the host's preview.raw). Progress + final status stream back
+# to wootc.exe over the virtio-serial IPC port; the host advances its progress
+# bar and then launches the interactive preview. On success we poweroff so the
+# host sees a clean exit.
+
+set -eu
+
+IPC=/dev/virtio-ports/wootc.ipc
+TARGET=/dev/vda
+
+# ipc <step> <pct> — one JSON line to the Windows GUI (best-effort).
+ipc() {
+    [ -e "$IPC" ] && printf '{"step":"%s","pct":%s}\n' "$1" "$2" > "$IPC" 2>/dev/null || true
+}
+fail() {
+    [ -e "$IPC" ] && printf '{"step":"error","pct":0,"msg":"%s"}\n' "$1" > "$IPC" 2>/dev/null || true
+    echo "wootc-builder: FAIL: $1" >&2
+    # Give the host a moment to read the message, then power off (non-zero
+    # exit is signalled by the absence of STATUS=SUCCESS).
+    sleep 2; poweroff -f
+}
+
+# Pseudo-filesystems + device nodes for podman/bootc.
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sys /sys 2>/dev/null || true
+mount -t devtmpfs dev /dev 2>/dev/null || true
+mkdir -p /dev/pts /dev/shm
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
+
+# Read the image ref from the kernel cmdline (wootc.image=...).
+IMAGE=""
+for tok in $(cat /proc/cmdline); do
+    case "$tok" in wootc.image=*) IMAGE="${tok#wootc.image=}" ;; esac
+done
+[ -n "$IMAGE" ] || fail "no wootc.image on cmdline"
+
+ipc pulling 5
+
+# RAM-backed podman: vfs driver on a tmpfs so nothing touches the target disk
+# until bootc writes the deployment. The builder VM is sized for this (2G).
+mkdir -p /run/containers
+mount -t tmpfs -o size=90% tmpfs /var/tmp 2>/dev/null || true
+export STORAGE_DRIVER=vfs
+export CONTAINERS_STORAGE_CONF=/etc/containers/storage.conf
+
+[ -b "$TARGET" ] || fail "target disk $TARGET not present"
+
+ipc pulling 15
+podman pull "$IMAGE" || fail "could not pull $IMAGE"
+
+ipc installing 55
+# Generic image install to the loopback disk — partitions, filesystems, and the
+# immutable deployment are all written by bootc.
+podman run --rm --privileged --pid=host \
+    -v /dev:/dev -v /var/lib/containers:/var/lib/containers \
+    --security-opt label=type:unconfined_t \
+    "$IMAGE" \
+    bootc install to-disk --generic-image --via-loopback "$TARGET" \
+    || fail "bootc install failed"
+
+ipc finalizing 95
+sync
+# Signal success to the host, then power off cleanly.
+[ -e "$IPC" ] && printf 'STATUS=SUCCESS\n' > "$IPC" 2>/dev/null || true
+ipc finalizing 100
+sleep 1
+poweroff -f

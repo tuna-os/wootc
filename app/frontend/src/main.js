@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive, GetFreshVMCapability, TryInVMFresh, InstallPreviewForReal } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -84,6 +84,15 @@ async function init() {
     if (state.screen === 'progress') renderProgress();
   });
 
+  // Try-in-VM builder progress (§6.1). Drives the preview screen while the
+  // headless builder pulls the image and installs it onto preview.raw.
+  EventsOn('vm:progress', (e) => {
+    state.vmProgress = { stage: e.stage, percent: e.percent || 0, message: e.message || '' };
+    if (e.stage === 'ready') state.vmReady = true;
+    if (e.stage === 'error') state.vmError = e.message;
+    if (state.screen === 'vmpreview') render();
+  });
+
   // Conversion progress events from the migration dashboard backend.
   EventsOn('migrate:progress', (p) => {
     if (p.error) {
@@ -131,6 +140,7 @@ async function init() {
     try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
     try { state.vmCapability = await GetVMCapability(); } catch { state.vmCapability = null; }
   }
+  try { state.freshVmCapability = await GetFreshVMCapability(); } catch { state.freshVmCapability = null; }
   state.screen = existing ? 'control' : 'launchpad';
   render();
 }
@@ -172,6 +182,7 @@ function render() {
     case 'done':      content.appendChild(renderDoneScreen()); break;
     case 'control':   content.appendChild(renderControlPanel()); break;
     case 'migrate':   content.appendChild(renderMigrateScreen()); break;
+    case 'vmpreview': content.appendChild(renderVMPreviewScreen()); break;
     default:          content.innerHTML = '<div style="padding:40px;color:#666">Loading…</div>';
   }
 
@@ -405,6 +416,10 @@ function renderLaunchpad() {
   const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
   installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => window.wails?.Quit?.()));
+  // Try-in-VM (§6.1): only when a fresh-build VM is possible on this host.
+  if (state.freshVmCapability?.available && state.selected) {
+    footer.appendChild(btn('Try in VM', 'btn btn-ghost', () => tryInVM()));
+  }
   footer.appendChild(installBtn);
   // Defer validity to after mount so the hint element exists.
   setTimeout(refreshInstallValidity, 0);
@@ -494,6 +509,79 @@ function renderProgress() {
   if (!screen) return;
   screen.innerHTML = '';
   screen.appendChild(renderProgressInner());
+}
+
+// ── Try in VM (§6.1) ──────────────────────────────────────────────────────────
+
+async function tryInVM() {
+  if (!state.selected) return;
+  state.screen = 'vmpreview';
+  state.vmProgress = { stage: 'pulling', percent: 0, message: 'Preparing the builder…' };
+  state.vmReady = false;
+  state.vmError = null;
+  render();
+  try {
+    await TryInVMFresh(state.selected.imageRef);
+  } catch (e) {
+    state.vmError = String(e);
+    render();
+  }
+}
+
+async function installPreviewForReal() {
+  try {
+    await InstallPreviewForReal({
+      imageRef:   state.selected.imageRef,
+      diskSizeGB: state.config.diskSizeGB,
+      username:   state.config.username,
+      password:   state.config.password,
+      hostname:   state.config.hostname,
+      bootloader: state.config.bootloader,
+      composeFs:  state.config.composeFs,
+      encryption: state.config.encryption,
+      luksPassphrase: state.config.luksPassphrase,
+      windowsLook: state.config.windowsLook,
+    });
+    state.screen = 'done';
+    render();
+  } catch (e) {
+    alert('Could not finalize the install: ' + e);
+  }
+}
+
+function renderVMPreviewScreen() {
+  const wrap = el('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
+  const screen = el('div', 'screen');
+  screen.style.cssText = 'padding:32px;display:flex;flex-direction:column;gap:16px;align-items:center;justify-content:center;text-align:center;flex:1';
+
+  const p = state.vmProgress || { stage: '', percent: 0, message: '' };
+  if (state.vmError) {
+    screen.innerHTML = `<div style="font-size:40px">😕</div>
+      <h2>Couldn't start the preview</h2>
+      <div style="color:var(--text-muted);max-width:420px">${state.vmError}</div>`;
+    const back = btn('Back', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); });
+    screen.appendChild(back);
+  } else if (state.vmReady) {
+    screen.innerHTML = `<div style="font-size:40px">🖥️</div>
+      <h2>Your preview is running</h2>
+      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || 'TunaOS'} is booting in its own window — try it out. If you like it, install it for real using the same disk (no re-download, no re-deploy).</div>`;
+    const row = el('div'); row.style.cssText = 'display:flex;gap:10px;margin-top:8px';
+    row.appendChild(btn('Not now', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); }));
+    row.appendChild(btn('Install for Real →', 'btn btn-primary', () => installPreviewForReal()));
+    screen.appendChild(row);
+  } else {
+    const pct = Math.round(p.percent || 0);
+    screen.innerHTML = `<div style="font-size:40px">🔨</div>
+      <h2>Building your preview…</h2>
+      <div style="color:var(--text-muted);max-width:440px">${p.message || 'Working…'}</div>
+      <div style="width:60%;max-width:360px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px">
+        <div style="width:${pct}%;height:100%;background:var(--primary);transition:width .3s"></div>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted)">${pct}%</div>`;
+  }
+  wrap.appendChild(screen);
+  return wrap;
 }
 
 // ── Screen 3: Done ────────────────────────────────────────────────────────────
