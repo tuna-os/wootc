@@ -116,6 +116,8 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("ping")
     sub.add_parser("info")
+    sub.add_parser("freeze")
+    sub.add_parser("thaw")
     ps = sub.add_parser("powershell")
     ps.add_argument("script")
     execute = sub.add_parser("exec")
@@ -135,6 +137,12 @@ def main():
             return 0
         if args.command == "info":
             print(json.dumps(agent.request("guest-info"), sort_keys=True))
+            return 0
+        if args.command == "freeze":
+            print(agent.request("guest-fsfreeze-freeze"))
+            return 0
+        if args.command == "thaw":
+            print(agent.request("guest-fsfreeze-thaw"))
             return 0
         if args.command == "read":
             sys.stdout.buffer.write(agent.read_file(args.path))

@@ -65,6 +65,8 @@ RUN_ID="${WOOTC_E2E_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${HOSTNAME:-unknown}-$$}"
 RUN_STARTED_AT="$(date -u +%FT%TZ)"
 RUN_STATE_FILE="$STORAGE_DIR/run-e2e.current"
 ARTIFACT_DIR="$STORAGE_DIR/artifacts/$RUN_ID"
+VIDEO_DIR="$ARTIFACT_DIR/video"
+VIDEO_STARTED=false
 mkdir -p "$ARTIFACT_DIR"
 run_state() {
     local stage="$1" tmp="$RUN_STATE_FILE.tmp"
@@ -125,6 +127,13 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 cleanup() {
     local result=$?
     run_state "exited (status $result)"
+    if [ "$VIDEO_STARTED" = true ]; then
+        WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" stop "$VIDEO_DIR" || true
+    fi
+    # Capture the final display and logs for successful and failed runs alike.
+    if $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
+        capture_vm_diagnostics || true
+    fi
     if [ "$KEEP_CONTAINER" = false ]; then
         info "Cleaning up..."
         podman compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || \
@@ -279,10 +288,50 @@ qga_sync_oem() {
 # process into the next attempt.  Do not remove C: or the Windows disk.
 reset_oem_attempt() {
     step "Resetting prior OEM handoff state..."
-    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
     rm -f "$STORAGE_DIR/qemu.pty"
     printf '%s run_id=%s reset prior OEM handoff state\n' "$(date -u +%FT%TZ)" "$RUN_ID" > "$STORAGE_DIR/e2e-timeline.log"
     pass "Prior OEM handoff state cleared"
+}
+
+# Preserve a retry point after Windows has staged the deployer and BootNext,
+# but before the first Phase 2 boot can modify root.disk. The OEM wrapper waits
+# for our guest marker before rebooting. Freezing Windows filesystems makes the
+# host-side sparse qcow2 copy crash-consistent; the temporary name prevents a
+# failed copy from masquerading as a usable snapshot.
+snapshot_before_deployer() {
+    local disk="$STORAGE_DIR/data.qcow2"
+    local snapshot="$STORAGE_DIR/data.qcow2.snap"
+    local tmp="$snapshot.tmp.$RUN_ID"
+    local frozen=false
+
+    [ -s "$disk" ] || { fail "Cannot snapshot missing VM disk: $disk"; return 1; }
+    step "Snapshotting Windows disk before first deployer boot..."
+    rm -f "$tmp"
+    if qga_call freeze >/dev/null; then
+        frozen=true
+    else
+        fail "QGA could not freeze Windows filesystems for the Phase 2 snapshot"
+        return 1
+    fi
+
+    # A full 80 GiB copy would keep Windows frozen past the OEM barrier's
+    # deadline. Runner storage must support an instantaneous CoW reflink.
+    if ! cp --reflink=always --sparse=always "$disk" "$tmp"; then
+        [ "$frozen" = false ] || qga_call thaw >/dev/null 2>&1 || true
+        rm -f "$tmp"
+        fail "Failed to copy the pre-deployer VM snapshot"
+        return 1
+    fi
+    qga_call thaw >/dev/null || {
+        rm -f "$tmp"
+        fail "QGA could not thaw Windows after the Phase 2 snapshot"
+        return 1
+    }
+    frozen=false
+    mv -f "$tmp" "$snapshot"
+    qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
+    pass "Pre-deployer snapshot saved: $snapshot ($(du -h "$snapshot" | cut -f1))"
 }
 
 # ── Step 0: Build deployer initramfs ─────────────────────────────────────────
@@ -544,6 +593,9 @@ if [[ "$QEMU_CMD" != *"qga0"* || "$QEMU_CMD" != *"org.qemu.guest_agent.0"* ]]; t
 fi
 $DOCKER cp "$SCRIPT_DIR/qga.py" "$CONTAINER_NAME:/tmp/qga.py"
 pass "QGA virtio-serial channel configured"
+WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" start "$VIDEO_DIR"
+VIDEO_STARTED=true
+pass "VM walkthrough recording started"
 
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
@@ -607,8 +659,37 @@ if [ "$SKIP_INSTALL" = true ]; then
 fi
 
 step "Starting OEM setup through QGA..."
+qga_powershell 'Remove-Item -LiteralPath C:\OEM\e2e-setup-complete.txt,C:\OEM\e2e-setup-failed.txt,C:\OEM\e2e-snapshot-complete.txt -Force -ErrorAction SilentlyContinue' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
 pass "OEM setup process started through QGA as SYSTEM"
+
+# The OEM wrapper deliberately pauses after staging BootNext. Do not permit
+# its first deployer reboot until a reusable, crash-consistent VM snapshot is
+# safely present on the host.
+step "Waiting for OEM setup to reach the pre-deployer snapshot barrier..."
+ELAPSED=0
+TIMEOUT=2700
+while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+    if qga_read 'C:\OEM\e2e-setup-complete.txt' >/dev/null 2>&1; then
+        snapshot_before_deployer
+        break
+    fi
+    OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
+    if [ -n "$OEM_FAILURE" ]; then
+        fail "Windows OEM setup failed before the snapshot barrier:"
+        echo "$OEM_FAILURE" >&2
+        capture_vm_diagnostics
+        exit 1
+    fi
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+    [ $((ELAPSED % 60)) -eq 0 ] && info "Waiting for OEM setup barrier... ($(( ELAPSED / 60 ))m)"
+done
+[ -s "$STORAGE_DIR/data.qcow2.snap" ] || {
+    fail "OEM setup did not reach the snapshot barrier within $((TIMEOUT/60)) minutes"
+    capture_vm_diagnostics
+    exit 1
+}
 
 # ── Step 4: Wait for Windows install and OEM handoff ─────────────────────────
 # The deployer serial marker is the end-to-end assertion: it can only appear

@@ -20,37 +20,26 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install dependencies
-        run: |
-          pip3 install pywinrm
-
-      - name: Build deployer
-        run: |
-          podman build -f payload/deployer/Containerfile -t wootc-deployer .
-          mkdir -p payload/deployer/out tests/e2e/wootc-files tests/e2e/wootc-files/grub
-          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-            /out/initramfs.img > payload/deployer/out/initramfs.img
-          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer \
-            /out/vmlinuz > payload/deployer/out/vmlinuz
-          cp payload/deployer/out/vmlinuz tests/e2e/wootc-files/
-          cp payload/deployer/out/initramfs.img tests/e2e/wootc-files/
-          cp platform/grub/*.cfg tests/e2e/wootc-files/grub/
-
       - name: Run e2e test
-        timeout-minutes: 60
+        timeout-minutes: 85
         run: |
           cd tests/e2e
           ./run-e2e.sh ghcr.io/tuna-os/yellowfin:gnome
         env:
           IMAGE_REF: ghcr.io/tuna-os/yellowfin:gnome
 
-      - name: Upload QEMU console log
+      - name: Upload E2E evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qemu-console
-          path: tests/e2e/storage/qemu.pty
-          retention-days: 7
+          name: e2e-evidence-${{ github.run_id }}
+          path: |
+            tests/e2e/storage/artifacts/**
+            tests/e2e/storage/e2e-timeline.log
+            tests/e2e/storage/qemu.pty
+            tests/e2e/storage/run-e2e.current
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Cleanup
         if: always()
