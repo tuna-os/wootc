@@ -17,16 +17,23 @@
 
 set -Eeuo pipefail
 
+# Set once the Windows NTFS volume is mounted. Keep this log append-only so a
+# failed reboot or a later deployment attempt cannot erase the evidence from
+# the preceding one.
+PERSIST_LOG=""
+
 # Write through /dev/kmsg when available: stdout of a sourced initqueue hook
 # lands in the journal but is not reliably forwarded to the serial console,
 # which made several failures invisible to the E2E monitor.
 log() {
     printf '\033[1;32m[wootc]\033[0m %s\n' "$*"
     printf '[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    [ -z "$PERSIST_LOG" ] || printf '%s [wootc] %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 err() {
     printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2
     printf '[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    [ -z "$PERSIST_LOG" ] || printf '%s [wootc] ERROR: %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 # Current phase, read by the heartbeat and useful over QGA.
 phase() {
@@ -176,6 +183,8 @@ DISK="/mnt/ntfs/wootc/disks/root.vhdx"
 # resource signal (a 7-minute image pull must look different from a hang).
 LOG_DIR=/mnt/ntfs/wootc/logs
 mkdir -p "$LOG_DIR"
+PERSIST_LOG="$LOG_DIR/deployer.log"
+log "Persistent deployer log started: C:\\wootc\\logs\\deployer.log"
 (
     set +eu  # telemetry must survive any single command failing
     while true; do

@@ -64,6 +64,8 @@ fi
 RUN_ID="${WOOTC_E2E_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${HOSTNAME:-unknown}-$$}"
 RUN_STARTED_AT="$(date -u +%FT%TZ)"
 RUN_STATE_FILE="$STORAGE_DIR/run-e2e.current"
+ARTIFACT_DIR="$STORAGE_DIR/artifacts/$RUN_ID"
+mkdir -p "$ARTIFACT_DIR"
 run_state() {
     local stage="$1" tmp="$RUN_STATE_FILE.tmp"
     {
@@ -78,6 +80,10 @@ run_state() {
 }
 run_state "started"
 info "Run ID: $RUN_ID (status: $RUN_STATE_FILE)"
+printf '%s\n' "$RUN_ID" > "$ARTIFACT_DIR/run-id.txt"
+uname -a > "$ARTIFACT_DIR/host-uname.txt" 2>&1 || true
+free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
+df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
 
 host_preflight() {
     local mem_available_kib disk_available_kib
@@ -132,20 +138,26 @@ trap cleanup EXIT
 
 capture_vm_diagnostics() {
     info "Collecting Windows VM diagnostics..."
-    $DOCKER logs --tail 150 "$CONTAINER_NAME" 2>&1 || true
+    mkdir -p "$ARTIFACT_DIR"
+    $DOCKER inspect "$CONTAINER_NAME" > "$ARTIFACT_DIR/container-inspect.json" 2>&1 || true
+    $DOCKER logs "$CONTAINER_NAME" > "$ARTIFACT_DIR/container.log" 2>&1 || true
+    $DOCKER exec "$CONTAINER_NAME" ps -ef > "$ARTIFACT_DIR/guest-processes.txt" 2>&1 || true
     $DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true
+    $DOCKER cp "$CONTAINER_NAME:$SERIAL_SOURCE" "$ARTIFACT_DIR/qemu.pty" >/dev/null 2>&1 || true
     if qga_probe; then
         info "QGA guest-info:"
-        qga_call info || true
+        qga_call info | tee "$ARTIFACT_DIR/qga-info.json" || true
         info "QGA C:\\OEM\\wootc-e2e.log:"
-        qga_read 'C:\OEM\wootc-e2e.log' 2>/dev/null || true
+        qga_read 'C:\OEM\wootc-e2e.log' > "$ARTIFACT_DIR/oem-wootc-e2e.log" 2>&1 || true
         info "QGA C:\\OEM\\e2e-setup-failed.txt:"
-        qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true
+        qga_read 'C:\OEM\e2e-setup-failed.txt' > "$ARTIFACT_DIR/oem-setup-failed.txt" 2>&1 || true
+        qga_read 'C:\wootc\logs\deployer.log' > "$ARTIFACT_DIR/deployer.log" 2>&1 || true
+        qga_read 'C:\wootc\logs\live-journal.log' > "$ARTIFACT_DIR/deployer-live-journal.log" 2>&1 || true
     fi
     $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/screenshot.py" 2>/dev/null || true
     $DOCKER exec "$CONTAINER_NAME" python3 /tmp/screenshot.py 2>/dev/null || true
-    $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" /tmp/wootc-e2e-failure.png 2>/dev/null || true
-    info "If captured, failure screenshot: /tmp/wootc-e2e-failure.png"
+    $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" "$ARTIFACT_DIR/screenshot.png" 2>/dev/null || true
+    info "Failure artifacts: $ARTIFACT_DIR"
 }
 
 # Dockur keeps the QEMU serial capture in its tmpfs, not in the /storage bind
@@ -166,6 +178,7 @@ if [ "$DOCKER" = "podman" ] && command -v podman-compose &>/dev/null; then
 else
     COMPOSE="$DOCKER compose"
 fi
+$COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.yml" 2>&1 || true
 
 # ── QEMU Guest Agent control plane ───────────────────────────────────────────
 # qga.py is copied into Dockur after QEMU starts. Keeping the client in the
