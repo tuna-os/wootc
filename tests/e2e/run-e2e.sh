@@ -11,7 +11,7 @@
 #   ./run-e2e.sh ghcr.io/tuna-os/bonito:gnome # test specific image
 #   ./run-e2e.sh --skip-build                  # skip deployer rebuild
 #   ./run-e2e.sh --keep                        # keep container after test
-#   ./run-e2e.sh --skip-install                # skip Windows install wait (reuse existing disk)
+#   ./run-e2e.sh --skip-install                # reuse Windows, refresh and reset the E2E handoff
 #   Wootc Windows ISO cache (optional):
 #     tests/e2e/iso-cache/windows-11.iso       # default offline installer cache
 #     WOOTC_WINDOWS_ISO=/path/to/windows.iso ./run-e2e.sh
@@ -160,6 +160,32 @@ qga_powershell() {
 
 qga_read() {
     qga_call read "$1"
+}
+
+# A reused Windows VM contains C:\OEM from the original unattended install.
+# The host-side /oem bind mount is not live in the guest, so copying a new
+# deployer to the bind mount alone silently tests stale code.  QGA provides a
+# guest-file API that lets retries replace the payload without reinstalling
+# Windows or relying on its network stack.
+qga_sync_oem() {
+    step "Refreshing OEM payload in reused Windows guest..."
+    qga_powershell 'New-Item -ItemType Directory -Force -Path C:\OEM\payload\grub | Out-Null'
+    while IFS= read -r -d '' source; do
+        relative="${source#"$OEM_DIR"/}"
+        qga_call write "/oem/$relative" "C:\\OEM\\${relative//\//\\}"
+    done < <(find "$OEM_DIR" -type f -print0)
+    pass "OEM payload refreshed through QGA"
+}
+
+# `--skip-install` is a new deployment attempt on an existing disposable
+# Windows installation.  Reset just the handoff-owned guest state so failures
+# cannot leak root.disk/root.vhdx, failure markers, or a still-running setup
+# process into the next attempt.  Do not remove C: or the Windows disk.
+reset_oem_attempt() {
+    step "Resetting prior OEM handoff state..."
+    qga_powershell '$ErrorActionPreference = "Stop"; schtasks.exe /Delete /TN "wootc-e2e-setup" /F 2>$null | Out-Null; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    rm -f "$STORAGE_DIR/qemu.pty" "$STORAGE_DIR/e2e-timeline.log"
+    pass "Prior OEM handoff state cleared"
 }
 
 # ── Step 0: Build deployer initramfs ─────────────────────────────────────────
@@ -447,6 +473,11 @@ fi
 # IP, WinRM listener, or Windows password is involved.
 qga_wait "Windows guest" 2700
 qga_call info || true
+
+if [ "$SKIP_INSTALL" = true ]; then
+    qga_sync_oem
+    reset_oem_attempt
+fi
 
 step "Starting OEM setup through QGA..."
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null

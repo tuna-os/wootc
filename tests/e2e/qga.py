@@ -83,6 +83,25 @@ class GuestAgent:
             self.request("guest-file-close", {"handle": handle})
         return b"".join(chunks)
 
+    def write_file(self, local_path, guest_path):
+        """Copy a local file to the guest through QGA in bounded chunks."""
+        handle = self.request("guest-file-open", {"path": guest_path, "mode": "w"})
+        try:
+            with open(local_path, "rb") as source:
+                while True:
+                    chunk = source.read(256 * 1024)
+                    if not chunk:
+                        break
+                    self.request(
+                        "guest-file-write",
+                        {
+                            "handle": handle,
+                            "buf-b64": base64.b64encode(chunk).decode("ascii"),
+                        },
+                    )
+        finally:
+            self.request("guest-file-close", {"handle": handle})
+
 
 def powershell(agent, command):
     return agent.exec(
@@ -101,6 +120,9 @@ def main():
     ps.add_argument("script")
     read = sub.add_parser("read")
     read.add_argument("path")
+    write = sub.add_parser("write")
+    write.add_argument("local_path")
+    write.add_argument("guest_path")
     args = parser.parse_args()
 
     agent = GuestAgent(args.socket)
@@ -113,6 +135,9 @@ def main():
             return 0
         if args.command == "read":
             sys.stdout.buffer.write(agent.read_file(args.path))
+            return 0
+        if args.command == "write":
+            agent.write_file(args.local_path, args.guest_path)
             return 0
         if args.command == "powershell":
             code, stdout, stderr = powershell(agent, args.script)
