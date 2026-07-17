@@ -1,3 +1,4 @@
+---
 # wootc e2e test — Windows 11 VM via dockur/windows
 #
 # Key control-plane facts:
@@ -71,12 +72,14 @@ services:
     volumes:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
       - ./storage:/storage
-      # Deployer files: deployer-vmlinuz, deployer-initramfs.img, grubx64.efi, grub configs — shared as Samba \\host.lan\Data
+      # Deployer files: deployer-vmlinuz, deployer-initramfs.img,
+      # grubx64.efi, grub configs — shared as Samba \\host.lan\Data
       - ./wootc-files:/shared
       # OEM files are injected by Dockur into C:\OEM during setup. They provide
       # a local QGA bootstrap and the wootc payload.
       - ./oem:/oem:ro
-      # Custom Windows answer file — dockur expects this at /custom.xml (a FILE, not a directory).
-      # This configures unattended GPT setup and the SYSTEM bootstrap task.
+      # Custom Windows answer file — dockur expects this at /custom.xml
+      # (a FILE, not a directory). This configures unattended GPT setup
+      # and the SYSTEM bootstrap task.
       - ./autounattend.xml:/custom.xml:ro
     restart: "no"     # Don't auto-restart — test orchestrator manages lifecycle
