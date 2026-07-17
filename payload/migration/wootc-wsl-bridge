@@ -1,0 +1,161 @@
+#!/bin/bash
+# /usr/local/bin/wootc-wsl-bridge <winuser> [linuxuser]
+# WSL migration (SPEC §4.6 Developer setup): bring a WSL user's shell home over.
+#
+# WSL users are the easiest Windows→Linux converts — they already live at a
+# Linux prompt. This copies their dotfiles into the native Linux home and turns
+# the packages they had installed into a Homebrew Brewfile (brew ships in every
+# TunaOS image), so `brew bundle` rebuilds their toolchain. Secrets are never
+# copied: SSH/GPG private keys and credential stores stay behind; only public
+# keys and non-secret config move (consent tier: "never migrate silently").
+#
+#   Reads WSL data from the mounted Windows profile at /host/Users/<winuser>:
+#     WSL1: …/AppData/Local/{lxss,Packages/*/LocalState}/rootfs/   (plain files)
+#     WSL2: …/AppData/Local/{Packages/*/LocalState,wsl/*}/ext4.vhdx (mounted)
+#   Writes: <linuxhome>/.config/wootc/Brewfile, dotfiles into <linuxhome>,
+#           <linuxhome>/.config/wootc/wsl-bridge.json (dashboard state).
+#
+# WOOTC_WSL_ROOTFS overrides rootfs discovery for tests (points at a dir tree).
+
+set -Eeuo pipefail
+log() { printf '[wootc-wsl-bridge] %s\n' "$*"; }
+
+name="${1:?usage: wootc-wsl-bridge <winuser> [linuxuser]}"
+target="${2:-$name}"
+home=$(getent passwd "$target" | cut -d: -f6 2>/dev/null || echo "")
+[[ -n "$home" && -d "$home" ]] || { log "no Linux home for $target"; exit 0; }
+
+# ── Locate the WSL rootfs ────────────────────────────────────────────────────
+ROOTFS=""; MOUNTED=""; NBD=""
+cleanup() {
+    [[ -n "$MOUNTED" ]] && umount "$MOUNTED" 2>/dev/null || true
+    [[ -n "$NBD" ]] && qemu-nbd --disconnect "$NBD" 2>/dev/null || true
+    [[ -n "$MOUNTED" ]] && rmdir "$MOUNTED" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+find_rootfs() {
+    if [[ -n "${WOOTC_WSL_ROOTFS:-}" ]]; then ROOTFS="$WOOTC_WSL_ROOTFS"; return 0; fi
+    local W="/host/Users/$name/AppData/Local"
+    [[ -d "$W" ]] || return 1
+    # WSL1: plain rootfs directory — read directly, no mount.
+    local d
+    for d in "$W"/lxss/rootfs "$W"/Packages/*/LocalState/rootfs; do
+        [[ -d "$d/home" || -d "$d/etc" ]] && { ROOTFS="$d"; return 0; }
+    done
+    # WSL2: ext4.vhdx — attach with qemu-nbd (bare ext4, no partition table).
+    local vhdx=""
+    for d in "$W"/Packages/*/LocalState/ext4.vhdx "$W"/wsl/*/ext4.vhdx; do
+        [[ -f "$d" ]] && { vhdx="$d"; break; }
+    done
+    [[ -n "$vhdx" ]] || return 1
+    command -v qemu-nbd >/dev/null || { log "qemu-nbd not available; cannot open $vhdx"; return 1; }
+    modprobe nbd max_part=8 2>/dev/null || true
+    local dev
+    for dev in /dev/nbd0 /dev/nbd1 /dev/nbd2 /dev/nbd3; do
+        [[ -e "$dev" ]] || continue
+        if qemu-nbd --connect="$dev" --read-only --format=vhdx "$vhdx" 2>/dev/null; then
+            NBD="$dev"; break
+        fi
+    done
+    [[ -n "$NBD" ]] || { log "could not attach $vhdx"; return 1; }
+    MOUNTED=$(mktemp -d)
+    # bare ext4 on the whole device; fall back to first partition.
+    mount -o ro "$NBD" "$MOUNTED" 2>/dev/null || mount -o ro "${NBD}p1" "$MOUNTED" 2>/dev/null \
+        || { log "could not mount WSL ext4"; return 1; }
+    ROOTFS="$MOUNTED"
+    return 0
+}
+
+if ! find_rootfs; then
+    log "no WSL installation found for $name"
+    exit 0
+fi
+log "WSL rootfs: $ROOTFS"
+
+# The WSL user's home (first real /home/<user>, else /root).
+WSL_HOME=""
+if [[ -d "$ROOTFS/home" ]]; then
+    for h in "$ROOTFS"/home/*; do [[ -d "$h" ]] && { WSL_HOME="$h"; break; }; done
+fi
+[[ -n "$WSL_HOME" ]] || WSL_HOME="$ROOTFS/root"
+[[ -d "$WSL_HOME" ]] || { log "no WSL home dir"; exit 0; }
+log "WSL home: ${WSL_HOME#$ROOTFS}"
+
+# ── Copy dotfiles (non-secret only) ──────────────────────────────────────────
+DOTFILES=(.bashrc .bash_profile .bash_aliases .profile .zshrc .zprofile .zshenv
+    .gitconfig .gitignore_global .vimrc .tmux.conf .aliases .inputrc .editorconfig
+    .p10k.zsh .config/starship.toml .curlrc .wgetrc .digrc)
+copied=()
+for f in "${DOTFILES[@]}"; do
+    src="$WSL_HOME/$f"
+    [[ -f "$src" ]] || continue
+    dst="$home/$f"
+    [[ -e "$dst" ]] && continue           # never clobber an existing native dotfile
+    mkdir -p "$(dirname "$dst")"
+    cp "$src" "$dst" && copied+=("$f")
+done
+# SSH: public keys + config only — private keys stay on Windows/WSL.
+if [[ -d "$WSL_HOME/.ssh" ]]; then
+    mkdir -p "$home/.ssh"; chmod 700 "$home/.ssh"
+    for pub in "$WSL_HOME"/.ssh/*.pub "$WSL_HOME/.ssh/config" "$WSL_HOME/.ssh/known_hosts"; do
+        [[ -f "$pub" ]] || continue
+        base=$(basename "$pub")
+        [[ -e "$home/.ssh/$base" ]] || { cp "$pub" "$home/.ssh/$base"; copied+=(".ssh/$base"); }
+    done
+fi
+log "dotfiles copied: ${#copied[@]}"
+
+# ── Package list → Brewfile ──────────────────────────────────────────────────
+# Read the WSL dpkg database (no chroot needed) and map to brew formulae. Only
+# user-facing dev tools are mapped; libraries/transitive deps are skipped.
+declare -A MAP=(
+    [git]=git [tmux]=tmux [neovim]=neovim [vim]=vim [htop]=htop [btop]=btop
+    [jq]=jq [ripgrep]=ripgrep [fd-find]=fd [bat]=bat [fzf]=fzf [tree]=tree
+    [gh]=gh [curl]=curl [wget]=wget [zsh]=zsh [fish]=fish [make]=make
+    [cmake]=cmake [gcc]=gcc [golang-go]=go [rustc]=rust [cargo]=rust
+    [nodejs]=node [npm]=node [python3]=python [python3-pip]=python
+    [ruby]=ruby [openjdk-17-jdk]=openjdk [docker.io]=docker [docker-ce]=docker
+    [kubectl]=kubernetes-cli [helm]=helm [terraform]=terraform [ansible]=ansible
+    [awscli]=awscli [postgresql-client]=libpq [mariadb-client]=mariadb
+    [redis-tools]=redis [ncdu]=ncdu [tldr]=tldr [shellcheck]=shellcheck
+    [direnv]=direnv [pass]=pass [gnupg]=gnupg [rsync]=rsync [wireguard-tools]=wireguard-tools
+    [imagemagick]=imagemagick [ffmpeg]=ffmpeg [sqlite3]=sqlite [unzip]=unzip
+    [zoxide]=zoxide [eza]=eza [lazygit]=lazygit [httpie]=httpie [pandoc]=pandoc
+)
+STATUS="$ROOTFS/var/lib/dpkg/status"
+declare -A brews=()
+if [[ -f "$STATUS" ]]; then
+    while IFS= read -r pkg; do
+        [[ -n "${MAP[$pkg]:-}" ]] && brews[${MAP[$pkg]}]=1
+    done < <(awk '/^Package: /{p=$2} /^Status: install ok installed/{print p}' "$STATUS")
+fi
+
+state_dir="$home/.config/wootc"; mkdir -p "$state_dir"
+BREWFILE="$state_dir/Brewfile"
+{
+    echo "# Generated by wootc-wsl-bridge from your WSL packages."
+    echo "# Rebuild your toolchain with:  brew bundle --file=~/.config/wootc/Brewfile"
+    for b in $(printf '%s\n' "${!brews[@]}" | sort); do
+        echo "brew \"$b\""
+    done
+} > "$BREWFILE"
+log "Brewfile: ${#brews[@]} formulae → $BREWFILE"
+
+# Optional immediate install (opt-in; migration should stay fast by default).
+if [[ "${WOOTC_WSL_BREW_INSTALL:-0}" == "1" ]] && command -v brew >/dev/null; then
+    log "running brew bundle…"
+    sudo -u "$target" brew bundle --file="$BREWFILE" 2>&1 | tail -5 || log "brew bundle had errors (non-fatal)"
+fi
+
+# ── State for the dashboard ──────────────────────────────────────────────────
+{
+    printf '{\n  "found": true,\n'
+    printf '  "dotfiles": %d,\n' "${#copied[@]}"
+    printf '  "brewFormulae": %d,\n' "${#brews[@]}"
+    printf '  "brewfile": "%s",\n' "$BREWFILE"
+    printf '  "note": "Dotfiles copied. Run brew bundle to reinstall your tools. SSH/GPG private keys stayed on Windows."\n}\n'
+} > "$state_dir/wsl-bridge.json"
+chown -R "$target:" "$state_dir" "$home/.ssh" 2>/dev/null || true
+for f in "${copied[@]}"; do chown "$target:" "$home/$f" 2>/dev/null || true; done
+log "done for $name -> $target"

@@ -621,6 +621,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # live; the destructive repartition path is guarded off until rung-3 proof.
     install -m755 /usr/lib/wootc/migration/wootc-go-native \
         "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
+    # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
+    install -m755 /usr/lib/wootc/migration/wootc-wsl-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after OS updates (variant-agnostic — BLS and classic layouts).
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \

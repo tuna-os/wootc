@@ -194,14 +194,14 @@ cmd_import() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --target) target="$2"; shift 2 ;;
-            files|apps|browsers|steam|office|look) cats+=("$1"); shift ;;
+            files|apps|browsers|steam|office|look|wsl) cats+=("$1"); shift ;;
             *) die "unknown import arg: $1" ;;
         esac
     done
     [[ -n "$target" ]] || die "no target Linux user (pass --target)"
     getent passwd "$target" >/dev/null || die "no such Linux user: $target"
     [[ -d "$mnt/Users/$winuser" ]] || die "no Windows profile $winuser under $mnt"
-    [[ ${#cats[@]} -gt 0 ]] || cats=(files apps browsers steam office look)
+    [[ ${#cats[@]} -gt 0 ]] || cats=(files apps browsers steam office look wsl)
 
     # Bind the external volume to /host so the existing bridge scripts (which
     # expect /host) work unchanged. Undone on eject.
@@ -218,6 +218,7 @@ cmd_import() {
             browsers) _run wootc-import-browser "$winuser" "$target" && ran+=(browsers) ;;
             steam)    _run wootc-steam-bridge && ran+=(steam) ;;
             office)   _run wootc-office-bridge "$winuser" "$target" && ran+=(office) ;;
+            wsl)      _run wootc-wsl-bridge "$winuser" "$target" && ran+=(wsl) ;;
             # An external/backup disk is removable, so COPY the profile media
             # folders (never bind-mount — the drive gets unplugged).
             files)    _import_files "$winuser" "$target" && ran+=(files) ;;

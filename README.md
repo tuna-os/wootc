@@ -1,5 +1,15 @@
 # wootc — Windows-hosted bootc Linux
 
+<p align="center">
+  <a href="https://tuna-os.github.io/wootc/e2e/latest/">
+    <img src="https://tuna-os.github.io/wootc/e2e/latest/preview.webp"
+         alt="wootc end-to-end walkthrough — Windows 11 → wootc deployer → native Linux → Windows 11"
+         width="760">
+  </a>
+  <br>
+  <em>▶ Latest end-to-end run (sped-up): Windows 11 → wootc deployer → native Linux from <code>root.disk</code> → Windows 11. <a href="https://tuna-os.github.io/wootc/e2e/latest/">Click to play the timelapse.</a></em>
+</p>
+
 ## North Star
 
 Make it as easy as possible for **non-technical Windows users** to migrate
