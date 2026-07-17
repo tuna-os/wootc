@@ -723,6 +723,7 @@ info "Watching for fisherman deployment markers..."
 TIMEOUT=2700
 ELAPSED=0
 DEPLOY_COMPLETE=false
+DEPLOYER_REBOOT_SEEN=false
 PTY="$STORAGE_DIR/qemu.pty"
 
 # Wait for Dockur's serial capture to appear and create the first local
@@ -756,6 +757,10 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
             DEPLOY_COMPLETE=true
             pass "wootc: deployment verification complete (persistent log)"
             break
+        elif [ "$DEPLOYER_REBOOT_SEEN" = true ]; then
+            DEPLOY_COMPLETE=true
+            pass "wootc: deployer rebooted and Windows QGA returned"
+            break
         fi
     fi
 
@@ -785,6 +790,10 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
             pass "wootc: deployment verification complete"
             LAST_BYTE=$CURRENT_BYTE
             break
+        fi
+        if echo "$NEW_OUTPUT" | grep -qE '(^|[^[:alpha:]])Rebooting\.?'; then
+            DEPLOYER_REBOOT_SEEN=true
+            info "wootc: deployer requested reboot"
         fi
         if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
             fail "Deployer error:"
