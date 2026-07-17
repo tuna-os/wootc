@@ -514,7 +514,16 @@ if [[ ( "$QEMU_CMD" != *"-accel=kvm"* && "$QEMU_CMD" != *"accel=kvm"* ) || "$QEM
     capture_vm_diagnostics
     exit 1
 fi
-QEMU_RAM_MB=$(awk '{ for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+M$/) { sub(/M$/, "", $(i + 1)); print $(i + 1); exit } }' <<<"$QEMU_CMD")
+QEMU_RAM_MB=$(awk '{
+    for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+[MG]$/) {
+        value = $(i + 1)
+        unit = substr(value, length(value), 1)
+        sub(/[MG]$/, "", value)
+        if (unit == "G") value *= 1024
+        print value
+        exit
+    }
+}' <<<"$QEMU_CMD")
 if [ -z "$QEMU_RAM_MB" ] || [ "$QEMU_RAM_MB" -lt 4096 ]; then
     fail "QEMU has ${QEMU_RAM_MB:-unknown} MB RAM; Windows 11 setup requires at least 4096 MB"
     info "Free host memory or adjust WOOTC_E2E_RAM_SIZE after confirming runner capacity"
