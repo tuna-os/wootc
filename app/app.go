@@ -231,6 +231,13 @@ func (a *App) Uninstall() error {
 // ── Internal install pipeline ─────────────────────────────────────────────────
 
 func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
+	return runPipeline(ctx, cfg, a.emit)
+}
+
+// runPipeline executes the install steps, reporting progress through emit.
+// It is shared between the GUI (Wails events) and headless mode (stdout),
+// so E2E can exercise the exact production pipeline without a display.
+func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
 	steps := []struct {
 		name    string
 		percent float64
@@ -242,7 +249,7 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 		{"Creating root.vhdx", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
 		{"Downloading deployer", 50, func() error {
 			return downloadDeployer(ctx, func(p float64) {
-				a.emit(ProgressEvent{
+				emit(ProgressEvent{
 					Step:    "Downloading deployer",
 					Message: fmt.Sprintf("Downloading deployer kernel + initramfs… %.0f%%", p*35),
 					Percent: 15 + p*35,
@@ -266,11 +273,13 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 			return ctx.Err()
 		default:
 		}
-		a.emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
+		emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
 		if err := s.fn(); err != nil {
+			writeState(StateFailed, s.name, err.Error())
 			return fmt.Errorf("%s: %w", s.name, err)
 		}
 	}
+	writeState(StateArmed, "", "")
 	return nil
 }
 

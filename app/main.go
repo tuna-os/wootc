@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -13,6 +14,12 @@ import (
 var assets embed.FS
 
 func main() {
+	// Headless subcommands (install/status/uninstall) run the production
+	// pipeline without a webview — used by E2E and unattended installs.
+	if isHeadlessInvocation(os.Args) {
+		os.Exit(runHeadless(os.Args))
+	}
+
 	app := NewApp()
 
 	err := wails.Run(&options.App{

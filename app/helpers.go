@@ -14,6 +14,10 @@ func marshalJSON(v any) ([]byte, error) {
 	return json.MarshalIndent(v, "", "  ")
 }
 
+func unmarshalJSON(data []byte, v any) error {
+	return json.Unmarshal(data, v)
+}
+
 func marshalJSONToFile(path string, v any) error {
 	data, err := marshalJSON(v)
 	if err != nil {
