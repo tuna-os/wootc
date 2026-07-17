@@ -587,7 +587,7 @@ if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
     qga_call exec /bin/sh -c 'rm -f /sys/firmware/efi/efivars/BootNext-*' || \
         info "Could not clear UEFI BootNext from the deployer; continuing with reboot"
     info "Rebooting prior deployer to Windows before retry"
-    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
+    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
 fi
 qga_wait_windows 2700
 qga_call info || true
@@ -804,7 +804,7 @@ fi
 
 # ── Step 10: Verify the one-shot entry returns to Windows ───────────────────
 step "Rebooting Phase 2 Linux and verifying return to Windows..."
-$DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
+$DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
 qga_wait "Windows return after Phase 2 Linux" 600
 pass "One-shot Phase 2 boot consumed; Windows returned successfully"
 
