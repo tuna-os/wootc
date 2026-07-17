@@ -552,8 +552,14 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 # and ostree=; the loop-attach hook makes that UUID appear).
                 ROOT_OPTIONS=$(grep '^options ' "$DEPLOY_ROOT"/boot/loader/entries/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
                 # BLS $kernelopts-style variables never resolve in our
-                # grub.cfg; drop tokens containing '$'.
-                ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | tr '\n' ' ')
+                # grub.cfg; drop tokens containing '$'. Also drop quiet/rhgb —
+                # a silent early-boot panic (all 4 vCPUs parked in
+                # stop_this_cpu() at an identical RIP, confirmed via QEMU
+                # monitor `info registers` across CPUs) showed zero output on
+                # serial OR framebuffer, meaning the panic happens before any
+                # console driver registers. earlycon+ignore_loglevel force the
+                # UART console up immediately so the actual panic prints.
+                ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ')
 
                 # The target grub's embedded prefix is /EFI/<vendor>; it reads
                 # $prefix/grub.cfg. Write the Phase-2 menu there.
@@ -564,7 +570,7 @@ set default=0
 set timeout=5
 
 menuentry "wootc Linux" {
-    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200
+    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 earlycon=uart8250,io,0x3f8,115200n8 ignore_loglevel
     initrd /EFI/wootc/phase2-initramfs.img
 }
 GRUBEOF
