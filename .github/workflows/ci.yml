@@ -56,9 +56,10 @@ jobs:
 
       - name: Extract artifacts
         run: |
-          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/initramfs.img > deployer-initramfs.img
-          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/vmlinuz > deployer-vmlinuz
-          ls -lah deployer-initramfs.img deployer-vmlinuz
+          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/deployer-initramfs.img > deployer-initramfs.img
+          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/deployer-vmlinuz > deployer-vmlinuz
+          podman run --rm --entrypoint /bin/cat localhost/wootc-deployer /out/systemd-bootx64.efi > systemd-bootx64.efi
+          ls -lah deployer-initramfs.img deployer-vmlinuz systemd-bootx64.efi
 
       - name: Upload deployer artifacts
         uses: actions/upload-artifact@v4
@@ -67,6 +68,7 @@ jobs:
           path: |
             deployer-initramfs.img
             deployer-vmlinuz
+            systemd-bootx64.efi
           retention-days: 7
 
   build-app:
@@ -135,3 +137,68 @@ jobs:
           }
           EOF
           /tmp/fisherman validate /tmp/test-recipe.json
+
+  gui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/gui/package-lock.json
+
+      - name: Install browser test dependencies
+        working-directory: tests/gui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run GUI walkthrough suite
+        working-directory: tests/gui
+        run: npm test
+
+      - name: Upload GUI screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-walkthrough-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            docs/screenshots/*.png
+            tests/gui/playwright-report/
+            tests/gui/test-results/
+          retention-days: 14
+
+  gui-cdp-windows:
+    if: ${{ vars.WOOTC_CDP_ENABLED == 'true' }}
+    runs-on: [self-hosted, Windows]
+    env:
+      WOOTC_CDP_URL: ${{ vars.WOOTC_CDP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/gui/package-lock.json
+
+      - name: Run real wootc.exe CDP suite
+        working-directory: tests/gui
+        shell: powershell
+        run: |
+          npm ci
+          npx playwright test cdp.spec.js
+
+      - name: Upload CDP evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-cdp-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            tests/gui/playwright-report/
+            tests/gui/test-results/
+          retention-days: 14
