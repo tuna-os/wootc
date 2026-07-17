@@ -16,12 +16,13 @@ import (
 
 func getSystemInfo() SystemInfo {
 	return SystemInfo{
-		OSVersion:    fmt.Sprintf("dev/%s (not Windows)", runtime.GOOS),
-		FreeDiskGB:   240,
-		TotalDiskGB:  512,
-		BitLockerOn:  false,
-		IsUEFI:       true,
-		SecureBootOn: false,
+		OSVersion:      fmt.Sprintf("dev/%s (not Windows)", runtime.GOOS),
+		FreeDiskGB:     240,
+		TotalDiskGB:    512,
+		BitLockerOn:    false,
+		BitLockerState: "off",
+		IsUEFI:         true,
+		SecureBootOn:   false,
 	}
 }
 
@@ -68,11 +69,20 @@ func writeVault(cfg InstallConfig) error {
 }
 
 func collectLook() error                  { return nil }
-func uninstall(ctx context.Context) error { return nil }
+func uninstall(ctx context.Context) error                 { return nil }
+func uninstallWith(ctx context.Context, o UninstallOptions) error { return nil }
+func getUninstallInfo() UninstallInfo                      { return UninstallInfo{Found: false} }
 func rebootWindows() error                { return fmt.Errorf("reboot not available on %s", runtime.GOOS) }
 
 // wootcDir returns the wootc data directory.
 // On non-Windows this points to /tmp/wootc for dev/testing.
 func wootcDir() string { return "/tmp/wootc" }
+
+func setStorageDrive(string) {} // no-op in dev mode
+
+// CreateDataPartition is Windows-only; the dev stub errors clearly.
+func (a *App) CreateDataPartition(sizeGB int) (DataPartition, error) {
+	return DataPartition{}, fmt.Errorf("creating a data partition is only available on Windows")
+}
 
 func restrictFileACL(path string) error { return nil } // no-op on Linux

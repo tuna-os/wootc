@@ -33,6 +33,11 @@ type InstallConfig struct {
 	Password   string `json:"password"`
 	Hostname   string `json:"hostname"`
 	Bootloader string `json:"bootloader"` // "grub2" | "systemd-boot"
+	// StorageDrive is the drive letter (no colon) where root.disk + vault
+	// live. Empty means C:. On a BitLocker-protected C:, the GUI sets this
+	// to an unencrypted data volume so the deployer can mount it read-write
+	// every boot without a decryption prompt (SPEC §3.5). C: stays encrypted.
+	StorageDrive string `json:"storageDrive"`
 }
 
 // ProgressEvent is emitted during install for the frontend progress bar.
@@ -58,9 +63,24 @@ type SystemInfo struct {
 	FreeDiskGB    float64 `json:"freeDiskGB"`
 	TotalDiskGB   float64 `json:"totalDiskGB"`
 	BitLockerOn   bool    `json:"bitLockerOn"`
-	FastStartupOn bool    `json:"fastStartupOn"`
-	IsUEFI        bool    `json:"isUefi"`
-	SecureBootOn  bool    `json:"secureBootOn"`
+	// BitLockerState is the detailed C: encryption state (SPEC §3.5):
+	// "off" | "on" | "encrypting" | "decrypting". "encrypting" is a hard
+	// block; "on" offers the data-partition path.
+	BitLockerState string  `json:"bitLockerState"`
+	FastStartupOn  bool    `json:"fastStartupOn"`
+	IsUEFI         bool    `json:"isUefi"`
+	SecureBootOn   bool    `json:"secureBootOn"`
+	// DataPartitions lists unencrypted fixed volumes (other than C:) that
+	// could hold root.disk when C: is BitLocker-protected.
+	DataPartitions []DataPartition `json:"dataPartitions"`
+}
+
+// DataPartition is a candidate unencrypted volume for root.disk.
+type DataPartition struct {
+	Letter   string  `json:"letter"`
+	Label    string  `json:"label"`
+	FreeGB   float64 `json:"freeGB"`
+	Encrypted bool   `json:"encrypted"`
 }
 
 // ── App struct ────────────────────────────────────────────────────────────────
@@ -304,6 +324,34 @@ func (a *App) Uninstall() error {
 	return uninstall(a.ctx)
 }
 
+// UninstallInfo describes an existing install so the uninstaller can offer
+// the right options (SPEC §5): where root.disk lives and whether that
+// volume was created by wootc (and is therefore safe to remove entirely).
+type UninstallInfo struct {
+	Found          bool    `json:"found"`
+	StorageDrive   string  `json:"storageDrive"`   // where root.disk lives
+	DiskPath       string  `json:"diskPath"`       // full path to root.disk
+	DiskSizeGB     float64 `json:"diskSizeGB"`
+	OnDedicatedVol bool    `json:"onDedicatedVol"` // wootc-created data partition
+	ReclaimGB      float64 `json:"reclaimGB"`      // space freed if the volume is removed
+}
+
+// GetUninstallInfo inspects the machine for an existing wootc install.
+func (a *App) GetUninstallInfo() UninstallInfo {
+	return getUninstallInfo()
+}
+
+// UninstallOptions controls how much the uninstaller removes (SPEC §5).
+type UninstallOptions struct {
+	DeleteRootDisk  bool `json:"deleteRootDisk"`  // delete root.disk (loses Linux data)
+	RemovePartition bool `json:"removePartition"` // remove the wootc data partition, extend C:
+}
+
+// UninstallWith performs a configurable uninstall.
+func (a *App) UninstallWith(opts UninstallOptions) error {
+	return uninstallWith(a.ctx, opts)
+}
+
 // ── Internal install pipeline ─────────────────────────────────────────────────
 
 func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
@@ -314,6 +362,8 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 // It is shared between the GUI (Wails events) and headless mode (stdout),
 // so E2E can exercise the exact production pipeline without a display.
 func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
+	// Direct root.disk + vault to the chosen (possibly unencrypted) volume.
+	setStorageDrive(cfg.StorageDrive)
 	steps := []struct {
 		name    string
 		percent float64

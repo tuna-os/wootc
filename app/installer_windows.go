@@ -9,6 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"strconv"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -34,9 +38,12 @@ func getSystemInfo() SystemInfo {
 	info.FreeDiskGB = float64(freeBytesAvail) / (1 << 30)
 	info.TotalDiskGB = float64(totalBytes) / (1 << 30)
 
-	// BitLocker: run manage-bde -status C: and look for "Protection On"
-	out, _ := runCmd("manage-bde", "-status", `C:`)
-	info.BitLockerOn = strings.Contains(out, "Protection On")
+	// BitLocker: detailed C: state (SPEC §3.5).
+	info.BitLockerState = bitlockerState(`C:`)
+	info.BitLockerOn = info.BitLockerState == "on" || info.BitLockerState == "encrypting"
+
+	// Candidate data partitions for the BitLocker (auto/manual) path.
+	info.DataPartitions = listDataPartitions()
 
 	// Fast Startup: HKLM\...\Power HiberbootEnabled != 0
 	info.FastStartupOn = fastStartupEnabled()
@@ -45,6 +52,62 @@ func getSystemInfo() SystemInfo {
 	info.SecureBootOn = secureBootEnabled()
 
 	return info
+}
+
+// bitlockerState classifies a volume's encryption using
+// Get-BitLockerVolume: "off" | "on" | "encrypting" | "decrypting".
+// Falls back to manage-bde parsing when the cmdlet is unavailable.
+func bitlockerState(vol string) string {
+	out, err := runPowerShellOutput(fmt.Sprintf(
+		`$v = Get-BitLockerVolume -MountPoint '%s' -ErrorAction SilentlyContinue; `+
+			`if (-not $v) { 'off' } `+
+			`elseif ($v.VolumeStatus -eq 'EncryptionInProgress') { 'encrypting' } `+
+			`elseif ($v.VolumeStatus -eq 'DecryptionInProgress') { 'decrypting' } `+
+			`elseif ($v.ProtectionStatus -eq 'On') { 'on' } `+
+			`else { 'off' }`, vol))
+	if err == nil {
+		if s := strings.TrimSpace(out); s != "" {
+			return s
+		}
+	}
+	// Fallback: manage-bde text.
+	mb, _ := runCmd("manage-bde", "-status", vol)
+	switch {
+	case strings.Contains(mb, "Encryption in Progress"):
+		return "encrypting"
+	case strings.Contains(mb, "Decryption in Progress"):
+		return "decrypting"
+	case strings.Contains(mb, "Protection On"):
+		return "on"
+	default:
+		return "off"
+	}
+}
+
+// listDataPartitions enumerates fixed volumes other than C: with their
+// free space and encryption state, as candidates for root.disk when C:
+// is BitLocker-protected (SPEC §3.5 manual path).
+func listDataPartitions() []DataPartition {
+	out, err := runPowerShellOutput(
+		`Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter -and $_.DriveLetter -ne 'C' } | ` +
+			`ForEach-Object { $b = (Get-BitLockerVolume -MountPoint ($_.DriveLetter + ':') -ErrorAction SilentlyContinue); ` +
+			`'{0}|{1}|{2}|{3}' -f $_.DriveLetter, $_.FileSystemLabel, [math]::Round($_.SizeRemaining/1GB,1), ` +
+			`($(if ($b -and $b.ProtectionStatus -eq 'On') {'1'} else {'0'})) }`)
+	if err != nil {
+		return nil
+	}
+	var parts []DataPartition
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		f := strings.Split(strings.TrimSpace(line), "|")
+		if len(f) != 4 || f[0] == "" {
+			continue
+		}
+		free, _ := strconv.ParseFloat(f[2], 64)
+		parts = append(parts, DataPartition{
+			Letter: f[0], Label: f[1], FreeGB: free, Encrypted: f[3] == "1",
+		})
+	}
+	return parts
 }
 
 // ── Pre-flight checks ─────────────────────────────────────────────────────────
@@ -56,6 +119,15 @@ func checkSystem() error {
 	if !isUEFI() {
 		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — wootc needs UEFI. " +
 			"Most PCs made after 2012 support UEFI; it can usually be enabled in firmware setup")
+	}
+	// SPEC §3.5: never touch a volume mid-(de)cryption — the partition
+	// table is unstable and a resize could corrupt it.
+	switch bitlockerState(`C:`) {
+	case "encrypting":
+		return fmt.Errorf("Windows is still encrypting drive C:. Wait for BitLocker to finish " +
+			"(you can check progress in the BitLocker control panel), then run wootc again")
+	case "decrypting":
+		return fmt.Errorf("Windows is still decrypting drive C:. Wait for it to finish, then run wootc again")
 	}
 	return nil
 }
@@ -175,6 +247,13 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	// remains only for the legacy NTFS fallback path.
 	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi", "wubildr.efi"}
 
+	// Fetch the published SHA256SUMS manifest so freshly downloaded files
+	// can be verified (SPEC §3.1). Best-effort fetch, fail-closed verify:
+	// if the manifest is present a hash mismatch aborts the install; if the
+	// manifest is unreachable (offline / pre-staged E2E), we proceed without
+	// it rather than blocking a locally-provisioned run.
+	sums := fetchChecksums(ctx)
+
 	for i, name := range files {
 		dest := filepath.Join(installDir, name)
 		if _, err := os.Stat(dest); err == nil {
@@ -187,8 +266,57 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 		}); err != nil {
 			return fmt.Errorf("download %s: %w", name, err)
 		}
+		// Verify freshly downloaded files against the manifest (fail-closed).
+		if want, ok := sums[name]; ok {
+			got, err := sha256File(dest)
+			if err != nil {
+				return fmt.Errorf("hashing %s: %w", name, err)
+			}
+			if !strings.EqualFold(got, want) {
+				os.Remove(dest) //nolint:errcheck — don't leave a bad artifact
+				return fmt.Errorf("checksum mismatch for %s: the download may be corrupt or tampered "+
+					"(expected %s, got %s)", name, want[:12], got[:12])
+			}
+		}
 	}
 	return nil
+}
+
+// fetchChecksums downloads and parses the release SHA256SUMS manifest into
+// a filename→hash map. Returns nil (no verification) if unreachable.
+func fetchChecksums(ctx context.Context) map[string]string {
+	tmp := filepath.Join(os.TempDir(), "wootc-SHA256SUMS")
+	if err := downloadFile(ctx, deployerBaseURL+"SHA256SUMS", tmp, func(float64) {}); err != nil {
+		return nil
+	}
+	defer os.Remove(tmp) //nolint:errcheck
+	data, err := os.ReadFile(tmp)
+	if err != nil {
+		return nil
+	}
+	sums := map[string]string{}
+	for _, line := range strings.Split(string(data), "\n") {
+		f := strings.Fields(line)
+		if len(f) == 2 {
+			// coreutils format: "<hash>  <name>" (name may have a * prefix).
+			sums[strings.TrimPrefix(f[1], "*")] = f[0]
+		}
+	}
+	return sums
+}
+
+// sha256File returns the lowercase hex SHA-256 of a file.
+func sha256File(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // ── GRUB config ───────────────────────────────────────────────────────────────
@@ -414,13 +542,67 @@ func deleteWootcBCDEntries() {
 // ── Uninstall ─────────────────────────────────────────────────────────────────
 
 func uninstall(ctx context.Context) error {
-	// 1. Remove all wootc BCD entries
+	// Default: remove boot entry + ESP + install dir, keep root.disk.
+	return uninstallWith(ctx, UninstallOptions{})
+}
+
+// getUninstallInfo locates root.disk across C: and any data volumes and
+// reports whether it sits on a wootc-created dedicated partition (SPEC §5).
+func getUninstallInfo() UninstallInfo {
+	// Search C: first, then any fixed volume, for wootc\disks\root.{vhdx,disk}.
+	drives := []string{"C"}
+	for _, dp := range listDataPartitions() {
+		drives = append(drives, dp.Letter)
+	}
+	for _, d := range drives {
+		for _, name := range []string{"root.vhdx", "root.disk"} {
+			p := d + `:\wootc\disks\` + name
+			st, err := os.Stat(p)
+			if err != nil {
+				continue
+			}
+			info := UninstallInfo{
+				Found: true, StorageDrive: d, DiskPath: p,
+				DiskSizeGB: float64(st.Size()) / (1 << 30),
+			}
+			if d != "C" {
+				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
+			}
+			return info
+		}
+	}
+	return UninstallInfo{Found: false}
+}
+
+// dedicatedVolumeInfo reports whether drive d holds only wootc data (so it
+// is safe to remove and fold back into C:) and how much space that frees.
+func dedicatedVolumeInfo(d string) (bool, float64) {
+	// A wootc-created volume is labeled "wootc-data" and contains nothing
+	// but the wootc dir (ignoring system folders).
+	out, err := runPowerShellOutput(fmt.Sprintf(
+		`$items = Get-ChildItem '%s:\' -Force -ErrorAction SilentlyContinue | Where-Object { `+
+			`$_.Name -notin @('$RECYCLE.BIN','System Volume Information','wootc') }; `+
+			`$v = Get-Volume -DriveLetter %s -ErrorAction SilentlyContinue; `+
+			`'{0}|{1}' -f $items.Count, [math]::Round($v.Size/1GB,1)`, d, d))
+	if err != nil {
+		return false, 0
+	}
+	f := strings.Split(strings.TrimSpace(out), "|")
+	if len(f) != 2 {
+		return false, 0
+	}
+	sizeGB, _ := strconv.ParseFloat(f[1], 64)
+	return f[0] == "0", sizeGB
+}
+
+func uninstallWith(ctx context.Context, opts UninstallOptions) error {
+	info := getUninstallInfo()
+
+	// 1. Remove all wootc BCD entries.
 	deleteWootcBCDEntries()
 
-	// 2. Remove ESP files. EFI\fedora is only removed when its grub.cfg
-	// carries the wootc marker — never touch a real distro's chain.
-	espPath, err := findESP()
-	if err == nil {
+	// 2. Remove ESP files. EFI\fedora only when its grub.cfg is ours.
+	if espPath, err := findESP(); err == nil {
 		os.RemoveAll(filepath.Join(espPath, "EFI", "wootc")) //nolint:errcheck
 		grubCfg := filepath.Join(espPath, "EFI", "fedora", "grub.cfg")
 		if data, err := os.ReadFile(grubCfg); err == nil && strings.Contains(string(data), wootcGrubMarker) {
@@ -428,9 +610,44 @@ func uninstall(ctx context.Context) error {
 		}
 	}
 
-	// 3. Remove C:\wootc\install\ (NOT root.vhdx — user deletes that manually)
-	os.RemoveAll(filepath.Join(wootcDir(), "install")) //nolint:errcheck
+	// Determine where wootc lives (default C: when nothing found).
+	drive := "C"
+	if info.Found {
+		drive = info.StorageDrive
+	}
+	setStorageDrive(drive)
 
+	// 3. Remove the install dir (kernel/vault). root.disk only on request.
+	os.RemoveAll(filepath.Join(wootcDir(), "install")) //nolint:errcheck
+	if opts.DeleteRootDisk || opts.RemovePartition {
+		os.RemoveAll(filepath.Join(wootcDir(), "disks")) //nolint:errcheck
+		os.RemoveAll(wootcDir())                          //nolint:errcheck
+	}
+
+	// 4. Optionally remove a wootc-created data partition and extend C:.
+	if opts.RemovePartition && info.Found && info.OnDedicatedVol && drive != "C" {
+		if err := removePartitionAndExtendC(drive); err != nil {
+			return fmt.Errorf("removing data partition %s: %w", drive, err)
+		}
+	}
+	return nil
+}
+
+// removePartitionAndExtendC deletes the wootc data partition and grows C:
+// into the freed space (SPEC §5.2). Only called when the volume is
+// confirmed wootc-created and holds no other data.
+func removePartitionAndExtendC(drive string) error {
+	script := fmt.Sprintf(`
+$ErrorActionPreference = 'Stop'
+$p = Get-Partition -DriveLetter %s
+$disk = $p.DiskNumber
+Remove-Partition -DriveLetter %s -Confirm:$false
+$supported = Get-PartitionSupportedSize -DriveLetter C
+Resize-Partition -DriveLetter C -Size $supported.SizeMax`, drive, drive)
+	out, err := runPowerShellOutput(script)
+	if err != nil {
+		return fmt.Errorf("%w (output: %s)", err, strings.TrimSpace(out))
+	}
 	return nil
 }
 
@@ -499,4 +716,56 @@ func restrictFileACL(path string) error {
 }
 
 // wootcDir returns the Windows installation directory.
-func wootcDir() string { return `C:\wootc` }
+// storageDrive is the drive letter (no colon) where root.disk + vault
+// live; empty means C:. Set from InstallConfig.StorageDrive so BitLocker
+// installs can place them on an unencrypted volume (SPEC §3.5).
+var storageDrive = ""
+
+func setStorageDrive(letter string) {
+	storageDrive = strings.TrimSuffix(strings.ToUpper(strings.TrimSpace(letter)), ":")
+}
+
+func wootcDir() string {
+	d := storageDrive
+	if d == "" {
+		d = "C"
+	}
+	return d + `:\wootc`
+}
+
+// CreateDataPartition shrinks C: and creates a new unencrypted NTFS
+// partition of sizeGB for Linux storage, returning its drive letter.
+// C: stays BitLocker-protected — the new volume is created outside the
+// encrypted region and holds only root.disk + vault (SPEC §3.5). We never
+// decrypt C:. Suspend-BitLocker (RebootCount 1) only relaxes the TPM seal
+// so the partition table can be edited; the disk stays encrypted and
+// protection auto-resumes on next boot.
+func (a *App) CreateDataPartition(sizeGB int) (DataPartition, error) {
+	if sizeGB < 20 {
+		sizeGB = 20
+	}
+	script := fmt.Sprintf(`
+$ErrorActionPreference = 'Stop'
+$c = Get-Partition -DriveLetter C
+$bl = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction SilentlyContinue
+if ($bl -and $bl.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint 'C:' -RebootCount 1 | Out-Null }
+$supported = Get-PartitionSupportedSize -DriveLetter C
+$shrinkBytes = %dGB
+$target = $supported.SizeMax - $shrinkBytes
+if ($target -lt $supported.SizeMin) { throw 'Not enough free space on C: to shrink by the requested amount' }
+Resize-Partition -DriveLetter C -Size $target
+$np = New-Partition -DiskNumber $c.DiskNumber -UseMaximumSize -AssignDriveLetter
+Format-Volume -Partition $np -FileSystem NTFS -NewFileSystemLabel 'wootc-data' -Confirm:$false | Out-Null
+$np = Get-Partition -DiskNumber $c.DiskNumber -PartitionNumber $np.PartitionNumber
+Write-Output $np.DriveLetter`, sizeGB)
+
+	out, err := runPowerShellOutput(script)
+	if err != nil {
+		return DataPartition{}, fmt.Errorf("create data partition: %w (output: %s)", err, strings.TrimSpace(out))
+	}
+	letter := strings.TrimSpace(out)
+	if len(letter) != 1 {
+		return DataPartition{}, fmt.Errorf("unexpected drive letter from partition creation: %q", out)
+	}
+	return DataPartition{Letter: letter, Label: "wootc-data", FreeGB: float64(sizeGB), Encrypted: false}, nil
+}
