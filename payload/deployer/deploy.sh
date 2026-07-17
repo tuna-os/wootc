@@ -246,8 +246,18 @@ if [[ ! -s /etc/resolv.conf ]]; then
 fi
 log "resolv.conf: $(cat /etc/resolv.conf 2>/dev/null || echo '<missing>')"
 if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
-    err "cannot reach registry for ${IMAGE} (see skopeo error above)"
-    if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
+    # Dockur's guest DHCP normally supplies its internal DNS forwarder. Some
+    # rootless runners can route Internet traffic but that forwarder cannot
+    # reach an upstream resolver; retry directly before treating the registry
+    # as unavailable.
+    FALLBACK_DNS="${WOOTC_FALLBACK_DNS:-1.1.1.1}"
+    log "DHCP DNS failed; retrying registry pre-flight with ${FALLBACK_DNS}..."
+    printf 'nameserver %s\n' "$FALLBACK_DNS" > /etc/resolv.conf
+    log "resolv.conf fallback: $(cat /etc/resolv.conf)"
+    if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
+        err "cannot reach registry for ${IMAGE} (see skopeo error above)"
+        if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
+    fi
 fi
 
 # ── Attach dynamic VHDX through qemu-nbd ───────────────────────────────────
