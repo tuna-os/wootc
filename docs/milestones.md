@@ -14,10 +14,13 @@ holds only a hash, `state.json` = `armed`.
 **Harness:** `tests/e2e/phase1/run-phase1.sh` (~2 min against a kept VM,
 no deployer boot). Runs the real `wootc.exe` over QGA.
 
-**Status (2026-07-17):** the headless install pipeline runs green
-end-to-end on a virgin Windows VM (dilli). First real run caught and
-fixed a genuine product bug (sha512-crypt salt magic prefix). Full
-assertion sweep is the remaining checkbox.
+**Status (2026-07-17): GREEN — 24/24 assertions pass on dilli** (virgin
+Windows VM, real wootc.exe over QGA). The suite earned its keep
+immediately: it caught the sha512-crypt salt-prefix bug and non-idempotent
+BCD arming (retried installs piled up firmware entries — now swept).
+Known WARN, deliberate: the User Data Bridge matches Linux username to
+Windows profile by exact name; the dashboard should grow profile
+*mapping* (tracked for rung 3).
 
 ## Rung 2 — Phase 1 → Phase 2: armed system boots into Linux
 
