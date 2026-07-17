@@ -285,6 +285,16 @@ if [[ -n "$VAULT_PATH" ]]; then
     fi
 fi
 
+# ╔═══════════════════════════════════════════════════════════════════════════
+# ║ PROVISIONER: bootc/fisherman — begins here.
+# ║ Everything above this line is generic orchestration (disk discovery, NTFS,
+# ║ telemetry, scratch, credential vault, block-device attach) and must stay
+# ║ free of bootc/ostree concepts. Everything from here to the matching END
+# ║ banner turns the attached block device into a bootable root and would be
+# ║ replaced wholesale when adapting wootc to another deployment method.
+# ║ Contract: docs/architecture-boundary.md.
+# ╚═══════════════════════════════════════════════════════════════════════════
+
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
 # Flatpaks, and kernel cmdline injection. We just point it at the loop device.
@@ -450,7 +460,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] dracut 99wootc-boot module NOT found"
     fi
 
-    # ── User Data Bridge (native passthrough) ─────────────────────────────
+    # ── [generic] User Data Bridge (native passthrough) ──────────────────
+    # Distro-agnostic: installs units/scripts into the target root. Only
+    # its *placement inside* the verification mount is provisioner-hosted.
     # fisherman does not install these — inject them the same way as the
     # 99wootc-boot dracut module, and enable them via local-fs.target.wants
     # symlinks (systemctl --root needs D-Bus/policy that isn't available
@@ -499,7 +511,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         exit 1
     fi
 
-    # ── ESP kernel-sync for Phase-2 Secure Boot boot ──────────────────────
+    # ── [mixed] ESP kernel-sync for Phase-2 Secure Boot boot ─────────────
+    # The *mechanics* (mount ESP, copy kernel pair, write grub.cfg) are
+    # generic; the *sources* are provisioner-owned: ostree kernel globs,
+    # BLS cmdline extraction, and the bootupd-shipped signed shim+grub.
+    # A non-bootc provisioner would return these three via the contract in
+    # docs/architecture-boundary.md and this block would keep its shape.
+    #
     # The signed GRUB cannot read NTFS (unsigned ntfs.mod rejected under
     # Secure Boot), so the installed kernel and initramfs must live on the
     # FAT32 ESP. Copy them there and write a Phase-2 grub.cfg with the
@@ -620,6 +638,10 @@ fi
 
 qemu-nbd --disconnect "$VERIFY_LOOP"
 VERIFY_LOOP=""
+
+# ╔═══════════════════════════════════════════════════════════════════════════
+# ║ PROVISIONER: bootc/fisherman — ENDS here. Generic teardown follows.
+# ╚═══════════════════════════════════════════════════════════════════════════
 
 # Tear down the scratch store and leave the NTFS volume clean before the
 # forced reboot (reboot -f syncs but does not unmount; a still-mounted rw
