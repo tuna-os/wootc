@@ -591,14 +591,27 @@ mkdir -p storage wootc-files
 # after a crashed run — netavark then refuses every bridge start until the
 # stale state is cleared. Detect that specific failure and auto-heal once so
 # the runner needs no manual host babysitting.
-# Free the host ports the compose file maps, in case a crashed run left a
-# rootlessport (or another container) holding one. A stale RDP/noVNC/VNC/ssh
-# binding otherwise fails the start with "address already in use".
-free_stale_ports() {
-    local p
-    for p in "${WOOTC_E2E_NOVNC_PORT:-8006}" "${WOOTC_E2E_RDP_PORT:-3389}" \
-             "${WOOTC_E2E_VNC_PORT:-5900}" "${WOOTC_E2E_SSH_PORT:-2222}"; do
-        fuser -k "${p}/tcp" 2>/dev/null || true
+# Avoid host-port clashes without killing anything. The compose file maps
+# noVNC/RDP/VNC/ssh purely for debug convenience (QGA is the real control
+# plane), so if a default port is already taken — e.g. gnome-remote-desktop
+# owns 3389, or a monitoring stack owns a port — pick a free alternative and
+# export the override the compose file reads. We never kill the holder: it may
+# be a legitimate service (the operator's own remote desktop).
+port_free() { ! { exec 3<>"/dev/tcp/127.0.0.1/$1"; } 2>/dev/null || { exec 3>&- 3<&-; return 1; }; }
+pick_free_ports() {
+    local var base p
+    for pair in "WOOTC_E2E_NOVNC_PORT:8006" "WOOTC_E2E_RDP_PORT:3389" \
+                "WOOTC_E2E_VNC_PORT:5900" "WOOTC_E2E_SSH_PORT:2222"; do
+        var="${pair%%:*}"; base="${pair##*:}"
+        p="${!var:-$base}"
+        if ! port_free "$p"; then
+            local alt
+            for alt in $(seq $((base + 10000)) $((base + 10050))); do
+                port_free "$alt" && { p="$alt"; break; }
+            done
+            warn "host port $base is in use — mapping $var=$p instead"
+        fi
+        export "$var=$p"
     done
 }
 
@@ -613,7 +626,7 @@ rebuild_ssh_image_if_missing() {
 }
 
 compose_up_windows() {
-    free_stale_ports
+    pick_free_ports
     $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
     local out
     if out=$($COMPOSE -f compose.yml up -d windows 2>&1); then
@@ -635,10 +648,11 @@ compose_up_windows() {
     if printf '%s' "$out" | grep -qiE "pinging container registry localhost|no such image|manifest unknown"; then
         rebuild_ssh_image_if_missing && { $COMPOSE -f compose.yml up -d windows; return $?; }
     fi
-    # (3) a stale port binding slipped through — free them and retry once.
+    # (3) a port clashed after our pre-check (race) — re-pick and retry once.
     if printf '%s' "$out" | grep -qi "address already in use"; then
-        warn "stale port binding — freeing mapped ports and retrying"
-        free_stale_ports; pkill -9 -f rootlessport 2>/dev/null || true; sleep 1
+        warn "host port clash — re-selecting free ports and retrying"
+        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
+        pick_free_ports
         $COMPOSE -f compose.yml up -d windows
         return $?
     fi
