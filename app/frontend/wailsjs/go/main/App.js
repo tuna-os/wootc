@@ -11,6 +11,10 @@ export function GetSystemInfo() {
   return window['go']['main']['App']['GetSystemInfo']();
 }
 
+export function GetBranding() {
+  return window['go']['main']['App']['GetBranding']();
+}
+
 export function StartInstall(arg1) {
   return window['go']['main']['App']['StartInstall'](arg1);
 }
@@ -49,4 +53,12 @@ export function ConvertCategory(arg1) {
 
 export function ImportBrowserData() {
   return window['go']['main']['App']['ImportBrowserData']();
+}
+
+export function GetAppMigrations() {
+  return window['go']['main']['App']['GetAppMigrations']();
+}
+
+export function GetOfficeMigration() {
+  return window['go']['main']['App']['GetOfficeMigration']();
 }

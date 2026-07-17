@@ -228,9 +228,9 @@ html, body {
 }
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-text, #fff);
 }
-.btn-primary:hover { background: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow); }
+.btn-primary:hover { filter: brightness(1.12); box-shadow: 0 0 0 3px var(--accent-glow); }
 .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-ghost {
   background: transparent;

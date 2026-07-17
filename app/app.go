@@ -156,6 +156,69 @@ func (a *App) GetSystemInfo() SystemInfo {
 	return getSystemInfo()
 }
 
+// ── Branding ──────────────────────────────────────────────────────────────────
+
+// Branding lets partners ship a re-skinned migrator: product name,
+// tagline, logo emoji, and a color palette applied as CSS variables at
+// runtime. The frontend calls GetBranding() on startup.
+type Branding struct {
+	Name       string `json:"name"`
+	Tagline    string `json:"tagline"`
+	LogoEmoji  string `json:"logoEmoji"`
+	Version    string `json:"version"`
+	Accent     string `json:"accent"`     // primary action / highlight
+	AccentText string `json:"accentText"` // text on accent (contrast)
+	Background string `json:"background"`
+	Card       string `json:"card"`
+	Text       string `json:"text"`
+	// InstallVerb personalizes CTA copy ("Install", "Migrate", "Switch").
+	InstallVerb string `json:"installVerb"`
+}
+
+func defaultBranding() Branding {
+	return Branding{
+		Name: "wootc", Tagline: "Bring Windows to Linux — keep everything.",
+		LogoEmoji: "🐠", Version: "0.1.0",
+		Accent: "#5b6ee1", AccentText: "#ffffff",
+		Background: "#0a0a0f", Card: "#13131e", Text: "#e8e8f0",
+		InstallVerb: "Install",
+	}
+}
+
+// GetBranding returns the effective branding: the built-in default,
+// overlaid by C:\wootc\brand.json when present (enterprise / partner
+// re-skin). Unknown or empty fields fall back to the default.
+func (a *App) GetBranding() Branding {
+	b := defaultBranding()
+	custom := filepath.Join(wootcDir(), "brand.json")
+	if data, err := os.ReadFile(custom); err == nil {
+		var over Branding
+		if json.Unmarshal(data, &over) == nil {
+			mergeBranding(&b, over)
+		}
+	}
+	return b
+}
+
+// mergeBranding overlays non-empty fields of over onto base.
+func mergeBranding(base *Branding, over Branding) {
+	set := func(dst *string, v string) {
+		if v != "" {
+			*dst = v
+		}
+	}
+	set(&base.Name, over.Name)
+	set(&base.Tagline, over.Tagline)
+	set(&base.LogoEmoji, over.LogoEmoji)
+	set(&base.Version, over.Version)
+	set(&base.Accent, over.Accent)
+	set(&base.AccentText, over.AccentText)
+	set(&base.Background, over.Background)
+	set(&base.Card, over.Card)
+	set(&base.Text, over.Text)
+	set(&base.InstallVerb, over.InstallVerb)
+}
+
 // ── Install ───────────────────────────────────────────────────────────────────
 
 // StartInstall begins the install pipeline in a goroutine. Progress events

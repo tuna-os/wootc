@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -9,7 +9,10 @@ const state = {
   mode: 'installer',   // installer (Windows) | migration (installed Linux)
   images: [],
   sysinfo: null,
+  brand: null,         // partner/enterprise branding (themeable)
   categories: [],      // migration dashboard rows
+  apps: [],            // detected app migrations
+  office: null,        // MS Office → LibreOffice summary
   converting: {},      // category id → percent while a conversion runs
   selected: null,      // selected Image
   config: {
@@ -44,7 +47,20 @@ const INSTALL_STEPS = [
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+// Apply partner/enterprise branding as CSS variables + document title.
+function applyBranding(b) {
+  state.brand = b;
+  const r = document.documentElement.style;
+  if (b.accent)     { r.setProperty('--accent', b.accent); r.setProperty('--border-focus', b.accent); }
+  if (b.accentText)   r.setProperty('--accent-text', b.accentText);
+  if (b.background)   r.setProperty('--bg', b.background);
+  if (b.card)         r.setProperty('--bg-card', b.card);
+  if (b.text)         r.setProperty('--text', b.text);
+  document.title = `${b.name} — ${b.tagline}`;
+}
+
 async function init() {
+  try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'wootc', tagline: '', logoEmoji: '🐠', version: '0.1.0', installVerb: 'Install' }); }
   // Listen for progress events from Go backend
   EventsOn('install:progress', (e) => {
     state.progress.step = e.step;
@@ -113,7 +129,14 @@ async function init() {
 
 async function refreshCategories() {
   try {
-    state.categories = (await GetMigrationCategories()) || [];
+    const [cats, apps, office] = await Promise.all([
+      GetMigrationCategories(),
+      GetAppMigrations().catch(() => []),
+      GetOfficeMigration().catch(() => null),
+    ]);
+    state.categories = cats || [];
+    state.apps = apps || [];
+    state.office = office && office.present ? office : null;
   } catch (e) {
     console.error(e);
     state.categories = [];
@@ -150,14 +173,19 @@ function render() {
 // ── Title bar ─────────────────────────────────────────────────────────────────
 
 function renderTitleBar() {
+  const b = state.brand || { logoEmoji: '🐠', name: 'wootc', version: '0.1.0' };
   const bar = el('div', 'titlebar');
   bar.innerHTML = `
-    <span class="titlebar-logo">🐠</span>
-    <span class="titlebar-name">wootc</span>
-    <span class="titlebar-version">0.1.0</span>
+    <span class="titlebar-logo">${b.logoEmoji || '🐠'}</span>
+    <span class="titlebar-name">${b.name || 'wootc'}</span>
+    <span class="titlebar-version">${b.version || ''}</span>
     <span class="titlebar-step">${stepLabel()}</span>
   `;
   return bar;
+}
+
+function installVerb() {
+  return state.brand?.installVerb || 'Install';
 }
 
 function stepLabel() {
@@ -179,8 +207,8 @@ function renderLaunchpad() {
   // Header
   const hdr = el('div');
   hdr.innerHTML = `
-    <div class="screen-title">Install TunaOS</div>
-    <div class="screen-subtitle">Choose a variant, set your disk size and credentials, then click Install.</div>
+    <div class="screen-title">${installVerb()} TunaOS</div>
+    <div class="screen-subtitle">${state.brand?.tagline || 'Choose a variant, set your disk size and credentials, then click Install.'}</div>
   `;
   screen.appendChild(hdr);
 
@@ -257,18 +285,25 @@ function renderLaunchpad() {
 
   // Password
   const row2 = el('div', 'field-row');
-  row2.appendChild(inputField('Password', 'password', state.config.password, v => state.config.password = v, ''));
-  row2.appendChild(inputField('Confirm Password', 'password', '', () => {}, ''));
+  row2.appendChild(inputField('Password', 'password', state.config.password, v => { state.config.password = v; refreshInstallValidity(); }, ''));
+  row2.appendChild(inputField('Confirm Password', 'password', state.config.passwordConfirm || '', v => { state.config.passwordConfirm = v; refreshInstallValidity(); }, ''));
   fields.appendChild(row2);
+
+  const hint = el('div');
+  hint.id = 'install-hint';
+  hint.style.cssText = 'font-size:11.5px;color:var(--text-muted);min-height:15px;margin-top:2px';
+  fields.appendChild(hint);
 
   screen.appendChild(fields);
 
   // Footer
   const footer = el('div', 'footer');
-  const installBtn = btn('Install →', 'btn btn-primary', () => startInstall());
-  installBtn.disabled = !state.selected;
+  const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
+  installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => window.wails?.Quit?.()));
   footer.appendChild(installBtn);
+  // Defer validity to after mount so the hint element exists.
+  setTimeout(refreshInstallValidity, 0);
 
   const wrap = el('div');
   wrap.style.display = 'flex';
@@ -441,12 +476,44 @@ function renderMigrateScreen() {
   reassure.innerHTML = `<span>🛡️</span><span>Moving something to Linux never deletes it from Windows. Until you choose to remove Windows entirely, your files exist safely in both places.</span>`;
   screen.appendChild(reassure);
 
+  const scroll = el('div');
+  scroll.style.cssText = 'overflow-y:auto;display:flex;flex-direction:column;gap:16px;margin-top:10px';
+
+  const filesSection = el('div');
+  filesSection.appendChild(sectionLabel('Your files & games'));
   const list = el('div');
   list.id = 'migrate-rows';
-  list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:10px;overflow-y:auto';
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px';
   list.appendChild(renderMigrateRowsInner());
-  screen.appendChild(list);
+  filesSection.appendChild(list);
+  scroll.appendChild(filesSection);
 
+  if (state.apps.length) {
+    const appsSection = el('div');
+    appsSection.appendChild(sectionLabel('Your apps'));
+    const al = el('div');
+    al.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    state.apps.forEach(a => al.appendChild(renderAppRow(a)));
+    appsSection.appendChild(al);
+    scroll.appendChild(appsSection);
+  }
+
+  if (state.office) {
+    const off = el('div');
+    off.appendChild(sectionLabel('Microsoft Office → LibreOffice'));
+    const card = el('div');
+    card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px';
+    const moved = (state.office.migrated || []).map(m => ({
+      'custom-dictionary': 'custom dictionary', templates: 'templates', fonts: 'fonts',
+      autocorrect: 'AutoCorrect list', 'office-format-defaults': 'save-as-Office default',
+    }[m] || m));
+    card.innerHTML = `<div style="font-size:12.5px;color:var(--text-dim)">${state.office.note || ''}</div>` +
+      (moved.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${moved.map(m => `<span class="chip ok">✓ ${m}</span>`).join('')}</div>` : '');
+    off.appendChild(card);
+    scroll.appendChild(off);
+  }
+
+  screen.appendChild(scroll);
   wrap.appendChild(screen);
 
   const footer = el('div', 'footer');
@@ -494,6 +561,41 @@ function renderMigrateRows() {
   if (!list) return;
   list.innerHTML = '';
   list.appendChild(renderMigrateRowsInner());
+}
+
+function sectionLabel(text) {
+  const l = el('div');
+  l.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px';
+  l.textContent = text;
+  return l;
+}
+
+const APP_ICONS = {
+  firefox: '🦊', chrome: '🌐', edge: '🌐', vscode: '💻', discord: '💬',
+  spotify: '🎧', slack: '💬', steam: '🎮', obs: '🎥', telegram: '✈️',
+  signal: '🔒', whatsapp: '💬', thunderbird: '📧', zoom: '🎦',
+};
+
+// The honest outcome badge, driven by the backend's session verdict.
+const SESSION_BADGE = {
+  portable: { label: '✓ Signed in', cls: 'ok' },
+  signin:   { label: 'Sign in once', cls: '' },
+  none:     { label: 'Re-link needed', cls: '' },
+};
+
+function renderAppRow(a) {
+  const row = el('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:10px 16px';
+  const badge = SESSION_BADGE[a.session] || SESSION_BADGE.signin;
+  row.innerHTML = `
+    <span style="font-size:18px">${APP_ICONS[a.app] || '📦'}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13px;text-transform:capitalize">${a.app}</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:1px">${a.note || ''}</div>
+    </div>
+    <span class="chip ${badge.cls}" style="flex-shrink:0">${badge.label}</span>
+  `;
+  return row;
 }
 
 function migrateAction(c) {
@@ -579,6 +681,25 @@ function confirmUninstall() {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
+
+// Gate the Install button on a valid form and show the reason why not.
+function refreshInstallValidity() {
+  const btn = document.getElementById('install-btn');
+  const hint = document.getElementById('install-hint');
+  if (!btn) return;
+  const c = state.config;
+  let reason = '';
+  if (!state.selected) reason = 'Choose a variant above.';
+  else if (!c.username.trim()) reason = 'Enter a Linux username.';
+  else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
+  else if (!c.password) reason = 'Set a password.';
+  else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
+  btn.disabled = reason !== '';
+  if (hint) {
+    hint.textContent = reason;
+    hint.style.color = reason ? 'var(--danger)' : 'var(--text-muted)';
+  }
+}
 
 async function startInstall() {
   if (!state.selected) return;

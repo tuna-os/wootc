@@ -51,3 +51,32 @@ func (a *App) ConvertCategory(id string) error {
 func (a *App) ImportBrowserData() (string, error) {
 	return importBrowserData()
 }
+
+// AppMigration is one detected Windows application and the honest outcome
+// of migrating it (docs/session-migration.md).
+type AppMigration struct {
+	App     string `json:"app"`
+	Flatpak string `json:"flatpak"`
+	Session string `json:"session"` // portable | signin | none
+	Copied  bool   `json:"copied"`
+	Note    string `json:"note"`
+}
+
+// GetAppMigrations returns the per-app migration outcomes recorded by
+// wootc-detect-apps (bridge-apps.json).
+func (a *App) GetAppMigrations() ([]AppMigration, error) {
+	return appMigrations()
+}
+
+// OfficeMigration summarizes what moved from MS Office to LibreOffice.
+type OfficeMigration struct {
+	Migrated []string `json:"migrated"`
+	Note     string   `json:"note"`
+	Present  bool     `json:"present"`
+}
+
+// GetOfficeMigration returns the LibreOffice bridge summary
+// (bridge-office.json), Present=false when no Office was found.
+func (a *App) GetOfficeMigration() (OfficeMigration, error) {
+	return officeMigration()
+}

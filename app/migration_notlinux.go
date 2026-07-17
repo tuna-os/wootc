@@ -25,3 +25,11 @@ func convertCategory(id string, progress func(MigrationProgress)) error {
 func importBrowserData() (string, error) {
 	return "", fmt.Errorf("migration dashboard is only available on the installed Linux system")
 }
+
+func appMigrations() ([]AppMigration, error) {
+	return nil, fmt.Errorf("migration dashboard is only available on the installed Linux system")
+}
+
+func officeMigration() (OfficeMigration, error) {
+	return OfficeMigration{}, fmt.Errorf("migration dashboard is only available on the installed Linux system")
+}

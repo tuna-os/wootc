@@ -163,6 +163,41 @@ func convertCategory(id string, progress func(MigrationProgress)) error {
 	return nil
 }
 
+func appMigrations() ([]AppMigration, error) {
+	u, err := currentUser()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(u.HomeDir, ".config", "wootc", "bridge-apps.json"))
+	if err != nil {
+		return nil, nil // none detected yet
+	}
+	var parsed struct {
+		Apps []AppMigration `json:"apps"`
+	}
+	if err := unmarshalJSON(data, &parsed); err != nil {
+		return nil, err
+	}
+	return parsed.Apps, nil
+}
+
+func officeMigration() (OfficeMigration, error) {
+	u, err := currentUser()
+	if err != nil {
+		return OfficeMigration{}, err
+	}
+	data, err := os.ReadFile(filepath.Join(u.HomeDir, ".config", "wootc", "bridge-office.json"))
+	if err != nil {
+		return OfficeMigration{Present: false}, nil
+	}
+	var o OfficeMigration
+	if err := unmarshalJSON(data, &o); err != nil {
+		return OfficeMigration{}, err
+	}
+	o.Present = true
+	return o, nil
+}
+
 func importBrowserData() (string, error) {
 	u, err := currentUser()
 	if err != nil {
