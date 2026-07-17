@@ -372,9 +372,9 @@ function renderLaunchpad() {
     const sb = el('div');
     sb.style.cssText = 'font-size:11.5px;color:var(--warning);margin-top:7px';
     sb.textContent = state.sysinfo?.secureBootKnown === false
-      ? 'Secure Boot status is unknown. Installation will stop unless the bundled EFI binary is verified as trusted.'
+      ? 'Secure Boot status is unknown. Installation requires a verified Microsoft-trusted shim plus vendor-signed systemd-boot chain.'
       : state.sysinfo?.secureBootOn
-        ? 'Secure Boot is enabled. systemd-boot requires a locally verified trusted signed EFI binary; otherwise choose GRUB2.'
+        ? 'Secure Boot is enabled. systemd-boot requires a verified shim plus vendor-signed loader chain; otherwise choose GRUB2.'
         : 'Secure Boot is off. The bundled unsigned systemd-boot path is supported.';
     advanced.appendChild(sb);
   }
