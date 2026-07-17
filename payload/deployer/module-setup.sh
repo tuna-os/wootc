@@ -27,7 +27,7 @@ install() {
         podman skopeo conmon crun \
         parted sfdisk partprobe wipefs \
         mkfs.ext4 mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
-        losetup dmsetup blockdev blkid lsblk \
+        losetup qemu-img qemu-nbd dmsetup blockdev blkid lsblk \
         fsfreeze fstrim swapon swapoff fuser \
         useradd chpasswd \
         curl dhclient ip NetworkManager \
@@ -65,6 +65,6 @@ install() {
     inst_simple /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem \
         /etc/pki/tls/certs/ca-bundle.crt
 
-    # Kernel modules for NTFS and loop
-    instmods ntfs3 loop
+    # Kernel modules for NTFS and VHDX-through-NBD attachment.
+    instmods ntfs3 nbd
 }

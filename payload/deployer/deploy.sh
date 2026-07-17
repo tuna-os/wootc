@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wootc-deploy — runs inside the deployer initramfs.
 #
-# Finds root.disk on the NTFS partition, sets up a loop device,
+# Finds root.vhdx on the NTFS partition, attaches it through NBD,
 # writes a fisherman recipe, and runs fisherman to deploy the
 # bootc image into the loop file.
 #
@@ -75,9 +75,9 @@ cleanup() {
     for mount in /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
-    [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
+    [[ -n "$VERIFY_LOOP" ]] && qemu-nbd --disconnect "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
-    [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
+    [[ -n "$LOOP_DEV" ]] && qemu-nbd --disconnect "$LOOP_DEV" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -113,9 +113,9 @@ if [[ -z "$IMAGE" ]]; then
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
 
-ROOT_DISK_PATH="/wootc/disks/root.disk"
+ROOT_DISK_PATH="/wootc/disks/root.vhdx"
 
-# ── Find NTFS partition containing root.disk ────────────────────────────────
+# ── Find NTFS partition containing root.vhdx ────────────────────────────────
 log "Searching for ${ROOT_DISK_PATH}..."
 
 # The initqueue/online hook fires when the network is up, which can beat SCSI
@@ -147,7 +147,7 @@ for attempt in {1..24}; do
         log "Found ${ROOT_DISK_PATH} on ${NTFS_PART}"
         break
     fi
-    log "root.disk not found (attempt ${attempt}/24); retrying in 5s..."
+    log "root.vhdx not found (attempt ${attempt}/24); retrying in 5s..."
     [[ "$attempt" -eq 1 ]] && { err "block devices seen so far:"; cat /proc/partitions >&2 || true; }
     sleep 5
 done
@@ -167,7 +167,7 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     err "Boot Windows once, perform a full shutdown, and retry."
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
-DISK="/mnt/ntfs/wootc/disks/root.disk"
+DISK="/mnt/ntfs/wootc/disks/root.vhdx"
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
@@ -212,7 +212,7 @@ phase "scratch-setup"
 log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # ntfs3 allocates the full size on truncate (no sparse support), so this
-# must fit in C:'s free space alongside the fully-allocated root.disk.
+# must fit in C:'s free space alongside the dynamically allocated root.vhdx.
 # 13G: with disk-backed default storage fisherman pulls the full extracted
 # image (~10G) here plus transient blob staging; the target disk holds only
 # the ostree deployment.
@@ -250,10 +250,19 @@ if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
 
-# ── Set up loop device ──────────────────────────────────────────────────────
-losetup -fP "$DISK"
-LOOP_DEV=$(losetup -j "$DISK" | cut -d: -f1)
-log "Loop device: ${LOOP_DEV}"
+# ── Attach dynamic VHDX through qemu-nbd ───────────────────────────────────
+# VHDX has an internal metadata log and is natively mountable by Windows. It
+# is not a byte-addressable raw image, so losetup must never be used here.
+VHDX_FORMAT=$(qemu-img info --output=json "$DISK" | jq -r '.format // empty')
+if [[ "$VHDX_FORMAT" != "vhdx" ]]; then
+    err "root.vhdx format check failed (detected: ${VHDX_FORMAT:-unknown})"
+    exit 1
+fi
+modprobe nbd nbds_max=4 max_part=16
+LOOP_DEV=/dev/nbd0
+qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$DISK"
+udevadm settle --timeout=10 2>/dev/null || true
+log "Attached dynamic VHDX ${DISK} as ${LOOP_DEV}"
 
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
@@ -324,7 +333,7 @@ phase "fisherman"
 log "Running fisherman — this pulls the image and deploys it..."
 fisherman "$RECIPE"
 
-losetup -d "$LOOP_DEV"
+qemu-nbd --disconnect "$LOOP_DEV"
 LOOP_DEV=""
 
 # ── Post-deployment verification ─────────────────────────────────────────────
@@ -335,7 +344,8 @@ phase "verification"
 log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
-VERIFY_LOOP=$(losetup -fP --show "$DISK")
+VERIFY_LOOP=/dev/nbd0
+qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
 
 # Find the root partition inside the loop device. bootc/ostree roots have no
@@ -378,10 +388,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
 
     # Install the runtime hook after bootc/fisherman has laid down the target.
     # This is the point at which Phase 2 becomes bootable: the initramfs
-    # learns to attach the NTFS-backed loop so the root UUID appears.
+    # learns to attach the NTFS-backed VHDX so the root UUID appears.
     install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
         "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
+    install -m755 "$(command -v qemu-nbd)" \
+        "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd"
 
     HOST_UUID=$(blkid -s UUID -o value "$NTFS_PART")
     if [[ -z "$HOST_UUID" ]]; then
@@ -396,7 +408,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     fi
     for entry in "${BLS_ENTRIES[@]}"; do
         grep -q 'wootc.host_uuid=' "$entry" || \
-            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.disk|' "$entry"
+            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.vhdx|' "$entry"
     done
     shopt -u nullglob
 
@@ -422,7 +434,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         mkdir -p "$DEPLOY_ROOT/run/wootc-nofw"
         chroot "$DEPLOY_ROOT" dracut --force --hostonly \
             --fwdir /run/wootc-nofw \
-            --omit "plymouth crypt lvm mdraid dm multipath iscsi nbd nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
+            --omit "plymouth crypt lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
             "$INITRD_CHROOT_PATH" "$KVER"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}")
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
@@ -470,7 +482,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] wootc-passthrough.service install failed"
     fi
 
-    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
+    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.vhdx' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
         log "  [PASS] Phase 2 loop-root arguments in BLS entries"
     else
         err "  [FAIL] Phase 2 loop-root arguments missing from BLS entries"
@@ -565,7 +577,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 # $prefix/grub.cfg. Write the Phase-2 menu there.
                 mkdir -p "/mnt/esp/EFI/$TARGET_VENDOR"
                 cat > "/mnt/esp/EFI/$TARGET_VENDOR/grub.cfg" <<GRUBEOF
-# wootc Phase 2 — boot installed system from root.disk
+# wootc Phase 2 — boot installed system from root.vhdx
 set default=0
 set timeout=5
 
@@ -596,7 +608,7 @@ else
     err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
 fi
 
-losetup -d "$VERIFY_LOOP"
+qemu-nbd --disconnect "$VERIFY_LOOP"
 VERIFY_LOOP=""
 
 # Tear down the scratch store and leave the NTFS volume clean before the

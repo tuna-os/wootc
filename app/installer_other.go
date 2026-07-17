@@ -19,21 +19,21 @@ import (
 
 func getSystemInfo() SystemInfo {
 	return SystemInfo{
-		OSVersion:   fmt.Sprintf("dev/%s (not Windows)", runtime.GOOS),
-		FreeDiskGB:  240,
-		TotalDiskGB: 512,
-		BitLockerOn: false,
-		IsUEFI:      true,
+		OSVersion:    fmt.Sprintf("dev/%s (not Windows)", runtime.GOOS),
+		FreeDiskGB:   240,
+		TotalDiskGB:  512,
+		BitLockerOn:  false,
+		IsUEFI:       true,
 		SecureBootOn: false,
 	}
 }
 
-func checkSystem() error                           { return nil }
-func disableFastStartup() error                    { return nil }
-func createDirectories() error                     { return os.MkdirAll("/tmp/wootc/install", 0o755) }
-func createRootDisk(sizeGB int) error              {
+func checkSystem() error        { return nil }
+func disableFastStartup() error { return nil }
+func createDirectories() error  { return os.MkdirAll("/tmp/wootc/install", 0o755) }
+func createRootDisk(sizeGB int) error {
 	// Create a small placeholder file for dev testing
-	path := "/tmp/wootc/disks/root.disk"
+	path := "/tmp/wootc/disks/root.vhdx"
 	os.MkdirAll("/tmp/wootc/disks", 0o755)
 	f, err := os.Create(path)
 	if err != nil {

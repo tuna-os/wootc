@@ -127,53 +127,37 @@ func createDirectories() error {
 
 // ── Sparse file creation ──────────────────────────────────────────────────────
 
-// createRootDisk creates a sparse file of the requested size using native
-// Windows APIs (no data written, no zeroing — NTFS allocates on demand).
+// createRootDisk creates a dynamic VHDX of the requested virtual capacity.
+// DiskPart is part of supported Windows editions and creates a VHDX that is
+// natively attachable in Disk Management while allocating sparsely on NTFS.
 func createRootDisk(sizeGB int) error {
-	path := filepath.Join(wootcDir(), "disks", "root.disk")
+	path := filepath.Join(wootcDir(), "disks", "root.vhdx")
 	if _, err := os.Stat(path); err == nil {
 		return nil // already exists
 	}
 
-	pathPtr, err := windows.UTF16PtrFromString(path)
+	script, err := os.CreateTemp(filepath.Dir(path), "create-root-vhdx-*.txt")
 	if err != nil {
-		return err
+		return fmt.Errorf("create DiskPart script: %w", err)
+	}
+	scriptPath := script.Name()
+	defer os.Remove(scriptPath) //nolint:errcheck
+	commands := fmt.Sprintf("create vdisk file=\"%s\" maximum=%d type=expandable\r\n", path, sizeGB*1024)
+	if _, err := script.WriteString(commands); err != nil {
+		_ = script.Close()
+		return fmt.Errorf("write DiskPart script: %w", err)
+	}
+	if err := script.Close(); err != nil {
+		return fmt.Errorf("close DiskPart script: %w", err)
 	}
 
-	h, err := windows.CreateFile(
-		pathPtr,
-		windows.GENERIC_WRITE,
-		0, nil,
-		windows.CREATE_NEW,
-		windows.FILE_ATTRIBUTE_NORMAL|windows.FILE_FLAG_SEQUENTIAL_SCAN,
-		0,
-	)
+	out, err := exec.Command("diskpart.exe", "/s", scriptPath).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("CreateFile: %w", err)
+		return fmt.Errorf("DiskPart create dynamic VHDX: %w: %s", err, strings.TrimSpace(string(out)))
 	}
-	defer windows.CloseHandle(h) //nolint:errcheck
-
-	// Mark sparse
-	var dummy uint32
-	if err := windows.DeviceIoControl(h, windows.FSCTL_SET_SPARSE, nil, 0, nil, 0, &dummy, nil); err != nil {
-		// Non-fatal: FAT32 or unsupported FS. Fall through.
-		_ = err
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("DiskPart did not create %s: %w", path, err)
 	}
-
-	// Set file size (no data written)
-	size := int64(sizeGB) * 1024 * 1024 * 1024
-	lo := uint32(size & 0xFFFFFFFF)
-	hi := int32(size >> 32)
-	if _, err := windows.SetFilePointer(h, int32(lo), &hi, windows.FILE_BEGIN); err != nil {
-		return fmt.Errorf("SetFilePointer: %w", err)
-	}
-	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
-	setEOF := kernel32.NewProc("SetEndOfFile")
-	r, _, le := setEOF.Call(uintptr(h))
-	if r == 0 {
-		return fmt.Errorf("SetEndOfFile: %w", le)
-	}
-
 	return nil
 }
 
@@ -371,7 +355,7 @@ func uninstall(ctx context.Context) error {
 		os.RemoveAll(filepath.Join(espPath, "EFI", "wootc")) //nolint:errcheck
 	}
 
-	// 3. Remove C:\wootc\install\ (NOT root.disk — user deletes that manually)
+	// 3. Remove C:\wootc\install\ (NOT root.vhdx — user deletes that manually)
 	os.RemoveAll(filepath.Join(wootcDir(), "install")) //nolint:errcheck
 
 	return nil

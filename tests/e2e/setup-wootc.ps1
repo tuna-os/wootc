@@ -1,6 +1,6 @@
 # setup-wootc.ps1
 # Runs inside the Windows VM via WinRM.
-# Creates root.disk, copies deployer files, installs GRUB, configures BCD.
+# Creates root.vhdx, copies deployer files, installs GRUB, configures BCD.
 #
 # Assumes deployer files are available at D:\ (shared volume mapped
 # by dockur/windows as a CD-ROM or network drive).
@@ -34,26 +34,34 @@ Write-Host "[wootc] Creating directories..."
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 New-Item -ItemType Directory -Force -Path $disksDir | Out-Null
 
-# ── Step 2: Create root.disk (sparse file) ──────────────────────────────────
-Write-Host "[wootc] Creating root.disk ($DiskSizeGB GB)..."
-$diskPath = "$disksDir\root.disk"
-$sizeBytes = [long]$DiskSizeGB * 1024 * 1024 * 1024
-
-# Use Windows API for sparse file creation with pre-allocation
-$fileStream = [System.IO.File]::Open($diskPath,
-    [System.IO.FileMode]::CreateNew,
-    [System.IO.FileAccess]::Write,
-    [System.IO.FileShare]::None)
+# ── Step 2: Create root.vhdx (dynamic VHDX) ─────────────────────────────────
+# DiskPart is available on every supported Windows edition and creates a
+# dynamic VHDX that Disk Management can mount for recovery.  Its metadata log
+# avoids the fixed-VHD footer ambiguity and keeps allocation sparse on NTFS.
+Write-Host "[wootc] Creating root.vhdx ($DiskSizeGB GB dynamic VHDX)..."
+$diskPath = "$disksDir\root.vhdx"
+$diskpartScript = "$installDir\create-root-vhdx.txt"
+$diskpartLines = @(
+    "create vdisk file=`"$diskPath`" maximum=$($DiskSizeGB * 1024) type=expandable"
+)
+Set-Content -Path $diskpartScript -Value $diskpartLines -Encoding ASCII
+& diskpart.exe /s $diskpartScript
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $diskPath)) {
+    throw "DiskPart failed to create dynamic VHDX at $diskPath"
+}
+Remove-Item $diskpartScript -Force
 
 try {
-    $fileStream.SetLength($sizeBytes)
-    # Pre-allocate contiguous clusters (requires admin — we are admin)
-    $fileStream.Flush()
+    Mount-DiskImage -ImagePath $diskPath -NoDriveLetter -ErrorAction Stop | Out-Null
+    $image = Get-DiskImage -ImagePath $diskPath -ErrorAction Stop
+    if (-not $image.Attached) {
+        throw "Windows did not attach the newly created VHDX"
+    }
 } finally {
-    $fileStream.Close()
+    Dismount-DiskImage -ImagePath $diskPath -ErrorAction SilentlyContinue
 }
 
-Write-Host "[wootc] root.disk created: $diskPath ($DiskSizeGB GB)"
+Write-Host "[wootc] root.vhdx created: $diskPath ($DiskSizeGB GB dynamic VHDX)"
 
 # ── Step 3: Copy deployer files ─────────────────────────────────────────────
 # Files should be available via a shared volume or SMB.
@@ -166,21 +174,10 @@ Set-Content -Path "$installDir\grub.install.cfg" -Value $grubInstallLines -Encod
 Write-Host "[wootc] Wrote grub.install.cfg"
 
 # ── Step 6: Write wubildr.cfg ───────────────────────────────────────────────
-# Main GRUB config — dual-mode: boot installed OS or fall to installer.
+# Legacy GRUB config — Secure Boot uses the ESP-resident deployer menu. GRUB
+# cannot loop-mount dynamic VHDX files, so Phase 2 is also loaded from the ESP.
 $wubildrLines = @(
     'set show_panic_message=true'
-    ''
-    'if search -s -f -n /wootc/disks/root.disk; then'
-    '    if loopback loopw0 /wootc/disks/root.disk; then'
-    '        if [ -e (loopw0,gpt2)/grub2/grub.cfg ]; then'
-    '            set root=(loopw0,gpt2)'
-    '            set prefix=($root)/grub2'
-    '            if configfile /grub2/grub.cfg; then'
-    '                set show_panic_message=false'
-    '            fi'
-    '        fi'
-    '    fi'
-    'fi'
     ''
     'if [ ${show_panic_message} = true ]; then'
     '    if search -s -f -n /wootc/install/grub.install.cfg; then'
@@ -317,7 +314,7 @@ Write-Host ""
 Write-Host "=== wootc setup complete ==="
 Write-Host "  Image:       $ImageRef"
 Write-Host "  Hostname:    $Hostname"
-Write-Host "  root.disk:   $diskPath ($DiskSizeGB GB)"
+Write-Host "  root.vhdx:   $diskPath ($DiskSizeGB GB)"
 Write-Host "  Install dir: $installDir"
 Write-Host ""
 Write-Host 'Ready to reboot. The system will boot into the wootc deployer.'

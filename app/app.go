@@ -27,12 +27,12 @@ type Image struct {
 
 // InstallConfig is the parameters collected on Screen 1.
 type InstallConfig struct {
-	ImageRef    string `json:"imageRef"`
-	DiskSizeGB  int    `json:"diskSizeGB"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	Hostname    string `json:"hostname"`
-	Bootloader  string `json:"bootloader"` // "grub2" | "systemd-boot"
+	ImageRef   string `json:"imageRef"`
+	DiskSizeGB int    `json:"diskSizeGB"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	Hostname   string `json:"hostname"`
+	Bootloader string `json:"bootloader"` // "grub2" | "systemd-boot"
 }
 
 // ProgressEvent is emitted during install for the frontend progress bar.
@@ -49,18 +49,18 @@ type InstallStatus struct {
 	Running  bool   `json:"running"`
 	Done     bool   `json:"done"`
 	Error    string `json:"error,omitempty"`
-	Existing bool   `json:"existing"` // root.disk already found on startup
+	Existing bool   `json:"existing"` // root.vhdx already found on startup
 }
 
 // SystemInfo describes the host Windows environment.
 type SystemInfo struct {
-	OSVersion      string  `json:"osVersion"`
-	FreeDiskGB     float64 `json:"freeDiskGB"`
-	TotalDiskGB    float64 `json:"totalDiskGB"`
-	BitLockerOn    bool    `json:"bitLockerOn"`
-	FastStartupOn  bool    `json:"fastStartupOn"`
-	IsUEFI         bool    `json:"isUefi"`
-	SecureBootOn   bool    `json:"secureBootOn"`
+	OSVersion     string  `json:"osVersion"`
+	FreeDiskGB    float64 `json:"freeDiskGB"`
+	TotalDiskGB   float64 `json:"totalDiskGB"`
+	BitLockerOn   bool    `json:"bitLockerOn"`
+	FastStartupOn bool    `json:"fastStartupOn"`
+	IsUEFI        bool    `json:"isUefi"`
+	SecureBootOn  bool    `json:"secureBootOn"`
 }
 
 // ── App struct ────────────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ func (a *App) Reboot() error {
 // ── Existing install detection ────────────────────────────────────────────────
 
 func (a *App) existingInstallFound() bool {
-	disk := filepath.Join(wootcDir(), "disks", "root.disk")
+	disk := filepath.Join(wootcDir(), "disks", "root.vhdx")
 	_, err := os.Stat(disk)
 	return err == nil
 }
@@ -222,7 +222,7 @@ func (a *App) ExistingInstallFound() bool {
 
 // ── Uninstall ─────────────────────────────────────────────────────────────────
 
-// Uninstall removes the BCD entry and C:\wootc\ (except root.disk which the
+// Uninstall removes the BCD entry and C:\wootc\ (except root.vhdx which the
 // user must delete separately to avoid accidental data loss).
 func (a *App) Uninstall() error {
 	return uninstall(a.ctx)
@@ -239,14 +239,16 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 		{"Checking system", 2, func() error { return checkSystem() }},
 		{"Disabling Fast Startup", 5, func() error { return disableFastStartup() }},
 		{"Creating directories", 8, func() error { return createDirectories() }},
-		{"Creating root.disk", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
-		{"Downloading deployer", 50, func() error { return downloadDeployer(ctx, func(p float64) {
-			a.emit(ProgressEvent{
-				Step:    "Downloading deployer",
-				Message: fmt.Sprintf("Downloading deployer kernel + initramfs… %.0f%%", p*35),
-				Percent: 15 + p*35,
+		{"Creating root.vhdx", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
+		{"Downloading deployer", 50, func() error {
+			return downloadDeployer(ctx, func(p float64) {
+				a.emit(ProgressEvent{
+					Step:    "Downloading deployer",
+					Message: fmt.Sprintf("Downloading deployer kernel + initramfs… %.0f%%", p*35),
+					Percent: 15 + p*35,
+				})
 			})
-		}) }},
+		}},
 		{"Writing GRUB config", 55, func() error { return writeGrubConfig(cfg) }},
 		{"Setting up ESP", 65, func() error { return setupESP(cfg.Bootloader) }},
 		{"Configuring BCD", 80, func() error { return configureBCD(cfg.Bootloader) }},

@@ -2,7 +2,7 @@
 # shellcheck disable=SC1091  # dracut-lib.sh is provided by the initramfs
 # /usr/lib/dracut/modules.d/99wootc-boot/wootc-attach-loop.sh
 # initqueue/settled hook: mount the Windows NTFS partition and attach
-# root.disk as a partitioned loop device. The target root partition's UUID
+# root.vhdx as a partitioned NBD device. The target root partition's UUID
 # then appears to udev, letting systemd's ordinary sysroot.mount (root=UUID=
 # from the BLS entry / grub.cfg) and ostree-prepare-root proceed unchanged —
 # no root= hijack required.
@@ -19,7 +19,7 @@ HOST_UUID=$(getarg wootc.host_uuid=) || return 0
 [ -n "$LOOP_PATH" ] && [ -n "$HOST_UUID" ] || return 0
 
 modprobe ntfs3 2>/dev/null
-modprobe loop 2>/dev/null
+modprobe nbd nbds_max=4 max_part=16 2>/dev/null
 
 HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
 [ -b "$HOST_DEV" ] || return 0
@@ -38,14 +38,16 @@ fi
 
 FULL_LOOP_PATH="$HOST_MNT/${LOOP_PATH#/}"
 if [ ! -f "$FULL_LOOP_PATH" ]; then
-    warn "wootc: root.disk not found at $FULL_LOOP_PATH"
+    warn "wootc: root.vhdx not found at $FULL_LOOP_PATH"
     return 0
 fi
 
-LOOP_DEV=$(losetup -fP --show "$FULL_LOOP_PATH") || return 0
-[ -n "$LOOP_DEV" ] || return 0
+# VHDX must be attached by a format-aware block driver. qemu-nbd exposes it
+# as a partitioned block device while preserving its metadata log semantics.
+LOOP_DEV=/dev/nbd0
+qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$FULL_LOOP_PATH" || return 0
 blockdev --setra 2048 "$LOOP_DEV" 2>/dev/null
 
 : > /run/wootc-loop-attached
-info "wootc: attached $FULL_LOOP_PATH as $LOOP_DEV (partitions scanned)"
+info "wootc: attached dynamic VHDX $FULL_LOOP_PATH as $LOOP_DEV (partitions scanned)"
 return 0
