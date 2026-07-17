@@ -78,6 +78,32 @@ run_state() {
 }
 run_state "started"
 info "Run ID: $RUN_ID (status: $RUN_STATE_FILE)"
+
+host_preflight() {
+    local mem_available_kib disk_available_kib
+    mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
+    disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
+
+    command -v podman >/dev/null || { fail "podman is required"; return 1; }
+    command -v python3 >/dev/null || { fail "python3 is required for QGA"; return 1; }
+    [ -r /dev/kvm ] && [ -w /dev/kvm ] || { fail "/dev/kvm is not accessible"; return 1; }
+    [ -c /dev/net/tun ] || { fail "/dev/net/tun is unavailable"; return 1; }
+    # Dockur reserves host headroom before launching QEMU. Six GiB available
+    # is enough to start a 4 GiB Windows 11 VM without its safety clamp
+    # reducing QEMU below Setup's hard minimum.
+    if [ "${mem_available_kib:-0}" -lt $((6 * 1024 * 1024)) ]; then
+        fail "Only $((mem_available_kib / 1024)) MiB host RAM is available; need at least 6144 MiB before starting Windows"
+        return 1
+    fi
+    # The 80 GiB qcow2 and processed installer are sparse where supported,
+    # but installation and container pulls need significant temporary space.
+    if [ "${disk_available_kib:-0}" -lt $((100 * 1024 * 1024)) ]; then
+        fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least 100 GiB"
+        return 1
+    fi
+    pass "Host preflight: $((mem_available_kib / 1024)) MiB RAM available, $((disk_available_kib / 1024 / 1024)) GiB disk free, KVM/TUN ready"
+}
+host_preflight || exit 1
 # Keep the pristine Windows installer separate from Dockur's mutable working
 # directory.  Dockur can generate derived ISO images while preparing an answer
 # file, so it must receive a copy rather than the only cached source image.
@@ -475,6 +501,14 @@ if [[ ( "$QEMU_CMD" != *"-accel=kvm"* && "$QEMU_CMD" != *"accel=kvm"* ) || "$QEM
     capture_vm_diagnostics
     exit 1
 fi
+QEMU_RAM_MB=$(awk '{ for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+M$/) { sub(/M$/, "", $(i + 1)); print $(i + 1); exit } }' <<<"$QEMU_CMD")
+if [ -z "$QEMU_RAM_MB" ] || [ "$QEMU_RAM_MB" -lt 4096 ]; then
+    fail "QEMU has ${QEMU_RAM_MB:-unknown} MB RAM; Windows 11 setup requires at least 4096 MB"
+    info "Free host memory or adjust WOOTC_E2E_RAM_SIZE after confirming runner capacity"
+    capture_vm_diagnostics
+    exit 1
+fi
+pass "QEMU memory allocation is ${QEMU_RAM_MB} MB"
 if [[ "$QEMU_CMD" != *"-tpmdev emulator"* || "$QEMU_CMD" != *"property=secure,value=on"* ]]; then
     fail "Windows 11 VM is missing TPM 2.0 or Secure Boot"
     capture_vm_diagnostics

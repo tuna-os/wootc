@@ -29,7 +29,9 @@ services:
       USERNAME: "wootc"
       PASSWORD: "wootc-test-123!"
       CPU_CORES: "4"
-      RAM_SIZE: "8G"
+      # Dockur may clamp this to available host memory; run-e2e.sh verifies
+      # the resulting QEMU allocation before waiting for Windows Setup.
+      RAM_SIZE: "${WOOTC_E2E_RAM_SIZE:-8G}"
       DISK_SIZE: "80G"
       DISK_FMT: "qcow2"
       BOOT_MODE: "windows_secure"   # UEFI + Secure Boot
