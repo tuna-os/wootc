@@ -356,17 +356,25 @@ snapshot_before_deployer() {
             return 1
         fi
     fi
-    qga_call thaw >/dev/null 2>/dev/null || {
-        # Container may have exited during a slow sparse copy.
-        # The snapshot is still valid — the frozen state just means
-        # the first boot after restoring will replay the journal.
+    # Thaw is critical: a still-frozen Windows FS blocks the OEM handoff and
+    # wedges the run. QGA fsfreeze-thaw can return a transient error under load
+    # right after a long copy, so retry a few times and accept an already-thawed
+    # status as success before giving up.
+    # guest-fsfreeze-thaw is idempotent (succeeds even if nothing is frozen), so
+    # retrying is safe and clears a transient post-copy error.
+    thawed=false
+    for _ in 1 2 3 4 5; do
+        if qga_call thaw >/dev/null 2>/dev/null; then thawed=true; break; fi
+        sleep 3
+    done
+    if [ "$thawed" = false ]; then
         if podman container exists "$CONTAINER_NAME" 2>/dev/null; then
             rm -f "$tmp"
-            fail "QGA could not thaw Windows after the Phase 2 snapshot"
+            fail "QGA could not thaw Windows after the Phase 2 snapshot (5 attempts)"
             return 1
         fi
         warn "Container exited during snapshot; $tmp may be crash-consistent"
-    }
+    fi
     frozen=false
     mv -f "$tmp" "$snapshot"
     qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
