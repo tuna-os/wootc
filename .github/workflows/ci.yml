@@ -155,6 +155,12 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: Build frontend under test
+        working-directory: app/frontend
+        run: |
+          npm ci
+          npm run build
+
       - name: Run GUI walkthrough suite
         working-directory: tests/gui
         run: npm test
