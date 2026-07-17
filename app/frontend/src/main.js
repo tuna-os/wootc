@@ -29,7 +29,7 @@ const INSTALL_STEPS = [
   'Checking system',
   'Disabling Fast Startup',
   'Creating directories',
-  'Creating root.disk',
+  'Creating root.vhdx',
   'Downloading deployer',
   'Writing GRUB config',
   'Setting up ESP',
@@ -356,7 +356,7 @@ function renderControlPanel() {
   const card = el('div');
   card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;margin-top:8px';
   card.innerHTML = `
-    <div style="font-weight:600;font-size:14px">C:\\wootc\\disks\\root.disk</div>
+    <div style="font-weight:600;font-size:14px">C:\\wootc\\disks\\root.vhdx</div>
     <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives in this file. Deleting it will remove Linux but leave Windows intact.</div>
   `;
   screen.appendChild(card);
@@ -372,7 +372,7 @@ function renderControlPanel() {
 }
 
 function confirmUninstall() {
-  if (confirm('Remove the TunaOS boot entry? (root.disk will NOT be deleted — remove it manually from C:\\wootc\\disks\\)')) {
+  if (confirm('Remove the TunaOS boot entry? (root.vhdx will NOT be deleted — remove it manually from C:\\wootc\\disks\\)')) {
     import('../wailsjs/go/main/App').then(({ Uninstall }) => Uninstall());
   }
 }
