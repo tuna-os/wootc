@@ -88,7 +88,7 @@ free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
 df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
 
 host_preflight() {
-    local mem_available_kib disk_available_kib
+    local mem_available_kib disk_available_kib required_free_gib=100
     mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
     disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
 
@@ -103,10 +103,12 @@ host_preflight() {
         fail "Only $((mem_available_kib / 1024)) MiB host RAM is available; need at least 6144 MiB before starting Windows"
         return 1
     fi
-    # The 80 GiB qcow2 and processed installer are sparse where supported,
-    # but installation and container pulls need significant temporary space.
-    if [ "${disk_available_kib:-0}" -lt $((100 * 1024 * 1024)) ]; then
-        fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least 100 GiB"
+    # Fresh installation needs room for the installer, pulls, and expanding
+    # qcow2. A reuse run already has those and needs only its allocated-extent
+    # safety snapshot plus diagnostics.
+    [ "$SKIP_INSTALL" = false ] || required_free_gib=40
+    if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
+        fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
         return 1
     fi
     pass "Host preflight: $((mem_available_kib / 1024)) MiB RAM available, $((disk_available_kib / 1024 / 1024)) GiB disk free, KVM/TUN ready"
