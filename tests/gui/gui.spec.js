@@ -124,7 +124,7 @@ test('installer — image metadata selects composefs/systemd-boot and warns for 
   await page.getByText('Bonito').first().click();
   await page.getByText('Advanced boot options').click();
   await expect(page.getByRole('checkbox', { name: /Use systemd-boot/ })).toBeChecked();
-  await expect(page.getByText(/requires a locally verified trusted signed EFI binary/)).toBeVisible();
+  await expect(page.getByText(/requires a verified shim plus vendor-signed loader chain/)).toBeVisible();
 });
 
 test('installer — supported family custom OCI reference is accepted', async ({ page }) => {

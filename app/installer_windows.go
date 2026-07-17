@@ -133,12 +133,12 @@ func validatePlatformConfig(cfg InstallConfig) error {
 	if cfg.Bootloader != "systemd-boot" {
 		return nil
 	}
-	_, signed, err := systemdBootAsset()
+	asset, err := systemdBootAsset()
 	if err != nil {
 		return err
 	}
 	on, known := secureBootState()
-	if (on || !known) && !signed {
+	if (on || !known) && !asset.trustedChain {
 		state := "enabled"
 		if !known {
 			state = "unknown"
@@ -527,12 +527,12 @@ menuentry "Install wootc (debug)" {
 }
 
 func setupSystemdBoot(espPath string, cfg InstallConfig) error {
-	src, signed, err := systemdBootAsset()
+	asset, err := systemdBootAsset()
 	if err != nil {
 		return err
 	}
 	if on, known := secureBootState(); on || !known {
-		if !signed {
+		if !asset.trustedChain {
 			state := "enabled"
 			if !known {
 				state = "unknown"
@@ -553,11 +553,20 @@ func setupSystemdBoot(espPath string, cfg InstallConfig) error {
 		return err
 	}
 	installDir := filepath.Join(wootcDir(), "install")
-	for from, to := range map[string]string{
-		src: filepath.Join(sdEFI, "systemd-bootx64.efi"),
+	bootFiles := map[string]string{
 		filepath.Join(installDir, "deployer-vmlinuz"):       filepath.Join(wootcEFI, "deployer-vmlinuz"),
 		filepath.Join(installDir, "deployer-initramfs.img"): filepath.Join(wootcEFI, "deployer-initramfs.img"),
-	} {
+	}
+	if asset.trustedChain {
+		bootFiles[asset.shim] = filepath.Join(sdEFI, "shimx64.efi")
+		// Debian shim's built-in next-stage filename is grubx64.efi. The
+		// Debian-signed systemd-boot binary is deliberately staged under that
+		// name so shim verifies it with its embedded Debian certificate.
+		bootFiles[asset.loader] = filepath.Join(sdEFI, "grubx64.efi")
+	} else {
+		bootFiles[asset.loader] = filepath.Join(sdEFI, "systemd-bootx64.efi")
+	}
+	for from, to := range bootFiles {
 		if err := copyFile(from, to); err != nil {
 			return fmt.Errorf("stage systemd-boot asset %s: %w", filepath.Base(from), err)
 		}
@@ -580,27 +589,48 @@ func luksCmdline(cfg InstallConfig) string {
 	return " wootc.luks=" + cfg.Encryption
 }
 
-func systemdBootAsset() (string, bool, error) {
+type systemdBootAssets struct {
+	loader       string
+	shim         string
+	trustedChain bool
+}
+
+func validAuthenticode(path string) bool {
+	quoted := strings.ReplaceAll(path, "'", "''")
+	out, err := runPowerShellOutput("(Get-AuthenticodeSignature -LiteralPath '" + quoted + "').Status")
+	return err == nil && strings.TrimSpace(out) == "Valid"
+}
+
+func systemdBootAsset() (systemdBootAssets, error) {
 	exe, _ := os.Executable()
+	roots := []string{filepath.Join(filepath.Dir(exe), "efi"), filepath.Join(wootcDir(), "install")}
+	// Secure-Boot chain: Microsoft-trusted Debian shim verifies the
+	// Debian-signed systemd-boot next stage. Both must validate locally;
+	// the presence of a `.signed` suffix alone is never treated as trust.
+	for _, root := range roots {
+		shim := filepath.Join(root, "debian", "shimx64.efi")
+		loader := filepath.Join(root, "debian", "systemd-bootx64.efi.signed")
+		if _, err := os.Stat(shim); err != nil {
+			continue
+		}
+		if _, err := os.Stat(loader); err != nil {
+			continue
+		}
+		if validAuthenticode(shim) && validAuthenticode(loader) {
+			return systemdBootAssets{loader: loader, shim: shim, trustedChain: true}, nil
+		}
+	}
 	candidates := []string{
-		filepath.Join(filepath.Dir(exe), "efi", "systemd-bootx64.efi.signed"),
 		filepath.Join(filepath.Dir(exe), "efi", "systemd-bootx64.efi"),
-		filepath.Join(wootcDir(), "install", "systemd-bootx64.efi.signed"),
 		filepath.Join(wootcDir(), "install", "systemd-bootx64.efi"),
 	}
 	for _, path := range candidates {
 		if _, err := os.Stat(path); err != nil {
 			continue
 		}
-		signed := false
-		if strings.HasSuffix(path, ".signed") {
-			quoted := strings.ReplaceAll(path, "'", "''")
-			out, _ := runPowerShellOutput("(Get-AuthenticodeSignature -LiteralPath '" + quoted + "').Status")
-			signed = strings.TrimSpace(out) == "Valid"
-		}
-		return path, signed, nil
+		return systemdBootAssets{loader: path}, nil
 	}
-	return "", false, fmt.Errorf("systemd-boot is not bundled; expected efi\\systemd-bootx64.efi beside wootc.exe")
+	return systemdBootAssets{}, fmt.Errorf("systemd-boot is not bundled; expected efi\\systemd-bootx64.efi beside wootc.exe")
 }
 
 // ── BCD configuration ─────────────────────────────────────────────────────────
@@ -610,7 +640,15 @@ func configureBCD(bootloader string) error {
 
 	switch bootloader {
 	case "systemd-boot":
-		efiRelPath = `\EFI\systemd\systemd-bootx64.efi`
+		asset, err := systemdBootAsset()
+		if err != nil {
+			return err
+		}
+		if asset.trustedChain {
+			efiRelPath = `\EFI\systemd\shimx64.efi`
+		} else {
+			efiRelPath = `\EFI\systemd\systemd-bootx64.efi`
+		}
 	default:
 		// The signed-shim chain proven by E2E: BCD → shimx64.efi →
 		// grubx64.efi (embedded prefix \EFI\fedora) → deployer menu.
