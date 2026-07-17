@@ -53,6 +53,7 @@ echo 134217728 > /proc/sys/vm/dirty_background_bytes 2>/dev/null || true
 NTFS_PART=""
 LOOP_DEV=""
 VERIFY_LOOP=""
+VERIFY_CRYPT=""
 SCRATCH_LOOP=""
 SCRATCH_IMG=""
 JOURNAL_STREAM_PID=""
@@ -82,6 +83,7 @@ cleanup() {
     for mount in /mnt/verify /mnt/esp /var/tmp /var/lib/containers /var/fisherman-tmp /mnt/ntfs; do
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
+    [[ -n "$VERIFY_CRYPT" ]] && cryptsetup close "$VERIFY_CRYPT" 2>/dev/null || true
     [[ -n "$VERIFY_LOOP" ]] && qemu-nbd --disconnect "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
     [[ -n "$LOOP_DEV" ]] && qemu-nbd --disconnect "$LOOP_DEV" 2>/dev/null || true
@@ -113,6 +115,15 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
+
+case "$LUKS_TYPE" in
+    none|luks-passphrase|tpm2-luks|tpm2-luks-passphrase) ;;
+    *) err "unsupported wootc.luks type: $LUKS_TYPE"; exit 1 ;;
+esac
+if [[ "$LUKS_TYPE" == *passphrase && -z "$LUKS_PASSPHRASE" ]]; then
+    err "$LUKS_TYPE requires wootc.luks-passphrase"
+    exit 1
+fi
 
 if [[ -z "$IMAGE" ]]; then
     err "wootc.image= not set on kernel command line"
@@ -279,7 +290,7 @@ if [[ "$VHDX_FORMAT" != "vhdx" ]]; then
 fi
 modprobe nbd nbds_max=4 max_part=16
 LOOP_DEV=/dev/nbd0
-qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$DISK"
+qemu-nbd --connect "$LOOP_DEV" --format=vhdx --discard=unmap "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
 log "Attached dynamic VHDX ${DISK} as ${LOOP_DEV}"
 
@@ -303,6 +314,16 @@ if [[ -n "$VAULT_PATH" ]]; then
         log "vault.json not found at ${VAULT_FILE} — using cmdline defaults"
     fi
 fi
+
+# ╔═══════════════════════════════════════════════════════════════════════════
+# ║ PROVISIONER: bootc/fisherman — begins here.
+# ║ Everything above this line is generic orchestration (disk discovery, NTFS,
+# ║ telemetry, scratch, credential vault, block-device attach) and must stay
+# ║ free of bootc/ostree concepts. Everything from here to the matching END
+# ║ banner turns the attached block device into a bootable root and would be
+# ║ replaced wholesale when adapting wootc to another deployment method.
+# ║ Contract: docs/architecture-boundary.md.
+# ╚═══════════════════════════════════════════════════════════════════════════
 
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
@@ -345,7 +366,9 @@ cat > "$RECIPE" << EOF
 EOF
 
 log "Fisherman recipe:"
-cat "$RECIPE"
+# The serial console and journal are persisted for E2E diagnostics. Never put
+# the disk-unlock secret in either one.
+jq 'if .encryption.passphrase then .encryption.passphrase = "<redacted>" else . end' "$RECIPE"
 
 # ── Run fisherman ───────────────────────────────────────────────────────────
 phase "fisherman"
@@ -367,7 +390,7 @@ log "Verifying installed system setup..."
 # partition nodes can briefly remain after Fisherman exits.  A separate NBD
 # device makes verification independent of that teardown race.
 VERIFY_LOOP=/dev/nbd1
-qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx "$DISK"
+qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx --discard=unmap "$DISK"
 
 # qemu-nbd publishes the capacity change before the partition scan completes.
 # Wait for the root partition explicitly instead of treating a successful
@@ -381,10 +404,26 @@ if [[ ! -b "${VERIFY_LOOP}p3" ]]; then
     err "  [WARN] ${VERIFY_LOOP} partition nodes did not appear for verification"
 fi
 
+# Fisherman closes its mapper before returning. Re-open an encrypted root for
+# post-install verification; TPM modes use the token enrolled by fisherman,
+# while passphrase-only mode feeds the key over stdin (never argv or logs).
+VERIFY_ROOT_DEVICE="${VERIFY_LOOP}p3"
+if [[ "$LUKS_TYPE" != "none" && -b "$VERIFY_ROOT_DEVICE" ]]; then
+    VERIFY_CRYPT=wootc-verify-root
+    if [[ "$LUKS_TYPE" == tpm2-* ]]; then
+        /usr/lib/systemd/systemd-cryptsetup attach "$VERIFY_CRYPT" "$VERIFY_ROOT_DEVICE" - tpm2-device=auto
+    else
+        printf '%s' "$LUKS_PASSPHRASE" | \
+            cryptsetup open --key-file=- "$VERIFY_ROOT_DEVICE" "$VERIFY_CRYPT"
+    fi
+    VERIFY_ROOT_DEVICE="/dev/mapper/$VERIFY_CRYPT"
+    log "Opened encrypted root for verification"
+fi
+
 # Find the root partition inside the loop device. bootc/ostree roots have no
 # top-level /etc — the OS tree lives under /ostree/deploy/<stateroot>/deploy/.
 VERIFY_ROOT=""
-for p in "${VERIFY_LOOP}"p*; do
+for p in "$VERIFY_ROOT_DEVICE" "${VERIFY_LOOP}"p*; do
     [[ -b "$p" ]] || continue
     mkdir -p /mnt/verify
     if mount -o rw "$p" /mnt/verify 2>/dev/null; then
@@ -465,9 +504,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # blobs dominating the 241M image; no firmware is needed to reach
         # the NTFS-loop root (virtio/ahci/nvme need none).
         mkdir -p "$DEPLOY_ROOT/run/wootc-nofw"
+        DRACUT_OMIT="plymouth lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack"
+        [[ "$LUKS_TYPE" == "none" ]] && DRACUT_OMIT="$DRACUT_OMIT crypt"
         chroot "$DEPLOY_ROOT" dracut --force --hostonly \
             --fwdir /run/wootc-nofw \
-            --omit "plymouth crypt lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack" \
+            --omit "$DRACUT_OMIT" \
             "$INITRD_CHROOT_PATH" "$KVER"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}")
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
@@ -483,7 +524,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] dracut 99wootc-boot module NOT found"
     fi
 
-    # ── User Data Bridge (native passthrough) ─────────────────────────────
+    # ── [generic] User Data Bridge (native passthrough) ──────────────────
+    # Distro-agnostic: installs units/scripts into the target root. Only
+    # its *placement inside* the verification mount is provisioner-hosted.
     # fisherman does not install these — inject them the same way as the
     # 99wootc-boot dracut module, and enable them via local-fs.target.wants
     # symlinks (systemctl --root needs D-Bus/policy that isn't available
@@ -497,6 +540,45 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-mount-user-dirs"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
         "$DEPLOY_ROOT/usr/local/bin/wootc-umount-user-dirs"
+    # Extra bridge categories (SPEC §4.1–4.2): Steam, browser import, and
+    # the stage-4 folder conversion used by the migration dashboard.
+    install -m755 /usr/lib/wootc/migration/wootc-steam-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-steam-bridge"
+    install -m755 /usr/lib/wootc/migration/wootc-import-browser \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-import-browser"
+    install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
+    install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
+        "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
+    # ESP self-healing sync: keeps the Windows-ESP kernel pair current
+    # after OS updates (variant-agnostic — BLS and classic layouts).
+    install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-esp-sync"
+    install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
+        "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
+    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+    ln -sf ../wootc-esp-sync.service \
+        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync.service"
+    install -m755 /usr/lib/wootc/migration/wootc-detect-apps \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-detect-apps"
+    install -m755 /usr/lib/wootc/migration/wootc-office-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-office-bridge"
+    # Windows-Style Mode: per-user look apply on first login.
+    install -m755 /usr/lib/wootc/migration/wootc-apply-look \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-apply-look"
+    install -D -m644 /usr/lib/wootc/migration/wootc-apply-look.desktop \
+        "$DEPLOY_ROOT/etc/xdg/autostart/wootc-apply-look.desktop"
+    # Slurped Windows look (wallpaper/theme/timezone), if the installer
+    # collected it. Timezone applies system-wide right here.
+    if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
+        mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
+        cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
+        if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
+            ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"
+            log "  Timezone set to $SLURP_TZ (from Windows)"
+        fi
+    fi
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
     ln -sf ../wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
@@ -522,7 +604,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         exit 1
     fi
 
-    # ── ESP kernel-sync for Phase-2 Secure Boot boot ──────────────────────
+    # ── [mixed] ESP kernel-sync for Phase-2 Secure Boot boot ─────────────
+    # The *mechanics* (mount ESP, copy kernel pair, write grub.cfg) are
+    # generic; the *sources* are provisioner-owned: ostree kernel globs,
+    # BLS cmdline extraction, and the bootupd-shipped signed shim+grub.
+    # A non-bootc provisioner would return these three via the contract in
+    # docs/architecture-boundary.md and this block would keep its shape.
+    #
     # The signed GRUB cannot read NTFS (unsigned ntfs.mod rejected under
     # Secure Boot), so the installed kernel and initramfs must live on the
     # FAT32 ESP. Copy them there and write a Phase-2 grub.cfg with the
@@ -620,6 +708,16 @@ menuentry "wootc Linux" {
 }
 GRUBEOF
                 log "  [PASS] Phase-2 grub.cfg written to EFI/$TARGET_VENDOR/grub.cfg"
+
+                # Record the Windows ESP identity so wootc-esp-sync can
+                # refresh this pair after OS updates inside the target.
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\n' "$ESP_UUID" \
+                        > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                    log "  [PASS] host-esp.conf written (UUID $ESP_UUID)"
+                fi
             else
                 # Never leave the ESP kernel-less: the deployer pair was
                 # removed above to make room, so restore it from the
@@ -641,8 +739,16 @@ else
     err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
 fi
 
+if [[ -n "$VERIFY_CRYPT" ]]; then
+    cryptsetup close "$VERIFY_CRYPT"
+    VERIFY_CRYPT=""
+fi
 qemu-nbd --disconnect "$VERIFY_LOOP"
 VERIFY_LOOP=""
+
+# ╔═══════════════════════════════════════════════════════════════════════════
+# ║ PROVISIONER: bootc/fisherman — ENDS here. Generic teardown follows.
+# ╚═══════════════════════════════════════════════════════════════════════════
 
 # Tear down the scratch store and leave the NTFS volume clean before the
 # forced reboot (reboot -f syncs but does not unmount; a still-mounted rw

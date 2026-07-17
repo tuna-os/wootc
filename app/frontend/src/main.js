@@ -1,13 +1,19 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const state = {
-  screen: 'loading',   // loading | launchpad | progress | done | control
+  screen: 'loading',   // loading | launchpad | progress | done | control | migrate
+  mode: 'installer',   // installer (Windows) | migration (installed Linux)
   images: [],
   sysinfo: null,
+  brand: null,         // partner/enterprise branding (themeable)
+  categories: [],      // migration dashboard rows
+  apps: [],            // detected app migrations
+  office: null,        // MS Office → LibreOffice summary
+  converting: {},      // category id → percent while a conversion runs
   selected: null,      // selected Image
   config: {
     diskSizeGB: 40,
@@ -15,6 +21,8 @@ const state = {
     password: '',
     hostname: 'tunaos',
     bootloader: 'grub2',
+    encryption: 'tpm2-luks',
+    luksPassphrase: '',
   },
   progress: {
     step: '',
@@ -35,12 +43,26 @@ const INSTALL_STEPS = [
   'Setting up ESP',
   'Configuring BCD',
   'Writing vault.json',
+  'Collecting your look',
   'Finalizing',
 ];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+// Apply partner/enterprise branding as CSS variables + document title.
+function applyBranding(b) {
+  state.brand = b;
+  const r = document.documentElement.style;
+  if (b.accent)     { r.setProperty('--accent', b.accent); r.setProperty('--border-focus', b.accent); }
+  if (b.accentText)   r.setProperty('--accent-text', b.accentText);
+  if (b.background)   r.setProperty('--bg', b.background);
+  if (b.card)         r.setProperty('--bg-card', b.card);
+  if (b.text)         r.setProperty('--text', b.text);
+  document.title = `${b.name} — ${b.tagline}`;
+}
+
 async function init() {
+  try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'wootc', tagline: '', logoEmoji: '🐠', version: '0.1.0', installVerb: 'Install' }); }
   // Listen for progress events from Go backend
   EventsOn('install:progress', (e) => {
     state.progress.step = e.step;
@@ -61,6 +83,32 @@ async function init() {
     if (state.screen === 'progress') renderProgress();
   });
 
+  // Conversion progress events from the migration dashboard backend.
+  EventsOn('migrate:progress', (p) => {
+    if (p.error) {
+      delete state.converting[p.category];
+      alert(`Something went wrong moving ${p.category}: ${p.error}\nYour files are safe — nothing was deleted.`);
+      refreshCategories();
+      return;
+    }
+    state.converting[p.category] = p.percent;
+    if (p.done) {
+      delete state.converting[p.category];
+      refreshCategories();
+      return;
+    }
+    if (state.screen === 'migrate') renderMigrateRows();
+  });
+
+  state.mode = await GetMode().catch(() => 'installer');
+
+  if (state.mode === 'migration') {
+    await refreshCategories();
+    state.screen = 'migrate';
+    render();
+    return;
+  }
+
   const [images, sysinfo, existing] = await Promise.all([
     GetImages(),
     GetSystemInfo(),
@@ -77,8 +125,29 @@ async function init() {
     if (!u.includes('dev')) state.config.username = 'james'; // placeholder
   } catch {}
 
+  if (existing) {
+    try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
+    try { state.vmCapability = await GetVMCapability(); } catch { state.vmCapability = null; }
+  }
   state.screen = existing ? 'control' : 'launchpad';
   render();
+}
+
+async function refreshCategories() {
+  try {
+    const [cats, apps, office] = await Promise.all([
+      GetMigrationCategories(),
+      GetAppMigrations().catch(() => []),
+      GetOfficeMigration().catch(() => null),
+    ]);
+    state.categories = cats || [];
+    state.apps = apps || [];
+    state.office = office && office.present ? office : null;
+  } catch (e) {
+    console.error(e);
+    state.categories = [];
+  }
+  if (state.screen === 'migrate') render();
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -100,6 +169,7 @@ function render() {
     case 'progress':  content.appendChild(renderProgressScreen()); break;
     case 'done':      content.appendChild(renderDoneScreen()); break;
     case 'control':   content.appendChild(renderControlPanel()); break;
+    case 'migrate':   content.appendChild(renderMigrateScreen()); break;
     default:          content.innerHTML = '<div style="padding:40px;color:#666">Loading…</div>';
   }
 
@@ -109,14 +179,19 @@ function render() {
 // ── Title bar ─────────────────────────────────────────────────────────────────
 
 function renderTitleBar() {
+  const b = state.brand || { logoEmoji: '🐠', name: 'wootc', version: '0.1.0' };
   const bar = el('div', 'titlebar');
   bar.innerHTML = `
-    <span class="titlebar-logo">🐠</span>
-    <span class="titlebar-name">wootc</span>
-    <span class="titlebar-version">0.1.0</span>
+    <span class="titlebar-logo">${b.logoEmoji || '🐠'}</span>
+    <span class="titlebar-name">${b.name || 'wootc'}</span>
+    <span class="titlebar-version">${b.version || ''}</span>
     <span class="titlebar-step">${stepLabel()}</span>
   `;
   return bar;
+}
+
+function installVerb() {
+  return state.brand?.installVerb || 'Install';
 }
 
 function stepLabel() {
@@ -125,6 +200,7 @@ function stepLabel() {
     progress:  'Step 2 of 3 — Installing',
     done:      'Step 3 of 3 — Done',
     control:   'Manage Installation',
+    migrate:   'Your Windows Data',
   };
   return labels[state.screen] || '';
 }
@@ -137,8 +213,8 @@ function renderLaunchpad() {
   // Header
   const hdr = el('div');
   hdr.innerHTML = `
-    <div class="screen-title">Install TunaOS</div>
-    <div class="screen-subtitle">Choose a variant, set your disk size and credentials, then click Install.</div>
+    <div class="screen-title">${installVerb()} TunaOS</div>
+    <div class="screen-subtitle">${state.brand?.tagline || 'Choose a variant, set your disk size and credentials, then click Install.'}</div>
   `;
   screen.appendChild(hdr);
 
@@ -153,11 +229,30 @@ function renderLaunchpad() {
     screen.appendChild(si);
   }
 
-  // BitLocker warning
+  // BitLocker: never force decryption — offer an unencrypted home for Linux.
   if (state.sysinfo?.bitLockerOn) {
-    screen.appendChild(warningBanner(
-      'BitLocker is enabled on C:. wootc will create a separate partition for Linux, or you can choose an existing unencrypted drive.'
-    ));
+    screen.appendChild(renderBitlockerChooser());
+  }
+
+  if (state.sysinfo?.defragRecommended) {
+    const warning = el('div');
+    warning.style.cssText = 'background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:11px 13px;display:flex;gap:12px;align-items:center';
+    warning.innerHTML = `<div style="flex:1"><b style="font-size:12.5px">Windows recommends optimizing C:</b><br><span style="font-size:11.5px;color:var(--text-muted)">A fragmented NTFS volume can make the Linux virtual disk slower. Installation remains safe if you skip this.</span></div>`;
+    const optimize = btn('Defrag now', 'btn btn-ghost', async () => {
+      optimize.disabled = true;
+      optimize.textContent = 'Optimizing…';
+      try {
+        await DefragDrive();
+        state.sysinfo.defragRecommended = false;
+        render();
+      } catch (e) {
+        optimize.disabled = false;
+        optimize.textContent = 'Defrag now';
+        alert('Windows could not optimize C:: ' + e);
+      }
+    });
+    warning.appendChild(optimize);
+    screen.appendChild(warning);
   }
 
   // Image grid
@@ -215,18 +310,59 @@ function renderLaunchpad() {
 
   // Password
   const row2 = el('div', 'field-row');
-  row2.appendChild(inputField('Password', 'password', state.config.password, v => state.config.password = v, ''));
-  row2.appendChild(inputField('Confirm Password', 'password', '', () => {}, ''));
+  row2.appendChild(inputField('Password', 'password', state.config.password, v => { state.config.password = v; refreshInstallValidity(); }, ''));
+  row2.appendChild(inputField('Confirm Password', 'password', state.config.passwordConfirm || '', v => { state.config.passwordConfirm = v; refreshInstallValidity(); }, ''));
   fields.appendChild(row2);
+
+  // Disk encryption (SPEC §2.6)
+  const encSection = el('div');
+  encSection.style.cssText = 'margin-top:6px';
+  const encLabel = el('div');
+  encLabel.style.cssText = 'font-size:11.5px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px';
+  encLabel.textContent = 'Disk Encryption';
+  encSection.appendChild(encLabel);
+  const encOpts = el('div');
+  encOpts.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+  const encRadio = (value, title, sub, recommended) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px';
+    const checked = state.config.encryption === value;
+    row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} style="margin-top:1px">
+      <span><b>${title}${recommended ? ' <span style="color:var(--primary);font-size:10px;font-weight:500">RECOMMENDED</span>' : ''}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = () => { state.config.encryption = value; refreshInstallValidity(); render(); };
+    // Visual highlight for selected option
+    if (checked) row.style.borderColor = 'var(--primary)';
+    return row;
+  };
+  encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', false));
+  encOpts.appendChild(encRadio('tpm2-luks', 'TPM auto-unlock', 'LUKS encryption that unlocks automatically via the TPM chip. No prompt at boot.', true));
+  encOpts.appendChild(encRadio('luks-passphrase', 'Passphrase', 'LUKS encryption that asks for your Linux password every boot.', false));
+  encSection.appendChild(encOpts);
+
+  // Passphrase input (only when passphrase mode)
+  if (state.config.encryption === 'luks-passphrase') {
+    const ppRow = el('div', 'field-row');
+    ppRow.style.marginTop = '8px';
+    ppRow.appendChild(inputField('LUKS Passphrase', 'password', state.config.luksPassphrase, v => { state.config.luksPassphrase = v; refreshInstallValidity(); }, ''));
+    encSection.appendChild(ppRow);
+  }
+  fields.appendChild(encSection);
+
+  const hint = el('div');
+  hint.id = 'install-hint';
+  hint.style.cssText = 'font-size:11.5px;color:var(--text-muted);min-height:15px;margin-top:2px';
+  fields.appendChild(hint);
 
   screen.appendChild(fields);
 
   // Footer
   const footer = el('div', 'footer');
-  const installBtn = btn('Install →', 'btn btn-primary', () => startInstall());
-  installBtn.disabled = !state.selected;
+  const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
+  installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => window.wails?.Quit?.()));
   footer.appendChild(installBtn);
+  // Defer validity to after mount so the hint element exists.
+  setTimeout(refreshInstallValidity, 0);
 
   const wrap = el('div');
   wrap.style.display = 'flex';
@@ -353,15 +489,60 @@ function renderControlPanel() {
     <div class="screen-subtitle">An existing TunaOS installation was found on this PC.</div>
   `;
 
+  const u = state.uninstallInfo || {};
+  const path = u.diskPath || 'C:\\wootc\\disks\\root.vhdx';
+  const sizeStr = u.diskSizeGB ? ` (${Math.round(u.diskSizeGB)} GB)` : '';
   const card = el('div');
   card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;margin-top:8px';
   card.innerHTML = `
-    <div style="font-weight:600;font-size:14px">C:\\wootc\\disks\\root.vhdx</div>
-    <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives in this file. Deleting it will remove Linux but leave Windows intact.</div>
+    <div style="font-weight:600;font-size:14px">${path}${sizeStr}</div>
+    <div style="font-size:12.5px;color:var(--text-muted)">Your TunaOS installation lives here. Removing it leaves Windows completely intact.</div>
   `;
   screen.appendChild(card);
 
+  // Uninstall options (§5) — checkboxes drive UninstallWith.
+  state.uninstallOpts = state.uninstallOpts || { deleteRootDisk: false, removePartition: false };
+  const opts = el('div');
+  opts.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:6px';
+  const checkbox = (id, label, sub, danger) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12.5px';
+    row.innerHTML = `<input type="checkbox" ${state.uninstallOpts[id] ? 'checked' : ''} style="margin-top:2px">
+      <span><b style="${danger ? 'color:var(--danger)' : ''}">${label}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = (e) => { state.uninstallOpts[id] = e.target.checked; };
+    return row;
+  };
+  opts.appendChild(checkbox('deleteRootDisk', 'Also delete my Linux data',
+    'Removes root.disk. Your Linux files are permanently deleted. Leave unchecked to keep them for later.', true));
+  if (u.onDedicatedVol && u.reclaimGB) {
+    opts.appendChild(checkbox('removePartition', `Give the ${Math.round(u.reclaimGB)} GB back to Windows`,
+      `Removes the wootc-data drive (${u.storageDrive}:) and extends C: into the freed space.`, false));
+  }
+  screen.appendChild(opts);
+
   wrap.appendChild(screen);
+
+  // Boot-in-VM (§6.2): view Linux without rebooting, when the VM viewer is
+  // present and WHPX is on.
+  const vm = state.vmCapability;
+  if (vm) {
+    const vmCard = el('div');
+    vmCard.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-top:10px;display:flex;align-items:center;gap:12px';
+    vmCard.innerHTML = `<span style="font-size:20px">🖥️</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px">Try Linux in a window</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">${vm.available
+          ? `Boot your installed TunaOS in a window using ${String(vm.accelerator || 'hardware acceleration').toUpperCase()}. Changes persist — it's the same system.`
+          : vm.reason}</div>
+      </div>`;
+    const vmBtn = btn('Boot in VM', 'btn btn-ghost', async () => {
+      try { await BootInVM(); } catch (e) { alert('Could not start the VM: ' + e); }
+    });
+    vmBtn.style.flexShrink = '0';
+    vmBtn.disabled = !vm.available;
+    vmCard.appendChild(vmBtn);
+    screen.appendChild(vmCard);
+  }
 
   const footer = el('div', 'footer');
   footer.appendChild(btn('Reinstall', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); }));
@@ -371,13 +552,269 @@ function renderControlPanel() {
   return wrap;
 }
 
-function confirmUninstall() {
-  if (confirm('Remove the TunaOS boot entry? (root.vhdx will NOT be deleted — remove it manually from C:\\wootc\\disks\\)')) {
-    import('../wailsjs/go/main/App').then(({ Uninstall }) => Uninstall());
+// ── Screen 5: Migration dashboard (installed Linux system) ───────────────────
+
+const CATEGORY_ICONS = {
+  Documents: '📄', Pictures: '🖼️', Downloads: '📥',
+  Music: '🎵', Videos: '🎬', Desktop: '🖥️',
+  steam: '🎮', browser: '🌐',
+};
+
+function renderMigrateScreen() {
+  const wrap = el('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
+  const screen = el('div', 'screen');
+
+  const hdr = el('div');
+  hdr.innerHTML = `
+    <div class="screen-title">Your Windows files are already here</div>
+    <div class="screen-subtitle">
+      Everything below is available right now, straight from Windows — no copying needed.
+      When you're ready, move things over to Linux at your own pace.
+    </div>
+  `;
+  screen.appendChild(hdr);
+
+  const reassure = el('div', 'warning-banner');
+  reassure.style.cssText = 'background:rgba(74,222,128,0.07);border-color:rgba(74,222,128,0.3);color:var(--text-dim)';
+  reassure.innerHTML = `<span>🛡️</span><span>Moving something to Linux never deletes it from Windows. Until you choose to remove Windows entirely, your files exist safely in both places.</span>`;
+  screen.appendChild(reassure);
+
+  const scroll = el('div');
+  scroll.style.cssText = 'overflow-y:auto;display:flex;flex-direction:column;gap:16px;margin-top:10px';
+
+  const filesSection = el('div');
+  filesSection.appendChild(sectionLabel('Your files & games'));
+  const list = el('div');
+  list.id = 'migrate-rows';
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  list.appendChild(renderMigrateRowsInner());
+  filesSection.appendChild(list);
+  scroll.appendChild(filesSection);
+
+  if (state.apps.length) {
+    const appsSection = el('div');
+    appsSection.appendChild(sectionLabel('Your apps'));
+    const al = el('div');
+    al.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    state.apps.forEach(a => al.appendChild(renderAppRow(a)));
+    appsSection.appendChild(al);
+    scroll.appendChild(appsSection);
+  }
+
+  if (state.office) {
+    const off = el('div');
+    off.appendChild(sectionLabel('Microsoft Office → LibreOffice'));
+    const card = el('div');
+    card.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px';
+    const moved = (state.office.migrated || []).map(m => ({
+      'custom-dictionary': 'custom dictionary', templates: 'templates', fonts: 'fonts',
+      autocorrect: 'AutoCorrect list', 'office-format-defaults': 'save-as-Office default',
+    }[m] || m));
+    card.innerHTML = `<div style="font-size:12.5px;color:var(--text-dim)">${state.office.note || ''}</div>` +
+      (moved.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${moved.map(m => `<span class="chip ok">✓ ${m}</span>`).join('')}</div>` : '');
+    off.appendChild(card);
+    scroll.appendChild(off);
+  }
+
+  screen.appendChild(scroll);
+  wrap.appendChild(screen);
+
+  const footer = el('div', 'footer');
+  footer.appendChild(btn('Refresh', 'btn btn-ghost', () => refreshCategories()));
+  footer.appendChild(btn('Close', 'btn btn-primary', () => window.wails?.Quit?.()));
+  wrap.appendChild(footer);
+  return wrap;
+}
+
+function renderMigrateRowsInner() {
+  const frag = document.createDocumentFragment();
+  if (!state.categories.length) {
+    const empty = el('div');
+    empty.style.cssText = 'padding:30px;text-align:center;color:var(--text-muted);font-size:13px';
+    empty.textContent = 'Looking for your Windows data…';
+    frag.appendChild(empty);
+    return frag;
+  }
+  state.categories.forEach(c => {
+    const row = el('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px';
+
+    const icon = el('span');
+    icon.style.fontSize = '20px';
+    icon.textContent = CATEGORY_ICONS[c.id] || '📁';
+    row.appendChild(icon);
+
+    const mid = el('div');
+    mid.style.cssText = 'flex:1;min-width:0';
+    const size = c.sizeBytes >= 0 ? ` · ${fmtSize(c.sizeBytes)}` : '';
+    mid.innerHTML = `
+      <div style="font-weight:600;font-size:13.5px">${c.label}<span style="font-weight:400;color:var(--text-muted)">${size}</span></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${c.description}</div>
+    `;
+    row.appendChild(mid);
+
+    row.appendChild(migrateAction(c));
+    frag.appendChild(row);
+  });
+  return frag;
+}
+
+function renderMigrateRows() {
+  const list = document.getElementById('migrate-rows');
+  if (!list) return;
+  list.innerHTML = '';
+  list.appendChild(renderMigrateRowsInner());
+}
+
+function sectionLabel(text) {
+  const l = el('div');
+  l.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px';
+  l.textContent = text;
+  return l;
+}
+
+const APP_ICONS = {
+  firefox: '🦊', chrome: '🌐', edge: '🌐', vscode: '💻', discord: '💬',
+  spotify: '🎧', slack: '💬', steam: '🎮', obs: '🎥', telegram: '✈️',
+  signal: '🔒', whatsapp: '💬', thunderbird: '📧', zoom: '🎦',
+};
+
+// The honest outcome badge, driven by the backend's session verdict.
+const SESSION_BADGE = {
+  portable: { label: '✓ Signed in', cls: 'ok' },
+  signin:   { label: 'Sign in once', cls: '' },
+  none:     { label: 'Re-link needed', cls: '' },
+};
+
+function renderAppRow(a) {
+  const row = el('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:10px 16px';
+  const badge = SESSION_BADGE[a.session] || SESSION_BADGE.signin;
+  row.innerHTML = `
+    <span style="font-size:18px">${APP_ICONS[a.app] || '📦'}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13px;text-transform:capitalize">${a.app}</div>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:1px">${a.note || ''}</div>
+    </div>
+    <span class="chip ${badge.cls}" style="flex-shrink:0">${badge.label}</span>
+  `;
+  return row;
+}
+
+function migrateAction(c) {
+  const holder = el('div');
+  holder.style.cssText = 'display:flex;align-items:center;gap:8px;flex-shrink:0';
+
+  if (c.id in state.converting) {
+    const pct = Math.round(state.converting[c.id] || 0);
+    const track = el('div');
+    track.style.cssText = 'width:110px;height:6px;background:var(--border);border-radius:3px;overflow:hidden';
+    const fill = el('div');
+    fill.style.cssText = `width:${pct}%;height:100%;background:var(--accent, #4ade80);transition:width .3s`;
+    track.appendChild(fill);
+    const lbl = el('span');
+    lbl.style.cssText = 'font-size:11.5px;color:var(--text-muted);min-width:34px';
+    lbl.textContent = `${pct}%`;
+    holder.appendChild(track);
+    holder.appendChild(lbl);
+    return holder;
+  }
+
+  switch (c.state) {
+    case 'bridged': {
+      holder.appendChild(chip('Connected to Windows', false));
+      const b = btn('Move to Linux', 'btn btn-ghost', () => confirmConvert(c));
+      b.style.fontSize = '12px';
+      holder.appendChild(b);
+      break;
+    }
+    case 'native':
+      holder.appendChild(chip('✓ On Linux', false));
+      break;
+    case 'available': {
+      if (c.id === 'browser') {
+        const b = btn('Import', 'btn btn-ghost', () => runBrowserImport());
+        b.style.fontSize = '12px';
+        holder.appendChild(b);
+      } else {
+        holder.appendChild(chip('Found on Windows', false));
+      }
+      break;
+    }
+    default:
+      holder.appendChild(chip('Not found', false));
+  }
+  return holder;
+}
+
+function confirmConvert(c) {
+  const size = c.sizeBytes >= 0 ? ` (${fmtSize(c.sizeBytes)})` : '';
+  if (!confirm(
+    `Move ${c.label}${size} to Linux?\n\n` +
+    `Your files will be copied to fast Linux storage. The Windows copy stays exactly where it is — nothing is deleted.`
+  )) return;
+  state.converting[c.id] = 0;
+  renderMigrateRows();
+  ConvertCategory(c.id).catch(e => {
+    delete state.converting[c.id];
+    alert(`Something went wrong: ${e}\nYour files are safe — nothing was deleted.`);
+    refreshCategories();
+  });
+}
+
+async function runBrowserImport() {
+  try {
+    await ImportBrowserData();
+    await refreshCategories();
+  } catch (e) {
+    alert(`Browser import hit a snag: ${e}\nNothing was changed on the Windows side.`);
+  }
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+async function confirmUninstall() {
+  const o = state.uninstallOpts || {};
+  let msg = 'Remove TunaOS?\n\nThis removes the boot entry, the ESP files, and the deployer files.';
+  if (o.deleteRootDisk) msg += '\n\n⚠ Your Linux data (root.disk) will be permanently deleted.';
+  else msg += '\n\nYour Linux data (root.disk) will be kept.';
+  if (o.removePartition) msg += '\n⚠ The wootc-data drive will be removed and its space returned to C:.';
+  if (!confirm(msg)) return;
+  try {
+    await UninstallWith({ deleteRootDisk: !!o.deleteRootDisk, removePartition: !!o.removePartition });
+    alert('TunaOS has been removed. Windows is unchanged.');
+    window.wails?.Quit?.();
+  } catch (e) {
+    alert('Uninstall hit a problem: ' + e);
   }
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
+
+// Gate the Install button on a valid form and show the reason why not.
+function refreshInstallValidity() {
+  const btn = document.getElementById('install-btn');
+  const hint = document.getElementById('install-hint');
+  if (!btn) return;
+  const c = state.config;
+  let reason = '';
+  if (!state.selected) reason = 'Choose a variant above.';
+  else if (!c.username.trim()) reason = 'Enter a Linux username.';
+  else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
+  else if (!c.password) reason = 'Set a password.';
+  else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
+  else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to TPM or no encryption.';
+  btn.disabled = reason !== '';
+  if (hint) {
+    hint.textContent = reason;
+    hint.style.color = reason ? 'var(--danger)' : 'var(--text-muted)';
+  }
+}
 
 async function startInstall() {
   if (!state.selected) return;
@@ -386,6 +823,21 @@ async function startInstall() {
   render();
 
   try {
+    // BitLocker: resolve where Linux will live before the pipeline runs.
+    let storageDrive = '';
+    if (state.sysinfo?.bitLockerOn) {
+      const mode = state.config.bitlockerMode || 'create';
+      if (mode.startsWith('use:')) {
+        storageDrive = mode.slice(4);
+      } else {
+        state.progress.step = 'Creating space for Linux';
+        state.progress.message = 'Making an unencrypted partition (C: stays encrypted)…';
+        renderProgress();
+        const part = await CreateDataPartition(state.config.diskSizeGB + 5);
+        storageDrive = part.letter;
+      }
+    }
+
     await StartInstall({
       imageRef:   state.selected.imageRef,
       diskSizeGB: state.config.diskSizeGB,
@@ -393,6 +845,9 @@ async function startInstall() {
       password:   state.config.password,
       hostname:   state.config.hostname,
       bootloader: state.config.bootloader,
+      storageDrive,
+      encryption:     state.config.encryption,
+      luksPassphrase: state.config.luksPassphrase,
     });
   } catch (e) {
     state.progress.error = String(e);
@@ -419,6 +874,47 @@ function chip(label, isWarn) {
   const c = el('div', 'chip' + (isWarn ? ' warn' : ' ok'));
   c.textContent = label;
   return c;
+}
+
+// BitLocker chooser: keep C: encrypted, put Linux on an unencrypted
+// volume — either an existing one or a new partition carved from C:.
+function renderBitlockerChooser() {
+  const wrap = el('div');
+  wrap.appendChild(warningBanner(
+    "Your C: drive is encrypted with BitLocker. Linux needs an unencrypted place to live — " +
+    "we'll keep C: fully encrypted and set up a separate space just for Linux. Nothing on C: is decrypted."
+  ));
+
+  const box = el('div');
+  box.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:8px;display:flex;flex-direction:column;gap:8px';
+
+  const existing = (state.sysinfo.dataPartitions || []).filter(p => !p.encrypted && p.freeGB >= state.config.diskSizeGB);
+  const opt = (id, title, sub, checked) => {
+    const row = el('label');
+    row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12.5px';
+    row.innerHTML = `<input type="radio" name="blmode" value="${id}" ${checked ? 'checked' : ''} style="margin-top:2px">
+      <span><b>${title}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+    row.querySelector('input').onchange = () => { state.config.bitlockerMode = id; refreshInstallValidity(); };
+    return row;
+  };
+
+  // Default to creating a partition (always available); existing volumes first if present.
+  if (existing.length) {
+    existing.forEach(p => {
+      box.appendChild(opt('use:' + p.letter,
+        `Use drive ${p.letter}: ${p.label ? '(' + p.label + ')' : ''}`,
+        `${Math.round(p.freeGB)} GB free, unencrypted — Linux will live here.`,
+        state.config.bitlockerMode === 'use:' + p.letter));
+    });
+  }
+  box.appendChild(opt('create',
+    'Create a new space for Linux (recommended)',
+    `Shrinks C: by ${state.config.diskSizeGB} GB and makes a new unencrypted drive just for Linux. C: stays BitLocker-protected.`,
+    !state.config.bitlockerMode || state.config.bitlockerMode === 'create' || !existing.length));
+
+  wrap.appendChild(box);
+  if (!state.config.bitlockerMode) state.config.bitlockerMode = existing.length ? 'use:' + existing[0].letter : 'create';
+  return wrap;
 }
 
 function warningBanner(text) {

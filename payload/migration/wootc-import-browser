@@ -1,0 +1,105 @@
+#!/bin/bash
+# /usr/local/bin/wootc-import-browser <username>
+# User Data Bridge, browser category (SPEC §4.1): copy browser data from
+# the Windows profile at /host/Users/<username>/ into the matching Linux
+# browser for the same user. Invoked on demand by the migration dashboard
+# (not automatically — importing is a stage-3 user choice, SPEC §4.2).
+#
+# What migrates offline, honestly:
+#   Firefox  — the complete profile (bookmarks, history, passwords,
+#              extensions): Firefox profiles are portable directories.
+#   Chrome   — Bookmarks (plain JSON). History is copyable (SQLite).
+#   Edge     — Bookmarks + History (same Chromium formats → Chrome).
+#   Chromium passwords do NOT migrate: they are DPAPI-encrypted with the
+#   Windows login credential and cannot be decrypted offline. The
+#   dashboard says so up front instead of pretending.
+#
+# Everything is copy-only: the Windows profile is never modified, so the
+# stage stays reversible (delete the imported Linux profile to undo).
+
+set -Eeuo pipefail
+
+log() { printf '[wootc-import-browser] %s\n' "$*"; }
+name="${1:?usage: wootc-import-browser <username>}"
+
+mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
+home=$(getent passwd "$name" | cut -d: -f6)
+[[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
+winprofile="/host/Users/$name"
+[[ -d "$winprofile" ]] || { log "no Windows profile for $name"; exit 0; }
+
+imported=()
+
+# ── Firefox: whole-profile copy ─────────────────────────────────────────────
+FF_WIN="$winprofile/AppData/Roaming/Mozilla/Firefox"
+if [[ -f "$FF_WIN/profiles.ini" ]]; then
+    # Pick the default profile dir from profiles.ini.
+    ffprof=$(awk -F= '/^\[Install/{ins=1} ins&&/^Default=/{print $2; exit}' "$FF_WIN/profiles.ini")
+    [[ -z "$ffprof" ]] && ffprof=$(awk -F= '/^Path=/{print $2; exit}' "$FF_WIN/profiles.ini")
+    if [[ -n "$ffprof" && -d "$FF_WIN/$ffprof" ]]; then
+        for ff_linux in \
+            "$home/.var/app/org.mozilla.firefox/.mozilla/firefox" \
+            "$home/.mozilla/firefox"; do
+            parent=$(dirname "$ff_linux")
+            [[ -d "$parent" ]] || continue
+            dest="$ff_linux/windows-import.wootc"
+            mkdir -p "$dest"
+            # Copy profile, skipping lock files and the cache.
+            rsync -a --exclude 'lock' --exclude '.parentlock' \
+                  --exclude 'cache2' --exclude 'startupCache' \
+                  "$FF_WIN/$ffprof/" "$dest/" 2>/dev/null || cp -a "$FF_WIN/$ffprof/." "$dest/"
+            # Register it so Firefox's profile manager offers it.
+            ini="$ff_linux/profiles.ini"
+            if [[ -f "$ini" ]] && ! grep -q "windows-import.wootc" "$ini"; then
+                n=$(grep -c '^\[Profile' "$ini" || echo 0)
+                printf '\n[Profile%s]\nName=Imported from Windows\nIsRelative=1\nPath=windows-import.wootc\n' "$n" >> "$ini"
+            elif [[ ! -f "$ini" ]]; then
+                printf '[Profile0]\nName=Imported from Windows\nIsRelative=1\nPath=windows-import.wootc\nDefault=1\n\n[General]\nStartWithLastProfile=1\nVersion=2\n' > "$ini"
+            fi
+            imported+=("firefox")
+            log "Firefox profile imported for $name → $dest"
+            break
+        done
+    fi
+fi
+
+# ── Chrome + Edge → Linux Chrome: bookmarks & history ──────────────────────
+import_chromium() {
+    local src_default="$1" label="$2"
+    [[ -d "$src_default" ]] || return 0
+    for chrome_linux in \
+        "$home/.var/app/com.google.Chrome/config/google-chrome/Default" \
+        "$home/.config/google-chrome/Default"; do
+        [[ -d "$(dirname "$(dirname "$chrome_linux")")" ]] || continue
+        mkdir -p "$chrome_linux"
+        for f in Bookmarks History; do
+            if [[ -f "$src_default/$f" && ! -f "$chrome_linux/$f" ]]; then
+                cp "$src_default/$f" "$chrome_linux/$f"
+                log "$label $f imported for $name"
+                imported+=("${label,,}-${f,,}")
+            fi
+        done
+        break
+    done
+}
+import_chromium "$winprofile/AppData/Local/Google/Chrome/User Data/Default" "Chrome"
+import_chromium "$winprofile/AppData/Local/Microsoft/Edge/User Data/Default" "Edge"
+
+# ── Record outcome for the dashboard ────────────────────────────────────────
+state_dir="$home/.config/wootc"
+mkdir -p "$state_dir"
+{
+    printf '{\n  "imported": ['
+    for i in "${!imported[@]}"; do
+        sep=$([[ $i -lt $((${#imported[@]} - 1)) ]] && echo ', ' || echo '')
+        printf '"%s"%s' "${imported[$i]}" "$sep"
+    done
+    printf '],\n  "passwordsNote": "Chromium passwords are protected by your Windows login and cannot be moved automatically. Firefox passwords came across with the profile."\n}\n'
+} > "$state_dir/bridge-browser.json"
+chown -R "$name:" "$state_dir" 2>/dev/null || true
+
+if [[ ${#imported[@]} -eq 0 ]]; then
+    log "nothing to import for $name"
+else
+    log "done: ${imported[*]}"
+fi

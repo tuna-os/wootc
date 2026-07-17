@@ -17,7 +17,7 @@ RUN dnf install -y \
     kernel-core kernel-modules kernel-modules-extra \
     NetworkManager iproute dhcp-client \
     curl ca-certificates jq \
-    qemu-guest-agent qemu-img psmisc shadow-utils policycoreutils which \
+    qemu-guest-agent qemu-img cryptsetup psmisc shadow-utils policycoreutils which \
     && dnf clean all
 
 # ── Build fisherman statically ──────────────────────────────────────────────
@@ -53,8 +53,9 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
         --add "network kernel-modules kernel-modules-extra wootc" \
         --install "podman skopeo fisherman \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
-                   losetup qemu-nbd dmsetup \
-                   curl dhclient ip NetworkManager jq blkid chroot shred logger basename date" \
+                   losetup qemu-nbd dmsetup cryptsetup systemd-cryptenroll \
+                    /usr/lib/systemd/systemd-cryptsetup \
+                    curl dhclient ip NetworkManager jq blkid chroot shred logger basename date" \
         --kernel-cmdline "rd.neednet=1 ip=dhcp quiet" \
         /out/deployer-initramfs.img \
         "$KERNEL_VER"
@@ -64,7 +65,8 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # restorecon once dropped conmon/crun/podman and cost a full E2E debug
 # cycle), so the build must fail loudly here instead.
 RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
-        mkfs.xfs qemu-ga qemu-img qemu-nbd df sync truncate journalctl jq tee which basename date head; do \
+        mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
+        df sync truncate journalctl jq tee which basename date head; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
@@ -73,7 +75,11 @@ RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh" || \
         { echo "FATAL: 99wootc-boot payload missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-passthrough.service" || \
-        { echo "FATAL: User Data Bridge migration payload missing from initramfs"; exit 1; }
+        { echo "FATAL: User Data Bridge migration payload missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/org.tunaos.wootc.policy" || \
+        { echo "FATAL: wootc polkit policy missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/systemd/systemd-cryptsetup" || \
+        { echo "FATAL: systemd-cryptsetup missing from initramfs"; exit 1; }
 
 RUN cp /boot/vmlinuz-* /out/deployer-vmlinuz 2>/dev/null || \
     cp /lib/modules/*/vmlinuz /out/deployer-vmlinuz 2>/dev/null || true

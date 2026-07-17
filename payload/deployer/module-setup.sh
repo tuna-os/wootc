@@ -27,7 +27,7 @@ install() {
         podman skopeo conmon crun \
         parted sfdisk partprobe wipefs \
         mkfs.ext4 mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
-        losetup qemu-img qemu-nbd dmsetup blockdev blkid lsblk \
+        losetup qemu-img qemu-nbd dmsetup cryptsetup systemd-cryptenroll blockdev blkid lsblk \
         fsfreeze fstrim swapon swapoff fuser \
         useradd chpasswd \
         curl dhclient ip NetworkManager \
@@ -37,6 +37,7 @@ install() {
 
     # restorecon (policycoreutils) may not be installed in the build container.
     inst_multiple -o restorecon
+    inst /usr/lib/systemd/systemd-cryptsetup
 
     # The 99wootc-boot dracut module payload, injected into the installed
     # system during verification (deploy.sh copies this tree into the
@@ -50,6 +51,16 @@ install() {
     inst /usr/lib/wootc/migration/wootc-passthrough.service
     inst /usr/lib/wootc/migration/wootc-mount-user-dirs
     inst /usr/lib/wootc/migration/wootc-umount-user-dirs
+    inst /usr/lib/wootc/migration/wootc-steam-bridge
+    inst /usr/lib/wootc/migration/wootc-import-browser
+    inst /usr/lib/wootc/migration/wootc-convert-dir
+    inst /usr/lib/wootc/migration/org.tunaos.wootc.policy
+    inst /usr/lib/wootc/migration/wootc-esp-sync
+    inst /usr/lib/wootc/migration/wootc-esp-sync.service
+    inst /usr/lib/wootc/migration/wootc-apply-look
+    inst /usr/lib/wootc/migration/wootc-apply-look.desktop
+    inst /usr/lib/wootc/migration/wootc-detect-apps
+    inst /usr/lib/wootc/migration/wootc-office-bridge
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

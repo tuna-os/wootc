@@ -38,9 +38,11 @@ func hashPassword(password string) (string, error) {
 		saltStr[i] = saltChars[int(b)%len(saltChars)]
 	}
 
-	// sha512_crypt.Generate expects salt without the $6$ prefix
+	// sha512_crypt.Generate requires the salt to carry the $6$ magic
+	// prefix (it returns "invalid magic prefix" otherwise — caught by the
+	// Phase-1 E2E on first real run).
 	c := sha512_crypt.New()
-	hash, err := c.Generate([]byte(password), saltStr)
+	hash, err := c.Generate([]byte(password), []byte("$6$"+string(saltStr)))
 	if err != nil {
 		return "", fmt.Errorf("sha512-crypt: %w", err)
 	}

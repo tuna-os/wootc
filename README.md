@@ -1,5 +1,16 @@
 # wootc — Windows-hosted bootc Linux
 
+## North Star
+
+Make it as easy as possible for **non-technical Windows users** to migrate
+to Linux **without losing any of their data** — and make switching as
+convenient as it can be. The goal is to increase Linux adoption by making
+it dramatically more approachable. Every design decision is weighed
+against: *would a non-technical Windows user get through this without fear
+or data loss?* Reversibility and data safety beat feature count; friendly
+language beats technical precision in the UI; nothing permanent changes on
+the user's machine until Linux is proven working.
+
 wootc installs a bootc-based Linux system into `root.disk`, a sparse file on
 an unencrypted Windows NTFS volume. It is a Wubi-style design: no repartitioning
 of the Windows OS volume is required, and removal is deleting the installation

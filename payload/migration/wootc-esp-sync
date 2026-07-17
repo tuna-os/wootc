@@ -1,0 +1,152 @@
+#!/bin/bash
+# /usr/local/bin/wootc-esp-sync
+# Self-healing Windows-ESP kernel sync, run on every boot of the installed
+# system (wootc-esp-sync.service).
+#
+# Why: Phase-2 boots load the kernel+initramfs from the *Windows* ESP (the
+# signed GRUB cannot read NTFS, and cannot loop-mount the root disk). After
+# any OS update (`bootc update`, apt/pacman kernel upgrade), the ESP copy
+# goes stale. This service compares the system's current boot artifacts
+# with the ESP pair and refreshes them plus grub.cfg when they differ.
+# Updates therefore take effect one reboot late — never inconsistently:
+# a stale grub.cfg still boots the *old, matching* kernel+deployment.
+#
+# Variant-agnostic (all TunaOS flavors): prefers BLS entries
+# (ostree/Fedora/EL), falls back to newest /boot/vmlinuz-* (classic
+# Debian/Arch layouts).
+#
+# Test hooks: WOOTC_ESP_DIR overrides mounting (points at a fake ESP);
+# WOOTC_BOOT_DIR overrides /boot; WOOTC_CMDLINE overrides /proc/cmdline.
+
+set -Eeuo pipefail
+
+log() { printf '[wootc-esp-sync] %s\n' "$*"; }
+
+CONF="${WOOTC_ESP_CONF:-/etc/wootc/host-esp.conf}"
+BOOT="${WOOTC_BOOT_DIR:-/boot}"
+CMDLINE_FILE="${WOOTC_CMDLINE:-/proc/cmdline}"
+
+ESP_MNT=""
+MOUNTED=0
+cleanup() {
+    [[ "$MOUNTED" -eq 1 ]] && umount "$ESP_MNT" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# ── Locate the Windows ESP ──────────────────────────────────────────────────
+if [[ -n "${WOOTC_ESP_DIR:-}" ]]; then
+    ESP_MNT="$WOOTC_ESP_DIR"
+else
+    [[ -f "$CONF" ]] || { log "no $CONF — not a wootc ESP-boot system; nothing to do"; exit 0; }
+    # shellcheck disable=SC1090
+    . "$CONF"   # HOST_ESP_UUID=...
+    [[ -n "${HOST_ESP_UUID:-}" ]] || { log "HOST_ESP_UUID missing from $CONF"; exit 0; }
+    ESP_DEV="/dev/disk/by-uuid/$HOST_ESP_UUID"
+    [[ -b "$ESP_DEV" ]] || { log "ESP $ESP_DEV not present; skipping"; exit 0; }
+    ESP_MNT=/run/wootc-esp
+    mkdir -p "$ESP_MNT"
+    if ! mountpoint -q "$ESP_MNT"; then
+        mount -t vfat "$ESP_DEV" "$ESP_MNT" || { log "cannot mount ESP"; exit 0; }
+        MOUNTED=1
+    fi
+fi
+
+WOOTC_DIR="$ESP_MNT/EFI/wootc"
+[[ -d "$WOOTC_DIR" ]] || { log "no EFI/wootc on ESP; not a Phase-2 layout"; exit 0; }
+
+# ── Discover the system's current default kernel/initramfs/cmdline ─────────
+KERNEL=""
+INITRD=""
+OPTIONS=""
+
+shopt -s nullglob
+bls_entries=("$BOOT"/loader/entries/*.conf)
+shopt -u nullglob
+
+if [[ ${#bls_entries[@]} -gt 0 ]]; then
+    # BLS layout (ostree, Fedora, EL): blscfg sorts entries version-descending
+    # and boots the first — mirror that choice.
+    entry=$(printf '%s\n' "${bls_entries[@]}" | sort -Vr | head -1)
+    kpath=$(awk '$1=="linux"{print $2; exit}' "$entry")
+    ipath=$(awk '$1=="initrd"{print $2; exit}' "$entry")
+    OPTIONS=$(awk '$1=="options"{$1=""; print; exit}' "$entry" | sed 's/^ //')
+    # BLS paths are relative to the partition holding them ($BOOT).
+    KERNEL="$BOOT${kpath}"
+    INITRD="$BOOT${ipath}"
+    [[ -f "$KERNEL" ]] || KERNEL="$BOOT/${kpath#/boot/}"
+    [[ -f "$INITRD" ]] || INITRD="$BOOT/${ipath#/boot/}"
+else
+    # Classic layout (Debian, Arch): newest versioned kernel wins.
+    shopt -s nullglob
+    kernels=("$BOOT"/vmlinuz-*)
+    shopt -u nullglob
+    [[ ${#kernels[@]} -gt 0 ]] || { log "no kernels found under $BOOT"; exit 0; }
+    KERNEL=$(printf '%s\n' "${kernels[@]}" | sort -Vr | head -1)
+    kver="${KERNEL##*/vmlinuz-}"
+    for cand in "$BOOT/initramfs-$kver.img" "$BOOT/initrd.img-$kver" "$BOOT/initramfs-linux.img"; do
+        [[ -f "$cand" ]] && { INITRD="$cand"; break; }
+    done
+    if [[ -f /etc/kernel/cmdline ]]; then
+        OPTIONS=$(cat /etc/kernel/cmdline)
+    else
+        # Reuse the running cmdline minus loader-owned arguments.
+        OPTIONS=$(tr ' ' '\n' < "$CMDLINE_FILE" | grep -vE '^(BOOT_IMAGE=|initrd=)' | tr '\n' ' ')
+    fi
+fi
+
+[[ -f "$KERNEL" && -f "$INITRD" ]] || { log "kernel/initramfs not found (kernel=$KERNEL initrd=$INITRD)"; exit 0; }
+
+# The loop-attach arguments must survive: without wootc.host_uuid= and
+# loop= the initramfs cannot find the root disk. Carry them from the
+# running cmdline when the source options lost them.
+for arg in $(tr ' ' '\n' < "$CMDLINE_FILE" | grep -E '^(wootc\.host_uuid=|loop=)' || true); do
+    case " $OPTIONS " in
+        *" $arg "*) ;;
+        *) OPTIONS="$OPTIONS $arg" ;;
+    esac
+done
+# Drop tokens with unexpanded BLS variables and boot noise.
+OPTIONS=$(printf '%s' "$OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -vE '^(quiet|rhgb|splash)$' | tr '\n' ' ' | sed 's/  */ /g;s/ $//')
+
+# ── Compare and sync ────────────────────────────────────────────────────────
+changed=0
+sync_file() {
+    local src="$1" dst="$2"
+    if [[ ! -f "$dst" ]] || ! cmp -s "$src" "$dst"; then
+        cp "$src" "$dst.new" && mv -f "$dst.new" "$dst"
+        changed=1
+        log "updated $(basename "$dst")"
+    fi
+}
+sync_file "$KERNEL" "$WOOTC_DIR/phase2-vmlinuz"
+sync_file "$INITRD" "$WOOTC_DIR/phase2-initramfs.img"
+
+# grub.cfg lives at the signed GRUB's embedded prefix; find it rather than
+# assuming a vendor name (fedora today, target-signed vendors tomorrow).
+GRUB_CFG=""
+for d in "$ESP_MNT"/EFI/*/grub.cfg; do
+    [[ -f "$d" ]] && grep -q 'wootc' "$d" && { GRUB_CFG="$d"; break; }
+done
+[[ -n "$GRUB_CFG" ]] || GRUB_CFG="$ESP_MNT/EFI/fedora/grub.cfg"
+
+WANT_CFG="# wootc Phase 2 - boot installed system from root disk (auto-synced)
+set default=0
+set timeout=3
+
+menuentry \"wootc Linux\" {
+    linux /EFI/wootc/phase2-vmlinuz $OPTIONS console=tty1
+    initrd /EFI/wootc/phase2-initramfs.img
+}
+"
+if [[ ! -f "$GRUB_CFG" ]] || [[ "$(cat "$GRUB_CFG")" != "$WANT_CFG" ]]; then
+    printf '%s' "$WANT_CFG" > "$GRUB_CFG.new" && mv -f "$GRUB_CFG.new" "$GRUB_CFG"
+    changed=1
+    log "updated $(basename "$(dirname "$GRUB_CFG")")/grub.cfg"
+fi
+
+if [[ "$changed" -eq 1 ]]; then
+    sync
+    log "ESP refreshed — the next boot uses the updated kernel"
+else
+    log "ESP already current"
+fi

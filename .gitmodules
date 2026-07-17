@@ -1,3 +1,4 @@
 [submodule "fisherman"]
 	path = fisherman
-	url = https://github.com/projectbluefin/fisherman.git
+	url = https://github.com/tuna-os/fisherman.git
+	branch = dev
