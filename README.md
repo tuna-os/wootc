@@ -10,203 +10,181 @@
   <em>▶ Latest end-to-end run (sped-up): Windows 11 → wootc deployer → native Linux from <code>root.disk</code> → Windows 11. <a href="https://tuna-os.github.io/wootc/e2e/latest/">Click to play the timelapse.</a></em>
 </p>
 
-## North Star
+<p align="center">
+  <strong>Install a real, image-based Linux desktop from inside Windows — no repartitioning, no data loss, fully reversible.</strong>
+</p>
 
-Make it as easy as possible for **non-technical Windows users** to migrate
-to Linux **without losing any of their data** — and make switching as
-convenient as it can be. The goal is to increase Linux adoption by making
-it dramatically more approachable. Every design decision is weighed
-against: *would a non-technical Windows user get through this without fear
-or data loss?* Reversibility and data safety beat feature count; friendly
-language beats technical precision in the UI; nothing permanent changes on
-the user's machine until Linux is proven working.
+---
 
-wootc installs a bootc-based Linux system into `root.disk`, a sparse file on
-an unencrypted Windows NTFS volume. It is a Wubi-style design: no repartitioning
-of the Windows OS volume is required, and removal is deleting the installation
-directory and its Windows boot entry.
+wootc is a Windows-hosted installer for [bootc](https://github.com/containers/bootc)
+Linux images. It writes a complete Linux system into `root.disk`, a single
+sparse file on your existing Windows NTFS volume, and adds a one-shot Windows
+Boot Manager entry that boots into it. There is **no repartitioning of the
+Windows disk**, and uninstalling is deleting a folder and a boot entry.
 
-This is early, boot-path-focused development. The project currently targets a
-specific acceptance path:
+It's a modern, Secure-Boot-friendly take on the classic [Wubi](https://en.wikipedia.org/wiki/Wubi_(software))
+idea, built for container-native (OCI/ostree) Linux images and for people who
+have never touched a partition editor.
+
+## Why
+
+> **North Star** — make it as easy as possible for *non-technical Windows
+> users* to migrate to Linux **without losing any of their data**. Every
+> decision is weighed against: *would a nervous Windows user get through this
+> without fear or data loss?* Reversibility and data safety beat feature count;
+> friendly language beats technical precision; **nothing permanent changes on
+> the machine until Linux is proven working.**
+
+Switching OS is scary because it usually means repartitioning, backups, and a
+point of no return. wootc removes all three: Linux lives in a file next to
+Windows, both boot from the same disk, and you decide if and when to make it
+permanent.
+
+## How it works
 
 ```
-Windows 11 → wootc deployer → native Linux from root.disk → Windows 11
+Windows 11  →  wootc.exe (arms the system)  →  reboot
+            →  signed shim → GRUB → deployer initramfs
+            →  fisherman: bootc install into root.disk
+            →  reboot → native Linux, loop-mounted from root.disk
+            →  (optional) reclaim the disk and remove Windows
 ```
 
-Native loop-root boot is the implementation priority. The VM experience,
-graphical installer, User Data Bridge, and Windows-removal migration are not
-implemented yet.
+1. **Arm (in Windows).** The GUI creates `C:\wootc\disks\root.disk`, stages a
+   Microsoft/Fedora-signed `shim → GRUB → deployer` chain on the ESP, writes a
+   credential vault, optionally slurps your Windows look, and sets a **one-shot**
+   boot entry. Nothing else on the machine is touched.
+2. **Deploy (one reboot).** Under Secure Boot, the signed chain launches the
+   deployer initramfs, which mounts the NTFS volume, attaches `root.disk`, and
+   uses [fisherman](https://github.com/projectbluefin/fisherman) to run
+   `bootc install` — partitioning and populating the disk from the chosen OCI
+   image, with optional LUKS/TPM2 encryption.
+3. **Boot Linux.** A dracut hook (`99wootc-boot`) attaches `root.disk` on every
+   boot and pivots into the native system. The OS itself is unmodified — the
+   same image boots whether it lives in a file on NTFS or on a real partition.
+4. **Commit (optional, later).** When you're ready to go Linux-only, graduate
+   the system onto a native partition and reclaim the Windows space.
 
-## Current status (2026-07-17)
+The Windows installer is a [Wails](https://wails.io) app (Go + web UI); the
+deployer and migration tooling are POSIX shell and run inside the initramfs and
+the target system.
 
-**Single branch:** all work is merged to `main` (PR #6, plus GUI PRs #4/#5);
-E2E runners (dilli, himachal) sync from `main` via `just remote-sync` and
-carry no local edits. The fisherman submodule tracks `tuna-os/fisherman`
-branch `dev`, which unifies the NBD-preservation and OCI-export fix lineages.
+## Features
 
-**Working and verified on the E2E rig** (Windows 11 + TPM + Secure Boot under
-KVM; see [docs/e2e-architecture.md](docs/e2e-architecture.md)):
+| Area | What it does |
+|---|---|
+| **Guided installer** | Fixed-size GUI: pick an image, set user/hostname/disk, choose encryption. Live preflight (BitLocker, Fast Startup, UEFI, Secure Boot, free space). |
+| **Image catalog** | GNOME / KDE / Niri / XFCE variants across Enterprise Linux, Fedora, Arch, and Debian bases. Override with a custom OCI ref or `C:\wootc\images.json`. |
+| **Data safety first** | `root.disk` sits beside Windows; a one-shot boot entry means a failed deploy falls back to Windows. Reversible, partition-aware **uninstall**. |
+| **BitLocker-safe (§3.5)** | Never forces decryption. Offers an unencrypted partition for Linux (create new or reuse) while C: stays encrypted. |
+| **Disk encryption (§2.6)** | LUKS for the Linux root: TPM2 auto-unlock (default) or passphrase. |
+| **User Data Bridge (§4)** | Brings your files, browser profiles (Firefox/Chrome/Edge), Steam libraries, and MS Office → LibreOffice settings across — honestly, with a consent tier that never copies secrets silently. |
+| **Windows-Style Mode (§4.4)** | *Opt-in.* Wallpaper, accent color, keyboard layout, taskbar pins, and desktop shortcuts brought over on first login. Off by default — the image maker's look wins. |
+| **WSL migration (§4.6)** | Copies a WSL user's dotfiles (public SSH keys only) and turns their installed packages into a Homebrew `Brewfile`. |
+| **Bring your Windows over** | A Linux-side GUI to import data from a Windows install on **another disk** — second drive, external/USB, or a backup — unlocking **BitLocker** read-only (`cryptsetup bitlk`). |
+| **Try in VM (§6)** | Boot `root.disk` in a QEMU window without rebooting, or build a fresh preview from an image and promote it to the real install if you like it. |
+| **Themeable / lockable** | Partners can re-skin the installer and lock it to a single image family for a branded on-ramp. |
 
-- Secure Boot chain: BCD one-shot → Fedora `shimx64.efi` → signed
-  `grubx64.efi` → `grub.cfg` at the embedded `/EFI/fedora` prefix → signed
-  deployer kernel from the FAT32 ESP. No Access Denied, no unsigned modules.
-- **Rung 1 green (24/24):** the Phase-1 harness (`tests/e2e/phase1/`) proves
-  the real `wootc.exe` arms a virgin Windows VM over QGA: root disk created,
-  signed chain + deployer staged, BCD one-shot set, `state.json = armed`.
-- **Deployer E2E loop green (2026-07-16):** Windows → shim/GRUB → deployer →
-  fisherman → `bootc install` of yellowfin:gnome into root.disk →
-  `VERIFICATION_SUMMARY` → clean reboot → Windows with a clean NTFS volume.
-- **GUI Phase 1 landed:** launchpad + control panel, BitLocker chooser,
-  partition-aware reversible uninstall, LUKS encryption plumbing,
-  Boot-in-VM (QEMU/WHPX), Playwright mock suite green, walkthrough
-  published to GitHub Pages.
-- **Migration bridge unit-proven (33/33):** User Data Bridge, Steam/browser
-  bridges, MS Office→LibreOffice, ESP sync on BLS and classic layouts —
-  awaiting a green rung-2 boot for live proof.
+See [docs/SPEC.md](docs/SPEC.md) for the full specification and section numbers.
 
-**Active work, in order:**
+## Project status
 
-1. **Rung 2 — Phase-2 boot:** fresh full runs on dilli and himachal with the
-   unified fisherman fixes (qemu-nbd preserved during partitioning, coherent
-   podman store for OCI export, host networking for the install container).
-   Runner hardening landed: verified deployer-reboot detection (serial +
-   QGA return, not a bare marker wait), size-aware preflight, snapshot-based
-   reuse runs.
-2. **Phase-2 ESP kernel-sync** — ostree-aware staging works end-to-end;
-   remaining fight is initramfs size on small ESPs (the 512 MB ESP in
-   `autounattend.xml` removes the pressure structurally).
-3. **Remaining SPEC items** (see [docs/plan.md](docs/plan.md)): NTFS defrag
-   preflight, VM-accelerator detection + QEMU bundling, polkit hookup,
-   systemd-boot advanced option, CDP suite on a Windows runner.
+**This is active, boot-path-focused development — not yet a released installer.**
 
-The MOK-enrollment alternative (custom signed GRUB with ntfs+loopback) stays
-on the table if ESP kernel-sync proves insufficient. A BitLocker-mode E2E
-variant (root.disk on a dedicated unencrypted partition, per SPEC §3.5) is
-worth adding once the normal path is green.
+Verified end-to-end on the KVM E2E rig (Windows 11 + TPM 2.0 + Secure Boot):
 
-## Implemented path: Phase 2 native boot
+- ✅ **Arm (rung 1):** the real `wootc.exe` arms a virgin Windows VM over QGA —
+  root disk, signed chain, one-shot BCD, `state.json = armed` (24/24).
+- ✅ **Deploy:** the Secure Boot chain launches the deployer and fisherman lays
+  down a full bootc image into `root.disk` — every post-deploy check passes
+  (dracut hook, services, loop-root BLS args, ESP kernel-sync, `host-esp.conf`).
+- ✅ **GUI + migration:** installer GUI (Playwright-tested), User Data Bridge
+  and WSL/Office/Steam/browser bridges (unit-tested), external-disk import
+  engine, Try-in-VM orchestration, Phase-3 planner.
+- 🚧 **Native Phase-2 boot (rung 2):** the last leg — booting the deployed
+  system from `root.disk` — is being finalized; the current work hardens the
+  post-deploy bootloader handoff so the wootc boot entry lands on the installed
+  kernel every time.
 
-1. The Windows installer creates `C:\wootc\disks\root.disk`, downloads the
-   deployer kernel/initramfs and Fedora-signed shim + GRUB EFI binaries, and
-   writes a one-shot Windows Boot Manager entry.
-2. The Secure Boot chain is **`shimx64.efi → grubx64.efi → grub.cfg`** (all
-   Microsoft/Fedora-signed). Deployer kernel+initramfs live on the ESP (256 MB)
-   since the signed GRUB can only read FAT32.
-3. The deployer mounts the Windows NTFS volume, attaches `root.disk` to a loop
-   device, and uses fisherman to partition and populate it from a bootc image.
-4. After deployment, it adds the `99wootc-boot` dracut module to the target,
-   adds `wootc.host_uuid` and `loop=/wootc/disks/root.disk` to the target BLS
-   entries, regenerates the initramfs, and syncs the installed
-   kernel+initramfs to `ESP:/EFI/wootc/phase2-*` with a matching GRUB entry
-   (ESP kernel-sync, `220756a`).
-5. On the Phase 2 boot, GRUB loads the synced kernel from the ESP; dracut
-   (`99wootc-boot`) mounts the NTFS host volume read-write, attaches
-   `root.disk`, and pivots to the target root. **Not yet exercised
-   end-to-end** — see Active blockers above.
+Follow the verification ladder in [docs/milestones.md](docs/milestones.md).
 
-## Future phases (not implemented)
+## Safety model
 
-### Phase 1: VM boot and User Data Bridge
+- **Nothing permanent until proven.** The first boot into the deployer is a
+  one-shot entry; the default boot order stays Windows until Linux is verified.
+- **The source is never mutated.** External-disk and BitLocker imports mount
+  **read-only**; BitLocker volumes are never decrypted in place.
+- **Secrets stay put.** Passwords, private keys, tokens, and credential stores
+  are never copied silently — you sign in again where it matters.
+- **Reversible uninstall.** Removes the boot entry and `C:\wootc\`, and can
+  reclaim a dedicated Linux partition, restoring Windows to its prior state.
 
-The intended first-use experience is to boot the same `root.disk` in QEMU
-while Windows remains running. Windows data would be presented to Linux through
-a User Data Bridge (virtio or network sharing) at the same canonical paths that
-native boot will later use.
+## Architecture
 
-This repository does not currently provide the QEMU launcher, Windows
-Hypervisor Platform integration, shared-folder bridge, user-directory mapping,
-or the graphical UI/control panel for this phase.
+wootc keeps a deliberate boundary between **generic Windows→Linux migration
+machinery** and the **bootc-specific provisioner**, so the design can be adapted
+to other distributions and deployment methods. The seam is documented in
+[docs/architecture-boundary.md](docs/architecture-boundary.md); `deploy.sh`
+marks its provisioner region explicitly.
 
-### Phase 3: standalone Linux
+```
+app/                     Wails Windows installer (Go backend + web UI)
+payload/deployer/        one-shot deployer initramfs + deploy.sh
+payload/migration/       User Data Bridge, WSL, external-disk import, Phase-3
+payload/builder/         Try-in-VM Alpine builder (headless OCI→disk)
+payload/wubildr/         reproducible custom GRUB EFI build
+platform/dracut/99wootc-boot/   Phase-2 loop-root attach hook
+platform/grub/           external GRUB configuration
+fisherman/               bootc install / partitioning (submodule, tuna-os fork)
+tests/                   e2e (KVM Windows 11), gui (Playwright), migration
+docs/                    SPEC, boundary, milestones, walkthroughs
+```
 
-After a user has migrated data from Windows storage to native Linux storage,
-the intended final state is removal of Windows and the NTFS dependency. At that
-point `root.disk` may be replaced by a native disk layout.
-
-No data-migration assistant, storage conversion, Windows removal workflow, or
-rollback UX has been implemented.
-
-## Repository layout
-
-- `app/` — Wails Windows installer.
-- `payload/deployer/` — one-shot initramfs and deploy script.
-- `payload/wubildr/` — reproducible custom GRUB EFI build.
-- `platform/dracut/99wootc-boot/` — Phase 2 loop-root hook.
-- `platform/grub/` — external GRUB configuration.
-- `tests/e2e/` — KVM-backed Windows 11 test harness.
-
-## E2E expectations
-
-The E2E harness runs on Kanpur (a Bluefin/Fedora Silverblue KVM host) with
-QEMU Guest Agent as the control plane. The VM requires KVM, UEFI Secure Boot,
-and TPM 2.0.
-
-### Latest automated walkthrough
-
-[![Sped-up preview of the latest successful wootc E2E run](https://tuna-os.github.io/wootc/e2e/latest/preview.webp)](https://tuna-os.github.io/wootc/e2e/latest/)
-
-The scheduled and manually dispatched KVM workflow publishes this preview and
-the full [WebM recording](https://tuna-os.github.io/wootc/e2e/latest/e2e.webm)
-only after a successful acceptance run. Failed-run recordings remain available
-as workflow artifacts for diagnosis and never replace the stable walkthrough.
-
-### Build and run
+## Build and test
 
 ```bash
-# Build deployer initramfs + custom GRUB
-just build
+just build                     # deployer initramfs + custom GRUB
 
-# Run on a remote runner (~30 min full, ~5 min quick with existing disk)
-# Pick the host with WOOTC_E2E_HOST (default: kanpur), e.g.
-#   WOOTC_E2E_HOST=dilli just remote-e2e
-just remote-sync              # push + hard-reset host checkout to origin/main
-just remote-e2e               # fresh install + deploy
-just remote-e2e-quick         # skip install (reuse disk)
+# GUI unit tests (Playwright over the real frontend bundle, mocked backend)
+cd tests/gui && npx playwright test
+
+# Migration bridge tests (containerized, no Windows needed)
+bash tests/migration/test-bridge.sh
 ```
 
-### Remote runner operations
+### End-to-end (KVM)
+
+The E2E harness drives a Windows 11 VM (via [dockur/windows](https://github.com/dockur/windows))
+over the QEMU Guest Agent — no guest networking required. It needs a host with
+KVM, UEFI Secure Boot, and TPM 2.0.
 
 ```bash
-just remote-logs              # tail runner log
-just remote-status            # grep for PASS/FAIL markers
-just remote-serial            # watch serial console
-just remote-check-files       # check root.disk via QGA
-just remote-restore snap      # restore from snapshot
+just remote-sync               # push + reset a runner to origin/main
+just remote-e2e                # fresh install + deploy (~30 min)
+just remote-e2e-quick          # reuse the installed disk (~5 min)
 
-# QGA interaction
-just qga-ping            # ping guest agent
-just qga-ps hostname     # run PowerShell
-just qga-read C:/OEM/wootc-e2e.log  # read file from VM
-just qga-oem-log         # read OEM log
-just qga-reboot          # reboot Windows VM
+just remote-logs               # tail the run
+just remote-serial             # watch the deployer serial console
+just remote-status             # grep PASS/FAIL markers
 ```
 
-### Debug loop (see docs/e2e-architecture.md for diagrams)
+The scheduled KVM workflow publishes the [latest walkthrough](https://tuna-os.github.io/wootc/e2e/latest/)
+(the timelapse at the top of this README) only after a successful run; failed
+runs stay as workflow artifacts for diagnosis.
 
-The deployer has **no interactive input** — the serial console is read-only.
-Failures must reboot to Windows on their own. Debugging is:
+## Documentation
 
-1. Read the deployer journal via QGA: `C:\wootc\logs\deployer-last-journal.log`
-2. Patch the initramfs on Kanpur (`bsdtar newc + zstd`)
-3. Re-arm the BCD one-shot and reboot into deployer
-4. Watch serial markers via `just remote-serial`
+- [docs/SPEC.md](docs/SPEC.md) — the full specification
+- [docs/architecture-boundary.md](docs/architecture-boundary.md) — the bootc / generic seam
+- [docs/milestones.md](docs/milestones.md) — the verification ladder
+- [docs/gui-walkthrough.md](docs/gui-walkthrough.md) — installer screenshots
+- [docs/non-bootc-adoption.md](docs/non-bootc-adoption.md) — "what if I don't want bootc?"
+- [CONTEXT.md](CONTEXT.md) — project vocabulary
 
-The full test is still under active development. The Phase-2 Linux boot leg is
-the active blocker; do not yet treat this as a released installer.
+## License
 
-## Constraints
-
-- The Windows host volume must be unencrypted. BitLocker-protected volumes are
-  not directly mountable by Linux's NTFS driver.
-- Windows Fast Startup must be disabled; Linux needs a clean, writable NTFS
-  volume. A dirty NTFS volume blocks the deployer immediately.
-- **Secure Boot blocks unsigned GRUB modules.** The deployer uses the
-  Fedora-signed shim + GRUB chain. Kernel and initramfs live on the FAT32 ESP.
-- Initramfs root is **ramfs** (not tmpfs). Heavy I/O must target a disk-backed
-  ext4 scratch loop on the NTFS volume or RAM is exhausted mid-deploy.
-- Serial console is **read-only** during deployer phase. All diagnostics are
-  pushed out via `/dev/kmsg` and persisted to `C:\wootc\logs\` before reboot.
-
-See [docs/SPEC.md](docs/SPEC.md) for the broader design,
-[docs/e2e-architecture.md](docs/e2e-architecture.md) for the boot-chain diagrams,
-and [CONTEXT.md](CONTEXT.md) for the project vocabulary.
+The Windows installer components derived from [WubiUEFI](https://github.com/hakuna-m/wubiuefi)
+are **GPL-2.0**; the deployer initramfs and GRUB configuration are **MIT**.
+fisherman, bootc, bootupd, podman, and skopeo are separate binaries under their
+own (Apache-2.0) licenses, invoked over a process boundary. See
+[docs/SPEC.md](docs/SPEC.md#7-license) for details.
