@@ -48,6 +48,11 @@ type InstallConfig struct {
 	// "luks-passphrase" (prompt every boot).
 	Encryption     string `json:"encryption"`
 	LuksPassphrase string `json:"luksPassphrase"`
+	// WindowsLook opts into Windows-Style Mode (SPEC §4.4): bring the user's
+	// wallpaper, accent, keyboard layout, taskbar pins and desktop shortcuts
+	// over on first login. Default false — we honor the image maker's desktop
+	// defaults unless the user asks to make it feel like Windows.
+	WindowsLook bool `json:"windowsLook"`
 }
 
 // ProgressEvent is emitted during install for the frontend progress bar.
@@ -432,6 +437,13 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		{"Configuring BCD", 80, func() error { return configureBCD(cfg.Bootloader) }},
 		{"Writing vault.json", 85, func() error { return writeVault(cfg) }},
 		{"Collecting your look", 90, func() error {
+			// Windows-Style Mode is opt-in (SPEC §4.4). When the user does not
+			// tick it, we collect nothing and the deployed system keeps the
+			// image maker's desktop defaults — no slurp data means apply-look
+			// no-ops on first login.
+			if !cfg.WindowsLook {
+				return nil
+			}
 			// Best-effort: never fail the install over wallpaper slurping.
 			if err := collectLook(); err != nil {
 				fmt.Fprintf(os.Stderr, "[wootc] look collection skipped: %v\n", err)

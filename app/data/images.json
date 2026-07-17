@@ -52,6 +52,58 @@
     "family": "fedora"
   },
   {
+    "id": "yellowfin-xfce",
+    "name": "Yellowfin",
+    "emoji": "🐠",
+    "base": "AlmaLinux Kitten 10",
+    "desktop": "xfce",
+    "desktopName": "XFCE",
+    "imageRef": "ghcr.io/tuna-os/yellowfin:xfce",
+    "description": "Lightweight, classic XFCE desktop on Enterprise Linux. Great on older PCs.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10"
+  },
+  {
+    "id": "bonito-xfce",
+    "name": "Bonito",
+    "emoji": "🎣",
+    "base": "Fedora 44",
+    "desktop": "xfce",
+    "desktopName": "XFCE",
+    "imageRef": "ghcr.io/tuna-os/bonito:xfce",
+    "description": "Lightweight XFCE on Fedora. Fast and familiar for Windows switchers.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "fedora"
+  },
+  {
+    "id": "bonito-niri",
+    "name": "Bonito",
+    "emoji": "🎣",
+    "base": "Fedora 44",
+    "desktop": "niri",
+    "desktopName": "Niri",
+    "imageRef": "ghcr.io/tuna-os/bonito:niri",
+    "description": "Modern scrollable-tiling Wayland compositor on Fedora. For keyboard-driven workflows.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "fedora"
+  },
+  {
+    "id": "marlin-niri",
+    "name": "Marlin",
+    "emoji": "🚀",
+    "base": "Arch Linux",
+    "desktop": "niri",
+    "desktopName": "Niri",
+    "imageRef": "ghcr.io/tuna-os/marlin:niri",
+    "description": "Niri scrollable-tiling Wayland on Arch with CachyOS kernel.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "arch"
+  },
+  {
     "id": "marlin-gnome",
     "name": "Marlin",
     "emoji": "🚀",

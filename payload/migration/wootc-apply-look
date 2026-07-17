@@ -240,12 +240,54 @@ apply_desktop_shortcuts() {
     [[ $placed -gt 0 ]] && log "placed $placed desktop shortcut(s)"
 }
 
+apply_xfce() {
+    if [[ -n "$WALLPAPER" ]]; then
+        # Set on every monitor/workspace backdrop property XFCE exposes.
+        while IFS= read -r prop; do
+            run xfconf-query -c xfce4-desktop -p "$prop" -s "$WALLPAPER"
+        done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E 'last-image$' || true)
+    fi
+    if [[ "$DARK" = "true" ]]; then
+        run xfconf-query -c xsettings -p /Net/ThemeName -s "Adwaita-dark"
+        run xfconf-query -c xsettings -p /Gtk/ApplicationPreferDarkTheme -s true --type bool 2>/dev/null || true
+    elif [[ "$DARK" = "false" ]]; then
+        run xfconf-query -c xsettings -p /Net/ThemeName -s "Adwaita"
+    fi
+    if [[ -n "$KBD" ]]; then
+        run setxkbmap "$KBD"
+    fi
+}
+
+apply_niri() {
+    # Niri is a minimal Wayland compositor: no gsettings/DE registry. Persist
+    # wallpaper + keyboard as an overlay the compositor reads on next login.
+    local cfgdir="$HOME/.config/wootc"
+    if [[ "${WOOTC_DRYRUN:-0}" = "1" ]]; then
+        [[ -n "$WALLPAPER" ]] && printf 'DRYRUN: swaybg wallpaper %s\n' "$WALLPAPER"
+        [[ -n "$KBD" ]] && printf 'DRYRUN: niri xkb-layout %s\n' "$KBD"
+        return
+    fi
+    mkdir -p "$cfgdir"
+    if [[ -n "$WALLPAPER" ]] && command -v swaybg >/dev/null; then
+        # A tiny autostart wrapper the niri config can `spawn-at-startup`.
+        cat > "$cfgdir/wallpaper.sh" <<EOF
+#!/bin/sh
+exec swaybg -m fill -i "$WALLPAPER"
+EOF
+        chmod +x "$cfgdir/wallpaper.sh"
+        log "niri: wallpaper set (spawn $cfgdir/wallpaper.sh at startup)"
+    fi
+    [[ -n "$KBD" ]] && printf 'xkb-layout=%s\n' "$KBD" > "$cfgdir/keyboard.conf"
+}
+
 # ── DE detection and dispatch ───────────────────────────────────────────────
 DE="${XDG_CURRENT_DESKTOP:-}"
 applied=""
 case "${DE,,}" in
     *gnome*)          apply_gnome; apply_gnome_favorites; applied=gnome ;;
     *kde*|*plasma*)   apply_kde;   applied=kde ;;
+    *xfce*)           apply_xfce;  applied=xfce ;;
+    *niri*)           apply_niri;  applied=niri ;;
     *)
         log "desktop '$DE' has no look mapping yet — skipping (add an apply_<de> function)"
         ;;

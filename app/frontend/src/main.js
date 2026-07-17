@@ -23,6 +23,7 @@ const state = {
     bootloader: 'grub2',
     encryption: 'tpm2-luks',
     luksPassphrase: '',
+    windowsLook: false,
   },
   progress: {
     step: '',
@@ -359,6 +360,18 @@ function renderLaunchpad() {
     encSection.appendChild(ppRow);
   }
   fields.appendChild(encSection);
+
+  // Windows-Style Mode (SPEC §4.4) — opt-in. Default off so we honor the
+  // image maker's desktop defaults; ticking it brings the user's Windows
+  // wallpaper, accent, keyboard layout, taskbar pins and desktop shortcuts
+  // over on first login.
+  const lookRow = el('label');
+  lookRow.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:8px;margin-top:8px;border:1.5px solid var(--border);border-radius:6px';
+  lookRow.innerHTML = `<input type="checkbox" ${state.config.windowsLook ? 'checked' : ''} style="margin-top:1px">
+    <span><b>Make it feel like Windows</b><br><span style="color:var(--text-muted)">Bring your wallpaper, accent color, keyboard layout, taskbar pins and desktop shortcuts over. Off keeps the desktop's own look.</span></span>`;
+  lookRow.querySelector('input').onchange = (e) => { state.config.windowsLook = e.target.checked; };
+  if (state.config.windowsLook) lookRow.style.borderColor = 'var(--primary)';
+  fields.appendChild(lookRow);
 
   const advanced = el('details');
   advanced.style.cssText = 'margin-top:6px;border:1px solid var(--border);border-radius:6px;padding:7px 9px';
