@@ -27,7 +27,12 @@ Native loop-root boot is the implementation priority. The VM experience,
 graphical installer, User Data Bridge, and Windows-removal migration are not
 implemented yet.
 
-## Current status (2026-07-16)
+## Current status (2026-07-17)
+
+**Single branch:** all work is merged to `main` (PR #6, plus GUI PRs #4/#5);
+E2E runners (dilli, himachal) sync from `main` via `just remote-sync` and
+carry no local edits. The fisherman submodule tracks `tuna-os/fisherman`
+branch `dev`, which unifies the NBD-preservation and OCI-export fix lineages.
 
 **Working and verified on the E2E rig** (Windows 11 + TPM + Secure Boot under
 KVM; see [docs/e2e-architecture.md](docs/e2e-architecture.md)):
@@ -35,45 +40,34 @@ KVM; see [docs/e2e-architecture.md](docs/e2e-architecture.md)):
 - Secure Boot chain: BCD one-shot → Fedora `shimx64.efi` → signed
   `grubx64.efi` → `grub.cfg` at the embedded `/EFI/fedora` prefix → signed
   deployer kernel from the FAT32 ESP. No Access Denied, no unsigned modules.
-- Deployer robustness: disk-scan retry, dirty-NTFS detection, `/dev/kmsg`
-  serial markers, journal persisted to `C:\wootc\logs\` on failure,
-  watchdog + direct-syscall reboot back to Windows on every failure path.
-- fisherman reaches the pull stage with podman fully provisioned (conmon,
-  crun, netavark, policy.json, registries.conf) and heavy I/O redirected to
-  an ext4 scratch loop on the Windows partition (`/var/fisherman-tmp`).
-
-**Milestone (2026-07-16 08:00 UTC): the deployer E2E loop is green.** A full
-autonomous cycle completed on the rig: Windows → BCD one-shot → shim/GRUB →
-deployer → fisherman → `bootc install` of yellowfin:gnome into root.disk →
-`VERIFICATION_SUMMARY` → clean reboot → Windows with a clean NTFS volume.
-Fixes that landed on the way: qualified containers-storage ref for the OCI
-export, host networking for the install container, storage redirect only
-when default storage is RAM-backed (single-copy space model), post-install
-coreutils in the initramfs, and a scratch that persists as an image cache
-(retries skip the 3.7 GB pull).
+- **Rung 1 green (24/24):** the Phase-1 harness (`tests/e2e/phase1/`) proves
+  the real `wootc.exe` arms a virgin Windows VM over QGA: root disk created,
+  signed chain + deployer staged, BCD one-shot set, `state.json = armed`.
+- **Deployer E2E loop green (2026-07-16):** Windows → shim/GRUB → deployer →
+  fisherman → `bootc install` of yellowfin:gnome into root.disk →
+  `VERIFICATION_SUMMARY` → clean reboot → Windows with a clean NTFS volume.
+- **GUI Phase 1 landed:** launchpad + control panel, BitLocker chooser,
+  partition-aware reversible uninstall, LUKS encryption plumbing,
+  Boot-in-VM (QEMU/WHPX), Playwright mock suite green, walkthrough
+  published to GitHub Pages.
+- **Migration bridge unit-proven (33/33):** User Data Bridge, Steam/browser
+  bridges, MS Office→LibreOffice, ESP sync on BLS and classic layouts —
+  awaiting a green rung-2 boot for live proof.
 
 **Active work, in order:**
 
-1. **Phase-2 ESP kernel-sync — iterating on initramfs size (run in
-   progress).** The ostree-aware staging works end-to-end on the rig:
-   deployment detection, `99wootc-boot` module inject, BLS patch, and
-   in-chroot initramfs regen all PASS. The remaining fight is fitting the
-   regenerated initramfs on the 256 MB ESP: `--hostonly` degrades to
-   all-drivers-plus-firmware (241 MB measured) when chrooted under a
-   foreign running kernel, so the regen now also omits every unneeded
-   dracut module and excludes firmware entirely (`--fwdir` at an empty
-   dir — the journal showed amdgpu/nvidia blobs dominating the image). A
-   failed sync can no longer strand the machine: the deployer pair is
-   restored to the ESP and the run still completes back to Windows.
-   The Phase-2 Linux boot test (one-shot into the synced kernel;
-   loop-attach initqueue hook makes the target root UUID appear) follows
-   the first fitting sync.
-2. **Fresh clean-slate E2E run** with the new 512 MB ESP
-   (`autounattend.xml`), which removes the size pressure structurally and
-   validates all committed fixes from scratch — including BitLocker
-   prevention.
-3. **Phase 1: installer App UI + User Data Bridge** — next scope once
-   Phase 2 is fully green (see Future phases below).
+1. **Rung 2 — Phase-2 boot:** fresh full runs on dilli and himachal with the
+   unified fisherman fixes (qemu-nbd preserved during partitioning, coherent
+   podman store for OCI export, host networking for the install container).
+   Runner hardening landed: verified deployer-reboot detection (serial +
+   QGA return, not a bare marker wait), size-aware preflight, snapshot-based
+   reuse runs.
+2. **Phase-2 ESP kernel-sync** — ostree-aware staging works end-to-end;
+   remaining fight is initramfs size on small ESPs (the 512 MB ESP in
+   `autounattend.xml` removes the pressure structurally).
+3. **Remaining SPEC items** (see [docs/plan.md](docs/plan.md)): NTFS defrag
+   preflight, VM-accelerator detection + QEMU bundling, polkit hookup,
+   systemd-boot advanced option, CDP suite on a Windows runner.
 
 The MOK-enrollment alternative (custom signed GRUB with ntfs+loopback) stays
 on the table if ESP kernel-sync proves insufficient. A BitLocker-mode E2E
@@ -152,19 +146,22 @@ as workflow artifacts for diagnosis and never replace the stable walkthrough.
 # Build deployer initramfs + custom GRUB
 just build
 
-# Run on Kanpur (~30 min full, ~5 min quick with existing disk)
-just kanpur-e2e          # fresh install + deploy
-just kanpur-e2e-quick    # skip install (reuse disk)
+# Run on a remote runner (~30 min full, ~5 min quick with existing disk)
+# Pick the host with WOOTC_E2E_HOST (default: kanpur), e.g.
+#   WOOTC_E2E_HOST=dilli just remote-e2e
+just remote-sync              # push + hard-reset host checkout to origin/main
+just remote-e2e               # fresh install + deploy
+just remote-e2e-quick         # skip install (reuse disk)
 ```
 
-### Kanpur operations
+### Remote runner operations
 
 ```bash
-just kanpur-logs         # tail runner log
-just kanpur-status       # grep for PASS/FAIL markers
-just kanpur-serial       # watch serial console
-just kanpur-check-files  # check root.disk via QGA
-just kanpur-restore snap # restore from snapshot
+just remote-logs              # tail runner log
+just remote-status            # grep for PASS/FAIL markers
+just remote-serial            # watch serial console
+just remote-check-files       # check root.disk via QGA
+just remote-restore snap      # restore from snapshot
 
 # QGA interaction
 just qga-ping            # ping guest agent
@@ -182,7 +179,7 @@ Failures must reboot to Windows on their own. Debugging is:
 1. Read the deployer journal via QGA: `C:\wootc\logs\deployer-last-journal.log`
 2. Patch the initramfs on Kanpur (`bsdtar newc + zstd`)
 3. Re-arm the BCD one-shot and reboot into deployer
-4. Watch serial markers via `just kanpur-serial`
+4. Watch serial markers via `just remote-serial`
 
 The full test is still under active development. The Phase-2 Linux boot leg is
 the active blocker; do not yet treat this as a released installer.
