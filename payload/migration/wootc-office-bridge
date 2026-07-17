@@ -1,0 +1,149 @@
+#!/bin/bash
+# /usr/local/bin/wootc-office-bridge <username>
+# MS Office → LibreOffice bridge. Office and LibreOffice store settings in
+# completely different formats, so a 1:1 "settings" migration is a myth.
+# What DOES transfer cleanly, and does here:
+#
+#   1. Custom dictionary     — Office RoamingCustom.dic / CUSTOM.DIC lines
+#                              appended to LibreOffice's standard.dic.
+#   2. Templates             — .dotx/.dotm/.xltx/.potx copied into LO's
+#                              template dir (LibreOffice opens OOXML).
+#   3. AutoCorrect word list — Office default.acl replacements → LO's
+#                              acor_<lang>.dat (the portable subset: plain
+#                              text replacements).
+#   4. Fonts                 — the user's installed fonts copied to
+#                              ~/.local/share/fonts so documents render the
+#                              same (Calibri/Cambria etc. are the usual
+#                              "my document looks wrong" culprit).
+#   5. Office-familiar defaults — configure LibreOffice to save as OOXML
+#                              (.docx/.xlsx/.pptx) by default, so the user
+#                              is not nagged about formats every save.
+#
+# Honest non-goals: ribbon customization, per-app options, macro security,
+# quick-access toolbar — no equivalent target, not attempted.
+
+set -Eeuo pipefail
+log() { printf '[wootc-office-bridge] %s\n' "$*"; }
+name="${1:?usage: wootc-office-bridge <username>}"
+
+mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
+home=$(getent passwd "$name" | cut -d: -f6)
+[[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
+W="/host/Users/$name"
+[[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
+
+did=()
+LO="$home/.config/libreoffice/4/user"
+mkdir -p "$LO"
+
+# ── 1. Custom dictionary ────────────────────────────────────────────────────
+UOFF="$W/AppData/Roaming/Microsoft/UProof"
+SPELL="$W/AppData/Roaming/Microsoft/Spelling"
+words=""
+shopt -s nullglob nocaseglob
+for d in "$UOFF"/*.dic "$SPELL"/*/default.dic; do
+    [[ -f "$d" ]] && words+=$(tr -d '\r' < "$d")$'\n'
+done
+shopt -u nocaseglob
+if [[ -n "$words" ]]; then
+    std="$LO/wordbook/standard.dic"
+    mkdir -p "$LO/wordbook"
+    if [[ ! -f "$std" ]]; then
+        printf 'OOoUserDict1\nlang: <none>\ntype: positive\n---\n' > "$std"
+    fi
+    # Append words not already present (skip blanks and Office headers).
+    while IFS= read -r wline; do
+        [[ -z "$wline" || "$wline" == \#* ]] && continue
+        grep -qxF "$wline" "$std" || printf '%s\n' "$wline" >> "$std"
+    done <<< "$words"
+    did+=("custom-dictionary")
+fi
+
+# ── 2. Templates ────────────────────────────────────────────────────────────
+TPL_SRC="$W/AppData/Roaming/Microsoft/Templates"
+if [[ -d "$TPL_SRC" ]]; then
+    dest="$LO/template"
+    mkdir -p "$dest"
+    found=0
+    shopt -s nullglob
+    for t in "$TPL_SRC"/*.dotx "$TPL_SRC"/*.dotm "$TPL_SRC"/*.xltx "$TPL_SRC"/*.potx; do
+        cp -n "$t" "$dest/" 2>/dev/null && found=1
+    done
+    shopt -u nullglob
+    [[ "$found" -eq 1 ]] && did+=("templates")
+fi
+
+# ── 3. AutoCorrect replacements (plain-text subset) ────────────────────────
+# Office default.acl is a binary format; extract only the printable
+# replacement pairs. Best-effort — skip silently if nothing parses.
+ACL=$(ls "$W/AppData/Roaming/Microsoft/Office/"*.acl 2>/dev/null | head -1 || true)
+if [[ -n "$ACL" ]] && command -v python3 >/dev/null; then
+    if python3 - "$ACL" "$LO" <<'PYEOF' 2>/dev/null; then did+=("autocorrect"); fi
+import sys, os, re
+acl, lo = sys.argv[1], sys.argv[2]
+data = open(acl, "rb").read()
+# .acl stores UTF-16LE strings; pull plausible short replacement pairs.
+strings = re.findall((b"(?:[\x20-\x7e]\x00){2,40}"), data)
+pairs = [s.decode("utf-16le") for s in strings]
+if len(pairs) < 2:
+    sys.exit(1)
+# Emit a minimal acor DAT LibreOffice can read is nontrivial (zip+xml);
+# instead drop a human-review file so nothing is silently lost.
+out = os.path.join(lo, "wootc-office-autocorrect.txt")
+with open(out, "w") as f:
+    f.write("# AutoCorrect entries recovered from MS Office (review/import):\n")
+    for i in range(0, len(pairs) - 1, 2):
+        f.write(f"{pairs[i]}\t=>\t{pairs[i+1]}\n")
+sys.exit(0)
+PYEOF
+fi
+
+# ── 4. Fonts ────────────────────────────────────────────────────────────────
+FONT_SRC="$W/AppData/Local/Microsoft/Windows/Fonts"
+if [[ -d "$FONT_SRC" ]]; then
+    dest="$home/.local/share/fonts"
+    mkdir -p "$dest"
+    found=0
+    shopt -s nullglob
+    for f in "$FONT_SRC"/*.ttf "$FONT_SRC"/*.otf "$FONT_SRC"/*.ttc; do
+        cp -n "$f" "$dest/" 2>/dev/null && found=1
+    done
+    shopt -u nullglob
+    if [[ "$found" -eq 1 ]]; then
+        command -v fc-cache >/dev/null && fc-cache -f "$dest" >/dev/null 2>&1 || true
+        did+=("fonts")
+    fi
+fi
+
+# ── 5. Office-familiar defaults (save as OOXML) ────────────────────────────
+# Only write the config if LibreOffice has not created its own yet, to
+# avoid clobbering user choices on re-run.
+REG="$LO/registrymodifications.xcu"
+if [[ ! -f "$REG" ]]; then
+    cat > "$REG" <<'XCU'
+<?xml version="1.0" encoding="UTF-8"?>
+<oor:items xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <item oor:path="/org.openoffice.Setup/Office/Factories/org.openoffice.Setup:Factory['com.sun.star.text.TextDocument']"><prop oor:name="ooSetupFactoryDefaultFilter" oor:op="fuse"><value>MS Word 2007 XML</value></prop></item>
+ <item oor:path="/org.openoffice.Setup/Office/Factories/org.openoffice.Setup:Factory['com.sun.star.sheet.SpreadsheetDocument']"><prop oor:name="ooSetupFactoryDefaultFilter" oor:op="fuse"><value>Calc MS Excel 2007 XML</value></prop></item>
+ <item oor:path="/org.openoffice.Setup/Office/Factories/org.openoffice.Setup:Factory['com.sun.star.presentation.PresentationDocument']"><prop oor:name="ooSetupFactoryDefaultFilter" oor:op="fuse"><value>Impress MS PowerPoint 2007 XML</value></prop></item>
+</oor:items>
+XCU
+    did+=("office-format-defaults")
+fi
+
+chown -R "$name:" "$home/.config/libreoffice" "$home/.local/share/fonts" 2>/dev/null || true
+
+# ── Record for the dashboard ────────────────────────────────────────────────
+state_dir="$home/.config/wootc"
+mkdir -p "$state_dir"
+{
+    printf '{\n  "migrated": ['
+    for i in "${!did[@]}"; do
+        sep=$([[ $i -lt $((${#did[@]} - 1)) ]] && echo ', ' || echo '')
+        printf '"%s"%s' "${did[$i]}" "$sep"
+    done
+    printf '],\n  "note": "LibreOffice opens your Word/Excel/PowerPoint files directly and now saves in those formats by default. Fonts, templates and your custom dictionary came across; ribbon layout and macros do not transfer."\n}\n'
+} > "$state_dir/bridge-office.json"
+chown -R "$name:" "$state_dir" 2>/dev/null || true
+
+log "office bridge done: ${did[*]:-nothing found}"

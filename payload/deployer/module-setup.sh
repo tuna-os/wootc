@@ -59,6 +59,7 @@ install() {
     inst /usr/lib/wootc/migration/wootc-apply-look
     inst /usr/lib/wootc/migration/wootc-apply-look.desktop
     inst /usr/lib/wootc/migration/wootc-detect-apps
+    inst /usr/lib/wootc/migration/wootc-office-bridge
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

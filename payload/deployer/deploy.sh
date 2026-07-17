@@ -507,6 +507,8 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync.service"
     install -m755 /usr/lib/wootc/migration/wootc-detect-apps \
         "$DEPLOY_ROOT/usr/local/bin/wootc-detect-apps"
+    install -m755 /usr/lib/wootc/migration/wootc-office-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-office-bridge"
     # Windows-Style Mode: per-user look apply on first login.
     install -m755 /usr/lib/wootc/migration/wootc-apply-look \
         "$DEPLOY_ROOT/usr/local/bin/wootc-apply-look"

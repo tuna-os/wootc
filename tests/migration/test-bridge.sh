@@ -115,6 +115,22 @@ check 'echo "$K" | grep -q plasma-apply-wallpaperimage' "KDE: wallpaper command 
 check 'echo "$K" | grep -q BreezeDark' "KDE: dark mode mapped"
 check '[ -f /tmp/mark-g ] && grep -q "applied=gnome" /tmp/mark-g' "once-only marker written with DE"
 
+# ── 5b. MS Office → LibreOffice bridge ──────────────────────────────────────
+dnf install -y -q fontconfig >/dev/null 2>&1 || true
+mkdir -p "/host/Users/alice/AppData/Roaming/Microsoft/UProof"
+printf 'Kubernetes\r\nwootc\r\n' > "/host/Users/alice/AppData/Roaming/Microsoft/UProof/CUSTOM.DIC"
+mkdir -p "/host/Users/alice/AppData/Roaming/Microsoft/Templates"
+echo fake-template > "/host/Users/alice/AppData/Roaming/Microsoft/Templates/Report.dotx"
+mkdir -p "/host/Users/alice/AppData/Local/Microsoft/Windows/Fonts"
+echo fake-font > "/host/Users/alice/AppData/Local/Microsoft/Windows/Fonts/Calibri.ttf"
+bash /scripts/wootc-office-bridge alice >/dev/null 2>&1 || true
+LOU=/home/alice/.config/libreoffice/4/user
+check "grep -q Kubernetes $LOU/wordbook/standard.dic" "Office: custom dictionary word migrated to LibreOffice"
+check "[ -f '$LOU/template/Report.dotx' ]" "Office: template copied to LibreOffice"
+check "[ -f /home/alice/.local/share/fonts/Calibri.ttf ]" "Office: Calibri font copied so documents render right"
+check "grep -q 'MS Word 2007 XML' $LOU/registrymodifications.xcu" "Office: LibreOffice set to save as .docx by default"
+check "[ -f /home/alice/.config/wootc/bridge-office.json ]" "Office: bridge state recorded"
+
 # ── 6. ESP sync (BLS and classic layouts, fake ESP) ────────────────────────
 mkdir -p /tmp/esp/EFI/wootc /tmp/esp/EFI/fedora /tmp/boot/loader/entries /tmp/boot/ostree/x
 echo old-kernel > /tmp/esp/EFI/wootc/phase2-vmlinuz

@@ -64,6 +64,8 @@ if command -v wootc-detect-apps >/dev/null; then
         uid=$(id -u "$uname" 2>/dev/null) || continue
         [[ "$uid" -ge 1000 ]] || continue
         wootc-detect-apps "$uname" || log "app detection failed for $uname (non-fatal)"
+        command -v wootc-office-bridge >/dev/null && \
+            { wootc-office-bridge "$uname" || log "office bridge failed for $uname (non-fatal)"; }
     done
     shopt -u nullglob
 fi
