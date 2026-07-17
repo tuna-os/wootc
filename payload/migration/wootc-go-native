@@ -1,0 +1,170 @@
+#!/bin/bash
+# /usr/local/bin/wootc-go-native — Phase 3: the "commit to Linux" stage.
+#
+# On a running Phase-2 system (Linux booting from root.disk, a loopback VHDX on
+# the Windows NTFS partition), this is where the user decides to move to Linux
+# only: graduate the root filesystem onto a real native partition and, if they
+# choose, delete the Windows partition and grow Linux to reclaim the space
+# (SPEC §4.2 stages 5-6).
+#
+# SAFETY MODEL. Stage 6 is irreversible and destroys Windows, so this tool is
+# built inside-out: the analysis path (`plan`, `check`) is complete and safe to
+# run anywhere; the destructive path (`migrate`) is GUARDED and deliberately
+# not enabled until it has been proven against a booted Phase-2 system on real
+# hardware (verification ladder rung 2 → rung 3). It refuses to touch a disk
+# until then, by design — better an explicit "not yet" than a blind repartition.
+#
+#   wootc-go-native plan            analyze layout + print the plan (safe)
+#   wootc-go-native check           exit 0 if preconditions for going native hold
+#   wootc-go-native migrate ...     GUARDED — destructive repartition (stub)
+#
+# Test hooks (fixtures, no real disks): WOOTC_GN_ROOT_SRC, WOOTC_GN_LSBLK,
+# WOOTC_GN_HOSTCONF, WOOTC_GN_HOME, WOOTC_GN_FORCE_LOOP.
+
+set -Eeuo pipefail
+
+log()  { printf '[wootc-go-native] %s\n' "$*" >&2; }
+die()  { printf '[wootc-go-native] ERROR: %s\n' "$*" >&2; exit 1; }
+
+HOSTCONF="${WOOTC_GN_HOSTCONF:-/etc/wootc/host-esp.conf}"
+
+# root_source — the block device / image backing "/". On a Phase-2 system this
+# is the NBD-attached root.disk (/dev/nbd0pN); on a native system it is a real
+# partition. The distinction is the whole point of "are we still on loopback?".
+root_source() {
+    if [[ -n "${WOOTC_GN_ROOT_SRC:-}" ]]; then echo "$WOOTC_GN_ROOT_SRC"; return; fi
+    findmnt -n -o SOURCE / 2>/dev/null || true
+}
+
+# on_loopback — true when Linux is still hosted inside root.disk on NTFS.
+on_loopback() {
+    [[ "${WOOTC_GN_FORCE_LOOP:-}" == "1" ]] && return 0
+    [[ "${WOOTC_GN_FORCE_LOOP:-}" == "0" ]] && return 1
+    local src; src=$(root_source)
+    [[ "$src" == /dev/nbd* ]] && return 0
+    [[ -e /run/wootc-loop-attached ]] && return 0
+    return 1
+}
+
+# converted_folders — which user media folders have been made native already
+# (stage 4). Uses the ~/.config/wootc/converted-* markers wootc-convert-dir writes.
+converted_folders() {
+    local home="${WOOTC_GN_HOME:-$HOME}" f
+    for f in "$home"/.config/wootc/converted-*; do
+        [[ -e "$f" ]] || continue
+        basename "$f" | sed 's/^converted-//'
+    done
+}
+
+# ── plan ────────────────────────────────────────────────────────────────────
+cmd_plan() {
+    local src loop hostuuid bootloader
+    src=$(root_source)
+    if on_loopback; then loop="yes"; else loop="no"; fi
+    hostuuid=""; bootloader=""
+    if [[ -r "$HOSTCONF" ]]; then
+        hostuuid=$(grep -oP 'HOST_ESP_UUID=\K.*' "$HOSTCONF" 2>/dev/null || true)
+        bootloader=$(grep -oP 'BOOTLOADER=\K.*' "$HOSTCONF" 2>/dev/null || true)
+    fi
+    local converted; converted=$(converted_folders | paste -sd, - 2>/dev/null || true)
+
+    echo   "wootc — Move to Linux only (Phase 3)"
+    echo   "───────────────────────────────────"
+    printf 'Root filesystem source : %s\n' "${src:-unknown}"
+    printf 'Still on Windows NTFS  : %s\n' "$loop"
+    printf 'Host ESP UUID          : %s\n' "${hostuuid:-unknown}"
+    printf 'Host bootloader        : %s\n' "${bootloader:-unknown}"
+    printf 'Folders made native    : %s\n' "${converted:-none yet}"
+    echo
+    if [[ "$loop" == "no" ]]; then
+        echo "This system already runs from a native Linux partition — nothing to graduate."
+        echo "If Windows is still present you can reclaim its space with:  migrate --reclaim"
+        return 0
+    fi
+    cat <<'PLAN'
+Planned stages when you commit:
+
+  5. Graduate root to native
+     • Deploy the same bootc image onto a real Linux partition (no re-download —
+       the OCI content already lives in root.disk).
+     • Copy your home data onto it. Nothing on Windows is touched yet.
+     • Switch the boot entry from the root.disk loopback chain to the native
+       partition. (Reversible: root.disk stays until stage 6.)
+
+  6. Remove Windows  (IRREVERSIBLE)
+     • Only offered once every folder you use is native (see "Folders made
+       native" above) and a rollback snapshot exists.
+     • Delete the Windows partition, grow Linux to fill the disk, and remove the
+       Windows Boot Manager / BCD one-shot chain.
+
+Run 'wootc-go-native check' to see whether the safety preconditions are met.
+PLAN
+}
+
+# ── check ───────────────────────────────────────────────────────────────────
+# Exit 0 only if it is SAFE to begin going native. Prints each gate's result.
+cmd_check() {
+    local ok=0
+    if on_loopback; then
+        echo "[ok]   running from root.disk (loopback) — graduation applies"
+    else
+        echo "[skip] already native — stage 5 not applicable"
+    fi
+    if [[ -r "$HOSTCONF" ]]; then
+        echo "[ok]   host layout recorded ($HOSTCONF)"
+    else
+        echo "[warn] $HOSTCONF missing — cannot locate the Windows ESP/partition"
+        ok=1
+    fi
+    # A rollback snapshot is required before any destructive step.
+    if command -v btrfs >/dev/null && btrfs subvolume show / >/dev/null 2>&1; then
+        echo "[ok]   btrfs root — snapshot rollback available for stage 5/6"
+    else
+        echo "[warn] no btrfs snapshot capability detected — stage 6 stays disabled"
+    fi
+    local conv; conv=$(converted_folders | wc -l)
+    echo "[info] $conv user folder(s) already native"
+    return $ok
+}
+
+# ── migrate (GUARDED STUB) ──────────────────────────────────────────────────
+cmd_migrate() {
+    local mode=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dual-boot) mode="dual-boot" ;;
+            --reclaim)   mode="reclaim" ;;
+            --i-understand) : ;;   # reserved: real run will require this
+            *) die "unknown migrate arg: $1" ;;
+        esac
+        shift
+    done
+    [[ -n "$mode" ]] || die "choose --dual-boot (keep Windows) or --reclaim (delete Windows)"
+
+    # HARD GUARD. The destructive repartition/grow/boot-reswap path is not
+    # enabled until it has been exercised on a booted Phase-2 system (rung 3).
+    # Enabling it blind would risk the user's disk on unverified code.
+    if [[ "${WOOTC_GN_ALLOW_DESTRUCTIVE:-0}" != "1" ]]; then
+        cat >&2 <<EOF
+[wootc-go-native] '$mode' migration is not enabled in this build.
+
+The analysis is ready (see 'plan' / 'check'), but the disk-modifying steps
+(delete Windows partition, grow Linux, reswap the bootloader) are intentionally
+held back until they are proven end-to-end against a booted Phase-2 system on
+real hardware (verification ladder rung 3). This guard prevents an unverified
+repartition from ever running against your data.
+
+Track: https://github.com/tuna-os/wootc  (Phase 3 stage 5-6)
+EOF
+        exit 3
+    fi
+    die "destructive migration path not yet implemented (guard override set, but stage 5-6 is still a stub)"
+}
+
+case "${1:-plan}" in
+    plan)    shift 2>/dev/null || true; cmd_plan "$@" ;;
+    check)   shift; cmd_check "$@" ;;
+    migrate) shift; cmd_migrate "$@" ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) die "unknown subcommand: $1 (plan|check|migrate)" ;;
+esac

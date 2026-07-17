@@ -566,6 +566,10 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-import-gui"
     install -D -m644 /usr/lib/wootc/migration/wootc-import.desktop \
         "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
+    # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
+    # live; the destructive repartition path is guarded off until rung-3 proof.
+    install -m755 /usr/lib/wootc/migration/wootc-go-native \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after OS updates (variant-agnostic — BLS and classic layouts).
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
