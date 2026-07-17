@@ -624,6 +624,24 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
     install -m755 /usr/lib/wootc/migration/wootc-wsl-bridge \
         "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
+    # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on
+    # first boot (oneshot service), not in this minimal initramfs. Stage the
+    # exported profiles into the deployment; the bridge imports then shreds them.
+    install -m755 /usr/lib/wootc/migration/wootc-wifi-bridge \
+        "$DEPLOY_ROOT/usr/local/bin/wootc-wifi-bridge"
+    if [[ -d /mnt/ntfs/wootc/install/wifi ]]; then
+        install -m644 /usr/lib/wootc/migration/wootc-wifi-import.service \
+            "$DEPLOY_ROOT/etc/systemd/system/wootc-wifi-import.service"
+        mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+        ln -sf ../wootc-wifi-import.service \
+            "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-wifi-import.service"
+        mkdir -p "$DEPLOY_ROOT/var/lib/wootc/wifi-import"
+        cp /mnt/ntfs/wootc/install/wifi/*.xml \
+            "$DEPLOY_ROOT/var/lib/wootc/wifi-import/" 2>/dev/null || true
+        chmod 700 "$DEPLOY_ROOT/var/lib/wootc/wifi-import"
+        chmod 600 "$DEPLOY_ROOT"/var/lib/wootc/wifi-import/*.xml 2>/dev/null || true
+        log "  Staged Wi-Fi profiles for first-boot import"
+    fi
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after OS updates (variant-agnostic — BLS and classic layouts).
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \

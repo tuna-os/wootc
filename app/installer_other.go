@@ -71,6 +71,7 @@ func writeVault(cfg InstallConfig) error {
 }
 
 func collectLook() error                                          { return nil }
+func collectWifi() error                                          { return nil }
 func uninstall(ctx context.Context) error                         { return nil }
 func uninstallWith(ctx context.Context, o UninstallOptions) error { return nil }
 func getUninstallInfo() UninstallInfo                             { return UninstallInfo{Found: false} }

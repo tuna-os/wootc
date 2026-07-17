@@ -10,6 +10,24 @@ import (
 	"strings"
 )
 
+// collectWifi exports the user's saved Wi-Fi profiles (with cleartext keys) to
+// C:\wootc\install\wifi\ so the deployed Linux system can recreate them as
+// NetworkManager connections on first boot (SPEC §4.6). Requires admin; the
+// transient export is shredded on the Linux side right after import. Best-
+// effort — a machine with no Wi-Fi, or an export failure, never fails install.
+func collectWifi() error {
+	wifiDir := filepath.Join(wootcDir(), "install", "wifi")
+	if err := os.MkdirAll(wifiDir, 0o700); err != nil {
+		return err
+	}
+	// netsh writes one <profile>.xml per saved network; key=clear embeds the
+	// PSK so NetworkManager can reuse it. Enterprise profiles export too but
+	// the Linux bridge detects and skips them.
+	_, err := runPowerShellOutput(fmt.Sprintf(
+		`netsh wlan export profile key=clear folder="%s" | Out-Null`, wifiDir))
+	return err
+}
+
 // collectLook gathers the user's Windows look (wallpaper, dark mode,
 // accent color, timezone) into C:\wootc\install\slurp\ for the target
 // system's wootc-apply-look (SPEC §4.4, Windows-Style Mode). Best-effort:

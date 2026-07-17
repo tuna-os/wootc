@@ -1,0 +1,15 @@
+[Unit]
+Description=wootc — import migrated Wi-Fi profiles on first boot (SPEC §4.6)
+# Only runs while a staged export is present; the bridge shreds it when done,
+# so this becomes a no-op on every subsequent boot.
+ConditionPathExistsGlob=/var/lib/wootc/wifi-import/*.xml
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wootc-wifi-bridge /var/lib/wootc/wifi-import
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

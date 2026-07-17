@@ -448,6 +448,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			if err := collectLook(); err != nil {
 				fmt.Fprintf(os.Stderr, "[wootc] look collection skipped: %v\n", err)
 			}
+			// Wi-Fi profiles (§4.6): recreated as NetworkManager connections on
+			// first boot, so the user is online without re-typing passwords.
+			if err := collectWifi(); err != nil {
+				fmt.Fprintf(os.Stderr, "[wootc] wifi export skipped: %v\n", err)
+			}
 			return nil
 		}},
 		{"Finalizing", 95, func() error {

@@ -1,0 +1,102 @@
+#!/bin/bash
+# /usr/local/bin/wootc-wifi-bridge [export-dir]
+# Wi-Fi migration (SPEC §4.6): convert Windows-exported Wi-Fi profiles into
+# NetworkManager connections so the user is online on first Linux boot without
+# re-typing passwords.
+#
+# The Windows installer exports selected saved profiles with
+#   netsh wlan export profile key=clear folder=<dir>
+# (admin-only; the key is in cleartext in the XML). This reads those XMLs,
+# writes NetworkManager keyfile connections, and SHREDS the transient export.
+#
+# Consent tiers (§4.6):
+#   Auto-import : open networks and personal WPA-PSK / WPA3-SAE.
+#   Detect only : enterprise 802.1X/EAP, captive portals, cert-based — reported
+#                 for the dashboard, never copied (secrets + identity material).
+#
+# Env: WOOTC_WIFI_SRC (export dir, default /host/wootc/install/wifi),
+#      WOOTC_WIFI_DST (NM dir, default /etc/NetworkManager/system-connections).
+
+set -Eeuo pipefail
+log() { printf '[wootc-wifi-bridge] %s\n' "$*"; }
+
+SRC="${1:-${WOOTC_WIFI_SRC:-/host/wootc/install/wifi}}"
+DST="${WOOTC_WIFI_DST:-/etc/NetworkManager/system-connections}"
+STATE_DIR="${WOOTC_WIFI_STATE:-/var/lib/wootc}"
+
+[[ -d "$SRC" ]] || { log "no Wi-Fi export at $SRC — nothing to import"; exit 0; }
+mkdir -p "$DST" "$STATE_DIR"
+
+imported=(); skipped=()
+
+for xml in "$SRC"/*.xml; do
+    [[ -f "$xml" ]] || continue
+    # Parse the netsh profile with python (namespaced XML).
+    parsed=$(WIFI_XML="$xml" python3 - <<'PYEOF' || true
+import os, sys, xml.etree.ElementTree as ET
+try:
+    t = ET.parse(os.environ["WIFI_XML"]); r = t.getroot()
+except Exception:
+    sys.exit(0)
+ns = {"w": r.tag.split("}")[0].strip("{")} if "}" in r.tag else {}
+def find(path):
+    e = r.find(path, ns) if ns else r.find(path)
+    return e.text.strip() if e is not None and e.text else ""
+ssid = find(".//w:SSIDConfig/w:SSID/w:name") or find(".//w:name")
+auth = find(".//w:authEncryption/w:authentication")
+key  = find(".//w:sharedKey/w:keyMaterial")
+onex = r.find(".//w:MSM/w:security/w:OneX", ns) if ns else r.find(".//OneX")
+enterprise = onex is not None or auth in ("WPA2", "WPA", "WPA3", "WPA3ENT")
+print("\t".join([ssid, auth, key, "ent" if enterprise else "psk"]))
+PYEOF
+)
+    [[ -n "$parsed" ]] || continue
+    IFS=$'\t' read -r ssid auth key tier <<<"$parsed"
+    [[ -n "$ssid" ]] || continue
+
+    # Map Windows auth → NetworkManager key-mgmt.
+    keymgmt=""; case "$auth" in
+        open|OPEN|"") keymgmt="none" ;;
+        WPA2PSK|WPAPSK) keymgmt="wpa-psk" ;;
+        WPA3SAE|SAE) keymgmt="sae" ;;
+        *) keymgmt="" ;;
+    esac
+    if [[ "$tier" == "ent" || -z "$keymgmt" ]]; then
+        skipped+=("$ssid"); log "detected (not copied — enterprise/unknown): $ssid"
+        continue
+    fi
+    if [[ "$keymgmt" != "none" && -z "$key" ]]; then
+        skipped+=("$ssid"); log "detected (no cleartext key): $ssid"; continue
+    fi
+
+    # Write the NetworkManager keyfile connection.
+    dst="$DST/${ssid}.nmconnection"
+    if [[ -e "$dst" ]]; then log "exists, skipping: $ssid"; continue; fi
+    uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid;print(uuid.uuid4())')
+    {
+        printf '[connection]\nid=%s\nuuid=%s\ntype=wifi\n\n' "$ssid" "$uuid"
+        printf '[wifi]\nmode=infrastructure\nssid=%s\n\n' "$ssid"
+        if [[ "$keymgmt" != "none" ]]; then
+            printf '[wifi-security]\nkey-mgmt=%s\npsk=%s\n\n' "$keymgmt" "$key"
+        fi
+        printf '[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n'
+    } > "$dst"
+    chmod 600 "$dst"; chown root:root "$dst" 2>/dev/null || true
+    imported+=("$ssid")
+    log "imported: $ssid ($keymgmt)"
+done
+
+# Securely destroy the transient cleartext export.
+find "$SRC" -maxdepth 1 -name '*.xml' -exec shred -u {} + 2>/dev/null \
+    || rm -f "$SRC"/*.xml 2>/dev/null || true
+rmdir "$SRC" 2>/dev/null || true
+
+# Ask NetworkManager to pick up the new connections (best-effort).
+command -v nmcli >/dev/null && nmcli connection reload 2>/dev/null || true
+
+# Dashboard state.
+{
+    printf '{\n  "imported": %d,\n  "skippedEnterprise": %d,\n' "${#imported[@]}" "${#skipped[@]}"
+    printf '  "note": "Open and personal Wi-Fi moved. Enterprise/802.1X networks were detected but need a fresh sign-in in Settings."\n}\n'
+} > "$STATE_DIR/wifi-bridge.json"
+log "done: ${#imported[@]} imported, ${#skipped[@]} left for manual sign-in"
