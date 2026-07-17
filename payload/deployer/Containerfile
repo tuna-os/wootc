@@ -9,7 +9,7 @@ FROM quay.io/fedora/fedora:44 AS builder
 
 # ── Install system packages ─────────────────────────────────────────────────
 RUN dnf install -y \
-    systemd systemd-udev dracut dracut-network \
+    systemd systemd-udev systemd-boot-unsigned dracut dracut-network \
     podman skopeo conmon crun netavark aardvark-dns \
     util-linux util-linux-core e2fsprogs dosfstools \
     ntfsprogs \
@@ -83,6 +83,7 @@ RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
 
 RUN cp /boot/vmlinuz-* /out/deployer-vmlinuz 2>/dev/null || \
     cp /lib/modules/*/vmlinuz /out/deployer-vmlinuz 2>/dev/null || true
+RUN cp /usr/lib/systemd/boot/efi/systemd-bootx64.efi /out/systemd-bootx64.efi
 
 # Extract: podman run --rm localhost/wootc-deployer cat /out/deployer-vmlinuz > deployer/out/deployer-vmlinuz
 # Extract: podman run --rm localhost/wootc-deployer cat /out/deployer-initramfs.img > deployer/out/deployer-initramfs.img

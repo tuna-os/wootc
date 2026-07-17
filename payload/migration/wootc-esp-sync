@@ -121,6 +121,20 @@ sync_file() {
 sync_file "$KERNEL" "$WOOTC_DIR/phase2-vmlinuz"
 sync_file "$INITRD" "$WOOTC_DIR/phase2-initramfs.img"
 
+if [[ "${BOOTLOADER:-}" == systemd || -f "$ESP_MNT/EFI/systemd/systemd-bootx64.efi" ]]; then
+    mkdir -p "$ESP_MNT/loader/entries"
+    WANT_ENTRY="title wootc Linux
+linux /EFI/wootc/phase2-vmlinuz
+initrd /EFI/wootc/phase2-initramfs.img
+options $OPTIONS console=tty1
+"
+    ENTRY="$ESP_MNT/loader/entries/wootc.conf"
+    if [[ ! -f "$ENTRY" ]] || [[ "$(cat "$ENTRY")" != "$WANT_ENTRY" ]]; then
+        printf '%s' "$WANT_ENTRY" > "$ENTRY.new" && mv -f "$ENTRY.new" "$ENTRY"
+        changed=1
+        log "updated loader/entries/wootc.conf"
+    fi
+else
 # grub.cfg lives at the signed GRUB's embedded prefix; find it rather than
 # assuming a vendor name (fedora today, target-signed vendors tomorrow).
 GRUB_CFG=""
@@ -142,6 +156,7 @@ if [[ ! -f "$GRUB_CFG" ]] || [[ "$(cat "$GRUB_CFG")" != "$WANT_CFG" ]]; then
     printf '%s' "$WANT_CFG" > "$GRUB_CFG.new" && mv -f "$GRUB_CFG.new" "$GRUB_CFG"
     changed=1
     log "updated $(basename "$(dirname "$GRUB_CFG")")/grub.cfg"
+fi
 fi
 
 if [[ "$changed" -eq 1 ]]; then
