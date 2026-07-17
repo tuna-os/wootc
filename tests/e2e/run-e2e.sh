@@ -649,6 +649,21 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         echo "$OEM_FAILURE" >&2
         break
     fi
+
+    # Serial output can be lost across the initramfs-to-Windows reboot.  Once
+    # the Windows QGA is back, the persisted deployer log is the authoritative
+    # completion record and survives that console handoff.
+    if qga_windows_probe; then
+        DEPLOYER_LOG=$(qga_read 'C:\wootc\logs\deployer.log' 2>/dev/null || true)
+        if echo "$DEPLOYER_LOG" | grep -q 'VERIFICATION_SUMMARY'; then
+            echo "$DEPLOYER_LOG" | grep 'VERIFICATION_SUMMARY' | tail -1 \
+                | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
+            DEPLOY_COMPLETE=true
+            pass "wootc: deployment verification complete (persistent log)"
+            break
+        fi
+    fi
+
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
 
