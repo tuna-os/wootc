@@ -874,7 +874,16 @@ done
 # The initial BCD bootsequence entry is intentionally one-shot. The deployer
 # returns to Windows after laying down root.disk; re-arm it once to boot the
 # installed Phase 2 Linux root through the custom EFI loader.
-qga_wait_reboot "Windows after deployer"
+#
+# The deploy-watch loop only declares DEPLOY_COMPLETE from inside a successful
+# qga_windows_probe, so in the normal path Windows is already booted and stable
+# here — there is no second reboot to wait for. Waiting for QGA to "go away"
+# would then time out on a system that is simply sitting at the Windows desktop.
+# Only wait for the Windows return when it is not already up (deploy detected
+# purely from the serial console before the initramfs→Windows reboot settled).
+if ! qga_windows_probe; then
+    qga_wait_reboot "Windows after deployer"
+fi
 
 step "Scheduling one-shot Phase 2 Linux boot..."
 # shellcheck disable=SC2016 # PowerShell variables must remain literal here.
