@@ -294,24 +294,19 @@ func setupSystemdBoot(espPath string) error {
 // ── BCD configuration ─────────────────────────────────────────────────────────
 
 func configureBCD(bootloader string) error {
-	espPath, err := findESP()
-	if err != nil {
-		return err
-	}
-
-	// Extract drive letter from path like "S:\"
-	espDrive := string([]rune(espPath)[0])
 	var efiRelPath string
 
 	switch bootloader {
 	case "systemd-boot":
 		efiRelPath = `\EFI\systemd\systemd-bootx64.efi`
 	default:
-		efiRelPath = `\EFI\wootc\wubildr.efi`
+		// The signed-shim chain proven by E2E: BCD → shimx64.efi →
+		// grubx64.efi (embedded prefix \EFI\fedora) → deployer menu.
+		efiRelPath = `\EFI\fedora\shimx64.efi`
 	}
 
 	// bcdedit /copy {bootmgr} /d "wootc" — clones the Windows Boot Manager entry,
-	// inheriting device/partition settings. We then change the path to our EFI binary.
+	// inheriting the ESP device/partition settings, so no drive letter is needed.
 	// This is the proven approach from WubiUEFI (millions of users).
 	out, err := runCmd("bcdedit", "/copy", "{bootmgr}", "/d", "wootc")
 	if err != nil {
@@ -326,9 +321,11 @@ func configureBCD(bootloader string) error {
 	}
 	guid := "{" + m[1] + "}"
 
+	// One-shot bootsequence only: nothing permanent changes in the user's
+	// boot order until TunaOS is known to work. displayorder promotion is a
+	// post-deploy, user-confirmed action, not part of the install.
 	cmds := [][]string{
 		{"bcdedit", "/set", guid, "path", efiRelPath},
-		{"bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/addfirst"},
 		{"bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"},
 	}
 	for _, args := range cmds {
