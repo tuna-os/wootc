@@ -665,7 +665,7 @@ if [ "$SKIP_INSTALL" = true ]; then
 fi
 
 step "Starting OEM setup through QGA..."
-qga_powershell 'Remove-Item -LiteralPath C:\OEM\e2e-setup-complete.txt,C:\OEM\e2e-setup-failed.txt,C:\OEM\e2e-snapshot-complete.txt -Force -ErrorAction SilentlyContinue' >/dev/null
+qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
 pass "OEM setup process started through QGA as SYSTEM"
 
