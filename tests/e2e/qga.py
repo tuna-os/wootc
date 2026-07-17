@@ -118,6 +118,9 @@ def main():
     sub.add_parser("info")
     ps = sub.add_parser("powershell")
     ps.add_argument("script")
+    execute = sub.add_parser("exec")
+    execute.add_argument("path")
+    execute.add_argument("args", nargs=argparse.REMAINDER)
     read = sub.add_parser("read")
     read.add_argument("path")
     write = sub.add_parser("write")
@@ -141,6 +144,11 @@ def main():
             return 0
         if args.command == "powershell":
             code, stdout, stderr = powershell(agent, args.script)
+            sys.stdout.buffer.write(stdout)
+            sys.stderr.buffer.write(stderr)
+            return code
+        if args.command == "exec":
+            code, stdout, stderr = agent.exec(args.path, args.args)
             sys.stdout.buffer.write(stdout)
             sys.stderr.buffer.write(stderr)
             return code

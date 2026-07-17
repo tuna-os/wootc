@@ -534,7 +534,12 @@ fi
 # payload runs. Its availability is the real Windows-ready signal; no guest
 # IP, WinRM listener, or Windows password is involved.
 if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
-    info "Previous deployer is still running; rebooting it to Windows before retry"
+    info "Previous deployer is still running; clearing UEFI BootNext before Windows retry"
+    # A failed initramfs can leave the UEFI one-shot entry set, causing every
+    # Ctrl-Alt-Del to loop back to the deployer instead of normal BootOrder.
+    qga_call exec /bin/sh -c 'rm -f /sys/firmware/efi/efivars/BootNext-*' || \
+        info "Could not clear UEFI BootNext from the deployer; continuing with reboot"
+    info "Rebooting prior deployer to Windows before retry"
     $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\\n"); s.close()'
 fi
 qga_wait_windows 2700
