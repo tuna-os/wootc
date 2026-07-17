@@ -215,8 +215,13 @@ qga_call() {
 }
 
 qga_probe() {
-    qga_call ping >/dev/null 2>&1
-}
+    qga_call ping 2>/dev/null &
+    local probe_pid=$!
+    (sleep 5; kill $probe_pid 2>/dev/null) &
+    local kill_pid=$!
+    wait $probe_pid 2>/dev/null || true
+    kill $kill_pid 2>/dev/null || true
+    wait $kill_pid 2>/dev/null || true
 
 qga_wait() {
     local label="$1" timeout="$2" elapsed=0

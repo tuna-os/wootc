@@ -82,4 +82,4 @@ services:
       # (a FILE, not a directory). This configures unattended GPT setup
       # and the SYSTEM bootstrap task.
       - ./autounattend.xml:/custom.xml:ro
-    restart: "no"     # Don't auto-restart — test orchestrator manages lifecycle
+    restart: "unless-stopped"     # Keep VM alive if Windows reboots post-install
