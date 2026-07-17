@@ -41,6 +41,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 pass() { echo -e "${GREEN}[PASS]${NC} $*"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 fail() { echo -e "${RED}[FAIL]${NC} $*" >&2; }
 info() { echo -e "${YELLOW}[INFO]${NC} $*"; }
 step() { echo -e "${CYAN}[STEP]${NC} $*"; run_state "step: $*"; }
