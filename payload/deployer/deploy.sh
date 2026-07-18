@@ -186,6 +186,13 @@ for attempt in {1..24}; do
     udevadm settle --timeout=10 2>/dev/null || true
     if scan_for_root_disk; then
         log "Found ${ROOT_DISK_PATH} on ${NTFS_PART}"
+        # Topology matters once a spare disk is present (the Phase-3 graduate
+        # target): a second disk shifts enumeration and has been observed to
+        # break the Phase-2 loop-attach. Record exactly what we resolved so a
+        # multi-disk failure is diagnosable from the serial alone.
+        log "  disk topology:"
+        lsblk -o NAME,TYPE,SIZE,FSTYPE,LABEL 2>/dev/null | sed 's/^/    /' >&2 || true
+        log "  NTFS_PART=${NTFS_PART} (uuid=$(blkid -s UUID -o value "$NTFS_PART" 2>/dev/null))"
         break
     fi
     log "root.vhdx not found (attempt ${attempt}/24); retrying in 5s..."
@@ -855,6 +862,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # ESP is partition 1 of the disk containing the NTFS partition.
     # /dev/sda3 → /dev/sda1, /dev/nvme0n1p3 → /dev/nvme0n1p1
     ESP_DEV=$(printf '%s' "$NTFS_PART" | sed -E 's/(p?)[0-9]+$/\11/')
+    log "  ESP_DEV=${ESP_DEV} (derived from NTFS_PART=${NTFS_PART})"
     if [[ ! -b "$ESP_DEV" ]]; then
         err "  [WARN] ESP device ${ESP_DEV} not found; Phase-2 boot will fail"
     else
