@@ -44,16 +44,31 @@ PERSIST_LOG=""
 #      BELOW 4, so even KERN_WARNING is dropped — /dev/console is the only
 #      threshold-independent path, and is how systemd's "Entering emergency
 #      mode" reaches serial.
+# ONE kmsg write per line, at an explicit priority. Not three.
+#
+# The <27> prefix is KERN_ERR (level 3). `quiet` sets console_loglevel=4 and
+# printk prints levels STRICTLY BELOW it, so level 3 reaches the serial console
+# on its own — which is the entire reason the priority is here. An additional
+# direct /dev/console write adds nothing.
+#
+# It also actively broke the deploy. With stdout (console in the initramfs) plus
+# kmsg-forwarded-to-console plus a direct console write, every line went out
+# THREE times over a 115200-baud serial. During the verbose bootc install that
+# saturates the link, and a blocking console write stalls the deployer: all
+# three runners died at `phase: verification` with the serial frozen, then burned
+# their full 45-minute budget. The deploy completed fine before this was added.
+#
+# Volume is the deciding factor, which is why the Phase-2 attach hook still does
+# write to /dev/console: it emits a handful of lines at boot rather than hundreds
+# during an install, and it is diagnosing a path we have never seen work.
 log() {
     printf '\033[1;32m[wootc]\033[0m %s\n' "$*"
     printf '<27>[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
-    printf '[wootc] %s\n' "$*" > /dev/console 2>/dev/null || true
     [ -z "$PERSIST_LOG" ] || printf '%s [wootc] %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 err() {
     printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2
     printf '<27>[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
-    printf '[wootc] ERROR: %s\n' "$*" > /dev/console 2>/dev/null || true
     [ -z "$PERSIST_LOG" ] || printf '%s [wootc] ERROR: %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 # Current phase, read by the heartbeat and useful over QGA.

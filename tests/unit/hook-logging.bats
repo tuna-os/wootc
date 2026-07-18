@@ -85,10 +85,24 @@ setup() {
     grep -q "printf '<27>\[wootc\] ERROR: %s" "$DEPLOY"
 }
 
-@test "deployer log()/err() also write to /dev/console" {
-    local n
-    n=$(grep -c '> */dev/console' "$DEPLOY")
-    [ "$n" -ge 2 ]
+@test "deployer log()/err() do NOT also write to /dev/console" {
+    # Regression guard, learned the hard way. deploy.sh emits hundreds of lines
+    # during bootc install. With stdout + kmsg-forwarded-to-console + a direct
+    # console write, each line went out THREE times over a 115200-baud serial;
+    # the link saturated and a blocking console write stalled the deployer at
+    # `phase: verification` on all three runners.
+    #
+    # The <27> priority already reaches the console under `quiet` (level 3 <
+    # console_loglevel 4), so the extra write bought nothing. One kmsg write.
+    run grep -nE "printf .*> */dev/console" "$DEPLOY"
+    [ "$status" -ne 0 ]
+}
+
+@test "the low-volume Phase-2 hook DOES still write to /dev/console" {
+    # Different volume, different call: a handful of lines at boot, diagnosing a
+    # path we have never seen work. Belt and braces is right here and wrong in
+    # the installer.
+    grep -q '> */dev/console' "$HOOK"
 }
 
 @test "the initramfs hook guard still aborts the deploy when the hook is missing" {
