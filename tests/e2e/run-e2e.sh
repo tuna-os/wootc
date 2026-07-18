@@ -48,6 +48,7 @@ for arg in "$@"; do
         --skip-build)   SKIP_BUILD=true ;;
         --keep)         KEEP_CONTAINER=true ;;
         --skip-install) SKIP_INSTALL=true ;;
+        --phase3)       RUN_PHASE3=true ;;   # rung-3: graduate to a native disk
         --*)            ;;  # ignore unknown flags
         *)              [ -z "$IMAGE_REF" ] && IMAGE_REF="$arg" ;;  # first positional = image
     esac
@@ -1085,6 +1086,54 @@ done
     tail -30 "$PTY"
     exit 1
 }
+
+# ── Step 8b (rung 3): graduate Phase 2 → a native disk ──────────────────────
+# Only with --phase3. Phase-2 enables qemu-guest-agent (MGMT_KARG), so we can
+# drive the graduate inside the running Linux over the same QGA channel. The
+# target is a spare blank disk (WOOTC_E2E_DISK2_SIZE), so Windows + root.disk
+# are untouched and the whole thing stays reversible.
+if [ "${RUN_PHASE3:-false}" = true ]; then
+    step "Phase 3: waiting for Linux guest agent in Phase 2..."
+    P3_OK=false
+    for _ in $(seq 1 60); do
+        if qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | grep -qi linux; then
+            P3_OK=true; break
+        fi
+        sleep 5
+    done
+    if [ "$P3_OK" != true ]; then
+        fail "Phase 3: no Linux QGA in Phase 2 (is qemu-guest-agent enabled?)"
+        exit 1
+    fi
+    pass "Phase 3: Linux guest agent reachable inside Phase 2"
+
+    info "Phase 3: go-native status"
+    qga_call exec /bin/sh -c 'wootc-go-native status 2>&1 || true' 2>/dev/null | head -25
+
+    # Pick the graduate target: a whole disk that is NOT the one hosting root.
+    P3_TARGET=$(qga_call exec /bin/sh -c \
+        'root=$(findmnt -no SOURCE / 2>/dev/null); rd=$(lsblk -no PKNAME "$root" 2>/dev/null | head -1);
+         lsblk -dnro NAME,TYPE,SIZE | awk -v rd="$rd" "\$2==\"disk\" && \$1!=rd {print \"/dev/\"\$1; exit}"' \
+        2>/dev/null | tr -d '\r\n ')
+    if [ -z "$P3_TARGET" ]; then
+        fail "Phase 3: no spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
+        exit 1
+    fi
+    pass "Phase 3: graduate target = $P3_TARGET"
+
+    step "Phase 3: graduating to native disk (this installs the OS onto $P3_TARGET)..."
+    qga_call exec /bin/sh -c \
+        "WOOTC_GN_ALLOW_DESTRUCTIVE=1 wootc-go-native migrate --to-disk $P3_TARGET --execute 2>&1" \
+        2>/dev/null | tail -40
+    if qga_call exec /bin/sh -c \
+        "lsblk -no FSTYPE $P3_TARGET 2>/dev/null | grep -q . && echo GRADUATED" 2>/dev/null \
+        | grep -q GRADUATED; then
+        pass "Phase 3: native install written to $P3_TARGET (Windows + root.disk intact)"
+    else
+        fail "Phase 3: graduate did not produce a filesystem on $P3_TARGET"
+        exit 1
+    fi
+fi
 
 # ── Step 9: Verify passthrough/migration setup ──────────────────────────────
 step "Verifying passthrough and migration setup..."
