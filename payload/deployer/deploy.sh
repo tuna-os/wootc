@@ -387,7 +387,10 @@ fi
 # lets wootc boot arbitrary bootc images, not only ones that ship NTFS support.
 ensure_ntfs_support() {
     if podman run --rm "$IMAGE" sh -c \
-        'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1'; then
+        'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
+         ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
+         grep -qw ntfs3 /proc/filesystems 2>/dev/null || \
+         grep -qxE "CONFIG_NTFS3_FS=[ym]" /usr/lib/modules/*/config 2>/dev/null'; then
         log "Image already has an NTFS driver (ntfs3 or ntfs-3g)."
         return 0
     fi
@@ -399,22 +402,25 @@ ensure_ntfs_support() {
     # the braces are the hook's runtime ntfs3 -> ntfs-3g fallback plus the
     # loop-attach guard. Making these failures fatal broke deploys that worked.
     log "No NTFS driver in ${IMAGE}; injecting ntfs-3g (persisted layer)…"
-    local cid derived="localhost/wootc-ntfs-injected:latest"
-    cid=$(podman run -d "$IMAGE" sh -c \
-        'dnf install -y ntfs-3g || microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g') \
-        || { err "  [WARN] could not start the ntfs-3g injection container (podman -d unavailable in the initramfs); relying on the image's own NTFS support"; return 1; }
-    if [[ "$(podman wait "$cid" 2>/dev/null)" != "0" ]]; then
+    local derived="localhost/wootc-ntfs-injected:latest" cname="wootc-ntfs-inject"
+    podman rm -f "$cname" >/dev/null 2>&1 || true
+    # FOREGROUND run, not `-d`: detached mode does not work in the deployer
+    # initramfs (every previous injection died at "could not start the
+    # container"), while the plain `podman run` used elsewhere here works fine.
+    # No --rm, because the stopped container is what we commit.
+    if ! podman run --name "$cname" "$IMAGE" sh -c \
+        'dnf install -y ntfs-3g || microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g'; then
         err "  [WARN] ntfs-3g install failed in ${IMAGE} (network/repo?); relying on the image's own NTFS support"
-        podman logs "$cid" 2>&1 | tail -15 >&2 || true
-        podman rm -f "$cid" >/dev/null 2>&1 || true
+        podman logs "$cname" 2>&1 | tail -10 >&2 || true
+        podman rm -f "$cname" >/dev/null 2>&1 || true
         return 1
     fi
-    if ! podman commit -q "$cid" "$derived" >/dev/null 2>&1; then
+    if ! podman commit -q "$cname" "$derived" >/dev/null 2>&1; then
         err "  [WARN] could not commit the NTFS-injected image (disk space?); deploying the original"
-        podman rm -f "$cid" >/dev/null 2>&1 || true
+        podman rm -f "$cname" >/dev/null 2>&1 || true
         return 1
     fi
-    podman rm -f "$cid" >/dev/null 2>&1 || true
+    podman rm -f "$cname" >/dev/null 2>&1 || true
     IMAGE="$derived"
     log "  [PASS] injected ntfs-3g; deploying ${IMAGE}"
     # Prove it actually landed rather than trusting the commit.
