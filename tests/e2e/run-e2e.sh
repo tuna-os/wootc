@@ -1165,16 +1165,31 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     info "Phase 3: go-native status"
     qga_call exec /bin/sh -c 'wootc-go-native status 2>&1 || true' 2>/dev/null | head -25
 
-    # Pick the graduate target: a whole disk that is NOT the one hosting root.
-    P3_TARGET=$(qga_call exec /bin/sh -c \
-        'root=$(findmnt -no SOURCE / 2>/dev/null); rd=$(lsblk -no PKNAME "$root" 2>/dev/null | head -1);
-         lsblk -dnro NAME,TYPE,SIZE | awk -v rd="$rd" "\$2==\"disk\" && \$1!=rd {print \"/dev/\"\$1; exit}"' \
-        2>/dev/null | tr -d '\r\n ')
+    # Pick the graduate target: a BLANK whole disk (no partitions, no
+    # filesystem). Do NOT use "any disk that isn't root's" — in Phase 2 root
+    # lives on /dev/nbd0 (the root.disk loopback), so that rule excludes nbd0
+    # and happily selects /dev/sda, i.e. the WINDOWS disk. `bootc install
+    # --wipe` on that destroys the user's Windows. Emptiness is what actually
+    # identifies the spare drive.
+    P3_TARGET=$(qga_call exec /bin/sh -c '
+        for d in $(lsblk -dnro NAME,TYPE | awk "\$2==\"disk\"{print \$1}"); do
+            case "$d" in nbd*|loop*|sr*|zram*) continue ;; esac
+            parts=$(lsblk -nro NAME "/dev/$d" | tail -n +2)
+            fs=$(lsblk -nro FSTYPE "/dev/$d" | tr -d " \n")
+            [ -z "$parts" ] && [ -z "$fs" ] && { echo "/dev/$d"; exit 0; }
+        done' 2>/dev/null | tr -d '\r\n ')
     if [ -z "$P3_TARGET" ]; then
-        fail "Phase 3: no spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
+        fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
         exit 1
     fi
-    pass "Phase 3: graduate target = $P3_TARGET"
+    # Belt-and-braces: never hand a disk with data on it to --wipe.
+    P3_CHECK=$(qga_call exec /bin/sh -c \
+        "lsblk -nro NAME,FSTYPE $P3_TARGET | tail -n +2 | tr -d ' \n'" 2>/dev/null | tr -d '\r\n ')
+    if [ -n "$P3_CHECK" ]; then
+        fail "Phase 3: refusing — target $P3_TARGET is not blank ($P3_CHECK)"
+        exit 1
+    fi
+    pass "Phase 3: graduate target = $P3_TARGET (verified blank)"
 
     step "Phase 3: graduating to native disk (this installs the OS onto $P3_TARGET)..."
     qga_call exec /bin/sh -c \

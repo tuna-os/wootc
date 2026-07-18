@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-selection — the one place that answers "did the user
+# agree to migrate this category?"
+#
+# wootc-manifest-gui writes ~/.config/wootc/migration-selection.json. Without
+# this helper that file was decorative: every bridge migrated regardless, so
+# switching a category off did nothing. The bridges now gate on:
+#
+#     wootc-selection <linuxuser> <category>   → exit 0 = migrate, 1 = skipped
+#
+# Fail-open by design: if no selection file exists (the user never opened the
+# chooser) everything migrates, which matches the documented default of
+# "everything discovered is on". Only an explicit off is honoured as off.
+import json
+import os
+import subprocess
+import sys
+
+CATEGORIES = ("files", "browsers", "office", "games", "wifi", "wsl", "look", "identity")
+
+
+def _home(user):
+    if os.environ.get("WOOTC_SELECTION_HOME"):
+        return os.environ["WOOTC_SELECTION_HOME"]
+    try:
+        return subprocess.run(["getent", "passwd", user], capture_output=True,
+                              text=True, check=True).stdout.split(":")[5]
+    except Exception:
+        return ""
+
+
+def selection_path(user):
+    if os.environ.get("WOOTC_SELECTION"):
+        return os.environ["WOOTC_SELECTION"]
+    home = _home(user)
+    return os.path.join(home, ".config", "wootc", "migration-selection.json") if home else ""
+
+
+def is_enabled(user, category):
+    path = selection_path(user)
+    if not path or not os.path.isfile(path):
+        return True                      # no choice recorded → default on
+    try:
+        data = json.load(open(path))
+    except Exception:
+        return True                      # unreadable → don't block migration
+    sel = data.get("selection", {})
+    # The file is keyed by Windows user; a category is off only if some entry
+    # explicitly says so.
+    for _winuser, cats in sel.items():
+        entry = cats.get(category)
+        if isinstance(entry, dict) and entry.get("on") is False:
+            return False
+    return True
+
+
+def main(argv):
+    if len(argv) < 3:
+        print("usage: wootc-selection <linuxuser> <category>", file=sys.stderr)
+        print("categories: " + ", ".join(CATEGORIES), file=sys.stderr)
+        return 2
+    return 0 if is_enabled(argv[1], argv[2]) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

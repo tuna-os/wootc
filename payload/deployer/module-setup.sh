@@ -73,6 +73,7 @@ install() {
     inst /usr/lib/wootc/migration/wootc-manifest-gui
     inst /usr/lib/wootc/migration/wootc-manifest.desktop
     inst /usr/lib/wootc/migration/wootc-identity
+    inst /usr/lib/wootc/migration/wootc-selection
     inst /usr/lib/wootc/migration/wootc-go-native
     inst /usr/lib/wootc/migration/wootc-go-native-gui
     inst /usr/lib/wootc/migration/wootc-go-native.desktop

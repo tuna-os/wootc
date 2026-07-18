@@ -52,8 +52,17 @@ done
 shopt -u nullglob
 
 # Steam category (best-effort — never fail the mount service over it).
-if command -v wootc-steam-bridge >/dev/null; then
+# Honour the user's choices from the migration chooser (wootc-manifest-gui).
+# sel_on <user> <category> -> 0 when that category should be migrated.
+sel_on() {
+    command -v wootc-selection >/dev/null || return 0   # helper absent: migrate
+    wootc-selection "$1" "$2"
+}
+
+if command -v wootc-steam-bridge >/dev/null && sel_on "${SUDO_USER:-root}" games; then
     wootc-steam-bridge || log "steam bridge reported an error (non-fatal)"
+elif command -v wootc-steam-bridge >/dev/null; then
+    log "games: skipped (turned off in the migration chooser)"
 fi
 
 # App-data bridge: per-user detection + portable-state copy (best-effort).
@@ -64,8 +73,13 @@ if command -v wootc-detect-apps >/dev/null; then
         uid=$(id -u "$uname" 2>/dev/null) || continue
         [[ "$uid" -ge 1000 ]] || continue
         wootc-detect-apps "$uname" || log "app detection failed for $uname (non-fatal)"
-        command -v wootc-office-bridge >/dev/null && \
-            { wootc-office-bridge "$uname" || log "office bridge failed for $uname (non-fatal)"; }
+        if command -v wootc-office-bridge >/dev/null; then
+            if sel_on "$uname" office; then
+                wootc-office-bridge "$uname" || log "office bridge failed for $uname (non-fatal)"
+            else
+                log "office: skipped for $uname (turned off in the migration chooser)"
+            fi
+        fi
         # Copy the account picture + full name over (never the password).
         command -v wootc-identity >/dev/null && \
             { wootc-identity apply "$uname" "$uname" >/dev/null || log "identity copy failed for $uname (non-fatal)"; }

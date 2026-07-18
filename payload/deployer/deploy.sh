@@ -748,6 +748,8 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-manifest.desktop"
     # Identity prefill/copy (§4.6): account name + picture (never the password).
     mig_opt 755 wootc-identity "$DEPLOY_ROOT/usr/local/bin/wootc-identity"
+    # Gates the bridges on the migration chooser's opt-out selection.
+    mig_opt 755 wootc-selection "$DEPLOY_ROOT/usr/local/bin/wootc-selection"
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
     mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
