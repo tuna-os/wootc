@@ -1,1 +1,4 @@
-run=20260718T015752Z-himachal-1462841
+run=20260718T071854Z-himachal-2225346
+host=himachal
+image=ghcr.io/tuna-os/yellowfin:gnome
+result=ALL TESTS PASSED (Phase 1->2, EL10 + ntfs-3g injection)
