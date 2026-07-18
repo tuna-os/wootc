@@ -832,7 +832,7 @@ else
     step "Waiting for Windows auto-install (up to 45 min)..."
     info "  Monitor: open http://localhost:8006 in browser to watch progress"
 
-    TIMEOUT=2700  # 45 minutes
+    TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"  # 45 min default; raise on slow CI
     ELAPSED=0
     INSTALL_DONE=false
 
@@ -908,7 +908,7 @@ pass "OEM setup process started through QGA as SYSTEM"
 # safely present on the host.
 step "Waiting for OEM setup to reach the pre-deployer snapshot barrier..."
 ELAPSED=0
-TIMEOUT=2700
+TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
 BARRIER_REACHED=false
 while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
     if qga_read 'C:\OEM\e2e-setup-complete.txt' >/dev/null 2>&1; then
@@ -950,7 +950,7 @@ info "Watching for fisherman deployment markers..."
 # A standard Windows install plus the local OEM handoff routinely takes
 # 20–30 minutes even under KVM. Do not turn Dockur's installer-ready file into
 # a premature test failure; only the deployer's serial marker proves success.
-TIMEOUT=2700
+TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
 ELAPSED=0
 DEPLOY_COMPLETE=false
 DEPLOYER_REBOOT_SEEN=false
