@@ -47,11 +47,14 @@ auth = find(".//w:authEncryption/w:authentication")
 key  = find(".//w:sharedKey/w:keyMaterial")
 onex = r.find(".//w:MSM/w:security/w:OneX", ns) if ns else r.find(".//OneX")
 enterprise = onex is not None or auth in ("WPA2", "WPA", "WPA3", "WPA3ENT")
-print("\t".join([ssid, auth, key, "ent" if enterprise else "psk"]))
+# Join on the unit separator (0x1f), NOT a tab: tab is IFS-whitespace, so a
+# `read` split would collapse an empty middle field (a keyless profile) and
+# shift `tier` into `key` — writing a garbage psk instead of skipping.
+print("\x1f".join([ssid, auth, key, "ent" if enterprise else "psk"]))
 PYEOF
 )
     [[ -n "$parsed" ]] || continue
-    IFS=$'\t' read -r ssid auth key tier <<<"$parsed"
+    IFS=$'\x1f' read -r ssid auth key tier <<<"$parsed"
     [[ -n "$ssid" ]] || continue
 
     # Map Windows auth → NetworkManager key-mgmt.

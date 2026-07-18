@@ -14,6 +14,23 @@ FILES := E2E_DIR / "wootc-files"
 CTR := "wootc-e2e-windows"
 KANPUR := env_var_or_default("WOOTC_E2E_HOST", "kanpur")
 
+# ── Tests ─────────────────────────────────────────────────────────────────────
+
+# Fast red-green loop: bats unit suites + cross-platform go test. No container.
+test:
+    bash tests/run.sh fast
+
+# Alias for the fast tier.
+test-fast: test
+
+# Containerized integration (User Data Bridge, WSL, go-native gates). Needs podman.
+test-slow:
+    bash tests/run.sh slow
+
+# Everything: fast + slow.
+test-all:
+    bash tests/run.sh all
+
 # ── Local E2E ─────────────────────────────────────────────────────────────────
 
 # Full E2E: build deployer, install Windows, run wootc, verify boot
@@ -302,6 +319,8 @@ logs:
 ssh:
     ssh {{ KANPUR }}
 
-# Run shellcheck
+# Run shellcheck on the harness and the migration payloads
 check:
     shellcheck "{{ E2E_DIR }}/run-e2e.sh" "{{ E2E_DIR }}/setup-kvm-runner.sh"
+    shellcheck payload/migration/wootc-go-native payload/migration/wootc-wifi-bridge \
+        payload/migration/wootc-wsl-bridge payload/migration/wootc-apply-look || true

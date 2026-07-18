@@ -163,6 +163,53 @@ WOOTC_ESP_DIR=/tmp/esp WOOTC_BOOT_DIR=/tmp/boot WOOTC_CMDLINE=/tmp/cmdline \
     bash /scripts/wootc-esp-sync >/dev/null 2>&1 || true
 check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = classic-kernel ]' "ESP sync: classic /boot layout (Debian/Arch) handled"
 
+# ── 7. WSL bridge (dotfiles + dpkg→Brewfile, secrets stay behind) ───────────
+WSLR=/tmp/wslrootfs
+mkdir -p "$WSLR/home/dev" "$WSLR/var/lib/dpkg"
+printf 'export EDITOR=nvim\n'   > "$WSLR/home/dev/.bashrc"
+printf '[user]\n\tname=Dev\n'   > "$WSLR/home/dev/.gitconfig"
+mkdir -p "$WSLR/home/dev/.ssh"
+echo 'ssh-ed25519 AAAA pub'      > "$WSLR/home/dev/.ssh/id_ed25519.pub"
+echo 'PRIVATE-KEY-MUST-NOT-MOVE' > "$WSLR/home/dev/.ssh/id_ed25519"
+cat > "$WSLR/var/lib/dpkg/status" <<'DPKG'
+Package: ripgrep
+Status: install ok installed
+
+Package: golang-go
+Status: install ok installed
+
+Package: libssl3
+Status: install ok installed
+
+Package: neovim
+Status: deinstall ok config-files
+DPKG
+WOOTC_WSL_ROOTFS="$WSLR" bash /scripts/wootc-wsl-bridge alice >/dev/null 2>&1 || true
+BF=/home/alice/.config/wootc/Brewfile
+# .gitconfig isn't in /etc/skel, so it proves a fresh copy; .bashrc IS in skel,
+# so the bridge must leave alice's existing native one alone (non-clobber).
+check '[ -f /home/alice/.gitconfig ] && grep -q "name=Dev" /home/alice/.gitconfig' "WSL: dotfiles copied into native home"
+check '! grep -q EDITOR=nvim /home/alice/.bashrc' "WSL: existing native .bashrc not clobbered"
+check '[ -f /home/alice/.ssh/id_ed25519.pub ]' "WSL: public key copied"
+check '[ ! -f /home/alice/.ssh/id_ed25519 ]' "WSL: PRIVATE key left behind (never migrate secrets)"
+check "grep -q '\"ripgrep\"' $BF" "WSL: installed dpkg pkg mapped to brew formula"
+check "grep -q '\"go\"' $BF" "WSL: golang-go mapped to go"
+check "! grep -q libssl3 $BF" "WSL: transitive library not mapped"
+check "! grep -q neovim $BF" "WSL: deinstalled (config-files) pkg not mapped"
+check "[ -f /home/alice/.config/wootc/wsl-bridge.json ]" "WSL: bridge state recorded"
+
+# ── 8. go-native (Phase 3) — analysis is safe anywhere, gates hold ──────────
+GN=/scripts/wootc-go-native
+# plan/check run read-only; force the loopback state via the test hook.
+PL=$(WOOTC_GN_FORCE_LOOP=1 WOOTC_GN_HOSTCONF=/nonexistent WOOTC_GN_HOME=/home/alice bash "$GN" plan 2>&1 || true)
+check 'echo "$PL" | grep -q "Graduate root to native"' "go-native: plan describes stage 5 graduate"
+check 'echo "$PL" | grep -q "Remove Windows"' "go-native: plan describes stage 6 reclaim"
+# Critical gate: reclaim must refuse while still on the loopback root.disk.
+RC=$(WOOTC_GN_FORCE_LOOP=1 WOOTC_GN_DISK=/dev/loopX WOOTC_GN_NTFS=/dev/loopXp2 \
+     bash "$GN" migrate --reclaim --execute 2>&1; echo "rc=$?")
+check 'echo "$RC" | grep -q "still running from root.disk"' "go-native: --reclaim refuses on loopback"
+check 'echo "$RC" | grep -q "rc=1"' "go-native: --reclaim exits non-zero on loopback"
+
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
 INNER

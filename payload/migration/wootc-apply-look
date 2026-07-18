@@ -238,6 +238,10 @@ apply_desktop_shortcuts() {
         src=""
     done < <(pinned_lines)
     [[ $placed -gt 0 ]] && log "placed $placed desktop shortcut(s)"
+    # Never leak the trailing test's non-zero status: under `set -e` a bare
+    # call to this function would abort the script (marker never written → the
+    # once-only guard fails and look re-applies every boot).
+    return 0
 }
 
 apply_xfce() {
