@@ -224,7 +224,14 @@ fi
 # manageable, recoverable, and testable inside a VM — a migrated user should
 # never end up with an unreachable box. Combined below into PHASE2_KARGS.
 MGMT_KARG="systemd.wants=qemu-guest-agent.service"
-PHASE2_KARGS="$MGMT_KARG $SSHD_KARG"
+# rd.timeout bounds how long the initramfs waits for the root device before
+# dropping to an emergency shell. Without it a Phase-2 boot whose loop-attach
+# hook failed (so root=UUID never appears) hangs FOREVER on
+# dev-disk-by-uuid-<root>.device ("no limit") — an invisible 5-minute wedge in
+# CI and a dead machine for a user. Bound it so the failure is fast and lands
+# in a shell with the actual error instead of a silent spinner.
+TIMEOUT_KARG="rd.timeout=120"
+PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG"
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
@@ -579,6 +586,24 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
     else
         chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
+    fi
+
+    # GUARD: the Phase-2 initramfs is useless without the loop-attach hook —
+    # without wootc-attach-loop.sh the NTFS-hosted root.disk is never attached,
+    # root=UUID never appears, and Phase-2 hangs at boot. `dracut --omit`,
+    # a foreign-kernel chroot, or a wrong KVER can all silently drop the module
+    # (line 586 below only checks the module *dir* exists in the target, NOT
+    # that it landed in the built image). Verify the actual output and abort the
+    # deploy here — a loud [FAIL] beats a silent 5-minute boot wedge.
+    if [[ -n "${INITRD_CHROOT_PATH:-}" ]] && chroot "$DEPLOY_ROOT" sh -c 'command -v lsinitrd >/dev/null 2>&1'; then
+        if chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -q 'wootc-attach-loop'; then
+            log "  [PASS] Phase-2 initramfs carries the loop-attach hook"
+        else
+            err "  [FAIL] Phase-2 initramfs is MISSING wootc-attach-loop.sh — root.disk would never attach; aborting deploy"
+            exit 1
+        fi
+    else
+        log "  [WARN] lsinitrd unavailable — cannot verify loop-attach hook in the Phase-2 initramfs"
     fi
     for fs in sys proc dev; do umount "$DEPLOY_ROOT/$fs"; done
 
