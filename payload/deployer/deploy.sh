@@ -576,9 +576,20 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # blobs dominating the 241M image; no firmware is needed to reach
         # the NTFS-loop root (virtio/ahci/nvme need none).
         mkdir -p "$DEPLOY_ROOT/run/wootc-nofw"
-        DRACUT_OMIT="plymouth lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack"
-        [[ "$LUKS_TYPE" == "none" ]] && DRACUT_OMIT="$DRACUT_OMIT crypt"
-        chroot "$DEPLOY_ROOT" dracut --force --hostonly \
+        # --no-hostonly (not --hostonly): under a foreign-kernel chroot with no
+        # /run mounted, dracut force-disables host-only anyway ("Turning off
+        # host-only mode: '/run' is not mounted!") and, worse, its host-only
+        # path probing fails on '/root' (dracut-install ... -f /root → FAILED),
+        # which was silently producing a Phase-2 initramfs WITHOUT the
+        # 99wootc-boot module — so root.disk never attached and Phase-2 hung.
+        # Explicitly --add wootc-boot so the loop-attach module can never be
+        # dropped by omit/dependency heuristics (the guard below enforces it).
+        # nvmf/systemd-cryptsetup are auto-pulled but depend on the network/dm
+        # modules we omit; omit them too so they don't error the run.
+        DRACUT_OMIT="plymouth lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack nvmf nvdimm"
+        [[ "$LUKS_TYPE" == "none" ]] && DRACUT_OMIT="$DRACUT_OMIT crypt systemd-cryptsetup"
+        chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
+            --add wootc-boot \
             --fwdir /run/wootc-nofw \
             --omit "$DRACUT_OMIT" \
             "$INITRD_CHROOT_PATH" "$KVER"
