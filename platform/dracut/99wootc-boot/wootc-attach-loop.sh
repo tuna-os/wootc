@@ -18,7 +18,8 @@ LOOP_PATH=$(getarg loop=) || return 0
 HOST_UUID=$(getarg wootc.host_uuid=) || return 0
 [ -n "$LOOP_PATH" ] && [ -n "$HOST_UUID" ] || return 0
 
-modprobe ntfs3 2>/dev/null
+modprobe ntfs3 2>/dev/null   # kernel driver, if the target ships it
+modprobe fuse  2>/dev/null   # for the ntfs-3g userspace fallback
 modprobe nbd nbds_max=4 max_part=16 2>/dev/null
 
 HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
@@ -27,11 +28,24 @@ HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
 HOST_MNT="/run/initramfs/wootc-host"
 mkdir -p "$HOST_MNT"
 
+# Mount the host NTFS read-WRITE (a ro host mount would propagate a physical
+# write barrier through the loop device to the guest root fs). Enterprise Linux
+# kernels don't ship ntfs3, so fall back to the ntfs-3g/lowntfs-3g FUSE drivers
+# (layered into the image + bundled into this initramfs by the deployer).
+mount_host() {
+    mount -t ntfs3 -o rw,nobarrier,async,prealloc "$HOST_DEV" "$HOST_MNT" 2>/dev/null && return 0
+    local drv
+    for drv in ntfs-3g lowntfs-3g mount.ntfs-3g; do
+        command -v "$drv" >/dev/null 2>&1 || continue
+        "$drv" -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null && return 0
+    done
+    mount -t ntfs -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null && return 0
+    return 1
+}
+
 if ! mountpoint -q "$HOST_MNT"; then
-    # Must be read-write: a read-only host mount would propagate a physical
-    # write block through the loop device to the guest root filesystem.
-    if ! mount -t ntfs3 -o rw,nobarrier,async,prealloc "$HOST_DEV" "$HOST_MNT"; then
-        warn "wootc: cannot mount host NTFS rw — dirty volume? Boot Windows once and perform a full shutdown."
+    if ! mount_host; then
+        warn "wootc: cannot mount host NTFS rw (no ntfs3 and no ntfs-3g). Dirty volume? Boot Windows once and full-shutdown; and ensure the image has an NTFS driver."
         return 0
     fi
 fi

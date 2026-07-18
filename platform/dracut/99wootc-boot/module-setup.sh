@@ -17,11 +17,17 @@ depends() {
 }
 
 installkernel() {
-    instmods ntfs3 nbd
+    # ntfs3 (kernel NTFS, absent on Enterprise Linux) + nbd (VHDX loopback) +
+    # fuse (for the ntfs-3g userspace fallback when ntfs3 is missing).
+    instmods nbd fuse
+    instmods ntfs3 2>/dev/null || :   # optional: not built on EL kernels
 }
 
 install() {
     inst_hook initqueue/settled 10 "$moddir/wootc-attach-loop.sh"
     inst "$moddir/qemu-nbd" /usr/bin/qemu-nbd
     inst_multiple mount mountpoint mkdir modprobe blockdev sleep
+    # The userspace NTFS driver (ntfs-3g) for kernels without ntfs3 is added by
+    # the deployer's regen via `dracut --install` — module-level inst does not
+    # reliably resolve it there, but a regen-level --install does.
 }

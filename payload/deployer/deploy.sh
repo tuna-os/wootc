@@ -371,6 +371,40 @@ fi
 # ║ Contract: docs/architecture-boundary.md.
 # ╚═══════════════════════════════════════════════════════════════════════════
 
+# ── Ensure the image can mount NTFS at Phase-2 boot ─────────────────────────
+# Phase-2 boots Linux from root.disk hosted on the Windows NTFS: the initramfs
+# hook MUST be able to mount that NTFS. Enterprise Linux kernels ship no ntfs3,
+# so if the image has neither the ntfs3 kernel module nor a userspace ntfs-3g,
+# inject ntfs-3g using the image's OWN repos (matching glibc) and persist it as
+# a local derived image (podman commit — the same layer remora persists). This
+# lets wootc boot arbitrary bootc images, not only ones that ship NTFS support.
+ensure_ntfs_support() {
+    if podman run --rm "$IMAGE" sh -c \
+        'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1'; then
+        log "Image already has an NTFS driver (ntfs3 or ntfs-3g)."
+        return 0
+    fi
+    log "No NTFS driver in ${IMAGE}; injecting ntfs-3g (persisted layer)…"
+    local cid derived="localhost/wootc-ntfs-injected:latest"
+    cid=$(podman run -d "$IMAGE" sh -c \
+        'dnf install -y ntfs-3g || microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g') \
+        || { err "  [WARN] could not start ntfs-3g injection container"; return 1; }
+    if [[ "$(podman wait "$cid" 2>/dev/null)" != "0" ]]; then
+        err "  [WARN] ntfs-3g install failed in ${IMAGE}; Phase-2 may not mount NTFS"
+        podman rm -f "$cid" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if podman commit -q "$cid" "$derived" >/dev/null 2>&1; then
+        podman rm -f "$cid" >/dev/null 2>&1 || true
+        IMAGE="$derived"
+        log "  [PASS] injected ntfs-3g; deploying ${IMAGE}"
+    else
+        err "  [WARN] could not commit NTFS-injected image; using original"
+        podman rm -f "$cid" >/dev/null 2>&1 || true
+    fi
+}
+ensure_ntfs_support || log "NTFS injection best-effort; relying on image/kernel driver"
+
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
 # Flatpaks, and kernel cmdline injection. We just point it at the loop device.
@@ -593,9 +627,28 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # any failure here is specific to the chroot-into-mounted-deployment
         # context (e.g. an empty /var, /var/tmp, or /run) — surface it instead
         # of losing it to a redirected log.
+        # Pull the userspace NTFS driver into the Phase-2 initramfs when the
+        # deployment has it (EL kernels have no ntfs3, so the hook needs
+        # ntfs-3g to mount the Windows volume). Only list what actually exists —
+        # dracut --install hard-fails on a missing item. A regen-level --install
+        # resolves these reliably where a module-level inst does not.
+        NTFS_BINS=()
+        for _b in ntfs-3g lowntfs-3g mount.ntfs mount.ntfs-3g; do
+            for _d in /usr/bin /usr/sbin /bin /sbin; do
+                if [[ -e "$DEPLOY_ROOT$_d/$_b" ]]; then NTFS_BINS+=("$_d/$_b"); break; fi
+            done
+        done
+        DRACUT_INSTALL_ARGS=()
+        if (( ${#NTFS_BINS[@]} > 0 )); then
+            DRACUT_INSTALL_ARGS=(--install "${NTFS_BINS[*]}")
+            log "  Including userspace NTFS driver in Phase-2 initramfs: ${NTFS_BINS[*]}"
+        else
+            log "  [WARN] no ntfs-3g in the deployment — Phase-2 relies on a kernel ntfs3"
+        fi
         set +e
         chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
             --add wootc-boot \
+            "${DRACUT_INSTALL_ARGS[@]}" \
             --fwdir /run/wootc-nofw \
             --omit "$DRACUT_OMIT" \
             "$INITRD_CHROOT_PATH" "$KVER" 2>&1 | tail -25 >&2
