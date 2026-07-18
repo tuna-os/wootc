@@ -9,6 +9,9 @@
 #                Home: YTMG3-N6DKC-DKB77-7M9GH-8HVX7
 #                Ent:  NPPR9-FWDCX-D2C8J-H872K-2YT43   (also used by eval/LTSC)
 #
+# The bitlocker axis (WOOTC_E2E_BITLOCKER=on) drops PreventDeviceEncryption so
+# Windows auto-encrypts C:; wootc must then place root.disk on a separate
+# unencrypted volume rather than forcing a decrypt (SPEC 3.5).
 # The image axis covers every base family + bootloader (grub2 vs systemd-boot),
 # incl. a composefs image (projectbluefin/dakota); run-e2e derives the bootloader
 # and desktop; the Windows axis covers 10/11 across Pro/Home/Enterprise/LTSC.
@@ -34,3 +37,6 @@ full	el10-gnome-win11ltsc	ghcr.io/tuna-os/yellowfin:gnome	11l	iot	NPPR9-FWDCX-D2
 full	el10-gnome-win10home	ghcr.io/tuna-os/yellowfin:gnome	10	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7
 full	el10-gnome-win10ent	ghcr.io/tuna-os/yellowfin:gnome	10e	enterprise	NPPR9-FWDCX-D2C8J-H872K-2YT43
 full	el10-gnome-win10ltsc	ghcr.io/tuna-os/yellowfin:gnome	10l	ltsc	NPPR9-FWDCX-D2C8J-H872K-2YT43
+# -- BitLocker / FDE axis (SPEC 3.5) --
+smoke	el10-gnome-win11pro-bitlocker	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	bitlocker=on
+full	fedora-gnome-win11pro-bitlocker	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	bitlocker=on

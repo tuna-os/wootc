@@ -609,6 +609,35 @@ mkdir -p "$STORAGE_DIR"
 # The default key reproduces the original 11-pro answer file byte-for-byte.
 RENDERED_ANSWER="$STORAGE_DIR/autounattend.rendered.xml"
 sed "s#<Key>[^<]*</Key>#<Key>${WIN_KEY}</Key>#" autounattend.xml > "$RENDERED_ANSWER"
+
+# ── BitLocker axis (SPEC §3.5) ──────────────────────────────────────────────
+# off (default): the answer file sets PreventDeviceEncryption=1, so C: stays
+#   plaintext and root.disk lives on C: — the path every run has taken so far.
+# on: drop that command so Windows 11 auto-enables device encryption during
+#   OOBE. C: becomes FVE ciphertext the deployer's ntfs3 mount cannot read, so
+#   wootc MUST place root.disk on a separate unencrypted volume instead of
+#   forcing the user to decrypt. That is the case this axis exercises.
+E2E_BITLOCKER="${WOOTC_E2E_BITLOCKER:-off}"
+case "$E2E_BITLOCKER" in
+    off) : ;;
+    on)
+        python3 - "$RENDERED_ANSWER" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8-sig").read()
+# remove the whole RunSynchronousCommand block that disables device encryption
+s = re.sub(r'\s*<RunSynchronousCommand wcm:action="add">(?:(?!</RunSynchronousCommand>).)*?'
+           r'PreventDeviceEncryption.*?</RunSynchronousCommand>', '', s, flags=re.S)
+open(p, "w", encoding="utf-8").write(s)
+PYEOF
+        grep -q PreventDeviceEncryption "$RENDERED_ANSWER" && \
+            { fail "BitLocker axis: could not remove PreventDeviceEncryption"; exit 1; }
+        ;;
+    *) fail "WOOTC_E2E_BITLOCKER must be on|off (got: $E2E_BITLOCKER)"; exit 1 ;;
+esac
+export WOOTC_E2E_BITLOCKER="$E2E_BITLOCKER"
+printf '[INFO] BitLocker axis: %s (C: %s)\n' "$E2E_BITLOCKER" \
+    "$([ "$E2E_BITLOCKER" = on ] && echo 'auto-encrypted → root.disk needs an unencrypted volume' || echo 'plaintext')" >&2
 info "Windows case: version=$WIN_VERSION edition=$WIN_EDITION"
 
 if [ "$SKIP_INSTALL" = false ]; then
@@ -1015,6 +1044,32 @@ done
     tail -30 "$PTY"
     exit 1
 }
+
+# ── Assert the BitLocker axis actually took effect (SPEC §3.5) ──────────────
+# setup-wootc.ps1 logs the observed C: state and where Linux was placed. On the
+# FDE case C: must be encrypted AND root.disk must live on a different,
+# unencrypted volume — proving we never forced the user to decrypt.
+OEM_LOG=$(qga_read 'C:\OEM\wootc-e2e.log' 2>/dev/null | tr -d '\r' || true)
+BL_SEEN=$(printf '%s' "$OEM_LOG" | grep -aoE 'C: BitLocker state: [a-z]+' | tail -1 | awk '{print $NF}')
+BL_ROOT=$(printf '%s' "$OEM_LOG" | grep -aoE 'WOOTC_STORAGE_ROOT=[A-Za-z]:' | tail -1 | cut -d= -f2)
+info "BitLocker axis=${WOOTC_E2E_BITLOCKER:-off} observed C: state=${BL_SEEN:-unknown} storage=${BL_ROOT:-unknown}"
+if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+    case "$BL_SEEN" in
+        on|encrypting) pass "BitLocker FDE: C: is protected as intended" ;;
+        *) fail "BitLocker FDE case: C: reported '${BL_SEEN:-unknown}', expected on/encrypting"; exit 1 ;;
+    esac
+    if [ -n "$BL_ROOT" ] && [ "$BL_ROOT" != "C:" ]; then
+        pass "BitLocker FDE: Linux placed on unencrypted volume $BL_ROOT (C: never decrypted)"
+    else
+        fail "BitLocker FDE: root.disk should NOT be on C: (got '${BL_ROOT:-unknown}')"
+        exit 1
+    fi
+else
+    case "$BL_SEEN" in
+        off|"") pass "No-BitLocker case: C: is plaintext as intended" ;;
+        *) fail "No-BitLocker case: C: reported '$BL_SEEN', expected off"; exit 1 ;;
+    esac
+fi
 
 # ── Step 8: Schedule and verify Phase 2 Linux boot ──────────────────────────
 # The initial BCD bootsequence entry is intentionally one-shot. The deployer

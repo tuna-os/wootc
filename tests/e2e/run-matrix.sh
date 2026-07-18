@@ -40,7 +40,7 @@ mapfile -t CASES < <(awk -F'\t' -v tier="$TIER" -v want="$GREP" '
     /^#/ || NF < 6 { next }
     { t=$1 }
     tier=="full"  || t=="smoke" {
-        if (want=="" || index($2, want)) print $2"\t"$3"\t"$4"\t"$5"\t"$6
+        if (want=="" || index($2, want)) print $2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7
     }' "$MATRIX")
 
 [ ${#CASES[@]} -gt 0 ] || { echo "No cases match tier=$TIER grep=$GREP" >&2; exit 1; }
@@ -51,7 +51,7 @@ printf '%-24s %-34s %-4s %-6s %s\n' NAME IMAGE VER ED HOST
 i=0
 declare -A ASSIGN
 for c in "${CASES[@]}"; do
-    IFS=$'\t' read -r name image ver ed key <<< "$c"
+    IFS=$'\t' read -r name image ver ed key opts <<< "$c"
     host="${HOSTARR[$(( i % ${#HOSTARR[@]} ))]}"
     ASSIGN["$host"]+="$c"$'\n'
     printf '%-24s %-34s %-4s %-6s %s\n' "$name" "$image" "$ver" "$ed" "$host"
@@ -64,7 +64,7 @@ echo -e "name\thost\tresult\tseconds\timage\twin" >> "$RESULTS"
 
 # ── run one case on a host, poll to completion ───────────────────────────────
 run_case() {
-    local host="$1" name="$2" image="$3" ver="$4" ed="$5" key="$6"
+    local host="$1" name="$2" image="$3" ver="$4" ed="$5" key="$6" opts="${7:-}"
     local log="/tmp/wootc-matrix-$name.log" start now result="TIMEOUT"
     start=$(date +%s)
     ssh -o ConnectTimeout=8 "$host" "bash -s" <<REMOTE >/dev/null 2>&1 || true
@@ -74,6 +74,8 @@ pkill -9 -f run-e2e.sh 2>/dev/null; sleep 1
 podman rm -f wootc-e2e-windows 2>/dev/null
 rm -f storage/.run-e2e.lock
 export WOOTC_E2E_WIN_VERSION="$ver" WOOTC_E2E_WIN_EDITION="$ed" WOOTC_E2E_WIN_KEY="$key"
+# optional per-case knobs, e.g. bitlocker=on (SPEC 3.5 FDE axis)
+case "$opts" in *bitlocker=on*) export WOOTC_E2E_BITLOCKER=on ;; *) export WOOTC_E2E_BITLOCKER=off ;; esac
 nohup bash run-e2e.sh "$image" --keep > "$log" 2>&1 &
 REMOTE
     while :; do
@@ -102,7 +104,7 @@ host_worker() {
     local host="$1"
     while IFS=$'\t' read -r name image ver ed key; do
         [ -n "$name" ] || continue
-        run_case "$host" "$name" "$image" "$ver" "$ed" "$key"
+        run_case "$host" "$name" "$image" "$ver" "$ed" "$key" "$opts"
     done <<< "${ASSIGN[$host]}"
 }
 

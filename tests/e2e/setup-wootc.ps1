@@ -35,7 +35,40 @@ $ErrorActionPreference = "Stop"
 # grub2 + no composefs reproduces the historical default exactly.
 $WootcKargs = "wootc.bootloader=$Bootloader"
 if ($ComposeFs) { $WootcKargs += " wootc.composefs=1" }
-$wootcDir = "C:\wootc"
+# ── BitLocker / FDE (SPEC §3.5) ─────────────────────────────────────────────
+# The deployer mounts the host NTFS from Linux; on a BitLocker-protected C: it
+# would see FVE ciphertext, so root.vhdx cannot live there. We never force a
+# decrypt — instead shrink C: and host Linux on a new UNENCRYPTED volume, which
+# is exactly what the installer GUI offers. On a plaintext C: this is a no-op.
+$storageRoot = "C:"
+$blState = "off"
+try {
+    $bl = Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue
+    if ($bl) {
+        if ($bl.VolumeStatus -eq 'EncryptionInProgress') { $blState = 'encrypting' }
+        elseif ($bl.ProtectionStatus -eq 'On') { $blState = 'on' }
+    }
+} catch { $blState = "off" }
+Write-Host "[wootc] C: BitLocker state: $blState"
+
+if ($blState -ne 'off') {
+    Write-Host "[wootc] C: is protected — creating an unencrypted volume for Linux (no decrypt)"
+    $needBytes = ([int64]$DiskSizeGB + 6) * 1GB
+    $cPart = Get-Partition -DriveLetter C
+    $sup   = Get-PartitionSupportedSize -DriveLetter C
+    $target = $cPart.Size - $needBytes
+    if ($target -lt $sup.SizeMin) {
+        throw "Not enough room on C: to carve an unencrypted volume for Linux"
+    }
+    Resize-Partition -DriveLetter C -Size $target
+    $newPart = New-Partition -DiskNumber $cPart.DiskNumber -UseMaximumSize -AssignDriveLetter
+    Format-Volume -Partition $newPart -FileSystem NTFS -NewFileSystemLabel "wootc-data" -Confirm:$false | Out-Null
+    $storageRoot = "$($newPart.DriveLetter):"
+    Write-Host "[wootc] Linux will live on unencrypted volume $storageRoot (C: stays encrypted)"
+}
+Write-Host "[wootc] WOOTC_STORAGE_ROOT=$storageRoot"
+
+$wootcDir = "$storageRoot\wootc"
 $installDir = "$wootcDir\install"
 $disksDir = "$wootcDir\disks"
 
