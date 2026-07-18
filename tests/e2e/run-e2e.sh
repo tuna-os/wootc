@@ -982,9 +982,20 @@ PHASE2_GUID=$(qga_powershell \
 PHASE2_GUID=$(printf '%s' "$PHASE2_GUID" | tr -d '\r\n')
 [ -n "$PHASE2_GUID" ] || { fail "Could not read wootc BCD GUID from Windows"; exit 1; }
 
-qga_powershell \
-    "bcdedit /set '{fwbootmgr}' bootsequence $PHASE2_GUID /addfirst; shutdown /r /t 5 /f" >/dev/null
-pass "Phase 2 Linux boot scheduled through BCD one-shot entry"
+# PowerShell parses a bare {GUID}/{fwbootmgr} as a script block, so bcdedit
+# received garbage and silently failed (ParameterSpecifiedAlready) — the
+# bootsequence was never set and the VM just rebooted back to Windows. The
+# stop-parsing operator (--%) passes everything after it verbatim to bcdedit,
+# so the braces reach it literally. It must be its own command (--% swallows
+# the rest of the line), so issue the reboot separately and verify the
+# bootsequence actually took before waiting for the reboot.
+qga_powershell "bcdedit --% /set {fwbootmgr} bootsequence $PHASE2_GUID /addfirst" >/dev/null
+if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | grep -qiF "$PHASE2_GUID"; then
+    fail "BCD bootsequence was not set to the wootc Phase-2 entry ($PHASE2_GUID)"
+    exit 1
+fi
+pass "Phase 2 Linux boot scheduled through BCD one-shot entry (bootsequence verified)"
+qga_powershell "shutdown /r /t 3 /f" >/dev/null
 qga_wait_down "Phase 2 Linux boot"
 
 step "Waiting for Phase 2 Linux system to boot..."
