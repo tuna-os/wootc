@@ -106,6 +106,36 @@ ARTIFACT_DIR="$STORAGE_DIR/artifacts/$RUN_ID"
 VIDEO_DIR="$ARTIFACT_DIR/video"
 VIDEO_STARTED=false
 mkdir -p "$ARTIFACT_DIR"
+
+# ── artifact retention ──────────────────────────────────────────────────────
+# Each run writes a full artifact set — container logs, screenshots, video, a
+# serial capture — which reached 3.3 GiB for a single run. Nothing ever removed
+# them, so runners silently filled up until a later run died at the preflight
+# ("Only 57 GiB free ... need at least 65 GiB"). A test harness that breaks the
+# next run by succeeding is not finished.
+#
+# Keep the N most recent run directories and delete the rest, but ALWAYS keep
+# the small text evidence (serial, logs) from the ones being pruned: that is
+# what failures are diagnosed from later, and it costs kilobytes. The bulk —
+# video, disk images, container dumps — is what actually consumes the space.
+WOOTC_E2E_KEEP_RUNS="${WOOTC_E2E_KEEP_RUNS:-3}"
+prune_old_artifacts() {
+    local base="$STORAGE_DIR/artifacts" keep="$WOOTC_E2E_KEEP_RUNS"
+    [ -d "$base" ] || return 0
+    local evidence="$base/.evidence"
+    mkdir -p "$evidence"
+    # Newest first; skip the ones we keep, prune the tail.
+    ls -1dt "$base"/*/ 2>/dev/null | grep -v '/.evidence/$' | tail -n "+$((keep + 1))" | while read -r d; do
+        local name; name=$(basename "$d")
+        mkdir -p "$evidence/$name"
+        # Text-sized evidence only: serial + logs under 50 MiB.
+        find "$d" -maxdepth 1 -type f \( -name '*.log' -o -name 'qemu.pty' -o -name '*.txt' -o -name '*.json' \) \
+            -size -50M -exec cp {} "$evidence/$name/" \; 2>/dev/null || true
+        rm -rf "$d"
+    done
+    return 0
+}
+prune_old_artifacts
 run_state() {
     local stage="$1" tmp="$RUN_STATE_FILE.tmp"
     {
