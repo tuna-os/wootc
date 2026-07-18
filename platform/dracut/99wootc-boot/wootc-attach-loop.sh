@@ -29,17 +29,30 @@ HOST_MNT="/run/initramfs/wootc-host"
 mkdir -p "$HOST_MNT"
 
 # Mount the host NTFS read-WRITE (a ro host mount would propagate a physical
-# write barrier through the loop device to the guest root fs). Enterprise Linux
-# kernels don't ship ntfs3, so fall back to the ntfs-3g/lowntfs-3g FUSE drivers
-# (layered into the image + bundled into this initramfs by the deployer).
+# write barrier through the loop device to the guest root fs). Try the kernel
+# driver first, then the ntfs-3g/lowntfs-3g FUSE drivers, because image support
+# varies: some kernels build ntfs3 in (=y, so there is no .ko to find), some
+# ship it as a module, some have neither and need userspace ntfs-3g. Probing at
+# runtime is the only reliable answer — inspecting the image for a .ko file is
+# not (that mistake produced a wrong root-cause diagnosis once already).
+# Records which driver actually worked in NTFS_DRIVER. Worth logging: whether
+# Phase-2 mounts via the kernel (ntfs3, possibly built in with no .ko) or the
+# ntfs-3g FUSE fallback determines whether images need ntfs-3g injected at all.
+NTFS_DRIVER=""
 mount_host() {
-    mount -t ntfs3 -o rw,nobarrier,async,prealloc "$HOST_DEV" "$HOST_MNT" 2>/dev/null && return 0
+    if mount -t ntfs3 -o rw,nobarrier,async,prealloc "$HOST_DEV" "$HOST_MNT" 2>/dev/null; then
+        NTFS_DRIVER="kernel-ntfs3"; return 0
+    fi
     local drv
     for drv in ntfs-3g lowntfs-3g mount.ntfs-3g; do
         command -v "$drv" >/dev/null 2>&1 || continue
-        "$drv" -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null && return 0
+        if "$drv" -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null; then
+            NTFS_DRIVER="fuse-$drv"; return 0
+        fi
     done
-    mount -t ntfs -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null && return 0
+    if mount -t ntfs -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null; then
+        NTFS_DRIVER="kernel-ntfs"; return 0
+    fi
     return 1
 }
 
@@ -63,5 +76,6 @@ qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$FULL_LOOP_PATH" || return 0
 blockdev --setra 2048 "$LOOP_DEV" 2>/dev/null
 
 : > /run/wootc-loop-attached
+info "wootc: host NTFS mounted via ${NTFS_DRIVER:-unknown} (/proc/filesystems ntfs3: $(grep -cw ntfs3 /proc/filesystems 2>/dev/null))"
 info "wootc: attached dynamic VHDX $FULL_LOOP_PATH as $LOOP_DEV (partitions scanned)"
 return 0
