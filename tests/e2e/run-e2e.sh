@@ -326,6 +326,13 @@ reset_oem_attempt() {
 # for our guest marker before rebooting. Freezing Windows filesystems makes the
 # host-side sparse qcow2 copy crash-consistent; the temporary name prevents a
 # failed copy from masquerading as a usable snapshot.
+# Release the OEM/deployer barrier: the guest waits for this marker before it
+# reboots into the deployer, so it must be written whether or not the host-side
+# snapshot succeeded.
+mark_snapshot_complete() {
+    qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
+}
+
 snapshot_before_deployer() {
     local disk="$STORAGE_DIR/data.qcow2"
     local snapshot="$STORAGE_DIR/data.qcow2.snap"
@@ -335,11 +342,18 @@ snapshot_before_deployer() {
     [ -s "$disk" ] || { fail "Cannot snapshot missing VM disk: $disk"; return 1; }
     step "Snapshotting Windows disk before first deployer boot..."
     rm -f "$tmp"
-    if qga_call freeze >/dev/null; then
-        frozen=true
-    else
-        fail "QGA could not freeze Windows filesystems for the Phase 2 snapshot"
-        return 1
+    # The pre-deployer snapshot is only a fast-retry convenience, so every step
+    # is best-effort: a QGA hiccup must never cost a run that is otherwise ready
+    # to deploy. Retry the freeze, but on persistent failure skip the snapshot,
+    # release the barrier, and let the deploy proceed.
+    for _ in 1 2 3 4 5; do
+        if qga_call freeze >/dev/null 2>&1; then frozen=true; break; fi
+        sleep 3
+    done
+    if [ "$frozen" = false ]; then
+        warn "QGA could not freeze Windows; proceeding without a crash-consistent snapshot"
+        mark_snapshot_complete
+        return 0
     fi
 
     # Prefer an instantaneous CoW reflink. Podman commonly marks VM storage
@@ -350,10 +364,13 @@ snapshot_before_deployer() {
         warn "Runner storage does not support reflinks for the VM disk; copying allocated extents"
         rm -f "$tmp"
         if ! cp --reflink=never --sparse=always "$disk" "$tmp"; then
-            [ "$frozen" = false ] || qga_call thaw >/dev/null 2>&1 || true
+            # Best-effort: thaw and proceed without the snapshot rather than
+            # failing a deploy-ready run over a copy hiccup.
+            for _ in 1 2 3; do qga_call thaw >/dev/null 2>&1 && break; sleep 2; done
             rm -f "$tmp"
-            fail "Failed to copy the pre-deployer VM snapshot"
-            return 1
+            warn "Could not copy the pre-deployer snapshot; proceeding without it"
+            mark_snapshot_complete
+            return 0
         fi
     fi
     # Thaw is critical: a still-frozen Windows FS blocks the OEM handoff and
@@ -377,7 +394,7 @@ snapshot_before_deployer() {
     fi
     frozen=false
     mv -f "$tmp" "$snapshot"
-    qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
+    mark_snapshot_complete
     pass "Pre-deployer snapshot saved: $snapshot ($(du -h "$snapshot" | cut -f1))"
 }
 
@@ -807,9 +824,13 @@ pass "OEM setup process started through QGA as SYSTEM"
 step "Waiting for OEM setup to reach the pre-deployer snapshot barrier..."
 ELAPSED=0
 TIMEOUT=2700
+BARRIER_REACHED=false
 while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
     if qga_read 'C:\OEM\e2e-setup-complete.txt' >/dev/null 2>&1; then
+        # Best-effort snapshot: releases the barrier and continues even if the
+        # host-side crash-consistent copy had to be skipped.
         snapshot_before_deployer
+        BARRIER_REACHED=true
         break
     fi
     OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
@@ -823,7 +844,7 @@ while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
     ELAPSED=$((ELAPSED + 5))
     [ $((ELAPSED % 60)) -eq 0 ] && info "Waiting for OEM setup barrier... ($(( ELAPSED / 60 ))m)"
 done
-[ -s "$STORAGE_DIR/data.qcow2.snap" ] || {
+[ "$BARRIER_REACHED" = true ] || {
     fail "OEM setup did not reach the snapshot barrier within $((TIMEOUT/60)) minutes"
     capture_vm_diagnostics
     exit 1
