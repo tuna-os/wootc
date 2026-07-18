@@ -67,6 +67,22 @@ fail() { echo -e "${RED}[FAIL]${NC} $*" >&2; }
 info() { echo -e "${YELLOW}[INFO]${NC} $*"; }
 step() { echo -e "${CYAN}[STEP]${NC} $*"; run_state "step: $*"; }
 
+# ── wall-clock deadlines ────────────────────────────────────────────────────
+# Wait loops used to track time by incrementing a counter alongside `sleep 5`.
+# That counter is NOT wall-clock: every blocking call in the loop body (QGA
+# probes, qga_read, snapshotting) burns real time without advancing it. Measured
+# on a stalled dilli run, the counter advanced at 0.68x wall — so a nominal
+# 45-minute deploy timeout was really ~66 minutes, and the "Deploying... (Nm)"
+# progress line under-reported by half an hour. A run that looked hung for 90
+# minutes was in fact still inside its timeout.
+#
+# deadline_in returns an absolute epoch; past_deadline tests against it. Time
+# spent in the loop body now counts, so timeouts mean what they say and the
+# reported minutes match the wall clock the operator is watching.
+deadline_in() { echo $(( $(date +%s) + $1 )); }
+past_deadline() { [ "$(date +%s)" -ge "$1" ]; }
+elapsed_min_since() { echo $(( ( $(date +%s) - $1 ) / 60 )); }
+
 CONTAINER_NAME="wootc-e2e-windows"
 STORAGE_DIR="$SCRIPT_DIR/storage"
 # A second orchestrator can otherwise race QGA cleanup and recreate the
@@ -834,9 +850,11 @@ else
 
     TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"  # 45 min default; raise on slow CI
     ELAPSED=0
+    INSTALL_STARTED=$(date +%s)
+    INSTALL_DEADLINE=$(deadline_in "$TIMEOUT")
     INSTALL_DONE=false
 
-    while [ $ELAPSED -lt $TIMEOUT ]; do
+    while ! past_deadline "$INSTALL_DEADLINE"; do
         sleep 20
         ELAPSED=$((ELAPSED + 20))
 
@@ -849,7 +867,7 @@ else
         fi
 
         if [ $((ELAPSED % 300)) -eq 0 ]; then
-            info "Still installing... ($(( ELAPSED / 60 ))m elapsed)"
+            info "Still installing... ($(elapsed_min_since "$INSTALL_STARTED")m of $((TIMEOUT/60))m)"
         fi
     done
 
@@ -859,7 +877,7 @@ else
         exit 1
     fi
 
-    pass "Windows installer prepared and QEMU booted ($(( ELAPSED / 60 ))m)"
+    pass "Windows installer prepared and QEMU booted ($(elapsed_min_since "$INSTALL_STARTED")m)"
     if [ "$ANSWER_REFRESH" = true ]; then
         printf '%s\n' "$ANSWER_SHA" > "$ANSWER_STAMP"
     fi
@@ -907,10 +925,12 @@ pass "OEM setup process started through QGA as SYSTEM"
 # its first deployer reboot until a reusable, crash-consistent VM snapshot is
 # safely present on the host.
 step "Waiting for OEM setup to reach the pre-deployer snapshot barrier..."
-ELAPSED=0
 TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
+BARRIER_STARTED=$(date +%s)
+BARRIER_DEADLINE=$(deadline_in "$TIMEOUT")
+BARRIER_LAST_MIN=-1
 BARRIER_REACHED=false
-while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+while ! past_deadline "$BARRIER_DEADLINE"; do
     if qga_read 'C:\OEM\e2e-setup-complete.txt' >/dev/null 2>&1; then
         # Best-effort snapshot: releases the barrier and continues even if the
         # host-side crash-consistent copy had to be skipped.
@@ -926,8 +946,11 @@ while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
         exit 1
     fi
     sleep 5
-    ELAPSED=$((ELAPSED + 5))
-    [ $((ELAPSED % 60)) -eq 0 ] && info "Waiting for OEM setup barrier... ($(( ELAPSED / 60 ))m)"
+    BARRIER_MIN=$(elapsed_min_since "$BARRIER_STARTED")
+    if [ "$BARRIER_MIN" -gt "$BARRIER_LAST_MIN" ]; then
+        BARRIER_LAST_MIN=$BARRIER_MIN
+        info "Waiting for OEM setup barrier... (${BARRIER_MIN}m of $((TIMEOUT/60))m)"
+    fi
 done
 [ "$BARRIER_REACHED" = true ] || {
     fail "OEM setup did not reach the snapshot barrier within $((TIMEOUT/60)) minutes"
@@ -951,7 +974,9 @@ info "Watching for fisherman deployment markers..."
 # 20–30 minutes even under KVM. Do not turn Dockur's installer-ready file into
 # a premature test failure; only the deployer's serial marker proves success.
 TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
-ELAPSED=0
+DEPLOY_STARTED=$(date +%s)
+DEPLOY_DEADLINE=$(deadline_in "$TIMEOUT")
+LAST_PROGRESS_MIN=-1
 DEPLOY_COMPLETE=false
 DEPLOYER_REBOOT_SEEN=false
 PTY="$STORAGE_DIR/qemu.pty"
@@ -967,7 +992,7 @@ done
 [ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY"; exit 1; }
 LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 
-while [ $ELAPSED -lt $TIMEOUT ]; do
+while ! past_deadline "$DEPLOY_DEADLINE"; do
     snapshot_serial || true
     OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
     if [ -n "$OEM_FAILURE" ]; then
@@ -1034,8 +1059,13 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     fi
 
     sleep 5
-    ELAPSED=$((ELAPSED + 5))
-    [ $((ELAPSED % 60)) -eq 0 ] && info "Deploying... ($(( ELAPSED / 60 ))m)"
+    # Report real minutes against the real budget, so an operator watching the
+    # log can tell "slow but inside its timeout" from "wedged".
+    NOW_MIN=$(elapsed_min_since "$DEPLOY_STARTED")
+    if [ "$NOW_MIN" -gt "$LAST_PROGRESS_MIN" ]; then
+        LAST_PROGRESS_MIN=$NOW_MIN
+        info "Deploying... (${NOW_MIN}m of $((TIMEOUT/60))m)"
+    fi
 done
 
 [ "$DEPLOY_COMPLETE" = true ] || {
@@ -1111,11 +1141,12 @@ qga_wait_down "Phase 2 Linux boot"
 
 step "Waiting for Phase 2 Linux system to boot..."
 
-ELAPSED=0
 TIMEOUT=300
+BOOT_STARTED=$(date +%s)
+BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
 BOOT_SUCCESS=false
 
-while [ $ELAPSED -lt $TIMEOUT ]; do
+while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
@@ -1144,11 +1175,10 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         LAST_BYTE=$CURRENT_BYTE
     fi
     sleep 5
-    ELAPSED=$((ELAPSED + 5))
 done
 
 [ "$BOOT_SUCCESS" = true ] || {
-    fail "Phase 2 Linux system did not boot within $((TIMEOUT/60)) minutes"
+    fail "Phase 2 Linux system did not boot within $(elapsed_min_since "$BOOT_STARTED")m (budget $((TIMEOUT/60))m)"
     tail -30 "$PTY"
     exit 1
 }
@@ -1227,10 +1257,10 @@ step "Verifying passthrough and migration setup..."
 info "Collecting boot-time passthrough markers from serial console..."
 
 PASSTHROUGH_TIMEOUT=60
-PASSTHROUGH_ELAPSED=0
+PASSTHROUGH_DEADLINE=$(deadline_in "$PASSTHROUGH_TIMEOUT")
 PASSTHROUGH_MARKERS=""
 
-while [ $PASSTHROUGH_ELAPSED -lt $PASSTHROUGH_TIMEOUT ]; do
+while ! past_deadline "$PASSTHROUGH_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
@@ -1240,7 +1270,6 @@ while [ $PASSTHROUGH_ELAPSED -lt $PASSTHROUGH_TIMEOUT ]; do
         LAST_BYTE=$CURRENT_BYTE
     fi
     sleep 2
-    PASSTHROUGH_ELAPSED=$((PASSTHROUGH_ELAPSED + 2))
 done
 
 # ── Passthrough checks ────────────────────────────────────────────────────
