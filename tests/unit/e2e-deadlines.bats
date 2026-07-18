@@ -89,6 +89,17 @@ setup() {
     grep -q 'Deploying\.\.\. (${NOW_MIN}m of \$((TIMEOUT/60))m)' "$E2E"
 }
 
+@test "the deploy budget is calibrated against real wall-clock behaviour" {
+    # The old 2700s was consumed by a counter running at 0.68x wall, so it was
+    # really ~66 wall-minutes. Making the clock honest cut the real budget by a
+    # third and every deploy timed out at 45m while the guest was still at
+    # 130-166% CPU doing genuine work. The number had never been measured
+    # against real time.
+    grep -q 'WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT=5400' "$E2E"
+    run grep -n 'WOOTC_E2E_DEPLOY_TIMEOUT:-2700' "$E2E"
+    [ "$status" -ne 0 ]
+}
+
 @test "every QGA call is bounded by a timeout" {
     # A wall-clock deadline cannot rescue a loop whose body never returns.
     # An unbounded `podman exec` froze two runners for 20+ minutes with their

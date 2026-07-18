@@ -118,6 +118,21 @@ mkdir -p "$ARTIFACT_DIR"
 # the small text evidence (serial, logs) from the ones being pruned: that is
 # what failures are diagnosed from later, and it costs kilobytes. The bulk —
 # video, disk images, container dumps — is what actually consumes the space.
+# ── deploy budget ───────────────────────────────────────────────────────────
+# 90 minutes, not 45. The old default was 2700s, but it was consumed by a loop
+# that counted sleeps rather than wall-clock and advanced at ~0.68x real time —
+# so "45 minutes" was really ~66 wall-minutes, and deploys completed inside it.
+#
+# Fixing the clock (bc504a1) made 45 mean 45 and cut the real budget by a third.
+# Every deploy then timed out at exactly 45m on all three runners, while the
+# guest sat at 130-166% CPU still doing real work: bootc install pulling and
+# extracting layers is simply slower than 45 wall-minutes on this hardware.
+#
+# So the budget was never calibrated against real time. This sets it against
+# measured behaviour instead, with headroom. Raising it does NOT mask a hang:
+# the CPU check in the deploy wait distinguishes "working" from "wedged".
+WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT=5400
+
 WOOTC_E2E_KEEP_RUNS="${WOOTC_E2E_KEEP_RUNS:-3}"
 prune_old_artifacts() {
     local base="$STORAGE_DIR/artifacts" keep="$WOOTC_E2E_KEEP_RUNS"
@@ -917,7 +932,7 @@ else
     step "Waiting for Windows auto-install (up to 45 min)..."
     info "  Monitor: open http://localhost:8006 in browser to watch progress"
 
-    TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"  # 45 min default; raise on slow CI
+    TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-$WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT}"  # 45 min default; raise on slow CI
     ELAPSED=0
     INSTALL_STARTED=$(date +%s)
     INSTALL_DEADLINE=$(deadline_in "$TIMEOUT")
@@ -994,7 +1009,7 @@ pass "OEM setup process started through QGA as SYSTEM"
 # its first deployer reboot until a reusable, crash-consistent VM snapshot is
 # safely present on the host.
 step "Waiting for OEM setup to reach the pre-deployer snapshot barrier..."
-TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
+TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-$WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT}"
 BARRIER_STARTED=$(date +%s)
 BARRIER_DEADLINE=$(deadline_in "$TIMEOUT")
 BARRIER_LAST_MIN=-1
@@ -1042,7 +1057,7 @@ info "Watching for fisherman deployment markers..."
 # A standard Windows install plus the local OEM handoff routinely takes
 # 20–30 minutes even under KVM. Do not turn Dockur's installer-ready file into
 # a premature test failure; only the deployer's serial marker proves success.
-TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
+TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-$WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT}"
 DEPLOY_STARTED=$(date +%s)
 DEPLOY_DEADLINE=$(deadline_in "$TIMEOUT")
 LAST_PROGRESS_MIN=-1
