@@ -59,3 +59,61 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"nothing to apply"* ]]
 }
+
+# ── taskbar pins → dock/panel (SPEC §4.4) ──────────────────────────────────
+# Install the .desktop files the pins resolve to so resolve_desktop finds them.
+install_apps() {
+    local appdir="$HOME/.local/share/applications"; mkdir -p "$appdir"
+    printf '[Desktop Entry]\nName=%s\n' "$2" > "$appdir/$1.desktop"
+}
+slurp_with_pins() {
+    printf '{"darkMode":"true","taskbarApps":[{"exe":"firefox.exe","name":"Firefox"},{"exe":"steam.exe","name":"Steam"}]}\n' >"$SLURP/slurp.json"
+}
+
+@test "GNOME dock favorites built from taskbar pins (refactor regression guard)" {
+    slurp_with_pins; install_apps firefox Firefox; install_apps steam Steam
+    XDG_CURRENT_DESKTOP=GNOME run bash "$AL"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"favorite-apps"* ]]
+    [[ "$output" == *"'firefox.desktop'"* ]]
+    [[ "$output" == *"'steam.desktop'"* ]]
+    [[ "$output" == *"dock favorites set from 2 taskbar pins"* ]]
+}
+
+@test "KDE panel launchers built from the same pins, targeting the task-manager applet" {
+    slurp_with_pins; install_apps firefox Firefox; install_apps steam Steam
+    # a Plasma appletsrc whose task-manager applet lives at a non-default index
+    mkdir -p "$HOME/.config"
+    cat >"$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" <<'CFG'
+[Containments][2][Applets][7]
+plugin=org.kde.plasma.icontasks
+
+[Containments][2][Applets][9]
+plugin=org.kde.plasma.systemtray
+CFG
+    XDG_CURRENT_DESKTOP=KDE run bash "$AL"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"kwriteconfig6"* ]]
+    # must target the discovered applet group, not a guessed one
+    [[ "$output" == *"--group Containments --group 2 --group Applets --group 7 --group Configuration --group General"* ]]
+    [[ "$output" == *"launchers applications:firefox.desktop,applications:steam.desktop"* ]]
+    [[ "$output" == *"panel launchers set from 2 taskbar pins"* ]]
+}
+
+@test "KDE favorites fall back to a default group when no appletsrc exists" {
+    slurp_with_pins; install_apps firefox Firefox; install_apps steam Steam
+    XDG_CURRENT_DESKTOP=KDE run bash "$AL"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"task-manager applet not found"* ]]
+    [[ "$output" == *"--group Containments --group 1 --group Applets --group 1"* ]]
+}
+
+@test "XFCE is retired (X11/out of scope) — clean exit, mapped=none" {
+    printf '{"darkMode":"true"}\n' >"$SLURP/slurp.json"
+    XDG_CURRENT_DESKTOP=XFCE run bash "$AL"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"X11/out of scope"* ]]
+    grep -q "applied=none" "$MARKER"
+    # never emit an xfconf command
+    [[ "$output" != *"xfconf-query"* ]]
+}

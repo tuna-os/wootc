@@ -61,7 +61,8 @@ Download and run **wootc.exe**. You'll see the Launchpad:
    or none — see [§7](#7-encryption--bitlocker).
 4. **Optionally tick "Make it feel like Windows"** to bring your wallpaper,
    accent color, keyboard layout, taskbar pins, and desktop shortcuts across on
-   first login. Off by default, so the desktop keeps its own look.
+   first login. Off by default, so the desktop keeps its own look. Supported on
+   the Wayland desktops (GNOME, KDE Plasma, niri); other settings still migrate.
 5. Click **Install**. wootc creates your Linux disk file, stages a signed boot
    entry, and arms a **one-time** boot into the installer. **Nothing else on
    your PC changes.**

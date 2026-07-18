@@ -175,18 +175,26 @@ apply_gnome() {
     fi
 }
 
-# apply_gnome_favorites — set the dash favorites to the ordered, resolved
-# taskbar pins, appended to the distro defaults (dedup, order preserved).
-apply_gnome_favorites() {
-    local ids=() line bucket exe name id
+# resolved_taskbar_ids — the ordered, deduped list of installed .desktop ids
+# the user's Windows taskbar pins map to (one per line). Shared by every DE's
+# favorites/panel mapping so the pin→app database lives in exactly one place.
+resolved_taskbar_ids() {
+    local ids=() bucket exe name id
     while IFS=$'\t' read -r bucket exe name; do
         [[ "$bucket" == "taskbarApps" ]] || continue
         id=$(resolve_desktop "$exe" "$name")
         [[ -n "$id" ]] || continue
         printf '%s\n' "${ids[@]}" | grep -qxF "$id" 2>/dev/null || ids+=("$id")
     done < <(pinned_lines)
-    [[ ${#ids[@]} -gt 0 ]] || { log "no taskbar pins resolved to installed apps"; return; }
-    local gv="[" first=1 i
+    printf '%s\n' "${ids[@]}"
+}
+
+# apply_gnome_favorites — set the dash favorites to the ordered, resolved
+# taskbar pins, appended to the distro defaults (dedup, order preserved).
+apply_gnome_favorites() {
+    local ids=() i gv="[" first=1
+    mapfile -t ids < <(resolved_taskbar_ids)
+    [[ ${#ids[@]} -gt 0 ]] || { log "no taskbar pins resolved to installed apps"; return 0; }
     for i in "${ids[@]}"; do
         [[ $first -eq 1 ]] && first=0 || gv+=", "
         gv+="'$i'"
@@ -194,6 +202,55 @@ apply_gnome_favorites() {
     gv+="]"
     run gsettings set org.gnome.shell favorite-apps "$gv"
     log "dock favorites set from ${#ids[@]} taskbar pins"
+}
+
+# apply_kde_favorites — pin the same apps to the KDE Plasma panel's Task
+# Manager (parity with the GNOME dash). Plasma stores launchers on the
+# icons-only/task-manager applet inside plasma-org.kde.plasma.desktop-appletsrc
+# as launchers=applications:<id>,… Find that applet's config group and set it.
+# Pre-session (autostart) the file may already carry Plasma's defaults; we
+# append our pins after them, deduped, so nothing the image shipped is lost.
+apply_kde_favorites() {
+    local ids=() i
+    mapfile -t ids < <(resolved_taskbar_ids)
+    [[ ${#ids[@]} -gt 0 ]] || { log "no taskbar pins resolved to installed apps"; return 0; }
+
+    # Build the launchers value: applications:<id>,applications:<id>,…
+    local launchers="" first=1
+    for i in "${ids[@]}"; do
+        [[ $first -eq 1 ]] && first=0 || launchers+=","
+        launchers+="applications:$i"
+    done
+
+    # Locate the Task Manager applet group in the appletsrc so we target the
+    # real panel widget rather than guessing indices. Fall back to the common
+    # default group so a first-boot appletsrc still gets the launchers.
+    local appletsrc="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+    local grp=""
+    if [[ -f "$appletsrc" ]]; then
+        grp=$(awk '
+            /^\[/{g=$0}
+            /plugin=org\.kde\.plasma\.(icontasks|taskmanager)/{print g; exit}
+        ' "$appletsrc")
+    fi
+    # awk prints e.g. [Containments][2][Applets][5]; turn it into the repeated
+    # --group args kwriteconfig6 expects, plus the Configuration/General leaf.
+    local -a gargs=()
+    if [[ -n "$grp" ]]; then
+        local tok
+        while IFS= read -r tok; do [[ -n "$tok" ]] && gargs+=(--group "$tok"); done \
+            < <(printf '%s\n' "$grp" | grep -oE '\[[^]]+\]' | tr -d '[]')
+        gargs+=(--group Configuration --group General)
+    else
+        # Sensible default: first containment's first task-manager-shaped applet.
+        gargs=(--group Containments --group 1 --group Applets --group 1 \
+               --group Configuration --group General)
+        log "kde: task-manager applet not found in appletsrc; using default group"
+    fi
+
+    run kwriteconfig6 --file plasma-org.kde.plasma.desktop-appletsrc \
+        "${gargs[@]}" --key launchers "$launchers"
+    log "panel launchers set from ${#ids[@]} taskbar pins"
 }
 
 apply_kde() {
@@ -244,23 +301,8 @@ apply_desktop_shortcuts() {
     return 0
 }
 
-apply_xfce() {
-    if [[ -n "$WALLPAPER" ]]; then
-        # Set on every monitor/workspace backdrop property XFCE exposes.
-        while IFS= read -r prop; do
-            run xfconf-query -c xfce4-desktop -p "$prop" -s "$WALLPAPER"
-        done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E 'last-image$' || true)
-    fi
-    if [[ "$DARK" = "true" ]]; then
-        run xfconf-query -c xsettings -p /Net/ThemeName -s "Adwaita-dark"
-        run xfconf-query -c xsettings -p /Gtk/ApplicationPreferDarkTheme -s true --type bool 2>/dev/null || true
-    elif [[ "$DARK" = "false" ]]; then
-        run xfconf-query -c xsettings -p /Net/ThemeName -s "Adwaita"
-    fi
-    if [[ -n "$KBD" ]]; then
-        run setxkbmap "$KBD"
-    fi
-}
+# apply_xfce was retired: XFCE is X11 and wootc targets Wayland+systemd only.
+# Supported look targets are GNOME, KDE Plasma, and niri (all Wayland).
 
 apply_niri() {
     # Niri is a minimal Wayland compositor: no gsettings/DE registry. Persist
@@ -289,9 +331,14 @@ DE="${XDG_CURRENT_DESKTOP:-}"
 applied=""
 case "${DE,,}" in
     *gnome*)          apply_gnome; apply_gnome_favorites; applied=gnome ;;
-    *kde*|*plasma*)   apply_kde;   applied=kde ;;
-    *xfce*)           apply_xfce;  applied=xfce ;;
+    *kde*|*plasma*)   apply_kde;   apply_kde_favorites;   applied=kde ;;
     *niri*)           apply_niri;  applied=niri ;;
+    *xfce*)
+        # XFCE is X11; wootc targets Wayland+systemd only (SPEC scope). The
+        # apply_xfce mapping is retired — fall through to unsupported so we
+        # don't half-apply an out-of-scope desktop.
+        log "desktop '$DE' is X11/out of scope (wootc targets Wayland: GNOME, KDE, niri) — skipping"
+        ;;
     *)
         log "desktop '$DE' has no look mapping yet — skipping (add an apply_<de> function)"
         ;;
