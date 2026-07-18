@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Move Fully to Linux
+GenericName=Graduate to native Linux
+Comment=Move Linux off the Windows-hosted file onto a real disk, then optionally reclaim Windows space
+Exec=wootc-go-native-gui
+Icon=drive-harddisk
+Terminal=false
+Categories=System;Utility;
+Keywords=linux;native;graduate;windows;reclaim;dualboot;migrate;
+StartupNotify=true

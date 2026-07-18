@@ -139,6 +139,29 @@ refute_disk_touched() {
 # graduate_to_disk_execute checks `-b $target` before `target != $DISK`, so the
 # target must be a real block device to reach the guard. Use a loop device.
 
+# ── status --json (drives the Phase-3 GUI) ──────────────────────────────────
+
+@test "status --json on loopback: canGraduate true, canReclaim false, touches nothing" {
+    WOOTC_GN_FORCE_LOOP=1 WOOTC_GN_ROOT_SRC=/dev/nbd0p3 run bash "$GN" status
+    [ "$status" -eq 0 ]
+    echo "$output" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["onLoopback"] and d["canGraduate"] and not d["canReclaim"], d'
+    refute_disk_touched
+}
+
+@test "status --json native + converted folders: canReclaim true, folders listed" {
+    touch "$WOOTC_GN_HOME/.config/wootc/converted-Documents"
+    WOOTC_GN_FORCE_LOOP=0 WOOTC_GN_ROOT_SRC=/dev/sda3 run bash "$GN" status
+    [ "$status" -eq 0 ]
+    echo "$output" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert not d["onLoopback"] and d["canReclaim"] and d["convertedFolders"]==["Documents"] and d["gates"]["dataIsNative"], d'
+    refute_disk_touched
+}
+
+@test "status --json native but NO converted folders: canReclaim false (data-safety gate)" {
+    WOOTC_GN_FORCE_LOOP=0 WOOTC_GN_ROOT_SRC=/dev/sda3 run bash "$GN" status
+    [ "$status" -eq 0 ]
+    echo "$output" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert not d["canReclaim"] and not d["gates"]["dataIsNative"], d'
+}
+
 @test "migrate --to-disk REFUSES to install onto the Windows disk" {
     if [[ $EUID -ne 0 ]] && ! command -v sudo >/dev/null; then
         skip "needs root/sudo for losetup"

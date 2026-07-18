@@ -308,10 +308,53 @@ cmd_migrate() {
     die "in-place (shrink Windows) graduate runs from the graduate-deployer; use --to-disk DEV for the spare-drive path"
 }
 
+# ── status --json ────────────────────────────────────────────────────────────
+# Machine-readable state for the GUI (wootc-go-native-gui). Read-only and safe
+# to run anywhere; every field mirrors what `plan`/`check` print as text.
+cmd_status() {
+    local src loop hostuuid bootloader snapshot hostconf reclaim_ok
+    src=$(root_source)
+    on_loopback && loop=1 || loop=0
+    hostuuid=""; bootloader=""; hostconf=0
+    if [[ -r "$HOSTCONF" ]]; then
+        hostuuid=$(grep -oP 'HOST_ESP_UUID=\K.*' "$HOSTCONF" 2>/dev/null || true)
+        bootloader=$(grep -oP 'BOOTLOADER=\K.*' "$HOSTCONF" 2>/dev/null || true)
+        hostconf=1
+    fi
+    if command -v btrfs >/dev/null && btrfs subvolume show / >/dev/null 2>&1; then snapshot=1; else snapshot=0; fi
+    # reclaim is offered only once native (off loopback) AND at least one folder
+    # is verified native — the same hard gate cmd_migrate enforces.
+    local nconv; nconv=$(converted_folders | grep -c . || true)
+    if [[ "$loop" == 0 && "${nconv:-0}" -gt 0 ]]; then reclaim_ok=1; else reclaim_ok=0; fi
+
+    GN_SRC="$src" GN_LOOP="$loop" GN_UUID="$hostuuid" GN_BL="$bootloader" \
+    GN_HOSTCONF="$hostconf" GN_SNAP="$snapshot" GN_RECLAIM="$reclaim_ok" \
+    GN_FOLDERS="$(converted_folders | paste -sd, - 2>/dev/null || true)" \
+    python3 - <<'PY'
+import json, os
+folders = [f for f in os.environ.get("GN_FOLDERS", "").split(",") if f]
+print(json.dumps({
+    "onLoopback":      os.environ["GN_LOOP"] == "1",
+    "rootSource":      os.environ.get("GN_SRC", "") or None,
+    "hostEspUuid":     os.environ.get("GN_UUID", "") or None,
+    "hostBootloader":  os.environ.get("GN_BL", "") or None,
+    "convertedFolders": folders,
+    "gates": {
+        "hostLayoutRecorded": os.environ["GN_HOSTCONF"] == "1",
+        "snapshotCapable":    os.environ["GN_SNAP"] == "1",
+        "dataIsNative":       len(folders) > 0,
+    },
+    "canGraduate": os.environ["GN_LOOP"] == "1",
+    "canReclaim":  os.environ["GN_RECLAIM"] == "1",
+}, indent=2))
+PY
+}
+
 case "${1:-plan}" in
     plan)    shift 2>/dev/null || true; cmd_plan "$@" ;;
     check)   shift; cmd_check "$@" ;;
+    status)  shift; cmd_status "$@" ;;
     migrate) shift; cmd_migrate "$@" ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
-    *) die "unknown subcommand: $1 (plan|check|migrate)" ;;
+    *) die "unknown subcommand: $1 (plan|check|status|migrate)" ;;
 esac

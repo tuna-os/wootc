@@ -692,6 +692,8 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
     mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
+    mig_opt 755 wootc-go-native-gui "$DEPLOY_ROOT/usr/local/bin/wootc-go-native-gui"
+    mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-go-native.desktop"
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
     mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
     # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on

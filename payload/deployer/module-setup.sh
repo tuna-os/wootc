@@ -70,6 +70,8 @@ install() {
     inst /usr/lib/wootc/migration/wootc-import-gui
     inst /usr/lib/wootc/migration/wootc-import.desktop
     inst /usr/lib/wootc/migration/wootc-go-native
+    inst /usr/lib/wootc/migration/wootc-go-native-gui
+    inst /usr/lib/wootc/migration/wootc-go-native.desktop
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

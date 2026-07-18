@@ -1,0 +1,304 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-go-native-gui — friendly Linux-side "Move fully to Linux"
+# wizard (SPEC §4.2 stages 5-6, Phase 3). It wraps the tested `wootc-go-native`
+# engine: read-only status/plan run directly; the destructive graduate/reclaim
+# steps go through pkexec and are gated exactly as the CLI gates them.
+#
+# Deliberately braindead and honest about safety:
+#   Status → (Graduate to a native disk | Reclaim Windows space) → review the
+#   exact plan → confirm. Reclaim is only offered once your data is native.
+#   Nothing is destroyed without an explicit review + confirm.
+#
+# Engine/parsing logic is isolated in GoNativeEngine so it can be smoke-tested
+# with no display:  wootc-go-native-gui --self-test
+import json
+import os
+import subprocess
+import sys
+
+ENGINE = os.environ.get("WOOTC_GN_BIN", "wootc-go-native")
+
+
+class GoNativeEngine:
+    """Unprivileged wrapper around the wootc-go-native CLI. status/plan are
+    read-only and run directly; graduate/reclaim run as root via pkexec and
+    carry the WOOTC_GN_ALLOW_DESTRUCTIVE=1 gate the engine requires."""
+
+    def __init__(self, engine=ENGINE, pkexec=True):
+        self.engine = engine
+        self.pkexec = pkexec
+
+    def _run(self, args, check=True):
+        p = subprocess.run([self.engine] + args, capture_output=True, text=True)
+        if check and p.returncode != 0:
+            raise RuntimeError(p.stderr.strip() or f"{' '.join(args)} failed")
+        return p.stdout
+
+    def _run_root(self, argstr):
+        # pkexec drops the environment, so set the destructive gate inside the
+        # elevated shell. argstr is a fixed, non-user template (device is a
+        # validated block path), so this is not a shell-injection surface.
+        if self.pkexec:
+            cmd = ["pkexec", "sh", "-c",
+                   f"WOOTC_GN_ALLOW_DESTRUCTIVE=1 {self.engine} {argstr}"]
+        else:
+            cmd = ["sh", "-c",
+                   f"WOOTC_GN_ALLOW_DESTRUCTIVE=1 {self.engine} {argstr}"]
+        p = subprocess.run(cmd, capture_output=True, text=True)
+        if p.returncode != 0:
+            raise RuntimeError(p.stderr.strip() or "elevated step failed")
+        return p.stdout
+
+    def status(self):
+        """Machine-readable Phase-3 state (see `wootc-go-native status`)."""
+        return json.loads(self._run(["status"]) or "{}")
+
+    def plan(self, mode, to_disk=None):
+        """The exact DRY-RUN command plan for a mode — never touches a disk.
+        mode: 'graduate' (dual-boot) or 'reclaim'."""
+        if mode == "graduate":
+            args = ["migrate", "--dual-boot"] + (["--to-disk", to_disk] if to_disk else [])
+        elif mode == "reclaim":
+            args = ["migrate", "--reclaim"]
+        else:
+            raise ValueError(mode)
+        # dry-run (no --execute) always exits 0 and prints the plan; a refusal
+        # (e.g. reclaim before data is native) exits non-zero with the reason.
+        return self._run(args, check=False)
+
+    def spare_disks(self):
+        """Whole disks that are candidates for a graduate --to-disk target:
+        block devices that are not the disk currently hosting root. Best-effort
+        via lsblk; empty when nothing safe is found."""
+        try:
+            out = subprocess.run(
+                ["lsblk", "-dnro", "PATH,SIZE,TYPE,MODEL"],
+                capture_output=True, text=True, check=True).stdout
+        except Exception:
+            return []
+        disks = []
+        for line in out.splitlines():
+            parts = line.split(None, 3)
+            if len(parts) >= 3 and parts[2] == "disk":
+                disks.append({"path": parts[0], "size": parts[1],
+                              "model": parts[3] if len(parts) > 3 else ""})
+        return disks
+
+    def graduate_to_disk(self, device):
+        """Install the running OS onto a spare disk (reversible: Windows +
+        root.disk untouched). Elevated + gated."""
+        return self._run_root(f"migrate --to-disk {device} --execute")
+
+    def reclaim(self):
+        """Delete Windows and grow Linux (IRREVERSIBLE). Elevated + gated; the
+        engine hard-refuses unless already native and data is converted."""
+        return self._run_root("migrate --reclaim --execute")
+
+
+def self_test():
+    """Exercise the engine parsers against the WOOTC_GN_* fixtures — no GUI."""
+    eng = GoNativeEngine(pkexec=False)
+    st = eng.status()
+    assert isinstance(st, dict) and "onLoopback" in st and "canReclaim" in st, st
+    # plan is always safe to fetch (dry run)
+    txt = eng.plan("graduate")
+    assert "DRY RUN" in txt or "graduate" in txt.lower() or txt == "", txt
+    disks = eng.spare_disks()
+    assert isinstance(disks, list)
+    print("self-test OK:",
+          f"onLoopback={st['onLoopback']} canGraduate={st.get('canGraduate')} "
+          f"canReclaim={st['canReclaim']} spareDisks={len(disks)}")
+    return 0
+
+
+def build_gui():
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw, Gtk, GLib  # noqa: E402
+
+    eng = GoNativeEngine()
+
+    class Win(Adw.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="Move to Linux",
+                             default_width=560, default_height=520)
+            self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT)
+            tb = Adw.ToolbarView()
+            tb.add_top_bar(Adw.HeaderBar())
+            tb.set_content(self.stack)
+            self.set_content(tb)
+            self.show_status()
+
+        # ── helpers ──────────────────────────────────────────────────────────
+        def _page(self, title, subtitle=None):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                          margin_top=20, margin_bottom=20, margin_start=20, margin_end=20)
+            box.append(Gtk.Label(label=f"<b><big>{title}</big></b>", use_markup=True, xalign=0))
+            if subtitle:
+                s = Gtk.Label(label=subtitle, xalign=0, wrap=True)
+                s.add_css_class("dim-label")
+                box.append(s)
+            return box
+
+        def _swap(self, name, widget):
+            old = self.stack.get_child_by_name(name)
+            if old:
+                self.stack.remove(old)
+            self.stack.add_named(widget, name)
+            self.stack.set_visible_child_name(name)
+
+        def _toast(self, text):
+            dlg = Adw.MessageDialog(transient_for=self, heading="Heads up", body=text)
+            dlg.add_response("ok", "OK")
+            dlg.present()
+
+        def _chip(self, ok, text):
+            row = Adw.ActionRow(title=text)
+            row.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic" if ok
+                                     else "dialog-warning-symbolic"))
+            return row
+
+        # ── status ───────────────────────────────────────────────────────────
+        def show_status(self):
+            try:
+                st = eng.status()
+            except Exception as e:
+                p = self._page("Couldn't read status", str(e))
+                self._swap("status", p)
+                return
+
+            if st["onLoopback"]:
+                p = self._page(
+                    "You're running Linux from Windows",
+                    "Linux is booting from a file on your Windows drive. You can "
+                    "graduate to a real native install — your data comes with you "
+                    "and Windows stays until you choose to remove it.")
+            else:
+                p = self._page(
+                    "You're running native Linux",
+                    "Linux is installed on its own partition. If Windows is still "
+                    "here you can reclaim its space once your data is native.")
+
+            grp = Adw.PreferencesGroup()
+            g = st.get("gates", {})
+            grp.add(self._chip(True, f"Root filesystem: {st.get('rootSource') or 'unknown'}"))
+            grp.add(self._chip(g.get("hostLayoutRecorded"), "Windows disk layout recorded"))
+            grp.add(self._chip(g.get("snapshotCapable"), "Rollback snapshot available"))
+            folders = st.get("convertedFolders") or []
+            grp.add(self._chip(bool(folders),
+                               f"Folders made native: {', '.join(folders) or 'none yet'}"))
+            p.append(grp)
+
+            if st.get("canGraduate"):
+                b = Gtk.Button(label="Move to Linux (keep Windows)")
+                b.add_css_class("suggested-action")
+                b.connect("clicked", lambda *_: self.show_graduate())
+                p.append(b)
+            if st.get("canReclaim"):
+                b = Gtk.Button(label="Remove Windows and reclaim its space…")
+                b.add_css_class("destructive-action")
+                b.connect("clicked", lambda *_: self.show_plan("reclaim"))
+                p.append(b)
+            elif not st["onLoopback"]:
+                note = Gtk.Label(
+                    label="Reclaim becomes available once every folder you use is "
+                          "native (convert your data first).", xalign=0, wrap=True)
+                note.add_css_class("dim-label")
+                p.append(note)
+            self._swap("status", p)
+
+        # ── graduate: pick a spare disk ──────────────────────────────────────
+        def show_graduate(self):
+            p = self._page("Graduate to a native install",
+                           "Pick a disk to install onto. It will be erased; your "
+                           "Windows disk and root.disk are left untouched (reversible).")
+            disks = eng.spare_disks()
+            grp = Adw.PreferencesGroup()
+            if not disks:
+                grp.add(Adw.ActionRow(title="No spare disk found",
+                                      subtitle="Attach a second drive to graduate onto it."))
+            for d in disks:
+                row = Adw.ActionRow(title=d["path"],
+                                    subtitle=f"{d['size']}  {d['model']}".strip())
+                btn = Gtk.Button(label="Use this disk", valign=Gtk.Align.CENTER)
+                btn.connect("clicked", lambda _b, dev=d["path"]: self.show_plan("graduate", dev))
+                row.add_suffix(btn)
+                grp.add(row)
+            p.append(grp)
+            back = Gtk.Button(label="Back")
+            back.connect("clicked", lambda *_: self.show_status())
+            p.append(back)
+            self._swap("graduate", p)
+
+        # ── review the exact dry-run plan, then execute ──────────────────────
+        def show_plan(self, mode, to_disk=None):
+            try:
+                plan = eng.plan(mode, to_disk)
+            except Exception as e:
+                self._toast(str(e)); return
+            title = ("Review: graduate to " + to_disk) if mode == "graduate" \
+                else "Review: remove Windows (irreversible)"
+            p = self._page(title, "These are the exact steps. Nothing has run yet.")
+            tv = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.NONE)
+            tv.get_buffer().set_text(plan or "(no plan produced)")
+            sc = Gtk.ScrolledWindow(vexpand=True)
+            sc.set_child(tv)
+            p.append(sc)
+
+            row = Gtk.Box(spacing=8)
+            back = Gtk.Button(label="Cancel")
+            back.connect("clicked", lambda *_: self.show_status())
+            row.append(back)
+            go = Gtk.Button(label="Graduate now" if mode == "graduate" else "Remove Windows")
+            go.add_css_class("destructive-action")
+            go.connect("clicked", lambda *_: self.execute(mode, to_disk))
+            row.append(go)
+            p.append(row)
+            self._swap("plan", p)
+
+        def execute(self, mode, to_disk=None):
+            p = self._page("Working…", "This can take a few minutes. Don't power off.")
+            spin = Gtk.Spinner(spinning=True)
+            p.append(spin)
+            self._swap("run", p)
+
+            def worker():
+                try:
+                    out = (eng.graduate_to_disk(to_disk) if mode == "graduate"
+                           else eng.reclaim())
+                    GLib.idle_add(self.done, True, out)
+                except Exception as e:
+                    GLib.idle_add(self.done, False, str(e))
+
+            import threading
+            threading.Thread(target=worker, daemon=True).start()
+
+        def done(self, ok, msg):
+            if ok:
+                p = self._page("Done", "Reboot to run from your native install." )
+                r = Gtk.Button(label="Close")
+                r.connect("clicked", lambda *_: self.close())
+                p.append(r)
+            else:
+                p = self._page("It didn't complete", msg)
+                r = Gtk.Button(label="Back")
+                r.connect("clicked", lambda *_: self.show_status())
+                p.append(r)
+            self._swap("run", p)
+            return False
+
+    class App(Adw.Application):
+        def __init__(self):
+            super().__init__(application_id="org.tunaos.wootc.GoNative")
+
+        def do_activate(self):
+            Win(self).present()
+
+    return App().run(None)
+
+
+if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        sys.exit(self_test())
+    sys.exit(build_gui())

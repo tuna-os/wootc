@@ -209,6 +209,12 @@ RC=$(WOOTC_GN_FORCE_LOOP=1 WOOTC_GN_DISK=/dev/loopX WOOTC_GN_NTFS=/dev/loopXp2 \
      bash "$GN" migrate --reclaim --execute 2>&1; echo "rc=$?")
 check 'echo "$RC" | grep -q "still running from root.disk"' "go-native: --reclaim refuses on loopback"
 check 'echo "$RC" | grep -q "rc=1"' "go-native: --reclaim exits non-zero on loopback"
+# Phase-3 GUI engine (headless self-test): status parse + gates via the CLI.
+GUI=$(WOOTC_GN_BIN=/scripts/wootc-go-native WOOTC_GN_FORCE_LOOP=1 \
+      WOOTC_GN_HOSTCONF=/nonexistent WOOTC_GN_HOME=/home/alice \
+      python3 /scripts/wootc-go-native-gui --self-test 2>&1; echo "rc=$?")
+check 'echo "$GUI" | grep -q "self-test OK"' "go-native GUI: engine self-test passes"
+check 'echo "$GUI" | grep -q "canGraduate=True"' "go-native GUI: surfaces canGraduate on loopback"
 
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
