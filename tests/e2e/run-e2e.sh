@@ -20,7 +20,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-IMAGE_REF="${1:-ghcr.io/tuna-os/yellowfin:gnome}"
+# IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
+# blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
+# the image (this silently produced wootc.image=--skip-install once the deployer
+# config was actually wired to IMAGE_REF).
+IMAGE_REF=""
 
 # ── Windows test case (matrix knobs) ─────────────────────────────────────────
 # WOOTC_E2E_WIN_VERSION is a Dockur version string that selects the ISO+edition:
@@ -44,8 +48,11 @@ for arg in "$@"; do
         --skip-build)   SKIP_BUILD=true ;;
         --keep)         KEEP_CONTAINER=true ;;
         --skip-install) SKIP_INSTALL=true ;;
+        --*)            ;;  # ignore unknown flags
+        *)              [ -z "$IMAGE_REF" ] && IMAGE_REF="$arg" ;;  # first positional = image
     esac
 done
+IMAGE_REF="${IMAGE_REF:-ghcr.io/tuna-os/yellowfin:gnome}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
