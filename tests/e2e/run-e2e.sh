@@ -1280,6 +1280,24 @@ else
     info "Passthrough verification: errors found (see above) — migration may fail"
 fi
 
+# ── HARD GATE: prove Phase 2 actually ran ───────────────────────────────────
+# Everything above passes on the ABSENCE of error strings, and the reboot step
+# below sends ctrl-alt-delete — which an emergency shell obeys just as happily
+# as a booted system. So a Phase 2 that never mounted its root could sail
+# through to "ALL TESTS PASSED". Demand positive evidence instead: the
+# loop-attach hook reporting success, or the host bridge, or the real root.
+PHASE2_PROOF=$(printf '%s' "$PASSTHROUGH_MARKERS" | grep -aiE \
+    "wootc: attached dynamic VHDX|host NTFS mounted via|wootc-host-bind|Reached target (multi-user|graphical)" | head -3)
+if [ -n "$PHASE2_PROOF" ]; then
+    pass "Phase 2 proof of life: $(printf '%s' "$PHASE2_PROOF" | head -1 | cut -c1-70)"
+else
+    fail "Phase 2 produced NO proof of life — no loop-attach, no host bridge, no real root."
+    fail "  Refusing to report success: an unbooted Phase 2 still reboots to Windows,"
+    fail "  so the return-to-Windows check below cannot distinguish it from a real boot."
+    printf '%s' "$PASSTHROUGH_MARKERS" | tail -20
+    exit 1
+fi
+
 # ── Step 10: Verify the one-shot entry returns to Windows ───────────────────
 step "Rebooting Phase 2 Linux and verifying return to Windows..."
 $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
