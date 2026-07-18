@@ -6,17 +6,38 @@
 # with its baked-in WOOTC_GN_* fixture hooks — no VM, no real disks, no edits
 # to the script. The destructive paths are proven inert with PATH stubs: every
 # tool that could touch a disk (bootc, podman, sfdisk, ntfsresize, mkfs.xfs,
-# efibootmgr, mount) is replaced by a stub that records "I was called" into a
-# marker file. Asserting the marker is ABSENT proves no disk was touched — a
-# stronger claim than merely asserting the plan text printed.
+# efibootmgr, mount) is replaced by a stub that records its invocation. We then
+# assert no DESTRUCTIVE invocation occurred — a stronger claim than asserting
+# the plan text printed, and more accurate than "nothing was called at all"
+# (a dry run legitimately runs read-only probes like `bootc status --json`).
+#
+# Two traps this suite has already fallen into, both now guarded:
+#   * stubs on a noexec tmpdir never execute, so every assertion passes
+#     vacuously — setup() proves the stubs can run before trusting them;
+#   * treating any tool call as destructive flags harmless read-only probes.
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     GN="$REPO_ROOT/payload/migration/wootc-go-native"
     TMP="$BATS_TEST_TMPDIR"
 
-    # PATH stub jail: any disk-touching tool writes to $CALLED and exits 0.
+    # PATH stub jail: any disk-touching tool records its invocation in $CALLED.
+    # The stubs MUST be executable. On a host with a noexec /tmp (common, and
+    # true of this repo's dev box) BATS_TEST_TMPDIR cannot execute them — the
+    # stubs silently never run, nothing is recorded, and every "no disk was
+    # touched" assertion below passes VACUOUSLY. That is exactly what happened:
+    # these tests were green locally and only CI (with an exec /tmp) caught it.
+    # So: pick an exec-capable dir and PROVE it before trusting the assertions.
     STUBDIR="$TMP/stubs"; mkdir -p "$STUBDIR"
+    printf '#!/bin/bash\ntrue\n' >"$STUBDIR/.probe"; chmod +x "$STUBDIR/.probe"
+    if ! "$STUBDIR/.probe" 2>/dev/null; then
+        STUBDIR="$HOME/.cache/wootc-bats-stubs.$$"; mkdir -p "$STUBDIR"
+        printf '#!/bin/bash\ntrue\n' >"$STUBDIR/.probe"; chmod +x "$STUBDIR/.probe"
+        "$STUBDIR/.probe" 2>/dev/null || {
+            echo "FATAL: cannot create executable stubs — assertions would be vacuous" >&2
+            return 1
+        }
+    fi
     CALLED="$TMP/called"
     for tool in bootc podman sfdisk ntfsresize mkfs.xfs efibootmgr mount umount \
                 growpart xfs_growfs bootupctl rsync; do
@@ -34,12 +55,22 @@ STUB
     export WOOTC_GN_HOME="$TMP/home"; mkdir -p "$WOOTC_GN_HOME/.config/wootc"
 }
 
-# assert the disk-touching stubs were never invoked.
+# Assert no DESTRUCTIVE disk operation happened. Read-only probes are fine and
+# expected in a dry run — `bootc status --json` is how the plan discovers the
+# local image ref, and lsblk/blkid inspect layout. Only writes must never occur.
 refute_disk_touched() {
-    if [[ -e "$CALLED" ]]; then
-        echo "expected NO disk tool call, but got:"; cat "$CALLED"
+    [[ -e "$CALLED" ]] || return 0
+    local bad
+    bad=$(grep -aEi 'bootc +install|sfdisk|mkfs|wipefs|growpart|xfs_growfs|ntfsresize|efibootmgr +-[cB]|^dd ' "$CALLED" || true)
+    if [[ -n "$bad" ]]; then
+        echo "expected NO destructive disk op, but got:"; echo "$bad"
         return 1
     fi
+}
+
+teardown() {
+    [[ "$STUBDIR" == "$HOME/.cache/"* ]] && rm -rf "$STUBDIR"
+    return 0
 }
 
 # ── plan / check are always safe ────────────────────────────────────────────
