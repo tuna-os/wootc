@@ -117,3 +117,32 @@ CFG
     # never emit an xfconf command
     [[ "$output" != *"xfconf-query"* ]]
 }
+
+# ── migration-chooser gate (opt-out) ────────────────────────────────────────
+
+@test "look turned OFF in the chooser is skipped" {
+    printf '{"darkMode":"true"}\n' >"$SLURP/slurp.json"
+    # Use the repo copy directly: BATS_TEST_TMPDIR may live on a noexec /tmp,
+    # where a copied helper returns 126 and (correctly) fails open — which
+    # would make this test silently pass for the wrong reason.
+    export PATH="$REPO_ROOT/payload/migration:$PATH"
+    export WOOTC_SELECTION="$BATS_TEST_TMPDIR/sel.json"
+    python3 -c "import json,sys; json.dump({'version':1,'selection':{'A':{'look':{'on':False}}}}, open(sys.argv[1],'w'))" "$WOOTC_SELECTION"
+    XDG_CURRENT_DESKTOP=GNOME run bash "$AL"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"skipped"* ]]
+}
+
+@test "a BROKEN selection helper must NOT block the migration (fail open)" {
+    # rc 126/127 (noexec, missing) previously meant "skip" — silently dropping
+    # migrations because a helper couldn't run. Only rc 1 means opted out.
+    printf '{"darkMode":"true"}\n' >"$SLURP/slurp.json"
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    printf '#!/bin/sh\nexit 126\n' >"$BATS_TEST_TMPDIR/bin/wootc-selection"
+    chmod +x "$BATS_TEST_TMPDIR/bin/wootc-selection"
+    export PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+    XDG_CURRENT_DESKTOP=GNOME run bash "$AL"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"skipped"* ]]
+    [[ "$output" == *"prefer-dark"* ]]
+}

@@ -24,6 +24,18 @@ name="${1:?usage: wootc-wsl-bridge <winuser> [linuxuser]}"
 target="${2:-$name}"
 home=$(getent passwd "$target" | cut -d: -f6 2>/dev/null || echo "")
 [[ -n "$home" && -d "$home" ]] || { log "no Linux home for $target"; exit 0; }
+# Respect the migration chooser: skip this category if the user turned it off.
+if command -v wootc-selection >/dev/null 2>&1; then
+    _sel_rc=0
+    wootc-selection "$target" wsl >/dev/null 2>&1 || _sel_rc=$?
+    # rc 1 = the user turned it off. Anything else (helper missing/unrunnable)
+    # fails OPEN: never silently drop a migration because a helper broke.
+    if [ "$_sel_rc" -eq 1 ]; then
+        log "wsl: skipped (turned off in the migration chooser)"
+        exit 0
+    fi
+fi
+
 
 # ── Locate the WSL rootfs ────────────────────────────────────────────────────
 ROOTFS=""; MOUNTED=""; NBD=""

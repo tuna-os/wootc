@@ -25,6 +25,20 @@ DST="${WOOTC_WIFI_DST:-/etc/NetworkManager/system-connections}"
 STATE_DIR="${WOOTC_WIFI_STATE:-/var/lib/wootc}"
 
 [[ -d "$SRC" ]] || { log "no Wi-Fi export at $SRC — nothing to import"; exit 0; }
+
+# Respect the migration chooser. This runs as a system service, so consult the
+# first real (uid>=1000) user's selection — the person doing the migration.
+if command -v wootc-selection >/dev/null 2>&1; then
+    _u=$(awk -F: '$3>=1000 && $3<65534 {print $1; exit}' /etc/passwd 2>/dev/null)
+    _sel_rc=0
+    [[ -n "$_u" ]] && { wootc-selection "$_u" wifi >/dev/null 2>&1 || _sel_rc=$?; }
+    # rc 1 = the user turned it off. Anything else (helper missing/unrunnable)
+    # fails OPEN: never silently drop a migration because a helper broke.
+    if [ "$_sel_rc" -eq 1 ]; then
+        log "wifi: skipped (turned off in the migration chooser)"
+        exit 0
+    fi
+fi
 mkdir -p "$DST" "$STATE_DIR"
 
 imported=(); skipped=()
