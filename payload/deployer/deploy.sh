@@ -869,6 +869,10 @@ WRAP
     mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-manifest.desktop"
     # Identity prefill/copy (§4.6): account name + picture (never the password).
     mig_opt 755 wootc-identity "$DEPLOY_ROOT/usr/local/bin/wootc-identity"
+    # Account setup screen: pre-fills the identity, asks for the one thing that
+    # cannot be migrated (the password). Never persists the secret.
+    mig_opt 755 wootc-user-gui "$DEPLOY_ROOT/usr/local/bin/wootc-user-gui"
+    mig_opt 644 wootc-user.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-user.desktop"
     # Gates the bridges on the migration chooser's opt-out selection.
     mig_opt 755 wootc-selection "$DEPLOY_ROOT/usr/local/bin/wootc-selection"
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is

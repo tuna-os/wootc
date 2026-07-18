@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Set up your account
+Comment=Carry over your name and picture from Windows, and pick a Linux password
+Exec=wootc-user-gui
+Icon=system-users
+Terminal=false
+Categories=System;Settings;

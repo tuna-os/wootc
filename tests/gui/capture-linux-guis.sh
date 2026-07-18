@@ -66,6 +66,21 @@ WOOTC_MANIFEST_BIN=/scripts/wootc-manifest WOOTC_HOST="$H" \
     dbus-run-session -- python3 /scripts/wootc-manifest-gui >/tmp/g1.log 2>&1 &
 shot 13-migration-chooser 6
 
+# ── 1b. Set up your account (identity pre-filled, password is the only ask) ─
+echo "capturing user setup GUI..."
+cat > /tmp/identity.json <<'JSON'
+{"winUser":"Alex","username":"alex","fullName":"Alex Morgan",
+ "email":"alex@example.com","avatar":null,"locale":"en_GB",
+ "keyboardLayout":null,"timezone":null,
+ "password":{"migratable":false,
+             "note":"Set a new password for Linux \u2014 Windows passwords can't be carried over."}}
+JSON
+printf '#!/bin/sh\ncat /tmp/identity.json\n' > /tmp/fake-identity
+chmod +x /tmp/fake-identity
+WOOTC_IDENTITY_BIN=/tmp/fake-identity WOOTC_ACCOUNT=/tmp/account.json \
+    dbus-run-session -- python3 /scripts/wootc-user-gui >/tmp/g1b.log 2>&1 &
+shot 13b-account-setup 6
+
 # ── 2. Move fully to Linux (Phase 3) — still on the Windows-hosted disk ─────
 echo "capturing go-native GUI (on loopback)..."
 GNHOME=/fixture/gnhome; mkdir -p "$GNHOME/.config/wootc"

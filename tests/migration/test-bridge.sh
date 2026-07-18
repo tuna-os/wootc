@@ -225,6 +225,17 @@ MGUI=$(WOOTC_MANIFEST_BIN=/scripts/wootc-manifest WOOTC_HOST=/host \
        python3 /scripts/wootc-manifest-gui --self-test 2>&1)
 check 'echo "$MGUI" | grep -q "self-test OK"' "manifest GUI: engine self-test passes (default-on selection)"
 
+# ── 10. Account setup (identity pre-fill; the password is never persisted) ──
+UGUI=$(WOOTC_IDENTITY_BIN=/scripts/wootc-identity WOOTC_HOST=/host \
+       python3 /scripts/wootc-user-gui --self-test 2>&1)
+check 'echo "$UGUI" | grep -q "self-test OK"' "user GUI: prefill + validation + secret handling"
+# End-to-end in a real container: the saved record must not contain the secret.
+WOOTC_ACCOUNT=/tmp/account.json python3 -c "
+import types; ug = types.ModuleType('ug')
+exec(open('/scripts/wootc-user-gui').read().split('def build_gui')[0], ug.__dict__)
+ug.AccountEngine.save_identity({'username':'alice','password':'topsecret123'}, path='/tmp/account.json')"
+check '! grep -q topsecret123 /tmp/account.json' "user GUI: password never written to the account file"
+
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
 INNER
