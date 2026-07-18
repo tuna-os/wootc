@@ -43,6 +43,17 @@ run_fast() {
 
     if command -v go >/dev/null; then
         echo "── go test (fisherman TUI, cross-platform app) ──"
+        # app/main.go has //go:embed all:frontend/dist, so the package will not
+        # COMPILE without a built frontend. A dev box usually has one lying
+        # around (which is why this tier passed locally while failing in CI);
+        # a clean checkout does not. The Go tests here cover backend logic, not
+        # the UI bundle, so stand up a placeholder rather than making the fast
+        # tier depend on node. The real bundle is built by the release job.
+        if [ ! -d app/frontend/dist ] || [ -z "$(ls -A app/frontend/dist 2>/dev/null)" ]; then
+            mkdir -p app/frontend/dist
+            printf '<!doctype html><title>placeholder</title>\n' > app/frontend/dist/index.html
+            echo "   (created placeholder app/frontend/dist for the go:embed)"
+        fi
         # app/: only the non-windows-tagged code compiles here (status mutex,
         # embedded catalog). fisherman TUI is fully cross-platform.
         ( cd app && go test ./... ) || rc=1
