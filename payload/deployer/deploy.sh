@@ -588,12 +588,21 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # modules we omit; omit them too so they don't error the run.
         DRACUT_OMIT="plymouth lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack nvmf nvdimm"
         [[ "$LUKS_TYPE" == "none" ]] && DRACUT_OMIT="$DRACUT_OMIT crypt systemd-cryptsetup"
+        # Capture dracut's real exit + tail its output to the serial. The
+        # module + hook land cleanly in a bare `podman run <img> dracut …`, so
+        # any failure here is specific to the chroot-into-mounted-deployment
+        # context (e.g. an empty /var, /var/tmp, or /run) — surface it instead
+        # of losing it to a redirected log.
+        set +e
         chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
             --add wootc-boot \
             --fwdir /run/wootc-nofw \
             --omit "$DRACUT_OMIT" \
-            "$INITRD_CHROOT_PATH" "$KVER"
-        REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}")
+            "$INITRD_CHROOT_PATH" "$KVER" 2>&1 | tail -25 >&2
+        REGEN_RC=${PIPESTATUS[0]}
+        set -e
+        log "  dracut regen exit=$REGEN_RC"
+        REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}" 2>/dev/null || echo 0)
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
     else
         chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
@@ -607,7 +616,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # that it landed in the built image). Verify the actual output and abort the
     # deploy here — a loud [FAIL] beats a silent 5-minute boot wedge.
     if [[ -n "${INITRD_CHROOT_PATH:-}" ]] && chroot "$DEPLOY_ROOT" sh -c 'command -v lsinitrd >/dev/null 2>&1'; then
-        if chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -q 'wootc-attach-loop'; then
+        # Diagnostic: how many entries did lsinitrd list, and did the hook match?
+        # entries=0 means a decompression/false-negative (lsinitrd couldn't read
+        # the image), not a genuinely hookless initramfs — different fixes.
+        GUARD_ENTRIES=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | wc -l)
+        GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'wootc-attach-loop')
+        log "  guard: lsinitrd listed $GUARD_ENTRIES entries, wootc-attach-loop matches=$GUARD_HITS"
+        if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
             log "  [PASS] Phase-2 initramfs carries the loop-attach hook"
         else
             err "  [FAIL] Phase-2 initramfs is MISSING wootc-attach-loop.sh — root.disk would never attach; aborting deploy"
