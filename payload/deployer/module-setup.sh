@@ -63,6 +63,13 @@ install() {
     inst /usr/lib/wootc/migration/wootc-apply-look.desktop
     inst /usr/lib/wootc/migration/wootc-detect-apps
     inst /usr/lib/wootc/migration/wootc-office-bridge
+    inst /usr/lib/wootc/migration/wootc-wsl-bridge
+    inst /usr/lib/wootc/migration/wootc-wifi-bridge
+    inst /usr/lib/wootc/migration/wootc-wifi-import.service
+    inst /usr/lib/wootc/migration/wootc-import
+    inst /usr/lib/wootc/migration/wootc-import-gui
+    inst /usr/lib/wootc/migration/wootc-import.desktop
+    inst /usr/lib/wootc/migration/wootc-go-native
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

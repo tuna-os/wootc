@@ -609,27 +609,30 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
         "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
+    # Optional post-install utilities. These are not required for the deployer
+    # to run, so a payload that a given initramfs did not carry must WARN, never
+    # abort the whole deploy (set -e) — a missing GUI helper is not worth losing
+    # a completed OS install over. mig_opt does that.
+    mig_opt() { # <mode> <name> <dst>
+        local src="/usr/lib/wootc/migration/$2"
+        if [[ -f "$src" ]]; then install -D -m"$1" "$src" "$3"
+        else log "  optional migration payload not in initramfs (skipped): $2"; fi
+    }
     # Linux-side "Bring your Windows over" import tool (external disk / backup /
     # BitLocker) + its GUI launcher. Post-install utility — no autostart.
-    install -m755 /usr/lib/wootc/migration/wootc-import \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-import"
-    install -m755 /usr/lib/wootc/migration/wootc-import-gui \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-import-gui"
-    install -D -m644 /usr/lib/wootc/migration/wootc-import.desktop \
-        "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
+    mig_opt 755 wootc-import     "$DEPLOY_ROOT/usr/local/bin/wootc-import"
+    mig_opt 755 wootc-import-gui "$DEPLOY_ROOT/usr/local/bin/wootc-import-gui"
+    mig_opt 644 wootc-import.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
-    install -m755 /usr/lib/wootc/migration/wootc-go-native \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
+    mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
-    install -m755 /usr/lib/wootc/migration/wootc-wsl-bridge \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
+    mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
     # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on
     # first boot (oneshot service), not in this minimal initramfs. Stage the
     # exported profiles into the deployment; the bridge imports then shreds them.
-    install -m755 /usr/lib/wootc/migration/wootc-wifi-bridge \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-wifi-bridge"
-    if [[ -d /mnt/ntfs/wootc/install/wifi ]]; then
+    mig_opt 755 wootc-wifi-bridge "$DEPLOY_ROOT/usr/local/bin/wootc-wifi-bridge"
+    if [[ -d /mnt/ntfs/wootc/install/wifi && -f /usr/lib/wootc/migration/wootc-wifi-import.service ]]; then
         install -m644 /usr/lib/wootc/migration/wootc-wifi-import.service \
             "$DEPLOY_ROOT/etc/systemd/system/wootc-wifi-import.service"
         mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
