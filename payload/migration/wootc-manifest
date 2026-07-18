@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-manifest — discover everything wootc can migrate from a
+# mounted Windows volume and emit a catalog (JSON). Read-only: it only looks.
+#
+# The migration GUI (wootc-manifest-gui) turns this catalog into a checklist —
+# everything defaults ON; the user opts OUT of any item or whole category. The
+# selection is written to ~/.config/wootc/migration-selection.json, which the
+# bridges consult before applying (a category the user turned off is skipped).
+#
+#   wootc-manifest scan [winuser]     → catalog JSON for that Windows user
+#   wootc-manifest scan --all         → catalog for every Windows profile found
+#
+# Env: WOOTC_HOST (mounted Windows volume, default /host) — set in tests to a
+# fixture tree so the whole scanner runs with no real Windows install.
+import json
+import os
+import sys
+
+HOST = os.environ.get("WOOTC_HOST", "/host")
+
+
+def _exists(*parts):
+    return os.path.exists(os.path.join(HOST, *parts))
+
+
+def _count_files(path):
+    total = 0
+    for _root, _dirs, files in os.walk(path):
+        total += len(files)
+        if total > 100000:
+            break
+    return total
+
+
+def _dir_bytes(path, cap=50000):
+    total = seen = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+            seen += 1
+            if seen > cap:
+                return total
+    return total
+
+
+def _users():
+    base = os.path.join(HOST, "Users")
+    if not os.path.isdir(base):
+        return []
+    skip = {"Public", "Default", "Default User", "All Users", "defaultuser0"}
+    return sorted(u for u in os.listdir(base)
+                  if u not in skip and os.path.isdir(os.path.join(base, u)))
+
+
+# ── per-category discovery ───────────────────────────────────────────────────
+# Each returns (present: bool, items: [ {label, detail} ], summary: str).
+
+def cat_files(user):
+    items = []
+    root = os.path.join(HOST, "Users", user)
+    for folder in ("Documents", "Pictures", "Downloads", "Music", "Videos", "Desktop"):
+        p = os.path.join(root, folder)
+        if os.path.isdir(p):
+            n = _count_files(p)
+            items.append({"id": folder, "label": folder, "detail": f"{n} file(s)"})
+    return bool(items), items, f"{len(items)} folder(s)"
+
+
+def cat_browsers(user):
+    items = []
+    ad = os.path.join(HOST, "Users", user, "AppData")
+    if os.path.exists(os.path.join(ad, "Roaming", "Mozilla", "Firefox", "profiles.ini")):
+        items.append({"id": "firefox", "label": "Firefox", "detail": "profile + logins"})
+    if os.path.exists(os.path.join(ad, "Local", "Google", "Chrome", "User Data",
+                                    "Default", "Bookmarks")):
+        items.append({"id": "chrome", "label": "Chrome", "detail": "bookmarks + history"})
+    if os.path.exists(os.path.join(ad, "Local", "Microsoft", "Edge", "User Data",
+                                    "Default", "Bookmarks")):
+        items.append({"id": "edge", "label": "Edge", "detail": "bookmarks"})
+    return bool(items), items, ", ".join(i["label"] for i in items)
+
+
+def cat_office(user):
+    items = []
+    ms = os.path.join(HOST, "Users", user, "AppData", "Roaming", "Microsoft")
+    if os.path.exists(os.path.join(ms, "UProof", "CUSTOM.DIC")):
+        items.append({"id": "dictionary", "label": "Custom dictionary", "detail": ""})
+    tpl = os.path.join(ms, "Templates")
+    if os.path.isdir(tpl) and any(f.lower().endswith((".dotx", ".dotm", ".dot"))
+                                  for f in os.listdir(tpl)):
+        items.append({"id": "templates", "label": "Word templates", "detail": ""})
+    return bool(items), items, "LibreOffice bridge"
+
+
+def cat_games(user):
+    items = []
+    for base in ("Program Files (x86)", "Program Files"):
+        vdf = os.path.join(HOST, base, "Steam", "steamapps", "libraryfolders.vdf")
+        if os.path.exists(vdf):
+            items.append({"id": "steam", "label": "Steam", "detail": "libraries + saves"})
+            break
+    return bool(items), items, "Steam"
+
+
+def cat_wifi(_user):
+    items = []
+    src = os.path.join(HOST, "wootc", "install", "wifi")
+    if os.path.isdir(src):
+        xmls = [f for f in os.listdir(src) if f.endswith(".xml")]
+        if xmls:
+            items.append({"id": "wifi", "label": "Saved Wi-Fi networks",
+                          "detail": f"{len(xmls)} profile(s)"})
+    return bool(items), items, f"{len(items) and items[0]['detail'] or ''}"
+
+
+def cat_wsl(user):
+    items = []
+    local = os.path.join(HOST, "Users", user, "AppData", "Local")
+    found = os.path.isdir(os.path.join(local, "lxss"))
+    if not found and os.path.isdir(os.path.join(local, "Packages")):
+        for pkg in os.listdir(os.path.join(local, "Packages")):
+            ls = os.path.join(local, "Packages", pkg, "LocalState")
+            if os.path.exists(os.path.join(ls, "ext4.vhdx")) or \
+               os.path.isdir(os.path.join(ls, "rootfs")):
+                found = True
+                break
+    if found:
+        items.append({"id": "wsl", "label": "WSL environment",
+                      "detail": "dotfiles + Brewfile"})
+    return bool(items), items, "dotfiles + packages"
+
+
+def cat_look(_user):
+    items = []
+    if _exists("wootc", "install", "slurp", "slurp.json") or \
+       _exists("wootc", "install", "slurp.json"):
+        items.append({"id": "look", "label": "Windows look",
+                      "detail": "wallpaper, accent, pins"})
+    return bool(items), items, "wallpaper + theme"
+
+
+CATEGORIES = [
+    ("files",    "Your files",        cat_files),
+    ("browsers", "Browsers",          cat_browsers),
+    ("office",   "Office documents",  cat_office),
+    ("games",    "Games (Steam)",     cat_games),
+    ("wifi",     "Wi-Fi networks",    cat_wifi),
+    ("wsl",      "WSL / developer",   cat_wsl),
+    ("look",     "Windows look",      cat_look),
+]
+
+
+def scan_user(user):
+    cats = []
+    for cid, label, fn in CATEGORIES:
+        try:
+            present, items, summary = fn(user)
+        except Exception:
+            present, items, summary = False, [], ""
+        cats.append({
+            "id": cid, "label": label, "present": present,
+            "defaultOn": present,          # discovered = on by default
+            "summary": summary, "items": items,
+        })
+    return {"winUser": user, "categories": cats}
+
+
+def main(argv):
+    args = argv[1:]
+    if not args or args[0] != "scan":
+        print("usage: wootc-manifest scan [winuser|--all]", file=sys.stderr)
+        return 2
+    rest = args[1:]
+    if rest and rest[0] == "--all":
+        out = {"host": HOST, "users": [scan_user(u) for u in _users()]}
+    else:
+        user = rest[0] if rest else (_users()[0] if _users() else "")
+        out = {"host": HOST, "users": [scan_user(user)] if user else []}
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

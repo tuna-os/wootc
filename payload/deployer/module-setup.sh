@@ -69,6 +69,9 @@ install() {
     inst /usr/lib/wootc/migration/wootc-import
     inst /usr/lib/wootc/migration/wootc-import-gui
     inst /usr/lib/wootc/migration/wootc-import.desktop
+    inst /usr/lib/wootc/migration/wootc-manifest
+    inst /usr/lib/wootc/migration/wootc-manifest-gui
+    inst /usr/lib/wootc/migration/wootc-manifest.desktop
     inst /usr/lib/wootc/migration/wootc-go-native
     inst /usr/lib/wootc/migration/wootc-go-native-gui
     inst /usr/lib/wootc/migration/wootc-go-native.desktop

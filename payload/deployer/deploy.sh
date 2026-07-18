@@ -689,6 +689,10 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     mig_opt 755 wootc-import     "$DEPLOY_ROOT/usr/local/bin/wootc-import"
     mig_opt 755 wootc-import-gui "$DEPLOY_ROOT/usr/local/bin/wootc-import-gui"
     mig_opt 644 wootc-import.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
+    # Migration chooser (§4.6): discover everything migratable, default-on, opt-out.
+    mig_opt 755 wootc-manifest "$DEPLOY_ROOT/usr/local/bin/wootc-manifest"
+    mig_opt 755 wootc-manifest-gui "$DEPLOY_ROOT/usr/local/bin/wootc-manifest-gui"
+    mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-manifest.desktop"
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
     mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"

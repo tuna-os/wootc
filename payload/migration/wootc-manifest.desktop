@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Bring Over From Windows
+GenericName=Migration chooser
+Comment=Choose what to bring over from your old Windows install — everything's on by default
+Exec=wootc-manifest-gui
+Icon=preferences-system
+Terminal=false
+Categories=System;Utility;
+Keywords=windows;migrate;import;choose;files;browser;settings;
+StartupNotify=true

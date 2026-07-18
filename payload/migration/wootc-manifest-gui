@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-manifest-gui — "What should we bring over?" screen.
+# Runs wootc-manifest to discover everything migratable from the mounted
+# Windows volume, shows it as a checklist with EVERYTHING ON by default, and
+# lets the user switch off any whole category or individual item. The choice is
+# written to ~/.config/wootc/migration-selection.json, which the bridges read
+# before applying (an off category is skipped).
+#
+# Engine/selection logic is isolated in ManifestEngine for headless testing:
+#   wootc-manifest-gui --self-test
+import json
+import os
+import subprocess
+import sys
+
+MANIFEST = os.environ.get("WOOTC_MANIFEST_BIN", "wootc-manifest")
+SELECTION_PATH = os.environ.get(
+    "WOOTC_SELECTION",
+    os.path.join(os.path.expanduser("~"), ".config", "wootc", "migration-selection.json"))
+
+
+class ManifestEngine:
+    def __init__(self, manifest=MANIFEST):
+        self.manifest = manifest
+
+    def scan(self, user=None):
+        args = [self.manifest, "scan"] + ([user] if user else ["--all"])
+        out = subprocess.run(args, capture_output=True, text=True)
+        if out.returncode != 0:
+            raise RuntimeError(out.stderr.strip() or "scan failed")
+        return json.loads(out.stdout or "{}")
+
+    @staticmethod
+    def default_selection(manifest):
+        """Everything discovered is ON by default (opt-out model)."""
+        sel = {}
+        for u in manifest.get("users", []):
+            cats = {}
+            for c in u["categories"]:
+                if not c["present"]:
+                    continue
+                cats[c["id"]] = {
+                    "on": True,
+                    "items": {i["id"]: True for i in c.get("items", [])},
+                }
+            sel[u["winUser"]] = cats
+        return sel
+
+    def write_selection(self, selection, path=SELECTION_PATH):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            json.dump({"version": 1, "selection": selection}, fh, indent=2)
+        return path
+
+
+def self_test():
+    """Exercise scan + default selection + round-trip write against fixtures."""
+    eng = ManifestEngine()
+    man = eng.scan()
+    assert "users" in man, man
+    sel = ManifestEngine.default_selection(man)
+    # every present category must default ON
+    for u in man["users"]:
+        for c in u["categories"]:
+            if c["present"]:
+                assert sel[u["winUser"]][c["id"]]["on"] is True, c
+    import tempfile
+    path = os.path.join(tempfile.mkdtemp(), "sel.json")
+    eng.write_selection(sel, path)
+    back = json.load(open(path))
+    assert back["selection"] == sel and back["version"] == 1
+    ncat = sum(len(c) for c in sel.values())
+    print(f"self-test OK: users={len(man['users'])} on-by-default categories={ncat}")
+    return 0
+
+
+def build_gui():
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw, Gtk  # noqa: E402
+
+    eng = ManifestEngine()
+
+    class Win(Adw.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="Bring over from Windows",
+                             default_width=560, default_height=640)
+            self.selection = {}
+            tb = Adw.ToolbarView()
+            tb.add_top_bar(Adw.HeaderBar())
+            self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                                margin_top=18, margin_bottom=18, margin_start=18, margin_end=18)
+            sc = Gtk.ScrolledWindow(vexpand=True)
+            sc.set_child(self.body)
+            tb.set_content(sc)
+            self.set_content(tb)
+            self.render()
+
+        def _msg(self, heading, body):
+            d = Adw.MessageDialog(transient_for=self, heading=heading, body=body)
+            d.add_response("ok", "OK")
+            d.present()
+
+        def render(self):
+            while (ch := self.body.get_first_child()):
+                self.body.remove(ch)
+            self.body.append(Gtk.Label(
+                label="<b><big>What should we bring over?</big></b>", use_markup=True, xalign=0))
+            sub = Gtk.Label(
+                label="Everything we found is on. Switch off anything you'd rather leave behind.",
+                xalign=0, wrap=True)
+            sub.add_css_class("dim-label")
+            self.body.append(sub)
+
+            try:
+                man = eng.scan()
+            except Exception as e:
+                self._msg("Couldn't scan", str(e)); return
+            self.selection = ManifestEngine.default_selection(man)
+
+            for u in man.get("users", []):
+                if len(man["users"]) > 1:
+                    self.body.append(Gtk.Label(label=f"<b>{u['winUser']}</b>",
+                                               use_markup=True, xalign=0))
+                grp = Adw.PreferencesGroup()
+                any_present = False
+                for c in u["categories"]:
+                    if not c["present"]:
+                        continue
+                    any_present = True
+                    exp = Adw.ExpanderRow(title=c["label"], subtitle=c["summary"])
+                    sw = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
+                    sw.connect("notify::active", self._on_cat, u["winUser"], c["id"])
+                    exp.add_prefix(sw)
+                    for it in c.get("items", []):
+                        row = Adw.ActionRow(title=it["label"], subtitle=it.get("detail", ""))
+                        isw = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
+                        isw.connect("notify::active", self._on_item,
+                                    u["winUser"], c["id"], it["id"])
+                        row.add_suffix(isw)
+                        exp.add_row(row)
+                    grp.add(exp)
+                if not any_present:
+                    grp.add(Adw.ActionRow(title="Nothing to bring over was found"))
+                self.body.append(grp)
+
+            apply_btn = Gtk.Button(label="Bring it over")
+            apply_btn.add_css_class("suggested-action")
+            apply_btn.connect("clicked", self._apply)
+            self.body.append(apply_btn)
+
+        def _on_cat(self, sw, _p, user, cid):
+            self.selection[user][cid]["on"] = sw.get_active()
+
+        def _on_item(self, sw, _p, user, cid, iid):
+            self.selection[user][cid]["items"][iid] = sw.get_active()
+
+        def _apply(self, _b):
+            try:
+                path = eng.write_selection(self.selection)
+            except Exception as e:
+                self._msg("Couldn't save", str(e)); return
+            on = sum(1 for u in self.selection.values() for c in u.values() if c["on"])
+            self._msg("Saved",
+                      f"{on} categor{'y' if on == 1 else 'ies'} will be brought over.\n"
+                      f"Your choices are saved to {path}.")
+
+    class App(Adw.Application):
+        def __init__(self):
+            super().__init__(application_id="org.tunaos.wootc.Manifest")
+
+        def do_activate(self):
+            Win(self).present()
+
+    return App().run(None)
+
+
+if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        sys.exit(self_test())
+    sys.exit(build_gui())

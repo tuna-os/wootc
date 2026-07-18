@@ -216,6 +216,15 @@ GUI=$(WOOTC_GN_BIN=/scripts/wootc-go-native WOOTC_GN_FORCE_LOOP=1 \
 check 'echo "$GUI" | grep -q "self-test OK"' "go-native GUI: engine self-test passes"
 check 'echo "$GUI" | grep -q "canGraduate=True"' "go-native GUI: surfaces canGraduate on loopback"
 
+# ── 9. Migration manifest (discover → default-on catalog) ───────────────────
+# /host already has Users/alice/{Documents,Pictures} + Steam libs from step 1-2.
+MANI=$(WOOTC_HOST=/host python3 /scripts/wootc-manifest scan alice 2>&1)
+check 'echo "$MANI" | python3 -c "import sys,json; d=json.load(sys.stdin); c={x[\"id\"]:x for x in d[\"users\"][0][\"categories\"]}; sys.exit(0 if c[\"files\"][\"present\"] and c[\"files\"][\"defaultOn\"] else 1)"' "manifest: files discovered + default-on"
+check 'echo "$MANI" | python3 -c "import sys,json; d=json.load(sys.stdin); c={x[\"id\"]:x for x in d[\"users\"][0][\"categories\"]}; sys.exit(0 if c[\"games\"][\"present\"] else 1)"' "manifest: Steam games discovered"
+MGUI=$(WOOTC_MANIFEST_BIN=/scripts/wootc-manifest WOOTC_HOST=/host \
+       python3 /scripts/wootc-manifest-gui --self-test 2>&1)
+check 'echo "$MGUI" | grep -q "self-test OK"' "manifest GUI: engine self-test passes (default-on selection)"
+
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
 INNER
