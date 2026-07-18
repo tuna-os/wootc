@@ -219,6 +219,12 @@ SSHD_KARG=""
 if [[ -n "$DEBUG_SSH_KEY" ]]; then
     SSHD_KARG="systemd.wants=sshd.service"
 fi
+# Always give the migrated system a control channel: enable qemu-guest-agent on
+# every Phase-2 boot. It's a no-op on bare metal (no QEMU) but makes the system
+# manageable, recoverable, and testable inside a VM — a migrated user should
+# never end up with an unreachable box. Combined below into PHASE2_KARGS.
+MGMT_KARG="systemd.wants=qemu-guest-agent.service"
+PHASE2_KARGS="$MGMT_KARG $SSHD_KARG"
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
@@ -595,6 +601,15 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/etc/systemd/system/wootc-host-bind.service"
     install -m644 /usr/lib/wootc/migration/wootc-passthrough.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-passthrough.service"
+    # ENABLE them (the missing step): a WantedBy=local-fs.target unit only runs
+    # if it is symlinked into local-fs.target.wants — installing the unit file
+    # is not enough. Without this the User Data Bridge never activated at boot
+    # (E2E: "wootc-passthrough service NOT detected").
+    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
+    ln -sf ../wootc-host-bind.service \
+        "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
+    ln -sf ../wootc-passthrough.service \
+        "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-passthrough.service"
     install -m755 /usr/lib/wootc/migration/wootc-mount-user-dirs \
         "$DEPLOY_ROOT/usr/local/bin/wootc-mount-user-dirs"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
@@ -747,7 +762,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
 title wootc Linux
 linux /EFI/wootc/phase2-vmlinuz
 initrd /EFI/wootc/phase2-initramfs.img
-options ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 ${SSHD_KARG}
+options ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 ${PHASE2_KARGS}
 BLSEOF
                     rm -f /mnt/esp/loader/entries/wootc-deployer.conf
                     log "  [PASS] Phase-2 systemd-boot entry written"
@@ -831,7 +846,7 @@ set default=0
 set timeout=5
 
 menuentry "wootc Linux" {
-    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 earlycon=uart8250,io,0x3f8,115200n8 ignore_loglevel ${SSHD_KARG}
+    linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 earlycon=uart8250,io,0x3f8,115200n8 ignore_loglevel ${PHASE2_KARGS}
     initrd /EFI/wootc/phase2-initramfs.img
 }
 GRUBEOF
