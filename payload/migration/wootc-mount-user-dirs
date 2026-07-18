@@ -66,6 +66,9 @@ if command -v wootc-detect-apps >/dev/null; then
         wootc-detect-apps "$uname" || log "app detection failed for $uname (non-fatal)"
         command -v wootc-office-bridge >/dev/null && \
             { wootc-office-bridge "$uname" || log "office bridge failed for $uname (non-fatal)"; }
+        # Copy the account picture + full name over (never the password).
+        command -v wootc-identity >/dev/null && \
+            { wootc-identity apply "$uname" "$uname" >/dev/null || log "identity copy failed for $uname (non-fatal)"; }
     done
     shopt -u nullglob
 fi

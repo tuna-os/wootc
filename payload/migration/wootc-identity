@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-identity — collect the NON-SECRET identity defaults to
+# pre-fill the Linux account step, and state plainly that the password is not
+# migratable (SPEC §4.6, issue #8).
+#
+# Passwords cannot and must not be migrated: Windows stores an NTLM hash, Linux
+# a PAM/shadow crypt hash — different algorithms, and copying credential
+# material would violate the "never migrate secrets" tier. So `password` is
+# always reported migratable:false; the account step asks the user to set one.
+#
+# What IS pre-fillable (all non-secret):
+#   * username     — from the Windows profile directory name
+#   * fullName     — from the installer's slurp.json (registry display name)
+#   * email        — Microsoft-account email if the box was MSA-joined
+#   * avatar       — the account picture file, if present
+#   * locale / keyboardLayout / timezone — from slurp.json
+#
+#   wootc-identity scan [winuser]               → identity defaults (JSON)
+#   wootc-identity apply <winuser> <linuxuser>  → copy the account picture +
+#                                                 full name onto the Linux user
+#
+# Env: WOOTC_HOST (mounted Windows volume, default /host). The registry-derived
+# fields come from a slurp.json the Windows installer writes; WOOTC_SLURP
+# overrides its location for tests. WOOTC_HOME / WOOTC_AS_DIR override the Linux
+# home and the AccountsService dir so `apply` runs against fixtures.
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+HOST = os.environ.get("WOOTC_HOST", "/host")
+
+
+def _users():
+    base = os.path.join(HOST, "Users")
+    if not os.path.isdir(base):
+        return []
+    skip = {"Public", "Default", "Default User", "All Users", "defaultuser0"}
+    return sorted(u for u in os.listdir(base)
+                  if u not in skip and os.path.isdir(os.path.join(base, u)))
+
+
+def _slurp():
+    for cand in (os.environ.get("WOOTC_SLURP"),
+                 os.path.join(HOST, "wootc", "install", "slurp", "slurp.json"),
+                 os.path.join(HOST, "wootc", "install", "slurp.json")):
+        if cand and os.path.isfile(cand):
+            try:
+                return json.load(open(cand))
+            except Exception:
+                return {}
+    return {}
+
+
+def _avatar(user):
+    # AccountPictures holds the user tile; take the largest image if several.
+    d = os.path.join(HOST, "Users", user, "AppData", "Roaming",
+                     "Microsoft", "Windows", "AccountPictures")
+    if not os.path.isdir(d):
+        return None
+    imgs = [os.path.join(d, f) for f in os.listdir(d)
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".bmp"))]
+    if not imgs:
+        return None
+    return max(imgs, key=lambda p: os.path.getsize(p) if os.path.exists(p) else 0)
+
+
+def _linux_username(winuser, email, fullname):
+    """Suggest a lowercase Linux username, preferring the local part of an MSA
+    email, then the Windows profile name, then the full name."""
+    import re
+    for cand in (email.split("@")[0] if email else "", winuser, fullname):
+        s = re.sub(r"[^a-z0-9_-]", "", (cand or "").lower().replace(" ", ""))
+        if s and re.match(r"^[a-z_]", s):
+            return s[:32]
+    return "user"
+
+
+def scan_user(user):
+    s = _slurp()
+    email = (s.get("email") or "").strip()
+    fullname = (s.get("fullName") or s.get("displayName") or "").strip()
+    return {
+        "winUser": user,
+        "username": _linux_username(user, email, fullname),
+        "fullName": fullname or None,
+        "email": email or None,
+        "avatar": _avatar(user),
+        "locale": s.get("locale") or s.get("language") or None,
+        "keyboardLayout": s.get("keyboardLayout") or None,
+        "timezone": s.get("timezone") or None,
+        "password": {
+            "migratable": False,
+            "note": "Set a new password for Linux — Windows passwords can't be carried over.",
+        },
+    }
+
+
+def _home(user):
+    try:
+        return subprocess.run(["getent", "passwd", user], capture_output=True,
+                              text=True, check=True).stdout.split(":")[5]
+    except Exception:
+        return ""
+
+
+def _set_as_icon(as_dir, user, icon_path, fullname):
+    """Write the AccountsService user record so the login screen + settings pick
+    up the copied picture (and name) — the same file GNOME/KDE read."""
+    users_dir = os.path.join(as_dir, "users")
+    os.makedirs(users_dir, exist_ok=True)
+    lines = ["[User]", f"Icon={icon_path}"]
+    if fullname:
+        lines.append(f"RealName={fullname}")
+    lines.append("SystemAccount=false")
+    with open(os.path.join(users_dir, user), "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
+def _resolve_winuser(winuser, linuxuser):
+    """The caller may pass the Linux name; map it to a real Windows profile —
+    exact, then case-insensitive against either name, then the sole profile."""
+    users = _users()
+    if winuser in users:
+        return winuser
+    low = {u.lower().replace(" ", ""): u for u in users}
+    for cand in (linuxuser, winuser):
+        if cand and cand.lower() in low:
+            return low[cand.lower()]
+    return users[0] if len(users) == 1 else winuser
+
+
+def cmd_apply(winuser, linuxuser):
+    """Copy the non-secret identity — account picture + full name — onto the
+    Linux user. Best-effort per piece; never fails the migration."""
+    winuser = _resolve_winuser(winuser, linuxuser)
+    info = scan_user(winuser)
+    home = os.environ.get("WOOTC_HOME") or _home(linuxuser)
+    as_dir = os.environ.get("WOOTC_AS_DIR", "/var/lib/AccountsService")
+    applied = []
+
+    av = info["avatar"]
+    if av and os.path.isfile(av):
+        if home and os.path.isdir(home):
+            try:
+                shutil.copyfile(av, os.path.join(home, ".face"))
+                applied.append("face")
+            except OSError:
+                pass
+        try:
+            icons = os.path.join(as_dir, "icons")
+            os.makedirs(icons, exist_ok=True)
+            dst = os.path.join(icons, linuxuser)
+            shutil.copyfile(av, dst)
+            _set_as_icon(as_dir, linuxuser, dst, info["fullName"])
+            applied.append("accountsservice")
+        except OSError:
+            pass
+
+    if info["fullName"]:
+        # GECOS full name via chfn (root); non-fatal if unavailable.
+        r = subprocess.run(["chfn", "-f", info["fullName"], linuxuser],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            applied.append("fullname")
+
+    print(json.dumps({"applied": applied, "username": info["username"],
+                      "fullName": info["fullName"], "avatar": av}, indent=2))
+    return 0
+
+
+def main(argv):
+    args = argv[1:]
+    if args and args[0] == "scan":
+        rest = args[1:]
+        user = rest[0] if rest else (_users()[0] if _users() else "")
+        print(json.dumps(scan_user(user), indent=2))
+        return 0
+    if len(args) >= 3 and args[0] == "apply":
+        return cmd_apply(args[1], args[2])
+    print("usage: wootc-identity scan [winuser] | apply <winuser> <linuxuser>", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
