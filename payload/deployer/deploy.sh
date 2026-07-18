@@ -391,37 +391,40 @@ ensure_ntfs_support() {
         log "Image already has an NTFS driver (ntfs3 or ntfs-3g)."
         return 0
     fi
-    # Past this point the image provably CANNOT mount NTFS, so Phase-2 would
-    # boot into an emergency shell. Every failure below is therefore fatal:
-    # silently deploying the un-injected image reintroduces the exact bug this
-    # function exists to prevent, and the user only finds out at boot.
+    # NOTE: the capability check above is NOT authoritative. It looks for an
+    # ntfs3.ko and an ntfs-3g binary, but a kernel with CONFIG_NTFS3=y (built
+    # in, no module file) mounts ntfs3 fine and shows neither. Evidence: a run
+    # where this injection FAILED still booted Phase-2 successfully, so the
+    # image could mount NTFS all along. Treat injection as best-effort belt —
+    # the braces are the hook's runtime ntfs3 -> ntfs-3g fallback plus the
+    # loop-attach guard. Making these failures fatal broke deploys that worked.
     log "No NTFS driver in ${IMAGE}; injecting ntfs-3g (persisted layer)…"
     local cid derived="localhost/wootc-ntfs-injected:latest"
     cid=$(podman run -d "$IMAGE" sh -c \
         'dnf install -y ntfs-3g || microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g') \
-        || { err "  [FAIL] could not start the ntfs-3g injection container — Phase-2 could not mount NTFS"; exit 1; }
+        || { err "  [WARN] could not start the ntfs-3g injection container (podman -d unavailable in the initramfs); relying on the image's own NTFS support"; return 1; }
     if [[ "$(podman wait "$cid" 2>/dev/null)" != "0" ]]; then
-        err "  [FAIL] ntfs-3g install failed in ${IMAGE} (network/repo?) — Phase-2 could not mount NTFS"
+        err "  [WARN] ntfs-3g install failed in ${IMAGE} (network/repo?); relying on the image's own NTFS support"
         podman logs "$cid" 2>&1 | tail -15 >&2 || true
         podman rm -f "$cid" >/dev/null 2>&1 || true
-        exit 1
+        return 1
     fi
     if ! podman commit -q "$cid" "$derived" >/dev/null 2>&1; then
-        err "  [FAIL] could not commit the NTFS-injected image (disk space?) — refusing to deploy an image that cannot mount NTFS"
+        err "  [WARN] could not commit the NTFS-injected image (disk space?); deploying the original"
         podman rm -f "$cid" >/dev/null 2>&1 || true
-        exit 1
+        return 1
     fi
     podman rm -f "$cid" >/dev/null 2>&1 || true
     IMAGE="$derived"
     log "  [PASS] injected ntfs-3g; deploying ${IMAGE}"
     # Prove it actually landed rather than trusting the commit.
     if ! podman run --rm "$IMAGE" sh -c 'command -v ntfs-3g >/dev/null'; then
-        err "  [FAIL] ntfs-3g still absent from ${IMAGE} after injection"
-        exit 1
+        err "  [WARN] ntfs-3g still absent from ${IMAGE} after injection"
+        return 1
     fi
     log "  [PASS] verified ntfs-3g present in the deployed image"
 }
-ensure_ntfs_support
+ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NTFS support"
 
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
