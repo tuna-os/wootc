@@ -127,38 +127,143 @@ cmd_check() {
     return $ok
 }
 
-# ── migrate (GUARDED STUB) ──────────────────────────────────────────────────
+# ── disk layout discovery ────────────────────────────────────────────────────
+# Populate DISK (whole device with Windows), ESP_DEV, NTFS_DEV. On a Phase-2
+# system root is /dev/nbdNpM (a loopback of root.disk inside the NTFS), so the
+# real disk is found via the host ESP UUID recorded at deploy time. Test hooks:
+# WOOTC_GN_DISK / WOOTC_GN_ESP / WOOTC_GN_NTFS bypass the probing.
+DISK=""; ESP_DEV=""; NTFS_DEV=""
+discover_layout() {
+    DISK="${WOOTC_GN_DISK:-}"; ESP_DEV="${WOOTC_GN_ESP:-}"; NTFS_DEV="${WOOTC_GN_NTFS:-}"
+    if [[ -z "$ESP_DEV" && -r "$HOSTCONF" ]]; then
+        local uuid; uuid=$(grep -oP 'HOST_ESP_UUID=\K.*' "$HOSTCONF" 2>/dev/null || true)
+        [[ -n "$uuid" ]] && ESP_DEV=$(blkid -U "$uuid" 2>/dev/null || true)
+    fi
+    [[ -n "$DISK" || -z "$ESP_DEV" ]] || DISK="/dev/$(lsblk -no PKNAME "$ESP_DEV" 2>/dev/null | head -1)"
+    if [[ -z "$NTFS_DEV" && -n "$DISK" ]]; then
+        # The largest NTFS partition on that disk is where root.disk lives.
+        NTFS_DEV=$(lsblk -bnro PATH,FSTYPE,SIZE "$DISK" 2>/dev/null \
+            | awk '$2=="ntfs"||$2=="ntfs3"{print $3, $1}' | sort -nr | head -1 | awk '{print $2}')
+    fi
+    [[ -n "$DISK" && -n "$NTFS_DEV" ]]
+}
+
+# next_partnum — the next free partition number on DISK.
+next_partnum() {
+    local n; n=$(lsblk -nro NAME "$DISK" 2>/dev/null | grep -oE '[0-9]+$' | sort -n | tail -1)
+    echo $(( ${n:-0} + 1 ))
+}
+
+# graduate_plan — the exact command sequence to move onto a native partition
+# while keeping Windows (reversible). Printed for review; run only with execute.
+graduate_plan() {
+    local shrink_gib="${WOOTC_GN_SHRINK_GIB:-0}" newpart="${DISK}$(next_partnum)"
+    local localref="containers-storage:$(bootc_local_imgref)"
+    cat <<PLAN
+Graduate to native (dual-boot — Windows stays, fully reversible)
+Disk: $DISK   Windows NTFS: $NTFS_DEV   ESP: $ESP_DEV
+New native partition: $newpart
+
+Commands (each verified before the next):
+  1. Snapshot for rollback:
+       btrfs subvolume snapshot -r / /.wootc-prenative   (or: bootc rollback point)
+  2. Make room by shrinking Windows (only if no free tail space):
+       ntfsresize --info $NTFS_DEV        # confirm shrinkable
+       ntfsresize --size -${shrink_gib}Gi $NTFS_DEV
+       sfdisk -N <win#> $DISK             # shrink the partition entry to match
+  3. Create + format the native partition:
+       sfdisk --append $DISK  <<< 'type=linux'      # → $newpart
+       mkfs.xfs -f $newpart
+  4. Install the OS onto it from the ALREADY-LOCAL image (no download):
+       mount $newpart /mnt/native
+       bootc install to-filesystem --source-imgref $localref \\
+           --acknowledge-destructive --generic-image \\
+           --karg rw --root-mount-spec UUID=<new> /mnt/native
+  5. Migrate your data off root.disk:
+       rsync -aHAX --info=progress2 /home/ /mnt/native/home/
+  6. Point the boot default at the native partition (bootupd owns the ESP):
+       bootupctl backend generate-update-metadata /mnt/native
+       efibootmgr -c -d $DISK -p 1 -L 'TunaOS' -l '\\EFI\\almalinux\\shimx64.efi'
+       efibootmgr -o <native>,<windows>          # native first, Windows kept
+  7. Reboot. You are now on the native partition; root.disk + Windows remain
+     for rollback until you run 'migrate --reclaim'.
+PLAN
+}
+
+# reclaim_plan — stage 6, printed only when data-is-native preconditions hold.
+reclaim_plan() {
+    cat <<PLAN
+Remove Windows and reclaim its space (IRREVERSIBLE)
+Disk: $DISK   deleting: $NTFS_DEV (Windows) + root.disk inside it
+
+Commands:
+  1. Refuse unless already running native (not from root.disk) AND every used
+     folder is converted (see 'check').
+  2. Delete the Windows partition:  sfdisk --delete $DISK <win#>
+  3. Grow the native partition into the freed space:
+       growpart $DISK <native#>  &&  xfs_growfs /
+  4. Remove the Windows Boot Manager entry:  efibootmgr -Bb <windows>
+PLAN
+}
+
+# bootc_local_imgref — the image ref already in local container/ostree storage
+# (so the graduate reuses it with no network). Best-effort discovery.
+bootc_local_imgref() {
+    bootc status --json 2>/dev/null | grep -oP '"image":\s*"\K[^"]+' | head -1 \
+        || echo "ghcr.io/tuna-os/yellowfin:gnome"
+}
+
+# ── migrate ──────────────────────────────────────────────────────────────────
+# Default is a DRY RUN: print the exact command plan and stop. Real execution
+# is gated behind --execute + WOOTC_GN_ALLOW_DESTRUCTIVE=1 + preconditions and
+# is intentionally not enabled until validated against a booted Phase-2 system
+# (rung 3): a repartition bug must never run blind against a user's disk.
 cmd_migrate() {
-    local mode=""
+    local mode="" execute=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --dual-boot) mode="dual-boot" ;;
             --reclaim)   mode="reclaim" ;;
-            --i-understand) : ;;   # reserved: real run will require this
+            --execute|--i-understand) execute=true ;;
             *) die "unknown migrate arg: $1" ;;
         esac
         shift
     done
     [[ -n "$mode" ]] || die "choose --dual-boot (keep Windows) or --reclaim (delete Windows)"
 
-    # HARD GUARD. The destructive repartition/grow/boot-reswap path is not
-    # enabled until it has been exercised on a booted Phase-2 system (rung 3).
-    # Enabling it blind would risk the user's disk on unverified code.
+    if ! discover_layout; then
+        die "could not locate the Windows disk/NTFS (need $HOSTCONF or WOOTC_GN_DISK/NTFS)"
+    fi
+
+    # Reclaim's hard data-safety gate: never delete Windows while data still
+    # lives only there. Running native + converted folders are preconditions.
+    if [[ "$mode" == "reclaim" ]]; then
+        if on_loopback; then
+            die "refusing --reclaim: still running from root.disk. Run --dual-boot and reboot native first."
+        fi
+        [[ "$(converted_folders | wc -l)" -gt 0 ]] \
+            || die "refusing --reclaim: no folders verified native (see 'check'). Convert your data first."
+    fi
+
+    echo "── DRY RUN ─────────────────────────────────────────────────────────"
+    [[ "$mode" == "dual-boot" ]] && graduate_plan || reclaim_plan
+    echo "────────────────────────────────────────────────────────────────────"
+
+    if [[ "$execute" != true ]]; then
+        echo "Dry run only. Re-run with --execute to perform these steps."
+        return 0
+    fi
     if [[ "${WOOTC_GN_ALLOW_DESTRUCTIVE:-0}" != "1" ]]; then
         cat >&2 <<EOF
-[wootc-go-native] '$mode' migration is not enabled in this build.
+[wootc-go-native] --execute is held back in this build.
 
-The analysis is ready (see 'plan' / 'check'), but the disk-modifying steps
-(delete Windows partition, grow Linux, reswap the bootloader) are intentionally
-held back until they are proven end-to-end against a booted Phase-2 system on
-real hardware (verification ladder rung 3). This guard prevents an unverified
-repartition from ever running against your data.
-
-Track: https://github.com/tuna-os/wootc  (Phase 3 stage 5-6)
+The plan above is real, but the disk-modifying steps are not enabled until they
+are proven end-to-end against a booted Phase-2 system (verification ladder
+rung 3). Set WOOTC_GN_ALLOW_DESTRUCTIVE=1 only in that validated test harness.
 EOF
         exit 3
     fi
-    die "destructive migration path not yet implemented (guard override set, but stage 5-6 is still a stub)"
+    die "execution path pending live rung-3 validation (guard override set)"
 }
 
 case "${1:-plan}" in
