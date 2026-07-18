@@ -17,12 +17,24 @@ param(
     # so the loop file must hold extracted image (~10 GB for yellowfin:gnome)
     # + blob scratch + filesystem overhead. 10 GB ENOSPC'd during the pull.
     [int]$DiskSizeGB = 25,
+    # Phase-2 bootloader the deployer installs: "grub2" (Enterprise Linux) or
+    # "systemd" (Fedora/Arch/Debian, and required by composefs images). Passed
+    # to the deployer as wootc.bootloader=; run-e2e.sh derives it from the image.
+    [ValidateSet("grub2", "systemd")]
+    [string]$Bootloader = "grub2",
+    # composefs-backed images require systemd-boot; adds wootc.composefs=1.
+    [switch]$ComposeFs,
     # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
     # makes setup self-contained and avoids requiring SMB/WinRM to be ready.
     [string]$PayloadDir = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+# Extra deployer kargs for the bootloader/composefs axes of the test matrix.
+# grub2 + no composefs reproduces the historical default exactly.
+$WootcKargs = "wootc.bootloader=$Bootloader"
+if ($ComposeFs) { $WootcKargs += " wootc.composefs=1" }
 $wootcDir = "C:\wootc"
 $installDir = "$wootcDir\install"
 $disksDir = "$wootcDir\disks"
@@ -160,12 +172,12 @@ $grubInstallLines = @(
     'set timeout=5'
     ''
     'menuentry "Install wootc (automatic)" {'
-    "    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname quiet"
+    "    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname $WootcKargs quiet"
     '    initrd /wootc/install/deployer-initramfs.img'
     '}'
     ''
     'menuentry "Install wootc (debug)" {'
-    "    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname wootc.debug"
+    "    linux /wootc/install/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname $WootcKargs wootc.debug"
     '    initrd /wootc/install/deployer-initramfs.img'
     '}'
 )
@@ -256,12 +268,12 @@ $grubCfgLines = @(
     'set timeout=5',
     '',
     'menuentry "Install wootc (automatic)" {',
-    "    linux /EFI/wootc/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname quiet console=ttyS0",
+    "    linux /EFI/wootc/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname $WootcKargs quiet console=ttyS0",
     '    initrd /EFI/wootc/deployer-initramfs.img',
     '}',
     '',
     'menuentry "Install wootc (debug)" {',
-    "    linux /EFI/wootc/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname wootc.debug console=ttyS0",
+    "    linux /EFI/wootc/deployer-vmlinuz wootc.image=$ImageRef wootc.hostname=$Hostname $WootcKargs wootc.debug console=ttyS0",
     '    initrd /EFI/wootc/deployer-initramfs.img',
     '}'
 )

@@ -528,6 +528,32 @@ cp "$SCRIPT_DIR/wootc-files/grubx64.efi" "$OEM_PAYLOAD/grubx64.efi"
 cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
 cp "$SCRIPT_DIR/qga.py" "$OEM_DIR/qga.py"
 
+# Deployer axes for the test matrix: choose the Phase-2 bootloader (and
+# composefs backend) for this image so the E2E covers the gamut of bootc
+# desktop images, not just yellowfin/grub2. Enterprise Linux (yellowfin/EL)
+# installs grub2; the Wayland families (Fedora/Arch/Debian — bonito, marlin,
+# flounder) ship composefs + systemd-boot. run-wootc-e2e.ps1 reads this file
+# and passes it to setup-wootc.ps1; a missing file falls back to grub2 yellowfin.
+# Override per run with WOOTC_E2E_BOOTLOADER=grub2|systemd and WOOTC_E2E_COMPOSEFS=0|1.
+E2E_BOOTLOADER="${WOOTC_E2E_BOOTLOADER:-}"
+E2E_COMPOSEFS="${WOOTC_E2E_COMPOSEFS:-}"
+if [ -z "$E2E_BOOTLOADER" ]; then
+    case "$IMAGE_REF" in
+        *yellowfin*|*/el10*|*/el9*|*enterprise*) E2E_BOOTLOADER=grub2 ;;
+        *)                                       E2E_BOOTLOADER=systemd ;;
+    esac
+fi
+if [ -z "$E2E_COMPOSEFS" ]; then
+    if [ "$E2E_BOOTLOADER" = systemd ]; then E2E_COMPOSEFS=1; else E2E_COMPOSEFS=0; fi
+fi
+{
+    printf 'ImageRef=%s\n'   "$IMAGE_REF"
+    printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
+    printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
+} > "$OEM_DIR/wootc-config.txt"
+printf '[INFO] Deployer config: image=%s bootloader=%s composefs=%s\n' \
+    "$IMAGE_REF" "$E2E_BOOTLOADER" "$E2E_COMPOSEFS" >&2
+
 # ── Step 1: Check prerequisites ──────────────────────────────────────────────
 step "Checking prerequisites..."
 

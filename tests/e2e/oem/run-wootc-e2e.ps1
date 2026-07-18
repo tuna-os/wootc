@@ -41,11 +41,26 @@ try {
     Write-E2ELog "Starting local OEM setup"
 
     Write-E2ELog "Invoking setup-wootc payload"
-    & "$oemDir\setup-wootc.ps1" `
-        -ImageRef "ghcr.io/tuna-os/yellowfin:gnome" `
-        -Hostname "wootc-test" `
-        -PayloadDir "$oemDir\payload" *>&1 |
-        Tee-Object -FilePath $logPath -Append
+    # Deployer config (image / bootloader / composefs) is written into C:\OEM by
+    # run-e2e.sh so the test matrix can drive every bootc base and both
+    # bootloaders. Absent the file, fall back to the historical grub2 yellowfin
+    # default so a bare run is unchanged.
+    $cfg = @{ ImageRef = "ghcr.io/tuna-os/yellowfin:gnome"; Bootloader = "grub2"; ComposeFs = "0" }
+    $cfgPath = Join-Path $oemDir "wootc-config.txt"
+    if (Test-Path $cfgPath) {
+        foreach ($line in Get-Content $cfgPath) {
+            if ($line -match '^\s*([^#=]+?)\s*=\s*(.*?)\s*$') { $cfg[$Matches[1]] = $Matches[2] }
+        }
+    }
+    Write-E2ELog ("Deployer config: image={0} bootloader={1} composefs={2}" -f $cfg.ImageRef, $cfg.Bootloader, $cfg.ComposeFs)
+    $setupArgs = @{
+        ImageRef   = $cfg.ImageRef
+        Hostname   = "wootc-test"
+        Bootloader = $cfg.Bootloader
+        PayloadDir = "$oemDir\payload"
+    }
+    if ($cfg.ComposeFs -eq "1") { $setupArgs.ComposeFs = $true }
+    & "$oemDir\setup-wootc.ps1" @setupArgs *>&1 | Tee-Object -FilePath $logPath -Append
 
     "ok" | Set-Content -Path $completePath -Encoding ASCII
     Write-E2ELog "Setup complete; waiting for host snapshot acknowledgement"
