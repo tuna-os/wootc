@@ -591,7 +591,7 @@ if [ "$SKIP_INSTALL" = false ]; then
     # changes are safe on a reused guest because qga_sync_oem refreshes them
     # before each retry; including them here would falsely require a complete
     # Windows reinstall for every deployer or QGA client change.
-    ANSWER_SHA=$( { sha256sum "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
+    ANSWER_SHA=$( { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         info "answer file / Windows version changed; rebuilding Dockur's processed installer ISO"
@@ -622,7 +622,7 @@ if [ "$SKIP_INSTALL" = false ]; then
         info "No cached Windows ISO; Dockur will download one. Save a verified installer under $ISO_CACHE_DIR to avoid this next time."
     fi
 else
-    ANSWER_SHA=$( { sha256sum "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
+    ANSWER_SHA=$( { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
         fail "Windows case (answer file / version) changed since this disk was prepared; rerun without --skip-install"
