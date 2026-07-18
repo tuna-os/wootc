@@ -220,8 +220,36 @@ capture_vm_diagnostics() {
 # mount. Snapshot it into the test directory so every subsequent assertion can
 # inspect the same host-side file without relying on guest networking.
 SERIAL_SOURCE="/run/shm/qemu.pty"
+# snapshot_serial — copy the guest serial log out of the container.
+#
+# This used to be a bare `cp ... 2>&1` whose failure every caller swallowed with
+# `|| true`. When the in-container source disappeared, the copy failed silently
+# and the harness went on reading the STALE host-side copy from a previous
+# snapshot — forever. Observed on dilli: the host qemu.pty sat frozen at 7190
+# bytes for two hours while the deploy loop polled it for markers that could
+# never arrive, and the "PTY not found" guard passed because the stale file
+# existed on disk.
+#
+# Staleness is indistinguishable from "the guest is quiet" if we only look at
+# the file, so track copy failures explicitly and warn once the source has been
+# unreadable for a sustained period. A dead serial feed must be loud: it means
+# every subsequent observation in the run is meaningless.
+SERIAL_FAIL_COUNT=0
+SERIAL_WARNED=false
 snapshot_serial() {
-    $DOCKER cp "$CONTAINER_NAME:$SERIAL_SOURCE" "$PTY" >/dev/null 2>&1
+    if $DOCKER cp "$CONTAINER_NAME:$SERIAL_SOURCE" "$PTY" >/dev/null 2>&1; then
+        SERIAL_FAIL_COUNT=0
+        return 0
+    fi
+    SERIAL_FAIL_COUNT=$((SERIAL_FAIL_COUNT + 1))
+    # ~12 consecutive failures ≈ 1 minute of polling at the 5s cadence.
+    if [ "$SERIAL_FAIL_COUNT" -ge 12 ] && [ "$SERIAL_WARNED" = false ]; then
+        SERIAL_WARNED=true
+        warn "serial feed is DEAD: cannot read $SERIAL_SOURCE from $CONTAINER_NAME for $((SERIAL_FAIL_COUNT * 5))s."
+        warn "  The host copy $PTY is now STALE (last change: $(stat -c%y "$PTY" 2>/dev/null || echo unknown))."
+        warn "  Every serial-derived check from here on is reading frozen data and cannot be trusted."
+    fi
+    return 1
 }
 
 # Detect podman vs docker
@@ -984,12 +1012,20 @@ PTY="$STORAGE_DIR/qemu.pty"
 # Wait for Dockur's serial capture to appear and create the first local
 # snapshot. `qemu.pty` contains control bytes and does not reliably add a
 # newline per serial write, so all offsets below are bytes rather than lines.
+#
+# Delete any prior copy FIRST. The `-f "$PTY"` guard below only proves a file
+# exists, not that it came from this run — a leftover from a previous run
+# satisfies it just as well, and the harness then spends the whole run reading
+# another run's serial output. reset_oem_attempt() removes it, but that only
+# runs on --skip-install, so the common path was unprotected.
+rm -f "$PTY"
+
 for i in $(seq 1 30); do
     snapshot_serial && [ -f "$PTY" ] && break
     sleep 5
 done
 
-[ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY"; exit 1; }
+[ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY (no serial feed from $CONTAINER_NAME:$SERIAL_SOURCE)"; exit 1; }
 LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 
 while ! past_deadline "$DEPLOY_DEADLINE"; do
