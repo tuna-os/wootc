@@ -37,6 +37,11 @@ services:
       RAM_SIZE: "${WOOTC_E2E_RAM_SIZE:-8G}"
       DISK_SIZE: "80G"
       DISK_FMT: "qcow2"
+      # Optional spare disk for the Phase-3 graduate-to-native target (rung 3).
+      # Empty by default; the rung-3 harness sets WOOTC_E2E_DISK2_SIZE=40G so the
+      # guest gets a blank second drive that `wootc-go-native migrate --to-disk`
+      # installs onto — no shrink of the running NTFS required.
+      DISK2_SIZE: "${WOOTC_E2E_DISK2_SIZE:-}"
       BOOT_MODE: "windows_secure"   # UEFI + Secure Boot
       TPM: "Y"                      # Windows 11 setup requires TPM 2.0
       MANUAL: "N"                   # Fully unattended install

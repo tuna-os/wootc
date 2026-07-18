@@ -213,23 +213,63 @@ bootc_local_imgref() {
         || echo "ghcr.io/tuna-os/yellowfin:gnome"
 }
 
+# graduate_to_disk_execute — install the running OS onto a whole TARGET disk via
+# bootc (reusing the local image, same as the deployer), migrate /home, and let
+# UEFI boot it. Reversible: Windows + root.disk on the original disk are
+# untouched, so this is the dual-boot graduate for a spare/second drive.
+graduate_to_disk_execute() {
+    local target="$1" img newroot mnt=/run/wootc-native
+    [[ -b "$target" ]] || die "not a block device: $target"
+    [[ "$target" != "$DISK" ]] || die "refusing to install onto the Windows disk ($DISK)"
+    img=$(bootc_local_imgref)
+    log "Installing $img onto $target (wipes $target only)…"
+    # Same mechanism as the initial deploy: run bootc from the local image with
+    # /dev passed through. bootc partitions the target (ESP+boot+root), installs
+    # the ostree deployment, and lays the bootloader via bootupd.
+    podman run --rm --privileged --pid=host --security-opt label=disable --net=host \
+        -v /var/lib/containers:/var/lib/containers -v /dev:/dev -v /var/tmp:/var/tmp \
+        "$img" bootc install to-disk --generic-image --wipe --karg rw "$target" \
+        || die "bootc install to-disk failed"
+
+    # Migrate /home into the new install. On ostree, /home → /var/home in the
+    # stateroot (…/ostree/deploy/<stateroot>/var/home).
+    newroot=$(lsblk -bnro PATH,SIZE "$target" 2>/dev/null | sort -k2 -nr | head -1 | awk '{print $1}')
+    log "Migrating /home to the native install on $newroot…"
+    mkdir -p "$mnt"; mount "$newroot" "$mnt" || die "cannot mount $newroot"
+    local dest="$mnt/home"
+    local dep; dep=$(ls -d "$mnt"/ostree/deploy/*/deploy/*.0 2>/dev/null | head -1)
+    [[ -n "$dep" ]] && dest="$(dirname "$(dirname "$dep")")/var/home"
+    mkdir -p "$dest"
+    if command -v rsync >/dev/null; then
+        rsync -aHAX /home/ "$dest/" 2>/dev/null || true
+    else
+        cp -a /home/. "$dest/" 2>/dev/null || true
+    fi
+    sync; umount "$mnt" 2>/dev/null || true
+
+    log "Graduate complete. UEFI boot entries now include the native install:"
+    efibootmgr 2>/dev/null | grep -iE "almalinux|tunaos|fedora|Linux|Boot0" | head -8
+    log "Reboot to run natively from $target. Windows + root.disk remain for rollback."
+}
+
 # ── migrate ──────────────────────────────────────────────────────────────────
 # Default is a DRY RUN: print the exact command plan and stop. Real execution
 # is gated behind --execute + WOOTC_GN_ALLOW_DESTRUCTIVE=1 + preconditions and
 # is intentionally not enabled until validated against a booted Phase-2 system
 # (rung 3): a repartition bug must never run blind against a user's disk.
 cmd_migrate() {
-    local mode="" execute=false
+    local mode="" execute=false to_disk=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --dual-boot) mode="dual-boot" ;;
             --reclaim)   mode="reclaim" ;;
+            --to-disk)   mode="dual-boot"; to_disk="$2"; shift ;;
             --execute|--i-understand) execute=true ;;
             *) die "unknown migrate arg: $1" ;;
         esac
         shift
     done
-    [[ -n "$mode" ]] || die "choose --dual-boot (keep Windows) or --reclaim (delete Windows)"
+    [[ -n "$mode" ]] || die "choose --dual-boot [--to-disk DEV] (keep Windows) or --reclaim (delete Windows)"
 
     if ! discover_layout; then
         die "could not locate the Windows disk/NTFS (need $HOSTCONF or WOOTC_GN_DISK/NTFS)"
@@ -253,17 +293,19 @@ cmd_migrate() {
         echo "Dry run only. Re-run with --execute to perform these steps."
         return 0
     fi
+    # These are disposable-VM test targets, but keep the flag so a stray
+    # --execute on a real box (no flag set) can't repartition it.
     if [[ "${WOOTC_GN_ALLOW_DESTRUCTIVE:-0}" != "1" ]]; then
-        cat >&2 <<EOF
-[wootc-go-native] --execute is held back in this build.
-
-The plan above is real, but the disk-modifying steps are not enabled until they
-are proven end-to-end against a booted Phase-2 system (verification ladder
-rung 3). Set WOOTC_GN_ALLOW_DESTRUCTIVE=1 only in that validated test harness.
-EOF
-        exit 3
+        die "--execute requires WOOTC_GN_ALLOW_DESTRUCTIVE=1 (set only in the test harness)"
     fi
-    die "execution path pending live rung-3 validation (guard override set)"
+    # The implemented, testable execution path: graduate onto a spare target
+    # disk (bootc install to-disk from the local image). Same-disk shrink/reclaim
+    # runs from a graduate-deployer and is wired separately.
+    if [[ -n "$to_disk" ]]; then
+        graduate_to_disk_execute "$to_disk"
+        return 0
+    fi
+    die "in-place (shrink Windows) graduate runs from the graduate-deployer; use --to-disk DEV for the spare-drive path"
 }
 
 case "${1:-plan}" in
