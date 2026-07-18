@@ -28,14 +28,32 @@ PERSIST_LOG=""
 # Write through /dev/kmsg when available: stdout of a sourced initqueue hook
 # lands in the journal but is not reliably forwarded to the serial console,
 # which made several failures invisible to the E2E monitor.
+# Write through /dev/kmsg when available: stdout of a sourced initqueue hook
+# lands in the journal but is not reliably forwarded to the serial console,
+# which made several failures invisible to the E2E monitor.
+#
+# Two things the kmsg write MUST get right, both learned the hard way when the
+# initramfs-guard line below never reached the E2E log:
+#   1. Emit an explicit <N> priority. A kmsg line with no <N> prefix inherits
+#      the kernel default level, so whether it reaches the console depends on
+#      console_loglevel — which varies by Phase-2 boot path (the GRUB path adds
+#      ignore_loglevel, the BLS path does not). <27> is KERN_ERR (level 3),
+#      below any plausible threshold, so it always prints.
+#   2. Also write to /dev/console, which bypasses printk filtering altogether.
+#      Under `quiet` (console_loglevel=4) printk prints only levels STRICTLY
+#      BELOW 4, so even KERN_WARNING is dropped — /dev/console is the only
+#      threshold-independent path, and is how systemd's "Entering emergency
+#      mode" reaches serial.
 log() {
     printf '\033[1;32m[wootc]\033[0m %s\n' "$*"
-    printf '[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    printf '<27>[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    printf '[wootc] %s\n' "$*" > /dev/console 2>/dev/null || true
     [ -z "$PERSIST_LOG" ] || printf '%s [wootc] %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 err() {
     printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2
-    printf '[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    printf '<27>[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    printf '[wootc] ERROR: %s\n' "$*" > /dev/console 2>/dev/null || true
     [ -z "$PERSIST_LOG" ] || printf '%s [wootc] ERROR: %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 # Current phase, read by the heartbeat and useful over QGA.

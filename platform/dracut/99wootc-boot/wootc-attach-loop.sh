@@ -12,18 +12,55 @@
 
 command -v getarg >/dev/null || . /lib/dracut-lib.sh
 
+# say() — logging that is actually VISIBLE on the serial console.
+#
+# Do NOT use dracut's info()/warn() for anything we need to diagnose a failed
+# boot. Both go through printk and are silently filtered:
+#   info() writes <30> (KERN_INFO, level 6) and only echoes to stderr when
+#     DRACUT_QUIET != yes — and check_quiet() defaults DRACUT_QUIET to "yes"
+#     unless rd.info/rd.debug is on the cmdline;
+#   warn() writes <28> (KERN_WARNING, level 4), and `quiet` sets
+#     console_loglevel=4 while printk prints only levels STRICTLY BELOW it —
+#     so warn is suppressed too.
+# The Phase-2 cmdline also differs by boot path (the GRUB path adds
+# ignore_loglevel, the BLS path does not), so the printk threshold is not
+# something we can rely on. Writing straight to /dev/console bypasses printk
+# filtering entirely — this is how systemd's "Entering emergency mode" reaches
+# the serial log, the one Phase-2 line we ever actually saw.
+# We ALSO emit at <27> (KERN_ERR, level 3) so the line lands in the journal and
+# survives below any plausible console_loglevel.
+say() {
+    echo "wootc: $*" > /dev/console 2>/dev/null || true
+    echo "<27>wootc: $*" > /dev/kmsg 2>/dev/null || true
+}
+
+# Every early return below is a distinct diagnosis. Previously they were all
+# silent `return 0`, which made "hook absent", "hook exited early" and "hook ran
+# but its output was filtered" indistinguishable from the serial log — each
+# costing a full VM run to tell apart. Announce entry and every exit reason.
+say "attach-loop hook entered (initqueue/settled)"
+
 [ -e /run/wootc-loop-attached ] && return 0
 
-LOOP_PATH=$(getarg loop=) || return 0
-HOST_UUID=$(getarg wootc.host_uuid=) || return 0
-[ -n "$LOOP_PATH" ] && [ -n "$HOST_UUID" ] || return 0
+LOOP_PATH=$(getarg loop=)
+HOST_UUID=$(getarg wootc.host_uuid=)
+if [ -z "$LOOP_PATH" ] || [ -z "$HOST_UUID" ]; then
+    say "EXIT: missing kernel args (loop='${LOOP_PATH}' wootc.host_uuid='${HOST_UUID}') — the BLS entry/grub.cfg did not carry them"
+    return 0
+fi
 
 modprobe ntfs3 2>/dev/null   # kernel driver, if the target ships it
 modprobe fuse  2>/dev/null   # for the ntfs-3g userspace fallback
 modprobe nbd nbds_max=4 max_part=16 2>/dev/null
 
 HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
-[ -b "$HOST_DEV" ] || return 0
+if [ ! -b "$HOST_DEV" ]; then
+    # Not necessarily fatal: initqueue hooks re-run until the queue drains, so
+    # the host partition may simply not have shown up to udev yet. But if this
+    # is the LAST thing in the log, the device never appeared at all.
+    say "waiting: host NTFS $HOST_DEV not present yet (initqueue will retry)"
+    return 0
+fi
 
 HOST_MNT="/run/initramfs/wootc-host"
 mkdir -p "$HOST_MNT"
@@ -58,24 +95,32 @@ mount_host() {
 
 if ! mountpoint -q "$HOST_MNT"; then
     if ! mount_host; then
-        warn "wootc: cannot mount host NTFS rw (no ntfs3 and no ntfs-3g). Dirty volume? Boot Windows once and full-shutdown; and ensure the image has an NTFS driver."
+        say "EXIT: cannot mount host NTFS rw (no ntfs3, no ntfs-3g). Dirty volume? Boot Windows once and full-shutdown; and ensure the image has an NTFS driver. /proc/filesystems ntfs3=$(grep -cw ntfs3 /proc/filesystems 2>/dev/null) ntfs-3g=$(command -v ntfs-3g >/dev/null 2>&1 && echo yes || echo no)"
         return 0
     fi
 fi
+say "host NTFS mounted via ${NTFS_DRIVER:-unknown}"
 
 FULL_LOOP_PATH="$HOST_MNT/${LOOP_PATH#/}"
 if [ ! -f "$FULL_LOOP_PATH" ]; then
-    warn "wootc: root.vhdx not found at $FULL_LOOP_PATH"
+    say "EXIT: root.vhdx not found at $FULL_LOOP_PATH (host NTFS mounted OK, so the path or the deploy is wrong)"
     return 0
 fi
 
 # VHDX must be attached by a format-aware block driver. qemu-nbd exposes it
 # as a partitioned block device while preserving its metadata log semantics.
 LOOP_DEV=/dev/nbd0
-qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$FULL_LOOP_PATH" || return 0
+if ! qemu-nbd --connect "$LOOP_DEV" --format=vhdx "$FULL_LOOP_PATH"; then
+    say "EXIT: qemu-nbd failed to attach $FULL_LOOP_PATH as $LOOP_DEV (nbd module loaded=$(grep -cw nbd /proc/modules 2>/dev/null), qemu-nbd=$(command -v qemu-nbd >/dev/null 2>&1 && echo yes || echo no))"
+    return 0
+fi
 blockdev --setra 2048 "$LOOP_DEV" 2>/dev/null
 
 : > /run/wootc-loop-attached
-info "wootc: host NTFS mounted via ${NTFS_DRIVER:-unknown} (/proc/filesystems ntfs3: $(grep -cw ntfs3 /proc/filesystems 2>/dev/null))"
-info "wootc: attached dynamic VHDX $FULL_LOOP_PATH as $LOOP_DEV (partitions scanned)"
+say "attached dynamic VHDX $FULL_LOOP_PATH as $LOOP_DEV"
+# The whole point of the attach: the root partition's UUID must now appear to
+# udev, or sysroot.mount still fails and we land in the emergency shell with the
+# attach looking successful. Report what actually showed up.
+say "post-attach partitions: $(ls /dev/nbd0p* 2>/dev/null | tr '\n' ' ')"
+say "post-attach by-uuid: $(ls /dev/disk/by-uuid/ 2>/dev/null | tr '\n' ' ')"
 return 0
