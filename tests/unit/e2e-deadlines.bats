@@ -65,6 +65,14 @@ setup() {
 
 @test "no wait loop is bound by a tick counter" {
     # `while [ $ELAPSED -lt $TIMEOUT ]` is the exact shape that caused the drift.
+    #
+    # This assertion was originally written case-SENSITIVE and so passed while
+    # three lowercase loops (qga_wait, qga_wait_windows) were still counter
+    # bound — a test that looked green while covering none of them. Match
+    # case-insensitively; a guard that only catches the naming convention you
+    # happened to think of is not a guard.
+    run grep -nEi 'while \[ "?\$[a-z_]*elapsed"? -lt' "$E2E"
+    [ "$status" -ne 0 ]
     run grep -nE 'while .*\$[A-Z_]*ELAPSED.*-lt.*\$[A-Z_]*TIMEOUT' "$E2E"
     [ "$status" -ne 0 ]
 }
@@ -73,7 +81,7 @@ setup() {
     # deploy, OEM barrier, Windows install, Phase-2 boot.
     local n
     n=$(grep -c 'while ! past_deadline' "$E2E")
-    [ "$n" -ge 4 ]
+    [ "$n" -ge 7 ]
 }
 
 @test "progress lines report real minutes against the real budget" {

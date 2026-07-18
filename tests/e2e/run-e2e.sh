@@ -297,7 +297,8 @@ qga_probe() {
 qga_wait() {
     local label="$1" timeout="$2" elapsed=0
     step "Waiting for QGA: $label..."
-    while [ "$elapsed" -lt "$timeout" ]; do
+    local deadline; deadline=$(deadline_in "$timeout")
+    while ! past_deadline "$deadline"; do
         if qga_probe; then
             pass "QGA available: $label"
             return 0
@@ -313,7 +314,8 @@ qga_wait() {
 qga_wait_down() {
     local label="$1" timeout="${2:-120}" elapsed=0
     info "Waiting for QGA to go away before $label..."
-    while [ "$elapsed" -lt "$timeout" ]; do
+    local deadline; deadline=$(deadline_in "$timeout")
+    while ! past_deadline "$deadline"; do
         if ! qga_probe; then
             return 0
         fi
@@ -340,14 +342,15 @@ qga_windows_probe() {
 qga_wait_windows() {
     local timeout="$1" elapsed=0
     step "Waiting for QGA: Windows guest..."
-    while [ "$elapsed" -lt "$timeout" ]; do
+    local deadline; deadline=$(deadline_in "$timeout")
+    while ! past_deadline "$deadline"; do
         if qga_windows_probe; then
             pass "QGA available: Windows guest"
             return 0
         fi
         sleep 10
         elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m)"
+        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m of $((timeout/60))m)"
     done
     fail "Windows QGA did not become available within $((timeout / 60)) minutes"
     return 1
