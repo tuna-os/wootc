@@ -1,0 +1,96 @@
+name: Release
+
+# E2E-GATED RELEASE. Tagging does not publish anything until a real Windows VM
+# has actually migrated to Linux and back on a hosted runner.
+#
+#   tag v* ──► tests (fast + integration) ──► E2E gate (real Windows VM)
+#                                                  │
+#                                          only if green ──► build + publish
+#
+# The gate calls the SAME reusable workflow the nightly canary runs, so the
+# thing being proven at release time is the thing proven every night. wootc
+# writes to a stranger's only computer — "the unit tests passed" is not a
+# sufficient bar to ship on.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      skip_e2e:
+        description: 'Emergency: publish WITHOUT the E2E gate (documents itself in the release notes)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  # ── 1. cheap signal first: never burn ~90 min of VM on a broken tree ───────
+  tests:
+    name: fast + integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23', cache: false }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq bats
+      - run: bash tests/run.sh fast
+      - run: bash tests/migration/test-bridge.sh
+
+  # ── 2. the gate: a real Windows VM migrates to Linux and back ─────────────
+  e2e-gate:
+    name: E2E gate (real Windows VM)
+    needs: tests
+    if: ${{ !inputs.skip_e2e }}
+    uses: ./.github/workflows/e2e-hosted.yml
+    with:
+      image: ghcr.io/tuna-os/yellowfin:gnome
+      win_version: '11'
+      bitlocker: 'off'
+
+  # ── 3. publish — only reachable when the gate passed (or was waived) ──────
+  publish:
+    name: build + publish
+    needs: [tests, e2e-gate]
+    if: ${{ always() && needs.tests.result == 'success' && (needs.e2e-gate.result == 'success' || inputs.skip_e2e) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.23', cache: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Build frontend + wootc.exe
+        run: |
+          cd app/frontend && npm ci && npm run build && cd ..
+          GOOS=windows GOARCH=amd64 go build -tags desktop,production \
+            -ldflags "-w -s" -o wootc.exe .
+          ls -lh wootc.exe
+
+      - name: Record what gated this build
+        run: |
+          {
+            echo "## wootc ${GITHUB_REF_NAME}"
+            echo
+            if [ "${{ inputs.skip_e2e }}" = "true" ]; then
+              echo "> ⚠️ **Published WITHOUT the E2E gate** (\`skip_e2e\`). Not verified"
+              echo "> against a real Windows VM."
+            else
+              echo "Gated on a full end-to-end run: a real Windows 11 VM installed"
+              echo "this build, booted natively into Linux from \`root.disk\`, and"
+              echo "returned to Windows cleanly."
+            fi
+            echo
+            echo "Walkthrough: https://tuna-os.github.io/wootc/e2e/latest/"
+          } > NOTES.md
+          cat NOTES.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: app/wootc.exe
+          body_path: NOTES.md
+          draft: false

@@ -1,0 +1,90 @@
+name: E2E (hosted KVM, reusable)
+
+# The single hosted-runner E2E definition, called by BOTH the nightly canary and
+# the release gate — so a release is gated on exactly the run that has been
+# proving itself every night, not a second, drifting copy.
+
+on:
+  workflow_call:
+    inputs:
+      image:       { type: string, default: 'ghcr.io/tuna-os/yellowfin:gnome' }
+      win_version: { type: string, default: '11' }
+      bitlocker:   { type: string, default: 'off' }
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330          # under the 6 h hard cap, with headroom
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+
+      - name: Confirm KVM is available
+        run: |
+          ls -l /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-kvm podman podman-compose python3-pip
+          pip install --quiet podman-compose || true
+          # let the unprivileged runner user open /dev/kvm
+          sudo usermod -aG kvm "$USER" || true
+          sudo chmod 0666 /dev/kvm
+          kvm-ok || true
+
+      - name: Reclaim disk (hosted runners ship ~30 GB of toolchains)
+        run: |
+          df -h / /mnt || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" \
+                      /usr/local/lib/node_modules /usr/share/swift || true
+          sudo apt-get clean
+          docker image prune -af 2>/dev/null || true
+          echo "--- after cleanup ---"; df -h / /mnt
+
+      - name: Put VM storage on /mnt (the only volume with room)
+        run: |
+          sudo mkdir -p /mnt/wootc-storage /mnt/wootc-iso
+          sudo chown -R "$USER" /mnt/wootc-storage /mnt/wootc-iso
+          rm -rf tests/e2e/storage tests/e2e/iso-cache
+          ln -s /mnt/wootc-storage tests/e2e/storage
+          ln -s /mnt/wootc-iso     tests/e2e/iso-cache
+          df -h /mnt
+
+      - name: Run the E2E (full Windows install — no persistence to skip)
+        env:
+          # 16 GB runner: leave headroom for podman + the deployer build.
+          WOOTC_E2E_RAM_SIZE: 6G
+          # 4 vCPU hosted runners are slower than the laptop runners;
+          # the laptops themselves hit the 45 min default on big images.
+          WOOTC_E2E_DEPLOY_TIMEOUT: '5400'   # 90 min
+          WOOTC_E2E_WIN_VERSION: ${{ inputs.win_version }}
+          WOOTC_E2E_BITLOCKER: ${{ inputs.bitlocker }}
+        run: |
+          cd tests/e2e
+          bash run-e2e.sh "${{ inputs.image }}"
+
+      - name: Collect evidence
+        if: always()
+        run: |
+          mkdir -p /tmp/evidence
+          cp -r tests/e2e/storage/artifacts/. /tmp/evidence/ 2>/dev/null || true
+          cp tests/e2e/storage/run-e2e.current /tmp/evidence/ 2>/dev/null || true
+          # the raw serial is the single most useful post-mortem artifact
+          cp tests/e2e/storage/qemu.pty /tmp/evidence/qemu-serial.log 2>/dev/null || true
+          du -sh /tmp/evidence || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-nightly-${{ github.run_id }}
+          path: /tmp/evidence
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Tear down
+        if: always()
+        run: |
+          cd tests/e2e
+          podman rm -f wootc-e2e-windows 2>/dev/null || true
