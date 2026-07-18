@@ -89,6 +89,17 @@ setup() {
     grep -q 'Deploying\.\.\. (${NOW_MIN}m of \$((TIMEOUT/60))m)' "$E2E"
 }
 
+@test "every QGA call is bounded by a timeout" {
+    # A wall-clock deadline cannot rescue a loop whose body never returns.
+    # An unbounded `podman exec` froze two runners for 20+ minutes with their
+    # progress line stuck, while the script still showed as running.
+    grep -q 'timeout "$QGA_CALL_TIMEOUT" $DOCKER exec' "$E2E"
+}
+
+@test "the QGA call timeout is overridable for slow hosts" {
+    grep -q 'WOOTC_QGA_CALL_TIMEOUT' "$E2E"
+}
+
 @test "Phase-2 boot failure reports actual waited time, not the nominal budget" {
     # It claimed "did not boot within 5 minutes" after waiting considerably
     # longer, which sent debugging after a boot-speed problem that did not exist.

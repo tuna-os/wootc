@@ -278,8 +278,16 @@ $COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.y
 # ── QEMU Guest Agent control plane ───────────────────────────────────────────
 # qga.py is copied into Dockur after QEMU starts. Keeping the client in the
 # container lets it reach the private Unix socket without exposing a port.
+# Every QGA call is bounded. Without this, a hung `podman exec` (guest agent
+# wedged, container unresponsive, socket never answering) blocks the calling
+# wait loop FOREVER — and because the loop body never returns, its deadline is
+# never evaluated. Observed: two runners sat "alive" for 20+ minutes with their
+# progress line frozen at "Waiting for QGA (5m of 45m)" while pgrep showed the
+# script running. A wall-clock deadline cannot help a loop that never iterates,
+# so the bound has to be here, on the blocking call itself.
+QGA_CALL_TIMEOUT="${WOOTC_QGA_CALL_TIMEOUT:-60}"
 qga_call() {
-    $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"
+    timeout "$QGA_CALL_TIMEOUT" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"
 }
 
 qga_probe() {
