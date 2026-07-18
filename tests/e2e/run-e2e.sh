@@ -1121,9 +1121,20 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         NEW_OUTPUT=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
-        if echo "$NEW_OUTPUT" | grep -qE "ostree=|Starting version|Welcome to|login:"; then
+        # A real Phase-2 boot means the system reached its ACTUAL root, not just
+        # that the initramfs started. "ostree=" matches the kernel cmdline echo
+        # inside the initramfs, so it fired even when the boot then dropped to an
+        # emergency shell — reporting PASS for a system with no root at all.
+        if echo "$NEW_OUTPUT" | grep -qE "Reached target (multi-user|graphical)|login:|Welcome to"; then
             BOOT_SUCCESS=true
-            pass "Phase 2 Linux system booted!"
+            pass "Phase 2 Linux system booted (reached its real root)"
+            break
+        fi
+        # Emergency mode = root never appeared. Fail fast and say why, instead of
+        # waiting out the timeout or mislabelling it a success.
+        if echo "$NEW_OUTPUT" | grep -qE "Entering emergency mode|emergency\.target|Dependency failed for sysroot"; then
+            fail "Phase 2 dropped to an emergency shell — root.disk never attached"
+            echo "$NEW_OUTPUT" | grep -aiE "wootc|sysroot|does not exist|mount" | tail -12
             break
         fi
         if echo "$NEW_OUTPUT" | grep -qE "No bootable device|BOOTMGR is missing|kernel panic"; then
