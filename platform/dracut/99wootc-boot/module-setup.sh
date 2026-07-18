@@ -25,7 +25,29 @@ installkernel() {
 
 install() {
     inst_hook initqueue/settled 10 "$moddir/wootc-attach-loop.sh"
-    inst "$moddir/qemu-nbd" /usr/bin/qemu-nbd
+
+    # qemu-nbd ships as a self-contained closure (binary + every NEEDED library
+    # + its own ld.so), staged by the deployer into $moddir/nbd-closure. It must
+    # be installed as plain FILES, not via inst_binary: dracut would resolve the
+    # binary's libraries against the target image and re-introduce exactly the
+    # mismatch the closure exists to avoid (the deployer is Fedora-based, target
+    # images generally are not — measured skew: libfuse3.so.4 vs .so.3).
+    #
+    # $moddir/qemu-nbd is a wrapper script that execs the bundled loader with an
+    # explicit --library-path, so the hook can call `qemu-nbd` unchanged.
+    if [ -d "$moddir/nbd-closure" ]; then
+        for f in "$moddir"/nbd-closure/*; do
+            [ -e "$f" ] || continue
+            inst_simple "$f" "/usr/lib/wootc-nbd/${f##*/}"
+        done
+        inst_simple "$moddir/qemu-nbd" /usr/bin/qemu-nbd
+    else
+        # No closure staged — the deployer did not run its staging step. Fail
+        # loudly at build time rather than at Phase-2 boot.
+        dfatal "wootc-boot: nbd-closure missing; Phase 2 could not attach the VHDX"
+        return 1
+    fi
+
     inst_multiple mount mountpoint mkdir modprobe blockdev sleep
     # The userspace NTFS driver (ntfs-3g) for kernels without ntfs3 is added by
     # the deployer's regen via `dracut --install` — module-level inst does not

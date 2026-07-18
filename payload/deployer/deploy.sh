@@ -615,8 +615,73 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
         "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
-    install -m755 "$(command -v qemu-nbd)" \
-        "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd"
+
+    # ── qemu-nbd must be SELF-CONTAINED, not a bare binary ──────────────────
+    # We ship the deployer's own qemu-nbd because target bootc images generally
+    # do not have one (verified: ghcr.io/tuna-os/yellowfin:gnome has no
+    # qemu-nbd). But copying just the executable does not work: it is a
+    # dynamically-linked Fedora build, and the Phase-2 initramfs is assembled
+    # from the TARGET image's libraries. Measured against yellowfin, the
+    # deployer's qemu-nbd needs libfuse3.so.4 while the target ships
+    # libfuse3.so.3 — a soname major bump. The binary lands in the initramfs,
+    # then dies at runtime with:
+    #     error while loading shared libraries: libfuse3.so.4
+    # The attach fails, the root UUID never appears, and Phase 2 drops to an
+    # emergency shell — silently, because the failure is at the last step.
+    #
+    # Do NOT "fix" this by symlinking .so.4 onto .so.3: a soname major bump is
+    # an ABI break, and mismatched ABI on the driver that writes the loop-backed
+    # root filesystem risks data corruption, not merely a crash.
+    #
+    # Do NOT match the deployer base to the target image either: wootc supports
+    # arbitrary bootc images, so the target's distro and library versions are
+    # not knowable in advance.
+    #
+    # Instead ship the full closure — binary + every NEEDED library + Fedora's
+    # own ld.so — and invoke through that loader with an explicit --library-path.
+    # The result carries its entire runtime and never resolves against the
+    # target's libraries, so it works on any image. Verified: the closure runs
+    # inside yellowfin and reports qemu-nbd 10.2.2 (fc44).
+    NBD_SRC="$(command -v qemu-nbd)"
+    if [[ -z "$NBD_SRC" ]]; then
+        err "  [FAIL] deployer has no qemu-nbd to stage; Phase 2 could not attach the VHDX"
+        exit 1
+    fi
+    NBD_DIR="$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/nbd-closure"
+    install -d "$NBD_DIR"
+    install -m755 "$NBD_SRC" "$NBD_DIR/qemu-nbd"
+    # Every NEEDED library, dereferenced (ldd prints the resolved real paths).
+    while read -r lib; do
+        [[ -e "$lib" ]] && install -m755 "$lib" "$NBD_DIR/" 2>/dev/null || true
+    done < <(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]+\.so[^ ]*')
+    # The loader itself — ldd lists it without a "=>" so the grep above catches
+    # it, but copy explicitly in case the format differs.
+    NBD_LOADER=$(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]*ld-linux[^ ]*\.so\.[0-9]+' | head -1)
+    [[ -n "$NBD_LOADER" && -e "$NBD_LOADER" ]] && install -m755 "$NBD_LOADER" "$NBD_DIR/"
+    NBD_LOADER_NAME=$(basename "${NBD_LOADER:-ld-linux-x86-64.so.2}")
+
+    # Prove the closure is complete BEFORE it is baked into an initramfs that
+    # only runs at Phase-2 boot. A missing library here is a silent emergency
+    # shell an hour later.
+    if ! "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
+            "$NBD_DIR/qemu-nbd" --version >/dev/null 2>&1; then
+        err "  [FAIL] staged qemu-nbd closure is incomplete — it cannot execute:"
+        "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
+            "$NBD_DIR/qemu-nbd" --version 2>&1 | head -3 >&2 || true
+        exit 1
+    fi
+    log "  [PASS] qemu-nbd closure staged and verified ($(ls "$NBD_DIR" | wc -l) files)"
+
+    # Wrapper placed at /usr/bin/qemu-nbd inside the initramfs so the hook can
+    # keep calling `qemu-nbd` with no knowledge of any of this.
+    cat > "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd" <<WRAP
+#!/bin/sh
+# Self-contained qemu-nbd: runs against its own bundled libraries, never the
+# target image's. See deploy.sh for why a bare binary does not work here.
+exec /usr/lib/wootc-nbd/$NBD_LOADER_NAME --library-path /usr/lib/wootc-nbd \\
+     /usr/lib/wootc-nbd/qemu-nbd "\$@"
+WRAP
+    chmod 755 "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd"
 
     HOST_UUID=$(blkid -s UUID -o value "$NTFS_PART")
     if [[ -z "$HOST_UUID" ]]; then
@@ -720,8 +785,19 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         GUARD_ENTRIES=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | wc -l)
         GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'wootc-attach-loop')
         log "  guard: lsinitrd listed $GUARD_ENTRIES entries, wootc-attach-loop matches=$GUARD_HITS"
+        # The hook alone is not enough: it calls qemu-nbd, and a hook present
+        # without a working qemu-nbd closure fails at the last step before the
+        # root device would appear — the exact silent emergency-shell failure
+        # this guard exists to prevent. Check the closure landed too.
+        GUARD_NBD=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'wootc-nbd/')
+        log "  guard: wootc-nbd closure files in initramfs=$GUARD_NBD"
+        if [[ "${GUARD_HITS:-0}" -ge 1 ]] && [[ "${GUARD_NBD:-0}" -lt 2 ]]; then
+            err "  [FAIL] Phase-2 initramfs has the hook but NOT the qemu-nbd closure"
+            err "         The hook would run, call qemu-nbd, and fail to attach the VHDX."
+            exit 1
+        fi
         if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
-            log "  [PASS] Phase-2 initramfs carries the loop-attach hook"
+            log "  [PASS] Phase-2 initramfs carries the loop-attach hook + qemu-nbd closure"
         else
             err "  [FAIL] Phase-2 initramfs is MISSING wootc-attach-loop.sh — root.disk would never attach; aborting deploy"
             exit 1
