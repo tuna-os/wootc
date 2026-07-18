@@ -31,6 +31,10 @@ test-slow:
 test-all:
     bash tests/run.sh all
 
+# Refresh the README/Pages walkthrough from a recorded run (host or local dir).
+publish-visual src="--from-host himachal":
+    bash tests/e2e/publish-visual.sh {{ src }}
+
 # ── Local E2E ─────────────────────────────────────────────────────────────────
 
 # Full E2E: build deployer, install Windows, run wootc, verify boot

@@ -2,12 +2,12 @@
 
 <p align="center">
   <a href="https://tuna-os.github.io/wootc/e2e/latest/">
-    <img src="https://tuna-os.github.io/wootc/e2e/latest/preview.webp"
+    <img src="pages/e2e/latest/preview.webp"
          alt="wootc end-to-end walkthrough — Windows 11 → wootc deployer → native Linux → Windows 11"
          width="760">
   </a>
   <br>
-  <em>▶ Latest end-to-end run (sped-up): Windows 11 → wootc deployer → native Linux from <code>root.disk</code> → Windows 11. <a href="https://tuna-os.github.io/wootc/e2e/latest/">Click to play the timelapse.</a></em>
+  <em>▶ Latest end-to-end run (sped-up): Windows 11 → wootc deployer → native Linux from <code>root.disk</code> → Windows 11. <a href="https://tuna-os.github.io/wootc/e2e/latest/">Click to play the full timelapse.</a></em>
 </p>
 
 <p align="center">
@@ -168,9 +168,18 @@ just remote-serial             # watch the deployer serial console
 just remote-status             # grep PASS/FAIL markers
 ```
 
-The scheduled KVM workflow publishes the [latest walkthrough](https://tuna-os.github.io/wootc/e2e/latest/)
-(the timelapse at the top of this README) only after a successful run; failed
-runs stay as workflow artifacts for diagnosis.
+Every E2E run records a sped-up timelapse to `tests/e2e/storage/artifacts/<run>/video/`.
+To refresh the [walkthrough](https://tuna-os.github.io/wootc/e2e/latest/) at the top
+of this README, publish a passing run's clip:
+
+```bash
+tests/e2e/publish-visual.sh --from-host himachal   # or a local artifact dir
+git add pages && git commit -m 'docs: refresh E2E walkthrough' && git push origin main
+```
+
+A GitHub-hosted workflow (`.github/workflows/pages.yml`) then deploys it to Pages —
+no self-hosted runner required. The README hero is a committed relative path, so it
+renders inline on GitHub even before Pages redeploys.
 
 ## Documentation
 
