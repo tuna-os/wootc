@@ -74,3 +74,62 @@ On Linux) with reversible one-click conversion; apps show honest per-app
 outcomes (signed in / sign in once / re-link needed); the MS Office →
 LibreOffice summary lists what transferred. Everything reiterates the
 North Star promise: nothing is ever deleted from Windows.
+
+---
+
+# Linux-side apps
+
+The screens above are the Windows installer (captured by the Playwright
+suite). The apps below are the GTK4/libadwaita tools that run **on the
+migrated Linux system**. Regenerate them with:
+
+```bash
+bash tests/gui/capture-linux-guis.sh
+```
+
+That renders each app headlessly in a container (Xvfb + GTK4's cairo
+software renderer) against the same fixture hooks the unit tests use, so
+these stay in sync with the shipping code.
+
+## 8. Choose what to bring over
+
+![Migration chooser](screenshots/13-migration-chooser.png)
+
+`wootc-manifest-gui`. It scans the mounted Windows volume and catalogs
+everything migratable — files, browsers, Office documents, Steam, Wi-Fi,
+WSL. **Everything discovered is on by default**; you switch off anything
+you'd rather leave behind (an opt-out model, not a checklist you have to
+fill in). Each row shows what was actually found — folder counts, which
+browsers, how many Wi-Fi profiles. The choice is saved to
+`~/.config/wootc/migration-selection.json` for the bridges to honor.
+
+## 9. Move fully to Linux (Phase 3)
+
+![Move to Linux](screenshots/14-move-to-linux.png)
+
+`wootc-go-native-gui`. While Linux is still running from `root.disk` on
+the Windows volume, this offers to graduate onto a real disk. The safety
+gates are surfaced directly in the UI — where root currently lives,
+whether the Windows layout was recorded, whether a rollback snapshot
+exists, and which folders are already native. Graduating keeps Windows
+and `root.disk` in place, so it stays reversible.
+
+## 10. Reclaim the Windows space
+
+![Reclaim Windows](screenshots/15-reclaim-windows.png)
+
+The same app once you're running natively. Reclaim is **only offered
+after your data is native** — the identical hard gate the CLI enforces
+(`wootc-go-native` refuses `--reclaim` otherwise). Before anything runs
+you get the exact command plan to review; nothing destructive happens
+without that explicit confirmation.
+
+## 11. Bring your Windows over (another disk / BitLocker)
+
+![Bring Windows over](screenshots/16-bring-windows-over.png)
+
+`wootc-import-gui`. For the case where Windows lives on a *different*
+drive — a second internal disk, an external drive, or a backup. It finds
+NTFS and BitLocker volumes (the running disk is never offered), unlocks
+BitLocker read-only, and imports the same categories. Nothing on the
+source drive is modified.
