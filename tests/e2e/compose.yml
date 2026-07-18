@@ -25,8 +25,10 @@ services:
     network_mode: ${WOOTC_E2E_NETWORK_MODE:-bridge}
     stop_grace_period: 2m
     environment:
-      VERSION: "11"
-      EDITION: "pro"          # Pro edition required by the Windows target
+      # Windows case selector (matrix). Dockur version strings: 11/10 (Pro),
+      # 11e/10e (Enterprise Eval), 11l/10l (LTSC). run-e2e.sh exports these.
+      VERSION: "${WOOTC_E2E_WIN_VERSION:-11}"
+      EDITION: "${WOOTC_E2E_WIN_EDITION:-pro}"
       USERNAME: "wootc"
       PASSWORD: "wootc-test-123!"
       CPU_CORES: "4"
@@ -79,7 +81,7 @@ services:
       # a local QGA bootstrap and the wootc payload.
       - ./oem:/oem:ro
       # Custom Windows answer file — dockur expects this at /custom.xml
-      # (a FILE, not a directory). This configures unattended GPT setup
-      # and the SYSTEM bootstrap task.
-      - ./autounattend.xml:/custom.xml:ro
+      # (a FILE, not a directory). run-e2e.sh renders it per Windows case
+      # (product key → edition) from autounattend.xml before compose up.
+      - ./storage/autounattend.rendered.xml:/custom.xml:ro
     restart: "unless-stopped"     # Keep VM alive if Windows reboots post-install

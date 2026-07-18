@@ -1,0 +1,34 @@
+# wootc E2E test matrix — Windows editions × bootc images.
+# Columns (tab-separated): tier  name  image  win_version  win_edition  win_key
+#
+#   tier         smoke | full   (run-matrix.sh --tier selects; smoke ⊆ full)
+#   win_version  Dockur string: 11/10 (Pro), 11e/10e (Enterprise Eval),
+#                11l/10l (LTSC). Selects the ISO.
+#   win_key      Generic product key that picks the edition from the ISO.
+#                Pro:  W269N-WFGWX-YVC9B-4J6C9-T83GX
+#                Home: YTMG3-N6DKC-DKB77-7M9GH-8HVX7
+#                Ent:  NPPR9-FWDCX-D2C8J-H872K-2YT43   (also used by eval/LTSC)
+#
+# The image axis covers every base family + bootloader (grub2 vs systemd-boot)
+# and desktop; the Windows axis covers 10/11 across Pro/Home/Enterprise/LTSC.
+# Keep smoke small (one proven baseline + the two riskiest axes); full is the
+# broad sweep.
+#
+# tier	name	image	win_version	win_edition	win_key
+smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+smoke	el10-gnome-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# ── image axis (Win 11 Pro) — every family/bootloader/desktop ──
+full	el10-kde-win11pro	ghcr.io/tuna-os/yellowfin:kde	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	el10-xfce-win11pro	ghcr.io/tuna-os/yellowfin:xfce	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	fedora-kde-win11pro	ghcr.io/tuna-os/bonito:kde	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	fedora-niri-win11pro	ghcr.io/tuna-os/bonito:niri	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	arch-gnome-win11pro	ghcr.io/tuna-os/marlin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	debian-gnome-win11pro	ghcr.io/tuna-os/flounder:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# ── Windows axis (baseline EL10 GNOME image) — editions & versions ──
+full	el10-gnome-win11home	ghcr.io/tuna-os/yellowfin:gnome	11	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7
+full	el10-gnome-win11ent	ghcr.io/tuna-os/yellowfin:gnome	11e	enterprise	NPPR9-FWDCX-D2C8J-H872K-2YT43
+full	el10-gnome-win11ltsc	ghcr.io/tuna-os/yellowfin:gnome	11l	iot	NPPR9-FWDCX-D2C8J-H872K-2YT43
+full	el10-gnome-win10home	ghcr.io/tuna-os/yellowfin:gnome	10	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7
+full	el10-gnome-win10ent	ghcr.io/tuna-os/yellowfin:gnome	10e	enterprise	NPPR9-FWDCX-D2C8J-H872K-2YT43
+full	el10-gnome-win10ltsc	ghcr.io/tuna-os/yellowfin:gnome	10l	ltsc	NPPR9-FWDCX-D2C8J-H872K-2YT43

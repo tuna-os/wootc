@@ -22,6 +22,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 IMAGE_REF="${1:-ghcr.io/tuna-os/yellowfin:gnome}"
 
+# ── Windows test case (matrix knobs) ─────────────────────────────────────────
+# WOOTC_E2E_WIN_VERSION is a Dockur version string that selects the ISO+edition:
+#   11   Win 11 Pro     11e  Win 11 Enterprise Eval   11l  Win 11 LTSC (IoT Ent)
+#   10   Win 10 Pro     10e  Win 10 Enterprise Eval   10l  Win 10 LTSC 2021
+# WOOTC_E2E_WIN_KEY is the generic product key the answer file uses to pick the
+# edition from a multi-edition ISO (leave the default for Pro/Enterprise ISOs;
+# eval/LTSC ISOs are single-edition and ignore it). WOOTC_E2E_WIN_EDITION is
+# passed to Dockur for ISO edition selection where applicable.
+WIN_VERSION="${WOOTC_E2E_WIN_VERSION:-11}"
+WIN_EDITION="${WOOTC_E2E_WIN_EDITION:-pro}"
+WIN_KEY="${WOOTC_E2E_WIN_KEY:-NPPR9-FWDCX-D2C8J-H872K-2YT43}"
+export WOOTC_E2E_WIN_VERSION="$WIN_VERSION" WOOTC_E2E_WIN_EDITION="$WIN_EDITION"
+
 # Parse flags
 SKIP_BUILD=false
 KEEP_CONTAINER=false
@@ -124,7 +137,9 @@ host_preflight || exit 1
 # directory.  Dockur can generate derived ISO images while preparing an answer
 # file, so it must receive a copy rather than the only cached source image.
 ISO_CACHE_DIR="$SCRIPT_DIR/iso-cache"
-WINDOWS_ISO_CACHE="${WOOTC_WINDOWS_ISO:-$ISO_CACHE_DIR/windows-11.iso}"
+# Cache each Windows version/edition separately so a matrix run never clobbers
+# another case's installer (windows-11.iso, windows-10.iso, windows-11e.iso, …).
+WINDOWS_ISO_CACHE="${WOOTC_WINDOWS_ISO:-$ISO_CACHE_DIR/windows-${WIN_VERSION}.iso}"
 QGA_CACHE_DIR="$SCRIPT_DIR/qga-cache"
 QGA_MSI="${WOOTC_QGA_MSI:-$QGA_CACHE_DIR/qemu-ga-x86_64.msi}"
 QGA_MSI_URL="${WOOTC_QGA_MSI_URL:-https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-qemu-ga/qemu-ga-x86_64.msi}"
@@ -555,6 +570,13 @@ step "Starting Windows VM..."
 cd "$SCRIPT_DIR"
 mkdir -p "$STORAGE_DIR"
 
+# Render the answer file for this Windows case: the product key selects the
+# edition from the ISO. Dockur mounts this at /custom.xml (see compose.yml).
+# The default key reproduces the original 11-pro answer file byte-for-byte.
+RENDERED_ANSWER="$STORAGE_DIR/autounattend.rendered.xml"
+sed "s#<Key>[^<]*</Key>#<Key>${WIN_KEY}</Key>#" autounattend.xml > "$RENDERED_ANSWER"
+info "Windows case: version=$WIN_VERSION edition=$WIN_EDITION"
+
 if [ "$SKIP_INSTALL" = false ]; then
     # Clean previous run's disk so autounattend runs fresh
     $COMPOSE -f compose.yml down --volumes 2>/dev/null || true
@@ -569,10 +591,10 @@ if [ "$SKIP_INSTALL" = false ]; then
     # changes are safe on a reused guest because qga_sync_oem refreshes them
     # before each retry; including them here would falsely require a complete
     # Windows reinstall for every deployer or QGA client change.
-    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
+    ANSWER_SHA=$( { sha256sum "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
-        info "autounattend.xml changed; rebuilding Dockur's processed installer ISO"
+        info "answer file / Windows version changed; rebuilding Dockur's processed installer ISO"
         # Keep a user-supplied custom.iso (for example an offline Windows ISO)
         # and discard only Dockur's derived installer images.
         find "$STORAGE_DIR" -maxdepth 1 -type f -name '*.iso' ! -name 'custom.iso' -delete
@@ -600,10 +622,10 @@ if [ "$SKIP_INSTALL" = false ]; then
         info "No cached Windows ISO; Dockur will download one. Save a verified installer under $ISO_CACHE_DIR to avoid this next time."
     fi
 else
-    ANSWER_SHA=$(sha256sum autounattend.xml | awk '{print $1}')
+    ANSWER_SHA=$( { sha256sum "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
     ANSWER_STAMP="$STORAGE_DIR/.wootc-autounattend.sha256"
     if [ "$(cat "$ANSWER_STAMP" 2>/dev/null || true)" != "$ANSWER_SHA" ]; then
-        fail "autounattend.xml changed since this disk was prepared; rerun without --skip-install"
+        fail "Windows case (answer file / version) changed since this disk was prepared; rerun without --skip-install"
         exit 1
     fi
     ANSWER_REFRESH=false
