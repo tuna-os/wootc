@@ -172,3 +172,109 @@ Every failure this session was invisible before it was wrong. The recurring bug
 class is *status derived from a timer or an assumption rather than from an
 observable*. When adding any check, ask: what does this assert, and what would
 it print if the thing it asserts never happened?
+
+---
+
+# Reflection: why the failure rate went up (2026-07-19)
+
+## First, a reframe: Phase 2 is not failing more — we stopped reaching it
+
+Worth stating plainly because it changes what to investigate. Phase 2 was
+reached exactly twice, both early on 2026-07-18 (kanpur, himachal), and both
+dropped to an emergency shell. **Since then, not one run has reached Phase 2 at
+all.** Every failure since has been Phase 1 or infrastructure:
+
+| Failure | Cause | Mine? |
+|---|---|---|
+| 3 runs killed mid-flight | `podman system prune -af` on live hosts | yes |
+| deploys stalled at `phase: verification` | triple `/dev/console` write saturating serial | yes |
+| runs died ~10min after launch | no systemd linger; ssh session teardown | partly |
+| deploys timed out at 45m | wall-clock fix made the budget honest, exposing it as too small | yes (consequence) |
+| preflight disk failures | no artifact retention; ~60 GiB resident per run | pre-existing |
+| kanpur build failures | host podman/unit config drift | no |
+
+So the increase is overwhelmingly **my churn**, not a product regression. The two
+genuine product findings (qemu-nbd library mismatch, BitLocker VHDX placement)
+still stand and are unaffected.
+
+## The snapshot hypothesis is well-founded
+
+`snapshot_before_deployer()` does this:
+
+1. `qga_call freeze` — fsfreeze the Windows filesystems (via VSS on Windows);
+2. copy `data.qcow2` (18–28 GiB) to `.snap` **while the guest stays frozen** —
+   the code comment says "the guest stays frozen until the copy is complete";
+3. `qga_call thaw`.
+
+Two things make that dangerous, and both are now confirmed by observation:
+
+**`cp --reflink=always` FAILS on these runners.** We see
+`cp: failed to clone ...` on every host, so it falls through to
+`--reflink=never` — a full byte copy of 18–28 GiB. That is 10–20+ minutes, not
+the instant CoW clone the design assumed. The freeze window was sized for a
+reflink.
+
+**Windows VSS cannot hold a freeze that long.** VSS imposes hard limits (writers
+~10s, overall ~60s). A 20-minute freeze is not something the guest will honour;
+it will auto-thaw or fail the snapshot mid-copy. So:
+
+- the resulting `.snap` is **not** crash-consistent, contrary to the comment;
+- more importantly, the guest experiences a long freeze and an abrupt
+  timeout-driven thaw under heavy host I/O contention.
+
+**The link to Phase 2:** an NTFS volume that was frozen and abruptly thawed can
+be left with the dirty bit set. A dirty NTFS **cannot be mounted read-write by
+ntfs3** — which is exactly the Phase-2 failure we saw, and exactly what the
+attach hook's own warning says:
+
+    wootc: cannot mount host NTFS rw (no ntfs3 and no ntfs-3g).
+    Dirty volume? Boot Windows once and full-shutdown; ...
+
+That is a coherent mechanism from snapshot → dirty NTFS → `root.disk never
+attached` → emergency shell. It is a hypothesis, not a proven cause, but it is
+the best-supported explanation of the two Phase-2 failures we have.
+
+## And the snapshot is never used
+
+`data.qcow2.snap` is written and **never read**: the only reference in
+run-e2e.sh is inside `snapshot_before_deployer()` itself. There is no restore
+path. So today it costs:
+
+- a 10–20 minute freeze of the guest at a delicate moment,
+- ~28 GiB of disk (the direct cause of the preflight failures),
+- a large slice of the deploy budget,
+
+in exchange for an artifact nothing consumes.
+
+**Recommendation: disable it by default.** Not "optimise" — remove from the
+default path, behind `WOOTC_E2E_SNAPSHOT=1` for when a restore path exists. This
+is the single highest-value change available: it removes the most plausible
+cause of the Phase-2 NTFS failure, frees ~28 GiB, and shortens every run.
+
+## The process failure, honestly
+
+The deeper problem is not any single bug — it is that **there is no fast feedback
+loop for deployer/initramfs changes**. Every change costs a 60–90 minute VM run,
+so I batched several changes per run cycle. When a run then failed, attribution
+was guesswork, and three times I "fixed" something that was not broken while
+introducing something that was.
+
+Rules to work by from here:
+
+1. **One deployer change per run.** If two need testing, run twice.
+2. **Prefer changes testable without a VM.** The qemu-nbd closure was diagnosed
+   and verified in a container in minutes — that is the model.
+3. **Never touch a host with a live run** (prune, kill, disk cleanup).
+4. **A fix for an observability gap is not free.** The `/dev/console` change was
+   meant only to make failures visible and it stalled every deploy.
+5. **Verify the observable, not the exit code.** `pgrep` matching my own ssh
+   command reported runs as alive that did not exist.
+
+## Outstanding risk I introduced and have not tested
+
+The Phase-2 attach hook still writes to `/dev/console`. That is the same call
+that stalled `deploy.sh` — kept here because volume is far lower (a handful of
+lines at boot vs hundreds during an install). But the failure mode was a
+*blocking* write, and volume only changes its likelihood, not its possibility.
+If Phase 2 hangs with the hook's first line printed and nothing after, this is
+the first suspect.
