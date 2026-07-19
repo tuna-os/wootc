@@ -138,22 +138,39 @@ setup() {
 
 # ── dracut module ───────────────────────────────────────────────────────────
 
-@test "the hook goes in the PLAIN initqueue, not initqueue/settled" {
-    # dracut-initqueue runs the plain queue every iteration, but reaches the
-    # settled/ hooks only after `udevadm settle --timeout=0` succeeds — an
-    # INSTANT check. While the host NTFS mounts and loop devices are probed,
-    # udev is busy, the loop `continue`s, and settled hooks never run. Observed:
-    # the hook was in the initramfs and produced ZERO output, and Phase 2 died
-    # on sysroot.mount.
-    grep -q 'inst_hook initqueue 10' "$MODSETUP"
-    run grep -nE '^[^#]*inst_hook initqueue/settled' "$MODSETUP"
-    [ "$status" -ne 0 ]
+@test "the attach mechanism is a systemd SERVICE, not just an initqueue hook" {
+    # PROVEN on himachal: the Phase-2 ostree initramfs is pure-systemd and runs
+    # dracut-initqueue ZERO times (it boots root from a .device unit). An
+    # initqueue hook is therefore dead code — it was present and produced no
+    # output while sysroot.mount timed out. A systemd unit is the correct tool.
+    grep -q 'wootc-attach.service' "$MODSETUP"
+    grep -q 'inst_simple "$moddir/wootc-attach.service"' "$MODSETUP"
 }
 
-@test "the initramfs guard requires the hook to be WIRED, not just present" {
-    # The old guard grepped the filename anywhere in the archive, so it passed
-    # for an initramfs whose hook never ran. Require the hooks/initqueue path.
-    grep -q "grep -cE 'hooks/initqueue/.*wootc-attach-loop'" "$DEPLOY"
+@test "the service is ordered before sysroot.mount and after udev" {
+    local svc="$REPO_ROOT/platform/dracut/99wootc-boot/wootc-attach.service"
+    grep -qE 'Before=.*sysroot.mount|Before=.*initrd-root-device.target' "$svc"
+    grep -qE 'After=.*systemd-udevd' "$svc"
+}
+
+@test "the service is WIRED into initrd-root-device.target, verified at build" {
+    # A unit installed but not wanted is the same silent no-op as the old hook.
+    grep -q 'initrd-root-device.target.wants/wootc-attach.service' "$MODSETUP"
+    grep -q 'was not wired into initrd-root-device.target' "$MODSETUP"
+}
+
+@test "module-setup falls back when systemdsystemunitdir is empty" {
+    grep -q 'systemdsystemunitdir:-/usr/lib/systemd/system' "$MODSETUP"
+}
+
+@test "the module depends on systemd so the unit dir exists" {
+    grep -qE '^\s*echo "base systemd"' "$MODSETUP"
+}
+
+@test "the initramfs guard checks the WIRED service, not the hook" {
+    grep -q "grep -cE 'initrd-root-device.target.wants/wootc-attach.service'" "$DEPLOY"
+    run grep -nE "grep -cE 'hooks/initqueue" "$DEPLOY"
+    [ "$status" -ne 0 ]
 }
 
 @test "the module installs losetup and the loop kernel module" {

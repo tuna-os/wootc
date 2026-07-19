@@ -1,0 +1,31 @@
+[Unit]
+Description=wootc: attach the NTFS-hosted root.disk before sysroot.mount
+Documentation=https://github.com/tuna-os/wootc
+DefaultDependencies=no
+# The Phase-2 (ostree) initramfs is a pure-systemd initramfs: it boots root from
+# a real dev-disk-by-uuid-<root>.device unit and NEVER runs dracut-initqueue, so
+# an initqueue hook is dead code here. This service is the systemd-correct way to
+# make the root device appear: mount the Windows NTFS, losetup-attach root.disk
+# with --partscan, and the partitions (and their UUIDs) show up to udev, letting
+# the ordinary sysroot.mount proceed unchanged.
+#
+# Ordering is the whole game:
+#   After udev is up (block devices + the ntfs3/loop modules are available),
+#   and BEFORE anything waits for the root device or tries to mount sysroot.
+After=systemd-udevd.service systemd-udev-trigger.service
+Before=initrd-root-device.target sysroot.mount
+Wants=initrd-root-device.target
+# Run even in the emergency path so a partial failure is still observable.
+ConditionKernelCommandLine=loop
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# The script is re-entrant (returns 0 once /run/wootc-loop-attached exists) and
+# self-diagnosing (writes every exit reason to /dev/console and kmsg).
+ExecStart=/bin/sh /usr/lib/wootc/wootc-attach-loop.sh
+# Never let a hiccup here wedge the boot; the script reports its own failures.
+TimeoutStartSec=90
+
+[Install]
+WantedBy=initrd-root-device.target

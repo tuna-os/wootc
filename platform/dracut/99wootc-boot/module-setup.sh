@@ -13,7 +13,9 @@ check() {
 }
 
 depends() {
-    echo "base"
+    # systemd: the Phase-2 initramfs is systemd-based and we install a unit into
+    # it (see install()). base: dracut-lib.sh for the hook fallback.
+    echo "base systemd"
 }
 
 installkernel() {
@@ -25,24 +27,45 @@ installkernel() {
 }
 
 install() {
-    # PLAIN initqueue, NOT initqueue/settled.
+    # A SYSTEMD SERVICE, not an initqueue hook.
     #
-    # dracut-initqueue's main loop is:
-    #     for job in $hookdir/initqueue/*.sh;   do ... done   <- always runs
-    #     udevadm settle --timeout=0 || continue              <- instant check!
-    #     for job in $hookdir/initqueue/settled/*.sh; do ...  <- often skipped
+    # PROVEN the hard way (himachal, offline serial): the Phase-2 ostree
+    # initramfs is a pure-systemd initramfs and runs dracut-initqueue ZERO times
+    # — it boots root from a dev-disk-by-uuid-<root>.device unit. So ANY initqueue
+    # hook (settled or plain) is dead code: the hook was present in the initramfs,
+    # yet Phase 2 emitted not one line of its output and died on sysroot.mount.
     #
-    # `--timeout=0` asks whether udev has settled RIGHT NOW. While the host NTFS
-    # is being mounted and loop devices are being probed, udev is busy, so the
-    # loop `continue`s and the settled hooks are never reached. That is exactly
-    # what we observed: the guard confirmed wootc-attach-loop.sh was in the
-    # initramfs, yet Phase 2 produced not one line of hook output — not even its
-    # unconditional entry marker — and died on sysroot.mount because root.disk
-    # was never attached.
+    # The systemd-correct mechanism is a oneshot unit ordered
+    # After=systemd-udevd, Before=initrd-root-device.target/sysroot.mount. It
+    # attaches root.disk before anything waits for the root device, so the
+    # ordinary sysroot.mount just works.
     #
-    # The plain queue runs on every iteration regardless of udev state. The hook
-    # is already written to be re-entrant (it returns 0 early once
-    # /run/wootc-loop-attached exists), so repeated invocation is by design.
+    # The script is installed at a fixed path the unit references, and made
+    # re-entrant + self-diagnosing so it is safe to leave running.
+    inst_simple "$moddir/wootc-attach-loop.sh" /usr/lib/wootc/wootc-attach-loop.sh
+
+    # $systemdsystemunitdir is set by dracut's systemd module, but do not trust
+    # it to be non-empty — fall back to the canonical path so the unit always
+    # lands somewhere systemd will read it.
+    local unitdir="${systemdsystemunitdir:-/usr/lib/systemd/system}"
+    inst_simple "$moddir/wootc-attach.service" "$unitdir/wootc-attach.service"
+
+    # Wire it into the initrd root-device bring-up so it actually runs. Try the
+    # proper systemctl enable first; fall back to a manual wants symlink, which
+    # is all `add-wants` does anyway.
+    mkdir -p "$initdir$unitdir/initrd-root-device.target.wants"
+    if ! ${SYSTEMCTL:-systemctl} -q --root "$initdir" add-wants \
+            initrd-root-device.target wootc-attach.service 2>/dev/null; then
+        ln -sf "../wootc-attach.service" \
+            "$initdir$unitdir/initrd-root-device.target.wants/wootc-attach.service"
+    fi
+    # Verify the wiring landed — a unit that is installed but not wanted is the
+    # same silent no-op as the initqueue hook we just replaced.
+    if [[ ! -e "$initdir$unitdir/initrd-root-device.target.wants/wootc-attach.service" ]]; then
+        dfatal "wootc-boot: wootc-attach.service was not wired into initrd-root-device.target"
+        return 1
+    fi
+    # Belt-and-braces for any non-systemd initramfs that still runs initqueue.
     inst_hook initqueue 10 "$moddir/wootc-attach-loop.sh"
 
     # losetup is all the hook needs — no staged binary, no closure. Target bootc

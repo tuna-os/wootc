@@ -844,8 +844,14 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # "matches=1" for an initramfs whose Phase-2 boot then produced not one
         # line of hook output. Same proxy-check failure as the rest of this
         # session: assert the property, not a correlate of it.
+        # Verify the attach SERVICE is WIRED, not just present. The Phase-2
+        # initramfs is systemd-based and never runs dracut-initqueue, so the
+        # hook alone is dead — the unit must be wanted by
+        # initrd-root-device.target or nothing attaches root.disk (proven: a
+        # correctly-present hook produced zero output and sysroot.mount timed
+        # out). Require the .wants symlink, which is what actually makes it run.
         GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
-            | grep -cE 'hooks/initqueue/.*wootc-attach-loop')
+            | grep -cE 'initrd-root-device.target.wants/wootc-attach.service')
         log "  guard: lsinitrd listed $GUARD_ENTRIES entries, wootc-attach-loop matches=$GUARD_HITS"
         # With a raw root.disk the hook needs only losetup, which the target
         # image already provides — so there is no staged binary to verify. The
@@ -857,9 +863,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             PHASE2_PROBLEMS+=("initramfs missing losetup")
         fi
         if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
-            log "  [PASS] Phase-2 initramfs has the loop-attach hook WIRED into initqueue"
+            log "  [PASS] Phase-2 initramfs has wootc-attach.service WIRED into initrd-root-device.target"
         else
-            err "  [FAIL] Phase-2 initramfs is MISSING wootc-attach-loop.sh — root.disk would never attach; aborting deploy"
+            err "  [FAIL] Phase-2 initramfs has no WIRED wootc-attach.service — root.disk would never attach; aborting deploy"
             exit 1
         fi
     else

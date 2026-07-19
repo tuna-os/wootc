@@ -105,9 +105,10 @@ setup() {
     grep -q '> */dev/console' "$HOOK"
 }
 
-@test "the initramfs hook guard still aborts the deploy when the hook is missing" {
-    # This guard is the only thing that turns a silent 5-minute Phase-2 wedge
-    # into a loud Phase-1 failure. Pin that it exits rather than warning.
-    grep -q 'MISSING wootc-attach-loop.sh' "$DEPLOY"
-    grep -A1 'MISSING wootc-attach-loop.sh' "$DEPLOY" | grep -q 'exit 1'
+@test "the initramfs guard aborts the deploy when the attach service is unwired" {
+    # This guard turns a silent Phase-2 wedge into a loud Phase-1 failure. It now
+    # checks the WIRED systemd service (the initqueue hook never ran in the
+    # systemd Phase-2 initramfs). Pin that it exits rather than warning.
+    grep -q 'no WIRED wootc-attach.service' "$DEPLOY"
+    grep -A1 'no WIRED wootc-attach.service' "$DEPLOY" | grep -q 'exit 1'
 }
