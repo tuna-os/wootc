@@ -699,6 +699,10 @@ fi
     printf 'ImageRef=%s\n'   "$IMAGE_REF"
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
     printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
+    # RunId lets the OEM barrier prove the completion marker came from THIS run.
+    # Without it the barrier passes on a stale marker left by a previous run —
+    # see the comment on the barrier loop below.
+    printf 'RunId=%s\n'     "$RUN_ID"
 } > "$OEM_DIR/wootc-config.txt"
 printf '[INFO] Deployer config: image=%s bootloader=%s composefs=%s\n' \
     "$IMAGE_REF" "$E2E_BOOTLOADER" "$E2E_COMPOSEFS" >&2
@@ -1055,8 +1059,23 @@ BARRIER_STARTED=$(date +%s)
 BARRIER_DEADLINE=$(deadline_in "$TIMEOUT")
 BARRIER_LAST_MIN=-1
 BARRIER_REACHED=false
+# The barrier must prove the marker came from THIS run.
+#
+# It used to accept any readable C:\OEM\e2e-setup-complete.txt. A marker left
+# by a previous run satisfied that instantly, so the harness jumped straight to
+# "monitoring the deployer" while Windows setup was still staging the payload
+# and the BCD one-shot. The VM then rebooted into Windows — serial ending at
+#   BdsDxe: starting Boot0003 "Windows Boot Manager" ... bootmgfw.efi
+# with zero [wootc] phase: lines — and the harness burned its whole budget
+# watching a VM that was never deploying.
+#
+# This went unnoticed because snapshot_before_deployer() used to spend 10-20
+# minutes on the fsfreeze + 28 GiB copy right here, which incidentally gave OEM
+# setup the time it needed. The snapshot was accidentally load-bearing as a
+# sleep; disabling it exposed the race. The fix is a real check, not a delay.
 while ! past_deadline "$BARRIER_DEADLINE"; do
-    if qga_read 'C:\OEM\e2e-setup-complete.txt' >/dev/null 2>&1; then
+    BARRIER_MARK=$(qga_read 'C:\OEM\e2e-setup-complete.txt' 2>/dev/null | tr -d '\r\n' || true)
+    if [ -n "$BARRIER_MARK" ] && [ "$BARRIER_MARK" = "$RUN_ID" ]; then
         # Best-effort snapshot: releases the barrier and continues even if the
         # host-side crash-consistent copy had to be skipped.
         snapshot_before_deployer
@@ -1079,6 +1098,19 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
 done
 [ "$BARRIER_REACHED" = true ] || {
     fail "OEM setup did not reach the snapshot barrier within $((TIMEOUT/60)) minutes"
+    # Say WHY, so this is attributable in one read instead of a VM session.
+    # The common causes are distinguishable from the marker's contents:
+    #   empty/missing -> OEM setup never finished (look at wootc-e2e.log);
+    #   a different id -> a stale marker from an earlier run, i.e. C:\OEM was
+    #     not refreshed — expected on a --skip-install reuse whose guest still
+    #     carries an older run-wootc-e2e.ps1 that writes a constant.
+    BARRIER_MARK=$(qga_read 'C:\OEM\e2e-setup-complete.txt' 2>/dev/null | tr -d '\r\n' || true)
+    if [ -z "$BARRIER_MARK" ]; then
+        info "  marker absent: OEM setup never completed. See C:\\OEM\\wootc-e2e.log below."
+    elif [ "$BARRIER_MARK" != "$RUN_ID" ]; then
+        info "  marker says '$BARRIER_MARK' but this run is '$RUN_ID' — STALE marker."
+        info "  The guest's C:\\OEM is from an earlier run; reinstall or refresh it."
+    fi
     capture_vm_diagnostics
     exit 1
 }
