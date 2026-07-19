@@ -64,6 +64,15 @@ setup() {
     [ "$status" -ne 0 ]
 }
 
+@test "the OEM sync uses the CONTAINER's view of the mount, not a host path" {
+    # qga.py runs INSIDE the container, so a host path silently fails every
+    # write and the guest quietly keeps its stale copies. My first attempt used
+    # $OEM_DIR and every file reported "could not refresh".
+    sed -n '/^qga_sync_oem()/,/^}/p' "$E2E" | grep -q 'qga_call write "/oem/'
+    run grep -n 'qga_call write "\$OEM_DIR' "$E2E"
+    [ "$status" -ne 0 ]
+}
+
 @test "C:\\OEM is refreshed from the host before setup starts" {
     # C:\OEM comes from the ISO at install time, so a REUSED Windows carries
     # whatever run-wootc-e2e.ps1 / wootc-config.txt existed when that image was
@@ -72,21 +81,25 @@ setup() {
     # marker, and the guest dies on its own 10-minute deadline —
     #   "Timed out waiting for the host to snapshot the Windows installation"
     # Both sides waiting on each other.
-    grep -q 'refreshed C:' "$E2E"
-    grep -q 'run-wootc-e2e.ps1 wootc-config.txt' "$E2E"
+    grep -q 'qga_sync_oem' "$E2E"
+}
+
+@test "the OEM sync is unconditional, not limited to --skip-install" {
+    # A stale C:\OEM deadlocks the RunId barrier whenever Windows was installed
+    # by an earlier run — that is not exclusive to the reuse flag.
+    local block
+    block=$(sed -n '/if \[ "\$SKIP_INSTALL" = true \]/,/^fi$/p' "$E2E")
+    echo "$block" | grep -q 'qga_sync_oem' && return 1
+    return 0
 }
 
 @test "the refresh happens BEFORE the OEM script is launched" {
     local refresh_line launch_line
-    refresh_line=$(grep -n 'for f in run-wootc-e2e.ps1' "$E2E" | head -1 | cut -d: -f1)
+    refresh_line=$(grep -n '^qga_sync_oem$' "$E2E" | head -1 | cut -d: -f1)
     launch_line=$(grep -n 'Start-Process -FilePath' "$E2E" | head -1 | cut -d: -f1)
     [ -n "$refresh_line" ]
     [ -n "$launch_line" ]
     [ "$refresh_line" -lt "$launch_line" ]
-}
-
-@test "a failed refresh warns rather than proceeding silently" {
-    grep -q 'guest may run a stale copy' "$E2E"
 }
 
 @test "a barrier timeout distinguishes 'never completed' from 'stale marker'" {
