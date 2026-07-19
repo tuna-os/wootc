@@ -699,41 +699,59 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # The result carries its entire runtime and never resolves against the
     # target's libraries, so it works on any image. Verified: the closure runs
     # inside yellowfin and reports qemu-nbd 10.2.2 (fc44).
-    NBD_SRC="$(command -v qemu-nbd)"
-    if [[ -z "$NBD_SRC" ]]; then
-        err "  [FAIL] deployer has no qemu-nbd to stage; Phase 2 could not attach the VHDX"
-        exit 1
-    fi
+    # The whole closure staging runs in a SUBSHELL with `set +e`.
+    #
+    # deploy.sh runs under `set -e`, and this block died silently mid-way: the
+    # journal's last line was "resolving libraries" and, in the same second, the
+    # cleanup trap unmounted everything. No error, no exit status, no clue which
+    # command failed — and it cost several 40-90 minute runs to even localise.
+    #
+    # Rather than audit every command for set -e exposure (I got that diagnosis
+    # wrong once already: a mid-script `[[ ]] && cmd` does NOT exit, only one as
+    # the last line of a function does), make the block structurally incapable
+    # of killing the deploy. Staging a helper binary must never abort an
+    # otherwise-successful install; a missing closure is recorded and reported,
+    # and Phase 2 is declared un-bootable, which is strictly more useful than a
+    # silent death.
     NBD_DIR="$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/nbd-closure"
-    install -d "$NBD_DIR"
-    install -m755 "$NBD_SRC" "$NBD_DIR/qemu-nbd"
-    log "  verify: qemu-nbd copied from $NBD_SRC; resolving libraries"
-    # Every NEEDED library, dereferenced (ldd prints the resolved real paths).
-    while read -r lib; do
-        [[ -e "$lib" ]] && install -m755 "$lib" "$NBD_DIR/" 2>/dev/null || true
-    done < <(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]+\.so[^ ]*')
-    # The loader itself — ldd lists it without a "=>" so the grep above catches
-    # it, but copy explicitly in case the format differs.
-    NBD_LOADER=$(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]*ld-linux[^ ]*\.so\.[0-9]+' | head -1)
-    [[ -n "$NBD_LOADER" && -e "$NBD_LOADER" ]] && install -m755 "$NBD_LOADER" "$NBD_DIR/"
-    NBD_LOADER_NAME=$(basename "${NBD_LOADER:-ld-linux-x86-64.so.2}")
-    log "  verify: closure has $(ls "$NBD_DIR" | wc -l) files, loader=$NBD_LOADER_NAME; testing it"
+    NBD_STAGE_RC=0
+    (
+        set +e
+        NBD_SRC="$(command -v qemu-nbd)"
+        [ -n "$NBD_SRC" ] || { echo "closure: no qemu-nbd in PATH" >&2; exit 10; }
 
-    # Prove the closure is complete BEFORE it is baked into an initramfs that
-    # only runs at Phase-2 boot. A missing library here is a silent emergency
-    # shell an hour later.
-    # timeout: this EXECUTES a staged binary. It must never be able to hang the
-    # deploy — a blocked exec here is indistinguishable from a wedged deployer.
-    if ! timeout 30 "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
-            "$NBD_DIR/qemu-nbd" --version >/dev/null 2>&1; then
-        err "  [FAIL] staged qemu-nbd closure is incomplete — it cannot execute:"
-        timeout 30 "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
-            "$NBD_DIR/qemu-nbd" --version 2>&1 | head -3 >&2 || true
-        # Do NOT exit: the initramfs regen below is independently interesting,
-        # and finding both faults in one run beats finding one per run.
-        PHASE2_PROBLEMS+=("qemu-nbd closure cannot execute")
+        install -d "$NBD_DIR" || { echo "closure: mkdir $NBD_DIR failed" >&2; exit 11; }
+        install -m755 "$NBD_SRC" "$NBD_DIR/qemu-nbd" || { echo "closure: copy binary failed" >&2; exit 12; }
+        log "  verify: closure step 1/3 — binary staged from $NBD_SRC"
+
+        libs=0
+        for lib in $(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]+\.so[^ ]*'); do
+            [ -e "$lib" ] || continue
+            install -m755 "$lib" "$NBD_DIR/" 2>/dev/null && libs=$((libs + 1))
+        done
+        log "  verify: closure step 2/3 — $libs libraries staged"
+
+        loader=$(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]*ld-linux[^ ]*\.so\.[0-9]+' | head -1)
+        if [ -n "$loader" ] && [ -e "$loader" ]; then
+            install -m755 "$loader" "$NBD_DIR/" 2>/dev/null
+        fi
+        loader_name=$(basename "${loader:-ld-linux-x86-64.so.2}")
+        printf '%s' "$loader_name" > "$NBD_DIR/.loader-name" 2>/dev/null
+        log "  verify: closure step 3/3 — $(ls "$NBD_DIR" 2>/dev/null | wc -l) files, loader=$loader_name"
+
+        timeout 30 "$NBD_DIR/$loader_name" --library-path "$NBD_DIR" \
+            "$NBD_DIR/qemu-nbd" --version >/dev/null 2>&1 || exit 13
+        exit 0
+    ) || NBD_STAGE_RC=$?
+
+    NBD_LOADER_NAME=$(cat "$NBD_DIR/.loader-name" 2>/dev/null || echo ld-linux-x86-64.so.2)
+    if [[ "$NBD_STAGE_RC" -ne 0 ]]; then
+        err "  [FAIL] qemu-nbd closure staging failed (rc=$NBD_STAGE_RC)"
+        err "         10=no qemu-nbd 11=mkdir 12=copy 13=cannot execute"
+        PHASE2_PROBLEMS+=("qemu-nbd closure staging rc=$NBD_STAGE_RC")
+    else
+        log "  [PASS] qemu-nbd closure staged and verified"
     fi
-    log "  [PASS] qemu-nbd closure staged and verified ($(ls "$NBD_DIR" | wc -l) files)"
 
     # Wrapper placed at /usr/bin/qemu-nbd inside the initramfs so the hook can
     # keep calling `qemu-nbd` with no knowledge of any of this.

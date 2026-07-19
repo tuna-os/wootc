@@ -41,10 +41,16 @@ setup() {
 @test "the deployer stages a closure directory, not a bare binary" {
     grep -q 'nbd-closure' "$DEPLOY"
     grep -q 'NBD_DIR' "$DEPLOY"
+    grep -q 'install -m755 "\$NBD_SRC" "\$NBD_DIR/qemu-nbd"' "$DEPLOY"
+}
+
+@test "the loader name survives the subshell via a file, not a variable" {
+    # The staging runs in a subshell, so a variable assignment there is lost.
+    grep -q '.loader-name' "$DEPLOY"
 }
 
 @test "the closure includes every NEEDED library" {
-    grep -q "ldd \"\$NBD_SRC\"" "$DEPLOY"
+    grep -q 'ldd "\$NBD_SRC"' "$DEPLOY"
 }
 
 @test "the closure includes its own dynamic loader" {
@@ -54,19 +60,48 @@ setup() {
     grep -q 'NBD_LOADER' "$DEPLOY"
 }
 
-@test "the deployer verifies the closure can EXECUTE before baking it in" {
-    # A missing library discovered at Phase-2 boot is a silent emergency shell
-    # an hour later; discovered here it is a loud Phase-1 failure.
-    #
-    # It is RECORDED rather than fatal: each run costs 40-90 minutes, so the
-    # stretch continues in order to diagnose the initramfs regen in the same
-    # run. The problem is still reported, and Phase-2 setup is declared failed.
-    grep -q 'closure is incomplete' "$DEPLOY"
-    grep -A6 'staged qemu-nbd closure is incomplete' "$DEPLOY" | grep -q 'PHASE2_PROBLEMS+=('
+@test "closure staging cannot kill the deploy" {
+    # It DID: the block died silently mid-way under set -e — journal's last line
+    # "resolving libraries", cleanup trap unmounting everything in the same
+    # second, no error and no exit status. Auditing each command for set -e
+    # exposure is fragile (a mid-script `[[ ]] && cmd` does NOT exit; only one as
+    # a function's last line does — I got that diagnosis wrong once). So the
+    # whole block runs in a subshell with set +e and reports an rc instead.
+    local body
+    body=$(sed -n '/NBD_STAGE_RC=0/,/NBD_STAGE_RC=\$?/p' "$DEPLOY")
+    [ -n "$body" ]
+    echo "$body" | grep -q 'set +e'
+    grep -q ') || NBD_STAGE_RC=\$?' "$DEPLOY"
 }
 
-@test "a missing qemu-nbd in the deployer is a hard failure" {
-    grep -q 'deployer has no qemu-nbd to stage' "$DEPLOY"
+@test "each closure step is numbered so a failure names itself" {
+    # One run must localise the fault; "resolving libraries" then silence cost
+    # several runs on its own.
+    grep -q 'closure step 1/3' "$DEPLOY"
+    grep -q 'closure step 2/3' "$DEPLOY"
+    grep -q 'closure step 3/3' "$DEPLOY"
+}
+
+@test "distinct exit codes distinguish the failure modes" {
+    # 10=no qemu-nbd 11=mkdir 12=copy 13=cannot execute — each needs a
+    # different fix, and guessing between them costs a VM run.
+    grep -q 'exit 10' "$DEPLOY"
+    grep -q 'exit 11' "$DEPLOY"
+    grep -q 'exit 12' "$DEPLOY"
+    grep -q 'exit 13' "$DEPLOY"
+    grep -q '10=no qemu-nbd 11=mkdir 12=copy 13=cannot execute' "$DEPLOY"
+}
+
+@test "a staging failure is recorded, not fatal" {
+    grep -q 'PHASE2_PROBLEMS+=("qemu-nbd closure staging rc=' "$DEPLOY"
+}
+
+@test "a missing qemu-nbd is reported with its own exit code" {
+    # Was a hard `exit 1`; now rc=10 out of the staging subshell, recorded as a
+    # Phase-2 problem. Staging a helper must not abort an otherwise-good install
+    # — a missing closure means Phase 2 will not boot, which is worth reporting
+    # rather than dying over.
+    grep -q 'closure: no qemu-nbd in PATH' "$DEPLOY"
 }
 
 @test "the wrapper invokes the bundled loader with an explicit library path" {

@@ -91,7 +91,7 @@ setup() {
 @test "the closure self-test cannot hang the deploy" {
     # It EXECUTES a staged binary; a blocked exec there is indistinguishable
     # from a wedged deployer and costs a whole run to tell apart.
-    grep -q 'timeout 30 "\$NBD_DIR/\$NBD_LOADER_NAME"' "$DEPLOY"
+    grep -qE 'timeout 30 "\$NBD_DIR/\$?(loader_name|NBD_LOADER_NAME)' "$DEPLOY"
 }
 
 @test "the dracut regen is bounded — it cannot hang the deploy forever" {
@@ -139,5 +139,6 @@ setup() {
 @test "instrumentation brackets the dracut module copy and the closure" {
     grep -q 'verify: copying 99wootc-boot dracut module' "$DEPLOY"
     grep -q 'verify: dracut module copied' "$DEPLOY"
-    grep -q 'verify: closure has' "$DEPLOY"
+    # closure staging is now reported per numbered step
+    grep -q 'verify: closure step 1/3' "$DEPLOY"
 }
