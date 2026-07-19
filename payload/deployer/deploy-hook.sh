@@ -33,12 +33,35 @@ force_reboot() {
     echo 1 > /proc/sys/kernel/sysrq 2>/dev/null || true
     echo b > /proc/sysrq-trigger 2>/dev/null || true
 }
+# The watchdog MUST be cancellable, and its pid MUST be known.
+#
+# Previously this was a fire-and-forget `( sleep 2700; ... ) &`. Nothing ever
+# killed it, so when the deployer returned, dracut-initqueue blocked in wait()
+# for the leftover 45-minute sleep — and the machine sat idle until the watchdog
+# fired and rebooted it. Observed identically on every runner: the journal ends
+# mid-verification, `ps` shows only `dracut-initqueue` in do_wait with a single
+# `sleep 2700` child, and the box reboots at t=2702s.
+#
+# The cost was severe: the deploy's real exit status was never printed, Phase-2
+# setup never completed, and the harness blamed a "slow deploy" for 90 minutes.
 ( sleep 2700; echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg; force_reboot ) &
+WATCHDOG_PID=$!
+cancel_watchdog() {
+    [ -n "${WATCHDOG_PID:-}" ] || return 0
+    kill "$WATCHDOG_PID" 2>/dev/null || true
+    wait "$WATCHDOG_PID" 2>/dev/null || true
+    WATCHDOG_PID=""
+    echo "[wootc] watchdog cancelled" > /dev/kmsg 2>/dev/null || true
+}
 # This hook is sourced by dracut-initqueue, which may run under set -e: a
 # bare failing command would abort the hook before the status capture line.
 status=0
 /usr/bin/wootc-deploy || status=$?
+# Cancel FIRST: until this runs, every line below is racing a 45-minute sleep
+# that dracut-initqueue is blocked on.
+cancel_watchdog
 echo "[wootc] Deployer exited with status $status"
+echo "[wootc] Deployer exited with status $status" > /dev/kmsg 2>/dev/null || true
 
 # On success the deployer reboots the machine itself, so reaching this point
 # means failure. An interactive shell is only useful with wootc.debug (the
