@@ -36,38 +36,38 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
-@test "the watchdog pid is captured" {
-    # A fire-and-forget subshell cannot be cancelled.
-    grep -q 'WATCHDOG_PID=\$!' "$HOOK"
+@test "the watchdog cancels via a FLAG, never a signal" {
+    # Two signal-based designs failed live:
+    #   kill+wait  -> the wait blocked forever when the kill missed;
+    #   setsid     -> put the sleep in its own session, out of reach of both the
+    #                 pid kill and the process-GROUP kill. Strictly worse.
+    # A flag file needs no pid, no signal, and no wait.
+    grep -q 'WOOTC_DONE_FLAG' "$HOOK"
+    sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK" | grep -q 'WOOTC_DONE_FLAG'
 }
 
-@test "cancel_watchdog NEVER waits on the watchdog" {
-    # A bare `wait $pid` blocks forever when the kill does not take — which is
-    # exactly what happened: the deploy had exited and unmounted, yet
-    # `sleep 2700` survived and dracut-initqueue sat in do_wait indefinitely.
-    # That traded a 45-minute block for a permanent one.
+@test "cancel_watchdog sends no signals and does not wait" {
     local body
     body=$(sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK")
-    [ -n "$body" ]
-    run bash -c "printf '%s' \"\$1\" | grep -qE '^[^#]*wait +\"?\\\$WATCHDOG_PID'" _ "$body"
+    run bash -c "printf '%s' \"\$1\" | grep -qE '(^|[^#])(kill|wait|pkill)'" _ "$body"
     [ "$status" -ne 0 ]
 }
 
-@test "cancel_watchdog escalates TERM -> KILL and kills the process group" {
-    # The subshell may fork the sleep, so killing only $! can leave it running.
-    local body
-    body=$(sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK")
-    echo "$body" | grep -q 'kill -TERM "\$WATCHDOG_PID"'
-    echo "$body" | grep -q 'kill -KILL "\$WATCHDOG_PID"'
-    echo "$body" | grep -q 'kill -TERM -"\$WATCHDOG_PID"'
+@test "the watchdog loop exits on its own when the flag appears" {
+    sed -n '/^WOOTC_DONE_FLAG=/,/^WATCHDOG_PID=/p' "$HOOK" | grep -q 'while \[ ! -e "\$WOOTC_DONE_FLAG" \]'
 }
 
-@test "a stray watchdog sleep is swept as a last resort" {
-    sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK" | grep -q "pkill -KILL -f"
+@test "setsid is gone from the CODE — it made the sleep unkillable" {
+    # Match code only. The word survives in a comment explaining why it was
+    # removed, and an earlier version of this test matched that comment — the
+    # same "test asserts against its own documentation" trap that has now bitten
+    # three times in this repo.
+    run grep -nE '^[^#]*setsid' "$HOOK"
+    [ "$status" -ne 0 ]
 }
 
-@test "the watchdog is disowned so nothing waits on it at exit" {
-    sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK" | grep -q 'disown'
+@test "the flag is cleared at start so a stale one cannot disarm the watchdog" {
+    grep -q 'rm -f "\$WOOTC_DONE_FLAG"' "$HOOK"
 }
 
 @test "the watchdog is cancelled as soon as the deployer returns" {
@@ -94,6 +94,6 @@ setup() {
 @test "the watchdog still exists — this is not a removal" {
     # It is a genuine dead-man switch for a hung deployer. The bug was that it
     # was uncancellable, not that it existed.
-    grep -q 'sleep 2700' "$HOOK"
+    grep -q '2700' "$HOOK"
     grep -q 'watchdog: deployer hung for 45m' "$HOOK"
 }

@@ -44,30 +44,39 @@ force_reboot() {
 #
 # The cost was severe: the deploy's real exit status was never printed, Phase-2
 # setup never completed, and the harness blamed a "slow deploy" for 90 minutes.
-( setsid sleep 2700 2>/dev/null || sleep 2700
-  echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg
-  force_reboot ) &
+# Watchdog that CANCELS ITSELF. No kill, no wait, no hunting for a pid.
+#
+# Two failed designs preceded this, both live-observed:
+#   1. `( sleep 2700; force_reboot ) &` — never cancelled, so dracut-initqueue
+#      blocked in wait() for the full 45 minutes after the deployer returned;
+#   2. adding `kill` + `wait` — the wait blocked FOREVER when the kill missed,
+#      and wrapping the sleep in `setsid` (to stop it outliving the subshell)
+#      put it in its own session where neither the pid kill nor the process
+#      GROUP kill could reach it. Strictly worse.
+#
+# So: poll a flag instead of sleeping blindly. Cancelling is a file touch, the
+# loop exits within one tick on its own, and nothing ever needs to wait on or
+# signal it. The deadline is still enforced if the deployer really does hang.
+WOOTC_DONE_FLAG=/run/wootc-deploy-done
+rm -f "$WOOTC_DONE_FLAG" 2>/dev/null || true
+(
+    deadline=$(( $(date +%s) + 2700 ))
+    while [ ! -e "$WOOTC_DONE_FLAG" ]; do
+        [ "$(date +%s)" -ge "$deadline" ] || { sleep 10; continue; }
+        echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg
+        force_reboot
+        break
+    done
+) &
 WATCHDOG_PID=$!
 cancel_watchdog() {
-    [ -n "${WATCHDOG_PID:-}" ] || return 0
-    # NEVER `wait` here. A bare `wait $pid` blocks forever if the kill did not
-    # take — which replaced the 45-minute block with a permanent one, observed
-    # live: the deploy had exited and unmounted, yet `sleep 2700` survived and
-    # dracut-initqueue sat in do_wait indefinitely.
-    #
-    # TERM, then KILL the whole process group (the subshell may have forked the
-    # sleep, so killing only $! can leave the sleep running), then disown so the
-    # shell has nothing left to wait on at exit.
-    kill -TERM "$WATCHDOG_PID" 2>/dev/null || true
-    kill -TERM -"$WATCHDOG_PID" 2>/dev/null || true
-    kill -KILL "$WATCHDOG_PID" 2>/dev/null || true
-    kill -KILL -"$WATCHDOG_PID" 2>/dev/null || true
-    # Belt and braces: any stray watchdog sleep, identified by its exact duration.
-    pkill -KILL -f '^sleep 2700$' 2>/dev/null || true
-    disown "$WATCHDOG_PID" 2>/dev/null || true
+    # A touch, not a signal. The loop notices within ~10s and exits by itself,
+    # so dracut-initqueue has nothing left to block on.
+    : > "$WOOTC_DONE_FLAG" 2>/dev/null || true
     WATCHDOG_PID=""
     echo "[wootc] watchdog cancelled" > /dev/kmsg 2>/dev/null || true
 }
+
 # This hook is sourced by dracut-initqueue, which may run under set -e: a
 # bare failing command would abort the hook before the status capture line.
 status=0
