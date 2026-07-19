@@ -75,6 +75,21 @@ setup() {
     [ "$attaches" -eq "$partscans" ]
 }
 
+@test "loop.max_part is set on the Phase-2 kernel cmdline, not just via modprobe" {
+    # `modprobe loop max_part=16` applies only at module LOAD time, so it is a
+    # no-op when loop is already loaded or built in (CONFIG_BLK_DEV_LOOP=y).
+    # Everything downstream depends on /dev/loopNpM appearing, so this is
+    # insurance that survives built-in-vs-modular.
+    grep -q 'LOOP_KARG="loop.max_part=16"' "$DEPLOY"
+    grep -q 'PHASE2_KARGS=.*\$LOOP_KARG' "$DEPLOY"
+}
+
+@test "the verify attach is guarded like the main attach" {
+    # Asymmetric guards are how one path gets a clear error and the other a
+    # confusing downstream failure.
+    grep -q 'losetup could not attach \$DISK for verification' "$DEPLOY"
+}
+
 @test "detach uses losetup -d, not qemu-nbd --disconnect" {
     grep -q 'losetup -d "\$LOOP_DEV"' "$DEPLOY"
     grep -q 'losetup -d "\$VERIFY_LOOP"' "$DEPLOY"

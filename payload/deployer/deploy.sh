@@ -298,7 +298,23 @@ MGMT_KARG="systemd.wants=qemu-guest-agent.service"
 # CI and a dead machine for a user. Bound it so the failure is fast and lands
 # in a shell with the actual error instead of a silent spinner.
 TIMEOUT_KARG="rd.timeout=120"
-PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG"
+
+# loop.max_part on the CMDLINE, not via modprobe.
+#
+# The Phase-2 hook attaches root.disk with `losetup --partscan`, and everything
+# downstream depends on /dev/loopNpM appearing so the root UUID reaches udev.
+# `modprobe loop max_part=16` cannot guarantee that: module parameters apply
+# only at LOAD time, so it is a no-op when loop is already loaded or built into
+# the kernel (CONFIG_BLK_DEV_LOOP=y is common).
+#
+# Measured: --partscan DOES create the nodes even with max_part=0, because it
+# sets LO_FLAGS_PARTSCAN on that device rather than relying on the module
+# default (verified on a 64M GPT image — p1 and p2 both appeared). So this is
+# insurance, not a fix: a kernel cmdline parameter is honoured whether loop is
+# built in or modular, and costs nothing. If a target kernel ever behaves
+# differently, this is what keeps Phase 2 bootable.
+LOOP_KARG="loop.max_part=16"
+PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG $LOOP_KARG"
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
@@ -406,6 +422,13 @@ fi
 #
 # --partscan is load-bearing: it makes /dev/loopNpM appear, which is how the
 # root partition's UUID reaches udev and lets the ordinary sysroot.mount work.
+# `modprobe loop max_part=16` is deliberately NOT relied upon: module params
+# apply only at LOAD time, so it is a no-op when loop is already loaded or built
+# in (CONFIG_BLK_DEV_LOOP=y is common). Empirically --partscan still creates
+# /dev/loopNpM with max_part=0, because it sets LO_FLAGS_PARTSCAN on that
+# specific device rather than depending on the module default — verified on a
+# 64M GPT image: p1 and p2 both appeared. The modprobe stays as belt-and-braces
+# for kernels where loop is a module and not yet loaded.
 modprobe loop max_part=16 2>/dev/null || true
 LOOP_DEV=$(losetup --find --show --partscan "$DISK")
 if [[ -z "$LOOP_DEV" ]]; then
@@ -565,6 +588,10 @@ log "Verifying installed system setup..."
 # `losetup --find` picks a fresh loop device rather than reusing the previous
 # one, so verification is independent of any teardown race on the old nodes.
 VERIFY_LOOP=$(losetup --find --show --partscan "$DISK")
+if [[ -z "$VERIFY_LOOP" ]]; then
+    err "losetup could not attach $DISK for verification"
+    exit 1
+fi
 
 # qemu-nbd publishes the capacity change before the partition scan completes.
 # Wait for the root partition explicitly instead of treating a successful
