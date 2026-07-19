@@ -880,7 +880,30 @@ rebuild_ssh_image_if_missing() {
     bash "$SCRIPT_DIR/build-ssh-image.sh"
 }
 
+# Build the e2e ssh image BEFORE compose needs it.
+#
+# compose.yml references localhost/wootc-e2e-windows-ssh:latest, which only ever
+# exists because build-ssh-image.sh made it locally. On any host that has never
+# built it — a fresh GitHub hosted runner, or a laptop after `podman system
+# prune -af` — compose interprets "localhost/..." as a REGISTRY and tries to
+# pull over HTTPS from localhost:443. Recovering after that failure works, but
+# recovering from a failure we can trivially prevent is the wrong order.
+ensure_ssh_image() {
+    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
+    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 0
+    $DOCKER image exists "$img" 2>/dev/null && return 0
+    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || {
+        fail "e2e ssh image $img is missing and build-ssh-image.sh is not executable"
+        return 1
+    }
+    step "Building the e2e ssh image (absent on this host)..."
+    bash "$SCRIPT_DIR/build-ssh-image.sh" || { fail "build-ssh-image.sh failed"; return 1; }
+    $DOCKER image exists "$img" 2>/dev/null || { fail "build completed but $img still absent"; return 1; }
+    pass "e2e ssh image built"
+}
+
 compose_up_windows() {
+    ensure_ssh_image || return 1
     pick_free_ports
     $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
     local out
@@ -913,7 +936,31 @@ compose_up_windows() {
     fi
     return 1
 }
-compose_up_windows
+# Do NOT ignore the result, and do NOT trust it either.
+#
+# This call used to be bare, so when every recovery path failed the script still
+# printed "Container started" and went on to poll 15 minutes for a QEMU that
+# could never appear. That is exactly how the first hosted-runner E2E and a
+# kanpur run both failed: the locally-built ssh image was missing, compose tried
+# to PULL it from a registry literally named "localhost", and the real error —
+#   initializing source docker://localhost/wootc-e2e-windows-ssh:latest
+#   no container with name or ID "wootc-e2e-windows" found
+# — was buried under a 15-minute wait and reported as "QEMU did not start".
+#
+# podman-compose can also exit 0 without creating the container, so the exit
+# status alone is not evidence. Verify the container actually exists.
+if ! compose_up_windows; then
+    fail "Could not start the Windows container (all recovery paths exhausted)"
+    fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
+    fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
+    fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
+    exit 1
+fi
+if ! $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
+    fail "compose reported success but $CONTAINER_NAME does not exist"
+    fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
+    exit 1
+fi
 info "Container $CONTAINER_NAME started"
 
 # Dockur may need to prepare (or re-use) a Windows ISO before starting QEMU.

@@ -76,6 +76,11 @@ services:
       - "${WOOTC_E2E_RDP_PORT:-3389}:3389"    # RDP
       - "${WOOTC_E2E_VNC_PORT:-5900}:5900"    # QEMU VNC fallback
       - "${WOOTC_E2E_SSH_PORT:-2222}:22"      # sshd debug shell
+      # WebView2 remote-debugging endpoint of the real wootc.exe, used by the
+      # --gui-cdp leg to drive the genuine GUI (not the mock) from the host.
+      # Dockur NATs container ports through to the guest, so this reaches
+      # wootc.exe running inside Windows.
+      - "${WOOTC_E2E_CDP_PORT:-9222}:9222"    # WebView2 CDP (real GUI E2E)
     volumes:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
       - ./storage:/storage
