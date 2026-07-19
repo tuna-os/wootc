@@ -1,6 +1,6 @@
 # setup-wootc.ps1
 # Runs inside the Windows VM via WinRM.
-# Creates root.vhdx, copies deployer files, installs GRUB, configures BCD.
+# Creates root.disk, copies deployer files, installs GRUB, configures BCD.
 #
 # Assumes deployer files are available at D:\ (shared volume mapped
 # by dockur/windows as a CD-ROM or network drive).
@@ -37,7 +37,7 @@ $WootcKargs = "wootc.bootloader=$Bootloader"
 if ($ComposeFs) { $WootcKargs += " wootc.composefs=1" }
 # ── BitLocker / FDE (SPEC §3.5) ─────────────────────────────────────────────
 # The deployer mounts the host NTFS from Linux; on a BitLocker-protected C: it
-# would see FVE ciphertext, so root.vhdx cannot live there. We never force a
+# would see FVE ciphertext, so root.disk cannot live there. We never force a
 # decrypt — instead shrink C: and host Linux on a new UNENCRYPTED volume, which
 # is exactly what the installer GUI offers. On a plaintext C: this is a no-op.
 $storageRoot = "C:"
@@ -79,34 +79,56 @@ Write-Host "[wootc] Creating directories..."
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 New-Item -ItemType Directory -Force -Path $disksDir | Out-Null
 
-# ── Step 2: Create root.vhdx (dynamic VHDX) ─────────────────────────────────
-# DiskPart is available on every supported Windows edition and creates a
-# dynamic VHDX that Disk Management can mount for recovery.  Its metadata log
-# avoids the fixed-VHD footer ambiguity and keeps allocation sparse on NTFS.
-Write-Host "[wootc] Creating root.vhdx ($DiskSizeGB GB dynamic VHDX)..."
-$diskPath = "$disksDir\root.vhdx"
-$diskpartScript = "$installDir\create-root-vhdx.txt"
-$diskpartLines = @(
-    "create vdisk file=`"$diskPath`" maximum=$($DiskSizeGB * 1024) type=expandable"
-)
-Set-Content -Path $diskpartScript -Value $diskpartLines -Encoding ASCII
-& diskpart.exe /s $diskpartScript
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $diskPath)) {
-    throw "DiskPart failed to create dynamic VHDX at $diskPath"
-}
-Remove-Item $diskpartScript -Force
+# ── Step 2: Create root.disk (SPARSE RAW image) ─────────────────────────────
+# Raw, not VHDX, and the reason is the Linux side.
+#
+# A VHDX needs a format-aware driver to attach — qemu-nbd — which target bootc
+# images do not ship. Verified against ghcr.io/tuna-os/yellowfin:gnome:
+#     /usr/sbin/losetup   PRESENT
+#     qemu-nbd            ABSENT
+# So VHDX forced us to stage a foreign Fedora qemu-nbd plus its 26-library
+# closure and loader into an initramfs assembled from the TARGET image's
+# libraries. That produced a libfuse3.so.4-vs-.so.3 soname mismatch, a wrapper,
+# an execute-test, and a silent death inside the staging that cost most of a day
+# to localise.
+#
+# A raw image needs only `losetup --partscan`, the kernel loop driver, which is
+# already present. Nothing to stage, nothing to go wrong across image
+# boundaries. It is also what Wubi used, which is why this file is still called
+# root.disk everywhere.
+#
+# It also removes the VHDX format driver from the boot-critical WRITE path, and
+# with it QEMU's VHDX corruption reports — notably corruption on EXPANSION
+# (gitlab #727), which is exactly what a dracut regen writing a ~130 MB
+# initramfs does.
+#
+# NTFS sparse files give the same "allocate on write" behaviour as a dynamic
+# VHDX, so the disk cost is unchanged.
+Write-Host "[wootc] Creating root.disk ($DiskSizeGB GB sparse raw image)..."
+$diskPath = "$disksDir\root.disk"
+$sizeBytes = [int64]$DiskSizeGB * 1GB
 
-try {
-    Mount-DiskImage -ImagePath $diskPath -NoDriveLetter -ErrorAction Stop | Out-Null
-    $image = Get-DiskImage -ImagePath $diskPath -ErrorAction Stop
-    if (-not $image.Attached) {
-        throw "Windows did not attach the newly created VHDX"
-    }
-} finally {
-    Dismount-DiskImage -ImagePath $diskPath -ErrorAction SilentlyContinue
+# Create, mark sparse, then set the length. Order matters: marking sparse BEFORE
+# setting the length is what keeps it from being physically allocated.
+$fs = [System.IO.File]::Create($diskPath)
+$fs.Close()
+& fsutil.exe sparse setflag "$diskPath" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "fsutil could not mark $diskPath sparse (is the volume NTFS?)"
 }
+$fs = [System.IO.File]::Open($diskPath, 'Open', 'Write')
+try   { $fs.SetLength($sizeBytes) }
+finally { $fs.Close() }
 
-Write-Host "[wootc] root.vhdx created: $diskPath ($DiskSizeGB GB dynamic VHDX)"
+if (-not (Test-Path $diskPath)) { throw "Failed to create raw image at $diskPath" }
+$actual = (Get-Item $diskPath).Length
+if ($actual -ne $sizeBytes) {
+    throw "root.disk is $actual bytes, expected $sizeBytes"
+}
+$sparse = (& fsutil.exe sparse queryflag "$diskPath") -join ' '
+Write-Host "[wootc] root.disk created: $actual bytes, $sparse"
+
+Write-Host "[wootc] root.disk created: $diskPath ($DiskSizeGB GB dynamic VHDX)"
 
 # ── Step 3: Copy deployer files ─────────────────────────────────────────────
 # Files should be available via a shared volume or SMB.
@@ -359,7 +381,7 @@ Write-Host ""
 Write-Host "=== wootc setup complete ==="
 Write-Host "  Image:       $ImageRef"
 Write-Host "  Hostname:    $Hostname"
-Write-Host "  root.vhdx:   $diskPath ($DiskSizeGB GB)"
+Write-Host "  root.disk:   $diskPath ($DiskSizeGB GB)"
 Write-Host "  Install dir: $installDir"
 Write-Host ""
 Write-Host 'Ready to reboot. The system will boot into the wootc deployer.'

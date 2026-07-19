@@ -88,10 +88,13 @@ setup() {
     [ "$n" -ge 4 ]
 }
 
-@test "the closure self-test cannot hang the deploy" {
-    # It EXECUTES a staged binary; a blocked exec there is indistinguishable
-    # from a wedged deployer and costs a whole run to tell apart.
-    grep -qE 'timeout 30 "\$NBD_DIR/\$?(loader_name|NBD_LOADER_NAME)' "$DEPLOY"
+@test "no staged binary is executed during the deploy any more" {
+    # There WAS one: the qemu-nbd closure self-test. Executing a staged binary
+    # mid-deploy is indistinguishable from a wedged deployer when it blocks.
+    # The raw/losetup switch removed the staging entirely, so the risk is gone
+    # rather than bounded.
+    run grep -nE '^[^#]*\$NBD_DIR' "$DEPLOY"
+    [ "$status" -ne 0 ]
 }
 
 @test "the dracut regen is bounded — it cannot hang the deploy forever" {
@@ -140,5 +143,5 @@ setup() {
     grep -q 'verify: copying 99wootc-boot dracut module' "$DEPLOY"
     grep -q 'verify: dracut module copied' "$DEPLOY"
     # closure staging is now reported per numbered step
-    grep -q 'verify: closure step 1/3' "$DEPLOY"
+    grep -q 'no binary staging needed for raw' "$DEPLOY"
 }

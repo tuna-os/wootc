@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wootc-deploy — runs inside the deployer initramfs.
 #
-# Finds root.vhdx on the NTFS partition, attaches it through NBD,
+# Finds root.disk on the NTFS partition, attaches it through losetup,
 # writes a fisherman recipe, and runs fisherman to deploy the
 # bootc image into the loop file.
 #
@@ -120,9 +120,9 @@ cleanup() {
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
     [[ -n "$VERIFY_CRYPT" ]] && cryptsetup close "$VERIFY_CRYPT" 2>/dev/null || true
-    [[ -n "$VERIFY_LOOP" ]] && qemu-nbd --disconnect "$VERIFY_LOOP" 2>/dev/null || true
+    [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
-    [[ -n "$LOOP_DEV" ]] && qemu-nbd --disconnect "$LOOP_DEV" 2>/dev/null || true
+    [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -187,9 +187,9 @@ if [[ -z "$IMAGE" ]]; then
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
 
-ROOT_DISK_PATH="/wootc/disks/root.vhdx"
+ROOT_DISK_PATH="/wootc/disks/root.disk"
 
-# ── Find NTFS partition containing root.vhdx ────────────────────────────────
+# ── Find NTFS partition containing root.disk ────────────────────────────────
 log "Searching for ${ROOT_DISK_PATH}..."
 
 # The initqueue/online hook fires when the network is up, which can beat SCSI
@@ -205,7 +205,7 @@ modprobe virtio_scsi 2>/dev/null || true
 # reboots almost immediately — so that volume still carries the NTFS dirty bit,
 # and ntfs3 REFUSES a dirty volume even read-only. The mount failed, the
 # partition was skipped in silence, and the deployer reported
-#   Could not find /wootc/disks/root.vhdx on any partition
+#   Could not find /wootc/disks/root.disk on any partition
 # while the volume holding it sat right there (observed twice, #36).
 #
 # `-o force` tells ntfs3 to mount a dirty volume anyway; read-only makes that
@@ -255,7 +255,7 @@ for attempt in {1..24}; do
         log "  NTFS_PART=${NTFS_PART} (uuid=$(blkid -s UUID -o value "$NTFS_PART" 2>/dev/null))"
         break
     fi
-    log "root.vhdx not found (attempt ${attempt}/24); retrying in 5s..."
+    log "root.disk not found (attempt ${attempt}/24); retrying in 5s..."
     [[ "$attempt" -eq 1 ]] && { err "block devices seen so far:"; cat /proc/partitions >&2 || true; }
     sleep 5
 done
@@ -275,7 +275,7 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     err "Boot Windows once, perform a full shutdown, and retry."
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
-DISK="/mnt/ntfs/wootc/disks/root.vhdx"
+DISK="/mnt/ntfs/wootc/disks/root.disk"
 
 # Now that NTFS is mounted, pick up a staged debug SSH key if the cmdline did
 # not carry one, and derive the sshd-enable kernel karg (empty when no key).
@@ -345,7 +345,7 @@ phase "scratch-setup"
 log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # ntfs3 allocates the full size on truncate (no sparse support), so this
-# must fit in C:'s free space alongside the dynamically allocated root.vhdx.
+# must fit in C:'s free space alongside the dynamically allocated root.disk.
 # 13G: with disk-backed default storage fisherman pulls the full extracted
 # image (~10G) here plus transient blob staging; the target disk holds only
 # the ostree deployment.
@@ -393,19 +393,27 @@ if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
     fi
 fi
 
-# ── Attach dynamic VHDX through qemu-nbd ───────────────────────────────────
-# VHDX has an internal metadata log and is natively mountable by Windows. It
-# is not a byte-addressable raw image, so losetup must never be used here.
-VHDX_FORMAT=$(qemu-img info --output=json "$DISK" | jq -r '.format // empty')
-if [[ "$VHDX_FORMAT" != "vhdx" ]]; then
-    err "root.vhdx format check failed (detected: ${VHDX_FORMAT:-unknown})"
+# ── Attach the RAW image through losetup ───────────────────────────────────
+# root.disk is a byte-addressable sparse raw image, so the kernel loop driver
+# attaches it directly. No format driver, and — crucially — no binary to stage.
+#
+# This replaced qemu-nbd + VHDX. Target bootc images ship losetup but NOT
+# qemu-nbd (verified against ghcr.io/tuna-os/yellowfin:gnome), so the VHDX path
+# forced a foreign Fedora qemu-nbd and its 26-library closure into an initramfs
+# built from the target's libraries — a libfuse3 soname mismatch, a loader
+# wrapper, and a silent failure that cost most of a day. losetup is already
+# there, in both the deployer and the target.
+#
+# --partscan is load-bearing: it makes /dev/loopNpM appear, which is how the
+# root partition's UUID reaches udev and lets the ordinary sysroot.mount work.
+modprobe loop max_part=16 2>/dev/null || true
+LOOP_DEV=$(losetup --find --show --partscan "$DISK")
+if [[ -z "$LOOP_DEV" ]]; then
+    err "losetup could not attach $DISK"
     exit 1
 fi
-modprobe nbd nbds_max=4 max_part=16
-LOOP_DEV=/dev/nbd0
-qemu-nbd --connect "$LOOP_DEV" --format=vhdx --discard=unmap "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
-log "Attached dynamic VHDX ${DISK} as ${LOOP_DEV}"
+log "Attached raw image ${DISK} as ${LOOP_DEV}"
 
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
@@ -543,7 +551,7 @@ phase "fisherman"
 log "Running fisherman — this pulls the image and deploys it..."
 fisherman "$RECIPE"
 
-qemu-nbd --disconnect "$LOOP_DEV"
+losetup -d "$LOOP_DEV"
 LOOP_DEV=""
 
 # ── Post-deployment verification ─────────────────────────────────────────────
@@ -554,11 +562,9 @@ phase "verification"
 log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
-# Do not reuse nbd0 here: qemu-nbd disconnect is asynchronous and the old
-# partition nodes can briefly remain after Fisherman exits.  A separate NBD
-# device makes verification independent of that teardown race.
-VERIFY_LOOP=/dev/nbd1
-qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx --discard=unmap "$DISK"
+# `losetup --find` picks a fresh loop device rather than reusing the previous
+# one, so verification is independent of any teardown race on the old nodes.
+VERIFY_LOOP=$(losetup --find --show --partscan "$DISK")
 
 # qemu-nbd publishes the capacity change before the partition scan completes.
 # Wait for the root partition explicitly instead of treating a successful
@@ -671,98 +677,20 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
         "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
-    log "  verify: dracut module copied; staging qemu-nbd closure"
+    log "  verify: dracut module copied (no binary staging needed for raw)"
 
-    # ── qemu-nbd must be SELF-CONTAINED, not a bare binary ──────────────────
-    # We ship the deployer's own qemu-nbd because target bootc images generally
-    # do not have one (verified: ghcr.io/tuna-os/yellowfin:gnome has no
-    # qemu-nbd). But copying just the executable does not work: it is a
-    # dynamically-linked Fedora build, and the Phase-2 initramfs is assembled
-    # from the TARGET image's libraries. Measured against yellowfin, the
-    # deployer's qemu-nbd needs libfuse3.so.4 while the target ships
-    # libfuse3.so.3 — a soname major bump. The binary lands in the initramfs,
-    # then dies at runtime with:
-    #     error while loading shared libraries: libfuse3.so.4
-    # The attach fails, the root UUID never appears, and Phase 2 drops to an
-    # emergency shell — silently, because the failure is at the last step.
+    # NOTHING to stage here any more.
     #
-    # Do NOT "fix" this by symlinking .so.4 onto .so.3: a soname major bump is
-    # an ABI break, and mismatched ABI on the driver that writes the loop-backed
-    # root filesystem risks data corruption, not merely a crash.
+    # This is where the qemu-nbd closure used to live: a foreign Fedora binary,
+    # its 26 NEEDED libraries, its ld.so, a --library-path wrapper, and an
+    # execute-test — all so a VHDX could be attached inside an initramfs built
+    # from a DIFFERENT image's libraries. It produced a libfuse3.so.4-vs-.so.3
+    # soname mismatch and a silent failure that cost most of a day.
     #
-    # Do NOT match the deployer base to the target image either: wootc supports
-    # arbitrary bootc images, so the target's distro and library versions are
-    # not knowable in advance.
-    #
-    # Instead ship the full closure — binary + every NEEDED library + Fedora's
-    # own ld.so — and invoke through that loader with an explicit --library-path.
-    # The result carries its entire runtime and never resolves against the
-    # target's libraries, so it works on any image. Verified: the closure runs
-    # inside yellowfin and reports qemu-nbd 10.2.2 (fc44).
-    # The whole closure staging runs in a SUBSHELL with `set +e`.
-    #
-    # deploy.sh runs under `set -e`, and this block died silently mid-way: the
-    # journal's last line was "resolving libraries" and, in the same second, the
-    # cleanup trap unmounted everything. No error, no exit status, no clue which
-    # command failed — and it cost several 40-90 minute runs to even localise.
-    #
-    # Rather than audit every command for set -e exposure (I got that diagnosis
-    # wrong once already: a mid-script `[[ ]] && cmd` does NOT exit, only one as
-    # the last line of a function does), make the block structurally incapable
-    # of killing the deploy. Staging a helper binary must never abort an
-    # otherwise-successful install; a missing closure is recorded and reported,
-    # and Phase 2 is declared un-bootable, which is strictly more useful than a
-    # silent death.
-    NBD_DIR="$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/nbd-closure"
-    NBD_STAGE_RC=0
-    (
-        set +e
-        NBD_SRC="$(command -v qemu-nbd)"
-        [ -n "$NBD_SRC" ] || { echo "closure: no qemu-nbd in PATH" >&2; exit 10; }
-
-        install -d "$NBD_DIR" || { echo "closure: mkdir $NBD_DIR failed" >&2; exit 11; }
-        install -m755 "$NBD_SRC" "$NBD_DIR/qemu-nbd" || { echo "closure: copy binary failed" >&2; exit 12; }
-        log "  verify: closure step 1/3 — binary staged from $NBD_SRC"
-
-        libs=0
-        for lib in $(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]+\.so[^ ]*'); do
-            [ -e "$lib" ] || continue
-            install -m755 "$lib" "$NBD_DIR/" 2>/dev/null && libs=$((libs + 1))
-        done
-        log "  verify: closure step 2/3 — $libs libraries staged"
-
-        loader=$(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]*ld-linux[^ ]*\.so\.[0-9]+' | head -1)
-        if [ -n "$loader" ] && [ -e "$loader" ]; then
-            install -m755 "$loader" "$NBD_DIR/" 2>/dev/null
-        fi
-        loader_name=$(basename "${loader:-ld-linux-x86-64.so.2}")
-        printf '%s' "$loader_name" > "$NBD_DIR/.loader-name" 2>/dev/null
-        log "  verify: closure step 3/3 — $(ls "$NBD_DIR" 2>/dev/null | wc -l) files, loader=$loader_name"
-
-        timeout 30 "$NBD_DIR/$loader_name" --library-path "$NBD_DIR" \
-            "$NBD_DIR/qemu-nbd" --version >/dev/null 2>&1 || exit 13
-        exit 0
-    ) || NBD_STAGE_RC=$?
-
-    NBD_LOADER_NAME=$(cat "$NBD_DIR/.loader-name" 2>/dev/null || echo ld-linux-x86-64.so.2)
-    if [[ "$NBD_STAGE_RC" -ne 0 ]]; then
-        err "  [FAIL] qemu-nbd closure staging failed (rc=$NBD_STAGE_RC)"
-        err "         10=no qemu-nbd 11=mkdir 12=copy 13=cannot execute"
-        PHASE2_PROBLEMS+=("qemu-nbd closure staging rc=$NBD_STAGE_RC")
-    else
-        log "  [PASS] qemu-nbd closure staged and verified"
-    fi
-
-    # Wrapper placed at /usr/bin/qemu-nbd inside the initramfs so the hook can
-    # keep calling `qemu-nbd` with no knowledge of any of this.
-    cat > "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd" <<WRAP
-#!/bin/sh
-# Self-contained qemu-nbd: runs against its own bundled libraries, never the
-# target image's. See deploy.sh for why a bare binary does not work here.
-exec /usr/lib/wootc-nbd/$NBD_LOADER_NAME --library-path /usr/lib/wootc-nbd \\
-     /usr/lib/wootc-nbd/qemu-nbd "\$@"
-WRAP
-    chmod 755 "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd"
+    # root.disk is now a raw image, so the Phase-2 hook uses `losetup`, which the
+    # target image already ships (verified: yellowfin has /usr/sbin/losetup and
+    # no qemu-nbd). No cross-image binary, no closure, no wrapper, no failure
+    # mode. Deleting the component beat repairing it.
 
     HOST_UUID=$(blkid -s UUID -o value "$NTFS_PART")
     if [[ -z "$HOST_UUID" ]]; then
@@ -777,7 +705,7 @@ WRAP
     fi
     for entry in "${BLS_ENTRIES[@]}"; do
         grep -q 'wootc.host_uuid=' "$entry" || \
-            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.vhdx|' "$entry"
+            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.disk|' "$entry"
     done
     shopt -u nullglob
 
@@ -883,19 +811,17 @@ WRAP
         GUARD_ENTRIES=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | wc -l)
         GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'wootc-attach-loop')
         log "  guard: lsinitrd listed $GUARD_ENTRIES entries, wootc-attach-loop matches=$GUARD_HITS"
-        # The hook alone is not enough: it calls qemu-nbd, and a hook present
-        # without a working qemu-nbd closure fails at the last step before the
-        # root device would appear — the exact silent emergency-shell failure
-        # this guard exists to prevent. Check the closure landed too.
-        GUARD_NBD=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'wootc-nbd/')
-        log "  guard: wootc-nbd closure files in initramfs=$GUARD_NBD"
-        if [[ "${GUARD_HITS:-0}" -ge 1 ]] && [[ "${GUARD_NBD:-0}" -lt 2 ]]; then
-            err "  [FAIL] Phase-2 initramfs has the hook but NOT the qemu-nbd closure"
-            err "         The hook would run, call qemu-nbd, and fail to attach the VHDX."
-            PHASE2_PROBLEMS+=("initramfs missing the qemu-nbd closure")
+        # With a raw root.disk the hook needs only losetup, which the target
+        # image already provides — so there is no staged binary to verify. The
+        # hook's own presence is now the whole requirement.
+        GUARD_LOSETUP=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'losetup')
+        log "  guard: losetup present in initramfs=$GUARD_LOSETUP"
+        if [[ "${GUARD_LOSETUP:-0}" -lt 1 ]]; then
+            err "  [FAIL] Phase-2 initramfs has no losetup — root.disk cannot be attached"
+            PHASE2_PROBLEMS+=("initramfs missing losetup")
         fi
         if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
-            log "  [PASS] Phase-2 initramfs carries the loop-attach hook + qemu-nbd closure"
+            log "  [PASS] Phase-2 initramfs carries the loop-attach hook"
         else
             err "  [FAIL] Phase-2 initramfs is MISSING wootc-attach-loop.sh — root.disk would never attach; aborting deploy"
             exit 1
@@ -1054,7 +980,7 @@ WRAP
         err "  [FAIL] wootc-passthrough.service install failed"
     fi
 
-    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.vhdx' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
+    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
         log "  [PASS] Phase 2 loop-root arguments in BLS entries"
     else
         err "  [FAIL] Phase 2 loop-root arguments missing from BLS entries"
@@ -1189,7 +1115,7 @@ BLSEOF
                 # boot. Overwriting all three paths makes the handoff prefix-
                 # independent and removes the stale deployer menu.
                 PHASE2_GRUB_CFG=$(cat <<GRUBEOF
-# wootc Phase 2 — boot installed system from root.vhdx
+# wootc Phase 2 — boot installed system from root.disk
 set default=0
 set timeout=5
 
@@ -1240,7 +1166,7 @@ if [[ -n "$VERIFY_CRYPT" ]]; then
     cryptsetup close "$VERIFY_CRYPT"
     VERIFY_CRYPT=""
 fi
-qemu-nbd --disconnect "$VERIFY_LOOP"
+losetup -d "$VERIFY_LOOP"
 VERIFY_LOOP=""
 
 # ╔═══════════════════════════════════════════════════════════════════════════
