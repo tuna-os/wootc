@@ -108,6 +108,22 @@ mkrun() {
     [ "$prune_line" -lt "$preflight_line" ]
 }
 
+@test "preflight demands headroom for two runs, not the bare minimum for one" {
+    # 65 GiB was the minimum to survive ONE run, so a run could pass preflight
+    # and still die mid-deploy when the snapshot copy landed — and it left
+    # nothing for the next run, ratcheting runners toward full. Resident
+    # footprint is ~60 GiB per run (qcow2 + a FULL copy of it as the snapshot,
+    # since reflink is unavailable here, + two ~7 GiB ISOs).
+    grep -q 'required_free_gib=120' "$E2E"
+    run grep -n 'required_free_gib=65' "$E2E"
+    [ "$status" -ne 0 ]
+}
+
+@test "the cached-ISO and reuse paths keep proportional headroom" {
+    grep -q 'required_free_gib=100' "$E2E"
+    grep -q 'required_free_gib=80' "$E2E"
+}
+
 @test "the keep count is overridable" {
     grep -q 'WOOTC_E2E_KEEP_RUNS:-3' "$E2E"
 }
