@@ -625,6 +625,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     fi
     mkdir -p "$DEPLOY_ROOT/boot"
     mount "$VERIFY_BOOT" "$DEPLOY_ROOT/boot"
+    # Everything from here to the closure PASS used to be SILENT. A deploy hung
+    # somewhere in this stretch for 31 minutes and then the box rebooted, and
+    # the journal's last line was this mount — leaving no way to tell which step
+    # blocked. Each step now announces itself; a hang is identified by which
+    # line is LAST rather than by guessing.
+    log "  verify: /boot mounted, staging Phase-2 boot support"
 
     # ── [generic] Debug SSH key for root (mirrors corral) ────────────────
     # On ostree, /root is a symlink to /var/roothome and /var lives in the
@@ -654,9 +660,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # Install the runtime hook after bootc/fisherman has laid down the target.
     # This is the point at which Phase 2 becomes bootable: the initramfs
     # learns to attach the NTFS-backed VHDX so the root UUID appears.
+    log "  verify: copying 99wootc-boot dracut module"
     install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
         "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
+    log "  verify: dracut module copied; staging qemu-nbd closure"
 
     # ── qemu-nbd must be SELF-CONTAINED, not a bare binary ──────────────────
     # We ship the deployer's own qemu-nbd because target bootc images generally
@@ -692,6 +700,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     NBD_DIR="$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/nbd-closure"
     install -d "$NBD_DIR"
     install -m755 "$NBD_SRC" "$NBD_DIR/qemu-nbd"
+    log "  verify: qemu-nbd copied from $NBD_SRC; resolving libraries"
     # Every NEEDED library, dereferenced (ldd prints the resolved real paths).
     while read -r lib; do
         [[ -e "$lib" ]] && install -m755 "$lib" "$NBD_DIR/" 2>/dev/null || true
@@ -701,11 +710,14 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     NBD_LOADER=$(ldd "$NBD_SRC" 2>/dev/null | grep -oE '/[^ ]*ld-linux[^ ]*\.so\.[0-9]+' | head -1)
     [[ -n "$NBD_LOADER" && -e "$NBD_LOADER" ]] && install -m755 "$NBD_LOADER" "$NBD_DIR/"
     NBD_LOADER_NAME=$(basename "${NBD_LOADER:-ld-linux-x86-64.so.2}")
+    log "  verify: closure has $(ls "$NBD_DIR" | wc -l) files, loader=$NBD_LOADER_NAME; testing it"
 
     # Prove the closure is complete BEFORE it is baked into an initramfs that
     # only runs at Phase-2 boot. A missing library here is a silent emergency
     # shell an hour later.
-    if ! "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
+    # timeout: this EXECUTES a staged binary. It must never be able to hang the
+    # deploy — a blocked exec here is indistinguishable from a wedged deployer.
+    if ! timeout 30 "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
             "$NBD_DIR/qemu-nbd" --version >/dev/null 2>&1; then
         err "  [FAIL] staged qemu-nbd closure is incomplete — it cannot execute:"
         "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \

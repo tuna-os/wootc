@@ -1187,6 +1187,7 @@ DEPLOY_DEADLINE=$(deadline_in "$TIMEOUT")
 LAST_PROGRESS_MIN=-1
 DEPLOY_COMPLETE=false
 DEPLOYER_REBOOT_SEEN=false
+WINDOWS_BACK_STREAK=0
 PTY="$STORAGE_DIR/qemu.pty"
 
 # Wait for Dockur's serial capture to appear and create the first local
@@ -1220,6 +1221,12 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
     # Serial output can be lost across the initramfs-to-Windows reboot.  Once
     # the Windows QGA is back, the persisted deployer log is the authoritative
     # completion record and survives that console handoff.
+    #
+    # Windows answering QGA also means the DEPLOYER IS NO LONGER RUNNING. If it
+    # neither completed nor is recorded as having rebooted deliberately, the
+    # deploy is over and failed — waiting longer cannot change that. Observed:
+    # a deployer hung after "ostree deployment:", the box rebooted into Windows,
+    # and the harness spent another 76 minutes "Deploying..." before timing out.
     if qga_windows_probe; then
         DEPLOYER_LOG=$(qga_read 'C:\wootc\logs\deployer.log' 2>/dev/null || true)
         if echo "$DEPLOYER_LOG" | grep -q 'VERIFICATION_SUMMARY'; then
@@ -1232,7 +1239,22 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             DEPLOY_COMPLETE=true
             pass "wootc: deployer rebooted and Windows QGA returned"
             break
+        else
+            WINDOWS_BACK_STREAK=$((WINDOWS_BACK_STREAK + 1))
+            # ~1 minute of Windows answering with no completion record. Give a
+            # little grace for the reboot handoff, then stop: the deployer is
+            # gone and the persisted log is the whole story.
+            if [ "$WINDOWS_BACK_STREAK" -ge 12 ]; then
+                fail "Deployer is gone: Windows QGA is answering but the deploy never completed"
+                info "  No VERIFICATION_SUMMARY in C:\\wootc\\logs\\deployer.log, and no"
+                info "  deliberate reboot was seen on serial — the deployer died mid-run."
+                info "  Last lines of the deployer's own log:"
+                printf '%s\n' "$DEPLOYER_LOG" | tail -12 >&2
+                break
+            fi
         fi
+    else
+        WINDOWS_BACK_STREAK=0
     fi
 
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
@@ -1262,9 +1284,13 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             LAST_BYTE=$CURRENT_BYTE
             break
         fi
-        if echo "$NEW_OUTPUT" | grep -qE '(^|[^[:alpha:]])Rebooting\.?'; then
+        if echo "$NEW_OUTPUT" | grep -qE '(^|[^[:alpha:]])Rebooting\.?|reboot: Restarting system'; then
+            # "reboot: Restarting system" is the KERNEL's message and was not
+            # matched before, so a deployer that rebooted without printing its
+            # own "Rebooting" left DEPLOYER_REBOOT_SEEN false — and the run then
+            # waited out its entire budget for a marker that could not arrive.
             DEPLOYER_REBOOT_SEEN=true
-            info "wootc: deployer requested reboot"
+            info "wootc: deployer rebooted (serial)"
         fi
         if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
             fail "Deployer error:"
