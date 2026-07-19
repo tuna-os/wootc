@@ -198,18 +198,45 @@ log "Searching for ${ROOT_DISK_PATH}..."
 modprobe ntfs3 2>/dev/null || true
 modprobe virtio_scsi 2>/dev/null || true
 
+# Try progressively more forgiving mounts, and SAY what happened.
+#
+# A plain `mount -t ntfs3 -o ro` is not enough. On the BitLocker path
+# setup-wootc.ps1 shrinks C:, creates a fresh NTFS volume for Linux and then
+# reboots almost immediately — so that volume still carries the NTFS dirty bit,
+# and ntfs3 REFUSES a dirty volume even read-only. The mount failed, the
+# partition was skipped in silence, and the deployer reported
+#   Could not find /wootc/disks/root.vhdx on any partition
+# while the volume holding it sat right there (observed twice, #36).
+#
+# `-o force` tells ntfs3 to mount a dirty volume anyway; read-only makes that
+# safe here since we only look for a file. ntfs-3g is the last resort where the
+# kernel driver is absent entirely.
+try_mount_scan() {
+    local dev="$1"
+    mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null && { echo "ntfs3"; return 0; }
+    mount -t ntfs3 -o ro,force "$dev" /mnt/scan 2>/dev/null && { echo "ntfs3-force"; return 0; }
+    command -v ntfs-3g >/dev/null 2>&1 &&
+        ntfs-3g -o ro "$dev" /mnt/scan 2>/dev/null && { echo "ntfs-3g"; return 0; }
+    return 1
+}
+
 scan_for_root_disk() {
-    local dev
+    local dev drv
     for dev in /dev/sd* /dev/nvme* /dev/vd*; do
         [[ -b "$dev" ]] || continue
         mkdir -p /mnt/scan
-        if mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null; then
+        if drv=$(try_mount_scan "$dev"); then
             if [[ -f "/mnt/scan${ROOT_DISK_PATH}" ]]; then
+                log "  found ${ROOT_DISK_PATH} on ${dev} (mounted via ${drv})"
                 NTFS_PART="$dev"
                 umount /mnt/scan
                 return 0
             fi
+            log "  ${dev}: mounted via ${drv}, no ${ROOT_DISK_PATH}"
             umount /mnt/scan
+        else
+            # Silence here is what made #36 unattributable for two runs.
+            log "  ${dev}: not mountable as NTFS (ntfs3, ntfs3+force, ntfs-3g all failed)"
         fi
     done
     return 1
