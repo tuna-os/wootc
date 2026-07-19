@@ -836,7 +836,16 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # entries=0 means a decompression/false-negative (lsinitrd couldn't read
         # the image), not a genuinely hookless initramfs — different fixes.
         GUARD_ENTRIES=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | wc -l)
-        GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'wootc-attach-loop')
+        # Require the hook to be WIRED, not merely present.
+        #
+        # This used to grep for the filename anywhere in the archive, so it
+        # passed identically whether the file was installed as a hook or had
+        # merely been copied into modules.d and never wired. It reported
+        # "matches=1" for an initramfs whose Phase-2 boot then produced not one
+        # line of hook output. Same proxy-check failure as the rest of this
+        # session: assert the property, not a correlate of it.
+        GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
+            | grep -cE 'hooks/initqueue/.*wootc-attach-loop')
         log "  guard: lsinitrd listed $GUARD_ENTRIES entries, wootc-attach-loop matches=$GUARD_HITS"
         # With a raw root.disk the hook needs only losetup, which the target
         # image already provides — so there is no staged binary to verify. The
@@ -848,7 +857,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             PHASE2_PROBLEMS+=("initramfs missing losetup")
         fi
         if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
-            log "  [PASS] Phase-2 initramfs carries the loop-attach hook"
+            log "  [PASS] Phase-2 initramfs has the loop-attach hook WIRED into initqueue"
         else
             err "  [FAIL] Phase-2 initramfs is MISSING wootc-attach-loop.sh — root.disk would never attach; aborting deploy"
             exit 1

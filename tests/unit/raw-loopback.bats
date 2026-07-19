@@ -138,6 +138,24 @@ setup() {
 
 # ── dracut module ───────────────────────────────────────────────────────────
 
+@test "the hook goes in the PLAIN initqueue, not initqueue/settled" {
+    # dracut-initqueue runs the plain queue every iteration, but reaches the
+    # settled/ hooks only after `udevadm settle --timeout=0` succeeds — an
+    # INSTANT check. While the host NTFS mounts and loop devices are probed,
+    # udev is busy, the loop `continue`s, and settled hooks never run. Observed:
+    # the hook was in the initramfs and produced ZERO output, and Phase 2 died
+    # on sysroot.mount.
+    grep -q 'inst_hook initqueue 10' "$MODSETUP"
+    run grep -nE '^[^#]*inst_hook initqueue/settled' "$MODSETUP"
+    [ "$status" -ne 0 ]
+}
+
+@test "the initramfs guard requires the hook to be WIRED, not just present" {
+    # The old guard grepped the filename anywhere in the archive, so it passed
+    # for an initramfs whose hook never ran. Require the hooks/initqueue path.
+    grep -q "grep -cE 'hooks/initqueue/.*wootc-attach-loop'" "$DEPLOY"
+}
+
 @test "the module installs losetup and the loop kernel module" {
     grep -q 'inst_multiple losetup' "$MODSETUP"
     grep -q 'instmods loop' "$MODSETUP"

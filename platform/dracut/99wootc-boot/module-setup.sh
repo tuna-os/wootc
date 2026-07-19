@@ -25,7 +25,25 @@ installkernel() {
 }
 
 install() {
-    inst_hook initqueue/settled 10 "$moddir/wootc-attach-loop.sh"
+    # PLAIN initqueue, NOT initqueue/settled.
+    #
+    # dracut-initqueue's main loop is:
+    #     for job in $hookdir/initqueue/*.sh;   do ... done   <- always runs
+    #     udevadm settle --timeout=0 || continue              <- instant check!
+    #     for job in $hookdir/initqueue/settled/*.sh; do ...  <- often skipped
+    #
+    # `--timeout=0` asks whether udev has settled RIGHT NOW. While the host NTFS
+    # is being mounted and loop devices are being probed, udev is busy, so the
+    # loop `continue`s and the settled hooks are never reached. That is exactly
+    # what we observed: the guard confirmed wootc-attach-loop.sh was in the
+    # initramfs, yet Phase 2 produced not one line of hook output — not even its
+    # unconditional entry marker — and died on sysroot.mount because root.disk
+    # was never attached.
+    #
+    # The plain queue runs on every iteration regardless of udev state. The hook
+    # is already written to be re-entrant (it returns 0 early once
+    # /run/wootc-loop-attached exists), so repeated invocation is by design.
+    inst_hook initqueue 10 "$moddir/wootc-attach-loop.sh"
 
     # losetup is all the hook needs — no staged binary, no closure. Target bootc
     # images already ship it (verified: yellowfin has /usr/sbin/losetup and no

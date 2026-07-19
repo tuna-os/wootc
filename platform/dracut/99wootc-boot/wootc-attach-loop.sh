@@ -1,7 +1,8 @@
 #!/bin/bash
 # shellcheck disable=SC1091  # dracut-lib.sh is provided by the initramfs
 # /usr/lib/dracut/modules.d/99wootc-boot/wootc-attach-loop.sh
-# initqueue/settled hook: mount the Windows NTFS partition and attach
+# initqueue hook (PLAIN queue, not settled — see module-setup.sh): mount the
+# Windows NTFS partition and attach
 # root.disk as a partitioned loop device. The target root partition's UUID
 # then appears to udev, letting systemd's ordinary sysroot.mount (root=UUID=
 # from the BLS entry / grub.cfg) and ostree-prepare-root proceed unchanged —
@@ -38,7 +39,7 @@ say() {
 # silent `return 0`, which made "hook absent", "hook exited early" and "hook ran
 # but its output was filtered" indistinguishable from the serial log — each
 # costing a full VM run to tell apart. Announce entry and every exit reason.
-say "attach-loop hook entered (initqueue/settled)"
+say "attach-loop hook entered (initqueue)"
 
 [ -e /run/wootc-loop-attached ] && return 0
 
