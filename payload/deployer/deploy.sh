@@ -809,8 +809,13 @@ WRAP
         else
             log "  [WARN] no ntfs-3g in the deployment — Phase-2 relies on a kernel ntfs3"
         fi
+        # BOUNDED. An unbounded chroot dracut is a prime suspect for the
+        # 31-minute silent hang: it writes nothing to the journal, so a block
+        # here looks exactly like a dead deployer. A regen legitimately takes a
+        # few minutes; 15 is generous and still finite.
+        log "  verify: regenerating Phase-2 initramfs (dracut, up to 15m)"
         set +e
-        chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
+        timeout 900 chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
             --add wootc-boot \
             "${DRACUT_INSTALL_ARGS[@]}" \
             --fwdir /run/wootc-nofw \
@@ -818,11 +823,21 @@ WRAP
             "$INITRD_CHROOT_PATH" "$KVER" 2>&1 | tail -25 >&2
         REGEN_RC=${PIPESTATUS[0]}
         set -e
+        if [[ "$REGEN_RC" -eq 124 ]]; then
+            err "  [FAIL] dracut regen TIMED OUT after 15m — Phase-2 initramfs not rebuilt"
+            err "         Without it the loop-attach hook is absent and Phase 2 cannot boot."
+            exit 1
+        fi
         log "  dracut regen exit=$REGEN_RC"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}" 2>/dev/null || echo 0)
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
     else
-        chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
+        log "  verify: regenerating ALL initramfses (dracut, up to 15m)"
+        if ! timeout 900 chroot "$DEPLOY_ROOT" dracut --force --regenerate-all; then
+            err "  [FAIL] dracut --regenerate-all failed or timed out"
+            exit 1
+        fi
+        log "  verify: regenerate-all complete"
     fi
 
     # GUARD: the Phase-2 initramfs is useless without the loop-attach hook —

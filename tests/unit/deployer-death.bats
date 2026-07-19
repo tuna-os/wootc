@@ -68,6 +68,26 @@ setup() {
     grep -q 'timeout 30 "\$NBD_DIR/\$NBD_LOADER_NAME"' "$DEPLOY"
 }
 
+@test "the dracut regen is bounded — it cannot hang the deploy forever" {
+    # `chroot ... dracut` writes nothing to the journal, so a block there looks
+    # exactly like a dead deployer. It was unbounded, and the observed 31-minute
+    # silence began in this stretch.
+    local n
+    n=$(grep -c 'timeout 900 chroot' "$DEPLOY")
+    [ "$n" -ge 2 ]
+}
+
+@test "a regen timeout is a loud failure, not a silent continue" {
+    # Continuing without a rebuilt initramfs guarantees Phase 2 cannot boot,
+    # which is exactly the failure that took a week to localise.
+    grep -q 'dracut regen TIMED OUT' "$DEPLOY"
+    grep -A2 'dracut regen TIMED OUT' "$DEPLOY" | grep -q 'exit 1'
+}
+
+@test "the regen announces itself before starting" {
+    grep -q 'verify: regenerating Phase-2 initramfs' "$DEPLOY"
+}
+
 @test "instrumentation brackets the dracut module copy and the closure" {
     grep -q 'verify: copying 99wootc-boot dracut module' "$DEPLOY"
     grep -q 'verify: dracut module copied' "$DEPLOY"
