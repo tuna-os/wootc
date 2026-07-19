@@ -1377,13 +1377,11 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # and happily selects /dev/sda, i.e. the WINDOWS disk. `bootc install
     # --wipe` on that destroys the user's Windows. Emptiness is what actually
     # identifies the spare drive.
-    P3_TARGET=$(qga_call exec /bin/sh -c '
-        for d in $(lsblk -dnro NAME,TYPE | awk "\$2==\"disk\"{print \$1}"); do
-            case "$d" in nbd*|loop*|sr*|zram*) continue ;; esac
-            parts=$(lsblk -nro NAME "/dev/$d" | tail -n +2)
-            fs=$(lsblk -nro FSTYPE "/dev/$d" | tr -d " \n")
-            [ -z "$parts" ] && [ -z "$fs" ] && { echo "/dev/$d"; exit 0; }
-        done' 2>/dev/null | tr -d '\r\n ')
+    # Selection logic lives in tests/e2e/pick-blank-disk.sh so it can be unit
+    # tested — its output is handed to `bootc install --wipe`, so a wrong answer
+    # destroys the user's Windows. Shipped as text over QGA and run in the guest.
+    P3_TARGET=$(qga_call exec /bin/sh -c "$(cat "$SCRIPT_DIR/pick-blank-disk.sh")" \
+        2>/dev/null | tr -d '\r\n ')
     if [ -z "$P3_TARGET" ]; then
         fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
         exit 1
