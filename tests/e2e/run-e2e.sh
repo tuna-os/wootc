@@ -465,11 +465,43 @@ mark_snapshot_complete() {
     qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
 }
 
+# OFF by default. This snapshot is a fast-retry convenience that currently costs
+# far more than it provides, and is a prime suspect for the Phase-2 failures.
+#
+# Why it is off:
+#   1. NOTHING READS IT. `data.qcow2.snap` is written here and referenced
+#      nowhere else in this script — there is no restore path at all. It is a
+#      pure cost today.
+#   2. The design assumed an instant CoW reflink. `cp --reflink=always` FAILS on
+#      every runner we have (observed on kanpur, himachal and dilli), so it falls
+#      back to a full byte copy of an 18-28 GiB qcow2 — 10-20+ minutes.
+#   3. The guest stays fsfreeze-FROZEN for that whole copy. Windows VSS enforces
+#      hard freeze limits (writers ~10s, overall ~60s), so the guest cannot
+#      honour a 20-minute freeze: it auto-thaws mid-copy under heavy host I/O.
+#      The resulting snapshot is therefore not crash-consistent anyway.
+#   4. An NTFS volume frozen and then abruptly thawed can be left with the dirty
+#      bit set — and a dirty NTFS cannot be mounted read-write by ntfs3. That is
+#      exactly the observed Phase-2 failure ("root.disk never attached"), and
+#      exactly what the attach hook's own warning describes.
+#   5. It costs ~28 GiB, which is what kept exhausting the runners' disks.
+#
+# Re-enable with WOOTC_E2E_SNAPSHOT=1 once a restore path exists AND the copy is
+# either a genuine reflink or taken without holding the guest frozen.
+WOOTC_E2E_SNAPSHOT="${WOOTC_E2E_SNAPSHOT:-0}"
+
 snapshot_before_deployer() {
     local disk="$STORAGE_DIR/data.qcow2"
     local snapshot="$STORAGE_DIR/data.qcow2.snap"
     local tmp="$snapshot.tmp.$RUN_ID"
     local frozen=false
+
+    if [ "$WOOTC_E2E_SNAPSHOT" != "1" ]; then
+        info "Pre-deployer snapshot disabled (WOOTC_E2E_SNAPSHOT=1 to enable)"
+        # The OEM wrapper blocks on this marker, so the barrier MUST still be
+        # released or the run wedges waiting for a snapshot that never happens.
+        mark_snapshot_complete
+        return 0
+    fi
 
     [ -s "$disk" ] || { fail "Cannot snapshot missing VM disk: $disk"; return 1; }
     step "Snapshotting Windows disk before first deployer boot..."
