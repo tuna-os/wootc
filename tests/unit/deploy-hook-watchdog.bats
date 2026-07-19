@@ -41,13 +41,33 @@ setup() {
     grep -q 'WATCHDOG_PID=\$!' "$HOOK"
 }
 
-@test "there is a cancel_watchdog that kills AND reaps it" {
+@test "cancel_watchdog NEVER waits on the watchdog" {
+    # A bare `wait $pid` blocks forever when the kill does not take — which is
+    # exactly what happened: the deploy had exited and unmounted, yet
+    # `sleep 2700` survived and dracut-initqueue sat in do_wait indefinitely.
+    # That traded a 45-minute block for a permanent one.
     local body
     body=$(sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK")
     [ -n "$body" ]
-    echo "$body" | grep -q 'kill "\$WATCHDOG_PID"'
-    # reap, or dracut-initqueue still has a child to wait on
-    echo "$body" | grep -q 'wait "\$WATCHDOG_PID"'
+    run bash -c "printf '%s' \"\$1\" | grep -qE '^[^#]*wait +\"?\\\$WATCHDOG_PID'" _ "$body"
+    [ "$status" -ne 0 ]
+}
+
+@test "cancel_watchdog escalates TERM -> KILL and kills the process group" {
+    # The subshell may fork the sleep, so killing only $! can leave it running.
+    local body
+    body=$(sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK")
+    echo "$body" | grep -q 'kill -TERM "\$WATCHDOG_PID"'
+    echo "$body" | grep -q 'kill -KILL "\$WATCHDOG_PID"'
+    echo "$body" | grep -q 'kill -TERM -"\$WATCHDOG_PID"'
+}
+
+@test "a stray watchdog sleep is swept as a last resort" {
+    sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK" | grep -q "pkill -KILL -f"
+}
+
+@test "the watchdog is disowned so nothing waits on it at exit" {
+    sed -n '/^cancel_watchdog()/,/^}/p' "$HOOK" | grep -q 'disown'
 }
 
 @test "the watchdog is cancelled as soon as the deployer returns" {

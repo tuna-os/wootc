@@ -44,12 +44,27 @@ force_reboot() {
 #
 # The cost was severe: the deploy's real exit status was never printed, Phase-2
 # setup never completed, and the harness blamed a "slow deploy" for 90 minutes.
-( sleep 2700; echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg; force_reboot ) &
+( setsid sleep 2700 2>/dev/null || sleep 2700
+  echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg
+  force_reboot ) &
 WATCHDOG_PID=$!
 cancel_watchdog() {
     [ -n "${WATCHDOG_PID:-}" ] || return 0
-    kill "$WATCHDOG_PID" 2>/dev/null || true
-    wait "$WATCHDOG_PID" 2>/dev/null || true
+    # NEVER `wait` here. A bare `wait $pid` blocks forever if the kill did not
+    # take — which replaced the 45-minute block with a permanent one, observed
+    # live: the deploy had exited and unmounted, yet `sleep 2700` survived and
+    # dracut-initqueue sat in do_wait indefinitely.
+    #
+    # TERM, then KILL the whole process group (the subshell may have forked the
+    # sleep, so killing only $! can leave the sleep running), then disown so the
+    # shell has nothing left to wait on at exit.
+    kill -TERM "$WATCHDOG_PID" 2>/dev/null || true
+    kill -TERM -"$WATCHDOG_PID" 2>/dev/null || true
+    kill -KILL "$WATCHDOG_PID" 2>/dev/null || true
+    kill -KILL -"$WATCHDOG_PID" 2>/dev/null || true
+    # Belt and braces: any stray watchdog sleep, identified by its exact duration.
+    pkill -KILL -f '^sleep 2700$' 2>/dev/null || true
+    disown "$WATCHDOG_PID" 2>/dev/null || true
     WATCHDOG_PID=""
     echo "[wootc] watchdog cancelled" > /dev/kmsg 2>/dev/null || true
 }
