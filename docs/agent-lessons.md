@@ -209,3 +209,167 @@ What actually worked:
 | himachal | healthiest of the three; 952 GiB |
 
 Prefer `e2e-hosted.yml` on ubuntu-latest over all of them.
+
+---
+
+# Part 2 — the Phase-2 hunt (2026-07-19)
+
+The first half of this document was written mid-session. What follows is what
+the rest of the day taught, including six regressions I introduced myself.
+Read §12 first; it is the one that would have saved the most time.
+
+## 12. Get inside a live box. Do not wait for the run to finish.
+
+The single highest-value technique of the entire session, and it came from the
+user telling me to stop waiting.
+
+Four consecutive 90-minute runs failed without producing an attributable cause.
+Then one command answered it:
+
+```sh
+podman exec <container> python3 /tmp/qga.py powershell '$env:OS'
+# -> Windows_NT   ... while the harness was 61 minutes into "Deploying..."
+```
+
+The guest was not running the deployer at all. From there, two minutes of live
+inspection found what four runs had not:
+
+```sh
+# which OS is actually running?
+qga.py exec /bin/sh -c "uname -sr"
+# what is the process actually doing?
+qga.py exec /bin/sh -c "ps -eo pid,ppid,stat,wchan:20,args"
+# what did it last say? (the deployer's own journal, live)
+qga.py exec /bin/sh -c "journalctl --no-pager | grep -a wootc | tail -20"
+```
+
+`wchan` is the key column: `do_wait` means blocked on a child,
+`hrtimer_nanosleep` means a sleep, `anon_pipe_read` means blocked on a pipe.
+
+**Post-hoc artifacts repeatedly failed** where live inspection worked: the
+deployer log could not be read because the guest was in an emergency shell, and
+the journal artifact came back at 111 bytes. If a VM is hung, go in NOW — the
+evidence disappears when the run cleans up.
+
+The deployer initramfs ships `qemu-ga`, so this works during Phase 1 too, not
+just once Windows is back.
+
+## 13. Phase 2 was never *failing*. It was never *reachable*.
+
+Worth internalising as a class of mistake, not just a fact.
+
+For most of the session I debugged Phase 2 as though it were broken: the attach
+hook, the qemu-nbd closure, the NTFS driver, hypotheses A1–A6. All of it was
+reasoning about components **that were never installed**, because the deploy
+died before staging them.
+
+The proof took one manual boot: force the BCD one-shot by hand and look at the
+GRUB menu.
+
+```
+*Install wootc (automatic)
+ Install wootc (debug)
+```
+
+No entry for the installed system — while `root.vhdx` held a complete 6.6 GB
+ostree deployment. The OS was installed and unreachable.
+
+**Lesson:** before debugging why a stage fails, verify the stage can be entered
+at all. One QGA call would have shown this on day one.
+
+## 14. A watchdog you have to signal is a bug factory
+
+Three designs, two of which I made worse:
+
+1. `( sleep 2700; force_reboot ) &` — never cancelled. `dracut-initqueue`
+   blocked in `wait()` for the full 45 minutes after the deployer returned, so
+   Phase-2 setup never ran and the exit status was never printed.
+2. Added `kill "$pid"; wait "$pid"`. When the kill misses, that `wait` blocks
+   **forever** — a permanent hang replacing a 45-minute one.
+3. Wrapped the sleep in `setsid` so it could not outlive its subshell. That put
+   it in its own **session**, beyond the reach of both the pid kill and the
+   process-**group** kill. Strictly worse. Confirmed live:
+
+   ```
+   453  1    S   do_wait            /usr/bin/sh /usr/bin/dracut-initqueue
+   455  453  Ss  hrtimer_nanosleep  sleep 2700     <- Ss = session leader
+   ```
+
+The working design signals nothing: the watchdog polls a flag file, cancelling
+is `: > /run/wootc-deploy-done`, and the loop exits within one tick by itself.
+
+**Generalisation:** in a shell, prefer a background task that *observes a
+condition and exits* over one you must find and kill. `wait` on a pid you do not
+control is an unbounded block; `kill` is unreliable the moment process groups or
+sessions are involved.
+
+## 15. Things that match themselves
+
+Three variants bit in one day. All produce confident, wrong answers.
+
+- **`pgrep -f "run-e2e.sh"` over ssh** matches the ssh command running it.
+  Reported dead runs as alive.
+- **Polling `journalctl | grep verify:`** logs *your own command*, which then
+  matches the grep. The output was entirely my own polling.
+- **A test grepping for a string that appears in its own comment.** Happened
+  three times: a preflight guard matched the comment quoting the error, and a
+  `setsid` removal test matched the comment explaining the removal.
+
+Rule: when grepping for a pattern, exclude the searcher. `grep -v qemu-ga`,
+`grep -v $$`, `grep -nE '^[^#]*pattern'`.
+
+## 16. My regression rate, and its cause
+
+Six regressions introduced while fixing things, in one session:
+
+| # | Change | Damage |
+|---|---|---|
+| 1 | `podman system prune -af` on live hosts | killed 3 runs; deleted the built ssh image |
+| 2 | triple `/dev/console` logging | saturated serial, stalled every deploy |
+| 3 | folding kernel reboot into DEPLOYER_REBOOT_SEEN | false `[PASS]` on a dead deploy |
+| 4 | `kill` + `wait` in cancel_watchdog | permanent hang |
+| 5 | `setsid` on the watchdog sleep | made it uncancellable |
+| 6 | RunId barrier without refreshing C:\OEM | mutual deadlock, guest timed out |
+
+The cause is single and structural: **I changed code faster than a 20–90 minute
+feedback loop could validate it.** Every one of these looked correct when
+written and was wrong in an interaction I could not test locally.
+
+Mitigations that actually work, in order of value:
+1. **Reproduce in a container first.** The qemu-nbd closure was diagnosed AND
+   its fix verified in a container in minutes.
+2. **One deployer change per run.** Repeatedly violated under pressure to show
+   progress; every violation cost more than it saved.
+3. **Round-robin the runners** (§17) so a fix is validated sooner.
+4. **Prefer designs that cannot fail the same way** — the flag-file watchdog
+   over any amount of careful signalling.
+
+## 17. Round-robin the fleet
+
+With three runners staggered by ~15 minutes, a fix is validated against whichever
+reaches the interesting stage first, instead of waiting a whole cycle. It also
+supplies what #34 needs (a pass RATE at one commit) and covers "multiple cases".
+
+Launch notes per host are in AGENTS.md. kanpur needs `nohup` rather than
+`systemd-run` (#41); all hosts need `loginctl enable-linger`.
+
+## 18. Reuse the helper that already exists
+
+I wrote an ad-hoc loop to push files into the guest, using `$OEM_DIR` — a HOST
+path — while `qga.py` runs inside the container and sees that mount at `/oem`.
+Every write failed. `qga_sync_oem()` already existed forty lines away, did it
+correctly, and was merely gated on `--skip-install`.
+
+Before writing a helper, grep for one. Before passing a path to something that
+runs in a container, ask whose filesystem that path is on.
+
+## 19. Guest/host state must be refreshed, not assumed
+
+`C:\OEM` is populated from the ISO at Windows install time. Any guest whose
+Windows was installed by an earlier run carries THAT run's scripts. Introducing a
+protocol change (the RunId barrier) without refreshing the guest deadlocked both
+sides: the guest stamped an old constant, the host never matched, and each waited
+on the other until the guest's 10-minute deadline expired.
+
+If you change a host/guest protocol, push the guest half of it in the same
+change.
