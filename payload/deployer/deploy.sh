@@ -631,6 +631,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # blocked. Each step now announces itself; a hang is identified by which
     # line is LAST rather than by guessing.
     log "  verify: /boot mounted, staging Phase-2 boot support"
+    # Collect problems in this stretch instead of dying at the first one.
+    #
+    # Each E2E run costs 40-90 minutes, so aborting on the first fault means one
+    # bug per run. These steps are independent enough that a failure in one does
+    # not invalidate the diagnosis of the next, so record and continue, then
+    # report everything at the end. Genuinely unsafe conditions still abort.
+    PHASE2_PROBLEMS=()
 
     # ── [generic] Debug SSH key for root (mirrors corral) ────────────────
     # On ostree, /root is a symlink to /var/roothome and /var lives in the
@@ -720,9 +727,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     if ! timeout 30 "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
             "$NBD_DIR/qemu-nbd" --version >/dev/null 2>&1; then
         err "  [FAIL] staged qemu-nbd closure is incomplete — it cannot execute:"
-        "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
+        timeout 30 "$NBD_DIR/$NBD_LOADER_NAME" --library-path "$NBD_DIR" \
             "$NBD_DIR/qemu-nbd" --version 2>&1 | head -3 >&2 || true
-        exit 1
+        # Do NOT exit: the initramfs regen below is independently interesting,
+        # and finding both faults in one run beats finding one per run.
+        PHASE2_PROBLEMS+=("qemu-nbd closure cannot execute")
     fi
     log "  [PASS] qemu-nbd closure staged and verified ($(ls "$NBD_DIR" | wc -l) files)"
 
@@ -826,7 +835,9 @@ WRAP
         if [[ "$REGEN_RC" -eq 124 ]]; then
             err "  [FAIL] dracut regen TIMED OUT after 15m — Phase-2 initramfs not rebuilt"
             err "         Without it the loop-attach hook is absent and Phase 2 cannot boot."
-            exit 1
+            PHASE2_PROBLEMS+=("dracut regen timed out")
+        elif [[ "$REGEN_RC" -ne 0 ]]; then
+            PHASE2_PROBLEMS+=("dracut regen exit=$REGEN_RC")
         fi
         log "  dracut regen exit=$REGEN_RC"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}" 2>/dev/null || echo 0)
@@ -863,7 +874,7 @@ WRAP
         if [[ "${GUARD_HITS:-0}" -ge 1 ]] && [[ "${GUARD_NBD:-0}" -lt 2 ]]; then
             err "  [FAIL] Phase-2 initramfs has the hook but NOT the qemu-nbd closure"
             err "         The hook would run, call qemu-nbd, and fail to attach the VHDX."
-            exit 1
+            PHASE2_PROBLEMS+=("initramfs missing the qemu-nbd closure")
         fi
         if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
             log "  [PASS] Phase-2 initramfs carries the loop-attach hook + qemu-nbd closure"
@@ -874,6 +885,16 @@ WRAP
     else
         log "  [WARN] lsinitrd unavailable — cannot verify loop-attach hook in the Phase-2 initramfs"
     fi
+    # One summary of everything that went wrong in this stretch, so a single run
+    # yields the full picture instead of only its first fault.
+    if (( ${#PHASE2_PROBLEMS[@]} > 0 )); then
+        err "  [FAIL] Phase-2 setup completed with ${#PHASE2_PROBLEMS[@]} problem(s):"
+        for p in "${PHASE2_PROBLEMS[@]}"; do err "         - $p"; done
+        err "         Phase 2 will NOT boot correctly. Fix all of the above."
+    else
+        log "  [PASS] Phase-2 setup completed with no problems"
+    fi
+
     for fs in sys proc dev; do umount "$DEPLOY_ROOT/$fs"; done
 
     # Check dracut module

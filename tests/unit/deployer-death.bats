@@ -103,15 +103,37 @@ setup() {
     [ "$n" -ge 2 ]
 }
 
-@test "a regen timeout is a loud failure, not a silent continue" {
-    # Continuing without a rebuilt initramfs guarantees Phase 2 cannot boot,
-    # which is exactly the failure that took a week to localise.
+@test "a regen timeout is recorded as a problem, never silently ignored" {
+    # It no longer exits immediately — the run continues so the rest of the
+    # stretch can also be diagnosed — but it MUST be collected and reported.
+    # Continuing without a rebuilt initramfs guarantees Phase 2 cannot boot.
     grep -q 'dracut regen TIMED OUT' "$DEPLOY"
-    grep -A2 'dracut regen TIMED OUT' "$DEPLOY" | grep -q 'exit 1'
+    grep -A4 'dracut regen TIMED OUT' "$DEPLOY" | grep -q 'PHASE2_PROBLEMS+=('
 }
 
 @test "the regen announces itself before starting" {
     grep -q 'verify: regenerating Phase-2 initramfs' "$DEPLOY"
+}
+
+@test "Phase-2 setup collects problems instead of aborting at the first" {
+    # Each run costs 40-90 minutes. Aborting on the first fault means ONE bug
+    # per run, which is how a single stretch took a whole day to clear. These
+    # steps are independent enough that a failure in one does not invalidate the
+    # diagnosis of the next.
+    grep -q 'PHASE2_PROBLEMS=()' "$DEPLOY"
+    local n
+    n=$(grep -c 'PHASE2_PROBLEMS+=(' "$DEPLOY")
+    [ "$n" -ge 3 ]
+}
+
+@test "the collected problems are reported as one summary" {
+    grep -q 'Phase-2 setup completed with \${#PHASE2_PROBLEMS\[@\]} problem' "$DEPLOY"
+    grep -q 'Phase 2 will NOT boot correctly' "$DEPLOY"
+}
+
+@test "a clean Phase-2 setup says so explicitly" {
+    # Absence of errors is not evidence; the positive statement is.
+    grep -q 'Phase-2 setup completed with no problems' "$DEPLOY"
 }
 
 @test "instrumentation brackets the dracut module copy and the closure" {

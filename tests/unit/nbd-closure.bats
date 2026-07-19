@@ -57,8 +57,12 @@ setup() {
 @test "the deployer verifies the closure can EXECUTE before baking it in" {
     # A missing library discovered at Phase-2 boot is a silent emergency shell
     # an hour later; discovered here it is a loud Phase-1 failure.
+    #
+    # It is RECORDED rather than fatal: each run costs 40-90 minutes, so the
+    # stretch continues in order to diagnose the initramfs regen in the same
+    # run. The problem is still reported, and Phase-2 setup is declared failed.
     grep -q 'closure is incomplete' "$DEPLOY"
-    grep -A6 'staged qemu-nbd closure is incomplete' "$DEPLOY" | grep -q 'exit 1'
+    grep -A6 'staged qemu-nbd closure is incomplete' "$DEPLOY" | grep -q 'PHASE2_PROBLEMS+=('
 }
 
 @test "a missing qemu-nbd in the deployer is a hard failure" {
@@ -87,7 +91,7 @@ setup() {
     # device appears — indistinguishable from the hook being absent.
     grep -q 'GUARD_NBD' "$DEPLOY"
     grep -q 'NOT the qemu-nbd closure' "$DEPLOY"
-    grep -A3 'NOT the qemu-nbd closure' "$DEPLOY" | grep -q 'exit 1'
+    grep -A3 'NOT the qemu-nbd closure' "$DEPLOY" | grep -q 'PHASE2_PROBLEMS+=('
 }
 
 @test "no soname symlink hack is present (ABI break, data-safety risk)" {
