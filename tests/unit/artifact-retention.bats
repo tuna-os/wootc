@@ -110,18 +110,33 @@ mkrun() {
 
 @test "preflight demands headroom for two runs, not the bare minimum for one" {
     # 65 GiB was the minimum to survive ONE run, so a run could pass preflight
-    # and still die mid-deploy when the snapshot copy landed — and it left
-    # nothing for the next run, ratcheting runners toward full. Resident
-    # footprint is ~60 GiB per run (qcow2 + a FULL copy of it as the snapshot,
-    # since reflink is unavailable here, + two ~7 GiB ISOs).
-    grep -q 'required_free_gib=120' "$E2E"
+    # and still die mid-deploy, leaving nothing for the next run.
+    #
+    # It was then 120, but that assumed the pre-deployer snapshot's FULL byte
+    # copy of data.qcow2. With the snapshot disabled (1c6d713) a run's resident
+    # footprint is ~45 GiB, and 120 wrongly REJECTED a GitHub hosted runner
+    # (~114 GiB after its cleanup step) — a preflight so strict it excluded the
+    # most reliable infrastructure available.
+    grep -q 'WOOTC_E2E_MIN_FREE_GIB:-90' "$E2E"
     run grep -n 'required_free_gib=65' "$E2E"
     [ "$status" -ne 0 ]
 }
 
+@test "a hosted runner's ~114 GiB clears the requirement" {
+    # Regression guard on the specific number that blocked run 29674970326.
+    local base
+    base=$(grep -oE 'WOOTC_E2E_MIN_FREE_GIB:-[0-9]+' "$E2E" | grep -oE '[0-9]+$')
+    [ -n "$base" ]
+    [ "$base" -le 114 ]
+}
+
+@test "the requirement is overridable for unusual hosts" {
+    grep -q 'WOOTC_E2E_MIN_FREE_GIB' "$E2E"
+}
+
 @test "the cached-ISO and reuse paths keep proportional headroom" {
-    grep -q 'required_free_gib=100' "$E2E"
-    grep -q 'required_free_gib=80' "$E2E"
+    grep -q 'required_free_gib=75' "$E2E"
+    grep -q 'required_free_gib=55' "$E2E"
 }
 
 @test "the keep count is overridable" {

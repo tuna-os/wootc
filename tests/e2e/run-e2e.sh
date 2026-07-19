@@ -171,16 +171,20 @@ free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
 df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
 
 host_preflight() {
-    # 120 GiB, not 65. The old figure was the bare minimum to survive one run,
-    # which meant a run could pass preflight and then die mid-deploy as the
-    # snapshot copy landed — and it left nothing for the NEXT run, so runners
-    # ratcheted toward full. A single run's resident footprint is ~60 GiB:
-    #   data.qcow2 (18-28 GiB) + a FULL byte copy of it as the pre-deployer
-    #   snapshot (reflink is unavailable on these filesystems, so it is not
-    #   cheap) + the Windows ISO (7.4) + custom.iso (7.3) + artifacts.
-    # Requiring roughly two runs' worth means a run that starts can finish, and
-    # the host does not need hand-clearing between runs.
-    local mem_available_kib disk_available_kib required_free_gib=120
+    # Recalibrated after the pre-deployer snapshot was disabled (1c6d713).
+    #
+    # 65 GiB was the bare minimum for ONE run, so a run could pass preflight and
+    # die mid-deploy, leaving nothing for the next run — runners ratcheted
+    # toward full. That was raised to 120, but 120 assumed the snapshot's FULL
+    # byte copy of data.qcow2 (reflink is unavailable here, so it doubled an
+    # 18-28 GiB file). With the snapshot off, a run's resident footprint is
+    # ~45 GiB: data.qcow2 + windows.*.iso (7.4) + custom.iso (7.3) + artifacts.
+    #
+    # 90 GiB is still roughly two runs' worth on a persistent host, and it fits
+    # a GitHub hosted runner, which offers ~114 GiB after its cleanup step and
+    # was being rejected by the 120 figure. Override for unusual hosts.
+    local mem_available_kib disk_available_kib
+    local required_free_gib="${WOOTC_E2E_MIN_FREE_GIB:-90}"
     mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
     disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
 
@@ -199,11 +203,11 @@ host_preflight() {
     # qcow2. Fresh-run peak drops ~10 GiB when the Windows ISO is already cached
     # (no re-download, custom.iso rebuild reuses cached extraction).
     if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
-        required_free_gib=100
+        required_free_gib=75
     fi
     # A reuse run already has those and needs only its allocated-extent
     # safety snapshot plus diagnostics.
-    [ "$SKIP_INSTALL" = false ] || required_free_gib=80
+    [ "$SKIP_INSTALL" = false ] || required_free_gib=55
     if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
         fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
         return 1
