@@ -33,8 +33,34 @@ setup() {
     run bash -n "$DEPLOY"; [ "$status" -eq 0 ]
 }
 
-@test "the kernel's reboot message counts as a reboot" {
-    grep -q 'reboot: Restarting system' "$E2E"
+@test "a kernel reboot is NOT treated as a successful deploy" {
+    # I introduced this bug while fixing the previous one: folding
+    # "reboot: Restarting system" into DEPLOYER_REBOOT_SEEN made a WATCHDOG
+    # reboot look deliberate, so a dead deploy reported
+    #   [PASS] wootc: deployer rebooted and Windows QGA returned
+    # and Phase 2 was then scheduled against a system that had never been set
+    # up — it re-ran the installer and died on sysroot.mount.
+    #
+    # The two signals must stay distinct: only the deployer's own "Rebooting"
+    # implies success.
+    grep -q 'KERNEL_REBOOT_SEEN=true' "$E2E"
+    # the deliberate-reboot branch must NOT match the kernel string
+    local delib
+    delib=$(grep -n "grep -qE '(^|\[^\[:alpha:\]\])Rebooting" "$E2E" | head -1)
+    [ -n "$delib" ]
+    echo "$delib" | grep -q 'Restarting system' && return 1
+    return 0
+}
+
+@test "a kernel reboot with no verification summary fails loudly" {
+    grep -q 'kernel reboot with no verification summary' "$E2E"
+    grep -q 'watchdog signature' "$E2E"
+}
+
+@test "the kernel-reboot failure explains that Phase-2 setup never ran" {
+    # Without this the next reader repeats the mistake of debugging Phase 2
+    # when the real problem is that Phase-2 setup never executed.
+    grep -q 'Phase-2 setup (BLS entry' "$E2E"
 }
 
 @test "Windows answering QGA without completion is a failure, not a wait" {

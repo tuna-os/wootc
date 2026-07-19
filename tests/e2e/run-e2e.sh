@@ -1187,6 +1187,7 @@ DEPLOY_DEADLINE=$(deadline_in "$TIMEOUT")
 LAST_PROGRESS_MIN=-1
 DEPLOY_COMPLETE=false
 DEPLOYER_REBOOT_SEEN=false
+KERNEL_REBOOT_SEEN=false
 WINDOWS_BACK_STREAK=0
 PTY="$STORAGE_DIR/qemu.pty"
 
@@ -1239,6 +1240,16 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             DEPLOY_COMPLETE=true
             pass "wootc: deployer rebooted and Windows QGA returned"
             break
+        elif [ "$KERNEL_REBOOT_SEEN" = true ]; then
+            # The box rebooted but the deployer never said it meant to, and the
+            # persisted log carries no VERIFICATION_SUMMARY. That is the
+            # watchdog signature: deploy died, machine reset, nothing staged.
+            fail "Deployer did NOT complete: kernel reboot with no verification summary"
+            info "  This is the watchdog signature — the deploy died and the box reset."
+            info "  Phase-2 setup (BLS entry, 99wootc-boot module, initramfs regen)"
+            info "  will NOT have run, so Phase 2 cannot boot. Deployer log:"
+            printf '%s\n' "$DEPLOYER_LOG" | tail -15 >&2
+            break
         else
             WINDOWS_BACK_STREAK=$((WINDOWS_BACK_STREAK + 1))
             # ~1 minute of Windows answering with no completion record. Give a
@@ -1284,13 +1295,19 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             LAST_BYTE=$CURRENT_BYTE
             break
         fi
-        if echo "$NEW_OUTPUT" | grep -qE '(^|[^[:alpha:]])Rebooting\.?|reboot: Restarting system'; then
-            # "reboot: Restarting system" is the KERNEL's message and was not
-            # matched before, so a deployer that rebooted without printing its
-            # own "Rebooting" left DEPLOYER_REBOOT_SEEN false — and the run then
-            # waited out its entire budget for a marker that could not arrive.
+        # A DELIBERATE reboot by the deployer is evidence of success. A bare
+        # kernel "reboot: Restarting system" is NOT — the watchdog reboots that
+        # way too, and treating them alike turned a failed deploy into
+        # "deployer rebooted and Windows QGA returned", after which Phase 2 was
+        # scheduled against a system that had never been set up. Keep them
+        # distinct: only the deployer's own message implies success.
+        if echo "$NEW_OUTPUT" | grep -qE '(^|[^[:alpha:]])Rebooting\.?'; then
             DEPLOYER_REBOOT_SEEN=true
-            info "wootc: deployer rebooted (serial)"
+            info "wootc: deployer requested reboot"
+        fi
+        if echo "$NEW_OUTPUT" | grep -q 'reboot: Restarting system'; then
+            KERNEL_REBOOT_SEEN=true
+            info "wootc: kernel reboot observed (not proof of a successful deploy)"
         fi
         if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
             fail "Deployer error:"
