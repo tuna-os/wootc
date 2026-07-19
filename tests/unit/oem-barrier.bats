@@ -64,6 +64,31 @@ setup() {
     [ "$status" -ne 0 ]
 }
 
+@test "C:\\OEM is refreshed from the host before setup starts" {
+    # C:\OEM comes from the ISO at install time, so a REUSED Windows carries
+    # whatever run-wootc-e2e.ps1 / wootc-config.txt existed when that image was
+    # built. With the RunId barrier that deadlocks: the old script stamps a
+    # constant, the host never matches it and so never writes the snapshot
+    # marker, and the guest dies on its own 10-minute deadline —
+    #   "Timed out waiting for the host to snapshot the Windows installation"
+    # Both sides waiting on each other.
+    grep -q 'refreshed C:' "$E2E"
+    grep -q 'run-wootc-e2e.ps1 wootc-config.txt' "$E2E"
+}
+
+@test "the refresh happens BEFORE the OEM script is launched" {
+    local refresh_line launch_line
+    refresh_line=$(grep -n 'for f in run-wootc-e2e.ps1' "$E2E" | head -1 | cut -d: -f1)
+    launch_line=$(grep -n 'Start-Process -FilePath' "$E2E" | head -1 | cut -d: -f1)
+    [ -n "$refresh_line" ]
+    [ -n "$launch_line" ]
+    [ "$refresh_line" -lt "$launch_line" ]
+}
+
+@test "a failed refresh warns rather than proceeding silently" {
+    grep -q 'guest may run a stale copy' "$E2E"
+}
+
 @test "a barrier timeout distinguishes 'never completed' from 'stale marker'" {
     # Two very different fixes: one means OEM setup failed, the other means the
     # guest's C:\OEM is from an earlier run. Guessing costs a VM session.

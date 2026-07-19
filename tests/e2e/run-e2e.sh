@@ -1097,6 +1097,29 @@ if [ "$SKIP_INSTALL" = true ]; then
 fi
 
 step "Starting OEM setup through QGA..."
+
+# Refresh C:\OEM from the host BEFORE launching setup.
+#
+# C:\OEM is populated from the ISO at Windows install time, so on any reused
+# installation it carries the run-wootc-e2e.ps1 and wootc-config.txt from
+# whenever that image was built. That deadlocks the RunId barrier: the old
+# script stamps a constant (or "unknown") into e2e-setup-complete.txt, the host
+# never sees a matching RunId so it never writes e2e-snapshot-complete.txt, and
+# the guest sits until its own 10-minute deadline:
+#   "Timed out waiting for the host to snapshot the Windows installation"
+# Both sides waiting on each other, neither able to proceed.
+#
+# Pushing the current files makes the guest's behaviour match the harness that
+# is driving it, for fresh and reused installs alike.
+for f in run-wootc-e2e.ps1 wootc-config.txt setup-wootc.ps1; do
+    [ -f "$OEM_DIR/$f" ] || continue
+    if qga_call write "$OEM_DIR/$f" "C:\OEM\$f" >/dev/null 2>&1; then
+        info "  refreshed C:\\OEM\\$f"
+    else
+        warn "  could not refresh C:\\OEM\\$f — guest may run a stale copy"
+    fi
+done
+
 qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
 pass "OEM setup process started through QGA as SYSTEM"
