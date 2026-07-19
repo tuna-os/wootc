@@ -133,6 +133,10 @@ mkdir -p "$ARTIFACT_DIR"
 # the CPU check in the deploy wait distinguishes "working" from "wedged".
 WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT=5400
 
+# How long serial may be silent before we check whether the guest is alive.
+# bootc install is legitimately quiet for 10+ minutes, so this must be generous.
+WOOTC_E2E_SILENCE_WARN_S="${WOOTC_E2E_SILENCE_WARN_S:-600}"
+
 WOOTC_E2E_KEEP_RUNS="${WOOTC_E2E_KEEP_RUNS:-3}"
 prune_old_artifacts() {
     local base="$STORAGE_DIR/artifacts" keep="$WOOTC_E2E_KEEP_RUNS"
@@ -1339,6 +1343,29 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
     if [ "$NOW_MIN" -gt "$LAST_PROGRESS_MIN" ]; then
         LAST_PROGRESS_MIN=$NOW_MIN
         info "Deploying... (${NOW_MIN}m of $((TIMEOUT/60))m)"
+
+        # Distinguish "working quietly" from "wedged".
+        #
+        # `bootc install` produces NO serial output for 10+ minutes while it
+        # extracts layers, so silence alone is not a failure signal and warning
+        # on it cries wolf every run. Guest CPU is the discriminator that has
+        # never lied here:
+        #     silence + high CPU  -> working (measured 130-170% mid-install)
+        #     silence + idle CPU  -> genuinely wedged
+        # A deploy once looked hung for 13 minutes and was fine; another looked
+        # identical and was dead. Only CPU separated them.
+        SERIAL_AGE=$(( $(date +%s) - $(stat -c %Y "$PTY" 2>/dev/null || echo 0) ))
+        if [ "$SERIAL_AGE" -gt "$WOOTC_E2E_SILENCE_WARN_S" ]; then
+            GUEST_CPU=$($DOCKER exec "$CONTAINER_NAME" sh -c \
+                "ps -eo pcpu,args | grep '[q]emu-system' | head -1 | awk '{print \$1}'" 2>/dev/null | tr -d ' \r\n')
+            if [ -z "$GUEST_CPU" ]; then
+                warn "  serial silent ${SERIAL_AGE}s and NO QEMU process — the guest is gone"
+            elif awk -v c="$GUEST_CPU" 'BEGIN{exit !(c < 15)}' 2>/dev/null; then
+                warn "  serial silent ${SERIAL_AGE}s with guest CPU ${GUEST_CPU}% — likely WEDGED, not slow"
+            else
+                info "  (serial quiet ${SERIAL_AGE}s but guest CPU ${GUEST_CPU}% — working)"
+            fi
+        fi
     fi
 done
 
