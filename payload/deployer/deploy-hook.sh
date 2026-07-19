@@ -20,10 +20,6 @@ if command -v qemu-ga >/dev/null 2>&1; then
             && echo "[wootc] qemu-ga started on $ga_dev" > /dev/kmsg
     fi
 fi
-# Dead-man watchdog: late failures (after dracut's root-device timeout puts
-# systemd in emergency mode) have wedged the VM with the failure path below
-# never reached. A successful deployer reboots the machine well inside this
-# window; the watchdog only fires on a hang.
 # reboot -f resolves to systemctl reboot -f, which still routes through the
 # systemd manager and hangs once emergency mode has been entered; -ff issues
 # the syscall directly, with sysrq as a last resort.
@@ -33,57 +29,38 @@ force_reboot() {
     echo 1 > /proc/sys/kernel/sysrq 2>/dev/null || true
     echo b > /proc/sysrq-trigger 2>/dev/null || true
 }
-# The watchdog MUST be cancellable, and its pid MUST be known.
+# NO in-guest watchdog. Deliberately removed.
 #
-# Previously this was a fire-and-forget `( sleep 2700; ... ) &`. Nothing ever
-# killed it, so when the deployer returned, dracut-initqueue blocked in wait()
-# for the leftover 45-minute sleep — and the machine sat idle until the watchdog
-# fired and rebooted it. Observed identically on every runner: the journal ends
-# mid-verification, `ps` shows only `dracut-initqueue` in do_wait with a single
-# `sleep 2700` child, and the box reboots at t=2702s.
+# It was a dead-man switch for a hung deployer, but it caused three separate
+# regressions and never once did its job:
+#   1. fire-and-forget `( sleep 2700 ) &` — dracut-initqueue blocked in wait()
+#      for 45 minutes after the deployer returned, so Phase-2 setup never ran;
+#   2. adding kill+wait — the wait blocked FOREVER when the kill missed;
+#   3. setsid on the sleep — put it beyond both pid and process-group kill;
+#   4. a self-cancelling flag-file loop — cancellation worked, but the subshell
+#      is still a CHILD of dracut-initqueue, which therefore still blocks:
+#        454   1   S  do_wait            /usr/bin/sh /usr/bin/dracut-initqueue
+#        7365 454   S  hrtimer_nanosleep  sleep 10
 #
-# The cost was severe: the deploy's real exit status was never printed, Phase-2
-# setup never completed, and the harness blamed a "slow deploy" for 90 minutes.
-# Watchdog that CANCELS ITSELF. No kill, no wait, no hunting for a pid.
+# The shape of the bug is structural: ANY background job in this hook is a child
+# of dracut-initqueue, and dracut-initqueue waits for its children. A watchdog
+# here cannot avoid blocking the very thing it is meant to protect.
 #
-# Two failed designs preceded this, both live-observed:
-#   1. `( sleep 2700; force_reboot ) &` — never cancelled, so dracut-initqueue
-#      blocked in wait() for the full 45 minutes after the deployer returned;
-#   2. adding `kill` + `wait` — the wait blocked FOREVER when the kill missed,
-#      and wrapping the sleep in `setsid` (to stop it outliving the subshell)
-#      put it in its own session where neither the pid kill nor the process
-#      GROUP kill could reach it. Strictly worse.
+# It is also redundant. The HOST already detects every case it covered, with
+# better diagnostics and without touching the guest:
+#   * a wall-clock deploy budget (WOOTC_E2E_DEPLOY_TIMEOUT);
+#   * "Windows QGA is answering again" -> the deployer is gone (fails fast);
+#   * the kernel's "reboot: Restarting system" recorded but NOT taken as success;
+#   * serial silence cross-checked against guest CPU (#40).
 #
-# So: poll a flag instead of sleeping blindly. Cancelling is a file touch, the
-# loop exits within one tick on its own, and nothing ever needs to wait on or
-# signal it. The deadline is still enforced if the deployer really does hang.
-WOOTC_DONE_FLAG=/run/wootc-deploy-done
-rm -f "$WOOTC_DONE_FLAG" 2>/dev/null || true
-(
-    deadline=$(( $(date +%s) + 2700 ))
-    while [ ! -e "$WOOTC_DONE_FLAG" ]; do
-        [ "$(date +%s)" -ge "$deadline" ] || { sleep 10; continue; }
-        echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg
-        force_reboot
-        break
-    done
-) &
-WATCHDOG_PID=$!
-cancel_watchdog() {
-    # A touch, not a signal. The loop notices within ~10s and exits by itself,
-    # so dracut-initqueue has nothing left to block on.
-    : > "$WOOTC_DONE_FLAG" 2>/dev/null || true
-    WATCHDOG_PID=""
-    echo "[wootc] watchdog cancelled" > /dev/kmsg 2>/dev/null || true
-}
+# If an in-guest deadline is ever wanted again, it must NOT be a background job
+# in this hook — use a systemd transient unit, or have deploy.sh check its own
+# elapsed time between phases.
 
 # This hook is sourced by dracut-initqueue, which may run under set -e: a
 # bare failing command would abort the hook before the status capture line.
 status=0
 /usr/bin/wootc-deploy || status=$?
-# Cancel FIRST: until this runs, every line below is racing a 45-minute sleep
-# that dracut-initqueue is blocked on.
-cancel_watchdog
 echo "[wootc] Deployer exited with status $status"
 echo "[wootc] Deployer exited with status $status" > /dev/kmsg 2>/dev/null || true
 
