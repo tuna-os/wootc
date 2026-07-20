@@ -32,7 +32,7 @@ jobs:
     name: fast + integration
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
       - uses: actions/setup-go@v5
         with: { go-version: '1.26', cache: false }
@@ -58,7 +58,7 @@ jobs:
     if: ${{ always() && needs.tests.result == 'success' && (needs.e2e-gate.result == 'success' || inputs.skip_e2e) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
       - uses: actions/setup-go@v5
         with: { go-version: '1.26', cache: false }

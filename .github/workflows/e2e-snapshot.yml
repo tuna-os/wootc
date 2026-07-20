@@ -42,7 +42,7 @@ jobs:
       # ghcr.io/<owner>/wootc-winbase:<win_version>-bl-<axis>
       PKG: ghcr.io/${{ github.repository_owner }}/wootc-winbase
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
 
       - name: Confirm KVM + install qemu-utils (qemu-img)
