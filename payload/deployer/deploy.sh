@@ -499,8 +499,20 @@ ensure_ntfs_support() {
     # initramfs (every previous injection died at "could not start the
     # container"), while the plain `podman run` used elsewhere here works fine.
     # No --rm, because the stopped container is what we commit.
+    # ntfs-3g is NOT in the EL base repos — it lives in EPEL. On AlmaLinux/RHEL
+    # (yellowfin is EL10) a plain `dnf install ntfs-3g` fails "no package", which
+    # is exactly why Phase 2 hit "cannot mount host NTFS (no ntfs3, no ntfs-3g)":
+    # the EL10 kernel ships no ntfs3 AND the image had no ntfs-3g. Enable EPEL
+    # (+CRB, which many EPEL packages need) first, then install. Verified against
+    # ghcr.io/tuna-os/yellowfin:gnome — installs ntfs-3g-2026.2.25.el10. Fedora
+    # images still work via the leading direct attempt.
     if ! podman run --name "$cname" "$IMAGE" sh -c \
-        'dnf install -y ntfs-3g || microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g'; then
+        'dnf install -y ntfs-3g || \
+         { { dnf install -y epel-release || \
+             dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm; } && \
+           { dnf config-manager --set-enabled crb 2>/dev/null || true; } && \
+           dnf install -y ntfs-3g; } || \
+         microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g'; then
         err "  [WARN] ntfs-3g install failed in ${IMAGE} (network/repo?); relying on the image's own NTFS support"
         podman logs "$cname" 2>&1 | tail -10 >&2 || true
         podman rm -f "$cname" >/dev/null 2>&1 || true
