@@ -506,7 +506,15 @@ ensure_ntfs_support() {
     # (+CRB, which many EPEL packages need) first, then install. Verified against
     # ghcr.io/tuna-os/yellowfin:gnome — installs ntfs-3g-2026.2.25.el10. Fedora
     # images still work via the leading direct attempt.
-    if ! podman run --name "$cname" "$IMAGE" sh -c \
+    # --network=host is load-bearing: this runs inside the deployer's minimal
+    # initramfs, where podman's default netavark path fails ("netavark: nftables
+    # error: nft did not return successfully" in the serial — nft kmods/tables
+    # are not fully available in the stripped initramfs). A fresh `podman run`
+    # needs a container netns; --network=host reuses the deployer VM's HOST netns
+    # (the same one bootc pull already succeeds on) and its /etc/resolv.conf, so
+    # dnf can actually reach EPEL. Without it the install fails on BOTH himachal
+    # and the hosted runner, and Phase 2 has no NTFS driver.
+    if ! podman run --name "$cname" --network=host "$IMAGE" sh -c \
         'dnf install -y ntfs-3g || \
          { { dnf install -y epel-release || \
              dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm; } && \
