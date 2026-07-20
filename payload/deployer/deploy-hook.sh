@@ -20,10 +20,6 @@ if command -v qemu-ga >/dev/null 2>&1; then
             && echo "[wootc] qemu-ga started on $ga_dev" > /dev/kmsg
     fi
 fi
-# Dead-man watchdog: late failures (after dracut's root-device timeout puts
-# systemd in emergency mode) have wedged the VM with the failure path below
-# never reached. A successful deployer reboots the machine well inside this
-# window; the watchdog only fires on a hang.
 # reboot -f resolves to systemctl reboot -f, which still routes through the
 # systemd manager and hangs once emergency mode has been entered; -ff issues
 # the syscall directly, with sysrq as a last resort.
@@ -33,12 +29,40 @@ force_reboot() {
     echo 1 > /proc/sys/kernel/sysrq 2>/dev/null || true
     echo b > /proc/sysrq-trigger 2>/dev/null || true
 }
-( sleep 2700; echo "[wootc] [FAIL] watchdog: deployer hung for 45m; forcing reboot" > /dev/kmsg; force_reboot ) &
+# NO in-guest watchdog. Deliberately removed.
+#
+# It was a dead-man switch for a hung deployer, but it caused three separate
+# regressions and never once did its job:
+#   1. fire-and-forget `( sleep 2700 ) &` — dracut-initqueue blocked in wait()
+#      for 45 minutes after the deployer returned, so Phase-2 setup never ran;
+#   2. adding kill+wait — the wait blocked FOREVER when the kill missed;
+#   3. setsid on the sleep — put it beyond both pid and process-group kill;
+#   4. a self-cancelling flag-file loop — cancellation worked, but the subshell
+#      is still a CHILD of dracut-initqueue, which therefore still blocks:
+#        454   1   S  do_wait            /usr/bin/sh /usr/bin/dracut-initqueue
+#        7365 454   S  hrtimer_nanosleep  sleep 10
+#
+# The shape of the bug is structural: ANY background job in this hook is a child
+# of dracut-initqueue, and dracut-initqueue waits for its children. A watchdog
+# here cannot avoid blocking the very thing it is meant to protect.
+#
+# It is also redundant. The HOST already detects every case it covered, with
+# better diagnostics and without touching the guest:
+#   * a wall-clock deploy budget (WOOTC_E2E_DEPLOY_TIMEOUT);
+#   * "Windows QGA is answering again" -> the deployer is gone (fails fast);
+#   * the kernel's "reboot: Restarting system" recorded but NOT taken as success;
+#   * serial silence cross-checked against guest CPU (#40).
+#
+# If an in-guest deadline is ever wanted again, it must NOT be a background job
+# in this hook — use a systemd transient unit, or have deploy.sh check its own
+# elapsed time between phases.
+
 # This hook is sourced by dracut-initqueue, which may run under set -e: a
 # bare failing command would abort the hook before the status capture line.
 status=0
 /usr/bin/wootc-deploy || status=$?
 echo "[wootc] Deployer exited with status $status"
+echo "[wootc] Deployer exited with status $status" > /dev/kmsg 2>/dev/null || true
 
 # On success the deployer reboots the machine itself, so reaching this point
 # means failure. An interactive shell is only useful with wootc.debug (the

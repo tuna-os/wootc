@@ -62,7 +62,12 @@ try {
     if ($cfg.ComposeFs -eq "1") { $setupArgs.ComposeFs = $true }
     & "$oemDir\setup-wootc.ps1" @setupArgs *>&1 | Tee-Object -FilePath $logPath -Append
 
-    "ok" | Set-Content -Path $completePath -Encoding ASCII
+    # Stamp the run id, not a constant. The host barrier requires this to match
+    # the run it is currently driving; a bare "ok" is indistinguishable from a
+    # marker left behind by an earlier run, which made the barrier pass
+    # instantly and the harness monitor a deployer that had never been staged.
+    $runId = if ($cfg.ContainsKey("RunId")) { $cfg.RunId } else { "unknown" }
+    $runId | Set-Content -Path $completePath -Encoding ASCII
     Write-E2ELog "Setup complete; waiting for host snapshot acknowledgement"
     $snapshotDeadline = (Get-Date).AddMinutes(10)
     while (-not (Test-Path -LiteralPath $snapshotCompletePath)) {

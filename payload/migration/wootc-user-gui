@@ -1,0 +1,345 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-user-gui — "Set up your account" screen (SPEC §4.6, #8).
+#
+# The one thing wootc CANNOT bring over is the password: Windows stores an NTLM
+# hash and Linux a PAM/shadow crypt hash — different algorithms — and copying
+# credential material would breach the "never migrate secrets" rule. Everything
+# else about the account IS pre-fillable, so this screen carries over the
+# identity (username, full name, email, avatar) and asks for exactly one new
+# thing: a Linux password.
+#
+# That framing matters for adoption. A non-technical user who has just been told
+# "we moved all your files" should not meet a blank account form; they should
+# see themselves already filled in, with one field to complete.
+#
+# Engine/validation logic is isolated in AccountEngine for headless testing:
+#   wootc-user-gui --self-test
+#
+# SECURITY — the password must never be observable outside this process:
+#   * never written to disk (not even transiently);
+#   * never passed on a command line (argv is world-readable via /proc);
+#   * handed to `chpasswd` on STDIN only, then dropped.
+# The selection file this screen writes contains identity fields ONLY.
+import json
+import os
+import re
+import subprocess
+import sys
+
+IDENTITY = os.environ.get("WOOTC_IDENTITY_BIN", "wootc-identity")
+ACCOUNT_PATH = os.environ.get(
+    "WOOTC_ACCOUNT",
+    os.path.join(os.path.expanduser("~"), ".config", "wootc", "account.json"))
+
+# Linux username rules (useradd/NAME_REGEX): start with a lowercase letter or
+# underscore, then lowercase alphanumerics, underscore or dash, max 32.
+USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
+
+# Deliberately permissive. This is a personal machine being migrated by someone
+# who may not have chosen a Linux password before; a wall of complexity rules
+# costs adoption and buys little. Length is the property that actually matters.
+MIN_PASSWORD_LEN = 8
+
+RESERVED_NAMES = {
+    "root", "daemon", "bin", "sys", "sync", "games", "man", "lp", "mail",
+    "news", "uucp", "proxy", "www-data", "backup", "list", "irc", "nobody",
+    "systemd-network", "systemd-resolve", "messagebus", "polkitd",
+}
+
+
+class AccountEngine:
+    """Identity pre-fill + account validation. No GTK, no I/O beyond the scan."""
+
+    def __init__(self, identity=IDENTITY):
+        self.identity = identity
+
+    # ── pre-fill ────────────────────────────────────────────────────────────
+
+    def scan(self, winuser=None):
+        args = [self.identity, "scan"] + ([winuser] if winuser else [])
+        out = subprocess.run(args, capture_output=True, text=True)
+        if out.returncode != 0:
+            raise RuntimeError(out.stderr.strip() or "identity scan failed")
+        return json.loads(out.stdout or "{}")
+
+    @staticmethod
+    def prefill(identity):
+        """Map an identity scan onto the account form's initial values.
+
+        Everything here is non-secret. `password` is intentionally absent: the
+        scan reports it as non-migratable and the user must supply it.
+        """
+        return {
+            "username": identity.get("username") or "",
+            "fullName": identity.get("fullName") or "",
+            "email": identity.get("email") or "",
+            "avatar": identity.get("avatar") or "",
+            "locale": identity.get("locale") or "",
+            "keyboardLayout": identity.get("keyboardLayout") or "",
+            "timezone": identity.get("timezone") or "",
+            "winUser": identity.get("winUser") or "",
+        }
+
+    @staticmethod
+    def password_note(identity):
+        """The explanation shown next to the password field.
+
+        Sourced from the scan so the reason stays in one place, but never blank:
+        an unexplained mandatory field reads as an obstacle.
+        """
+        note = (identity.get("password") or {}).get("note")
+        return note or ("Set a new password for Linux — Windows passwords "
+                        "can't be carried over.")
+
+    # ── validation ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def validate_username(name):
+        if not name:
+            return "Pick a username."
+        if not USERNAME_RE.match(name):
+            return ("Usernames must start with a lowercase letter and use only "
+                    "lowercase letters, numbers, - or _.")
+        if name in RESERVED_NAMES:
+            return f"'{name}' is reserved by the system. Pick another."
+        return None
+
+    @staticmethod
+    def validate_password(pw, confirm):
+        if not pw:
+            return "Set a password."
+        if len(pw) < MIN_PASSWORD_LEN:
+            return f"Use at least {MIN_PASSWORD_LEN} characters."
+        if confirm != pw:
+            return "The two passwords don't match."
+        return None
+
+    @classmethod
+    def validate(cls, form):
+        """Full-form validation. Returns a list of problems, empty when valid."""
+        problems = []
+        for check in (cls.validate_username(form.get("username", "")),
+                      cls.validate_password(form.get("password", ""),
+                                            form.get("confirm", ""))):
+            if check:
+                problems.append(check)
+        return problems
+
+    # ── apply ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def identity_record(form):
+        """The record persisted to disk — identity fields ONLY.
+
+        Explicitly rebuilt field by field rather than copying `form` and
+        deleting the secrets: a copy-then-delete leaks any future field someone
+        adds, and this file is world-readable in the user's home.
+        """
+        return {
+            "version": 1,
+            "username": form.get("username", ""),
+            "fullName": form.get("fullName", ""),
+            "email": form.get("email", ""),
+            "avatar": form.get("avatar", ""),
+            "locale": form.get("locale", ""),
+            "keyboardLayout": form.get("keyboardLayout", ""),
+            "timezone": form.get("timezone", ""),
+            "winUser": form.get("winUser", ""),
+            "passwordSet": bool(form.get("password")),
+        }
+
+    @staticmethod
+    def save_identity(form, path=None):
+        path = path or ACCOUNT_PATH
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        rec = AccountEngine.identity_record(form)
+        with open(path, "w") as fh:
+            json.dump(rec, fh, indent=2)
+        return rec
+
+    @staticmethod
+    def set_password(username, password, runner=subprocess.run):
+        """Hand the password to chpasswd on STDIN.
+
+        stdin — not argv (world-readable through /proc/<pid>/cmdline) and not a
+        temp file (survives on disk and can be read before deletion). The value
+        is never stored by this process either.
+        """
+        if not username or not password:
+            raise ValueError("username and password are required")
+        res = runner(["chpasswd"], input=f"{username}:{password}\n",
+                     capture_output=True, text=True)
+        if res.returncode != 0:
+            raise RuntimeError((res.stderr or "").strip() or "chpasswd failed")
+        return True
+
+    @staticmethod
+    def apply_identity(winuser, linuxuser, identity=IDENTITY, runner=subprocess.run):
+        """Copy the avatar + full name onto the Linux user (wootc-identity apply)."""
+        if not winuser:
+            return False
+        res = runner([identity, "apply", winuser, linuxuser],
+                     capture_output=True, text=True)
+        return res.returncode == 0
+
+
+def self_test():
+    eng = AccountEngine()
+
+    # prefill maps identity → form and never carries a password through
+    ident = {"winUser": "Jim", "username": "jim", "fullName": "Jim Reilly",
+             "email": "jim@example.com", "avatar": "/host/pic.png",
+             "password": {"migratable": False, "note": "Set a new password."}}
+    pre = AccountEngine.prefill(ident)
+    assert pre["username"] == "jim" and pre["fullName"] == "Jim Reilly"
+    assert "password" not in pre, "prefill must never carry a password"
+    assert AccountEngine.password_note(ident) == "Set a new password."
+    assert AccountEngine.password_note({}), "note must never be blank"
+
+    # username rules
+    assert AccountEngine.validate_username("jim") is None
+    assert AccountEngine.validate_username("") is not None
+    assert AccountEngine.validate_username("Jim") is not None      # uppercase
+    assert AccountEngine.validate_username("9jim") is not None     # leading digit
+    assert AccountEngine.validate_username("root") is not None     # reserved
+
+    # password rules
+    assert AccountEngine.validate_password("hunter2hunter2", "hunter2hunter2") is None
+    assert AccountEngine.validate_password("short", "short") is not None
+    assert AccountEngine.validate_password("hunter2hunter2", "nope") is not None
+
+    # the persisted record must never contain the password
+    rec = AccountEngine.identity_record({**pre, "password": "hunter2hunter2"})
+    blob = json.dumps(rec)
+    assert "hunter2hunter2" not in blob, "password leaked into the saved record"
+    assert rec["passwordSet"] is True
+
+    # chpasswd receives the secret on stdin, never in argv
+    seen = {}
+
+    def fake_run(argv, input=None, capture_output=False, text=False):
+        seen["argv"] = argv
+        seen["input"] = input
+
+        class R:
+            returncode = 0
+            stderr = ""
+        return R()
+
+    AccountEngine.set_password("jim", "hunter2hunter2", runner=fake_run)
+    assert seen["argv"] == ["chpasswd"], seen["argv"]
+    assert "hunter2hunter2" not in " ".join(seen["argv"]), "password in argv"
+    assert seen["input"] == "jim:hunter2hunter2\n"
+
+    print("self-test OK: prefill+validation+secret-handling verified")
+
+
+def build_gui():
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw, Gtk  # noqa: E402
+
+    eng = AccountEngine()
+
+    class Win(Adw.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app, title="Set up your account",
+                             default_width=520, default_height=560)
+            tb = Adw.ToolbarView()
+            tb.add_top_bar(Adw.HeaderBar())
+            self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                                margin_top=18, margin_bottom=18,
+                                margin_start=18, margin_end=18)
+            sc = Gtk.ScrolledWindow(vexpand=True)
+            sc.set_child(self.body)
+            tb.set_content(sc)
+            self.set_content(tb)
+            self.render()
+
+        def _msg(self, heading, body):
+            d = Adw.MessageDialog(transient_for=self, heading=heading, body=body)
+            d.add_response("ok", "OK")
+            d.present()
+
+        def render(self):
+            while (ch := self.body.get_first_child()):
+                self.body.remove(ch)
+
+            try:
+                ident = eng.scan()
+            except Exception as e:
+                self._msg("Couldn't read your Windows account", str(e))
+                ident = {}
+            pre = AccountEngine.prefill(ident)
+
+            self.body.append(Gtk.Label(
+                label="<b><big>Set up your account</big></b>",
+                use_markup=True, xalign=0))
+            sub = Gtk.Label(
+                label="We've carried over what we could. Just pick a password.",
+                xalign=0, wrap=True)
+            sub.add_css_class("dim-label")
+            self.body.append(sub)
+
+            grp = Adw.PreferencesGroup()
+            self.rows = {}
+            for key, title in (("fullName", "Full name"),
+                               ("username", "Username"),
+                               ("email", "Email")):
+                row = Adw.EntryRow(title=title)
+                row.set_text(pre.get(key, ""))
+                grp.add(row)
+                self.rows[key] = row
+            self.body.append(grp)
+
+            pwgrp = Adw.PreferencesGroup(description=AccountEngine.password_note(ident))
+            self.pw = Adw.PasswordEntryRow(title="Password")
+            self.pw2 = Adw.PasswordEntryRow(title="Confirm password")
+            pwgrp.add(self.pw)
+            pwgrp.add(self.pw2)
+            self.body.append(pwgrp)
+
+            btn = Gtk.Button(label="Continue")
+            btn.add_css_class("suggested-action")
+            btn.connect("clicked", self.on_continue)
+            self.body.append(btn)
+            self._prefill = pre
+
+        def on_continue(self, _btn):
+            form = dict(self._prefill)
+            for key, row in self.rows.items():
+                form[key] = row.get_text().strip()
+            form["password"] = self.pw.get_text()
+            form["confirm"] = self.pw2.get_text()
+
+            problems = AccountEngine.validate(form)
+            if problems:
+                self._msg("Not quite there", "\n".join(problems))
+                return
+            try:
+                AccountEngine.save_identity(form)
+                AccountEngine.set_password(form["username"], form["password"])
+                AccountEngine.apply_identity(form.get("winUser", ""), form["username"])
+            except Exception as e:
+                self._msg("Couldn't finish setting up", str(e))
+                return
+            finally:
+                # Drop the secret from this process as soon as it is applied.
+                form["password"] = form["confirm"] = ""
+                self.pw.set_text("")
+                self.pw2.set_text("")
+            self._msg("You're all set", f"Your account {form['username']} is ready.")
+
+    class App(Adw.Application):
+        def do_activate(self):
+            Win(self).present()
+
+    return App(application_id="org.tunaos.wootc.UserSetup")
+
+
+if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        self_test()
+        sys.exit(0)
+    sys.exit(build_gui().run(None))

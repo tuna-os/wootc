@@ -23,6 +23,18 @@ reply, TIL, question, Blueprint, or Playbook.
 Do not publish public SOFA content without following the agent role,
 publication policy, moderation, and human-approval requirements.
 
+## Start here
+
+- **`docs/agent-lessons.md`** — traps that have each cost a 60–90 minute VM run.
+  Read before touching the E2E harness, the deployer, or the runners.
+- **`docs/phase2-debug-plan.md`** — live hypotheses for the Phase-2 boot, kept
+  strictly separated into what is *established* vs merely *claimed*.
+
+The single most useful heuristic in this codebase: **status derived from a proxy
+rather than an observable is the dominant bug class here.** When adding a check,
+ask what it would print if the thing it asserts never happened — then break the
+code and confirm the test goes red.
+
 ## Project layers
 
 The codebase has four distinct layers. Delegate to the matching agent when
@@ -181,16 +193,63 @@ quirks are documented in the `wootc-e2e` skill and the e2e-runner agent:
 
 ### Running E2E
 
+**Read `docs/agent-lessons.md` first.** It records the traps that have each cost
+at least one 60–90 minute run — liveness signals that lie, timeouts that are not
+wall-clock, vacuous tests on a noexec /tmp, and the runner operations that have
+killed live runs.
+
+Prefer a **GitHub hosted runner** over the laptops:
+
 ```bash
-# On kanpur:
-cd ~/wootc/tests/e2e
-sudo chown -R james:james .   # fix root-owned files
-kill $(pgrep rootlessport) 2>/dev/null
-sudo kill $(pgrep qemu-system) 2>/dev/null
-podman stop wootc-e2e-windows 2>/dev/null && podman rm wootc-e2e-windows 2>/dev/null
-PATH="$HOME/.local/bin:$PATH" nohup bash run-e2e.sh --keep > /tmp/wootc-e2e-qgaN.log 2>&1 &
+gh workflow run e2e-nightly.yml --ref <branch> \
+  -f image=ghcr.io/tuna-os/yellowfin:gnome -f win_version=11 -f bitlocker=off
 ```
 
-Monitor with: `ssh kanpur 'tail -f /tmp/wootc-e2e-qga*.log'`
+ubuntu-latest exposes `/dev/kvm`, and `e2e-hosted.yml` handles disk reclaim and
+storage placement. The three laptop runners have each failed in a different
+host-specific way (see the table at the end of `docs/agent-lessons.md`).
+
+On a laptop runner, launch as a **systemd user unit** — not `nohup`. Lingering
+must be enabled or systemd kills the run when your ssh session closes:
+
+```bash
+loginctl enable-linger james          # once per host
+ssh <host> 'cd /var/home/james/wootc
+  systemd-run --user --unit=wootc-e2e --collect \
+    --setenv=XDG_RUNTIME_DIR=/run/user/$(id -u) \
+    --setenv=HOME=/var/home/james \
+    -p StandardOutput=append:/tmp/wootc-e2e-run.log \
+    -p StandardError=append:/tmp/wootc-e2e-run.log \
+    -p WorkingDirectory=/var/home/james/wootc \
+    ./tests/e2e/run-e2e.sh ghcr.io/tuna-os/yellowfin:gnome'
+```
+
+`XDG_RUNTIME_DIR` and `HOME` are required, or rootless podman resolves *root*
+storage paths and fails with `permission denied` on `/run/containers/storage`.
+
+**Checking on a run** — do not trust `pgrep` (it matches your own ssh command)
+or `systemctl is-active` (meaningless if launched via nohup). Use:
+
+```bash
+ssh <host> '
+  # is it writing?
+  echo "age=$(( $(date +%s) - $(stat -c %Y /tmp/wootc-e2e-run.log) ))s"
+  # is the guest working? silence + high CPU = fine, silence + idle = wedged
+  podman exec wootc-e2e-windows sh -c "ps -eo pcpu,args | grep [q]emu-system"
+  # read only the CURRENT run (logs are appended across runs)
+  L=$(grep -an "Run ID" /tmp/wootc-e2e-run.log | tail -1 | cut -d: -f1)
+  tail -n +$L /tmp/wootc-e2e-run.log | tail -5'
+```
+
+Decisive markers to grep for, in order of the run:
+`closure staged and verified` → `deployer active` → `deployer rebooted` →
+`attach-loop hook entered` → either an `EXIT: <reason>` line or
+`post-attach by-uuid`.
+
+**Never** `podman system prune -af` on a host with a live run. It has killed
+three runs at once and deleted the locally-built
+`wootc-e2e-windows-ssh:latest`, after which compose tries to pull from a
+registry literally named `localhost`. Rebuild with
+`bash tests/e2e/build-ssh-image.sh`.
 
 For delegated work, use the `wootc.wootc-e2e-runner` agent.

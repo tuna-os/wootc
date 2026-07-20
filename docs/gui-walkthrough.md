@@ -103,6 +103,27 @@ fill in). Each row shows what was actually found — folder counts, which
 browsers, how many Wi-Fi profiles. The choice is saved to
 `~/.config/wootc/migration-selection.json` for the bridges to honor.
 
+## 8b. Set up your account
+
+![Account setup](screenshots/13b-account-setup.png)
+
+`wootc-user-gui`. Your name, username, email and account picture are
+carried over from Windows and already filled in — the screen asks for
+exactly one thing you have to supply: a Linux password.
+
+That is not an oversight, it is the one item wootc deliberately will not
+migrate. Windows stores an NTLM hash and Linux a PAM/shadow crypt hash;
+they are different algorithms, so there is nothing to copy. Copying
+credential material would also breach the "never migrate secrets" rule
+that keeps browser passwords and Wi-Fi enterprise credentials out of
+scope. The screen says so plainly rather than leaving a blank field.
+
+The password is handled as carefully as that framing implies: it is
+never written to disk, never passed on a command line (where any process
+could read it from `/proc`), and reaches `chpasswd` on stdin only. The
+`~/.config/wootc/account.json` file it saves records the identity fields
+and a `passwordSet` boolean — never the secret itself.
+
 ## 9. Move fully to Linux (Phase 3)
 
 ![Move to Linux](screenshots/14-move-to-linux.png)

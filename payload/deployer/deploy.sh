@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wootc-deploy — runs inside the deployer initramfs.
 #
-# Finds root.vhdx on the NTFS partition, attaches it through NBD,
+# Finds root.disk on the NTFS partition, attaches it through losetup,
 # writes a fisherman recipe, and runs fisherman to deploy the
 # bootc image into the loop file.
 #
@@ -28,14 +28,47 @@ PERSIST_LOG=""
 # Write through /dev/kmsg when available: stdout of a sourced initqueue hook
 # lands in the journal but is not reliably forwarded to the serial console,
 # which made several failures invisible to the E2E monitor.
+# Write through /dev/kmsg when available: stdout of a sourced initqueue hook
+# lands in the journal but is not reliably forwarded to the serial console,
+# which made several failures invisible to the E2E monitor.
+#
+# Two things the kmsg write MUST get right, both learned the hard way when the
+# initramfs-guard line below never reached the E2E log:
+#   1. Emit an explicit <N> priority. A kmsg line with no <N> prefix inherits
+#      the kernel default level, so whether it reaches the console depends on
+#      console_loglevel — which varies by Phase-2 boot path (the GRUB path adds
+#      ignore_loglevel, the BLS path does not). <27> is KERN_ERR (level 3),
+#      below any plausible threshold, so it always prints.
+#   2. Also write to /dev/console, which bypasses printk filtering altogether.
+#      Under `quiet` (console_loglevel=4) printk prints only levels STRICTLY
+#      BELOW 4, so even KERN_WARNING is dropped — /dev/console is the only
+#      threshold-independent path, and is how systemd's "Entering emergency
+#      mode" reaches serial.
+# ONE kmsg write per line, at an explicit priority. Not three.
+#
+# The <27> prefix is KERN_ERR (level 3). `quiet` sets console_loglevel=4 and
+# printk prints levels STRICTLY BELOW it, so level 3 reaches the serial console
+# on its own — which is the entire reason the priority is here. An additional
+# direct /dev/console write adds nothing.
+#
+# It also actively broke the deploy. With stdout (console in the initramfs) plus
+# kmsg-forwarded-to-console plus a direct console write, every line went out
+# THREE times over a 115200-baud serial. During the verbose bootc install that
+# saturates the link, and a blocking console write stalls the deployer: all
+# three runners died at `phase: verification` with the serial frozen, then burned
+# their full 45-minute budget. The deploy completed fine before this was added.
+#
+# Volume is the deciding factor, which is why the Phase-2 attach hook still does
+# write to /dev/console: it emits a handful of lines at boot rather than hundreds
+# during an install, and it is diagnosing a path we have never seen work.
 log() {
     printf '\033[1;32m[wootc]\033[0m %s\n' "$*"
-    printf '[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    printf '<27>[wootc] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
     [ -z "$PERSIST_LOG" ] || printf '%s [wootc] %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 err() {
     printf '\033[1;31m[wootc]\033[0m %s\n' "$*" >&2
-    printf '[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    printf '<27>[wootc] ERROR: %s\n' "$*" > /dev/kmsg 2>/dev/null || true
     [ -z "$PERSIST_LOG" ] || printf '%s [wootc] ERROR: %s\n' "$(date -u +%FT%TZ)" "$*" >> "$PERSIST_LOG" 2>/dev/null || true
 }
 # Current phase, read by the heartbeat and useful over QGA.
@@ -87,9 +120,9 @@ cleanup() {
         mountpoint -q "$mount" 2>/dev/null && umount "$mount" 2>/dev/null || true
     done
     [[ -n "$VERIFY_CRYPT" ]] && cryptsetup close "$VERIFY_CRYPT" 2>/dev/null || true
-    [[ -n "$VERIFY_LOOP" ]] && qemu-nbd --disconnect "$VERIFY_LOOP" 2>/dev/null || true
+    [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
-    [[ -n "$LOOP_DEV" ]] && qemu-nbd --disconnect "$LOOP_DEV" 2>/dev/null || true
+    [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -154,9 +187,9 @@ if [[ -z "$IMAGE" ]]; then
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
 
-ROOT_DISK_PATH="/wootc/disks/root.vhdx"
+ROOT_DISK_PATH="/wootc/disks/root.disk"
 
-# ── Find NTFS partition containing root.vhdx ────────────────────────────────
+# ── Find NTFS partition containing root.disk ────────────────────────────────
 log "Searching for ${ROOT_DISK_PATH}..."
 
 # The initqueue/online hook fires when the network is up, which can beat SCSI
@@ -165,18 +198,45 @@ log "Searching for ${ROOT_DISK_PATH}..."
 modprobe ntfs3 2>/dev/null || true
 modprobe virtio_scsi 2>/dev/null || true
 
+# Try progressively more forgiving mounts, and SAY what happened.
+#
+# A plain `mount -t ntfs3 -o ro` is not enough. On the BitLocker path
+# setup-wootc.ps1 shrinks C:, creates a fresh NTFS volume for Linux and then
+# reboots almost immediately — so that volume still carries the NTFS dirty bit,
+# and ntfs3 REFUSES a dirty volume even read-only. The mount failed, the
+# partition was skipped in silence, and the deployer reported
+#   Could not find /wootc/disks/root.disk on any partition
+# while the volume holding it sat right there (observed twice, #36).
+#
+# `-o force` tells ntfs3 to mount a dirty volume anyway; read-only makes that
+# safe here since we only look for a file. ntfs-3g is the last resort where the
+# kernel driver is absent entirely.
+try_mount_scan() {
+    local dev="$1"
+    mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null && { echo "ntfs3"; return 0; }
+    mount -t ntfs3 -o ro,force "$dev" /mnt/scan 2>/dev/null && { echo "ntfs3-force"; return 0; }
+    command -v ntfs-3g >/dev/null 2>&1 &&
+        ntfs-3g -o ro "$dev" /mnt/scan 2>/dev/null && { echo "ntfs-3g"; return 0; }
+    return 1
+}
+
 scan_for_root_disk() {
-    local dev
+    local dev drv
     for dev in /dev/sd* /dev/nvme* /dev/vd*; do
         [[ -b "$dev" ]] || continue
         mkdir -p /mnt/scan
-        if mount -t ntfs3 -o ro "$dev" /mnt/scan 2>/dev/null; then
+        if drv=$(try_mount_scan "$dev"); then
             if [[ -f "/mnt/scan${ROOT_DISK_PATH}" ]]; then
+                log "  found ${ROOT_DISK_PATH} on ${dev} (mounted via ${drv})"
                 NTFS_PART="$dev"
                 umount /mnt/scan
                 return 0
             fi
+            log "  ${dev}: mounted via ${drv}, no ${ROOT_DISK_PATH}"
             umount /mnt/scan
+        else
+            # Silence here is what made #36 unattributable for two runs.
+            log "  ${dev}: not mountable as NTFS (ntfs3, ntfs3+force, ntfs-3g all failed)"
         fi
     done
     return 1
@@ -195,7 +255,7 @@ for attempt in {1..24}; do
         log "  NTFS_PART=${NTFS_PART} (uuid=$(blkid -s UUID -o value "$NTFS_PART" 2>/dev/null))"
         break
     fi
-    log "root.vhdx not found (attempt ${attempt}/24); retrying in 5s..."
+    log "root.disk not found (attempt ${attempt}/24); retrying in 5s..."
     [[ "$attempt" -eq 1 ]] && { err "block devices seen so far:"; cat /proc/partitions >&2 || true; }
     sleep 5
 done
@@ -215,7 +275,7 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     err "Boot Windows once, perform a full shutdown, and retry."
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
 fi
-DISK="/mnt/ntfs/wootc/disks/root.vhdx"
+DISK="/mnt/ntfs/wootc/disks/root.disk"
 
 # Now that NTFS is mounted, pick up a staged debug SSH key if the cmdline did
 # not carry one, and derive the sshd-enable kernel karg (empty when no key).
@@ -238,7 +298,23 @@ MGMT_KARG="systemd.wants=qemu-guest-agent.service"
 # CI and a dead machine for a user. Bound it so the failure is fast and lands
 # in a shell with the actual error instead of a silent spinner.
 TIMEOUT_KARG="rd.timeout=120"
-PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG"
+
+# loop.max_part on the CMDLINE, not via modprobe.
+#
+# The Phase-2 hook attaches root.disk with `losetup --partscan`, and everything
+# downstream depends on /dev/loopNpM appearing so the root UUID reaches udev.
+# `modprobe loop max_part=16` cannot guarantee that: module parameters apply
+# only at LOAD time, so it is a no-op when loop is already loaded or built into
+# the kernel (CONFIG_BLK_DEV_LOOP=y is common).
+#
+# Measured: --partscan DOES create the nodes even with max_part=0, because it
+# sets LO_FLAGS_PARTSCAN on that device rather than relying on the module
+# default (verified on a 64M GPT image — p1 and p2 both appeared). So this is
+# insurance, not a fix: a kernel cmdline parameter is honoured whether loop is
+# built in or modular, and costs nothing. If a target kernel ever behaves
+# differently, this is what keeps Phase 2 bootable.
+LOOP_KARG="loop.max_part=16"
+PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG $LOOP_KARG"
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
@@ -285,7 +361,7 @@ phase "scratch-setup"
 log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # ntfs3 allocates the full size on truncate (no sparse support), so this
-# must fit in C:'s free space alongside the dynamically allocated root.vhdx.
+# must fit in C:'s free space alongside the dynamically allocated root.disk.
 # 13G: with disk-backed default storage fisherman pulls the full extracted
 # image (~10G) here plus transient blob staging; the target disk holds only
 # the ostree deployment.
@@ -333,19 +409,34 @@ if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
     fi
 fi
 
-# ── Attach dynamic VHDX through qemu-nbd ───────────────────────────────────
-# VHDX has an internal metadata log and is natively mountable by Windows. It
-# is not a byte-addressable raw image, so losetup must never be used here.
-VHDX_FORMAT=$(qemu-img info --output=json "$DISK" | jq -r '.format // empty')
-if [[ "$VHDX_FORMAT" != "vhdx" ]]; then
-    err "root.vhdx format check failed (detected: ${VHDX_FORMAT:-unknown})"
+# ── Attach the RAW image through losetup ───────────────────────────────────
+# root.disk is a byte-addressable sparse raw image, so the kernel loop driver
+# attaches it directly. No format driver, and — crucially — no binary to stage.
+#
+# This replaced qemu-nbd + VHDX. Target bootc images ship losetup but NOT
+# qemu-nbd (verified against ghcr.io/tuna-os/yellowfin:gnome), so the VHDX path
+# forced a foreign Fedora qemu-nbd and its 26-library closure into an initramfs
+# built from the target's libraries — a libfuse3 soname mismatch, a loader
+# wrapper, and a silent failure that cost most of a day. losetup is already
+# there, in both the deployer and the target.
+#
+# --partscan is load-bearing: it makes /dev/loopNpM appear, which is how the
+# root partition's UUID reaches udev and lets the ordinary sysroot.mount work.
+# `modprobe loop max_part=16` is deliberately NOT relied upon: module params
+# apply only at LOAD time, so it is a no-op when loop is already loaded or built
+# in (CONFIG_BLK_DEV_LOOP=y is common). Empirically --partscan still creates
+# /dev/loopNpM with max_part=0, because it sets LO_FLAGS_PARTSCAN on that
+# specific device rather than depending on the module default — verified on a
+# 64M GPT image: p1 and p2 both appeared. The modprobe stays as belt-and-braces
+# for kernels where loop is a module and not yet loaded.
+modprobe loop max_part=16 2>/dev/null || true
+LOOP_DEV=$(losetup --find --show --partscan "$DISK")
+if [[ -z "$LOOP_DEV" ]]; then
+    err "losetup could not attach $DISK"
     exit 1
 fi
-modprobe nbd nbds_max=4 max_part=16
-LOOP_DEV=/dev/nbd0
-qemu-nbd --connect "$LOOP_DEV" --format=vhdx --discard=unmap "$DISK"
 udevadm settle --timeout=10 2>/dev/null || true
-log "Attached dynamic VHDX ${DISK} as ${LOOP_DEV}"
+log "Attached raw image ${DISK} as ${LOOP_DEV}"
 
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
@@ -483,7 +574,7 @@ phase "fisherman"
 log "Running fisherman — this pulls the image and deploys it..."
 fisherman "$RECIPE"
 
-qemu-nbd --disconnect "$LOOP_DEV"
+losetup -d "$LOOP_DEV"
 LOOP_DEV=""
 
 # ── Post-deployment verification ─────────────────────────────────────────────
@@ -494,11 +585,13 @@ phase "verification"
 log "Verifying installed system setup..."
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
-# Do not reuse nbd0 here: qemu-nbd disconnect is asynchronous and the old
-# partition nodes can briefly remain after Fisherman exits.  A separate NBD
-# device makes verification independent of that teardown race.
-VERIFY_LOOP=/dev/nbd1
-qemu-nbd --connect "$VERIFY_LOOP" --format=vhdx --discard=unmap "$DISK"
+# `losetup --find` picks a fresh loop device rather than reusing the previous
+# one, so verification is independent of any teardown race on the old nodes.
+VERIFY_LOOP=$(losetup --find --show --partscan "$DISK")
+if [[ -z "$VERIFY_LOOP" ]]; then
+    err "losetup could not attach $DISK for verification"
+    exit 1
+fi
 
 # qemu-nbd publishes the capacity change before the partition scan completes.
 # Wait for the root partition explicitly instead of treating a successful
@@ -565,6 +658,19 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     fi
     mkdir -p "$DEPLOY_ROOT/boot"
     mount "$VERIFY_BOOT" "$DEPLOY_ROOT/boot"
+    # Everything from here to the closure PASS used to be SILENT. A deploy hung
+    # somewhere in this stretch for 31 minutes and then the box rebooted, and
+    # the journal's last line was this mount — leaving no way to tell which step
+    # blocked. Each step now announces itself; a hang is identified by which
+    # line is LAST rather than by guessing.
+    log "  verify: /boot mounted, staging Phase-2 boot support"
+    # Collect problems in this stretch instead of dying at the first one.
+    #
+    # Each E2E run costs 40-90 minutes, so aborting on the first fault means one
+    # bug per run. These steps are independent enough that a failure in one does
+    # not invalidate the diagnosis of the next, so record and continue, then
+    # report everything at the end. Genuinely unsafe conditions still abort.
+    PHASE2_PROBLEMS=()
 
     # ── [generic] Debug SSH key for root (mirrors corral) ────────────────
     # On ostree, /root is a symlink to /var/roothome and /var lives in the
@@ -594,11 +700,24 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # Install the runtime hook after bootc/fisherman has laid down the target.
     # This is the point at which Phase 2 becomes bootable: the initramfs
     # learns to attach the NTFS-backed VHDX so the root UUID appears.
+    log "  verify: copying 99wootc-boot dracut module"
     install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
         "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
-    install -m755 "$(command -v qemu-nbd)" \
-        "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/qemu-nbd"
+    log "  verify: dracut module copied (no binary staging needed for raw)"
+
+    # NOTHING to stage here any more.
+    #
+    # This is where the qemu-nbd closure used to live: a foreign Fedora binary,
+    # its 26 NEEDED libraries, its ld.so, a --library-path wrapper, and an
+    # execute-test — all so a VHDX could be attached inside an initramfs built
+    # from a DIFFERENT image's libraries. It produced a libfuse3.so.4-vs-.so.3
+    # soname mismatch and a silent failure that cost most of a day.
+    #
+    # root.disk is now a raw image, so the Phase-2 hook uses `losetup`, which the
+    # target image already ships (verified: yellowfin has /usr/sbin/losetup and
+    # no qemu-nbd). No cross-image binary, no closure, no wrapper, no failure
+    # mode. Deleting the component beat repairing it.
 
     HOST_UUID=$(blkid -s UUID -o value "$NTFS_PART")
     if [[ -z "$HOST_UUID" ]]; then
@@ -613,7 +732,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     fi
     for entry in "${BLS_ENTRIES[@]}"; do
         grep -q 'wootc.host_uuid=' "$entry" || \
-            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.vhdx|' "$entry"
+            sed -i '/^options / s|$| wootc.host_uuid='"$HOST_UUID"' loop=/wootc/disks/root.disk|' "$entry"
     done
     shopt -u nullglob
 
@@ -672,8 +791,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         else
             log "  [WARN] no ntfs-3g in the deployment — Phase-2 relies on a kernel ntfs3"
         fi
+        # BOUNDED. An unbounded chroot dracut is a prime suspect for the
+        # 31-minute silent hang: it writes nothing to the journal, so a block
+        # here looks exactly like a dead deployer. A regen legitimately takes a
+        # few minutes; 15 is generous and still finite.
+        log "  verify: regenerating Phase-2 initramfs (dracut, up to 15m)"
         set +e
-        chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
+        timeout 900 chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
             --add wootc-boot \
             "${DRACUT_INSTALL_ARGS[@]}" \
             --fwdir /run/wootc-nofw \
@@ -681,11 +805,33 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             "$INITRD_CHROOT_PATH" "$KVER" 2>&1 | tail -25 >&2
         REGEN_RC=${PIPESTATUS[0]}
         set -e
+        # A non-zero regen must ABORT here, not merely be logged as a "problem"
+        # and continued past (PHASE2_PROBLEMS is only summarised, never fatal).
+        # PROVEN on hosted run 29712429479: the module's wiring dfatal aborted
+        # the regen (exit!=0), the deploy carried on regardless, and Phase 2
+        # booted an initramfs WITHOUT the wootc-attach module — root.disk never
+        # attached and sysroot.mount timed out. A failed regen means the Phase-2
+        # initramfs is stale/hookless; booting it is the exact silent wedge we
+        # keep turning into loud Phase-1 failures.
+        if [[ "$REGEN_RC" -eq 124 ]]; then
+            err "  [FAIL] dracut regen TIMED OUT after 15m — Phase-2 initramfs not rebuilt"
+            err "         Without it the loop-attach hook is absent and Phase 2 cannot boot; aborting deploy."
+            exit 1
+        elif [[ "$REGEN_RC" -ne 0 ]]; then
+            err "  [FAIL] dracut regen FAILED (exit=$REGEN_RC) — Phase-2 initramfs is stale/hookless; aborting deploy"
+            err "         root.disk would never attach and sysroot.mount would time out into emergency."
+            exit 1
+        fi
         log "  dracut regen exit=$REGEN_RC"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}" 2>/dev/null || echo 0)
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
     else
-        chroot "$DEPLOY_ROOT" dracut --force --regenerate-all
+        log "  verify: regenerating ALL initramfses (dracut, up to 15m)"
+        if ! timeout 900 chroot "$DEPLOY_ROOT" dracut --force --regenerate-all; then
+            err "  [FAIL] dracut --regenerate-all failed or timed out"
+            exit 1
+        fi
+        log "  verify: regenerate-all complete"
     fi
 
     # GUARD: the Phase-2 initramfs is useless without the loop-attach hook —
@@ -700,17 +846,51 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # entries=0 means a decompression/false-negative (lsinitrd couldn't read
         # the image), not a genuinely hookless initramfs — different fixes.
         GUARD_ENTRIES=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | wc -l)
-        GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'wootc-attach-loop')
+        # Require the hook to be WIRED, not merely present.
+        #
+        # This used to grep for the filename anywhere in the archive, so it
+        # passed identically whether the file was installed as a hook or had
+        # merely been copied into modules.d and never wired. It reported
+        # "matches=1" for an initramfs whose Phase-2 boot then produced not one
+        # line of hook output. Same proxy-check failure as the rest of this
+        # session: assert the property, not a correlate of it.
+        # Verify the attach SERVICE is WIRED, not just present. The Phase-2
+        # initramfs is systemd-based and never runs dracut-initqueue, so the
+        # hook alone is dead — the unit must be wanted by
+        # initrd-root-device.target or nothing attaches root.disk (proven: a
+        # correctly-present hook produced zero output and sysroot.mount timed
+        # out). Require the .wants symlink, which is what actually makes it run.
+        GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
+            | grep -cE 'initrd-root-device.target.wants/wootc-attach.service')
         log "  guard: lsinitrd listed $GUARD_ENTRIES entries, wootc-attach-loop matches=$GUARD_HITS"
+        # With a raw root.disk the hook needs only losetup, which the target
+        # image already provides — so there is no staged binary to verify. The
+        # hook's own presence is now the whole requirement.
+        GUARD_LOSETUP=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'losetup')
+        log "  guard: losetup present in initramfs=$GUARD_LOSETUP"
+        if [[ "${GUARD_LOSETUP:-0}" -lt 1 ]]; then
+            err "  [FAIL] Phase-2 initramfs has no losetup — root.disk cannot be attached"
+            PHASE2_PROBLEMS+=("initramfs missing losetup")
+        fi
         if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
-            log "  [PASS] Phase-2 initramfs carries the loop-attach hook"
+            log "  [PASS] Phase-2 initramfs has wootc-attach.service WIRED into initrd-root-device.target"
         else
-            err "  [FAIL] Phase-2 initramfs is MISSING wootc-attach-loop.sh — root.disk would never attach; aborting deploy"
+            err "  [FAIL] Phase-2 initramfs has no WIRED wootc-attach.service — root.disk would never attach; aborting deploy"
             exit 1
         fi
     else
         log "  [WARN] lsinitrd unavailable — cannot verify loop-attach hook in the Phase-2 initramfs"
     fi
+    # One summary of everything that went wrong in this stretch, so a single run
+    # yields the full picture instead of only its first fault.
+    if (( ${#PHASE2_PROBLEMS[@]} > 0 )); then
+        err "  [FAIL] Phase-2 setup completed with ${#PHASE2_PROBLEMS[@]} problem(s):"
+        for p in "${PHASE2_PROBLEMS[@]}"; do err "         - $p"; done
+        err "         Phase 2 will NOT boot correctly. Fix all of the above."
+    else
+        log "  [PASS] Phase-2 setup completed with no problems"
+    fi
+
     for fs in sys proc dev; do umount "$DEPLOY_ROOT/$fs"; done
 
     # Check dracut module
@@ -775,6 +955,10 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-manifest.desktop"
     # Identity prefill/copy (§4.6): account name + picture (never the password).
     mig_opt 755 wootc-identity "$DEPLOY_ROOT/usr/local/bin/wootc-identity"
+    # Account setup screen: pre-fills the identity, asks for the one thing that
+    # cannot be migrated (the password). Never persists the secret.
+    mig_opt 755 wootc-user-gui "$DEPLOY_ROOT/usr/local/bin/wootc-user-gui"
+    mig_opt 644 wootc-user.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-user.desktop"
     # Gates the bridges on the migration chooser's opt-out selection.
     mig_opt 755 wootc-selection "$DEPLOY_ROOT/usr/local/bin/wootc-selection"
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
@@ -848,7 +1032,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] wootc-passthrough.service install failed"
     fi
 
-    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.vhdx' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
+    if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' "$DEPLOY_ROOT"/boot/loader/entries/*.conf; then
         log "  [PASS] Phase 2 loop-root arguments in BLS entries"
     else
         err "  [FAIL] Phase 2 loop-root arguments missing from BLS entries"
@@ -983,7 +1167,7 @@ BLSEOF
                 # boot. Overwriting all three paths makes the handoff prefix-
                 # independent and removes the stale deployer menu.
                 PHASE2_GRUB_CFG=$(cat <<GRUBEOF
-# wootc Phase 2 — boot installed system from root.vhdx
+# wootc Phase 2 — boot installed system from root.disk
 set default=0
 set timeout=5
 
@@ -1034,7 +1218,7 @@ if [[ -n "$VERIFY_CRYPT" ]]; then
     cryptsetup close "$VERIFY_CRYPT"
     VERIFY_CRYPT=""
 fi
-qemu-nbd --disconnect "$VERIFY_LOOP"
+losetup -d "$VERIFY_LOOP"
 VERIFY_LOOP=""
 
 # ╔═══════════════════════════════════════════════════════════════════════════

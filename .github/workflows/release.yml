@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  packages: read                 # granted through to the reusable e2e-hosted (base-image pull)
 
 jobs:
   # ── 1. cheap signal first: never burn ~90 min of VM on a broken tree ───────

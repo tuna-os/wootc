@@ -1,0 +1,113 @@
+name: E2E Windows base snapshot (prime → GHCR/ORAS)
+
+# Primes a pristine, freshly-installed Windows base image and pushes it to GHCR
+# as an ORAS artifact, so the hosted E2E can restore it in ~2 min instead of
+# reinstalling Windows (~20-30 min) every run.
+#
+# What is captured (see run-e2e.sh, WOOTC_E2E_SNAPSHOT_OUT): Windows at the
+# desktop, QGA-ready, CLEANLY SHUT DOWN, BEFORE any wootc migration runs. It is
+# image-agnostic and wootc-code-agnostic — the target bootc image and deployer
+# come from per-run volumes, not the disk — so one image per (win_version,
+# bitlocker) axis serves every target-image test. The correctness key is the
+# answer-file SHA, stored in the bundle and revalidated on restore.
+#
+# The package is PRIVATE by policy: it is a Windows OS image. Prefer the eval
+# editions (11e/10e) for anything cached long-term.
+
+on:
+  workflow_dispatch:
+    inputs:
+      win_version: { description: 'Dockur version (11, 10, 11e, 10e)', default: '11' }
+      bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
+  schedule:
+    # Weekly refresh so a base image never drifts too far from current Windows
+    # cumulative updates. Off-peak, distinct from the nightly E2E slot.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: e2e-snapshot-${{ github.event.inputs.win_version || '11' }}-${{ github.event.inputs.bitlocker || 'off' }}
+  cancel-in-progress: false
+
+jobs:
+  prime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      WIN_VERSION: ${{ github.event.inputs.win_version || '11' }}
+      BITLOCKER:   ${{ github.event.inputs.bitlocker   || 'off' }}
+      # ghcr.io/<owner>/wootc-winbase:<win_version>-bl-<axis>
+      PKG: ghcr.io/${{ github.repository_owner }}/wootc-winbase
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+
+      - name: Confirm KVM + install qemu-utils (qemu-img)
+        run: |
+          ls -l /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-kvm qemu-utils podman podman-compose python3-pip
+          pip install --quiet podman-compose || true
+          sudo usermod -aG kvm "$USER" || true
+          sudo chmod 0666 /dev/kvm
+
+      - name: Install ORAS
+        run: |
+          VERSION=1.2.0
+          curl -fsSL -o oras.tar.gz \
+            "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+          tar -xzf oras.tar.gz oras
+          sudo install -m 0755 oras /usr/local/bin/oras
+          oras version
+
+      - name: Reclaim disk (hosted runners ship ~30 GB of toolchains)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" \
+                      /usr/local/lib/node_modules /usr/share/swift || true
+          sudo apt-get clean
+          docker image prune -af 2>/dev/null || true
+          df -h / /mnt
+
+      - name: Put VM storage on /mnt (the only volume with room)
+        run: |
+          sudo mkdir -p /mnt/wootc-storage /mnt/wootc-iso
+          sudo chown -R "$USER" /mnt/wootc-storage /mnt/wootc-iso
+          rm -rf tests/e2e/storage tests/e2e/iso-cache
+          ln -s /mnt/wootc-storage tests/e2e/storage
+          ln -s /mnt/wootc-iso     tests/e2e/iso-cache
+
+      - name: Prime the pristine Windows base image
+        env:
+          WOOTC_E2E_RAM_SIZE: 6G
+          WOOTC_E2E_DEPLOY_TIMEOUT: '3000'      # 50 min: install-only, no deploy
+          WOOTC_E2E_WIN_VERSION: ${{ env.WIN_VERSION }}
+          WOOTC_E2E_BITLOCKER:  ${{ env.BITLOCKER }}
+          WOOTC_E2E_SNAPSHOT_OUT: /mnt/wootc-snapshot
+        run: |
+          mkdir -p /mnt/wootc-snapshot
+          cd tests/e2e
+          # The image ref is irrelevant to priming (nothing is deployed), but
+          # run-e2e.sh needs a positional; pass the default target.
+          bash run-e2e.sh ghcr.io/tuna-os/yellowfin:gnome
+
+      - name: Push base image to GHCR via ORAS
+        run: |
+          set -euo pipefail
+          TAG="${WIN_VERSION}-bl-${BITLOCKER}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+          cd /mnt/wootc-snapshot
+          ls -lh
+          # Compressed qcow2 + dockur markers + the correctness key. The custom
+          # media types keep this out of any "container image" tooling paths.
+          oras push "${PKG}:${TAG}" \
+            --artifact-type application/vnd.wootc.winbase.v1 \
+            data.qcow2:application/vnd.wootc.winbase.qcow2 \
+            snapshot.key:text/plain \
+            .wootc-autounattend.sha256:text/plain \
+            $(ls windows.* 2>/dev/null | sed 's,$,:application/octet-stream,')
+          echo "Pushed ${PKG}:${TAG}"

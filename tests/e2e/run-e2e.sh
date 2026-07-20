@@ -67,6 +67,22 @@ fail() { echo -e "${RED}[FAIL]${NC} $*" >&2; }
 info() { echo -e "${YELLOW}[INFO]${NC} $*"; }
 step() { echo -e "${CYAN}[STEP]${NC} $*"; run_state "step: $*"; }
 
+# ── wall-clock deadlines ────────────────────────────────────────────────────
+# Wait loops used to track time by incrementing a counter alongside `sleep 5`.
+# That counter is NOT wall-clock: every blocking call in the loop body (QGA
+# probes, qga_read, snapshotting) burns real time without advancing it. Measured
+# on a stalled dilli run, the counter advanced at 0.68x wall — so a nominal
+# 45-minute deploy timeout was really ~66 minutes, and the "Deploying... (Nm)"
+# progress line under-reported by half an hour. A run that looked hung for 90
+# minutes was in fact still inside its timeout.
+#
+# deadline_in returns an absolute epoch; past_deadline tests against it. Time
+# spent in the loop body now counts, so timeouts mean what they say and the
+# reported minutes match the wall clock the operator is watching.
+deadline_in() { echo $(( $(date +%s) + $1 )); }
+past_deadline() { [ "$(date +%s)" -ge "$1" ]; }
+elapsed_min_since() { echo $(( ( $(date +%s) - $1 ) / 60 )); }
+
 CONTAINER_NAME="wootc-e2e-windows"
 STORAGE_DIR="$SCRIPT_DIR/storage"
 # A second orchestrator can otherwise race QGA cleanup and recreate the
@@ -90,6 +106,55 @@ ARTIFACT_DIR="$STORAGE_DIR/artifacts/$RUN_ID"
 VIDEO_DIR="$ARTIFACT_DIR/video"
 VIDEO_STARTED=false
 mkdir -p "$ARTIFACT_DIR"
+
+# ── artifact retention ──────────────────────────────────────────────────────
+# Each run writes a full artifact set — container logs, screenshots, video, a
+# serial capture — which reached 3.3 GiB for a single run. Nothing ever removed
+# them, so runners silently filled up until a later run died at the preflight
+# ("Only 57 GiB free ... need at least 65 GiB"). A test harness that breaks the
+# next run by succeeding is not finished.
+#
+# Keep the N most recent run directories and delete the rest, but ALWAYS keep
+# the small text evidence (serial, logs) from the ones being pruned: that is
+# what failures are diagnosed from later, and it costs kilobytes. The bulk —
+# video, disk images, container dumps — is what actually consumes the space.
+# ── deploy budget ───────────────────────────────────────────────────────────
+# 90 minutes, not 45. The old default was 2700s, but it was consumed by a loop
+# that counted sleeps rather than wall-clock and advanced at ~0.68x real time —
+# so "45 minutes" was really ~66 wall-minutes, and deploys completed inside it.
+#
+# Fixing the clock (bc504a1) made 45 mean 45 and cut the real budget by a third.
+# Every deploy then timed out at exactly 45m on all three runners, while the
+# guest sat at 130-166% CPU still doing real work: bootc install pulling and
+# extracting layers is simply slower than 45 wall-minutes on this hardware.
+#
+# So the budget was never calibrated against real time. This sets it against
+# measured behaviour instead, with headroom. Raising it does NOT mask a hang:
+# the CPU check in the deploy wait distinguishes "working" from "wedged".
+WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT=5400
+
+# How long serial may be silent before we check whether the guest is alive.
+# bootc install is legitimately quiet for 10+ minutes, so this must be generous.
+WOOTC_E2E_SILENCE_WARN_S="${WOOTC_E2E_SILENCE_WARN_S:-600}"
+
+WOOTC_E2E_KEEP_RUNS="${WOOTC_E2E_KEEP_RUNS:-3}"
+prune_old_artifacts() {
+    local base="$STORAGE_DIR/artifacts" keep="$WOOTC_E2E_KEEP_RUNS"
+    [ -d "$base" ] || return 0
+    local evidence="$base/.evidence"
+    mkdir -p "$evidence"
+    # Newest first; skip the ones we keep, prune the tail.
+    ls -1dt "$base"/*/ 2>/dev/null | grep -v '/.evidence/$' | tail -n "+$((keep + 1))" | while read -r d; do
+        local name; name=$(basename "$d")
+        mkdir -p "$evidence/$name"
+        # Text-sized evidence only: serial + logs under 50 MiB.
+        find "$d" -maxdepth 1 -type f \( -name '*.log' -o -name 'qemu.pty' -o -name '*.txt' -o -name '*.json' \) \
+            -size -50M -exec cp {} "$evidence/$name/" \; 2>/dev/null || true
+        rm -rf "$d"
+    done
+    return 0
+}
+prune_old_artifacts
 run_state() {
     local stage="$1" tmp="$RUN_STATE_FILE.tmp"
     {
@@ -110,7 +175,20 @@ free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
 df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
 
 host_preflight() {
-    local mem_available_kib disk_available_kib required_free_gib=65
+    # Recalibrated after the pre-deployer snapshot was disabled (1c6d713).
+    #
+    # 65 GiB was the bare minimum for ONE run, so a run could pass preflight and
+    # die mid-deploy, leaving nothing for the next run — runners ratcheted
+    # toward full. That was raised to 120, but 120 assumed the snapshot's FULL
+    # byte copy of data.qcow2 (reflink is unavailable here, so it doubled an
+    # 18-28 GiB file). With the snapshot off, a run's resident footprint is
+    # ~45 GiB: data.qcow2 + windows.*.iso (7.4) + custom.iso (7.3) + artifacts.
+    #
+    # 90 GiB is still roughly two runs' worth on a persistent host, and it fits
+    # a GitHub hosted runner, which offers ~114 GiB after its cleanup step and
+    # was being rejected by the 120 figure. Override for unusual hosts.
+    local mem_available_kib disk_available_kib
+    local required_free_gib="${WOOTC_E2E_MIN_FREE_GIB:-90}"
     mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
     disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
 
@@ -129,11 +207,11 @@ host_preflight() {
     # qcow2. Fresh-run peak drops ~10 GiB when the Windows ISO is already cached
     # (no re-download, custom.iso rebuild reuses cached extraction).
     if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
-        required_free_gib=55
+        required_free_gib=75
     fi
     # A reuse run already has those and needs only its allocated-extent
     # safety snapshot plus diagnostics.
-    [ "$SKIP_INSTALL" = false ] || required_free_gib=40
+    [ "$SKIP_INSTALL" = false ] || required_free_gib=55
     if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
         fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
         return 1
@@ -204,8 +282,36 @@ capture_vm_diagnostics() {
 # mount. Snapshot it into the test directory so every subsequent assertion can
 # inspect the same host-side file without relying on guest networking.
 SERIAL_SOURCE="/run/shm/qemu.pty"
+# snapshot_serial — copy the guest serial log out of the container.
+#
+# This used to be a bare `cp ... 2>&1` whose failure every caller swallowed with
+# `|| true`. When the in-container source disappeared, the copy failed silently
+# and the harness went on reading the STALE host-side copy from a previous
+# snapshot — forever. Observed on dilli: the host qemu.pty sat frozen at 7190
+# bytes for two hours while the deploy loop polled it for markers that could
+# never arrive, and the "PTY not found" guard passed because the stale file
+# existed on disk.
+#
+# Staleness is indistinguishable from "the guest is quiet" if we only look at
+# the file, so track copy failures explicitly and warn once the source has been
+# unreadable for a sustained period. A dead serial feed must be loud: it means
+# every subsequent observation in the run is meaningless.
+SERIAL_FAIL_COUNT=0
+SERIAL_WARNED=false
 snapshot_serial() {
-    $DOCKER cp "$CONTAINER_NAME:$SERIAL_SOURCE" "$PTY" >/dev/null 2>&1
+    if $DOCKER cp "$CONTAINER_NAME:$SERIAL_SOURCE" "$PTY" >/dev/null 2>&1; then
+        SERIAL_FAIL_COUNT=0
+        return 0
+    fi
+    SERIAL_FAIL_COUNT=$((SERIAL_FAIL_COUNT + 1))
+    # ~12 consecutive failures ≈ 1 minute of polling at the 5s cadence.
+    if [ "$SERIAL_FAIL_COUNT" -ge 12 ] && [ "$SERIAL_WARNED" = false ]; then
+        SERIAL_WARNED=true
+        warn "serial feed is DEAD: cannot read $SERIAL_SOURCE from $CONTAINER_NAME for $((SERIAL_FAIL_COUNT * 5))s."
+        warn "  The host copy $PTY is now STALE (last change: $(stat -c%y "$PTY" 2>/dev/null || echo unknown))."
+        warn "  Every serial-derived check from here on is reading frozen data and cannot be trusted."
+    fi
+    return 1
 }
 
 # Detect podman vs docker
@@ -234,8 +340,16 @@ $COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.y
 # ── QEMU Guest Agent control plane ───────────────────────────────────────────
 # qga.py is copied into Dockur after QEMU starts. Keeping the client in the
 # container lets it reach the private Unix socket without exposing a port.
+# Every QGA call is bounded. Without this, a hung `podman exec` (guest agent
+# wedged, container unresponsive, socket never answering) blocks the calling
+# wait loop FOREVER — and because the loop body never returns, its deadline is
+# never evaluated. Observed: two runners sat "alive" for 20+ minutes with their
+# progress line frozen at "Waiting for QGA (5m of 45m)" while pgrep showed the
+# script running. A wall-clock deadline cannot help a loop that never iterates,
+# so the bound has to be here, on the blocking call itself.
+QGA_CALL_TIMEOUT="${WOOTC_QGA_CALL_TIMEOUT:-60}"
 qga_call() {
-    $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"
+    timeout "$QGA_CALL_TIMEOUT" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"
 }
 
 qga_probe() {
@@ -253,7 +367,8 @@ qga_probe() {
 qga_wait() {
     local label="$1" timeout="$2" elapsed=0
     step "Waiting for QGA: $label..."
-    while [ "$elapsed" -lt "$timeout" ]; do
+    local deadline; deadline=$(deadline_in "$timeout")
+    while ! past_deadline "$deadline"; do
         if qga_probe; then
             pass "QGA available: $label"
             return 0
@@ -269,7 +384,8 @@ qga_wait() {
 qga_wait_down() {
     local label="$1" timeout="${2:-120}" elapsed=0
     info "Waiting for QGA to go away before $label..."
-    while [ "$elapsed" -lt "$timeout" ]; do
+    local deadline; deadline=$(deadline_in "$timeout")
+    while ! past_deadline "$deadline"; do
         if ! qga_probe; then
             return 0
         fi
@@ -296,14 +412,15 @@ qga_windows_probe() {
 qga_wait_windows() {
     local timeout="$1" elapsed=0
     step "Waiting for QGA: Windows guest..."
-    while [ "$elapsed" -lt "$timeout" ]; do
+    local deadline; deadline=$(deadline_in "$timeout")
+    while ! past_deadline "$deadline"; do
         if qga_windows_probe; then
             pass "QGA available: Windows guest"
             return 0
         fi
         sleep 10
         elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m)"
+        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m of $((timeout/60))m)"
     done
     fail "Windows QGA did not become available within $((timeout / 60)) minutes"
     return 1
@@ -356,11 +473,43 @@ mark_snapshot_complete() {
     qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
 }
 
+# OFF by default. This snapshot is a fast-retry convenience that currently costs
+# far more than it provides, and is a prime suspect for the Phase-2 failures.
+#
+# Why it is off:
+#   1. NOTHING READS IT. `data.qcow2.snap` is written here and referenced
+#      nowhere else in this script — there is no restore path at all. It is a
+#      pure cost today.
+#   2. The design assumed an instant CoW reflink. `cp --reflink=always` FAILS on
+#      every runner we have (observed on kanpur, himachal and dilli), so it falls
+#      back to a full byte copy of an 18-28 GiB qcow2 — 10-20+ minutes.
+#   3. The guest stays fsfreeze-FROZEN for that whole copy. Windows VSS enforces
+#      hard freeze limits (writers ~10s, overall ~60s), so the guest cannot
+#      honour a 20-minute freeze: it auto-thaws mid-copy under heavy host I/O.
+#      The resulting snapshot is therefore not crash-consistent anyway.
+#   4. An NTFS volume frozen and then abruptly thawed can be left with the dirty
+#      bit set — and a dirty NTFS cannot be mounted read-write by ntfs3. That is
+#      exactly the observed Phase-2 failure ("root.disk never attached"), and
+#      exactly what the attach hook's own warning describes.
+#   5. It costs ~28 GiB, which is what kept exhausting the runners' disks.
+#
+# Re-enable with WOOTC_E2E_SNAPSHOT=1 once a restore path exists AND the copy is
+# either a genuine reflink or taken without holding the guest frozen.
+WOOTC_E2E_SNAPSHOT="${WOOTC_E2E_SNAPSHOT:-0}"
+
 snapshot_before_deployer() {
     local disk="$STORAGE_DIR/data.qcow2"
     local snapshot="$STORAGE_DIR/data.qcow2.snap"
     local tmp="$snapshot.tmp.$RUN_ID"
     local frozen=false
+
+    if [ "$WOOTC_E2E_SNAPSHOT" != "1" ]; then
+        info "Pre-deployer snapshot disabled (WOOTC_E2E_SNAPSHOT=1 to enable)"
+        # The OEM wrapper blocks on this marker, so the barrier MUST still be
+        # released or the run wedges waiting for a snapshot that never happens.
+        mark_snapshot_complete
+        return 0
+    fi
 
     [ -s "$disk" ] || { fail "Cannot snapshot missing VM disk: $disk"; return 1; }
     step "Snapshotting Windows disk before first deployer boot..."
@@ -558,6 +707,10 @@ fi
     printf 'ImageRef=%s\n'   "$IMAGE_REF"
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
     printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
+    # RunId lets the OEM barrier prove the completion marker came from THIS run.
+    # Without it the barrier passes on a stale marker left by a previous run —
+    # see the comment on the barrier loop below.
+    printf 'RunId=%s\n'     "$RUN_ID"
 } > "$OEM_DIR/wootc-config.txt"
 printf '[INFO] Deployer config: image=%s bootloader=%s composefs=%s\n' \
     "$IMAGE_REF" "$E2E_BOOTLOADER" "$E2E_COMPOSEFS" >&2
@@ -639,6 +792,42 @@ export WOOTC_E2E_BITLOCKER="$E2E_BITLOCKER"
 printf '[INFO] BitLocker axis: %s (C: %s)\n' "$E2E_BITLOCKER" \
     "$([ "$E2E_BITLOCKER" = on ] && echo 'auto-encrypted → root.disk needs an unencrypted volume' || echo 'plaintext')" >&2
 info "Windows case: version=$WIN_VERSION edition=$WIN_EDITION"
+
+# ── restore a pristine Windows base image from a GHCR/ORAS snapshot ──────────
+# WOOTC_E2E_SNAPSHOT_IN points at a directory holding a previously-primed base
+# image: a compressed, cleanly-shut-down data.qcow2 + dockur's install markers +
+# a snapshot.key. The key is the answer-file SHA the image was built from; if it
+# matches THIS run's answer file, we drop the image into storage/ and take the
+# existing --skip-install reuse path (which cold-boots the guest and waits on
+# qga_wait_windows). On any mismatch or absence we fall through to a full
+# install — the snapshot is a pure speedup, never a correctness dependency, so a
+# drifted answer file can only cost time, never validity.
+#
+# The image is image-AGNOSTIC and wootc-code-AGNOSTIC: the target bootc image
+# and deployer come from the /shared and /oem volumes (refreshed every run), not
+# from data.qcow2. So one base image per (win_version, bitlocker) axis — which
+# is exactly what ANSWER_SHA folds in — serves every target-image test.
+SNAPSHOT_IN="${WOOTC_E2E_SNAPSHOT_IN:-}"
+if [ "$SKIP_INSTALL" = false ] && [ -n "$SNAPSHOT_IN" ]; then
+    want_key=$( { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
+    have_key=$(cat "$SNAPSHOT_IN/snapshot.key" 2>/dev/null | tr -d '[:space:]' || true)
+    if [ -s "$SNAPSHOT_IN/data.qcow2" ] && [ "$have_key" = "$want_key" ]; then
+        info "Restoring pristine Windows base image from $SNAPSHOT_IN (key $want_key)"
+        $COMPOSE -f compose.yml down --volumes 2>/dev/null || true
+        mkdir -p "$STORAGE_DIR"
+        rm -f "$STORAGE_DIR/data.qcow2"
+        cp --reflink=auto --sparse=auto "$SNAPSHOT_IN/data.qcow2" "$STORAGE_DIR/data.qcow2"
+        # dockur's "already installed" markers + our answer-file stamp, so the
+        # reuse path neither reinstalls nor rejects the disk as a case mismatch.
+        for f in "$SNAPSHOT_IN"/windows.* "$SNAPSHOT_IN/.wootc-autounattend.sha256"; do
+            [ -e "$f" ] && cp "$f" "$STORAGE_DIR/"
+        done
+        SKIP_INSTALL=true
+        info "Base image restored; taking the --skip-install reuse path"
+    else
+        info "Snapshot at $SNAPSHOT_IN unusable (key have='${have_key:-none}' want='$want_key'); doing a full install"
+    fi
+fi
 
 if [ "$SKIP_INSTALL" = false ]; then
     # Clean previous run's disk so autounattend runs fresh
@@ -735,7 +924,30 @@ rebuild_ssh_image_if_missing() {
     bash "$SCRIPT_DIR/build-ssh-image.sh"
 }
 
+# Build the e2e ssh image BEFORE compose needs it.
+#
+# compose.yml references localhost/wootc-e2e-windows-ssh:latest, which only ever
+# exists because build-ssh-image.sh made it locally. On any host that has never
+# built it — a fresh GitHub hosted runner, or a laptop after `podman system
+# prune -af` — compose interprets "localhost/..." as a REGISTRY and tries to
+# pull over HTTPS from localhost:443. Recovering after that failure works, but
+# recovering from a failure we can trivially prevent is the wrong order.
+ensure_ssh_image() {
+    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
+    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 0
+    $DOCKER image exists "$img" 2>/dev/null && return 0
+    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || {
+        fail "e2e ssh image $img is missing and build-ssh-image.sh is not executable"
+        return 1
+    }
+    step "Building the e2e ssh image (absent on this host)..."
+    bash "$SCRIPT_DIR/build-ssh-image.sh" || { fail "build-ssh-image.sh failed"; return 1; }
+    $DOCKER image exists "$img" 2>/dev/null || { fail "build completed but $img still absent"; return 1; }
+    pass "e2e ssh image built"
+}
+
 compose_up_windows() {
+    ensure_ssh_image || return 1
     pick_free_ports
     $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
     local out
@@ -768,7 +980,31 @@ compose_up_windows() {
     fi
     return 1
 }
-compose_up_windows
+# Do NOT ignore the result, and do NOT trust it either.
+#
+# This call used to be bare, so when every recovery path failed the script still
+# printed "Container started" and went on to poll 15 minutes for a QEMU that
+# could never appear. That is exactly how the first hosted-runner E2E and a
+# kanpur run both failed: the locally-built ssh image was missing, compose tried
+# to PULL it from a registry literally named "localhost", and the real error —
+#   initializing source docker://localhost/wootc-e2e-windows-ssh:latest
+#   no container with name or ID "wootc-e2e-windows" found
+# — was buried under a 15-minute wait and reported as "QEMU did not start".
+#
+# podman-compose can also exit 0 without creating the container, so the exit
+# status alone is not evidence. Verify the container actually exists.
+if ! compose_up_windows; then
+    fail "Could not start the Windows container (all recovery paths exhausted)"
+    fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
+    fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
+    fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
+    exit 1
+fi
+if ! $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
+    fail "compose reported success but $CONTAINER_NAME does not exist"
+    fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
+    exit 1
+fi
 info "Container $CONTAINER_NAME started"
 
 # Dockur may need to prepare (or re-use) a Windows ISO before starting QEMU.
@@ -832,11 +1068,13 @@ else
     step "Waiting for Windows auto-install (up to 45 min)..."
     info "  Monitor: open http://localhost:8006 in browser to watch progress"
 
-    TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"  # 45 min default; raise on slow CI
+    TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-$WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT}"  # 45 min default; raise on slow CI
     ELAPSED=0
+    INSTALL_STARTED=$(date +%s)
+    INSTALL_DEADLINE=$(deadline_in "$TIMEOUT")
     INSTALL_DONE=false
 
-    while [ $ELAPSED -lt $TIMEOUT ]; do
+    while ! past_deadline "$INSTALL_DEADLINE"; do
         sleep 20
         ELAPSED=$((ELAPSED + 20))
 
@@ -849,7 +1087,7 @@ else
         fi
 
         if [ $((ELAPSED % 300)) -eq 0 ]; then
-            info "Still installing... ($(( ELAPSED / 60 ))m elapsed)"
+            info "Still installing... ($(elapsed_min_since "$INSTALL_STARTED")m of $((TIMEOUT/60))m)"
         fi
     done
 
@@ -859,7 +1097,7 @@ else
         exit 1
     fi
 
-    pass "Windows installer prepared and QEMU booted ($(( ELAPSED / 60 ))m)"
+    pass "Windows installer prepared and QEMU booted ($(elapsed_min_since "$INSTALL_STARTED")m)"
     if [ "$ANSWER_REFRESH" = true ]; then
         printf '%s\n' "$ANSWER_SHA" > "$ANSWER_STAMP"
     fi
@@ -893,12 +1131,78 @@ fi
 qga_wait_windows 2700
 qga_call info || true
 
+# ── prime a pristine Windows base image for GHCR/ORAS ────────────────────────
+# WOOTC_E2E_SNAPSHOT_OUT captures Windows RIGHT HERE — freshly installed and
+# QGA-ready (qemu-ga is installed by dockur's OEM install.bat during setup, so
+# it is already up), but BEFORE run-wootc-e2e.ps1 runs any migration. That is
+# the maximally-reusable "pre-migration" state.
+#
+# Two traps, both avoided by a clean shutdown rather than a live fsfreeze copy
+# (see snapshot_before_deployer's post-mortem above):
+#   1. QEMU must FULLY EXIT before qemu-img touches data.qcow2 — converting a
+#      qcow2 QEMU still holds open yields a subtly corrupt image that only fails
+#      on restore. We power the guest off and bring the container down first.
+#   2. The image must be a CLEANLY shut-down Windows, not dirty NTFS: a frozen-
+#      then-thawed volume keeps its dirty bit set, which is the exact enemy of
+#      the Phase-2 loop attach ("cannot mount host NTFS rw … Dirty volume?").
+# The oras push happens in CI (e2e-snapshot.yml); this only produces the bundle.
+SNAPSHOT_OUT="${WOOTC_E2E_SNAPSHOT_OUT:-}"
+if [ -n "$SNAPSHOT_OUT" ]; then
+    [ "$SKIP_INSTALL" = false ] || { fail "WOOTC_E2E_SNAPSHOT_OUT needs a fresh install; do not combine with --skip-install"; exit 1; }
+    command -v qemu-img >/dev/null 2>&1 || { fail "WOOTC_E2E_SNAPSHOT_OUT requires qemu-img (install qemu-utils)"; exit 1; }
+    step "Priming Windows base image → $SNAPSHOT_OUT (clean shutdown, then compress)"
+    mkdir -p "$SNAPSHOT_OUT"
+
+    # Clean guest shutdown so C:/NTFS is left with its dirty bit CLEAR.
+    qga_powershell 'Stop-Computer -Force' >/dev/null 2>&1 \
+        || qga_call exec /bin/sh -c 'shutdown /s /t 0' >/dev/null 2>&1 || true
+    info "Waiting for the guest to power off cleanly (QGA to go away)..."
+    prime_deadline=$(deadline_in 300)
+    while ! past_deadline "$prime_deadline"; do
+        qga_windows_probe || break   # QGA unreachable == guest powered off
+        sleep 5
+    done
+
+    # Drop the container so nothing holds data.qcow2 open, THEN convert.
+    $COMPOSE -f compose.yml down 2>/dev/null || $DOCKER stop "$CONTAINER_NAME" 2>/dev/null || true
+    [ -s "$STORAGE_DIR/data.qcow2" ] || { fail "prime: data.qcow2 missing/empty after install"; exit 1; }
+
+    step "Compressing base image (qemu-img convert -c → standalone qcow2)..."
+    qemu-img convert -c -O qcow2 "$STORAGE_DIR/data.qcow2" "$SNAPSHOT_OUT/data.qcow2" \
+        || { fail "prime: qemu-img convert failed"; exit 1; }
+    # dockur's installed-markers so a restore does not trigger a reinstall.
+    for f in "$STORAGE_DIR"/windows.*; do [ -e "$f" ] && cp "$f" "$SNAPSHOT_OUT/"; done
+    # The correctness key the restore side validates against (same formula as
+    # ANSWER_SHA), doubling as the answer-file stamp the reuse guard checks.
+    { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}' \
+        > "$SNAPSHOT_OUT/snapshot.key"
+    cp "$SNAPSHOT_OUT/snapshot.key" "$SNAPSHOT_OUT/.wootc-autounattend.sha256"
+    ls -lh "$SNAPSHOT_OUT" >&2 || true
+    pass "Pristine Windows base image ready at $SNAPSHOT_OUT (key $(cat "$SNAPSHOT_OUT/snapshot.key"))"
+    exit 0
+fi
+
 if [ "$SKIP_INSTALL" = true ]; then
-    qga_sync_oem
     reset_oem_attempt
 fi
 
 step "Starting OEM setup through QGA..."
+
+# Refresh C:\OEM from the host BEFORE launching setup, ALWAYS.
+#
+# C:\OEM is populated from the ISO at Windows install time, so a guest whose
+# Windows was installed by an earlier run still carries that run's
+# run-wootc-e2e.ps1 and wootc-config.txt. Those predate RunId, so the guest
+# stamps a constant into e2e-setup-complete.txt, the host's barrier never
+# matches, it never writes e2e-snapshot-complete.txt, and the guest dies on its
+# own 10-minute deadline while the host waits on it. A mutual deadlock.
+#
+# qga_sync_oem is the existing, correct implementation (it uses /oem — the
+# CONTAINER's view of the mount — because qga.py runs inside the container and
+# cannot see host paths). It was only being called for --skip-install, but a
+# stale C:\OEM is not exclusive to that flag.
+qga_sync_oem
+
 qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
 pass "OEM setup process started through QGA as SYSTEM"
@@ -907,11 +1211,28 @@ pass "OEM setup process started through QGA as SYSTEM"
 # its first deployer reboot until a reusable, crash-consistent VM snapshot is
 # safely present on the host.
 step "Waiting for OEM setup to reach the pre-deployer snapshot barrier..."
-ELAPSED=0
-TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
+TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-$WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT}"
+BARRIER_STARTED=$(date +%s)
+BARRIER_DEADLINE=$(deadline_in "$TIMEOUT")
+BARRIER_LAST_MIN=-1
 BARRIER_REACHED=false
-while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
-    if qga_read 'C:\OEM\e2e-setup-complete.txt' >/dev/null 2>&1; then
+# The barrier must prove the marker came from THIS run.
+#
+# It used to accept any readable C:\OEM\e2e-setup-complete.txt. A marker left
+# by a previous run satisfied that instantly, so the harness jumped straight to
+# "monitoring the deployer" while Windows setup was still staging the payload
+# and the BCD one-shot. The VM then rebooted into Windows — serial ending at
+#   BdsDxe: starting Boot0003 "Windows Boot Manager" ... bootmgfw.efi
+# with zero [wootc] phase: lines — and the harness burned its whole budget
+# watching a VM that was never deploying.
+#
+# This went unnoticed because snapshot_before_deployer() used to spend 10-20
+# minutes on the fsfreeze + 28 GiB copy right here, which incidentally gave OEM
+# setup the time it needed. The snapshot was accidentally load-bearing as a
+# sleep; disabling it exposed the race. The fix is a real check, not a delay.
+while ! past_deadline "$BARRIER_DEADLINE"; do
+    BARRIER_MARK=$(qga_read 'C:\OEM\e2e-setup-complete.txt' 2>/dev/null | tr -d '\r\n' || true)
+    if [ -n "$BARRIER_MARK" ] && [ "$BARRIER_MARK" = "$RUN_ID" ]; then
         # Best-effort snapshot: releases the barrier and continues even if the
         # host-side crash-consistent copy had to be skipped.
         snapshot_before_deployer
@@ -926,11 +1247,27 @@ while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
         exit 1
     fi
     sleep 5
-    ELAPSED=$((ELAPSED + 5))
-    [ $((ELAPSED % 60)) -eq 0 ] && info "Waiting for OEM setup barrier... ($(( ELAPSED / 60 ))m)"
+    BARRIER_MIN=$(elapsed_min_since "$BARRIER_STARTED")
+    if [ "$BARRIER_MIN" -gt "$BARRIER_LAST_MIN" ]; then
+        BARRIER_LAST_MIN=$BARRIER_MIN
+        info "Waiting for OEM setup barrier... (${BARRIER_MIN}m of $((TIMEOUT/60))m)"
+    fi
 done
 [ "$BARRIER_REACHED" = true ] || {
     fail "OEM setup did not reach the snapshot barrier within $((TIMEOUT/60)) minutes"
+    # Say WHY, so this is attributable in one read instead of a VM session.
+    # The common causes are distinguishable from the marker's contents:
+    #   empty/missing -> OEM setup never finished (look at wootc-e2e.log);
+    #   a different id -> a stale marker from an earlier run, i.e. C:\OEM was
+    #     not refreshed — expected on a --skip-install reuse whose guest still
+    #     carries an older run-wootc-e2e.ps1 that writes a constant.
+    BARRIER_MARK=$(qga_read 'C:\OEM\e2e-setup-complete.txt' 2>/dev/null | tr -d '\r\n' || true)
+    if [ -z "$BARRIER_MARK" ]; then
+        info "  marker absent: OEM setup never completed. See C:\\OEM\\wootc-e2e.log below."
+    elif [ "$BARRIER_MARK" != "$RUN_ID" ]; then
+        info "  marker says '$BARRIER_MARK' but this run is '$RUN_ID' — STALE marker."
+        info "  The guest's C:\\OEM is from an earlier run; reinstall or refresh it."
+    fi
     capture_vm_diagnostics
     exit 1
 }
@@ -950,24 +1287,36 @@ info "Watching for fisherman deployment markers..."
 # A standard Windows install plus the local OEM handoff routinely takes
 # 20–30 minutes even under KVM. Do not turn Dockur's installer-ready file into
 # a premature test failure; only the deployer's serial marker proves success.
-TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-2700}"
-ELAPSED=0
+TIMEOUT="${WOOTC_E2E_DEPLOY_TIMEOUT:-$WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT}"
+DEPLOY_STARTED=$(date +%s)
+DEPLOY_DEADLINE=$(deadline_in "$TIMEOUT")
+LAST_PROGRESS_MIN=-1
 DEPLOY_COMPLETE=false
 DEPLOYER_REBOOT_SEEN=false
+KERNEL_REBOOT_SEEN=false
+WINDOWS_BACK_STREAK=0
 PTY="$STORAGE_DIR/qemu.pty"
 
 # Wait for Dockur's serial capture to appear and create the first local
 # snapshot. `qemu.pty` contains control bytes and does not reliably add a
 # newline per serial write, so all offsets below are bytes rather than lines.
+#
+# Delete any prior copy FIRST. The `-f "$PTY"` guard below only proves a file
+# exists, not that it came from this run — a leftover from a previous run
+# satisfies it just as well, and the harness then spends the whole run reading
+# another run's serial output. reset_oem_attempt() removes it, but that only
+# runs on --skip-install, so the common path was unprotected.
+rm -f "$PTY"
+
 for i in $(seq 1 30); do
     snapshot_serial && [ -f "$PTY" ] && break
     sleep 5
 done
 
-[ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY"; exit 1; }
+[ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY (no serial feed from $CONTAINER_NAME:$SERIAL_SOURCE)"; exit 1; }
 LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 
-while [ $ELAPSED -lt $TIMEOUT ]; do
+while ! past_deadline "$DEPLOY_DEADLINE"; do
     snapshot_serial || true
     OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
     if [ -n "$OEM_FAILURE" ]; then
@@ -979,6 +1328,12 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     # Serial output can be lost across the initramfs-to-Windows reboot.  Once
     # the Windows QGA is back, the persisted deployer log is the authoritative
     # completion record and survives that console handoff.
+    #
+    # Windows answering QGA also means the DEPLOYER IS NO LONGER RUNNING. If it
+    # neither completed nor is recorded as having rebooted deliberately, the
+    # deploy is over and failed — waiting longer cannot change that. Observed:
+    # a deployer hung after "ostree deployment:", the box rebooted into Windows,
+    # and the harness spent another 76 minutes "Deploying..." before timing out.
     if qga_windows_probe; then
         DEPLOYER_LOG=$(qga_read 'C:\wootc\logs\deployer.log' 2>/dev/null || true)
         if echo "$DEPLOYER_LOG" | grep -q 'VERIFICATION_SUMMARY'; then
@@ -991,7 +1346,32 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
             DEPLOY_COMPLETE=true
             pass "wootc: deployer rebooted and Windows QGA returned"
             break
+        elif [ "$KERNEL_REBOOT_SEEN" = true ]; then
+            # The box rebooted but the deployer never said it meant to, and the
+            # persisted log carries no VERIFICATION_SUMMARY. That is the
+            # watchdog signature: deploy died, machine reset, nothing staged.
+            fail "Deployer did NOT complete: kernel reboot with no verification summary"
+            info "  This is the watchdog signature — the deploy died and the box reset."
+            info "  Phase-2 setup (BLS entry, 99wootc-boot module, initramfs regen)"
+            info "  will NOT have run, so Phase 2 cannot boot. Deployer log:"
+            printf '%s\n' "$DEPLOYER_LOG" | tail -15 >&2
+            break
+        else
+            WINDOWS_BACK_STREAK=$((WINDOWS_BACK_STREAK + 1))
+            # ~1 minute of Windows answering with no completion record. Give a
+            # little grace for the reboot handoff, then stop: the deployer is
+            # gone and the persisted log is the whole story.
+            if [ "$WINDOWS_BACK_STREAK" -ge 12 ]; then
+                fail "Deployer is gone: Windows QGA is answering but the deploy never completed"
+                info "  No VERIFICATION_SUMMARY in C:\\wootc\\logs\\deployer.log, and no"
+                info "  deliberate reboot was seen on serial — the deployer died mid-run."
+                info "  Last lines of the deployer's own log:"
+                printf '%s\n' "$DEPLOYER_LOG" | tail -12 >&2
+                break
+            fi
         fi
+    else
+        WINDOWS_BACK_STREAK=0
     fi
 
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
@@ -1021,9 +1401,19 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
             LAST_BYTE=$CURRENT_BYTE
             break
         fi
+        # A DELIBERATE reboot by the deployer is evidence of success. A bare
+        # kernel "reboot: Restarting system" is NOT — the watchdog reboots that
+        # way too, and treating them alike turned a failed deploy into
+        # "deployer rebooted and Windows QGA returned", after which Phase 2 was
+        # scheduled against a system that had never been set up. Keep them
+        # distinct: only the deployer's own message implies success.
         if echo "$NEW_OUTPUT" | grep -qE '(^|[^[:alpha:]])Rebooting\.?'; then
             DEPLOYER_REBOOT_SEEN=true
             info "wootc: deployer requested reboot"
+        fi
+        if echo "$NEW_OUTPUT" | grep -q 'reboot: Restarting system'; then
+            KERNEL_REBOOT_SEEN=true
+            info "wootc: kernel reboot observed (not proof of a successful deploy)"
         fi
         if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
             fail "Deployer error:"
@@ -1034,8 +1424,36 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
     fi
 
     sleep 5
-    ELAPSED=$((ELAPSED + 5))
-    [ $((ELAPSED % 60)) -eq 0 ] && info "Deploying... ($(( ELAPSED / 60 ))m)"
+    # Report real minutes against the real budget, so an operator watching the
+    # log can tell "slow but inside its timeout" from "wedged".
+    NOW_MIN=$(elapsed_min_since "$DEPLOY_STARTED")
+    if [ "$NOW_MIN" -gt "$LAST_PROGRESS_MIN" ]; then
+        LAST_PROGRESS_MIN=$NOW_MIN
+        info "Deploying... (${NOW_MIN}m of $((TIMEOUT/60))m)"
+
+        # Distinguish "working quietly" from "wedged".
+        #
+        # `bootc install` produces NO serial output for 10+ minutes while it
+        # extracts layers, so silence alone is not a failure signal and warning
+        # on it cries wolf every run. Guest CPU is the discriminator that has
+        # never lied here:
+        #     silence + high CPU  -> working (measured 130-170% mid-install)
+        #     silence + idle CPU  -> genuinely wedged
+        # A deploy once looked hung for 13 minutes and was fine; another looked
+        # identical and was dead. Only CPU separated them.
+        SERIAL_AGE=$(( $(date +%s) - $(stat -c %Y "$PTY" 2>/dev/null || echo 0) ))
+        if [ "$SERIAL_AGE" -gt "$WOOTC_E2E_SILENCE_WARN_S" ]; then
+            GUEST_CPU=$($DOCKER exec "$CONTAINER_NAME" sh -c \
+                "ps -eo pcpu,args | grep '[q]emu-system' | head -1 | awk '{print \$1}'" 2>/dev/null | tr -d ' \r\n')
+            if [ -z "$GUEST_CPU" ]; then
+                warn "  serial silent ${SERIAL_AGE}s and NO QEMU process — the guest is gone"
+            elif awk -v c="$GUEST_CPU" 'BEGIN{exit !(c < 15)}' 2>/dev/null; then
+                warn "  serial silent ${SERIAL_AGE}s with guest CPU ${GUEST_CPU}% — likely WEDGED, not slow"
+            else
+                info "  (serial quiet ${SERIAL_AGE}s but guest CPU ${GUEST_CPU}% — working)"
+            fi
+        fi
+    fi
 done
 
 [ "$DEPLOY_COMPLETE" = true ] || {
@@ -1111,11 +1529,12 @@ qga_wait_down "Phase 2 Linux boot"
 
 step "Waiting for Phase 2 Linux system to boot..."
 
-ELAPSED=0
 TIMEOUT=300
+BOOT_STARTED=$(date +%s)
+BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
 BOOT_SUCCESS=false
 
-while [ $ELAPSED -lt $TIMEOUT ]; do
+while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
@@ -1144,11 +1563,10 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
         LAST_BYTE=$CURRENT_BYTE
     fi
     sleep 5
-    ELAPSED=$((ELAPSED + 5))
 done
 
 [ "$BOOT_SUCCESS" = true ] || {
-    fail "Phase 2 Linux system did not boot within $((TIMEOUT/60)) minutes"
+    fail "Phase 2 Linux system did not boot within $(elapsed_min_since "$BOOT_STARTED")m (budget $((TIMEOUT/60))m)"
     tail -30 "$PTY"
     exit 1
 }
@@ -1182,13 +1600,11 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # and happily selects /dev/sda, i.e. the WINDOWS disk. `bootc install
     # --wipe` on that destroys the user's Windows. Emptiness is what actually
     # identifies the spare drive.
-    P3_TARGET=$(qga_call exec /bin/sh -c '
-        for d in $(lsblk -dnro NAME,TYPE | awk "\$2==\"disk\"{print \$1}"); do
-            case "$d" in nbd*|loop*|sr*|zram*) continue ;; esac
-            parts=$(lsblk -nro NAME "/dev/$d" | tail -n +2)
-            fs=$(lsblk -nro FSTYPE "/dev/$d" | tr -d " \n")
-            [ -z "$parts" ] && [ -z "$fs" ] && { echo "/dev/$d"; exit 0; }
-        done' 2>/dev/null | tr -d '\r\n ')
+    # Selection logic lives in tests/e2e/pick-blank-disk.sh so it can be unit
+    # tested — its output is handed to `bootc install --wipe`, so a wrong answer
+    # destroys the user's Windows. Shipped as text over QGA and run in the guest.
+    P3_TARGET=$(qga_call exec /bin/sh -c "$(cat "$SCRIPT_DIR/pick-blank-disk.sh")" \
+        2>/dev/null | tr -d '\r\n ')
     if [ -z "$P3_TARGET" ]; then
         fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
         exit 1
@@ -1227,10 +1643,10 @@ step "Verifying passthrough and migration setup..."
 info "Collecting boot-time passthrough markers from serial console..."
 
 PASSTHROUGH_TIMEOUT=60
-PASSTHROUGH_ELAPSED=0
+PASSTHROUGH_DEADLINE=$(deadline_in "$PASSTHROUGH_TIMEOUT")
 PASSTHROUGH_MARKERS=""
 
-while [ $PASSTHROUGH_ELAPSED -lt $PASSTHROUGH_TIMEOUT ]; do
+while ! past_deadline "$PASSTHROUGH_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
@@ -1240,7 +1656,6 @@ while [ $PASSTHROUGH_ELAPSED -lt $PASSTHROUGH_TIMEOUT ]; do
         LAST_BYTE=$CURRENT_BYTE
     fi
     sleep 2
-    PASSTHROUGH_ELAPSED=$((PASSTHROUGH_ELAPSED + 2))
 done
 
 # ── Passthrough checks ────────────────────────────────────────────────────
@@ -1278,6 +1693,24 @@ if [ "$PASSTHROUGH_OK" = true ]; then
     pass "Passthrough verification: no errors detected"
 else
     info "Passthrough verification: errors found (see above) — migration may fail"
+fi
+
+# ── HARD GATE: prove Phase 2 actually ran ───────────────────────────────────
+# Everything above passes on the ABSENCE of error strings, and the reboot step
+# below sends ctrl-alt-delete — which an emergency shell obeys just as happily
+# as a booted system. So a Phase 2 that never mounted its root could sail
+# through to "ALL TESTS PASSED". Demand positive evidence instead: the
+# loop-attach hook reporting success, or the host bridge, or the real root.
+PHASE2_PROOF=$(printf '%s' "$PASSTHROUGH_MARKERS" | grep -aiE \
+    "wootc: attached dynamic VHDX|host NTFS mounted via|wootc-host-bind|Reached target (multi-user|graphical)" | head -3)
+if [ -n "$PHASE2_PROOF" ]; then
+    pass "Phase 2 proof of life: $(printf '%s' "$PHASE2_PROOF" | head -1 | cut -c1-70)"
+else
+    fail "Phase 2 produced NO proof of life — no loop-attach, no host bridge, no real root."
+    fail "  Refusing to report success: an unbooted Phase 2 still reboots to Windows,"
+    fail "  so the return-to-Windows check below cannot distinguish it from a real boot."
+    printf '%s' "$PASSTHROUGH_MARKERS" | tail -20
+    exit 1
 fi
 
 # ── Step 10: Verify the one-shot entry returns to Windows ───────────────────
