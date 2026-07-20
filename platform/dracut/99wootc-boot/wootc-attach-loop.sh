@@ -138,6 +138,20 @@ if [ -z "$LOOP_DEV" ]; then
 fi
 blockdev --setra 2048 "$LOOP_DEV" 2>/dev/null
 
+# --partscan creates the /dev/loopNpM device NODES, but that is not enough:
+# udev must run blkid on each partition to populate /dev/disk/by-uuid/. Without
+# that, sysroot.mount's dev-disk-by-uuid-<ext4 root>.device never appears and
+# Phase 2 times out into the emergency shell — the exact symptom seen once the
+# attach itself started working: loop0p1/p2/p3 present, yet NOT one ext4 UUID in
+# /dev/disk/by-uuid (only the Windows disk's own vfat/NTFS ones). The partscan
+# uevents can be missed if udev has already settled, so re-trigger add events for
+# the loop device + its partitions and wait for the symlinks to land.
+loopname=$(basename "$LOOP_DEV")
+blockdev --rereadpt "$LOOP_DEV" 2>/dev/null || partprobe "$LOOP_DEV" 2>/dev/null || true
+udevadm trigger --action=add --sysname-match="${loopname}" --sysname-match="${loopname}p*" 2>/dev/null || \
+    udevadm trigger --action=add 2>/dev/null || true
+udevadm settle --timeout=30 2>/dev/null || true
+
 : > /run/wootc-loop-attached
 say "attached raw root.disk $FULL_LOOP_PATH as $LOOP_DEV"
 # The whole point of the attach: the root partition's UUID must now appear to
