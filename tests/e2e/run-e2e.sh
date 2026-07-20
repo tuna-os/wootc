@@ -1596,10 +1596,10 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
 
     # Pick the graduate target: a BLANK whole disk (no partitions, no
     # filesystem). Do NOT use "any disk that isn't root's" — in Phase 2 root
-    # lives on /dev/nbd0 (the root.disk loopback), so that rule excludes nbd0
-    # and happily selects /dev/sda, i.e. the WINDOWS disk. `bootc install
-    # --wipe` on that destroys the user's Windows. Emptiness is what actually
-    # identifies the spare drive.
+    # lives on a /dev/loopNpM partition (root.disk attached via losetup since the
+    # raw switch), so that rule excludes the loop device and happily selects
+    # /dev/sda, i.e. the WINDOWS disk. `bootc install --wipe` on that destroys
+    # the user's Windows. Emptiness is what actually identifies the spare drive.
     # Selection logic lives in tests/e2e/pick-blank-disk.sh so it can be unit
     # tested — its output is handed to `bootc install --wipe`, so a wrong answer
     # destroys the user's Windows. Shipped as text over QGA and run in the guest.
