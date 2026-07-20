@@ -10,6 +10,11 @@ on:
       image:       { type: string, default: 'ghcr.io/tuna-os/yellowfin:gnome' }
       win_version: { type: string, default: '11' }
       bitlocker:   { type: string, default: 'off' }
+      # Force a full Windows install (skip the base-image restore). The restore
+      # path (--skip-install on a snapshot) currently fails at the deployer-boot
+      # handoff, so a full install is the reliable path to Phase 2 — and the only
+      # way to diagnose the Phase-2 attach while the restore path is unfixed.
+      use_base_image: { type: boolean, default: true }
 
 permissions:
   contents: read
@@ -58,6 +63,7 @@ jobs:
       # Windows. A miss (no such tag / stale key) is fine — run-e2e.sh falls
       # back to a full install, so this never gates a run.
       - name: Pull pre-installed Windows base image (if present)
+        if: ${{ inputs.use_base_image }}
         continue-on-error: true
         run: |
           set -euo pipefail

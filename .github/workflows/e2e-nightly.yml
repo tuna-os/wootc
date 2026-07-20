@@ -11,6 +11,7 @@ on:
       image:       { description: bootc image, default: 'ghcr.io/tuna-os/yellowfin:gnome' }
       win_version: { description: 'Dockur version (11, 10, 11e, 11l)', default: '11' }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
+      use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
 
 permissions:
   contents: read
@@ -27,3 +28,6 @@ jobs:
       image:       ${{ inputs.image       || 'ghcr.io/tuna-os/yellowfin:gnome' }}
       win_version: ${{ inputs.win_version || '11' }}
       bitlocker:   ${{ inputs.bitlocker   || 'off' }}
+      # Default true for scheduled runs (inputs null); a manual run can force a
+      # full install with use_base_image=false.
+      use_base_image: ${{ github.event.inputs.use_base_image != 'false' }}
