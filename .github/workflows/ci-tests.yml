@@ -81,7 +81,7 @@ jobs:
             echo "$f: $sz bytes"
             [ "$sz" -gt 5000 ] || { echo "::error::$f is blank ($sz bytes)"; exit 1; }
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-gui-screenshots
           path: docs/screenshots/1[3-6]-*.png
