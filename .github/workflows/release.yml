@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with: { go-version: '1.26', cache: false }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq bats
       - run: bash tests/run.sh fast
@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with: { go-version: '1.26', cache: false }
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
