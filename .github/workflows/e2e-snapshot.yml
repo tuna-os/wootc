@@ -74,8 +74,8 @@ jobs:
 
       - name: Put VM storage on /mnt (the only volume with room)
         run: |
-          sudo mkdir -p /mnt/wootc-storage /mnt/wootc-iso
-          sudo chown -R "$USER" /mnt/wootc-storage /mnt/wootc-iso
+          sudo mkdir -p /mnt/wootc-storage /mnt/wootc-iso /mnt/wootc-snapshot
+          sudo chown -R "$USER" /mnt/wootc-storage /mnt/wootc-iso /mnt/wootc-snapshot
           rm -rf tests/e2e/storage tests/e2e/iso-cache
           ln -s /mnt/wootc-storage tests/e2e/storage
           ln -s /mnt/wootc-iso     tests/e2e/iso-cache
@@ -88,7 +88,6 @@ jobs:
           WOOTC_E2E_BITLOCKER:  ${{ env.BITLOCKER }}
           WOOTC_E2E_SNAPSHOT_OUT: /mnt/wootc-snapshot
         run: |
-          mkdir -p /mnt/wootc-snapshot
           cd tests/e2e
           # The image ref is irrelevant to priming (nothing is deployed), but
           # run-e2e.sh needs a positional; pass the default target.

@@ -69,7 +69,7 @@ jobs:
           TAG="${{ inputs.win_version }}-bl-${{ inputs.bitlocker }}"
           echo "${{ secrets.GITHUB_TOKEN }}" | \
             oras login ghcr.io -u "${{ github.actor }}" --password-stdin
-          mkdir -p /mnt/wootc-snapshot
+          sudo mkdir -p /mnt/wootc-snapshot && sudo chown "$USER" /mnt/wootc-snapshot
           if oras pull "${PKG}:${TAG}" -o /mnt/wootc-snapshot; then
             echo "WOOTC_E2E_SNAPSHOT_IN=/mnt/wootc-snapshot" >> "$GITHUB_ENV"
             echo "Restored base image ${PKG}:${TAG}"; ls -lh /mnt/wootc-snapshot
