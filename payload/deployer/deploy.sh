@@ -314,7 +314,13 @@ TIMEOUT_KARG="rd.timeout=120"
 # built in or modular, and costs nothing. If a target kernel ever behaves
 # differently, this is what keeps Phase 2 bootable.
 LOOP_KARG="loop.max_part=16"
-PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG $LOOP_KARG"
+# TEMPORARY DIAGNOSTIC: verbose systemd logging on the Phase-2 boot so that, if the
+# attach service still does not activate the root .device unit, the serial shows
+# WHY (unit start decisions, condition checks, device-unit state). Remove once the
+# attach→sysroot.mount path is confirmed green. Kept modest (systemd only, not the
+# extremely verbose udev debug) to avoid saturating the serial.
+DEBUG_KARG="systemd.log_level=debug systemd.log_target=console"
+PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG $LOOP_KARG $DEBUG_KARG"
 
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is

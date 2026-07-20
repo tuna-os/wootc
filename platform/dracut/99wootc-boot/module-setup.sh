@@ -86,8 +86,12 @@ install() {
         dfatal "wootc-boot: could not create initrd-root-device.target.wants/wootc-attach.service symlink in $wantsdir"
         return 1
     fi
-    # Belt-and-braces for any non-systemd initramfs that still runs initqueue.
-    inst_hook initqueue 10 "$moddir/wootc-attach-loop.sh"
+    # Do NOT also install an initqueue hook. The ostree Phase-2 initramfs DOES run
+    # dracut-initqueue (contrary to the old assumption), and the hook fired at
+    # t≈1.8s — before systemd-udevd was tracking devices — so the loop partitions
+    # it created never became dev-disk-by-uuid-<root>.device UNITS, and it set the
+    # /run/wootc-loop-attached guard so the correctly-ordered service then no-op'd.
+    # Attach ONCE, from wootc-attach.service, at the right ordering point.
 
     # losetup is all the hook needs — no staged binary, no closure. Target bootc
     # images already ship it (verified: yellowfin has /usr/sbin/losetup and no

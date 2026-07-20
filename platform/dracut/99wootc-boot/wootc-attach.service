@@ -2,18 +2,22 @@
 Description=wootc: attach the NTFS-hosted root.disk before sysroot.mount
 Documentation=https://github.com/tuna-os/wootc
 DefaultDependencies=no
-# The Phase-2 (ostree) initramfs is a pure-systemd initramfs: it boots root from
-# a real dev-disk-by-uuid-<root>.device unit and NEVER runs dracut-initqueue, so
-# an initqueue hook is dead code here. This service is the systemd-correct way to
-# make the root device appear: mount the Windows NTFS, losetup-attach root.disk
-# with --partscan, and the partitions (and their UUIDs) show up to udev, letting
-# the ordinary sysroot.mount proceed unchanged.
+# THE attach must happen from THIS service, at a point where systemd-udevd is up
+# and TRACKING devices, so the loop partitions it creates get promoted into
+# dev-disk-by-uuid-<root>.device UNITS that sysroot.mount can wait on. The
+# belt-and-braces initqueue hook (removed) attached far too early (t≈1.8s) —
+# systemd-udevd was not yet tracking devices, so the by-uuid symlink appeared but
+# the .device unit never activated and sysroot.mount timed out anyway.
 #
-# Ordering is the whole game:
-#   After udev is up (block devices + the ntfs3/loop modules are available),
-#   and BEFORE anything waits for the root device or tries to mount sysroot.
-After=systemd-udevd.service systemd-udev-trigger.service systemd-udev-settle.service
-Wants=systemd-udev-settle.service
+# Ordering is the whole game: after udev is up, before anything waits for the
+# root device or mounts sysroot.
+#
+# Do NOT depend on systemd-udev-settle.service — it is DEPRECATED and, ordered
+# ahead of us, it TIMED OUT and delayed this service past the 2-minute
+# dev-disk-by-uuid device timeout (proven: sysroot.mount failed while the attach
+# was still blocked behind a settle that never completed). The script does its
+# own targeted `udevadm trigger --settle` on the loop device instead.
+After=systemd-udevd.service systemd-udev-trigger.service
 Before=initrd-root-device.target sysroot.mount
 Wants=initrd-root-device.target
 # Run even in the emergency path so a partial failure is still observable.
