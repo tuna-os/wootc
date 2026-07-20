@@ -152,7 +152,7 @@ LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
 BOOTLOADER="$(read_cmdline wootc.bootloader grub2)"
-COMPOSEFS="$(read_cmdline wootc.composefs 0)"
+COMPOSEFS="$(read_cmdline wootc.composefs auto)"
 
 # Debug SSH access into the deployed Phase-2 system (mirrors corral): a public
 # key enables passwordless SSH for troubleshooting migrations and drives E2E
@@ -170,7 +170,7 @@ fi
 DEBUG_SSH_KEY_FILE="/mnt/ntfs/wootc/install/debug_authorized_keys"
 
 case "$BOOTLOADER" in grub2|systemd) ;; *) err "unsupported bootloader: $BOOTLOADER"; exit 1 ;; esac
-case "$COMPOSEFS" in 0|1) ;; *) err "unsupported composefs value: $COMPOSEFS"; exit 1 ;; esac
+case "$COMPOSEFS" in 0|1|auto) ;; *) err "unsupported composefs value: $COMPOSEFS (want 0|1|auto)"; exit 1 ;; esac
 
 case "$LUKS_TYPE" in
     none|luks-passphrase|tpm2-luks|tpm2-luks-passphrase) ;;
@@ -542,6 +542,28 @@ ensure_ntfs_support() {
     log "  [PASS] verified ntfs-3g present in the deployed image"
 }
 ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NTFS support"
+
+# ── Resolve composefs from the IMAGE (distro/image-agnostic) ─────────────────
+# composefs is a property of the target image, not something the caller should
+# have to know. wootc.composefs=auto (the default) inspects the image's
+# /usr/lib/ostree/prepare-root.conf [composefs] enabled and installs to match:
+#   enabled=yes → composeFsBackend=true  (composefs image; does NOT use bootupctl)
+#   otherwise   → composeFsBackend=false (traditional ostree; bootupctl + GRUB)
+# This is load-bearing: a MISMATCH makes the image's own bootc-root-setup.service
+# (ConditionKernelCommandLine=composefs) skip, so the real root is never mounted
+# and Phase 2 drops to an emergency shell (proven: a composefs image installed
+# with composefs=0). An explicit wootc.composefs=0|1 still overrides.
+if [[ "$COMPOSEFS" == auto ]]; then
+    if podman run --rm --network=host "$IMAGE" sh -c \
+        'grep -A8 "^\[composefs\]" /usr/lib/ostree/prepare-root.conf 2>/dev/null \
+         | grep -qiE "enabled[[:space:]]*=[[:space:]]*(yes|true|1|signed)"' 2>/dev/null; then
+        COMPOSEFS=1
+        log "  composefs: image declares composefs enabled → installing WITH composefs"
+    else
+        COMPOSEFS=0
+        log "  composefs: image is traditional ostree (no composefs) → installing without"
+    fi
+fi
 
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,

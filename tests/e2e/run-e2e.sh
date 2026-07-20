@@ -701,16 +701,13 @@ if [ -z "$E2E_BOOTLOADER" ]; then
     esac
 fi
 if [ -z "$E2E_COMPOSEFS" ]; then
-    # composefs is a property of the IMAGE (its /usr/lib/ostree/prepare-root.conf
-    # [composefs] enabled), NOT the bootloader. The old rule "grub2 ⇒ composefs=0"
-    # was wrong: yellowfin is grub2 AND composefs=enabled. Forcing composefs=0 made
-    # `bootc install` skip the composefs backend, so at Phase-2 boot the image's own
-    # bootc-root-setup.service (ConditionKernelCommandLine=composefs) was skipped,
-    # the real root was never mounted, and the boot dropped to an emergency shell —
-    # even though attach + sysroot.mount + ostree-prepare-root all succeeded.
-    # All current bootc images use composefs; default to 1. Override with
-    # WOOTC_E2E_COMPOSEFS=0 only for a genuinely non-composefs (legacy) image.
-    E2E_COMPOSEFS=1
+    # composefs is a property of the IMAGE, not the bootloader (the old rule
+    # "grub2 ⇒ composefs=0" was wrong; a MISMATCH makes the image's own
+    # bootc-root-setup.service — ConditionKernelCommandLine=composefs — skip, so
+    # the real root is never mounted and Phase 2 emergencies). Let the DEPLOYER
+    # auto-detect from the image's /usr/lib/ostree/prepare-root.conf. Override
+    # with WOOTC_E2E_COMPOSEFS=0|1 for a specific test.
+    E2E_COMPOSEFS=auto
 fi
 {
     printf 'ImageRef=%s\n'   "$IMAGE_REF"
