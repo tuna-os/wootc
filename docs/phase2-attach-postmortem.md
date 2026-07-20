@@ -218,6 +218,95 @@ partitions and never makes the by-uuid symlinks.
   in the module. Deletes the whole deploy-time-injection failure class; Phase 2 *and*
   Phase 3 both fundamentally need to mount the NTFS-hosted root.disk.
 
+## Earlier pitfalls (from the commit history, before this session)
+
+The layers above sit on top of a longer trail. These recur enough to be worth
+naming — most are the *same failure classes* seen again this session.
+
+### The NTFS injection has bitten repeatedly (this session was the latest layer)
+- `46a767a` first identified the root cause via a **fast container repro, not a
+  20-min deploy**: EL kernels ship no `ntfs3` and yellowfin ships no `ntfs-3g`, so
+  the loop-attach hook can't mount the Windows volume. Introduced
+  `ensure_ntfs_support()` (inject via the image's *own* repos so glibc matches).
+- `469f4e7`: the injection used `podman run -d` — **detached mode does not work in
+  the deployer initramfs** ("could not start the container"); all its other podman
+  calls are foreground. (This session's `--network=host` fix is the *next* layer on
+  the same container-won't-start problem.) Same commit: the capability probe
+  **misread `CONFIG_NTFS3_FS=y`** — a built-in ntfs3 has no `.ko` and no binary yet
+  mounts fine; consult `/proc/filesystems` and the kernel config, not just files.
+- `b945a0d` → `24c48f8`: making injection failure a **hard error broke deploys that
+  actually worked** (images with built-in ntfs3). Reverted to best-effort. Takeaway:
+  the capability check is not authoritative; the runtime fallback is the real guard.
+
+### Status-from-a-proxy false positives (the dominant bug class)
+- `61e974d`: **"Phase 2 booted" fired from the initramfs** — the detector matched
+  `ostree=` in the cmdline echoed by the initramfs, so a boot that then failed
+  `sysroot.mount` was reported as a PASS; the *downstream* symptom (no Linux QGA)
+  sent debugging to the wrong place. Require evidence of the *real* root
+  (multi-user/graphical target or login), fail loud on emergency.
+- `ff3f827`: a **kernel `reboot: Restarting system` was treated as deploy success** —
+  but the watchdog reboots that way too. Only the deployer's *own* reboot message
+  implies success.
+- `aa00b24`: a **dead serial feed was silently stale** — a stale capture read as
+  "quiet guest". Make it loud.
+
+### The in-guest watchdog saga (`8187fa9` and its three predecessors)
+Four attempts. The bug was **structural, not a cancellation detail**: any background
+job in the deploy hook is a child of `dracut-initqueue`, and initqueue *waits for its
+children* — so a watchdog blocks the very thing it guards. `( sleep; reboot ) &` never
+cancelled (blocked initqueue 45 min); `+ kill/wait` blocked forever when the kill
+missed; `+ setsid` put the sleep beyond both pid- and process-group-kill. Final answer:
+**delete the in-guest watchdog**; the host covers all cases.
+
+### Serial saturation (`18c8fd7`, reverting `93e87e1`)
+Adding a direct `/dev/console` write to `log()` meant every line went out **three
+times over a 115200 baud serial** (stdout + kmsg-forwarded + direct). During the
+verbose bootc install the link saturated and a blocking console write **stalled every
+deploy at `phase: verification`**. `<27>` (KERN_ERR) already reaches the console under
+`quiet`, so the extra write bought nothing. Low-volume boot paths can write to
+`/dev/console`; the high-volume installer must not.
+
+### Boot-chain handoff
+- `75f8be3`: **`bcdedit /set {fwbootmgr} bootsequence {GUID}` — PowerShell parsed the
+  bare `{GUID}` as a script block**, bcdedit got garbage and silently failed, so the
+  one-shot Phase-2 boot was *never set* and every "reboot into Phase 2" just went back
+  to Windows. This is why no automated run reached a Phase-2 boot for a long time even
+  after deploys succeeded. Fix: PowerShell stop-parsing (`--%`) + verify the
+  bootsequence took.
+- `028ab37`: the Phase-2 `grub.cfg` was written only to `/EFI/<vendor>/`, but the
+  target-signed grub loads from `\EFI\fedora`, resolves its prefix to its own dir, and
+  read a **stale deployer menu** → "file not found", booting neither OS. Write the menu
+  to **all three prefixes** (`/EFI/{vendor,fedora,wootc}/grub.cfg`).
+- `d1dd5a9`: chain systemd-boot through the Debian shim.
+
+### Timeouts / hangs
+- `c5de470`: an **unbounded `chroot dracut` regen can hang forever** and writes nothing
+  to the journal — indistinguishable from a dead deployer (the 31-min silent hang).
+  Bound every regen (`timeout 900`), announce it, treat a timeout as HARD failure.
+- `bc504a1`: wait loops counted **ticks, not wall-clock** — measured 0.68× real, so a
+  "45-min" timeout was really ~66 min and progress under-reported by half an hour.
+- `4ad34e2`: **a hung QGA `exec` froze runs indefinitely** — bound every QGA call.
+
+### Data-safety near-misses (North Star)
+- `aded90f`: **the rung-3 graduate targeted "the first disk that isn't root's" — which
+  in Phase 2 is the *Windows* disk** (root lives on the loopback). `bootc install
+  --wipe` there destroys Windows. Fixed to pick a *blank* disk (emptiness, not
+  non-rootness) — see `pick-blank-disk.sh`. Same commit: the migration **opt-out was
+  cosmetic** — `wootc-manifest-gui` wrote a selection file that *nothing read*, so
+  turning "Games" off still migrated Steam. Both are "shipped-looking but broken",
+  caught by adversarial review.
+- `4efb71c`: gate look/wifi/wsl on the chooser and make every gate **fail OPEN**.
+
+### Harness self-harm
+- `709857a`: the harness was **filling its own runners' disks** with un-pruned
+  artifacts. `43xxx`/`1c6d713`: the **pre-deployer snapshot was accidentally
+  load-bearing** — disabling it exposed a race the 10-20 min freeze/copy had been
+  hiding as an incidental `sleep`. `54fe1db`/`70c2799`/etc.: repeated **preflight
+  disk-size mis-sizing** (120 GiB excluded hosted runners; 90 was right).
+- `6757300` → deleted: the **qemu-nbd self-contained closure** (26-library) failed on
+  a **libfuse3 soname mismatch** — the cross-distro binary-bundling trap that also
+  argues for the raw-`losetup` switch and against bundling foreign binaries.
+
 ## Commit trail
 
 | Commit | Layer | What |
