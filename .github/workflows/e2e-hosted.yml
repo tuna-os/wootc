@@ -107,6 +107,43 @@ jobs:
           cp tests/e2e/storage/qemu.pty /tmp/evidence/qemu-serial.log 2>/dev/null || true
           du -sh /tmp/evidence || true
 
+      # DISK-LEVEL POST-MORTEM. The lesson from the Phase-2 attach bug: disk
+      # archaeology beats serial capture. The deployer's serial is overwritten by
+      # the Phase-2 boot, and its persistent log (C:\wootc\logs\deployer.log) is
+      # unreachable over QGA once Phase 2 lands in a Linux emergency shell — but
+      # both, plus the actual BOOTED initramfs, are sitting in data.qcow2. Read
+      # them with libguestfs so every hosted run is self-diagnosing without SSH.
+      # Surfaces: the guard verdict, AND whether wootc-attach.service is present
+      # AND WIRED (a dangling wants symlink is the exact bug that hid for a week).
+      - name: Disk post-mortem (libguestfs)
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          D=tests/e2e/storage/data.qcow2
+          [ -f "$D" ] || { echo "no data.qcow2 — nothing to inspect"; exit 0; }
+          sudo apt-get install -y -qq libguestfs-tools >/dev/null 2>&1
+          export LIBGUESTFS_BACKEND=direct
+          mkdir -p /tmp/evidence
+          virt-filesystems -a "$D" --long > /tmp/evidence/disk-filesystems.txt 2>&1
+          # Deployer's persistent log (guard verdict lives here); inspection mounts Windows C:.
+          virt-cat -a "$D" /wootc/logs/deployer.log > /tmp/evidence/deployer.log 2>/dev/null
+          echo "=== GUARD VERDICT (from deployer.log) ==="
+          grep -aE 'guard:|dracut regen|WIRED|wired|matches=|unit file present' /tmp/evidence/deployer.log 2>/dev/null | tail -15
+          # The BOOTED Phase-2 initramfs from the ESP: present AND wired?
+          ESP=$(virt-filesystems -a "$D" -l 2>/dev/null | awk '$2=="vfat"{print $1; exit}')
+          if [ -n "$ESP" ]; then
+            virt-cat -a "$D" -m "$ESP" /EFI/wootc/phase2-initramfs.img > /tmp/p2.img 2>/dev/null
+            if [ -s /tmp/p2.img ]; then
+              lsinitrd /tmp/p2.img > /tmp/evidence/phase2-initramfs-list.txt 2>/dev/null
+              WIRED=$(grep -cE 'initrd-root-device.target.wants/wootc-attach.service' /tmp/evidence/phase2-initramfs-list.txt)
+              UNIT=$(grep -cE 'usr/lib/systemd/system/wootc-attach\.service$' /tmp/evidence/phase2-initramfs-list.txt)
+              echo "=== BOOTED Phase-2 initramfs: wootc-attach wants-symlink=$WIRED unit-file=$UNIT ==="
+              [ "$WIRED" -ge 1 ] && [ "$UNIT" -lt 1 ] && echo "::warning::DANGLING wootc-attach.service — wants symlink present but unit file absent (root.disk will never attach)"
+            fi
+          fi
+          du -sh /tmp/evidence || true
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
