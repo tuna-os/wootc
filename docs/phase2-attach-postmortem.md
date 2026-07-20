@@ -206,10 +206,54 @@ partitions and never makes the by-uuid symlinks.
 - **`use_base_image` toggle** — forces a full install when needed.
 - **Disk post-mortem CI step** — libguestfs auto-diagnosis on every hosted run.
 
+## Layer 7+: the ostree pivot and the composefs/ostree boot mode
+
+Once the attach chain was green (all of #1–#6), `systemd.log_level=debug` proved
+Phase 2 got all the way to the ostree pivot: `sysroot.mount status=0`,
+`ostree-prepare-root status=0` — then emergency, because:
+```
+bootc-root-setup.service: ConditionKernelCommandLine=composefs failed.
+initrd-root-fs.target: held back, waiting for: bootc-root-setup.service
+```
+
+- **7. return→exit** (`e4bd537`): the attach script was written as a *sourced*
+  initqueue hook and used top-level `return 0`; run by the service as
+  `/bin/sh script`, `return` outside a function is dash exit code 2 → the oneshot
+  was marked *failed* → its `Before=sysroot.mount` became a failed dependency.
+  Also removed the deprecated `systemd-udev-settle` dep (it timed out and delayed
+  the service past the device timeout) and the early initqueue hook (it attached
+  at t≈1.8s, before systemd-udevd tracked devices, and set the re-entrancy guard
+  so the correctly-ordered service no-op'd).
+- **8. composefs mode** (`37b08c1` → `66ef7c5`): `bootc-root-setup.service` (which
+  mounts the real composefs root) is gated on the `composefs` karg. The E2E coupled
+  composefs to the *bootloader* (`grub2 ⇒ composefs=0`), but **composefs is a
+  property of the IMAGE** (`/usr/lib/ostree/prepare-root.conf [composefs] enabled`).
+  Final fix: the **deployer auto-detects** composefs from the image
+  (`wootc.composefs=auto`) and installs to match — composefs (no bootupctl) vs
+  traditional ostree (bootupctl + GRUB).
+- **9. verify umount hang** (`996a8cf`): with composefs the deployer's verify step
+  couldn't mount the installed root and left a loop/overlay pinning `/mnt/ntfs`, so
+  the final `umount` blocked "target is busy" forever and the whole deploy timed
+  out — even though the install had succeeded. Made the teardown bounded + lazy
+  fallback so the deploy always reaches the reboot into Phase 2.
+
+**Root blocker underneath all of layer 8: the target IMAGE.** yellowfin (EL10)
+shipped `composefs enabled=yes` but EL10 should be traditional **ostree** (it hasn't
+migrated). On that misbuilt image *neither* mode works: `composefs=0` skips
+`bootc-root-setup` (image declares composefs) → root never mounts; `composefs=1`
+breaks the Phase-2 boot even earlier (no attach, device timeout). Filed
+tuna-os/wootc#28 (support both modes) and tuna-os/tunaOS#748 (fix the EL10 image →
+ostree). #748 resolved; ostree yellowfin rebuild incoming. The wootc side is done
+(auto-detect); a clean 1→2 is expected on the new ostree image, where the attach
+path is already proven green and `bootc-root-setup` won't be gated off.
+
 ## Open items
 
-- Validate the udev-trigger fix (#6) boots Phase 2 end-to-end, then let the
-  `--phase3` run graduate to native — **the 1→2→3 goal**.
+- **Re-run on the new ostree yellowfin build**: auto-detect → composefs=0 → the
+  proven-green attach path + real root mount → Phase 2 boots, then `--phase3`
+  graduate — **the 1→2→3 goal**.
+- Verify the traditional-ostree `bootupctl` + GRUB boot-entry path on the ostree
+  image (tuna-os/wootc#28).
 - Then the **GUI-driven** leg (CDP for the Windows installer, AT-SPI/dogtail for the
   Linux Phase-3 GTK app).
 - Re-verify the base-image **restore** path (was masked by the `set -e` bug).
@@ -319,3 +363,6 @@ deploy at `phase: verification`**. `<27>` (KERN_ERR) already reaches the console
 | `91ff455` | 5a | enable EPEL to install ntfs-3g |
 | `5ed3591` | 5b | `--network=host` so the injection container can start |
 | `27fbf1f` | 6 | udev-trigger after losetup so by-uuid symlinks appear |
+| `e4bd537` | 7 | attach script `exit` not `return`; drop udev-settle + early hook |
+| `37b08c1`→`66ef7c5` | 8 | composefs is per-image; deployer auto-detects it |
+| `996a8cf` | 9 | bounded /mnt/ntfs umount so a stuck verify can't hang the deploy |
