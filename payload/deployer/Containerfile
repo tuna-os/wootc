@@ -13,6 +13,7 @@ RUN dnf install -y \
     podman skopeo conmon crun netavark aardvark-dns \
     util-linux util-linux-core e2fsprogs dosfstools \
     ntfsprogs \
+    ostree \
     parted xfsprogs btrfs-progs \
     kernel-core kernel-modules kernel-modules-extra \
     NetworkManager iproute dhcp-client \
@@ -51,7 +52,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
         --force \
         --no-hostonly \
         --add "network kernel-modules kernel-modules-extra wootc" \
-        --install "podman skopeo fisherman \
+        --install "podman skopeo fisherman ostree \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
                    losetup qemu-nbd dmsetup cryptsetup systemd-cryptenroll \
                     /usr/lib/systemd/systemd-cryptsetup \
@@ -64,7 +65,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # inst_multiple fails SILENTLY when any one entry is missing (a missing
 # restorecon once dropped conmon/crun/podman and cost a full E2E debug
 # cycle), so the build must fail loudly here instead.
-RUN for bin in conmon crun podman skopeo fisherman sfdisk mkfs.ext4 \
+RUN for bin in conmon crun podman skopeo fisherman ostree sfdisk mkfs.ext4 \
         mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
         df sync truncate journalctl jq tee which basename date head; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
