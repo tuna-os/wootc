@@ -4,8 +4,6 @@ name: E2E nightly
 # image x edition x bitlocker matrix stays on the laptop runners.
 
 on:
-  schedule:
-    - cron: '0 4 * * *'
   workflow_dispatch:
     inputs:
       image:       { description: bootc image, default: 'ghcr.io/tuna-os/yellowfin:gnome' }

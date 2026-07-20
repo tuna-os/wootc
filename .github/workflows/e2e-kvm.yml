@@ -17,8 +17,6 @@ concurrency:
 
 on:
   workflow_dispatch:        # manual trigger
-  schedule:
-    - cron: '0 6 * * 1'    # every Monday at 06:00 UTC
 
 jobs:
   e2e:

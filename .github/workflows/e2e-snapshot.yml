@@ -19,10 +19,8 @@ on:
     inputs:
       win_version: { description: 'Dockur version (11, 10, 11e, 10e)', default: '11' }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
-  schedule:
-    # Weekly refresh so a base image never drifts too far from current Windows
-    # cumulative updates. Off-peak, distinct from the nightly E2E slot.
-    - cron: '0 6 * * 1'
+  # MVP: dispatch-only. The weekly base-image refresh schedule is disabled while
+  # we iterate — re-add a `schedule:` cron once the E2E is stable.
 
 permissions:
   contents: read
