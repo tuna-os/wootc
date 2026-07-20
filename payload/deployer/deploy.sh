@@ -805,12 +805,22 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             "$INITRD_CHROOT_PATH" "$KVER" 2>&1 | tail -25 >&2
         REGEN_RC=${PIPESTATUS[0]}
         set -e
+        # A non-zero regen must ABORT here, not merely be logged as a "problem"
+        # and continued past (PHASE2_PROBLEMS is only summarised, never fatal).
+        # PROVEN on hosted run 29712429479: the module's wiring dfatal aborted
+        # the regen (exit!=0), the deploy carried on regardless, and Phase 2
+        # booted an initramfs WITHOUT the wootc-attach module — root.disk never
+        # attached and sysroot.mount timed out. A failed regen means the Phase-2
+        # initramfs is stale/hookless; booting it is the exact silent wedge we
+        # keep turning into loud Phase-1 failures.
         if [[ "$REGEN_RC" -eq 124 ]]; then
             err "  [FAIL] dracut regen TIMED OUT after 15m — Phase-2 initramfs not rebuilt"
-            err "         Without it the loop-attach hook is absent and Phase 2 cannot boot."
-            PHASE2_PROBLEMS+=("dracut regen timed out")
+            err "         Without it the loop-attach hook is absent and Phase 2 cannot boot; aborting deploy."
+            exit 1
         elif [[ "$REGEN_RC" -ne 0 ]]; then
-            PHASE2_PROBLEMS+=("dracut regen exit=$REGEN_RC")
+            err "  [FAIL] dracut regen FAILED (exit=$REGEN_RC) — Phase-2 initramfs is stale/hookless; aborting deploy"
+            err "         root.disk would never attach and sysroot.mount would time out into emergency."
+            exit 1
         fi
         log "  dracut regen exit=$REGEN_RC"
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}" 2>/dev/null || echo 0)

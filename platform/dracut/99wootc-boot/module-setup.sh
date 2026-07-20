@@ -50,19 +50,25 @@ install() {
     local unitdir="${systemdsystemunitdir:-/usr/lib/systemd/system}"
     inst_simple "$moddir/wootc-attach.service" "$unitdir/wootc-attach.service"
 
-    # Wire it into the initrd root-device bring-up so it actually runs. Try the
-    # proper systemctl enable first; fall back to a manual wants symlink, which
-    # is all `add-wants` does anyway.
-    mkdir -p "$initdir$unitdir/initrd-root-device.target.wants"
-    if ! ${SYSTEMCTL:-systemctl} -q --root "$initdir" add-wants \
-            initrd-root-device.target wootc-attach.service 2>/dev/null; then
-        ln -sf "../wootc-attach.service" \
-            "$initdir$unitdir/initrd-root-device.target.wants/wootc-attach.service"
-    fi
-    # Verify the wiring landed — a unit that is installed but not wanted is the
-    # same silent no-op as the initqueue hook we just replaced.
-    if [[ ! -e "$initdir$unitdir/initrd-root-device.target.wants/wootc-attach.service" ]]; then
-        dfatal "wootc-boot: wootc-attach.service was not wired into initrd-root-device.target"
+    # Wire it into the initrd root-device bring-up so it actually runs, by
+    # creating the wants symlink DIRECTLY, deterministically, in the SAME unit
+    # dir the service lives in.
+    #
+    # Do NOT use `systemctl add-wants --root`: it writes the symlink under
+    # <root>/etc/systemd/system/initrd-root-device.target.wants/, which is (a)
+    # NOT where we verify ($unitdir = /usr/lib/systemd/system) and (b) not
+    # reliably copied into the built initramfs by dracut. PROVEN on hosted run
+    # 29712429479: add-wants "succeeded" into /etc, the /usr/lib check below then
+    # found nothing, dfatal fired, and the entire Phase-2 dracut regen ABORTED —
+    # so Phase 2 booted an initramfs with the service unwired, root.disk never
+    # attached, and sysroot.mount timed out into the emergency shell.
+    local wantsdir="$initdir$unitdir/initrd-root-device.target.wants"
+    mkdir -p "$wantsdir"
+    ln -sf "../wootc-attach.service" "$wantsdir/wootc-attach.service"
+    # Verify the SYMLINK exists (-L), not that its target resolves (-e): a
+    # transient target-ordering issue must not false-fail and abort the build.
+    if [[ ! -L "$wantsdir/wootc-attach.service" ]]; then
+        dfatal "wootc-boot: could not create initrd-root-device.target.wants/wootc-attach.service symlink in $wantsdir"
         return 1
     fi
     # Belt-and-braces for any non-systemd initramfs that still runs initqueue.
