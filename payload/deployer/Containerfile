@@ -23,7 +23,7 @@ RUN dnf install -y \
 
 # ── Build fisherman statically ──────────────────────────────────────────────
 # Fisherman is a Go binary — build it statically so it needs no runtime deps.
-FROM docker.io/library/golang:1.24 AS gobuilder
+FROM docker.io/library/golang:1.26 AS gobuilder
 COPY fisherman /src/fisherman
 WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
