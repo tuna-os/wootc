@@ -1391,6 +1391,19 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
         echo "$NEW_OUTPUT" | grep -qE "\[WARN\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[WARN\]' | tail -1)"
+
+        # Surface the Phase-2-initramfs guard verdict to THIS (persistent) job
+        # log. It is the single discriminator between "the wootc-attach service
+        # is absent/unwired in the built initramfs" and "it is present+wired but
+        # skipped at Phase-2 boot" — and it is otherwise LOST: the deployer
+        # writes it to the serial during the Phase-1 boot, which the Phase-2 boot
+        # then overwrites, and its persistent copy (C:\wootc\logs\deployer.log)
+        # is unreachable once Phase 2 lands in a Linux emergency shell. Without
+        # this echo, every Phase-2 attach failure costs a whole run just to learn
+        # whether the module even made it into the initramfs.
+        echo "$NEW_OUTPUT" | grep -aoE "guard: lsinitrd .*matches=[0-9]+|guard: losetup .*=[0-9]+|dracut regen exit=[0-9]+|dracut regen (FAILED|TIMED OUT)[^[:cntrl:]]*|Phase-2 initramfs .*WIRED[^[:cntrl:]]*|no WIRED wootc-attach[^[:cntrl:]]*|was not wired into initrd-root-device[^[:cntrl:]]*|lsinitrd unavailable[^[:cntrl:]]*" \
+            | while IFS= read -r gl; do info "PHASE-1 GUARD: $gl"; done
+
         if echo "$NEW_OUTPUT" | grep -q "\[wootc-oem\] Setup failed:"; then
             fail "Windows OEM setup failed; see the serial marker above"
             break
