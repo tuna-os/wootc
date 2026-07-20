@@ -565,6 +565,17 @@ if [[ "$COMPOSEFS" == auto ]]; then
     fi
 fi
 
+# composefs needs fs-verity, and fisherman only enables it at format time for
+# ext4 (`mkfs.ext4 -O verity`); xfs and btrfs are formatted WITHOUT verity. The
+# deployer defaults FILESYSTEM=xfs, so a composefs image on xfs is a mismatch —
+# fisherman fails installing the root ("mounting root: … exit status 32",
+# reproduced on dakota with BOTH grub2 and systemd-boot). Force ext4 for composefs
+# unless the caller explicitly picked a filesystem.
+if [[ "$COMPOSEFS" == 1 && "$FILESYSTEM" == xfs && -z "$(read_cmdline wootc.filesystem)" ]]; then
+    FILESYSTEM=ext4
+    log "  composefs requires fs-verity → using ext4 root (deployer default xfs has no verity)"
+fi
+
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
 # Flatpaks, and kernel cmdline injection. We just point it at the loop device.
