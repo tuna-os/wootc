@@ -5,7 +5,7 @@
 #
 # Output: payload/deployer/out/vmlinuz, payload/deployer/out/initramfs.img (~200MB)
 
-FROM quay.io/fedora/fedora:44 AS builder
+FROM quay.io/fedora/fedora:45 AS builder
 
 # ── Install system packages ─────────────────────────────────────────────────
 RUN dnf install -y \

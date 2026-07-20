@@ -1,4 +1,4 @@
-FROM quay.io/fedora/fedora:44
+FROM quay.io/fedora/fedora:45
 
 RUN dnf install -y grub2-tools grub2-efi-x64-modules && dnf clean all
 
