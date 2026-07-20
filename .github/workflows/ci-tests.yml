@@ -27,7 +27,7 @@ jobs:
     name: fast tier (bats + go)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
       - uses: actions/setup-go@v5
         with: { go-version: '1.26', cache: false }
@@ -40,7 +40,7 @@ jobs:
     name: migration integration (container)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
       - name: Run containerized bridge suite
         run: bash tests/migration/test-bridge.sh
@@ -49,7 +49,7 @@ jobs:
     name: lint (shellcheck + yamllint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install linters
         run: |
           sudo apt-get update -qq
@@ -71,7 +71,7 @@ jobs:
     name: GUI screenshots render
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Render the Linux GUIs headlessly
         run: bash tests/gui/capture-linux-guis.sh
       - name: Fail if any screenshot came out blank
