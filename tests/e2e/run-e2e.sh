@@ -1401,7 +1401,14 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         # is unreachable once Phase 2 lands in a Linux emergency shell. Without
         # this echo, every Phase-2 attach failure costs a whole run just to learn
         # whether the module even made it into the initramfs.
-        echo "$NEW_OUTPUT" | grep -aoE "guard: lsinitrd .*matches=[0-9]+|guard: losetup .*=[0-9]+|dracut regen exit=[0-9]+|dracut regen (FAILED|TIMED OUT)[^[:cntrl:]]*|Phase-2 initramfs .*WIRED[^[:cntrl:]]*|no WIRED wootc-attach[^[:cntrl:]]*|was not wired into initrd-root-device[^[:cntrl:]]*|lsinitrd unavailable[^[:cntrl:]]*" \
+        # NOTE: `|| true` is load-bearing. This whole script runs under
+        # `set -euo pipefail`; a bare `grep | while` that finds NO match (the
+        # common case — almost every serial chunk lacks a guard line) exits 1,
+        # pipefail propagates it, and set -e then ABORTS the deploy-monitoring
+        # loop on the very first chunk — i.e. "Deploying (0m)" then failure.
+        # Capture with `|| true`, then feed the loop, so no-match is a no-op.
+        GUARD_HITS_OUT=$(echo "$NEW_OUTPUT" | grep -aoE "guard: lsinitrd .*matches=[0-9]+|guard: losetup .*=[0-9]+|dracut regen exit=[0-9]+|dracut regen (FAILED|TIMED OUT)[^[:cntrl:]]*|Phase-2 initramfs .*WIRED[^[:cntrl:]]*|no WIRED wootc-attach[^[:cntrl:]]*|was not wired into initrd-root-device[^[:cntrl:]]*|lsinitrd unavailable[^[:cntrl:]]*" || true)
+        [ -n "$GUARD_HITS_OUT" ] && printf '%s\n' "$GUARD_HITS_OUT" \
             | while IFS= read -r gl; do info "PHASE-1 GUARD: $gl"; done
 
         if echo "$NEW_OUTPUT" | grep -q "\[wootc-oem\] Setup failed:"; then
