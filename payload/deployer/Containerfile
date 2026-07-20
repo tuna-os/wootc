@@ -53,6 +53,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
         --no-hostonly \
         --add "network kernel-modules kernel-modules-extra wootc" \
         --install "podman skopeo fisherman ostree \
+                   /usr/share/containers/policy.json /usr/share/containers/registries.conf \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
                    losetup qemu-nbd dmsetup cryptsetup systemd-cryptenroll \
                     /usr/lib/systemd/systemd-cryptsetup \
