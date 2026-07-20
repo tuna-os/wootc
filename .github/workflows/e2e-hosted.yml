@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  packages: read                 # pull the pre-installed Windows base image
 
 jobs:
   e2e:
@@ -52,7 +53,31 @@ jobs:
           ln -s /mnt/wootc-iso     tests/e2e/iso-cache
           df -h /mnt
 
-      - name: Run the E2E (full Windows install — no persistence to skip)
+      # Best-effort: pull a pre-installed Windows base image (primed by
+      # e2e-snapshot.yml) so run-e2e.sh restores it instead of reinstalling
+      # Windows. A miss (no such tag / stale key) is fine — run-e2e.sh falls
+      # back to a full install, so this never gates a run.
+      - name: Pull pre-installed Windows base image (if present)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          VERSION=1.2.0
+          curl -fsSL -o oras.tar.gz \
+            "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+          tar -xzf oras.tar.gz oras && sudo install -m 0755 oras /usr/local/bin/oras
+          PKG="ghcr.io/${{ github.repository_owner }}/wootc-winbase"
+          TAG="${{ inputs.win_version }}-bl-${{ inputs.bitlocker }}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+          mkdir -p /mnt/wootc-snapshot
+          if oras pull "${PKG}:${TAG}" -o /mnt/wootc-snapshot; then
+            echo "WOOTC_E2E_SNAPSHOT_IN=/mnt/wootc-snapshot" >> "$GITHUB_ENV"
+            echo "Restored base image ${PKG}:${TAG}"; ls -lh /mnt/wootc-snapshot
+          else
+            echo "No base image ${PKG}:${TAG}; run-e2e.sh will do a full install"
+          fi
+
+      - name: Run the E2E (restores base image if pulled, else full install)
         env:
           # 16 GB runner: leave headroom for podman + the deployer build.
           WOOTC_E2E_RAM_SIZE: 6G
@@ -61,6 +86,7 @@ jobs:
           WOOTC_E2E_DEPLOY_TIMEOUT: '5400'   # 90 min
           WOOTC_E2E_WIN_VERSION: ${{ inputs.win_version }}
           WOOTC_E2E_BITLOCKER: ${{ inputs.bitlocker }}
+          # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
         run: |
           cd tests/e2e
           bash run-e2e.sh "${{ inputs.image }}"

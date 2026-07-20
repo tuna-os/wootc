@@ -793,6 +793,42 @@ printf '[INFO] BitLocker axis: %s (C: %s)\n' "$E2E_BITLOCKER" \
     "$([ "$E2E_BITLOCKER" = on ] && echo 'auto-encrypted → root.disk needs an unencrypted volume' || echo 'plaintext')" >&2
 info "Windows case: version=$WIN_VERSION edition=$WIN_EDITION"
 
+# ── restore a pristine Windows base image from a GHCR/ORAS snapshot ──────────
+# WOOTC_E2E_SNAPSHOT_IN points at a directory holding a previously-primed base
+# image: a compressed, cleanly-shut-down data.qcow2 + dockur's install markers +
+# a snapshot.key. The key is the answer-file SHA the image was built from; if it
+# matches THIS run's answer file, we drop the image into storage/ and take the
+# existing --skip-install reuse path (which cold-boots the guest and waits on
+# qga_wait_windows). On any mismatch or absence we fall through to a full
+# install — the snapshot is a pure speedup, never a correctness dependency, so a
+# drifted answer file can only cost time, never validity.
+#
+# The image is image-AGNOSTIC and wootc-code-AGNOSTIC: the target bootc image
+# and deployer come from the /shared and /oem volumes (refreshed every run), not
+# from data.qcow2. So one base image per (win_version, bitlocker) axis — which
+# is exactly what ANSWER_SHA folds in — serves every target-image test.
+SNAPSHOT_IN="${WOOTC_E2E_SNAPSHOT_IN:-}"
+if [ "$SKIP_INSTALL" = false ] && [ -n "$SNAPSHOT_IN" ]; then
+    want_key=$( { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}')
+    have_key=$(cat "$SNAPSHOT_IN/snapshot.key" 2>/dev/null | tr -d '[:space:]' || true)
+    if [ -s "$SNAPSHOT_IN/data.qcow2" ] && [ "$have_key" = "$want_key" ]; then
+        info "Restoring pristine Windows base image from $SNAPSHOT_IN (key $want_key)"
+        $COMPOSE -f compose.yml down --volumes 2>/dev/null || true
+        mkdir -p "$STORAGE_DIR"
+        rm -f "$STORAGE_DIR/data.qcow2"
+        cp --reflink=auto --sparse=auto "$SNAPSHOT_IN/data.qcow2" "$STORAGE_DIR/data.qcow2"
+        # dockur's "already installed" markers + our answer-file stamp, so the
+        # reuse path neither reinstalls nor rejects the disk as a case mismatch.
+        for f in "$SNAPSHOT_IN"/windows.* "$SNAPSHOT_IN/.wootc-autounattend.sha256"; do
+            [ -e "$f" ] && cp "$f" "$STORAGE_DIR/"
+        done
+        SKIP_INSTALL=true
+        info "Base image restored; taking the --skip-install reuse path"
+    else
+        info "Snapshot at $SNAPSHOT_IN unusable (key have='${have_key:-none}' want='$want_key'); doing a full install"
+    fi
+fi
+
 if [ "$SKIP_INSTALL" = false ]; then
     # Clean previous run's disk so autounattend runs fresh
     $COMPOSE -f compose.yml down --volumes 2>/dev/null || true
@@ -1094,6 +1130,57 @@ if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
 fi
 qga_wait_windows 2700
 qga_call info || true
+
+# ── prime a pristine Windows base image for GHCR/ORAS ────────────────────────
+# WOOTC_E2E_SNAPSHOT_OUT captures Windows RIGHT HERE — freshly installed and
+# QGA-ready (qemu-ga is installed by dockur's OEM install.bat during setup, so
+# it is already up), but BEFORE run-wootc-e2e.ps1 runs any migration. That is
+# the maximally-reusable "pre-migration" state.
+#
+# Two traps, both avoided by a clean shutdown rather than a live fsfreeze copy
+# (see snapshot_before_deployer's post-mortem above):
+#   1. QEMU must FULLY EXIT before qemu-img touches data.qcow2 — converting a
+#      qcow2 QEMU still holds open yields a subtly corrupt image that only fails
+#      on restore. We power the guest off and bring the container down first.
+#   2. The image must be a CLEANLY shut-down Windows, not dirty NTFS: a frozen-
+#      then-thawed volume keeps its dirty bit set, which is the exact enemy of
+#      the Phase-2 loop attach ("cannot mount host NTFS rw … Dirty volume?").
+# The oras push happens in CI (e2e-snapshot.yml); this only produces the bundle.
+SNAPSHOT_OUT="${WOOTC_E2E_SNAPSHOT_OUT:-}"
+if [ -n "$SNAPSHOT_OUT" ]; then
+    [ "$SKIP_INSTALL" = false ] || { fail "WOOTC_E2E_SNAPSHOT_OUT needs a fresh install; do not combine with --skip-install"; exit 1; }
+    command -v qemu-img >/dev/null 2>&1 || { fail "WOOTC_E2E_SNAPSHOT_OUT requires qemu-img (install qemu-utils)"; exit 1; }
+    step "Priming Windows base image → $SNAPSHOT_OUT (clean shutdown, then compress)"
+    mkdir -p "$SNAPSHOT_OUT"
+
+    # Clean guest shutdown so C:/NTFS is left with its dirty bit CLEAR.
+    qga_powershell 'Stop-Computer -Force' >/dev/null 2>&1 \
+        || qga_call exec /bin/sh -c 'shutdown /s /t 0' >/dev/null 2>&1 || true
+    info "Waiting for the guest to power off cleanly (QGA to go away)..."
+    prime_deadline=$(deadline_in 300)
+    while ! past_deadline "$prime_deadline"; do
+        qga_windows_probe || break   # QGA unreachable == guest powered off
+        sleep 5
+    done
+
+    # Drop the container so nothing holds data.qcow2 open, THEN convert.
+    $COMPOSE -f compose.yml down 2>/dev/null || $DOCKER stop "$CONTAINER_NAME" 2>/dev/null || true
+    [ -s "$STORAGE_DIR/data.qcow2" ] || { fail "prime: data.qcow2 missing/empty after install"; exit 1; }
+
+    step "Compressing base image (qemu-img convert -c → standalone qcow2)..."
+    qemu-img convert -c -O qcow2 "$STORAGE_DIR/data.qcow2" "$SNAPSHOT_OUT/data.qcow2" \
+        || { fail "prime: qemu-img convert failed"; exit 1; }
+    # dockur's installed-markers so a restore does not trigger a reinstall.
+    for f in "$STORAGE_DIR"/windows.*; do [ -e "$f" ] && cp "$f" "$SNAPSHOT_OUT/"; done
+    # The correctness key the restore side validates against (same formula as
+    # ANSWER_SHA), doubling as the answer-file stamp the reuse guard checks.
+    { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}' \
+        > "$SNAPSHOT_OUT/snapshot.key"
+    cp "$SNAPSHOT_OUT/snapshot.key" "$SNAPSHOT_OUT/.wootc-autounattend.sha256"
+    ls -lh "$SNAPSHOT_OUT" >&2 || true
+    pass "Pristine Windows base image ready at $SNAPSHOT_OUT (key $(cat "$SNAPSHOT_OUT/snapshot.key"))"
+    exit 0
+fi
 
 if [ "$SKIP_INSTALL" = true ]; then
     reset_oem_attempt
