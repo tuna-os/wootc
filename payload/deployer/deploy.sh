@@ -1273,7 +1273,28 @@ umount /var/fisherman-tmp 2>/dev/null || true
 [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
 SCRATCH_LOOP=""
 rm -f "$SCRATCH_IMG"
-umount /mnt/ntfs
+
+# Robustly unmount the host NTFS. The composefs verify path can fail to mount the
+# installed root ("checking via loop file only") and leave a loop device or
+# overlay pinning a file under /mnt/ntfs — then a plain `umount /mnt/ntfs` blocks
+# "target is busy" forever and the whole deploy times out without ever rebooting
+# into Phase 2. So: sync, detach any loop still backed by a /mnt/ntfs file,
+# unmount anything nested, then a BOUNDED umount with a lazy fallback. (The sync
+# means a lazy detach is acceptable rather than hanging the deploy; we still try
+# a clean umount first to avoid a dirty-NTFS flag.)
+sync || true
+for _lp in $(losetup -ln -O NAME,BACK-FILE 2>/dev/null | awk '$2 ~ /\/mnt\/ntfs\// {print $1}'); do
+    losetup -d "$_lp" 2>/dev/null || true
+done
+awk '$2 ~ /^\/mnt\/ntfs\// {print $2}' /proc/mounts 2>/dev/null | sort -r | while read -r _m; do
+    umount "$_m" 2>/dev/null || umount -l "$_m" 2>/dev/null || true
+done
+_ntfs_umounted=false
+for _ in 1 2 3 4 5; do umount /mnt/ntfs 2>/dev/null && { _ntfs_umounted=true; break; }; sync; sleep 2; done
+if [ "$_ntfs_umounted" != true ]; then
+    err "  [WARN] /mnt/ntfs still busy after retries; lazy-detaching so the deploy can reboot into Phase 2"
+    umount -l /mnt/ntfs 2>/dev/null || true
+fi
 
 phase "reboot"
 log "Verification complete. Rebooting..."
