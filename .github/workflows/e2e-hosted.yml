@@ -15,6 +15,11 @@ on:
       # handoff, so a full install is the reliable path to Phase 2 — and the only
       # way to diagnose the Phase-2 attach while the restore path is unfixed.
       use_base_image: { type: boolean, default: true }
+      # Rung 3: after Phase 2 boots, graduate the migration onto a BLANK second
+      # disk (wootc-go-native migrate --to-disk) — the full 1→2→3 chain. Gives
+      # the guest a spare 40G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
+      # Windows + root.disk stay untouched, so the run remains reversible.
+      phase3: { type: boolean, default: false }
 
 permissions:
   contents: read
@@ -92,10 +97,15 @@ jobs:
           WOOTC_E2E_DEPLOY_TIMEOUT: '5400'   # 90 min
           WOOTC_E2E_WIN_VERSION: ${{ inputs.win_version }}
           WOOTC_E2E_BITLOCKER: ${{ inputs.bitlocker }}
+          # Rung 3: hand the guest a blank 40G second disk as the graduate target.
+          # Empty string when phase3=false → dockur adds no second disk.
+          WOOTC_E2E_DISK2_SIZE: ${{ inputs.phase3 && '40G' || '' }}
           # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
         run: |
           cd tests/e2e
-          bash run-e2e.sh "${{ inputs.image }}"
+          PHASE3_FLAG=""
+          [ "${{ inputs.phase3 }}" = "true" ] && PHASE3_FLAG="--phase3"
+          bash run-e2e.sh "${{ inputs.image }}" $PHASE3_FLAG
 
       - name: Collect evidence
         if: always()

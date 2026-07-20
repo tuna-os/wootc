@@ -10,6 +10,7 @@ on:
       win_version: { description: 'Dockur version (11, 10, 11e, 11l)', default: '11' }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
       use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
+      phase3: { description: 'Run rung-3 graduate (full 1→2→3 onto a blank 2nd disk)', type: boolean, default: false }
 
 permissions:
   contents: read
@@ -29,3 +30,4 @@ jobs:
       # Default true for scheduled runs (inputs null); a manual run can force a
       # full install with use_base_image=false.
       use_base_image: ${{ github.event.inputs.use_base_image != 'false' }}
+      phase3: ${{ github.event.inputs.phase3 == 'true' }}
