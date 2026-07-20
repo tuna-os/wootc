@@ -7,10 +7,12 @@
 # than buried as a shell string inside run-e2e.sh.
 #
 # THE RULE IS EMPTINESS, NOT "not root".
-# In Phase 2 the running root is /dev/nbd0 (the root.disk loopback on NTFS), so
-# "any disk that isn't root's" cheerfully selects /dev/sda — the Windows disk.
-# Emptiness is what actually identifies the spare drive: no partitions AND no
-# filesystem signature on the whole device.
+# In Phase 2 the running root is a partition on a LOOP device (/dev/loopNpM —
+# root.disk is a raw image attached with losetup since the VHDX→raw switch; it
+# was /dev/nbd0 under the old qemu-nbd path), so "any disk that isn't root's"
+# cheerfully selects /dev/sda — the Windows disk. Emptiness is what actually
+# identifies the spare drive: no partitions AND no filesystem signature on the
+# whole device.
 #
 # Prints the device path and exits 0 on success; prints nothing and exits 1 when
 # no blank disk exists. Failing closed is mandatory — the caller must abort
