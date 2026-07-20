@@ -75,7 +75,7 @@ jobs:
 
       - name: Configure GitHub Pages
         if: success()
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload latest walkthrough to Pages
         if: success()
