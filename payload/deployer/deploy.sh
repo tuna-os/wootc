@@ -637,6 +637,20 @@ LOOP_DEV=""
 phase "verification"
 log "Verifying installed system setup..."
 
+# DURABLE per-stage marker. deployer.log lives on the Windows NTFS mount, so a
+# disturbed mount silently truncates it (the "status from a proxy" trap) — and
+# the serial is overwritten by the Phase-2 boot. This file lives on the DEPLOYED
+# disk's /boot, which survives in data.qcow2 and is reachable with `virt-cat -m
+# <root> /boot/wootc-verify.stage`. It is the authoritative record of exactly how
+# far verify got — the discriminator for a composefs deploy that aborts before
+# the ESP staging (read-only /usr is the leading suspect). VSTAGE_MARK is set
+# once $DEPLOY_ROOT is known (below); vstage() is a no-op until then.
+VSTAGE_MARK=""
+vstage() {
+    [ -n "$VSTAGE_MARK" ] && printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >> "$VSTAGE_MARK" 2>/dev/null || true
+    log "vstage: $*"
+}
+
 # Re-mount the installed disk while its NTFS backing mount is still live.
 # `losetup --find` picks a fresh loop device rather than reusing the previous
 # one, so verification is independent of any teardown race on the old nodes.
@@ -717,6 +731,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # blocked. Each step now announces itself; a hang is identified by which
     # line is LAST rather than by guessing.
     log "  verify: /boot mounted, staging Phase-2 boot support"
+    # /boot is now mounted and writable and survives in data.qcow2 — arm the
+    # durable stage marker. From here every major verify step records itself, so
+    # an abort (read-only /usr under composefs is the leading suspect) is pinned
+    # to an exact stage instead of inferred from a truncated NTFS log.
+    VSTAGE_MARK="$DEPLOY_ROOT/boot/wootc-verify.stage"
+    vstage "verify-start bootloader=$BOOTLOADER composefs=$COMPOSEFS filesystem=$FILESYSTEM"
     # Collect problems in this stretch instead of dying at the first one.
     #
     # Each E2E run costs 40-90 minutes, so aborting on the first fault means one
@@ -753,10 +773,12 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # Install the runtime hook after bootc/fisherman has laid down the target.
     # This is the point at which Phase 2 becomes bootable: the initramfs
     # learns to attach the NTFS-backed VHDX so the root UUID appears.
+    vstage "before-module-copy (writes \$DEPLOY_ROOT/usr — read-only under composefs)"
     log "  verify: copying 99wootc-boot dracut module"
     install -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot"
     cp -a /usr/lib/wootc/99wootc-boot/. \
         "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot/"
+    vstage "after-module-copy"
     log "  verify: dracut module copied (no binary staging needed for raw)"
 
     # NOTHING to stage here any more.
@@ -966,6 +988,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [FAIL] dracut 99wootc-boot module NOT found"
     fi
 
+    vstage "before-userbridge (writes \$DEPLOY_ROOT/usr/local + /usr/share — read-only under composefs)"
     # ── [generic] User Data Bridge (native passthrough) ──────────────────
     # Distro-agnostic: installs units/scripts into the target root. Only
     # its *placement inside* the verification mount is provisioner-hosted.
@@ -1116,6 +1139,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # Secure Boot), so the installed kernel and initramfs must live on the
     # FAT32 ESP. Copy them there and write a Phase-2 grub.cfg with the
     # loop-root cmdline from the patched BLS entries.
+    vstage "before-esp-staging (reaching here means /usr writes all succeeded)"
     log "Syncing Phase-2 kernel to ESP..."
 
     # ESP is partition 1 of the disk containing the NTFS partition.
@@ -1274,6 +1298,7 @@ GRUBEOF
         fi
     fi
 
+    vstage "verify-complete (all stages passed; Phase-2 ESP is staged)"
     umount "$DEPLOY_ROOT/boot"
     umount /mnt/verify
 else

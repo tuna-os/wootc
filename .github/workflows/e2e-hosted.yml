@@ -130,8 +130,21 @@ jobs:
           virt-cat -a "$D" /wootc/logs/deployer.log > /tmp/evidence/deployer.log 2>/dev/null
           echo "=== GUARD VERDICT (from deployer.log) ==="
           grep -aE 'guard:|dracut regen|WIRED|wired|matches=|unit file present' /tmp/evidence/deployer.log 2>/dev/null | tail -15
+          # DURABLE verify-stage marker, written to the DEPLOYED /boot (not the
+          # NTFS-hosted deployer.log, which truncates silently). Its LAST line is
+          # exactly how far verify got — the discriminator for a composefs deploy
+          # that aborts before ESP staging on a read-only /usr write. /boot is an
+          # ext4/xfs partition inside data.qcow2; find and read it directly.
+          echo "=== VERIFY STAGE MARKER (from deployed /boot) ==="
+          for BOOTFS in $(virt-filesystems -a "$D" 2>/dev/null); do
+            virt-cat -a "$D" -m "$BOOTFS" /wootc-verify.stage 2>/dev/null && break
+            virt-cat -a "$D" -m "$BOOTFS" /boot/wootc-verify.stage 2>/dev/null && break
+          done > /tmp/evidence/verify-stage.txt
+          cat /tmp/evidence/verify-stage.txt || echo "(no verify-stage marker — deploy aborted before /boot was mounted, or never reached verify)"
           # The BOOTED Phase-2 initramfs from the ESP: present AND wired?
-          ESP=$(virt-filesystems -a "$D" -l 2>/dev/null | awk '$2=="vfat"{print $1; exit}')
+          # virt-filesystems -l columns: Name Type VFS Label … — VFS (vfat) is
+          # field 3, not 2. (The $2 bug meant this never found the ESP.)
+          ESP=$(virt-filesystems -a "$D" -l 2>/dev/null | awk '$3=="vfat"{print $1; exit}')
           if [ -n "$ESP" ]; then
             virt-cat -a "$D" -m "$ESP" /EFI/wootc/phase2-initramfs.img > /tmp/p2.img 2>/dev/null
             if [ -s /tmp/p2.img ]; then
