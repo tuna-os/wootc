@@ -55,13 +55,28 @@ modprobe fuse  2>/dev/null   # for the ntfs-3g userspace fallback
 modprobe loop max_part=16 2>/dev/null
 
 HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
+# WAIT for the host NTFS to appear — do NOT assume a retry. This runs as a
+# systemd oneshot (the ostree Phase-2 initramfs never drains a dracut initqueue),
+# so there is exactly ONE invocation. The service is ordered After=
+# systemd-udev-trigger, but that only means the trigger was fired, not that udev
+# finished PROCESSING the Windows disk and created its by-uuid symlink. So the
+# device is routinely absent on first look; settle udev and poll, up to ~60s,
+# before giving up. (Previously this returned immediately with "initqueue will
+# retry" — a lie under systemd — so root.disk was never attached and Phase 2
+# timed out into the emergency shell.)
 if [ ! -b "$HOST_DEV" ]; then
-    # Not necessarily fatal: initqueue hooks re-run until the queue drains, so
-    # the host partition may simply not have shown up to udev yet. But if this
-    # is the LAST thing in the log, the device never appeared at all.
-    say "waiting: host NTFS $HOST_DEV not present yet (initqueue will retry)"
+    say "host NTFS $HOST_DEV not present yet; settling udev and waiting up to 60s"
+    _waited=0
+    while [ ! -b "$HOST_DEV" ] && [ "$_waited" -lt 60 ]; do
+        udevadm settle --timeout=3 >/dev/null 2>&1 || sleep 1
+        _waited=$((_waited + 3))
+    done
+fi
+if [ ! -b "$HOST_DEV" ]; then
+    say "EXIT: host NTFS $HOST_DEV never appeared after 60s (udev did not create the by-uuid symlink for the Windows partition). Present by-uuid: $(ls /dev/disk/by-uuid/ 2>/dev/null | tr '\n' ' ')"
     return 0
 fi
+say "host NTFS $HOST_DEV present after ${_waited:-0}s"
 
 HOST_MNT="/run/initramfs/wootc-host"
 mkdir -p "$HOST_MNT"

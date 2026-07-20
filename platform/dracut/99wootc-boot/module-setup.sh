@@ -94,7 +94,9 @@ install() {
     # qemu-nbd), which is exactly why root.disk is a raw image rather than VHDX.
     inst_multiple losetup
 
-    inst_multiple mount mountpoint mkdir modprobe blockdev sleep
+    # udevadm: the attach script settles udev and waits for the Windows NTFS
+    # by-uuid symlink (a oneshot service gets one shot, no initqueue retry).
+    inst_multiple mount mountpoint mkdir modprobe blockdev sleep udevadm
     # The userspace NTFS driver (ntfs-3g) for kernels without ntfs3 is added by
     # the deployer's regen via `dracut --install` — module-level inst does not
     # reliably resolve it there, but a regen-level --install does.
