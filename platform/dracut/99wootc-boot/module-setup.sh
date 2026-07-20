@@ -48,7 +48,22 @@ install() {
     # it to be non-empty — fall back to the canonical path so the unit always
     # lands somewhere systemd will read it.
     local unitdir="${systemdsystemunitdir:-/usr/lib/systemd/system}"
+    # The unit file MUST be present in $moddir, or inst_simple silently installs
+    # nothing and the wants symlink below becomes a dangling link — systemd then
+    # has no unit to start and Phase 2 never attaches root.disk. This exact bug
+    # shipped once because the deployer's own module-setup.sh forgot to stage the
+    # .service into the deployer initramfs. Fail the BUILD instead.
+    if [[ ! -f "$moddir/wootc-attach.service" ]]; then
+        dfatal "wootc-boot: $moddir/wootc-attach.service is missing — cannot install the unit (dangling wants would result)"
+        return 1
+    fi
     inst_simple "$moddir/wootc-attach.service" "$unitdir/wootc-attach.service"
+    # Confirm the unit actually landed in the initramfs tree (not just that the
+    # source existed): a wants symlink to a non-existent unit is a silent no-op.
+    if [[ ! -f "$initdir$unitdir/wootc-attach.service" ]]; then
+        dfatal "wootc-boot: wootc-attach.service did not install into $initdir$unitdir"
+        return 1
+    fi
 
     # Wire it into the initrd root-device bring-up so it actually runs, by
     # creating the wants symlink DIRECTLY, deterministically, in the SAME unit

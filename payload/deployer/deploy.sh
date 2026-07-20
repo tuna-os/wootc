@@ -863,6 +863,19 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         GUARD_HITS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
             | grep -cE 'initrd-root-device.target.wants/wootc-attach.service')
         log "  guard: lsinitrd listed $GUARD_ENTRIES entries, wootc-attach-loop matches=$GUARD_HITS"
+        # The wants symlink alone is NOT enough: it can dangle. Proven the hard
+        # way — the symlink was present but usr/lib/systemd/system/
+        # wootc-attach.service was ABSENT (the deployer initramfs never staged
+        # the unit file), so systemd had no unit to start and root.disk never
+        # attached. Require the actual UNIT FILE too, matched at end-of-line so a
+        # wants symlink of the same name does not satisfy it.
+        GUARD_UNIT=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
+            | grep -cE 'usr/lib/systemd/system/wootc-attach\.service$')
+        log "  guard: wootc-attach.service unit file present=$GUARD_UNIT"
+        if [[ "${GUARD_UNIT:-0}" -lt 1 ]]; then
+            err "  [FAIL] Phase-2 initramfs has the wants symlink but NO wootc-attach.service unit file (dangling) — root.disk would never attach; aborting deploy"
+            exit 1
+        fi
         # With a raw root.disk the hook needs only losetup, which the target
         # image already provides — so there is no staged binary to verify. The
         # hook's own presence is now the whole requirement.

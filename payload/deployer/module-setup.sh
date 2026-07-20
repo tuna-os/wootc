@@ -46,6 +46,15 @@ install() {
     # target's /usr/lib/dracut/modules.d/).
     inst /usr/lib/wootc/99wootc-boot/module-setup.sh
     inst /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh
+    # THE UNIT FILE ITSELF — do not drop this. It was missing here after the
+    # initqueue-hook→systemd-service switch, so the Phase-2 regen's
+    # inst_simple "$moddir/wootc-attach.service" found nothing, silently
+    # installed no unit, yet the wants symlink was still created — a DANGLING
+    # symlink. systemd then had nothing to start: root.disk never attached and
+    # every Phase-2 boot timed out into the emergency shell. Proven by reading
+    # the booted ESP initramfs out of data.qcow2: the .wants symlink was present
+    # but usr/lib/systemd/system/wootc-attach.service was absent.
+    inst /usr/lib/wootc/99wootc-boot/wootc-attach.service
 
     # User Data Bridge (native passthrough) unit files, injected into the
     # installed system during verification the same way as 99wootc-boot.
