@@ -90,7 +90,7 @@ jobs:
           } > NOTES.md
           cat NOTES.md
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: app/wootc.exe
           body_path: NOTES.md
