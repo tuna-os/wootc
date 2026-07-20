@@ -41,13 +41,13 @@ say() {
 # costing a full VM run to tell apart. Announce entry and every exit reason.
 say "attach-loop hook entered (initqueue)"
 
-[ -e /run/wootc-loop-attached ] && return 0
+[ -e /run/wootc-loop-attached ] && exit 0
 
 LOOP_PATH=$(getarg loop=)
 HOST_UUID=$(getarg wootc.host_uuid=)
 if [ -z "$LOOP_PATH" ] || [ -z "$HOST_UUID" ]; then
     say "EXIT: missing kernel args (loop='${LOOP_PATH}' wootc.host_uuid='${HOST_UUID}') — the BLS entry/grub.cfg did not carry them"
-    return 0
+    exit 0
 fi
 
 modprobe ntfs3 2>/dev/null   # kernel driver, if the target ships it
@@ -74,7 +74,7 @@ if [ ! -b "$HOST_DEV" ]; then
 fi
 if [ ! -b "$HOST_DEV" ]; then
     say "EXIT: host NTFS $HOST_DEV never appeared after 60s (udev did not create the by-uuid symlink for the Windows partition). Present by-uuid: $(ls /dev/disk/by-uuid/ 2>/dev/null | tr '\n' ' ')"
-    return 0
+    exit 0
 fi
 say "host NTFS $HOST_DEV present after ${_waited:-0}s"
 
@@ -112,7 +112,7 @@ mount_host() {
 if ! mountpoint -q "$HOST_MNT"; then
     if ! mount_host; then
         say "EXIT: cannot mount host NTFS rw (no ntfs3, no ntfs-3g). Dirty volume? Boot Windows once and full-shutdown; and ensure the image has an NTFS driver. /proc/filesystems ntfs3=$(grep -cw ntfs3 /proc/filesystems 2>/dev/null) ntfs-3g=$(command -v ntfs-3g >/dev/null 2>&1 && echo yes || echo no)"
-        return 0
+        exit 0
     fi
 fi
 say "host NTFS mounted via ${NTFS_DRIVER:-unknown}"
@@ -120,7 +120,7 @@ say "host NTFS mounted via ${NTFS_DRIVER:-unknown}"
 FULL_LOOP_PATH="$HOST_MNT/${LOOP_PATH#/}"
 if [ ! -f "$FULL_LOOP_PATH" ]; then
     say "EXIT: root.disk not found at $FULL_LOOP_PATH (host NTFS mounted OK, so the path or the deploy is wrong)"
-    return 0
+    exit 0
 fi
 
 # losetup, not qemu-nbd. root.disk is a raw image, so the kernel loop driver
@@ -134,7 +134,7 @@ fi
 LOOP_DEV=$(losetup --find --show --partscan "$FULL_LOOP_PATH" 2>/dev/null)
 if [ -z "$LOOP_DEV" ]; then
     say "EXIT: losetup failed to attach $FULL_LOOP_PATH (loop module loaded=$(grep -cw loop /proc/modules 2>/dev/null), losetup=$(command -v losetup >/dev/null 2>&1 && echo yes || echo no))"
-    return 0
+    exit 0
 fi
 blockdev --setra 2048 "$LOOP_DEV" 2>/dev/null
 
@@ -159,4 +159,4 @@ say "attached raw root.disk $FULL_LOOP_PATH as $LOOP_DEV"
 # attach looking successful. Report what actually showed up.
 say "post-attach partitions: $(ls ${LOOP_DEV}p* 2>/dev/null | tr '\n' ' ')"
 say "post-attach by-uuid: $(ls /dev/disk/by-uuid/ 2>/dev/null | tr '\n' ' ')"
-return 0
+exit 0
