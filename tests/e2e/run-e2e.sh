@@ -1844,7 +1844,8 @@ fi
 # ── Step 10: boot the result, not merely its installer ─────────────────────
 if [ "${RUN_PHASE3:-false}" = true ]; then
     step "Rebooting Phase 2 into the one-shot Phase 3 native install..."
-    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
+    qga_call exec /bin/sh -c 'systemctl reboot' 2>/dev/null \
+        || $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"system_reset\n"); s.close()'
     qga_wait_down "Phase 3 native boot"
     qga_wait "Phase 3 native system" 600
     P3_NATIVE_PROOF=$(qga_call exec /bin/sh -c \
@@ -1866,7 +1867,8 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     pass "Phase 3 native system booted from the graduated install (non-loopback)"
 else
     step "Rebooting Phase 2 Linux and verifying return to Windows..."
-    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
+    qga_call exec /bin/sh -c 'systemctl reboot' 2>/dev/null \
+        || $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"system_reset\n"); s.close()'
     qga_wait "Windows return after Phase 2 Linux" 600
     pass "One-shot Phase 2 boot consumed; Windows returned successfully"
 fi
