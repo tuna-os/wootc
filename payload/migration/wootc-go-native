@@ -23,6 +23,13 @@
 
 set -Eeuo pipefail
 
+# GUI launchers and QEMU Guest Agent commands inherit a service-manager PATH,
+# not an interactive shell's. Bluefin installs administrative tools such as
+# podman, bootc, sfdisk, and efibootmgr under /usr/sbin; without an explicit
+# system PATH Phase 3 reaches its verified blank disk and then fails with
+# `podman: command not found` despite the binary being installed.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+
 log()  { printf '[wootc-go-native] %s\n' "$*" >&2; }
 die()  { printf '[wootc-go-native] ERROR: %s\n' "$*" >&2; exit 1; }
 

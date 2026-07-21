@@ -65,6 +65,10 @@ STUB
     [[ "$output" != *" wootc-go-native migrate"* ]]
 }
 
+@test "go-native supplies sbin paths for GUI and QGA service environments" {
+    grep -Fq 'export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"' "$GN"
+}
+
 @test "--phase3 provisions its dedicated blank target and handles none found" {
     grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"' "$E2E_RUNNER"
     grep -Fq -- '- ./storage/phase3:/storage2' "$REPO_ROOT/tests/e2e/compose.yml"
