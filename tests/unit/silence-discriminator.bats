@@ -20,7 +20,7 @@
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-    E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
+    E2E="${E2E:-$REPO_ROOT/tests/e2e/run-e2e.sh}"
 }
 
 @test "run-e2e.sh is syntactically valid" {
@@ -72,4 +72,26 @@ setup() {
 
 @test "the threshold is overridable for slow or busy hosts" {
     grep -q 'WOOTC_E2E_SILENCE_WARN_S' "$E2E"
+}
+
+@test "quiet-deploy heartbeat samples fisherman inside the guest through QGA" {
+    grep -q 'qga_deployer_heartbeat()' "$E2E"
+    grep -q "python3 /tmp/qga.py exec /bin/sh" "$E2E"
+    grep -q 'phase=fisherman pid=.*cpu_ticks=.*read_bytes=.*write_bytes=' "$E2E"
+}
+
+@test "heartbeat is bounded and its thresholds are overridable" {
+    grep -q 'timeout "$WOOTC_E2E_HEARTBEAT_TIMEOUT_S"' "$E2E"
+    grep -q 'WOOTC_E2E_HEARTBEAT_STALE_SAMPLES' "$E2E"
+}
+
+@test "heartbeat cannot become success evidence or an automatic restart" {
+    grep -q 'guest workload counters unchanged.*advisory only' "$E2E"
+    run grep -E '\[HEARTBEAT\].*(DEPLOY_COMPLETE=true|reboot|restart)' "$E2E"
+    [ "$status" -ne 0 ]
+}
+
+@test "unchanged workload counters require repeated samples before warning" {
+    grep -q 'GUEST_HEARTBEAT_STALE_STREAK=.*GUEST_HEARTBEAT_STALE_STREAK + 1' "$E2E"
+    grep -q 'GUEST_HEARTBEAT_STALE_STREAK.*WOOTC_E2E_HEARTBEAT_STALE_SAMPLES' "$E2E"
 }

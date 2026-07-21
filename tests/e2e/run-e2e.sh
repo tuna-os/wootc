@@ -136,6 +136,8 @@ WOOTC_E2E_DEPLOY_TIMEOUT_DEFAULT=5400
 # How long serial may be silent before we check whether the guest is alive.
 # bootc install is legitimately quiet for 10+ minutes, so this must be generous.
 WOOTC_E2E_SILENCE_WARN_S="${WOOTC_E2E_SILENCE_WARN_S:-600}"
+WOOTC_E2E_HEARTBEAT_TIMEOUT_S="${WOOTC_E2E_HEARTBEAT_TIMEOUT_S:-12}"
+WOOTC_E2E_HEARTBEAT_STALE_SAMPLES="${WOOTC_E2E_HEARTBEAT_STALE_SAMPLES:-3}"
 
 WOOTC_E2E_KEEP_RUNS="${WOOTC_E2E_KEEP_RUNS:-3}"
 prune_old_artifacts() {
@@ -432,6 +434,34 @@ qga_powershell() {
 
 qga_read() {
     qga_call read "$1"
+}
+
+# Advisory guest-side progress sample for long quiet deploys. This deliberately
+# measures the fisherman process itself rather than treating QGA availability,
+# host QEMU CPU, or elapsed time as proof of progress. It must never decide
+# success or restart the VM: the explicit serial/persistent-log markers below
+# remain the only completion evidence.
+qga_deployer_heartbeat() {
+    timeout "$WOOTC_E2E_HEARTBEAT_TIMEOUT_S" $DOCKER exec "$CONTAINER_NAME" \
+        python3 /tmp/qga.py exec /bin/sh -c '
+pid=""
+for comm_file in /proc/[0-9]*/comm; do
+    IFS= read -r comm < "$comm_file" || continue
+    if [ "$comm" = fisherman ]; then
+        pid=${comm_file#/proc/}
+        pid=${pid%/comm}
+        break
+    fi
+done
+if [ -z "$pid" ]; then
+    echo "phase=deployer fisherman=absent"
+    exit 0
+fi
+cpu_ticks=$(awk "{print \$14 + \$15}" "/proc/$pid/stat" 2>/dev/null || echo unknown)
+read_bytes=$(awk "/^read_bytes:/ {print \$2}" "/proc/$pid/io" 2>/dev/null || true)
+write_bytes=$(awk "/^write_bytes:/ {print \$2}" "/proc/$pid/io" 2>/dev/null || true)
+echo "phase=fisherman pid=$pid cpu_ticks=${cpu_ticks:-unknown} read_bytes=${read_bytes:-unknown} write_bytes=${write_bytes:-unknown}"
+' 2>/dev/null | tr -d '\r\n'
 }
 
 # A reused Windows VM contains C:\OEM from the original unattended install.
@@ -1286,6 +1316,8 @@ DEPLOY_COMPLETE=false
 DEPLOYER_REBOOT_SEEN=false
 KERNEL_REBOOT_SEEN=false
 WINDOWS_BACK_STREAK=0
+LAST_GUEST_HEARTBEAT=""
+GUEST_HEARTBEAT_STALE_STREAK=0
 PTY="$STORAGE_DIR/qemu.pty"
 
 # Wait for Dockur's serial capture to appear and create the first local
@@ -1454,6 +1486,25 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         # identical and was dead. Only CPU separated them.
         SERIAL_AGE=$(( $(date +%s) - $(stat -c %Y "$PTY" 2>/dev/null || echo 0) ))
         if [ "$SERIAL_AGE" -gt "$WOOTC_E2E_SILENCE_WARN_S" ]; then
+            GUEST_HEARTBEAT=$(qga_deployer_heartbeat || true)
+            if [ -n "$GUEST_HEARTBEAT" ]; then
+                info "[HEARTBEAT] $GUEST_HEARTBEAT"
+                printf '%s [HEARTBEAT] %s\n' "$(date -u +%FT%TZ)" "$GUEST_HEARTBEAT" \
+                    >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
+                if echo "$GUEST_HEARTBEAT" | grep -q 'phase=fisherman'; then
+                    if [ "$GUEST_HEARTBEAT" = "$LAST_GUEST_HEARTBEAT" ]; then
+                        GUEST_HEARTBEAT_STALE_STREAK=$((GUEST_HEARTBEAT_STALE_STREAK + 1))
+                    else
+                        GUEST_HEARTBEAT_STALE_STREAK=0
+                    fi
+                    LAST_GUEST_HEARTBEAT="$GUEST_HEARTBEAT"
+                    if [ "$GUEST_HEARTBEAT_STALE_STREAK" -ge "$WOOTC_E2E_HEARTBEAT_STALE_SAMPLES" ]; then
+                        warn "  guest workload counters unchanged for $GUEST_HEARTBEAT_STALE_STREAK samples (advisory only)"
+                    fi
+                fi
+            else
+                info "[HEARTBEAT] QGA unavailable; guest-side progress unknown"
+            fi
             GUEST_CPU=$($DOCKER exec "$CONTAINER_NAME" sh -c \
                 "ps -eo pcpu,args | grep '[q]emu-system' | head -1 | awk '{print \$1}'" 2>/dev/null | tr -d ' \r\n')
             if [ -z "$GUEST_CPU" ]; then
