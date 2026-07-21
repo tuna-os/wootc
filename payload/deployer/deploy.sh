@@ -173,7 +173,7 @@ fi
 # The staged file is read later (after the NTFS mount); recorded here as a flag.
 DEBUG_SSH_KEY_FILE="/mnt/ntfs/wootc/install/debug_authorized_keys"
 
-case "$BOOTLOADER" in grub2|systemd) ;; *) err "unsupported bootloader: $BOOTLOADER"; exit 1 ;; esac
+case "$BOOTLOADER" in grub2|systemd|auto) ;; *) err "unsupported bootloader: $BOOTLOADER"; exit 1 ;; esac
 case "$COMPOSEFS" in 0|1|auto) ;; *) err "unsupported composefs value: $COMPOSEFS (want 0|1|auto)"; exit 1 ;; esac
 
 case "$LUKS_TYPE" in
@@ -547,16 +547,7 @@ ensure_ntfs_support() {
 }
 ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NTFS support"
 
-# ── Resolve composefs from the IMAGE (distro/image-agnostic) ─────────────────
-# composefs is a property of the target image, not something the caller should
-# have to know. wootc.composefs=auto (the default) inspects the image's
-# /usr/lib/ostree/prepare-root.conf [composefs] enabled and installs to match:
-#   enabled=yes → composeFsBackend=true  (composefs image; does NOT use bootupctl)
-#   otherwise   → composeFsBackend=false (traditional ostree; bootupctl + GRUB)
-# This is load-bearing: a MISMATCH makes the image's own bootc-root-setup.service
-# (ConditionKernelCommandLine=composefs) skip, so the real root is never mounted
-# and Phase 2 drops to an emergency shell (proven: a composefs image installed
-# with composefs=0). An explicit wootc.composefs=0|1 still overrides.
+# ── Resolve deployment backend and bootloader from the image ─────────────
 # Probe the image ONCE for the two independent signals that decide how to deploy:
 #   GRUB=1   → the image ships a signed grub in bootupd (traditional ostree; uses
 #             grub2 + bootupctl). GRUB=0 → it ships only systemd-boot and is a
