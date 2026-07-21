@@ -358,27 +358,22 @@ $COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.y
 # script running. A wall-clock deadline cannot help a loop that never iterates,
 # so the bound has to be here, on the blocking call itself.
 qga_call() {
+    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT:-60}"
+    local tries=3
+    if [ "$timeout_s" -le 5 ]; then tries=1; fi
     local rc=0 try
-    for try in 1 2 3; do
-        if timeout "$QGA_CALL_TIMEOUT" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"; then
+    for try in $(seq 1 $tries); do
+        if timeout "$timeout_s" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"; then
             return 0
         fi
         rc=$?
-        sleep 2
+        sleep 1
     done
     return $rc
 }
 
 qga_probe() {
-    qga_call ping 2>/dev/null &
-    local probe_pid=$!
-    (sleep 5; kill $probe_pid 2>/dev/null) &
-    local kill_pid=$!
-    wait $probe_pid 2>/dev/null
-    local rc=$?
-    kill $kill_pid 2>/dev/null || true
-    wait $kill_pid 2>/dev/null || true
-    return $rc
+    WOOTC_QGA_CALL_TIMEOUT=5 qga_call ping >/dev/null 2>&1 || return 1
 }
 
 qga_wait() {
@@ -423,7 +418,7 @@ qga_wait_reboot() {
 # successful ping alone therefore does not prove that it is safe to launch a
 # Windows PowerShell payload.  Probe the Windows executable explicitly.
 qga_windows_probe() {
-    qga_powershell '$env:OS' >/dev/null 2>&1 || return 1
+    WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' >/dev/null 2>&1 || return 1
 }
 
 qga_wait_windows() {
