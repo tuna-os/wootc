@@ -287,13 +287,16 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
 fi
 DISK="/mnt/ntfs/wootc/disks/root.disk"
 
-# Ensure root.disk is fully allocated on NTFS so ntfs3 never encounters unallocated
-# sparse holes during Phase-2 loopback writes (which causes I/O error).
+# Ensure root.disk is 100% physically allocated on NTFS so kernel ntfs3 never hits
+# unallocated sparse holes during Phase-2 loopback writes (which causes I/O error).
+# fallocate is EOPNOTSUPP on ntfs3 sparse files, so dd with conv=notrunc writes
+# actual physical blocks to fill any sparse holes in root.disk on host NTFS.
 if [[ -f "$DISK" ]]; then
     _disk_size=$(stat -c%s "$DISK" 2>/dev/null || echo 0)
     if [[ "$_disk_size" -gt 0 ]]; then
-        log "preallocating root.disk space (${_disk_size} bytes) on NTFS..."
-        fallocate -l "$_disk_size" "$DISK" 2>/dev/null || truncate -s "$_disk_size" "$DISK" 2>/dev/null || true
+        log "preallocating physical NTFS clusters for root.disk (${_disk_size} bytes)..."
+        dd if=/dev/zero of="$DISK" bs=10M count=$((_disk_size / 10485760 + 1)) conv=notrunc status=none || true
+        sync
     fi
 fi
 
