@@ -51,7 +51,18 @@ podman exec "$BUILDER" sh -c \
 
 echo "+ installing entrypoint wrapper (sshd, then chain to the original entrypoint unmodified)"
 WRAPPER=$(mktemp)
-printf '#!/bin/sh\nmkdir -p /run/sshd\n/usr/sbin/sshd\nexec /usr/bin/tini -s /run/entry.sh\n' > "$WRAPPER"
+cat << 'EOF' > "$WRAPPER"
+#!/bin/sh
+mkdir -p /run/sshd
+/usr/sbin/sshd
+
+while true; do
+  rm -f /run/shm/qemu.end /run/shm/qemu.pid /run/shm/qemu.pty /run/shm/console.pid /run/shm/console.sock
+  /usr/bin/tini -s /run/entry.sh || true
+  echo "[wootc-entrypoint] QEMU exited; restarting in 2 seconds..."
+  sleep 2
+done
+EOF
 podman cp "$WRAPPER" "$BUILDER:/usr/local/bin/wootc-entrypoint.sh"
 rm -f "$WRAPPER"
 podman exec "$BUILDER" chmod +x /usr/local/bin/wootc-entrypoint.sh
