@@ -1551,10 +1551,11 @@ GRUBEOF
     # no-op when the deployer kernel has SELinux disabled. setfiles applies the
     # target policy directly and writes security.selinux xattrs regardless;
     # this was verified against the mounted Bluefin deployment on himachal.
-    if [[ -n "$SELINUX_FILE_CONTEXTS" ]] && chroot "$DEPLOY_ROOT" sh -c 'command -v setfiles >/dev/null 2>&1'; then
+    if [[ -n "$SELINUX_FILE_CONTEXTS" ]] && chroot "$DEPLOY_ROOT" env PATH=/usr/sbin:/sbin:$PATH sh -c 'command -v setfiles >/dev/null 2>&1'; then
         RELABEL_PATHS=()
         for _path in \
             /var/usrlocal \
+            /usr/local \
             /usr/share/applications \
             /usr/share/polkit-1/actions \
             /usr/share/wootc \
@@ -1564,11 +1565,11 @@ GRUBEOF
             /var/lib/wootc; do
             [[ -e "$DEPLOY_ROOT$_path" ]] && RELABEL_PATHS+=("$_path")
         done
-        if ! chroot "$DEPLOY_ROOT" setfiles -F "$SELINUX_FILE_CONTEXTS" "${RELABEL_PATHS[@]}"; then
+        if ! chroot "$DEPLOY_ROOT" env PATH=/usr/sbin:/sbin:$PATH setfiles -F "$SELINUX_FILE_CONTEXTS" "${RELABEL_PATHS[@]}"; then
             err "  [FAIL] setfiles failed for installed runtime payload — enforcing SELinux would deny execution"
             exit 1
         fi
-        GO_NATIVE_CONTEXT=$(chroot "$DEPLOY_ROOT" ls -Zd /usr/local/bin/wootc-go-native 2>/dev/null || true)
+        GO_NATIVE_CONTEXT=$(chroot "$DEPLOY_ROOT" env PATH=/usr/sbin:/sbin:$PATH ls -Zd /usr/local/bin/wootc-go-native 2>/dev/null || true)
         log "  guard: Phase-3 executable SELinux context: ${GO_NATIVE_CONTEXT:-missing}"
         if [[ -f "$DEPLOY_ROOT/usr/local/bin/wootc-go-native" && ( -z "$GO_NATIVE_CONTEXT" || "$GO_NATIVE_CONTEXT" == *"? "* ) ]]; then
             err "  [FAIL] wootc-go-native remains unlabeled after setfiles — Phase 3 would get Permission denied"
