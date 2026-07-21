@@ -763,7 +763,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # /usr/local, /var/tmp, and /var/lib/wootc all target persistent state.
     DEPLOY_VAR_BOUND=false
     if [[ "$DEPLOY_ROOT" == *"/ostree/deploy/"* ]]; then
-        OSTREE_VAR_ROOT="$(dirname "$(dirname "$DEPLOY_ROOT")")/var"
+        DEPLOY_PARENT="${DEPLOY_ROOT%/*}"
+        OSTREE_STATEROOT="${DEPLOY_PARENT%/*}"
+        OSTREE_VAR_ROOT="$OSTREE_STATEROOT/var"
         install -d "$OSTREE_VAR_ROOT" "$DEPLOY_ROOT/var"
         mount --bind "$OSTREE_VAR_ROOT" "$DEPLOY_ROOT/var"
         DEPLOY_VAR_BOUND=true
@@ -805,7 +807,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     if [[ -n "$DEBUG_SSH_KEY" ]]; then
         SSH_ROOTHOME=""
         if [[ "$DEPLOY_ROOT" == *"/ostree/deploy/"* ]]; then
-            SSH_ROOTHOME="$(dirname "$(dirname "$DEPLOY_ROOT")")/var/roothome"
+            DEPLOY_PARENT="${DEPLOY_ROOT%/*}"
+            OSTREE_STATEROOT="${DEPLOY_PARENT%/*}"
+            SSH_ROOTHOME="$OSTREE_STATEROOT/var/roothome"
         elif [[ -d "$DEPLOY_ROOT/var/roothome" ]]; then
             SSH_ROOTHOME="$DEPLOY_ROOT/var/roothome"
         else

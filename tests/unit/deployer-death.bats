@@ -164,6 +164,13 @@ setup() {
     grep -q 'DEPLOY_VAR_BOUND=true' "$DEPLOY"
 }
 
+@test "stateroot paths need no dirname binary in the minimal initramfs" {
+    run grep -nE '^[^#]*dirname' "$DEPLOY"
+    [ "$status" -ne 0 ]
+    grep -Fq 'DEPLOY_PARENT="${DEPLOY_ROOT%/*}"' "$DEPLOY"
+    grep -Fq 'OSTREE_STATEROOT="${DEPLOY_PARENT%/*}"' "$DEPLOY"
+}
+
 @test "nonfatal Phase-2 checks are still collected into one verdict" {
     # Independent verification checks are accumulated, while prerequisites
     # such as a successfully rebuilt initramfs fail closed above.
