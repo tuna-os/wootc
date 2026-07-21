@@ -928,6 +928,13 @@ else
 fi
 
 mkdir -p storage wootc-files
+if [ "${RUN_PHASE3:-false}" = true ]; then
+    # A Phase-3 proof must start with an actually blank disk. Dockur names its
+    # second growable disk data2.qcow2 under /storage2; compose maps only this
+    # dedicated directory there. Remove the prior test target, never data.qcow2.
+    mkdir -p storage/phase3
+    rm -f storage/phase3/data2.qcow2
+fi
 
 # Self-healing container start. Rootless podman occasionally leaves a phantom
 # "podman0 already exists but is a Tun interface" in its network run-state
@@ -1088,6 +1095,14 @@ if [ -z "$QEMU_RAM_MB" ] || [ "$QEMU_RAM_MB" -lt 4096 ]; then
     exit 1
 fi
 pass "QEMU memory allocation is ${QEMU_RAM_MB} MB"
+if [ "${RUN_PHASE3:-false}" = true ]; then
+    if [[ "$QEMU_CMD" != *"/storage2/data2.qcow2"* ]]; then
+        fail "Phase 3 requested, but QEMU has no dedicated /storage2/data2.qcow2 target"
+        capture_vm_diagnostics
+        exit 1
+    fi
+    pass "Phase 3 spare disk attached to QEMU"
+fi
 if [[ "$QEMU_CMD" != *"-tpmdev emulator"* || "$QEMU_CMD" != *"property=secure,value=on"* ]]; then
     fail "Windows 11 VM is missing TPM 2.0 or Secure Boot"
     capture_vm_diagnostics

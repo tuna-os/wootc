@@ -84,6 +84,9 @@ services:
     volumes:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
       - ./storage:/storage
+      # Dockur only creates DISK2_SIZE when /storage2 exists. Keep the Phase-3
+      # graduate target isolated from the Windows disk and normal artifacts.
+      - ./storage/phase3:/storage2
       # Deployer files: deployer-vmlinuz, deployer-initramfs.img,
       # grubx64.efi, grub configs — shared as Samba \\host.lan\Data
       - ./wootc-files:/shared
