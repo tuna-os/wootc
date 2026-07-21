@@ -292,6 +292,7 @@ capture_vm_diagnostics() {
 # mount. Snapshot it into the test directory so every subsequent assertion can
 # inspect the same host-side file without relying on guest networking.
 SERIAL_SOURCE="/run/shm/qemu.pty"
+PTY="${STORAGE_DIR}/qemu.pty"
 # snapshot_serial — copy the guest serial log out of the container.
 #
 # This used to be a bare `cp ... 2>&1` whose failure every caller swallowed with
