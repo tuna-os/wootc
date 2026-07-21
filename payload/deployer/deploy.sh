@@ -1356,8 +1356,8 @@ BLSEOF
                 ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
                 if [[ -n "$ESP_UUID" ]]; then
                     mkdir -p "$DEPLOY_ROOT/etc/wootc"
-                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\nSOURCE_IMAGE_REF=%s\n' \
-                        "$ESP_UUID" "$SOURCE_IMAGE" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
+                        "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
                 fi
                 log "  [PASS] Phase-2 composefs/systemd-boot entry written (root+composefs+loop kargs)"
                 CFS_HANDLED=1
@@ -1395,8 +1395,8 @@ BLSEOF
                 ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
                 if [[ -n "$ESP_UUID" ]]; then
                     mkdir -p "$DEPLOY_ROOT/etc/wootc"
-                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\nSOURCE_IMAGE_REF=%s\n' \
-                        "$ESP_UUID" "$SOURCE_IMAGE" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
+                        "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
                 fi
             else
 
@@ -1508,7 +1508,8 @@ GRUBEOF
                 ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
                 if [[ -n "$ESP_UUID" ]]; then
                     mkdir -p "$DEPLOY_ROOT/etc/wootc"
-                    printf 'HOST_ESP_UUID=%s\nSOURCE_IMAGE_REF=%s\n' "$ESP_UUID" "$SOURCE_IMAGE" \
+                    printf 'HOST_ESP_UUID=%s\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
+                        "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" \
                         > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
                     log "  [PASS] host-esp.conf written (UUID $ESP_UUID)"
                 fi

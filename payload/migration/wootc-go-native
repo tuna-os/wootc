@@ -236,17 +236,22 @@ bootc_local_imgref() {
 # UEFI boot it. Reversible: Windows + root.disk on the original disk are
 # untouched, so this is the dual-boot graduate for a spare/second drive.
 graduate_to_disk_execute() {
-    local target="$1" img newroot mnt=/run/wootc-native
+    local target="$1" img filesystem=xfs newroot mnt=/run/wootc-native
     [[ -b "$target" ]] || die "not a block device: $target"
     [[ "$target" != "$DISK" ]] || die "refusing to install onto the Windows disk ($DISK)"
     img=$(bootc_local_imgref)
-    log "Installing $img onto $target (wipes $target only)…"
+    if [[ -r "$HOSTCONF" ]]; then
+        filesystem=$(grep -oP '^SOURCE_FILESYSTEM=\K\S+' "$HOSTCONF" 2>/dev/null | head -1 || true)
+    fi
+    filesystem=${filesystem:-xfs}
+    case "$filesystem" in xfs|ext4|btrfs) ;; *) die "invalid recorded filesystem: $filesystem" ;; esac
+    log "Installing $img onto $target as $filesystem (wipes $target only)…"
     # Same mechanism as the initial deploy: run bootc from the local image with
     # /dev passed through. bootc partitions the target (ESP+boot+root), installs
     # the ostree deployment, and lays the bootloader via bootupd.
     podman run --rm --privileged --pid=host --security-opt label=disable --net=host \
         -v /var/lib/containers:/var/lib/containers -v /dev:/dev -v /var/tmp:/var/tmp \
-        "$img" bootc install to-disk --generic-image --wipe --karg rw "$target" \
+        "$img" bootc install to-disk --generic-image --wipe --filesystem "$filesystem" --karg rw "$target" \
         || die "bootc install to-disk failed"
 
     # Migrate /home into the new install. On ostree, /home → /var/home in the

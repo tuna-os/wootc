@@ -201,6 +201,11 @@ teardown() {
     refute_disk_touched
 }
 
+@test "Phase-3 native install supplies the deployer-selected filesystem" {
+    grep -Fq -- 'bootc install to-disk --generic-image --wipe --filesystem "$filesystem"' "$GN"
+    grep -Fq 'SOURCE_FILESYSTEM=%s' "$REPO_ROOT/payload/deployer/deploy.sh"
+}
+
 @test "migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched" {
     touch "$WOOTC_GN_HOME/.config/wootc/converted-Documents"
     WOOTC_GN_FORCE_LOOP=0 WOOTC_GN_ROOT_SRC=/dev/sda3 \
