@@ -1361,19 +1361,21 @@ BLSEOF
             # GRUB payloads. Match them by EFI vendor directory so we still
             # install a coherent, target-signed pair.
             if [[ -z "$TARGET_GRUB" ]]; then
-                for grub in "$DEPLOY_ROOT"/usr/lib/efi/grub2/*/EFI/*/grubx64.efi; do
-                    [[ -f "$grub" ]] || continue
-                    vendor_dir=$(basename "$(dirname "$grub")")
-                    for shim in "$DEPLOY_ROOT"/usr/lib/efi/shim/*/EFI/"$vendor_dir"/shimx64.efi; do
-                        [[ -f "$shim" ]] || continue
-                        TARGET_GRUB="$grub"
-                        TARGET_SHIM="$shim"
-                        TARGET_VENDOR="$vendor_dir"
-                        break 2
-                    done
-                done
+                TARGET_GRUB=$(find "$DEPLOY_ROOT/usr/lib/efi/grub2" -type f \
+                    -name grubx64.efi -print -quit 2>/dev/null || true)
+                if [[ -n "$TARGET_GRUB" ]]; then
+                    vendor_dir=$(basename "$(dirname "$TARGET_GRUB")")
+                    TARGET_SHIM=$(find "$DEPLOY_ROOT/usr/lib/efi/shim" -type f \
+                        -path "*/EFI/$vendor_dir/shimx64.efi" -print -quit 2>/dev/null || true)
+                    TARGET_VENDOR="$vendor_dir"
+                fi
             fi
             shopt -u nullglob
+
+            log "  ESP source kernel=${KERNEL_SRC:-missing}"
+            log "  ESP source initramfs=${INITRD_SRC:-missing}"
+            log "  ESP source shim=${TARGET_SHIM:-missing}"
+            log "  ESP source grub=${TARGET_GRUB:-missing}"
 
             if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" ]] && \
                [[ -n "$INITRD_SRC" && -s "$INITRD_SRC" ]] && \
@@ -1390,9 +1392,8 @@ BLSEOF
                 cp "$TARGET_GRUB" /mnt/esp/EFI/fedora/grubx64.efi
                 TARGET_MM="$DEPLOY_ROOT/usr/lib/bootupd/updates/EFI/$TARGET_VENDOR/mmx64.efi"
                 if [[ ! -f "$TARGET_MM" ]]; then
-                    for mm in "$DEPLOY_ROOT"/usr/lib/efi/shim/*/EFI/"$TARGET_VENDOR"/mmx64.efi; do
-                        [[ -f "$mm" ]] && TARGET_MM="$mm" && break
-                    done
+                    TARGET_MM=$(find "$DEPLOY_ROOT/usr/lib/efi/shim" -type f \
+                        -path "*/EFI/$TARGET_VENDOR/mmx64.efi" -print -quit 2>/dev/null || true)
                 fi
                 [[ -f "$TARGET_MM" ]] && cp "$TARGET_MM" /mnt/esp/EFI/fedora/mmx64.efi || true
                 log "  Installed target-signed shim+grub (vendor: $TARGET_VENDOR)"
@@ -1454,6 +1455,8 @@ GRUBEOF
                 rm -f /mnt/esp/EFI/wootc/phase2-vmlinuz /mnt/esp/EFI/wootc/phase2-initramfs.img
                 cp /mnt/ntfs/wootc/install/deployer-vmlinuz /mnt/esp/EFI/wootc/deployer-vmlinuz 2>/dev/null || true
                 cp /mnt/ntfs/wootc/install/deployer-initramfs.img /mnt/esp/EFI/wootc/deployer-initramfs.img 2>/dev/null || true
+                umount /mnt/esp 2>/dev/null || true
+                exit 1
             fi
             fi
             fi   # close CFS_HANDLED guard (generic ostree/BLS staging path)

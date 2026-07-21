@@ -48,7 +48,19 @@ setup() {
 }
 
 @test "ESP staging supports the current versioned shim and GRUB layout" {
-    grep -Fq 'usr/lib/efi/grub2/*/EFI/*/grubx64.efi' "$DEPLOY"
-    grep -Fq 'usr/lib/efi/shim/*/EFI/"$vendor_dir"/shimx64.efi' "$DEPLOY"
-    grep -Fq 'usr/lib/efi/shim/*/EFI/"$TARGET_VENDOR"/mmx64.efi' "$DEPLOY"
+    grep -Fq 'find "$DEPLOY_ROOT/usr/lib/efi/grub2"' "$DEPLOY"
+    grep -Fq '*/EFI/$vendor_dir/shimx64.efi' "$DEPLOY"
+    grep -Fq '*/EFI/$TARGET_VENDOR/mmx64.efi' "$DEPLOY"
+}
+
+@test "ESP staging logs every selected source and fails closed" {
+    grep -Fq 'ESP source kernel=${KERNEL_SRC:-missing}' "$DEPLOY"
+    grep -Fq 'ESP source initramfs=${INITRD_SRC:-missing}' "$DEPLOY"
+    grep -Fq 'ESP source shim=${TARGET_SHIM:-missing}' "$DEPLOY"
+    grep -Fq 'ESP source grub=${TARGET_GRUB:-missing}' "$DEPLOY"
+    local fail_line exit_line
+    fail_line=$(grep -n 'Phase-2 ESP sync failed' "$DEPLOY" | tail -1 | cut -d: -f1)
+    exit_line=$(awk -v start="$fail_line" 'NR > start && /exit 1/ { print NR; exit }' "$DEPLOY")
+    [ -n "$fail_line" ] && [ -n "$exit_line" ]
+    [ "$exit_line" -le $((fail_line + 8)) ]
 }
