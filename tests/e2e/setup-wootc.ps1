@@ -109,17 +109,19 @@ Write-Host "[wootc] Creating root.disk ($DiskSizeGB GB preallocated raw image)..
 $diskPath = "$disksDir\root.disk"
 $sizeBytes = [int64]$DiskSizeGB * 1GB
 
-# Create a physically allocated raw image file.
+# Create a 100% physically allocated raw image file.
 # Physical allocation is required so Linux kernel ntfs3 never encounters
 # unallocated sparse holes during loopback writes (which causes I/O errors).
 if (Test-Path $diskPath) {
     Remove-Item $diskPath -Force
 }
+$buffer = New-Object byte[] (10MB)
+for ($i = 0; $i -lt $buffer.Length; $i++) { $buffer[$i] = 0xFF }
 $fs = [System.IO.File]::Create($diskPath)
-try   {
-    $fs.SetLength($sizeBytes)
-    $fs.Seek($sizeBytes - 1, [System.IO.SeekOrigin]::Begin) | Out-Null
-    $fs.WriteByte(0)
+try {
+    for ($written = 0; $written -lt $sizeBytes; $written += $buffer.Length) {
+        $fs.Write($buffer, 0, $buffer.Length)
+    }
 }
 finally { $fs.Close() }
 
