@@ -457,10 +457,25 @@ if [ -z "$pid" ]; then
     echo "phase=deployer fisherman=absent"
     exit 0
 fi
-cpu_ticks=$(awk "{print \$14 + \$15}" "/proc/$pid/stat" 2>/dev/null || echo unknown)
-read_bytes=$(awk "/^read_bytes:/ {print \$2}" "/proc/$pid/io" 2>/dev/null || true)
-write_bytes=$(awk "/^write_bytes:/ {print \$2}" "/proc/$pid/io" 2>/dev/null || true)
-echo "phase=fisherman pid=$pid cpu_ticks=${cpu_ticks:-unknown} read_bytes=${read_bytes:-unknown} write_bytes=${write_bytes:-unknown}"
+# fisherman delegates the expensive work to podman and then to a bootc process
+# supervised by conmon. The latter is reparented to PID 1, so neither the
+# fisherman PID nor a conventional descendant walk observes its progress.
+# Aggregate the known deployment workers instead.
+cpu_ticks=0
+read_bytes=0
+write_bytes=0
+workers=0
+for worker_pid in $(ps -eo pid=,comm= | awk "\$2 == \"fisherman\" || \$2 == \"podman\" || \$2 == \"bootc\" || \$2 == \"skopeo\" || \$2 == \"conmon\" {print \$1}"); do
+    [ -r "/proc/$worker_pid/stat" ] || continue
+    worker_cpu=$(awk "{print \$14 + \$15}" "/proc/$worker_pid/stat" 2>/dev/null || echo 0)
+    worker_read=$(awk "/^read_bytes:/ {print \$2}" "/proc/$worker_pid/io" 2>/dev/null || echo 0)
+    worker_write=$(awk "/^write_bytes:/ {print \$2}" "/proc/$worker_pid/io" 2>/dev/null || echo 0)
+    cpu_ticks=$((cpu_ticks + ${worker_cpu:-0}))
+    read_bytes=$((read_bytes + ${worker_read:-0}))
+    write_bytes=$((write_bytes + ${worker_write:-0}))
+    workers=$((workers + 1))
+done
+echo "phase=fisherman pid=$pid workers=$workers cpu_ticks=$cpu_ticks read_bytes=$read_bytes write_bytes=$write_bytes"
 ' 2>/dev/null | tr -d '\r\n'
 }
 
