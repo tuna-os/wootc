@@ -127,8 +127,13 @@ setup() {
 
 @test "the generated initramfs guard requires wired OSTree prepare-root" {
     grep -Fq "usr/lib/ostree/ostree-prepare-root$" "$DEPLOY"
-    grep -Fq "initrd-root-fs.target.wants/ostree-prepare-root.service$" "$DEPLOY"
+    grep -Fq "initrd-root-fs.target.wants/ostree-prepare-root.service( ->|$)" "$DEPLOY"
     grep -q 'Phase-2 initramfs lacks wired ostree-prepare-root' "$DEPLOY"
+}
+
+@test "the OSTree wiring guard accepts lsinitrd symlink output" {
+    local listing='lrwxrwxrwx 1 root root 30 Jan 1 1970 usr/lib/systemd/system/initrd-root-fs.target.wants/ostree-prepare-root.service -> ../ostree-prepare-root.service'
+    echo "$listing" | grep -qE 'initrd-root-fs.target.wants/ostree-prepare-root.service( ->|$)'
 }
 
 @test "the deployed chroot has a valid sticky var tmp before dracut" {

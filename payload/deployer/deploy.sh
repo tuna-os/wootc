@@ -1016,7 +1016,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         GUARD_OSTREE_BINARY=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
             | grep -cE 'usr/lib/ostree/ostree-prepare-root$' || true)
         GUARD_OSTREE_WANTS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
-            | grep -cE 'initrd-root-fs.target.wants/ostree-prepare-root.service$' || true)
+            | grep -cE 'initrd-root-fs.target.wants/ostree-prepare-root.service( ->|$)' || true)
         log "  guard: ostree-prepare-root binary=$GUARD_OSTREE_BINARY wired=$GUARD_OSTREE_WANTS"
         if [[ "${GUARD_OSTREE_BINARY:-0}" -lt 1 || "${GUARD_OSTREE_WANTS:-0}" -lt 1 ]]; then
             err "  [FAIL] Phase-2 initramfs lacks wired ostree-prepare-root — switch-root would target the repository top level; aborting deploy"
