@@ -901,8 +901,17 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         REGEN_SIZE=$(wc -c < "${OSTREE_INITRDS[0]}" 2>/dev/null || echo 0)
         log "  Regenerated initramfs size: $((REGEN_SIZE / 1024 / 1024))M"
     else
-        log "  verify: regenerating ALL initramfses (dracut, up to 15m)"
-        if ! timeout 900 chroot "$DEPLOY_ROOT" dracut --force --regenerate-all; then
+        # This branch runs when OSTREE_INITRDS is empty — which is exactly the
+        # composefs-native + systemd-boot case (the kernel/initramfs are NOT
+        # under /boot/ostree/*/, so the glob above finds nothing). It MUST still
+        # inject the loop-attach module: a bare --regenerate-all rebuilds every
+        # initramfs WITHOUT wootc-boot, producing a hookless Phase-2 initramfs —
+        # proven on bonito run 29785623612, where Phase 2 found no
+        # wootc-attach.service, fell back to /dev/gpt-auto-root, and emergency'd.
+        # --add wootc-boot here is what wires the attach service into whatever
+        # initramfs the composefs/systemd-boot path actually boots.
+        log "  verify: regenerating ALL initramfses WITH wootc-boot (dracut, up to 15m)"
+        if ! timeout 900 chroot "$DEPLOY_ROOT" dracut --force --regenerate-all --add wootc-boot; then
             err "  [FAIL] dracut --regenerate-all failed or timed out"
             exit 1
         fi
