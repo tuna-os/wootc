@@ -930,6 +930,10 @@ else
         exit 1
     fi
     ANSWER_REFRESH=false
+    if [ -s "$STORAGE_DIR/data.qcow2.pristine" ]; then
+        info "Restoring pristine Windows disk from $STORAGE_DIR/data.qcow2.pristine before starting VM..."
+        cp --reflink=auto --sparse=auto "$STORAGE_DIR/data.qcow2.pristine" "$STORAGE_DIR/data.qcow2"
+    fi
 fi
 
 mkdir -p storage wootc-files
@@ -1194,6 +1198,17 @@ if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
 fi
 qga_wait_windows 2700
 qga_call info || true
+
+# Preflight: inspect Windows C: filesystem dirty status via QGA
+DIRTY_CHECK=$(qga_powershell 'fsutil dirty query C:' 2>/dev/null | tr -d '\r\n' || true)
+if [ -n "$DIRTY_CHECK" ]; then
+    info "[PREFLIGHT] Windows C: volume status: $DIRTY_CHECK"
+fi
+
+if [ "$SKIP_INSTALL" = false ] && [ -s "$STORAGE_DIR/data.qcow2" ]; then
+    info "Saving pristine base Windows image to $STORAGE_DIR/data.qcow2.pristine..."
+    cp --reflink=auto --sparse=auto "$STORAGE_DIR/data.qcow2" "$STORAGE_DIR/data.qcow2.pristine" 2>/dev/null || true
+fi
 
 # ── prime a pristine Windows base image for GHCR/ORAS ────────────────────────
 # WOOTC_E2E_SNAPSHOT_OUT captures Windows RIGHT HERE — freshly installed and
