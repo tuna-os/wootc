@@ -47,8 +47,8 @@ setup() {
     local entry_line first_return
     entry_line=$(grep -n 'say "attach-loop hook entered' "$HOOK" | head -1 | cut -d: -f1)
     [ -n "$entry_line" ]
-    # first `return 0` that is not inside a comment
-    first_return=$(grep -n '^\s*\[.*\]\s*&&\s*return 0\|^\s*return 0' "$HOOK" | head -1 | cut -d: -f1)
+    # first `return 0` or `exit 0` that is not inside a comment
+    first_return=$(grep -nE '^\s*\[.*\]\s*&&\s*(return|exit) 0|^\s*(return|exit) 0' "$HOOK" | head -1 | cut -d: -f1)
     [ -n "$first_return" ]
     [ "$entry_line" -lt "$first_return" ]
 }

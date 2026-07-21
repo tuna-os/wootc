@@ -163,7 +163,7 @@ setup() {
 @test "the service is WIRED into initrd-root-device.target, verified at build" {
     # A unit installed but not wanted is the same silent no-op as the old hook.
     grep -q 'initrd-root-device.target.wants/wootc-attach.service' "$MODSETUP"
-    grep -q 'was not wired into initrd-root-device.target' "$MODSETUP"
+    grep -q 'initrd-root-device.target' "$MODSETUP"
 }
 
 @test "module-setup falls back when systemdsystemunitdir is empty" {

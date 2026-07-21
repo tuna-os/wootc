@@ -174,7 +174,7 @@ setup() {
 @test "post-install payload is relabeled and Phase-3 label is verified" {
     local install_line setfiles_line verify_line
     install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/usr/local/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
-    setfiles_line=$(grep -n 'chroot "\$DEPLOY_ROOT" setfiles -F' "$DEPLOY" | cut -d: -f1)
+    setfiles_line=$(grep -nE 'chroot "\$DEPLOY_ROOT".*setfiles -F' "$DEPLOY" | cut -d: -f1)
     verify_line=$(grep -n 'Phase-3 executable SELinux context' "$DEPLOY" | cut -d: -f1)
     [ -n "$install_line" ] && [ -n "$setfiles_line" ] && [ -n "$verify_line" ]
     [ "$install_line" -lt "$setfiles_line" ]
