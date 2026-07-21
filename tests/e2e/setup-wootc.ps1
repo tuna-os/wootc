@@ -110,8 +110,9 @@ $diskPath = "$disksDir\root.disk"
 $sizeBytes = [int64]$DiskSizeGB * 1GB
 
 # Create a 100% physically allocated raw image file.
-# Physical allocation is required so Linux kernel ntfs3 never encounters
-# unallocated sparse holes during loopback writes (which causes I/O errors).
+# SetLength alone creates a sparse NTFS file (VDL stays at 0).
+# fsutil file setvaliddata forces VDL = file size, allocating real disk clusters.
+# Without this Linux kernel ntfs3 hits EIO on every write past VDL on loop0.
 if (Test-Path $diskPath) {
     Remove-Item $diskPath -Force
 }
@@ -124,7 +125,14 @@ $actual = (Get-Item $diskPath).Length
 if ($actual -ne $sizeBytes) {
     throw "root.disk is $actual bytes, expected $sizeBytes"
 }
-Write-Host "[wootc] root.disk created: $actual bytes at $diskPath"
+Write-Host "[wootc] root.disk file created: $actual bytes, extending VDL..."
+# fsutil setvaliddata requires SeManageVolumePrivilege (held by SYSTEM).
+$fsutilOut = & fsutil file setvaliddata $diskPath $sizeBytes 2>&1
+Write-Host "[wootc] fsutil setvaliddata: $fsutilOut"
+if ($LASTEXITCODE -ne 0) {
+    throw "fsutil file setvaliddata failed (exit $LASTEXITCODE): $fsutilOut"
+}
+Write-Host "[wootc] root.disk VDL extended to full $DiskSizeGB GB: $diskPath"
 
 Write-Host "[wootc] root.disk created: $diskPath ($DiskSizeGB GB dynamic VHDX)"
 
