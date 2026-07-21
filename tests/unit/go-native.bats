@@ -206,6 +206,11 @@ teardown() {
     grep -Fq 'SOURCE_FILESYSTEM=%s' "$REPO_ROOT/payload/deployer/deploy.sh"
 }
 
+@test "Phase-3 home migration selects a partition, never the whole target disk" {
+    grep -Fq "awk '\$3 == \"part\" { print \$1, \$2 }'" "$GN"
+    grep -Fq 'native install produced no root partition' "$GN"
+}
+
 @test "migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched" {
     touch "$WOOTC_GN_HOME/.config/wootc/converted-Documents"
     WOOTC_GN_FORCE_LOOP=0 WOOTC_GN_ROOT_SRC=/dev/sda3 \

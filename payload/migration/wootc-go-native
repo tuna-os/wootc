@@ -256,7 +256,12 @@ graduate_to_disk_execute() {
 
     # Migrate /home into the new install. On ostree, /home → /var/home in the
     # stateroot (…/ostree/deploy/<stateroot>/var/home).
-    newroot=$(lsblk -bnro PATH,SIZE "$target" 2>/dev/null | sort -k2 -nr | head -1 | awk '{print $1}')
+    # lsblk includes the parent disk as its largest row.  Selecting by size
+    # alone therefore returned /dev/sdb and attempted to mount the partition
+    # table itself.  The installed root is the largest child partition.
+    newroot=$(lsblk -bnro PATH,SIZE,TYPE "$target" 2>/dev/null \
+        | awk '$3 == "part" { print $1, $2 }' | sort -k2 -nr | head -1 | awk '{print $1}')
+    [[ -n "$newroot" ]] || die "native install produced no root partition on $target"
     log "Migrating /home to the native install on $newroot…"
     mkdir -p "$mnt"; mount "$newroot" "$mnt" || die "cannot mount $newroot"
     local dest="$mnt/home"
