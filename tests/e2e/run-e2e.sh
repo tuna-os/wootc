@@ -396,16 +396,16 @@ qga_wait() {
 
 qga_wait_down() {
     local label="$1" timeout="${2:-120}" elapsed=0
-    info "Waiting for QGA to go away before $label..."
+    info "Waiting for Windows QGA to go away before $label..."
     local deadline; deadline=$(deadline_in "$timeout")
     while ! past_deadline "$deadline"; do
-        if ! qga_probe; then
+        if ! qga_windows_probe; then
             return 0
         fi
         sleep 5
         elapsed=$((elapsed + 5))
     done
-    fail "QGA did not go away before $label"
+    fail "Windows QGA did not go away before $label"
     return 1
 }
 
