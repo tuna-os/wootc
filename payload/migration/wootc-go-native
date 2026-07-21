@@ -50,6 +50,7 @@ on_loopback() {
     local src; src=$(root_source)
     [[ "$src" == /dev/nbd* ]] && return 0
     [[ -e /run/wootc-loop-attached ]] && return 0
+    grep -qE '(^| )(loop|wootc\.rootdisk)=' /proc/cmdline 2>/dev/null && return 0
     return 1
 }
 
@@ -213,9 +214,19 @@ Commands:
 PLAN
 }
 
-# bootc_local_imgref — the image ref already in local container/ostree storage
-# (so the graduate reuses it with no network). Best-effort discovery.
+# bootc_local_imgref — the deployer's authoritative registry origin.  `bootc
+# status` reports the transient localhost/wootc-ntfs-injected tag when Phase 2
+# needed an NTFS compatibility layer, but that tag belonged to the deployer's
+# separate containers-storage and cannot be pulled in the installed system.
 bootc_local_imgref() {
+    local configured=""
+    if [[ -r "$HOSTCONF" ]]; then
+        configured=$(grep -oP '^SOURCE_IMAGE_REF=\K\S+' "$HOSTCONF" 2>/dev/null | head -1 || true)
+    fi
+    if [[ "$configured" =~ ^[a-zA-Z0-9._-]+([.:][a-zA-Z0-9._-]+)*/[a-zA-Z0-9._/-]+(:[a-zA-Z0-9._-]+|@sha256:[a-fA-F0-9]{64})?$ ]]; then
+        echo "$configured"
+        return 0
+    fi
     bootc status --json 2>/dev/null | grep -oP '"image":\s*"\K[^"]+' | head -1 \
         || echo "ghcr.io/tuna-os/yellowfin:gnome"
 }

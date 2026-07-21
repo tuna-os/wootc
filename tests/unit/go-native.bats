@@ -189,6 +189,18 @@ teardown() {
     refute_disk_touched
 }
 
+@test "Phase-3 plan uses recorded registry origin, not deployer-local derived tag" {
+    local conf="$TMP/host-esp.conf"
+    printf 'HOST_ESP_UUID=TEST\nSOURCE_IMAGE_REF=ghcr.io/ublue-os/bluefin:latest\n' > "$conf"
+    WOOTC_GN_HOSTCONF="$conf" WOOTC_GN_FORCE_LOOP=1 \
+        WOOTC_GN_DISK=/dev/sda WOOTC_GN_NTFS=/dev/sda2 WOOTC_GN_ESP=/dev/sda1 \
+        run bash "$GN" migrate --dual-boot
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"containers-storage:ghcr.io/ublue-os/bluefin:latest"* ]]
+    [[ "$output" != *"wootc-ntfs-injected"* ]]
+    refute_disk_touched
+}
+
 @test "migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched" {
     touch "$WOOTC_GN_HOME/.config/wootc/converted-Documents"
     WOOTC_GN_FORCE_LOOP=0 WOOTC_GN_ROOT_SRC=/dev/sda3 \
