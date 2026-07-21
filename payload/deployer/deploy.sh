@@ -1518,9 +1518,20 @@ GRUBEOF
     # /var is still bound to the real OSTree stateroot here, so relabeling
     # /usr/local reaches the exact files the running system will see.
     log "  verify: applying target SELinux labels to post-install payload"
-    if chroot "$DEPLOY_ROOT" sh -c 'command -v restorecon >/dev/null 2>&1'; then
-        if ! chroot "$DEPLOY_ROOT" restorecon -RF \
-            /usr/local \
+    SELINUX_FILE_CONTEXTS=""
+    for _fc in "$DEPLOY_ROOT"/etc/selinux/*/contexts/files/file_contexts; do
+        if [[ -f "$_fc" ]]; then
+            SELINUX_FILE_CONTEXTS="${_fc#"$DEPLOY_ROOT"}"
+            break
+        fi
+    done
+    # restorecon is deliberately not used here. It returns success but is a
+    # no-op when the deployer kernel has SELinux disabled. setfiles applies the
+    # target policy directly and writes security.selinux xattrs regardless;
+    # this was verified against the mounted Bluefin deployment on himachal.
+    if [[ -n "$SELINUX_FILE_CONTEXTS" ]] && chroot "$DEPLOY_ROOT" sh -c 'command -v setfiles >/dev/null 2>&1'; then
+        RELABEL_PATHS=()
+        for _path in \
             /var/usrlocal \
             /usr/share/applications \
             /usr/share/polkit-1/actions \
@@ -1528,18 +1539,21 @@ GRUBEOF
             /etc/systemd/system \
             /etc/xdg/autostart \
             /etc/wootc \
-            /var/lib/wootc; then
-            err "  [FAIL] restorecon failed for installed runtime payload — enforcing SELinux would deny execution"
+            /var/lib/wootc; do
+            [[ -e "$DEPLOY_ROOT$_path" ]] && RELABEL_PATHS+=("$_path")
+        done
+        if ! chroot "$DEPLOY_ROOT" setfiles -F "$SELINUX_FILE_CONTEXTS" "${RELABEL_PATHS[@]}"; then
+            err "  [FAIL] setfiles failed for installed runtime payload — enforcing SELinux would deny execution"
             exit 1
         fi
         GO_NATIVE_CONTEXT=$(chroot "$DEPLOY_ROOT" ls -Zd /usr/local/bin/wootc-go-native 2>/dev/null || true)
         log "  guard: Phase-3 executable SELinux context: ${GO_NATIVE_CONTEXT:-missing}"
         if [[ -f "$DEPLOY_ROOT/usr/local/bin/wootc-go-native" && ( -z "$GO_NATIVE_CONTEXT" || "$GO_NATIVE_CONTEXT" == *"? "* ) ]]; then
-            err "  [FAIL] wootc-go-native remains unlabeled after restorecon — Phase 3 would get Permission denied"
+            err "  [FAIL] wootc-go-native remains unlabeled after setfiles — Phase 3 would get Permission denied"
             exit 1
         fi
     elif [[ -f "$DEPLOY_ROOT/usr/local/bin/wootc-go-native" ]]; then
-        err "  [FAIL] target has Phase-3 executable but no restorecon — cannot make it executable under enforcing SELinux"
+        err "  [FAIL] target has Phase-3 executable but no setfiles policy/tool — cannot make it executable under enforcing SELinux"
         exit 1
     fi
 

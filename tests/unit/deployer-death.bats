@@ -172,15 +172,18 @@ setup() {
 }
 
 @test "post-install payload is relabeled and Phase-3 label is verified" {
-    local install_line restore_line verify_line
+    local install_line setfiles_line verify_line
     install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/usr/local/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
-    restore_line=$(grep -n 'chroot "\$DEPLOY_ROOT" restorecon -RF' "$DEPLOY" | cut -d: -f1)
+    setfiles_line=$(grep -n 'chroot "\$DEPLOY_ROOT" setfiles -F' "$DEPLOY" | cut -d: -f1)
     verify_line=$(grep -n 'Phase-3 executable SELinux context' "$DEPLOY" | cut -d: -f1)
-    [ -n "$install_line" ] && [ -n "$restore_line" ] && [ -n "$verify_line" ]
-    [ "$install_line" -lt "$restore_line" ]
-    [ "$restore_line" -lt "$verify_line" ]
+    [ -n "$install_line" ] && [ -n "$setfiles_line" ] && [ -n "$verify_line" ]
+    [ "$install_line" -lt "$setfiles_line" ]
+    [ "$setfiles_line" -lt "$verify_line" ]
     grep -q '^            /var/usrlocal \\' "$DEPLOY"
-    grep -q 'wootc-go-native remains unlabeled' "$DEPLOY"
+    grep -q 'wootc-go-native remains unlabeled after setfiles' "$DEPLOY"
+    # restorecon silently succeeds without writing xattrs under selinux=0.
+    run grep -nE '^[^#]*chroot .*restorecon' "$DEPLOY"
+    [ "$status" -ne 0 ]
 }
 
 @test "nonfatal Phase-2 checks are still collected into one verdict" {
