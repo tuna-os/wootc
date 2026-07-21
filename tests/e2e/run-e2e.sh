@@ -423,7 +423,7 @@ qga_wait_reboot() {
 # successful ping alone therefore does not prove that it is safe to launch a
 # Windows PowerShell payload.  Probe the Windows executable explicitly.
 qga_windows_probe() {
-    qga_powershell '$env:OS' >/dev/null 2>&1
+    qga_powershell '$env:OS' >/dev/null 2>&1 || return 1
 }
 
 qga_wait_windows() {
