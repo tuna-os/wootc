@@ -115,14 +115,8 @@ $sizeBytes = [int64]$DiskSizeGB * 1GB
 if (Test-Path $diskPath) {
     Remove-Item $diskPath -Force
 }
-$buffer = New-Object byte[] (10MB)
-for ($i = 0; $i -lt $buffer.Length; $i++) { $buffer[$i] = 0xFF }
 $fs = [System.IO.File]::Create($diskPath)
-try {
-    for ($written = 0; $written -lt $sizeBytes; $written += $buffer.Length) {
-        $fs.Write($buffer, 0, $buffer.Length)
-    }
-}
+try   { $fs.SetLength($sizeBytes) }
 finally { $fs.Close() }
 
 if (-not (Test-Path $diskPath)) { throw "Failed to create raw image at $diskPath" }
