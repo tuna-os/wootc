@@ -1458,9 +1458,9 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             KERNEL_REBOOT_SEEN=true
             info "wootc: kernel reboot observed (not proof of a successful deploy)"
         fi
-        if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]"; then
+        if echo "$NEW_OUTPUT" | grep -qE "fatal|panic|kernel panic|\[FAIL\]|\[wootc\] ERROR:"; then
             fail "Deployer error:"
-            echo "$NEW_OUTPUT" | grep -E "fatal|panic|kernel panic|\[FAIL\]"
+            echo "$NEW_OUTPUT" | grep -E "fatal|panic|kernel panic|\[FAIL\]|\[wootc\] ERROR:"
             break
         fi
         LAST_BYTE=$CURRENT_BYTE

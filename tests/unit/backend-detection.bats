@@ -40,3 +40,15 @@ setup() {
     run grep -F 'image exposes neither a signed bootupd GRUB nor systemd-boot-only backend' "$DEPLOY"
     [ "$status" -eq 0 ]
 }
+
+@test "current bootupd versioned EFI layout is recognized as ostree" {
+    grep -Fq 'test -f /usr/lib/bootupd/updates/EFI.json' "$DEPLOY"
+    grep -Fq 'find /usr/lib/efi/grub2 -type f -name grubx64.efi' "$DEPLOY"
+    grep -Fq 'find /usr/lib/efi/shim -type f -name shimx64.efi' "$DEPLOY"
+}
+
+@test "ESP staging supports the current versioned shim and GRUB layout" {
+    grep -Fq 'usr/lib/efi/grub2/*/EFI/*/grubx64.efi' "$DEPLOY"
+    grep -Fq 'usr/lib/efi/shim/*/EFI/"$vendor_dir"/shimx64.efi' "$DEPLOY"
+    grep -Fq 'usr/lib/efi/shim/*/EFI/"$TARGET_VENDOR"/mmx64.efi' "$DEPLOY"
+}

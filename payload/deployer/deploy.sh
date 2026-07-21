@@ -549,7 +549,10 @@ ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NT
 
 # ── Resolve deployment backend and bootloader from the image ─────────────
 # Probe the image ONCE for the two independent signals that decide how to deploy:
-#   BACKEND=ostree → the image ships signed GRUB in bootupd.
+#   BACKEND=ostree → the image ships signed GRUB in bootupd. bootupd 0.2.x
+#             stored the binaries below updates/EFI/<vendor>; current Fedora
+#             stores versioned binaries below /usr/lib/efi and keeps only
+#             EFI.json below bootupd/updates.
 #   BACKEND=composefs-native → it ships systemd-boot but no bootupctl. Unknown
 #             or failed probes abort rather than guessing from missing evidence.
 #   SEALED=1 → the ostree rootfs is composefs-SEALED (prepare-root.conf [composefs]
@@ -561,7 +564,10 @@ ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NT
 # ship bootupctl + grubx64.efi (ostree). wootc.composefs / wootc.bootloader override.
 if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
     if ! DETECT="$(podman run --rm --network=host "$IMAGE" sh -c '
-        if ls /usr/lib/bootupd/updates/EFI/*/grubx64.efi >/dev/null 2>&1; then
+        if { ls /usr/lib/bootupd/updates/EFI/*/grubx64.efi >/dev/null 2>&1 ||
+             { test -f /usr/lib/bootupd/updates/EFI.json &&
+               find /usr/lib/efi/grub2 -type f -name grubx64.efi -print -quit 2>/dev/null | grep -q . &&
+               find /usr/lib/efi/shim -type f -name shimx64.efi -print -quit 2>/dev/null | grep -q .; }; }; then
             echo BACKEND=ostree
         elif test -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi && ! command -v bootupctl >/dev/null 2>&1; then
             echo BACKEND=composefs-native
@@ -1339,6 +1345,22 @@ BLSEOF
                     break
                 fi
             done
+            # bootupd's current Fedora layout separates versioned shim and
+            # GRUB payloads. Match them by EFI vendor directory so we still
+            # install a coherent, target-signed pair.
+            if [[ -z "$TARGET_GRUB" ]]; then
+                for grub in "$DEPLOY_ROOT"/usr/lib/efi/grub2/*/EFI/*/grubx64.efi; do
+                    [[ -f "$grub" ]] || continue
+                    vendor_dir=$(basename "$(dirname "$grub")")
+                    for shim in "$DEPLOY_ROOT"/usr/lib/efi/shim/*/EFI/"$vendor_dir"/shimx64.efi; do
+                        [[ -f "$shim" ]] || continue
+                        TARGET_GRUB="$grub"
+                        TARGET_SHIM="$shim"
+                        TARGET_VENDOR="$vendor_dir"
+                        break 2
+                    done
+                done
+            fi
             shopt -u nullglob
 
             if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" ]] && \
@@ -1354,8 +1376,13 @@ BLSEOF
                 # Phase-2, not the deployer).
                 cp "$TARGET_SHIM" /mnt/esp/EFI/fedora/shimx64.efi
                 cp "$TARGET_GRUB" /mnt/esp/EFI/fedora/grubx64.efi
-                cp "$DEPLOY_ROOT/usr/lib/bootupd/updates/EFI/$TARGET_VENDOR/mmx64.efi" \
-                   /mnt/esp/EFI/fedora/mmx64.efi 2>/dev/null || true
+                TARGET_MM="$DEPLOY_ROOT/usr/lib/bootupd/updates/EFI/$TARGET_VENDOR/mmx64.efi"
+                if [[ ! -f "$TARGET_MM" ]]; then
+                    for mm in "$DEPLOY_ROOT"/usr/lib/efi/shim/*/EFI/"$TARGET_VENDOR"/mmx64.efi; do
+                        [[ -f "$mm" ]] && TARGET_MM="$mm" && break
+                    done
+                fi
+                [[ -f "$TARGET_MM" ]] && cp "$TARGET_MM" /mnt/esp/EFI/fedora/mmx64.efi || true
                 log "  Installed target-signed shim+grub (vendor: $TARGET_VENDOR)"
 
                 # Kernel cmdline from the patched BLS entry (keeps root=UUID
