@@ -20,6 +20,10 @@ on:
       # the guest a spare 40G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
       # Windows + root.disk stay untouched, so the run remains reversible.
       phase3: { type: boolean, default: false }
+      # Force the Phase-2 bootloader (grub2|systemd). Empty = run-e2e.sh's
+      # per-image heuristic (EL→grub2, else→systemd). Ostree images (e.g.
+      # bluefin) want grub2 (the proven attach path); composefs wants systemd.
+      bootloader: { type: string, default: '' }
 
 permissions:
   contents: read
@@ -100,6 +104,8 @@ jobs:
           # Rung 3: hand the guest a blank 40G second disk as the graduate target.
           # Empty string when phase3=false → dockur adds no second disk.
           WOOTC_E2E_DISK2_SIZE: ${{ inputs.phase3 && '40G' || '' }}
+          # Empty string → run-e2e.sh's per-image heuristic picks the bootloader.
+          WOOTC_E2E_BOOTLOADER: ${{ inputs.bootloader }}
           # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
         run: |
           cd tests/e2e

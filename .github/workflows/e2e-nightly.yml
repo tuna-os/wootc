@@ -11,6 +11,7 @@ on:
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
       use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
       phase3: { description: 'Run rung-3 graduate (full 1→2→3 onto a blank 2nd disk)', type: boolean, default: false }
+      bootloader: { description: 'Force Phase-2 bootloader: grub2 (ostree) | systemd (composefs) | blank=auto', type: string, default: '' }
 
 permissions:
   contents: read
@@ -31,3 +32,4 @@ jobs:
       # full install with use_base_image=false.
       use_base_image: ${{ github.event.inputs.use_base_image != 'false' }}
       phase3: ${{ github.event.inputs.phase3 == 'true' }}
+      bootloader: ${{ github.event.inputs.bootloader || '' }}
