@@ -147,6 +147,13 @@ setup() {
     grep -q 'inst_simple "$moddir/wootc-attach.service"' "$MODSETUP"
 }
 
+@test "Phase-2 prefers the proven plain ntfs3 mount and preserves FUSE fallback" {
+    grep -q 'mount -t ntfs3 -o rw "\$HOST_DEV" "\$HOST_MNT"' "$HOOK"
+    run grep -n 'nobarrier,async,prealloc' "$HOOK"
+    [ "$status" -ne 0 ]
+    grep -q '^KillMode=process$' "$REPO_ROOT/platform/dracut/99wootc-boot/wootc-attach.service"
+}
+
 @test "the service is ordered before sysroot.mount and after udev" {
     local svc="$REPO_ROOT/platform/dracut/99wootc-boot/wootc-attach.service"
     grep -qE 'Before=.*sysroot.mount|Before=.*initrd-root-device.target' "$svc"

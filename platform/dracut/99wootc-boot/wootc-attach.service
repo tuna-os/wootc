@@ -26,6 +26,12 @@ ConditionKernelCommandLine=loop
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# If a kernel has no ntfs3, ntfs-3g leaves a FUSE daemon in this service's
+# cgroup. initrd cleanup stops the oneshot before switch-root; KillMode=control-
+# group would kill that daemon and turn the already-mounted loop root into EIO.
+# The shell main process has exited by then, so process mode preserves only the
+# backing daemon that the real root still needs.
+KillMode=process
 # The script is re-entrant (returns 0 once /run/wootc-loop-attached exists) and
 # self-diagnosing (writes every exit reason to /dev/console and kmsg).
 ExecStart=/bin/sh /usr/lib/wootc/wootc-attach-loop.sh
