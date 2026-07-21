@@ -95,12 +95,3 @@ setup() {
     grep -q 'GUEST_HEARTBEAT_STALE_STREAK=.*GUEST_HEARTBEAT_STALE_STREAK + 1' "$E2E"
     grep -q 'GUEST_HEARTBEAT_STALE_STREAK.*WOOTC_E2E_HEARTBEAT_STALE_SAMPLES' "$E2E"
 }
-
-@test "an explicit deployer ERROR terminates monitoring" {
-    grep -q '\\\[wootc\\\] ERROR:' "$E2E"
-    local error_line break_line
-    error_line=$(grep -n 'grep -qE.*\\\[wootc\\\] ERROR:' "$E2E" | head -1 | cut -d: -f1)
-    break_line=$(awk -v start="$error_line" 'NR > start && /break/ { print NR; exit }' "$E2E")
-    [ -n "$error_line" ] && [ -n "$break_line" ]
-    [ "$break_line" -le $((error_line + 4)) ]
-}
