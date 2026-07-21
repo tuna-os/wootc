@@ -33,7 +33,7 @@ install() {
         fsfreeze fstrim swapon swapoff fuser \
         useradd chpasswd \
         curl dhclient ip NetworkManager \
-        mount umount mountpoint reboot sleep cat sed grep cut sync \
+        mount umount mountpoint reboot sleep cat sed grep cut sync tr \
         shred chroot install udevadm jq truncate fallocate dd df awk qemu-ga journalctl \
         tee which basename date chown cp ln ls mkdir head wc tail
 

@@ -289,13 +289,14 @@ DISK="/mnt/ntfs/wootc/disks/root.disk"
 
 # Ensure root.disk is 100% physically allocated on NTFS so kernel ntfs3 never hits
 # unallocated sparse holes during Phase-2 loopback writes (which causes I/O error).
-# fallocate is EOPNOTSUPP on ntfs3 sparse files, so dd with conv=notrunc writes
-# actual physical blocks to fill any sparse holes in root.disk on host NTFS.
+# fallocate is EOPNOTSUPP on ntfs3 sparse files, and /dev/zero is converted to sparse
+# holes by ntfs3. Writing non-zero (0xFF) bytes forces ntfs3 to allocate real physical
+# NTFS clusters on disk for every block.
 if [[ -f "$DISK" ]]; then
     _disk_size=$(stat -c%s "$DISK" 2>/dev/null || echo 0)
     if [[ "$_disk_size" -gt 0 ]]; then
         log "preallocating physical NTFS clusters for root.disk (${_disk_size} bytes)..."
-        dd if=/dev/zero of="$DISK" bs=10M count=$((_disk_size / 10485760 + 1)) conv=notrunc status=none || true
+        tr '\0' '\377' < /dev/zero | dd of="$DISK" bs=10M count=$((_disk_size / 10485760 + 1)) conv=notrunc status=none || true
         sync
     fi
 fi
