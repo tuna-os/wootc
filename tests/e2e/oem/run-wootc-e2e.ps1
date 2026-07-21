@@ -25,7 +25,7 @@ function Write-E2ESerial([string]$Message) {
 function Write-E2ELog([string]$Message) {
     $line = "$(Get-Date -Format o) [wootc-e2e] $Message"
     Write-Host $line
-    Add-Content -Path $logPath -Value $line
+    try { Add-Content -Path $logPath -Value $line -ErrorAction SilentlyContinue } catch {}
     Write-E2ESerial "[wootc-oem] $Message"
 }
 
@@ -60,7 +60,11 @@ try {
         PayloadDir = "$oemDir\payload"
     }
     if ($cfg.ComposeFs -eq "1") { $setupArgs.ComposeFs = $true }
-    & "$oemDir\setup-wootc.ps1" @setupArgs *>&1 | Tee-Object -FilePath $logPath -Append
+    try {
+        & "$oemDir\setup-wootc.ps1" @setupArgs *>&1 | Tee-Object -FilePath $logPath -Append
+    } catch {
+        & "$oemDir\setup-wootc.ps1" @setupArgs
+    }
 
     # Stamp the run id, not a constant. The host barrier requires this to match
     # the run it is currently driving; a bare "ok" is indistinguishable from a
