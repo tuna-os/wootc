@@ -45,6 +45,8 @@ services:
       BOOT_MODE: "windows_secure"   # UEFI + Secure Boot
       TPM: "Y"                      # Windows 11 setup requires TPM 2.0
       MANUAL: "N"                   # Fully unattended install
+      SHUTDOWN: "N"                 # Disable Dockur's 110s shutdown SIGTERM timer
+      QEMU_TIMEOUT: "7200"          # 2h safety floor for long image unpacking
       LANGUAGE: "en-US"
       KEYBOARD: "en-US"
       # Keep SERIAL at Dockur's default (mon:stdio) — Dockur reads the
