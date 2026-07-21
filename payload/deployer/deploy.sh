@@ -549,9 +549,9 @@ ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NT
 
 # ── Resolve deployment backend and bootloader from the image ─────────────
 # Probe the image ONCE for the two independent signals that decide how to deploy:
-#   GRUB=1   → the image ships a signed grub in bootupd (traditional ostree; uses
-#             grub2 + bootupctl). GRUB=0 → it ships only systemd-boot and is a
-#             composefs-NATIVE image that MUST be installed with --composefs-backend.
+#   BACKEND=ostree → the image ships signed GRUB in bootupd.
+#   BACKEND=composefs-native → it ships systemd-boot but no bootupctl. Unknown
+#             or failed probes abort rather than guessing from missing evidence.
 #   SEALED=1 → the ostree rootfs is composefs-SEALED (prepare-root.conf [composefs]
 #             enabled). This needs fs-verity → ext4 — INDEPENDENT of the backend,
 #             because traditional-ostree images (bluefin, bonito) are sealed too.
@@ -560,19 +560,31 @@ ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NT
 # on himachal: dakota/marlin ship no grub + systemd-boot (native); bluefin/bonito
 # ship bootupctl + grubx64.efi (ostree). wootc.composefs / wootc.bootloader override.
 if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
-    DETECT="$(podman run --rm --network=host "$IMAGE" sh -c '
-        ls /usr/lib/bootupd/updates/EFI/*/grubx64.efi >/dev/null 2>&1 && echo GRUB=1 || echo GRUB=0
+    if ! DETECT="$(podman run --rm --network=host "$IMAGE" sh -c '
+        if ls /usr/lib/bootupd/updates/EFI/*/grubx64.efi >/dev/null 2>&1; then
+            echo BACKEND=ostree
+        elif test -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi && ! command -v bootupctl >/dev/null 2>&1; then
+            echo BACKEND=composefs-native
+        else
+            echo BACKEND=unknown
+        fi
         grep -A8 "^\[composefs\]" /usr/lib/ostree/prepare-root.conf 2>/dev/null \
           | grep -qiE "enabled[[:space:]]*=[[:space:]]*(yes|true|1|signed)" && echo SEALED=1 || echo SEALED=0
-    ' 2>/dev/null)"
-    if grep -q 'GRUB=1' <<<"$DETECT"; then
+    ' 2>/dev/null)"; then
+        err "failed to inspect image for deployment backend: $IMAGE"
+        exit 1
+    fi
+    if grep -q '^BACKEND=ostree$' <<<"$DETECT"; then
         [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=0
         [[ "$BOOTLOADER" == auto ]] && BOOTLOADER=grub2
         log "  backend: image ships signed grub → traditional ostree (grub2, no --composefs-backend)"
-    else
+    elif grep -q '^BACKEND=composefs-native$' <<<"$DETECT"; then
         [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=1
         [[ "$BOOTLOADER" == auto ]] && BOOTLOADER=systemd
         log "  backend: image ships only systemd-boot → composefs-native (--composefs-backend, systemd-boot)"
+    else
+        err "image exposes neither a signed bootupd GRUB nor systemd-boot-only backend: $IMAGE"
+        exit 1
     fi
     grep -q 'SEALED=1' <<<"$DETECT" && ROOTFS_SEALED=1 || ROOTFS_SEALED=0
 fi

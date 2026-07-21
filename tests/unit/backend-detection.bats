@@ -26,3 +26,17 @@ setup() {
     run grep -F '[string]$Bootloader = "auto"' "$PS1"
     [ "$status" -eq 0 ]
 }
+
+@test "backend detection fails closed when the image probe fails or is ambiguous" {
+    run grep -F 'if ! DETECT="$(podman run' "$DEPLOY"
+    [ "$status" -eq 0 ]
+
+    run grep -F 'failed to inspect image for deployment backend' "$DEPLOY"
+    [ "$status" -eq 0 ]
+
+    run grep -F 'BACKEND=unknown' "$DEPLOY"
+    [ "$status" -eq 0 ]
+
+    run grep -F 'image exposes neither a signed bootupd GRUB nor systemd-boot-only backend' "$DEPLOY"
+    [ "$status" -eq 0 ]
+}
