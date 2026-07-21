@@ -1212,6 +1212,10 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 # is overwritten. The base already ships loop/ntfs3/losetup/udevadm
                 # (verified on bonito), so no modules or binaries need adding.
                 OVL=$(mktemp -d)
+                # early_cpio marker: makes lsinitrd/skipcpio recognise this as a
+                # leading (early) cpio and skip past it to show the base initrd —
+                # honest introspection. Harmless to the kernel (same as microcode).
+                : > "$OVL/early_cpio"
                 install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
                     "$OVL/usr/lib/systemd/system/wootc-attach.service"
                 install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
@@ -1238,7 +1242,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
 title wootc Linux
 linux /EFI/wootc/phase2-vmlinuz
 initrd /EFI/wootc/phase2-initramfs.img
-options ${cfs_opts} loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID} console=tty1 console=ttyS0,115200 ${PHASE2_KARGS}
+options ${cfs_opts} loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID} console=tty1 console=ttyS0,115200 earlycon=uart8250,io,0x3f8,115200n8 ignore_loglevel ${PHASE2_KARGS}
 BLSEOF
                 rm -f /mnt/esp/loader/entries/wootc-deployer.conf
                 ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
