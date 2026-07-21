@@ -1153,6 +1153,19 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
     mig_opt 755 wootc-go-native-gui "$DEPLOY_ROOT/usr/local/bin/wootc-go-native-gui"
     mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-go-native.desktop"
+    # QGA commands run in virt_qemu_ga_t, which SELinux correctly prevents from
+    # executing podman/bootc. For the destructive E2E rung only, stage a narrow
+    # systemd request bridge so PID 1 runs the already-guarded engine in a
+    # normal service domain. The marker is never present in production payloads.
+    if [[ -f /mnt/ntfs/wootc/install/e2e-phase3 ]]; then
+        mig_opt 755 wootc-e2e-phase3-dispatch "$DEPLOY_ROOT/usr/local/libexec/wootc-e2e-phase3-dispatch"
+        mig_opt 644 wootc-e2e-phase3.service "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.service"
+        mig_opt 644 wootc-e2e-phase3.path "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.path"
+        mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+        ln -sf ../wootc-e2e-phase3.path \
+            "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-e2e-phase3.path"
+        log "  [PASS] E2E-only Phase-3 systemd request bridge enabled"
+    fi
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
     mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
     # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on

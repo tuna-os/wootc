@@ -1,0 +1,42 @@
+#!/bin/bash
+# Test-only Phase-3 privilege boundary. Installed only when the E2E payload
+# contains e2e-phase3; production deployments do not enable this path.
+
+set -Eeuo pipefail
+
+REQUEST=/run/wootc-e2e-phase3.request
+RESULT=/run/wootc-e2e-phase3.result
+TMP="${RESULT}.tmp"
+
+target="$(tr -d '\r\n ' < "$REQUEST" 2>/dev/null || true)"
+rm -f "$REQUEST"
+
+run_migration() {
+    echo "target=$target"
+    case "$target" in
+        /dev/sd[a-z]|/dev/vd[a-z]|/dev/xvd[a-z]|/dev/nvme[0-9]n[0-9]) ;;
+        *) echo "ERROR=invalid target"; return 64 ;;
+    esac
+    [[ -b "$target" ]] || { echo "ERROR=target is not a block device"; return 66; }
+
+    # Independently repeat the harness's blank-disk invariant in the privileged
+    # process immediately before the destructive operation.
+    parts=$(lsblk -nro NAME "$target" | tail -n +2)
+    fs=$(lsblk -dnro FSTYPE "$target" | tr -d ' \n')
+    if [[ -n "$parts" || -n "$fs" ]]; then
+        echo "ERROR=target is not blank"
+        return 65
+    fi
+
+    WOOTC_GN_ALLOW_DESTRUCTIVE=1 \
+        /usr/local/bin/wootc-go-native migrate --to-disk "$target" --execute
+}
+
+set +e
+run_migration > "$TMP" 2>&1
+rc=$?
+set -e
+echo "EXIT=$rc" >> "$TMP"
+mv -f "$TMP" "$RESULT"
+chmod 0644 "$RESULT"
+exit "$rc"

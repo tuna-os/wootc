@@ -199,6 +199,9 @@ Copy-Item $deployerVmlinuz "$installDir\deployer-vmlinuz" -Force
 
 Write-Host "[wootc] Copying deployer initramfs..."
 Copy-Item $deployerInitramfs "$installDir\deployer-initramfs.img" -Force
+if ($payloadRoot -and (Test-Path "$payloadRoot\e2e-phase3")) {
+    Copy-Item "$payloadRoot\e2e-phase3" "$installDir\e2e-phase3" -Force
+}
 
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────
 if ($grubDir) {

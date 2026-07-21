@@ -20,6 +20,7 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     GN="$REPO_ROOT/payload/migration/wootc-go-native"
     E2E_RUNNER="$REPO_ROOT/tests/e2e/run-e2e.sh"
+    DISPATCH="$REPO_ROOT/payload/migration/wootc-e2e-phase3-dispatch"
     TMP="$BATS_TEST_TMPDIR"
 
     # PATH stub jail: any disk-touching tool records its invocation in $CALLED.
@@ -59,7 +60,7 @@ STUB
 @test "E2E invokes go-native by absolute path under QGA's minimal PATH" {
     local n
     n=$(grep -c '/usr/local/bin/wootc-go-native' "$E2E_RUNNER")
-    [ "$n" -eq 2 ]
+    [ "$n" -eq 1 ]
     run grep -nE "qga_call.*|'[^']*wootc-go-native|\"[^\"]*wootc-go-native" "$E2E_RUNNER"
     [[ "$output" != *"'wootc-go-native status"* ]]
     [[ "$output" != *" wootc-go-native migrate"* ]]
@@ -76,6 +77,25 @@ STUB
     grep -Fq 'QEMU has no dedicated /storage2/data2.qcow2 target' "$E2E_RUNNER"
     grep -A2 'P3_TARGET=$(qga_call' "$E2E_RUNNER" | grep -q '|| true)'
     grep -q 'Phase 3: no BLANK spare disk found' "$E2E_RUNNER"
+}
+
+@test "Phase-3 QGA uses the marker-gated systemd boundary" {
+    grep -Fq ': > "$OEM_PAYLOAD/e2e-phase3"' "$E2E_RUNNER"
+    grep -Fq '/run/wootc-e2e-phase3.request' "$E2E_RUNNER"
+    grep -Fq '/run/wootc-e2e-phase3.result' "$E2E_RUNNER"
+    grep -Fq '[[ -f /mnt/ntfs/wootc/install/e2e-phase3 ]]' "$REPO_ROOT/payload/deployer/deploy.sh"
+    grep -Fq 'WantedBy=multi-user.target' "$REPO_ROOT/payload/migration/wootc-e2e-phase3.path"
+}
+
+@test "Phase-3 dispatcher rechecks blank target before destructive gate" {
+    local blank_line gate_line result_line
+    blank_line=$(grep -n 'target is not blank' "$DISPATCH" | cut -d: -f1)
+    gate_line=$(grep -n 'WOOTC_GN_ALLOW_DESTRUCTIVE=1' "$DISPATCH" | cut -d: -f1)
+    result_line=$(grep -n 'mv -f "\$TMP" "\$RESULT"' "$DISPATCH" | cut -d: -f1)
+    [ -n "$blank_line" ] && [ -n "$gate_line" ] && [ -n "$result_line" ]
+    [ "$blank_line" -lt "$gate_line" ]
+    [ "$gate_line" -lt "$result_line" ]
+    grep -Fq 'echo "EXIT=$rc" >> "$TMP"' "$DISPATCH"
 }
 
 # Assert no DESTRUCTIVE disk operation happened. Read-only probes are fine and

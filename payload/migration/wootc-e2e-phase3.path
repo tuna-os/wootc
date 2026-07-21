@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for a wootc E2E Phase-3 request
+
+[Path]
+PathExists=/run/wootc-e2e-phase3.request
+Unit=wootc-e2e-phase3.service
+
+[Install]
+WantedBy=multi-user.target

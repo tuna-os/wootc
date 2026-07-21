@@ -88,6 +88,9 @@ install() {
     inst /usr/lib/wootc/migration/wootc-go-native
     inst /usr/lib/wootc/migration/wootc-go-native-gui
     inst /usr/lib/wootc/migration/wootc-go-native.desktop
+    inst /usr/lib/wootc/migration/wootc-e2e-phase3-dispatch
+    inst /usr/lib/wootc/migration/wootc-e2e-phase3.service
+    inst /usr/lib/wootc/migration/wootc-e2e-phase3.path
 
     # podman network backend for podman run (bootc install stage).
     inst_multiple -o \

@@ -737,6 +737,11 @@ cp "$SCRIPT_DIR/wootc-files/grubx64.efi" "$OEM_PAYLOAD/grubx64.efi"
     cp "$SCRIPT_DIR/wootc-files/wubildr.efi" "$OEM_PAYLOAD/wubildr.efi"
 cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
 cp "$SCRIPT_DIR/qga.py" "$OEM_DIR/qga.py"
+if [ "${RUN_PHASE3:-false}" = true ]; then
+    : > "$OEM_PAYLOAD/e2e-phase3"
+else
+    rm -f "$OEM_PAYLOAD/e2e-phase3"
+fi
 
 # Deployer axes: the bootloader AND composefs backend are properties of the
 # IMAGE, so by default let the DEPLOYER detect both definitively from it (it
@@ -1726,9 +1731,25 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     pass "Phase 3: graduate target = $P3_TARGET (verified blank)"
 
     step "Phase 3: graduating to native disk (this installs the OS onto $P3_TARGET)..."
+    # virt_qemu_ga_t cannot execute container_runtime_exec_t (by design), so
+    # direct QGA execution cannot run podman/bootc. This marker exists only in
+    # --phase3 builds and activates a narrow systemd path unit. PID 1 performs
+    # the same guarded migration and publishes an explicit result under /run.
     qga_call exec /bin/sh -c \
-        "WOOTC_GN_ALLOW_DESTRUCTIVE=1 /usr/local/bin/wootc-go-native migrate --to-disk $P3_TARGET --execute 2>&1" \
-        2>/dev/null | tail -40
+        "rm -f /run/wootc-e2e-phase3.result; printf '%s\\n' '$P3_TARGET' > /run/wootc-e2e-phase3.request" \
+        >/dev/null
+    P3_RESULT=""
+    for _ in $(seq 1 180); do
+        P3_RESULT=$(qga_call exec /bin/sh -c \
+            'cat /run/wootc-e2e-phase3.result 2>/dev/null || true' 2>/dev/null || true)
+        echo "$P3_RESULT" | grep -q '^EXIT=' && break
+        sleep 5
+    done
+    printf '%s\n' "$P3_RESULT" | tail -40
+    if ! echo "$P3_RESULT" | grep -q '^EXIT=0$'; then
+        fail "Phase 3: privileged migration service failed or timed out"
+        exit 1
+    fi
     if qga_call exec /bin/sh -c \
         "lsblk -no FSTYPE $P3_TARGET 2>/dev/null | grep -q . && echo GRADUATED" 2>/dev/null \
         | grep -q GRADUATED; then

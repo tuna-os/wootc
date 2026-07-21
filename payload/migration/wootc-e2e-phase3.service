@@ -1,0 +1,7 @@
+[Unit]
+Description=wootc E2E Phase-3 migration dispatcher
+ConditionPathExists=/run/wootc-e2e-phase3.request
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/wootc-e2e-phase3-dispatch
