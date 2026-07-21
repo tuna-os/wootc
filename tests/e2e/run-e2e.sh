@@ -1841,11 +1841,35 @@ else
     exit 1
 fi
 
-# ── Step 10: Verify the one-shot entry returns to Windows ───────────────────
-step "Rebooting Phase 2 Linux and verifying return to Windows..."
-$DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
-qga_wait "Windows return after Phase 2 Linux" 600
-pass "One-shot Phase 2 boot consumed; Windows returned successfully"
+# ── Step 10: boot the result, not merely its installer ─────────────────────
+if [ "${RUN_PHASE3:-false}" = true ]; then
+    step "Rebooting Phase 2 into the one-shot Phase 3 native install..."
+    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
+    qga_wait_down "Phase 3 native boot"
+    qga_wait "Phase 3 native system" 600
+    P3_NATIVE_PROOF=$(qga_call exec /bin/sh -c \
+        'printf "UNAME=%s\n" "$(uname -s)"; printf "CMDLINE="; cat /proc/cmdline; printf "TARGET="; cat /etc/wootc/native-target 2>/dev/null || true' \
+        2>/dev/null || true)
+    printf '%s\n' "$P3_NATIVE_PROOF"
+    if ! echo "$P3_NATIVE_PROOF" | grep -q '^UNAME=Linux$'; then
+        fail "Phase 3 target did not boot Linux"
+        exit 1
+    fi
+    if echo "$P3_NATIVE_PROOF" | grep -qE '^CMDLINE=.*(^| )(loop|wootc\.rootdisk)='; then
+        fail "Phase 3 reboot returned to loopback Phase 2 instead of the native disk"
+        exit 1
+    fi
+    if ! echo "$P3_NATIVE_PROOF" | grep -q "^TARGET=$P3_TARGET$"; then
+        fail "Phase 3 boot lacks the native-target identity written during graduation"
+        exit 1
+    fi
+    pass "Phase 3 native system booted from the graduated install (non-loopback)"
+else
+    step "Rebooting Phase 2 Linux and verifying return to Windows..."
+    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"sendkey ctrl-alt-delete\n"); s.close()'
+    qga_wait "Windows return after Phase 2 Linux" 600
+    pass "One-shot Phase 2 boot consumed; Windows returned successfully"
+fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""

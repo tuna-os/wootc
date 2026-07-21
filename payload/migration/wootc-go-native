@@ -236,7 +236,7 @@ bootc_local_imgref() {
 # UEFI boot it. Reversible: Windows + root.disk on the original disk are
 # untouched, so this is the dual-boot graduate for a spare/second drive.
 graduate_to_disk_execute() {
-    local target="$1" img filesystem=xfs newroot mnt=/run/wootc-native
+    local target="$1" img filesystem=xfs newroot native_esp native_part bootnum oldnum mnt=/run/wootc-native
     [[ -b "$target" ]] || die "not a block device: $target"
     [[ "$target" != "$DISK" ]] || die "refusing to install onto the Windows disk ($DISK)"
     img=$(bootc_local_imgref)
@@ -273,14 +273,42 @@ graduate_to_disk_execute() {
     else
         cp -a /home/. "$dest/" 2>/dev/null || true
     fi
+
+    # Preserve wootc's machine-specific state in the fresh bootc install.  The
+    # E2E-only dispatcher also enables QGA in the native target so the harness
+    # can prove it reached this disk, rather than accepting partition creation
+    # as a proxy for a successful boot.
+    mkdir -p "$mnt/etc/wootc"
+    cp -a /etc/wootc/. "$mnt/etc/wootc/" 2>/dev/null || true
+    printf '%s\n' "$target" > "$mnt/etc/wootc/native-target"
+    if [[ -x /usr/local/libexec/wootc-e2e-phase3-dispatch ]]; then
+        mkdir -p "$mnt/etc/systemd/system/multi-user.target.wants"
+        ln -sf /usr/lib/systemd/system/qemu-guest-agent.service \
+            "$mnt/etc/systemd/system/multi-user.target.wants/qemu-guest-agent.service"
+    fi
     sync; umount "$mnt" 2>/dev/null || true
 
-    log "Graduate complete. UEFI boot entries now include the native install:"
-    # `--generic-image` deliberately avoids mutating the machine firmware and
-    # installs a removable-media fallback loader on the target ESP.  Listing
-    # NVRAM here is diagnostic only: an empty grep (or firmware that exposes no
-    # entries) must not turn an otherwise complete native install into failure.
-    efibootmgr 2>/dev/null | grep -iE "almalinux|tunaos|fedora|Linux|Boot0" | head -8 || true
+    # `--generic-image` installs the target ESP but deliberately skips firmware
+    # mutation.  Create a one-shot entry for its standard fallback loader so
+    # the first reboot actually tests the native system.  Keeping Windows in
+    # BootOrder makes this reversible if the new disk fails.
+    native_esp=$(lsblk -nrpo PATH,FSTYPE "$target" 2>/dev/null \
+        | awk 'tolower($2) == "vfat" { print $1; exit }')
+    [[ -n "$native_esp" ]] || die "native install produced no EFI system partition on $target"
+    native_part=$(lsblk -dnro PARTN "$native_esp" 2>/dev/null | tr -d ' ')
+    [[ "$native_part" =~ ^[0-9]+$ ]] || die "cannot determine ESP partition number for $native_esp"
+    while read -r oldnum; do
+        [[ -n "$oldnum" ]] && efibootmgr -b "$oldnum" -B >/dev/null 2>&1 || true
+    done < <(efibootmgr 2>/dev/null \
+        | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\}.*wootc Native.*/\1/p')
+    efibootmgr -c -d "$target" -p "$native_part" -L 'wootc Native' \
+        -l '\EFI\BOOT\BOOTX64.EFI' >/dev/null \
+        || die "could not create UEFI entry for native install"
+    bootnum=$(efibootmgr 2>/dev/null \
+        | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\}.*wootc Native.*/\1/p' | tail -1)
+    [[ -n "$bootnum" ]] || die "native UEFI entry was not observable after creation"
+    efibootmgr -n "$bootnum" >/dev/null || die "could not schedule native UEFI entry"
+    log "Graduate complete. Scheduled Boot$bootnum (wootc Native) for the next reboot."
     log "Reboot to run natively from $target. Windows + root.disk remain for rollback."
 }
 

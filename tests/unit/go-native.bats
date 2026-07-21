@@ -211,8 +211,11 @@ teardown() {
     grep -Fq 'native install produced no root partition' "$GN"
 }
 
-@test "Phase-3 success does not depend on an informational NVRAM listing" {
-    grep -F 'efibootmgr 2>/dev/null' "$GN" | grep -Fq '|| true'
+@test "Phase-3 schedules and positively verifies the native boot" {
+    grep -Fq -- "-L 'wootc Native'" "$GN"
+    grep -Fq 'efibootmgr -n "$bootnum"' "$GN"
+    grep -Fq 'Phase 3 native system booted from the graduated install (non-loopback)' "$E2E_RUNNER"
+    grep -Fq '/etc/wootc/native-target' "$E2E_RUNNER"
 }
 
 @test "migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched" {
