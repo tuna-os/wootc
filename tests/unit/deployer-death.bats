@@ -171,6 +171,17 @@ setup() {
     grep -Fq 'OSTREE_STATEROOT="${DEPLOY_PARENT%/*}"' "$DEPLOY"
 }
 
+@test "post-install payload is relabeled and Phase-3 label is verified" {
+    local install_line restore_line verify_line
+    install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/usr/local/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
+    restore_line=$(grep -n 'chroot "\$DEPLOY_ROOT" restorecon -RF' "$DEPLOY" | cut -d: -f1)
+    verify_line=$(grep -n 'Phase-3 executable SELinux context' "$DEPLOY" | cut -d: -f1)
+    [ -n "$install_line" ] && [ -n "$restore_line" ] && [ -n "$verify_line" ]
+    [ "$install_line" -lt "$restore_line" ]
+    [ "$restore_line" -lt "$verify_line" ]
+    grep -q 'wootc-go-native remains unlabeled' "$DEPLOY"
+}
+
 @test "nonfatal Phase-2 checks are still collected into one verdict" {
     # Independent verification checks are accumulated, while prerequisites
     # such as a successfully rebuilt initramfs fail closed above.
