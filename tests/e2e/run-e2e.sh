@@ -1404,6 +1404,7 @@ done
 
 [ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY (no serial feed from $CONTAINER_NAME:$SERIAL_SOURCE)"; exit 1; }
 LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+DEPLOYER_STARTED=false
 
 while ! past_deadline "$DEPLOY_DEADLINE"; do
     snapshot_serial || true
@@ -1423,7 +1424,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
     # deploy is over and failed — waiting longer cannot change that. Observed:
     # a deployer hung after "ostree deployment:", the box rebooted into Windows,
     # and the harness spent another 76 minutes "Deploying..." before timing out.
-    if qga_windows_probe; then
+    if [ "$DEPLOYER_STARTED" = true ] && qga_windows_probe; then
         DEPLOYER_LOG=$(qga_read 'C:\wootc\logs\deployer.log' 2>/dev/null || true)
         if echo "$DEPLOYER_LOG" | grep -q 'VERIFICATION_SUMMARY'; then
             echo "$DEPLOYER_LOG" | grep 'VERIFICATION_SUMMARY' | tail -1 \
@@ -1475,7 +1476,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         echo "$NEW_OUTPUT" | strings | grep -aE "\[wootc\]|fisherman|VERIFICATION_SUMMARY|\[FAIL\]" \
             | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
 
-        echo "$NEW_OUTPUT" | grep -q "\[wootc\]"               && info "wootc: deployer active"
+        echo "$NEW_OUTPUT" | grep -q "\[wootc\]"               && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
         echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
