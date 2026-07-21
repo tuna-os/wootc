@@ -284,6 +284,7 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     err "(Windows hibernated, Fast Startup, or an unclean shutdown)."
     err "Boot Windows once, perform a full shutdown, and retry."
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
+fi
 DISK="/mnt/ntfs/wootc/disks/root.disk"
 
 # Ensure root.disk is fully allocated on NTFS so ntfs3 never encounters unallocated
