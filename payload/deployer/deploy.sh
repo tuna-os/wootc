@@ -878,8 +878,15 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # path probing fails on '/root' (dracut-install ... -f /root → FAILED),
         # which was silently producing a Phase-2 initramfs WITHOUT the
         # 99wootc-boot module — so root.disk never attached and Phase-2 hung.
-        # Explicitly --add wootc-boot so the loop-attach module can never be
-        # dropped by omit/dependency heuristics (the guard below enforces it).
+        # Explicitly add BOTH sides of Phase-2 root setup. wootc-boot exposes
+        # root.disk as the root=UUID device; ostree-prepare-root then turns that
+        # repository filesystem into the selected deployment from ostree=.
+        # In a foreign chroot dracut did not auto-select 50ostree, even though
+        # the target image contained it. The resulting initramfs mounted
+        # /sysroot successfully and then failed initrd-switch-root because it
+        # had no ostree-prepare-root at all (himachal run
+        # 20260721T062450Z-himachal-4126879). The archive guard below enforces
+        # both modules' observable boot machinery.
         # nvmf/systemd-cryptsetup are auto-pulled but depend on the network/dm
         # modules we omit; omit them too so they don't error the run.
         DRACUT_OMIT="plymouth lvm mdraid dm multipath iscsi nfs cifs fcoe fcoe-uefi resume rescue network network-legacy network-manager kernel-network-modules cellular qemu-net memstrack nvmf nvdimm"
@@ -914,7 +921,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         log "  verify: regenerating Phase-2 initramfs (dracut, up to 15m)"
         set +e
         timeout 900 chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
-            --add wootc-boot \
+            --add "ostree wootc-boot" \
             "${DRACUT_INSTALL_ARGS[@]}" \
             --fwdir /run/wootc-nofw \
             --omit "$DRACUT_OMIT" \
@@ -949,10 +956,10 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         # initramfs WITHOUT wootc-boot, producing a hookless Phase-2 initramfs —
         # proven on bonito run 29785623612, where Phase 2 found no
         # wootc-attach.service, fell back to /dev/gpt-auto-root, and emergency'd.
-        # --add wootc-boot here is what wires the attach service into whatever
-        # initramfs the composefs/systemd-boot path actually boots.
-        log "  verify: regenerating ALL initramfses WITH wootc-boot (dracut, up to 15m)"
-        if ! timeout 900 chroot "$DEPLOY_ROOT" dracut --force --regenerate-all --add wootc-boot; then
+        # Add ostree as well: attachment without prepare-root still leaves
+        # systemd trying to switch into the repository's top level.
+        log "  verify: regenerating ALL initramfses WITH ostree+wootc-boot (dracut, up to 15m)"
+        if ! timeout 900 chroot "$DEPLOY_ROOT" dracut --force --regenerate-all --add "ostree wootc-boot"; then
             err "  [FAIL] dracut --regenerate-all failed or timed out"
             exit 1
         fi
@@ -999,6 +1006,20 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         log "  guard: wootc-attach.service unit file present=$GUARD_UNIT"
         if [[ "${GUARD_UNIT:-0}" -lt 1 ]]; then
             err "  [FAIL] Phase-2 initramfs has the wants symlink but NO wootc-attach.service unit file (dangling) — root.disk would never attach; aborting deploy"
+            exit 1
+        fi
+        # The UUID becoming mountable proves only that wootc-attach worked.
+        # An OSTree deployment additionally requires prepare-root to pivot
+        # /sysroot from the repository filesystem to the deployment named by
+        # ostree=. Verify the executable and its activation edge in the actual
+        # archive, not merely the presence of 50ostree in the deployed image.
+        GUARD_OSTREE_BINARY=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
+            | grep -cE 'usr/lib/ostree/ostree-prepare-root$' || true)
+        GUARD_OSTREE_WANTS=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null \
+            | grep -cE 'initrd-root-fs.target.wants/ostree-prepare-root.service$' || true)
+        log "  guard: ostree-prepare-root binary=$GUARD_OSTREE_BINARY wired=$GUARD_OSTREE_WANTS"
+        if [[ "${GUARD_OSTREE_BINARY:-0}" -lt 1 || "${GUARD_OSTREE_WANTS:-0}" -lt 1 ]]; then
+            err "  [FAIL] Phase-2 initramfs lacks wired ostree-prepare-root — switch-root would target the repository top level; aborting deploy"
             exit 1
         fi
         # With a raw root.disk the hook needs only losetup, which the target

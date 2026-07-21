@@ -116,6 +116,21 @@ setup() {
     grep -q 'verify: regenerating Phase-2 initramfs' "$DEPLOY"
 }
 
+@test "both dracut regeneration paths explicitly include OSTree prepare-root" {
+    # A mounted root UUID is insufficient for an OSTree deployment. In a
+    # foreign chroot dracut omitted 50ostree unless explicitly requested, then
+    # initrd-switch-root failed after /sysroot mounted successfully.
+    local n
+    n=$(grep -c -- '--add "ostree wootc-boot"' "$DEPLOY")
+    [ "$n" -eq 2 ]
+}
+
+@test "the generated initramfs guard requires wired OSTree prepare-root" {
+    grep -Fq "usr/lib/ostree/ostree-prepare-root$" "$DEPLOY"
+    grep -Fq "initrd-root-fs.target.wants/ostree-prepare-root.service$" "$DEPLOY"
+    grep -q 'Phase-2 initramfs lacks wired ostree-prepare-root' "$DEPLOY"
+}
+
 @test "the deployed chroot has a valid sticky var tmp before dracut" {
     local prep_line regen_line
     prep_line=$(grep -n 'mkdir -p "\$DEPLOY_ROOT/var/tmp"' "$DEPLOY" | head -1 | cut -d: -f1)
