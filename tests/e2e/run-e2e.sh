@@ -1191,10 +1191,14 @@ else
     info "Windows installation is still running; waiting for its OEM handoff..."
 fi
 
+qga_is_linux() {
+    qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | tr -d '\r\n' | grep -qi Linux
+}
+
 # The QGA service is installed by the SYSTEM OEM bootstrap before the wootc
 # payload runs. Its availability is the real Windows-ready signal; no guest
 # IP, WinRM listener, or Windows password is involved.
-if [ "$SKIP_INSTALL" = true ] && qga_probe && ! qga_windows_probe; then
+if [ "$SKIP_INSTALL" = true ] && qga_is_linux; then
     info "Previous deployer is still running; clearing UEFI BootNext before Windows retry"
     # A failed initramfs can leave the UEFI one-shot entry set, causing every
     # Ctrl-Alt-Del to loop back to the deployer instead of normal BootOrder.
