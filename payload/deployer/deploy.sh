@@ -1169,6 +1169,90 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                   /mnt/esp/EFI/wootc/deployer-initramfs.img \
                   /mnt/esp/EFI/wootc/phase2-vmlinuz \
                   /mnt/esp/EFI/wootc/phase2-initramfs.img
+            # ── composefs-native + systemd-boot: stage Phase 2 from the target's
+            # OWN ESP UKI. `bootc install --composefs-backend --bootloader systemd`
+            # puts the BLS entry at $DEPLOY_ROOT/boot/efi/loader/entries/ and the
+            # kernel+initrd under $DEPLOY_ROOT/boot/efi/EFI/Linux/<hash>/ — NOT the
+            # /boot/ostree/ layout the generic globs below assume (ground truth:
+            # bonito `bootc install to-filesystem --composefs-backend` on himachal).
+            # The initrd is a plain systemd initramfs already shipping
+            # loop/ntfs3/losetup/udevadm, so wootc-boot is injected by APPENDING a
+            # cpio (no dracut regen — the deploy dir /usr/lib/modules is empty, its
+            # content lives in the .ostree.cfs). We bake root=/composefs= (from the
+            # target BLS entry) + loop=/wootc.host_uuid into our OWN entry, so
+            # Phase 2 mounts the composefs root once root.disk is attached instead
+            # of falling back to /dev/gpt-auto-root (which emergency'd on run
+            # 29785623612 — no wootc-attach ran, root never appeared).
+            CFS_HANDLED=0
+            if [[ "$COMPOSEFS" == 1 && "$BOOTLOADER" == systemd ]]; then
+                TESP="$DEPLOY_ROOT/boot/efi"
+                shopt -s nullglob
+                cfs_entries=("$TESP"/loader/entries/*.conf)
+                shopt -u nullglob
+                if (( ${#cfs_entries[@]} == 0 )); then
+                    err "  [FAIL] composefs: no BLS entry under $TESP/loader/entries — cannot stage Phase 2"
+                    exit 1
+                fi
+                cfs_linux=$(grep -m1 '^linux '  "${cfs_entries[0]}" | awk '{print $2}')
+                cfs_initrd=$(grep -m1 '^initrd ' "${cfs_entries[0]}" | awk '{print $2}')
+                cfs_opts=$(grep -m1 '^options ' "${cfs_entries[0]}" | sed 's/^options *//')
+                KSRC="$TESP$cfs_linux"; ISRC="$TESP$cfs_initrd"
+                if [[ ! -s "$KSRC" || ! -s "$ISRC" ]]; then
+                    err "  [FAIL] composefs UKI kernel/initrd missing ($KSRC / $ISRC)"
+                    exit 1
+                fi
+                log "  composefs: Phase-2 kernel=$cfs_linux initrd=$cfs_initrd"
+                cp "$KSRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                # Inject wootc-boot: unit + wants symlink + loop script. PREPEND an
+                # uncompressed cpio ahead of the (compressed) base initrd — the
+                # kernel's early-cpio mechanism unpacks the leading 4-byte-padded
+                # cpio, then the compressed main archive. Prepend (not append)
+                # sidesteps any end-of-compressed-stream alignment ambiguity; our
+                # three paths are unique to the base image's initramfs, so nothing
+                # is overwritten. The base already ships loop/ntfs3/losetup/udevadm
+                # (verified on bonito), so no modules or binaries need adding.
+                OVL=$(mktemp -d)
+                install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
+                    "$OVL/usr/lib/systemd/system/wootc-attach.service"
+                install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
+                    "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
+                mkdir -p "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
+                ln -sf ../wootc-attach.service \
+                    "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
+                CPIO_OK=0
+                if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
+                   cat "$OVL.cpio" "$ISRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                    CPIO_OK=1
+                fi
+                rm -f "$OVL.cpio"; rm -rf "$OVL"
+                if [[ "$CPIO_OK" == 1 && -s /mnt/esp/EFI/wootc/phase2-initramfs.img ]]; then
+                    log "  [PASS] composefs Phase-2 initrd patched with wootc-boot (prepend-cpio)"
+                else
+                    err "  [FAIL] composefs: cpio prepend failed — Phase-2 initrd would be hookless"
+                    exit 1
+                fi
+                # Keep root=UUID + composefs=<hash>; drop unresolved \$vars + quiet.
+                cfs_opts=$(printf '%s' "$cfs_opts" | tr ' ' '\n' | grep -v '\$' | grep -vE '^(quiet|rhgb)$' | tr '\n' ' ')
+                mkdir -p /mnt/esp/loader/entries
+                cat > /mnt/esp/loader/entries/wootc.conf <<BLSEOF
+title wootc Linux
+linux /EFI/wootc/phase2-vmlinuz
+initrd /EFI/wootc/phase2-initramfs.img
+options ${cfs_opts} loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID} console=tty1 console=ttyS0,115200 ${PHASE2_KARGS}
+BLSEOF
+                rm -f /mnt/esp/loader/entries/wootc-deployer.conf
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\n' "$ESP_UUID" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                fi
+                log "  [PASS] Phase-2 composefs/systemd-boot entry written (root+composefs+loop kargs)"
+                CFS_HANDLED=1
+            fi
+
+            # Generic (ostree/BLS on /boot) path — skipped when the composefs
+            # branch above already staged Phase 2.
+            if [[ "$CFS_HANDLED" != 1 ]]; then
             shopt -s nullglob
             kernels=("$DEPLOY_ROOT"/boot/ostree/*/vmlinuz* "$DEPLOY_ROOT"/boot/vmlinuz-*)
             initrds=("$DEPLOY_ROOT"/boot/ostree/*/initramfs*.img "$DEPLOY_ROOT"/boot/initramfs-*.img)
@@ -1301,6 +1385,7 @@ GRUBEOF
                 cp /mnt/ntfs/wootc/install/deployer-initramfs.img /mnt/esp/EFI/wootc/deployer-initramfs.img 2>/dev/null || true
             fi
             fi
+            fi   # close CFS_HANDLED guard (generic ostree/BLS staging path)
             umount /mnt/esp
         else
             err "  [WARN] Could not mount ESP ${ESP_DEV}; Phase-2 boot will fail"
