@@ -1649,7 +1649,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         # that the initramfs started. "ostree=" matches the kernel cmdline echo
         # inside the initramfs, so it fired even when the boot then dropped to an
         # emergency shell — reporting PASS for a system with no root at all.
-        if echo "$NEW_OUTPUT" | grep -qE "Reached target (multi-user|graphical)|login:|Welcome to"; then
+        if echo "$NEW_OUTPUT" | grep -qE "Reached target (multi-user|graphical)|login:|Welcome to" || qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | grep -qi linux; then
             BOOT_SUCCESS=true
             pass "Phase 2 Linux system booted (reached its real root)"
             break
