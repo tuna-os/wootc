@@ -19,6 +19,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     GN="$REPO_ROOT/payload/migration/wootc-go-native"
+    E2E_RUNNER="$REPO_ROOT/tests/e2e/run-e2e.sh"
     TMP="$BATS_TEST_TMPDIR"
 
     # PATH stub jail: any disk-touching tool records its invocation in $CALLED.
@@ -53,6 +54,15 @@ STUB
     # Default fixtures: on loopback, no host conf, empty home (no converted dirs).
     export WOOTC_GN_HOSTCONF="$TMP/nonexistent.conf"
     export WOOTC_GN_HOME="$TMP/home"; mkdir -p "$WOOTC_GN_HOME/.config/wootc"
+}
+
+@test "E2E invokes go-native by absolute path under QGA's minimal PATH" {
+    local n
+    n=$(grep -c '/usr/local/bin/wootc-go-native' "$E2E_RUNNER")
+    [ "$n" -eq 2 ]
+    run grep -nE "qga_call.*|'[^']*wootc-go-native|\"[^\"]*wootc-go-native" "$E2E_RUNNER"
+    [[ "$output" != *"'wootc-go-native status"* ]]
+    [[ "$output" != *" wootc-go-native migrate"* ]]
 }
 
 # Assert no DESTRUCTIVE disk operation happened. Read-only probes are fine and

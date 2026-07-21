@@ -1669,7 +1669,11 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     pass "Phase 3: Linux guest agent reachable inside Phase 2"
 
     info "Phase 3: go-native status"
-    qga_call exec /bin/sh -c 'wootc-go-native status 2>&1 || true' 2>/dev/null | head -25
+    # QGA starts commands with a minimal service-manager PATH that does not
+    # include /usr/local/bin. Invoke the installed Phase-3 tool by its runtime
+    # path; command-not-found here previously looked like a missing payload even
+    # though the file was correctly present in OSTree's persistent /var.
+    qga_call exec /bin/sh -c '/usr/local/bin/wootc-go-native status 2>&1 || true' 2>/dev/null | head -25
 
     # Pick the graduate target: a BLANK whole disk (no partitions, no
     # filesystem). Do NOT use "any disk that isn't root's" — in Phase 2 root
@@ -1697,7 +1701,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
 
     step "Phase 3: graduating to native disk (this installs the OS onto $P3_TARGET)..."
     qga_call exec /bin/sh -c \
-        "WOOTC_GN_ALLOW_DESTRUCTIVE=1 wootc-go-native migrate --to-disk $P3_TARGET --execute 2>&1" \
+        "WOOTC_GN_ALLOW_DESTRUCTIVE=1 /usr/local/bin/wootc-go-native migrate --to-disk $P3_TARGET --execute 2>&1" \
         2>/dev/null | tail -40
     if qga_call exec /bin/sh -c \
         "lsblk -no FSTYPE $P3_TARGET 2>/dev/null | grep -q . && echo GRADUATED" 2>/dev/null \
