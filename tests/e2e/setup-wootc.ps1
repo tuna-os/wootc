@@ -105,19 +105,17 @@ New-Item -ItemType Directory -Force -Path $disksDir | Out-Null
 #
 # NTFS sparse files give the same "allocate on write" behaviour as a dynamic
 # VHDX, so the disk cost is unchanged.
-Write-Host "[wootc] Creating root.disk ($DiskSizeGB GB sparse raw image)..."
+Write-Host "[wootc] Creating root.disk ($DiskSizeGB GB preallocated raw image)..."
 $diskPath = "$disksDir\root.disk"
 $sizeBytes = [int64]$DiskSizeGB * 1GB
 
-# Create, mark sparse, then set the length. Order matters: marking sparse BEFORE
-# setting the length is what keeps it from being physically allocated.
-$fs = [System.IO.File]::Create($diskPath)
-$fs.Close()
-& fsutil.exe sparse setflag "$diskPath" | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "fsutil could not mark $diskPath sparse (is the volume NTFS?)"
+# Create a physically allocated raw image file.
+# Physical allocation is required so Linux kernel ntfs3 never encounters
+# unallocated sparse holes during loopback writes (which causes I/O errors).
+if (Test-Path $diskPath) {
+    Remove-Item $diskPath -Force
 }
-$fs = [System.IO.File]::Open($diskPath, 'Open', 'Write')
+$fs = [System.IO.File]::Create($diskPath)
 try   { $fs.SetLength($sizeBytes) }
 finally { $fs.Close() }
 
@@ -126,8 +124,7 @@ $actual = (Get-Item $diskPath).Length
 if ($actual -ne $sizeBytes) {
     throw "root.disk is $actual bytes, expected $sizeBytes"
 }
-$sparse = (& fsutil.exe sparse queryflag "$diskPath") -join ' '
-Write-Host "[wootc] root.disk created: $actual bytes, $sparse"
+Write-Host "[wootc] root.disk created: $actual bytes at $diskPath"
 
 Write-Host "[wootc] root.disk created: $diskPath ($DiskSizeGB GB dynamic VHDX)"
 

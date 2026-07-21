@@ -39,21 +39,17 @@ setup() {
 
 # ── Windows side ────────────────────────────────────────────────────────────
 
-@test "Windows creates a SPARSE raw image, not a VHDX" {
+@test "Windows creates a PREALLOCATED raw image, not a VHDX" {
     grep -q 'root.disk' "$PS1"
-    grep -q 'fsutil.exe sparse setflag' "$PS1"
+    grep -q 'SetLength' "$PS1"
     run grep -n 'create vdisk' "$PS1"
     [ "$status" -ne 0 ]
 }
 
-@test "the image is marked sparse BEFORE its length is set" {
-    # Order matters: setting the length first physically allocates the file,
-    # losing the "allocate on write" behaviour the dynamic VHDX gave us.
-    local sparse_line len_line
-    sparse_line=$(grep -n 'sparse setflag' "$PS1" | head -1 | cut -d: -f1)
-    len_line=$(grep -n 'SetLength' "$PS1" | head -1 | cut -d: -f1)
-    [ -n "$sparse_line" ] && [ -n "$len_line" ]
-    [ "$sparse_line" -lt "$len_line" ]
+@test "the image is physically allocated to prevent ntfs3 sparse I/O errors" {
+    grep -q 'Physical allocation is required' "$PS1"
+    run grep -n 'sparse setflag' "$PS1"
+    [ "$status" -ne 0 ]
 }
 
 @test "the created size is verified, not assumed" {
