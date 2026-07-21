@@ -685,30 +685,15 @@ cp "$SCRIPT_DIR/wootc-files/grubx64.efi" "$OEM_PAYLOAD/grubx64.efi"
 cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
 cp "$SCRIPT_DIR/qga.py" "$OEM_DIR/qga.py"
 
-# Deployer axes for the test matrix: choose the Phase-2 bootloader (and
-# composefs backend) for this image so the E2E covers the gamut of bootc
-# desktop images, not just yellowfin/grub2. Enterprise Linux (yellowfin/EL)
-# installs grub2; the Wayland families (Fedora/Arch/Debian — bonito, marlin,
-# flounder) ship composefs + systemd-boot. run-wootc-e2e.ps1 reads this file
-# and passes it to setup-wootc.ps1; a missing file falls back to grub2 yellowfin.
-# Override per run with WOOTC_E2E_BOOTLOADER=grub2|systemd and WOOTC_E2E_COMPOSEFS=0|1.
-E2E_BOOTLOADER="${WOOTC_E2E_BOOTLOADER:-}"
-E2E_COMPOSEFS="${WOOTC_E2E_COMPOSEFS:-}"
-if [ -z "$E2E_BOOTLOADER" ]; then
-    case "$IMAGE_REF" in
-        *yellowfin*|*/el10*|*/el9*|*enterprise*) E2E_BOOTLOADER=grub2 ;;
-        *)                                       E2E_BOOTLOADER=systemd ;;
-    esac
-fi
-if [ -z "$E2E_COMPOSEFS" ]; then
-    # composefs is a property of the IMAGE, not the bootloader (the old rule
-    # "grub2 ⇒ composefs=0" was wrong; a MISMATCH makes the image's own
-    # bootc-root-setup.service — ConditionKernelCommandLine=composefs — skip, so
-    # the real root is never mounted and Phase 2 emergencies). Let the DEPLOYER
-    # auto-detect from the image's /usr/lib/ostree/prepare-root.conf. Override
-    # with WOOTC_E2E_COMPOSEFS=0|1 for a specific test.
-    E2E_COMPOSEFS=auto
-fi
+# Deployer axes: the bootloader AND composefs backend are properties of the
+# IMAGE, so by default let the DEPLOYER detect both definitively from it (it
+# keys off whether the image ships a signed grub in bootupd → traditional ostree
+# + grub2, vs systemd-boot only → composefs-native). The old name-based heuristic
+# here (yellowfin→grub2, else→systemd) was wrong: it sent traditional-ostree
+# Fedora images like bluefin/bonito down the systemd-boot path. Force a specific
+# axis with WOOTC_E2E_BOOTLOADER=grub2|systemd / WOOTC_E2E_COMPOSEFS=0|1.
+E2E_BOOTLOADER="${WOOTC_E2E_BOOTLOADER:-auto}"
+E2E_COMPOSEFS="${WOOTC_E2E_COMPOSEFS:-auto}"
 {
     printf 'ImageRef=%s\n'   "$IMAGE_REF"
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"

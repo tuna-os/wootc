@@ -151,7 +151,11 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
-BOOTLOADER="$(read_cmdline wootc.bootloader grub2)"
+# Both default to `auto`: the deployer detects the deployment backend AND the
+# bootloader DEFINITIVELY from the image (see the detection block below), because
+# they are a property of the image, not something the caller must know. An
+# explicit wootc.bootloader=grub2|systemd or wootc.composefs=0|1 still overrides.
+BOOTLOADER="$(read_cmdline wootc.bootloader auto)"
 COMPOSEFS="$(read_cmdline wootc.composefs auto)"
 
 # Debug SSH access into the deployed Phase-2 system (mirrors corral): a public
@@ -553,27 +557,48 @@ ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NT
 # (ConditionKernelCommandLine=composefs) skip, so the real root is never mounted
 # and Phase 2 drops to an emergency shell (proven: a composefs image installed
 # with composefs=0). An explicit wootc.composefs=0|1 still overrides.
-if [[ "$COMPOSEFS" == auto ]]; then
-    if podman run --rm --network=host "$IMAGE" sh -c \
-        'grep -A8 "^\[composefs\]" /usr/lib/ostree/prepare-root.conf 2>/dev/null \
-         | grep -qiE "enabled[[:space:]]*=[[:space:]]*(yes|true|1|signed)"' 2>/dev/null; then
-        COMPOSEFS=1
-        log "  composefs: image declares composefs enabled → installing WITH composefs"
+# Probe the image ONCE for the two independent signals that decide how to deploy:
+#   GRUB=1   → the image ships a signed grub in bootupd (traditional ostree; uses
+#             grub2 + bootupctl). GRUB=0 → it ships only systemd-boot and is a
+#             composefs-NATIVE image that MUST be installed with --composefs-backend.
+#   SEALED=1 → the ostree rootfs is composefs-SEALED (prepare-root.conf [composefs]
+#             enabled). This needs fs-verity → ext4 — INDEPENDENT of the backend,
+#             because traditional-ostree images (bluefin, bonito) are sealed too.
+# This is the crux fix: the old detector keyed the BACKEND off SEALED, so it forced
+# --composefs-backend (systemd-boot/UKI) onto traditional-ostree images. Verified
+# on himachal: dakota/marlin ship no grub + systemd-boot (native); bluefin/bonito
+# ship bootupctl + grubx64.efi (ostree). wootc.composefs / wootc.bootloader override.
+if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
+    DETECT="$(podman run --rm --network=host "$IMAGE" sh -c '
+        ls /usr/lib/bootupd/updates/EFI/*/grubx64.efi >/dev/null 2>&1 && echo GRUB=1 || echo GRUB=0
+        grep -A8 "^\[composefs\]" /usr/lib/ostree/prepare-root.conf 2>/dev/null \
+          | grep -qiE "enabled[[:space:]]*=[[:space:]]*(yes|true|1|signed)" && echo SEALED=1 || echo SEALED=0
+    ' 2>/dev/null)"
+    if grep -q 'GRUB=1' <<<"$DETECT"; then
+        [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=0
+        [[ "$BOOTLOADER" == auto ]] && BOOTLOADER=grub2
+        log "  backend: image ships signed grub → traditional ostree (grub2, no --composefs-backend)"
     else
-        COMPOSEFS=0
-        log "  composefs: image is traditional ostree (no composefs) → installing without"
+        [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=1
+        [[ "$BOOTLOADER" == auto ]] && BOOTLOADER=systemd
+        log "  backend: image ships only systemd-boot → composefs-native (--composefs-backend, systemd-boot)"
     fi
+    grep -q 'SEALED=1' <<<"$DETECT" && ROOTFS_SEALED=1 || ROOTFS_SEALED=0
 fi
+# Any lingering auto (e.g. an explicit wootc.composefs but auto bootloader) falls
+# back to safe defaults.
+[[ "$BOOTLOADER" == auto ]] && BOOTLOADER=grub2
+[[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=0
 
-# composefs needs fs-verity, and fisherman only enables it at format time for
-# ext4 (`mkfs.ext4 -O verity`); xfs and btrfs are formatted WITHOUT verity. The
-# deployer defaults FILESYSTEM=xfs, so a composefs image on xfs is a mismatch —
-# fisherman fails installing the root ("mounting root: … exit status 32",
-# reproduced on dakota with BOTH grub2 and systemd-boot). Force ext4 for composefs
-# unless the caller explicitly picked a filesystem.
-if [[ "$COMPOSEFS" == 1 && "$FILESYSTEM" == xfs && -z "$(read_cmdline wootc.filesystem)" ]]; then
+# A composefs-SEALED rootfs (native OR traditional ostree) needs fs-verity, which
+# fisherman only enables for ext4 (`mkfs.ext4 -O verity`); the deployer default
+# xfs has none, so fisherman fails installing the root ("mounting root: … exit
+# status 32", seen on dakota). Force ext4 when sealed unless the caller picked a
+# filesystem. Keyed off SEALED, NOT the backend — bonito (ostree) is sealed too.
+if [[ "${ROOTFS_SEALED:-0}" == 1 || "$COMPOSEFS" == 1 ]] && \
+   [[ "$FILESYSTEM" == xfs && -z "$(read_cmdline wootc.filesystem)" ]]; then
     FILESYSTEM=ext4
-    log "  composefs requires fs-verity → using ext4 root (deployer default xfs has no verity)"
+    log "  composefs-sealed rootfs → ext4 (fs-verity); deployer default xfs has none"
 fi
 
 # ── Write fisherman recipe ──────────────────────────────────────────────────

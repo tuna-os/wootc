@@ -17,11 +17,12 @@ param(
     # so the loop file must hold extracted image (~10 GB for yellowfin:gnome)
     # + blob scratch + filesystem overhead. 10 GB ENOSPC'd during the pull.
     [int]$DiskSizeGB = 25,
-    # Phase-2 bootloader the deployer installs: "grub2" (Enterprise Linux) or
-    # "systemd" (Fedora/Arch/Debian, and required by composefs images). Passed
-    # to the deployer as wootc.bootloader=; run-e2e.sh derives it from the image.
-    [ValidateSet("grub2", "systemd")]
-    [string]$Bootloader = "grub2",
+    # Phase-2 bootloader the deployer installs: "grub2" (traditional ostree),
+    # "systemd" (composefs-native), or "auto" (default) to let the DEPLOYER
+    # detect it definitively from the image (grub in bootupd → grub2, else
+    # systemd). Passed through as wootc.bootloader=.
+    [ValidateSet("grub2", "systemd", "auto")]
+    [string]$Bootloader = "auto",
     # composefs-backed images require systemd-boot; adds wootc.composefs=1.
     [switch]$ComposeFs,
     # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
