@@ -1629,7 +1629,7 @@ if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | g
     exit 1
 fi
 pass "Phase 2 Linux boot scheduled through BCD one-shot entry (bootsequence verified)"
-qga_powershell "shutdown /r /t 3 /f" >/dev/null
+qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
 qga_wait_down "Phase 2 Linux boot"
 
 step "Waiting for Phase 2 Linux system to boot..."
