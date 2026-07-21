@@ -153,6 +153,17 @@ setup() {
     [ "$mkdir_line" -lt "$install_line" ]
 }
 
+@test "post-install writes use the OSTree stateroot var visible at runtime" {
+    local bind_line install_line unmount_line
+    bind_line=$(grep -n 'mount --bind "\$OSTREE_VAR_ROOT" "\$DEPLOY_ROOT/var"' "$DEPLOY" | cut -d: -f1)
+    install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/usr/local/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
+    unmount_line=$(grep -n 'umount "\$DEPLOY_ROOT/var"' "$DEPLOY" | tail -1 | cut -d: -f1)
+    [ -n "$bind_line" ] && [ -n "$install_line" ] && [ -n "$unmount_line" ]
+    [ "$bind_line" -lt "$install_line" ]
+    [ "$install_line" -lt "$unmount_line" ]
+    grep -q 'DEPLOY_VAR_BOUND=true' "$DEPLOY"
+}
+
 @test "nonfatal Phase-2 checks are still collected into one verdict" {
     # Independent verification checks are accumulated, while prerequisites
     # such as a successfully rebuilt initramfs fail closed above.

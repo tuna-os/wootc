@@ -752,6 +752,24 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         DEPLOY_ROOT="/mnt/verify"
     fi
 
+    # OSTree keeps the persistent /var at
+    #   /ostree/deploy/<stateroot>/var
+    # and bind-mounts it over the deployment's own /var at boot. Writing via
+    # $DEPLOY_ROOT/usr/local (a ../var/usrlocal symlink) without that bind puts
+    # files in deployment-local /var, where the real boot immediately hides
+    # them. Proven on himachal: wootc-go-native existed at
+    # deploy/<checksum>.0/var/usrlocal/bin but was command-not-found in Phase 2.
+    # Recreate the runtime view before any chroot or post-install writes so
+    # /usr/local, /var/tmp, and /var/lib/wootc all target persistent state.
+    DEPLOY_VAR_BOUND=false
+    if [[ "$DEPLOY_ROOT" == *"/ostree/deploy/"* ]]; then
+        OSTREE_VAR_ROOT="$(dirname "$(dirname "$DEPLOY_ROOT")")/var"
+        install -d "$OSTREE_VAR_ROOT" "$DEPLOY_ROOT/var"
+        mount --bind "$OSTREE_VAR_ROOT" "$DEPLOY_ROOT/var"
+        DEPLOY_VAR_BOUND=true
+        log "  [PASS] OSTree stateroot /var bound into deployment for post-install writes"
+    fi
+
     VERIFY_BOOT="${VERIFY_LOOP}p2"
     if [[ ! -b "$VERIFY_BOOT" ]]; then
         err "  [FAIL] expected /boot partition ${VERIFY_BOOT} is missing"
@@ -1490,6 +1508,9 @@ GRUBEOF
 
     vstage "verify-complete (all stages passed; Phase-2 ESP is staged)"
     umount "$DEPLOY_ROOT/boot"
+    if [[ "$DEPLOY_VAR_BOUND" == true ]]; then
+        umount "$DEPLOY_ROOT/var"
+    fi
     umount /mnt/verify
 else
     err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
