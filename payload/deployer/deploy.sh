@@ -1614,6 +1614,12 @@ VERIFY_LOOP=""
 # ║ PROVISIONER: bootc/fisherman — ENDS here. Generic teardown follows.
 # ╚═══════════════════════════════════════════════════════════════════════════
 
+phase "reboot"
+log "Verification complete. Deployer requested reboot..."
+log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"
+log "deployer requested reboot"
+sync || true
+
 # Tear down the scratch store and leave the NTFS volume clean before the
 # forced reboot (reboot -f syncs but does not unmount; a still-mounted rw
 # NTFS would be flagged dirty and block the Phase 2 rw mount).
@@ -1646,9 +1652,6 @@ if [ "$_ntfs_umounted" != true ]; then
     umount -l /mnt/ntfs 2>/dev/null || true
 fi
 
-phase "reboot"
-log "Verification complete. Rebooting..."
-log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"
 sleep 3
 sync || true
 # reboot -f is systemctl reboot -f and hangs under emergency mode; use the
