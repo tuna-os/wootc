@@ -1364,7 +1364,8 @@ BLSEOF
                 TARGET_GRUB=$(find "$DEPLOY_ROOT/usr/lib/efi/grub2" -type f \
                     -name grubx64.efi -print -quit 2>/dev/null || true)
                 if [[ -n "$TARGET_GRUB" ]]; then
-                    vendor_dir=$(basename "$(dirname "$TARGET_GRUB")")
+                    vendor_dir=${TARGET_GRUB%/grubx64.efi}
+                    vendor_dir=${vendor_dir##*/}
                     TARGET_SHIM=$(find "$DEPLOY_ROOT/usr/lib/efi/shim" -type f \
                         -path "*/EFI/$vendor_dir/shimx64.efi" -print -quit 2>/dev/null || true)
                     TARGET_VENDOR="$vendor_dir"

@@ -51,6 +51,8 @@ setup() {
     grep -Fq 'find "$DEPLOY_ROOT/usr/lib/efi/grub2"' "$DEPLOY"
     grep -Fq '*/EFI/$vendor_dir/shimx64.efi' "$DEPLOY"
     grep -Fq '*/EFI/$TARGET_VENDOR/mmx64.efi' "$DEPLOY"
+    run grep -nE '^[^#]*dirname.*TARGET_GRUB' "$DEPLOY"
+    [ "$status" -ne 0 ]
 }
 
 @test "ESP staging logs every selected source and fails closed" {
