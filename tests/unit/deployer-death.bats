@@ -103,7 +103,7 @@ setup() {
     # silence began in this stretch.
     local n
     n=$(grep -c 'timeout 900 chroot' "$DEPLOY")
-    [ "$n" -ge 1 ]
+    [ "$n" -ge 2 ]
 }
 
 @test "a regen timeout aborts rather than booting a stale initramfs" {
