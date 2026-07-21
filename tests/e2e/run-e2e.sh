@@ -357,9 +357,16 @@ $COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.y
 # progress line frozen at "Waiting for QGA (5m of 45m)" while pgrep showed the
 # script running. A wall-clock deadline cannot help a loop that never iterates,
 # so the bound has to be here, on the blocking call itself.
-QGA_CALL_TIMEOUT="${WOOTC_QGA_CALL_TIMEOUT:-60}"
 qga_call() {
-    timeout "$QGA_CALL_TIMEOUT" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"
+    local rc=0 try
+    for try in 1 2 3; do
+        if timeout "$QGA_CALL_TIMEOUT" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"; then
+            return 0
+        fi
+        rc=$?
+        sleep 2
+    done
+    return $rc
 }
 
 qga_probe() {
