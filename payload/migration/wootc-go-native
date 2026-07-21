@@ -276,7 +276,11 @@ graduate_to_disk_execute() {
     sync; umount "$mnt" 2>/dev/null || true
 
     log "Graduate complete. UEFI boot entries now include the native install:"
-    efibootmgr 2>/dev/null | grep -iE "almalinux|tunaos|fedora|Linux|Boot0" | head -8
+    # `--generic-image` deliberately avoids mutating the machine firmware and
+    # installs a removable-media fallback loader on the target ESP.  Listing
+    # NVRAM here is diagnostic only: an empty grep (or firmware that exposes no
+    # entries) must not turn an otherwise complete native install into failure.
+    efibootmgr 2>/dev/null | grep -iE "almalinux|tunaos|fedora|Linux|Boot0" | head -8 || true
     log "Reboot to run natively from $target. Windows + root.disk remain for rollback."
 }
 

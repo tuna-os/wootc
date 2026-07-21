@@ -211,6 +211,10 @@ teardown() {
     grep -Fq 'native install produced no root partition' "$GN"
 }
 
+@test "Phase-3 success does not depend on an informational NVRAM listing" {
+    grep -F 'efibootmgr 2>/dev/null' "$GN" | grep -Fq '|| true'
+}
+
 @test "migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched" {
     touch "$WOOTC_GN_HOME/.config/wootc/converted-Documents"
     WOOTC_GN_FORCE_LOOP=0 WOOTC_GN_ROOT_SRC=/dev/sda3 \
