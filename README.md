@@ -98,13 +98,20 @@ Verified end-to-end on the KVM E2E rig (Windows 11 + TPM 2.0 + Secure Boot):
 - ✅ **Deploy:** the Secure Boot chain launches the deployer and fisherman lays
   down a full bootc image into `root.disk` — every post-deploy check passes
   (dracut hook, services, loop-root BLS args, ESP kernel-sync, `host-esp.conf`).
+- ✅ **Native Phase-2 boot (rung 2):** the signed Windows BCD → shim → GRUB
+  chain boots the installed Bluefin system from the NTFS-hosted `root.disk`.
+  The initramfs mounts NTFS with the kernel driver, attaches the raw disk with
+  `losetup`, resolves the root UUID, runs OSTree prepare-root, switches to the
+  real deployment, reaches the graphical system, and exposes Linux QGA.
 - ✅ **GUI + migration:** installer GUI (Playwright-tested), User Data Bridge
   and WSL/Office/Steam/browser bridges (unit-tested), external-disk import
   engine, Try-in-VM orchestration, Phase-3 planner.
-- 🚧 **Native Phase-2 boot (rung 2):** the last leg — booting the deployed
-  system from `root.disk` — is being finalized; the current work hardens the
-  post-deploy bootloader handoff so the wootc boot entry lands on the installed
-  kernel every time.
+- 🚧 **Graduate to native disk (Phase 3 / rung 3):** the automated VM now boots
+  Phase 2, discovers and independently verifies a dedicated blank `/dev/sdb`,
+  and reaches the guarded `bootc install to-disk` operation without touching
+  Windows or `root.disk`. The remaining live verification is the privileged
+  systemd dispatch and completed native-disk install; a GUI-driven full
+  Phase-1 → Phase-2 → Phase-3 run follows once that rung is green.
 
 Follow the verification ladder in [docs/milestones.md](docs/milestones.md).
 
