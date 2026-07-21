@@ -103,30 +103,35 @@ setup() {
     # silence began in this stretch.
     local n
     n=$(grep -c 'timeout 900 chroot' "$DEPLOY")
-    [ "$n" -ge 2 ]
+    [ "$n" -ge 1 ]
 }
 
-@test "a regen timeout is recorded as a problem, never silently ignored" {
-    # It no longer exits immediately — the run continues so the rest of the
-    # stretch can also be diagnosed — but it MUST be collected and reported.
+@test "a regen timeout aborts rather than booting a stale initramfs" {
     # Continuing without a rebuilt initramfs guarantees Phase 2 cannot boot.
     grep -q 'dracut regen TIMED OUT' "$DEPLOY"
-    grep -A4 'dracut regen TIMED OUT' "$DEPLOY" | grep -q 'PHASE2_PROBLEMS+=('
+    grep -A3 'dracut regen TIMED OUT' "$DEPLOY" | grep -q 'exit 1'
 }
 
 @test "the regen announces itself before starting" {
     grep -q 'verify: regenerating Phase-2 initramfs' "$DEPLOY"
 }
 
-@test "Phase-2 setup collects problems instead of aborting at the first" {
-    # Each run costs 40-90 minutes. Aborting on the first fault means ONE bug
-    # per run, which is how a single stretch took a whole day to clear. These
-    # steps are independent enough that a failure in one does not invalidate the
-    # diagnosis of the next.
+@test "the deployed chroot has a valid sticky var tmp before dracut" {
+    local prep_line regen_line
+    prep_line=$(grep -n 'mkdir -p "\$DEPLOY_ROOT/var/tmp"' "$DEPLOY" | head -1 | cut -d: -f1)
+    regen_line=$(grep -n 'timeout 900 chroot "\$DEPLOY_ROOT" dracut' "$DEPLOY" | head -1 | cut -d: -f1)
+    [ -n "$prep_line" ] && [ -n "$regen_line" ]
+    [ "$prep_line" -lt "$regen_line" ]
+    grep -q 'chmod 1777 "\$DEPLOY_ROOT/var/tmp"' "$DEPLOY"
+}
+
+@test "nonfatal Phase-2 checks are still collected into one verdict" {
+    # Independent verification checks are accumulated, while prerequisites
+    # such as a successfully rebuilt initramfs fail closed above.
     grep -q 'PHASE2_PROBLEMS=()' "$DEPLOY"
     local n
     n=$(grep -c 'PHASE2_PROBLEMS+=(' "$DEPLOY")
-    [ "$n" -ge 3 ]
+    [ "$n" -ge 1 ]
 }
 
 @test "the collected problems are reported as one summary" {

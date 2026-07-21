@@ -846,6 +846,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     shopt -u nullglob
 
     # Regenerate the initramfs with the module and BLS arguments in place.
+    # bootc deployments may leave the mutable /var skeleton empty until first
+    # boot. dracut resolves its default TMPDIR before doing any work and aborts
+    # with "Invalid tmpdir '/var/tmp'" if that directory is absent. Prepare the
+    # standard sticky temporary directories explicitly in the chroot.
+    install -d -m 1777 "$DEPLOY_ROOT/tmp"
+    mkdir -p "$DEPLOY_ROOT/var/tmp"
+    chmod 1777 "$DEPLOY_ROOT/var/tmp"
     # ostree keeps the live initramfs on the boot partition under
     # /boot/ostree/<stateroot>-<csum>/ — regenerate that exact file.
     for fs in dev proc sys; do mount --bind "/$fs" "$DEPLOY_ROOT/$fs"; done
