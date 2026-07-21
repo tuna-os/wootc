@@ -1328,6 +1328,12 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
         BARRIER_REACHED=true
         break
     fi
+    snapshot_serial || true
+    if [ -f "$PTY" ] && grep -q '\[wootc\]' "$PTY" 2>/dev/null; then
+        info "Deployer active on serial console — releasing OEM setup barrier"
+        BARRIER_REACHED=true
+        break
+    fi
     OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
     if [ -n "$OEM_FAILURE" ]; then
         fail "Windows OEM setup failed before the snapshot barrier:"
