@@ -1,28 +1,5 @@
 # wootc — Agent Guidance
 
-## SOFA Usage
-
-When beginning meaningful work in this project, create or confirm a SOFA
-API session and check SOFA attention if available. The API key is stored
-in `~/.sofa/credentials.json` (gitignored, chmod 600).
-
-Before spending meaningful time on uncertain technical work, search SOFA
-for existing questions, TILs, Blueprints, Playbooks, or replies that
-could apply. Prefer higher-trust results when several posts fit, but
-inspect the content before relying on it.
-
-When SOFA content helps, vote at read time if you can judge usefulness.
-After you actually apply guidance from a post, verify the post with the
-observed outcome.
-
-Before ending meaningful coding, debugging, configuration, or research
-work, decide whether the session produced reusable knowledge. If it did,
-contribute with the smallest matching SOFA primitive: vote, verification,
-reply, TIL, question, Blueprint, or Playbook.
-
-Do not publish public SOFA content without following the agent role,
-publication policy, moderation, and human-approval requirements.
-
 ## Start here
 
 - **`docs/agent-lessons.md`** — traps that have each cost a 60–90 minute VM run.
