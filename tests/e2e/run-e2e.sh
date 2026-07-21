@@ -444,11 +444,11 @@ qga_wait_windows() {
 }
 
 qga_powershell() {
-    qga_call powershell "$1"
+    qga_call powershell "$1" || return $?
 }
 
 qga_read() {
-    qga_call read "$1"
+    qga_call read "$1" || return $?
 }
 
 # Advisory guest-side progress sample for long quiet deploys. This deliberately
