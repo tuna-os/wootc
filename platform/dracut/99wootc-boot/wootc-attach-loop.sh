@@ -93,21 +93,21 @@ mkdir -p "$HOST_MNT"
 # ntfs-3g FUSE fallback determines whether images need ntfs-3g injected at all.
 NTFS_DRIVER=""
 mount_host() {
-    # Keep this identical to the proven Phase-1 mount. ntfs3 rejected the
-    # speculative nobarrier/async/prealloc option set, forcing ntfs-3g; its
-    # FUSE daemon was then stopped during initrd cleanup and every loop-backed
-    # root read became EIO during switch-root.
-    if mount -t ntfs3 -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null; then
+    local err_out
+    if err_out=$(mount -t ntfs3 -o rw,force "$HOST_DEV" "$HOST_MNT" 2>&1); then
         NTFS_DRIVER="kernel-ntfs3"; return 0
+    else
+        say "ntfs3 mount failed: $err_out"
     fi
     local drv
     for drv in ntfs-3g lowntfs-3g mount.ntfs-3g; do
         command -v "$drv" >/dev/null 2>&1 || continue
-        if "$drv" -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null; then
+        # Prefix argv[0] with '@' so systemd initrd switch-root does NOT SIGKILL the FUSE daemon!
+        if exec -a "@$drv" "$drv" -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null; then
             NTFS_DRIVER="fuse-$drv"; return 0
         fi
     done
-    if mount -t ntfs -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null; then
+    if err_out=$(mount -t ntfs -o rw "$HOST_DEV" "$HOST_MNT" 2>&1); then
         NTFS_DRIVER="kernel-ntfs"; return 0
     fi
     return 1

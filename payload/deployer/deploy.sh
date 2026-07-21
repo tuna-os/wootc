@@ -279,7 +279,7 @@ fi
 
 # ── Mount NTFS read-write ───────────────────────────────────────────────────
 mkdir -p /mnt/ntfs
-if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
+if ! mount -t ntfs3 -o rw,force "$NTFS_PART" /mnt/ntfs 2>/dev/null && ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     err "cannot mount ${NTFS_PART} read-write — the NTFS volume is likely dirty"
     err "(Windows hibernated, Fast Startup, or an unclean shutdown)."
     err "Boot Windows once, perform a full shutdown, and retry."
