@@ -116,7 +116,11 @@ if (Test-Path $diskPath) {
     Remove-Item $diskPath -Force
 }
 $fs = [System.IO.File]::Create($diskPath)
-try   { $fs.SetLength($sizeBytes) }
+try   {
+    $fs.SetLength($sizeBytes)
+    $fs.Seek($sizeBytes - 1, [System.IO.SeekOrigin]::Begin) | Out-Null
+    $fs.WriteByte(0)
+}
 finally { $fs.Close() }
 
 if (-not (Test-Path $diskPath)) { throw "Failed to create raw image at $diskPath" }
