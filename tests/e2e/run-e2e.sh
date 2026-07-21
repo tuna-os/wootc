@@ -1610,6 +1610,23 @@ if ! qga_windows_probe; then
 fi
 
 step "Scheduling one-shot Phase 2 Linux boot..."
+# Re-extend NTFS ValidDataLength (VDL) on root.disk before Phase 2 boots.
+# fuse-ntfs-3g resets VDL to the highest byte it actually wrote during the
+# deployer session. Fisherman only touches the sectors it needs (~8-10 GiB),
+# so VDL is left below the full 32 GiB. Linux ntfs3/ntfs-3g returns EIO on
+# any loop0 write past VDL. Running fsutil setvaliddata from Windows (which
+# has SeManageVolumePrivilege as SYSTEM) re-extends VDL=size in milliseconds.
+_disk_path='C:\wootc\disks\root.disk'
+# shellcheck disable=SC2016
+_disk_size=$(qga_powershell "(Get-Item '$_disk_path').Length" 2>/dev/null | tr -d '\r\n' || true)
+if [[ -n "$_disk_size" && "$_disk_size" =~ ^[0-9]+$ && "$_disk_size" -gt 0 ]]; then
+    # shellcheck disable=SC2016
+    _svd_out=$(qga_powershell "\$r = & fsutil file setvaliddata '$_disk_path' $_disk_size 2>&1; Write-Output \$r; exit \$LASTEXITCODE" 2>/dev/null | tr -d '\r\n' || true)
+    info "fsutil setvaliddata root.disk (${_disk_size} bytes): ${_svd_out}"
+else
+    info "Could not read root.disk size for VDL extension (size='${_disk_size}'), continuing"
+fi
+
 # shellcheck disable=SC2016 # PowerShell variables must remain literal here.
 PHASE2_GUID=$(qga_powershell \
     '$guid = (Get-Content C:\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid')
