@@ -24,8 +24,8 @@
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-    E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
-    DEPLOY="$REPO_ROOT/payload/deployer/deploy.sh"
+    E2E="${E2E:-$REPO_ROOT/tests/e2e/run-e2e.sh}"
+    DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
 }
 
 @test "both scripts are syntactically valid" {
@@ -123,6 +123,14 @@ setup() {
     [ -n "$prep_line" ] && [ -n "$regen_line" ]
     [ "$prep_line" -lt "$regen_line" ]
     grep -q 'chmod 1777 "\$DEPLOY_ROOT/var/tmp"' "$DEPLOY"
+}
+
+@test "ostree usr-local backing directory exists before bridge installation" {
+    local mkdir_line install_line
+    mkdir_line=$(grep -n 'install -d -m755 "\$DEPLOY_ROOT/var/usrlocal/bin"' "$DEPLOY" | cut -d: -f1)
+    install_line=$(grep -n 'wootc-mount-user-dirs' "$DEPLOY" | tail -1 | cut -d: -f1)
+    [ -n "$mkdir_line" ] && [ -n "$install_line" ]
+    [ "$mkdir_line" -lt "$install_line" ]
 }
 
 @test "nonfatal Phase-2 checks are still collected into one verdict" {

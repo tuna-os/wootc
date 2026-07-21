@@ -1060,6 +1060,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
     ln -sf ../wootc-passthrough.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-passthrough.service"
+    # ostree images intentionally ship /usr/local as ../var/usrlocal, while a
+    # fresh bootc deployment may not create the mutable backing directory until
+    # first boot. Without it every install to /usr/local/bin fails through the
+    # dangling symlink.
+    install -d -m755 "$DEPLOY_ROOT/var/usrlocal/bin"
     install -m755 /usr/lib/wootc/migration/wootc-mount-user-dirs \
         "$DEPLOY_ROOT/usr/local/bin/wootc-mount-user-dirs"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
