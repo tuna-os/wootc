@@ -54,6 +54,14 @@ for arg in "$@"; do
     esac
 done
 IMAGE_REF="${IMAGE_REF:-ghcr.io/tuna-os/yellowfin:gnome}"
+# The Phase-3 rung is intentionally destructive only to a dedicated blank
+# disk. Make the command-line contract self-contained: `--phase3` must create
+# that disk unless the caller explicitly chose another size. Previously only a
+# compose comment claimed the harness did this, so every Phase-3 run had no
+# target and aborted immediately after the safe status probe.
+if [ "${RUN_PHASE3:-false}" = true ]; then
+    export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1684,8 +1692,11 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # Selection logic lives in tests/e2e/pick-blank-disk.sh so it can be unit
     # tested — its output is handed to `bootc install --wipe`, so a wrong answer
     # destroys the user's Windows. Shipped as text over QGA and run in the guest.
+    # An empty result is a handled safety failure below. Under set -e +
+    # pipefail, pick-blank-disk's deliberate exit 1 must not terminate the
+    # runner before that diagnostic is emitted.
     P3_TARGET=$(qga_call exec /bin/sh -c "$(cat "$SCRIPT_DIR/pick-blank-disk.sh")" \
-        2>/dev/null | tr -d '\r\n ')
+        2>/dev/null | tr -d '\r\n ' || true)
     if [ -z "$P3_TARGET" ]; then
         fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
         exit 1

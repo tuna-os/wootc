@@ -65,6 +65,12 @@ STUB
     [[ "$output" != *" wootc-go-native migrate"* ]]
 }
 
+@test "--phase3 provisions its dedicated blank target and handles none found" {
+    grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"' "$E2E_RUNNER"
+    grep -A2 'P3_TARGET=$(qga_call' "$E2E_RUNNER" | grep -q '|| true)'
+    grep -q 'Phase 3: no BLANK spare disk found' "$E2E_RUNNER"
+}
+
 # Assert no DESTRUCTIVE disk operation happened. Read-only probes are fine and
 # expected in a dry run — `bootc status --json` is how the plan discovers the
 # local image ref, and lsblk/blkid inspect layout. Only writes must never occur.
