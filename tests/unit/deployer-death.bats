@@ -179,6 +179,7 @@ setup() {
     [ -n "$install_line" ] && [ -n "$restore_line" ] && [ -n "$verify_line" ]
     [ "$install_line" -lt "$restore_line" ]
     [ "$restore_line" -lt "$verify_line" ]
+    grep -q '^            /var/usrlocal \\' "$DEPLOY"
     grep -q 'wootc-go-native remains unlabeled' "$DEPLOY"
 }
 

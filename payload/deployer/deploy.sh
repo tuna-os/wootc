@@ -1521,6 +1521,7 @@ GRUBEOF
     if chroot "$DEPLOY_ROOT" sh -c 'command -v restorecon >/dev/null 2>&1'; then
         if ! chroot "$DEPLOY_ROOT" restorecon -RF \
             /usr/local \
+            /var/usrlocal \
             /usr/share/applications \
             /usr/share/polkit-1/actions \
             /usr/share/wootc \
