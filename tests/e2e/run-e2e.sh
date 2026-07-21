@@ -1192,7 +1192,9 @@ else
 fi
 
 qga_is_linux() {
-    qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | tr -d '\r\n' | grep -qi Linux
+    local sys
+    sys=$(qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | tr -d '\r\n' || true)
+    [[ "$sys" =~ [Ll]inux ]]
 }
 
 # The QGA service is installed by the SYSTEM OEM bootstrap before the wootc
