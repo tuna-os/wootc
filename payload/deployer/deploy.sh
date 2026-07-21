@@ -284,8 +284,17 @@ if ! mount -t ntfs3 -o rw "$NTFS_PART" /mnt/ntfs; then
     err "(Windows hibernated, Fast Startup, or an unclean shutdown)."
     err "Boot Windows once, perform a full shutdown, and retry."
     if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
-fi
 DISK="/mnt/ntfs/wootc/disks/root.disk"
+
+# Ensure root.disk is fully allocated on NTFS so ntfs3 never encounters unallocated
+# sparse holes during Phase-2 loopback writes (which causes I/O error).
+if [[ -f "$DISK" ]]; then
+    _disk_size=$(stat -c%s "$DISK" 2>/dev/null || echo 0)
+    if [[ "$_disk_size" -gt 0 ]]; then
+        log "preallocating root.disk space (${_disk_size} bytes) on NTFS..."
+        fallocate -l "$_disk_size" "$DISK" 2>/dev/null || truncate -s "$_disk_size" "$DISK" 2>/dev/null || true
+    fi
+fi
 
 # Now that NTFS is mounted, pick up a staged debug SSH key if the cmdline did
 # not carry one, and derive the sshd-enable kernel karg (empty when no key).
