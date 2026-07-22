@@ -1699,19 +1699,19 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         # that the initramfs started. "ostree=" matches the kernel cmdline echo
         # inside the initramfs, so it fired even when the boot then dropped to an
         # emergency shell — reporting PASS for a system with no root at all.
-        if echo "$NEW_OUTPUT" | grep -qE "Reached target (multi-user|graphical)|login:|Welcome to" || qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | grep -qi linux; then
+        if printf '%s\n' "$NEW_OUTPUT" | grep -E "Reached target (multi-user|graphical)|login:|Welcome to" >/dev/null 2>&1; then
             BOOT_SUCCESS=true
             pass "Phase 2 Linux system booted (reached its real root)"
             break
         fi
         # Emergency mode = root never appeared. Fail fast and say why, instead of
         # waiting out the timeout or mislabelling it a success.
-        if echo "$NEW_OUTPUT" | grep -qE "Entering emergency mode|emergency\.target|Dependency failed for sysroot"; then
+        if printf '%s\n' "$NEW_OUTPUT" | grep -E "Entering emergency mode|emergency\.target|Dependency failed for sysroot" >/dev/null 2>&1; then
             fail "Phase 2 dropped to an emergency shell — root.disk never attached"
             echo "$NEW_OUTPUT" | grep -aiE "wootc|sysroot|does not exist|mount" | tail -12
             break
         fi
-        if echo "$NEW_OUTPUT" | grep -qE "No bootable device|BOOTMGR is missing|kernel panic"; then
+        if printf '%s\n' "$NEW_OUTPUT" | grep -E "No bootable device|BOOTMGR is missing|kernel panic" >/dev/null 2>&1; then
             fail "Boot failure detected"
             break
         fi
