@@ -80,6 +80,8 @@ RUN for bin in conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 
         { echo "FATAL: User Data Bridge migration payload missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/org.tunaos.wootc.policy" || \
         { echo "FATAL: wootc polkit policy missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-e2e-phase3-dispatch" || \
+        { echo "FATAL: Phase 3 dispatch script missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/systemd/systemd-cryptsetup" || \
         { echo "FATAL: systemd-cryptsetup missing from initramfs"; exit 1; }
 
