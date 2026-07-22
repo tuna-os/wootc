@@ -246,13 +246,12 @@ graduate_to_disk_execute() {
     filesystem=${filesystem:-xfs}
     case "$filesystem" in xfs|ext4|btrfs) ;; *) die "invalid recorded filesystem: $filesystem" ;; esac
     log "Installing $img onto $target as $filesystem (wipes $target only)…"
-    # Same mechanism as the initial deploy: run bootc from the local image with
-    # /dev passed through. bootc partitions the target (ESP+boot+root), installs
-    # the ostree deployment, and lays the bootloader via bootupd.
-    podman run --rm --privileged --pid=host --security-opt label=disable --net=host \
-        -v /var/lib/containers:/var/lib/containers -v /dev:/dev -v /var/tmp:/var/tmp \
-        "$img" bootc install to-disk --generic-image --wipe --filesystem "$filesystem" --karg rw "$target" \
+    # Phase 2 Linux IS the Yellowfin image — bootc is already in the running system.
+    # Call bootc directly rather than wrapping it in podman (which would require
+    # a working containers-storage pointing at the right image, fragile in Phase 2).
+    bootc install to-disk --generic-image --wipe --filesystem "$filesystem" --karg rw "$target" \
         || die "bootc install to-disk failed"
+
 
     # Migrate /home into the new install. On ostree, /home → /var/home in the
     # stateroot (…/ostree/deploy/<stateroot>/var/home).
