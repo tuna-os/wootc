@@ -355,8 +355,10 @@ logs:
 ssh:
     ssh {{ KANPUR }}
 
-# Run shellcheck on the harness and the migration payloads
+# Run shellcheck on the harness and the migration payloads.
+# -S warning: info-level SC2016 fires falsely on single-quoted PowerShell
+# payloads (the $vars are PowerShell's, not the shell's).
 check:
-    shellcheck "{{ E2E_DIR }}/run-e2e.sh" "{{ E2E_DIR }}/setup-kvm-runner.sh"
+    shellcheck -S warning "{{ E2E_DIR }}/run-e2e.sh" "{{ E2E_DIR }}/setup-kvm-runner.sh"
     shellcheck payload/migration/wootc-go-native payload/migration/wootc-wifi-bridge \
         payload/migration/wootc-wsl-bridge payload/migration/wootc-apply-look || true

@@ -153,7 +153,10 @@ prune_old_artifacts() {
     [ -d "$base" ] || return 0
     local evidence="$base/.evidence"
     mkdir -p "$evidence"
-    # Newest first; skip the ones we keep, prune the tail.
+    # Newest first; skip the ones we keep, prune the tail. ls -t is the point
+    # here (mtime ordering) — a glob can't sort by time, and run dirs are
+    # timestamp-named ASCII so the SC2010 filename caveat doesn't apply.
+    # shellcheck disable=SC2010
     ls -1dt "$base"/*/ 2>/dev/null | grep -v '/.evidence/$' | tail -n "+$((keep + 1))" | while read -r d; do
         local name; name=$(basename "$d")
         mkdir -p "$evidence/$name"
