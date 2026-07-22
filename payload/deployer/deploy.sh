@@ -582,7 +582,7 @@ ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NT
 # on himachal: dakota/marlin ship no grub + systemd-boot (native); bluefin/bonito
 # ship bootupctl + grubx64.efi (ostree). wootc.composefs / wootc.bootloader override.
 if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
-    if ! DETECT="$(timeout 60 podman run --rm --network=host "$IMAGE" sh -c '
+    if ! DETECT="$(timeout 30 podman run --rm --network=host "$IMAGE" sh -c '
         if { ls /usr/lib/bootupd/updates/EFI/*/grubx64.efi >/dev/null 2>&1 ||
              { test -f /usr/lib/bootupd/updates/EFI.json &&
                find /usr/lib/efi/grub2 -type f -name grubx64.efi -print -quit 2>/dev/null | grep -q . &&
@@ -596,8 +596,9 @@ if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
         grep -A8 "^\[composefs\]" /usr/lib/ostree/prepare-root.conf 2>/dev/null \
           | grep -qiE "enabled[[:space:]]*=[[:space:]]*(yes|true|1|signed)" && echo SEALED=1 || echo SEALED=0
     ' 2>/dev/null)"; then
-        err "failed to inspect image for deployment backend: $IMAGE"
-        exit 1
+        err "  [WARN] podman run image inspection timed out/failed; falling back to default backend (ostree/grub2)"
+        DETECT="BACKEND=ostree
+SEALED=0"
     fi
     if grep -q '^BACKEND=ostree$' <<<"$DETECT"; then
         [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=0
@@ -608,8 +609,9 @@ if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
         [[ "$BOOTLOADER" == auto ]] && BOOTLOADER=systemd
         log "  backend: image ships only systemd-boot → composefs-native (--composefs-backend, systemd-boot)"
     else
-        err "image exposes neither a signed bootupd GRUB nor systemd-boot-only backend: $IMAGE"
-        exit 1
+        log "  [WARN] unrecognized backend signal; defaulting to ostree/grub2"
+        [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=0
+        [[ "$BOOTLOADER" == auto ]] && BOOTLOADER=grub2
     fi
     grep -q 'SEALED=1' <<<"$DETECT" && ROOTFS_SEALED=1 || ROOTFS_SEALED=0
 fi
