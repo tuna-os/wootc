@@ -57,7 +57,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
                    losetup qemu-nbd dmsetup cryptsetup systemd-cryptenroll \
                     /usr/lib/systemd/systemd-cryptsetup \
-                    curl dhclient ip NetworkManager jq blkid chroot shred logger basename date" \
+                    curl dhclient ip NetworkManager jq blkid chroot shred logger basename date mktemp" \
         --kernel-cmdline "rd.neednet=1 ip=dhcp quiet" \
         /out/deployer-initramfs.img \
         "$KERNEL_VER"

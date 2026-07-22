@@ -1488,7 +1488,8 @@ BLSEOF
                 # Patch Phase-2 initrd with wootc-boot via prepend-cpio. The target image
                 # (e.g. yellowfin) lacks ntfs3/ntfs-3g, so we also copy the deployer's
                 # own ntfs-3g binary and fuse module/libraries into the early cpio.
-                OVL=$(mktemp -d)
+                OVL="/tmp/wootc-ovl-$$"
+                rm -rf "$OVL"; mkdir -p "$OVL"
                 : > "$OVL/early_cpio"
                 install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
                     "$OVL/usr/lib/systemd/system/wootc-attach.service"
