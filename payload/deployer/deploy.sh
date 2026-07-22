@@ -1371,19 +1371,21 @@ QGAEOF
                 ln -sf ../wootc-attach.service \
                     "$OVL/usr/lib/systemd/system/sysinit.target.wants/wootc-attach.service"
 
-                if command -v ntfs-3g >/dev/null 2>&1; then
+                if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
                     local nbin
-                    nbin=$(command -v ntfs-3g)
+                    nbin=$(ls /mnt/sysroot/usr/bin/ntfs-3g /usr/bin/ntfs-3g 2>/dev/null | head -1)
                     install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
-                    ldd "$nbin" 2>/dev/null | awk '/=>/ {print $3}' | while read -r lib; do
-                        if [[ -f "$lib" ]]; then
-                            install -D -m0755 "$lib" "$OVL/$lib"
-                        fi
+                    ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs" 2>/dev/null || true
+                    ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs-3g" 2>/dev/null || true
+                    # Copy libntfs-3g.so.89 and dependencies
+                    find /mnt/sysroot/lib64 /lib64 /mnt/sysroot/usr/lib64 /usr/lib64 -name "libntfs-3g*" 2>/dev/null | while read -r lib; do
+                        relpath="${lib#/mnt/sysroot}"
+                        install -D -m0755 "$lib" "$OVL/$relpath"
                     done
                 fi
 
-                # Stage host storage drivers into early cpio overlay from target rootfs
-                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd; do
+                # Stage host storage & FUSE drivers into early cpio overlay from target rootfs
+                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd fuse; do
                     modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                     if [[ -n "$modfile" && -f "$modfile" ]]; then
                         relpath="${modfile#/mnt/sysroot}"
@@ -1451,19 +1453,21 @@ BLSEOF
                     ln -sf ../wootc-attach.service \
                         "$OVL/usr/lib/systemd/system/sysinit.target.wants/wootc-attach.service"
 
-                    if command -v ntfs-3g >/dev/null 2>&1; then
+                    if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
                         local nbin
-                        nbin=$(command -v ntfs-3g)
+                        nbin=$(ls /mnt/sysroot/usr/bin/ntfs-3g /usr/bin/ntfs-3g 2>/dev/null | head -1)
                         install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
-                        ldd "$nbin" 2>/dev/null | awk '/=>/ {print $3}' | while read -r lib; do
-                            if [[ -f "$lib" ]]; then
-                                install -D -m0755 "$lib" "$OVL/$lib"
-                            fi
+                        ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs" 2>/dev/null || true
+                        ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs-3g" 2>/dev/null || true
+                        # Copy libntfs-3g.so.89 and dependencies
+                        find /mnt/sysroot/lib64 /lib64 /mnt/sysroot/usr/lib64 /usr/lib64 -name "libntfs-3g*" 2>/dev/null | while read -r lib; do
+                            relpath="${lib#/mnt/sysroot}"
+                            install -D -m0755 "$lib" "$OVL/$relpath"
                         done
                     fi
 
-                    # Stage host storage drivers into early cpio overlay from target rootfs
-                    for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd; do
+                    # Stage host storage & FUSE drivers into early cpio overlay from target rootfs
+                    for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd fuse; do
                         modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                         if [[ -n "$modfile" && -f "$modfile" ]]; then
                             relpath="${modfile#/mnt/sysroot}"
