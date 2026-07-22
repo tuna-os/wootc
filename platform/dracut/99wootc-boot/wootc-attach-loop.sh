@@ -50,6 +50,10 @@ if [ -z "$LOOP_PATH" ] || [ -z "$HOST_UUID" ]; then
     exit 0
 fi
 
+modprobe virtio_scsi 2>/dev/null
+modprobe virtio_pci 2>/dev/null
+modprobe sd_mod 2>/dev/null
+modprobe ahci 2>/dev/null
 modprobe ntfs3 2>/dev/null   # kernel driver, if the target ships it
 modprobe fuse  2>/dev/null   # for the ntfs-3g userspace fallback
 modprobe loop max_part=16 2>/dev/null
