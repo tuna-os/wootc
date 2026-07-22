@@ -1124,6 +1124,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-passthrough.service"
 
     # Enable QGA guest-exec and guest-file RPCs for Phase 3 control plane
+    # Fedora packages default FILTER_RPC_ARGS in /etc/sysconfig/qemu-ga to restrict RPCs.
+    mkdir -p "$DEPLOY_ROOT/etc/sysconfig" "$DEPLOY_ROOT/etc/qemu"
+    cat > "$DEPLOY_ROOT/etc/sysconfig/qemu-ga" <<'QGAEOF'
+# Enable all QGA RPCs (guest-exec, guest-file-*) for wootc Phase 3 control plane
+FILTER_RPC_ARGS=""
+FSFREEZE_HOOK_PATHNAME=/etc/qemu-ga/fsfreeze-hook
+QGAEOF
     cat > "$DEPLOY_ROOT/etc/qemu/qemu-ga.conf" <<'QGAEOF'
 [main]
 daemon=1
