@@ -65,16 +65,26 @@ HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
 # retry" — a lie under systemd — so root.disk was never attached and Phase 2
 # timed out into the emergency shell.)
 if [ ! -b "$HOST_DEV" ]; then
-    say "host NTFS $HOST_DEV not present yet; settling udev and waiting up to 60s"
+    say "host NTFS $HOST_DEV not present yet; settling udev and probing block devices..."
     _waited=0
     while [ ! -b "$HOST_DEV" ] && [ "$_waited" -lt 60 ]; do
         udevadm trigger --action=add --type=devices >/dev/null 2>&1 || true
         udevadm settle --timeout=3 >/dev/null 2>&1 || sleep 1
         _waited=$((_waited + 3))
+        # Fallback probe if by-uuid symlink is missing from udev
+        if [ ! -b "$HOST_DEV" ]; then
+            for dev in /dev/sd* /dev/nvme* /dev/vd*; do
+                if [ -b "$dev" ] && blkid "$dev" 2>/dev/null | grep -q "$HOST_UUID"; then
+                    HOST_DEV="$dev"
+                    say "Found host NTFS partition via blkid probe at $HOST_DEV"
+                    break
+                fi
+            done
+        fi
     done
 fi
 if [ ! -b "$HOST_DEV" ]; then
-    say "EXIT: host NTFS $HOST_DEV never appeared after 60s (udev did not create the by-uuid symlink for the Windows partition). Present by-uuid: $(ls /dev/disk/by-uuid/ 2>/dev/null | tr '\n' ' ')"
+    say "EXIT: host NTFS $HOST_DEV never appeared after 60s. Present devices: $(ls /dev/sd* /dev/nvme* /dev/vd* 2>/dev/null | tr '\n' ' ')"
     exit 0
 fi
 say "host NTFS $HOST_DEV present after ${_waited:-0}s"
