@@ -68,6 +68,7 @@ if [ ! -b "$HOST_DEV" ]; then
     say "host NTFS $HOST_DEV not present yet; settling udev and waiting up to 60s"
     _waited=0
     while [ ! -b "$HOST_DEV" ] && [ "$_waited" -lt 60 ]; do
+        udevadm trigger --action=add --type=devices >/dev/null 2>&1 || true
         udevadm settle --timeout=3 >/dev/null 2>&1 || sleep 1
         _waited=$((_waited + 3))
     done
