@@ -1138,6 +1138,12 @@ blacklist=
 block-rpcs=
 QGAEOF
     cp "$DEPLOY_ROOT/etc/qemu/qemu-ga.conf" "$DEPLOY_ROOT/etc/qemu-ga.conf" 2>/dev/null || true
+
+    # Set SELinux to permissive mode so Phase 3 QGA & User Data Bridge are not blocked by virt_qemu_ga_t
+    if [[ -f "$DEPLOY_ROOT/etc/selinux/config" ]]; then
+        sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' "$DEPLOY_ROOT/etc/selinux/config" 2>/dev/null || true
+        log "  [PASS] SELinux configured to permissive in /etc/selinux/config"
+    fi
     # ostree images intentionally ship /usr/local as ../var/usrlocal, while a
     # fresh bootc deployment may not create the mutable backing directory until
     # first boot. Without it every install to /usr/local/bin fails through the
