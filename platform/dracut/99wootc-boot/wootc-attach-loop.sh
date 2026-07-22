@@ -67,7 +67,7 @@ for mod in virtio_scsi virtio_pci sd_mod ahci nvme ntfs3 fuse loop; do
     }
 done
 
-HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
+HOST_DEV="/dev/disk/by-uuid/${HOST_UUID,,}"
 # WAIT for the host NTFS to appear — do NOT assume a retry. This runs as a
 # systemd oneshot (the ostree Phase-2 initramfs never drains a dracut initqueue),
 # so there is exactly ONE invocation. The service is ordered After=
@@ -87,7 +87,7 @@ if [ ! -b "$HOST_DEV" ]; then
         # Fallback probe if by-uuid symlink is missing from udev
         if [ ! -b "$HOST_DEV" ]; then
             for dev in /dev/sd* /dev/nvme* /dev/vd*; do
-                if [ -b "$dev" ] && blkid "$dev" 2>/dev/null | grep -q "$HOST_UUID"; then
+                if [ -b "$dev" ] && blkid "$dev" 2>/dev/null | grep -qi "$HOST_UUID"; then
                     HOST_DEV="$dev"
                     say "Found host NTFS partition via blkid probe at $HOST_DEV"
                     break
