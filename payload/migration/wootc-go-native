@@ -165,8 +165,9 @@ next_partnum() {
 # graduate_plan — the exact command sequence to move onto a native partition
 # while keeping Windows (reversible). Printed for review; run only with execute.
 graduate_plan() {
-    local shrink_gib="${WOOTC_GN_SHRINK_GIB:-0}" newpart="${DISK}$(next_partnum)"
-    local localref="containers-storage:$(bootc_local_imgref)"
+    local shrink_gib="${WOOTC_GN_SHRINK_GIB:-0}" newpart localref
+    newpart="${DISK}$(next_partnum)"
+    localref="containers-storage:$(bootc_local_imgref)"
     cat <<PLAN
 Graduate to native (dual-boot — Windows stays, fully reversible)
 Disk: $DISK   Windows NTFS: $NTFS_DEV   ESP: $ESP_DEV
