@@ -43,8 +43,17 @@ say "attach-loop hook entered (initqueue)"
 
 [ -e /run/wootc-loop-attached ] && exit 0
 
-LOOP_PATH=$(getarg loop=)
-HOST_UUID=$(getarg wootc.host_uuid=)
+LOOP_PATH=$(getarg loop= 2>/dev/null || true)
+HOST_UUID=$(getarg wootc.host_uuid= 2>/dev/null || true)
+
+# Fallback directly to /proc/cmdline if getarg failed
+if [ -z "$LOOP_PATH" ] && [ -f /proc/cmdline ]; then
+    LOOP_PATH=$(sed -n 's/.*loop=\([^ ]*\).*/\1/p' /proc/cmdline)
+fi
+if [ -z "$HOST_UUID" ] && [ -f /proc/cmdline ]; then
+    HOST_UUID=$(sed -n 's/.*wootc\.host_uuid=\([^ ]*\).*/\1/p' /proc/cmdline)
+fi
+
 if [ -z "$LOOP_PATH" ] || [ -z "$HOST_UUID" ]; then
     say "EXIT: missing kernel args (loop='${LOOP_PATH}' wootc.host_uuid='${HOST_UUID}') — the BLS entry/grub.cfg did not carry them"
     exit 0
