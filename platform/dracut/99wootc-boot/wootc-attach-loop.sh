@@ -50,13 +50,13 @@ if [ -z "$LOOP_PATH" ] || [ -z "$HOST_UUID" ]; then
     exit 0
 fi
 
-modprobe virtio_scsi 2>/dev/null
-modprobe virtio_pci 2>/dev/null
-modprobe sd_mod 2>/dev/null
-modprobe ahci 2>/dev/null
-modprobe ntfs3 2>/dev/null   # kernel driver, if the target ships it
-modprobe fuse  2>/dev/null   # for the ntfs-3g userspace fallback
-modprobe loop max_part=16 2>/dev/null
+for mod in virtio_scsi virtio_pci sd_mod ahci nvme ntfs3 fuse loop; do
+    modprobe "$mod" max_part=16 2>/dev/null || {
+        for kfile in $(find /lib/modules -name "${mod}.ko*" 2>/dev/null); do
+            insmod "$kfile" 2>/dev/null || true
+        done
+    }
+done
 
 HOST_DEV="/dev/disk/by-uuid/$HOST_UUID"
 # WAIT for the host NTFS to appear — do NOT assume a retry. This runs as a
