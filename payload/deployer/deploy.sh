@@ -1382,9 +1382,9 @@ QGAEOF
                     done
                 fi
 
-                # Stage host storage drivers into early cpio overlay
-                for mod in virtio_scsi virtio_pci sd_mod ahci nvme; do
-                    modfile=$(find /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
+                # Stage host storage drivers into early cpio overlay from target rootfs
+                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci nvme; do
+                    modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                     if [[ -n "$modfile" && -f "$modfile" ]]; then
                         install -D -m0644 "$modfile" "$OVL/$modfile"
                     fi
@@ -1457,9 +1457,9 @@ BLSEOF
                         done
                     fi
 
-                    # Stage host storage drivers into early cpio overlay
-                    for mod in virtio_scsi virtio_pci sd_mod ahci nvme; do
-                        modfile=$(find /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
+                    # Stage host storage drivers into early cpio overlay from target rootfs
+                    for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci nvme; do
+                        modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                         if [[ -n "$modfile" && -f "$modfile" ]]; then
                             install -D -m0644 "$modfile" "$OVL/$modfile"
                         fi
@@ -1573,9 +1573,9 @@ BLSEOF
                     done
                 fi
 
-                # Stage host storage drivers into early cpio overlay
-                for mod in virtio_scsi virtio_pci sd_mod ahci nvme; do
-                    modfile=$(find /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
+                # Stage host storage drivers into early cpio overlay from target rootfs
+                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci nvme; do
+                    modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                     if [[ -n "$modfile" && -f "$modfile" ]]; then
                         install -D -m0644 "$modfile" "$OVL/$modfile"
                     fi
