@@ -596,9 +596,9 @@ if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
         grep -A8 "^\[composefs\]" /usr/lib/ostree/prepare-root.conf 2>/dev/null \
           | grep -qiE "enabled[[:space:]]*=[[:space:]]*(yes|true|1|signed)" && echo SEALED=1 || echo SEALED=0
     ' 2>/dev/null)"; then
-        err "  [WARN] podman run image inspection timed out/failed; falling back to default backend (ostree/grub2)"
+        err "  [WARN] podman run image inspection timed out/failed; falling back to default backend (ostree/grub2, ext4 sealed)"
         DETECT="BACKEND=ostree
-SEALED=0"
+SEALED=1"
     fi
     if grep -q '^BACKEND=ostree$' <<<"$DETECT"; then
         [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=0
