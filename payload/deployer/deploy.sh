@@ -1207,10 +1207,18 @@ QGAEOF
     install -D -m755 /usr/lib/wootc/migration/wootc-e2e-phase3-dispatch "$DEPLOY_ROOT/usr/local/libexec/wootc-e2e-phase3-dispatch"
     mig_opt 644 wootc-e2e-phase3.service "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.service"
     mig_opt 644 wootc-e2e-phase3.path "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.path"
-    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
-    ln -sf ../wootc-e2e-phase3.path \
-        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-e2e-phase3.path"
-    log "  [PASS] Phase-3 systemd request bridge enabled"
+    # PASS only when every piece is verifiably in the target root — a dangling
+    # wants symlink (units skipped by mig_opt) previously still printed PASS,
+    # and the failure surfaced two reboots later as "dispatch never ran".
+    if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.service" \
+       && -f "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.path" ]]; then
+        mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+        ln -sf ../wootc-e2e-phase3.path \
+            "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-e2e-phase3.path"
+        log "  [PASS] Phase-3 systemd request bridge enabled (units + wants link in target /etc)"
+    else
+        log "  [FAIL] Phase-3 request bridge units missing from initramfs — dispatch will never trigger"
+    fi
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
     mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
     # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on
