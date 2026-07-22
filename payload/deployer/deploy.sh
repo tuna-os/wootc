@@ -1203,7 +1203,8 @@ QGAEOF
     mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-go-native.desktop"
     # QGA commands run in virt_qemu_ga_t, which SELinux prevents from executing podman/bootc.
     # Stage a narrow systemd request bridge so PID 1 runs the migration engine in a normal domain.
-    mig_opt 755 wootc-e2e-phase3-dispatch "$DEPLOY_ROOT/usr/local/libexec/wootc-e2e-phase3-dispatch"
+    mkdir -p "$DEPLOY_ROOT/usr/local/libexec" "$DEPLOY_ROOT/var/usrlocal/libexec" 2>/dev/null || true
+    install -D -m755 /usr/lib/wootc/migration/wootc-e2e-phase3-dispatch "$DEPLOY_ROOT/usr/local/libexec/wootc-e2e-phase3-dispatch"
     mig_opt 644 wootc-e2e-phase3.service "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.service"
     mig_opt 644 wootc-e2e-phase3.path "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.path"
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
