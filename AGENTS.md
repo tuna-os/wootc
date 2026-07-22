@@ -186,11 +186,24 @@ ubuntu-latest exposes `/dev/kvm`, and `e2e-hosted.yml` handles disk reclaim and
 storage placement. The three laptop runners have each failed in a different
 host-specific way (see the table at the end of `docs/agent-lessons.md`).
 
-On a laptop runner, launch as a **systemd user unit** — not `nohup`. Lingering
-must be enabled or systemd kills the run when your ssh session closes:
+On a laptop runner, launch through the just recipes — they encode all of the
+rules below (systemd user unit, live-run guard, no storage wipe) so you don't
+have to remember them:
 
 ```bash
 loginctl enable-linger james          # once per host
+just remote-e2e          # fresh Windows install + deploy (~60-90 min)
+just remote-e2e-quick    # restore pristine Windows, re-arm, deploy (~20-40 min)
+just remote-e2e-phase3   # quick + graduate to a blank native disk (rung 3)
+# host defaults to himachal; override with WOOTC_E2E_HOST=<host>
+# logs: /tmp/wootc-e2e-<short-sha>.log on the host (just remote-logs tails it)
+```
+
+If launching by hand instead, it must be a **systemd user unit** — not
+`nohup`. Lingering must be enabled or systemd kills the run when your ssh
+session closes:
+
+```bash
 ssh <host> 'cd /var/home/james/wootc
   systemd-run --user --unit=wootc-e2e --collect \
     --setenv=XDG_RUNTIME_DIR=/run/user/$(id -u) \

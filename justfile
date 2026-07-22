@@ -12,7 +12,10 @@ E2E_DIR := justfile_directory() / "tests/e2e"
 STORAGE := E2E_DIR / "storage"
 FILES := E2E_DIR / "wootc-files"
 CTR := "wootc-e2e-windows"
-KANPUR := env_var_or_default("WOOTC_E2E_HOST", "kanpur")
+# Default remote E2E host. himachal is the healthiest runner (952 GiB, linger
+# enabled); kanpur/dilli are known-bad (docs/agent-lessons.md §11). Override
+# with WOOTC_E2E_HOST=<host>.
+KANPUR := env_var_or_default("WOOTC_E2E_HOST", "himachal")
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -77,30 +80,60 @@ build-wubildr:
     podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi > "{{ FILES }}/wubildr.efi"
     ls -lh "{{ FILES }}/wubildr.efi"
 
-# ── Kanpur E2E ────────────────────────────────────────────────────────────────
+# ── Remote E2E ────────────────────────────────────────────────────────────────
+#
+# All launch recipes follow docs/agent-lessons.md §7:
+#   * systemd-run --user (never nohup) with XDG_RUNTIME_DIR/HOME set, so
+#     rootless podman resolves user storage and the run survives ssh disconnect
+#     (linger must be enabled once: `loginctl enable-linger james`).
+#   * refuse to launch over a live run instead of silently killing it.
+#   * never `rm -rf storage/*` — it destroys the pristine Windows snapshot and
+#     the 7 GiB ISO cache. A fresh install only needs data.qcow2 removed.
+# Logs land in /tmp/wootc-e2e-<short-sha>.log on the host.
 
-# Fresh full E2E on Kanpur (~30 min)
-remote-e2e:
-    ssh {{ KANPUR }} 'cd ~/wootc && git pull && \
-        sudo chown -R james:james tests/e2e/ && \
-        kill $(pgrep rootlessport 2>/dev/null) && \
-        sudo kill $(pgrep qemu-system swtpm 2>/dev/null) && \
-        podman stop {{ CTR }} 2>/dev/null; podman rm {{ CTR }} 2>/dev/null && \
-        podman compose -f tests/e2e/compose.yml down 2>/dev/null && \
-        cd tests/e2e && rm -rf storage/* 2>/dev/null && \
-        PATH="$HOME/.local/bin:$PATH" nohup bash run-e2e.sh --skip-build --keep \
-        > /tmp/wootc-e2e-qgaN.log 2>&1 & echo "PID=$!"'
+# Shared launcher. wipe="fresh" forces a full Windows reinstall.
+_remote-launch wipe *flags:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ssh {{ KANPUR }} WIPE={{ wipe }} 'bash -s' -- {{ flags }} <<'REMOTE'
+    set -euo pipefail
+    cd ~/wootc
+    cur=tests/e2e/storage/run-e2e.current
+    if [ -f "$cur" ] && ! grep -q "stage=exited" "$cur"; then
+        age=$(( $(date +%s) - $(stat -c %Y "$cur") ))
+        if [ "$age" -lt 300 ]; then
+            echo "REFUSING: live run (run-e2e.current updated ${age}s ago). Stop it first: systemctl --user stop wootc-e2e" >&2
+            exit 1
+        fi
+    fi
+    git pull --ff-only && git submodule update --init --recursive
+    systemctl --user stop wootc-e2e 2>/dev/null || true
+    systemctl --user reset-failed wootc-e2e 2>/dev/null || true
+    podman stop wootc-e2e-windows 2>/dev/null || true
+    podman rm wootc-e2e-windows 2>/dev/null || true
+    if [ "${WIPE:-}" = fresh ]; then rm -f tests/e2e/storage/data.qcow2; fi
+    LOG=/tmp/wootc-e2e-$(git rev-parse --short HEAD).log
+    systemd-run --user --unit=wootc-e2e --collect \
+        --setenv=XDG_RUNTIME_DIR=/run/user/$(id -u) \
+        --setenv=HOME=$HOME \
+        -p StandardOutput=append:$LOG \
+        -p StandardError=append:$LOG \
+        -p WorkingDirectory=$HOME/wootc \
+        ./tests/e2e/run-e2e.sh --skip-build --keep "$@"
+    echo "unit=wootc-e2e log=$LOG"
+    REMOTE
 
-# Quick E2E on Kanpur (skip install + build)
-remote-e2e-quick:
-    ssh {{ KANPUR }} 'cd ~/wootc && git pull && \
-        sudo chown -R james:james tests/e2e/ && \
-        sudo kill $(pgrep qemu-system swtpm 2>/dev/null) && \
-        podman stop {{ CTR }} 2>/dev/null; podman rm {{ CTR }} 2>/dev/null && \
-        podman compose -f tests/e2e/compose.yml down 2>/dev/null && \
-        cd tests/e2e && \
-        PATH="$HOME/.local/bin:$PATH" nohup bash run-e2e.sh --skip-build --skip-install --keep \
-        > /tmp/wootc-e2e-qgaN.log 2>&1 & echo "PID=$!"'
+# Fresh full E2E (Windows reinstall + deploy, ~60-90 min)
+remote-e2e image=WOOTC_IMAGE:
+    just _remote-launch fresh {{ image }}
+
+# Quick E2E: restore pristine Windows, re-arm, deploy (~20-40 min)
+remote-e2e-quick image=WOOTC_IMAGE:
+    just _remote-launch keep --skip-install {{ image }}
+
+# Full three-phase rung: quick E2E + graduate to a blank native disk (--phase3)
+remote-e2e-phase3 image=WOOTC_IMAGE:
+    just _remote-launch keep --skip-install --phase3 {{ image }}
 
 # Pull latest code on Kanpur
 remote-pull:
@@ -246,14 +279,13 @@ snapshot:
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 
-# Tail runner log
-remote-logs suffix="qga33":
-    ssh {{ KANPUR }} 'tail -f /tmp/wootc-e2e-{{ suffix }}.log'
+# Tail runner log (default: the newest /tmp/wootc-e2e-*.log on the host)
+remote-logs suffix="":
+    ssh {{ KANPUR }} 'f={{ if suffix == "" { "$(ls -t /tmp/wootc-e2e-*.log | head -1)" } else { "/tmp/wootc-e2e-" + suffix + ".log" } }}; echo "== $f =="; tail -f "$f"'
 
-# Check runner progress
-remote-status suffix="qga33":
-    ssh {{ KANPUR }} \
-        'grep -E "PASS|FAIL|QGA.*avail|STEP|OEM|deploy" /tmp/wootc-e2e-{{ suffix }}.log | tail -10'
+# Check runner progress (default: newest log)
+remote-status suffix="":
+    ssh {{ KANPUR }} 'f={{ if suffix == "" { "$(ls -t /tmp/wootc-e2e-*.log | head -1)" } else { "/tmp/wootc-e2e-" + suffix + ".log" } }}; echo "== $f =="; grep -aE "PASS|FAIL|QGA.*avail|STEP|OEM|deploy" "$f" | tail -10'
 
 # Watch serial console for deployer boot
 remote-serial:

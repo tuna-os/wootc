@@ -9,7 +9,11 @@ tests/e2e/oem/qemu-ga-x86_64.msi
 tests/e2e/qga-cache/
 tests/e2e/wootc-files/
 .pi/
+.claude/
 *caveat*.txt
+# Claude Code session dumps saved into the repo root
+20*-this-session-is-being-continued*.txt
+package-lock.json
 app/wootc
 app/wootc.exe
 handoff.md
