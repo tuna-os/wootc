@@ -500,7 +500,7 @@ fi
 # a local derived image (podman commit — the same layer remora persists). This
 # lets wootc boot arbitrary bootc images, not only ones that ship NTFS support.
 ensure_ntfs_support() {
-    if podman run --rm "$IMAGE" sh -c \
+    if timeout 60 podman run --rm "$IMAGE" sh -c \
         'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
          ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
          grep -qw ntfs3 /proc/filesystems 2>/dev/null || \
@@ -537,7 +537,7 @@ ensure_ntfs_support() {
     # (the same one bootc pull already succeeds on) and its /etc/resolv.conf, so
     # dnf can actually reach EPEL. Without it the install fails on BOTH himachal
     # and the hosted runner, and Phase 2 has no NTFS driver.
-    if ! podman run --name "$cname" --network=host "$IMAGE" sh -c \
+    if ! timeout 120 podman run --name "$cname" --network=host "$IMAGE" sh -c \
         'dnf install -y ntfs-3g || \
          { { dnf install -y epel-release || \
              dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm; } && \
@@ -558,7 +558,7 @@ ensure_ntfs_support() {
     IMAGE="$derived"
     log "  [PASS] injected ntfs-3g; deploying ${IMAGE}"
     # Prove it actually landed rather than trusting the commit.
-    if ! podman run --rm "$IMAGE" sh -c 'command -v ntfs-3g >/dev/null'; then
+    if ! timeout 60 podman run --rm "$IMAGE" sh -c 'command -v ntfs-3g >/dev/null'; then
         err "  [WARN] ntfs-3g still absent from ${IMAGE} after injection"
         return 1
     fi
@@ -582,7 +582,7 @@ ensure_ntfs_support || log "NTFS injection unavailable; using the image's own NT
 # on himachal: dakota/marlin ship no grub + systemd-boot (native); bluefin/bonito
 # ship bootupctl + grubx64.efi (ostree). wootc.composefs / wootc.bootloader override.
 if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
-    if ! DETECT="$(podman run --rm --network=host "$IMAGE" sh -c '
+    if ! DETECT="$(timeout 60 podman run --rm --network=host "$IMAGE" sh -c '
         if { ls /usr/lib/bootupd/updates/EFI/*/grubx64.efi >/dev/null 2>&1 ||
              { test -f /usr/lib/bootupd/updates/EFI.json &&
                find /usr/lib/efi/grub2 -type f -name grubx64.efi -print -quit 2>/dev/null | grep -q . &&
