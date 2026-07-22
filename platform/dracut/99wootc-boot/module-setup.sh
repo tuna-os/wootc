@@ -22,7 +22,8 @@ installkernel() {
     # loop  — attaches the raw root.disk (replaced nbd when VHDX was dropped)
     # fuse  — only for the ntfs-3g userspace fallback
     # ntfs3 — kernel NTFS; absent on some Enterprise Linux kernels
-    instmods loop fuse
+    # virtio_scsi, virtio_pci, sd_mod, ahci — host disk controller drivers
+    instmods loop fuse virtio_scsi virtio_pci sd_mod ahci nvme
     instmods ntfs3 2>/dev/null || :   # optional: not built on EL kernels
 }
 
