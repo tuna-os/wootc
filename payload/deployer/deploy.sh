@@ -1191,6 +1191,11 @@ QGAEOF
     mig_opt 755 wootc-selection "$DEPLOY_ROOT/usr/local/bin/wootc-selection"
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
+    # fisherman is not in the migration directory (it is built from Go in the
+    # Containerfile and baked into the deployer initramfs via dracut --install),
+    # but wootc-go-native calls it for Phase 3 native disk graduation.  Copy it
+    # in directly.
+    install -D -m755 /usr/bin/fisherman "$DEPLOY_ROOT/usr/local/bin/fisherman"
     mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
     mig_opt 755 wootc-go-native-gui "$DEPLOY_ROOT/usr/local/bin/wootc-go-native-gui"
     mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-go-native.desktop"

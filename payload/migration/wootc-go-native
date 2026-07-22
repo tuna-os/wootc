@@ -246,6 +246,7 @@ graduate_to_disk_execute() {
     filesystem=${filesystem:-xfs}
     case "$filesystem" in xfs|ext4|btrfs) ;; *) die "invalid recorded filesystem: $filesystem" ;; esac
     log "Installing $img onto $target as $filesystem (wipes $target only) via fisherman…"
+    command -v fisherman >/dev/null || die "fisherman not found — deploy.sh must install it into the target root"
 
     # Build a minimal fisherman recipe. Phase 2 Linux IS the Yellowfin image, so
     # fisherman's live-ISO mode applies: leave "image" empty and it calls bootc
