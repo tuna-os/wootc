@@ -59,13 +59,11 @@ if [ -z "$LOOP_PATH" ] || [ -z "$HOST_UUID" ]; then
     exit 0
 fi
 
-for mod in virtio_scsi virtio_pci sd_mod ahci nvme ntfs3 fuse loop; do
-    modprobe "$mod" max_part=16 2>/dev/null || {
-        for kfile in $(find /lib/modules -name "${mod}.ko*" 2>/dev/null); do
-            insmod "$kfile" 2>/dev/null || true
-        done
-    }
-done
+# NOTE: Do NOT call modprobe for storage drivers here. The OSTree-built base
+# initramfs handles virtio_scsi, sd_mod, ahci, nvme etc. via dracut udev rules
+# before wootc-attach.service runs. Calling modprobe here triggers Secure Boot
+# lockdown rejection (wrong signing key) and blocks the correctly-signed modules
+# from loading.
 
 HOST_DEV="/dev/disk/by-uuid/${HOST_UUID,,}"
 # WAIT for the host NTFS to appear — do NOT assume a retry. This runs as a

@@ -1384,18 +1384,12 @@ QGAEOF
                     done
                 fi
 
-                # Stage host storage & FUSE drivers into early cpio overlay from target rootfs
-                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd fuse; do
-                    modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
-                    if [[ -n "$modfile" && -f "$modfile" ]]; then
-                        relpath="${modfile#/mnt/sysroot}"
-                        install -D -m0644 "$modfile" "$OVL/$relpath"
-                    fi
-                done
-                for depfile in $(find /mnt/sysroot/lib/modules /lib/modules -name "modules.dep*" 2>/dev/null); do
-                    relpath="${depfile#/mnt/sysroot}"
-                    install -D -m0644 "$depfile" "$OVL/$relpath"
-                done
+                # NOTE: Do NOT stage kernel modules (virtio_scsi, sd_mod, ahci, nvme, etc.)
+                # into the early-cpio overlay. The OSTree-built base initramfs already
+                # contains dracut-bundled, correctly-signed storage drivers. Staging them
+                # in the early-cpio prepend causes Secure Boot lockdown to reject them
+                # (key/vermagic mismatch) before the base initramfs versions are tried,
+                # preventing disk discovery entirely.
 
                 CPIO_OK=0
                 if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
@@ -1466,18 +1460,8 @@ BLSEOF
                         done
                     fi
 
-                    # Stage host storage & FUSE drivers into early cpio overlay from target rootfs
-                    for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd fuse; do
-                        modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
-                        if [[ -n "$modfile" && -f "$modfile" ]]; then
-                            relpath="${modfile#/mnt/sysroot}"
-                            install -D -m0644 "$modfile" "$OVL/$relpath"
-                        fi
-                    done
-                    for depfile in $(find /mnt/sysroot/lib/modules /lib/modules -name "modules.dep*" 2>/dev/null); do
-                        relpath="${depfile#/mnt/sysroot}"
-                        install -D -m0644 "$depfile" "$OVL/$relpath"
-                    done
+                    # NOTE: Storage kernel modules are intentionally NOT staged here.
+                    # See branch-1 comment above for rationale (Secure Boot lockdown rejection).
 
                     CPIO_OK=0
                     if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
@@ -1587,18 +1571,8 @@ BLSEOF
                     done
                 fi
 
-                # Stage host storage drivers into early cpio overlay from target rootfs
-                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd; do
-                    modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
-                    if [[ -n "$modfile" && -f "$modfile" ]]; then
-                        relpath="${modfile#/mnt/sysroot}"
-                        install -D -m0644 "$modfile" "$OVL/$relpath"
-                    fi
-                done
-                for depfile in $(find /mnt/sysroot/lib/modules /lib/modules -name "modules.dep*" 2>/dev/null); do
-                    relpath="${depfile#/mnt/sysroot}"
-                    install -D -m0644 "$depfile" "$OVL/$relpath"
-                done
+                # NOTE: Storage kernel modules are intentionally NOT staged here.
+                # See branch-1 comment above for rationale (Secure Boot lockdown rejection).
 
                 CPIO_OK=0
                 if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
