@@ -1,7 +1,10 @@
 [Unit]
 Description=wootc E2E Phase-3 migration dispatcher
-ConditionPathExists=/run/wootc-e2e-phase3.request
 
 [Service]
 Type=oneshot
+# The path unit already gates on the request file; running the condition
+# here too triggers systemd StartLimitBurst failures at boot (the file
+# does not exist yet) and blocks later path-triggered starts.
+StartLimitBurst=0
 ExecStart=/usr/local/libexec/wootc-e2e-phase3-dispatch
