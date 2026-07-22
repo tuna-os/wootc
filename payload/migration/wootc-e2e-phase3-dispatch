@@ -6,17 +6,26 @@ set -Eeuo pipefail
 
 REQUEST=/run/wootc-e2e-phase3.request
 RESULT=/run/wootc-e2e-phase3.result
+PROGRESS=/run/wootc-e2e-phase3.progress
 TMP="${RESULT}.tmp"
 
+log_kmsg() {
+    printf '<27>[wootc-phase3] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    echo "$(date -u +%FT%TZ) $*" >> "$PROGRESS" 2>/dev/null || true
+}
+
+log_kmsg "Phase-3 dispatch started"
+
 target="$(tr -d '\r\n ' < "$REQUEST" 2>/dev/null || true)"
+log_kmsg "target read from request: '$target'"
 
 run_migration() {
     echo "target=$target"
     case "$target" in
         /dev/sd[a-z]|/dev/vd[a-z]|/dev/xvd[a-z]|/dev/nvme[0-9]n[0-9]) ;;
-        *) echo "ERROR=invalid target"; return 64 ;;
+        *) echo "ERROR=invalid target"; log_kmsg "ERROR: invalid target $target"; return 64 ;;
     esac
-    [[ -b "$target" ]] || { echo "ERROR=target is not a block device"; return 66; }
+    [[ -b "$target" ]] || { echo "ERROR=target is not a block device"; log_kmsg "ERROR: target $target is not a block device"; return 66; }
 
     # Independently repeat the harness's blank-disk invariant in the privileged
     # process immediately before the destructive operation.
@@ -24,9 +33,11 @@ run_migration() {
     fs=$(lsblk -dnro FSTYPE "$target" | tr -d ' \n')
     if [[ -n "$parts" || -n "$fs" ]]; then
         echo "ERROR=target is not blank"
+        log_kmsg "ERROR: target $target is not blank (parts=$parts fs=$fs)"
         return 65
     fi
 
+    log_kmsg "Starting wootc-go-native migrate to $target..."
     WOOTC_GN_ALLOW_DESTRUCTIVE=1 \
         /usr/local/bin/wootc-go-native migrate --to-disk "$target" --execute
 }
@@ -35,13 +46,18 @@ set +e
 run_migration > "$TMP" 2>&1
 rc=$?
 set -e
+log_kmsg "Migration process completed with exit code $rc"
 echo "EXIT=$rc" >> "$TMP"
 # The request was created by qemu-ga and therefore carries the SELinux type
 # that virt_qemu_ga_t may read.  Preserve that type on the result; mode 0644
 # alone is insufficient under enforcing SELinux and made the runner wait
 # blindly even after the dispatcher had finished.
-chcon --reference="$REQUEST" "$TMP"
+if [[ -f "$REQUEST" ]]; then
+    chcon --reference="$REQUEST" "$TMP" 2>/dev/null || true
+fi
 mv -f "$TMP" "$RESULT"
 chmod 0644 "$RESULT"
 rm -f "$REQUEST"
+log_kmsg "Phase-3 result written to $RESULT"
 exit "$rc"
+

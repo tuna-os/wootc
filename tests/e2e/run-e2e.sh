@@ -1792,10 +1792,15 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         "rm -f /run/wootc-e2e-phase3.result; printf '%s\\n' '$P3_TARGET' > /run/wootc-e2e-phase3.request" \
         >/dev/null
     P3_RESULT=""
-    for _ in $(seq 1 180); do
+    for i in $(seq 1 180); do
         P3_RESULT=$(qga_call exec /bin/sh -c \
             'cat /run/wootc-e2e-phase3.result 2>/dev/null || true' 2>/dev/null || true)
         echo "$P3_RESULT" | grep -q '^EXIT=' && break
+        if [ $((i % 6)) -eq 0 ]; then
+            P3_PROG=$(qga_call exec /bin/sh -c \
+                'tail -n 1 /run/wootc-e2e-phase3.progress 2>/dev/null || systemctl is-active wootc-e2e-phase3.service 2>/dev/null || true' 2>/dev/null || true)
+            info "Phase 3: waiting for graduation... (${i}x5s) status: ${P3_PROG:-polling}"
+        fi
         sleep 5
     done
     printf '%s\n' "$P3_RESULT" | tail -40
