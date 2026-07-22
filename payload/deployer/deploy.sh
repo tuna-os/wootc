@@ -1383,11 +1383,16 @@ QGAEOF
                 fi
 
                 # Stage host storage drivers into early cpio overlay from target rootfs
-                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci nvme; do
+                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd; do
                     modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                     if [[ -n "$modfile" && -f "$modfile" ]]; then
-                        install -D -m0644 "$modfile" "$OVL/$modfile"
+                        relpath="${modfile#/mnt/sysroot}"
+                        install -D -m0644 "$modfile" "$OVL/$relpath"
                     fi
+                done
+                for depfile in $(find /mnt/sysroot/lib/modules /lib/modules -name "modules.dep*" 2>/dev/null); do
+                    relpath="${depfile#/mnt/sysroot}"
+                    install -D -m0644 "$depfile" "$OVL/$relpath"
                 done
 
                 CPIO_OK=0
@@ -1458,11 +1463,16 @@ BLSEOF
                     fi
 
                     # Stage host storage drivers into early cpio overlay from target rootfs
-                    for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci nvme; do
+                    for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd; do
                         modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                         if [[ -n "$modfile" && -f "$modfile" ]]; then
-                            install -D -m0644 "$modfile" "$OVL/$modfile"
+                            relpath="${modfile#/mnt/sysroot}"
+                            install -D -m0644 "$modfile" "$OVL/$relpath"
                         fi
+                    done
+                    for depfile in $(find /mnt/sysroot/lib/modules /lib/modules -name "modules.dep*" 2>/dev/null); do
+                        relpath="${depfile#/mnt/sysroot}"
+                        install -D -m0644 "$depfile" "$OVL/$relpath"
                     done
 
                     CPIO_OK=0
@@ -1574,11 +1584,16 @@ BLSEOF
                 fi
 
                 # Stage host storage drivers into early cpio overlay from target rootfs
-                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci nvme; do
+                for mod in virtio_scsi virtio_pci virtio_blk sd_mod ahci libahci libata nvme nvme-core vmd; do
                     modfile=$(find /mnt/sysroot/lib/modules /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
                     if [[ -n "$modfile" && -f "$modfile" ]]; then
-                        install -D -m0644 "$modfile" "$OVL/$modfile"
+                        relpath="${modfile#/mnt/sysroot}"
+                        install -D -m0644 "$modfile" "$OVL/$relpath"
                     fi
+                done
+                for depfile in $(find /mnt/sysroot/lib/modules /lib/modules -name "modules.dep*" 2>/dev/null); do
+                    relpath="${depfile#/mnt/sysroot}"
+                    install -D -m0644 "$depfile" "$OVL/$relpath"
                 done
 
                 CPIO_OK=0
