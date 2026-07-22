@@ -1414,6 +1414,9 @@ done
 [ -f "$PTY" ] || { fail "QEMU PTY not found at $PTY (no serial feed from $CONTAINER_NAME:$SERIAL_SOURCE)"; exit 1; }
 LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 DEPLOYER_STARTED=false
+if [ -f "$PTY" ] && grep -q '\[wootc\]' "$PTY" 2>/dev/null; then
+    DEPLOYER_STARTED=true
+fi
 
 while ! past_deadline "$DEPLOY_DEADLINE"; do
     snapshot_serial || true
