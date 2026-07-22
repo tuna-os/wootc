@@ -1520,11 +1520,18 @@ GRUBEOF
                 # refresh this pair after OS updates inside the target.
                 ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
                 if [[ -n "$ESP_UUID" ]]; then
-                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc" "$DEPLOY_ROOT/etc/qemu"
                     printf 'HOST_ESP_UUID=%s\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
                         "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" \
                         > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
-                    log "  [PASS] host-esp.conf written (UUID $ESP_UUID)"
+                    cat > "$DEPLOY_ROOT/etc/qemu/qemu-ga.conf" <<'QGAEOF'
+[main]
+daemon=1
+blacklist=
+block-rpcs=
+QGAEOF
+                    cp "$DEPLOY_ROOT/etc/qemu/qemu-ga.conf" "$DEPLOY_ROOT/etc/qemu-ga.conf" 2>/dev/null || true
+                    log "  [PASS] host-esp.conf & qemu-ga.conf written (UUID $ESP_UUID, guest-exec enabled)"
                 fi
             else
                 # Never leave the ESP kernel-less: the deployer pair was

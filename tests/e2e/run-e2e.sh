@@ -1735,7 +1735,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     step "Phase 3: waiting for Linux guest agent in Phase 2..."
     P3_OK=false
     for _ in $(seq 1 60); do
-        if qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | grep -qi linux; then
+        if (qga_probe && ! qga_windows_probe) || qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | grep -qi linux; then
             P3_OK=true; break
         fi
         sleep 5
