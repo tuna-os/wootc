@@ -1367,9 +1367,9 @@ QGAEOF
                     "$OVL/usr/lib/systemd/system/wootc-attach.service"
                 install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
                     "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
-                mkdir -p "$OVL/usr/lib/systemd/system/sysinit.target.wants"
+                mkdir -p "$OVL/usr/lib/systemd/system/initrd.target.wants"
                 ln -sf ../wootc-attach.service \
-                    "$OVL/usr/lib/systemd/system/sysinit.target.wants/wootc-attach.service"
+                    "$OVL/usr/lib/systemd/system/initrd.target.wants/wootc-attach.service"
 
                 if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
                     local nbin
@@ -1449,9 +1449,9 @@ BLSEOF
                         "$OVL/usr/lib/systemd/system/wootc-attach.service"
                     install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
                         "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
-                    mkdir -p "$OVL/usr/lib/systemd/system/sysinit.target.wants"
+                    mkdir -p "$OVL/usr/lib/systemd/system/initrd.target.wants"
                     ln -sf ../wootc-attach.service \
-                        "$OVL/usr/lib/systemd/system/sysinit.target.wants/wootc-attach.service"
+                        "$OVL/usr/lib/systemd/system/initrd.target.wants/wootc-attach.service"
 
                     if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
                         local nbin
@@ -1570,9 +1570,9 @@ BLSEOF
                     "$OVL/usr/lib/systemd/system/wootc-attach.service"
                 install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
                     "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
-                mkdir -p "$OVL/usr/lib/systemd/system/sysinit.target.wants"
+                mkdir -p "$OVL/usr/lib/systemd/system/initrd.target.wants"
                 ln -sf ../wootc-attach.service \
-                    "$OVL/usr/lib/systemd/system/sysinit.target.wants/wootc-attach.service"
+                    "$OVL/usr/lib/systemd/system/initrd.target.wants/wootc-attach.service"
 
                 # If deployer has ntfs-3g, stage it and ALL its ldd dependencies into early cpio overlay
                 if command -v ntfs-3g >/dev/null 2>&1; then
