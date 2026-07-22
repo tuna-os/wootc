@@ -17,7 +17,7 @@ RUN dnf install -y \
     parted xfsprogs btrfs-progs \
     kernel-core kernel-modules kernel-modules-extra \
     NetworkManager iproute dhcp-client \
-    curl ca-certificates jq \
+    curl ca-certificates jq ntfs-3g fuse \
     qemu-guest-agent qemu-img cryptsetup psmisc shadow-utils policycoreutils which \
     && dnf clean all
 

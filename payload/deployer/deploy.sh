@@ -1500,12 +1500,16 @@ BLSEOF
                 ln -sf ../wootc-attach.service \
                     "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
 
-                # If deployer has ntfs-3g, stage it into early cpio overlay
+                # If deployer has ntfs-3g, stage it and ALL its ldd dependencies into early cpio overlay
                 if command -v ntfs-3g >/dev/null 2>&1; then
-                    install -D -m0755 "$(command -v ntfs-3g)" "$OVL/usr/bin/ntfs-3g"
-                    # copy libfuse3 / libfuse if present in deployer
-                    for lib in /lib64/libfuse* /usr/lib64/libfuse* /lib/libfuse* /usr/lib/libfuse*; do
-                        [[ -f "$lib" ]] && install -D -m0755 "$lib" "$OVL/usr/lib64/$(basename "$lib")"
+                    local nbin
+                    nbin=$(command -v ntfs-3g)
+                    install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
+                    # copy all dynamic dependencies found via ldd
+                    ldd "$nbin" 2>/dev/null | awk '/=>/ {print $3}' | while read -r lib; do
+                        if [[ -f "$lib" ]]; then
+                            install -D -m0755 "$lib" "$OVL/$lib"
+                        fi
                     done
                 fi
 
