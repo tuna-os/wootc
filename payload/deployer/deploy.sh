@@ -1370,6 +1370,18 @@ QGAEOF
                 mkdir -p "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
                 ln -sf ../wootc-attach.service \
                     "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
+
+                if command -v ntfs-3g >/dev/null 2>&1; then
+                    local nbin
+                    nbin=$(command -v ntfs-3g)
+                    install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
+                    ldd "$nbin" 2>/dev/null | awk '/=>/ {print $3}' | while read -r lib; do
+                        if [[ -f "$lib" ]]; then
+                            install -D -m0755 "$lib" "$OVL/$lib"
+                        fi
+                    done
+                fi
+
                 CPIO_OK=0
                 if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
                    cat "$OVL.cpio" "$ISRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
@@ -1413,9 +1425,41 @@ BLSEOF
             INITRD_SRC="${initrds[0]:-}"
 
             if [[ "$BOOTLOADER" == systemd ]]; then
-                if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" && -n "$INITRD_SRC" && -s "$INITRD_SRC" ]] && \
-                   cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz && \
-                   cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" && -n "$INITRD_SRC" && -s "$INITRD_SRC" ]]; then
+                    cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                    OVL="/tmp/wootc-ovl-$$"
+                    rm -rf "$OVL"; mkdir -p "$OVL"
+                    : > "$OVL/early_cpio"
+                    install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
+                        "$OVL/usr/lib/systemd/system/wootc-attach.service"
+                    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
+                        "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
+                    mkdir -p "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
+                    ln -sf ../wootc-attach.service \
+                        "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
+
+                    if command -v ntfs-3g >/dev/null 2>&1; then
+                        local nbin
+                        nbin=$(command -v ntfs-3g)
+                        install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
+                        ldd "$nbin" 2>/dev/null | awk '/=>/ {print $3}' | while read -r lib; do
+                            if [[ -f "$lib" ]]; then
+                                install -D -m0755 "$lib" "$OVL/$lib"
+                            fi
+                        done
+                    fi
+
+                    CPIO_OK=0
+                    if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
+                       cat "$OVL.cpio" "$INITRD_SRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                        CPIO_OK=1
+                    fi
+                    rm -f "$OVL.cpio"; rm -rf "$OVL"
+                    if [[ "$CPIO_OK" != 1 || ! -s /mnt/esp/EFI/wootc/phase2-initramfs.img ]]; then
+                        err "  [FAIL] systemd-boot: cpio prepend failed"
+                        exit 1
+                    fi
+
                     ROOT_OPTIONS=$(grep '^options ' "$DEPLOY_ROOT"/boot/loader/entries/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
                     ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ')
                     mkdir -p /mnt/esp/loader/entries
@@ -1426,7 +1470,7 @@ initrd /EFI/wootc/phase2-initramfs.img
 options ${ROOT_OPTIONS} console=tty1 console=ttyS0,115200 ${PHASE2_KARGS}
 BLSEOF
                     rm -f /mnt/esp/loader/entries/wootc-deployer.conf
-                    log "  [PASS] Phase-2 systemd-boot entry written"
+                    log "  [PASS] Phase-2 systemd-boot entry written with wootc-boot & ntfs-3g patched initrd"
                 else
                     err "  [FAIL] Phase-2 systemd-boot ESP sync failed"
                     exit 1
