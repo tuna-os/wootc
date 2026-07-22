@@ -1457,6 +1457,14 @@ BLSEOF
                         done
                     fi
 
+                    # Stage host storage drivers into early cpio overlay
+                    for mod in virtio_scsi virtio_pci sd_mod ahci nvme; do
+                        modfile=$(find /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
+                        if [[ -n "$modfile" && -f "$modfile" ]]; then
+                            install -D -m0644 "$modfile" "$OVL/$modfile"
+                        fi
+                    done
+
                     CPIO_OK=0
                     if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
                        cat "$OVL.cpio" "$INITRD_SRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
@@ -1564,6 +1572,14 @@ BLSEOF
                         fi
                     done
                 fi
+
+                # Stage host storage drivers into early cpio overlay
+                for mod in virtio_scsi virtio_pci sd_mod ahci nvme; do
+                    modfile=$(find /lib/modules -name "${mod}.ko*" -print -quit 2>/dev/null || true)
+                    if [[ -n "$modfile" && -f "$modfile" ]]; then
+                        install -D -m0644 "$modfile" "$OVL/$modfile"
+                    fi
+                done
 
                 CPIO_OK=0
                 if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
