@@ -27,17 +27,21 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
-@test "backend detection fails closed when the image probe fails or is ambiguous" {
-    run grep -F 'if ! DETECT="$(podman run' "$DEPLOY"
+@test "backend detection falls back to safe defaults when the probe fails or is ambiguous" {
+    # Contract since 95b0ab5/2d76cce: a hung or failed image probe must NOT
+    # abort the deploy (that lost completed installs on flaky podman). It is
+    # bounded by a timeout and falls back to ostree/grub2 + SEALED=1 with a
+    # loud WARN; an unrecognized backend signal likewise defaults with a WARN.
+    run grep -F 'if ! DETECT="$(timeout 30 podman run' "$DEPLOY"
     [ "$status" -eq 0 ]
 
-    run grep -F 'failed to inspect image for deployment backend' "$DEPLOY"
+    run grep -F 'podman run image inspection timed out/failed; falling back to default backend' "$DEPLOY"
     [ "$status" -eq 0 ]
 
     run grep -F 'BACKEND=unknown' "$DEPLOY"
     [ "$status" -eq 0 ]
 
-    run grep -F 'image exposes neither a signed bootupd GRUB nor systemd-boot-only backend' "$DEPLOY"
+    run grep -F 'unrecognized backend signal; defaulting to ostree/grub2' "$DEPLOY"
     [ "$status" -eq 0 ]
 }
 

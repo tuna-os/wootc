@@ -79,19 +79,24 @@ STUB
     grep -q 'Phase 3: no BLANK spare disk found' "$E2E_RUNNER"
 }
 
-@test "Phase-3 QGA uses the marker-gated systemd boundary" {
+@test "Phase-3 QGA uses the request-gated systemd boundary" {
     grep -Fq ': > "$OEM_PAYLOAD/e2e-phase3"' "$E2E_RUNNER"
     grep -Fq '/run/wootc-e2e-phase3.request' "$E2E_RUNNER"
     grep -Fq '/run/wootc-e2e-phase3.result' "$E2E_RUNNER"
-    grep -Fq '[[ -f /mnt/ntfs/wootc/install/e2e-phase3 ]]' "$REPO_ROOT/payload/deployer/deploy.sh"
+    # Since b653360 the bridge units are installed unconditionally (the marker
+    # gate in deploy.sh aborted installs); the security boundary is the
+    # /run request file, creatable only by root/qemu-ga, plus the dispatcher's
+    # own blank-target recheck. deploy.sh must install AND wire the path unit.
+    grep -Fq 'wootc-e2e-phase3-dispatch' "$REPO_ROOT/payload/deployer/deploy.sh"
+    grep -Fq 'multi-user.target.wants/wootc-e2e-phase3.path' "$REPO_ROOT/payload/deployer/deploy.sh"
     grep -Fq 'WantedBy=multi-user.target' "$REPO_ROOT/payload/migration/wootc-e2e-phase3.path"
 }
 
 @test "Phase-3 dispatcher rechecks blank target before destructive gate" {
     local blank_line gate_line result_line
-    blank_line=$(grep -n 'target is not blank' "$DISPATCH" | cut -d: -f1)
-    gate_line=$(grep -n 'WOOTC_GN_ALLOW_DESTRUCTIVE=1' "$DISPATCH" | cut -d: -f1)
-    result_line=$(grep -n 'mv -f "\$TMP" "\$RESULT"' "$DISPATCH" | cut -d: -f1)
+    blank_line=$(grep -nm1 'target is not blank' "$DISPATCH" | cut -d: -f1)
+    gate_line=$(grep -nm1 'WOOTC_GN_ALLOW_DESTRUCTIVE=1' "$DISPATCH" | cut -d: -f1)
+    result_line=$(grep -nm1 'mv -f "\$TMP" "\$RESULT"' "$DISPATCH" | cut -d: -f1)
     [ -n "$blank_line" ] && [ -n "$gate_line" ] && [ -n "$result_line" ]
     [ "$blank_line" -lt "$gate_line" ]
     [ "$gate_line" -lt "$result_line" ]
@@ -202,7 +207,12 @@ teardown() {
 }
 
 @test "Phase-3 native install supplies the deployer-selected filesystem" {
-    grep -Fq -- 'bootc install to-disk --generic-image --wipe --filesystem "$filesystem"' "$GN"
+    # Since 5b30210 the native install goes through fisherman, not a direct
+    # bootc install to-disk: the recipe must carry the filesystem the deployer
+    # recorded at deploy time (SOURCE_FILESYSTEM in host-esp.conf).
+    grep -Fq '"filesystem": "$filesystem",' "$GN"
+    grep -Fq 'SOURCE_FILESYSTEM=\K' "$GN"
+    grep -Fq 'fisherman "$recipe"' "$GN"
     grep -Fq 'SOURCE_FILESYSTEM=%s' "$REPO_ROOT/payload/deployer/deploy.sh"
 }
 
@@ -212,7 +222,9 @@ teardown() {
 }
 
 @test "Phase-3 schedules and positively verifies the native boot" {
-    grep -Fq -- "-L 'wootc Native'" "$GN"
+    # fisherman creates the UEFI entry; go-native finds it and schedules a
+    # one-shot BootNext (never a permanent BootOrder change).
+    grep -Eq "sed -n 's/\^Boot.*Linux" "$GN"
     grep -Fq 'efibootmgr -n "$bootnum"' "$GN"
     grep -Fq 'Phase 3 native system booted from the graduated install (non-loopback)' "$E2E_RUNNER"
     grep -Fq '/etc/wootc/native-target' "$E2E_RUNNER"

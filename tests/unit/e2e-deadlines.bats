@@ -104,7 +104,7 @@ setup() {
     # A wall-clock deadline cannot rescue a loop whose body never returns.
     # An unbounded `podman exec` froze two runners for 20+ minutes with their
     # progress line stuck, while the script still showed as running.
-    grep -q 'timeout "$QGA_CALL_TIMEOUT" $DOCKER exec' "$E2E"
+    grep -q 'timeout "$timeout_s" $DOCKER exec' "$E2E"
 }
 
 @test "the QGA call timeout is overridable for slow hosts" {

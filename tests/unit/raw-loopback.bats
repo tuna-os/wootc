@@ -47,7 +47,10 @@ setup() {
 }
 
 @test "the image is physically allocated to prevent ntfs3 sparse I/O errors" {
-    grep -q 'Physical allocation is required' "$PS1"
+    # Since b923a65 the allocation is SetLength + `fsutil file setvaliddata`
+    # (VDL = file size): SetLength alone leaves an NTFS-sparse extent map that
+    # ntfs3 turns into loop I/O errors mid-install.
+    grep -q 'fsutil file setvaliddata' "$PS1"
     run grep -n 'sparse setflag' "$PS1"
     [ "$status" -ne 0 ]
 }
@@ -121,10 +124,16 @@ setup() {
     grep -q 'loop module loaded=' "$HOOK"
 }
 
-@test "the hook loads the loop module, not nbd" {
-    grep -q 'modprobe loop max_part=16' "$HOOK"
-    run grep -nE '^[^#]*modprobe nbd' "$HOOK"
+@test "the hook calls no modprobe at all (Secure Boot lockdown), and never nbd" {
+    # Since 908bcbd the hook must not modprobe ANY module: under Secure Boot
+    # lockdown a modprobe from this context is rejected (wrong signing key)
+    # and blocks the correctly-signed module from loading later. loop comes
+    # from the kernel (built-in or dracut), with loop.max_part on the cmdline
+    # (asserted separately above).
+    run grep -nE '^[^#]*modprobe ' "$HOOK"
     [ "$status" -ne 0 ]
+    # Keep the reasoning in the file so the constraint isn't "simplified" away.
+    grep -q 'Do NOT call modprobe' "$HOOK"
 }
 
 @test "post-attach partitions are reported from the actual loop device" {
@@ -143,8 +152,10 @@ setup() {
     grep -q 'inst_simple "$moddir/wootc-attach.service"' "$MODSETUP"
 }
 
-@test "Phase-2 prefers the proven plain ntfs3 mount and preserves FUSE fallback" {
-    grep -q 'mount -t ntfs3 -o rw "\$HOST_DEV" "\$HOST_MNT"' "$HOOK"
+@test "Phase-2 prefers the kernel ntfs3 mount and preserves FUSE fallback" {
+    # rw,force: ntfs3 refuses a volume Windows left dirty even read-only; a
+    # clean shutdown is asserted upstream, force covers the post-format case.
+    grep -q 'mount -t ntfs3 -o rw,force "\$HOST_DEV" "\$HOST_MNT"' "$HOOK"
     run grep -n 'nobarrier,async,prealloc' "$HOOK"
     [ "$status" -ne 0 ]
     grep -q '^KillMode=process$' "$REPO_ROOT/platform/dracut/99wootc-boot/wootc-attach.service"

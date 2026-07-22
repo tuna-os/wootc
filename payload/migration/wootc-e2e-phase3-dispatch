@@ -1,6 +1,8 @@
 #!/bin/bash
-# Test-only Phase-3 privilege boundary. Installed only when the E2E payload
-# contains e2e-phase3; production deployments do not enable this path.
+# Test-only Phase-3 privilege boundary. Installed unconditionally since
+# b653360 (the deploy-time marker gate aborted installs); the effective gate
+# is the /run request file — creatable only by root or qemu-ga — plus the
+# blank-target recheck below. Production systems never write the request.
 
 set -Eeuo pipefail
 
