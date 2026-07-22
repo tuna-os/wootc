@@ -34,7 +34,7 @@ RemainAfterExit=yes
 KillMode=process
 # The script is re-entrant (returns 0 once /run/wootc-loop-attached exists) and
 # self-diagnosing (writes every exit reason to /dev/console and kmsg).
-ExecStart=/bin/sh /usr/lib/wootc/wootc-attach-loop.sh
+ExecStart=/usr/bin/bash /usr/lib/wootc/wootc-attach-loop.sh
 # Never let a hiccup here wedge the boot; the script reports its own failures.
 TimeoutStartSec=90
 
