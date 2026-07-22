@@ -86,6 +86,7 @@ if [ ! -b "$HOST_DEV" ]; then
         _waited=$((_waited + 3))
         # Fallback probe if by-uuid symlink is missing from udev
         if [ ! -b "$HOST_DEV" ]; then
+            shopt -s nullglob
             for dev in /dev/sd* /dev/nvme* /dev/vd*; do
                 if [ -b "$dev" ] && blkid "$dev" 2>/dev/null | grep -qi "$HOST_UUID"; then
                     HOST_DEV="$dev"
@@ -93,11 +94,15 @@ if [ ! -b "$HOST_DEV" ]; then
                     break
                 fi
             done
+            shopt -u nullglob
         fi
     done
 fi
 if [ ! -b "$HOST_DEV" ]; then
-    say "EXIT: host NTFS $HOST_DEV never appeared after 60s. Present devices: $(ls /dev/sd* /dev/nvme* /dev/vd* 2>/dev/null | tr '\n' ' ')"
+    shopt -s nullglob
+    present_devs=$(ls /dev/sd* /dev/nvme* /dev/vd* 2>/dev/null | tr '\n' ' ')
+    shopt -u nullglob
+    say "EXIT: host NTFS $HOST_DEV (raw UUID $HOST_UUID) never appeared after 60s. Present devices: ${present_devs:-none}"
     exit 0
 fi
 say "host NTFS $HOST_DEV present after ${_waited:-0}s"
