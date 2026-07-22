@@ -325,9 +325,12 @@ if (Test-Path "$installDir\deployer-initramfs.img") {
 }
 Write-Host "[wootc] Deployer kernel + initramfs copied to ESP:EFI/wootc/"
 
-# Write the deployer grub.cfg at the signed GRUB's embedded prefix.
+# Write deployer grub.cfg to ALL candidate GRUB embedded-prefix directories.
+# A previous wootc deployer run may have replaced the Fedora-signed grubx64.efi
+# with the EL10/RHEL one (embedded prefix EFI/redhat rather than EFI/fedora).
+# Write to all common vendor dirs so any grubx64.efi variant finds the correct config.
 $grubCfgLines = @(
-    '# wootc deployer — one-shot Linux installation',
+    '# wootc deployer - one-shot Linux installation',
     'set default=0',
     'set timeout=5',
     '',
@@ -341,8 +344,12 @@ $grubCfgLines = @(
     '    initrd /EFI/wootc/deployer-initramfs.img',
     '}'
 )
-Set-Content -Path "$espPath\EFI\fedora\grub.cfg" -Value $grubCfgLines -Encoding ASCII
-Write-Host "[wootc] Wrote deployer grub.cfg to ESP:EFI/fedora/grub.cfg"
+$grubVendorDirs = @("$espPath\EFI\fedora", "$espPath\EFI\redhat", "$espPath\EFI\wootc")
+foreach ($gd in $grubVendorDirs) {
+    New-Item -ItemType Directory -Force -Path $gd | Out-Null
+    Set-Content -Path "$gd\grub.cfg" -Value $grubCfgLines -Encoding ASCII
+}
+Write-Host "[wootc] Wrote deployer grub.cfg to ESP:EFI/{fedora,redhat,wootc}/grub.cfg"
 
 # ── Step 8: Configure BCD ───────────────────────────────────────────────────
 # Add a one-shot UEFI firmware entry pointing to the signed shim → GRUB chain.
