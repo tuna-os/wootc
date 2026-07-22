@@ -1482,10 +1482,43 @@ BLSEOF
 
             if [[ -n "$KERNEL_SRC" && -s "$KERNEL_SRC" ]] && \
                [[ -n "$INITRD_SRC" && -s "$INITRD_SRC" ]] && \
-               [[ -n "$TARGET_SHIM" && -n "$TARGET_GRUB" ]] && \
-               cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz && \
-               cp "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
-                log "  Copied kernel and initramfs to ESP:EFI/wootc/"
+               [[ -n "$TARGET_SHIM" && -n "$TARGET_GRUB" ]]; then
+                log "  Staging Phase-2 kernel and initramfs to ESP:EFI/wootc/..."
+                cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                # Patch Phase-2 initrd with wootc-boot via prepend-cpio. The target image
+                # (e.g. yellowfin) lacks ntfs3/ntfs-3g, so we also copy the deployer's
+                # own ntfs-3g binary and fuse module/libraries into the early cpio.
+                OVL=$(mktemp -d)
+                : > "$OVL/early_cpio"
+                install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
+                    "$OVL/usr/lib/systemd/system/wootc-attach.service"
+                install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
+                    "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
+                mkdir -p "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
+                ln -sf ../wootc-attach.service \
+                    "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
+
+                # If deployer has ntfs-3g, stage it into early cpio overlay
+                if command -v ntfs-3g >/dev/null 2>&1; then
+                    install -D -m0755 "$(command -v ntfs-3g)" "$OVL/usr/bin/ntfs-3g"
+                    # copy libfuse3 / libfuse if present in deployer
+                    for lib in /lib64/libfuse* /usr/lib64/libfuse* /lib/libfuse* /usr/lib/libfuse*; do
+                        [[ -f "$lib" ]] && install -D -m0755 "$lib" "$OVL/usr/lib64/$(basename "$lib")"
+                    done
+                fi
+
+                CPIO_OK=0
+                if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
+                   cat "$OVL.cpio" "$INITRD_SRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                    CPIO_OK=1
+                fi
+                rm -f "$OVL.cpio"; rm -rf "$OVL"
+                if [[ "$CPIO_OK" == 1 && -s /mnt/esp/EFI/wootc/phase2-initramfs.img ]]; then
+                    log "  [PASS] Phase-2 initrd patched with wootc-boot & ntfs-3g (prepend-cpio)"
+                else
+                    err "  [FAIL] cpio prepend failed — Phase-2 initrd would be hookless"
+                    exit 1
+                fi
 
                 # BCD loads \EFI\fedora\shimx64.efi; the target shim then loads
                 # grubx64.efi from that same dir. Overwrite both with the
