@@ -77,11 +77,18 @@ HOST_DEV="/dev/disk/by-uuid/${HOST_UUID,,}"
 # timed out into the emergency shell.)
 if [ ! -b "$HOST_DEV" ]; then
     say "host NTFS $HOST_DEV not present yet; settling udev and probing block devices..."
-    _waited=0
-    while [ ! -b "$HOST_DEV" ] && [ "$_waited" -lt 60 ]; do
+    # WALL-CLOCK deadline from /proc/uptime, not an iteration counter: udevadm
+    # settle returns instantly on an empty queue, so a counter adding "3s" per
+    # spin burned the whole "60s" budget in ~2 real seconds — before the
+    # virtio-scsi bus had even been scanned — and Phase 2 fell to the
+    # emergency shell (run 20260722, kmsg entered 1.07s / gave up 3.37s).
+    _started=$(cut -d. -f1 /proc/uptime)
+    _deadline=$((_started + 60))
+    while [ ! -b "$HOST_DEV" ] && [ "$(cut -d. -f1 /proc/uptime)" -lt "$_deadline" ]; do
         udevadm trigger --action=add --type=devices >/dev/null 2>&1 || true
-        udevadm settle --timeout=3 >/dev/null 2>&1 || sleep 1
-        _waited=$((_waited + 3))
+        udevadm settle --timeout=3 >/dev/null 2>&1 || true
+        # Unconditional: without it a fast/failing settle busy-spins the loop.
+        sleep 1
         # Fallback probe if by-uuid symlink is missing from udev
         if [ ! -b "$HOST_DEV" ]; then
             shopt -s nullglob
@@ -95,12 +102,17 @@ if [ ! -b "$HOST_DEV" ]; then
             shopt -u nullglob
         fi
     done
+    _waited=$(( $(cut -d. -f1 /proc/uptime) - _started ))
 fi
 if [ ! -b "$HOST_DEV" ]; then
+    # `set --` + "$*", NOT ls: under nullglob with zero matches, `ls` gets no
+    # args and lists the CURRENT DIRECTORY — a prior EXIT line reported the
+    # initramfs root ("bin dev etc lib ...") as "present devices".
     shopt -s nullglob
-    present_devs=$(ls /dev/sd* /dev/nvme* /dev/vd* 2>/dev/null | tr '\n' ' ')
+    set -- /dev/sd* /dev/nvme* /dev/vd*
+    present_devs="$*"
     shopt -u nullglob
-    say "EXIT: host NTFS $HOST_DEV (raw UUID $HOST_UUID) never appeared after 60s. Present devices: ${present_devs:-none}"
+    say "EXIT: host NTFS $HOST_DEV (raw UUID $HOST_UUID) never appeared after ${_waited:-0}s (wall). Present devices: ${present_devs:-none}"
     exit 0
 fi
 say "host NTFS $HOST_DEV present after ${_waited:-0}s"

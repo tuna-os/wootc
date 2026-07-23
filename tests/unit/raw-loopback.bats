@@ -197,3 +197,27 @@ setup() {
     run grep -nE '^[^#]*(nbd-closure|qemu-nbd|wootc-nbd)' "$MODSETUP"
     [ "$status" -ne 0 ]
 }
+
+@test "the host-NTFS wait is wall-clock with an unconditional sleep" {
+    # A counter adding "3s" per iteration burned a "60s" budget in ~2 real
+    # seconds, because udevadm settle returns instantly on an empty queue —
+    # the virtio-scsi bus had not even been scanned when the hook gave up
+    # (kmsg: entered 1.07s, EXIT 3.37s). The deadline must come from
+    # /proc/uptime and every iteration must sleep regardless of settle.
+    grep -q '_deadline=' "$HOOK"
+    grep -q '/proc/uptime' "$HOOK"
+    run grep -nE '^[^#]*_waited=\$\(\(_waited \+' "$HOOK"
+    [ "$status" -ne 0 ]
+    # settle's exit status must not gate the sleep (|| sleep busy-spins).
+    run grep -nE 'settle.*\|\| sleep' "$HOOK"
+    [ "$status" -ne 0 ]
+}
+
+@test "the EXIT device inventory cannot fall back to listing a directory" {
+    # Under nullglob with zero matches, `ls` receives no arguments and lists
+    # the current directory — an EXIT line once reported the initramfs root
+    # ("bin dev etc lib ...") as "present devices". Use set -- + "$*".
+    grep -q 'set -- /dev/sd\* /dev/nvme\* /dev/vd\*' "$HOOK"
+    run grep -nE '^[^#]*present_devs=\$\(ls ' "$HOOK"
+    [ "$status" -ne 0 ]
+}

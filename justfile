@@ -119,7 +119,7 @@ _remote-launch wipe *flags:
         -p StandardOutput=append:$LOG \
         -p StandardError=append:$LOG \
         -p WorkingDirectory=$HOME/wootc \
-        ./tests/e2e/run-e2e.sh --skip-build --keep "$@"
+        ./tests/e2e/run-e2e.sh --keep "$@"
     echo "unit=wootc-e2e log=$LOG"
     REMOTE
 
