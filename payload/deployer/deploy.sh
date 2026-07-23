@@ -899,7 +899,17 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # ostree keeps the live initramfs on the boot partition under
     # /boot/ostree/<stateroot>-<csum>/ — regenerate that exact file.
     for fs in dev proc sys; do mount --bind "/$fs" "$DEPLOY_ROOT/$fs"; done
-    KVER=$(ls "$DEPLOY_ROOT/usr/lib/modules" 2>/dev/null | head -1)
+    # Pick the module tree that owns the BOOTABLE kernel (has vmlinuz), highest
+    # version if several. `ls | head -1` chose 6.12.0-225 over -233 in
+    # bluefin:lts, where -225 is a stripped leftover (no vmlinuz) — dracut then
+    # built a 225-module initramfs that BOOTED under the 233 kernel, so not one
+    # storage driver could load: 60s of "Present devices: none" and an
+    # emergency shell (run 20260723T0016). A mismatched initramfs fails with
+    # no error message anywhere — guard the pairing, not just the pick.
+    KVER=$(for d in "$DEPLOY_ROOT"/usr/lib/modules/*/; do
+        [[ -f "$d/vmlinuz" ]] && basename "$d"
+    done | sort -V | tail -1)
+    [[ -n "$KVER" ]] || KVER=$(ls "$DEPLOY_ROOT/usr/lib/modules" 2>/dev/null | sort -V | tail -1)
     shopt -s nullglob
     OSTREE_INITRDS=("$DEPLOY_ROOT"/boot/ostree/*/initramfs*.img)
     shopt -u nullglob

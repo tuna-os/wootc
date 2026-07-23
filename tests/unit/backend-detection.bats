@@ -70,3 +70,15 @@ setup() {
     [ -n "$fail_line" ] && [ -n "$exit_line" ]
     [ "$exit_line" -le $((fail_line + 8)) ]
 }
+
+@test "initramfs regen KVER comes from the module tree that owns vmlinuz" {
+    # bluefin:lts ships TWO /usr/lib/modules trees: 6.12.0-225 (stripped
+    # leftover, no vmlinuz) and 6.12.0-233 (bootable). `ls | head -1` picked
+    # 225, dracut built a 225-module initramfs, the 233 kernel booted it, and
+    # not one storage driver could load — 60s of "Present devices: none" and
+    # an emergency shell, with no error anywhere. The pick must require
+    # vmlinuz and take the highest such version.
+    grep -Fq '[[ -f "$d/vmlinuz" ]] && basename "$d"' "$DEPLOY"
+    run grep -nE 'KVER=\$\(ls [^)]*head -1\)' "$DEPLOY"
+    [ "$status" -ne 0 ]
+}
