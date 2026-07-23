@@ -1380,7 +1380,7 @@ QGAEOF
                     "$OVL/usr/lib/systemd/system/initrd.target.wants/wootc-attach.service"
 
                 if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
-                    local nbin
+                    nbin=""
                     nbin=$(ls /mnt/sysroot/usr/bin/ntfs-3g /usr/bin/ntfs-3g 2>/dev/null | head -1)
                     install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
                     ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs" 2>/dev/null || true
@@ -1456,7 +1456,7 @@ BLSEOF
                         "$OVL/usr/lib/systemd/system/initrd.target.wants/wootc-attach.service"
 
                     if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
-                        local nbin
+                        nbin=""
                         nbin=$(ls /mnt/sysroot/usr/bin/ntfs-3g /usr/bin/ntfs-3g 2>/dev/null | head -1)
                         install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
                         ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs" 2>/dev/null || true
@@ -1568,7 +1568,7 @@ BLSEOF
 
                 # If deployer has ntfs-3g, stage it and ALL its ldd dependencies into early cpio overlay
                 if command -v ntfs-3g >/dev/null 2>&1; then
-                    local nbin
+                    nbin=""
                     nbin=$(command -v ntfs-3g)
                     install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
                     # copy all dynamic dependencies found via ldd
