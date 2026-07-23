@@ -533,6 +533,21 @@ reset_oem_attempt() {
 # for our guest marker before rebooting. Freezing Windows filesystems makes the
 # host-side sparse qcow2 copy crash-consistent; the temporary name prevents a
 # failed copy from masquerading as a usable snapshot.
+# Seed a uniquely-identifiable user file in the Windows profile. The whole
+# point of wootc is that THIS file is still readable after every phase; each
+# rung's check greps for the RUN_ID content, so a stale file from a previous
+# run can never produce a false pass (lessons §1). Written just before the
+# deployer reboot so it is part of the data the migration must carry.
+seed_user_data() {
+    step "Seeding user data in the Windows profile (Documents)..."
+    if qga_powershell "\$d = 'C:\\Users\\wootc\\Documents'; if (-not (Test-Path \$d)) { throw \"no profile Documents dir at \$d\" }; Set-Content -Path \"\$d\\wootc-e2e-userdata.txt\" -Value 'wootc-e2e-userdata $RUN_ID' -Encoding ASCII; Get-Content \"\$d\\wootc-e2e-userdata.txt\"" 2>/dev/null | grep -q "$RUN_ID"; then
+        pass "User data seeded: C:\\Users\\wootc\\Documents\\wootc-e2e-userdata.txt ($RUN_ID)"
+    else
+        fail "Could not seed user data in the Windows profile — data-persistence checks will be meaningless"
+        return 1
+    fi
+}
+
 # Release the OEM/deployer barrier: the guest waits for this marker before it
 # reboots into the deployer, so it must be written whether or not the host-side
 # snapshot succeeded.
@@ -569,6 +584,12 @@ snapshot_before_deployer() {
     local snapshot="$STORAGE_DIR/data.qcow2.snap"
     local tmp="$snapshot.tmp.$RUN_ID"
     local frozen=false
+
+    # The guest is armed and about to reboot into the deployer — last moment
+    # Windows is alive, so seed the user data the later rungs must prove
+    # survived. Failure is recorded (the downstream checks then fail too, on
+    # their own evidence) but must not wedge the barrier below.
+    seed_user_data || true
 
     if [ "$WOOTC_E2E_SNAPSHOT" != "1" ]; then
         info "Pre-deployer snapshot disabled (WOOTC_E2E_SNAPSHOT=1 to enable)"
@@ -1890,6 +1911,31 @@ else
     info "Passthrough verification: errors found (see above) — migration may fail"
 fi
 
+# ── User data through the bridge (live, content-verified) ───────────────────
+# The North Star is the DATA, not the boot: the file seeded in the Windows
+# profile before the deployer ran must be readable in the Phase-2 user's HOME
+# through the User Data Bridge, with this run's RUN_ID as content. A live QGA
+# read of the canonical path — not a serial-marker proxy — so it fails when
+# the thing it asserts is absent. Diagnostics distinguish the failure layer:
+# /host missing (host-bind), profile missing (bind source), HOME bind missing
+# (mount-user-dirs / user creation).
+step "Verifying seeded user data is visible in Phase 2 \$HOME..."
+USERDATA_HOME=$(qga_call exec /bin/sh -c \
+    'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
+if printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
+    pass "User data: Windows Documents file readable in /home/wootc with this run's ID"
+else
+    USERDATA_DIAG=$(qga_call exec /bin/sh -c \
+        'echo "host-bind: $(mountpoint -q /host && echo mounted || echo ABSENT)"; \
+         echo "profile:   $(ls -d /host/Users/wootc 2>/dev/null || echo ABSENT)"; \
+         echo "seed@host: $(cat /host/Users/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null || echo ABSENT)"; \
+         echo "user:      $(id wootc 2>&1 | head -1)"; \
+         echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"' 2>/dev/null || true)
+    fail "User data NOT visible in Phase 2 \$HOME (expected RUN_ID $RUN_ID)"
+    printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
+    PASSTHROUGH_OK=false
+fi
+
 # ── HARD GATE: prove Phase 2 actually ran ───────────────────────────────────
 # Everything above passes on the ABSENCE of error strings, and the reboot step
 # below sends ctrl-alt-delete — which an emergency shell obeys just as happily
@@ -1932,6 +1978,22 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         exit 1
     fi
     pass "Phase 3 native system booted from the graduated install (non-loopback)"
+    # The point of it all: the file seeded in Windows before the deployer ever
+    # ran must now live on the NATIVE disk — no NTFS, no loopback, no bind in
+    # the chain (the natively-booted system has no /host at all). Content must
+    # carry this run's RUN_ID so a leftover from a previous run cannot pass.
+    step "Verifying seeded user data persisted onto the native disk..."
+    P3_USERDATA=$(qga_call exec /bin/sh -c \
+        'f=$(ls /home/wootc/Documents/wootc-e2e-userdata.txt /var/home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null | head -1); \
+         [ -n "$f" ] && { printf "SRC=%s\n" "$(findmnt -no SOURCE "$(df -P "$f" | awk "NR==2{print \$6}")" 2>/dev/null)"; cat "$f"; }' \
+        2>/dev/null || true)
+    if printf '%s' "$P3_USERDATA" | grep -q "$RUN_ID"; then
+        pass "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"
+    else
+        fail "Seeded user data did NOT persist onto the native disk (wanted RUN_ID $RUN_ID)"
+        printf '%s\n' "$P3_USERDATA" | sed 's/^/  /'
+        exit 1
+    fi
 else
     step "Rebooting Phase 2 Linux and verifying return to Windows..."
     qga_call exec /bin/sh -c 'systemctl reboot' 2>/dev/null \

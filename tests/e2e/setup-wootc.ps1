@@ -208,6 +208,24 @@ if ($payloadRoot -and (Test-Path "$payloadRoot\e2e-phase3")) {
     Copy-Item "$payloadRoot\e2e-phase3" "$installDir\e2e-phase3" -Force
 }
 
+# ── Credential vault (SPEC: vault.json) ─────────────────────────────────────
+# Create the Linux user "wootc" — the SAME name as the Windows profile, which
+# is what the User Data Bridge keys on (wootc-mount-user-dirs binds
+# /host/Users/<name> into the home of the MATCHING Linux account). Without a
+# vault the deployer creates no user at all and the whole data-persistence
+# chain is untestable. Password is "wootc-e2e" as a precomputed $6$ SHA-512
+# hash (test-only credential; the deployer shreds vault.json before install).
+Write-Host "[wootc] Writing credential vault (user: wootc)..."
+$vaultJson = @"
+{
+  "username": "wootc",
+  "password_hash": "`$6`$wootce2e`$cBsKHH8DC/MXaiDn6AJUbdjZuwjULMiS2.20qDARI7Pl9rjJpiaTtxkOSobqW9CE0NJvq9PRgaK0AaTg8WT7J1",
+  "hostname": "wootc-test"
+}
+"@
+Set-Content -Path "$installDir\vault.json" -Value $vaultJson -Encoding ASCII
+$WootcKargs += " wootc.vault=/wootc/install/vault.json"
+
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────
 if ($grubDir) {
     # GRUB cfg files from the wootc repo (legacy, for NTFS-based install)
