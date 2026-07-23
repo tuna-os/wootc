@@ -71,3 +71,34 @@ setup() {
     run grep -nE '^[^#]*local-fs.target.wants/wootc-passthrough' "$REPO_ROOT/payload/deployer/deploy.sh"
     [ "$status" -ne 0 ]
 }
+
+@test "Phase-3 reboot never rides the QGA channel" {
+    # qga_call retries on timeout; a retry the dying Phase 2 fails to consume
+    # stays queued in virtio-serial and is executed by the NEXT agent to open
+    # it — the freshly booted native system, which then reboots straight back
+    # to Windows (BootNext already consumed; run 20260723T0423). The Phase-3
+    # transition must reset via the QEMU monitor, which queues nothing.
+    grep -A14 'Rebooting Phase 2 into the one-shot Phase 3' "$E2E" | grep -q 'system_reset'
+    run bash -c "grep -A14 'Rebooting Phase 2 into the one-shot Phase 3' '$E2E' | grep -E '^[^#]*qga_call exec'"
+    [ "$status" -ne 0 ]
+}
+
+@test "mount-user-dirs reports a bind verdict and flags a missing home" {
+    # Run 20260723T0423: the unit "succeeded" with zero binds and an empty
+    # journal — undiagnosable from the outside. It must always log a summary,
+    # and a matching user whose home is absent is a named deployment bug.
+    local mud="$REPO_ROOT/payload/migration/wootc-mount-user-dirs"
+    grep -q 'summary: \$bound folder binds across \$matched matching user' "$mud"
+    grep -q 'no home directory' "$mud"
+}
+
+@test "fisherman pins user homes into the stateroot var" {
+    # useradd --create-home follows the deployment's /home -> var/home
+    # symlink into the deployment's OWN var, masked at runtime by the
+    # stateroot var mount (run 20260723T0423). fisherman must relocate the
+    # home and write a tmpfiles.d snippet for first-boot relabeling.
+    local ug="$REPO_ROOT/fisherman/fisherman/internal/post/user.go"
+    grep -q 'staterootHome' "$ug"
+    grep -q 'fisherman-home-' "$ug"
+    grep -q '/etc/skel' "$ug"
+}

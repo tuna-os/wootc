@@ -32,6 +32,8 @@ sel_on() {
     return 0
 }
 
+bound=0
+matched=0
 shopt -s nullglob
 for winprofile in /run/wootc/host/Users/*/; do
     name=$(basename "$winprofile")
@@ -43,9 +45,17 @@ for winprofile in /run/wootc/host/Users/*/; do
     # Windows profiles) and has UID >= 1000 (a real user, not a system account).
     uid=$(id -u "$name" 2>/dev/null) || continue
     [[ "$uid" -ge 1000 ]] || continue
+    matched=$((matched + 1))
 
     home=$(getent passwd "$name" | cut -d: -f6)
-    [[ -d "$home" ]] || continue
+    if [[ ! -d "$home" ]]; then
+        # A matching account whose recorded home does not exist is a broken
+        # deployment, not a skippable case — say so instead of exiting 0 in
+        # silence (run 20260723T0423: fisherman's useradd left the home in
+        # the deployment's masked var; this unit "succeeded" with 0 binds).
+        log "ERROR: user $name has no home directory ($home) — cannot bridge; deployment bug"
+        continue
+    fi
 
     if ! sel_on "$name" files; then
         log "files: skipped for $name (turned off in the migration chooser)"
@@ -62,10 +72,14 @@ for winprofile in /run/wootc/host/Users/*/; do
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"
             log "bound $src -> $dst"
+            bound=$((bound + 1))
         fi
     done
 done
 shopt -u nullglob
+# Always leave a verdict in the journal: "Finished" alone cannot distinguish
+# a bridged home from a run where every profile was silently skipped.
+log "summary: $bound folder binds across $matched matching user(s)"
 
 # Steam category (best-effort — never fail the mount service over it).
 if command -v wootc-steam-bridge >/dev/null && sel_on "${SUDO_USER:-root}" games; then

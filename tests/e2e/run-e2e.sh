@@ -1962,9 +1962,21 @@ fi
 # ── Step 10: boot the result, not merely its installer ─────────────────────
 if [ "${RUN_PHASE3:-false}" = true ]; then
     step "Rebooting Phase 2 into the one-shot Phase 3 native install..."
-    qga_call exec /bin/sh -c 'systemctl reboot' 2>/dev/null \
-        || $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"system_reset\n"); s.close()'
-    qga_wait_down "Phase 3 native boot"
+    # NEVER send this reboot through QGA. qga_call retries on timeout, and any
+    # attempt the dying Phase 2 fails to consume stays queued in the
+    # virtio-serial channel until the next guest agent opens it — which is the
+    # freshly booted NATIVE system. Run 20260723T0423: the native install came
+    # up in 17s with guest-exec enabled, and its first act was executing the
+    # stale "systemctl reboot" (native journal, qemu-ga pid 1100); BootNext
+    # was already consumed, so the VM fell back to Windows and the run
+    # reported "did not boot Linux". A monitor reset queues nothing anywhere;
+    # Phase 2 is rollback-only scratch after graduation, so an unclean stop
+    # costs at most an ext4 journal replay.
+    $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"system_reset\n"); s.close()'
+    # Phase 2's agent must stop answering before we wait for the native one —
+    # qga_wait_down probes for the WINDOWS agent and returns instantly against
+    # a Linux guest, letting a not-yet-rebooted Phase 2 answer the native wait.
+    for _ in $(seq 1 24); do qga_probe || break; sleep 5; done
     qga_wait "Phase 3 native system" 600
     P3_NATIVE_PROOF=$(qga_call exec /bin/sh -c \
         'printf "UNAME=%s\n" "$(uname -s)"; printf "CMDLINE="; cat /proc/cmdline; printf "TARGET="; cat /etc/wootc/native-target 2>/dev/null || true' \
