@@ -239,15 +239,22 @@ host_preflight() {
         fail "Only $((mem_available_kib / 1024)) MiB host RAM is available; need at least 6144 MiB before starting Windows"
         return 1
     fi
-    # Fresh installation needs room for the installer, pulls, and expanding
-    # qcow2. Fresh-run peak drops ~10 GiB when the Windows ISO is already cached
-    # (no re-download, custom.iso rebuild reuses cached extraction).
-    if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
-        required_free_gib=75
+    # These situational adjustments apply only when the caller did NOT set an
+    # explicit floor: WOOTC_E2E_MIN_FREE_GIB=45 from the matrix was silently
+    # RAISED back to 75 by the iso branch (a leftover windows.*.iso in the
+    # instance dir), failing a slot with plenty of room for its case.
+    if [ -z "${WOOTC_E2E_MIN_FREE_GIB:-}" ]; then
+        # Fresh installation needs room for the installer, pulls, and
+        # expanding qcow2. Fresh-run peak drops ~10 GiB when the Windows ISO
+        # is already cached (no re-download, custom.iso rebuild reuses the
+        # cached extraction).
+        if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
+            required_free_gib=75
+        fi
+        # A reuse run already has those and needs only its allocated-extent
+        # safety snapshot plus diagnostics.
+        [ "$SKIP_INSTALL" = false ] || required_free_gib=55
     fi
-    # A reuse run already has those and needs only its allocated-extent
-    # safety snapshot plus diagnostics.
-    [ "$SKIP_INSTALL" = false ] || required_free_gib=55
     if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
         fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
         return 1
