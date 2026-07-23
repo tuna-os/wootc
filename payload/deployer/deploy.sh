@@ -650,10 +650,17 @@ if [[ "$LUKS_TYPE" != "none" ]]; then
     fi
 fi
 
-# Build user JSON if vault provided credentials
+# Build user JSON if vault provided credentials.
+# groups: wheel ONLY. useradd --root consults just the target's /etc/group; on
+# EL10-family ostree images (bluefin:lts) video/audio live in /usr/lib/group
+# (systemd userdb) and useradd dies with exit 6 "group does not exist" —
+# fisherman then aborts the whole install (proven live, run 20260723T0122).
+# Modern desktops grant device access via logind session ACLs, so the legacy
+# video/audio memberships add nothing; wheel is what admin/sudo needs and is
+# present in /etc/group across every supported image family.
 USER_JSON=""
 if [[ -n "$VAULT_USER" && -n "$VAULT_PASSWORD_HASH" ]]; then
-    USER_JSON=",\"user\": { \"username\": \"${VAULT_USER}\", \"password\": \"${VAULT_PASSWORD_HASH}\", \"groups\": [\"wheel\", \"video\", \"audio\"] }"
+    USER_JSON=",\"user\": { \"username\": \"${VAULT_USER}\", \"password\": \"${VAULT_PASSWORD_HASH}\", \"groups\": [\"wheel\"] }"
 fi
 
 RECIPE="/tmp/recipe.json"

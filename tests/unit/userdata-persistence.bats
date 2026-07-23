@@ -47,3 +47,13 @@ setup() {
     # And a failed persistence check is FATAL, not advisory.
     grep -A4 'did NOT persist onto the native disk' "$E2E" | grep -q 'exit 1'
 }
+
+@test "vault user requests only the wheel group" {
+    # useradd --root consults only the target's /etc/group; on EL10-family
+    # images video/audio live in /usr/lib/group (systemd userdb) and useradd
+    # exits 6, aborting the whole fisherman install. logind session ACLs make
+    # the legacy device groups unnecessary.
+    grep -Fq '\"groups\": [\"wheel\"]' "$REPO_ROOT/payload/deployer/deploy.sh"
+    run grep -n '"wheel", "video", "audio"' "$REPO_ROOT/payload/deployer/deploy.sh"
+    [ "$status" -ne 0 ]
+}
