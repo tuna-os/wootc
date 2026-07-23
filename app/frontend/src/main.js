@@ -1121,6 +1121,16 @@ async function e2eDriveLoop() {
         const user = e2eFieldByLabel('Linux Username');
         const host = e2eFieldByLabel('Hostname');
         const pws = document.querySelectorAll('input[type=password]');
+        // Match the script-proven flow unless the directive says otherwise:
+        // the form defaults to tpm2-luks, which the drive-mode E2E must not
+        // silently inherit (the reference setup-wootc.ps1 path is
+        // unencrypted; LUKS is its own test axis).
+        const enc = d.encryption || 'none';
+        const encRadio = document.querySelector(`input[name=encryption][value=${enc}]`);
+        if (encRadio && !encRadio.checked) {
+          encRadio.checked = true;
+          if (encRadio.onchange) encRadio.onchange();
+        }
         if (img && user && host && pws.length >= 2) {
           [[img, d.image], [user, d.username], [host, d.hostname],
            [pws[0], d.password], [pws[1], d.password]].forEach(([inp, v]) => {
