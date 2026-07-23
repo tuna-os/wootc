@@ -107,7 +107,7 @@ netsh advfirewall firewall add rule name="wootc-cdp" dir=in action=allow protoco
 Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
 Stop-Process -Name msedgewebview2 -Force -ErrorAction SilentlyContinue
 schtasks /Delete /TN wootc-gui-cdp /F 2>$null
-schtasks /Create /TN wootc-gui-cdp /SC ONCE /ST 00:00 /TR "C:\wootc\launch-cdp.cmd" /RU wootc /IT /F | Out-Null
+schtasks /Create /TN wootc-gui-cdp /SC ONCE /ST 00:00 /TR "C:\wootc\launch-cdp.cmd" /RU wootc /IT /RL HIGHEST /F | Out-Null
 schtasks /Run /TN wootc-gui-cdp | Out-Null
 "launched"' | grep -q launched || fail "guest launch failed"
 

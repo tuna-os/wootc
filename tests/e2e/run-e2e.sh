@@ -1421,7 +1421,7 @@ start `"`" C:\wootc\wootc.exe
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
 Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
 schtasks /Delete /TN wootc-gui-e2e /F 2>$null
-schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST 00:00 /TR "C:\wootc\launch-gui.cmd" /RU wootc /IT /F | Out-Null
+schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST 00:00 /TR "C:\wootc\launch-gui.cmd" /RU wootc /IT /RL HIGHEST /F | Out-Null
 schtasks /Run /TN wootc-gui-e2e | Out-Null
 Write-Output "gui-launched"' | grep -q gui-launched || {
         fail "could not launch wootc.exe in the interactive session"
