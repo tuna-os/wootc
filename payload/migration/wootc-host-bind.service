@@ -6,6 +6,12 @@ Before=local-fs.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# /host does not exist in shipped images, and on composefs images it is only
+# creatable because the root is TRANSIENT (writable-but-ephemeral) — so make
+# the mountpoint every boot ("-" tolerates it already existing). Without
+# this the bind failed on bluefin:lts and the whole User Data Bridge sat
+# ABSENT while the initramfs NTFS mount itself was healthy.
+ExecStartPre=-/usr/bin/mkdir -p /host
 ExecStart=/usr/bin/mount --bind /run/initramfs/wootc-host /host
 ExecStop=/usr/bin/umount /host
 

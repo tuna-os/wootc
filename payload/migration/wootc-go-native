@@ -313,16 +313,26 @@ EOF
 
     # fisherman already created a UEFI boot entry for the new disk. Schedule it
     # as the next-boot entry (BootNext) so the first reboot lands on the native
-    # install without permanently changing BootOrder.
-    local bootnum
-    bootnum=$(efibootmgr 2>/dev/null \
-        | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\}.*Linux.*/\1/p' | tail -1)
-    if [[ -n "$bootnum" ]]; then
-        efibootmgr -n "$bootnum" >/dev/null || true
-        log "Graduate complete. Scheduled Boot$bootnum for next reboot."
-    else
-        log "Graduate complete. Reboot — fisherman set the EFI boot order."
+    # install without permanently changing BootOrder. Find the entry by the
+    # TARGET ESP's PARTUUID in its device path — an observable — never by
+    # label: fisherman named its entry without the word "Linux", the old
+    # label grep matched nothing, and the "fisherman set the EFI boot order"
+    # fallback trusted a BootOrder that still had Windows first (run
+    # 20260723T0215: graduation green, reboot landed in Windows).
+    local esp_part espuuid bootnum
+    esp_part=$(lsblk -nro PATH,TYPE "$target" | awk '$2=="part"{print $1; exit}')
+    espuuid=$(blkid -s PARTUUID -o value "$esp_part" 2>/dev/null || true)
+    bootnum=""
+    if [[ -n "$espuuid" ]]; then
+        bootnum=$(efibootmgr -v 2>/dev/null | grep -i "$espuuid" \
+            | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\).*/\1/p' | tail -1)
     fi
+    [[ -n "$bootnum" ]] || bootnum=$(efibootmgr 2>/dev/null \
+        | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\}.*Linux.*/\1/p' | tail -1)
+    [[ -n "$bootnum" ]] || die "no UEFI entry matches $target (ESP $esp_part PARTUUID ${espuuid:-unknown}) — refusing to claim success without a schedulable native boot"
+    efibootmgr -n "$bootnum" >/dev/null \
+        || die "could not set BootNext Boot$bootnum — native boot would be unverifiable"
+    log "Graduate complete. Scheduled Boot$bootnum (ESP $espuuid) for next reboot."
     log "Reboot to run natively from $target. Windows + root.disk remain for rollback."
 }
 

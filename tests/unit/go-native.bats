@@ -227,10 +227,15 @@ teardown() {
 }
 
 @test "Phase-3 schedules and positively verifies the native boot" {
-    # fisherman creates the UEFI entry; go-native finds it and schedules a
-    # one-shot BootNext (never a permanent BootOrder change).
-    grep -Eq "sed -n 's/\^Boot.*Linux" "$GN"
+    # fisherman creates the UEFI entry; go-native must find it by the target
+    # ESP's PARTUUID (an observable), never by label — the label grep missed
+    # fisherman's entry and the trusting fallback left BootOrder on Windows
+    # (run 20260723T0215). No schedulable entry = hard failure, not a shrug.
+    grep -Fq 'blkid -s PARTUUID -o value "$esp_part"' "$GN"
     grep -Fq 'efibootmgr -n "$bootnum"' "$GN"
+    grep -q 'refusing to claim success without a schedulable native boot' "$GN"
+    run grep -nE '^[^#]*"Graduate complete\. Reboot' "$GN"
+    [ "$status" -ne 0 ]
     grep -Fq 'Phase 3 native system booted from the graduated install (non-loopback)' "$E2E_RUNNER"
     grep -Fq '/etc/wootc/native-target' "$E2E_RUNNER"
 }
