@@ -60,3 +60,11 @@ setup() {
     # Go persists the BCD GUID for the harness's Phase-2 scheduling.
     grep -q 'bcd-guid.txt' "$REPO_ROOT/app/installer_windows.go"
 }
+
+@test "matrix poll ssh cannot eat the case queue" {
+    # ssh without -n inherits slot_worker's while-read stdin — the queue —
+    # and the worker silently stops after one case (run 20260723T0953).
+    grep -q 'ssh -n -o ConnectTimeout=8 -o BatchMode=yes' "$MATRIX"
+    run bash -c "grep -nE 's=\\\$\\(ssh -o' '$MATRIX'"
+    [ "$status" -ne 0 ]
+}

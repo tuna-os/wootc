@@ -154,7 +154,10 @@ REMOTE
     while :; do
         now=$(date +%s); [ $((now - start)) -gt "$PER_CASE_TIMEOUT" ] && break
         local s
-        s=$(ssh -o ConnectTimeout=8 -o BatchMode=yes "$host" "
+        # -n: this ssh runs inside slot_worker's while-read loop; without it,
+        # ssh slurps the loop's stdin — WHICH IS THE CASE QUEUE — and the
+        # worker exits after one case (run 20260723T0953: 1 of 26 ran).
+        s=$(ssh -n -o ConnectTimeout=8 -o BatchMode=yes "$host" "
             L=\$(sed -E 's/\x1b\[[0-9;]*m//g' '$log' 2>/dev/null)
             if echo \"\$L\" | grep -qa 'ALL TESTS PASSED'; then echo PASS
             elif echo \"\$L\" | grep -qaE '\[FAIL\]'; then echo \"FAIL:\$(echo \"\$L\"|grep -aE '\[FAIL\]'|tail -1|cut -c1-80)\"
