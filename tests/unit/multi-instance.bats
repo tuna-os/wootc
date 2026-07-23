@@ -86,3 +86,16 @@ setup() {
     run grep -nE '^[^#]*rm -rf storage/data.qcow2' "$E2E"
     [ "$status" -ne 0 ]
 }
+
+@test "registry mirror is an opt-in, probed hint at every layer" {
+    # Concurrent deployers starved each other's multi-GB pulls (podman
+    # exit-125, runs 20260723T1130/1201). The mirror must degrade to direct
+    # pulls when absent or dead — probe before trust, at both ends.
+    grep -q 'mirror.txt' "$E2E"
+    grep -q 'setup-registry-cache.sh' "$E2E"
+    local dep="$REPO_ROOT/payload/deployer/deploy.sh"
+    grep -q 'MIRROR_FILE=' "$dep"
+    grep -A3 'WOOTC_MIRROR=$(tr' "$dep" | grep -q 'curl -fsS -m 3'
+    grep -q 'registries.conf.d/wootc-mirror.conf' "$dep"
+    grep -q 'mirror.txt' "$REPO_ROOT/tests/e2e/setup-wootc.ps1"
+}

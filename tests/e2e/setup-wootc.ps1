@@ -207,6 +207,11 @@ Copy-Item $deployerInitramfs "$installDir\deployer-initramfs.img" -Force
 if ($payloadRoot -and (Test-Path "$payloadRoot\e2e-phase3")) {
     Copy-Item "$payloadRoot\e2e-phase3" "$installDir\e2e-phase3" -Force
 }
+# Optional registry-mirror hint for the deployer (E2E bandwidth relief);
+# the deployer probes it and silently pulls direct when absent/dead.
+if ($payloadRoot -and (Test-Path "$payloadRoot\mirror.txt")) {
+    Copy-Item "$payloadRoot\mirror.txt" "$installDir\mirror.txt" -Force
+}
 
 # ── Credential vault (SPEC: vault.json) ─────────────────────────────────────
 # Create the Linux user "wootc" — the SAME name as the Windows profile, which

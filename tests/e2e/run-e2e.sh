@@ -835,6 +835,28 @@ cp "$SCRIPT_DIR/wootc-files/grubx64.efi" "$OEM_PAYLOAD/grubx64.efi"
 [ -s "$SCRIPT_DIR/wootc-files/wubildr.efi" ] && \
     cp "$SCRIPT_DIR/wootc-files/wubildr.efi" "$OEM_PAYLOAD/wubildr.efi"
 cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
+
+# ── Registry mirror hint (bandwidth relief for concurrent instances) ────────
+# Two deployers pulling multi-GB images through one uplink starved each other
+# into podman exit-125 (runs 20260723T1130/1201). If a pull-through cache
+# answers on this host (tests/e2e/setup-registry-cache.sh starts one), tell
+# the deployer about it via mirror.txt beside vault.json; the deployer probes
+# before trusting, so a dead cache degrades to normal direct pulls.
+MIRROR_ADDR=""
+for ip in $(ip -4 addr show tailscale0 2>/dev/null | awk '/inet /{sub(/\/.*/,"",$2); print $2}') \
+          $(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1); exit}'); do
+    if curl -fsS -m 2 "http://${ip}:5000/v2/" >/dev/null 2>&1; then
+        MIRROR_ADDR="${ip}:5000"
+        break
+    fi
+done
+if [ -n "$MIRROR_ADDR" ]; then
+    printf '%s\n' "$MIRROR_ADDR" > "$SCRIPT_DIR/wootc-files/mirror.txt"
+    cp "$SCRIPT_DIR/wootc-files/mirror.txt" "$OEM_PAYLOAD/mirror.txt"
+    info "Registry mirror hint staged: $MIRROR_ADDR"
+else
+    rm -f "$SCRIPT_DIR/wootc-files/mirror.txt" "$OEM_PAYLOAD/mirror.txt"
+fi
 cp "$SCRIPT_DIR/qga.py" "$OEM_DIR/qga.py"
 if [ "${RUN_PHASE3:-false}" = true ]; then
     : > "$OEM_PAYLOAD/e2e-phase3"
@@ -1413,7 +1435,7 @@ gui_install_arm() {
     # same handlers, same validation), and reports to e2e-drive-state.json.
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
-foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi","mirror.txt") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1

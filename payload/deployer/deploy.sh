@@ -480,6 +480,33 @@ if [[ -n "$VAULT_PATH" ]]; then
     else
         log "vault.json not found at ${VAULT_FILE} — using cmdline defaults"
     fi
+
+    # ── Optional registry mirror (E2E bandwidth relief) ─────────────────────
+    # A mirror.txt beside vault.json names a pull-through cache (host:port).
+    # Concurrent E2E instances pulling multi-GB images through one uplink
+    # starved each other into podman exit-125 (runs 20260723T1130/1201); a
+    # LAN cache makes every image cross the wifi once. Probed, never trusted:
+    # unreachable or absent → normal direct pulls. Podman falls back to the
+    # upstream registry on any mirror failure, so this cannot break a deploy.
+    MIRROR_FILE="/mnt/ntfs$(dirname "$VAULT_PATH")/mirror.txt"
+    if [[ -f "$MIRROR_FILE" ]]; then
+        WOOTC_MIRROR=$(tr -d ' \r\n' < "$MIRROR_FILE")
+        if [[ -n "$WOOTC_MIRROR" ]] && curl -fsS -m 3 "http://${WOOTC_MIRROR}/v2/" >/dev/null 2>&1; then
+            log "Registry mirror ${WOOTC_MIRROR} reachable — routing ghcr.io pulls through it"
+            mkdir -p /etc/containers/registries.conf.d
+            cat > /etc/containers/registries.conf.d/wootc-mirror.conf <<MIRRORCONF
+[[registry]]
+prefix = "ghcr.io"
+location = "ghcr.io"
+
+[[registry.mirror]]
+location = "${WOOTC_MIRROR}"
+insecure = true
+MIRRORCONF
+        else
+            log "Registry mirror '${WOOTC_MIRROR:-}' not reachable — pulling direct"
+        fi
+    fi
 fi
 
 # ╔═══════════════════════════════════════════════════════════════════════════
