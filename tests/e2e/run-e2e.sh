@@ -1930,7 +1930,11 @@ else
          echo "profile:   $(ls -d /host/Users/wootc 2>/dev/null || echo ABSENT)"; \
          echo "seed@host: $(cat /host/Users/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null || echo ABSENT)"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
-         echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"' 2>/dev/null || true)
+         echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
+         echo "unit:      enabled=$(systemctl is-enabled wootc-host-bind 2>&1) active=$(systemctl is-active wootc-host-bind 2>&1)"; \
+         systemctl status wootc-host-bind --no-pager 2>&1 | tail -4; \
+         echo "ntfs-src:  $(findmnt -n /run/initramfs/wootc-host 2>/dev/null || echo ABSENT)"; \
+         echo "passthru:  enabled=$(systemctl is-enabled wootc-passthrough 2>&1) active=$(systemctl is-active wootc-passthrough 2>&1)"' 2>/dev/null || true)
     fail "User data NOT visible in Phase 2 \$HOME (expected RUN_ID $RUN_ID)"
     printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
     PASSTHROUGH_OK=false
