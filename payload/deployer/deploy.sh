@@ -385,15 +385,18 @@ log "Creating fisherman scratch at ${SCRATCH_IMG}..."
 mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # ntfs3 allocates the full size on truncate (no sparse support), so this
 # must fit in C:'s free space alongside the dynamically allocated root.disk.
-# 13G: with disk-backed default storage fisherman pulls the full extracted
-# image (~10G) here plus transient blob staging; the target disk holds only
-# the ostree deployment.
+# 20G (was 13G): the scratch holds the ntfs-inject pull AND fisherman's
+# pull — the full extracted image plus transient blob staging. 13G fit
+# bluefin:lts but ENOSPC'd on bonito:gnome mid-unpack ("write /usr/bin/yq:
+# no space left on device", GH run 20260723T2257), leaving a full scratch
+# of partial-image junk for everything downstream. The target disk still
+# holds only the ostree deployment.
 #
 # Reuse an existing scratch: containers-storage inside it caches the pulled
 # image, turning the multi-minute pull into a digest check on retries.
 if [[ ! -f "$SCRATCH_IMG" ]] || [[ "$(blkid -o value -s TYPE "$SCRATCH_IMG" 2>/dev/null)" != "ext4" ]]; then
     log "Initializing new scratch filesystem..."
-    truncate -s 13G "$SCRATCH_IMG"
+    truncate -s 20G "$SCRATCH_IMG"
     mkfs.ext4 -q -F "$SCRATCH_IMG"
 else
     log "Reusing existing scratch (cached container storage)"
