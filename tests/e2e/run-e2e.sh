@@ -1907,8 +1907,14 @@ else
 fi
 
 # shellcheck disable=SC2016 # PowerShell variables must remain literal here.
+# "|| true": under set -e, a hiccup in this first post-deploy PowerShell
+# call (cold PS start on a small VM right after the reboot) killed the run
+# SILENTLY — no fail line, straight to diagnostics (GUI take 7b,
+# 20260723T2258, died here with the deploy fully verified). The -n check
+# below is the real gate and says why.
 PHASE2_GUID=$(qga_powershell \
-    '$guid = (Get-Content C:\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid')
+    '$guid = (Get-Content C:\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid' \
+    2>/dev/null || true)
 PHASE2_GUID=$(printf '%s' "$PHASE2_GUID" | tr -d '\r\n')
 [ -n "$PHASE2_GUID" ] || { fail "Could not read wootc BCD GUID from Windows"; exit 1; }
 
