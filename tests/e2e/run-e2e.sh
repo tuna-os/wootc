@@ -1485,6 +1485,22 @@ Write-Output "gui-launched"' | grep -q gui-launched || {
         exit 1
     }
 
+    # The arm must be observable BEFORE it is consumed: run 20260723T1144
+    # reached done, rebooted, and the firmware went straight to Windows — no
+    # wootc attempt on serial, bootsequence gone. A manual re-arm of the very
+    # same entry then booted the deployer, so the chain was fine and only the
+    # app's one-shot was missing at reboot time. Catch that state here, with
+    # the evidence, instead of burning the 90-minute deploy budget.
+    BCD_FW=$(qga_powershell 'bcdedit /enum "{fwbootmgr}"' 2>/dev/null || true)
+    if printf '%s\n' "$BCD_FW" | grep -qi 'bootsequence'; then
+        pass "BCD one-shot armed after GUI install (bootsequence present)"
+    else
+        fail "GUI install finished but {fwbootmgr} has NO bootsequence — the app's arm never landed"
+        printf '%s\n' "$BCD_FW" | head -14
+        capture_vm_diagnostics
+        exit 1
+    fi
+
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
     qga_powershell '@"
