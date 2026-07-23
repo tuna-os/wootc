@@ -420,3 +420,18 @@ as a corrupt/empty GPT with fresh random GUIDs per call), and the serial pty
 spans every boot of the run — sed from the FIRST "GRUB version" banner lands
 in Phase-1, not the boot you care about (anchor on `BdsDxe: starting BootNNNN`
 line numbers instead).
+
+## 23. `--root` is not chroot
+
+`useradd --root <dir>` chroots — after initializing the HOST's PAM/SELinux
+stack. From the deployer initramfs it worked for months; from booted Phase 2
+it failed with "failure while writing changes to /etc/passwd" against an etc
+that append/touch proved writable. `chroot <dir> useradd` succeeded on the
+same files, same second. Offline user tooling must run the TARGET's binaries
+via plain chroot; the flag that looks equivalent is environment-sensitive in
+exactly the way an initramfs test bed cannot reveal.
+
+The debugging move that cracked it in minutes: while the failed Phase 2 was
+still running, reproduce the exact failing command by hand over QGA, then
+bisect the variants (--root vs chroot vs --prefix) live. One boot's evidence
+beats three relaunch cycles.
