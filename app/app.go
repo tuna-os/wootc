@@ -460,7 +460,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		{"Checking system", 2, func() error { return checkSystem() }},
 		{"Disabling Fast Startup", 5, func() error { return disableFastStartup() }},
 		{"Creating directories", 8, func() error { return createDirectories() }},
-		{"Creating root.vhdx", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
+		{"Creating root.disk", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
 		{"Downloading deployer", 50, func() error {
 			return downloadDeployer(ctx, func(p float64) {
 				emit(ProgressEvent{

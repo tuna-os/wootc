@@ -9,7 +9,7 @@ out of scope (owned by the E2E track).
 ## 1. Current state
 
 `app/` is a Wails v2 app (fixed 820×620, vanilla-JS frontend, 4 screens:
-launchpad → progress → done, plus a control screen when `root.vhdx`
+launchpad → progress → done, plus a control screen when `root.disk`
 already exists). The Go backend exposes `GetImages`, `GetSystemInfo`,
 `StartInstall` (9-step pipeline), `CancelInstall`, `Uninstall`, `Reboot`.
 Vault handling (sha512-crypt hash, ACL-restricted `vault.json`, deployer
@@ -57,7 +57,7 @@ Hard facts to anchor planning:
 │                                                                    │
 │  C:\wootc\                                                         │
 │  ├─ install\   deployer-vmlinuz, deployer-initramfs.img, vault.json│
-│  ├─ disks\     root.vhdx                                           │
+│  ├─ disks\     root.disk                                           │
 │  ├─ logs\      live-journal.log, deployer-last-journal.log         │
 │  └─ state.json single source of truth for lifecycle (§2.3)         │
 └────────────────────────────────────────────────────────────────────┘
@@ -71,7 +71,9 @@ idempotent so a failed install can be re-run without manual cleanup:
 1. Preflight gate (§2.4) — abort before touching anything.
 2. Disable Fast Startup.
 3. Create directories.
-4. Create `root.vhdx` (diskpart, dynamic) + attach/detach self-check.
+4. Create `root.disk` — RAW, sparse-allocated, VDL-extended with
+   `fsutil setvaliddata` (Linux ntfs3 EIOs past VDL otherwise). VHDX was
+   retired in 8136ae6: target images ship losetup, not qemu-nbd.
 5. Download deployer kernel+initramfs+signed shim/grub **with sha256
    verification** (SPEC §3.1 promises this; not implemented — release
    pipeline must publish checksums alongside artifacts).
@@ -122,7 +124,7 @@ the prototype.
 ### 2.4 Preflight gates (SPEC §3.5, mostly unimplemented)
 
 Blockers (refuse install): not UEFI; no admin; ESP unusable (§D2); free
-space < root.vhdx max + deployer scratch headroom (the kanpur
+space < root.disk size + deployer scratch headroom (the kanpur
 `skopeo copy: exit status 2` failure is what running out looks like —
 surface it *before* reboot, not in dracut); BitLocker with unexportable
 recovery path.

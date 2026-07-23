@@ -2,6 +2,11 @@
 
 *Generated 2026-07-17 from the GUI/Phase-1 worktree session.*
 
+> **Historical note (2026-07-23):** both lanes below merged to `main`.
+> The VHDX exploration concluded in a RAW `root.disk` (8136ae6) and the
+> full three-phase E2E is green (see docs/milestones.md). Read this file
+> as a snapshot of remaining SPEC coverage, not as live lane status.
+
 ## State at handoff
 
 Two active lanes running in parallel across 3 E2E hosts:

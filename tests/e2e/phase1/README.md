@@ -28,17 +28,31 @@ undisturbed.
      armed in the one-shot `bootsequence` (and NOT in `displayorder`)
    - `wootc.exe status` reports `armed`
 
-Assertions marked `[pending-port]` cover the ESP staging that is still
-being ported from `setup-wootc.ps1` into the Go `bootchain` (roadmap
-item 2 in docs/gui-phase1-architecture.md) — they are expected to fail
-until that lands, and they define its acceptance criteria.
+The ESP-staging port from `setup-wootc.ps1` into Go has landed and was
+live-validated on 2026-07-23: a manually armed boot of the Go-staged
+chain (shim → GRUB → deployer) reached fisherman. `setup-wootc.ps1`
+remains the reference implementation — when the two disagree, the ps1
+behavior is the spec (that is the point of proving each step out via
+scripts first).
 
 ## Driving the actual GUI (UI automation)
 
-Wails on Windows renders in WebView2, which honors
-`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`.
-That exposes the Chrome DevTools Protocol, so Playwright can drive the
-real installer UI:
+**CDP does not work with stock wails v2 — measured, not assumed** (runs
+20260723T1044/1115): wails always passes its own
+`AdditionalBrowserArguments`, and BOTH WebView2 loaders (pure-Go and
+`native_webview2loader`) discard
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` once options args exist. The GUI
+renders perfectly; the debug endpoint never appears.
+
+The working mechanism is **drive mode**: run `wootc.exe` with
+`WOOTC_E2E_DRIVE=1` and it polls `C:\wootc\e2e-drive.json` over its own
+Go↔JS bridge, executes the directive against the live form (same DOM,
+same handlers, same validation), and reports to `e2e-drive-state.json`.
+`run-e2e.sh --gui-install` (`just remote-e2e-gui`) orchestrates the full
+GUI-driven three-phase run this way.
+
+The CDP recipe below is kept for reference in case wails ever exposes
+browser args as a public option:
 
 ```powershell
 # In the guest (via QGA):

@@ -7,7 +7,8 @@ below. (North Star: README.md. Boundary rules: docs/architecture-boundary.md.)
 ## Rung 1 — Phase 1 alone: installer produces a boot-ready disk
 
 **Claim:** on a virgin Windows machine, wootc (GUI or headless) ends with
-the system armed: root.vhdx exists and is Windows-attachable, the signed
+the system armed: a raw `root.disk` exists (VDL-extended so Linux ntfs3
+can write it over loop — VHDX was retired in 8136ae6), the signed
 chain + deployer pair are on the ESP, the BCD one-shot is set, vault.json
 holds only a hash, `state.json` = `armed`.
 
@@ -34,9 +35,9 @@ by the installed system.
 monitoring from `run-e2e.sh`; asserts the `healthy` state and an SSH/QGA
 sign of life from Linux.
 
-**Blocked on:** the Phase-2 track's current work (silent early-boot
-panic on main; qemu-nbd switch-root survival on the VHDX branch). Rung 2
-inherits whichever root-disk format wins there.
+**Status (2026-07-23): GREEN.** The raw-`root.disk` + `losetup
+--partscan` format won (8136ae6; docs/phase2-attach-postmortem.md tells
+the debugging story). Proven repeatably by `run-e2e.sh` on himachal.
 
 ## Rung 3 — Phase 1 → 2 → 3: migration works where the user lives
 
@@ -50,8 +51,12 @@ mounts present for the vault-created user, `wootc-convert-dir` round-trip
 on a seeded folder, dashboard backend (`GetMigrationCategories`) sane;
 then reboot back to Windows and assert it comes up clean.
 
-**Status:** components implemented AND unit-proven ahead of rung 2 —
-`tests/migration/test-bridge.sh` is **33/33 green** in a container
+**Status (2026-07-23): GREEN end-to-end.** The full three-phase run —
+Windows seed → deployer → Phase-2 boot → User Data Bridge in `$HOME` →
+Phase-3 graduation to a native disk → native boot → seeded file on the
+native disk — passed **29/29** (`just remote-e2e-phase3`, wootc bd11049
++ fisherman 5025d4d). `tests/migration/test-bridge.sh` is **54/54
+green** in a container
 (passthrough + write-through, Steam registration, browser import,
 reversible folder conversion + marker, DE look mapping GNOME/KDE, ESP
 sync on BLS *and* classic layouts, MS Office→LibreOffice). Live proof
@@ -69,3 +74,23 @@ not automation now; #3 tracks dashboard integration.
   in engineers' heads.
 - A rung's harness is part of its definition of done: no green harness,
   no claimed rung.
+
+## Rung 3b — GUI-driven full run: the product arms the machine
+
+**Claim:** the same three-phase run, except Phase 1 is armed by the REAL
+`wootc.exe` GUI — form filled and Install clicked through the app's own
+Go↔JS bridge (drive mode, `WOOTC_E2E_DRIVE=1`), then the app's Reboot
+hands off to the deployer. The GUI pipeline must match setup-wootc.ps1
+(the proven reference implementation) step for step.
+
+**Harness:** `run-e2e.sh --gui-install` (`just remote-e2e-gui`).
+
+**Status (2026-07-23): drive mode proven through the done screen.**
+Real findings already fixed by this rung: custom-OCI refs guessed
+systemd-boot (backend-contract violation), the Go installer still made a
+VHDX Phase 2 can no longer attach, missing bcd-guid.txt, missing
+elevation, missing console=ttyS0. CDP is impossible in stock wails
+(both WebView2 loaders discard the env var once the framework passes
+its own browser args) — hence drive mode. Open: the app's BCD one-shot
+was absent at reboot time in run 20260723T1144 (instrumented, in
+progress).

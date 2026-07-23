@@ -249,38 +249,52 @@ func createDirectories() error {
 	return nil
 }
 
-// ── Sparse file creation ──────────────────────────────────────────────────────
+// ── Raw root.disk creation ────────────────────────────────────────────────────
 
-// createRootDisk creates a dynamic VHDX of the requested virtual capacity.
-// DiskPart is part of supported Windows editions and creates a VHDX that is
-// natively attachable in Disk Management while allocating sparsely on NTFS.
+// createRootDisk creates the RAW root.disk image the deployer partitions and
+// Phase 2 attaches with `losetup --partscan`. Raw replaced VHDX in 8136ae6:
+// target bootc images ship losetup but not qemu-nbd, so VHDX forced a
+// foreign qemu-nbd + 26-library closure into the Phase-2 initramfs (soname
+// mismatches, silent staging deaths, QEMU VHDX-corruption reports). This
+// function had not been ported and still made a VHDX no Phase 2 could
+// attach (found by the GUI-driven E2E, run 20260723T1144).
+//
+// Two Windows-specific requirements, mirrored from setup-wootc.ps1:
+//   - allocate with SetLength (sparse on NTFS, instant), and
+//   - extend the Valid Data Length with `fsutil file setvaliddata` —
+//     without it the Linux ntfs3 driver EIOs on every loop0 write past VDL.
 func createRootDisk(sizeGB int) error {
-	path := filepath.Join(wootcDir(), "disks", "root.vhdx")
-	if _, err := os.Stat(path); err == nil {
-		return nil // already exists
+	path := filepath.Join(wootcDir(), "disks", "root.disk")
+	sizeBytes := int64(sizeGB) * 1024 * 1024 * 1024
+	if st, err := os.Stat(path); err == nil && st.Size() == sizeBytes {
+		return nil // already exists at the right size
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create disks dir: %w", err)
+	}
+	_ = os.Remove(path)
+
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create root.disk: %w", err)
+	}
+	if err := f.Truncate(sizeBytes); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("allocate root.disk (%d GB): %w", sizeGB, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close root.disk: %w", err)
 	}
 
-	script, err := os.CreateTemp(filepath.Dir(path), "create-root-vhdx-*.txt")
-	if err != nil {
-		return fmt.Errorf("create DiskPart script: %w", err)
-	}
-	scriptPath := script.Name()
-	defer os.Remove(scriptPath) //nolint:errcheck
-	commands := fmt.Sprintf("create vdisk file=\"%s\" maximum=%d type=expandable\r\n", path, sizeGB*1024)
-	if _, err := script.WriteString(commands); err != nil {
-		_ = script.Close()
-		return fmt.Errorf("write DiskPart script: %w", err)
-	}
-	if err := script.Close(); err != nil {
-		return fmt.Errorf("close DiskPart script: %w", err)
+	// setvaliddata needs SeManageVolumePrivilege — held by elevated admins.
+	if out, err := runCmd("fsutil", "file", "setvaliddata", path,
+		fmt.Sprintf("%d", sizeBytes)); err != nil {
+		return fmt.Errorf("fsutil setvaliddata (VDL extension): %w: %s", err, strings.TrimSpace(out))
 	}
 
-	out, err := exec.Command("diskpart.exe", "/s", scriptPath).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("DiskPart create dynamic VHDX: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("DiskPart did not create %s: %w", path, err)
+	st, err := os.Stat(path)
+	if err != nil || st.Size() != sizeBytes {
+		return fmt.Errorf("root.disk verification failed: got %d bytes, want %d", st.Size(), sizeBytes)
 	}
 	return nil
 }
@@ -503,6 +517,12 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	if cfg.ComposeFS {
 		installMode += " wootc.composefs=1"
 	}
+	// E2E parity with setup-wootc.ps1: the harness diagnoses the deployer
+	// from the QEMU serial console; a GUI-armed deployer without
+	// console=ttyS0 is invisible to it. Product installs stay clean.
+	if os.Getenv("WOOTC_E2E_DRIVE") == "1" {
+		installMode += " console=ttyS0"
+	}
 
 	// Deployer menu at the signed GRUB's embedded prefix.
 	menu := fmt.Sprintf(`%s - one-shot Linux installation
@@ -520,8 +540,16 @@ menuentry "Install wootc (debug)" {
 }
 `, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, luks+installMode, cfg.ImageRef, cfg.Hostname, luks+installMode)
 
-	if err := os.WriteFile(grubCfg, []byte(menu), 0o644); err != nil {
-		return fmt.Errorf("write deployer grub.cfg: %w", err)
+	// Same vendor-dir spread as setup-wootc.ps1 (EFI/{fedora,redhat,wootc}):
+	// different signed GRUB builds embed different prefixes; covering all
+	// three keeps the menu findable regardless of which pair was bundled.
+	for _, vendor := range []string{fedoraEFI, filepath.Join(espPath, "EFI", "redhat"), wootcEFI} {
+		if err := os.MkdirAll(vendor, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(vendor, "grub.cfg"), []byte(menu), 0o644); err != nil {
+			return fmt.Errorf("write deployer grub.cfg to %s: %w", vendor, err)
+		}
 	}
 	return nil
 }

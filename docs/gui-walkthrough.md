@@ -41,7 +41,7 @@ are instant.
 
 ![Control panel](screenshots/05-control-panel.png)
 
-When a `root.vhdx` already exists, the app opens here instead: reinstall,
+When a `root.disk` already exists, the app opens here instead: reinstall,
 uninstall (removes the boot entry, never the disk), or close.
 
 ## BitLocker — an unencrypted home for Linux (no forced decrypt)
