@@ -269,7 +269,7 @@ $grubInstallLines = @(
     '}'
 )
 
-Set-Content -Path "$installDir\grub.install.cfg" -Value $grubInstallLines -Encoding ASCII
+Set-Content -Force -Path "$installDir\grub.install.cfg" -Value $grubInstallLines -Encoding ASCII
 Write-Host "[wootc] Wrote grub.install.cfg"
 
 # ── Step 6: Write wubildr.cfg ───────────────────────────────────────────────

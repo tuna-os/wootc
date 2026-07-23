@@ -1404,9 +1404,13 @@ if [ -n "$SNAPSHOT_OUT" ]; then
     exit 0
 fi
 
-if [ "$SKIP_INSTALL" = true ]; then
-    reset_oem_attempt
-fi
+# ALWAYS reset the OEM attempt — not only on --skip-install. On a fresh
+# install the autounattend first-logon setup autostarts, and the harness's
+# QGA-dispatched setup then runs CONCURRENTLY with it: the second writer
+# hits the first's files (win10 GH case 20260723T2313: Set-Content denied
+# on grub.install.cfg). The reset kills any in-flight setup and clears its
+# state so the dispatched run is the only writer.
+reset_oem_attempt
 
 # ── GUI-driven Phase 1 (--gui-install) ──────────────────────────────────────
 # Arms the machine through the REAL wootc.exe GUI instead of the OEM
