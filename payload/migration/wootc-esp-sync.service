@@ -6,7 +6,7 @@ ConditionPathExists=/etc/wootc/host-esp.conf
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/wootc-esp-sync
+ExecStart=/var/usrlocal/bin/wootc-esp-sync
 
 [Install]
 WantedBy=multi-user.target

@@ -59,7 +59,12 @@ STUB
 
 @test "E2E invokes go-native by absolute path under QGA's minimal PATH" {
     local n
-    n=$(grep -c '/usr/local/bin/wootc-go-native' "$E2E_RUNNER")
+    # /var/usrlocal, not /usr/local: on composefs-SEALED images (bluefin:lts)
+    # /usr/local is a REAL directory inside the sealed /usr, so deploy-time
+    # writes through it are invisible at runtime; /var/usrlocal is the
+    # stateroot var that IS mounted. Traditional images keep both equivalent
+    # via the /usr/local -> ../var/usrlocal symlink.
+    n=$(grep -c '/var/usrlocal/bin/wootc-go-native' "$E2E_RUNNER")
     [ "$n" -eq 1 ]
     run grep -nE "qga_call.*|'[^']*wootc-go-native|\"[^\"]*wootc-go-native" "$E2E_RUNNER"
     [[ "$output" != *"'wootc-go-native status"* ]]
@@ -67,7 +72,7 @@ STUB
 }
 
 @test "go-native supplies sbin paths for GUI and QGA service environments" {
-    grep -Fq 'export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"' "$GN"
+    grep -Fq 'export PATH="/var/usrlocal/sbin:/var/usrlocal/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"' "$GN"
 }
 
 @test "--phase3 provisions its dedicated blank target and handles none found" {

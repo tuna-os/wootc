@@ -7,4 +7,4 @@ Type=oneshot
 # here too triggers systemd StartLimitBurst failures at boot (the file
 # does not exist yet) and blocks later path-triggered starts.
 StartLimitBurst=0
-ExecStart=/usr/local/libexec/wootc-e2e-phase3-dispatch
+ExecStart=/var/usrlocal/libexec/wootc-e2e-phase3-dispatch

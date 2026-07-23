@@ -137,7 +137,7 @@ func convertCategory(id string, progress func(MigrationProgress)) error {
 
 	// pkexec prompts the desktop user for authorization; the helper emits
 	// "PROGRESS <n>" lines we forward to the UI.
-	cmd := exec.Command("pkexec", "/usr/local/bin/wootc-convert-dir", u.Username, id)
+	cmd := exec.Command("pkexec", "/var/usrlocal/bin/wootc-convert-dir", u.Username, id)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -203,7 +203,7 @@ func importBrowserData() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out, err := exec.Command("/usr/local/bin/wootc-import-browser", u.Username).CombinedOutput()
+	out, err := exec.Command("/var/usrlocal/bin/wootc-import-browser", u.Username).CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("browser import: %w", err)
 	}

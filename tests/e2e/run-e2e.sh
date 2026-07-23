@@ -1763,7 +1763,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # include /usr/local/bin. Invoke the installed Phase-3 tool by its runtime
     # path; command-not-found here previously looked like a missing payload even
     # though the file was correctly present in OSTree's persistent /var.
-    qga_call exec /bin/sh -c '/usr/local/bin/wootc-go-native status 2>&1 || true' 2>/dev/null | head -25
+    qga_call exec /bin/sh -c '/var/usrlocal/bin/wootc-go-native status 2>&1 || true' 2>/dev/null | head -25
 
     # Pick the graduate target: a BLANK whole disk (no partitions, no
     # filesystem). Do NOT use "any disk that isn't root's" — in Phase 2 root

@@ -8,8 +8,8 @@ Before=local-fs.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/bin/wootc-mount-user-dirs
-ExecStop=/usr/local/bin/wootc-umount-user-dirs
+ExecStart=/var/usrlocal/bin/wootc-mount-user-dirs
+ExecStop=/var/usrlocal/bin/wootc-umount-user-dirs
 
 [Install]
 WantedBy=local-fs.target

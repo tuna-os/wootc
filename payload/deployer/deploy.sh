@@ -1162,17 +1162,17 @@ QGAEOF
     # dangling symlink.
     install -d -m755 "$DEPLOY_ROOT/var/usrlocal/bin"
     install -m755 /usr/lib/wootc/migration/wootc-mount-user-dirs \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-mount-user-dirs"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-mount-user-dirs"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-umount-user-dirs"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-umount-user-dirs"
     # Extra bridge categories (SPEC §4.1–4.2): Steam, browser import, and
     # the stage-4 folder conversion used by the migration dashboard.
     install -m755 /usr/lib/wootc/migration/wootc-steam-bridge \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-steam-bridge"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-steam-bridge"
     install -m755 /usr/lib/wootc/migration/wootc-import-browser \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-import-browser"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import-browser"
     install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-convert-dir"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-convert-dir"
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
         "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
     # Optional post-install utilities. These are not required for the deployer
@@ -1186,35 +1186,35 @@ QGAEOF
     }
     # Linux-side "Bring your Windows over" import tool (external disk / backup /
     # BitLocker) + its GUI launcher. Post-install utility — no autostart.
-    mig_opt 755 wootc-import     "$DEPLOY_ROOT/usr/local/bin/wootc-import"
-    mig_opt 755 wootc-import-gui "$DEPLOY_ROOT/usr/local/bin/wootc-import-gui"
+    mig_opt 755 wootc-import     "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import"
+    mig_opt 755 wootc-import-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import-gui"
     mig_opt 644 wootc-import.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
     # Migration chooser (§4.6): discover everything migratable, default-on, opt-out.
-    mig_opt 755 wootc-manifest "$DEPLOY_ROOT/usr/local/bin/wootc-manifest"
-    mig_opt 755 wootc-manifest-gui "$DEPLOY_ROOT/usr/local/bin/wootc-manifest-gui"
+    mig_opt 755 wootc-manifest "$DEPLOY_ROOT/var/usrlocal/bin/wootc-manifest"
+    mig_opt 755 wootc-manifest-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-manifest-gui"
     mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-manifest.desktop"
     # Identity prefill/copy (§4.6): account name + picture (never the password).
-    mig_opt 755 wootc-identity "$DEPLOY_ROOT/usr/local/bin/wootc-identity"
+    mig_opt 755 wootc-identity "$DEPLOY_ROOT/var/usrlocal/bin/wootc-identity"
     # Account setup screen: pre-fills the identity, asks for the one thing that
     # cannot be migrated (the password). Never persists the secret.
-    mig_opt 755 wootc-user-gui "$DEPLOY_ROOT/usr/local/bin/wootc-user-gui"
+    mig_opt 755 wootc-user-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-user-gui"
     mig_opt 644 wootc-user.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-user.desktop"
     # Gates the bridges on the migration chooser's opt-out selection.
-    mig_opt 755 wootc-selection "$DEPLOY_ROOT/usr/local/bin/wootc-selection"
+    mig_opt 755 wootc-selection "$DEPLOY_ROOT/var/usrlocal/bin/wootc-selection"
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
     # fisherman is not in the migration directory (it is built from Go in the
     # Containerfile and baked into the deployer initramfs via dracut --install),
     # but wootc-go-native calls it for Phase 3 native disk graduation.  Copy it
     # in directly.
-    install -D -m755 /usr/bin/fisherman "$DEPLOY_ROOT/usr/local/bin/fisherman"
-    mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/usr/local/bin/wootc-go-native"
-    mig_opt 755 wootc-go-native-gui "$DEPLOY_ROOT/usr/local/bin/wootc-go-native-gui"
+    install -D -m755 /usr/bin/fisherman "$DEPLOY_ROOT/var/usrlocal/bin/fisherman"
+    mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native"
+    mig_opt 755 wootc-go-native-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native-gui"
     mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-go-native.desktop"
     # QGA commands run in virt_qemu_ga_t, which SELinux prevents from executing podman/bootc.
     # Stage a narrow systemd request bridge so PID 1 runs the migration engine in a normal domain.
-    mkdir -p "$DEPLOY_ROOT/usr/local/libexec" "$DEPLOY_ROOT/var/usrlocal/libexec" 2>/dev/null || true
-    install -D -m755 /usr/lib/wootc/migration/wootc-e2e-phase3-dispatch "$DEPLOY_ROOT/usr/local/libexec/wootc-e2e-phase3-dispatch"
+    mkdir -p "$DEPLOY_ROOT/var/usrlocal/libexec" "$DEPLOY_ROOT/var/usrlocal/libexec" 2>/dev/null || true
+    install -D -m755 /usr/lib/wootc/migration/wootc-e2e-phase3-dispatch "$DEPLOY_ROOT/var/usrlocal/libexec/wootc-e2e-phase3-dispatch"
     mig_opt 644 wootc-e2e-phase3.service "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.service"
     mig_opt 644 wootc-e2e-phase3.path "$DEPLOY_ROOT/etc/systemd/system/wootc-e2e-phase3.path"
     # PASS only when every piece is verifiably in the target root — a dangling
@@ -1230,11 +1230,11 @@ QGAEOF
         log "  [FAIL] Phase-3 request bridge units missing from initramfs — dispatch will never trigger"
     fi
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
-    mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/usr/local/bin/wootc-wsl-bridge"
+    mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/var/usrlocal/bin/wootc-wsl-bridge"
     # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on
     # first boot (oneshot service), not in this minimal initramfs. Stage the
     # exported profiles into the deployment; the bridge imports then shreds them.
-    mig_opt 755 wootc-wifi-bridge "$DEPLOY_ROOT/usr/local/bin/wootc-wifi-bridge"
+    mig_opt 755 wootc-wifi-bridge "$DEPLOY_ROOT/var/usrlocal/bin/wootc-wifi-bridge"
     if [[ -d /mnt/ntfs/wootc/install/wifi && -f /usr/lib/wootc/migration/wootc-wifi-import.service ]]; then
         install -m644 /usr/lib/wootc/migration/wootc-wifi-import.service \
             "$DEPLOY_ROOT/etc/systemd/system/wootc-wifi-import.service"
@@ -1251,19 +1251,19 @@ QGAEOF
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after OS updates (variant-agnostic — BLS and classic layouts).
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-esp-sync"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-sync"
     install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
     ln -sf ../wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync.service"
     install -m755 /usr/lib/wootc/migration/wootc-detect-apps \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-detect-apps"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-detect-apps"
     install -m755 /usr/lib/wootc/migration/wootc-office-bridge \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-office-bridge"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-office-bridge"
     # Windows-Style Mode: per-user look apply on first login.
     install -m755 /usr/lib/wootc/migration/wootc-apply-look \
-        "$DEPLOY_ROOT/usr/local/bin/wootc-apply-look"
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-apply-look"
     install -D -m644 /usr/lib/wootc/migration/wootc-apply-look.desktop \
         "$DEPLOY_ROOT/etc/xdg/autostart/wootc-apply-look.desktop"
     # Slurped Windows look (wallpaper/theme/timezone), if the installer
@@ -1725,13 +1725,13 @@ GRUBEOF
             err "  [FAIL] setfiles failed for installed runtime payload — enforcing SELinux would deny execution"
             exit 1
         fi
-        GO_NATIVE_CONTEXT=$(chroot "$DEPLOY_ROOT" env PATH=/usr/sbin:/sbin:$PATH ls -Zd /usr/local/bin/wootc-go-native 2>/dev/null || true)
+        GO_NATIVE_CONTEXT=$(chroot "$DEPLOY_ROOT" env PATH=/usr/sbin:/sbin:$PATH ls -Zd /var/usrlocal/bin/wootc-go-native 2>/dev/null || true)
         log "  guard: Phase-3 executable SELinux context: ${GO_NATIVE_CONTEXT:-missing}"
-        if [[ -f "$DEPLOY_ROOT/usr/local/bin/wootc-go-native" && ( -z "$GO_NATIVE_CONTEXT" || "$GO_NATIVE_CONTEXT" == *"? "* ) ]]; then
+        if [[ -f "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native" && ( -z "$GO_NATIVE_CONTEXT" || "$GO_NATIVE_CONTEXT" == *"? "* ) ]]; then
             err "  [FAIL] wootc-go-native remains unlabeled after setfiles — Phase 3 would get Permission denied"
             exit 1
         fi
-    elif [[ -f "$DEPLOY_ROOT/usr/local/bin/wootc-go-native" ]]; then
+    elif [[ -f "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native" ]]; then
         err "  [FAIL] target has Phase-3 executable but no setfiles policy/tool — cannot make it executable under enforcing SELinux"
         exit 1
     fi

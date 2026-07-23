@@ -41,7 +41,7 @@ run_migration() {
 
     log_kmsg "Starting wootc-go-native migrate to $target..."
     WOOTC_GN_ALLOW_DESTRUCTIVE=1 \
-        /usr/local/bin/wootc-go-native migrate --to-disk "$target" --execute
+        /var/usrlocal/bin/wootc-go-native migrate --to-disk "$target" --execute
 }
 
 set +e

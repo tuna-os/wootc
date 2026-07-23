@@ -8,7 +8,7 @@ Wants=NetworkManager.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/wootc-wifi-bridge /var/lib/wootc/wifi-import
+ExecStart=/var/usrlocal/bin/wootc-wifi-bridge /var/lib/wootc/wifi-import
 RemainAfterExit=no
 
 [Install]

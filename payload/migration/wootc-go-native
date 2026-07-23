@@ -28,7 +28,7 @@ set -Eeuo pipefail
 # podman, bootc, sfdisk, and efibootmgr under /usr/sbin; without an explicit
 # system PATH Phase 3 reaches its verified blank disk and then fails with
 # `podman: command not found` despite the binary being installed.
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+export PATH="/var/usrlocal/sbin:/var/usrlocal/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 log()  { printf '[wootc-go-native] %s\n' "$*" >&2; }
 die()  { printf '[wootc-go-native] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -291,7 +291,7 @@ EOF
     mkdir -p "$mnt/etc/wootc"
     cp -a /etc/wootc/. "$mnt/etc/wootc/" 2>/dev/null || true
     printf '%s\n' "$target" > "$mnt/etc/wootc/native-target"
-    if [[ -x /usr/local/libexec/wootc-e2e-phase3-dispatch ]]; then
+    if [[ -x /var/usrlocal/libexec/wootc-e2e-phase3-dispatch ]]; then
         mkdir -p "$mnt/etc/systemd/system/multi-user.target.wants"
         ln -sf /usr/lib/systemd/system/qemu-guest-agent.service \
             "$mnt/etc/systemd/system/multi-user.target.wants/qemu-guest-agent.service"

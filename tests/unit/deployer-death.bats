@@ -156,7 +156,7 @@ setup() {
 @test "post-install writes use the OSTree stateroot var visible at runtime" {
     local bind_line install_line unmount_line
     bind_line=$(grep -n 'mount --bind "\$OSTREE_VAR_ROOT" "\$DEPLOY_ROOT/var"' "$DEPLOY" | cut -d: -f1)
-    install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/usr/local/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
+    install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
     unmount_line=$(grep -n 'umount "\$DEPLOY_ROOT/var"' "$DEPLOY" | tail -1 | cut -d: -f1)
     [ -n "$bind_line" ] && [ -n "$install_line" ] && [ -n "$unmount_line" ]
     [ "$bind_line" -lt "$install_line" ]
@@ -173,7 +173,7 @@ setup() {
 
 @test "post-install payload is relabeled and Phase-3 label is verified" {
     local install_line setfiles_line verify_line
-    install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/usr/local/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
+    install_line=$(grep -n 'wootc-go-native  "\$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native"' "$DEPLOY" | cut -d: -f1)
     setfiles_line=$(grep -nE 'chroot "\$DEPLOY_ROOT".*setfiles -F' "$DEPLOY" | cut -d: -f1)
     verify_line=$(grep -n 'Phase-3 executable SELinux context' "$DEPLOY" | cut -d: -f1)
     [ -n "$install_line" ] && [ -n "$setfiles_line" ] && [ -n "$verify_line" ]
