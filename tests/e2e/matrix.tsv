@@ -8,6 +8,9 @@
 #                Pro:  W269N-WFGWX-YVC9B-4J6C9-T83GX
 #                Home: YTMG3-N6DKC-DKB77-7M9GH-8HVX7
 #                Ent:  NPPR9-FWDCX-D2C8J-H872K-2YT43   (also used by eval/LTSC)
+#   opts         Optional 7th column, comma-safe knobs:
+#                bitlocker=on  — WOOTC_E2E_BITLOCKER=on (SPEC 3.5 FDE axis)
+#                phase3=on     — pass --phase3 (rung-3 graduate onto blank disk)
 #
 # The bitlocker axis (WOOTC_E2E_BITLOCKER=on) drops PreventDeviceEncryption so
 # Windows auto-encrypts C:; wootc must then place root.disk on a separate
@@ -22,7 +25,16 @@
 smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	el10-gnome-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# ── backend axis — the three deployment flavors × Windows versions ──
+# traditional ostree (yellowfin/bonito), composefs-SEALED ostree (bluefin:lts),
+# composefs-native systemd-boot (dakota). Each must also prove Phase 3.
+full	bluefin-lts-win11pro-phase3	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
+full	el10-gnome-win11pro-phase3	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
+full	bluefin-dakota-win11pro-phase3	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
+full	bluefin-dakota-win10pro	ghcr.io/projectbluefin/dakota:latest	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	bluefin-lts-win10pro	ghcr.io/projectbluefin/bluefin:lts	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── image axis (Win 11 Pro) — every family/bootloader/desktop ──
 full	el10-kde-win11pro	ghcr.io/tuna-os/yellowfin:kde	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	el10-xfce-win11pro	ghcr.io/tuna-os/yellowfin:xfce	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
@@ -40,3 +52,7 @@ full	el10-gnome-win10ltsc	ghcr.io/tuna-os/yellowfin:gnome	10l	ltsc	NPPR9-FWDCX-D
 # -- BitLocker / FDE axis (SPEC 3.5) --
 smoke	el10-gnome-win11pro-bitlocker	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	bitlocker=on
 full	fedora-gnome-win11pro-bitlocker	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	bitlocker=on
+# Home + Device Encryption: the nervous-user default on new consumer machines —
+# BitLocker's Home-edition flavor, auto-enabled, no recovery-key literacy.
+full	el10-gnome-win11home-bitlocker	ghcr.io/tuna-os/yellowfin:gnome	11	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7	bitlocker=on
+full	el10-gnome-win10home-bitlocker	ghcr.io/tuna-os/yellowfin:gnome	10	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7	bitlocker=on

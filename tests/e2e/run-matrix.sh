@@ -7,7 +7,7 @@
 # are collected into matrix-results.tsv and summarized at the end.
 #
 # Usage:
-#   ./run-matrix.sh --tier smoke                       # kanpur, smoke tier
+#   ./run-matrix.sh --tier smoke                       # himachal, smoke tier
 #   ./run-matrix.sh --tier full --hosts "kanpur dilli himachal"
 #   ./run-matrix.sh --grep fedora --hosts dilli        # only cases matching name
 #   ./run-matrix.sh --tier full --dry-run              # print the plan, run nothing
@@ -22,7 +22,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 MATRIX="$HERE/matrix.tsv"
 RESULTS="$HERE/matrix-results.tsv"
 
-TIER="smoke"; HOSTS="kanpur"; GREP=""; DRY=false; PER_CASE_TIMEOUT=4200
+TIER="smoke"; HOSTS="himachal"; GREP=""; DRY=false; PER_CASE_TIMEOUT=4200
 while [ $# -gt 0 ]; do
     case "$1" in
         --tier)  TIER="$2"; shift 2 ;;
@@ -74,9 +74,12 @@ pkill -9 -f run-e2e.sh 2>/dev/null; sleep 1
 podman rm -f wootc-e2e-windows 2>/dev/null
 rm -f storage/.run-e2e.lock
 export WOOTC_E2E_WIN_VERSION="$ver" WOOTC_E2E_WIN_EDITION="$ed" WOOTC_E2E_WIN_KEY="$key"
-# optional per-case knobs, e.g. bitlocker=on (SPEC 3.5 FDE axis)
+# optional per-case knobs, e.g. bitlocker=on (SPEC 3.5 FDE axis),
+# phase3=on (rung-3 graduate onto a blank second disk)
 case "$opts" in *bitlocker=on*) export WOOTC_E2E_BITLOCKER=on ;; *) export WOOTC_E2E_BITLOCKER=off ;; esac
-nohup bash run-e2e.sh "$image" --keep > "$log" 2>&1 &
+EXTRA_ARGS=""
+case "$opts" in *phase3=on*) EXTRA_ARGS="--phase3" ;; esac
+nohup bash run-e2e.sh "$image" --keep \$EXTRA_ARGS > "$log" 2>&1 &
 REMOTE
     while :; do
         now=$(date +%s); [ $((now - start)) -gt "$PER_CASE_TIMEOUT" ] && break
@@ -85,7 +88,7 @@ REMOTE
             L=\$(sed -E 's/\x1b\[[0-9;]*m//g' '$log' 2>/dev/null)
             if echo \"\$L\" | grep -qa 'ALL TESTS PASSED'; then echo PASS
             elif echo \"\$L\" | grep -qaE '\[FAIL\]'; then echo \"FAIL:\$(echo \"\$L\"|grep -aE '\[FAIL\]'|tail -1|cut -c1-80)\"
-            elif ! pgrep -f run-e2e.sh >/dev/null; then echo 'EXIT'
+            elif grep -qa 'stage=exited' ~/wootc/tests/e2e/storage/run-e2e.current 2>/dev/null; then echo 'EXIT'
             else echo RUN; fi" 2>/dev/null | head -1)
         case "$s" in
             PASS)  result="PASS"; break ;;
@@ -102,7 +105,11 @@ REMOTE
 # ── per-host worker: run assigned cases sequentially, in the background ───────
 host_worker() {
     local host="$1"
-    while IFS=$'\t' read -r name image ver ed key; do
+    # Read ALL seven columns. This loop previously read five and passed a
+    # stale $opts left over from the planning loop's last iteration — so
+    # per-case knobs (bitlocker=on) silently never reached any run.
+    local name image ver ed key opts
+    while IFS=$'\t' read -r name image ver ed key opts; do
         [ -n "$name" ] || continue
         run_case "$host" "$name" "$image" "$ver" "$ed" "$key" "$opts"
     done <<< "${ASSIGN[$host]}"
