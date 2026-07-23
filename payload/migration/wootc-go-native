@@ -249,15 +249,28 @@ graduate_to_disk_execute() {
     log "Installing $img onto $target as $filesystem (wipes $target only) via fisherman…"
     command -v fisherman >/dev/null || die "fisherman not found — deploy.sh must install it into the target root"
 
-    # Build a minimal fisherman recipe. Phase 2 Linux IS the Yellowfin image, so
-    # fisherman's live-ISO mode applies: leave "image" empty and it calls bootc
-    # install to-filesystem directly without a podman wrapper. fisherman handles
-    # partitioning, formatting, bootc install, EFI boot entry, and cleanup.
+    # Direct-mode bootc (fisherman live mode, image="") requires
+    # --source-imgref: "must be executed inside a podman container" otherwise
+    # (proven live, run 20260723T0106). The booted host has NO local OCI copy —
+    # bootc's ostree storage is not a containers-storage, and the booted ref is
+    # the unpullable localhost/wootc-ntfs-injected tag — so stage the recorded
+    # registry origin into containers-storage first. targetImgref in the recipe
+    # then makes fisherman emit --source-imgref containers-storage:<origin>
+    # (and stamps the same ref for day-2 updates).
+    if ! podman image exists "$img" 2>/dev/null; then
+        log "Pulling $img into local containers-storage for the native install…"
+        podman pull "$img" || die "cannot stage $img locally (network down?) — native install needs its content"
+    fi
+
+    # Build a minimal fisherman recipe. "image" stays empty so fisherman calls
+    # bootc directly (no podman wrapper); fisherman handles partitioning,
+    # formatting, bootc install, EFI boot entry, and cleanup.
     cat > "$recipe" <<EOF
 {
   "disk": "$target",
   "filesystem": "$filesystem",
   "image": "",
+  "targetImgref": "$img",
   "hostname": "wootc",
   "flatpaks": []
 }

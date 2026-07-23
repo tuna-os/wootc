@@ -300,3 +300,20 @@ teardown() {
     [[ "$output" == *"refusing to install onto the Windows disk"* ]]
     refute_disk_touched
 }
+
+@test "Phase-3 direct-mode install stages the origin image and sets targetImgref" {
+    # bootc direct mode (fisherman live mode, image="") REQUIRES
+    # --source-imgref; without it: "must be executed inside a podman
+    # container" (live-proven, run 20260723T0106). The recipe's targetImgref
+    # is what makes fisherman emit --source-imgref containers-storage:<ref>,
+    # and the pre-pull is what makes that ref exist locally.
+    grep -Fq '"targetImgref": "$img",' "$GN"
+    grep -Fq 'podman image exists "$img"' "$GN"
+    grep -Fq 'podman pull "$img"' "$GN"
+    # The pull must come BEFORE fisherman runs.
+    local pull_line fisherman_line
+    pull_line=$(grep -nm1 'podman pull "\$img"' "$GN" | cut -d: -f1)
+    fisherman_line=$(grep -nm1 'fisherman "\$recipe"' "$GN" | cut -d: -f1)
+    [ -n "$pull_line" ] && [ -n "$fisherman_line" ]
+    [ "$pull_line" -lt "$fisherman_line" ]
+}
