@@ -301,13 +301,16 @@ teardown() {
     refute_disk_touched
 }
 
-@test "Phase-3 direct-mode install stages the origin image and sets targetImgref" {
-    # bootc direct mode (fisherman live mode, image="") REQUIRES
-    # --source-imgref; without it: "must be executed inside a podman
-    # container" (live-proven, run 20260723T0106). The recipe's targetImgref
-    # is what makes fisherman emit --source-imgref containers-storage:<ref>,
-    # and the pre-pull is what makes that ref exist locally.
-    grep -Fq '"targetImgref": "$img",' "$GN"
+@test "Phase-3 install uses fisherman podman-run mode with the origin image" {
+    # The one bootc invocation proven against every supported image is the
+    # deployer's own: fisherman podman-run mode (recipe image set), bootc
+    # running INSIDE the image container. Both direct-mode variants failed
+    # live on bluefin:lts (no --source-imgref: "must be executed inside a
+    # podman container"; containers-storage transport: "Multiple commit
+    # objects found" on sealed/chunked images).
+    grep -Fq '"image": "$img",' "$GN"
+    run grep -n '"targetImgref"' "$GN"
+    [ "$status" -ne 0 ]
     grep -Fq 'podman image exists "$img"' "$GN"
     grep -Fq 'podman pull "$img"' "$GN"
     # The pull must come BEFORE fisherman runs.
