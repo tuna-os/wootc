@@ -44,6 +44,9 @@ setup() {
 @test "Phase-3 native persistence check reads the file from the native disk" {
     grep -q 'Verifying seeded user data persisted onto the native disk' "$E2E"
     grep -Fq 'printf '"'"'%s'"'"' "$P3_USERDATA" | grep -q "$RUN_ID"' "$E2E"
+    # The confined guest agent cannot read user homes (run 20260723T0647):
+    # the check must consume the boot-time /run export first.
+    grep -q '/run/wootc-e2e-native-userdata' "$E2E"
     # And a failed persistence check is FATAL, not advisory.
     grep -A4 'did NOT persist onto the native disk' "$E2E" | grep -q 'exit 1'
 }

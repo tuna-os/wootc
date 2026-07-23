@@ -338,3 +338,26 @@ teardown() {
     run grep -nE '^[^#]*"\$mnt/etc/' "$GN"
     [ "$status" -ne 0 ]
 }
+
+@test "Phase-3 recipe mirrors the running account into the native install" {
+    # Run 20260723T0647: the minimal recipe had no user — the native system
+    # held the rsync'd home with no passwd entry, no tmpfiles home pin, and
+    # foreign labels. The account must ride the recipe (fisherman CreateUser)
+    # with the crypt hash copied verbatim, and the migrated home chowned to
+    # the user (rsync preserves the fuse binds' root:root ownership).
+    grep -Fq '\"user\": {' "$GN"
+    grep -Fq '\"username\": \"$guser\"' "$GN"
+    grep -qE '^[^#]*ghash=.*etc/shadow' "$GN"
+    grep -qE '^[^#]*chown -R .*guser' "$GN"
+}
+
+@test "Phase-3 installs the /run userdata probe for the confined guest agent" {
+    # virt_qemu_ga_t cannot read user homes at all (run 20260723T0647 failed
+    # the persistence gate on a file that was present). Proof must be
+    # exported to /run at boot by a unit running unconfined.
+    grep -q 'wootc-e2e-native-probe.service' "$GN"
+    grep -q '/run/wootc-e2e-native-userdata' "$GN"
+    grep -q 'multi-user.target.wants/wootc-e2e-native-probe.service' "$GN"
+    # And it stays E2E-only: inside the dispatcher-gated block.
+    grep -B40 'wootc-e2e-native-probe.service' "$GN" | grep -q 'wootc-e2e-phase3-dispatch'
+}

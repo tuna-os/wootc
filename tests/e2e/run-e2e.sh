@@ -2000,9 +2000,18 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # the chain (the natively-booted system has no /run/wootc/host at all). Content must
     # carry this run's RUN_ID so a leftover from a previous run cannot pass.
     step "Verifying seeded user data persisted onto the native disk..."
+    # Read the boot-time /run export, not the home directory itself: the
+    # confined guest agent (virt_qemu_ga_t) cannot read user homes AT ALL —
+    # run 20260723T0647 failed this gate with the seed file present and
+    # correct on the native disk. wootc-e2e-native-probe.service (installed
+    # by go-native, dispatcher-gated) cats the file into /run from init's
+    # unconfined context; /run is proven agent-readable (the Phase-3
+    # graduation result travels the same way). Direct read kept as fallback
+    # for unconfined-agent images.
     P3_USERDATA=$(qga_call exec /bin/sh -c \
-        'f=$(ls /home/wootc/Documents/wootc-e2e-userdata.txt /var/home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null | head -1); \
-         [ -n "$f" ] && { printf "SRC=%s\n" "$(findmnt -no SOURCE "$(df -P "$f" | awk "NR==2{print \$6}")" 2>/dev/null)"; cat "$f"; }' \
+        'cat /run/wootc-e2e-native-userdata 2>/dev/null; \
+         f=$(ls /home/wootc/Documents/wootc-e2e-userdata.txt /var/home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null | head -1); \
+         [ -n "$f" ] && { printf "SRC=%s\n" "$(findmnt -no SOURCE "$(df -P "$f" | awk "NR==2{print \$6}")" 2>/dev/null)"; cat "$f"; }; :' \
         2>/dev/null || true)
     if printf '%s' "$P3_USERDATA" | grep -q "$RUN_ID"; then
         pass "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"

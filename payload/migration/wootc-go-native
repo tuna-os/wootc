@@ -264,15 +264,36 @@ graduate_to_disk_execute() {
         podman pull "$img" || die "cannot stage $img locally (network down?) — native install needs its content"
     fi
 
-    # Minimal fisherman recipe; fisherman handles partitioning, formatting,
-    # bootc install (via podman run), EFI boot entry, and cleanup.
+    # Mirror the running system's primary account into the native install.
+    # A recipe without the user produced a native system holding the rsync'd
+    # home but NO matching passwd entry, no tmpfiles home pin, and foreign
+    # labels on everything under /var/home (run 20260723T0647) — a migration
+    # that loses the user is not a migration. The crypt hash is copied
+    # verbatim (fisherman passes $-prefixed hashes with chpasswd -e).
+    local guser gfull ghash guserjson=""
+    guser=$(awk -F: '$3 >= 1000 && $3 < 65534 {print $1; exit}' /etc/passwd)
+    if [[ -n "$guser" ]]; then
+        gfull=$(getent passwd "$guser" | cut -d: -f5)
+        ghash=$(awk -F: -v u="$guser" '$1 == u {print $2}' /etc/shadow 2>/dev/null)
+        [[ "$ghash" == \$* ]] || ghash=""
+        guserjson=",
+  \"user\": {
+    \"username\": \"$guser\",
+    \"fullname\": \"$gfull\",
+    \"password\": \"$ghash\",
+    \"groups\": [\"wheel\"]
+  }"
+    fi
+
+    # Fisherman recipe; fisherman handles partitioning, formatting,
+    # bootc install (via podman run), user creation, EFI boot entry, cleanup.
     cat > "$recipe" <<EOF
 {
   "disk": "$target",
   "filesystem": "$filesystem",
   "image": "$img",
   "hostname": "wootc",
-  "flatpaks": []
+  "flatpaks": []$guserjson
 }
 EOF
     fisherman "$recipe" || die "fisherman native install failed"
@@ -295,6 +316,15 @@ EOF
         rsync -aHAX /home/ "$dest/" 2>/dev/null || true
     else
         cp -a /home/. "$dest/" 2>/dev/null || true
+    fi
+    # The bridged Windows folders are fuse binds owned root:root; rsync
+    # preserves that, leaving the migrated home unreadable by its own user.
+    # Chown to the account (same uid on the fresh install — first user).
+    # SELinux contexts are restored on first boot by fisherman's tmpfiles
+    # Z line; ownership is ours to fix here.
+    if [[ -n "$guser" && -d "$dest/$guser" ]]; then
+        chown -R "$(id -u "$guser"):$(id -g "$guser")" "$dest/$guser" \
+            || log "WARN: chown of migrated home for $guser failed"
     fi
 
     # Preserve wootc's machine-specific state in the fresh bootc install.  The
@@ -327,6 +357,40 @@ EOF
         cp -a /etc/sysconfig/qemu-ga "$etcroot/sysconfig/qemu-ga" 2>/dev/null || true
         cp -a /etc/qemu/qemu-ga.conf "$etcroot/qemu/qemu-ga.conf" 2>/dev/null || true
         cp -a /etc/qemu-ga.conf "$etcroot/qemu-ga.conf" 2>/dev/null || true
+        # The confined guest agent (virt_qemu_ga_t) cannot read user homes at
+        # all — run 20260723T0647: the seed file WAS on the native disk and
+        # the harness's direct cat was denied, failing the run on a file that
+        # was present. Export the proof to /run at boot from init's
+        # unconfined context; the agent is proven able to read /run (that is
+        # how the Phase-3 graduation result travels).
+        cat > "$etcroot/wootc/e2e-native-probe.sh" <<'PROBE'
+#!/bin/bash
+# Runs from init's unconfined context at boot; the confined guest agent
+# reads only the /run export.
+f=$(ls /var/home/*/Documents/wootc-e2e-userdata.txt 2>/dev/null | head -1)
+{
+    if [ -n "$f" ]; then
+        printf 'SRC=%s\n' "$(findmnt -no SOURCE "$(df -P "$f" | awk 'NR==2{print $6}')" 2>/dev/null)"
+        cat "$f"
+    fi
+} > /run/wootc-e2e-native-userdata
+chmod 0644 /run/wootc-e2e-native-userdata
+PROBE
+        chmod +x "$etcroot/wootc/e2e-native-probe.sh"
+        cat > "$etcroot/systemd/system/wootc-e2e-native-probe.service" <<'UNIT'
+[Unit]
+Description=wootc E2E: export migrated user-data proof to /run
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /etc/wootc/e2e-native-probe.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+        ln -sf ../wootc-e2e-native-probe.service \
+            "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-probe.service"
     fi
     sync; umount "$mnt" 2>/dev/null || true
 
