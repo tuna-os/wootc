@@ -23,6 +23,7 @@ MATRIX="$HERE/matrix.tsv"
 RESULTS="$HERE/matrix-results.tsv"
 
 TIER="smoke"; HOSTS="himachal"; GREP=""; DRY=false; PER_CASE_TIMEOUT=4200
+JOBS="auto"
 while [ $# -gt 0 ]; do
     case "$1" in
         --tier)  TIER="$2"; shift 2 ;;
@@ -30,9 +31,35 @@ while [ $# -gt 0 ]; do
         --grep)  GREP="$2"; shift 2 ;;
         --dry-run) DRY=true; shift ;;
         --timeout) PER_CASE_TIMEOUT="$2"; shift 2 ;;
+        --jobs)  JOBS="$2"; shift 2 ;;   # VMs per host: N, or "auto" to size from the runner
         *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done
+
+# ── size each runner: how many VMs fit? ──────────────────────────────────────
+# Budget per concurrent VM: ~6 GiB RAM (dockur clamps QEMU below the host's
+# available; Windows 11 setup needs ≥4 GiB after the clamp, so 6 leaves real
+# margin), ~5 threads (4 vCPUs + host overhead), ~35 GiB disk (fresh
+# data.qcow2 growth + per-instance custom.iso + artifacts). 3 GiB RAM and
+# 15 GiB disk stay reserved for the host itself. VM RAM scales down from the
+# preferred 8 GiB when slots share a small host — never below 5.
+size_host() {  # size_host <host> → echoes "<jobs> <vm_ram_gib>"
+    local host="$1" mem cpu disk jobs vm_ram
+    read -r mem cpu disk < <(ssh -o ConnectTimeout=8 "$host" \
+        'mem=$(awk "/MemTotal/{print int(\$2/1048576)}" /proc/meminfo); \
+         cpu=$(nproc); \
+         disk=$(df -BG --output=avail ~/wootc/tests/e2e 2>/dev/null | tail -1 | tr -dc "0-9"); \
+         echo "$mem $cpu ${disk:-0}"') || { echo "1 8"; return; }
+    jobs=$(( (mem - 3) / 6 ))
+    [ $(( cpu / 5 )) -lt "$jobs" ] && jobs=$(( cpu / 5 ))
+    [ $(( (disk - 15) / 35 )) -lt "$jobs" ] && jobs=$(( (disk - 15) / 35 ))
+    [ "$jobs" -lt 1 ] && jobs=1
+    [ "$jobs" -gt "${WOOTC_MATRIX_MAX_JOBS:-3}" ] && jobs="${WOOTC_MATRIX_MAX_JOBS:-3}"
+    vm_ram=$(( (mem - 3) / jobs ))
+    [ "$vm_ram" -gt 8 ] && vm_ram=8
+    [ "$vm_ram" -lt 5 ] && { jobs=1; vm_ram=$(( mem - 3 > 8 ? 8 : mem - 3 )); }
+    echo "$jobs $vm_ram"
+}
 
 # ── select cases ─────────────────────────────────────────────────────────────
 # smoke ⊆ full: a "full" run includes the smoke cases too.
@@ -46,15 +73,29 @@ mapfile -t CASES < <(awk -F'\t' -v tier="$TIER" -v want="$GREP" '
 [ ${#CASES[@]} -gt 0 ] || { echo "No cases match tier=$TIER grep=$GREP" >&2; exit 1; }
 read -ra HOSTARR <<< "$HOSTS"
 
-echo "Matrix: ${#CASES[@]} case(s), tier=$TIER, hosts: ${HOSTARR[*]}"
-printf '%-24s %-34s %-4s %-6s %s\n' NAME IMAGE VER ED HOST
+# One slot = one concurrent VM on a host (instance a, b, …). Each slot gets a
+# disjoint --instance in run-e2e.sh: own container name, own storage dir.
+LETTERS=(a b c d)
+SLOTS=()   # "host<TAB>instance<TAB>vm_ram_gib"
+for host in "${HOSTARR[@]}"; do
+    read -r n vm_ram < <(size_host "$host")
+    [ "$JOBS" != auto ] && n="$JOBS"
+    echo "runner $host: $n concurrent VM(s) × ${vm_ram}G RAM"
+    for (( s=0; s<n; s++ )); do
+        SLOTS+=("$host"$'\t'"${LETTERS[$s]}"$'\t'"$vm_ram")
+    done
+done
+
+echo "Matrix: ${#CASES[@]} case(s), tier=$TIER, ${#SLOTS[@]} slot(s) on: ${HOSTARR[*]}"
+printf '%-24s %-34s %-4s %-6s %s\n' NAME IMAGE VER ED SLOT
 i=0
 declare -A ASSIGN
 for c in "${CASES[@]}"; do
     IFS=$'\t' read -r name image ver ed key opts <<< "$c"
-    host="${HOSTARR[$(( i % ${#HOSTARR[@]} ))]}"
-    ASSIGN["$host"]+="$c"$'\n'
-    printf '%-24s %-34s %-4s %-6s %s\n' "$name" "$image" "$ver" "$ed" "$host"
+    slot="${SLOTS[$(( i % ${#SLOTS[@]} ))]}"
+    IFS=$'\t' read -r shost sinst _ <<< "$slot"
+    ASSIGN["$slot"]+="$c"$'\n'
+    printf '%-24s %-34s %-4s %-6s %s\n' "$name" "$image" "$ver" "$ed" "$shost/$sinst"
     i=$((i+1))
 done
 $DRY && { echo "(dry run — nothing launched)"; exit 0; }
@@ -62,24 +103,31 @@ $DRY && { echo "(dry run — nothing launched)"; exit 0; }
 : > "$RESULTS"
 echo -e "name\thost\tresult\tseconds\timage\twin" >> "$RESULTS"
 
-# ── run one case on a host, poll to completion ───────────────────────────────
+# ── run one case in a slot, poll to completion ───────────────────────────────
 run_case() {
-    local host="$1" name="$2" image="$3" ver="$4" ed="$5" key="$6" opts="${7:-}"
+    local host="$1" inst="$2" vm_ram="$3" name="$4" image="$5" ver="$6" ed="$7" key="$8" opts="${9:-}"
     local log="/tmp/wootc-matrix-$name.log" start now result="TIMEOUT"
+    local ctr="wootc-e2e-windows-$inst" stordir="storage-$inst"
     start=$(date +%s)
+    # Cleanup is strictly slot-scoped: the pkill matches this slot's
+    # --instance= flag in the cmdline, never a sibling slot's run.
     ssh -o ConnectTimeout=8 "$host" "bash -s" <<REMOTE >/dev/null 2>&1 || true
 set +e
 cd ~/wootc/tests/e2e
-pkill -9 -f run-e2e.sh 2>/dev/null; sleep 1
-podman rm -f wootc-e2e-windows 2>/dev/null
-rm -f storage/.run-e2e.lock
+pkill -9 -f "run-e2e.sh.*--instance=$inst" 2>/dev/null; sleep 1
+podman rm -f "$ctr" 2>/dev/null
+rm -f "$stordir/.run-e2e.lock"
 export WOOTC_E2E_WIN_VERSION="$ver" WOOTC_E2E_WIN_EDITION="$ed" WOOTC_E2E_WIN_KEY="$key"
+export WOOTC_E2E_RAM_SIZE="${vm_ram}G"
+# Concurrent slots share the disk; the single-run 90 GiB preflight would
+# refuse a healthy second slot. ~35 GiB/case is the measured fresh-run need.
+export WOOTC_E2E_MIN_FREE_GIB="\${WOOTC_E2E_MIN_FREE_GIB:-45}"
 # optional per-case knobs, e.g. bitlocker=on (SPEC 3.5 FDE axis),
 # phase3=on (rung-3 graduate onto a blank second disk)
 case "$opts" in *bitlocker=on*) export WOOTC_E2E_BITLOCKER=on ;; *) export WOOTC_E2E_BITLOCKER=off ;; esac
 EXTRA_ARGS=""
 case "$opts" in *phase3=on*) EXTRA_ARGS="--phase3" ;; esac
-nohup bash run-e2e.sh "$image" --keep \$EXTRA_ARGS > "$log" 2>&1 &
+nohup bash run-e2e.sh "$image" --keep --instance=$inst \$EXTRA_ARGS > "$log" 2>&1 &
 REMOTE
     while :; do
         now=$(date +%s); [ $((now - start)) -gt "$PER_CASE_TIMEOUT" ] && break
@@ -88,7 +136,7 @@ REMOTE
             L=\$(sed -E 's/\x1b\[[0-9;]*m//g' '$log' 2>/dev/null)
             if echo \"\$L\" | grep -qa 'ALL TESTS PASSED'; then echo PASS
             elif echo \"\$L\" | grep -qaE '\[FAIL\]'; then echo \"FAIL:\$(echo \"\$L\"|grep -aE '\[FAIL\]'|tail -1|cut -c1-80)\"
-            elif grep -qa 'stage=exited' ~/wootc/tests/e2e/storage/run-e2e.current 2>/dev/null; then echo 'EXIT'
+            elif grep -qa 'stage=exited' ~/wootc/tests/e2e/$stordir/run-e2e.current 2>/dev/null; then echo 'EXIT'
             else echo RUN; fi" 2>/dev/null | head -1)
         case "$s" in
             PASS)  result="PASS"; break ;;
@@ -98,27 +146,28 @@ REMOTE
         sleep 60
     done
     now=$(date +%s)
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$host" "$result" "$((now-start))" "$image" "$ver-$ed" >> "$RESULTS"
-    echo "[$host] $name → $result ($(( (now-start)/60 ))m)"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$host/$inst" "$result" "$((now-start))" "$image" "$ver-$ed" >> "$RESULTS"
+    echo "[$host/$inst] $name → $result ($(( (now-start)/60 ))m)"
 }
 
-# ── per-host worker: run assigned cases sequentially, in the background ───────
-host_worker() {
-    local host="$1"
+# ── per-slot worker: run assigned cases sequentially, in the background ───────
+slot_worker() {
+    local host="$1" inst="$2" vm_ram="$3" queue="$4"
     # Read ALL seven columns. This loop previously read five and passed a
     # stale $opts left over from the planning loop's last iteration — so
     # per-case knobs (bitlocker=on) silently never reached any run.
     local name image ver ed key opts
     while IFS=$'\t' read -r name image ver ed key opts; do
         [ -n "$name" ] || continue
-        run_case "$host" "$name" "$image" "$ver" "$ed" "$key" "$opts"
-    done <<< "${ASSIGN[$host]}"
+        run_case "$host" "$inst" "$vm_ram" "$name" "$image" "$ver" "$ed" "$key" "$opts"
+    done <<< "$queue"
 }
 
 pids=()
-for host in "${HOSTARR[@]}"; do
-    [ -n "${ASSIGN[$host]:-}" ] || continue
-    host_worker "$host" &
+for slot in "${SLOTS[@]}"; do
+    [ -n "${ASSIGN[$slot]:-}" ] || continue
+    IFS=$'\t' read -r shost sinst sram <<< "$slot"
+    slot_worker "$shost" "$sinst" "$sram" "${ASSIGN[$slot]}" &
     pids+=($!)
 done
 wait "${pids[@]}" 2>/dev/null || true

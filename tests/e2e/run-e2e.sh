@@ -49,6 +49,11 @@ for arg in "$@"; do
         --keep)         KEEP_CONTAINER=true ;;
         --skip-install) SKIP_INSTALL=true ;;
         --phase3)       RUN_PHASE3=true ;;   # rung-3: graduate to a native disk
+        # Concurrent-runner slot: gives this run its own container name and
+        # storage dir so N VMs can share one host (run-matrix --jobs). Passed
+        # as a =flag so it is visible in the process cmdline — the matrix
+        # scopes its per-slot cleanup pkill to it.
+        --instance=*)   WOOTC_E2E_INSTANCE="${arg#--instance=}" ;;
         --*)            ;;  # ignore unknown flags
         *)              [ -z "$IMAGE_REF" ] && IMAGE_REF="$arg" ;;  # first positional = image
     esac
@@ -93,6 +98,16 @@ elapsed_min_since() { echo $(( ( $(date +%s) - $1 ) / 60 )); }
 
 CONTAINER_NAME="wootc-e2e-windows"
 STORAGE_DIR="$SCRIPT_DIR/storage"
+# A named instance gets fully disjoint mutable state (container, storage,
+# rendered OEM payload) so multiple VMs can run on one host. The ISO cache
+# (iso-cache/) and built deployer artifacts (wootc-files/, atomic-rename
+# writes) stay shared. Exported for compose.yml's parameterized volumes.
+if [ -n "${WOOTC_E2E_INSTANCE:-}" ]; then
+    CONTAINER_NAME="wootc-e2e-windows-$WOOTC_E2E_INSTANCE"
+    STORAGE_DIR="$SCRIPT_DIR/storage-$WOOTC_E2E_INSTANCE"
+fi
+export WOOTC_E2E_CONTAINER="$CONTAINER_NAME"
+export WOOTC_E2E_STORAGE_VOL="$STORAGE_DIR"
 # A second orchestrator can otherwise race QGA cleanup and recreate the
 # disposable root disk while the first run is booting the deployer.  Keep the
 # advisory lock open for the lifetime of this shell; it is released
@@ -663,6 +678,12 @@ if [ "$SKIP_BUILD" = false ]; then
     step "Building deployer initramfs..."
     cd "$REPO_ROOT"
 
+    # Serialize concurrent-instance builds (run-matrix --jobs): same checkout
+    # → identical artifacts; the waiting slot then rebuilds from a hot podman
+    # cache in seconds instead of racing a duplicate multi-minute build.
+    exec 8>"$SCRIPT_DIR/.build.lock"
+    flock 8
+
     podman build -t wootc-deployer -f payload/deployer/Containerfile . || {
         fail "Deployer build failed"
         exit 1
@@ -746,6 +767,7 @@ if [ "$SKIP_BUILD" = false ]; then
 
     pass "Deployer built: $(du -sh "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" | cut -f1) kernel, $(du -sh "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" | cut -f1) initramfs"
     cd "$SCRIPT_DIR"
+    flock -u 8
 fi
 
 # wubildr is no longer required for Secure Boot (we use the signed shim chain).
@@ -755,6 +777,15 @@ fi
 # first automatic desktop logon. Stage every input locally so that handoff
 # does not depend on SMB, WinRM, or a working guest network.
 OEM_DIR="$SCRIPT_DIR/oem"
+# Instanced runs render their OEM payload (incl. the per-case
+# wootc-config.txt) into private storage — two concurrent cases writing one
+# shared ./oem would hand each other's config to the wrong guest.
+if [ -n "${WOOTC_E2E_INSTANCE:-}" ]; then
+    OEM_DIR="$STORAGE_DIR/oem"
+    mkdir -p "$OEM_DIR"
+    cp -a "$SCRIPT_DIR/oem/." "$OEM_DIR/"
+fi
+export WOOTC_E2E_OEM_VOL="$OEM_DIR"
 OEM_PAYLOAD="$OEM_DIR/payload"
 mkdir -p "$OEM_PAYLOAD/grub"
 # Convert to CRLF line endings: PowerShell 5.1 on Windows misparses LF-only
@@ -995,7 +1026,8 @@ port_free() { ! { exec 3<>"/dev/tcp/127.0.0.1/$1"; } 2>/dev/null || { exec 3>&- 
 pick_free_ports() {
     local var base p
     for pair in "WOOTC_E2E_NOVNC_PORT:8006" "WOOTC_E2E_RDP_PORT:3389" \
-                "WOOTC_E2E_VNC_PORT:5900" "WOOTC_E2E_SSH_PORT:2222"; do
+                "WOOTC_E2E_VNC_PORT:5900" "WOOTC_E2E_SSH_PORT:2222" \
+                "WOOTC_E2E_CDP_PORT:9222"; do
         var="${pair%%:*}"; base="${pair##*:}"
         p="${!var:-$base}"
         if ! port_free "$p"; then

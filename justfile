@@ -373,3 +373,9 @@ gui-test:
 # (needs run-e2e.sh --keep state on the host; see tests/gui/run-cdp.sh)
 gui-cdp host=KANPUR:
     tests/gui/run-cdp.sh --host {{ host }}
+
+# Dogtail AT-SPI suite: drive the real GTK4 apps in a container (podman only).
+# Guest-portable: run dogtail-suite.py inside a booted image to test the real
+# deployment — exits 77 SKIP on images without dogtail (most; expected).
+gui-dogtail:
+    bash tests/gui/dogtail/run-dogtail.sh

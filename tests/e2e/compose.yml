@@ -18,7 +18,7 @@ services:
     # heredocs. Build it once with tests/e2e/build-ssh-image.sh; override
     # with WOOTC_E2E_IMAGE=dockurr/windows to use the plain upstream image.
     image: ${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}
-    container_name: wootc-e2e-windows
+    container_name: ${WOOTC_E2E_CONTAINER:-wootc-e2e-windows}
     # Rootless runners can select slirp4netns to bypass a host's broken
     # bridge/Aardvark forwarding path: WOOTC_E2E_NETWORK_MODE=slirp4netns.
     # The normal bridge remains the default for KVM-capable rootful runners.
@@ -87,18 +87,18 @@ services:
       - "${WOOTC_E2E_CDP_PORT:-9222}:9222"    # WebView2 CDP (real GUI E2E)
     volumes:
       # VM disk and QEMU artifacts (data.qcow2, qemu.pty, monitor.sock, etc.)
-      - ./storage:/storage
+      - ${WOOTC_E2E_STORAGE_VOL:-./storage}:/storage
       # Dockur only creates DISK2_SIZE when /storage2 exists. Keep the Phase-3
       # graduate target isolated from the Windows disk and normal artifacts.
-      - ./storage/phase3:/storage2
+      - ${WOOTC_E2E_STORAGE_VOL:-./storage}/phase3:/storage2
       # Deployer files: deployer-vmlinuz, deployer-initramfs.img,
       # grubx64.efi, grub configs — shared as Samba \\host.lan\Data
       - ./wootc-files:/shared
       # OEM files are injected by Dockur into C:\OEM during setup. They provide
       # a local QGA bootstrap and the wootc payload.
-      - ./oem:/oem:ro
+      - ${WOOTC_E2E_OEM_VOL:-./oem}:/oem:ro
       # Custom Windows answer file — dockur expects this at /custom.xml
       # (a FILE, not a directory). run-e2e.sh renders it per Windows case
       # (product key → edition) from autounattend.xml before compose up.
-      - ./storage/autounattend.rendered.xml:/custom.xml:ro
+      - ${WOOTC_E2E_STORAGE_VOL:-./storage}/autounattend.rendered.xml:/custom.xml:ro
     restart: "unless-stopped"     # Keep VM alive if Windows reboots post-setup

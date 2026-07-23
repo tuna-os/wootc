@@ -116,6 +116,9 @@ def build_gui():
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
     from gi.repository import Adw, Gtk, GLib  # noqa: E402
+    # Register a real program name: this is what the AT-SPI bus and
+    # screen readers show — without it every wootc GUI is "python3".
+    GLib.set_prgname("wootc-go-native-gui")
 
     eng = GoNativeEngine()
 
