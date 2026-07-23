@@ -82,3 +82,14 @@ setup() {
     run grep -nE 'KVER=\$\(ls [^)]*head -1\)' "$DEPLOY"
     [ "$status" -ne 0 ]
 }
+
+@test "deploy.sh uses no binaries absent from the initramfs closure" {
+    # $(dirname ...) killed every deploy at t=33s under set -e — the
+    # initramfs has no dirname (run 20260723T1331). Path math must use
+    # parameter expansion; add to this list anything else the closure lacks.
+    local dep="$REPO_ROOT/payload/deployer/deploy.sh"
+    for missing in dirname; do
+        run grep -nE "^[^#]*\\\$\\($missing " "$dep"
+        [ "$status" -ne 0 ]
+    done
+}
