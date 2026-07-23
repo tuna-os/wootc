@@ -362,3 +362,14 @@ check:
     shellcheck -S warning "{{ E2E_DIR }}/run-e2e.sh" "{{ E2E_DIR }}/setup-kvm-runner.sh"
     shellcheck payload/migration/wootc-go-native payload/migration/wootc-wifi-bridge \
         payload/migration/wootc-wsl-bridge payload/migration/wootc-apply-look || true
+
+# ── GUI E2E ───────────────────────────────────────────────────────────────────
+
+# Mocked GUI conformance suite (Playwright, runs anywhere; no VM)
+gui-test:
+    cd tests/gui && npx playwright test gui.spec.js
+
+# Rung-3 GUI E2E: drive the REAL wootc.exe over CDP inside a kept E2E VM
+# (needs run-e2e.sh --keep state on the host; see tests/gui/run-cdp.sh)
+gui-cdp host=KANPUR:
+    tests/gui/run-cdp.sh --host {{ host }}
