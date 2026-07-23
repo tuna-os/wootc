@@ -382,3 +382,41 @@ on the other until the guest's 10-minute deadline expired.
 
 If you change a host/guest protocol, push the guest half of it in the same
 change.
+
+## 20. A retried command is a second command
+
+`qga_call` retries three times to survive flaky agents. Sent through a boot
+transition, the retry is poison: a `systemctl reboot` the dying guest never
+consumed sat in the virtio-serial channel until the NEXT agent opened it — the
+freshly booted native install, which obeyed and rebooted straight back to
+Windows (BootNext one-shot, already consumed). Earlier runs "survived" only
+because guest-exec was still blacklisted natively; fixing the blacklist armed
+the trap.
+
+Side-effecting commands must never ride a retried channel across a boot
+boundary. Use the QEMU monitor (`system_reset`) — it queues nothing anywhere.
+And remember any single reboot of the native system lands in Windows: BootNext
+fires once, BootOrder still lists Windows first.
+
+## 21. A service that can succeed while doing nothing is unobservable
+
+`wootc-mount-user-dirs` exited 0 with zero binds and an empty journal — each
+profile was skipped by a silent `continue`. The condition it skipped on
+(`[[ -d $home ]]`) was itself a deployment bug: fisherman's
+`useradd --create-home` followed the deployment's `/home -> var/home` symlink
+into the deployment's OWN var, which the stateroot var mount masks at runtime.
+Two rules: every skip on an "impossible" condition logs an ERROR naming the
+bug, and every unit that can no-op logs a final summary line
+("N binds across M users") so the journal alone convicts or acquits it.
+
+## 22. Forensics beat theorizing: the disks were all still there
+
+The failed run's whole story was recoverable offline: `qemu-nbd` the graduated
+qcow2 → native journal showed the exact reboot command and its source pid;
+loop-mount root.disk inside the NTFS qcow2 → the orphaned home in the
+deployment's masked var. Two dead ends to skip next time: a `qemu-nbd
+--connect` dies with its ssh session (do all reads in ONE session, or it reads
+as a corrupt/empty GPT with fresh random GUIDs per call), and the serial pty
+spans every boot of the run — sed from the FIRST "GRUB version" banner lands
+in Phase-1, not the boot you care about (anchor on `BdsDxe: starting BootNNNN`
+line numbers instead).
