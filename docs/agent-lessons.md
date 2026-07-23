@@ -74,6 +74,15 @@ not measure time — every blocking call in the loop body (QGA probes,
 snapshotting) burns real time without advancing it. Measured drift: **0.68× wall
 clock**, so "45 minutes" was really ~66. Use `deadline_in`/`past_deadline`.
 
+*Recurred 2026-07-22* in `wootc-attach-loop.sh`: a "60s" host-NTFS wait added
+3s per iteration while `udevadm settle` returned instantly on an empty queue —
+the budget burned in ~2 wall-seconds, before the virtio-scsi bus was scanned,
+and Phase 2 fell to the emergency shell. kmsg timestamps are the drift
+detector (claimed 60s; entered 1.07s, exited 3.37s). In an initramfs use a
+`/proc/uptime` deadline plus an **unconditional** per-iteration `sleep` —
+never let a probe's exit status gate the sleep. Guarded in
+`raw-loopback.bats` ("wall-clock with an unconditional sleep").
+
 **A wall-clock deadline cannot rescue a loop whose body never returns.**
 `qga_call` had no timeout, so a hung `podman exec` froze the loop forever and
 the deadline was never evaluated. Every blocking external call needs its own
