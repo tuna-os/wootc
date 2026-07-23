@@ -35,6 +35,12 @@ services:
       # Dockur may clamp this to available host memory; run-e2e.sh verifies
       # the resulting QEMU allocation before waiting for Windows Setup.
       RAM_SIZE: "${WOOTC_E2E_RAM_SIZE:-8G}"
+      # Dockur clamps QEMU RAM to the host's MemAvailable at start time. On a
+      # host running coordinated concurrent instances the harness budgets RAM
+      # itself (and gates on a MemAvailable wait before compose up), so the
+      # clamp only mis-fires on transient build spikes — it once shrank a VM
+      # to 1965 MB, below Windows 11's 4096 floor. "N" disables it.
+      RAM_CHECK: "${WOOTC_E2E_RAM_CHECK:-Y}"
       DISK_SIZE: "80G"
       DISK_FMT: "qcow2"
       # Optional spare disk for the Phase-3 graduate-to-native target (rung 3).

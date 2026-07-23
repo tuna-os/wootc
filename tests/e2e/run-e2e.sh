@@ -1129,6 +1129,19 @@ compose_up_windows() {
 #
 # podman-compose can also exit 0 without creating the container, so the exit
 # status alone is not evidence. Verify the container actually exists.
+# QEMU must not start during a transient memory dip: dockur samples
+# MemAvailable once at start and clamps the VM to it — a concurrent deployer
+# build (go link peaks at several GiB) got a 6G VM clamped to 1965 MB, below
+# Windows 11 setup's 4096 floor. Builds finish; wait for the dip to pass.
+RAM_WANT_MIB=$(( $(printf '%s' "${WOOTC_E2E_RAM_SIZE:-8G}" | tr -dc '0-9') * 1024 + 1536 ))
+RAM_WAIT_DEADLINE=$(deadline_in 600)
+while ! past_deadline "$RAM_WAIT_DEADLINE"; do
+    MEM_AVAIL_MIB=$(( $(awk '/MemAvailable:/ {print $2}' /proc/meminfo) / 1024 ))
+    [ "$MEM_AVAIL_MIB" -ge "$RAM_WANT_MIB" ] && break
+    info "Waiting for host memory: ${MEM_AVAIL_MIB} MiB available, want ${RAM_WANT_MIB} MiB before starting QEMU..."
+    sleep 15
+done
+
 if ! compose_up_windows; then
     fail "Could not start the Windows container (all recovery paths exhausted)"
     fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
