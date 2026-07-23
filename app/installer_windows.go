@@ -676,6 +676,15 @@ func configureBCD(bootloader string) error {
 	}
 	guid := "{" + m[1] + "}"
 
+	// Persist the GUID where setup-wootc.ps1 also records it: the E2E
+	// harness schedules the PHASE-2 loopback boot by re-arming exactly this
+	// entry (bcd-guid.txt), and uninstall flows read it too. Without it a
+	// GUI/headless-armed machine deploys fine but Phase 2 can never be
+	// scheduled. Best-effort: BCD itself is already armed at this point.
+	if err := os.WriteFile(`C:\wootc\install\bcd-guid.txt`, []byte(guid), 0o644); err != nil {
+		fmt.Printf("warning: could not persist bcd-guid.txt: %v\n", err)
+	}
+
 	// One-shot bootsequence only: nothing permanent changes in the user's
 	// boot order until TunaOS is known to work. displayorder promotion is a
 	// post-deploy, user-confirmed action, not part of the install.

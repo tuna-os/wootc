@@ -379,3 +379,10 @@ gui-cdp host=KANPUR:
 # deployment — exits 77 SKIP on images without dogtail (most; expected).
 gui-dogtail:
     bash tests/gui/dogtail/run-dogtail.sh
+
+# GUI-driven full E2E: Phase 1 armed by clicking through the REAL wootc.exe
+# GUI over CDP (no preview mode), then deployer → Phase 2 → Phase 3 verified
+# by the normal harness. Runs as instance g so it can share a host with the
+# matrix. Needs wootc.exe rsynced into tests/e2e/wootc-files on the host.
+remote-e2e-gui image=WOOTC_IMAGE:
+    just _remote-launch keep --gui-install --phase3 --instance=g {{ image }}

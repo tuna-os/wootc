@@ -43,12 +43,14 @@ export WOOTC_E2E_WIN_VERSION="$WIN_VERSION" WOOTC_E2E_WIN_EDITION="$WIN_EDITION"
 SKIP_BUILD=false
 KEEP_CONTAINER=false
 SKIP_INSTALL=false
+GUI_INSTALL=false
 for arg in "$@"; do
     case "$arg" in
         --skip-build)   SKIP_BUILD=true ;;
         --keep)         KEEP_CONTAINER=true ;;
         --skip-install) SKIP_INSTALL=true ;;
         --phase3)       RUN_PHASE3=true ;;   # rung-3: graduate to a native disk
+        --gui-install)  GUI_INSTALL=true ;;  # arm via the REAL wootc.exe GUI over CDP
         # Concurrent-runner slot: gives this run its own container name and
         # storage dir so N VMs can share one host (run-matrix --jobs). Passed
         # as a =flag so it is visible in the process cmdline — the matrix
@@ -1338,6 +1340,78 @@ if [ "$SKIP_INSTALL" = true ]; then
     reset_oem_attempt
 fi
 
+# ── GUI-driven Phase 1 (--gui-install) ──────────────────────────────────────
+# Arms the machine through the REAL wootc.exe GUI instead of the OEM
+# setup-wootc.ps1 script: stage the app + artifacts, launch it with a CDP
+# endpoint in the autologged interactive session (QGA's session-0 SYSTEM
+# context cannot render WebView2), then drive the actual install form from a
+# playwright container. The driver's last act is clicking "Reboot Now →",
+# which boots the deployer — the rest of the run verifies as normal.
+gui_install_arm() {
+    # Seed while Windows is alive — the OEM path seeds inside
+    # snapshot_before_deployer, which the GUI path never reaches, and the
+    # driver's final act reboots the machine.
+    seed_user_data || true
+
+    step "GUI-driven Phase 1: staging wootc.exe and launching the installer..."
+    [ -f "$SCRIPT_DIR/wootc-files/wootc.exe" ] || {
+        fail "wootc.exe missing from wootc-files/ — build it first (see tests/gui/run-cdp.sh step 1)"
+        exit 1
+    }
+    qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
+Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
+foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+@"
+set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222
+start `"`" C:\wootc\wootc.exe
+"@ | Set-Content -Path C:\wootc\launch-cdp.cmd -Encoding ascii
+netsh interface portproxy delete v4tov4 listenport=9222 listenaddress=0.0.0.0 2>$null
+netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9222 connectaddress=127.0.0.1 connectport=9222 | Out-Null
+netsh advfirewall firewall delete rule name="wootc-cdp" 2>$null
+netsh advfirewall firewall add rule name="wootc-cdp" dir=in action=allow protocol=TCP localport=9222 | Out-Null
+schtasks /Delete /TN wootc-gui-cdp /F 2>$null
+schtasks /Create /TN wootc-gui-cdp /SC ONCE /ST 00:00 /TR "C:\wootc\launch-cdp.cmd" /RU wootc /IT /F | Out-Null
+schtasks /Run /TN wootc-gui-cdp | Out-Null
+Write-Output "gui-launched"' | grep -q gui-launched || {
+        fail "could not launch wootc.exe with CDP in the interactive session"
+        capture_vm_diagnostics
+        exit 1
+    }
+    pass "wootc.exe GUI launched with CDP in the wootc session"
+
+    local cdp_url="http://127.0.0.1:${WOOTC_E2E_CDP_PORT:-9222}" up=false
+    for _ in $(seq 1 45); do
+        curl -fsS "$cdp_url/json/version" >/dev/null 2>&1 && { up=true; break; }
+        sleep 2
+    done
+    [ "$up" = true ] || {
+        fail "CDP endpoint never answered on $cdp_url (portproxy/firewall/interactive session?)"
+        capture_vm_diagnostics
+        exit 1
+    }
+    pass "CDP endpoint answering on $cdp_url"
+
+    step "Driving the REAL install through the GUI (playwright, no preview mode)..."
+    if ! podman run --rm --network=host \
+        -v "$REPO_ROOT/tests/gui:/gui" -w /gui \
+        -e WOOTC_CDP_URL="$cdp_url" \
+        -e WOOTC_GUI_IMAGE="$IMAGE_REF" \
+        -e WOOTC_GUI_USERNAME=wootc \
+        -e WOOTC_GUI_PASSWORD=wootc-e2e-pass \
+        -e WOOTC_GUI_HOSTNAME=wootc-test \
+        docker.io/library/node:20 \
+        bash -c "npm install --no-audit --no-fund --silent >/dev/null && npx playwright test gui-install.spec.js --reporter=list"; then
+        fail "GUI-driven install did not reach the done screen"
+        capture_vm_diagnostics
+        exit 1
+    fi
+    pass "GUI-driven install completed and Reboot Now clicked — deployer takes over"
+}
+
+if [ "$GUI_INSTALL" = true ]; then
+    gui_install_arm
+else
+
 step "Starting OEM setup through QGA..."
 
 # Refresh C:\OEM from the host BEFORE launching setup, ALWAYS.
@@ -1429,6 +1503,8 @@ done
     capture_vm_diagnostics
     exit 1
 }
+
+fi  # GUI_INSTALL
 
 # ── Step 4: Wait for Windows install and OEM handoff ─────────────────────────
 # The deployer serial marker is the end-to-end assertion: it can only appear

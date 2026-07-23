@@ -12,18 +12,23 @@ export default defineConfig({
   timeout: 30000,
   fullyParallel: false,
   reporter: [['list']],
-  // cdp.spec.js drives a real wootc.exe over CDP (Windows E2E only); it runs
-  // only when WOOTC_CDP_URL is set. The mock suite runs everywhere.
-  testIgnore: process.env.WOOTC_CDP_URL ? [] : ['cdp.spec.js'],
+  // cdp.spec.js and gui-install.spec.js drive a real wootc.exe over CDP
+  // (Windows E2E only); they run only when WOOTC_CDP_URL is set. The mock
+  // suite runs everywhere.
+  testIgnore: process.env.WOOTC_CDP_URL ? [] : ['cdp.spec.js', 'gui-install.spec.js'],
   use: {
     // wootc's window is a fixed 820×620; match it so screenshots are honest.
     viewport: { width: 820, height: 620 },
     baseURL: 'http://127.0.0.1:5599',
   },
-  webServer: {
-    command: `npx --yes http-server "${path.join(dir, '../../app/frontend/dist')}" -p 5599 -s -c-1`,
-    url: 'http://127.0.0.1:5599',
-    reuseExistingServer: true,
-    timeout: 30000,
-  },
+  // CDP runs attach to the live wootc.exe — no local bundle server needed
+  // (and the dist path does not exist inside the driver container).
+  ...(process.env.WOOTC_CDP_URL ? {} : {
+    webServer: {
+      command: `npx --yes http-server "${path.join(dir, '../../app/frontend/dist')}" -p 5599 -s -c-1`,
+      url: 'http://127.0.0.1:5599',
+      reuseExistingServer: true,
+      timeout: 30000,
+    },
+  }),
 });

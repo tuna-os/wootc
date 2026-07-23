@@ -32,9 +32,13 @@ while [ $# -gt 0 ]; do
         --dry-run) DRY=true; shift ;;
         --timeout) PER_CASE_TIMEOUT="$2"; shift 2 ;;
         --jobs)  JOBS="$2"; shift 2 ;;   # VMs per host: N, or "auto" to size from the runner
+        --vm-ram) VM_RAM_OVERRIDE="$2"; shift 2 ;;  # GiB per VM, overrides sizing (e.g. leave room for another run)
+        --resume) RESUME=true; shift ;;  # skip cases already PASS in matrix-results.tsv
         *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done
+RESUME="${RESUME:-false}"
+VM_RAM_OVERRIDE="${VM_RAM_OVERRIDE:-}"
 
 # ── size each runner: how many VMs fit? ──────────────────────────────────────
 # Budget per concurrent VM: ~6 GiB RAM (dockur clamps QEMU below the host's
@@ -71,6 +75,21 @@ mapfile -t CASES < <(awk -F'\t' -v tier="$TIER" -v want="$GREP" '
     }' "$MATRIX")
 
 [ ${#CASES[@]} -gt 0 ] || { echo "No cases match tier=$TIER grep=$GREP" >&2; exit 1; }
+
+# --resume: drop cases already recorded PASS, keep the results file intact.
+if [ "$RESUME" = true ] && [ -f "$RESULTS" ]; then
+    KEPT=()
+    for c in "${CASES[@]}"; do
+        n="${c%%$'\t'*}"
+        if awk -F'\t' -v n="$n" '$1==n && $3=="PASS"{found=1} END{exit !found}' "$RESULTS"; then
+            echo "resume: skipping $n (already PASS)"
+        else
+            KEPT+=("$c")
+        fi
+    done
+    CASES=("${KEPT[@]}")
+    [ ${#CASES[@]} -gt 0 ] || { echo "Nothing left to run — all matching cases already PASS."; exit 0; }
+fi
 read -ra HOSTARR <<< "$HOSTS"
 
 # One slot = one concurrent VM on a host (instance a, b, …). Each slot gets a
@@ -80,6 +99,7 @@ SLOTS=()   # "host<TAB>instance<TAB>vm_ram_gib"
 for host in "${HOSTARR[@]}"; do
     read -r n vm_ram < <(size_host "$host")
     [ "$JOBS" != auto ] && n="$JOBS"
+    [ -n "$VM_RAM_OVERRIDE" ] && vm_ram="$VM_RAM_OVERRIDE"
     echo "runner $host: $n concurrent VM(s) × ${vm_ram}G RAM"
     for (( s=0; s<n; s++ )); do
         SLOTS+=("$host"$'\t'"${LETTERS[$s]}"$'\t'"$vm_ram")
@@ -100,8 +120,10 @@ for c in "${CASES[@]}"; do
 done
 $DRY && { echo "(dry run — nothing launched)"; exit 0; }
 
-: > "$RESULTS"
-echo -e "name\thost\tresult\tseconds\timage\twin" >> "$RESULTS"
+if [ "$RESUME" != true ] || [ ! -f "$RESULTS" ]; then
+    : > "$RESULTS"
+    echo -e "name\thost\tresult\tseconds\timage\twin" >> "$RESULTS"
+fi
 
 # ── run one case in a slot, poll to completion ───────────────────────────────
 run_case() {
