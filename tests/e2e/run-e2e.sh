@@ -181,6 +181,12 @@ run_state() {
     mv -f "$tmp" "$RUN_STATE_FILE"
 }
 run_state "started"
+# Minimal early exit-trap so ANY abort before the full cleanup trap installs
+# (notably a host_preflight failure) still stamps the state file. Without it a
+# preflight abort leaves stage=started forever, indistinguishable from a live
+# run — the remote launch guard then refuses to start the next run. Replaced
+# by `trap cleanup EXIT` further down.
+trap 'run_state "exited (status $?)"' EXIT
 info "Run ID: $RUN_ID (status: $RUN_STATE_FILE)"
 printf '%s\n' "$RUN_ID" > "$ARTIFACT_DIR/run-id.txt"
 uname -a > "$ARTIFACT_DIR/host-uname.txt" 2>&1 || true

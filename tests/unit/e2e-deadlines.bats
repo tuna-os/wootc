@@ -116,3 +116,17 @@ setup() {
     # longer, which sent debugging after a boot-speed problem that did not exist.
     grep -q 'did not boot within \$(elapsed_min_since' "$E2E"
 }
+
+@test "an abort before the full cleanup trap still stamps the run-state file" {
+    # A host_preflight failure exited before `trap cleanup EXIT` was installed,
+    # leaving stage=started forever — the remote launch guard then read the
+    # dead run as live and refused to launch. An early minimal trap must be
+    # installed before host_preflight runs.
+    local early_trap preflight_call full_trap
+    early_trap=$(grep -nm1 "trap 'run_state \"exited" "$E2E" | cut -d: -f1)
+    preflight_call=$(grep -nm1 '^host_preflight || exit 1' "$E2E" | cut -d: -f1)
+    full_trap=$(grep -nm1 '^trap cleanup EXIT' "$E2E" | cut -d: -f1)
+    [ -n "$early_trap" ] && [ -n "$preflight_call" ] && [ -n "$full_trap" ]
+    [ "$early_trap" -lt "$preflight_call" ]
+    [ "$preflight_call" -lt "$full_trap" ]
+}
