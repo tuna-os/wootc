@@ -1,9 +1,13 @@
 [Unit]
 Description=Bind Windows User Profiles to Home
-DefaultDependencies=no
-After=wootc-host-bind.service
+# Unlike wootc-host-bind (which touches only /run and may run pre-local-fs),
+# this unit writes under /home → var/home, so it MUST run after /var is
+# mounted. With DefaultDependencies=no + Before=local-fs.target it ran
+# before var.mount: mkdir -p /home/<user>/Documents hit the read-only
+# composefs root, set -e killed the script, and the service sat 'failed'
+# while host-bind was healthy (run 20260723T0349 diagnostics).
+After=wootc-host-bind.service local-fs.target
 Requires=wootc-host-bind.service
-Before=local-fs.target
 
 [Service]
 Type=oneshot
@@ -12,4 +16,4 @@ ExecStart=/var/usrlocal/bin/wootc-mount-user-dirs
 ExecStop=/var/usrlocal/bin/wootc-umount-user-dirs
 
 [Install]
-WantedBy=local-fs.target
+WantedBy=multi-user.target

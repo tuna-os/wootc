@@ -1136,11 +1136,15 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # if it is symlinked into local-fs.target.wants — installing the unit file
     # is not enough. Without this the User Data Bridge never activated at boot
     # (E2E: "wootc-passthrough service NOT detected").
-    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants" "$DEPLOY_ROOT/etc/qemu"
+    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants" \
+             "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants" \
+             "$DEPLOY_ROOT/etc/qemu"
     ln -sf ../wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
+    # passthrough needs /var mounted (it writes under /home → var/home), so
+    # it is wanted by multi-user, NOT local-fs — see the unit's own comment.
     ln -sf ../wootc-passthrough.service \
-        "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-passthrough.service"
+        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-passthrough.service"
 
     # Enable QGA guest-exec and guest-file RPCs for Phase 3 control plane
     # Fedora packages default FILTER_RPC_ARGS in /etc/sysconfig/qemu-ga to restrict RPCs.

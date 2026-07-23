@@ -57,3 +57,17 @@ setup() {
     run grep -n '"wheel", "video", "audio"' "$REPO_ROOT/payload/deployer/deploy.sh"
     [ "$status" -ne 0 ]
 }
+
+@test "passthrough is wanted by multi-user, after /var is mounted" {
+    # It writes under /home -> var/home; ordered Before=local-fs.target it
+    # ran pre-var.mount, mkdir hit the read-only composefs root, and the
+    # service failed while host-bind was healthy (run 20260723T0349).
+    local svc="$REPO_ROOT/payload/migration/wootc-passthrough.service"
+    grep -q '^After=wootc-host-bind.service local-fs.target' "$svc"
+    grep -q '^WantedBy=multi-user.target' "$svc"
+    run grep -n '^DefaultDependencies=no' "$svc"
+    [ "$status" -ne 0 ]
+    grep -q 'multi-user.target.wants/wootc-passthrough.service' "$REPO_ROOT/payload/deployer/deploy.sh"
+    run grep -nE '^[^#]*local-fs.target.wants/wootc-passthrough' "$REPO_ROOT/payload/deployer/deploy.sh"
+    [ "$status" -ne 0 ]
+}
