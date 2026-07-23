@@ -98,3 +98,11 @@ export function GetAppMigrations() {
 export function GetOfficeMigration() {
   return window['go']['main']['App']['GetOfficeMigration']();
 }
+
+export function E2EDriveDirective() {
+  return window['go']['main']['App']['E2EDriveDirective']();
+}
+
+export function E2EDriveReport(arg1) {
+  return window['go']['main']['App']['E2EDriveReport'](arg1);
+}

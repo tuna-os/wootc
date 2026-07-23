@@ -48,17 +48,25 @@ setup() {
     grep -q 'mv -f "\$tmp_output" "\$output"' "$E2E"
 }
 
-@test "GUI-driven install path: seeds, drives real CDP, rejoins normal flow" {
+@test "GUI-driven install path: seeds, drives the live form, rejoins normal flow" {
     grep -q -- '--gui-install)  GUI_INSTALL=true' "$E2E"
     # Seeding must happen in the GUI path too — the OEM path seeds inside
     # snapshot_before_deployer, which the GUI path never reaches.
     grep -A6 'gui_install_arm() {' "$E2E" | grep -q 'seed_user_data'
-    grep -q 'gui-install.spec.js' "$E2E"
+    # Drive mode over the app's own bridge — CDP is impossible in stock
+    # wails (both loaders drop the env var once the framework passes its own
+    # browser args; proven live 20260723T1044/1115).
+    grep -q 'WOOTC_E2E_DRIVE=1' "$E2E"
+    grep -q 'e2e-drive.json' "$E2E"
+    grep -q 'installDriven' "$E2E"
     # The driver runs the REAL pipeline: preview mode must not be set here.
     run bash -c "grep -A40 'gui_install_arm() {' '$E2E' | grep 'WOOTC_UI_PREVIEW'"
     [ "$status" -ne 0 ]
-    # Go persists the BCD GUID for the harness's Phase-2 scheduling.
+    # Go persists the BCD GUID for the harness's Phase-2 scheduling; the
+    # app's drive bindings stay inert without the env gate.
     grep -q 'bcd-guid.txt' "$REPO_ROOT/app/installer_windows.go"
+    grep -q 'WOOTC_E2E_DRIVE' "$REPO_ROOT/app/app.go"
+    grep -q 'E2EDriveDirective' "$REPO_ROOT/app/frontend/src/main.js"
 }
 
 @test "matrix poll ssh cannot eat the case queue" {

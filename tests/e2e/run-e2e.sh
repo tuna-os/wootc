@@ -1404,59 +1404,71 @@ gui_install_arm() {
         fail "wootc.exe missing from wootc-files/ — build it first (see tests/gui/run-cdp.sh step 1)"
         exit 1
     }
+    # Drive mode, not CDP: wails passes its own AdditionalBrowserArguments,
+    # which makes BOTH WebView2 loaders discard
+    # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (proven live, runs
+    # 20260723T1044/1115 — GUI rendered, endpoint never appeared). With
+    # WOOTC_E2E_DRIVE=1 the app polls C:\wootc\e2e-drive.json over its own
+    # Go<->JS bridge, executes the directive against the live form (same DOM,
+    # same handlers, same validation), and reports to e2e-drive-state.json.
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"
-set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222
+set WOOTC_E2E_DRIVE=1
 start `"`" C:\wootc\wootc.exe
-"@ | Set-Content -Path C:\wootc\launch-cdp.cmd -Encoding ascii
-netsh interface portproxy delete v4tov4 listenport=9222 listenaddress=0.0.0.0 2>$null
-netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9222 connectaddress=127.0.0.1 connectport=9222 | Out-Null
-netsh advfirewall firewall delete rule name="wootc-cdp" 2>$null
-netsh advfirewall firewall add rule name="wootc-cdp" dir=in action=allow protocol=TCP localport=9222 | Out-Null
-# A pre-existing WebView2 browser process for this user data dir absorbs
-# new app instances WITHOUT re-reading browser arguments — a stale
-# non-debug tree makes the CDP port silently never appear. Clear it.
+"@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
 Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
-Stop-Process -Name msedgewebview2 -Force -ErrorAction SilentlyContinue
-schtasks /Delete /TN wootc-gui-cdp /F 2>$null
-schtasks /Create /TN wootc-gui-cdp /SC ONCE /ST 00:00 /TR "C:\wootc\launch-cdp.cmd" /RU wootc /IT /F | Out-Null
-schtasks /Run /TN wootc-gui-cdp | Out-Null
+schtasks /Delete /TN wootc-gui-e2e /F 2>$null
+schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST 00:00 /TR "C:\wootc\launch-gui.cmd" /RU wootc /IT /F | Out-Null
+schtasks /Run /TN wootc-gui-e2e | Out-Null
 Write-Output "gui-launched"' | grep -q gui-launched || {
-        fail "could not launch wootc.exe with CDP in the interactive session"
+        fail "could not launch wootc.exe in the interactive session"
         capture_vm_diagnostics
         exit 1
     }
-    pass "wootc.exe GUI launched with CDP in the wootc session"
+    pass "wootc.exe GUI launched in drive mode in the wootc session"
 
-    local cdp_url="http://127.0.0.1:${WOOTC_E2E_CDP_PORT:-9222}" up=false
-    for _ in $(seq 1 45); do
-        curl -fsS "$cdp_url/json/version" >/dev/null 2>&1 && { up=true; break; }
-        sleep 2
+    step "Driving the REAL install through the live form (drive directive)..."
+    qga_powershell "@'
+{\"action\":\"install\",\"image\":\"$IMAGE_REF\",\"username\":\"wootc\",\"password\":\"wootc-e2e-pass\",\"hostname\":\"wootc-test\"}
+'@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii" >/dev/null
+
+    # The app reports every 2s. Wait first for the form to be driven (proves
+    # the bridge + validation), then for the real pipeline to reach done.
+    local drive_deadline drive_state="" driven=false
+    drive_deadline=$(deadline_in 1800)
+    while ! past_deadline "$drive_deadline"; do
+        drive_state=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null || true)
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"installDriven":true'; then
+            driven=true
+            pass "GUI form filled and Install clicked through the live bridge"
+        fi
+        if printf '%s' "$drive_state" | grep -q '"screen":"done"'; then
+            pass "GUI-driven install completed — real pipeline reached the done screen"
+            break
+        fi
+        if printf '%s' "$drive_state" | grep -q '"error":"'; then
+            fail "GUI install pipeline surfaced an error:"
+            printf '%s\n' "$drive_state" | head -3
+            capture_vm_diagnostics
+            exit 1
+        fi
+        sleep 10
     done
-    [ "$up" = true ] || {
-        fail "CDP endpoint never answered on $cdp_url (portproxy/firewall/interactive session?)"
+    printf '%s' "$drive_state" | grep -q '"screen":"done"' || {
+        fail "GUI-driven install did not reach the done screen in 30m (state: $(printf '%s' "$drive_state" | head -c 200))"
         capture_vm_diagnostics
         exit 1
     }
-    pass "CDP endpoint answering on $cdp_url"
 
-    step "Driving the REAL install through the GUI (playwright, no preview mode)..."
-    if ! podman run --rm --network=host \
-        -v "$REPO_ROOT/tests/gui:/gui" -w /gui \
-        -e WOOTC_CDP_URL="$cdp_url" \
-        -e WOOTC_GUI_IMAGE="$IMAGE_REF" \
-        -e WOOTC_GUI_USERNAME=wootc \
-        -e WOOTC_GUI_PASSWORD=wootc-e2e-pass \
-        -e WOOTC_GUI_HOSTNAME=wootc-test \
-        docker.io/library/node:20 \
-        bash -c "npm install --no-audit --no-fund --silent >/dev/null && npx playwright test gui-install.spec.js --reporter=list"; then
-        fail "GUI-driven install did not reach the done screen"
-        capture_vm_diagnostics
-        exit 1
-    fi
-    pass "GUI-driven install completed and Reboot Now clicked — deployer takes over"
+    # Hand control to the deployer exactly as a user would: the app's own
+    # Reboot binding, triggered by the reboot directive on the done screen.
+    qga_powershell '@"
+{"action":"reboot"}
+"@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii' >/dev/null
+    pass "Reboot directive issued — deployer takes over"
 }
 
 if [ "$GUI_INSTALL" = true ]; then

@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive, GetFreshVMCapability, TryInVMFresh, InstallPreviewForReal } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive, GetFreshVMCapability, TryInVMFresh, InstallPreviewForReal, E2EDriveDirective, E2EDriveReport } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -1080,4 +1080,70 @@ function inputField(label, type, value, onChange, placeholder) {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
+// ── E2E drive mode ────────────────────────────────────────────────────────────
+// Wails' WebView cannot expose CDP (both loaders drop the env var once the
+// framework passes its own browser args), so the GUI E2E drives the REAL form
+// through this loop instead: a directive arrives over the same Go<->JS bridge
+// every user click crosses, is executed as DOM events against the live
+// widgets (same handlers, same validation), and state is reported back.
+// E2EDriveDirective returns "" unless the app runs with WOOTC_E2E_DRIVE=1.
+function e2eFill(sel, value) {
+  const inp = document.querySelector(sel);
+  if (!inp) return false;
+  inp.value = value;
+  inp.dispatchEvent(new Event('input'));
+  if (inp.oninput) inp.oninput();
+  return true;
+}
+
+function e2eFieldByLabel(label) {
+  for (const f of document.querySelectorAll('.field')) {
+    const l = f.querySelector('label');
+    if (l && l.textContent === label) return f.querySelector('input');
+  }
+  return null;
+}
+
+async function e2eDriveLoop() {
+  let raw = '';
+  try { raw = await E2EDriveDirective(); } catch { return; }  // binding absent: stop
+  try {
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d.action === 'install' && !window.__e2eInstallDriven && state.screen === 'launchpad') {
+        const img = e2eFieldByLabel('Custom supported OCI image');
+        const user = e2eFieldByLabel('Linux Username');
+        const host = e2eFieldByLabel('Hostname');
+        const pws = document.querySelectorAll('input[type=password]');
+        if (img && user && host && pws.length >= 2) {
+          [[img, d.image], [user, d.username], [host, d.hostname],
+           [pws[0], d.password], [pws[1], d.password]].forEach(([inp, v]) => {
+            inp.value = v;
+            if (inp.oninput) inp.oninput();
+          });
+          const btn = document.getElementById('install-btn');
+          if (btn && !btn.disabled) {
+            window.__e2eInstallDriven = true;
+            btn.click();
+          }
+        }
+      }
+      if (d.action === 'reboot' && state.screen === 'done' && !window.__e2eRebootDriven) {
+        window.__e2eRebootDriven = true;
+        Reboot();
+      }
+    }
+    await E2EDriveReport(JSON.stringify({
+      screen: state.screen,
+      installDriven: !!window.__e2eInstallDriven,
+      installBtnDisabled: (document.getElementById('install-btn') || {}).disabled ?? null,
+      hint: (document.getElementById('install-hint') || {}).textContent || '',
+      progressStep: state.progress?.step || '',
+      error: state.progress?.error || null,
+    }));
+  } catch (e) { /* drive mode must never break the app */ }
+  setTimeout(e2eDriveLoop, 2000);
+}
+
 init().catch(console.error);
+e2eDriveLoop();

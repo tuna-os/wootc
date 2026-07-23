@@ -75,3 +75,7 @@ export function BootInVM(): Promise<void>;
 export function GetFreshVMCapability(): Promise<any>;
 export function TryInVMFresh(imageRef: string): Promise<void>;
 export function InstallPreviewForReal(cfg: InstallConfig): Promise<void>;
+
+export function E2EDriveDirective():Promise<string>;
+
+export function E2EDriveReport(arg1:string):Promise<void>;

@@ -353,6 +353,44 @@ func (a *App) Reboot() error {
 	return rebootWindows()
 }
 
+// ── E2E drive mode ────────────────────────────────────────────────────────────
+// The GUI E2E cannot reach the WebView over CDP: wails always passes its own
+// AdditionalBrowserArguments, which makes BOTH WebView2 loaders ignore
+// WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (proven live, runs 20260723T1044/1115).
+// Instead the harness drives the real UI through the same Go<->JS bridge every
+// user interaction crosses: it writes a directive file, the frontend executes
+// it as DOM events against the live form, and reports state back here. Inert
+// unless WOOTC_E2E_DRIVE=1 is set in the app's environment.
+
+func e2eDrivePath(name string) string {
+	// filepath.Separator, not runtime.GOOS: "runtime" is the wails runtime here.
+	if filepath.Separator == '\\' {
+		return `C:\wootc\` + name
+	}
+	return "/tmp/wootc-" + name
+}
+
+// E2EDriveDirective returns the pending drive directive, or "" when drive
+// mode is off or no directive exists.
+func (a *App) E2EDriveDirective() string {
+	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
+		return ""
+	}
+	b, err := os.ReadFile(e2eDrivePath("e2e-drive.json"))
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// E2EDriveReport persists the frontend's current state for the harness.
+func (a *App) E2EDriveReport(state string) {
+	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
+		return
+	}
+	_ = os.WriteFile(e2eDrivePath("e2e-drive-state.json"), []byte(state), 0o644)
+}
+
 // ── Existing install detection ────────────────────────────────────────────────
 
 func (a *App) existingInstallFound() bool {
