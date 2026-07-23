@@ -9,6 +9,10 @@ on:
     inputs:
       image:       { type: string, default: 'ghcr.io/tuna-os/yellowfin:gnome' }
       win_version: { type: string, default: '11' }
+      # Windows edition axis (matrix.tsv): the generic key selects the edition
+      # from the ISO; empty keeps run-e2e.sh's defaults (Pro).
+      win_edition: { type: string, default: '' }
+      win_key:     { type: string, default: '' }
       bitlocker:   { type: string, default: 'off' }
       # Force a full Windows install (skip the base-image restore). The restore
       # path (--skip-install on a snapshot) currently fails at the deployer-boot
@@ -100,6 +104,8 @@ jobs:
           # the laptops themselves hit the 45 min default on big images.
           WOOTC_E2E_DEPLOY_TIMEOUT: '5400'   # 90 min
           WOOTC_E2E_WIN_VERSION: ${{ inputs.win_version }}
+          WOOTC_E2E_WIN_EDITION: ${{ inputs.win_edition }}
+          WOOTC_E2E_WIN_KEY: ${{ inputs.win_key }}
           WOOTC_E2E_BITLOCKER: ${{ inputs.bitlocker }}
           # Rung 3: hand the guest a blank 40G second disk as the graduate target.
           # Empty string when phase3=false → dockur adds no second disk.

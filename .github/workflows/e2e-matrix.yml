@@ -1,0 +1,82 @@
+name: E2E matrix (hosted)
+
+# Fan the matrix.tsv cases out across hosted KVM runners — every case is one
+# call of the reusable e2e-hosted.yml job, so the matrix exercises exactly the
+# definition the nightly canary and release gate already prove. Laptop runners
+# stay free for interactive work (the GUI-driven run lives on himachal).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: 'matrix tier (smoke or full)'
+        type: choice
+        options: [smoke, full]
+        default: smoke
+      grep:
+        description: 'only run cases whose name contains this substring'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: plan
+        name: Parse matrix.tsv into a job matrix
+        run: |
+          python3 - "$TIER" "$GREP" <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, sys
+          tier, want = sys.argv[1], sys.argv[2]
+          cases = []
+          for line in open('tests/e2e/matrix.tsv'):
+              line = line.rstrip('\n')
+              if not line or line.startswith('#'):
+                  continue
+              f = line.split('\t')
+              if len(f) < 6:
+                  continue
+              t, name, image, ver, ed, key = f[:6]
+              opts = f[6] if len(f) > 6 else ''
+              if tier != 'full' and t != 'smoke':
+                  continue
+              if want and want not in name:
+                  continue
+              cases.append({
+                  'name': name, 'image': image, 'win_version': ver,
+                  'win_edition': ed, 'win_key': key,
+                  'bitlocker': 'on' if 'bitlocker=on' in opts else 'off',
+                  'phase3': 'phase3=on' in opts,
+              })
+          assert cases, 'no cases matched'
+          print('matrix=' + json.dumps({'include': cases}))
+          print(f'{len(cases)} case(s)', file=sys.stderr)
+          EOF
+        env:
+          TIER: ${{ inputs.tier }}
+          GREP: ${{ inputs.grep }}
+
+  case:
+    needs: plan
+    strategy:
+      fail-fast: false
+      # Be a decent neighbor on the shared runner pool; the matrix is not
+      # latency-sensitive. 26 full-tier cases still clear in ~3 waves.
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: ${{ matrix.name }}
+    uses: ./.github/workflows/e2e-hosted.yml
+    with:
+      image: ${{ matrix.image }}
+      win_version: ${{ matrix.win_version }}
+      win_edition: ${{ matrix.win_edition }}
+      win_key: ${{ matrix.win_key }}
+      bitlocker: ${{ matrix.bitlocker }}
+      phase3: ${{ matrix.phase3 }}
