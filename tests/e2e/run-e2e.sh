@@ -274,6 +274,17 @@ host_preflight() {
     fi
     pass "Host preflight: $((mem_available_kib / 1024)) MiB RAM available, $((disk_available_kib / 1024 / 1024)) GiB disk free, KVM/TUN ready"
 }
+# Reclaim this run's own disposable leftovers BEFORE measuring free disk: a
+# fresh run deletes data.qcow2/custom.iso anyway, but preflight used to run
+# first and count them against the budget — after one failed case a slot
+# could never pass again (run 20260723T1054: every remaining case burned in
+# ~2s on "Only 31 GiB free" while 25 GiB of that was the previous case's own
+# disk). A kept container pins deleted files open; remove it first.
+if [ "$SKIP_INSTALL" = false ]; then
+    podman rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    rm -f "$STORAGE_DIR/data.qcow2" "$STORAGE_DIR/custom.iso"
+fi
+
 host_preflight || exit 1
 # Keep the pristine Windows installer separate from Dockur's mutable working
 # directory.  Dockur can generate derived ISO images while preparing an answer
@@ -967,9 +978,11 @@ if [ "$SKIP_INSTALL" = false ] && [ -n "$SNAPSHOT_IN" ]; then
 fi
 
 if [ "$SKIP_INSTALL" = false ]; then
-    # Clean previous run's disk so autounattend runs fresh
+    # Clean previous run's disk so autounattend runs fresh. $STORAGE_DIR,
+    # not a literal storage/: instanced slots were never cleaning their own
+    # disk here.
     $COMPOSE -f compose.yml down --volumes 2>/dev/null || true
-    rm -rf storage/data.qcow2
+    rm -rf "$STORAGE_DIR/data.qcow2"
     rm -f wootc-files/e2e-setup-complete.txt wootc-files/e2e-setup-failed.txt
 
     # Dockur mutates the downloaded installer ISO in place and its cache key

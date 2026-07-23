@@ -68,3 +68,13 @@ setup() {
     run bash -c "grep -nE 's=\\\$\\(ssh -o' '$MATRIX'"
     [ "$status" -ne 0 ]
 }
+
+@test "fresh runs reclaim their own disposable disk before preflight" {
+    # Preflight used to count the run's own stale data.qcow2 against the
+    # budget — one failed case then poisoned every later case on that slot
+    # (run 20260723T1054: the whole queue burned in 2s intervals).
+    grep -B4 'host_preflight || exit 1' "$E2E" | grep -q 'rm -f "\$STORAGE_DIR/data.qcow2" "\$STORAGE_DIR/custom.iso"'
+    # And the fresh-path clean uses the instance dir, not a literal storage/.
+    run grep -nE '^[^#]*rm -rf storage/data.qcow2' "$E2E"
+    [ "$status" -ne 0 ]
+}
