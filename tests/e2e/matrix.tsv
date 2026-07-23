@@ -28,8 +28,9 @@ smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-
 smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	el10-gnome-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── backend axis — the three deployment flavors × Windows versions ──
-# traditional ostree (yellowfin/bonito), composefs-SEALED ostree (bluefin:lts),
-# composefs-native systemd-boot (dakota). Each must also prove Phase 3.
+# ostree backend (yellowfin/bonito/bluefin — bluefin has a sealed rootfs,
+# still ostree BACKEND), composefs-native (dakota). See docs/backend-contract.md.
+# Each backend must also prove Phase 3.
 full	bluefin-lts-win11pro-phase3	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
 full	el10-gnome-win11pro-phase3	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
 full	bluefin-dakota-win11pro-phase3	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on

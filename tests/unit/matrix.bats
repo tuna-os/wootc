@@ -21,7 +21,8 @@ setup() {
 }
 
 @test "matrix covers all three deployment backends" {
-    # traditional ostree, composefs-SEALED ostree, composefs-native.
+    # ostree backend (incl. sealed-rootfs bluefin), composefs-native (dakota).
+    # Measured contract: docs/backend-contract.md
     grep -v '^#' "$MATRIX" | grep -q 'tuna-os/yellowfin'
     grep -v '^#' "$MATRIX" | grep -q 'projectbluefin/bluefin:lts'
     grep -v '^#' "$MATRIX" | grep -q 'projectbluefin/dakota'
