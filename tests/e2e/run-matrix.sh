@@ -131,25 +131,30 @@ run_case() {
     local log="/tmp/wootc-matrix-$name.log" start now result="TIMEOUT"
     local ctr="wootc-e2e-windows-$inst" stordir="storage-$inst"
     start=$(date +%s)
-    # Cleanup is strictly slot-scoped: the pkill matches this slot's
-    # --instance= flag in the cmdline, never a sibling slot's run.
-    ssh -o ConnectTimeout=8 "$host" "bash -s" <<REMOTE >/dev/null 2>&1 || true
+    # The launch must be VERIFIED, not fired-and-forgotten: a failed launch
+    # ssh (loaded host, transient timeout) used to be swallowed by "|| true",
+    # leaving the PREVIOUS case's log in place — the poll then instantly
+    # "found" the old [FAIL] and the whole queue burned at one verdict per
+    # second (run 20260723T1912). The remote script deletes the log first
+    # (poll treats a missing log as still-starting) and echoes a nonce that
+    # proves the case actually launched; three attempts before giving up.
+    local remote_script launched=false attempt
+    remote_script=$(cat <<REMOTE
 set +e
 cd ~/wootc/tests/e2e
+rm -f "$log"
 pkill -9 -f "run-e2e.sh.*--instance=$inst" 2>/dev/null; sleep 1
 podman rm -f "$ctr" 2>/dev/null
 # dockur's PID-1 supervisor can leave qemu orphaned past podman rm -f; an
 # unwatched 6G VM writing to disk melted the host (load 95, sshd starved,
-# 2026-07-23 ~18:50). Sweep any qemu whose -pidfile lives in this slot's
-# container storage before starting the next case.
-for qpid in $(pgrep -f "qemu-system.*process=windows" 2>/dev/null); do
-    tr "\0" " " < "/proc/$qpid/cmdline" 2>/dev/null | grep -q "process=windows" && \
-        ! podman ps --format "{{.Names}}" 2>/dev/null | grep -q "^wootc-e2e-windows" && \
-        sudo kill -9 "$qpid" 2>/dev/null
+# 2026-07-23 ~18:50). Sweep only when no wootc container exists at all.
+for qpid in \$(pgrep -f "qemu-system.*process=windows" 2>/dev/null); do
+    podman ps --format "{{.Names}}" 2>/dev/null | grep -q "^wootc-e2e-windows" || sudo kill -9 "\$qpid" 2>/dev/null
 done
 rm -f "$stordir/.run-e2e.lock"
 export WOOTC_E2E_WIN_VERSION="$ver" WOOTC_E2E_WIN_EDITION="$ed" WOOTC_E2E_WIN_KEY="$key"
 export WOOTC_E2E_RAM_SIZE="${vm_ram}G"
+export WOOTC_E2E_RAM_CHECK=N
 # Concurrent slots share the disk; the single-run 90 GiB preflight would
 # refuse a healthy second slot. ~35 GiB/case is the measured fresh-run need.
 export WOOTC_E2E_MIN_FREE_GIB="\${WOOTC_E2E_MIN_FREE_GIB:-45}"
@@ -159,7 +164,21 @@ case "$opts" in *bitlocker=on*) export WOOTC_E2E_BITLOCKER=on ;; *) export WOOTC
 EXTRA_ARGS=""
 case "$opts" in *phase3=on*) EXTRA_ARGS="--phase3" ;; esac
 nohup bash run-e2e.sh "$image" --keep --instance=$inst \$EXTRA_ARGS > "$log" 2>&1 &
+echo "LAUNCHED-$name"
 REMOTE
+)
+    for attempt in 1 2 3; do
+        if ssh -o ConnectTimeout=15 "$host" "bash -s" <<< "$remote_script" 2>/dev/null | grep -q "LAUNCHED-$name"; then
+            launched=true; break
+        fi
+        echo "[$host/$inst] launch attempt $attempt failed for $name — retrying"
+        sleep 30
+    done
+    if [ "$launched" = false ]; then
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$host/$inst" "LAUNCH-FAILED" "0" "$image" "$ver-$ed" >> "$RESULTS"
+        echo "[$host/$inst] $name → LAUNCH-FAILED"
+        return 0
+    fi
     while :; do
         now=$(date +%s); [ $((now - start)) -gt "$PER_CASE_TIMEOUT" ] && break
         local s
