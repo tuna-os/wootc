@@ -138,6 +138,15 @@ set +e
 cd ~/wootc/tests/e2e
 pkill -9 -f "run-e2e.sh.*--instance=$inst" 2>/dev/null; sleep 1
 podman rm -f "$ctr" 2>/dev/null
+# dockur's PID-1 supervisor can leave qemu orphaned past podman rm -f; an
+# unwatched 6G VM writing to disk melted the host (load 95, sshd starved,
+# 2026-07-23 ~18:50). Sweep any qemu whose -pidfile lives in this slot's
+# container storage before starting the next case.
+for qpid in $(pgrep -f "qemu-system.*process=windows" 2>/dev/null); do
+    tr "\0" " " < "/proc/$qpid/cmdline" 2>/dev/null | grep -q "process=windows" && \
+        ! podman ps --format "{{.Names}}" 2>/dev/null | grep -q "^wootc-e2e-windows" && \
+        sudo kill -9 "$qpid" 2>/dev/null
+done
 rm -f "$stordir/.run-e2e.lock"
 export WOOTC_E2E_WIN_VERSION="$ver" WOOTC_E2E_WIN_EDITION="$ed" WOOTC_E2E_WIN_KEY="$key"
 export WOOTC_E2E_RAM_SIZE="${vm_ram}G"
@@ -184,8 +193,13 @@ slot_worker() {
     local name image ver ed key opts
     while IFS=$'\t' read -r name image ver ed key opts; do
         [ -n "$name" ] || continue
-        run_case "$host" "$inst" "$vm_ram" "$name" "$image" "$ver" "$ed" "$key" "$opts"
+        # set -e must never kill the worker mid-queue: a failing case is a
+        # RESULT, not a reason to abandon the remaining cases (a silent
+        # worker death after case 3 ended run 20260723T1144's whole queue).
+        run_case "$host" "$inst" "$vm_ram" "$name" "$image" "$ver" "$ed" "$key" "$opts" \
+            || echo "[worker $host/$inst] run_case rc=$? for $name — continuing"
     done <<< "$queue"
+    echo "[worker $host/$inst] queue complete"
 }
 
 pids=()
