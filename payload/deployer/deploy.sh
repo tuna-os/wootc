@@ -1288,11 +1288,13 @@ QGAEOF
             log "  Timezone set to $SLURP_TZ (from Windows)"
         fi
     fi
-    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants"
+    mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants" \
+             "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
     ln -sf ../wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-host-bind.service"
+    # passthrough needs /var mounted — multi-user, not local-fs (unit comment).
     ln -sf ../wootc-passthrough.service \
-        "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants/wootc-passthrough.service"
+        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-passthrough.service"
 
     if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-host-bind.service" ]]; then
         log "  [PASS] wootc-host-bind.service installed"
