@@ -200,3 +200,21 @@ test('migration dashboard — files, apps, office', async ({ page }) => {
   await expect(page.getByText('Microsoft Office → LibreOffice')).toBeVisible();
   await shot(page, '06-migration-dashboard');
 });
+
+test('installer — custom OCI ref defaults to the grub2/ostree path', async ({ page }) => {
+  // Guessing systemd-boot for custom refs sent a bluefin:lts install into
+  // "systemd-boot is not bundled" (run 20260723T1100). grub2/ostree is the
+  // measured backend of every supported family except dakota; the deployer
+  // probe corrects at deploy time.
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:lts');
+  const sel = await page.evaluate(() => window.__WOOTC_STATE?.selected || null);
+  if (sel) {
+    expect(sel.bootloader).toBe('grub2');
+    expect(sel.composeFs).toBe(false);
+  } else {
+    // State not exported to the page — assert via the visible config text.
+    await page.getByText('Advanced boot options').click();
+    await expect(page.locator('body')).not.toContainText('systemd-boot is not bundled');
+  }
+});

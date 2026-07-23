@@ -293,7 +293,13 @@ function renderLaunchpad() {
   const customRef = inputField('Custom supported OCI image', 'text', state.config.customImageRef || '', v => {
     state.config.customImageRef = v.trim();
     if (/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\/[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$/.test(state.config.customImageRef)) {
-      state.selected = { id: 'custom', name: 'Custom image', imageRef: state.config.customImageRef, bootloader: 'systemd-boot', composeFs: true };
+      // Default a custom ref to the grub2/ostree path — the measured backend
+      // of every supported family except dakota (docs/backend-contract.md),
+      // and the only path that needs no bundled systemd-boot EFI. Guessing
+      // systemd-boot here sent a bluefin:lts install into "systemd-boot is
+      // not bundled" (run 20260723T1100); the deployer's own probe corrects
+      // the backend at deploy time either way.
+      state.selected = { id: 'custom', name: 'Custom image', imageRef: state.config.customImageRef, bootloader: 'grub2', composeFs: false };
       applyImageDefaults(state.selected);
       render();
     }
