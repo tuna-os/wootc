@@ -23,7 +23,7 @@ esac
 
 home=$(getent passwd "$name" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
-src="/host/Users/$name/$folder"
+src="/run/wootc/host/Users/$name/$folder"
 dst="$home/$folder"
 staging="$home/.wootc-convert-$folder.partial"
 

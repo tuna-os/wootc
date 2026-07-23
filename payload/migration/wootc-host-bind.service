@@ -1,19 +1,20 @@
 [Unit]
-Description=Bind wootc host mount to /host
+Description=Bind wootc host mount to /run/wootc/host
 DefaultDependencies=no
 Before=local-fs.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# /host does not exist in shipped images, and on composefs images it is only
-# creatable because the root is TRANSIENT (writable-but-ephemeral) — so make
-# the mountpoint every boot ("-" tolerates it already existing). Without
-# this the bind failed on bluefin:lts and the whole User Data Bridge sat
-# ABSENT while the initramfs NTFS mount itself was healthy.
-ExecStartPre=-/usr/bin/mkdir -p /host
-ExecStart=/usr/bin/mount --bind /run/initramfs/wootc-host /host
-ExecStop=/usr/bin/umount /host
+# The canonical host mount lives under /run because it is the only location
+# writable on EVERY layout: on composefs-sealed images (bluefin:lts) / is
+# READ-ONLY at runtime, so a /host mountpoint can neither ship in the image
+# nor be created at boot — mount exited 32 ("mount point does not exist")
+# while the NTFS source itself was healthy (run 20260723T0320, unit status
+# captured live). /run is tmpfs everywhere; create the dir each boot.
+ExecStartPre=/usr/bin/mkdir -p /run/wootc/host
+ExecStart=/usr/bin/mount --bind /run/initramfs/wootc-host /run/wootc/host
+ExecStop=/usr/bin/umount /run/wootc/host
 
 [Install]
 WantedBy=local-fs.target

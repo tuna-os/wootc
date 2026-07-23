@@ -27,10 +27,10 @@ log() { printf '[wootc-office-bridge] %s\n' "$*"; }
 name="${1:?usage: wootc-office-bridge <username> [linuxuser]}"
 target="${2:-$name}"
 
-mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
+mountpoint -q /run/wootc/host || { log "ERROR: /run/wootc/host not mounted"; exit 1; }
 home=$(getent passwd "$target" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
-W="/host/Users/$name"
+W="/run/wootc/host/Users/$name"
 [[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
 
 did=()

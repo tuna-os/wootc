@@ -15,7 +15,7 @@ setup() {
 }
 
 @test "the arm script vaults a Linux user matching the Windows profile name" {
-    # The User Data Bridge binds /host/Users/<name> into the home of the
+    # The User Data Bridge binds /run/wootc/host/Users/<name> into the home of the
     # MATCHING Linux account; without the vault no user exists and the whole
     # chain is untestable.
     grep -q '"username": "wootc"' "$PS1"

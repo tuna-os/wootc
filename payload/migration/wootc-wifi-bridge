@@ -14,13 +14,13 @@
 #   Detect only : enterprise 802.1X/EAP, captive portals, cert-based — reported
 #                 for the dashboard, never copied (secrets + identity material).
 #
-# Env: WOOTC_WIFI_SRC (export dir, default /host/wootc/install/wifi),
+# Env: WOOTC_WIFI_SRC (export dir, default /run/wootc/host/wootc/install/wifi),
 #      WOOTC_WIFI_DST (NM dir, default /etc/NetworkManager/system-connections).
 
 set -Eeuo pipefail
 log() { printf '[wootc-wifi-bridge] %s\n' "$*"; }
 
-SRC="${1:-${WOOTC_WIFI_SRC:-/host/wootc/install/wifi}}"
+SRC="${1:-${WOOTC_WIFI_SRC:-/run/wootc/host/wootc/install/wifi}}"
 DST="${WOOTC_WIFI_DST:-/etc/NetworkManager/system-connections}"
 STATE_DIR="${WOOTC_WIFI_STATE:-/var/lib/wootc}"
 

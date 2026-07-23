@@ -9,7 +9,7 @@
 # copied: SSH/GPG private keys and credential stores stay behind; only public
 # keys and non-secret config move (consent tier: "never migrate silently").
 #
-#   Reads WSL data from the mounted Windows profile at /host/Users/<winuser>:
+#   Reads WSL data from the mounted Windows profile at /run/wootc/host/Users/<winuser>:
 #     WSL1: …/AppData/Local/{lxss,Packages/*/LocalState}/rootfs/   (plain files)
 #     WSL2: …/AppData/Local/{Packages/*/LocalState,wsl/*}/ext4.vhdx (mounted)
 #   Writes: <linuxhome>/.config/wootc/Brewfile, dotfiles into <linuxhome>,
@@ -48,7 +48,7 @@ trap cleanup EXIT
 
 find_rootfs() {
     if [[ -n "${WOOTC_WSL_ROOTFS:-}" ]]; then ROOTFS="$WOOTC_WSL_ROOTFS"; return 0; fi
-    local W="/host/Users/$name/AppData/Local"
+    local W="/run/wootc/host/Users/$name/AppData/Local"
     [[ -d "$W" ]] || return 1
     # WSL1: plain rootfs directory — read directly, no mount.
     local d

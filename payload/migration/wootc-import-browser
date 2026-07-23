@@ -1,7 +1,7 @@
 #!/bin/bash
 # /usr/local/bin/wootc-import-browser <username>
 # User Data Bridge, browser category (SPEC §4.1): copy browser data from
-# the Windows profile at /host/Users/<username>/ into the matching Linux
+# the Windows profile at /run/wootc/host/Users/<username>/ into the matching Linux
 # browser for the same user. Invoked on demand by the migration dashboard
 # (not automatically — importing is a stage-3 user choice, SPEC §4.2).
 #
@@ -23,10 +23,10 @@ log() { printf '[wootc-import-browser] %s\n' "$*"; }
 name="${1:?usage: wootc-import-browser <username> [linuxuser]}"
 target="${2:-$name}"
 
-mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
+mountpoint -q /run/wootc/host || { log "ERROR: /run/wootc/host not mounted"; exit 1; }
 home=$(getent passwd "$target" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
-winprofile="/host/Users/$name"
+winprofile="/run/wootc/host/Users/$name"
 [[ -d "$winprofile" ]] || { log "no Windows profile for $name"; exit 0; }
 
 # Respect the migration chooser: skip browsers if the user turned them off.

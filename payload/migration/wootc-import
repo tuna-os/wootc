@@ -10,7 +10,7 @@
 # It reuses the same migration bridge as the installer (wootc-detect-apps,
 # wootc-import-browser, wootc-steam-bridge, wootc-mount-user-dirs,
 # wootc-office-bridge, wootc-apply-look) by bind-mounting the chosen Windows
-# volume at /host and pointing the bridge at a profile inside it.
+# volume at /run/wootc/host and pointing the bridge at a profile inside it.
 #
 # This is the engine. The friendly GTK front-end (wootc-import-gui) shells to
 # these subcommands via pkexec; every subcommand is scriptable and testable.
@@ -182,7 +182,7 @@ PYEOF
 }
 
 # ── import ──────────────────────────────────────────────────────────────────
-# Bind the chosen Windows volume at /host and run the migration bridge for one
+# Bind the chosen Windows volume at /run/wootc/host and run the migration bridge for one
 # Windows profile into a target Linux user's home. Categories default to all.
 #   import <mnt> <winuser> [--target <linuxuser>] [files|apps|browsers|steam|office|look]
 cmd_import() {
@@ -203,12 +203,12 @@ cmd_import() {
     [[ -d "$mnt/Users/$winuser" ]] || die "no Windows profile $winuser under $mnt"
     [[ ${#cats[@]} -gt 0 ]] || cats=(files apps browsers steam office look wsl)
 
-    # Bind the external volume to /host so the existing bridge scripts (which
-    # expect /host) work unchanged. Undone on eject.
-    mkdir -p /host
-    if ! mountpoint -q /host; then
-        mount --bind "$mnt" /host
-        log "bound $mnt -> /host"
+    # Bind the external volume to /run/wootc/host so the existing bridge scripts (which
+    # expect /run/wootc/host) work unchanged. Undone on eject.
+    mkdir -p /run/wootc/host
+    if ! mountpoint -q /run/wootc/host; then
+        mount --bind "$mnt" /run/wootc/host
+        log "bound $mnt -> /run/wootc/host"
     fi
 
     local ran=()
@@ -230,11 +230,11 @@ cmd_import() {
 }
 
 # _import_files <winuser> <linuxuser> — copy the standard profile media folders
-# from the mounted Windows profile (via /host) into the Linux user's home.
+# from the mounted Windows profile (via /run/wootc/host) into the Linux user's home.
 # Read-only source; merges into existing folders without clobbering newer files.
 _import_files() {
     local winuser="$1" target="$2"
-    local src="/host/Users/$winuser" home
+    local src="/run/wootc/host/Users/$winuser" home
     home=$(getent passwd "$target" | cut -d: -f6)
     [[ -d "$src" && -d "$home" ]] || { log "files: missing profile or home"; return 1; }
     local copied=0 f
@@ -267,11 +267,11 @@ _run() {
 }
 
 # ── eject ───────────────────────────────────────────────────────────────────
-# Unbind /host, unmount the volume, and close any BitLocker mapper.
+# Unbind /run/wootc/host, unmount the volume, and close any BitLocker mapper.
 cmd_eject() {
     need_root eject
     local mnt="${1:-$MNT_BASE/mnt}"
-    mountpoint -q /host && umount /host 2>/dev/null || true
+    mountpoint -q /run/wootc/host && umount /run/wootc/host 2>/dev/null || true
     if mountpoint -q "$mnt"; then
         local src; src=$(findmnt -no SOURCE "$mnt" 2>/dev/null || true)
         umount "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null || true

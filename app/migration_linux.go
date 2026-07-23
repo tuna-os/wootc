@@ -18,12 +18,12 @@ import (
 
 // Linux side of the migration dashboard: the app runs inside the
 // installed system where wootc-passthrough.service has bridged the
-// Windows volume at /host.
+// Windows volume at /run/wootc/host.
 
 var bridgeFolders = []string{"Documents", "Pictures", "Downloads", "Music", "Videos", "Desktop"}
 
 func detectMode() string {
-	if isMounted("/host") {
+	if isMounted("/run/wootc/host") {
 		return "migration"
 	}
 	return "installer" // `wails dev` on a workstation
@@ -46,7 +46,7 @@ func migrationCategories() ([]BridgeCategory, error) {
 	if err != nil {
 		return nil, err
 	}
-	winProfile := filepath.Join("/host/Users", u.Username)
+	winProfile := filepath.Join("/run/wootc/host/Users", u.Username)
 	stateDir := filepath.Join(u.HomeDir, ".config", "wootc")
 
 	var cats []BridgeCategory

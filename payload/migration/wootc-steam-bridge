@@ -10,34 +10,34 @@
 # also register the Windows library path in its libraryfolders.vdf
 # (both native and Flatpak locations are handled).
 #
-# Runs from wootc-passthrough.service after /host is mounted; safe to run
+# Runs from wootc-passthrough.service after /run/wootc/host is mounted; safe to run
 # repeatedly (idempotent).
 
 set -Eeuo pipefail
 
 log() { printf '[wootc-steam-bridge] %s\n' "$*"; }
 
-mountpoint -q /host || { log "skipped: /host not mounted"; exit 0; }
+mountpoint -q /run/wootc/host || { log "skipped: /run/wootc/host not mounted"; exit 0; }
 
 # Windows Steam default library plus any extra libraries registered in
 # the Windows-side libraryfolders.vdf.
-WIN_STEAM="/host/Program Files (x86)/Steam"
+WIN_STEAM="/run/wootc/host/Program Files (x86)/Steam"
 declare -a LIBS=()
 if [[ -d "$WIN_STEAM/steamapps" ]]; then
     LIBS+=("$WIN_STEAM/steamapps")
 fi
 if [[ -f "$WIN_STEAM/steamapps/libraryfolders.vdf" ]]; then
     # Extract "path" entries like  "path"  "D:\\SteamLibrary"  and map the
-    # drive-lettered path onto /host when it lives on the system drive.
+    # drive-lettered path onto /run/wootc/host when it lives on the system drive.
     while IFS= read -r winpath; do
         rel="${winpath//\\\\/\/}"       # unescape VDF backslashes
         rel="${rel//\\//}"              # any remaining single backslashes
         drive="${rel%%:*}"
         sub="${rel#*:}"
-        # Only the Windows system volume is mounted at /host; other drives
+        # Only the Windows system volume is mounted at /run/wootc/host; other drives
         # are recorded as unreachable so the dashboard can explain why.
-        if [[ "${drive^^}" == "C" && -d "/host${sub}/steamapps" ]]; then
-            LIBS+=("/host${sub}/steamapps")
+        if [[ "${drive^^}" == "C" && -d "/run/wootc/host${sub}/steamapps" ]]; then
+            LIBS+=("/run/wootc/host${sub}/steamapps")
         fi
     done < <(grep -oP '"path"\s+"\K[^"]+' "$WIN_STEAM/steamapps/libraryfolders.vdf" 2>/dev/null || true)
 fi

@@ -3,11 +3,11 @@
 # Bind-mounts Windows user-profile folders (Documents, Pictures, Downloads,
 # Music, Videos, Desktop) into the matching Linux user's home directory.
 # Runs as wootc-passthrough.service, after wootc-host-bind.service has
-# bound the Windows NTFS partition at /host.
+# bound the Windows NTFS partition at /run/wootc/host.
 #
 # Matching is by exact username: the Linux account fisherman created from
 # vault.json is expected to share its name with the Windows profile under
-# /host/Users/<name>/. A user with no matching Windows profile is skipped
+# /run/wootc/host/Users/<name>/. A user with no matching Windows profile is skipped
 # (not an error — native installs with no prior Windows account are normal).
 
 set -Eeuo pipefail
@@ -16,8 +16,8 @@ log() { printf '[wootc-passthrough] %s\n' "$*"; }
 
 FOLDERS=(Documents Pictures Downloads Music Videos Desktop)
 
-if ! mountpoint -q /host; then
-    log "ERROR: /host is not mounted (wootc-host-bind.service did not run first)"
+if ! mountpoint -q /run/wootc/host; then
+    log "ERROR: /run/wootc/host is not mounted (wootc-host-bind.service did not run first)"
     exit 1
 fi
 
@@ -33,7 +33,7 @@ sel_on() {
 }
 
 shopt -s nullglob
-for winprofile in /host/Users/*/; do
+for winprofile in /run/wootc/host/Users/*/; do
     name=$(basename "$winprofile")
     case "$name" in
         Public|Default|"Default User"|"All Users") continue ;;

@@ -25,17 +25,17 @@ dnf install -y -q rsync python3 util-linux >/dev/null 2>&1 || true
 install -m755 /scripts/wootc-* /usr/local/bin/ 2>/dev/null || \
     { cp /scripts/wootc-* /usr/local/bin/ && chmod +x /usr/local/bin/wootc-*; }
 
-# ── Fixtures: fake Windows volume at /host + Linux user ────────────────────
+# ── Fixtures: fake Windows volume at /run/wootc/host + Linux user ────────────────────
 useradd -m -u 1000 alice
 H=/home/alice
-mkdir -p /host/Users/alice/{Documents,Pictures,Downloads,Music,Videos,Desktop}
-echo "tax-return" > /host/Users/alice/Documents/taxes.txt
-echo "cat"        > /host/Users/alice/Pictures/cat.jpg
-mkdir -p /host/Users/Public/Documents   # must be ignored
+mkdir -p /run/wootc/host/Users/alice/{Documents,Pictures,Downloads,Music,Videos,Desktop}
+echo "tax-return" > /run/wootc/host/Users/alice/Documents/taxes.txt
+echo "cat"        > /run/wootc/host/Users/alice/Pictures/cat.jpg
+mkdir -p /run/wootc/host/Users/Public/Documents   # must be ignored
 
 # Steam: default library + extra library on C:
-mkdir -p "/host/Program Files (x86)/Steam/steamapps/common/HL3"
-cat > "/host/Program Files (x86)/Steam/steamapps/libraryfolders.vdf" <<'VDF'
+mkdir -p "/run/wootc/host/Program Files (x86)/Steam/steamapps/common/HL3"
+cat > "/run/wootc/host/Program Files (x86)/Steam/steamapps/libraryfolders.vdf" <<'VDF'
 "libraryfolders"
 {
 	"0"
@@ -48,31 +48,31 @@ cat > "/host/Program Files (x86)/Steam/steamapps/libraryfolders.vdf" <<'VDF'
 	}
 }
 VDF
-mkdir -p "/host/Games/SteamLibrary/steamapps/common/Portal9"
+mkdir -p "/run/wootc/host/Games/SteamLibrary/steamapps/common/Portal9"
 # Linux Steam already initialized (native path):
 mkdir -p "$H/.local/share/Steam/steamapps"
 printf '"libraryfolders"\n{\n}\n' > "$H/.local/share/Steam/steamapps/libraryfolders.vdf"
 
 # Browsers: Firefox profile + Chrome bookmarks
-FFW=/host/Users/alice/AppData/Roaming/Mozilla/Firefox
+FFW=/run/wootc/host/Users/alice/AppData/Roaming/Mozilla/Firefox
 mkdir -p "$FFW/Profiles/abc.default-release"
 printf '[Install0]\nDefault=Profiles/abc.default-release\n[Profile0]\nName=default\nIsRelative=1\nPath=Profiles/abc.default-release\n' > "$FFW/profiles.ini"
 echo "places-db" > "$FFW/Profiles/abc.default-release/places.sqlite"
 echo "logins"    > "$FFW/Profiles/abc.default-release/logins.json"
 mkdir -p "$H/.mozilla/firefox"
-CHW="/host/Users/alice/AppData/Local/Google/Chrome/User Data/Default"
+CHW="/run/wootc/host/Users/alice/AppData/Local/Google/Chrome/User Data/Default"
 mkdir -p "$CHW"
 echo '{"roots":{}}' > "$CHW/Bookmarks"
 mkdir -p "$H/.config/google-chrome/Default"
 
-# Mock mountpoint /host as a real mountpoint for the script's guard.
-mount --bind /host /host
+# Mock mountpoint /run/wootc/host as a real mountpoint for the script's guard.
+mount --bind /run/wootc/host /run/wootc/host
 
 # ── 1. Passthrough binds ────────────────────────────────────────────────────
 bash /scripts/wootc-mount-user-dirs >/dev/null 2>&1 || true
 check 'mountpoint -q /home/alice/Documents' "Documents bind-mounted into \$HOME"
 check '[ "$(cat /home/alice/Documents/taxes.txt)" = tax-return ]' "bridged file readable with correct content"
-check 'echo linux-note > /home/alice/Documents/from-linux.txt && [ -f /host/Users/alice/Documents/from-linux.txt ]' "write through bridge lands on Windows side"
+check 'echo linux-note > /home/alice/Documents/from-linux.txt && [ -f /run/wootc/host/Users/alice/Documents/from-linux.txt ]' "write through bridge lands on Windows side"
 check '! mountpoint -q /home/Public 2>/dev/null' "Public profile ignored"
 
 # ── 2. Steam bridge ─────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ check '[ -f /home/alice/.config/wootc/bridge-browser.json ]' "browser import sta
 bash /scripts/wootc-convert-dir alice Documents >/dev/null 2>&1 || true
 check '! mountpoint -q /home/alice/Documents' "Documents no longer a bind after conversion"
 check '[ "$(cat /home/alice/Documents/taxes.txt)" = tax-return ]' "converted copy has the data"
-check '[ -f /host/Users/alice/Documents/taxes.txt ]' "Windows original untouched (reversibility)"
+check '[ -f /run/wootc/host/Users/alice/Documents/taxes.txt ]' "Windows original untouched (reversibility)"
 check '[ -e /home/alice/.config/wootc/converted-Documents ]' "conversion marker written"
 # Re-running the passthrough must respect the marker:
 bash /scripts/wootc-mount-user-dirs >/dev/null 2>&1 || true
@@ -117,12 +117,12 @@ check '[ -f /tmp/mark-g ] && grep -q "applied=gnome" /tmp/mark-g' "once-only mar
 
 # ── 5b. MS Office → LibreOffice bridge ──────────────────────────────────────
 dnf install -y -q fontconfig >/dev/null 2>&1 || true
-mkdir -p "/host/Users/alice/AppData/Roaming/Microsoft/UProof"
-printf 'Kubernetes\r\nwootc\r\n' > "/host/Users/alice/AppData/Roaming/Microsoft/UProof/CUSTOM.DIC"
-mkdir -p "/host/Users/alice/AppData/Roaming/Microsoft/Templates"
-echo fake-template > "/host/Users/alice/AppData/Roaming/Microsoft/Templates/Report.dotx"
-mkdir -p "/host/Users/alice/AppData/Local/Microsoft/Windows/Fonts"
-echo fake-font > "/host/Users/alice/AppData/Local/Microsoft/Windows/Fonts/Calibri.ttf"
+mkdir -p "/run/wootc/host/Users/alice/AppData/Roaming/Microsoft/UProof"
+printf 'Kubernetes\r\nwootc\r\n' > "/run/wootc/host/Users/alice/AppData/Roaming/Microsoft/UProof/CUSTOM.DIC"
+mkdir -p "/run/wootc/host/Users/alice/AppData/Roaming/Microsoft/Templates"
+echo fake-template > "/run/wootc/host/Users/alice/AppData/Roaming/Microsoft/Templates/Report.dotx"
+mkdir -p "/run/wootc/host/Users/alice/AppData/Local/Microsoft/Windows/Fonts"
+echo fake-font > "/run/wootc/host/Users/alice/AppData/Local/Microsoft/Windows/Fonts/Calibri.ttf"
 bash /scripts/wootc-office-bridge alice >/dev/null 2>&1 || true
 LOU=/home/alice/.config/libreoffice/4/user
 check "grep -q Kubernetes $LOU/wordbook/standard.dic" "Office: custom dictionary word migrated to LibreOffice"
@@ -217,16 +217,16 @@ check 'echo "$GUI" | grep -q "self-test OK"' "go-native GUI: engine self-test pa
 check 'echo "$GUI" | grep -q "canGraduate=True"' "go-native GUI: surfaces canGraduate on loopback"
 
 # ── 9. Migration manifest (discover → default-on catalog) ───────────────────
-# /host already has Users/alice/{Documents,Pictures} + Steam libs from step 1-2.
-MANI=$(WOOTC_HOST=/host python3 /scripts/wootc-manifest scan alice 2>&1)
+# /run/wootc/host already has Users/alice/{Documents,Pictures} + Steam libs from step 1-2.
+MANI=$(WOOTC_HOST=/run/wootc/host python3 /scripts/wootc-manifest scan alice 2>&1)
 check 'echo "$MANI" | python3 -c "import sys,json; d=json.load(sys.stdin); c={x[\"id\"]:x for x in d[\"users\"][0][\"categories\"]}; sys.exit(0 if c[\"files\"][\"present\"] and c[\"files\"][\"defaultOn\"] else 1)"' "manifest: files discovered + default-on"
 check 'echo "$MANI" | python3 -c "import sys,json; d=json.load(sys.stdin); c={x[\"id\"]:x for x in d[\"users\"][0][\"categories\"]}; sys.exit(0 if c[\"games\"][\"present\"] else 1)"' "manifest: Steam games discovered"
-MGUI=$(WOOTC_MANIFEST_BIN=/scripts/wootc-manifest WOOTC_HOST=/host \
+MGUI=$(WOOTC_MANIFEST_BIN=/scripts/wootc-manifest WOOTC_HOST=/run/wootc/host \
        python3 /scripts/wootc-manifest-gui --self-test 2>&1)
 check 'echo "$MGUI" | grep -q "self-test OK"' "manifest GUI: engine self-test passes (default-on selection)"
 
 # ── 10. Account setup (identity pre-fill; the password is never persisted) ──
-UGUI=$(WOOTC_IDENTITY_BIN=/scripts/wootc-identity WOOTC_HOST=/host \
+UGUI=$(WOOTC_IDENTITY_BIN=/scripts/wootc-identity WOOTC_HOST=/run/wootc/host \
        python3 /scripts/wootc-user-gui --self-test 2>&1)
 check 'echo "$UGUI" | grep -q "self-test OK"' "user GUI: prefill + validation + secret handling"
 # End-to-end in a real container: the saved record must not contain the secret.

@@ -19,7 +19,7 @@
 #   wootc-identity apply <winuser> <linuxuser>  → copy the account picture +
 #                                                 full name onto the Linux user
 #
-# Env: WOOTC_HOST (mounted Windows volume, default /host). The registry-derived
+# Env: WOOTC_HOST (mounted Windows volume, default /run/wootc/host). The registry-derived
 # fields come from a slurp.json the Windows installer writes; WOOTC_SLURP
 # overrides its location for tests. WOOTC_HOME / WOOTC_AS_DIR override the Linux
 # home and the AccountsService dir so `apply` runs against fixtures.
@@ -29,7 +29,7 @@ import shutil
 import subprocess
 import sys
 
-HOST = os.environ.get("WOOTC_HOST", "/host")
+HOST = os.environ.get("WOOTC_HOST", "/run/wootc/host")
 
 
 def _users():

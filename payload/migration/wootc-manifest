@@ -10,13 +10,13 @@
 #   wootc-manifest scan [winuser]     → catalog JSON for that Windows user
 #   wootc-manifest scan --all         → catalog for every Windows profile found
 #
-# Env: WOOTC_HOST (mounted Windows volume, default /host) — set in tests to a
+# Env: WOOTC_HOST (mounted Windows volume, default /run/wootc/host) — set in tests to a
 # fixture tree so the whole scanner runs with no real Windows install.
 import json
 import os
 import sys
 
-HOST = os.environ.get("WOOTC_HOST", "/host")
+HOST = os.environ.get("WOOTC_HOST", "/run/wootc/host")
 
 
 def _exists(*parts):

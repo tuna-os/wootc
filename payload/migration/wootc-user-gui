@@ -188,7 +188,7 @@ def self_test():
 
     # prefill maps identity → form and never carries a password through
     ident = {"winUser": "Jim", "username": "jim", "fullName": "Jim Reilly",
-             "email": "jim@example.com", "avatar": "/host/pic.png",
+             "email": "jim@example.com", "avatar": "/run/wootc/host/pic.png",
              "password": {"migratable": False, "note": "Set a new password."}}
     pre = AccountEngine.prefill(ident)
     assert pre["username"] == "jim" and pre["fullName"] == "Jim Reilly"

@@ -1853,7 +1853,7 @@ step "Verifying passthrough and migration setup..."
 
 # Collect additional boot output for passthrough verification.
 # The installed system should show:
-#   - Host NTFS bind-mount (/host or wootc-host-bind)
+#   - Host NTFS bind-mount (/run/wootc/host or wootc-host-bind)
 #   - Loop device setup (losetup root.disk)
 #   - No mount failures or kernel panics
 info "Collecting boot-time passthrough markers from serial console..."
@@ -1917,7 +1917,7 @@ fi
 # through the User Data Bridge, with this run's RUN_ID as content. A live QGA
 # read of the canonical path — not a serial-marker proxy — so it fails when
 # the thing it asserts is absent. Diagnostics distinguish the failure layer:
-# /host missing (host-bind), profile missing (bind source), HOME bind missing
+# /run/wootc/host missing (host-bind), profile missing (bind source), HOME bind missing
 # (mount-user-dirs / user creation).
 step "Verifying seeded user data is visible in Phase 2 \$HOME..."
 USERDATA_HOME=$(qga_call exec /bin/sh -c \
@@ -1926,9 +1926,9 @@ if printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
     pass "User data: Windows Documents file readable in /home/wootc with this run's ID"
 else
     USERDATA_DIAG=$(qga_call exec /bin/sh -c \
-        'echo "host-bind: $(mountpoint -q /host && echo mounted || echo ABSENT)"; \
-         echo "profile:   $(ls -d /host/Users/wootc 2>/dev/null || echo ABSENT)"; \
-         echo "seed@host: $(cat /host/Users/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null || echo ABSENT)"; \
+        'echo "host-bind: $(mountpoint -q /run/wootc/host && echo mounted || echo ABSENT)"; \
+         echo "profile:   $(ls -d /run/wootc/host/Users/wootc 2>/dev/null || echo ABSENT)"; \
+         echo "seed@host: $(cat /run/wootc/host/Users/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null || echo ABSENT)"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
          echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
          echo "unit:      enabled=$(systemctl is-enabled wootc-host-bind 2>&1) active=$(systemctl is-active wootc-host-bind 2>&1)"; \
@@ -1984,7 +1984,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     pass "Phase 3 native system booted from the graduated install (non-loopback)"
     # The point of it all: the file seeded in Windows before the deployer ever
     # ran must now live on the NATIVE disk — no NTFS, no loopback, no bind in
-    # the chain (the natively-booted system has no /host at all). Content must
+    # the chain (the natively-booted system has no /run/wootc/host at all). Content must
     # carry this run's RUN_ID so a leftover from a previous run cannot pass.
     step "Verifying seeded user data persisted onto the native disk..."
     P3_USERDATA=$(qga_call exec /bin/sh -c \

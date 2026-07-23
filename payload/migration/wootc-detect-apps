@@ -24,10 +24,10 @@ log() { printf '[wootc-detect-apps] %s\n' "$*"; }
 name="${1:?usage: wootc-detect-apps <username> [linuxuser]}"
 target="${2:-$name}"
 
-mountpoint -q /host || { log "ERROR: /host not mounted"; exit 1; }
+mountpoint -q /run/wootc/host || { log "ERROR: /run/wootc/host not mounted"; exit 1; }
 home=$(getent passwd "$target" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
-W="/host/Users/$name"
+W="/run/wootc/host/Users/$name"
 [[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
 
 entries=()
@@ -89,7 +89,7 @@ fi
 
 # Steam — handled by wootc-steam-bridge (games in place); note here for
 # the dashboard's app list completeness.
-[[ -d "/host/Program Files (x86)/Steam" ]] && \
+[[ -d "/run/wootc/host/Program Files (x86)/Steam" ]] && \
     add steam com.valvesoftware.Steam signin false \
         "Your game files are already bridged — sign in once and they are playable without re-download."
 

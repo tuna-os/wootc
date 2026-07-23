@@ -325,3 +325,16 @@ teardown() {
     [ -n "$pull_line" ] && [ -n "$fisherman_line" ]
     [ "$pull_line" -lt "$fisherman_line" ]
 }
+
+@test "Phase-3 post-install /etc writes target the deployment etc, not sysroot etc" {
+    # On an ostree target $mnt/etc is the SYSROOT etc, which the booted
+    # deployment never reads — native-target, qemu-ga configs, and the QGA
+    # wants link all silently vanished there (run 20260723T0320: native boot
+    # healthy, guest-exec still blacklisted, harness called it dead).
+    grep -Fq 'etcroot="$mnt/etc"' "$GN"
+    grep -Fq '[[ -n "$dep" ]] && etcroot="$dep/etc"' "$GN"
+    grep -Fq 'printf '"'"'%s\n'"'"' "$target" > "$etcroot/wootc/native-target"' "$GN"
+    # No stragglers writing to the sysroot etc.
+    run grep -nE '^[^#]*"\$mnt/etc/' "$GN"
+    [ "$status" -ne 0 ]
+}

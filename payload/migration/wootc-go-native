@@ -301,23 +301,32 @@ EOF
     # E2E-only dispatcher also enables QGA in the native target so the harness
     # can prove it reached this disk, rather than accepting partition creation
     # as a proxy for a successful boot.
-    mkdir -p "$mnt/etc/wootc"
-    cp -a /etc/wootc/. "$mnt/etc/wootc/" 2>/dev/null || true
-    printf '%s\n' "$target" > "$mnt/etc/wootc/native-target"
+    #
+    # etcroot, NOT $mnt/etc: on an ostree target $mnt/etc is the SYSROOT etc,
+    # which the booted deployment never reads — every write there (native-
+    # target, qemu-ga configs, the QGA wants link) silently vanished. The
+    # native system booted with guest-exec still blacklisted and the harness
+    # called a healthy boot dead (run 20260723T0320, native QGA v10.1.0
+    # answering with "guest-exec": enabled=false). The deployment's own etc
+    # lives inside $dep.
+    local etcroot="$mnt/etc"
+    [[ -n "$dep" ]] && etcroot="$dep/etc"
+    mkdir -p "$etcroot/wootc"
+    cp -a /etc/wootc/. "$etcroot/wootc/" 2>/dev/null || true
+    printf '%s\n' "$target" > "$etcroot/wootc/native-target"
     if [[ -x /var/usrlocal/libexec/wootc-e2e-phase3-dispatch ]]; then
-        mkdir -p "$mnt/etc/systemd/system/multi-user.target.wants"
+        mkdir -p "$etcroot/systemd/system/multi-user.target.wants"
         ln -sf /usr/lib/systemd/system/qemu-guest-agent.service \
-            "$mnt/etc/systemd/system/multi-user.target.wants/qemu-guest-agent.service"
+            "$etcroot/systemd/system/multi-user.target.wants/qemu-guest-agent.service"
         # A fresh bootc install ships the package-default RPC blacklist
         # (FILTER_RPC_ARGS), which blocks guest-exec — the native system then
         # boots fine but the harness's QGA probe times out and the run reports
-        # "did not boot Linux" (run 20260723T0253: GRUB→Bluefin LTS booted,
-        # QGA dead). Mirror the same unfiltered config the deployer writes
-        # into Phase 2 (this branch is E2E-only, gated on the dispatcher).
-        mkdir -p "$mnt/etc/sysconfig" "$mnt/etc/qemu"
-        cp -a /etc/sysconfig/qemu-ga "$mnt/etc/sysconfig/qemu-ga" 2>/dev/null || true
-        cp -a /etc/qemu/qemu-ga.conf "$mnt/etc/qemu/qemu-ga.conf" 2>/dev/null || true
-        cp -a /etc/qemu-ga.conf "$mnt/etc/qemu-ga.conf" 2>/dev/null || true
+        # "did not boot Linux". Mirror the same unfiltered config the deployer
+        # writes into Phase 2 (this branch is E2E-only, dispatcher-gated).
+        mkdir -p "$etcroot/sysconfig" "$etcroot/qemu"
+        cp -a /etc/sysconfig/qemu-ga "$etcroot/sysconfig/qemu-ga" 2>/dev/null || true
+        cp -a /etc/qemu/qemu-ga.conf "$etcroot/qemu/qemu-ga.conf" 2>/dev/null || true
+        cp -a /etc/qemu-ga.conf "$etcroot/qemu-ga.conf" 2>/dev/null || true
     fi
     sync; umount "$mnt" 2>/dev/null || true
 
