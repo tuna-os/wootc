@@ -232,13 +232,26 @@ host_preflight() {
     command -v python3 >/dev/null || { fail "python3 is required for QGA"; return 1; }
     [ -r /dev/kvm ] && [ -w /dev/kvm ] || { fail "/dev/kvm is not accessible"; return 1; }
     [ -c /dev/net/tun ] || { fail "/dev/net/tun is unavailable"; return 1; }
-    # Dockur reserves host headroom before launching QEMU. Six GiB available
-    # is enough to start a 4 GiB Windows 11 VM without its safety clamp
-    # reducing QEMU below Setup's hard minimum.
-    if [ "${mem_available_kib:-0}" -lt $((6 * 1024 * 1024)) ]; then
-        fail "Only $((mem_available_kib / 1024)) MiB host RAM is available; need at least 6144 MiB before starting Windows"
-        return 1
+    # Memory: a point-in-time MemAvailable sample on a host running sibling
+    # instances is transient — a neighbor's build spike or install phase can
+    # eat gigabytes for a few minutes. Wait for the dip to pass (10 min)
+    # before declaring the host too small. The requirement scales with the
+    # configured VM size when dockur's own clamp is disabled (RAM_CHECK=N);
+    # otherwise 6 GiB suffices to start a clamp-protected 4 GiB minimum VM.
+    local need_mem_mib=6144
+    if [ "${WOOTC_E2E_RAM_CHECK:-Y}" = "N" ]; then
+        need_mem_mib=$(( $(printf '%s' "${WOOTC_E2E_RAM_SIZE:-8G}" | tr -dc '0-9') * 1024 + 256 ))
     fi
+    local mem_deadline; mem_deadline=$(deadline_in 600)
+    while [ $(( ${mem_available_kib:-0} / 1024 )) -lt "$need_mem_mib" ]; do
+        if past_deadline "$mem_deadline"; then
+            fail "Only $((mem_available_kib / 1024)) MiB host RAM available after 10 min; need ${need_mem_mib} MiB before starting Windows"
+            return 1
+        fi
+        info "Waiting for host memory: $((mem_available_kib / 1024)) MiB available, want ${need_mem_mib} MiB..."
+        sleep 15
+        mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
+    done
     # These situational adjustments apply only when the caller did NOT set an
     # explicit floor: WOOTC_E2E_MIN_FREE_GIB=45 from the matrix was silently
     # RAISED back to 75 by the iso branch (a leftover windows.*.iso in the
