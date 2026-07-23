@@ -22,6 +22,12 @@
 # Usage:
 #   tests/gui/run-cdp.sh [--host himachal] [--skip-build]
 #
+# BUILD TAG REQUIRED: native_webview2loader. Wails' default pure-Go WebView2
+# loader never reads WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (verified against
+# wails v2.13 + go-webview2 v1.0.22 source), so a default build renders fine
+# but exposes no CDP endpoint. The native tag switches to Microsoft's
+# official loader, which honors the env var.
+#
 # Prerequisites: a running wootc-e2e-windows container on the host
 # (run-e2e.sh --keep) with QGA responsive and the "wootc" user logged on;
 # node+go here for the build (or --skip-build with a staged wootc.exe).
@@ -67,7 +73,7 @@ if [ "$SKIP_BUILD" = false ]; then
     step "Building wootc.exe (frontend + windows/amd64)..."
     (cd "$APP_DIR/frontend" && npm install --silent && npm run build >/dev/null)
     (cd "$APP_DIR" && GOOS=windows GOARCH=amd64 \
-        go build -tags desktop,production -ldflags "-w -s" -o "$FILES_DIR/wootc.exe" .)
+        go build -tags desktop,production,native_webview2loader -ldflags "-w -s" -o "$FILES_DIR/wootc.exe" .)
 fi
 [ -f "$FILES_DIR/wootc.exe" ] || fail "wootc.exe not found in $FILES_DIR"
 
@@ -95,6 +101,11 @@ rqga 'netsh interface portproxy delete v4tov4 listenport=9222 listenaddress=0.0.
 netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9222 connectaddress=127.0.0.1 connectport=9222 | Out-Null
 netsh advfirewall firewall delete rule name="wootc-cdp" 2>$null
 netsh advfirewall firewall add rule name="wootc-cdp" dir=in action=allow protocol=TCP localport=9222 | Out-Null
+# A pre-existing WebView2 browser process for this user data dir absorbs
+# new app instances WITHOUT re-reading browser arguments — a stale
+# non-debug tree makes the CDP port silently never appear. Clear it.
+Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
+Stop-Process -Name msedgewebview2 -Force -ErrorAction SilentlyContinue
 schtasks /Delete /TN wootc-gui-cdp /F 2>$null
 schtasks /Create /TN wootc-gui-cdp /SC ONCE /ST 00:00 /TR "C:\wootc\launch-cdp.cmd" /RU wootc /IT /F | Out-Null
 schtasks /Run /TN wootc-gui-cdp | Out-Null

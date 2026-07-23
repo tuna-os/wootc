@@ -1402,6 +1402,11 @@ netsh interface portproxy delete v4tov4 listenport=9222 listenaddress=0.0.0.0 2>
 netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=9222 connectaddress=127.0.0.1 connectport=9222 | Out-Null
 netsh advfirewall firewall delete rule name="wootc-cdp" 2>$null
 netsh advfirewall firewall add rule name="wootc-cdp" dir=in action=allow protocol=TCP localport=9222 | Out-Null
+# A pre-existing WebView2 browser process for this user data dir absorbs
+# new app instances WITHOUT re-reading browser arguments — a stale
+# non-debug tree makes the CDP port silently never appear. Clear it.
+Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
+Stop-Process -Name msedgewebview2 -Force -ErrorAction SilentlyContinue
 schtasks /Delete /TN wootc-gui-cdp /F 2>$null
 schtasks /Create /TN wootc-gui-cdp /SC ONCE /ST 00:00 /TR "C:\wootc\launch-cdp.cmd" /RU wootc /IT /F | Out-Null
 schtasks /Run /TN wootc-gui-cdp | Out-Null
