@@ -681,15 +681,32 @@ ensure_ntfs_support() {
     # (the same one bootc pull already succeeds on) and its /etc/resolv.conf, so
     # dnf can actually reach EPEL. Without it the install fails on BOTH himachal
     # and the hosted runner, and Phase 2 has no NTFS driver.
-    if ! timeout 120 podman run --name "$cname" --network=host "$IMAGE" sh -c \
-        'dnf install -y ntfs-3g || \
-         { { dnf install -y epel-release || \
-             dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm; } && \
-           { dnf config-manager --set-enabled crb 2>/dev/null || true; } && \
-           dnf install -y ntfs-3g; } || \
-         microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g'; then
-        err "  [WARN] ntfs-3g install failed in ${IMAGE} (network/repo?); relying on the image's own NTFS support"
+    # RETRY the network-dependent install: reaching EPEL/CRB mirrors from a
+    # hosted runner's stripped initramfs is intermittently flaky, and a single
+    # blip here is the difference between a bootable Phase 2 and an emergency
+    # shell (el10-gnome-win10pro 20260724: injection failed on a transient
+    # mirror error while the win11pro run of the SAME image succeeded — not an
+    # edition bug, a missing retry). Same fix class as the go-native pull.
+    local inj_ok=""
+    local attempt
+    for attempt in 1 2 3; do
+        podman rm -f "$cname" >/dev/null 2>&1 || true
+        if timeout 150 podman run --name "$cname" --network=host "$IMAGE" sh -c \
+            'dnf install -y ntfs-3g || \
+             { { dnf install -y epel-release || \
+                 dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm; } && \
+               { dnf config-manager --set-enabled crb 2>/dev/null || true; } && \
+               dnf install -y ntfs-3g; } || \
+             microdnf install -y ntfs-3g || rpm-ostree install ntfs-3g'; then
+            inj_ok=1
+            break
+        fi
+        err "  [WARN] ntfs-3g install attempt ${attempt}/3 failed in ${IMAGE} (network/repo?)"
         podman logs "$cname" 2>&1 | tail -10 >&2 || true
+        [ "$attempt" -lt 3 ] && sleep $((attempt * 10))
+    done
+    if [ -z "$inj_ok" ]; then
+        err "  [WARN] ntfs-3g install failed after 3 attempts in ${IMAGE}; relying on the image's own NTFS support"
         podman rm -f "$cname" >/dev/null 2>&1 || true
         return 1
     fi
