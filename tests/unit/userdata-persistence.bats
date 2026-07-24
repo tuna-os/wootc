@@ -105,3 +105,12 @@ setup() {
     grep -q 'fisherman-home-' "$ug"
     grep -q '/etc/skel' "$ug"
 }
+
+@test "emergency-shell diagnosis distinguishes attach from mount failure" {
+    # "root.disk never attached" was printed even when the attach succeeded
+    # and sysroot.mount was the real fault (btrfs, GUI takes 9+10, #35) — the
+    # recurring status-from-a-proxy defect. The check must read the attach
+    # marker before assigning blame.
+    grep -q 'attached raw root.disk .\* as /dev/loop' "$E2E"
+    grep -q 'ATTACHED but sysroot.mount failed' "$E2E"
+}

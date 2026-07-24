@@ -1977,8 +1977,20 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         # Emergency mode = root never appeared. Fail fast and say why, instead of
         # waiting out the timeout or mislabelling it a success.
         if printf '%s\n' "$NEW_OUTPUT" | grep -E "Entering emergency mode|emergency\.target|Dependency failed for sysroot" >/dev/null 2>&1; then
-            fail "Phase 2 dropped to an emergency shell — root.disk never attached"
-            echo "$NEW_OUTPUT" | grep -aiE "wootc|sysroot|does not exist|mount" | tail -12
+            # Distinguish the two failure modes instead of always blaming the
+            # attach: the attach hook logs "attached raw root.disk … as
+            # /dev/loopN" on success, and a btrfs/UUID-mismatch sysroot.mount
+            # timeout is a DIFFERENT bug (GUI takes 9+10 attached cleanly and
+            # still hit emergency — #35). Report what the serial actually says.
+            ATTACHED=$(printf '%s\n' "$NEW_OUTPUT" | grep -aiE "attached raw root.disk .* as /dev/loop" | tail -1)
+            if [ -n "$ATTACHED" ]; then
+                fail "Phase 2 dropped to an emergency shell — root.disk ATTACHED but sysroot.mount failed"
+                info "  attach succeeded: $(printf '%s' "$ATTACHED" | sed 's/.*wootc:/wootc:/')"
+                info "  → the loop-attach worked; the mount/root-UUID step is the fault (see #35 for the btrfs case)"
+            else
+                fail "Phase 2 dropped to an emergency shell — root.disk never attached"
+            fi
+            echo "$NEW_OUTPUT" | grep -aiE "wootc|sysroot|does not exist|mount|root=UUID" | tail -12
             break
         fi
         if printf '%s\n' "$NEW_OUTPUT" | grep -E "No bootable device|BOOTMGR is missing|kernel panic" >/dev/null 2>&1; then
