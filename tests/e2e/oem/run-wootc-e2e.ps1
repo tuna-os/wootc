@@ -60,11 +60,13 @@ try {
         PayloadDir = "$oemDir\payload"
     }
     if ($cfg.ComposeFs -eq "1") { $setupArgs.ComposeFs = $true }
-    try {
-        & "$oemDir\setup-wootc.ps1" @setupArgs *>&1 | Tee-Object -FilePath $logPath -Append
-    } catch {
-        & "$oemDir\setup-wootc.ps1" @setupArgs
-    }
+    # Run setup once, teeing every stream to the log. A terminating error in
+    # setup-wootc.ps1 propagates through the pipeline to the outer catch, which
+    # records the real exception in e2e-setup-failed.txt. The previous inner
+    # catch re-ran the ENTIRE destructive setup (root.disk, EFI staging, BCD) a
+    # second time on any failure — including a mere Tee-Object hiccup — which
+    # both hid the original error and repeated irreversible work.
+    & "$oemDir\setup-wootc.ps1" @setupArgs *>&1 | Tee-Object -FilePath $logPath -Append
 
     # Stamp the run id, not a constant. The host barrier requires this to match
     # the run it is currently driving; a bare "ok" is indistinguishable from a

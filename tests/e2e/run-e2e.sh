@@ -345,10 +345,18 @@ capture_vm_diagnostics() {
     if qga_probe; then
         info "QGA guest-info:"
         qga_call info | tee "$ARTIFACT_DIR/qga-info.json" || true
+        # Save the full markers to artifacts AND echo them inline: on a hosted
+        # runner the 4+ GiB evidence bundle is impractical to pull, so a setup
+        # failure that only lives in the artifact file is effectively invisible.
+        # These markers are a few KiB — printing the tail inline lets every OEM
+        # failure name itself in the CI console (el10-gnome-win10pro 20260724:
+        # setup threw after root.disk, but the reason sat only in the artifact).
         info "QGA C:\\OEM\\wootc-e2e.log:"
         qga_read 'C:\OEM\wootc-e2e.log' > "$ARTIFACT_DIR/oem-wootc-e2e.log" 2>&1 || true
+        tail -n 40 "$ARTIFACT_DIR/oem-wootc-e2e.log" 2>/dev/null | sed 's/^/  | /' || true
         info "QGA C:\\OEM\\e2e-setup-failed.txt:"
         qga_read 'C:\OEM\e2e-setup-failed.txt' > "$ARTIFACT_DIR/oem-setup-failed.txt" 2>&1 || true
+        sed 's/^/  ! /' "$ARTIFACT_DIR/oem-setup-failed.txt" 2>/dev/null || true
         qga_read 'C:\wootc\logs\deployer.log' > "$ARTIFACT_DIR/deployer.log" 2>&1 || true
         qga_read 'C:\wootc\logs\live-journal.log' > "$ARTIFACT_DIR/deployer-live-journal.log" 2>&1 || true
     fi
