@@ -261,7 +261,18 @@ graduate_to_disk_execute() {
     # Pre-pull for visible progress; podman run then uses the local copy.
     if ! podman image exists "$img" 2>/dev/null; then
         log "Pulling $img into local containers-storage for the native install…"
-        podman pull "$img" || die "cannot stage $img locally (network down?) — native install needs its content"
+        # Retry: this pull runs INSIDE the Phase-2 VM, over whatever network
+        # that guest has — flaky on a mirror-less hosted runner (bluefin
+        # phase3, GH matrix 20260724T1558: one 'network down?' died the whole
+        # graduation). Podman resumes copied layers, so retries are cheap.
+        pull_ok=false
+        for attempt in 1 2 3 4; do
+            if podman pull "$img"; then pull_ok=true; break; fi
+            log "  pull attempt $attempt failed; retrying in $((attempt*15))s…"
+            sleep $((attempt*15))
+        done
+        [[ "$pull_ok" == true ]] || \
+            die "cannot stage $img locally after 4 attempts (network?) — native install needs its content"
     fi
 
     # Mirror the running system's primary account into the native install.
