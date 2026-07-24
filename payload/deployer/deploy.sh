@@ -343,7 +343,17 @@ scan_for_root_disk() {
                 umount /mnt/scan
                 return 0
             fi
+            # Say WHAT is on the volume instead of just "not here" — the BitLocker
+            # path (#34) hinges on whether setup wrote root.disk to the right
+            # place: "has wootc/disks but no root.disk" is a placement bug;
+            # "no wootc/ at all" means the wrong volume; both are one glance now
+            # instead of a VM session. (Serial-only: the persistent log lives on
+            # the very volume we're hunting for.)
             log "  ${dev}: mounted via ${drv}, no ${ROOT_DISK_PATH}"
+            log "    top-level: $(ls -A /mnt/scan 2>/dev/null | tr '\n' ' ' | cut -c1-160)"
+            [[ -d /mnt/scan/wootc ]] && \
+                log "    wootc/: $(ls -A /mnt/scan/wootc 2>/dev/null | tr '\n' ' ')" && \
+                log "    wootc/disks/: $(ls -lA /mnt/scan/wootc/disks 2>/dev/null | tail -n +2 | tr '\n' ';' | cut -c1-200)"
             umount /mnt/scan
         else
             # Silence here is what made #36 unattributable for two runs.
