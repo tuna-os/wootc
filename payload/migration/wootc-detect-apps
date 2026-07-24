@@ -151,6 +151,42 @@ fi
 [[ -d "$W/AppData/Roaming/Zoom" ]] && \
     add zoom us.zoom.Zoom signin false "Sign in once; meetings and settings are account-side."
 
+# ── Wider catalog (detect → auto-install the Flathub equivalent) ────────────
+# These add the matching Flatpak to the deploy so the user's apps are already
+# there on first boot. We deliberately DON'T auto-copy their config here (that
+# is per-app fragile); creative apps keep plain-file settings the user can
+# bring over by hand, which the note says honestly. Flathub IDs are public
+# facts — this list is wootc's own, grown against the field (incl. what peer
+# projects like Operese cover), never lifted from AGPL code.
+
+# Creative / media — plain-file settings, so genuinely portable by hand.
+[[ -d "$W/AppData/Roaming/GIMP" ]] && \
+    add gimp org.gimp.GIMP portable false "Installs on Linux; your brushes and settings under AppData\\Roaming\\GIMP can be copied over."
+[[ -d "$W/AppData/Roaming/krita" ]] && \
+    add krita org.kde.krita portable false "Installs on Linux; brushes and configs are plain files you can bring across."
+[[ -d "$W/AppData/Roaming/inkscape" ]] && \
+    add inkscape org.inkscape.Inkscape portable false "Installs on Linux; preferences are plain files."
+[[ -d "$W/AppData/Roaming/Blender Foundation/Blender" ]] && \
+    add blender org.blender.Blender portable false "Installs on Linux; your Blender config folder copies straight over."
+[[ -d "$W/AppData/Roaming/audacity" ]] && \
+    add audacity org.audacityteam.Audacity portable false "Installs on Linux; settings are plain files."
+[[ -d "$W/AppData/Roaming/vlc" ]] && \
+    add vlc org.videolan.VLC portable false "Installs on Linux; playlists and settings can be copied."
+[[ -d "$W/AppData/Roaming/HandBrake" ]] && \
+    add handbrake fr.handbrake.ghb portable false "Installs on Linux; your presets can be exported/imported."
+[[ -d "$W/AppData/Roaming/qBittorrent" ]] && \
+    add qbittorrent org.qbittorrent.qBittorrent portable false "Installs on Linux; settings are plain files."
+
+# Comms / accounts — everything lives in the account, so a sign-in restores it.
+[[ -d "$W/AppData/Roaming/Element" ]] && \
+    add element im.riot.Riot signin false "Installs on Linux; sign in and your rooms are back."
+[[ -d "$W/AppData/Roaming/Bitwarden" ]] && \
+    add bitwarden com.bitwarden.desktop signin false "Installs on Linux; unlock with your account — the vault is server-side."
+[[ -d "$W/AppData/Local/BraveSoftware/Brave-Browser/User Data" ]] && \
+    add brave com.brave.Browser signin false "Installs on Linux; sign in to Brave Sync to bring bookmarks and passwords."
+[[ -d "$W/AppData/Roaming/vivaldi" || -d "$W/AppData/Local/Vivaldi/User Data" ]] && \
+    add vivaldi com.vivaldi.Vivaldi signin false "Installs on Linux; sign in to Vivaldi to sync your data."
+
 # OBS — plain-file scenes/profiles are portable.
 OBS="$W/AppData/Roaming/obs-studio"
 if [[ -d "$OBS" ]]; then
