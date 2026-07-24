@@ -106,12 +106,14 @@ Verified end-to-end on the KVM E2E rig (Windows 11 + TPM 2.0 + Secure Boot):
 - ✅ **GUI + migration:** installer GUI (Playwright-tested), User Data Bridge
   and WSL/Office/Steam/browser bridges (unit-tested), external-disk import
   engine, Try-in-VM orchestration, Phase-3 planner.
-- 🚧 **Graduate to native disk (Phase 3 / rung 3):** the automated VM now boots
-  Phase 2, discovers and independently verifies a dedicated blank `/dev/sdb`,
-  and reaches the guarded `bootc install to-disk` operation without touching
-  Windows or `root.disk`. The remaining live verification is the privileged
-  systemd dispatch and completed native-disk install; a GUI-driven full
-  Phase-1 → Phase-2 → Phase-3 run follows once that rung is green.
+- ✅ **Graduate to native disk (Phase 3 / rung 3):** the VM boots Phase 2,
+  independently verifies a blank `/dev/sdb`, runs the native `bootc install`,
+  reboots into the graduated system, and confirms the file seeded in Windows
+  survived onto the native disk — Windows and `root.disk` untouched (29/29).
+- ✅ **GUI-driven full run:** the entire Phase-1 → 2 → 3 chain armed by the
+  **real `wootc.exe` GUI** (drive mode — the app drives its own live form),
+  green end-to-end on `bluefin:lts`. The timelapse at the top of this README
+  is that run.
 
 Follow the verification ladder in [docs/milestones.md](docs/milestones.md).
 
