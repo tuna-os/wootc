@@ -33,7 +33,7 @@ jobs:
         name: Parse matrix.tsv into a job matrix
         run: |
           python3 - "$TIER" "$GREP" <<'EOF' >> "$GITHUB_OUTPUT"
-          import json, sys
+          import json, sys, os
           tier, want = sys.argv[1], sys.argv[2]
           cases = []
           for line in open('tests/e2e/matrix.tsv'):
@@ -48,6 +48,15 @@ jobs:
               if tier != 'full' and t != 'smoke':
                   continue
               if want and want not in name:
+                  continue
+              # phase3 adds a 40 GiB spare disk on top of a full ~90 GiB
+              # install. Non-phase3 full installs fit a hosted runner's
+              # ~57-74 GiB /mnt (bonito, fedora went green), but the extra
+              # spare overflows the tighter runners (dakota-phase3: 57<90).
+              # phase3 is disk-heavy and already validated on himachal, so
+              # the hosted breadth matrix skips it. Set INCLUDE_PHASE3=1 to
+              # force it back on for a big-disk self-hosted runner pool.
+              if 'phase3=on' in opts and os.environ.get('INCLUDE_PHASE3') != '1':
                   continue
               cases.append({
                   'name': name, 'image': image, 'win_version': ver,
