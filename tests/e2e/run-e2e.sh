@@ -310,10 +310,23 @@ cleanup() {
     if $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
         capture_vm_diagnostics || true
     fi
-    if [ "$KEEP_CONTAINER" = false ]; then
+    # --keep is for POST-MORTEM on a wedged guest, but a VM left running in a
+    # Phase-2 emergency shell is not idle: qemu + kcryptd churn the encrypted
+    # btrfs store and starved sshd into a load-90 freeze that needed a
+    # power-cycle (himachal, 2026-07-24). Diagnostics are already captured
+    # above and the evidence lives in data.qcow2 on disk, so a dead guest has
+    # nothing live worth pinning the host for — force it down even under
+    # --keep. WOOTC_E2E_KEEP_ALIVE=1 opts back into keeping a failed VM up.
+    local keep="$KEEP_CONTAINER"
+    if [ "$result" -ne 0 ] && [ "${WOOTC_E2E_KEEP_ALIVE:-0}" != "1" ]; then
+        keep=false
+    fi
+    if [ "$keep" = false ]; then
         info "Cleaning up..."
+        $DOCKER exec "$CONTAINER_NAME" pkill -9 -f 'process=windows' 2>/dev/null || true
         podman compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || \
             docker compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || true
+        podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
     else
         info "Container kept (--keep): $CONTAINER_NAME"
     fi

@@ -107,3 +107,13 @@ setup() {
     grep -q "{ grep -aoE 'C: BitLocker state: \[a-z\]+' || true; }" "$E2E"
     grep -q "{ grep -aoE 'WOOTC_STORAGE_ROOT=\[A-Za-z\]:' || true; }" "$E2E"
 }
+
+@test "a failed run tears the VM down even under --keep" {
+    # A VM left in a Phase-2 emergency shell churns qemu+kcryptd on
+    # encrypted btrfs and froze the host into a power-cycle (2026-07-24).
+    # Diagnostics are already captured and evidence is in data.qcow2, so a
+    # failed guest is force-downed unless WOOTC_E2E_KEEP_ALIVE=1.
+    grep -q 'WOOTC_E2E_KEEP_ALIVE' "$E2E"
+    grep -q 'result" -ne 0 \] && \[ "${WOOTC_E2E_KEEP_ALIVE:-0}" != "1" \]' "$E2E"
+    grep -q "pkill -9 -f 'process=windows'" "$E2E"
+}
