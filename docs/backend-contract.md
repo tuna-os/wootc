@@ -11,7 +11,7 @@ axes apart. If an image misbehaves, re-run the probe before theorizing.
 | Axis | Meaning | Detected from | Decides |
 |---|---|---|---|
 | **BACKEND** | how bootc deploys & boots the image | boot artifacts: signed bootupd GRUB present → `ostree`; systemd-boot-only and no `bootupctl` → `composefs-native` | bootloader (grub2 vs systemd-boot), `--composefs-backend`, fisherman layout (`/ostree/deploy` vs `/state/deploy`) |
-| **SEALED** | rootfs is composefs/fs-verity sealed | `prepare-root.conf [composefs] enabled` | root filesystem only (ext4 for fs-verity; deployer default xfs has none) |
+| **SEALED** | rootfs is composefs/fs-verity sealed | `prepare-root.conf [composefs] enabled` | root filesystem only (btrfs for fs-verity — native since 5.15; deployer default xfs has none; ext4 -O verity by explicit request) |
 
 **SEALED says nothing about the backend.** Every image below is sealed —
 including plain-ostree yellowfin. "The image mentions composefs" is not

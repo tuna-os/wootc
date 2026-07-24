@@ -653,15 +653,16 @@ fi
 [[ "$BOOTLOADER" == auto ]] && BOOTLOADER=grub2
 [[ "$COMPOSEFS"  == auto ]] && COMPOSEFS=0
 
-# A composefs-SEALED rootfs (native OR traditional ostree) needs fs-verity, which
-# fisherman only enables for ext4 (`mkfs.ext4 -O verity`); the deployer default
-# xfs has none, so fisherman fails installing the root ("mounting root: … exit
-# status 32", seen on dakota). Force ext4 when sealed unless the caller picked a
-# filesystem. Keyed off SEALED, NOT the backend — bonito (ostree) is sealed too.
+# A composefs-SEALED rootfs (native OR traditional ostree) needs fs-verity.
+# xfs has none, so the deployer default cannot serve sealed images. btrfs
+# supports fs-verity natively (kernel >= 5.15, no mkfs flag), so it is the
+# sealed fallback; ext4 (mkfs -O verity) remains available via an explicit
+# wootc.filesystem=ext4. Keyed off SEALED, NOT the backend — bonito-class
+# ostree images can be sealed too.
 if [[ "${ROOTFS_SEALED:-0}" == 1 || "$COMPOSEFS" == 1 ]] && \
    [[ "$FILESYSTEM" == xfs && -z "$(read_cmdline wootc.filesystem)" ]]; then
-    FILESYSTEM=ext4
-    log "  composefs-sealed rootfs → ext4 (fs-verity); deployer default xfs has none"
+    FILESYSTEM=btrfs
+    log "  composefs-sealed rootfs → btrfs (native fs-verity); xfs has none"
 fi
 
 # ── Write fisherman recipe ──────────────────────────────────────────────────
