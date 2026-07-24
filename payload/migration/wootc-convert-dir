@@ -30,14 +30,30 @@ staging="$home/.wootc-convert-$folder.partial"
 [[ -d "$src" ]] || { log "ERROR: $src not found"; exit 1; }
 
 # 1. Copy Windows → native staging (resumable on re-run).
+#
+# --safe-links + Windows-cruft excludes: a Windows user profile is full of
+# NTFS reparse junctions for XP-era path compatibility — Documents\My Music
+# -> ..\Music, Documents\My Pictures, Desktop desktop.ini, and the infamous
+# self-referential AppData\Local\Application Data -> AppData\Local loop.
+# ntfs-3g exposes these as symlinks; a plain `rsync -a` would either copy
+# them as symlinks DANGLING at Windows paths that don't exist on Linux, or
+# (on a deeper tree) recurse the self-junction. --safe-links drops any
+# symlink pointing outside the copied folder (exactly these junctions), and
+# the excludes drop system files a Linux user should never see. This is the
+# "handle named pipes / directory order" class of edge case migration tools
+# all eventually hit.
+RSYNC_SAFE=(-a --safe-links
+    --exclude 'desktop.ini' --exclude 'Thumbs.db' --exclude 'ehthumbs.db'
+    --exclude '$RECYCLE.BIN' --exclude 'System Volume Information'
+    --exclude '*:Zone.Identifier')
 mkdir -p "$staging"
-total_kb=$(du -sk "$src" 2>/dev/null | cut -f1)
-rsync -a --info=progress2 "$src/" "$staging/" | \
+total_kb=$(du -sk --exclude='System Volume Information' "$src" 2>/dev/null | cut -f1)
+rsync "${RSYNC_SAFE[@]}" --info=progress2 "$src/" "$staging/" | \
     stdbuf -oL grep -oP '\d+(?=%)' | \
     while read -r pct; do echo "PROGRESS $pct"; done || true
 # rsync exit status is lost in the pipe; verify by re-running quietly —
 # a clean second pass is cheap and proves completeness.
-rsync -a --quiet "$src/" "$staging/"
+rsync "${RSYNC_SAFE[@]}" --quiet "$src/" "$staging/"
 echo "PROGRESS 100"
 
 # 2. Swap: unbind the Windows folder, move the native copy into place.
