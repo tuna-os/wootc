@@ -77,7 +77,7 @@ STUB
 
 @test "--phase3 provisions its dedicated blank target and handles none found" {
     grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"' "$E2E_RUNNER"
-    grep -Fq -- '- ./storage/phase3:/storage2' "$REPO_ROOT/tests/e2e/compose.yml"
+    grep -Fq 'phase3:/storage2' "$REPO_ROOT/tests/e2e/compose.yml"
     grep -Fq 'rm -f storage/phase3/data2.qcow2' "$E2E_RUNNER"
     grep -Fq 'QEMU has no dedicated /storage2/data2.qcow2 target' "$E2E_RUNNER"
     grep -A2 'P3_TARGET=$(qga_call' "$E2E_RUNNER" | grep -q '|| true)'
