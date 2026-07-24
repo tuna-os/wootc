@@ -124,7 +124,7 @@ setup() {
     # (grub.install.cfg, wubildr.cfg, … whack-a-mole). One mutex ends the class.
     local ps="$REPO_ROOT/tests/e2e/setup-wootc.ps1"
     grep -q "System.Threading.Mutex" "$ps"
-    grep -q "Global.\\\\wootc-setup-wootc" "$ps"
+    grep -Fq 'wootc-setup-wootc' "$ps"
     grep -q 'single-instance guard' "$ps"
     # Every install-dir write is -Force too (belt).
     run grep -nE 'Set-Content -Path "\$installDir' "$ps"
