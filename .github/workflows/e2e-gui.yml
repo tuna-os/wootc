@@ -1,0 +1,79 @@
+name: E2E GUI-driven (publish timelapse)
+
+# The GUI-driven three-phase run: Phase 1 armed by the REAL wootc.exe over
+# drive mode, then deploy → Phase 2 → Phase 3. On a GREEN run this publishes
+# the walkthrough timelapse to the README/Pages hero — so the timelapse shown
+# there is always a GUI-driven pass, never a headless or red run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'bootc image to install'
+        type: string
+        default: 'ghcr.io/projectbluefin/bluefin:lts'
+  schedule:
+    # Nightly, offset from the headless canary so they do not contend for
+    # the hosted runner pool.
+    - cron: '0 7 * * *'
+
+permissions:
+  contents: write        # commit the refreshed timelapse to pages/
+  packages: read
+
+concurrency:
+  group: e2e-gui-publish
+  cancel-in-progress: false
+
+jobs:
+  run:
+    uses: ./.github/workflows/e2e-hosted.yml
+    with:
+      image: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
+      gui_install: true
+      phase3: true
+      use_base_image: true
+    secrets: inherit
+
+  publish:
+    needs: run
+    # Belt: only a passing run reaches here. Braces: the .passed gate below
+    # is the real proof, so a run that "succeeded" without the marker still
+    # cannot publish.
+    if: ${{ needs.run.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: e2e-nightly-${{ github.run_id }}
+          path: /tmp/evidence
+
+      - name: Publish the GUI-driven timelapse (green runs only)
+        run: |
+          set -euo pipefail
+          # run-e2e.sh writes .passed into the video dir ONLY on ALL TESTS
+          # PASSED. No marker → nothing to publish (fail-safe, not fail-loud).
+          vd=$(find /tmp/evidence -type f -name .passed -printf '%h\n' 2>/dev/null | head -1)
+          if [ -z "$vd" ] || [ ! -f "$vd/preview.webp" ]; then
+            echo "No green GUI-driven run with a walkthrough to publish — leaving the current timelapse untouched."
+            exit 0
+          fi
+          echo "Publishing GUI-driven timelapse from $vd"
+          mkdir -p pages/e2e/latest
+          cp "$vd/preview.webp" pages/e2e/latest/preview.webp
+          [ -f "$vd/e2e.webm" ] && cp "$vd/e2e.webm" pages/e2e/latest/e2e.webm || echo "(poster only; no e2e.webm)"
+          cp "$vd/.passed" pages/e2e/latest/.passed 2>/dev/null || true
+
+          if git diff --quiet -- pages/e2e/latest; then
+            echo "Timelapse unchanged — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pages/e2e/latest
+          git commit -m "docs: refresh E2E walkthrough (GUI-driven green run ${{ github.run_id }})"
+          # main may have moved during the ~2 h run; rebase onto it before push.
+          git pull --rebase --autostash origin main
+          git push origin HEAD:main

@@ -28,6 +28,14 @@ on:
       # per-image heuristic (EL→grub2, else→systemd). Ostree images (e.g.
       # bluefin) want grub2 (the proven attach path); composefs wants systemd.
       bootloader: { type: string, default: '' }
+      # Arm Phase 1 through the REAL wootc.exe GUI (drive mode) instead of the
+      # OEM setup-wootc.ps1 script. Needs no host GUI — the app is staged +
+      # driven over QGA via a directive file (CDP is impossible in stock
+      # wails). Works on either the base-image restore or a full install
+      # (both boot to the autologged desktop; drive mode never touches
+      # C:\OEM). The walkthrough timelapse from a GUI-driven run is the one
+      # the README publishes.
+      gui_install: { type: boolean, default: false }
 
 permissions:
   contents: read
@@ -96,6 +104,20 @@ jobs:
             echo "No base image ${PKG}:${TAG}; run-e2e.sh will do a full install"
           fi
 
+      # Build the real wootc.exe the GUI-driven run drives. Ubuntu runners
+      # ship Go + Node; the wails frontend is a plain vite build, and the
+      # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
+      # loader tag, so this is a stock production build.
+      - name: Build wootc.exe (GUI-driven run only)
+        if: ${{ inputs.gui_install }}
+        run: |
+          set -euo pipefail
+          ( cd app/frontend && npm ci --silent && npm run build )
+          ( cd app && GOOS=windows GOARCH=amd64 \
+              go build -tags desktop,production -ldflags "-w -s" \
+              -o ../tests/e2e/wootc-files/wootc.exe . )
+          ls -lh tests/e2e/wootc-files/wootc.exe
+
       - name: Run the E2E (restores base image if pulled, else full install)
         env:
           # 16 GB runner: leave headroom for podman + the deployer build.
@@ -113,11 +135,14 @@ jobs:
           # Empty string → run-e2e.sh's per-image heuristic picks the bootloader.
           WOOTC_E2E_BOOTLOADER: ${{ inputs.bootloader }}
           # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
+          # Drive mode gate for the app's E2E bindings (inert otherwise).
+          WOOTC_E2E_DRIVE: ${{ inputs.gui_install && '1' || '' }}
         run: |
           cd tests/e2e
-          PHASE3_FLAG=""
-          [ "${{ inputs.phase3 }}" = "true" ] && PHASE3_FLAG="--phase3"
-          bash run-e2e.sh "${{ inputs.image }}" $PHASE3_FLAG
+          FLAGS=""
+          [ "${{ inputs.phase3 }}" = "true" ] && FLAGS="$FLAGS --phase3"
+          [ "${{ inputs.gui_install }}" = "true" ] && FLAGS="$FLAGS --gui-install"
+          bash run-e2e.sh "${{ inputs.image }}" $FLAGS
 
       - name: Collect evidence
         if: always()
