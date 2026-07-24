@@ -1279,6 +1279,13 @@ WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" start "$VIDEO_DI
 VIDEO_STARTED=true
 pass "VM walkthrough recording started"
 
+# Drop a title card into the timelapse at each phase boundary (best-effort;
+# record-video splices the pre-rendered cards from tests/e2e/titlecards/).
+mark_phase() {
+    [ "${VIDEO_STARTED:-false}" = true ] || return 0
+    WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" mark "$VIDEO_DIR" "$1" 2>/dev/null || true
+}
+
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
     info "Skipping install wait (--skip-install)"
@@ -1438,6 +1445,7 @@ gui_install_arm() {
     # driver's final act reboots the machine.
     seed_user_data || true
 
+    mark_phase phase1
     step "GUI-driven Phase 1: staging wootc.exe and launching the installer..."
     [ -f "$SCRIPT_DIR/wootc-files/wootc.exe" ] || {
         fail "wootc.exe missing from wootc-files/ — build it first (see tests/gui/run-cdp.sh step 1)"
@@ -1530,6 +1538,7 @@ if [ "$GUI_INSTALL" = true ]; then
     gui_install_arm
 else
 
+mark_phase phase1
 step "Starting OEM setup through QGA..."
 
 # Refresh C:\OEM from the host BEFORE launching setup, ALWAYS.
@@ -1633,6 +1642,7 @@ fi  # GUI_INSTALL
 step "Waiting for Windows install and Dockur OEM handoff..."
 
 # ── Step 7: Monitor deployer via QEMU serial console ─────────────────────────
+mark_phase deploy
 step "Monitoring deployer (QEMU serial console)..."
 info "Watching for fisherman deployment markers..."
 
@@ -1952,6 +1962,7 @@ pass "Phase 2 Linux boot scheduled through BCD one-shot entry (bootsequence veri
 qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
 qga_wait_down "Phase 2 Linux boot" 300
 
+mark_phase phase2
 step "Waiting for Phase 2 Linux system to boot..."
 
 TIMEOUT=300
@@ -2062,6 +2073,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
     pass "Phase 3: graduate target = $P3_TARGET (verified blank)"
 
+    mark_phase phase3
     step "Phase 3: graduating to native disk (this installs the OS onto $P3_TARGET)..."
     # virt_qemu_ga_t cannot execute container_runtime_exec_t (by design), so
     # direct QGA execution cannot run podman/bootc. This marker exists only in

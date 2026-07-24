@@ -75,6 +75,20 @@ err() {
 phase() {
     echo "$*" > /run/wootc-phase 2>/dev/null || true
     log "phase: $*"
+    # E2E timelapse: paint a big, readable banner on the VGA console so the
+    # recorded deploy shows progress instead of a black screen. Gated on
+    # wootc.e2e_video=1 (set only by the E2E deployer cmdline); tty0 is on the
+    # cmdline there too. Harmless no-op otherwise.
+    if [[ "${WOOTC_E2E_VIDEO:-0}" == 1 ]] && [[ -w /dev/tty0 ]]; then
+        {
+            printf '\033[2J\033[H'                      # clear + home
+            printf '\n\n\n'
+            printf '        wootc deployer\n'
+            printf '        ==============\n\n'
+            printf '        >> %s\n' "$*"
+            printf '\n\n        installing your Linux system into root.disk...\n'
+        } > /dev/tty0 2>/dev/null || true
+    fi
 }
 
 # Cap dirty page cache so multi-GB writeback streams to disk continuously.
@@ -157,6 +171,7 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
+WOOTC_E2E_VIDEO="$(read_cmdline wootc.e2e_video 0)"
 # Both default to `auto`: the deployer detects the deployment backend AND the
 # bootloader DEFINITIVELY from the image (see the detection block below), because
 # they are a property of the image, not something the caller must know. An
