@@ -22,6 +22,18 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEST="$REPO_ROOT/pages/e2e/latest"
 
+# The README/Pages hero must ONLY ever show a green run. run-e2e.sh stamps a
+# .passed marker beside the recording exclusively on ALL TESTS PASSED, so a
+# publish gates on that marker. --allow-red overrides (debugging only) and
+# prints a loud warning.
+ALLOW_RED=false
+ARGS=()
+for a in "$@"; do
+    [[ "$a" == "--allow-red" ]] && { ALLOW_RED=true; continue; }
+    ARGS+=("$a")
+done
+set -- "${ARGS[@]}"
+
 find_local_video_dir() {
     local base="$1"
     [[ -f "$base/preview.webp" || -f "$base/e2e.webm" ]] && { echo "$base"; return; }
@@ -34,8 +46,15 @@ find_local_video_dir() {
 if [[ "${1:-}" == "--from-host" ]]; then
     host="${2:?--from-host needs a hostname}"
     echo "Finding newest recorded run on $host…"
-    vd=$(ssh "$host" 'find ~/wootc/tests/e2e/storage/artifacts -type f -name preview.webp -printf "%T@ %h\n" 2>/dev/null | sort -nr | head -1 | cut -d" " -f2-')
-    [[ -n "$vd" ]] || { echo "no assembled preview.webp found on $host" >&2; exit 1; }
+    # Only consider GREEN runs: a video dir with a .passed marker. Without
+    # this, "newest run" is whatever ran last — including a red one.
+    if [[ "$ALLOW_RED" == true ]]; then
+        vd=$(ssh "$host" 'find ~/wootc/tests/e2e/storage*/artifacts -type f -name preview.webp -printf "%T@ %h\n" 2>/dev/null | sort -nr | head -1 | cut -d" " -f2-')
+        echo "⚠️  --allow-red: publishing newest run regardless of pass/fail" >&2
+    else
+        vd=$(ssh "$host" 'find ~/wootc/tests/e2e/storage*/artifacts -type f -name .passed -printf "%T@ %h\n" 2>/dev/null | sort -nr | head -1 | cut -d" " -f2-')
+    fi
+    [[ -n "$vd" ]] || { echo "no GREEN run (video dir with a .passed marker) found on $host — run-e2e must exit ALL TESTS PASSED first, or pass --allow-red" >&2; exit 1; }
     echo "Using $host:$vd"
     mkdir -p "$DEST"
     scp -q "$host:$vd/preview.webp" "$DEST/preview.webp"
@@ -45,6 +64,12 @@ else
     src="${1:?usage: publish-visual.sh <artifact-dir> | --from-host <host>}"
     vd=$(find_local_video_dir "$src")
     [[ -n "$vd" && -f "$vd/preview.webp" ]] || { echo "no preview.webp under $src" >&2; exit 1; }
+    # Green-only gate (same as --from-host): the recording must carry the
+    # .passed marker run-e2e.sh writes exclusively on ALL TESTS PASSED.
+    if [[ "$ALLOW_RED" != true && ! -f "$vd/.passed" ]]; then
+        echo "$vd is not a GREEN run (no .passed marker) — the README timelapse only shows passing runs. Pass --allow-red to override." >&2
+        exit 1
+    fi
     echo "Using $vd"
     mkdir -p "$DEST"
     cp "$vd/preview.webp" "$DEST/preview.webp"

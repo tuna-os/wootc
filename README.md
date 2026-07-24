@@ -7,7 +7,7 @@
          width="760">
   </a>
   <br>
-  <em>▶ Latest end-to-end run (sped-up): Windows 11 → wootc deployer → native Linux from <code>root.disk</code> → Windows 11. <a href="https://tuna-os.github.io/wootc/e2e/latest/">Click to play the full timelapse.</a></em>
+  <em>▶ Latest <strong>green</strong> end-to-end run (sped-up): Windows 11 → wootc deployer → native Linux from <code>root.disk</code> → Windows 11. <a href="https://tuna-os.github.io/wootc/e2e/latest/">Click to play the full timelapse.</a> Only passing runs are ever published here.</em>
 </p>
 
 <p align="center">

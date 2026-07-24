@@ -2285,4 +2285,10 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 info "Image tested: $IMAGE_REF"
 
+# Green-only publish gate: the README/Pages timelapse must never show a red
+# run. Stamp a marker beside the recording that ONLY a full pass reaches;
+# publish-visual.sh refuses any run whose video dir lacks it.
+mkdir -p "$VIDEO_DIR"
+printf '%s image=%s\n' "$RUN_ID" "$IMAGE_REF" > "$VIDEO_DIR/.passed"
+
 exit 0

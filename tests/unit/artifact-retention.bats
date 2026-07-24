@@ -142,3 +142,15 @@ mkrun() {
 @test "the keep count is overridable" {
     grep -q 'WOOTC_E2E_KEEP_RUNS:-3' "$E2E"
 }
+
+@test "the README timelapse only publishes green runs" {
+    # run-e2e stamps .passed beside the recording ONLY on ALL TESTS PASSED;
+    # publish-visual refuses any run lacking it (the hero must never show a
+    # red run). --allow-red is the sole override.
+    grep -q 'VIDEO_DIR/.passed' "$REPO_ROOT/tests/e2e/run-e2e.sh"
+    grep -B5 'VIDEO_DIR/.passed' "$REPO_ROOT/tests/e2e/run-e2e.sh" | grep -q 'Green-only publish gate'
+    local pv="$REPO_ROOT/tests/e2e/publish-visual.sh"
+    grep -q 'name .passed' "$pv"
+    grep -q 'not a GREEN run' "$pv"
+    grep -q 'ALLOW_RED' "$pv"
+}
