@@ -52,6 +52,11 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
         --force \
         --no-hostonly \
         --add "network kernel-modules kernel-modules-extra wootc" \
+# xfs/btrfs explicitly: the deployer formats unsealed images root as xfs
+# (its default), but no green run ever exercised it (sealed images take
+# ext4) and the initramfs kernel could not mount what mkfs.xfs had just
+# written (GH bonito repro 20260724T0031: exit 32, blkid TYPE=xfs).
+        --add-drivers "xfs btrfs" \
         --install "podman skopeo fisherman ostree cpio \
                    /usr/share/containers/policy.json /usr/share/containers/registries.conf \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
@@ -72,6 +77,8 @@ RUN for bin in conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
+    lsinitrd /out/deployer-initramfs.img | grep -qE "xfs.ko" || \
+        { echo "FATAL: xfs kernel module missing from initramfs (unsealed images format xfs)"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "etc/pki/tls/certs/ca-bundle.crt" || \
         { echo "FATAL: CA bundle missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh" || \
