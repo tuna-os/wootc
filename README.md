@@ -126,7 +126,7 @@ issue) · ⚪ not yet run.
 
 | Image family | Backend / rootfs | Arm (P1) | Deploy | Phase-2 boot | Phase-3 graduate | GUI-driven full run |
 |---|---|:--:|:--:|:--:|:--:|:--:|
-| `bluefin:lts` | ostree · ext4-sealed | ✅ | ✅ | ✅ | ✅ (29/29) | 🟡 |
+| `bluefin:lts` | ostree · ext4-sealed | ✅ | ✅ | ✅ | ✅ (29/29) | ✅ |
 | `yellowfin:gnome` (EL10) | ostree · ext4-sealed | ✅ | ✅ | ✅ | ✅ | ⚪ |
 | `bonito:gnome` (Fedora) | ostree · **xfs** (unsealed) | ✅ | 🟡 | ⚪ | ⚪ | ⚪ |
 | `dakota` | composefs-native | ✅ | 🟡 | ⚪ | ⚪ | ⚪ |
@@ -148,8 +148,9 @@ issue) · ⚪ not yet run.
 
 The full three-phase chain (Windows seed → deploy → Phase-2 bridge →
 Phase-3 native disk → seeded file on the native disk) is **green end-to-end
-on `bluefin:lts`** via the script path; the same chain driven entirely
-through the real `wootc.exe` GUI is in active validation.
+on `bluefin:lts`** — both via the script path (29/29) and driven entirely
+through the real `wootc.exe` GUI (drive mode). The timelapse above is that
+GUI-driven green run.
 
 ## Safety model
 
