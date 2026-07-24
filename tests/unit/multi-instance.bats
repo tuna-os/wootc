@@ -99,3 +99,11 @@ setup() {
     grep -q 'registries.conf.d/wootc-mirror.conf' "$dep"
     grep -q 'mirror.txt' "$REPO_ROOT/tests/e2e/setup-wootc.ps1"
 }
+
+@test "post-deploy parsing survives no-match greps (pipefail)" {
+    # `set -euo pipefail` + a grep that matches nothing = silent death with
+    # no fail line. The GUI path has no OEM log, so the BitLocker-axis
+    # parse killed takes 7b and 8 right after a fully verified deploy.
+    grep -q "{ grep -aoE 'C: BitLocker state: \[a-z\]+' || true; }" "$E2E"
+    grep -q "{ grep -aoE 'WOOTC_STORAGE_ROOT=\[A-Za-z\]:' || true; }" "$E2E"
+}

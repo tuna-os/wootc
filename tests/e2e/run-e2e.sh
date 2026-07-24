@@ -1851,9 +1851,14 @@ done
 # setup-wootc.ps1 logs the observed C: state and where Linux was placed. On the
 # FDE case C: must be encrypted AND root.disk must live on a different,
 # unencrypted volume — proving we never forced the user to decrypt.
+# Every grep here needs `|| true`: under `set -euo pipefail` a grep that
+# matches NOTHING fails its pipeline and set -e kills the run — silently,
+# with no fail line, right after the deploy passed. The GUI-driven path
+# has no C:\OEM\wootc-e2e.log at all (it never runs setup-wootc.ps1), so
+# it died here on every take that got this far (7b, 8).
 OEM_LOG=$(qga_read 'C:\OEM\wootc-e2e.log' 2>/dev/null | tr -d '\r' || true)
-BL_SEEN=$(printf '%s' "$OEM_LOG" | grep -aoE 'C: BitLocker state: [a-z]+' | tail -1 | awk '{print $NF}')
-BL_ROOT=$(printf '%s' "$OEM_LOG" | grep -aoE 'WOOTC_STORAGE_ROOT=[A-Za-z]:' | tail -1 | cut -d= -f2)
+BL_SEEN=$(printf '%s' "$OEM_LOG" | { grep -aoE 'C: BitLocker state: [a-z]+' || true; } | tail -1 | awk '{print $NF}')
+BL_ROOT=$(printf '%s' "$OEM_LOG" | { grep -aoE 'WOOTC_STORAGE_ROOT=[A-Za-z]:' || true; } | tail -1 | cut -d= -f2)
 info "BitLocker axis=${WOOTC_E2E_BITLOCKER:-off} observed C: state=${BL_SEEN:-unknown} storage=${BL_ROOT:-unknown}"
 if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
     case "$BL_SEEN" in
