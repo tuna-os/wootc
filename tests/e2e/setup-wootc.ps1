@@ -32,6 +32,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# ── Single-instance guard ───────────────────────────────────────────────────
+# On a FRESH install two launchers race: Windows autologon fires the OEM
+# handoff at first logon AND the harness dispatches it over QGA. Both run
+# setup-wootc.ps1 concurrently, and the second hits "Access to the path
+# 'C:\wootc\install\<file>' is denied" on whatever file the first is writing
+# (grub.install.cfg, then wubildr.cfg, … — an endless whack-a-mole). A global
+# mutex makes exactly one instance proceed; the loser exits cleanly. This is
+# the real fix for the whole "OEM setup failed before the barrier" class.
+$script:wootcMutex = New-Object System.Threading.Mutex($false, 'Global\wootc-setup-wootc')
+try { $gotMutex = $script:wootcMutex.WaitOne(0) } catch { $gotMutex = $true }
+if (-not $gotMutex) {
+    Write-Host "[wootc] another setup-wootc.ps1 already holds the lock — this instance exits (single-instance guard)."
+    exit 0
+}
+
 # Extra deployer kargs for the bootloader/composefs axes of the test matrix.
 # grub2 + no composefs reproduces the historical default exactly.
 $WootcKargs = "wootc.bootloader=$Bootloader"
@@ -228,7 +243,7 @@ $vaultJson = @"
   "hostname": "wootc-test"
 }
 "@
-Set-Content -Path "$installDir\vault.json" -Value $vaultJson -Encoding ASCII
+Set-Content -Force -Path "$installDir\vault.json" -Value $vaultJson -Encoding ASCII
 $WootcKargs += " wootc.vault=/wootc/install/vault.json"
 
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────
@@ -292,7 +307,7 @@ $wubildrLines = @(
     'fi'
 )
 
-Set-Content -Path "$installDir\wubildr.cfg" -Value $wubildrLines -Encoding ASCII
+Set-Content -Force -Path "$installDir\wubildr.cfg" -Value $wubildrLines -Encoding ASCII
 Write-Host "[wootc] Wrote wubildr.cfg"
 
 # ── Step 7: Install signed shim + GRUB to ESP ──────────────────────────────
@@ -370,7 +385,7 @@ $grubCfgLines = @(
 $grubVendorDirs = @("$espPath\EFI\fedora", "$espPath\EFI\redhat", "$espPath\EFI\wootc")
 foreach ($gd in $grubVendorDirs) {
     New-Item -ItemType Directory -Force -Path $gd | Out-Null
-    Set-Content -Path "$gd\grub.cfg" -Value $grubCfgLines -Encoding ASCII
+    Set-Content -Force -Path "$gd\grub.cfg" -Value $grubCfgLines -Encoding ASCII
 }
 Write-Host "[wootc] Wrote deployer grub.cfg to ESP:EFI/{fedora,redhat,wootc}/grub.cfg"
 
@@ -388,7 +403,7 @@ if ($bcdCreateOutput -match '\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-
     Write-Host "[wootc] New BCD entry GUID: $newGuid"
 
     # Persist the GUID so the E2E runner can re-arm the one-shot for Phase 2.
-    Set-Content -Path "$installDir\bcd-guid.txt" -Value $newGuid -Encoding ASCII
+    Set-Content -Force -Path "$installDir\bcd-guid.txt" -Value $newGuid -Encoding ASCII
 
     # Point to the shim (Microsoft-signed, Fedora build). Shim verifies
     # grubx64.efi (Fedora-signed), which loads grub.cfg from EFI/fedora/.

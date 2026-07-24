@@ -117,3 +117,16 @@ setup() {
     grep -q 'result" -ne 0 \] && \[ "${WOOTC_E2E_KEEP_ALIVE:-0}" != "1" \]' "$E2E"
     grep -q "pkill -9 -f 'process=windows'" "$E2E"
 }
+
+@test "setup-wootc.ps1 is single-instance (mutex) — no fresh-install OEM race" {
+    # Autologon + QGA dispatch both launch setup-wootc.ps1 on a fresh install;
+    # the loser hit 'Access denied' on whatever file the winner was writing
+    # (grub.install.cfg, wubildr.cfg, … whack-a-mole). One mutex ends the class.
+    local ps="$REPO_ROOT/tests/e2e/setup-wootc.ps1"
+    grep -q "System.Threading.Mutex" "$ps"
+    grep -q "Global.\\\\wootc-setup-wootc" "$ps"
+    grep -q 'single-instance guard' "$ps"
+    # Every install-dir write is -Force too (belt).
+    run grep -nE 'Set-Content -Path "\$installDir' "$ps"
+    [ "$status" -ne 0 ]
+}
