@@ -1019,9 +1019,16 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             "${DRACUT_INSTALL_ARGS[@]}" \
             --fwdir /run/wootc-nofw \
             --omit "$DRACUT_OMIT" \
-            "$INITRD_CHROOT_PATH" "$KVER" 2>&1 | tail -25 >&2
-        REGEN_RC=${PIPESTATUS[0]}
+            "$INITRD_CHROOT_PATH" "$KVER" > /tmp/dracut-regen.log 2>&1
+        REGEN_RC=$?
         set -e
+        # Route dracut's own words through the logger: bare stderr reaches
+        # only the serial console, which the harness does not surface and CI
+        # truncates — three separate regen failures (LUKS take 6, bonito
+        # 20260724T0132) reported nothing but "exit=1". Prefixed lines land
+        # in the persistent deployer.log too.
+        while IFS= read -r dline; do err "  dracut: $dline"; done \
+            < <(tail -25 /tmp/dracut-regen.log 2>/dev/null)
         # A non-zero regen must ABORT here, not merely be logged as a "problem"
         # and continued past (PHASE2_PROBLEMS is only summarised, never fatal).
         # PROVEN on hosted run 29712429479: the module's wiring dfatal aborted

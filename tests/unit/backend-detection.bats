@@ -109,3 +109,13 @@ setup() {
     grep -q -- '--add-drivers "xfs btrfs"' "$REPO_ROOT/payload/deployer/Containerfile"
     grep -q 'xfs.ko' "$REPO_ROOT/payload/deployer/Containerfile"
 }
+
+@test "dracut regen failures report dracut's own output" {
+    # Bare stderr reaches only the serial console (harness never surfaces
+    # it, CI truncates it): three regen failures reported nothing but
+    # exit=1. The tail must go through err/log so it also lands in the
+    # persistent deployer.log.
+    local dep="$REPO_ROOT/payload/deployer/deploy.sh"
+    grep -q 'dracut-regen.log' "$dep"
+    grep -q 'err "  dracut: \$dline"' "$dep"
+}
