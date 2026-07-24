@@ -75,21 +75,90 @@ err() {
 phase() {
     echo "$*" > /run/wootc-phase 2>/dev/null || true
     log "phase: $*"
-    # E2E timelapse: paint a big, readable banner on the VGA console so the
-    # recorded deploy shows progress instead of a black screen. Gated on
-    # wootc.e2e_video=1 (set only by the E2E deployer cmdline); tty0 is on the
-    # cmdline there too. Harmless no-op otherwise.
-    if [[ "${WOOTC_E2E_VIDEO:-0}" == 1 ]] && [[ -w /dev/tty0 ]]; then
-        {
-            printf '\033[2J\033[H'                      # clear + home
-            printf '\n\n\n'
-            printf '        wootc deployer\n'
-            printf '        ==============\n\n'
-            printf '        >> %s\n' "$*"
-            printf '\n\n        installing your Linux system into root.disk...\n'
-        } > /dev/tty0 2>/dev/null || true
-    fi
+    # Translate each internal phase into calm, non-technical reassurance on
+    # the full-screen splash (North Star: a nervous Windows user must never
+    # see console/kernel output and must feel that good things are happening).
+    # Fields: <start%> <ceiling%> <friendly message>. The animator eases the
+    # bar from start toward ceiling so it is always visibly moving.
+    case "$1" in
+        ntfs-mounted)       splash_set  6 12 "Preparing your disk..." ;;
+        scratch-setup)      splash_set 12 18 "Preparing your disk..." ;;
+        registry-preflight) splash_set 18 24 "Connecting to the software library..." ;;
+        fisherman)          splash_set 26 86 "Downloading and installing your Linux system..." ;;
+        verification)       splash_set 88 95 "Almost there - making sure everything is perfect..." ;;
+        reboot)             splash_set 100 100 "All set! Starting your new Linux system..." ;;
+        *) : ;;
+    esac
 }
+
+# ── Reassuring full-screen install UI ───────────────────────────────────────
+# The deployer's real work (kernel messages, container pulls, fisherman) goes
+# to the SERIAL console + persistent log. On the SCREEN the user sees only
+# this: a calm title, a friendly one-line status, a progress bar that is
+# always moving, and a standing promise that their Windows and files are safe.
+# Drawn on /dev/tty1 (the VGA text console; the deploy logs never touch it,
+# so it stays clean). `wootc.debug` turns the splash off and shows raw console
+# for troubleshooting.
+SPLASH_TTY=/dev/tty1
+SPLASH_STATE=/run/wootc-splash
+SPLASH_PID=""
+splash_on() { [[ "${DEBUG:-}" != 1 ]] && [[ -w "$SPLASH_TTY" ]]; }
+
+# splash_set <start%> <ceiling%> <message> — the animator eases from start
+# toward ceiling so the bar keeps creeping up within a phase (never frozen).
+splash_set() {
+    splash_on || return 0
+    printf '%s\t%s\t%s\n' "$1" "$2" "$3" > "$SPLASH_STATE" 2>/dev/null || true
+}
+
+splash_paint() {  # <pct> <message> <spinner-char>
+    local pct="$1" msg="$2" sp="$3" i filled bar=""
+    filled=$(( pct * 46 / 100 ))
+    for ((i = 0; i < 46; i++)); do (( i < filled )) && bar+="#" || bar+="-"; done
+    # Repaint in place (cursor-home, clear-to-EOL per line) — no full-screen
+    # clear, so it never flickers. \033[K wipes any leftover from a longer
+    # previous message.
+    {
+        printf '\033[H\033[?25l'
+        printf '\n\n\n\n'
+        printf '\033[1;96m                     Setting up your new Linux system\033[0m\033[K\n\n\n'
+        printf '\033[0;97m                     %s  %s\033[0m\033[K\n\n\n' "$sp" "$msg"
+        printf '\033[1;96m                     [%s] %3d%%\033[0m\033[K\n\n\n\n\n' "$bar" "$pct"
+        printf '\033[0;92m                [OK]  Your Windows and all of your files are safe.\033[0m\033[K\n\n'
+        printf '\033[0;97m                   This usually takes about 5 to 15 minutes.\033[0m\033[K\n'
+        printf '\033[0;97m                   Please keep your PC plugged in - no need to touch anything.\033[0m\033[K\n'
+    } > "$SPLASH_TTY" 2>/dev/null || true
+}
+
+splash_start() {
+    splash_on || return 0
+    # Own the screen: hide cursor, disable console blanking (ESC[9;0]) so it
+    # never goes black mid-deploy, and clear once (the animator repaints in
+    # place after this).
+    printf '\033[?25l\033[9;0]\033[2J\033[H' > "$SPLASH_TTY" 2>/dev/null || true
+    setterm -blank 0 -powerdown 0 >"$SPLASH_TTY" 2>/dev/null || true
+    splash_set 2 6 "Getting things ready..."
+    (
+        local frame=0 cur=2 spinners='|/-\' last=""
+        while :; do
+            local start ceil msg line
+            line=$(cat "$SPLASH_STATE" 2>/dev/null || true)
+            IFS=$'\t' read -r start ceil msg <<< "$line"
+            [ -n "${start:-}" ] || { start=2; ceil=6; msg="Working..."; }
+            # New phase → jump to its start; otherwise creep toward its ceiling.
+            if [ "$line" != "$last" ]; then cur="$start"; last="$line"; fi
+            if [ "$cur" -lt "$ceil" ]; then
+                cur=$(( cur + ( (ceil - cur) / 12 ) + 1 ))
+                [ "$cur" -gt "$ceil" ] && cur="$ceil"
+            fi
+            splash_paint "$cur" "$msg" "${spinners:frame%4:1}"
+            frame=$(( frame + 1 ))
+            sleep 2
+        done
+    ) &
+    SPLASH_PID=$!
+}
+splash_stop() { [[ -n "$SPLASH_PID" ]] && kill "$SPLASH_PID" 2>/dev/null || true; SPLASH_PID=""; }
 
 # Cap dirty page cache so multi-GB writeback streams to disk continuously.
 # Unbounded dirty pages (default: 20% of RAM) made the final sync/umount sit
@@ -137,6 +206,20 @@ cleanup() {
     [[ -n "$VERIFY_LOOP" ]] && losetup -d "$VERIFY_LOOP" 2>/dev/null || true
     [[ -n "$SCRATCH_LOOP" ]] && losetup -d "$SCRATCH_LOOP" 2>/dev/null || true
     [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
+    splash_stop
+    # On any failure the user must not be left on a frozen "installing"
+    # screen. A friendly, non-alarming message + the reassurance that Windows
+    # is untouched; the technical detail is on the serial log for us.
+    if [[ "${DEPLOY_OK:-0}" != 1 && "${DEBUG:-}" != 1 && -w "${SPLASH_TTY:-/dev/null}" ]]; then
+        {
+            printf '\033[H\033[2J\033[?25h\n\n\n\n'
+            printf '\033[1;93m                     We could not finish setting up Linux this time.\033[0m\n\n\n'
+            printf '\033[0;92m                [OK]  Your Windows and all of your files are completely safe.\033[0m\n\n'
+            printf '\033[0;97m                   Your PC will restart back into Windows in a moment.\033[0m\n'
+            printf '\033[0;97m                   You can simply try again — nothing was changed.\033[0m\n'
+        } > "$SPLASH_TTY" 2>/dev/null || true
+        sleep 6 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
@@ -171,7 +254,10 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
-WOOTC_E2E_VIDEO="$(read_cmdline wootc.e2e_video 0)"
+# Bring up the reassuring full-screen install UI as early as possible so the
+# very first thing on screen after "Booting wootc" is calm and friendly, not
+# a black screen or console text.
+splash_start
 # Both default to `auto`: the deployer detects the deployment backend AND the
 # bootloader DEFINITIVELY from the image (see the detection block below), because
 # they are a property of the image, not something the caller must know. An
@@ -1836,9 +1922,15 @@ VERIFY_LOOP=""
 # ╚═══════════════════════════════════════════════════════════════════════════
 
 phase "reboot"
+DEPLOY_OK=1   # success — the EXIT trap shows "starting Linux", not the failure card
 log "Verification complete. Deployer requested reboot..."
 log "  [wootc] VERIFICATION_SUMMARY: deployer ready for migration phase"
 log "deployer requested reboot"
+# Let the "All set! Starting your new Linux system..." splash sit for a beat so
+# the reboot doesn't yank a mid-progress screen away from the user.
+splash_set 100 100 "All set! Starting your new Linux system..."
+sleep 2 2>/dev/null || true
+splash_stop
 sync || true
 
 # Tear down the scratch store and leave the NTFS volume clean before the

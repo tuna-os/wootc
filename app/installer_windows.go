@@ -518,15 +518,13 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 		installMode += " wootc.composefs=1"
 	}
 	// E2E parity with setup-wootc.ps1: the harness diagnoses the deployer
-	// from the QEMU SERIAL console (ttyS0). We ALSO add the VGA console
-	// (tty0) and a video flag so the recorded timelapse shows the deploy
-	// progress — the deployer's [wootc] phase lines already go to /dev/kmsg,
-	// which renders on every console, so tty0 turns the multi-minute black
-	// screen into visible progress. ttyS0 stays LAST so it remains
-	// /dev/console (userspace stdout → serial, harness unaffected); dropping
-	// `quiet` makes the VGA verbose. Product installs stay clean.
+	// from the QEMU SERIAL console. console=ttyS0 sends kernel + deploy logs
+	// there (off-screen), which also leaves the VGA free for the deployer's
+	// friendly full-screen splash (deploy.sh draws it on /dev/tty1 — the
+	// nervous-user reassurance UI, never raw console). Product installs stay
+	// clean.
 	if os.Getenv("WOOTC_E2E_DRIVE") == "1" {
-		installMode += " wootc.e2e_video=1 console=tty0 console=ttyS0"
+		installMode += " console=ttyS0"
 	}
 
 	// Deployer menu at the signed GRUB's embedded prefix.
