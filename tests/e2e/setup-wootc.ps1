@@ -12,11 +12,13 @@
 param(
     [string]$ImageRef = "ghcr.io/tuna-os/yellowfin:gnome",
     [string]$Hostname = "wootc-test",
-    # 25 GB minimum: fisherman redirects podman storage INTO the target disk
-    # (.fisherman-scratch) and unpacks the image into the target's ostree repo,
-    # so the loop file must hold extracted image (~10 GB for yellowfin:gnome)
-    # + blob scratch + filesystem overhead. 10 GB ENOSPC'd during the pull.
-    [int]$DiskSizeGB = 25,
+    # 35 GB: holds the extracted ostree deployment + install headroom. GNOME
+    # images (~10 GB) fit in 25, but the larger KDE/niri desktops ENOSPC'd
+    # `bootc install to-filesystem` there — el10-kde AND fedora-kde failed at
+    # 25 while both GNOME variants passed (GH matrix 20260724). The GUI path
+    # already defaults to 40; 35 covers every catalog desktop without
+    # over-inflating the fully-allocated root.disk on tight hosted runners.
+    [int]$DiskSizeGB = 35,
     # Phase-2 bootloader the deployer installs: "grub2" (traditional ostree),
     # "systemd" (composefs-native), or "auto" (default) to let the DEPLOYER
     # detect it definitively from the image (grub in bootupd → grub2, else
