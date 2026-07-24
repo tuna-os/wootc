@@ -93,3 +93,17 @@ setup() {
         [ "$status" -ne 0 ]
     done
 }
+
+@test "filesystem default is xfs; ext4 only as the fs-verity necessity for sealed" {
+    # The product default is xfs (btrfs selectable via wootc.filesystem=).
+    # ext4 appears ONLY when a sealed rootfs demands fs-verity, which
+    # fisherman enables at format time solely on ext4. Keyed off SEALED,
+    # never the backend. The initramfs must be able to mount its own
+    # default: xfs.ko was missing until GH repro 20260724T0031.
+    local dep="$REPO_ROOT/payload/deployer/deploy.sh"
+    grep -q 'read_cmdline wootc.filesystem xfs' "$dep"
+    grep -q 'FILESYSTEM=ext4' "$dep"
+    grep -B6 'FILESYSTEM=ext4' "$dep" | grep -q 'ROOTFS_SEALED'
+    grep -q -- '--add-drivers "xfs btrfs"' "$REPO_ROOT/payload/deployer/Containerfile"
+    grep -q 'xfs.ko' "$REPO_ROOT/payload/deployer/Containerfile"
+}
