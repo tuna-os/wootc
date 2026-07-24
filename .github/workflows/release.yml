@@ -47,9 +47,13 @@ jobs:
     if: ${{ !inputs.skip_e2e }}
     uses: ./.github/workflows/e2e-hosted.yml
     with:
-      image: ghcr.io/tuna-os/yellowfin:gnome
+      # Gate on the alpha image, driven through the REAL GUI — the release is
+      # proven the way a user installs it (docs/RELEASING.md).
+      image: ghcr.io/projectbluefin/bluefin:lts
       win_version: '11'
       bitlocker: 'off'
+      gui_install: true
+      phase3: true
 
   # ── 3. publish — only reachable when the gate passed (or was waived) ──────
   publish:

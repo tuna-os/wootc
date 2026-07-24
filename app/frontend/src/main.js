@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive, GetFreshVMCapability, TryInVMFresh, InstallPreviewForReal, E2EDriveDirective, E2EDriveReport } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, StartInstall, CancelInstall, GetStatus, Reboot, ExistingInstallFound, GetMode, GetMigrationCategories, ConvertCategory, ImportBrowserData, GetAppMigrations, GetOfficeMigration, GetBranding, CreateDataPartition, GetUninstallInfo, UninstallWith, GetVMCapability, BootInVM, DefragDrive, GetFreshVMCapability, TryInVMFresh, InstallPreviewForReal, E2EDriveDirective, E2EDriveReport, GetSupportPolicy } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -119,12 +119,14 @@ async function init() {
     return;
   }
 
-  const [images, sysinfo, existing] = await Promise.all([
+  const [images, sysinfo, existing, policy] = await Promise.all([
     GetImages(),
     GetSystemInfo(),
     ExistingInstallFound(),
+    GetSupportPolicy().catch(() => ({ channel: 'alpha', experimentalImages: false, bitlockerSupported: false, customImageAllowed: false })),
   ]);
 
+  state.policy = policy;
   state.images = images || [];
   state.sysinfo = sysinfo;
   state.selected = state.images[0] || null;
@@ -290,7 +292,7 @@ function renderLaunchpad() {
   });
   screen.appendChild(grid);
 
-  const customRef = inputField('Custom supported OCI image', 'text', state.config.customImageRef || '', v => {
+  const customRef = state.policy?.customImageAllowed !== false ? inputField('Custom supported OCI image', 'text', state.config.customImageRef || '', v => {
     state.config.customImageRef = v.trim();
     if (/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\/[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$/.test(state.config.customImageRef)) {
       // Default a custom ref to the grub2/ostree path — the measured backend
@@ -304,8 +306,8 @@ function renderLaunchpad() {
       render();
     }
     refreshInstallValidity();
-  }, 'ghcr.io/ublue-os/image:tag');
-  screen.appendChild(customRef);
+  }, 'ghcr.io/ublue-os/image:tag') : null;
+  if (customRef) screen.appendChild(customRef);
 
   // Config fields
   const fields = el('div', 'fields');
@@ -942,7 +944,10 @@ function refreshInstallValidity() {
   if (!btn) return;
   const c = state.config;
   let reason = '';
-  if (!state.selected) reason = 'Choose a variant above.';
+  // Green-gate: block scenarios this channel has not proven (docs/RELEASING.md).
+  if (state.sysinfo?.bitLockerOn && state.policy && state.policy.bitlockerSupported === false)
+    reason = `BitLocker encryption isn't supported in the ${state.policy.channel} yet — it's coming soon. For now, wootc needs drive encryption turned off.`;
+  else if (!state.selected) reason = 'Choose a variant above.';
   else if (!c.username.trim()) reason = 'Enter a Linux username.';
   else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
   else if (!c.password) reason = 'Set a password.';

@@ -1076,9 +1076,13 @@ mkdir -p storage wootc-files
 if [ "${RUN_PHASE3:-false}" = true ]; then
     # A Phase-3 proof must start with an actually blank disk. Dockur names its
     # second growable disk data2.qcow2 under /storage2; compose maps only this
-    # dedicated directory there. Remove the prior test target, never data.qcow2.
-    mkdir -p storage/phase3
-    rm -f storage/phase3/data2.qcow2
+    # dedicated directory there. $STORAGE_DIR, NOT a literal storage/: an
+    # instanced run (storage-g) otherwise never reset ITS spare, so a second
+    # run attached the prior run's already-graduated disk and refused it as
+    # "no BLANK spare disk" (GUI take 12). Remove the prior target, never
+    # data.qcow2.
+    mkdir -p "$STORAGE_DIR/phase3"
+    rm -f "$STORAGE_DIR/phase3/data2.qcow2"
 fi
 
 # Self-healing container start. Rootless podman occasionally leaves a phantom

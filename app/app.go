@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +28,12 @@ type Image struct {
 	Bootloader  string `json:"bootloader"` // grub2 | systemd-boot
 	ComposeFS   bool   `json:"composeFs"`
 	Family      string `json:"family"` // el10 | fedora | arch | debian | custom
+	// Status gates what a release channel offers (docs/RELEASING.md):
+	//   "green"        — proven end-to-end by the E2E matrix; offered in every channel
+	//   "experimental" — builds/works but not yet E2E-green; hidden in alpha
+	// Empty is treated as "experimental" (fail safe — never surface an
+	// unproven image to an alpha user by omission).
+	Status string `json:"status"`
 }
 
 // InstallConfig is the parameters collected on Screen 1.
@@ -158,12 +165,88 @@ func (a *App) shutdown(ctx context.Context) {
 
 // ── Catalog ───────────────────────────────────────────────────────────────────
 
-// GetImages returns the flat list of installable images from the embedded
-// catalog. If C:\wootc\images.json exists it takes precedence (custom
-// deployments / enterprise override).
+// SupportPolicy is what the current release channel allows. The frontend
+// reads it to gate the UI to green-only scenarios (docs/RELEASING.md); the
+// backend enforces the same rules in StartInstall (defense in depth).
+type SupportPolicy struct {
+	Channel             string `json:"channel"`             // alpha | beta | stable
+	ExperimentalImages  bool   `json:"experimentalImages"`  // offer non-green images?
+	BitLockerSupported  bool   `json:"bitlockerSupported"`  // is the FDE path green yet? (#34)
+	CustomImageAllowed  bool   `json:"customImageAllowed"`  // arbitrary OCI ref?
+	Reason              string `json:"reason"`              // one-liner for the UI
+}
+
+// supportChannel resolves the active release channel. Default is the
+// conservative "alpha"; overridable for testing via C:\wootc\channel.txt or
+// $WOOTC_CHANNEL.
+func supportChannel() string {
+	if c := os.Getenv("WOOTC_CHANNEL"); c != "" {
+		return c
+	}
+	if data, err := os.ReadFile(filepath.Join(wootcDir(), "channel.txt")); err == nil {
+		if c := strings.TrimSpace(string(data)); c != "" {
+			return c
+		}
+	}
+	return "alpha"
+}
+
+// GetSupportPolicy returns the gating policy for the active channel.
+func (a *App) GetSupportPolicy() SupportPolicy {
+	switch supportChannel() {
+	case "beta":
+		// Full matrix green (the beta bar): everything is on the table; the
+		// axes that are still red stay explicitly false until their issue closes.
+		return SupportPolicy{Channel: "beta", ExperimentalImages: true,
+			BitLockerSupported: false, CustomImageAllowed: true,
+			Reason: "Beta — most images and scenarios supported."}
+	case "stable":
+		return SupportPolicy{Channel: "stable", ExperimentalImages: true,
+			BitLockerSupported: true, CustomImageAllowed: true,
+			Reason: ""}
+	default: // alpha
+		return SupportPolicy{Channel: "alpha", ExperimentalImages: false,
+			BitLockerSupported: false, CustomImageAllowed: false,
+			Reason: "Alpha — only fully-tested images and unencrypted disks are offered. More unlock as testing goes green."}
+	}
+}
+
+// gateScenario refuses an install the active channel has not proven green.
+func (a *App) gateScenario(cfg InstallConfig) error {
+	pol := a.GetSupportPolicy()
+	// BitLocker/FDE path is not green yet (#34).
+	if !pol.BitLockerSupported {
+		si := getSystemInfo()
+		if si.BitLockerOn {
+			return fmt.Errorf("BitLocker drive encryption isn't supported in the %s yet — "+
+				"we're finishing testing so your files stay safe. It's coming soon; "+
+				"for now, wootc works on PCs where drive encryption is off", pol.Channel)
+		}
+	}
+	// Only offer images the channel permits. Enterprise images.json override
+	// (custom refs) is trusted; a custom ref typed by the user is gated.
+	if !pol.ExperimentalImages {
+		imgs, _ := a.GetImages()
+		ok := false
+		for _, img := range imgs {
+			if img.ImageRef == cfg.ImageRef {
+				ok = true
+				break
+			}
+		}
+		if !ok && !pol.CustomImageAllowed {
+			return fmt.Errorf("this image isn't in the tested set for the %s yet. "+
+				"Please pick one of the offered images — more become available as testing goes green", pol.Channel)
+		}
+	}
+	return nil
+}
+
+// GetImages returns the installable images the active channel permits. In
+// alpha only "green" (E2E-proven) images are offered; experimental images are
+// hidden until their matrix row is green. C:\wootc\images.json (enterprise
+// override) bypasses the filter — those deployments own their own testing.
 func (a *App) GetImages() ([]Image, error) {
-	// C:\wootc\images.json (custom/enterprise override) takes precedence over
-	// the embedded built-in catalog.
 	custom := filepath.Join(wootcDir(), "images.json")
 	if data, err := os.ReadFile(custom); err == nil {
 		var override []Image
@@ -176,7 +259,17 @@ func (a *App) GetImages() ([]Image, error) {
 	if err := json.Unmarshal(catalogJSON, &catalog); err != nil {
 		return nil, fmt.Errorf("parse embedded catalog: %w", err)
 	}
-	return catalog, nil
+
+	if a.GetSupportPolicy().ExperimentalImages {
+		return catalog, nil
+	}
+	green := catalog[:0]
+	for _, img := range catalog {
+		if img.Status == "green" {
+			green = append(green, img)
+		}
+	}
+	return green, nil
 }
 
 // ── System information ────────────────────────────────────────────────────────
@@ -256,6 +349,12 @@ func mergeBranding(base *Branding, over Branding) {
 // are emitted via Wails runtime events (event: "install:progress").
 // Returns immediately — poll GetStatus() or listen to events.
 func (a *App) StartInstall(cfg InstallConfig) error {
+	// Green-gate (docs/RELEASING.md): refuse scenarios the active channel has
+	// not proven, so an alpha user can never be walked into a known-red path.
+	// The frontend gates the UI too; this is the authoritative backstop.
+	if err := a.gateScenario(cfg); err != nil {
+		return err
+	}
 	if cfg.Bootloader == "" {
 		cfg.Bootloader = "grub2"
 	}

@@ -14,6 +14,8 @@ function makeApp(mock) {
     GetMode: () => P(mock.mode || 'installer'),
     GetImages: () => P(mock.images || []),
     GetSystemInfo: () => P(mock.sysinfo || {}),
+    // Mock = dev harness: exercise the full UI unless a scenario overrides it.
+    GetSupportPolicy: () => P(mock.policy || { channel: 'dev', experimentalImages: true, bitlockerSupported: true, customImageAllowed: true, reason: '' }),
     ExistingInstallFound: () => P(!!mock.existing),
     GetStatus: () => P(mock.status || { running: false, done: false, existing: false }),
     StartInstall: (cfg) => {

@@ -1,8 +1,22 @@
 [
   {
+    "id": "bluefin-lts",
+    "name": "Bluefin",
+    "emoji": "\ud83d\udc1f",
+    "base": "Universal Blue (Fedora)",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/projectbluefin/bluefin:lts",
+    "description": "A calm, reliable cloud-native desktop. The fully-tested wootc image.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "fedora",
+    "status": "green"
+  },
+  {
     "id": "yellowfin-gnome",
     "name": "Yellowfin",
-    "emoji": "🐠",
+    "emoji": "\ud83d\udc20",
     "base": "AlmaLinux Kitten 10",
     "desktop": "gnome",
     "desktopName": "GNOME",
@@ -10,12 +24,13 @@
     "description": "Modern GNOME desktop on Enterprise Linux. Stable and reliable.",
     "bootloader": "grub2",
     "composeFs": false,
-    "family": "el10"
+    "family": "el10",
+    "status": "experimental"
   },
   {
     "id": "yellowfin-kde",
     "name": "Yellowfin",
-    "emoji": "🐠",
+    "emoji": "\ud83d\udc20",
     "base": "AlmaLinux Kitten 10",
     "desktop": "kde",
     "desktopName": "KDE Plasma",
@@ -23,12 +38,13 @@
     "description": "KDE Plasma desktop on Enterprise Linux.",
     "bootloader": "grub2",
     "composeFs": false,
-    "family": "el10"
+    "family": "el10",
+    "status": "experimental"
   },
   {
     "id": "bonito-gnome",
     "name": "Bonito",
-    "emoji": "🎣",
+    "emoji": "\ud83c\udfa3",
     "base": "Fedora 44",
     "desktop": "gnome",
     "desktopName": "GNOME",
@@ -36,12 +52,13 @@
     "description": "Cutting-edge GNOME on Fedora. Latest upstream packages.",
     "bootloader": "systemd-boot",
     "composeFs": true,
-    "family": "fedora"
+    "family": "fedora",
+    "status": "experimental"
   },
   {
     "id": "bonito-kde",
     "name": "Bonito",
-    "emoji": "🎣",
+    "emoji": "\ud83c\udfa3",
     "base": "Fedora 44",
     "desktop": "kde",
     "desktopName": "KDE Plasma",
@@ -49,12 +66,13 @@
     "description": "KDE Plasma on Fedora. Rolling updates, familiar interface.",
     "bootloader": "systemd-boot",
     "composeFs": true,
-    "family": "fedora"
+    "family": "fedora",
+    "status": "experimental"
   },
   {
     "id": "yellowfin-xfce",
     "name": "Yellowfin",
-    "emoji": "🐠",
+    "emoji": "\ud83d\udc20",
     "base": "AlmaLinux Kitten 10",
     "desktop": "xfce",
     "desktopName": "XFCE",
@@ -62,12 +80,13 @@
     "description": "Lightweight, classic XFCE desktop on Enterprise Linux. Great on older PCs.",
     "bootloader": "grub2",
     "composeFs": false,
-    "family": "el10"
+    "family": "el10",
+    "status": "experimental"
   },
   {
     "id": "bonito-xfce",
     "name": "Bonito",
-    "emoji": "🎣",
+    "emoji": "\ud83c\udfa3",
     "base": "Fedora 44",
     "desktop": "xfce",
     "desktopName": "XFCE",
@@ -75,12 +94,13 @@
     "description": "Lightweight XFCE on Fedora. Fast and familiar for Windows switchers.",
     "bootloader": "systemd-boot",
     "composeFs": true,
-    "family": "fedora"
+    "family": "fedora",
+    "status": "experimental"
   },
   {
     "id": "bonito-niri",
     "name": "Bonito",
-    "emoji": "🎣",
+    "emoji": "\ud83c\udfa3",
     "base": "Fedora 44",
     "desktop": "niri",
     "desktopName": "Niri",
@@ -88,12 +108,13 @@
     "description": "Modern scrollable-tiling Wayland compositor on Fedora. For keyboard-driven workflows.",
     "bootloader": "systemd-boot",
     "composeFs": true,
-    "family": "fedora"
+    "family": "fedora",
+    "status": "experimental"
   },
   {
     "id": "marlin-niri",
     "name": "Marlin",
-    "emoji": "🚀",
+    "emoji": "\ud83d\ude80",
     "base": "Arch Linux",
     "desktop": "niri",
     "desktopName": "Niri",
@@ -101,12 +122,13 @@
     "description": "Niri scrollable-tiling Wayland on Arch with CachyOS kernel.",
     "bootloader": "systemd-boot",
     "composeFs": true,
-    "family": "arch"
+    "family": "arch",
+    "status": "experimental"
   },
   {
     "id": "marlin-gnome",
     "name": "Marlin",
-    "emoji": "🚀",
+    "emoji": "\ud83d\ude80",
     "base": "Arch Linux",
     "desktop": "gnome",
     "desktopName": "GNOME",
@@ -114,12 +136,13 @@
     "description": "GNOME on Arch Linux with CachyOS kernel. For power users.",
     "bootloader": "systemd-boot",
     "composeFs": true,
-    "family": "arch"
+    "family": "arch",
+    "status": "experimental"
   },
   {
     "id": "flounder-gnome",
     "name": "Flounder",
-    "emoji": "🐡",
+    "emoji": "\ud83d\udc21",
     "base": "Debian 13 Trixie",
     "desktop": "gnome",
     "desktopName": "GNOME",
@@ -127,6 +150,7 @@
     "description": "Rock-solid GNOME on Debian Stable.",
     "bootloader": "systemd-boot",
     "composeFs": true,
-    "family": "debian"
+    "family": "debian",
+    "status": "experimental"
   }
 ]

@@ -130,8 +130,14 @@ test('installer — image metadata selects composefs/systemd-boot and warns for 
 test('installer — supported family custom OCI reference is accepted', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: { ...SYSINFO, secureBootOn: false } });
   await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:stable');
-  await page.getByText('Advanced boot options').click();
-  await expect(page.getByText(/Secure Boot is off/)).toBeVisible();
+  // A supported-family custom ref is accepted: fill a valid form and the
+  // Install button enables. (Custom refs default to grub2/ostree per the
+  // backend contract — covered by the "custom OCI ref defaults" test.)
+  await page.locator('.field:has-text("Linux Username") input').fill('tester');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await expect(page.locator('#install-btn')).toBeEnabled();
 });
 
 test('installer — BitLocker offers unencrypted-partition path (no forced decrypt)', async ({ page }) => {
