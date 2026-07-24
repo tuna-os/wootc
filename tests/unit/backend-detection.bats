@@ -94,18 +94,16 @@ setup() {
     done
 }
 
-@test "filesystem defaults: xfs unsealed, btrfs sealed; ext4 only by request" {
-    # xfs is the product default; a sealed rootfs needs fs-verity, which
-    # xfs lacks — btrfs has it natively (>= 5.15), so it is the sealed
-    # fallback. ext4 (-O verity) stays reachable via wootc.filesystem=.
-    # The initramfs must be able to mount both defaults: xfs.ko was
-    # missing until GH repro 20260724T0031.
+@test "filesystem defaults: xfs unsealed, ext4 sealed (btrfs blocked on #35)" {
+    # xfs is the product default; a sealed rootfs needs fs-verity, which xfs
+    # lacks. ext4 is the PROVEN sealed fallback (29/29 green). btrfs also has
+    # fs-verity but the ostree Phase-2 boot cannot mount it yet (#35), so it
+    # stays opt-in via wootc.filesystem=. Both xfs.ko and btrfs.ko must be in
+    # the initramfs — a typeless mount tried ext4 on xfs until GH 20260724.
     local dep="$REPO_ROOT/payload/deployer/deploy.sh"
     grep -q 'read_cmdline wootc.filesystem xfs' "$dep"
-    grep -q 'FILESYSTEM=btrfs' "$dep"
-    grep -B7 'FILESYSTEM=btrfs' "$dep" | grep -q 'ROOTFS_SEALED'
-    run grep -nE '^[^#]*FILESYSTEM=ext4$' "$dep"
-    [ "$status" -ne 0 ]
+    grep -q 'FILESYSTEM=ext4' "$dep"
+    grep -B9 'FILESYSTEM=ext4' "$dep" | grep -q 'ROOTFS_SEALED'
     grep -q -- '--add-drivers "xfs btrfs"' "$REPO_ROOT/payload/deployer/Containerfile"
     grep -q 'xfs.ko' "$REPO_ROOT/payload/deployer/Containerfile"
 }
