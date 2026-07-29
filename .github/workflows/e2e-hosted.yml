@@ -128,7 +128,7 @@ jobs:
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
-          go-version: '1.25.x'
+          go-version: '1.26.x'
 
       - name: Build wootc.exe (GUI-driven run only)
         if: ${{ inputs.gui_install }}
