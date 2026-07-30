@@ -134,7 +134,7 @@ jobs:
 
       - name: Set up Go for GUI-driven run
         if: ${{ inputs.gui_install }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
