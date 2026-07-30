@@ -125,7 +125,7 @@ jobs:
       # loader tag, so this is a stock production build.
       - name: Set up Node for GUI-driven run
         if: ${{ inputs.gui_install }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # Disk reclaim removes the runner's preinstalled global Node modules.
           # GUI runs build the real Wails frontend, so explicitly restore a
