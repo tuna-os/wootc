@@ -53,11 +53,12 @@ observe_with() {
     run bash -c "
         set -uo pipefail
         WOOTC_E2E_P2_REBOOT_POLL_S=0
+        WOOTC_E2E_P2_REBOOT_TRIES=4
         qga_probe() { $1; }
         qga_windows_probe() { $2; }
         qga_linux_probe() { $3; }
         $(extract_fn p2_reboot_observe)
-        p2_reboot_observe 4
+        p2_reboot_observe
     "
 }
 
@@ -117,13 +118,14 @@ observe_with() {
     run bash -c "
         set -uo pipefail
         WOOTC_E2E_P2_REBOOT_POLL_S=0
+        WOOTC_E2E_P2_REBOOT_TRIES=9
         C=$BATS_TEST_TMPDIR/calls
         : > \"\$C\"
         qga_probe() { echo p >> \"\$C\"; return 0; }
         qga_windows_probe() { return 0; }
         qga_linux_probe() { return 1; }
         $(extract_fn p2_reboot_observe)
-        p2_reboot_observe 9 >/dev/null
+        p2_reboot_observe >/dev/null
         wc -l < \"\$C\"
     "
     [ "$status" -eq 0 ]

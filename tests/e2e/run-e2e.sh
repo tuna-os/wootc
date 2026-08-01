@@ -631,8 +631,13 @@ qga_linux_probe() {
 # a QEMU system_reset is a correct answer to; every other value means the reset
 # would land on a Windows that is booting or already back, i.e. a hard power
 # cut to the exact thing this step exists to verify.
+#
+# Both knobs are env overrides rather than arguments so the only call site stays
+# argument-free: a budget passed positionally by tests but never by the script
+# is indistinguishable from a bug (SC2120), and the tests are the one caller
+# that needs to shrink it.
 p2_reboot_observe() {
-    local budget="${1:-9}" poll="${WOOTC_E2E_P2_REBOOT_POLL_S:-5}" i
+    local budget="${WOOTC_E2E_P2_REBOOT_TRIES:-9}" poll="${WOOTC_E2E_P2_REBOOT_POLL_S:-5}" i
     for i in $(seq 1 "$budget"); do
         if [ "$poll" -gt 0 ]; then sleep "$poll"; fi
         qga_probe || { echo down; return 0; }
