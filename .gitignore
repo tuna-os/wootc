@@ -17,3 +17,4 @@ package-lock.json
 app/wootc
 app/wootc.exe
 handoff.md
+__pycache__/
