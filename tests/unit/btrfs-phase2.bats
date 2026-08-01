@@ -118,6 +118,22 @@ setup() {
     grep -q 'the target kernel never loaded btrfs' "$RUNNER"
 }
 
+@test "the Phase-2 → Windows reboot requires the guest to actually go down" {
+    # A guest-exec RPC accepting `systemctl reboot` only proves a process
+    # spawned. On bonito nothing happened: Phase 2 sat at its login prompt
+    # while the harness waited 10 minutes for Windows (runs 30700616717 /
+    # 30704513401). The harness must watch the Linux agent go silent, force
+    # a QEMU reset if it does not, and then assert WINDOWS answered — a
+    # Phase 2 that never went down satisfies a bare QGA wait instantly.
+    grep -q "systemctl reboot || systemctl reboot -ff" "$RUNNER"
+    grep -q 'still answering QGA 45s after the reboot request' "$RUNNER"
+    # The forced reset drains the HMP banner first (record-video.sh's proven
+    # pattern), never a blind sendall.
+    grep -q 's.recv(4096); s.sendall(b"system_reset' "$RUNNER"
+    reboot_line=$(grep -n 'Rebooting Phase 2 Linux' "$RUNNER" | head -1 | cut -d: -f1)
+    awk -v s="$reboot_line" 'NR>s && NR<s+40' "$RUNNER" | grep -q 'qga_wait_windows 600'
+}
+
 @test "ext4 stays the sealed default until #35 is proven green" {
     # btrfs remains reachable via wootc.filesystem=btrfs; flipping the sealed
     # default is an E2E decision (a green btrfs matrix run), not a code one.

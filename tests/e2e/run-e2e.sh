@@ -3167,9 +3167,30 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
 else
     step "Rebooting Phase 2 Linux and verifying return to Windows..."
-    qga_call exec /bin/sh -c 'systemctl reboot' 2>/dev/null \
-        || $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); s.sendall(b"system_reset\n"); s.close()'
-    qga_wait "Windows return after Phase 2 Linux" 600
+    # A guest-exec RPC accepting the request only proves a process SPAWNED —
+    # not that the guest rebooted. On bonito the request was accepted and
+    # nothing happened: Phase 2 sat at its login prompt while this step
+    # waited 10 minutes for a Windows that was never coming (runs
+    # 30700616717 / 30704513401 — the serial's last line is
+    # "wootc-test login:"). `systemctl reboot -ff` is the in-guest fallback
+    # (direct syscall, no init round-trip for a confined agent context);
+    # then REQUIRE the observable — the Linux agent going silent — and fall
+    # back to a QEMU-level reset while the guest is still answering. The
+    # monitor write drains the HMP banner first (record-video.sh's proven
+    # pattern) rather than a blind sendall.
+    qga_call exec /bin/sh -c 'systemctl reboot || systemctl reboot -ff' 2>/dev/null || true
+    P2_REBOOT_SEEN=false
+    for _ in $(seq 1 9); do
+        sleep 5
+        if ! qga_probe; then P2_REBOOT_SEEN=true; break; fi
+    done
+    if [ "$P2_REBOOT_SEEN" != true ]; then
+        info "Phase 2 Linux still answering QGA 45s after the reboot request — forcing a QEMU system_reset"
+        $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket,time; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(b"system_reset\n"); time.sleep(.4); s.recv(4096); s.close()' || true
+    fi
+    # Assert WINDOWS answered, not merely "some agent": a Phase 2 that never
+    # went down would satisfy a bare QGA wait instantly and fake the return.
+    qga_wait_windows 600
     pass "One-shot Phase 2 boot consumed; Windows returned successfully"
 fi
 
