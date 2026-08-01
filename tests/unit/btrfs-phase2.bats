@@ -70,8 +70,31 @@ setup() {
     # Workflow plumbing: the reusable job takes it, the matrix passes it.
     grep -q 'WOOTC_E2E_FILESYSTEM: \${{ inputs.filesystem }}' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
     grep -q 'filesystem: \${{ matrix.filesystem }}' "$REPO_ROOT/.github/workflows/e2e-matrix.yml"
-    # And the matrix actually exercises btrfs on the proven baseline.
-    grep -Pq 'smoke\tbluefin-lts-win11pro-btrfs\t.*filesystem=btrfs' "$REPO_ROOT/tests/e2e/matrix.tsv"
+    # And the matrix exercises btrfs on a FEDORA-kernel image. EL kernels
+    # ship no btrfs.ko, so a bluefin:lts/yellowfin btrfs cell can only ever
+    # fail (run 30700616717) — the cell must stay on bonito or another
+    # Fedora-kernel image.
+    grep -Pq 'smoke\tfedora-gnome-win11pro-btrfs\tghcr.io/tuna-os/bonito:gnome\t.*filesystem=btrfs' "$REPO_ROOT/tests/e2e/matrix.tsv"
+    run grep -P '^\S+\t\S*btrfs\S*\t\S*(bluefin:lts|yellowfin)' "$REPO_ROOT/tests/e2e/matrix.tsv"
+    [ "$status" -ne 0 ]
+}
+
+@test "a btrfs request against a kernel without btrfs.ko is refused at deploy time" {
+    # The deployer's Fedora kernel formats btrfs happily and the deploy
+    # "succeeds" — then Phase 2 emergency-shells 25 VM-minutes later because
+    # the TARGET's EL kernel has no btrfs module to mount the root with
+    # (systemd-modules-load FAILED, hook: "module loaded=0"). The capability
+    # is knowable at deploy time from the already-pulled image; the deployer
+    # must probe it and fail closed with a message naming the alternatives.
+    grep -q 'find /usr/lib/modules -name "btrfs.ko\*"' "$DEPLOY"
+    grep -q "kernel ships NO btrfs module" "$DEPLOY"
+    # Bounded probe (no unbounded podman in the deployer — house rule).
+    grep -B2 'find /usr/lib/modules -name "btrfs.ko\*"' "$DEPLOY" | grep -q 'timeout'
+    # Fail-closed: the refusal must exit, not warn-and-continue.
+    fail_line=$(grep -n 'kernel ships NO btrfs module' "$DEPLOY" | head -1 | cut -d: -f1)
+    exit_line=$(awk -v start="$fail_line" 'NR > start && /^[[:space:]]*exit 1/ { print NR; exit }' "$DEPLOY")
+    [ -n "$fail_line" ] && [ -n "$exit_line" ]
+    [ "$exit_line" -le $((fail_line + 5)) ]
 }
 
 @test "ext4 stays the sealed default until #35 is proven green" {

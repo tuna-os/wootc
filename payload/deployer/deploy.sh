@@ -994,6 +994,27 @@ if [[ "${ROOTFS_SEALED:-0}" == 1 || "$COMPOSEFS" == 1 ]] && \
     log "  composefs-sealed rootfs → ext4 (fs-verity, proven); btrfs blocked on #35"
 fi
 
+# A btrfs root requires the TARGET kernel to ship btrfs.ko — and EL-family
+# kernels (bluefin:lts, yellowfin) ship none at all. The deployer's Fedora
+# kernel formats btrfs happily, the deploy completes, and Phase 2 then sits at
+# SYSTEMD_READY=0 until sysroot.mount's dependency fails into an emergency
+# shell (bluefin-lts-btrfs cell, run 30700616717: systemd-modules-load FAILED
+# at t=2.9s, hook reported "module loaded=0"). That is knowable HERE, in
+# seconds, from the image the backend probe already pulled — refuse now
+# instead of shipping a deployment that provably cannot boot. #35's btrfs axis
+# is only meaningful on Fedora-kernel images.
+if [[ "$FILESYSTEM" == btrfs ]]; then
+    if timeout 120 podman run --rm "$IMAGE" \
+        sh -c 'find /usr/lib/modules -name "btrfs.ko*" 2>/dev/null | grep -q .' 2>/dev/null; then
+        log "  btrfs root requested and the target kernel ships btrfs.ko — proceeding"
+    else
+        err "  [FAIL] wootc.filesystem=btrfs, but ${IMAGE}'s kernel ships NO btrfs module"
+        err "         (EL-family kernels do not build btrfs). Phase 2 could never mount this root."
+        err "         Choose ext4 (sealed-capable) or xfs, or a Fedora-kernel image for btrfs."
+        exit 1
+    fi
+fi
+
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
 # Flatpaks, and kernel cmdline injection. We just point it at the loop device.
