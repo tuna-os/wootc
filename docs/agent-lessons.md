@@ -595,3 +595,54 @@ two lines:
   `tailscale0` that hosted runners do not have. Nothing aborted. The matrix
   takes the *last* `[FAIL]` as the verdict, so an optional probe was one silent
   timeout away from becoming a run's official cause of death.
+
+## 29. The harness destroyed the run it had already passed
+
+`fedora-gnome-win11pro-btrfs` (run 30710282779) failed on:
+
+```
+[FAIL] Windows QGA did not become available within 10 minutes
+```
+
+It had already succeeded. Every Linux assertion passed, §27's shutdown pivot
+worked (`wootc: shutdown: unmounted the Windows host NTFS at
+/oldsys/run/initramfs/wootc-host`), and the serial shows the return happening
+two seconds after the reboot request:
+
+```
+[   75.9] reboot: machine restart
+BdsDxe: starting Boot0003 "Windows Boot Manager" ...
+```
+
+Then the harness power-cut it. The two boot-manager loads after that one are
+its own `system_reset` and the loop that followed; the final screenshot is a
+recovery screen.
+
+- **A ping is not an identity.** The reboot step watched for `qga_probe` to
+  *fail* and reset the VM if it never did. `qga_probe` is `guest-ping`, which
+  answers for whichever agent is up — so "Phase 2 has not rebooted" and
+  "Windows is already back" produced the identical reading, and the fallback
+  for the first is a hard power cut to the second. §1 again, in its purest
+  form: the observable is *which* OS answers, and the code only ever sampled
+  *whether* one did. `qga_windows_probe` had existed for months, six lines
+  above; `qga_wait_down` already used it. This loop just didn't.
+- **A destructive fallback needs positive evidence, not the absence of
+  evidence.** `p2_reboot_observe()` now returns one of `down` / `windows` /
+  `linux` / `unknown`, and only `linux` — a guest that answered `uname -s` —
+  may be reset. `unknown` (a Windows agent pinging before PowerShell is up)
+  deliberately does nothing: the cost of waiting is one honest timeout, the
+  cost of guessing wrong is the whole run.
+- **Blind time is where the state changes underneath you.** The request went
+  out through an unbounded `qga_call exec`, which polls `guest-exec-status`
+  until exit and then retries three times at 60s. Against a guest that is busy
+  dying that is ~110 seconds of not looking — long enough for Phase 2 to leave
+  *and* Windows to come back, so the observation opened its eyes on the wrong
+  OS. §4 says bound the blocking call; the corollary is that anything you do
+  not watch is free to become its own opposite while you wait.
+- **This is why §27 read as a partial fix.** That session saw Windows "show a
+  desktop for ~26 s, reboot, and die in Startup Repair" and attributed the
+  reboot to the dirty volume. The unclean unmount was real and worth fixing,
+  but the reboot at ~26 s was this bug: the harness resetting a Windows that
+  had come back fine. When a fix lands and the symptom shifts but survives,
+  check whether you are now looking at a *second* cause rather than a
+  an incomplete first one.

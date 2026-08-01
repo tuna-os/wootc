@@ -125,13 +125,21 @@ setup() {
     # 30704513401). The harness must watch the Linux agent go silent, force
     # a QEMU reset if it does not, and then assert WINDOWS answered — a
     # Phase 2 that never went down satisfies a bare QGA wait instantly.
+    #
+    # "Go down" must mean the LINUX agent specifically. guest-ping answers for
+    # whichever agent is up, so watching only for it to fail cannot tell a
+    # wedged Phase 2 from a Windows that already came back, and the reset then
+    # power-cuts the returning Windows (run 30710282779). The reset is now
+    # gated on a positively identified Linux agent; the discriminator itself is
+    # covered in phase2-windows-return.bats.
     grep -q "systemctl reboot || systemctl reboot -ff" "$RUNNER"
-    grep -q 'still answering QGA 45s after the reboot request' "$RUNNER"
+    grep -q 'Phase 2 Linux is STILL answering QGA after the reboot request' "$RUNNER"
+    grep -q 'qga_linux_probe' "$RUNNER"
     # The forced reset drains the HMP banner first (record-video.sh's proven
     # pattern), never a blind sendall.
     grep -q 's.recv(4096); s.sendall(b"system_reset' "$RUNNER"
     reboot_line=$(grep -n 'Rebooting Phase 2 Linux' "$RUNNER" | head -1 | cut -d: -f1)
-    awk -v s="$reboot_line" 'NR>s && NR<s+40' "$RUNNER" | grep -q 'qga_wait_windows 600'
+    awk -v s="$reboot_line" 'NR>s && NR<s+60' "$RUNNER" | grep -q 'qga_wait_windows 600'
 }
 
 @test "ext4 stays the sealed default until #35 is proven green" {

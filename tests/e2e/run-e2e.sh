@@ -607,6 +607,40 @@ qga_windows_probe() {
     [[ "$os" =~ Windows_NT ]]
 }
 
+# The mirror of qga_windows_probe, and the missing half of the pair. Every
+# transition in this script is "one OS leaves, another arrives", and guest-ping
+# cannot tell those two apart: it answers for whichever agent is up. So the
+# only way to say "the guest is STILL the one I was talking to" is to ask the
+# guest what it is, positively. Run 30710282779 is what the negative form
+# costs — see p2_reboot_observe().
+qga_linux_probe() {
+    local os
+    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | tr -d '\r\n' || true)
+    [[ "$os" == *Linux* ]]
+}
+
+# Classify what the guest is doing after a Phase-2 reboot request, from
+# observables only. Echoes exactly one of:
+#
+#   down     no agent answers — Phase 2 has left and the return is underway
+#   windows  the answering agent IS Windows — the return already completed
+#   linux    a LINUX agent still answers — the reboot request did nothing
+#   unknown  an agent answers but has not identified itself as either yet
+#
+# This function never resets anything. `linux` is the ONLY one of the four that
+# a QEMU system_reset is a correct answer to; every other value means the reset
+# would land on a Windows that is booting or already back, i.e. a hard power
+# cut to the exact thing this step exists to verify.
+p2_reboot_observe() {
+    local budget="${1:-9}" poll="${WOOTC_E2E_P2_REBOOT_POLL_S:-5}" i
+    for i in $(seq 1 "$budget"); do
+        if [ "$poll" -gt 0 ]; then sleep "$poll"; fi
+        qga_probe || { echo down; return 0; }
+        if qga_windows_probe; then echo windows; return 0; fi
+    done
+    if qga_linux_probe; then echo linux; else echo unknown; fi
+}
+
 qga_wait_windows() {
     local timeout="$1" elapsed=0 idle_hits=0 cpu
     step "Waiting for QGA: Windows guest..."
@@ -3188,16 +3222,42 @@ else
     # back to a QEMU-level reset while the guest is still answering. The
     # monitor write drains the HMP banner first (record-video.sh's proven
     # pattern) rather than a blind sendall.
-    qga_call exec /bin/sh -c 'systemctl reboot || systemctl reboot -ff' 2>/dev/null || true
-    P2_REBOOT_SEEN=false
-    for _ in $(seq 1 9); do
-        sleep 5
-        if ! qga_probe; then P2_REBOOT_SEEN=true; break; fi
-    done
-    if [ "$P2_REBOOT_SEEN" != true ]; then
-        info "Phase 2 Linux still answering QGA 45s after the reboot request — forcing a QEMU system_reset"
-        $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket,time; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(b"system_reset\n"); time.sleep(.4); s.recv(4096); s.close()' || true
-    fi
+    #
+    # BOUND THE REQUEST. qga_call polls guest-exec-status until the process
+    # exits, then retries the whole call three times on timeout — up to ~3
+    # minutes against a guest that is busy dying. Run 30710282779 spent 110
+    # blind seconds right here: Phase 2 took the request and was through
+    # "reboot: machine restart" two seconds later (serial, t=75.97), Windows
+    # came back, and the observation below opened its eyes on the WINDOWS
+    # agent. A timeout of 5s or less collapses qga_call's retry budget to a
+    # single try, and guest-exec spawns asynchronously, so the request lands
+    # whether or not we linger for an exit status we never read.
+    WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'systemctl reboot || systemctl reboot -ff' 2>/dev/null || true
+    # "An agent answers" is NOT "Phase 2 is still up" — guest-ping answers for
+    # whoever is home, and after this reboot that is increasingly Windows. The
+    # old loop only looked for the ping to FAIL, so a Windows that returned
+    # promptly read as a Phase 2 that had not rebooted at all, and the fallback
+    # then fired system_reset into it. That is run 30710282779's actual
+    # failure: every Linux assertion passed, the exitrd handed C: back cleanly
+    # ("wootc: shutdown: unmounted the Windows host NTFS"), Windows booted, and
+    # the harness power-cut it mid-boot — after which the firmware looped
+    # Boot0003 and the guest sat in recovery until the 10-minute budget ran
+    # out. Reset ONLY on a positively identified Linux agent.
+    case "$(p2_reboot_observe)" in
+        down)
+            info "Phase 2 Linux stopped answering QGA — the return to Windows is underway"
+            ;;
+        windows)
+            info "Windows QGA is already answering — Phase 2 rebooted and Windows returned inside the observation window"
+            ;;
+        linux)
+            info "Phase 2 Linux is STILL answering QGA after the reboot request — forcing a QEMU system_reset"
+            $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket,time; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(b"system_reset\n"); time.sleep(.4); s.recv(4096); s.close()' || true
+            ;;
+        *)
+            info "An agent answers but has identified itself as neither Linux nor Windows — NOT resetting; a reset here would power-cut a booting Windows"
+            ;;
+    esac
     # Assert WINDOWS answered, not merely "some agent": a Phase 2 that never
     # went down would satisfy a bare QGA wait instantly and fake the return.
     qga_wait_windows 600
