@@ -58,6 +58,22 @@ setup() {
     grep -q 'inst_multiple -o btrfs' "$MODSETUP"
 }
 
+@test "the filesystem axis reaches the deployer from every harness layer" {
+    # WOOTC_E2E_FILESYSTEM → wootc-config.txt → run-wootc-e2e.ps1 →
+    # setup-wootc.ps1 → wootc.filesystem= karg. A break in any hop silently
+    # runs the btrfs cell on the default filesystem and calls it green.
+    grep -q 'WOOTC_E2E_FILESYSTEM' "$REPO_ROOT/tests/e2e/run-e2e.sh"
+    grep -q "printf 'Filesystem=%s" "$REPO_ROOT/tests/e2e/run-e2e.sh"
+    grep -q '\$setupArgs.Filesystem = \$cfg.Filesystem' "$REPO_ROOT/tests/e2e/oem/run-wootc-e2e.ps1"
+    grep -q 'wootc.filesystem=\$Filesystem' "$REPO_ROOT/tests/e2e/setup-wootc.ps1"
+    grep -q '\[ValidateSet("xfs", "ext4", "btrfs", "auto")\]' "$REPO_ROOT/tests/e2e/setup-wootc.ps1"
+    # Workflow plumbing: the reusable job takes it, the matrix passes it.
+    grep -q 'WOOTC_E2E_FILESYSTEM: \${{ inputs.filesystem }}' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
+    grep -q 'filesystem: \${{ matrix.filesystem }}' "$REPO_ROOT/.github/workflows/e2e-matrix.yml"
+    # And the matrix actually exercises btrfs on the proven baseline.
+    grep -Pq 'smoke\tbluefin-lts-win11pro-btrfs\t.*filesystem=btrfs' "$REPO_ROOT/tests/e2e/matrix.tsv"
+}
+
 @test "ext4 stays the sealed default until #35 is proven green" {
     # btrfs remains reachable via wootc.filesystem=btrfs; flipping the sealed
     # default is an E2E decision (a green btrfs matrix run), not a code one.

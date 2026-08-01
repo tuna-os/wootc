@@ -60,6 +60,9 @@ try {
         PayloadDir = "$oemDir\payload"
     }
     if ($cfg.ComposeFs -eq "1") { $setupArgs.ComposeFs = $true }
+    # Filesystem axis (#35): only pass an explicit value through; "auto"/absent
+    # keeps setup-wootc.ps1's default (the deployer decides).
+    if ($cfg.ContainsKey("Filesystem") -and $cfg.Filesystem -and $cfg.Filesystem -ne "auto") { $setupArgs.Filesystem = $cfg.Filesystem }
     if ($cfg.ContainsKey("RootDiskGiB") -and $cfg.RootDiskGiB) { $setupArgs.DiskSizeGB = [int]$cfg.RootDiskGiB }
     # Run setup once, teeing every stream to the log. A terminating error in
     # setup-wootc.ps1 propagates through the pipeline to the outer catch, which

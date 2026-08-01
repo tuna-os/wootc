@@ -27,6 +27,8 @@ smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC
 smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# btrfs sealed-root axis (#35): the proven baseline image, forced onto btrfs.
+smoke	bluefin-lts-win11pro-btrfs	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	filesystem=btrfs
 smoke	el10-gnome-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── backend axis — the three deployment flavors × Windows versions ──
 # ostree backend (yellowfin/bonito/bluefin — bluefin has a sealed rootfs,

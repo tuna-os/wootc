@@ -34,6 +34,10 @@ on:
       # per-image heuristic (EL→grub2, else→systemd). Ostree images (e.g.
       # bluefin) want grub2 (the proven attach path); composefs wants systemd.
       bootloader: { type: string, default: '' }
+      # Force the root filesystem (xfs|ext4|btrfs) via wootc.filesystem=.
+      # Empty/auto = the deployer's own default (xfs unsealed, ext4 sealed).
+      # The btrfs matrix cell uses this to prove #35.
+      filesystem: { type: string, default: '' }
       # Arm Phase 1 through the REAL wootc.exe GUI (drive mode) instead of the
       # OEM setup-wootc.ps1 script. Needs no host GUI — the app is staged +
       # driven over QGA via a directive file (CDP is impossible in stock
@@ -183,6 +187,8 @@ jobs:
           WOOTC_E2E_DISK2_SIZE: ${{ inputs.phase3 && '40G' || '' }}
           # Empty string → run-e2e.sh's per-image heuristic picks the bootloader.
           WOOTC_E2E_BOOTLOADER: ${{ inputs.bootloader }}
+          # Empty string → the deployer's own filesystem default.
+          WOOTC_E2E_FILESYSTEM: ${{ inputs.filesystem }}
           # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
           # Drive mode gate for the app's E2E bindings (inert otherwise).
           WOOTC_E2E_DRIVE: ${{ inputs.gui_install && '1' || '' }}

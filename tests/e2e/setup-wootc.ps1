@@ -27,6 +27,11 @@ param(
     [string]$Bootloader = "auto",
     # composefs-backed images require systemd-boot; adds wootc.composefs=1.
     [switch]$ComposeFs,
+    # Root filesystem axis (#35): "auto" (default) lets the deployer pick
+    # (xfs unsealed / ext4 sealed); an explicit value is passed through as
+    # wootc.filesystem= so the matrix can exercise btrfs.
+    [ValidateSet("xfs", "ext4", "btrfs", "auto")]
+    [string]$Filesystem = "auto",
     # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
     # makes setup self-contained and avoids requiring SMB/WinRM to be ready.
     [string]$PayloadDir = ""
@@ -53,6 +58,7 @@ if (-not $gotMutex) {
 # grub2 + no composefs reproduces the historical default exactly.
 $WootcKargs = "wootc.bootloader=$Bootloader"
 if ($ComposeFs) { $WootcKargs += " wootc.composefs=1" }
+if ($Filesystem -ne "auto") { $WootcKargs += " wootc.filesystem=$Filesystem" }
 # ── BitLocker / FDE (SPEC §3.5) ─────────────────────────────────────────────
 # The deployer mounts the host NTFS from Linux; on a BitLocker-protected C: it
 # would see FVE ciphertext, so root.disk cannot live there. We never force a

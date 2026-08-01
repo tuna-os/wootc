@@ -62,11 +62,17 @@ jobs:
               # force it back on for a big-disk self-hosted runner pool.
               if 'phase3=on' in opts and os.environ.get('INCLUDE_PHASE3') != '1':
                   continue
+              # filesystem=<fs> opt (#35): forces wootc.filesystem= for the cell.
+              fs = ''
+              for o in opts.split(','):
+                  if o.startswith('filesystem='):
+                      fs = o.split('=', 1)[1]
               cases.append({
                   'name': name, 'image': image, 'win_version': ver,
                   'win_edition': ed, 'win_key': key,
                   'bitlocker': 'on' if 'bitlocker=on' in opts else 'off',
                   'phase3': 'phase3=on' in opts,
+                  'filesystem': fs,
               })
           assert cases, 'no cases matched'
           print('matrix=' + json.dumps({'include': cases}))
@@ -94,6 +100,7 @@ jobs:
       bitlocker: ${{ matrix.bitlocker }}
       case_name: ${{ matrix.name }}
       phase3: ${{ matrix.phase3 }}
+      filesystem: ${{ matrix.filesystem }}
       # GUI mode has only ever been exercised on one cell (bluefin:lts via
       # e2e-gui.yml). Driving Phase 1 through the real wootc.exe across the whole
       # matrix is what proves the INSTALLER — not just the harness — works on

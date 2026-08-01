@@ -1186,10 +1186,15 @@ fi
 # axis with WOOTC_E2E_BOOTLOADER=grub2|systemd / WOOTC_E2E_COMPOSEFS=0|1.
 E2E_BOOTLOADER="${WOOTC_E2E_BOOTLOADER:-auto}"
 E2E_COMPOSEFS="${WOOTC_E2E_COMPOSEFS:-auto}"
+# Root filesystem axis (#35): auto = the deployer's own default (xfs unsealed /
+# ext4 sealed); WOOTC_E2E_FILESYSTEM=btrfs forces wootc.filesystem=btrfs so the
+# matrix can prove the btrfs Phase-2 path.
+E2E_FILESYSTEM="${WOOTC_E2E_FILESYSTEM:-auto}"
 {
     printf 'ImageRef=%s\n'   "$IMAGE_REF"
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
     printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
+    printf 'Filesystem=%s\n' "$E2E_FILESYSTEM"
     # RunId lets the OEM barrier prove the completion marker came from THIS run.
     # Without it the barrier passes on a stale marker left by a previous run —
     # see the comment on the barrier loop below.
@@ -1209,8 +1214,8 @@ E2E_COMPOSEFS="${WOOTC_E2E_COMPOSEFS:-auto}"
         printf 'RootDiskGiB=%s\n' "${WOOTC_E2E_ROOT_DISK_GIB:-35}"
     fi
 } > "$OEM_DIR/wootc-config.txt"
-printf '[INFO] Deployer config: image=%s bootloader=%s composefs=%s\n' \
-    "$IMAGE_REF" "$E2E_BOOTLOADER" "$E2E_COMPOSEFS" >&2
+printf '[INFO] Deployer config: image=%s bootloader=%s composefs=%s filesystem=%s\n' \
+    "$IMAGE_REF" "$E2E_BOOTLOADER" "$E2E_COMPOSEFS" "$E2E_FILESYSTEM" >&2
 
 # ── Step 1: Check prerequisites ──────────────────────────────────────────────
 step "Checking prerequisites..."
