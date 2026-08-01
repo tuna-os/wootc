@@ -1244,6 +1244,116 @@ NTFSWRAP
     return 1
 }
 
+# stage_qemu_ga_into_target
+# Give the deployed system a guest agent the E2E control plane can reach, on
+# images that ship none.
+#
+# The previous implementation wrote the binary to $DEPLOY_ROOT/usr/bin/qemu-ga
+# and the unit to $DEPLOY_ROOT/usr/lib/systemd/system/. On a composefs
+# deployment both writes SUCCEED and both are INVISIBLE at runtime: the sealed
+# .cfs image is mounted over /usr, so the deployment directory's own /usr is
+# shadowed. dakota booted Phase 2 all the way to a login prompt carrying
+# `systemd.wants=qemu-guest-agent.service`, with no such unit anywhere in the
+# booted system, while the deployer logged "[PASS] qemu-guest-agent installed
+# from deployer into target" (run 30703716667). The harness then reported
+# "the Phase-2 guest agent never answered". A PASS derived from a write
+# landing rather than from the runtime seeing it.
+#
+# /etc and /var ARE the runtime ones under composefs. Ground truth from that
+# same boot: wootc-passthrough.service (installed into $DEPLOY_ROOT/etc with
+# ExecStart=/var/usrlocal/bin/wootc-mount-user-dirs) started and finished.
+# So stage into those, never into /usr:
+#   binary + full ldd closure  → /var/usrlocal/lib/wootc-qga/
+#   wrapper                    → /var/usrlocal/bin/qemu-ga
+#   unit + wants symlink       → /etc/systemd/system/
+#
+# The closure is the agent-lessons §8 rule that stage_ntfs3g_closure follows:
+# never mix the deployer's binary with the target's libraries: ship every
+# ldd-resolved library plus the loader, invoke through the staged loader, and
+# PROVE it by running it (ldd reports only the first missing library).
+#
+# The unit is named wootc-qemu-ga.service and gated on
+# ConditionPathExists=!/usr/bin/qemu-ga so it can never displace an agent the
+# image ships itself. That condition is evaluated in the booted real root,
+# the only place where "does this image have qemu-ga" is observable. A chroot
+# probe here cannot answer it: under composefs $DEPLOY_ROOT/usr is empty, so
+# the probe reports "absent" for every image, including ones that have it.
+stage_qemu_ga_into_target() {
+    local src pdir="var/usrlocal/lib/wootc-qga" lib ldso=""
+    src=$(command -v qemu-ga 2>/dev/null || true)
+    if [[ -z "$src" ]]; then
+        err "  [WARN] qga: the deployer initramfs carries no qemu-ga to stage"
+        return 1
+    fi
+    rm -rf "${DEPLOY_ROOT:?}/$pdir"
+    install -D -m0755 "$src" "$DEPLOY_ROOT/$pdir/qemu-ga"
+    while IFS= read -r lib; do
+        [[ -f "$lib" ]] || continue
+        install -D -m0755 "$lib" "$DEPLOY_ROOT/$pdir/${lib##*/}"
+        case "$lib" in
+            */ld-linux*|*/ld64.so*|*/ld.so*) ldso="${lib##*/}" ;;
+        esac
+    done < <(ldd "$src" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i ~ /^\//) print $i}')
+    if [[ -z "$ldso" ]]; then
+        err "  [FAIL] qga: ldd on the deployer's qemu-ga surfaced no dynamic loader; cannot build a self-contained closure"
+        rm -rf "${DEPLOY_ROOT:?}/$pdir"
+        return 1
+    fi
+    if ! "$DEPLOY_ROOT/$pdir/$ldso" --library-path "$DEPLOY_ROOT/$pdir" \
+            "$DEPLOY_ROOT/$pdir/qemu-ga" --version >/dev/null 2>&1; then
+        err "  [FAIL] qga: staged qemu-ga closure does not execute against its own libraries"
+        rm -rf "${DEPLOY_ROOT:?}/$pdir"
+        return 1
+    fi
+    install -d -m0755 "$DEPLOY_ROOT/var/usrlocal/bin"
+    cat > "$DEPLOY_ROOT/var/usrlocal/bin/qemu-ga" <<QGAWRAP
+#!/bin/sh
+exec /$pdir/$ldso --library-path /$pdir /$pdir/qemu-ga "\$@"
+QGAWRAP
+    chmod 0755 "$DEPLOY_ROOT/var/usrlocal/bin/qemu-ga"
+    install -d -m0755 "$DEPLOY_ROOT/etc/systemd/system" \
+                      "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+    cat > "$DEPLOY_ROOT/etc/systemd/system/wootc-qemu-ga.service" <<'QGAUNIT'
+[Unit]
+Description=QEMU Guest Agent (staged by the wootc deployer)
+Documentation=https://github.com/tuna-os/wootc
+# Never displace an agent the image ships itself.
+ConditionPathExists=!/usr/bin/qemu-ga
+ConditionPathExists=!/usr/sbin/qemu-ga
+ConditionPathExists=/var/usrlocal/bin/qemu-ga
+After=local-fs.target
+# The virtio-serial port can appear after this unit is first tried; Restart
+# handles that, so the default 5-starts-in-10s limit must not give up on it.
+StartLimitIntervalSec=0
+
+[Service]
+# A breadcrumb on the console: the serial log is the only Phase-2 evidence the
+# harness can read when the agent is the thing that is broken, so "the unit was
+# tried" must be distinguishable from "the unit does not exist".
+ExecStartPre=/bin/sh -c 'echo "wootc: starting staged qemu-ga" > /dev/kmsg'
+ExecStart=/var/usrlocal/bin/qemu-ga --method=virtio-serial --path=/dev/virtio-ports/org.qemu.guest_agent.0
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+QGAUNIT
+    ln -sf ../wootc-qemu-ga.service \
+        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-qemu-ga.service"
+    # Assert the runtime view, not the writes: the wants symlink must resolve
+    # to the unit, and the unit's ExecStart must exist under the deployment.
+    if [[ ! -e "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-qemu-ga.service" ]]; then
+        err "  [FAIL] qga: multi-user.target.wants/wootc-qemu-ga.service dangles; the agent would never start"
+        return 1
+    fi
+    if [[ ! -x "$DEPLOY_ROOT/var/usrlocal/bin/qemu-ga" ]]; then
+        err "  [FAIL] qga: /var/usrlocal/bin/qemu-ga is not executable in the deployment"
+        return 1
+    fi
+    log "  [PASS] fallback qemu-ga staged (loader=$ldso, exec-verified) at /var/usrlocal/bin/qemu-ga, enabled as wootc-qemu-ga.service"
+    return 0
+}
+
 # ── initramfs introspection ────────────────────────────────────────────────
 # An initramfs image is a CONCATENATION, not one archive: zero or more
 # UNCOMPRESSED early-cpio segments (CPU microcode, ACPI overrides) followed by
@@ -2030,20 +2140,10 @@ block-rpcs=
 QGAEOF
     cp "$DEPLOY_ROOT/etc/qemu/qemu-ga.conf" "$DEPLOY_ROOT/etc/qemu-ga.conf" 2>/dev/null || true
 
-    # If the target image lacks qemu-guest-agent (common in composefs images),
-    # install the deployer's own binary + service so the E2E harness can reach
-    # Phase 2.  The dnf-based injection path fails on non-RPM images.
-    if ! chroot "$DEPLOY_ROOT" command -v qemu-ga >/dev/null 2>&1 && command -v qemu-ga >/dev/null 2>&1; then
-        install -D -m0755 "$(command -v qemu-ga)" "$DEPLOY_ROOT/usr/bin/qemu-ga"
-        for _svc in qemu-guest-agent.service qemu-ga@.service; do
-            for _d in /usr/lib/systemd/system /lib/systemd/system; do
-                [[ -f "$_d/$_svc" ]] && { install -D -m0644 "$_d/$_svc" "$DEPLOY_ROOT/usr/lib/systemd/system/$_svc"; break; }
-            done
-        done
-        mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
-        ln -sf /usr/lib/systemd/system/qemu-guest-agent.service \
-            "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/qemu-guest-agent.service"
-        log "  [PASS] qemu-guest-agent installed from deployer into target"
+    # A fallback guest agent for images that ship none, staged where the
+    # runtime can actually see it. See stage_qemu_ga_into_target.
+    if ! stage_qemu_ga_into_target; then
+        err "  [WARN] no fallback qemu-ga staged; Phase 2 is reachable only if the image ships its own agent"
     fi
 
     # Set SELinux to permissive mode so Phase 3 QGA & User Data Bridge are not blocked by virt_qemu_ga_t
@@ -2289,21 +2389,13 @@ QGAEOF
                 if ! stage_ntfs3g_closure "$OVL"; then
                     log "  [WARN] no ntfs-3g stageable for the composefs Phase-2 initrd — relying on kernel ntfs3"
                 fi
-                # Composefs images (dakota) lack qemu-guest-agent which the E2E
-                # harness needs.  Copy the deployer's own qemu-ga into the cpio
-                # overlay (the deployed chroot won't have a package manager).
-                if command -v qemu-ga >/dev/null 2>&1; then
-                    install -D -m0755 "$(command -v qemu-ga)" "$OVL/usr/bin/qemu-ga"
-                    for _svc in qemu-guest-agent.service qemu-ga@.service; do
-                        for _d in /usr/lib/systemd/system /lib/systemd/system; do
-                            [[ -f "$_d/$_svc" ]] && { install -D -m0644 "$_d/$_svc" "$OVL/usr/lib/systemd/system/$_svc"; break; }
-                        done
-                    done
-                    # Enable it
-                    mkdir -p "$OVL/usr/lib/systemd/system/multi-user.target.wants"
-                    ln -sf ../qemu-guest-agent.service \
-                        "$OVL/usr/lib/systemd/system/multi-user.target.wants/qemu-guest-agent.service"
-                fi
+                # NOTHING guest-agent-related belongs in this overlay. It is a
+                # cpio unpacked into the INITRAMFS: at switch-root the whole
+                # tree is discarded, so a qemu-ga binary at $OVL/usr/bin and a
+                # multi-user.target.wants symlink (a target the initrd never
+                # reaches) cannot put an agent in the booted system: they only
+                # made the initrd bigger and the intent look satisfied. The
+                # real-root staging is stage_qemu_ga_into_target, above.
 
                 # The deployer kernel needs its OWN kernel modules — the UKI
                 # initrd has modules for the composefs kernel (vermagic
