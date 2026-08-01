@@ -2779,6 +2779,14 @@ BOOT_STARTED=$(date +%s)
 BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
 BOOT_SUCCESS=false
 PHASE2_DIAGNOSED=false
+# Byte offset where THIS Phase-2 boot starts in the serial. The diagnosis below
+# must read the whole boot, not the 5-second delta the poll loop happens to be
+# holding: the attach line lands at t≈5s and the emergency at t≈130s, so
+# grepping NEW_OUTPUT for it reported "root.disk never attached" against a
+# serial that says "attached raw root.disk … as /dev/loop0" two minutes
+# earlier (bluefin-lts-win11pro-btrfs, hosted matrix run 30700616717) — status
+# derived from a window instead of from the boot.
+PHASE2_BYTE0=$LAST_BYTE
 
 while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
@@ -2809,15 +2817,30 @@ while ! past_deadline "$BOOT_DEADLINE"; do
             # dropped to an emergency shell. The diagnostic killed the run
             # before it could report (el10-gnome-win11pro-phase3, 2026-07-27).
             # Absence of the attach line is the very thing being tested for.
-            ATTACHED=$(printf '%s\n' "$NEW_OUTPUT" | grep -aiE "attached raw root.disk .* as /dev/loop" | tail -1 || true)
-            if [ -n "$ATTACHED" ]; then
+            PHASE2_OUTPUT=$(tail -c "+$((PHASE2_BYTE0 + 1))" "$PTY")
+            ATTACHED=$(printf '%s\n' "$PHASE2_OUTPUT" | grep -aiE "attached raw root.disk .* as /dev/loop" | tail -1 || true)
+            # A btrfs root the kernel cannot LOAD is its own verdict. The hook
+            # prints "module loaded=0" per btrfs partition and the kernel says
+            # "Loading of module with unavailable key is rejected" when the
+            # image's btrfs is an out-of-tree kmod signed with a key Secure
+            # Boot does not trust — blaming sysroot.mount there sends the next
+            # reader after the mount step instead of after the image.
+            BTRFS_UNLOADED=$(printf '%s\n' "$PHASE2_OUTPUT" \
+                | grep -aiE "btrfs .*module loaded=0|Loading of module with unavailable key is rejected" | tail -1 || true)
+            if [ -n "$BTRFS_UNLOADED" ]; then
+                PHASE2_DIAGNOSED=true; fail "Phase 2 dropped to an emergency shell — the target kernel never loaded btrfs"
+                info "  $(printf '%s' "$BTRFS_UNLOADED" | sed 's/.*wootc:/wootc:/')"
+                info "  → btrfs.ko is absent or its signature is untrusted under Secure Boot, so the"
+                info "    udev readiness gate never clears and the root=UUID device unit never activates."
+                info "    The image cannot host a btrfs root here; the attach and the mount are not the fault."
+            elif [ -n "$ATTACHED" ]; then
                 PHASE2_DIAGNOSED=true; fail "Phase 2 dropped to an emergency shell — root.disk ATTACHED but sysroot.mount failed"
                 info "  attach succeeded: $(printf '%s' "$ATTACHED" | sed 's/.*wootc:/wootc:/')"
                 info "  → the loop-attach worked; the mount/root-UUID step is the fault (see #35 for the btrfs case)"
             else
                 PHASE2_DIAGNOSED=true; fail "Phase 2 dropped to an emergency shell — root.disk never attached"
             fi
-            echo "$NEW_OUTPUT" | grep -aiE "wootc|sysroot|does not exist|mount|root=UUID" | tail -12
+            echo "$PHASE2_OUTPUT" | grep -aiE "wootc|sysroot|does not exist|mount|root=UUID" | tail -12
             break
         fi
         if printf '%s\n' "$NEW_OUTPUT" | grep -E "No bootable device|BOOTMGR is missing|kernel panic" >/dev/null 2>&1; then

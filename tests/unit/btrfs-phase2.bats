@@ -23,6 +23,7 @@ setup() {
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
     HOOK="${HOOK:-$REPO_ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh}"
     MODSETUP="${MODSETUP:-$REPO_ROOT/platform/dracut/99wootc-boot/module-setup.sh}"
+    RUNNER="${RUNNER:-$REPO_ROOT/tests/e2e/run-e2e.sh}"
 }
 
 @test "btrfs deploys bake an early modules-load.d entry into the Phase-2 initramfs" {
@@ -70,31 +71,51 @@ setup() {
     # Workflow plumbing: the reusable job takes it, the matrix passes it.
     grep -q 'WOOTC_E2E_FILESYSTEM: \${{ inputs.filesystem }}' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
     grep -q 'filesystem: \${{ matrix.filesystem }}' "$REPO_ROOT/.github/workflows/e2e-matrix.yml"
-    # And the matrix exercises btrfs on a FEDORA-kernel image. EL kernels
-    # ship no btrfs.ko, so a bluefin:lts/yellowfin btrfs cell can only ever
-    # fail (run 30700616717) — the cell must stay on bonito or another
-    # Fedora-kernel image.
+    # And the matrix exercises btrfs on an image whose kernel can LOAD it.
+    # An EL-family cell (bluefin:lts, yellowfin) can only ever fail here —
+    # see the preflight test below and run 30700616717.
     grep -Pq 'smoke\tfedora-gnome-win11pro-btrfs\tghcr.io/tuna-os/bonito:gnome\t.*filesystem=btrfs' "$REPO_ROOT/tests/e2e/matrix.tsv"
     run grep -P '^\S+\t\S*btrfs\S*\t\S*(bluefin:lts|yellowfin)' "$REPO_ROOT/tests/e2e/matrix.tsv"
     [ "$status" -ne 0 ]
 }
 
-@test "a btrfs request against a kernel without btrfs.ko is refused at deploy time" {
-    # The deployer's Fedora kernel formats btrfs happily and the deploy
-    # "succeeds" — then Phase 2 emergency-shells 25 VM-minutes later because
-    # the TARGET's EL kernel has no btrfs module to mount the root with
-    # (systemd-modules-load FAILED, hook: "module loaded=0"). The capability
-    # is knowable at deploy time from the already-pulled image; the deployer
-    # must probe it and fail closed with a message naming the alternatives.
-    grep -q 'find /usr/lib/modules -name "btrfs.ko\*"' "$DEPLOY"
-    grep -q "kernel ships NO btrfs module" "$DEPLOY"
-    # Bounded probe (no unbounded podman in the deployer — house rule).
-    grep -B2 'find /usr/lib/modules -name "btrfs.ko\*"' "$DEPLOY" | grep -q 'timeout'
-    # Fail-closed: the refusal must exit, not warn-and-continue.
-    fail_line=$(grep -n 'kernel ships NO btrfs module' "$DEPLOY" | head -1 | cut -d: -f1)
-    exit_line=$(awk -v start="$fail_line" 'NR > start && /^[[:space:]]*exit 1/ { print NR; exit }' "$DEPLOY")
-    [ -n "$fail_line" ] && [ -n "$exit_line" ]
-    [ "$exit_line" -le $((fail_line + 5)) ]
+@test "a btrfs deploy is refused when the target kernel cannot load btrfs" {
+    # Knowable at deploy time in seconds; the alternative is a green deploy
+    # followed by a Phase-2 emergency shell 25 minutes later
+    # (bluefin-lts-win11pro-btrfs, hosted matrix run 30700616717).
+    grep -q 'btrfs preflight' "$DEPLOY"
+    # The SIGNER is the observable — presence alone says nothing about whether
+    # a locked-down kernel will accept the module.
+    grep -q 'modinfo -k "\$KV" -F signer btrfs' "$DEPLOY"
+    grep -q 'REF_SIGNER' "$DEPLOY"
+    # Fail CLOSED on a positive mismatch and on a missing module...
+    grep -q 'ships no btrfs module for its kernel' "$DEPLOY"
+    grep -q 'out-of-tree module' "$DEPLOY"
+    # ...and the refusal must exit, not warn and carry on.
+    for msg in 'ships no btrfs module for its kernel' 'out-of-tree module'; do
+        fail_line=$(grep -n "$msg" "$DEPLOY" | head -1 | cut -d: -f1)
+        exit_line=$(awk -v start="$fail_line" 'NR > start && /^[[:space:]]*exit 1/ { print NR; exit }' "$DEPLOY")
+        [ -n "$fail_line" ] && [ -n "$exit_line" ]
+        [ "$exit_line" -le $((fail_line + 8)) ]
+    done
+    # Bounded probe — no unbounded podman in the deployer (house rule).
+    grep -q 'BTRFS_PROBE="$(timeout 120 podman run' "$DEPLOY"
+    # ...but never fail on an inconclusive probe: an unsigned-module kernel
+    # reports an empty signer for both, and refusing there breaks working images.
+    grep -q 'btrfs preflight could not inspect' "$DEPLOY"
+    grep -q -- '-n "\$BTRFS_SIGNER" && -n "\$REF_SIGNER"' "$DEPLOY"
+}
+
+@test "the Phase-2 emergency verdict reads the whole boot, and names the btrfs case" {
+    # The attach line lands ~2 minutes before the emergency, so diagnosing
+    # from the poll loop's 5-second delta reported "root.disk never attached"
+    # against a serial that says it attached cleanly (run 30700616717).
+    grep -q 'PHASE2_BYTE0=\$LAST_BYTE' "$RUNNER"
+    grep -q 'PHASE2_OUTPUT=\$(tail -c "+\$((PHASE2_BYTE0 + 1))" "\$PTY")' "$RUNNER"
+    grep -q 'ATTACHED=\$(printf .\%s\\n. "\$PHASE2_OUTPUT"' "$RUNNER"
+    # An unloadable btrfs is its own verdict, not a mount failure.
+    grep -q 'module loaded=0|Loading of module with unavailable key is rejected' "$RUNNER"
+    grep -q 'the target kernel never loaded btrfs' "$RUNNER"
 }
 
 @test "ext4 stays the sealed default until #35 is proven green" {

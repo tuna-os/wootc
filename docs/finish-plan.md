@@ -51,11 +51,17 @@ bugs: the composefs Phase-2 staging path (#28) and btrfs device readiness
 
 Each rung is one KVM run; do them in this order, one change per run:
 
-1. **btrfs re-run** (`wootc.filesystem=btrfs`, bluefin:lts): expect green;
+1. **btrfs re-run** (`wootc.filesystem=btrfs`, bonito:gnome): expect green;
    if not, the new `btrfs <part>: module loaded=… SYSTEMD_READY=…` serial
    line says which layer failed. When green twice, consider flipping the
    sealed default to btrfs (native fs-verity, reflinks) — a product call,
    not a bug fix; ext4 stays default until then.
+   *Not bluefin:lts*: matrix run 30700616717 proved CentOS Stream 10 cannot
+   load btrfs at all here — the module is out-of-tree, signed with a key the
+   locked-down (Secure Boot) kernel rejects (`Loading of module with
+   unavailable key is rejected`, `module loaded=0`), so that cell dies a
+   layer before the #35 mount. The deployer now refuses such a deploy up
+   front instead of proving it again over 25 minutes.
 2. **dakota full chain**: deploy now runs the hardened staging; the
    composefs Phase-2 boot (deployer kernel + patched UKI initrd +
    root=UUID/composefs= kargs) is the first thing that has never been
@@ -74,6 +80,8 @@ Each rung is one KVM run; do them in this order, one change per run:
   the ledger harness (Phase-3 graduation is a follow-on rung).
 - One non-dakota composefs-native family (marlin or flounder) green
   through Phase-2, proving the path is image-agnostic, not dakota-shaped.
-- btrfs: bluefin:lts sealed-btrfs green through Phase-2 twice; #35 closed.
+- btrfs: bonito:gnome sealed-btrfs green through Phase-2 twice; #35 closed
+  (bluefin:lts is not a candidate — its btrfs kmod is rejected under Secure
+  Boot, and the deployer's btrfs preflight now says so at deploy time).
 - All three keep their bats regression guards
   (`phase2-early-cpio.bats`, `btrfs-phase2.bats`) green in CI.

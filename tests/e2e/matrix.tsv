@@ -27,11 +27,16 @@ smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC
 smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
-# btrfs root axis (#35): MUST run on a Fedora-kernel image — EL kernels
-# (bluefin:lts, yellowfin) ship no btrfs.ko, so a btrfs root can never boot
-# there (proven: run 30700616717, systemd-modules-load FAILED, module
-# loaded=0, sysroot dependency failure). The deployer now refuses that combo
-# at deploy time; bonito (Fedora) is the image where btrfs is real.
+# btrfs sealed-root axis (#35): a composefs-sealed image forced onto btrfs.
+# NOT bluefin:lts, despite it being the proven baseline — CentOS Stream 10
+# has no in-tree btrfs, so its btrfs comes from an out-of-tree kmod signed
+# with a key the locked-down (Secure Boot) kernel does not trust. Phase 2
+# printed "Loading of module with unavailable key is rejected",
+# systemd-modules-load failed, the attach logged module loaded=0, and the
+# root device unit never became ready (matrix run 30700616717). bonito's
+# Fedora kernel loaded btrfs in that same run ("Btrfs loaded, zoned=yes,
+# fsverity=yes") and is composefs-sealed, so it is the cell that actually
+# reaches the #35 mount, rather than dying one layer earlier on a signature.
 smoke	fedora-gnome-win11pro-btrfs	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	filesystem=btrfs
 smoke	el10-gnome-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── backend axis — the three deployment flavors × Windows versions ──

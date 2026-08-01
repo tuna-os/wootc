@@ -994,24 +994,63 @@ if [[ "${ROOTFS_SEALED:-0}" == 1 || "$COMPOSEFS" == 1 ]] && \
     log "  composefs-sealed rootfs → ext4 (fs-verity, proven); btrfs blocked on #35"
 fi
 
-# A btrfs root requires the TARGET kernel to ship btrfs.ko — and EL-family
-# kernels (bluefin:lts, yellowfin) ship none at all. The deployer's Fedora
-# kernel formats btrfs happily, the deploy completes, and Phase 2 then sits at
-# SYSTEMD_READY=0 until sysroot.mount's dependency fails into an emergency
-# shell (bluefin-lts-btrfs cell, run 30700616717: systemd-modules-load FAILED
-# at t=2.9s, hook reported "module loaded=0"). That is knowable HERE, in
-# seconds, from the image the backend probe already pulled — refuse now
-# instead of shipping a deployment that provably cannot boot. #35's btrfs axis
-# is only meaningful on Fedora-kernel images.
+# ── btrfs preflight: can the TARGET kernel actually LOAD btrfs? ─────────────
+# Knowable here in seconds, otherwise it costs a full deploy plus a Phase-2
+# emergency shell to discover. bluefin-lts-win11pro-btrfs (hosted matrix run
+# 30700616717) formatted btrfs happily, deployed green, and then Phase 2 said:
+#   Loading of module with unavailable key is rejected
+#   [FAILED] Failed to start systemd-modules-load.service
+#   wootc: btrfs /dev/loop0p3: module loaded=0 ID_BTRFS_READY=0 SYSTEMD_READY=0
+# and sat in emergency until the harness gave up 25 minutes later. CentOS
+# Stream 10 has no in-tree btrfs, so bluefin:lts carries an out-of-tree kmod
+# signed with a key that kernel does not trust; under Secure Boot the kernel
+# is locked down and rejects it, the udev readiness gate never clears, and the
+# root=UUID device unit never activates (#35's shape, different cause).
+#
+# The SIGNER is the observable, not the module's presence: a kmod signed by
+# the kernel's own key loads fine, and an unsigned-module kernel has no
+# signature to reject. Compare btrfs's signer against the signer of a module
+# that ships WITH the kernel, and only refuse on a positive mismatch.
 if [[ "$FILESYSTEM" == btrfs ]]; then
-    if timeout 120 podman run --rm "$IMAGE" \
-        sh -c 'find /usr/lib/modules -name "btrfs.ko*" 2>/dev/null | grep -q .' 2>/dev/null; then
-        log "  btrfs root requested and the target kernel ships btrfs.ko — proceeding"
-    else
-        err "  [FAIL] wootc.filesystem=btrfs, but ${IMAGE}'s kernel ships NO btrfs module"
-        err "         (EL-family kernels do not build btrfs). Phase 2 could never mount this root."
-        err "         Choose ext4 (sealed-capable) or xfs, or a Fedora-kernel image for btrfs."
+    if ! timeout 120 podman image exists "$IMAGE" 2>/dev/null; then
+        log "  btrfs preflight: pulling $IMAGE (not local yet)"
+        timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>&1 || true
+    fi
+    BTRFS_PROBE="$(timeout 120 podman run --rm --network=host "$IMAGE" sh -c '
+        KV=$(ls /usr/lib/modules 2>/dev/null | head -1)
+        [ -n "$KV" ] || exit 0
+        echo "KVER=$KV"
+        KO=$(modinfo -k "$KV" -n btrfs 2>/dev/null || true)
+        echo "BTRFS_KO=$KO"
+        [ -n "$KO" ] || exit 0
+        echo "BTRFS_SIGNER=$(modinfo -k "$KV" -F signer btrfs 2>/dev/null | head -1)"
+        # Any module under the kernel package'"'"'s own tree carries the key the
+        # locked-down kernel trusts; out-of-tree kmods land in extra/ or
+        # weak-updates/ and are exactly what this compares against.
+        REF=$(find "/usr/lib/modules/$KV/kernel" -name "*.ko*" -print 2>/dev/null | head -1)
+        [ -n "$REF" ] || exit 0
+        echo "REF_KO=$REF"
+        echo "REF_SIGNER=$(modinfo -F signer "$REF" 2>/dev/null | head -1)"
+    ' 2>/dev/null || true)"
+    BTRFS_KO="$(sed -n 's/^BTRFS_KO=//p' <<<"$BTRFS_PROBE")"
+    BTRFS_SIGNER="$(sed -n 's/^BTRFS_SIGNER=//p' <<<"$BTRFS_PROBE")"
+    REF_SIGNER="$(sed -n 's/^REF_SIGNER=//p' <<<"$BTRFS_PROBE")"
+    if [[ -z "$BTRFS_PROBE" ]]; then
+        err "  [WARN] btrfs preflight could not inspect $IMAGE — proceeding blind"
+    elif [[ -z "$BTRFS_KO" ]]; then
+        err "  [FAIL] wootc.filesystem=btrfs but $IMAGE ships no btrfs module for its kernel"
+        err "         Phase 2 could not mount a btrfs root; refusing to deploy one."
         exit 1
+    elif [[ -n "$BTRFS_SIGNER" && -n "$REF_SIGNER" && "$BTRFS_SIGNER" != "$REF_SIGNER" ]]; then
+        err "  [FAIL] wootc.filesystem=btrfs but $BTRFS_KO is an out-of-tree module"
+        err "         signed by '$BTRFS_SIGNER', while the kernel's own modules are"
+        err "         signed by '$REF_SIGNER'. Under Secure Boot the target kernel"
+        err "         rejects it, the btrfs udev readiness gate never clears, and"
+        err "         Phase 2 lands in an emergency shell. Refusing to deploy."
+        err "         Use an image whose kernel has btrfs in-tree, or enrol the key."
+        exit 1
+    else
+        log "  btrfs preflight: $BTRFS_KO loads under the kernel's own signing key"
     fi
 fi
 
