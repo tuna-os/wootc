@@ -25,6 +25,11 @@ installkernel() {
     # virtio_scsi, virtio_pci, sd_mod, ahci — host disk controller drivers
     instmods loop fuse virtio_scsi virtio_pci sd_mod ahci nvme
     instmods ntfs3 2>/dev/null || :   # optional: not built on EL kernels
+    # btrfs (#35): a btrfs root=UUID device stays SYSTEMD_READY=0 until the
+    # btrfs module has it registered (udev 64-btrfs.rules), and dracut's own
+    # 90btrfs module is only auto-selected when the image ships btrfs-progs.
+    # The attach hook modprobes it for btrfs roots; make sure it is there.
+    instmods btrfs 2>/dev/null || :   # optional: not built on all kernels
 }
 
 install() {
@@ -102,6 +107,10 @@ install() {
     # udevadm: the attach script settles udev and waits for the Windows NTFS
     # by-uuid symlink (a oneshot service gets one shot, no initqueue retry).
     inst_multiple mount mountpoint mkdir modprobe blockdev sleep udevadm
+    # btrfs-progs, when the image has it: the attach hook registers btrfs
+    # loop partitions with `btrfs device scan` so the udev readiness gate
+    # (#35) clears. Optional — the udev builtin re-trigger is the fallback.
+    inst_multiple -o btrfs
     # The userspace NTFS driver (ntfs-3g) for kernels without ntfs3 is added by
     # the deployer's regen via `dracut --install` — module-level inst does not
     # reliably resolve it there, but a regen-level --install does.

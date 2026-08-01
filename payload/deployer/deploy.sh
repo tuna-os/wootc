@@ -1077,6 +1077,170 @@ vstage() {
     log "vstage: $*"
 }
 
+# ── [generic] Early-cpio overlay helpers ─────────────────────────────────────
+# Three Phase-2 staging branches (composefs+systemd-boot, generic
+# systemd-boot, ostree/grub2 with a target initramfs that cannot be
+# regenerated) prepend the same wootc-boot overlay onto the target's own
+# initrd. They used to carry three hand-copied variants of this code, and two
+# of them looked for ntfs-3g under a /mnt/sysroot that never exists in this
+# initramfs — silently falling through to a deployer binary shipped WITHOUT
+# its library closure (the exact cross-image soname failure documented in
+# docs/agent-lessons.md §8). One implementation, used by all branches.
+
+# stage_wootc_overlay <ovl-dir>
+# The attach unit, its wants edge, and the loop script — the minimum that
+# makes root.disk appear to the base initrd's ordinary sysroot.mount.
+stage_wootc_overlay() {
+    local ovl="$1"
+    # early_cpio marker: makes lsinitrd/skipcpio recognise this as a leading
+    # (early) cpio and skip past it to show the base initrd — honest
+    # introspection. Harmless to the kernel (same as microcode).
+    : > "$ovl/early_cpio"
+    install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
+        "$ovl/usr/lib/systemd/system/wootc-attach.service"
+    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
+        "$ovl/usr/lib/wootc/wootc-attach-loop.sh"
+    mkdir -p "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants"
+    ln -sf ../wootc-attach.service \
+        "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
+}
+
+# stage_ntfs3g_closure <ovl-dir>
+# Stage a userspace NTFS driver into the overlay for kernels without ntfs3.
+# Source order matters (agent-lessons §8 — never mix libraries across images):
+#   1. the TARGET deployment's own ntfs-3g: the binary plus its
+#      libntfs-3g/libfuse from the SAME tree. The rest of its closure (libc,
+#      loader) is the base initrd's own — coherent, both come from the image.
+#   2. the DEPLOYER's ntfs-3g as a COMPLETE private closure: binary, every
+#      ldd-resolved library, and the dynamic loader under
+#      /usr/lib/wootc/ntfs3g/, invoked through a wrapper. The target's
+#      libraries are never mixed in (measured skew that motivated this:
+#      libfuse3.so.4 vs .so.3 — lands, then dies exactly like a missing one).
+# Returns 0 when a driver was staged, 1 when none was available (the caller
+# decides whether kernel ntfs3 makes that survivable).
+stage_ntfs3g_closure() {
+    local ovl="$1" d tsrc="" lib nbin ldso=""
+    for d in /usr/bin /usr/sbin /bin /sbin; do
+        [[ -x "$DEPLOY_ROOT$d/ntfs-3g" ]] && { tsrc="$DEPLOY_ROOT$d/ntfs-3g"; break; }
+    done
+    if [[ -n "$tsrc" ]]; then
+        install -D -m0755 "$tsrc" "$ovl/usr/bin/ntfs-3g"
+        # Its NTFS/FUSE libraries from the same tree, symlink chains intact
+        # (libntfs-3g.so.N is a link to .so.N.0.0 — both must land). $lib is
+        # the path with the deployment prefix stripped, so it doubles as the
+        # destination inside the overlay.
+        while IFS= read -r lib; do
+            mkdir -p "$ovl${lib%/*}" 2>/dev/null || true
+            cp -a "$DEPLOY_ROOT$lib" "$ovl${lib%/*}/" 2>/dev/null || true
+        done < <(find "$DEPLOY_ROOT/usr/lib64" "$DEPLOY_ROOT/lib64" \
+                      "$DEPLOY_ROOT/usr/lib" "$DEPLOY_ROOT/lib" \
+                      -maxdepth 1 \( -name 'libntfs-3g*' -o -name 'libfuse*' \) \
+                      2>/dev/null | sed "s|^$DEPLOY_ROOT||")
+        mkdir -p "$ovl/usr/sbin"
+        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs"
+        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs-3g"
+        log "  early-cpio: staged the TARGET's own ntfs-3g (+libs) from the deployment"
+        return 0
+    fi
+    nbin=$(command -v ntfs-3g 2>/dev/null || true)
+    if [[ -n "$nbin" ]]; then
+        local pdir="usr/lib/wootc/ntfs3g"
+        install -D -m0755 "$nbin" "$ovl/$pdir/ntfs-3g"
+        # Every ldd-resolved dependency AND the loader (the line without "=>").
+        while IFS= read -r lib; do
+            [[ -f "$lib" ]] || continue
+            install -D -m0755 "$lib" "$ovl/$pdir/${lib##*/}"
+            case "$lib" in
+                */ld-linux*|*/ld64.so*|*/ld.so*) ldso="${lib##*/}" ;;
+            esac
+        done < <(ldd "$nbin" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i ~ /^\//) print $i}')
+        if [[ -z "$ldso" ]]; then
+            err "  [FAIL] early-cpio: ldd on the deployer's ntfs-3g surfaced no dynamic loader — cannot build a self-contained closure"
+            rm -rf "${ovl:?}/$pdir"
+            return 1
+        fi
+        # PROVE the closure is complete by RUNNING it (ldd reports only the
+        # first missing library; execution reports the truth). This is the
+        # deployer's own binary on the deployer's own kernel, so it can run
+        # here — pinned to the staged loader + staged libs only.
+        if ! "$ovl/$pdir/$ldso" --library-path "$ovl/$pdir" "$ovl/$pdir/ntfs-3g" --version >/dev/null 2>&1; then
+            err "  [FAIL] early-cpio: staged ntfs-3g closure does not execute against its own libraries"
+            rm -rf "${ovl:?}/$pdir"
+            return 1
+        fi
+        # The wrapper the attach hook's mount_host() will find as `ntfs-3g`.
+        # Needs only a POSIX sh, which the hook (bash) already requires.
+        mkdir -p "$ovl/usr/bin" "$ovl/usr/sbin"
+        cat > "$ovl/usr/bin/ntfs-3g" <<NTFSWRAP
+#!/bin/sh
+exec /$pdir/$ldso --library-path /$pdir /$pdir/ntfs-3g "\$@"
+NTFSWRAP
+        chmod 0755 "$ovl/usr/bin/ntfs-3g"
+        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs"
+        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs-3g"
+        log "  early-cpio: staged the DEPLOYER's ntfs-3g as a private closure (loader=$ldso, exec-verified)"
+        return 0
+    fi
+    return 1
+}
+
+# build_phase2_initrd <ovl-dir> <base-initrd> <out-path>
+# Pack the overlay ahead of the base initrd and VERIFY the result by
+# inspection — "the concatenated file is non-empty" validated nothing (a
+# hookless or interpreter-less initramfs is non-empty too, and costs a full
+# VM run to diagnose). Fails closed on a defective overlay; base-initrd
+# introspection is best-effort (its compression varies by image) and only
+# fails when a successful listing PROVES a required piece missing.
+build_phase2_initrd() {
+    local ovl="$1" base="$2" out="$3"
+    # The overlay must be verifiably complete BEFORE packing: unit file,
+    # wants edge (a dangling wants is a proven silent no-op), executable hook.
+    if [[ ! -f "$ovl/usr/lib/systemd/system/wootc-attach.service" ]] || \
+       [[ ! -L "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service" ]] || \
+       [[ ! -x "$ovl/usr/lib/wootc/wootc-attach-loop.sh" ]]; then
+        err "  [FAIL] early-cpio overlay is incomplete (unit/wants/hook) — refusing to build a Phase-2 initrd that cannot attach root.disk"
+        return 1
+    fi
+    if ! ( cd "$ovl" && find . | cpio -o -H newc --quiet ) > "$ovl.cpio" || \
+       ! cat "$ovl.cpio" "$base" > "$out" || [[ ! -s "$out" ]]; then
+        rm -f "$ovl.cpio"
+        err "  [FAIL] early-cpio: cpio prepend failed — Phase-2 initrd would be hookless"
+        return 1
+    fi
+    rm -f "$ovl.cpio"
+    # The overlay supplies unit+hook (+ possibly ntfs-3g); everything else the
+    # hook needs at runtime must come from the BASE initrd: its interpreter
+    # (bash — the hook's shebang), losetup, udevadm, mount. List the base with
+    # whatever decompressor matches; each failed candidate is fine, an empty
+    # result overall just means "unverifiable here", which must WARN, not fail
+    # a deploy that may be good.
+    local listing="" dec
+    for dec in "cat" "zstd -qdc" "gzip -dc" "xz -dc" "lz4 -dc" "bzip2 -dc"; do
+        listing=$($dec < "$base" 2>/dev/null | cpio -it --quiet 2>/dev/null || true)
+        [[ -n "$listing" ]] && break
+    done
+    if [[ -z "$listing" ]]; then
+        log "  [WARN] early-cpio: could not list the base initrd (unknown compression) — interpreter/tool presence unverified"
+        return 0
+    fi
+    local missing=() tool found
+    for tool in bash losetup udevadm mount; do
+        found=0
+        grep -qE "(^|/)(usr/)?s?bin/$tool$" <<<"$listing" && found=1
+        # busybox-style initrds provide tools as applet symlinks with the
+        # same basename; the grep above already matches those. A systemd
+        # UKI initrd without a shell at all is the real failure mode here.
+        [[ "$found" == 1 ]] || missing+=("$tool")
+    done
+    if (( ${#missing[@]} > 0 )); then
+        err "  [FAIL] the target's base initrd lacks: ${missing[*]} — the wootc-attach hook cannot run in Phase 2"
+        err "         (listing succeeded, so this is proof, not a probe failure; the image's initrd must ship these or the hook must be rewritten against what it ships)"
+        return 1
+    fi
+    log "  early-cpio: base initrd verified (bash/losetup/udevadm/mount present)"
+    return 0
+}
+
 # Re-mount the installed disk while its NTFS backing mount is still live.
 # `losetup --find` picks a fresh loop device rather than reusing the previous
 # one, so verification is independent of any teardown race on the old nodes.
@@ -1487,6 +1651,24 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         else
             log "  [WARN] no ntfs-3g in the deployment — Phase-2 relies on a kernel ntfs3"
         fi
+        # btrfs root (#35): udev's 64-btrfs.rules keeps every btrfs partition
+        # SYSTEMD_READY=0 until the btrfs module has it registered, so the
+        # root=UUID device unit never activates if btrfs.ko is not loaded when
+        # the attach's partition events land — sysroot.mount then times out
+        # with the UUID sitting right there in by-uuid. The attach hook may
+        # not modprobe (Secure Boot lockdown lesson), so load it the
+        # systemd-native way: a modules-load.d entry baked into the initramfs;
+        # systemd-modules-load runs at initrd sysinit, dependency-resolved,
+        # long before wootc-attach.service.
+        DRACUT_INCLUDE_ARGS=()
+        if [[ "$FILESYSTEM" == btrfs ]]; then
+            # Under $DEPLOY_ROOT/run (same trick as wootc-nofw): dracut runs
+            # chrooted, so the path handed to --include must exist inside it.
+            mkdir -p "$DEPLOY_ROOT/run/wootc-btrfs-inc/usr/lib/modules-load.d"
+            echo btrfs > "$DEPLOY_ROOT/run/wootc-btrfs-inc/usr/lib/modules-load.d/wootc-btrfs.conf"
+            DRACUT_INCLUDE_ARGS=(--include /run/wootc-btrfs-inc /)
+            log "  btrfs root: baking modules-load.d/wootc-btrfs.conf into the Phase-2 initramfs (#35)"
+        fi
         # BOUNDED. An unbounded chroot dracut is a prime suspect for the
         # 31-minute silent hang: it writes nothing to the journal, so a block
         # here looks exactly like a dead deployer. A regen legitimately takes a
@@ -1496,6 +1678,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         timeout 900 chroot "$DEPLOY_ROOT" dracut --force --no-hostonly \
             --add "ostree wootc-boot" \
             "${DRACUT_INSTALL_ARGS[@]}" \
+            "${DRACUT_INCLUDE_ARGS[@]}" \
             --fwdir /run/wootc-nofw \
             --omit "$DRACUT_OMIT" \
             "$INITRD_CHROOT_PATH" "$KVER" > /tmp/dracut-regen.log 2>&1
@@ -1955,29 +2138,14 @@ QGAEOF
                 # is overwritten. The base already ships loop/ntfs3/losetup/udevadm
                 # (verified on bonito), so no modules or binaries need adding.
                 OVL=$(mktemp -d)
-                # early_cpio marker: makes lsinitrd/skipcpio recognise this as a
-                # leading (early) cpio and skip past it to show the base initrd —
-                # honest introspection. Harmless to the kernel (same as microcode).
-                : > "$OVL/early_cpio"
-                install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
-                    "$OVL/usr/lib/systemd/system/wootc-attach.service"
-                install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
-                    "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
-                mkdir -p "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
-                ln -sf ../wootc-attach.service \
-                    "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-
-                if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
-                    nbin=""
-                    nbin=$(ls /mnt/sysroot/usr/bin/ntfs-3g /usr/bin/ntfs-3g 2>/dev/null | head -1)
-                    install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
-                    ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs" 2>/dev/null || true
-                    ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs-3g" 2>/dev/null || true
-                    # Copy libntfs-3g.so.89 and dependencies
-                    find /mnt/sysroot/lib64 /lib64 /mnt/sysroot/usr/lib64 /usr/lib64 -name "libntfs-3g*" 2>/dev/null | while read -r lib; do
-                        relpath="${lib#/mnt/sysroot}"
-                        install -D -m0755 "$lib" "$OVL/$relpath"
-                    done
+                stage_wootc_overlay "$OVL"
+                # EL-class kernels have no ntfs3, so Phase 2 needs a userspace
+                # driver. Sourced coherently (target first, then the deployer's
+                # complete private closure) — the old inline copy here looked
+                # under a /mnt/sysroot that never exists and shipped the
+                # deployer binary without its closure (agent-lessons §8).
+                if ! stage_ntfs3g_closure "$OVL"; then
+                    log "  [WARN] no ntfs-3g stageable for the composefs Phase-2 initrd — relying on kernel ntfs3"
                 fi
                 # Composefs images (dakota) lack qemu-guest-agent which the E2E
                 # harness needs.  Copy the deployer's own qemu-ga into the cpio
@@ -2047,16 +2215,12 @@ SMODSH
                     log "  Staged deployer kernel modules ($_dkver) for Phase 2"
                 fi
 
-                CPIO_OK=0
-                if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
-                   cat "$OVL.cpio" "$ISRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
-                    CPIO_OK=1
-                fi
-                rm -f "$OVL.cpio"; rm -rf "$OVL"
-                if [[ "$CPIO_OK" == 1 && -s /mnt/esp/EFI/wootc/phase2-initramfs.img ]]; then
-                    log "  [PASS] composefs Phase-2 initrd patched with wootc-boot (prepend-cpio)"
+                if build_phase2_initrd "$OVL" "$ISRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                    rm -rf "$OVL"
+                    log "  [PASS] composefs Phase-2 initrd patched with wootc-boot (prepend-cpio, contents verified)"
                 else
-                    err "  [FAIL] composefs: cpio prepend failed — Phase-2 initrd would be hookless"
+                    rm -rf "$OVL"
+                    err "  [FAIL] composefs: Phase-2 initrd build/verify failed — aborting before the ESP advertises an unbootable Phase 2"
                     exit 1
                 fi
                 # Keep root=UUID + composefs=<hash>; drop unresolved \$vars + quiet.
@@ -2115,41 +2279,20 @@ GRUBCFGEOF
                     cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
                     OVL="/tmp/wootc-ovl-$$"
                     rm -rf "$OVL"; mkdir -p "$OVL"
-                    : > "$OVL/early_cpio"
-                    install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
-                        "$OVL/usr/lib/systemd/system/wootc-attach.service"
-                    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
-                        "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
-                    mkdir -p "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
-                    ln -sf ../wootc-attach.service \
-                        "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-
-                    if [[ -x /mnt/sysroot/usr/bin/ntfs-3g || -x /usr/bin/ntfs-3g ]]; then
-                        nbin=""
-                        nbin=$(ls /mnt/sysroot/usr/bin/ntfs-3g /usr/bin/ntfs-3g 2>/dev/null | head -1)
-                        install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
-                        ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs" 2>/dev/null || true
-                        ln -sf /usr/bin/ntfs-3g "$OVL/usr/sbin/mount.ntfs-3g" 2>/dev/null || true
-                        # Copy libntfs-3g.so.89 and dependencies
-                        find /mnt/sysroot/lib64 /lib64 /mnt/sysroot/usr/lib64 /usr/lib64 -name "libntfs-3g*" 2>/dev/null | while read -r lib; do
-                            relpath="${lib#/mnt/sysroot}"
-                            install -D -m0755 "$lib" "$OVL/$relpath"
-                        done
+                    stage_wootc_overlay "$OVL"
+                    if ! stage_ntfs3g_closure "$OVL"; then
+                        log "  [WARN] no ntfs-3g stageable for the systemd-boot Phase-2 initrd — relying on kernel ntfs3"
                     fi
 
                     # NOTE: Storage kernel modules are intentionally NOT staged here.
                     # See branch-1 comment above for rationale (Secure Boot lockdown rejection).
 
-                    CPIO_OK=0
-                    if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
-                       cat "$OVL.cpio" "$INITRD_SRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
-                        CPIO_OK=1
-                    fi
-                    rm -f "$OVL.cpio"; rm -rf "$OVL"
-                    if [[ "$CPIO_OK" != 1 || ! -s /mnt/esp/EFI/wootc/phase2-initramfs.img ]]; then
-                        err "  [FAIL] systemd-boot: cpio prepend failed"
+                    if ! build_phase2_initrd "$OVL" "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                        rm -rf "$OVL"
+                        err "  [FAIL] systemd-boot: Phase-2 initrd build/verify failed"
                         exit 1
                     fi
+                    rm -rf "$OVL"
 
                     ROOT_OPTIONS=$(grep '^options ' "${BLS_DIR:-$DEPLOY_ROOT/boot/loader/entries}"/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
                     ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ' || true)
@@ -2222,47 +2365,27 @@ BLSEOF
                 log "  Staging Phase-2 kernel and initramfs to ESP:EFI/wootc/..."
                 cp "$KERNEL_SRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
                 # Patch Phase-2 initrd with wootc-boot via prepend-cpio. The target image
-                # (e.g. yellowfin) lacks ntfs3/ntfs-3g, so we also copy the deployer's
-                # own ntfs-3g binary and fuse module/libraries into the early cpio.
+                # (e.g. yellowfin) may lack ntfs3/ntfs-3g, so a userspace driver is
+                # staged too — coherently sourced (the old inline copy staged the
+                # deployer's libraries at the TARGET's library paths, overriding the
+                # base initrd's own libc-adjacent files: cross-image soname roulette).
                 OVL="/tmp/wootc-ovl-$$"
                 rm -rf "$OVL"; mkdir -p "$OVL"
-                : > "$OVL/early_cpio"
-                install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
-                    "$OVL/usr/lib/systemd/system/wootc-attach.service"
-                install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
-                    "$OVL/usr/lib/wootc/wootc-attach-loop.sh"
-                mkdir -p "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
-                ln -sf ../wootc-attach.service \
-                    "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-
-                # If deployer has ntfs-3g, stage it and ALL its ldd dependencies into early cpio overlay
-                if command -v ntfs-3g >/dev/null 2>&1; then
-                    nbin=""
-                    nbin=$(command -v ntfs-3g)
-                    install -D -m0755 "$nbin" "$OVL/usr/bin/ntfs-3g"
-                    # copy all dynamic dependencies found via ldd
-                    ldd "$nbin" 2>/dev/null | awk '/=>/ {print $3}' | while read -r lib; do
-                        if [[ -f "$lib" ]]; then
-                            install -D -m0755 "$lib" "$OVL/$lib"
-                        fi
-                    done
+                stage_wootc_overlay "$OVL"
+                if ! stage_ntfs3g_closure "$OVL"; then
+                    log "  [WARN] no ntfs-3g stageable for the Phase-2 initrd — relying on kernel ntfs3"
                 fi
 
                 # NOTE: Storage kernel modules are intentionally NOT staged here.
                 # See branch-1 comment above for rationale (Secure Boot lockdown rejection).
 
-                CPIO_OK=0
-                if ( cd "$OVL" && find . | cpio -o -H newc --quiet ) > "$OVL.cpio" && \
-                   cat "$OVL.cpio" "$INITRD_SRC" > /mnt/esp/EFI/wootc/phase2-initramfs.img; then
-                    CPIO_OK=1
-                fi
-                rm -f "$OVL.cpio"; rm -rf "$OVL"
-                if [[ "$CPIO_OK" == 1 && -s /mnt/esp/EFI/wootc/phase2-initramfs.img ]]; then
-                    log "  [PASS] Phase-2 initrd patched with wootc-boot & ntfs-3g (prepend-cpio)"
-                else
-                    err "  [FAIL] cpio prepend failed — Phase-2 initrd would be hookless"
+                if ! build_phase2_initrd "$OVL" "$INITRD_SRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
+                    rm -rf "$OVL"
+                    err "  [FAIL] Phase-2 initrd build/verify failed"
                     exit 1
                 fi
+                rm -rf "$OVL"
+                log "  [PASS] Phase-2 initrd patched with wootc-boot & ntfs-3g (prepend-cpio, contents verified)"
 
                 # BCD loads \EFI\fedora\shimx64.efi; the target shim then loads
                 # grubx64.efi from that same dir. Overwrite both with the
@@ -2417,7 +2540,27 @@ GRUBEOF
     fi
     umount /mnt/verify 2>/dev/null || err "  [WARN] could not unmount /mnt/verify (busy?) — continuing"
 else
-    err "  [WARN] Could not mount installed root for verification (checking via loop file only)"
+    # FAIL CLOSED (#45). No mountable, recognized installed root means Phase 2
+    # cannot be verified OR staged — the ESP never gets a Phase-2 kernel, and
+    # the firmware would fall straight back to Windows (exactly the recorded
+    # composefs failure shape). "Checking via loop file only" verified nothing;
+    # advertising deploy-ready here misattributes the later boot failure and
+    # shows the user a success path for an unbootable system. Say precisely
+    # what was found instead, then refuse.
+    err "  [FAIL] no mountable, recognized installed root on ${VERIFY_LOOP} — cannot verify or stage Phase 2"
+    err "         partition table as the kernel sees it:"
+    sfdisk -l "$VERIFY_LOOP" 2>&1 | sed 's/^/    /' >&2 || true
+    for _p in "${VERIFY_LOOP}"p*; do
+        [[ -b "$_p" ]] || continue
+        err "         $_p: $(blkid "$_p" 2>/dev/null || echo 'blkid: no signature')"
+        _mnt_err=$(timeout 15 mount -o ro "$_p" /mnt/verify 2>&1) && {
+            err "           mounts, but no ostree/composefs deployment or /etc/os-release inside"
+            umount /mnt/verify 2>/dev/null || true
+        } || err "           mount: $(printf '%s' "$_mnt_err" | head -c 300)"
+    done
+    err "         The install is either unstaged or in a layout this deployer does not recognize."
+    err "         Refusing to advertise deploy-ready for a system that cannot boot."
+    exit 1
 fi
 
 if [[ -n "$VERIFY_CRYPT" ]]; then
@@ -2453,9 +2596,9 @@ umount /var/fisherman-tmp 2>/dev/null || true
 SCRATCH_LOOP=""
 rm -f "$SCRATCH_IMG"
 
-# Robustly unmount the host NTFS. The composefs verify path can fail to mount the
-# installed root ("checking via loop file only") and leave a loop device or
-# overlay pinning a file under /mnt/ntfs — then a plain `umount /mnt/ntfs` blocks
+# Robustly unmount the host NTFS. (The verify path that reached here having
+# failed to mount the installed root is now fatal — #45 — but a loop device or
+# overlay can still pin a file under /mnt/ntfs) — a plain `umount /mnt/ntfs` blocks
 # "target is busy" forever and the whole deploy times out without ever rebooting
 # into Phase 2. So: sync, detach any loop still backed by a /mnt/ntfs file,
 # unmount anything nested, then a BOUNDED umount with a lazy fallback. (The sync

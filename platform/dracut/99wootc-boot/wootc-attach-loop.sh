@@ -208,6 +208,42 @@ udevadm trigger --action=add --sysname-match="${loopname}" --sysname-match="${lo
     udevadm trigger --action=add 2>/dev/null || true
 udevadm settle --timeout=30 2>/dev/null || true
 
+# btrfs readiness (#35). A by-uuid symlink is NOT device readiness: udev's
+# 64-btrfs.rules gates every btrfs partition behind IMPORT{builtin}="btrfs
+# ready" and marks it SYSTEMD_READY=0 until the btrfs module has the device
+# registered. If btrfs.ko is not loaded when the loop partitions' add events
+# are processed, the builtin fails, the root=UUID device UNIT never
+# activates, and sysroot.mount times out into the emergency shell even though
+# the UUID sits right there in /dev/disk/by-uuid — the exact #35 shape (GUI
+# takes 9+10: attach clean at t=3s, UUID listed, timeout anyway).
+#
+# No modprobe here (see the storage-driver note above — same lockdown
+# constraint, asserted by tests/unit/raw-loopback.bats). btrfs.ko is loaded
+# EARLY and dependency-resolved by systemd-modules-load via the
+# modules-load.d entry the deployer bakes into this initramfs for btrfs
+# deploys. This block only REGISTERS the just-attached partitions and
+# re-runs the udev readiness import, then reports the result.
+if blkid "${LOOP_DEV}"p* 2>/dev/null | grep -q 'TYPE="btrfs"'; then
+    say "btrfs partitions present — registering devices so the udev readiness gate clears"
+    # Registration via btrfs-progs when available; the udev builtin re-run
+    # below covers the case where it is not.
+    if command -v btrfs >/dev/null 2>&1; then
+        for part in "${LOOP_DEV}"p*; do
+            blkid "$part" 2>/dev/null | grep -q 'TYPE="btrfs"' || continue
+            btrfs device scan "$part" >/dev/null 2>&1 || true
+        done
+    fi
+    udevadm trigger --action=change --sysname-match="${loopname}p*" 2>/dev/null || \
+        udevadm trigger --action=change 2>/dev/null || true
+    udevadm settle --timeout=15 2>/dev/null || true
+    # Report readiness per btrfs partition — if #35 persists, THIS line is the
+    # discriminator between "device never became ready" and a different bug.
+    for part in "${LOOP_DEV}"p*; do
+        blkid "$part" 2>/dev/null | grep -q 'TYPE="btrfs"' || continue
+        say "btrfs $part: module loaded=$(grep -cw btrfs /proc/modules 2>/dev/null) $(udevadm info --query=property "$part" 2>/dev/null | grep -E '^(SYSTEMD_READY|ID_BTRFS_READY)=' | tr '\n' ' ')"
+    done
+fi
+
 : > /run/wootc-loop-attached
 say "attached raw root.disk $FULL_LOOP_PATH as $LOOP_DEV"
 # The whole point of the attach: the root partition's UUID must now appear to
