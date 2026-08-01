@@ -37,6 +37,8 @@ run_stager() {
         set -euo pipefail
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
+        $(extract_fn find_ldso)
+        $(extract_fn dso_closure)
         $(extract_fn stage_qemu_ga_into_target)
         stage_qemu_ga_into_target
     "
@@ -106,6 +108,8 @@ run_stager() {
         set -uo pipefail
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
+        $(extract_fn find_ldso)
+        $(extract_fn dso_closure)
         $(extract_fn stage_qemu_ga_into_target)
         stage_qemu_ga_into_target
     "

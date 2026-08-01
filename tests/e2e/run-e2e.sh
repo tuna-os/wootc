@@ -1156,8 +1156,18 @@ cp "$SCRIPT_DIR/wootc-files/grub/"*.cfg "$OEM_PAYLOAD/grub/"
 # the deployer about it via mirror.txt beside vault.json; the deployer probes
 # before trusting, so a dead cache degrades to normal direct pulls.
 MIRROR_ADDR=""
-for ip in $(ip -4 addr show tailscale0 2>/dev/null | awk '/inet /{sub(/\/.*/,"",$2); print $2}') \
-          $(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1); exit}'); do
+# `|| true` inside each group is load-bearing under `set -Eeuo pipefail`. A
+# hosted runner has no tailscale0, so `ip -4 addr show tailscale0` exits 1, the
+# pipeline inherits it, and the ERR trap — which -E propagates into command
+# substitutions — printed
+#     [FAIL] run-e2e.sh aborted: awk '/inet /{...}' (exit 1)
+# into the console log of a run that had aborted nothing (run 30707067821).
+# The matrix reads the LAST [FAIL] as the verdict, so on any run whose real
+# failure is silent (a timeout) this line becomes the recorded reason.
+for ip in $({ ip -4 addr show tailscale0 2>/dev/null || true; } \
+                | awk '/inet /{sub(/\/.*/,"",$2); print $2}') \
+          $({ ip -4 route get 1.1.1.1 2>/dev/null || true; } \
+                | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1); exit}'); do
     if curl -fsS -m 2 "http://${ip}:5000/v2/" >/dev/null 2>&1; then
         MIRROR_ADDR="${ip}:5000"
         break

@@ -91,6 +91,8 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
         set -e
         log() { echo \"LOG: \$*\"; }
         err() { echo \"ERR: \$*\" >&2; }
+        $(extract_fn find_ldso)
+        $(extract_fn dso_closure)
         $(extract_fn stage_ntfs3g_closure)
         $(extract_fn _initrd_segment_end)
         $(extract_fn _initrd_skip_padding)

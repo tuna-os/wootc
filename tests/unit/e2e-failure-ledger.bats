@@ -131,6 +131,27 @@ setup() {
     [ -z "$output" ]
 }
 
+@test "a probe for something absent cannot print a [FAIL] that aborted nothing" {
+    # -E propagates the ERR trap into command substitutions, so under pipefail
+    # an optional probe whose first stage legitimately fails still prints
+    #     [FAIL] run-e2e.sh aborted: awk '/inet /{...}' (exit 1)
+    # while the run carries on. That happened on every hosted cell (no
+    # tailscale0) — run 30707067821 — and the matrix takes the LAST [FAIL] as
+    # the verdict, so on a silent failure this becomes the recorded reason.
+    run bash -c 'set -Eeuo pipefail
+        trap "printf \"[FAIL] aborted: %s\n\" \"\$BASH_COMMAND\" >&2" ERR
+        for x in $(ip -4 addr show nosuchdev0 2>/dev/null | awk "{print \$2}"); do :; done
+        echo done'
+    [[ "$output" == *"[FAIL]"* ]]   # the shape being guarded against
+
+    # The mirror probe is the instance that shipped it; both of its optional
+    # `ip` calls must be guarded, in code and not merely in a comment.
+    for probe in 'addr show tailscale0' 'route get 1\.1\.1\.1'; do
+        run grep -cE "^[^#]*ip -4 $probe.*\|\| true" "$E2E"
+        [ "$output" -ge 1 ]
+    done
+}
+
 @test "log helpers do not mangle Windows paths" {
     # `echo -e` interprets escapes in the MESSAGE, so C:\OEM\run-wootc-e2e.ps1
     # printed as C:\OEMun-wootc-e2e.ps1 (\r became a carriage return) in the one

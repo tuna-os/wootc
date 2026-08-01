@@ -184,7 +184,10 @@ setup() {
     grep -q "Injected the deployer's own ntfs-3g" "$DEPLOY"
     grep -q 'command -v ntfs-3g' "$DEPLOY"
     # Its shared libraries must come too, or the installed binary cannot run.
-    grep -q 'ldd "\$_ntfs_src"' "$DEPLOY"
+    # Resolved through dso_closure, never `ldd` directly: ldd is a
+    # glibc-common shell script that the deployer initramfs does not carry
+    # (run 30707067821). See tests/unit/deployer-dso-closure.bats.
+    grep -q 'dso_closure "\$_ntfs_src"' "$DEPLOY"
     # And with no driver available at all, refuse rather than ship it.
     grep -q 'no NTFS driver for Phase 2' "$DEPLOY"
     grep -q 'Refusing to finish a deployment that cannot boot' "$DEPLOY"

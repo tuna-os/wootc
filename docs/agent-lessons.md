@@ -560,3 +560,38 @@ manager three or four times and died in Startup Repair. The QGA timeout was a
   systemd does not pivot, which is *exactly* today's behaviour. A partial or
   broken staging can only reproduce the bug it is fixing; it cannot invent a
   new one.
+
+## 28. The initramfs is not your laptop, and `[FAIL]` is not a log level
+
+`bluefin-dakota-win11pro` (run 30707067821) died 11 minutes into the deploy on
+two lines:
+
+```
+[wootc] ABORT: line 1281: awk '{for(i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' (exit 127)
+[FAIL] qga: ldd on the deployer's qemu-ga surfaced no dynamic loader
+```
+
+- **A dracut initramfs contains exactly what `module-setup.sh` names.** Every
+  closure builder in `deploy.sh` resolved libraries with `ldd "$bin" | awk …`.
+  `ldd` is a glibc-common *shell script*; no library dependency drags it in,
+  nothing listed it, so it was never in the image. Reach for the thing whose
+  presence is structurally guaranteed instead: the dynamic loader has to be
+  there or the deployer itself could not run, and `$ldso --list` is what `ldd`
+  execs anyway. `dso_closure()` now does that in pure bash, so no missing text
+  tool can break a closure either.
+- **Exit 127 names the wrong command.** Under `set -o pipefail` the ERR trap
+  reported the `awk` stage of a pipeline whose *first* stage was the missing
+  one. When a trap blames a command that obviously exists, suspect the rest of
+  the pipeline before you suspect the trap.
+- **`[FAIL]` on the deployer serial is an API, not a severity.** `run-e2e.sh`
+  greps the serial for `fatal|panic|[FAIL]` and ends the deploy on the first
+  hit. The qga stager printed `[FAIL]` for a condition its own caller absorbs
+  with `[WARN] no fallback qemu-ga staged` — so a survivable best-effort miss
+  killed a cell that was otherwise fine. A function may only shout `[FAIL]` if
+  every one of its callers treats the failure as fatal.
+- **The same rule bites the harness.** `run-e2e.sh` also printed
+  `[FAIL] run-e2e.sh aborted: awk …` on every hosted cell, because `-E`
+  propagates the ERR trap into the command substitution probing for a
+  `tailscale0` that hosted runners do not have. Nothing aborted. The matrix
+  takes the *last* `[FAIL]` as the verdict, so an optional probe was one silent
+  timeout away from becoming a run's official cause of death.
