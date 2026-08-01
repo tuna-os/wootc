@@ -2162,7 +2162,11 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         GUARD_LOSETUP=$(chroot "$DEPLOY_ROOT" lsinitrd "$INITRD_CHROOT_PATH" 2>/dev/null | grep -c 'losetup' || true)
         log "  guard: losetup present in initramfs=$GUARD_LOSETUP"
         if [[ "${GUARD_LOSETUP:-0}" -lt 1 ]]; then
-            err "  [FAIL] Phase-2 initramfs has no losetup — root.disk cannot be attached"
+            # [WARN] here, [FAIL] in the summary below: this is a *detail* of a
+            # verdict that is rendered once, and every [FAIL] on the serial ends
+            # the run the instant run-e2e.sh reads it — which would truncate the
+            # very list this collector exists to print in full.
+            err "  [WARN] Phase-2 initramfs has no losetup — root.disk cannot be attached"
             PHASE2_PROBLEMS+=("initramfs missing losetup")
         fi
         if [[ "${GUARD_HITS:-0}" -ge 1 ]]; then
@@ -2177,9 +2181,18 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # One summary of everything that went wrong in this stretch, so a single run
     # yields the full picture instead of only its first fault.
     if (( ${#PHASE2_PROBLEMS[@]} > 0 )); then
+        # This is the summary's OWN verdict, so it aborts here. It used to only
+        # print — "PHASE2_PROBLEMS is only summarised, never fatal" (see the
+        # dracut-regen comment above) — but printing [FAIL] already ended the
+        # run: run-e2e.sh kills the deploy on the first [FAIL] it sees on the
+        # serial. So the run died either way; the difference was that the
+        # deployer never said why, and the harness recorded a generic
+        # "Deployer error" mid-deploy instead of a named cause. Exit on our own
+        # terms, after the full list has been printed.
         err "  [FAIL] Phase-2 setup completed with ${#PHASE2_PROBLEMS[@]} problem(s):"
         for p in "${PHASE2_PROBLEMS[@]}"; do err "         - $p"; done
         err "         Phase 2 will NOT boot correctly. Fix all of the above."
+        exit 1
     else
         log "  [PASS] Phase-2 setup completed with no problems"
     fi
@@ -2195,11 +2208,16 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         mountpoint -q "$DEPLOY_ROOT/$fs" 2>/dev/null && umount "$DEPLOY_ROOT/$fs" 2>/dev/null || true
     done
 
-    # Check dracut module
+    # Check dracut module. [WARN], not [FAIL]: this inspects the module SOURCE
+    # tree, an input to the regen that already ran — and the guards above
+    # assert the thing that actually matters, the wootc-attach unit being
+    # present AND wired in the built initramfs, aborting when it is not. A
+    # [FAIL] here would let a stale source tree kill a deploy whose Phase-2
+    # initramfs had already been proven correct.
     if [[ -d "$DEPLOY_ROOT/usr/lib/dracut/modules.d/99wootc-boot" ]]; then
         log "  [PASS] dracut 99wootc-boot module installed"
     else
-        err "  [FAIL] dracut 99wootc-boot module NOT found"
+        err "  [WARN] dracut 99wootc-boot module source tree not found under \$DEPLOY_ROOT (the built initramfs was verified above)"
     fi
 
     vstage "before-userbridge (writes \$DEPLOY_ROOT/usr/local + /usr/share — read-only under composefs)"
@@ -2327,7 +2345,10 @@ QGAEOF
             "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-e2e-phase3.path"
         log "  [PASS] Phase-3 systemd request bridge enabled (units + wants link in target /etc)"
     else
-        log "  [FAIL] Phase-3 request bridge units missing from initramfs — dispatch will never trigger"
+        # [WARN]: Phase 3 is opt-in (rung 3) and a Phase-1/2 deploy is fully
+        # valid without it, so this must not end a run that never asked for it.
+        # Phase 3 has its own observable — the dispatch that never fires.
+        log "  [WARN] Phase-3 request bridge units missing from initramfs — a Phase-3 run would never dispatch"
     fi
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
     mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/var/usrlocal/bin/wootc-wsl-bridge"
@@ -2385,16 +2406,22 @@ QGAEOF
     ln -sf ../wootc-passthrough.service \
         "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-passthrough.service"
 
+    # [WARN] on both: the User Data Bridge is not what makes Phase 2 boot, and
+    # its absence has a real observable one reboot later — run-e2e.sh asserts
+    # "[FAIL] User data NOT visible in Phase 2 $HOME (expected RUN_ID …)". A
+    # [FAIL] here instead kills the deploy at the point of staging, so that
+    # assertion never gets to run and the recorded cause is a generic
+    # "Deployer error".
     if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-host-bind.service" ]]; then
         log "  [PASS] wootc-host-bind.service installed"
     else
-        err "  [FAIL] wootc-host-bind.service install failed"
+        err "  [WARN] wootc-host-bind.service install failed — user data will not be visible in Phase 2"
     fi
 
     if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-passthrough.service" ]]; then
         log "  [PASS] wootc-passthrough.service installed"
     else
-        err "  [FAIL] wootc-passthrough.service install failed"
+        err "  [WARN] wootc-passthrough.service install failed — user data will not be visible in Phase 2"
     fi
 
     if grep -q 'wootc.host_uuid=.*loop=/wootc/disks/root.disk' "${BLS_DIR:-$DEPLOY_ROOT/boot/loader/entries}"/*.conf; then
