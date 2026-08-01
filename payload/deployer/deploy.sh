@@ -1184,6 +1184,85 @@ NTFSWRAP
     return 1
 }
 
+# ── initramfs introspection ────────────────────────────────────────────────
+# An initramfs image is a CONCATENATION, not one archive: zero or more
+# UNCOMPRESSED early-cpio segments (CPU microcode, ACPI overrides) followed by
+# the compressed main archive. `cpio -it` stops at the first TRAILER!!!, so on
+# a Fedora/bootc image it lists the microcode segment — a handful of paths
+# under kernel/x86/microcode — and exits 0. That non-empty listing was then
+# read as proof that the initrd shipped no bash/losetup/udevadm/mount, and it
+# killed every dakota run at the Phase-2 gate (run 30700616717) on an initrd
+# that ships all four. Missing ALL FOUR is not a thing a bootable initrd does;
+# the listing was of the wrong segment. Walk the chain instead.
+
+# _initrd_segment_end <image> <offset>
+# Echo the offset just past the newc cpio archive that starts at <offset>
+# (i.e. past its TRAILER!!! member). Fails if no archive starts there.
+_initrd_segment_end() {
+    local img="$1" off="$2" hdr namesize filesize name
+    while :; do
+        hdr=$(dd if="$img" bs=1 skip="$off" count=110 status=none 2>/dev/null || true)
+        # 6-byte magic + 13 eight-digit hex fields = 110 ASCII bytes.
+        [[ "$hdr" =~ ^070701[0-9a-fA-F]{104}$ ]] || return 1
+        filesize=$((16#${hdr:54:8}))
+        namesize=$((16#${hdr:94:8}))
+        name=$(dd if="$img" bs=1 skip=$((off + 110)) count="$namesize" status=none 2>/dev/null | tr -d '\0')
+        # Header+name and then the file data are each padded to 4 bytes.
+        off=$(( (off + 110 + namesize + 3) / 4 * 4 ))
+        off=$(( (off + filesize + 3) / 4 * 4 ))
+        if [[ "$name" == "TRAILER!!!" ]]; then
+            printf '%s' "$off"
+            return 0
+        fi
+    done
+}
+
+# _initrd_skip_padding <image> <offset> <size>
+# Early-cpio segments are zero-padded (to 4 or to 512 bytes) before the next
+# segment begins. Echo the first non-padding offset, bounded so a corrupt
+# image cannot spin here.
+_initrd_skip_padding() {
+    local img="$1" off="$2" size="$3" limit nonzero
+    limit=$(( off + 4096 ))
+    (( limit > size )) && limit=$size
+    while (( off < limit )); do
+        nonzero=$(dd if="$img" bs=1 skip="$off" count=4 status=none 2>/dev/null | tr -d '\0' | wc -c)
+        if (( nonzero > 0 )); then
+            break
+        fi
+        off=$(( off + 4 ))
+    done
+    printf '%s' "$off"
+}
+
+# list_initrd_members <image>
+# Echo the member names of EVERY segment of an initramfs image. Empty output
+# means "unlistable here" (unknown compression), never "the initrd is empty".
+list_initrd_members() {
+    local img="$1" size off=0 seg dec end
+    size=$(wc -c < "$img" 2>/dev/null || echo 0)
+    while (( off < size )); do
+        if [[ $(dd if="$img" bs=1 skip="$off" count=6 status=none 2>/dev/null || true) == 070701 ]]; then
+            # An uncompressed segment: list it, then step over it.
+            seg=$(tail -c +$((off + 1)) "$img" 2>/dev/null | cpio -it --quiet 2>/dev/null || true)
+            [[ -n "$seg" ]] && printf '%s\n' "$seg"
+            end=$(_initrd_segment_end "$img" "$off") || break
+            off=$(_initrd_skip_padding "$img" "$end" "$size")
+            continue
+        fi
+        # Anything else is the compressed main archive, and it is last.
+        for dec in "zstd -qdc" "gzip -dc" "xz -dc" "lz4 -dc" "bzip2 -dc" "lzop -dc"; do
+            seg=$(tail -c +$((off + 1)) "$img" 2>/dev/null | $dec 2>/dev/null | cpio -it --quiet 2>/dev/null || true)
+            if [[ -n "$seg" ]]; then
+                printf '%s\n' "$seg"
+                break
+            fi
+        done
+        break
+    done
+    return 0
+}
+
 # build_phase2_initrd <ovl-dir> <base-initrd> <out-path>
 # Pack the overlay ahead of the base initrd and VERIFY the result by
 # inspection — "the concatenated file is non-empty" validated nothing (a
@@ -1210,17 +1289,20 @@ build_phase2_initrd() {
     rm -f "$ovl.cpio"
     # The overlay supplies unit+hook (+ possibly ntfs-3g); everything else the
     # hook needs at runtime must come from the BASE initrd: its interpreter
-    # (bash — the hook's shebang), losetup, udevadm, mount. List the base with
-    # whatever decompressor matches; each failed candidate is fine, an empty
-    # result overall just means "unverifiable here", which must WARN, not fail
-    # a deploy that may be good.
-    local listing="" dec
-    for dec in "cat" "zstd -qdc" "gzip -dc" "xz -dc" "lz4 -dc" "bzip2 -dc"; do
-        listing=$($dec < "$base" 2>/dev/null | cpio -it --quiet 2>/dev/null || true)
-        [[ -n "$listing" ]] && break
-    done
+    # (bash — the hook's shebang), losetup, udevadm, mount. Listing walks every
+    # segment of the image; an empty result just means "unverifiable here",
+    # which must WARN, not fail a deploy that may be good.
+    local listing=""
+    listing=$(list_initrd_members "$base")
     if [[ -z "$listing" ]]; then
         log "  [WARN] early-cpio: could not list the base initrd (unknown compression) — interpreter/tool presence unverified"
+        return 0
+    fi
+    # Only a listing that actually holds a root filesystem can prove a tool
+    # absent. A microcode-only early-cpio listing has no bin/ tree at all, and
+    # calling that proof is how a good initrd got declared unbootable.
+    if ! grep -qE '(^|/)(usr/)?s?bin/' <<<"$listing"; then
+        log "  [WARN] early-cpio: the base initrd listing holds no bin/ tree (early-cpio segment only?) — tool presence unverified"
         return 0
     fi
     local missing=() tool found
@@ -1234,7 +1316,7 @@ build_phase2_initrd() {
     done
     if (( ${#missing[@]} > 0 )); then
         err "  [FAIL] the target's base initrd lacks: ${missing[*]} — the wootc-attach hook cannot run in Phase 2"
-        err "         (listing succeeded, so this is proof, not a probe failure; the image's initrd must ship these or the hook must be rewritten against what it ships)"
+        err "         (every segment listed and a bin/ tree was found, so this is proof, not a probe failure; the image's initrd must ship these or the hook must be rewritten against what it ships)"
         return 1
     fi
     log "  early-cpio: base initrd verified (bash/losetup/udevadm/mount present)"
