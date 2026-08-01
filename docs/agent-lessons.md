@@ -512,3 +512,51 @@ Three habits:
   5.8.4, so an environment repair must be unconditional and then *verified by a
   real `podman run`*, not gated on a version comparison. Version strings are a
   proxy; a container that starts is the fact.
+
+## 27. Rebooting is not releasing. Phase 2 owed Windows a clean unmount.
+
+Both `fedora-gnome` cells of run 30704513401 failed identically — so, not a
+flake — with `[FAIL] QGA did not become available for Windows return after
+Phase 2 Linux within 10 minutes`. Phase 2 itself was flawless: it booted,
+passed every passthrough and user-data check, and rebooted on cue. The damage
+was done on the way out, and it was visible in five lines of serial nobody had
+been reading:
+
+```
+(sd-remount)[...]: Failed to remount '/run/initramfs/wootc-host' read-only: Device or resource busy
+systemd-shutdown[1]: Not all file systems unmounted, 1 left.
+systemd-shutdown[1]: Not all loop devices detached, 1 left.
+systemd-shutdown[1]: Cannot finalize remaining file systems, loop devices, continuing.
+reboot: machine restart
+```
+
+Windows then showed a desktop for ~26 s, rebooted itself, looped the boot
+manager three or four times and died in Startup Repair. The QGA timeout was a
+*symptom four reboots downstream* of the actual bug.
+
+- **A boot stack that lives on the thing it must release cannot release it.**
+  Phase-2 `/` is a loop device backed by `root.disk`, a file on the rw NTFS
+  mount. Nothing running inside that stack can unmount the volume. The
+  deployer already knew this — `deploy.sh` has a whole block ending "a
+  still-mounted rw NTFS would be flagged dirty" — and Phase 2 simply never got
+  the same treatment. **When one side of a symmetric operation has a hard-won
+  teardown, go look for the other side.**
+- **A missing file can disable an entire subsystem in total silence.**
+  `dracut-shutdown.service` populates `/run/initramfs` from
+  `/boot/initramfs-$(uname -r).img`. On ostree/composefs that path does not
+  exist, `dracut-initramfs-restore` no-ops, and systemd — which only pivots
+  when `/run/initramfs/shutdown` is executable — quietly skips the whole
+  shutdown-initramfs mechanism. No error, no warning, and the *absence* of
+  "Returning to initrd..." in the log is the only tell.
+- **Corruption sorts by driver, and the passing cells were the clue.** Every
+  cell mounting the host volume with kernel `ntfs3` failed; every cell that
+  fell back to the `ntfs-3g` FUSE driver passed. That correlation is what
+  turned "flaky Fedora cell" into "structural teardown bug" — a green cell is
+  evidence too, and diffing it against the red one costs minutes.
+- **Make the dangerous new path revert to the old one.** The fix arms a
+  shutdown pivot that did not previously happen, on every cell's boot path,
+  and cannot be tested outside a 60–90 minute VM run. So every failure path in
+  the staging hook ends by deleting `/run/initramfs/shutdown` — without it
+  systemd does not pivot, which is *exactly* today's behaviour. A partial or
+  broken staging can only reproduce the bug it is fixing; it cannot invent a
+  new one.

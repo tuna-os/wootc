@@ -99,6 +99,43 @@ install() {
     # /run/wootc-loop-attached guard so the correctly-ordered service then no-op'd.
     # Attach ONCE, from wootc-attach.service, at the right ordering point.
 
+    # ── Clean hand-back of the Windows volume at Phase-2 shutdown ───────────
+    # Phase 2 runs its root off a loop device backed by a file on the rw NTFS
+    # mount, so nothing in the running system can release that volume: systemd
+    # gives up with "Not all file systems unmounted, 1 left" / "Not all loop
+    # devices detached, 1 left" and reboots into a Windows that then boot-loops
+    # into Startup Repair (run 30704513401, both fedora-gnome cells).
+    #
+    # The fix is two hooks. The pre-pivot one stages /run/initramfs so
+    # systemd-shutdown pivots back into an initramfs — which ostree/composefs
+    # otherwise never gets, because dracut-initramfs-restore needs a
+    # /boot/initramfs-$(uname -r).img that does not exist there. The shutdown
+    # one then unmounts the volume once dracut's shutdown.sh has torn down
+    # /oldroot and detached the loop. Both files carry the full rationale.
+    #
+    # Ordering: 99 in pre-pivot so the copy happens after every other hook has
+    # finished writing into the initramfs; 50 in shutdown, which is after
+    # dracut's own umount/losetup sweep either way (shutdown.sh runs the umount
+    # loop to completion before it ever sources a shutdown hook).
+    inst_hook pre-pivot 99 "$moddir/wootc-stage-shutdown.sh"
+    inst_hook shutdown 50 "$moddir/wootc-umount-host.sh"
+    # inst_hook dfatals on a missing source, but not on a hook that failed to
+    # land — and a shutdown hook that is absent from the staged tree is the
+    # difference between a clean hand-back and the corruption above, silently.
+    local h
+    for h in "/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh" \
+             "/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"; do
+        if [[ ! -f "$initdir$h" ]]; then
+            dfatal "wootc-boot: $h did not install into the initramfs — Phase 2 could not hand a clean NTFS volume back to Windows"
+            return 1
+        fi
+    done
+    # `reboot -f -d -n` does not sync, and the staging hook copies a tree; both
+    # hooks call sync explicitly, so the binary has to be there. mknod builds
+    # the staged /dev, cp/rm/mkdir do the staging itself (all from 99base, but
+    # named here so a base change cannot quietly remove them).
+    inst_multiple sync mknod cp rm mkdir umount
+
     # losetup is all the hook needs — no staged binary, no closure. Target bootc
     # images already ship it (verified: yellowfin has /usr/sbin/losetup and no
     # qemu-nbd), which is exactly why root.disk is a raw image rather than VHDX.

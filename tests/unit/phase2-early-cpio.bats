@@ -118,12 +118,21 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
 
 make_overlay() { # <dir> — a complete wootc overlay tree
     mkdir -p "$1/usr/lib/systemd/system/initrd-root-device.target.wants" \
-             "$1/usr/lib/wootc"
+             "$1/usr/lib/wootc" \
+             "$1/usr/lib/dracut/hooks/pre-pivot" \
+             "$1/usr/lib/dracut/hooks/shutdown"
     echo unit > "$1/usr/lib/systemd/system/wootc-attach.service"
     ln -sf ../wootc-attach.service \
         "$1/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
     printf '#!/bin/bash\n' > "$1/usr/lib/wootc/wootc-attach-loop.sh"
     chmod +x "$1/usr/lib/wootc/wootc-attach-loop.sh"
+    # The Phase-2 shutdown pair, without which build_phase2_initrd refuses to
+    # pack — a Phase 2 that boots but hands Windows back a mounted rw NTFS.
+    # See tests/unit/phase2-clean-ntfs-umount.bats.
+    printf '#!/bin/bash\n' > "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh"
+    printf '#!/bin/sh\n' > "$1/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
+    chmod +x "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh" \
+             "$1/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
 }
 
 make_base_initrd() { # <out> [tools...] — a gzip cpio shipping the named tools

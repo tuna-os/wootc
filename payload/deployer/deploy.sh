@@ -1163,6 +1163,23 @@ stage_wootc_overlay() {
     mkdir -p "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants"
     ln -sf ../wootc-attach.service \
         "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
+
+    # The Phase-2 shutdown pair — the counterpart to this deployer's own
+    # "leave the NTFS volume clean before the forced reboot" teardown, which
+    # Phase 2 had no equivalent of. Without them Phase 2 reboots with the rw
+    # NTFS still mounted and the loop device still attached (systemd: "Not all
+    # file systems unmounted, 1 left"), and Windows comes back to a volume it
+    # boot-loops on and cannot repair.
+    #
+    # These are dracut HOOKS, not units, so they go under the hook dirs rather
+    # than being wired through systemd. /usr/lib, never /lib: dracut's
+    # $hookdir is /lib/dracut/hooks, which is the same path on the usr-merged
+    # images this overlay targets, and creating a real /lib directory in an
+    # early cpio would collide with the base initrd's /lib -> usr/lib symlink.
+    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-stage-shutdown.sh \
+        "$ovl/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh"
+    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-umount-host.sh \
+        "$ovl/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
 }
 
 # stage_ntfs3g_closure <ovl-dir>
@@ -1448,6 +1465,15 @@ build_phase2_initrd() {
        [[ ! -L "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service" ]] || \
        [[ ! -x "$ovl/usr/lib/wootc/wootc-attach-loop.sh" ]]; then
         err "  [FAIL] early-cpio overlay is incomplete (unit/wants/hook) — refusing to build a Phase-2 initrd that cannot attach root.disk"
+        return 1
+    fi
+    # The shutdown pair is checked separately, and separately fatal: an
+    # overlay missing it produces a Phase 2 that BOOTS PERFECTLY and then
+    # hands Windows back a volume it cannot repair — a failure that costs a
+    # full 60-90 minute VM run to see, and looks nothing like its cause.
+    if [[ ! -x "$ovl/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh" ]] || \
+       [[ ! -x "$ovl/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh" ]]; then
+        err "  [FAIL] early-cpio overlay carries no Phase-2 shutdown hooks — refusing to build a Phase-2 initrd that would reboot with the Windows NTFS still mounted rw"
         return 1
     fi
     if ! ( cd "$ovl" && find . | cpio -o -H newc --quiet ) > "$ovl.cpio" || \

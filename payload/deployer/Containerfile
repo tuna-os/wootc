@@ -83,6 +83,10 @@ RUN for bin in conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 
         { echo "FATAL: CA bundle missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh" || \
         { echo "FATAL: 99wootc-boot payload missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/99wootc-boot/wootc-stage-shutdown.sh" || \
+        { echo "FATAL: Phase-2 shutdown staging hook missing from initramfs (Windows would get a dirty NTFS back)"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/99wootc-boot/wootc-umount-host.sh" || \
+        { echo "FATAL: Phase-2 NTFS umount hook missing from initramfs (Windows would get a dirty NTFS back)"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-passthrough.service" || \
         { echo "FATAL: User Data Bridge migration payload missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/org.tunaos.wootc.policy" || \
