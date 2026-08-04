@@ -138,7 +138,7 @@ jobs:
           # Disk reclaim removes the runner's preinstalled global Node modules.
           # GUI runs build the real Wails frontend, so explicitly restore a
           # supported Node toolchain before invoking npm.
-          node-version: '22'
+          node-version: '24'
 
       - name: Set up Go for GUI-driven run
         if: ${{ inputs.gui_install }}
