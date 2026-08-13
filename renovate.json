@@ -1,12 +1,35 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "config:recommended"
+  ],
   "automerge": true,
   "platformAutomerge": true,
   "packageRules": [
     {
-      "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
       "automerge": true
+    },
+    {
+      "description": "fedora base image major bumps are manually reviewed: the fedora:46/rawhide image dnf repos serve fc45-built packages with a keyring mismatch, breaking container builds. Revert this rule once the upstream image is consistent.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "registry.fedoraproject.org/fedora",
+        "quay.io/fedora/fedora",
+        "quay.io/fedora/fedora-bootc"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false
     }
   ]
 }
