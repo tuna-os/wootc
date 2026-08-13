@@ -43,7 +43,7 @@ the debugging story). Proven repeatably by `run-e2e.sh` on himachal.
 
 **Claim:** on the Phase-2 system, the User Data Bridge is live
 (Windows folders visible in $HOME, Steam library registered, browser
-import works) and the migration dashboard performs a reversible
+imports work) and the migration dashboard performs a reversible
 category conversion; Windows still boots afterwards.
 
 **Harness:** QGA/SSH-driven checks inside the Phase-2 system — bind
