@@ -67,6 +67,25 @@ func TestMarshalJSONToFileRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMarshalJSONToFileUnmarshalableValue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.json")
+	// A channel is not JSON-serializable: marshalJSONToFile must fail and
+	// must not leave a partial file.
+	if err := marshalJSONToFile(path, make(chan int)); err == nil {
+		t.Fatal("marshalJSONToFile on a channel succeeded, want error")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("marshalJSONToFile failure left a file behind")
+	}
+}
+
+func TestMarshalJSONToFileUnwritableDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "no-such-dir", "x.json")
+	if err := marshalJSONToFile(path, map[string]string{"k": "v"}); err == nil {
+		t.Fatal("marshalJSONToFile into a missing dir succeeded, want error")
+	}
+}
+
 func TestCopyFile(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "src")
@@ -141,6 +160,21 @@ func TestDownloadFileRejectsNon2xx(t *testing.T) {
 	}
 	if _, statErr := os.Stat(dest + ".tmp"); !os.IsNotExist(statErr) {
 		t.Error("rejected download left a .tmp file behind")
+	}
+}
+
+func TestDownloadFileUnwritableDestination(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "data")
+	}))
+	defer srv.Close()
+
+	// Destination parent does not exist: os.Create fails and must surface
+	// as an error rather than a silent success.
+	dest := filepath.Join(t.TempDir(), "no-such-dir", "artifact")
+	err := downloadFile(context.Background(), srv.URL, dest, func(float64) {})
+	if err == nil {
+		t.Fatal("downloadFile to an unwritable destination succeeded")
 	}
 }
 
