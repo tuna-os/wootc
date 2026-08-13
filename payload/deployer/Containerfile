@@ -7,7 +7,7 @@
 
 # Pin fedora:45 — the fedora:46 image's dnf repos serve fc45-built packages with a
 # keyring mismatch, breaking the build (tuna-os/wootc#135). Re-bump once fixed.
-FROM quay.io/fedora/fedora:45 AS builder
+FROM quay.io/fedora/fedora:46 AS builder
 
 # ── Install system packages ─────────────────────────────────────────────────
 RUN dnf install -y \
