@@ -54,7 +54,7 @@ wootc is the org's **conversion front door**: it is the highest-leverage adoptio
 
 ### Q4 2026 (October–December) — "Make it a channel"
 
-<Sketch: graduation flow (Phase 2 → 3), Windows-style mode polish, partner theming/locking, conversion funnel metrics. Move up when Q4 starts.>
+> **Sketch:** graduation flow (Phase 2 → 3), Windows-style mode polish, partner theming/locking, conversion funnel metrics. Move up when Q4 starts.
 
 ---
 
