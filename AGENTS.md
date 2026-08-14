@@ -218,11 +218,11 @@ rules below (systemd user unit, live-run guard, no storage wipe) so you don't
 have to remember them:
 
 ```bash
-loginctl enable-linger james          # once per host
+loginctl enable-linger "$USER"      # once per host
 just remote-e2e          # fresh Windows install + deploy (~60-90 min)
 just remote-e2e-quick    # restore pristine Windows, re-arm, deploy (~20-40 min)
 just remote-e2e-phase3   # quick + graduate to a blank native disk (rung 3)
-# host defaults to himachal; override with WOOTC_E2E_HOST=<host>
+# host defaults to the machine you launch from; override with WOOTC_E2E_HOST=<host>
 # logs: /tmp/wootc-e2e-<short-sha>.log on the host (just remote-logs tails it)
 ```
 
@@ -231,13 +231,13 @@ If launching by hand instead, it must be a **systemd user unit** — not
 session closes:
 
 ```bash
-ssh <host> 'cd /var/home/james/wootc
+ssh <host> 'cd "$HOME/wootc"
   systemd-run --user --unit=wootc-e2e --collect \
     --setenv=XDG_RUNTIME_DIR=/run/user/$(id -u) \
-    --setenv=HOME=/var/home/james \
+    --setenv=HOME="$HOME" \
     -p StandardOutput=append:/tmp/wootc-e2e-run.log \
     -p StandardError=append:/tmp/wootc-e2e-run.log \
-    -p WorkingDirectory=/var/home/james/wootc \
+    -p WorkingDirectory="$HOME/wootc" \
     ./tests/e2e/run-e2e.sh ghcr.io/tuna-os/yellowfin:gnome'
 ```
 
