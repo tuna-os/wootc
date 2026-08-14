@@ -12,6 +12,12 @@ on:
       - 'pages/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
+  # e2e-gui.yml (wootc#87) publishes the refreshed timelapse to the
+  # pages-assets branch instead of committing it to main, so it dispatches
+  # this event to trigger a redeploy -- a push to main touching pages/**
+  # no longer happens for that path.
+  repository_dispatch:
+    types: [e2e-visual-refresh]
 
 permissions:
   contents: read
@@ -30,6 +36,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Fetch latest E2E timelapse from pages-assets branch
+        run: |
+          if ! git fetch --depth 1 origin pages-assets; then
+            echo "pages-assets branch not published yet — deploying the committed pages/ tree as-is."
+          else
+            git checkout FETCH_HEAD -- pages/e2e/latest
+          fi
+
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

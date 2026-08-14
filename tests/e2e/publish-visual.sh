@@ -5,10 +5,15 @@
 # Every E2E run records a timelapse (record-video.sh, wired into run-e2e.sh) to
 #   tests/e2e/storage/artifacts/<run-id>/video/{e2e.webm,preview.webp}
 # — locally or on a Tailscale laptop runner. This copies the chosen run's
-# assets into pages/e2e/latest/, so a normal `git commit && push` to main
-# triggers .github/workflows/pages.yml (GitHub-hosted) to publish them. The
-# README hero points at the committed pages/e2e/latest/preview.webp (a relative
-# path), so it renders inline on GitHub even before Pages deploys.
+# assets into pages/e2e/latest/ for review.
+#
+# wootc#87: this media must NOT be committed to main — each refresh used to
+# append ~4.4 MB (e2e.webm + preview.webp) that no future commit could
+# reclaim (26 MB across 7 runs before this was fixed). It lives on the
+# pages-assets branch instead, force-pushed as a fresh orphan root on every
+# publish, and .github/workflows/pages.yml fetches it from there at deploy
+# time. The README hero points at the live Pages URL (not a relative git
+# path), so it renders correctly with no commit to main required.
 #
 # Usage:
 #   # from a local artifact dir:
@@ -16,7 +21,7 @@
 #   # or pull the newest recorded run off a remote laptop runner:
 #   tests/e2e/publish-visual.sh --from-host himachal
 #
-# Then:  git add pages && git commit -m 'docs: refresh E2E walkthrough' && git push
+# Then follow the printed pages-assets instructions (not a commit to main).
 
 set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -78,4 +83,12 @@ fi
 
 echo "Updated:"; ls -lh "$DEST"
 echo
-echo "Next:  git add pages && git commit -m 'docs: refresh E2E walkthrough' && git push origin main"
+echo "Next (wootc#87 — never commit this media to main; it lives on the"
+echo "pages-assets branch, fetched by pages.yml at deploy time):"
+echo "  git checkout --orphan pages-assets-local"
+echo "  git rm -rf --cached . >/dev/null"
+echo "  git add pages/e2e/latest"
+echo "  git commit -m 'e2e visual: refresh GUI-driven walkthrough media (local)'"
+echo "  git push -f origin HEAD:pages-assets"
+echo "  git checkout -"
+echo "Then trigger a Pages redeploy: gh workflow run pages.yml"

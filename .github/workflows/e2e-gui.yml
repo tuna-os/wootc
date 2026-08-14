@@ -89,8 +89,28 @@ jobs:
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # wootc#87: never append binary media to main's history (each green
+          # run previously added ~4.4 MB -- e2e.webm + preview.webp -- that no
+          # future commit could reclaim: 26 MB across 7 runs before this fix).
+          # Publish the timelapse to a dedicated pages-assets branch instead;
+          # pages.yml fetches the latest media from there at deploy time. The
+          # branch is force-pushed as a fresh orphan root every run, so it
+          # never accumulates history either -- only the latest media exists
+          # on it at any time. README.md's hero now points at the live Pages
+          # URL (not a relative git path), so it keeps rendering with no
+          # commit to main required.
+          git checkout --orphan pages-assets
+          git rm -rf --cached . >/dev/null
           git add pages/e2e/latest
-          git commit -m "docs: refresh E2E walkthrough (GUI-driven green run ${{ github.run_id }})"
-          # main may have moved during the ~2 h run; rebase onto it before push.
-          git pull --rebase --autostash origin main
-          git push origin HEAD:main
+          git commit -m "e2e visual: refresh GUI-driven walkthrough media (${{ github.run_id }})"
+          git push -f origin HEAD:pages-assets
+
+          # Ask pages.yml to redeploy with the refreshed media -- it only
+          # triggers on push to main touching pages/** or workflow_dispatch
+          # otherwise, neither of which happens here anymore.
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/dispatches" \
+            -d '{"event_type":"e2e-visual-refresh"}'

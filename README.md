@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://tuna-os.github.io/wootc/e2e/latest/">
-    <img src="pages/e2e/latest/preview.webp"
+    <img src="https://tuna-os.github.io/wootc/e2e/latest/preview.webp"
          alt="wootc end-to-end walkthrough — Windows 11 → wootc deployer → native Linux → Windows 11"
          width="760">
   </a>

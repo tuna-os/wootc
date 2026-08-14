@@ -24,3 +24,11 @@ __pycache__/
 
 # Playwright test output (regenerated every run)
 app/frontend/test-results/
+
+# wootc#87: the E2E timelapse lives on the pages-assets branch (fetched by
+# pages.yml at deploy time), never committed to main -- see
+# .github/workflows/e2e-gui.yml and tests/e2e/publish-visual.sh.
+pages/e2e/latest/e2e.webm
+pages/e2e/latest/preview.webp
+pages/e2e/latest/.passed
+pages/e2e/latest/run-e2e.current
