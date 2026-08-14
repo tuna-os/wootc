@@ -4,7 +4,7 @@ Status: proposal, 2026-07-17 — **historical (2026-08-11):** the GUI now
 compiles, drives the E2E install in drive mode (`WOOTC_E2E_DRIVE=1`), and
 green GUI-driven runs are published in the README build/test matrix.
 Companion to `docs/SPEC.md` §3 and the E2E
-learnings accumulated on kanpur. Scope: everything that runs on Windows —
+learnings accumulated on runner-a. Scope: everything that runs on Windows —
 the Wails GUI (`app/`), the install pipeline it drives, and the contract
 between the GUI and the deployer across reboots. Phase-2 boot internals are
 out of scope (owned by the E2E track).
@@ -27,7 +27,7 @@ Hard facts to anchor planning:
    recent work — it predates the VHDX branch.)
 2. **The app installs a boot chain the E2E effort has abandoned.**
    `setupGRUB2` copies `wubildr.efi` + configs to `ESP:EFI\wootc\` and
-   points BCD at `\EFI\wootc\wubildr.efi`. The chain proven on kanpur is:
+   points BCD at `\EFI\wootc\wubildr.efi`. The chain proven on runner-a is:
    BCD → `ESP:EFI\fedora\shimx64.efi` (MS-signed) → `grubx64.efi`
    (embedded prefix `/EFI/fedora`) → `grub.cfg` → **deployer kernel +
    initramfs on the ESP** (signed GRUB cannot read NTFS). The reference
@@ -91,7 +91,7 @@ idempotent so a failed install can be re-run without manual cleanup:
 ### 2.3 Lifecycle state machine + deployer contract
 
 The single biggest UX gap: after the reboot, the GUI currently knows
-nothing. kanpur debugging repeatedly needed exactly this information; the
+nothing. runner-a debugging repeatedly needed exactly this information; the
 deployer already emits it (phase markers, journal streaming to
 `C:\wootc\logs\`) — it just has no consumer.
 
@@ -116,18 +116,18 @@ absent → staged → armed → deploying → deployed → healthy
 
 **Re-arming must restore the deployer grub.cfg first.** A successful
 deploy overwrites the ESP grub.cfg with the Phase-2 menu (this cost a
-full debugging cycle on kanpur — re-arming the BCD entry without
+full debugging cycle on runner-a — re-arming the BCD entry without
 restoring grub.cfg boots Phase-2, not the deployer, and if the Phase-2
 kernel was pruned from the ESP it dead-ends at a GRUB error). "Retry
 deploy" = restore deployer grub.cfg + verify deployer pair on ESP +
 one-shot bootsequence + reboot. This belongs in `bootchain` as one
-operation; the ad-hoc `restore-deployer-grub.ps1` pattern from kanpur is
+operation; the ad-hoc `restore-deployer-grub.ps1` pattern from runner-a is
 the prototype.
 
 ### 2.4 Preflight gates (SPEC §3.5, mostly unimplemented)
 
 Blockers (refuse install): not UEFI; no admin; ESP unusable (§D2); free
-space < root.disk size + deployer scratch headroom (the kanpur
+space < root.disk size + deployer scratch headroom (the runner-a
 `skopeo copy: exit status 2` failure is what running out looks like —
 surface it *before* reboot, not in dracut); BitLocker with unexportable
 recovery path.
@@ -149,7 +149,7 @@ own shim signing — heavy).
 Recommendation: (a) now, design toward (b).
 
 **D2 — ESP capacity.** The deployer initramfs is ~135 MB; OEM ESPs are
-commonly 100–260 MB and kanpur's 512 MB ESP already needed manual
+commonly 100–260 MB and runner-a's 512 MB ESP already needed manual
 pruning. Options: (a) preflight-measure and refuse when it can't fit
 (with clear message); (b) shrink the deployer initramfs (it embeds
 podman/skopeo/fisherman — a slimmer net-boot-style second stage is a

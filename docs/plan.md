@@ -13,8 +13,8 @@ Two active lanes running in parallel across 3 E2E hosts:
 
 | Lane | Branch | Host(s) | Status |
 |------|--------|---------|--------|
-| GUI / Phase 1 | `worktree-gui-phase1` | dilli (local), kanpur | 5 commits ahead of main; LUKS backend dirty |
-| VHDX / Phase 2 | `explore/vhdx-root-disk` | himachal, dilli | Deployer reaches fisherman; partitioning NBD race fixed; OCI export fix landed |
+| GUI / Phase 1 | `worktree-gui-phase1` | runner-b (local), runner-a | 5 commits ahead of main; LUKS backend dirty |
+| VHDX / Phase 2 | `explore/vhdx-root-disk` | runner-c, runner-b | Deployer reaches fisherman; partitioning NBD race fixed; OCI export fix landed |
 
 Fisherman fork (`tuna-os/fisherman`) is unarchived, `dev` branch carries both fixes.
 Communication between tracks: `handoff.md` (untracked, live file in main checkout).

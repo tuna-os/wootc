@@ -133,7 +133,7 @@ original build, each found by a failed run):
 ```mermaid
 sequenceDiagram
     participant T as telengana (dev box)
-    participant K as kanpur (host)
+    participant K as runner-a (host)
     participant W as Windows (QGA)
     participant D as Deployer (serial)
 

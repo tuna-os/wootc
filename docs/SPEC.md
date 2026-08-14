@@ -459,7 +459,7 @@ Windows ACLs restricting read access to `SYSTEM` and `Administrators`:
 ```json
 {
   "hostname": "tunaos",
-  "username": "james",
+  "username": "liveuser",
   "password_hash": "$y$j9T$RlhOWV...$v9zZ291aEF...",
   "timezone": "America/New_York",
   "locale": "en_US.UTF-8"
@@ -492,7 +492,7 @@ The deployer initramfs handles the vault in three steps:
   "image": "ghcr.io/tuna-os/yellowfin:gnome",
   "hostname": "tunaos",
   "user": {
-    "username": "james",
+    "username": "liveuser",
     "password": "$y$j9T$RlhOWV...",
     "groups": ["wheel", "video", "audio"]
   }
@@ -563,7 +563,7 @@ Generated at deploy time from kernel cmdline args (and vault.json if provided):
   "hostname": "tunaos",
   "flatpaks": ["org.mozilla.firefox"],
   "user": {
-    "username": "james",
+    "username": "liveuser",
     "password": "$y$j9T$RlhOWV...",
     "groups": ["wheel", "video", "audio"]
   },

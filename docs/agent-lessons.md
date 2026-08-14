@@ -213,9 +213,9 @@ What actually worked:
 
 | Host | Issue |
 |---|---|
-| kanpur | podman resolves root storage under `systemd-run --user` (#41); runs die without a `[FAIL]` line |
-| dilli | container QEMU lost KVM after `podman system migrate` (#42); 238 GiB disk is undersized for a ~45 GiB/run workload |
-| himachal | healthiest of the three; 952 GiB |
+| runner-a | podman resolves root storage under `systemd-run --user` (#41); runs die without a `[FAIL]` line |
+| runner-b | container QEMU lost KVM after `podman system migrate` (#42); 238 GiB disk is undersized for a ~45 GiB/run workload |
+| runner-c | healthiest of the three; 952 GiB |
 
 Prefer `e2e-hosted.yml` on ubuntu-latest over all of them.
 
@@ -359,7 +359,7 @@ With three runners staggered by ~15 minutes, a fix is validated against whicheve
 reaches the interesting stage first, instead of waiting a whole cycle. It also
 supplies what #34 needs (a pass RATE at one commit) and covers "multiple cases".
 
-Launch notes per host are in AGENTS.md. kanpur needs `nohup` rather than
+Launch notes per host are in AGENTS.md. runner-a needs `nohup` rather than
 `systemd-run` (#41); all hosts need `loginctl enable-linger`.
 
 ## 18. Reuse the helper that already exists

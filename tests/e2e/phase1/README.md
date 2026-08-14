@@ -5,7 +5,7 @@ armed reboot. No deployer boot, no image pull — the whole test runs in
 ~2 minutes against an already-booted E2E Windows VM (the `--keep` state of
 `run-e2e.sh`, or any dockur container with QGA up).
 
-Designed to run on **dilli** so kanpur (main) and himachal (VHDX) stay
+Designed to run on **runner-b** so runner-a (main) and runner-c (VHDX) stay
 undisturbed.
 
 ## What it exercises

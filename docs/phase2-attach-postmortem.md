@@ -158,9 +158,9 @@ partitions and never makes the by-uuid symlinks.
 
 ## What didn't work / wrong turns (and why)
 
-- **Blaming himachal's host** for the `Deploying (0m)` deaths. It was the `set -e`
+- **Blaming runner-c's host** for the `Deploying (0m)` deaths. It was the `set -e`
   regression (#2) aborting on *every* runner. **Lesson: identical failures across
-  different hosts = a harness bug, not N host failures.** We even wiped himachal's
+  different hosts = a harness bug, not N host failures.** We even wiped runner-c's
   storage chasing a stale-OVMF-vars theory — pure waste.
 - **Filing a "restore path broke" bug (#44).** Same `set -e` regression, not a real
   restore-path defect.
@@ -185,15 +185,15 @@ partitions and never makes the by-uuid symlinks.
 - **`pkill -f run-e2e` self-kills the ssh shell** (its args contain "run-e2e").
 - **The E2E lock is `flock -n` on fd 9** of `storage/.run-e2e.lock`; a leaked child
   inherits fd 9 and holds it. `pgrep` misses it; find holders via `/proc/*/fd` (no
-  `fuser` on himachal) and kill them, then `rm` the lock.
+  `fuser` on runner-c) and kill them, then `rm` the lock.
 - **Do NOT `podman system reset` a runner to "clean up"** — it also destroys the
   user's own long-lived containers (builds, monitoring stack). A targeted clean
   (`podman rm -f wootc-e2e-windows`, clear lock, wipe `storage/` keeping `custom.iso`,
   `git reset --hard`) is enough.
-- **himachal's container bridge networking hits netavark/nftables errors** — use
+- **runner-c's container bridge networking hits netavark/nftables errors** — use
   `WOOTC_E2E_NETWORK_MODE=slirp4netns` for the host container. (Distinct from the
   in-VM netavark issue that `--network=host` solves for the ntfs-3g injection.)
-- **himachal's `git fetch` intermittently lags a just-pushed commit** — re-fetch if
+- **runner-c's `git fetch` intermittently lags a just-pushed commit** — re-fetch if
   `origin/main` looks stale.
 
 ## Infra we built along the way

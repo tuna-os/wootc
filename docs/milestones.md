@@ -15,7 +15,7 @@ holds only a hash, `state.json` = `armed`.
 **Harness:** `tests/e2e/phase1/run-phase1.sh` (~2 min against a kept VM,
 no deployer boot). Runs the real `wootc.exe` over QGA.
 
-**Status (2026-07-17): GREEN — 24/24 assertions pass on dilli** (virgin
+**Status (2026-07-17): GREEN — 24/24 assertions pass on runner-b** (virgin
 Windows VM, real wootc.exe over QGA). The suite earned its keep
 immediately: it caught the sha512-crypt salt-prefix bug and non-idempotent
 BCD arming (retried installs piled up firmware entries — now swept).
@@ -37,7 +37,7 @@ sign of life from Linux.
 
 **Status (2026-07-23): GREEN.** The raw-`root.disk` + `losetup
 --partscan` format won (8136ae6; docs/phase2-attach-postmortem.md tells
-the debugging story). Proven repeatably by `run-e2e.sh` on himachal.
+the debugging story). Proven repeatably by `run-e2e.sh` on runner-c.
 
 ## Rung 3 — Phase 1 → 2 → 3: migration works where the user lives
 
@@ -70,8 +70,8 @@ not automation now; #3 tracks dashboard integration.
 
 - Fix at the lowest rung that reproduces a failure; never debug rung 3
   symptoms while rung 2 is red.
-- Every rung's harness must run on any of the E2E hosts (kanpur,
-  himachal, dilli) — host-specific setup goes in a bootstrap recipe, not
+- Every rung's harness must run on any of the E2E hosts (runner-a,
+  runner-c, runner-b) — host-specific setup goes in a bootstrap recipe, not
   in engineers' heads.
 - A rung's harness is part of its definition of done: no green harness,
   no claimed rung.

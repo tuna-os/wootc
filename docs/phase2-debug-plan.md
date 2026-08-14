@@ -19,12 +19,12 @@ confidently-wrong root causes (ntfs-3g injection, the multi-disk hypothesis, and
 
 **Established:**
 
-- Phase 1 works end to end on kanpur. Serial shows `wootc: deployer active`, a
+- Phase 1 works end to end on runner-a. Serial shows `wootc: deployer active`, a
   19-minute deploy, `deployer requested reboot`, Windows QGA returning, and the
   BCD one-shot scheduled *with bootsequence verified*.
-- kanpur and himachal both fail Phase 2 identically: emergency shell,
+- runner-a and runner-c both fail Phase 2 identically: emergency shell,
   `sysroot.mount` dependency failed, `/dev/disk/by-uuid/<root>` absent.
-- dilli fails **differently**. Its serial ends at
+- runner-b fails **differently**. Its serial ends at
   `BdsDxe: starting Boot0003 "Windows Boot Manager" ... bootmgfw.efi`.
   Firmware went straight back to Windows; Phase 2 was never attempted.
 - The staged payload is complete and correct on disk (`shimx64.efi`,
@@ -54,7 +54,7 @@ status not grounded in an observable.**
 
 ## Hypotheses
 
-### Branch A — kanpur/himachal: reaches Phase 2, no root device
+### Branch A — runner-a/runner-c: reaches Phase 2, no root device
 
 Ordered by my estimated likelihood. Each is stated so the next run's serial
 output discriminates it, because the instrumented hook now announces entry and
@@ -118,14 +118,14 @@ only fires late could still lose.
 emergency — i.e. all hook output looks healthy.
 
 **A6. Hook absent from the Phase-2 initramfs.** `deploy.sh:698` has a guard that
-aborts the deploy if `lsinitrd` cannot find the hook, and kanpur's deploy did
+aborts the deploy if `lsinitrd` cannot find the hook, and runner-a's deploy did
 *not* abort — but the guard is conditional on `INITRD_CHROOT_PATH` being set and
 `lsinitrd` existing, and otherwise only logs `[WARN]`. Deploy logging now reaches
 serial, so the guard's own verdict will be visible.
 → *Discriminator:* no `attach-loop hook entered` line at all, plus the deploy's
 `guard: lsinitrd listed N entries` line.
 
-### Branch B — dilli: BCD one-shot did not take
+### Branch B — runner-b: BCD one-shot did not take
 
 **B1. One-shot consumed by an earlier boot.** `bootsequence` is one-shot by
 design; anything that boots between staging and the intended Phase-2 boot eats
@@ -148,7 +148,7 @@ first. The point of the last four commits is that a single run should now
 produce an attributable answer; spending that run is cheaper than any further
 reasoning from the current evidence.
 
-1. **One run on kanpur** (Phase 1 is proven there; it isolates Branch A).
+1. **One run on runner-a** (Phase 1 is proven there; it isolates Branch A).
    Read: does `attach-loop hook entered` appear? If yes, which `EXIT:` line? If
    no exit line, what do `post-attach partitions` / `by-uuid` show?
 2. **Attribute to a single hypothesis** above. Do not fix anything until the
@@ -160,11 +160,11 @@ reasoning from the current evidence.
    it needs is also in the image. `lsinitrd <img> | grep qemu-nbd` answers A3a;
    comparing its `NEEDED` entries against the initramfs contents answers A3b.
    This costs minutes rather than a ~1 hour VM run, and if it comes back
-   negative it explains kanpur and himachal outright.
+   negative it explains runner-a and runner-c outright.
 3. **Then, and only then, fix.** Each branch has a different fix and they are
    not compatible — A1 is a `sed`/BLS problem, A2 is an image-content problem,
    A3/A4 are a VHDX/udev problem.
-4. **Separately, one run on dilli** to see whether B reproduces with a live
+4. **Separately, one run on runner-b** to see whether B reproduces with a live
    serial feed. If it does not reproduce, close it as a one-off.
 5. **Establish a pass rate before believing anything is fixed** (#34). N runs at
    one commit, not one green run. A single pass is what produced the false
@@ -188,7 +188,7 @@ it print if the thing it asserts never happened?
 ## First, a reframe: Phase 2 is not failing more — we stopped reaching it
 
 Worth stating plainly because it changes what to investigate. Phase 2 was
-reached exactly twice, both early on 2026-07-18 (kanpur, himachal), and both
+reached exactly twice, both early on 2026-07-18 (runner-a, runner-c), and both
 dropped to an emergency shell. **Since then, not one run has reached Phase 2 at
 all.** Every failure since has been Phase 1 or infrastructure:
 
@@ -199,7 +199,7 @@ all.** Every failure since has been Phase 1 or infrastructure:
 | runs died ~10min after launch | no systemd linger; ssh session teardown | partly |
 | deploys timed out at 45m | wall-clock fix made the budget honest, exposing it as too small | yes (consequence) |
 | preflight disk failures | no artifact retention; ~60 GiB resident per run | pre-existing |
-| kanpur build failures | host podman/unit config drift | no |
+| runner-a build failures | host podman/unit config drift | no |
 
 So the increase is overwhelmingly **my churn**, not a product regression. The two
 genuine product findings (qemu-nbd library mismatch, BitLocker VHDX placement)
