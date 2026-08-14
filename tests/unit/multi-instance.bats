@@ -64,7 +64,7 @@ setup() {
     [ "$status" -ne 0 ]
     # Go persists the BCD GUID for the harness's Phase-2 scheduling; the
     # app's drive bindings stay inert without the env gate.
-    grep -q 'bcd-guid.txt' "$REPO_ROOT/app/installer_windows.go"
+    grep -q 'bcd-guid.txt' "$REPO_ROOT/app/installer_esp.go"
     grep -q 'WOOTC_E2E_DRIVE' "$REPO_ROOT/app/app.go"
     grep -q 'E2EDriveDirective' "$REPO_ROOT/app/frontend/src/main.js"
 }
