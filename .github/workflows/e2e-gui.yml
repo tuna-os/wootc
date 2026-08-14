@@ -38,7 +38,11 @@ jobs:
       phase3: true
       use_base_image: true
       require_podman_major: ${{ inputs.require_podman_major || '' }}
-    secrets: inherit
+    # No secrets: block — e2e-hosted.yml only uses secrets.GITHUB_TOKEN, which
+    # every job gets automatically. `secrets: inherit` exposed every repo
+    # secret to this job for no reason; the other three callers of this
+    # reusable workflow (e2e-matrix.yml, e2e-nightly.yml, release.yml) already
+    # call it with no secrets: block at all. See #153.
 
   publish:
     needs: run

@@ -106,6 +106,17 @@ jobs:
       - name: Pull pre-installed Windows base image (if present)
         if: ${{ inputs.use_base_image }}
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Expression results interpolated into shell, not passed as $-vars,
+          # let a value containing "/`/$() break out of the TAG= assignment
+          # and execute arbitrary shell on the runner. win_version/win_edition/
+          # bitlocker are workflow_call inputs — currently only repo-controlled
+          # callers, but the hazard is the same class as inputs.image below.
+          # See #154.
+          WOOTC_E2E_WIN_VERSION_TAG: ${{ inputs.win_version }}
+          WOOTC_E2E_WIN_EDITION_TAG: ${{ inputs.win_edition || 'pro' }}
+          WOOTC_E2E_BITLOCKER_TAG: ${{ inputs.bitlocker }}
         run: |
           set -euo pipefail
           VERSION=1.2.0
@@ -116,8 +127,8 @@ jobs:
           # Tag includes the EDITION: the product key selects the edition inside the
           # ISO and is folded into the snapshot correctness key, so a pro-primed
           # snapshot can never serve a home cell (it would be silently rejected).
-          TAG="${{ inputs.win_version }}-${{ inputs.win_edition || 'pro' }}-bl-${{ inputs.bitlocker }}"
-          echo "${{ env.GITHUB_TOKEN }}" | \
+          TAG="${WOOTC_E2E_WIN_VERSION_TAG}-${WOOTC_E2E_WIN_EDITION_TAG}-bl-${WOOTC_E2E_BITLOCKER_TAG}"
+          echo "$GITHUB_TOKEN" | \
             oras login ghcr.io -u "${{ github.actor }}" --password-stdin
           sudo mkdir -p /mnt/wootc-snapshot && sudo chown "$USER" /mnt/wootc-snapshot
           if oras pull "${PKG}:${TAG}" -o /mnt/wootc-snapshot; then
@@ -126,9 +137,6 @@ jobs:
           else
             echo "No base image ${PKG}:${TAG}; run-e2e.sh will do a full install"
           fi
-
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Build the real wootc.exe the GUI-driven run drives. Ubuntu runners
       # ship Go + Node; the wails frontend is a plain vite build, and the
       # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
@@ -194,6 +202,10 @@ jobs:
           # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
           # Drive mode gate for the app's E2E bindings (inert otherwise).
           WOOTC_E2E_DRIVE: ${{ inputs.gui_install && '1' || '' }}
+          # Passed as a $-var, not interpolated into the run: block, so a
+          # value containing "/`/$() in this attacker-influenceable
+          # workflow_dispatch input cannot execute shell on the runner. See #154.
+          WOOTC_E2E_IMAGE: ${{ inputs.image }}
         run: |
           cd tests/e2e
           FLAGS=""
@@ -203,7 +215,7 @@ jobs:
           # ENTIRE matrix finishes, so without this a failing cell cannot be
           # diagnosed for hours — the evidence artifact is the only way in.
           set -o pipefail
-          bash run-e2e.sh "${{ inputs.image }}" $FLAGS 2>&1 | tee /tmp/run-e2e-console.log
+          bash run-e2e.sh "$WOOTC_E2E_IMAGE" $FLAGS 2>&1 | tee /tmp/run-e2e-console.log
 
       - name: Collect evidence
         if: always()
