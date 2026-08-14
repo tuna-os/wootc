@@ -249,7 +249,7 @@ To refresh the [walkthrough](https://tuna-os.github.io/wootc/e2e/latest/) at the
 of this README, publish a passing run's clip:
 
 ```bash
-tests/e2e/publish-visual.sh --from-host himachal   # or a local artifact dir
+tests/e2e/publish-visual.sh --from-host <host>   # or a local artifact dir
 git add pages && git commit -m 'docs: refresh E2E walkthrough' && git push origin main
 ```
 
