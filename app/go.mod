@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/tredoe/osutil v1.5.0
-	github.com/wailsapp/wails/v2 v2.14.0
+	github.com/wailsapp/wails/v2 v2.15.0
 	golang.org/x/crypto v0.55.0
 	golang.org/x/sys v0.47.0
 )
