@@ -66,7 +66,9 @@ setup() {
     # app's drive bindings stay inert without the env gate.
     grep -q 'bcd-guid.txt' "$REPO_ROOT/app/installer_esp.go"
     grep -q 'WOOTC_E2E_DRIVE' "$REPO_ROOT/app/app.go"
-    grep -q 'E2EDriveDirective' "$REPO_ROOT/app/frontend/src/main.js"
+    # b8f30cc isolated the driver into lib/e2e.js; main.js wires it in.
+    grep -q 'startE2EDrive' "$REPO_ROOT/app/frontend/src/main.js"
+    grep -q 'E2EDriveDirective' "$REPO_ROOT/app/frontend/src/lib/e2e.js"
 }
 
 @test "matrix poll ssh cannot eat the case queue" {
