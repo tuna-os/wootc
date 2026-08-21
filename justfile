@@ -82,6 +82,24 @@ build-wubildr:
     podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi > "{{ FILES }}/wubildr.efi"
     ls -lh "{{ FILES }}/wubildr.efi"
 
+# Build the Try-in-VM builder artifacts (SPEC 6.1): the Alpine kernel +
+# initramfs that turn an OCI image into a preview disk inside a headless VM.
+#
+# The Try-in-VM feature is fully implemented in app/vm_windows.go, but
+# GetFreshVMCapability() refuses when these are absent — and nothing built
+# them, so the button never appeared. They belong beside qemu-system-x86_64.exe
+# under C:\wootc\qemu\ in a release bundle.
+build-builder:
+    bash payload/builder/build-builder.sh payload/builder/out
+    ls -lh payload/builder/out/builder-vmlinuz payload/builder/out/builder-initramfs.img
+
+# Pre-stage a bootc image so a migration needs no network (#177).
+# Produces a portable containers-storage tree; deploy.sh passes it to fisherman
+# as additionalImageStores and the multi-GB pull never happens. Ship the output
+# beside wootc.exe; the installer stages it to C:\wootc\bundle\.
+build-bundle image=WOOTC_IMAGE out="payload/bundle/out/bundle":
+    bash payload/bundle/make-bundle.sh "{{ image }}" "{{ out }}"
+
 # Regenerate the Windows app icon + resource object from app/build/appicon.svg.
 # Only needed when the artwork changes: the resulting rsrc_windows_amd64.syso is
 # COMMITTED, because we ship with plain `go build` (not `wails build`), and a

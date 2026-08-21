@@ -1103,6 +1103,38 @@ if [[ -n "$VAULT_USER" && -n "$VAULT_PASSWORD_HASH" ]]; then
     USER_JSON=",\"user\": { \"username\": \"${VAULT_USER}\", \"password\": \"${VAULT_PASSWORD_HASH}\", \"groups\": [\"wheel\"] }"
 fi
 
+# ── Offline image bundle (#177) ─────────────────────────────────────────────
+# If wootc shipped with a pre-staged image store, point fisherman at it and the
+# multi-gigabyte pull never happens: bootc.go bind-mounts each
+# additionalImageStores path read-only into the bootc container, so podman
+# resolves the image locally.
+#
+# This is the step most likely to strand a user — a flaky mirror partway
+# through a migration is the worst possible moment to lose the network — so
+# when a bundle is present it is preferred, and when it is absent nothing
+# changes and we pull as before.
+#
+# Deliberately NOT fatal if the bundle looks wrong: falling back to the network
+# still completes the install, whereas refusing would turn a merely-suboptimal
+# bundle into a dead machine.
+BUNDLE_JSON=""
+BUNDLE_STORE="/mnt/ntfs/wootc/bundle/store"
+if [[ -d "$BUNDLE_STORE" ]]; then
+    _bundle_img=""
+    if [[ -f "/mnt/ntfs/wootc/bundle/bundle.json" ]]; then
+        _bundle_img=$(jq -r '.image // empty' "/mnt/ntfs/wootc/bundle/bundle.json" 2>/dev/null || echo "")
+    fi
+    if [[ -n "$_bundle_img" && "$_bundle_img" != "$IMAGE" ]]; then
+        # A bundle for a DIFFERENT image is not an error — the user may have
+        # changed their mind in the GUI — but silently pulling several GB when
+        # they expected offline is worth saying out loud.
+        log "  Bundle holds ${_bundle_img}, not ${IMAGE}; ignoring it and pulling instead"
+    else
+        BUNDLE_JSON=",\"additionalImageStores\": [\"${BUNDLE_STORE}\"]"
+        log "Offline image bundle found at ${BUNDLE_STORE} — skipping the image download"
+    fi
+fi
+
 RECIPE="/tmp/recipe.json"
 cat > "$RECIPE" << EOF
 {
@@ -1116,7 +1148,7 @@ cat > "$RECIPE" << EOF
   ${LUKS_JSON},
   "image": "${IMAGE}",
   "hostname": "${HOSTNAME}",
-  "flatpaks": ${FLATPAKS_JSON}${USER_JSON}
+  "flatpaks": ${FLATPAKS_JSON}${USER_JSON}${BUNDLE_JSON}
 }
 EOF
 
