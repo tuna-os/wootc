@@ -24,6 +24,40 @@
   --transition:  0.18s ease;
 }
 
+/* Light theme (#173). WebView2 reports the Windows app-theme setting through
+   prefers-color-scheme, and the Wails window chrome already follows it via
+   windows.SystemDefault, so the content just has to keep up — previously it
+   was dark no matter what, which looks broken on a light-mode machine.
+
+   Only the tokens are redefined; every rule in this file already reads them
+   (verified: no hardcoded hex outside :root). The few rgba() accent tints
+   further down are low-alpha washes of the same hues and read correctly on
+   either background.
+
+   The greens/ambers/reds are NOT reused verbatim from the dark palette: at
+   full saturation they are designed against #0a0a0f and fail contrast on a
+   near-white card (#facc15 on white is essentially illegible), so the light
+   variants are darkened to stay readable as text. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:          #f6f6fa;
+    --bg-card:     #ffffff;
+    --bg-input:    #f0f0f6;
+    --bg-hover:    #e9e9f2;
+    --border:      #d9d9e4;
+    --border-focus:#5b6ee1;
+    --text:        #16161f;
+    --text-muted:  #61617d;
+    --text-dim:    #4a4a63;
+    --accent:      #4553c4;
+    --accent-light:#5b6ee1;
+    --accent-glow: rgba(91,110,225,0.18);
+    --success:     #15803d;
+    --warning:     #a16207;
+    --danger:      #dc2626;
+  }
+}
+
 html, body {
   height: 100%;
   font-family: 'Inter', system-ui, sans-serif;

@@ -22,6 +22,14 @@ func main() {
 
 	app := NewApp()
 
+	// Wails paints this before WebView2 renders, so it must agree with the
+	// theme the page is about to choose or the window flashes the wrong colour
+	// on launch (#173). Values mirror the --bg tokens in style.css.
+	background := &options.RGBA{R: 0x0a, G: 0x0a, B: 0x0f, A: 255} // dark  #0a0a0f
+	if !systemPrefersDark() {
+		background = &options.RGBA{R: 0xf6, G: 0xf6, B: 0xfa, A: 255} // light #f6f6fa
+	}
+
 	err := wails.Run(&options.App{
 		Title:            "wootc — Windows bootc Installer",
 		Width:            820,
@@ -32,7 +40,7 @@ func main() {
 		MaxHeight:        620,
 		DisableResize:    true,
 		Frameless:        false,
-		BackgroundColour: &options.RGBA{R: 10, G: 10, B: 15, A: 255},
+		BackgroundColour: background,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -43,9 +51,16 @@ func main() {
 		},
 		Windows: &windows.Options{
 			// Single-instance enforcement
-			WebviewIsTransparent:              false,
-			WindowIsTranslucent:               false,
-			DisablePinchZoom:                  true,
+			WebviewIsTransparent: false,
+			WindowIsTranslucent:  false,
+			DisablePinchZoom:     true,
+			// Follow the Windows app-theme setting for the window chrome, and
+			// let WebView2 report it to the page as prefers-color-scheme so the
+			// content can match (#173 — the UI used to be dark on a light-mode
+			// machine). This is windows.Theme's zero value, but state it: the
+			// whole point is that it tracks the OS, which is not obvious from
+			// an absent field.
+			Theme: windows.SystemDefault,
 		},
 	})
 
