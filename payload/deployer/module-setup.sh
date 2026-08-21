@@ -50,7 +50,9 @@ install() {
     # generator provides (ESP/home/srv/swap auto-mount) is wanted either.
     #
     # 99wootc sorts after 00systemd, so the generator is already installed
-    # into $initdir by the time this runs.
+    # into $initdir by the time this runs. dracut defines initdir, like
+    # moddir above, before invoking module install hooks.
+    # shellcheck disable=SC2154
     rm -f "$initdir/usr/lib/systemd/system-generators/systemd-gpt-auto-generator"
 
     # Required binaries. fisherman's host-tool contract (checkRequiredTools in
