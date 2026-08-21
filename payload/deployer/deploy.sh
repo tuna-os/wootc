@@ -653,6 +653,7 @@ log "Attached raw image ${DISK} as ${LOOP_DEV}"
 VAULT_USER=""
 VAULT_PASSWORD_HASH=""
 VAULT_SECONDARY_USERS=""
+VAULT_PROFILE_MAP=""
 if [[ -n "$VAULT_PATH" ]]; then
     VAULT_FILE="/mnt/ntfs${VAULT_PATH}"
     if [[ -f "$VAULT_FILE" ]]; then
@@ -663,6 +664,11 @@ if [[ -n "$VAULT_PATH" ]]; then
         # Other Windows profiles (#16). Read HERE, before the shred below —
         # this is the only moment the vault exists.
         VAULT_SECONDARY_USERS=$(jq -r '.secondary_users[]? // empty' "$VAULT_FILE" 2>/dev/null || true)
+        # Windows profile directory → Linux account map, one "dir<TAB>user"
+        # line per profile (the primary included). Persisted into the target
+        # during verification so the first-boot bridge can match directories
+        # whose names sanitization changed ("Alice Smith" → alice-smith).
+        VAULT_PROFILE_MAP=$(jq -r '.profile_map // {} | to_entries[] | "\(.key)\t\(.value)"' "$VAULT_FILE" 2>/dev/null || true)
         if [[ -n "$VAULT_HOSTNAME" ]]; then
             HOSTNAME="$VAULT_HOSTNAME"
         fi
@@ -1128,11 +1134,16 @@ if [[ -d "$BUNDLE_STORE" ]]; then
     if [[ -f "/mnt/ntfs/wootc/bundle/bundle.json" ]]; then
         _bundle_img=$(jq -r '.image // empty' "/mnt/ntfs/wootc/bundle/bundle.json" 2>/dev/null || echo "")
     fi
-    if [[ -n "$_bundle_img" && "$_bundle_img" != "$IMAGE" ]]; then
+    # Compare against SOURCE_IMAGE, the registry ref the user actually chose.
+    # $IMAGE may have been rewritten by ntfs-3g injection to
+    # localhost/wootc-ntfs-injected:latest by this point, and a bundle that
+    # matched the selection exactly must not be rejected over the deployer's
+    # own transient tag.
+    if [[ -n "$_bundle_img" && "$_bundle_img" != "$SOURCE_IMAGE" ]]; then
         # A bundle for a DIFFERENT image is not an error — the user may have
         # changed their mind in the GUI — but silently pulling several GB when
         # they expected offline is worth saying out loud.
-        log "  Bundle holds ${_bundle_img}, not ${IMAGE}; ignoring it and pulling instead"
+        log "  Bundle holds ${_bundle_img}, not ${SOURCE_IMAGE}; ignoring it and pulling instead"
     else
         BUNDLE_JSON=",\"additionalImageStores\": [\"${BUNDLE_STORE}\"]"
         log "Offline image bundle found at ${BUNDLE_STORE} — skipping the image download"
@@ -1801,6 +1812,22 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 warn "  could not create an account for Windows profile '${_secuser}' — their files will not be bridged"
             fi
         done <<< "$VAULT_SECONDARY_USERS"
+    fi
+
+    # Persist the Windows-directory → Linux-account map for the first-boot
+    # bridge. Without it wootc-mount-user-dirs can only match a profile whose
+    # directory name IS a Linux account name — which excludes every name that
+    # sanitization changed ("Alice Smith" → alice-smith) and usually the
+    # primary user too (directory "James Reilly", chosen username "james").
+    # /etc is the per-deployment writable tree on every backend (the useradd
+    # above already depends on that).
+    if [[ -n "$VAULT_PROFILE_MAP" ]]; then
+        if install -d -m 0755 "$DEPLOY_ROOT/etc/wootc" &&
+           printf '%s\n' "$VAULT_PROFILE_MAP" > "$DEPLOY_ROOT/etc/wootc/profile-map.tsv"; then
+            log "  [PASS] persisted Windows→Linux profile map ($(printf '%s\n' "$VAULT_PROFILE_MAP" | wc -l) entr(y|ies)) to /etc/wootc/profile-map.tsv"
+        else
+            warn "  could not persist the profile map — the bridge will fall back to exact directory-name matches"
+        fi
     fi
 
     VERIFY_BOOT="${VERIFY_LOOP}p2"
