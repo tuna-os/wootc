@@ -205,7 +205,18 @@ jobs:
           # Passed as a $-var, not interpolated into the run: block, so a
           # value containing "/`/$() in this attacker-influenceable
           # workflow_dispatch input cannot execute shell on the runner. See #154.
-          WOOTC_E2E_IMAGE: ${{ inputs.image }}
+          #
+          # DO NOT name this WOOTC_E2E_IMAGE. That name is already taken by the
+          # harness for the *Windows container* image (compose.yml's `image:`
+          # and run-e2e.sh's dockur preflight both read it, defaulting to
+          # localhost/wootc-e2e-windows-ssh:latest). Because `env:` exports to
+          # the whole step, setting it here handed podman-compose the *bootc
+          # target* image instead, so the "Windows VM" was really a bootc OS
+          # container: it booted systemd, never ran QEMU, and every run died on
+          # "QEMU did not start within 15 minutes" with an empty container.log
+          # and a guest process list full of gdm/NetworkManager. That is #166,
+          # introduced here by 2617aed (#159) on 2026-08-14.
+          WOOTC_TARGET_IMAGE: ${{ inputs.image }}
         run: |
           cd tests/e2e
           FLAGS=""
@@ -215,7 +226,7 @@ jobs:
           # ENTIRE matrix finishes, so without this a failing cell cannot be
           # diagnosed for hours — the evidence artifact is the only way in.
           set -o pipefail
-          bash run-e2e.sh "$WOOTC_E2E_IMAGE" $FLAGS 2>&1 | tee /tmp/run-e2e-console.log
+          bash run-e2e.sh "$WOOTC_TARGET_IMAGE" $FLAGS 2>&1 | tee /tmp/run-e2e-console.log
 
       - name: Collect evidence
         if: always()
