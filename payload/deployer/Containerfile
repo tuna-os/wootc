@@ -61,6 +61,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
         --add-drivers "xfs btrfs" \
         --install "podman skopeo fisherman ostree cpio \
                    /usr/share/containers/policy.json /usr/share/containers/registries.conf \
+                   ntfs-3g lowntfs-3g mount.ntfs \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
                    losetup qemu-nbd dmsetup cryptsetup systemd-cryptenroll \
                     /usr/lib/systemd/systemd-cryptsetup \
@@ -73,8 +74,18 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # inst_multiple fails SILENTLY when any one entry is missing (a missing
 # restorecon once dropped conmon/crun/podman and cost a full E2E debug
 # cycle), so the build must fail loudly here instead.
+# ntfs-3g is in this list deliberately. The image-injection path in deploy.sh
+# has a survivable fallback ("Phase 2 will carry the DEPLOYER's ntfs-3g
+# instead", deploy.sh:847) that is gated on `command -v ntfs-3g` INSIDE the
+# initramfs. ntfs-3g was installed into the builder above but never named in
+# dracut's --install list, so only libntfs-3g.so and the ntfs3 kernel module
+# ever landed — the binary did not, the guard was always false, and a target
+# image that could not be injected became a FATAL refusal instead of taking
+# the fallback. That is precisely the silent-drop failure this loop exists to
+# catch, so assert it here too.
 RUN for bin in conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
         mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
+        ntfs-3g \
         df sync truncate journalctl jq tee which basename date head; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \

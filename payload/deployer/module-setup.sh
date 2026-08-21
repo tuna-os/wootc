@@ -20,6 +20,39 @@ install() {
     inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh
     inst /usr/bin/fisherman
 
+    # Drop systemd's GPT auto-discovery generator.
+    #
+    # This initramfs is a one-shot DEPLOYER: it runs entirely from the initrd
+    # and never switches root, so no boot path passes root= (see the deployer
+    # menuentries in installer_esp.go and setup-wootc.ps1 — all of them pass
+    # only wootc.* args). systemd does not know that, so gpt-auto-generator
+    # synthesises a dev-gpt-auto-root.device, initrd-root-fs.target waits on
+    # it, the device never appears, and at the 90s device timeout systemd
+    # prints the full failure cascade and "Entering emergency mode" over the
+    # friendly splash:
+    #
+    #   Timed out waiting for device dev-gpt-auto-root.device
+    #    -> Dependency failed for sysroot.mount - Root Partition
+    #    -> Dependency failed for initrd-root-fs.target
+    #    -> Entering emergency mode.
+    #
+    # It is cosmetic — dracut-initqueue keeps running our hook and the deploy
+    # completes — but it looks exactly like a fatal error to a user watching
+    # their machine migrate, which is the worst possible moment for it.
+    #
+    # rd.systemd.gpt_auto=0 is the documented switch, but systemd's generators
+    # read /proc/cmdline only; dracut's --kernel-cmdline lands in
+    # /etc/cmdline.d/, which just dracut's own shell helpers parse. Setting it
+    # for real would mean editing every menuentry template in both the Go and
+    # PowerShell installers and remembering to do so for every future one.
+    # Removing the generator here fixes all boot paths at the source. The
+    # deployer mounts everything it needs explicitly, so nothing else the
+    # generator provides (ESP/home/srv/swap auto-mount) is wanted either.
+    #
+    # 99wootc sorts after 00systemd, so the generator is already installed
+    # into $initdir by the time this runs.
+    rm -f "$initdir/usr/lib/systemd/system-generators/systemd-gpt-auto-generator"
+
     # Required binaries. fisherman's host-tool contract (checkRequiredTools in
     # cmd/fisherman/main.go plus its runner.Run call sites) needs sfdisk,
     # mkfs.fat, partprobe, blockdev, fsfreeze, fstrim, wipefs, lsblk, mkswap,

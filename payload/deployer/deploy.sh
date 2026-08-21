@@ -476,7 +476,7 @@ if [[ -f "$DISK" ]]; then
         while [ "$_done_mb" -lt "$_total_mb" ]; do
             _n_mb=$(( _total_mb - _done_mb ))
             [ "$_n_mb" -gt "$_chunk_mb" ] && _n_mb=$_chunk_mb
-            tr '\0' '\377' < /dev/zero | \
+            tr '\0' '\377' 2>/dev/null < /dev/zero | \
                 dd of="$DISK" bs=1M count="$_n_mb" seek="$_done_mb" conv=notrunc status=none 2>/dev/null || true
             _done_mb=$(( _done_mb + _n_mb ))
             log "  VDL: ${_done_mb}/${_total_mb} MiB after $(( $(date +%s) - _vdl_t0 ))s"
@@ -796,7 +796,13 @@ ensure_ntfs_support() {
         # is EMPTY, which is exactly the case that kept being misread as a repo
         # problem. Print both.
         [ -s "$inj_err" ] && { err "  podman: $(tail -3 "$inj_err" | tr '\n' ' ')"; }
-        timeout 60 podman logs "$cname" 2>&1 | tail -10 >&2 || true
+        # 40, not 10. The install is a `||` chain (dnf -> epel -> microdnf ->
+        # rpm-ostree) and each rung is noisy, so a 10-line tail showed only
+        # rpm-ostree's "not booted via libostree" — the LAST and least
+        # informative failure — while the actual first error scrolled past.
+        # That truncation is what made a corrupt-rpmdb image look like a
+        # network problem for an entire investigation.
+        timeout 60 podman logs "$cname" 2>&1 | tail -40 >&2 || true
         [ "$attempt" -lt 3 ] && sleep $((attempt * 10))
     done
     if [ -z "$inj_ok" ]; then
@@ -858,8 +864,15 @@ if ! ensure_ntfs_support; then
         err "  [FAIL] ${IMAGE} has NO NTFS driver (no kernel ntfs3, no ntfs-3g) and injection failed."
         err "         Phase 2 could not mount the Windows volume that holds root.disk, so it would"
         err "         drop to an emergency shell. Refusing to write an unbootable deployment."
-        err "         Cause is almost always the ntfs-3g install above: network or repo reachability"
-        err "         from the deployer (EPEL/CRB for EL-family images)."
+        err "         Read the per-attempt 'podman:' lines above for the REAL cause — do not assume."
+        err "         Two distinct failure modes look alike here, and only one is a network problem:"
+        err "           * 'Could not resolve host' / 'Curl error' / mirror timeouts"
+        err "               -> genuine EPEL/CRB reachability from the deployer initramfs."
+        err "           * 'sqlite failure: ... database table is locked' / 'Transaction failed'"
+        err "               -> the image's rpmdb could not be written inside podman; NOT network."
+        err "         Note the last fallback (rpm-ostree) always ends in 'not booted via libostree'"
+        err "         because this runs in a container — that message is the tail of the chain, not"
+        err "         the cause, and it masks whichever of the above actually failed first."
         exit 1
     fi
 fi

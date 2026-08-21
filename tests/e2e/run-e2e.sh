@@ -2868,6 +2868,9 @@ LAST_PROGRESS_MIN=-1
 DEPLOY_COMPLETE=false
 DEPLOYER_REBOOT_SEEN=false
 DEPLOYER_FATAL_SEEN=false
+# Deployer-stage emergency mode is NOT fatal (see the check below), so it is
+# tracked separately from DEPLOYER_FATAL_SEEN and only reported once.
+DEPLOYER_EMERGENCY_SEEN=false
 KERNEL_REBOOT_SEEN=false
 WINDOWS_BACK_STREAK=0
 LAST_GUEST_HEARTBEAT=""
@@ -3052,6 +3055,29 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             fail "Deployer error:"
             echo "$NEW_OUTPUT" | grep -E "fatal|panic|kernel panic|\[FAIL\]"
             break
+        fi
+        # Emergency mode during the DEPLOYER boot. Deliberately a warning, not
+        # a failure: unlike Phase 2 (where emergency means the real root never
+        # appeared and the check below is rightly fatal), the deployer runs
+        # entirely from the initramfs, so systemd can trip emergency.target
+        # while dracut-initqueue carries on and the deploy completes normally.
+        #
+        # It was still worth surfacing: this scan only ever looked for
+        # fatal/panic/[FAIL], so a full "Entering emergency mode" cascade on
+        # the deployer console was STRUCTURALLY INVISIBLE to CI — it took a
+        # human watching a live noVNC console to notice systemd's
+        # gpt-auto-generator timing out on a synthesised dev-gpt-auto-root
+        # device and scaring the user mid-migration. A silent-but-scary
+        # console is a real defect even when the run goes green.
+        if [ "$DEPLOYER_EMERGENCY_SEEN" = false ] &&
+           echo "$NEW_OUTPUT" | grep -qE "Entering emergency mode|Dependency failed for sysroot"; then
+            DEPLOYER_EMERGENCY_SEEN=true
+            warn "deployer console entered EMERGENCY MODE (deploy may still succeed):"
+            echo "$NEW_OUTPUT" \
+                | grep -aE "Timed out waiting for device|Dependency failed for|Entering emergency mode" \
+                | head -8 | sed 's/^/    /' >&2
+            warn "  the deployer boots from the initramfs and never switches root, so"
+            warn "  anything waiting on a root device here is spurious — but the user SEES it."
         fi
         LAST_BYTE=$CURRENT_BYTE
     fi
