@@ -75,10 +75,26 @@ func writeVault(cfg InstallConfig) error {
 	// Every other Windows profile gets an account so its data has somewhere to
 	// land (#16). Deliberately NO password: we will not invent credentials for
 	// someone who never sat in front of the installer. The deployer creates
-	// these locked, and wootc-mount-user-dirs then bridges each profile into
-	// the account of the same name.
-	if others := listWindowsProfiles(cfg.Username); len(others) > 0 {
-		vault["secondary_users"] = others
+	// these locked from secondary_users, and persists profile_map (Windows
+	// profile directory → Linux account, sanitization applied) into the
+	// installed system so wootc-mount-user-dirs can bridge each directory to
+	// the right account even when the names differ ("Alice Smith" →
+	// alice-smith, and the primary's freely chosen username).
+	others := listWindowsProfiles(cfg.Username)
+	profileMap := map[string]string{}
+	if dir := primaryProfileDir(); dir != "" {
+		profileMap[dir] = cfg.Username
+	}
+	if len(others) > 0 {
+		names := make([]string, 0, len(others))
+		for _, m := range others {
+			names = append(names, m.LinuxUser)
+			profileMap[m.WindowsDir] = m.LinuxUser
+		}
+		vault["secondary_users"] = names
+	}
+	if len(profileMap) > 0 {
+		vault["profile_map"] = profileMap
 	}
 
 	data, err := marshalJSON(vault)

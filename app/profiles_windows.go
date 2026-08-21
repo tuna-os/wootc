@@ -9,8 +9,18 @@ import (
 
 // listWindowsProfiles enumerates real Windows profiles on this machine. See
 // profiles.go for the rules and the reasoning.
-func listWindowsProfiles(primary string) []string {
-	return listProfilesIn(filepath.Join(systemDriveRoot(), "Users"), primary)
+func listWindowsProfiles(primary string) []profileMapping {
+	return listProfilesIn(filepath.Join(systemDriveRoot(), "Users"), primary, primaryProfileDir())
+}
+
+// primaryProfileDir is the basename of the running user's own Windows profile
+// directory ("James Reilly" for C:\Users\James Reilly). USERPROFILE is set for
+// every interactive session; empty just means no directory-based exclusion.
+func primaryProfileDir() string {
+	if p := os.Getenv("USERPROFILE"); p != "" {
+		return filepath.Base(p)
+	}
+	return ""
 }
 
 // systemDriveRoot is where Windows profiles live. Note this is NOT wootcDir()'s

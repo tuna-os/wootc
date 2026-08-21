@@ -242,23 +242,38 @@ for _root in "${_profile_roots[@]}"; do
     esac
     real_profiles+=("$winprofile")
 
+    # The installer records how each profile directory maps to the Linux
+    # account it created (sanitization changes most names: "Alice Smith" is
+    # account alice-smith, and the primary's chosen username need not resemble
+    # their directory at all). Consult the map first; the exact directory-name
+    # match stays as the fallback for deployments made before the map existed.
+    account="$name"
+    if [[ -r /etc/wootc/profile-map.tsv ]]; then
+        mapped=$(awk -F'\t' -v k="$name" '$1 == k { print $2; exit }' \
+            /etc/wootc/profile-map.tsv 2>/dev/null)
+        if [[ -n "$mapped" ]]; then
+            account="$mapped"
+            [[ "$account" != "$name" ]] && log "profile map: $name -> $account"
+        fi
+    fi
+
     # Only bind for a Linux account that actually exists (skip unrelated
     # Windows profiles) and has UID >= 1000 (a real user, not a system account).
-    uid=$(id -u "$name" 2>/dev/null) || continue
+    uid=$(id -u "$account" 2>/dev/null) || continue
     [[ "$uid" -ge 1000 ]] || continue
     matched=$((matched + 1))
 
-    home=$(getent passwd "$name" | cut -d: -f6)
+    home=$(getent passwd "$account" | cut -d: -f6)
     if [[ ! -d "$home" ]]; then
         # A matching account whose recorded home does not exist is a broken
         # deployment, not a skippable case — say so instead of exiting 0 in
         # silence (run 20260723T0423: fisherman's useradd left the home in
         # the deployment's masked var; this unit "succeeded" with 0 binds).
-        log "ERROR: user $name has no home directory ($home) — cannot bridge; deployment bug"
+        log "ERROR: user $account has no home directory ($home) — cannot bridge; deployment bug"
         continue
     fi
 
-    bind_profile "$winprofile" "$name" "$home"
+    bind_profile "$winprofile" "$account" "$home"
   done
 done
 
