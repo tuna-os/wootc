@@ -1,4 +1,5 @@
 import { StartInstall, CreateDataPartition, DefragDrive } from '../../wailsjs/go/main/App';
+import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { installVerb } from '../lib/branding.js';
@@ -277,7 +278,7 @@ export function renderLaunchpad() {
   const footer = el('div', 'footer');
   const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
   installBtn.id = 'install-btn';
-  footer.appendChild(btn('Cancel', 'btn btn-ghost', () => window.wails?.Quit?.()));
+  footer.appendChild(btn('Cancel', 'btn btn-ghost', () => Quit()));
   // Try-in-VM (§6.1): only when a fresh-build VM is possible on this host.
   if (state.freshVmCapability?.available && state.selected) {
     footer.appendChild(btn('Try in VM', 'btn btn-ghost', () => tryInVM()));

@@ -1,4 +1,5 @@
 import { Reboot } from '../../wailsjs/go/main/App';
+import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { el, btn } from '../lib/ui.js';
 
@@ -28,7 +29,7 @@ export function renderDoneScreen() {
   wrap.appendChild(screen);
 
   const footer = el('div', 'footer');
-  footer.appendChild(btn('Reboot Later', 'btn btn-ghost', () => window.wails?.Quit?.()));
+  footer.appendChild(btn('Reboot Later', 'btn btn-ghost', () => Quit()));
   footer.appendChild(btn('Reboot Now →', 'btn btn-primary', () => Reboot()));
   wrap.appendChild(footer);
   return wrap;

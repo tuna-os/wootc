@@ -308,3 +308,19 @@ test('titlebar — closing during an install asks for confirmation', async ({ pa
   await page.locator('#win-close').click();
   expect(await page.evaluate(() => window.__wootcWindowCalls)).toContain('Quit');
 });
+
+// Every "get me out of here" button must actually quit. These reach the
+// runtime via the Quit import; an earlier version called window.wails?.Quit?.()
+// — a global Wails does not define — so they optional-chained into silent
+// no-ops and no test noticed, because the mock had invented window.wails.
+test('every exit button reaches the runtime', async ({ page }) => {
+  // Launchpad "Cancel"
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(await page.evaluate(() => window.__wootcWindowCalls)).toContain('Quit');
+
+  // Migration dashboard "Close"
+  await boot(page, { mode: 'migration', categories: MIGRATION_CATEGORIES, apps: APPS, office: OFFICE });
+  await page.locator('.footer').getByRole('button', { name: 'Close', exact: true }).click();
+  expect(await page.evaluate(() => window.__wootcWindowCalls)).toContain('Quit');
+});

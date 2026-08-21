@@ -94,4 +94,9 @@ window.runtime = {
   Quit: () => { window.__wootcWindowCalls.push('Quit'); },
   Environment: () => Promise.resolve({ buildType: 'test' }),
 };
-window.wails = { Quit: () => {} };
+// NO window.wails stub. Wails v2 exposes window.runtime.Quit; window.wails
+// does not exist. Stubbing it here made five real buttons (Cancel, Reboot
+// Later, and three Closes) look functional in tests while silently doing
+// nothing in the shipped app, because they optional-chained off a global the
+// mock invented. If something reaches for window.wails again, it should break
+// loudly here rather than pass.

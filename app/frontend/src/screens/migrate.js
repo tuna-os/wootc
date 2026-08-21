@@ -3,6 +3,7 @@ import {
   GetLookMigration, SetMigrationProfile, SetSessionConsent, ReinstallApps,
   ConvertCategory, ImportBrowserData,
 } from '../../wailsjs/go/main/App';
+import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { fmtSize } from '../lib/format.js';
@@ -164,7 +165,7 @@ export function renderMigrateScreen() {
 
   const footer = el('div', 'footer');
   footer.appendChild(btn('Refresh', 'btn btn-ghost', () => refreshCategories()));
-  footer.appendChild(btn('Close', 'btn btn-primary', () => window.wails?.Quit?.()));
+  footer.appendChild(btn('Close', 'btn btn-primary', () => Quit()));
   wrap.appendChild(footer);
   return wrap;
 }

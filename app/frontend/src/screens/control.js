@@ -1,4 +1,5 @@
 import { BootInVM, UninstallWith } from '../../wailsjs/go/main/App';
+import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { el, btn } from '../lib/ui.js';
@@ -72,7 +73,7 @@ export function renderControlPanel() {
   const footer = el('div', 'footer');
   footer.appendChild(btn('Reinstall', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); }));
   footer.appendChild(btn('Uninstall TunaOS', 'btn btn-danger', () => confirmUninstall()));
-  footer.appendChild(btn('Close', 'btn btn-primary', () => window.wails?.Quit?.()));
+  footer.appendChild(btn('Close', 'btn btn-primary', () => Quit()));
   wrap.appendChild(footer);
   return wrap;
 }
@@ -87,7 +88,7 @@ async function confirmUninstall() {
   try {
     await UninstallWith({ deleteRootDisk: !!o.deleteRootDisk, removePartition: !!o.removePartition });
     alert('TunaOS has been removed. Windows is unchanged.');
-    window.wails?.Quit?.();
+    Quit();
   } catch (e) {
     alert('Uninstall hit a problem: ' + e);
   }
