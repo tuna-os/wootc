@@ -65,11 +65,20 @@ func writeVault(cfg InstallConfig) error {
 		return fmt.Errorf("hash password: %w", err)
 	}
 
-	vault := map[string]string{
+	vault := map[string]any{
 		"username":      cfg.Username,
 		"hostname":      cfg.Hostname,
 		"image":         cfg.ImageRef,
 		"password_hash": hash,
+	}
+
+	// Every other Windows profile gets an account so its data has somewhere to
+	// land (#16). Deliberately NO password: we will not invent credentials for
+	// someone who never sat in front of the installer. The deployer creates
+	// these locked, and wootc-mount-user-dirs then bridges each profile into
+	// the account of the same name.
+	if others := listWindowsProfiles(cfg.Username); len(others) > 0 {
+		vault["secondary_users"] = others
 	}
 
 	data, err := marshalJSON(vault)

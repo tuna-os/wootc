@@ -652,6 +652,7 @@ log "Attached raw image ${DISK} as ${LOOP_DEV}"
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
 VAULT_PASSWORD_HASH=""
+VAULT_SECONDARY_USERS=""
 if [[ -n "$VAULT_PATH" ]]; then
     VAULT_FILE="/mnt/ntfs${VAULT_PATH}"
     if [[ -f "$VAULT_FILE" ]]; then
@@ -659,6 +660,9 @@ if [[ -n "$VAULT_PATH" ]]; then
         VAULT_USER=$(jq -r '.username // empty' "$VAULT_FILE" 2>/dev/null || true)
         VAULT_PASSWORD_HASH=$(jq -r '.password_hash // empty' "$VAULT_FILE" 2>/dev/null || true)
         VAULT_HOSTNAME=$(jq -r '.hostname // empty' "$VAULT_FILE" 2>/dev/null || true)
+        # Other Windows profiles (#16). Read HERE, before the shred below —
+        # this is the only moment the vault exists.
+        VAULT_SECONDARY_USERS=$(jq -r '.secondary_users[]? // empty' "$VAULT_FILE" 2>/dev/null || true)
         if [[ -n "$VAULT_HOSTNAME" ]]; then
             HOSTNAME="$VAULT_HOSTNAME"
         fi
@@ -1766,6 +1770,37 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         mount --bind "$OSTREE_VAR_ROOT" "$DEPLOY_ROOT/var"
         DEPLOY_VAR_BOUND=true
         log "  [PASS] OSTree stateroot /var bound into deployment for post-install writes"
+    fi
+
+    # ── Accounts for the other Windows profiles (#16) ───────────────────────
+    # All user data is migrated, so every Windows profile needs somewhere for
+    # its files to land. wootc-mount-user-dirs bind-mounts each profile under
+    # /run/wootc/host/Users into the Linux account of the SAME NAME and skips
+    # any profile without one — so without these accounts, those users' data is
+    # silently left behind.
+    #
+    # Created LOCKED and with no password: we will not invent credentials for
+    # someone who never sat in front of the installer. `useradd` with no
+    # -p leaves '!' in shadow, which blocks password login while leaving the
+    # account fully usable once the admin (or the user) sets one.
+    #
+    # NOT in wheel — only the person who ran the installer is the admin.
+    #
+    # Best-effort per user: a name the target image rejects must not fail a
+    # deployment that is otherwise complete and bootable.
+    if [[ -n "$VAULT_SECONDARY_USERS" ]]; then
+        while IFS= read -r _secuser; do
+            [[ -n "$_secuser" ]] || continue
+            [[ "$_secuser" == "$VAULT_USER" ]] && continue
+            if chroot "$DEPLOY_ROOT" useradd --create-home --shell /bin/bash "$_secuser" 2>/dev/null; then
+                # Explicit lock: belt to useradd's braces, and it makes the
+                # intent visible in /etc/shadow rather than implied.
+                chroot "$DEPLOY_ROOT" passwd --lock "$_secuser" >/dev/null 2>&1 || true
+                log "  [PASS] created locked account for Windows profile '${_secuser}' (no password set)"
+            else
+                warn "  could not create an account for Windows profile '${_secuser}' — their files will not be bridged"
+            fi
+        done <<< "$VAULT_SECONDARY_USERS"
     fi
 
     VERIFY_BOOT="${VERIFY_LOOP}p2"
