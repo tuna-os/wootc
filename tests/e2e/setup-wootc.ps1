@@ -536,7 +536,7 @@ Write-Host "[wootc] Configuring BCD..."
 # Create a new BCD entry by cloning the Windows Boot Manager.
 $bcdCreateOutput = (& bcdedit /copy "{bootmgr}" /d "wootc Deployer" 2>&1) | Out-String
 if ($LASTEXITCODE -ne 0) {
-    throw "bcdedit /copy exited with code $LASTEXITCODE: $bcdCreateOutput"
+    throw "bcdedit /copy exited with code ${LASTEXITCODE}: $bcdCreateOutput"
 }
 Write-Host "[wootc] bcdedit copy: $bcdCreateOutput"
 
@@ -554,32 +554,32 @@ Set-Content -Force -Path "$installDir\bcd-guid.txt" -Value $newGuid -Encoding AS
 # grubx64.efi (Fedora-signed), which loads grub.cfg from EFI/fedora/.
 $setPathOutput = & bcdedit /set $newGuid path "\EFI\fedora\shimx64.efi" 2>&1
 if ($LASTEXITCODE -ne 0) {
-    throw "bcdedit /set path exited with code $LASTEXITCODE: $setPathOutput"
+    throw "bcdedit /set path exited with code ${LASTEXITCODE}: $setPathOutput"
 }
 Write-Host "[wootc] BCD path set to \EFI\fedora\shimx64.efi"
 
 # One-time boot: boot the deployer on the very next restart only.
 $setBootSeqOutput = & bcdedit /set "{fwbootmgr}" bootsequence $newGuid /addfirst 2>&1
 if ($LASTEXITCODE -ne 0) {
-    throw "bcdedit /set bootsequence exited with code $LASTEXITCODE: $setBootSeqOutput"
+    throw "bcdedit /set bootsequence exited with code ${LASTEXITCODE}: $setBootSeqOutput"
 }
 Write-Host "[wootc] Set one-time bootsequence to $newGuid"
 
 # ── Observable verification (#50): prove the BCD state is correct ──────
 # Query the new entry and {fwbootmgr} to confirm the EFI path and that
 # bootsequence contains the new GUID.
-$verifyGuidOut = & bcdedit /enum $newGuid 2>&1
+$verifyGuidOut = (& bcdedit /enum $newGuid 2>&1) | Out-String
 if ($LASTEXITCODE -ne 0) {
-    throw "bcdedit /enum $newGuid exited with code $LASTEXITCODE: $verifyGuidOut"
+    throw "bcdedit /enum $newGuid exited with code ${LASTEXITCODE}: $verifyGuidOut"
 }
 if ($verifyGuidOut -notmatch 'path.*shimx64\.efi') {
     throw "Verification failed: new BCD entry does not point to shimx64.efi`n$verifyGuidOut"
 }
 Write-Host "[wootc] Verified: BCD entry path points to shimx64.efi"
 
-$verifyFwbmOut = & bcdedit /enum "{fwbootmgr}" 2>&1
+$verifyFwbmOut = (& bcdedit /enum "{fwbootmgr}" 2>&1) | Out-String
 if ($LASTEXITCODE -ne 0) {
-    throw "bcdedit /enum {fwbootmgr} exited with code $LASTEXITCODE: $verifyFwbmOut"
+    throw "bcdedit /enum {fwbootmgr} exited with code ${LASTEXITCODE}: $verifyFwbmOut"
 }
 if ($verifyFwbmOut -notmatch [regex]::Escape($newGuid)) {
     throw "Verification failed: {fwbootmgr} bootsequence does not contain $newGuid`n$verifyFwbmOut"

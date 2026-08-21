@@ -56,6 +56,19 @@ run_fast() {
         echo "!! python3 not installed — skipping python unit tests" >&2
     fi
 
+    # PowerShell static gate. The .ps1 payloads only ever execute inside a
+    # Windows guest, minutes into an E2E run, so a syntax error there costs a
+    # whole VM cycle to discover — which is exactly how two bugs shipped in
+    # setup-wootc.ps1 (an invalid `$LASTEXITCODE:` scope reference, and a
+    # `-notmatch` against un-stringified command output). Both are caught
+    # statically in well under a second. See tests/lint-ps1.ps1.
+    if command -v pwsh >/dev/null; then
+        echo "── powershell lint (tests/lint-ps1.ps1) ──"
+        pwsh -NoProfile -File tests/lint-ps1.ps1 || rc=1
+    else
+        echo "!! pwsh not installed — skipping PowerShell lint" >&2
+    fi
+
     if command -v go >/dev/null; then
         echo "── go test (fisherman TUI, cross-platform app) ──"
         # app/main.go has //go:embed all:frontend/dist, so the package will not

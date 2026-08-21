@@ -158,7 +158,7 @@ SMOKE_OK=true
 # Uses a one-shot swtpm that starts, binds, and terminates immediately —
 # catches missing libraries or broken TPM emulation before a test run.
 if podman run --rm --entrypoint "" "$TARGET_IMAGE" sh -c \
-    'd=/tmp/swtpm-smoke-$$; mkdir -p "$d"; swtpm socket --tpm2 --tpmstate dir="$d" --server type=unix,path="$d.sock" --ctrl type=unix,path="$d-ctrl.sock" --terminate 2>/dev/null & sleep 2; test -S "$d.sock"; rc=$?; kill %1 2>/dev/null; rm -rf "$d" "$d.sock" "$d-ctrl.sock" 2>/dev/null; exit $rc' >/dev/null 2>&1; then
+    'd=/tmp/swtpm-smoke-$$; mkdir -p "$d"; swtpm socket --tpm2 --tpmstate dir="$d" --server type=unixio,path="$d.sock" --ctrl type=unixio,path="$d-ctrl.sock" --terminate 2>/dev/null & sleep 2; test -S "$d.sock"; rc=$?; kill %1 2>/dev/null; rm -rf "$d" "$d.sock" "$d-ctrl.sock" 2>/dev/null; exit $rc' >/dev/null 2>&1; then
     echo "+   swtpm (start + bind socket): OK"
 else
     echo "[FAIL] swtpm cannot start and bind a socket in the derived image — TPM emulation will fail" >&2
