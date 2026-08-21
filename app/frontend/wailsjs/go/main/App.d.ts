@@ -57,6 +57,12 @@ export interface SystemInfo {
   secureBootKnown: boolean;
   defragRecommended: boolean;
   dataPartitions: Array<{letter: string; label: string; freeGB: number; encrypted: boolean}>;
+  /** Windows computer name sanitised into a legal Linux hostname (#174).
+   *  Empty when unreadable or when nothing usable survives sanitisation. */
+  suggestedHostname: string;
+  /** Windows account name sanitised into a legal Linux username (#174).
+   *  Empty when unreadable or when nothing usable survives sanitisation. */
+  suggestedUsername: string;
 }
 
 export interface BridgeCategory {

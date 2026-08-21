@@ -2,10 +2,15 @@ import { E2EDriveDirective, E2EDriveReport, Reboot } from '../../wailsjs/go/main
 
 // Wails' WebView cannot expose CDP, so GUI E2E drives the real form through
 // the same Go-to-JS bridge and DOM event handlers used by the application.
-function fieldByLabel(label) {
+// Accepts several acceptable labels for one field. User-facing copy is
+// deliberately churny (#176 is an ongoing pass to plainer English), and
+// driveInstall() bails silently when a lookup misses — so a pure wording
+// change could disable the whole GUI E2E without failing anything loudly.
+// Listing the aliases keeps a rename from becoming a silent test outage.
+function fieldByLabel(...labels) {
   for (const field of document.querySelectorAll('.field')) {
     const fieldLabel = field.querySelector('label');
-    if (fieldLabel && fieldLabel.textContent === label) return field.querySelector('input');
+    if (fieldLabel && labels.includes(fieldLabel.textContent)) return field.querySelector('input');
   }
   return null;
 }
@@ -15,7 +20,7 @@ function driveInstall(directive, state) {
 
   const imageInput = fieldByLabel('Custom supported OCI image');
   const username = fieldByLabel('Linux Username');
-  const hostname = fieldByLabel('Hostname');
+  const hostname = fieldByLabel('Computer name', 'Hostname');
   const passwords = document.querySelectorAll('input[type=password]');
   const encryption = directive.encryption || 'none';
   const encryptionRadio = document.querySelector(`input[name=encryption][value=${encryption}]`);

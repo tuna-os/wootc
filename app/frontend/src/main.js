@@ -45,18 +45,18 @@ const state = {
 };
 
 const INSTALL_STEPS = [
-  'Checking system',
-  'Disabling Fast Startup',
-  'Creating directories',
+  'Checking your PC',
+  'Preparing Windows',
+  'Setting things up',
   'Finding your files',
-  'Creating root.vhdx',
-  'Downloading deployer',
-  'Writing GRUB config',
-  'Setting up ESP',
-  'Configuring BCD',
-  'Writing vault.json',
+  'Making room for Linux',
+  'Downloading Linux',
+  'Preparing the startup menu',
+  'Getting Linux prepared',
+  'Making Linux bootable on your machine',
+  'Saving your settings',
   'Collecting your look',
-  'Finalizing',
+  'Finishing up',
 ];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -148,11 +148,15 @@ async function init() {
   state.selected = state.images[0] || null;
   applyImageDefaults(state.selected);
 
-  // Pre-fill username from OS if available
-  try {
-    const u = (sysinfo.osVersion || '').toLowerCase();
-    if (!u.includes('dev')) state.config.username = 'james'; // placeholder
-  } catch {}
+  // Default the Linux identity from this Windows machine so the launchpad
+  // only has to ask for a password (#174). Both are sanitised Go-side and
+  // come back "" when nothing usable survives, in which case the field stays
+  // empty for the user rather than showing a wrong guess.
+  // (This replaced a hardcoded 'james' placeholder that shipped as the
+  // username default for every user.)
+  if (sysinfo.suggestedUsername) state.config.username = sysinfo.suggestedUsername;
+
+  if (sysinfo.suggestedHostname) state.config.hostname = sysinfo.suggestedHostname;
 
   if (existing) {
     try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
@@ -381,11 +385,22 @@ function renderLaunchpad() {
   diskField.appendChild(freeNote);
   fields.appendChild(diskField);
 
-  // Username + hostname
-  const row1 = el('div', 'field-row');
-  row1.appendChild(inputField('Linux Username', 'text', state.config.username, v => state.config.username = v, 'james'));
-  row1.appendChild(inputField('Hostname', 'text', state.config.hostname, v => state.config.hostname = v, 'tunaos'));
-  fields.appendChild(row1);
+  // Identity. Both default from this Windows machine (#174), so in the normal
+  // case there is nothing to type here and the row moves under Advanced —
+  // leaving a password as the only thing the default form asks for.
+  //
+  // When either could NOT be derived the row stays on the main form. Install
+  // validation requires a username, so hiding an empty one behind a collapsed
+  // panel would disable the button and point at a field the user cannot see.
+  const identityDerived = Boolean(state.config.username && state.config.hostname);
+  const idRow = el('div', 'field-row');
+  idRow.appendChild(inputField('Linux Username', 'text', state.config.username,
+    v => { state.config.username = v; refreshInstallValidity(); },
+    state.sysinfo?.suggestedUsername || 'user'));
+  idRow.appendChild(inputField('Computer name', 'text', state.config.hostname,
+    v => { state.config.hostname = v; refreshInstallValidity(); },
+    state.sysinfo?.suggestedHostname || 'tunaos'));
+  if (!identityDerived) fields.appendChild(idRow);
 
   // Password
   const row2 = el('div', 'field-row');
@@ -471,7 +486,19 @@ function renderLaunchpad() {
   if (state.advancedOpen) advanced.open = true;
   advanced.addEventListener('toggle', () => { state.advancedOpen = advanced.open; });
   advanced.style.cssText = 'margin-top:6px;border:1px solid var(--border);border-radius:6px;padding:7px 9px';
-  advanced.innerHTML = `<summary style="cursor:pointer;font-size:12px;font-weight:600">Advanced boot options</summary>`;
+  advanced.innerHTML = `<summary style="cursor:pointer;font-size:12px;font-weight:600">Advanced</summary>`;
+
+  // The identity row built above lands here when it was derived successfully;
+  // otherwise it stayed on the main form where the user can actually see it.
+  if (identityDerived) {
+    const idNote = el('div');
+    idNote.style.cssText = 'font-size:11.5px;color:var(--text-muted);margin-top:8px';
+    idNote.textContent = 'Taken from this PC. Change these only if you want different ones on Linux.';
+    advanced.appendChild(idNote);
+    idRow.style.cssText = 'margin-top:6px';
+    advanced.appendChild(idRow);
+  }
+
   const bootChoice = el('label');
   bootChoice.style.cssText = 'display:flex;gap:8px;margin-top:8px;font-size:12px;align-items:flex-start';
   bootChoice.innerHTML = `<input type="checkbox" ${state.config.bootloader === 'systemd-boot' ? 'checked' : ''}><span>Force systemd-boot<br><span style="color:var(--text-muted)">Off (recommended): wootc detects the image's boot method automatically and uses the Secure-Boot-signed chain. On: boots the installer with a bundled systemd-boot EFI binary instead.</span></span>`;

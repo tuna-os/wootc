@@ -43,8 +43,13 @@ test('GUI-driven install: form → real pipeline → done → reboot', async () 
   // supported family, not only the curated cards).
   await page.locator('.field:has-text("Custom supported OCI image") input').fill(IMAGE);
 
+  // Username and computer name moved under "Advanced": both now default from
+  // the Windows machine, so the plain form only asks for a password. They are
+  // still driven here to prove the explicit values reach the install.
+  // <details> must be opened first — Playwright will not fill a collapsed one.
+  await page.locator('details:has-text("Advanced") summary').click();
   await page.locator('.field:has-text("Linux Username") input').fill(USERNAME);
-  await page.locator('.field:has-text("Hostname") input').fill(HOSTNAME);
+  await page.locator('.field:has-text("Computer name") input').fill(HOSTNAME);
   const pw = page.locator('input[type=password]');
   await pw.nth(0).fill(PASSWORD);
   await pw.nth(1).fill(PASSWORD);

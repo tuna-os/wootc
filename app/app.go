@@ -137,6 +137,86 @@ type SystemInfo struct {
 	// On and the user should record their recovery key before proceeding (#63).
 	// This is honest disclosure, independent of whether we unlock C: (#61).
 	BitLockerRecoveryKeyWarning bool `json:"bitLockerRecoveryKeyWarning"`
+	// SuggestedHostname is this Windows machine's name, sanitised into a
+	// legal Linux hostname, so the migrated system keeps the identity the
+	// user already knows instead of a generic default (#174). Empty when the
+	// name could not be read or sanitises to nothing; the GUI then falls back
+	// to its own default rather than showing a blank field.
+	SuggestedHostname string `json:"suggestedHostname"`
+	// SuggestedUsername is the signed-in Windows account name, sanitised into
+	// a legal Linux username, so the migrated system keeps the identity the
+	// user already has. Empty when unreadable or when nothing usable
+	// survives; the GUI then leaves the field for the user to fill.
+	SuggestedUsername string `json:"suggestedUsername"`
+}
+
+// sanitizeUsername converts a Windows account name into a legal Linux
+// username: lowercase, [a-z0-9_-], must start with a letter or underscore,
+// max 32 characters (useradd's limit).
+//
+// Windows account names routinely contain spaces and capitals ("James
+// Reilly"), and may be a full DOMAIN\User or an email-style AzureAD name, so
+// this strips any prefix before the last separator first. Returns "" when
+// nothing usable survives.
+func sanitizeUsername(name string) string {
+	name = strings.TrimSpace(name)
+	// DOMAIN\user or MicrosoftAccount\user@example.com -> the account part.
+	if i := strings.LastIndexAny(name, `\/`); i >= 0 {
+		name = name[i+1:]
+	}
+	// AzureAD/MSA names are email-shaped; the local part is the useful half.
+	if i := strings.Index(name, "@"); i > 0 {
+		name = name[:i]
+	}
+
+	var b strings.Builder
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
+			b.WriteRune(r)
+		case r == '-' || r == ' ' || r == '.':
+			// Separators collapse to a single hyphen, never leading.
+			if b.Len() > 0 && !strings.HasSuffix(b.String(), "-") {
+				b.WriteRune('-')
+			}
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+
+	// Must not start with a digit or hyphen (useradd rejects both).
+	out = strings.TrimLeft(out, "0123456789-")
+	if len(out) > 32 {
+		out = strings.Trim(out[:32], "-")
+	}
+	return out
+}
+
+// sanitizeHostname converts a Windows computer name into a legal Linux
+// hostname (RFC 1123 label): lowercase, [a-z0-9-] only, no leading or
+// trailing hyphen, max 63 characters.
+//
+// Windows names are more permissive than Linux hostnames — they allow
+// underscores and other characters that systemd-hostnamed and many tools
+// reject — so this cannot be a straight copy. Returns "" when nothing usable
+// survives, which the caller treats as "no suggestion".
+func sanitizeHostname(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_' || r == ' ' || r == '.':
+			// Collapse separators to a single hyphen; never start with one.
+			if b.Len() > 0 && !strings.HasSuffix(b.String(), "-") {
+				b.WriteRune('-')
+			}
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if len(out) > 63 {
+		out = strings.Trim(out[:63], "-")
+	}
+	return out
 }
 
 // DataPartition is a candidate unencrypted volume for root.disk.
@@ -607,29 +687,29 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		percent float64
 		fn      func() error
 	}{
-		{"Checking system", 2, func() error { return checkSystem() }},
-		{"Disabling Fast Startup", 5, func() error { return disableFastStartup() }},
-		{"Creating directories", 8, func() error { return createDirectories() }},
+		{"Checking your PC", 2, func() error { return checkSystem() }},
+		{"Preparing Windows", 5, func() error { return disableFastStartup() }},
+		{"Setting things up", 8, func() error { return createDirectories() }},
 		// Resolve where the user's files ACTUALLY live while Windows is still
 		// running and can read its own registry (#64). Best-effort: on a machine
 		// with no redirection nothing is lost if this fails, and the Phase-2
 		// bridge falls back to the literal profile layout.
 		{"Finding your files", 9, func() error { recordKnownFolders(); return nil }},
-		{"Creating root.disk", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
-		{"Downloading deployer", 50, func() error {
+		{"Making room for Linux", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
+		{"Downloading Linux", 50, func() error {
 			return downloadDeployer(ctx, func(p float64) {
 				emit(ProgressEvent{
-					Step:    "Downloading deployer",
-					Message: fmt.Sprintf("Downloading deployer kernel + initramfs… %.0f%%", p*35),
+					Step:    "Downloading Linux",
+					Message: fmt.Sprintf("Downloading Linux… %.0f%%", p*35),
 					Percent: 15 + p*35,
 				})
 			})
 		}},
-		{"Writing GRUB config", 55, func() error { return writeGrubConfig(cfg) }},
-		{"Setting up ESP", 65, func() error { return setupESP(cfg) }},
-		{"Configuring BCD", 80, func() error { return configureBCD(cfg.Bootloader) }},
-		{"Writing vault.json", 85, func() error { return writeVault(cfg) }},
-		{"Storing BitLocker recovery key", 87, func() error {
+		{"Preparing the startup menu", 55, func() error { return writeGrubConfig(cfg) }},
+		{"Getting Linux prepared", 65, func() error { return setupESP(cfg) }},
+		{"Making Linux bootable on your machine", 80, func() error { return configureBCD(cfg.Bootloader) }},
+		{"Saving your settings", 85, func() error { return writeVault(cfg) }},
+		{"Saving your BitLocker recovery key", 87, func() error {
 			// When C: is BitLocker-protected, capture the numerical recovery
 			// password so Phase 2 (Linux) can unlock C: and the User Data
 			// Bridge can find the user profiles that live there (#61).
@@ -644,7 +724,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Collecting installed programs", 82, func() error {
+		{"Looking at your installed apps", 82, func() error {
 			// Registry-based program inventory (§4.3): enumerate HKLM/HKCU
 			// uninstall keys before Windows goes away, so the migration
 			// dashboard can show the complete picture — not just apps with
@@ -654,7 +734,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Checking app sessions", 90, func() error {
+		{"Checking your signed-in apps", 90, func() error {
 			candidates, err := collectSessions()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[wootc] session collection skipped: %v\n", err)
@@ -679,7 +759,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Detecting cloud drives", 88, func() error {
+		{"Looking for your cloud drives", 88, func() error {
 			// Cloud-storage detection (#66): OneDrive, Google Drive and
 			// Dropbox. Google Drive lives at a virtual drive letter (G:)
 			// produced by DriveFS at runtime — from Linux, reading the
@@ -708,7 +788,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Finalizing", 96, func() error {
+		{"Finishing up", 96, func() error {
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)
 			return nil
@@ -742,9 +822,9 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 		name    string
 		percent float64
 	}{
-		{"Checking system", 5}, {"Creating root.vhdx", 15},
-		{"Downloading deployer", 50}, {"Setting up ESP", 65},
-		{"Configuring BCD", 80}, {"Collecting installed programs", 85},
+		{"Checking your PC", 5}, {"Making room for Linux", 15},
+		{"Downloading Linux", 50}, {"Getting Linux prepared", 65},
+		{"Making Linux bootable on your machine", 80}, {"Looking at your installed apps", 85},
 		{"Collecting your look", 90},
 	}
 	for _, s := range steps {

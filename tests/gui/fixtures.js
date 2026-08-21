@@ -15,11 +15,11 @@ export const SYSINFO = {
 };
 
 export const INSTALL_STEPS = [
-  { step: 'Checking system', message: 'Checking system…', percent: 2 },
-  { step: 'Creating root.vhdx', message: 'Creating root.vhdx…', percent: 15 },
-  { step: 'Downloading deployer', message: 'Downloading deployer kernel + initramfs… 60%', percent: 36 },
-  { step: 'Setting up ESP', message: 'Setting up ESP…', percent: 65 },
-  { step: 'Configuring BCD', message: 'Configuring BCD…', percent: 80 },
+  { step: 'Checking your PC', message: 'Checking your PC…', percent: 2 },
+  { step: 'Making room for Linux', message: 'Making room for Linux…', percent: 15 },
+  { step: 'Downloading Linux', message: 'Downloading Linux… 60%', percent: 36 },
+  { step: 'Getting Linux prepared', message: 'Getting Linux prepared…', percent: 65 },
+  { step: 'Making Linux bootable on your machine', message: 'Making Linux bootable on your machine…', percent: 80 },
   { step: 'Collecting your look', message: 'Collecting your look…', percent: 90 },
 ];
 

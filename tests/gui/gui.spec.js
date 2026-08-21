@@ -41,7 +41,7 @@ test('installer — validation gates the Install button', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
   const inputs = page.locator('.field input');
   // username, hostname, password, confirm — fill a mismatching pair first.
-  await page.locator('input[placeholder="james"]').fill('alice');
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
   const pw = page.locator('input[type=password]');
   await pw.nth(0).fill('hunter2');
   await pw.nth(1).fill('hunter3');
@@ -55,14 +55,14 @@ test('installer — validation gates the Install button', async ({ page }) => {
 
 test('installer — progress screen', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: INSTALL_STEPS, stepDelay: 400 });
-  await page.locator('input[placeholder="james"]').fill('alice');
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
   const pw = page.locator('input[type=password]');
   await pw.nth(0).fill('hunter2');
   await pw.nth(1).fill('hunter2');
   await page.locator('#install-btn').click();
   await expect(page.locator('.progress-bar-fill')).toBeVisible();
   // Wait until a mid-run step is active.
-  await expect(page.locator('.progress-steps-list')).toContainText('Setting up ESP');
+  await expect(page.locator('.progress-steps-list')).toContainText('Getting Linux prepared');
   await page.waitForTimeout(900);
   await shot(page, '03-progress');
 });
@@ -70,7 +70,7 @@ test('installer — progress screen', async ({ page }) => {
 test('installer — done screen', async ({ page }) => {
   const steps = [...INSTALL_STEPS, { step: 'done', message: 'Installation complete.', percent: 100, done: true }];
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps, stepDelay: 10 });
-  await page.locator('input[placeholder="james"]').fill('alice');
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
   const pw = page.locator('input[type=password]');
   await pw.nth(0).fill('hunter2');
   await pw.nth(1).fill('hunter2');
@@ -127,7 +127,7 @@ test('installer — backend detection is automatic; forcing systemd-boot warns f
   // image leaves the override OFF; turning it on is explicit and warns.
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
   await page.getByText('Bonito').first().click();
-  await page.getByText('Advanced boot options').click();
+  await page.locator('details:has-text("Advanced") summary').click();
   const force = page.getByRole('checkbox', { name: /Force systemd-boot/ });
   await expect(force).not.toBeChecked();
   await force.check();
@@ -140,6 +140,8 @@ test('installer — supported family custom OCI reference is accepted', async ({
   // A supported-family custom ref is accepted: fill a valid form and the
   // Install button enables. (Custom refs default to grub2/ostree per the
   // backend contract — covered by the "custom OCI ref defaults" test.)
+  // Identity fields live under "Advanced" now (defaults come from the PC).
+  await page.locator('details:has-text("Advanced") summary').click();
   await page.locator('.field:has-text("Linux Username") input').fill('tester');
   const pw = page.locator('input[type=password]');
   await pw.nth(0).fill('hunter2');
@@ -229,7 +231,42 @@ test('installer — custom OCI ref defaults to auto backend detection', async ({
     expect(sel.composeFs).toBe(false);
   } else {
     // State not exported to the page — assert via the visible config text.
-    await page.getByText('Advanced boot options').click();
+    await page.locator('details:has-text("Advanced") summary').click();
     await expect(page.locator('body')).not.toContainText('systemd-boot is not bundled');
   }
+});
+
+// #174 / streamlined launchpad. The identity row is only allowed to hide when
+// it actually carries derived values — install validation REQUIRES a username,
+// so a blank-and-hidden one would disable Install while pointing at a field
+// the user cannot see.
+test('installer — identity hides under Advanced only when derived from the PC', async ({ page }) => {
+  await boot(page, {
+    mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, suggestedUsername: 'jreilly', suggestedHostname: 'thinkpad' },
+  });
+
+  // Derived: the default form asks for a password only. The field is still in
+  // the DOM (inside the collapsed <details>), so assert on VISIBILITY — the
+  // E2E drive helper relies on that DOM presence, and a text assertion here
+  // would pass even if the row were shown.
+  await expect(page.locator('.field:has-text("Linux Username") input')).toBeHidden();
+
+  // ...and the values are still reachable (and correct) under Advanced.
+  await page.locator('details:has-text("Advanced") summary').click();
+  await expect(page.locator('.field:has-text("Linux Username") input')).toHaveValue('jreilly');
+  await expect(page.locator('.field:has-text("Computer name") input')).toHaveValue('thinkpad');
+
+  // Password alone is enough to enable Install.
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await expect(page.locator('#install-btn')).toBeEnabled();
+});
+
+test('installer — identity stays on the main form when it cannot be derived', async ({ page }) => {
+  // No suggestedUsername/suggestedHostname: nothing was derived, so the fields
+  // must remain visible rather than silently blocking the Install button.
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  await expect(page.locator('.field:has-text("Linux Username") input')).toBeVisible();
 });

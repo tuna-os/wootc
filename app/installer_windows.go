@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -25,6 +26,20 @@ import (
 
 func getSystemInfo() SystemInfo {
 	info := SystemInfo{IsUEFI: isUEFI()}
+
+	// Carry the machine's existing identity across the migration (#174): the
+	// user already knows this name. Sanitised because Windows computer names
+	// permit characters (underscores especially) that Linux hostnames do not.
+	if h, err := os.Hostname(); err == nil {
+		info.SuggestedHostname = sanitizeHostname(h)
+	}
+	// Same idea for the account name, so the launchpad can collect only a
+	// password by default instead of asking the user to invent an identity
+	// they already have. os/user gives DOMAIN\User on Windows; the sanitiser
+	// takes the account part.
+	if u, err := user.Current(); err == nil {
+		info.SuggestedUsername = sanitizeUsername(u.Username)
+	}
 
 	// OS version
 	v := windows.RtlGetVersion()
@@ -460,7 +475,22 @@ func createRootDisk(sizeGB int) error {
 
 // ── Deployer download ─────────────────────────────────────────────────────────
 
-const deployerBaseURL = "https://github.com/tuna-os/wootc/releases/latest/download/"
+const defaultDeployerBaseURL = "https://github.com/tuna-os/wootc/releases/latest/download/"
+
+// deployerBaseURL returns where boot artifacts + SHA256SUMS are fetched
+// from. WOOTC_DEPLOYER_MIRROR overrides it for local/offline testing (e.g. a
+// dev VM with no network route to GitHub) — the SHA256SUMS fail-closed check
+// in downloadDeployer still applies unchanged against whatever URL is used,
+// so this does not weaken verification, only where it points.
+func deployerBaseURL() string {
+	if v := strings.TrimSpace(os.Getenv("WOOTC_DEPLOYER_MIRROR")); v != "" {
+		if !strings.HasSuffix(v, "/") {
+			v += "/"
+		}
+		return v
+	}
+	return defaultDeployerBaseURL
+}
 
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	installDir := filepath.Join(wootcDir(), "install")
@@ -500,7 +530,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 			os.Remove(dest) //nolint:errcheck
 		}
 
-		if err := downloadFile(ctx, deployerBaseURL+name, dest, func(p float64) {
+		if err := downloadFile(ctx, deployerBaseURL()+name, dest, func(p float64) {
 			base := float64(i) / float64(len(files))
 			progress(base + p/float64(len(files)))
 		}); err != nil {
@@ -525,7 +555,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 // rather than silently disabling verification of privileged boot artifacts.
 func fetchChecksums(ctx context.Context) (map[string]string, error) {
 	tmp := filepath.Join(os.TempDir(), "wootc-SHA256SUMS")
-	if err := downloadFile(ctx, deployerBaseURL+"SHA256SUMS", tmp, func(float64) {}); err != nil {
+	if err := downloadFile(ctx, deployerBaseURL()+"SHA256SUMS", tmp, func(float64) {}); err != nil {
 		return nil, fmt.Errorf("fetch SHA256SUMS: %w", err)
 	}
 	defer os.Remove(tmp) //nolint:errcheck
