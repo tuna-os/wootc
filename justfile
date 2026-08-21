@@ -16,6 +16,8 @@ CTR := "wootc-e2e-windows"
 # enabled); kanpur/dilli are known-bad (docs/agent-lessons.md §11). Override
 # with WOOTC_E2E_HOST=<host>.
 KANPUR := env_var_or_default("WOOTC_E2E_HOST", "himachal")
+# Host-mapped RDP port for the local Windows VM (see tests/e2e/compose.yml).
+RDP_PORT := env_var_or_default("WOOTC_E2E_RDP_PORT", "3389")
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -79,6 +81,19 @@ build-wubildr:
     mkdir -p "{{ FILES }}"
     podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi > "{{ FILES }}/wubildr.efi"
     ls -lh "{{ FILES }}/wubildr.efi"
+
+# Build the real wootc.exe (frontend + windows/amd64) into wootc-files/, where
+# it's shared into the VM as \\host.lan\Data\wootc.exe (see compose.yml).
+# native_webview2loader is required for the CDP endpoint (see tests/gui/run-cdp.sh).
+build-wootc-exe:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "{{ FILES }}"
+    (cd app/frontend && npm install --silent && npm run build >/dev/null)
+    (cd app && GOOS=windows GOARCH=amd64 \
+        go build -tags desktop,production,native_webview2loader -ldflags "-w -s" \
+        -o "{{ FILES }}/wootc.exe" .)
+    ls -lh "{{ FILES }}/wootc.exe"
 
 # ── Remote E2E ────────────────────────────────────────────────────────────────
 #
@@ -317,10 +332,180 @@ remote-check-files:
 
 # ── Local VM management ───────────────────────────────────────────────────────
 
-# Start Windows VM locally
+# Start Windows VM locally. Self-heals two common rootless-laptop gotchas:
+# a desktop's own Remote Desktop server squatting on the RDP port (picks the
+# next free one instead), and a broken bridge/netavark path (falls back to
+# `--network=pasta`, same escape hatch as WOOTC_E2E_NETWORK_MODE in
+# compose.yml). The actual RDP port lands in storage/.rdp-port for `vm-wootc`.
 vm-start:
-    cd "{{ E2E_DIR }}" && podman compose up -d windows
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # compose.yml defaults to this image; build it once if missing (see
+    # build-ssh-image.sh header) rather than failing on a bogus "localhost"
+    # registry pull.
+    if [ -z "${WOOTC_E2E_IMAGE:-}" ] && ! podman image exists localhost/wootc-e2e-windows-ssh:latest; then
+        echo "localhost/wootc-e2e-windows-ssh:latest missing — building it once (tests/e2e/build-ssh-image.sh)..."
+        bash "{{ E2E_DIR }}/build-ssh-image.sh"
+    fi
+    mkdir -p "{{ STORAGE }}"
+    port="${WOOTC_E2E_RDP_PORT:-{{ RDP_PORT }}}"
+    while ss -ltn 2>/dev/null | grep -q ":${port} "; do port=$((port + 1)); done
+    [ "$port" = "${WOOTC_E2E_RDP_PORT:-{{ RDP_PORT }}}" ] || echo "Port {{ RDP_PORT }} taken (likely the host's own Remote Desktop) — using $port instead"
+    export WOOTC_E2E_RDP_PORT="$port"
+    echo "$port" > "{{ STORAGE }}/.rdp-port"
+    cd "{{ E2E_DIR }}"
+    if ! podman compose up -d windows 2>"{{ STORAGE }}/.vm-start.err"; then
+        if grep -qi "tun interface\|netavark" "{{ STORAGE }}/.vm-start.err"; then
+            echo "Bridge networking is broken on this host — retrying with --network=pasta..."
+            podman compose down >/dev/null 2>&1 || true
+            WOOTC_E2E_NETWORK_MODE=pasta podman compose up -d windows
+        else
+            cat "{{ STORAGE }}/.vm-start.err" >&2
+            exit 1
+        fi
+    fi
+    echo "RDP port: $port"
     echo "Watch: http://localhost:8006"
+
+# Build wootc.exe + deployer/wubildr artifacts, boot the local Windows VM, and
+# open an RDP session onto it — one command to reach an interactive desktop
+# for manual migration testing. No run-e2e.sh driving it. Reuses whatever
+# Windows disk/answer file is already staged in tests/e2e/storage (run `just
+# e2e` once first if storage/ is empty). Once inside Windows, run
+# \\host.lan\Data\wootc.exe by hand to click through the real GUI.
+vm-wootc: build-wootc-exe build vm-start
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=$(cat "{{ STORAGE }}/.rdp-port" 2>/dev/null || echo "{{ RDP_PORT }}")
+    echo "Login:  wootc / wootc-test-123!"
+    echo "Inside Windows: run \\\\host.lan\\Data\\wootc.exe to test the migration manually."
+    echo "Opening RDP on localhost:$port once Windows finishes booting (retrying in the background)..."
+    # setsid fully detaches this from the invoking shell's session, not just
+    # its job table — plain `& disown` only survives the parent shell exiting
+    # normally; it does not survive the parent's whole process group being
+    # torn down (e.g. a CI step, or this recipe run from a script).
+    setsid bash -c '
+      set -euo pipefail
+      # A bare TCP connect isn'"'"'t enough: the host-side port forward
+      # (pasta or dockur'"'"'s NAT) accepts the handshake immediately and
+      # only resets once it tries to reach the guest, so "port open" !=
+      # "RDP ready". Retry the real handshake instead.
+      ok=false
+      for _ in $(seq 1 60); do
+          xfreerdp "/v:localhost:'"$port"'" /u:wootc /p:"wootc-test-123!" \
+              /cert:ignore +clipboard /dynamic-resolution 2>/dev/null && { ok=true; break; }
+          sleep 10
+      done
+      # On some rootless hosts the bridge network is broken and the pasta
+      # fallback'"'"'s double NAT hop (host -> container -> dockur'"'"'s own
+      # DNAT -> guest) mishandles RDP'"'"'s data path even though the guest
+      # is reachable. noVNC terminates in the container itself (no second
+      # NAT hop) and stays reliable, so fall back to it rather than leaving
+      # no interactive session at all.
+      if [ "$ok" != true ]; then
+          echo "RDP never came up cleanly on this host — falling back to noVNC: http://localhost:8006" >&2
+          xdg-open http://localhost:8006 2>/dev/null || open http://localhost:8006 2>/dev/null || true
+      fi
+    ' </dev/null >/dev/null 2>&1 &
+    disown
+
+# Restore the Windows disk from its pristine snapshot, boot it, install
+# wootc.exe onto the guest (C:\wootc\wootc.exe + a Public Desktop shortcut),
+# launch it in the interactive session, and open noVNC — one command to reach
+# a known-good manual-test run instead of accumulating state across boots
+# (repeated dirty shutdowns of a locally-run VM can corrupt data.qcow2; this
+# recipe sidesteps that by always starting from the snapshot). Slower than
+# `vm-wootc` because of the full disk copy. Needs `just e2e` to have run at
+# least once so storage/data.qcow2.pristine exists.
+vm-wootc-fresh: build-wootc-exe build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    test -f "{{ STORAGE }}/data.qcow2.pristine" || {
+        echo "No pristine snapshot at {{ STORAGE }}/data.qcow2.pristine — run 'just e2e' once first." >&2
+        exit 1
+    }
+    just vm-stop
+    echo "Restoring Windows disk from pristine snapshot..."
+    rm -f "{{ STORAGE }}/data.qcow2"
+    cp "{{ STORAGE }}/data.qcow2.pristine" "{{ STORAGE }}/data.qcow2"
+    just vm-start
+    echo "Waiting for the guest agent..."
+    podman cp "{{ E2E_DIR }}/qga.py" "{{ CTR }}:/tmp/qga.py"
+    for _ in $(seq 1 60); do
+        podman exec "{{ CTR }}" python3 /tmp/qga.py ping >/dev/null 2>&1 && break
+        sleep 10
+    done
+    podman exec "{{ CTR }}" python3 /tmp/qga.py ping >/dev/null 2>&1 || {
+        echo "QGA never came up — the guest may still be booting; check 'just console'." >&2
+        exit 1
+    }
+    # The real wootc.exe always fetches SHA256SUMS + boot artifacts from
+    # GitHub Releases (installer_windows.go, fail-closed per #53) — it never
+    # looks at files staged locally. WOOTC_DEPLOYER_MIRROR overrides the base
+    # URL for exactly this kind of offline dev VM. Serve wootc-files/ over
+    # HTTP from inside the container's own netns (same trick dockur uses for
+    # noVNC on 8006: excluded from the QEMU_DNAT-to-guest catch-all so it
+    # resolves locally instead of being redirected into the guest) — the
+    # Samba share (\\host.lan\Data) already proves that path reaches the
+    # guest, this just adds an HTTP listener beside it.
+    echo "Regenerating SHA256SUMS and starting the local deployer mirror..."
+    ( cd "{{ FILES }}" && sha256sum deployer-vmlinuz deployer-initramfs.img shimx64.efi grubx64.efi wubildr.efi > SHA256SUMS )
+    mirror_port=18080
+    podman exec "{{ CTR }}" iptables -t nat -C QEMU_DNAT -p tcp --dport "$mirror_port" -j RETURN 2>/dev/null || \
+        podman exec "{{ CTR }}" iptables -t nat -I QEMU_DNAT 1 -p tcp --dport "$mirror_port" -j RETURN
+    podman exec "{{ CTR }}" pkill -f "http.server $mirror_port" 2>/dev/null || true
+    podman exec -d "{{ CTR }}" python3 -m http.server "$mirror_port" --directory /shared --bind 0.0.0.0
+    echo "Installing wootc.exe + install artifacts + Desktop shortcut..."
+    # A single script file pushed via `qga.py write` and run with a trivial
+    # one-line -Command, rather than threading a multi-line PowerShell block
+    # through bash quoting *and* the qga.py CLI argument *and* PowerShell's
+    # own $-expansion — too many layers to keep straight reliably.
+    # Fully-quoted heredoc: bash performs zero escaping/expansion inside, so
+    # PowerShell's own $vars and UNC \\-paths need no backslash gymnastics.
+    # The one dynamic value (the mirror port) goes in via a sed placeholder
+    # afterward instead.
+    cat > "{{ STORAGE }}/install-wootc.ps1" <<'PS1'
+    New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
+    Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
+    foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi","SHA256SUMS") {
+        if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force }
+    }
+    @"
+    set WOOTC_DEPLOYER_MIRROR=http://host.lan:__MIRROR_PORT__/
+    start "" C:\wootc\wootc.exe
+    "@ | Set-Content -Path C:\wootc\launch-manual.cmd -Encoding ascii
+    $ws = New-Object -ComObject WScript.Shell
+    $sc = $ws.CreateShortcut("C:\Users\Public\Desktop\wootc.lnk")
+    $sc.TargetPath = "C:\wootc\launch-manual.cmd"
+    $sc.WorkingDirectory = "C:\wootc"
+    $sc.IconLocation = "C:\wootc\wootc.exe"
+    $sc.Save()
+    Write-Output "installed"
+    PS1
+    sed -i "s/__MIRROR_PORT__/$mirror_port/" "{{ STORAGE }}/install-wootc.ps1"
+    podman cp "{{ STORAGE }}/install-wootc.ps1" "{{ CTR }}:/tmp/install-wootc.ps1"
+    podman exec "{{ CTR }}" python3 /tmp/qga.py write /tmp/install-wootc.ps1 'C:\wootc-install.ps1'
+    podman exec "{{ CTR }}" python3 /tmp/qga.py powershell "& 'C:\wootc-install.ps1'"
+    echo "Launching wootc.exe in the interactive session..."
+    # QGA runs as SYSTEM in session 0, which cannot render a WebView2 window
+    # (see docs/gui-phase1-architecture.md / run-e2e.sh gui_install_arm) — an
+    # interactive scheduled task in the autologged session is required.
+    cat > "{{ STORAGE }}/launch-wootc.ps1" <<'PS1'
+    Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
+    schtasks /Delete /TN wootc-manual-launch /F 2>$null
+    $start = (Get-Date).AddMinutes(1).ToString("HH:mm")
+    $who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
+    if (-not $who) { $who = "wootc" }
+    schtasks /Create /TN wootc-manual-launch /SC ONCE /ST $start /TR "C:\wootc\launch-manual.cmd" /RU $who /IT /RL HIGHEST /F | Out-Null
+    schtasks /Run /TN wootc-manual-launch | Out-Null
+    Write-Output ("launched as: " + $who)
+    PS1
+    podman cp "{{ STORAGE }}/launch-wootc.ps1" "{{ CTR }}:/tmp/launch-wootc.ps1"
+    podman exec "{{ CTR }}" python3 /tmp/qga.py write /tmp/launch-wootc.ps1 'C:\wootc-launch.ps1'
+    podman exec "{{ CTR }}" python3 /tmp/qga.py powershell "& 'C:\wootc-launch.ps1'"
+    echo "Opening noVNC console..."
+    xdg-open http://localhost:8006 2>/dev/null || open http://localhost:8006 2>/dev/null || \
+        echo "Open http://localhost:8006 in your browser"
 
 # Stop Windows VM
 vm-stop:
