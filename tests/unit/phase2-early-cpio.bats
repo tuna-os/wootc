@@ -118,6 +118,37 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
     [ -L "$tmp/ovl/usr/sbin/mount.ntfs" ]
 }
 
+@test "behavioral: fallback wrapper preserves the caller's argv[0] (the '@' that survives switch-root)" {
+    # mount_host() launches the FUSE daemon as '@ntfs-3g' so systemd's initrd
+    # switch-root killing spree spares it. A wrapper that plain-execs the
+    # staged loader resets argv[0] to the loader path, the daemon is
+    # SIGKILLed mid-switch-root, and every loop I/O returns EIO — Phase 2
+    # died on "Failed to execute /sbin/init: Input/output error" on all
+    # three el10 cells of run 32534827767 (the only cells whose kernels lack
+    # ntfs3, and whose target ntfs-3g install failed, so ONLY they exercise
+    # this fallback). The wrapper must exec with `-a "\$0"` so the caller's
+    # chosen name — '@' included — reaches /proc/PID/cmdline.
+    tmp="$BATS_TEST_TMPDIR/fallback"
+    mkdir -p "$tmp/root" "$tmp/ovl" "$tmp/bin"
+    printf '#!/bin/sh\necho fake\n' > "$tmp/bin/ntfs-3g"
+    chmod +x "$tmp/bin/ntfs-3g"
+    # A fake loader good enough for the closure's exec-verification call.
+    printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/ld-linux-fake.so.2"
+    chmod +x "$tmp/bin/ld-linux-fake.so.2"
+    run run_helpers "
+        DEPLOY_ROOT='$tmp/root'
+        PATH='$tmp/bin':\$PATH
+        dso_closure() { printf '%s\n' '$tmp/bin/ld-linux-fake.so.2'; }
+        stage_ntfs3g_closure '$tmp/ovl'
+    "
+    [ "$status" -eq 0 ]
+    wrapper="$tmp/ovl/usr/bin/ntfs-3g"
+    [ -x "$wrapper" ]
+    # bash, not sh: `exec -a` is a bashism, and /bin/sh may be dash.
+    head -1 "$wrapper" | grep -q bash
+    grep -q 'exec -a "\$0" ' "$wrapper"
+}
+
 make_overlay() { # <dir> — a complete wootc overlay tree
     mkdir -p "$1/usr/lib/systemd/system/initrd-root-device.target.wants" \
              "$1/usr/lib/wootc" \
