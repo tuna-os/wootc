@@ -69,7 +69,7 @@ export function renderVMPreviewScreen() {
       <h2>Building your preview…</h2>
       <div style="color:var(--text-muted);max-width:440px">${p.message || 'Working…'}</div>
       <div style="width:60%;max-width:360px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px">
-        <div style="width:${pct}%;height:100%;background:var(--primary);transition:width .3s"></div>
+        <div style="width:${pct}%;height:100%;background:var(--accent);transition:width .3s"></div>
       </div>
       <div style="font-size:12px;color:var(--text-muted)">${pct}%</div>`;
   }

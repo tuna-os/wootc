@@ -173,10 +173,10 @@ export function renderLaunchpad() {
     row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px';
     const checked = state.config.encryption === value;
     row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} style="margin-top:1px">
-      <span><b>${title}${recommended ? ' <span style="color:var(--primary);font-size:10px;font-weight:500">RECOMMENDED</span>' : ''}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
+      <span><b>${title}${recommended ? ' <span style="color:var(--accent);font-size:10px;font-weight:500">RECOMMENDED</span>' : ''}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
     row.querySelector('input').onchange = () => { state.config.encryption = value; refreshInstallValidity(); render(); };
     // Visual highlight for selected option
-    if (checked) row.style.borderColor = 'var(--primary)';
+    if (checked) row.style.borderColor = 'var(--accent)';
     return row;
   };
   encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', false));
@@ -202,7 +202,7 @@ export function renderLaunchpad() {
   lookRow.innerHTML = `<input type="checkbox" ${state.config.windowsLook ? 'checked' : ''} style="margin-top:1px">
     <span><b>Make it feel like Windows</b><br><span style="color:var(--text-muted)">Bring your wallpaper, accent color, keyboard layout, taskbar pins and desktop shortcuts over. Off keeps the desktop's own look.</span></span>`;
   lookRow.querySelector('input').onchange = (e) => { state.config.windowsLook = e.target.checked; };
-  if (state.config.windowsLook) lookRow.style.borderColor = 'var(--primary)';
+  if (state.config.windowsLook) lookRow.style.borderColor = 'var(--accent)';
   fields.appendChild(lookRow);
 
   // Auth-token migration is a separate, explicit opt-in from look/data
