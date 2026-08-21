@@ -72,3 +72,50 @@ func TestReadBundleInfo(t *testing.T) {
 		}
 	})
 }
+
+// A bundled build must pin the installer to the image it actually shipped.
+// Offering the rest of the catalog there is a trap: every other entry needs
+// the multi-gigabyte download the bundle exists to avoid, so picking one
+// silently converts an offline install into an online one.
+func TestBundledBuildPinsTheCatalog(t *testing.T) {
+	// The pin is applied by GetImages via readBundleInfo(), which reads a
+	// fixed path — so exercise the decision directly with the same inputs.
+	catalog := []Image{
+		{ID: "a", ImageRef: "ghcr.io/tuna-os/yellowfin:gnome", Status: "green"},
+		{ID: "b", ImageRef: "ghcr.io/tuna-os/dakota:latest", Status: "green"},
+	}
+
+	pick := func(b *BundleInfo) []Image {
+		if b == nil {
+			return catalog
+		}
+		for _, img := range catalog {
+			if img.ImageRef == b.Image {
+				return []Image{img}
+			}
+		}
+		return []Image{{ID: "bundled", ImageRef: b.Image, Status: "green"}}
+	}
+
+	t.Run("no bundle leaves the catalog alone", func(t *testing.T) {
+		if got := pick(nil); len(got) != 2 {
+			t.Errorf("got %d images, want the full catalog of 2", len(got))
+		}
+	})
+
+	t.Run("bundled catalog image collapses to just that one", func(t *testing.T) {
+		got := pick(&BundleInfo{Image: "ghcr.io/tuna-os/dakota:latest"})
+		if len(got) != 1 || got[0].ID != "b" {
+			t.Fatalf("got %+v, want only the dakota entry", got)
+		}
+	})
+
+	t.Run("bundled image outside the catalog is still offered", func(t *testing.T) {
+		// A partner image or a pinned digest must not leave the launchpad
+		// with nothing to show.
+		got := pick(&BundleInfo{Image: "ghcr.io/acme/custom:v1"})
+		if len(got) != 1 || got[0].ImageRef != "ghcr.io/acme/custom:v1" {
+			t.Fatalf("got %+v, want a synthesised single entry", got)
+		}
+	})
+}

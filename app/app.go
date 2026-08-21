@@ -378,6 +378,29 @@ func (a *App) GetImages() ([]Image, error) {
 		return nil, fmt.Errorf("parse embedded catalog: %w", err)
 	}
 
+	// A bundled build pins the installer to the image it actually shipped
+	// (#177). Offering the rest of the catalog there would be a trap: every
+	// other entry needs the multi-gigabyte download this build exists to
+	// avoid, and picking one silently turns an offline install into an online
+	// one. One image, no choice — which is also the simpler flow.
+	//
+	// If the bundled ref is not in the catalog (a partner image, a pinned
+	// digest), it is surfaced as a single entry rather than dropped, otherwise
+	// the launchpad would have nothing to show at all.
+	if b := readBundleInfo(); b != nil {
+		for _, img := range catalog {
+			if img.ImageRef == b.Image {
+				return []Image{img}, nil
+			}
+		}
+		return []Image{{
+			ID: "bundled", Name: "Included with this installer", Emoji: "📦",
+			ImageRef: b.Image, Status: "green",
+			Description: "Shipped with wootc — no download needed.",
+			Bootloader:  "auto",
+		}}, nil
+	}
+
 	if a.GetSupportPolicy().ExperimentalImages {
 		return catalog, nil
 	}

@@ -82,6 +82,27 @@ build-wubildr:
     podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi > "{{ FILES }}/wubildr.efi"
     ls -lh "{{ FILES }}/wubildr.efi"
 
+# Assemble a full offline release bundle: wootc.exe's runtime assets laid out
+# exactly as they must land at C:\wootc\ on the target.
+#
+# Each piece is independently optional and degrades to fewer features rather
+# than failing — QEMU alone gives "Boot in VM", plus the builder pair gives
+# "Try in VM", plus an image gives an install that needs no network.
+#
+# QEMU is NOT vendored in this repo (~100 MB of third-party GPL binaries with
+# their own DLL closure), so point qemu= at an extracted Windows QEMU install.
+# Pass an empty image to skip staging the multi-GB image. Arguments are
+# POSITIONAL (just does not take name=value here), so pass empties explicitly:
+#   just release-bundle dist/wootc-offline /opt/qemu-w64 ghcr.io/tuna-os/yellowfin:gnome
+#   just release-bundle dist/qemu-only     /opt/qemu-w64 ""
+release-bundle out="dist/wootc-offline" qemu="" image=WOOTC_IMAGE:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=(--out "{{ out }}")
+    [ -n "{{ qemu }}" ]  && args+=(--qemu "{{ qemu }}")
+    [ -n "{{ image }}" ] && args+=(--image "{{ image }}")
+    bash payload/bundle/make-release-bundle.sh "${args[@]}"
+
 # Build the Try-in-VM builder artifacts (SPEC 6.1): the Alpine kernel +
 # initramfs that turn an OCI image into a preview disk inside a headless VM.
 #
