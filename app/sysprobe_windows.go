@@ -31,11 +31,6 @@ func isUEFI() bool {
 	return r != 0 && ft == 2
 }
 
-func secureBootEnabled() bool {
-	on, _ := secureBootState()
-	return on
-}
-
 func secureBootState() (bool, bool) {
 	out, err := runCmd("powershell", "-NoProfile", "-NonInteractive",
 		"-Command", "try { if (Confirm-SecureBootUEFI -ErrorAction Stop) { 'on' } else { 'off' } } catch { 'unknown' }")

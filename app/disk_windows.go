@@ -57,8 +57,8 @@ func dedicatedVolumeInfo(d string) (bool, float64) {
 	// A wootc-created volume is labeled "wootc-data" and contains nothing
 	// but the wootc dir (ignoring system folders).
 	out, err := runPowerShellOutput(fmt.Sprintf(
-		`$items = Get-ChildItem '%s:\' -Force -ErrorAction SilentlyContinue | Where-Object { `+
-			`$_.Name -notin @('$RECYCLE.BIN','System Volume Information','wootc') }; `+
+		`$items = @(Get-ChildItem '%s:\' -Force -ErrorAction SilentlyContinue | Where-Object { `+
+			`$_.Name -notin @('$RECYCLE.BIN','System Volume Information','wootc') }); `+
 			`$v = Get-Volume -DriveLetter %s -ErrorAction SilentlyContinue; `+
 			`'{0}|{1}' -f $items.Count, [math]::Round($v.Size/1GB,1)`, d, d))
 	if err != nil {
@@ -116,7 +116,6 @@ func removePartitionAndExtendC(drive string) error {
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
 $p = Get-Partition -DriveLetter %s
-$disk = $p.DiskNumber
 Remove-Partition -DriveLetter %s -Confirm:$false
 $supported = Get-PartitionSupportedSize -DriveLetter C
 Resize-Partition -DriveLetter C -Size $supported.SizeMax`, drive, drive)
@@ -170,8 +169,15 @@ func createRootDisk(sizeGB int) error {
 		return fmt.Errorf("fsutil setvaliddata (VDL extension): %w: %s", err, strings.TrimSpace(out))
 	}
 
+	// Two distinct failures, reported separately. Folding them into one branch
+	// dereferenced a nil st whenever Stat itself failed — so the path that runs
+	// ONLY when disk creation has already gone wrong panicked instead of saying
+	// what went wrong (#191).
 	st, err := os.Stat(path)
-	if err != nil || st.Size() != sizeBytes {
+	if err != nil {
+		return fmt.Errorf("root.disk verification failed: cannot stat %s: %w", path, err)
+	}
+	if st.Size() != sizeBytes {
 		return fmt.Errorf("root.disk verification failed: got %d bytes, want %d", st.Size(), sizeBytes)
 	}
 	return nil

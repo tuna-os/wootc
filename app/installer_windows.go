@@ -171,7 +171,15 @@ func getUninstallInfo() UninstallInfo {
 	return UninstallInfo{Found: false}
 }
 
+// ctx is accepted for signature symmetry with the install path but is
+// deliberately NOT honoured as a cancellation point (#191). Uninstall is an
+// ordered sequence of destructive cleanups — BCD entries, ESP files, then the
+// wootc directory — and abandoning it midway leaves a machine that is neither
+// migrated nor restored: a boot entry pointing at files that are gone is worse
+// than either end state. If cancellation is ever wanted here it needs an
+// explicit rollback story, not a ctx check dropped between steps.
 func uninstallWith(ctx context.Context, opts UninstallOptions) error {
+	_ = ctx
 	info := getUninstallInfo()
 
 	// 1. Remove all wootc BCD entries.
