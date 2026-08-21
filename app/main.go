@@ -38,8 +38,16 @@ func main() {
 		MinHeight:        620,
 		MaxWidth:         820,
 		MaxHeight:        620,
-		DisableResize:    true,
-		Frameless:        false,
+		DisableResize: true,
+		// Frameless: the app draws its own title bar (.titlebar, which already
+		// carries --wails-draggable). With the native chrome ALSO on, the
+		// window showed two stacked bars — a generic Windows one above wootc's
+		// own — which is the "unstyled window decoration" of #175.
+		//
+		// Frameless removes the system minimise/close buttons, so the title bar
+		// MUST supply its own or the window cannot be closed. See the controls
+		// in renderTitleBar().
+		Frameless: true,
 		BackgroundColour: background,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

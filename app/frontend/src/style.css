@@ -85,6 +85,36 @@ html, body {
   flex-shrink: 0;
   --wails-draggable: drag;
 }
+/* Window controls. The window is frameless (#175), so these replace the
+   system caption buttons — they must stay reachable in every state.
+   --wails-draggable:no-drag is load-bearing: the bar itself is a drag handle,
+   and without this the buttons would move the window instead of clicking. */
+.titlebar-controls {
+  /* No margin-left:auto here — .titlebar-step already has one, and two auto
+     margins split the free space between them, stranding the step mid-bar.
+     One pusher is enough; the controls ride flush right behind it. */
+  display: flex;
+  gap: 2px;
+  --wails-draggable: no-drag;
+}
+.titlebar-btn {
+  width: 30px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.titlebar-btn:hover { background: var(--bg-hover); color: var(--text); }
+/* Close gets the conventional red hover; keep the glyph white on it so the
+   contrast holds in both themes. */
+.titlebar-btn-close:hover { background: var(--danger); color: #fff; }
+.titlebar-btn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+
 .titlebar-logo { font-size: 22px; }
 .titlebar-name {
   font-size: 15px;

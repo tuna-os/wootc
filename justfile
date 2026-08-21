@@ -82,6 +82,28 @@ build-wubildr:
     podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi > "{{ FILES }}/wubildr.efi"
     ls -lh "{{ FILES }}/wubildr.efi"
 
+# Regenerate the Windows app icon + resource object from app/build/appicon.svg.
+# Only needed when the artwork changes: the resulting rsrc_windows_amd64.syso is
+# COMMITTED, because we ship with plain `go build` (not `wails build`), and a
+# plain go build embeds no resources unless a .syso is sitting in the package.
+# The _windows_amd64 suffix is load-bearing — it keeps the object out of Linux
+# builds, which the cross-platform test tier depends on.
+# Needs: rsvg-convert (librsvg), python3-pillow, and akavel/rsrc.
+build-icon:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v rsvg-convert >/dev/null || { echo "need rsvg-convert (librsvg)" >&2; exit 1; }
+    command -v "$(go env GOPATH)/bin/rsrc" >/dev/null 2>&1 || go install github.com/akavel/rsrc@latest
+    cd app/build
+    rsvg-convert -w 256 -h 256 appicon.svg -o appicon.png
+    mkdir -p windows
+    python3 make-ico.py
+    cd ..
+    "$(go env GOPATH)/bin/rsrc" -ico build/windows/icon.ico \
+        -manifest build/windows/wootc.manifest -arch amd64 \
+        -o rsrc_windows_amd64.syso
+    ls -lh build/windows/icon.ico rsrc_windows_amd64.syso
+
 # Build the real wootc.exe (frontend + windows/amd64) into wootc-files/, where
 # it's shared into the VM as \\host.lan\Data\wootc.exe (see compose.yml).
 # native_webview2loader is required for the CDP endpoint (see tests/gui/run-cdp.sh).

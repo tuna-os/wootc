@@ -1,3 +1,10 @@
+# A global ignore of `build/` is common (and is in effect on at least one dev
+# machine), but the Windows icon + manifest SOURCES live in build/ and must be
+# tracked — without them `just build-icon` cannot regenerate the resource and
+# wootc.exe silently loses its icon. Re-include the directory, then re-exclude
+# the compiled output inside it.
+!build/
 build/bin
+
 node_modules
 frontend/dist

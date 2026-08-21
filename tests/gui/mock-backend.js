@@ -75,6 +75,7 @@ const mock = window.__WOOTC_MOCK || {};
 window.go = { main: { App: makeApp(mock) } };
 // The bundled wailsjs EventsOn delegates to EventsOnMultiple, which the
 // real runtime provides — mock the full surface the bundle touches.
+window.__wootcWindowCalls = [];
 window.runtime = {
   EventsOnMultiple: (name, cb) => {
     if (name === 'install:progress') window.__wootcInstallEmitters.push(cb);
@@ -85,7 +86,12 @@ window.runtime = {
   EventsOff: () => {},
   EventsEmit: () => {},
   LogPrint: () => {}, LogInfo: () => {}, LogError: () => {},
-  WindowMinimise: () => {}, WindowHide: () => {}, Quit: () => {},
+  // Recorded, not just stubbed: the window is frameless (#175), so these are
+  // the only way to minimise or close it and a test must be able to prove the
+  // title-bar controls actually reach the runtime.
+  WindowMinimise: () => { window.__wootcWindowCalls.push('WindowMinimise'); },
+  WindowHide: () => { window.__wootcWindowCalls.push('WindowHide'); },
+  Quit: () => { window.__wootcWindowCalls.push('Quit'); },
   Environment: () => Promise.resolve({ buildType: 'test' }),
 };
 window.wails = { Quit: () => {} };

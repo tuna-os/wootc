@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- wootc app icon.
+       A tuna (the project is tuna-os; the branding logo is a fish) on the
+       brand accent, #5b6ee1 -> #7b8ef4, the same pair style.css uses for its
+       accent tokens.
+
+       Deliberately built from a few large shapes with a wide light-on-dark
+       contrast ratio: this has to stay legible as a 16px taskbar favicon,
+       where fine detail turns to mud. The notched tail is the silhouette's
+       most recognisable feature at that size, so it is oversized relative to
+       a literal fish. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7b8ef4"/>
+      <stop offset="1" stop-color="#4553c4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle plate. 56px radius tracks the Windows 11 app-icon look. -->
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#bg)"/>
+
+  <g fill="#ffffff">
+    <!-- Body: a blunt-nosed tuna, nose to the right. -->
+    <path d="M92 128
+             C92 98 124 74 160 74
+             C190 74 212 96 218 122
+             C219 126 219 130 218 134
+             C212 160 190 182 160 182
+             C124 182 92 158 92 128 Z"/>
+    <!-- Tail: deeply notched crescent, the tell at small sizes. -->
+    <path d="M88 128 L38 88 C48 108 48 148 38 168 Z"/>
+    <!-- Dorsal fin. -->
+    <path d="M138 78 C146 56 164 44 178 42 C170 54 166 66 164 76 Z"/>
+    <!-- Pectoral fin. -->
+    <path d="M140 140 C154 142 168 150 176 160 C160 162 146 156 138 148 Z"
+          opacity="0.55"/>
+  </g>
+
+  <!-- Eye, punched in the plate colour so it reads as a hole rather than a
+       third tone (two tones survive downscaling; three do not). -->
+  <circle cx="190" cy="116" r="10" fill="#4553c4"/>
+</svg>

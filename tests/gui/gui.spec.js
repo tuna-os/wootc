@@ -270,3 +270,41 @@ test('installer — identity stays on the main form when it cannot be derived', 
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
   await expect(page.locator('.field:has-text("Linux Username") input')).toBeVisible();
 });
+
+// #175. The window is frameless, so the title bar's own controls are the ONLY
+// way to minimise or close it — if they stop reaching the runtime the app
+// becomes untappable, which no other test would notice.
+test('titlebar — frameless window controls reach the runtime', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+
+  await page.locator('#win-min').click();
+  expect(await page.evaluate(() => window.__wootcWindowCalls)).toContain('WindowMinimise');
+
+  await page.locator('#win-close').click();
+  expect(await page.evaluate(() => window.__wootcWindowCalls)).toContain('Quit');
+});
+
+// Closing mid-install would leave the PC part-way converted, so the close
+// button must ask first — and must NOT quit when the user declines.
+test('titlebar — closing during an install asks for confirmation', async ({ page }) => {
+  await boot(page, {
+    mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    installSteps: INSTALL_STEPS, stepDelay: 4000,
+  });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.progress-bar-fill')).toBeVisible();
+
+  // Decline: the app must stay open.
+  page.once('dialog', d => d.dismiss());
+  await page.locator('#win-close').click();
+  expect(await page.evaluate(() => window.__wootcWindowCalls)).not.toContain('Quit');
+
+  // Accept: now it quits.
+  page.once('dialog', d => d.accept());
+  await page.locator('#win-close').click();
+  expect(await page.evaluate(() => window.__wootcWindowCalls)).toContain('Quit');
+});
