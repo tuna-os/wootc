@@ -105,8 +105,6 @@ browsers, how many Wi-Fi profiles. The choice is saved to
 
 ## 8b. Set up your account
 
-![Account setup](screenshots/13b-account-setup.png)
-
 `wootc-user-gui`. Your name, username, email and account picture are
 carried over from Windows and already filled in — the screen asks for
 exactly one thing you have to supply: a Linux password.
