@@ -118,16 +118,22 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
     [ -L "$tmp/ovl/usr/sbin/mount.ntfs" ]
 }
 
-@test "behavioral: fallback wrapper preserves the caller's argv[0] (the '@' that survives switch-root)" {
-    # mount_host() launches the FUSE daemon as '@ntfs-3g' so systemd's initrd
-    # switch-root killing spree spares it. A wrapper that plain-execs the
-    # staged loader resets argv[0] to the loader path, the daemon is
-    # SIGKILLed mid-switch-root, and every loop I/O returns EIO — Phase 2
-    # died on "Failed to execute /sbin/init: Input/output error" on all
-    # three el10 cells of run 32534827767 (the only cells whose kernels lack
-    # ntfs3, and whose target ntfs-3g install failed, so ONLY they exercise
-    # this fallback). The wrapper must exec with `-a "\$0"` so the caller's
-    # chosen name — '@' included — reaches /proc/PID/cmdline.
+@test "behavioral: fallback wrapper hardcodes the '@' argv[0] that survives switch-root" {
+    # The FUSE daemon this wrapper becomes must carry argv[0] starting with
+    # '@' so systemd's initrd switch-root killing spree spares it; otherwise
+    # the daemon is SIGKILLed mid-switch-root and every loop I/O returns EIO
+    # — Phase 2 died on "Failed to execute /sbin/init: Input/output error"
+    # on all three el10 cells of run 32534827767 (the only cells whose
+    # kernels lack ntfs3 AND whose target ntfs-3g install failed, so only
+    # they exercise this fallback).
+    #
+    # The '@' must be HARDCODED, not propagated: `exec -a "\$0"` looked
+    # right and run 32538672432 proved it wrong — shebang handling replaces
+    # argv[0] with the script path before the wrapper runs, so \$0 never
+    # carries the caller's '@mount.ntfs-3g'. The assertion is textual
+    # because the honest end-to-end check needs a real binary loader: a
+    # script stand-in would itself go through shebang argv replacement and
+    # could not demonstrate the '@' reaching /proc/PID/cmdline.
     tmp="$BATS_TEST_TMPDIR/fallback"
     mkdir -p "$tmp/root" "$tmp/ovl" "$tmp/bin"
     printf '#!/bin/sh\necho fake\n' > "$tmp/bin/ntfs-3g"
@@ -146,7 +152,10 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
     [ -x "$wrapper" ]
     # bash, not sh: `exec -a` is a bashism, and /bin/sh may be dash.
     head -1 "$wrapper" | grep -q bash
-    grep -q 'exec -a "\$0" ' "$wrapper"
+    grep -q 'exec -a "@ntfs-3g" ' "$wrapper"
+    # The trap this test exists to block: never "propagate" \$0 again.
+    run grep 'exec -a "\$0"' "$wrapper"
+    [ "$status" -ne 0 ]
 }
 
 make_overlay() { # <dir> — a complete wootc overlay tree

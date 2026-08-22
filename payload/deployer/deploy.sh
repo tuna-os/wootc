@@ -1383,22 +1383,32 @@ stage_ntfs3g_closure() {
         fi
         # The wrapper the attach hook's mount_host() will find as `ntfs-3g`.
         #
-        # `exec -a "\$0"` is load-bearing, not cosmetic. mount_host() launches
-        # the FUSE daemon with argv[0] prefixed '@' so systemd's initrd
-        # switch-root killing spree spares it (systemd's ROOT STORAGE DAEMONS
-        # contract). A plain `exec` here re-execs through the staged loader
-        # and resets argv[0] to the loader path — no '@' — so the daemon was
-        # SIGKILLed mid-switch-root and every loop I/O returned EIO, ending in
-        # "Failed to execute /sbin/init: Input/output error" (all three el10
-        # cells, run 32534827767). The native-binary path never re-execs,
-        # which is why this only bit when the target-image ntfs-3g install
-        # failed and Phase 2 fell back to this closure. Propagating "\$0"
-        # keeps whatever name the caller chose, '@' included. Needs bash for
-        # `exec -a`, which the attach hook (bash) already requires present.
+        # The hardcoded `exec -a "@ntfs-3g"` is load-bearing, not cosmetic:
+        # the FUSE daemon this wrapper becomes must carry an argv[0] whose
+        # first byte is '@' so systemd's initrd switch-root killing spree
+        # spares it (systemd's ROOT STORAGE DAEMONS contract). Without it the
+        # daemon is SIGKILLed mid-switch-root and every loop I/O returns EIO,
+        # ending in "Failed to execute /sbin/init: Input/output error" — all
+        # three el10 cells of run 32534827767. Only this fallback bites: a
+        # native ntfs-3g never re-execs, so the '@' mount_host() sets
+        # survives, which is why el10 was green while the target-image
+        # ntfs-3g install still succeeded.
+        #
+        # The '@' must be hardcoded HERE; propagating the caller's name via
+        # `exec -a "\$0"` does not work (run 32538672432 proved it): this is
+        # a shebang script, and Linux shebang handling REPLACES argv[0] with
+        # the script path when it builds the interpreter's argv — the
+        # caller's '@mount.ntfs-3g' is discarded before this script runs, so
+        # \$0 is always the plain script path. /proc/PID/cmdline — what the
+        # killing spree reads — is fixed at execve time, so the hardcoded '@'
+        # survives both ld.so's argv shift and ntfs-3g's daemonizing fork.
+        # Unconditional '@' is harmless in every other context (argv[0] only
+        # feeds ntfs-3g's usage messages). Needs bash for `exec -a`, which
+        # the attach hook (bash) already requires present.
         mkdir -p "$ovl/usr/bin" "$ovl/usr/sbin"
         cat > "$ovl/usr/bin/ntfs-3g" <<NTFSWRAP
 #!/bin/bash
-exec -a "\$0" /$pdir/$ldso --library-path /$pdir /$pdir/ntfs-3g "\$@"
+exec -a "@ntfs-3g" /$pdir/$ldso --library-path /$pdir /$pdir/ntfs-3g "\$@"
 NTFSWRAP
         chmod 0755 "$ovl/usr/bin/ntfs-3g"
         ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs"
