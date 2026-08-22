@@ -11,7 +11,8 @@
 #
 # Commands:
 #   record-video.sh start <outdir>
-#   record-video.sh mark  <outdir> <card>     # card = phase1|deploy|phase2|phase3
+#   record-video.sh mark  <outdir> <card>     # card = any PNG in titlecards/
+#                                             # (phase1|deploy|phase2|phase3|userdata|windows)
 #   record-video.sh stop  <outdir>
 
 set -Eeuo pipefail

@@ -16,6 +16,10 @@ on:
         description: '#71 triage: only run if the runner drew this podman major (e.g. 5). Empty = any.'
         type: string
         default: ''
+      phase3:
+        description: 'Graduate to a native disk (Phase 3). Off = the run ends back in Windows, so the timelapse closes on the untouched-Windows demo — the right cut for showcase videos.'
+        type: boolean
+        default: true
   schedule:
     # Nightly, offset from the headless canary so they do not contend for
     # the hosted runner pool.
@@ -35,7 +39,11 @@ jobs:
     with:
       image: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
       gui_install: true
-      phase3: true
+      # Scheduled nightlies always graduate; a dispatch may turn Phase 3 off
+      # for showcase cuts (the run then ends back in Windows on camera).
+      # Comparing a boolean input to '' is a coercion trap (false == '' is
+      # TRUE in GH expressions), so branch on the event instead.
+      phase3: ${{ github.event_name == 'schedule' && true || inputs.phase3 }}
       use_base_image: true
       require_podman_major: ${{ inputs.require_podman_major || '' }}
     # No secrets: block — e2e-hosted.yml only uses secrets.GITHUB_TOKEN, which

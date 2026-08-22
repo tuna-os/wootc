@@ -2125,6 +2125,90 @@ mark_phase() {
     WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" mark "$VIDEO_DIR" "$1" 2>/dev/null || true
 }
 
+# ── Timelapse demo stages (video-only, never load-bearing) ───────────────────
+# Two showcase segments for the published walkthrough: the migrated files on
+# the live Linux desktop, and Windows coming back untouched. The FACTS are
+# proven elsewhere (the QGA data assertions above gate the run); these only
+# put the proof on camera. Every action is best-effort and confined to the
+# E2E VM — a demo that cannot run must never fail a run. WOOTC_E2E_DEMO=0
+# disables both; WOOTC_E2E_DEMO_DWELL tunes how long each scene holds.
+
+demo_linux_userdata() {
+    [ "${WOOTC_E2E_DEMO:-1}" = 1 ] || return 0
+    [ "${VIDEO_STARTED:-false}" = true ] || return 0
+    step "Timelapse demo: putting the migrated files on camera..."
+    # Log the user in on camera: an autologin drop-in for whichever display
+    # manager the image ships (SDDM for KDE/Bazzite, GDM for GNOME), then a
+    # greeter restart. The first-login welcome opens the Bring Over From
+    # Windows dashboard on its own — the migration demonstrating itself.
+    # E2E-VM-only state: nothing here is staged by the product installer.
+    qga_call exec /bin/sh -c '
+        u=wootc
+        if [ -x /usr/bin/sddm ] || [ -x /usr/sbin/sddm ]; then
+            mkdir -p /etc/sddm.conf.d
+            printf "[Autologin]\nUser=%s\nSession=plasma\n" "$u" > /etc/sddm.conf.d/90-wootc-e2e-demo.conf
+        fi
+        if [ -x /usr/sbin/gdm ] || [ -x /usr/bin/gdm ] || [ -d /etc/gdm ]; then
+            mkdir -p /etc/gdm
+            printf "[daemon]\nAutomaticLoginEnable=True\nAutomaticLogin=%s\n" "$u" > /etc/gdm/custom.conf
+        fi
+        systemctl restart display-manager 2>/dev/null || true' >/dev/null 2>&1 || true
+    # Wait for the user session, then give the desktop time to paint.
+    local demo_deadline
+    demo_deadline=$(deadline_in 120)
+    while ! past_deadline "$demo_deadline"; do
+        if qga_call exec /bin/sh -c 'loginctl list-sessions --no-legend 2>/dev/null | grep -q wootc && echo WOOTC_SESSION_UP' 2>/dev/null | grep -q WOOTC_SESSION_UP; then
+            break
+        fi
+        sleep 5
+    done
+    mark_phase userdata
+    sleep 20
+    # Open the file manager on the bridged Documents folder. Best-effort: a
+    # Wayland launch from outside the session can fail, and the welcome
+    # dashboard is already on screen either way.
+    qga_call exec /bin/sh -c '
+        uid=$(id -u wootc 2>/dev/null) || exit 0
+        runuser -u wootc -- env "XDG_RUNTIME_DIR=/run/user/$uid" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+            systemd-run --user --collect xdg-open /home/wootc/Documents' >/dev/null 2>&1 || true
+    sleep "${WOOTC_E2E_DEMO_DWELL:-40}"
+    pass "Timelapse demo: Linux desktop segment recorded"
+}
+
+demo_windows_untouched() {
+    [ "${WOOTC_E2E_DEMO:-1}" = 1 ] || return 0
+    [ "${VIDEO_STARTED:-false}" = true ] || return 0
+    step "Timelapse demo: putting the untouched Windows on camera..."
+    # Wait for the interactive desktop, not merely the agent: the /IT task
+    # below needs a logged-on session to land in.
+    local demo_deadline
+    demo_deadline=$(deadline_in 180)
+    while ! past_deadline "$demo_deadline"; do
+        if qga_powershell 'if ((Get-CimInstance Win32_ComputerSystem).UserName) { exit 0 } else { exit 1 }' >/dev/null 2>&1; then
+            break
+        fi
+        sleep 10
+    done
+    mark_phase windows
+    # Same interactive-session mechanism the GUI launch uses (schtasks /IT):
+    # Explorer on the user profile shows the files exactly where they were,
+    # and Disk Management shows the partition table wootc never altered.
+    qga_powershell '@"
+start `"`" explorer.exe "C:\Users\%USERNAME%\Documents"
+start `"`" mmc.exe diskmgmt.msc
+"@ | Set-Content -Path C:\wootc\e2e-demo.cmd -Encoding ascii
+schtasks /Delete /TN wootc-e2e-demo /F 2>$null
+$who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
+if (-not $who) { $who = "wootc" }
+$start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
+schtasks /Create /TN wootc-e2e-demo /SC ONCE /ST $start /TR "C:\wootc\e2e-demo.cmd" /RU $who /IT /RL HIGHEST /F | Out-Null
+schtasks /Run /TN wootc-e2e-demo | Out-Null
+Write-Output "demo-task-scheduled"' >/dev/null 2>&1 || true
+    sleep "${WOOTC_E2E_DEMO_DWELL:-40}"
+    qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-demo\" /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
+    pass "Timelapse demo: Windows-untouched segment recorded"
+}
+
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
     info "Skipping install wait (--skip-install)"
@@ -3677,6 +3761,10 @@ else
     exit 1
 fi
 
+# The data assertions above proved the bridge; now put it on camera while
+# Phase 2 is still up (video-only, best-effort).
+demo_linux_userdata
+
 # ── Step 10: boot the result, not merely its installer ─────────────────────
 if [ "${RUN_PHASE3:-false}" = true ]; then
     step "Rebooting Phase 2 into the one-shot Phase 3 native install..."
@@ -3789,6 +3877,9 @@ else
     # went down would satisfy a bare QGA wait instantly and fake the return.
     qga_wait_windows 600
     pass "One-shot Phase 2 boot consumed; Windows returned successfully"
+    # Windows is verifiably back — put the untouched machine on camera
+    # (video-only, best-effort).
+    demo_windows_untouched
 fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────

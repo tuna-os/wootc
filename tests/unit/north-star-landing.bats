@@ -69,3 +69,48 @@ WELCOME="payload/migration/wootc-welcome"
     # Both GTK generations read their own path.
     grep -q 'gtk-3.0 gtk-4.0' "$MOUNTDIRS"
 }
+
+@test "the Windows-drive bookmark also reaches KDE's Dolphin" {
+    # GTK bookmarks are invisible to Dolphin (KDE — Bazzite's file manager),
+    # which reads ~/.local/share/user-places.xbel. Half the catalog is KDE;
+    # a GNOME-only bookmark quietly halves the promise.
+    grep -q 'add_host_bookmark_kde "$home"' "$MOUNTDIRS"
+    grep -q 'user-places.xbel' "$MOUNTDIRS"
+    grep -q 'href="file:///run/wootc/host"' "$MOUNTDIRS"
+    # Behavior, not just presence: fresh seed, dedupe, and append-into-existing
+    # all produce a parseable file with the entry present exactly once.
+    local T="$BATS_TEST_TMPDIR/kdebm" fn
+    mkdir -p "$T/home"
+    fn="$(sed -n '/^add_host_bookmark_kde()/,/^}/p' "$MOUNTDIRS")"
+    run bash -c "$fn
+        add_host_bookmark_kde '$T/home'
+        add_host_bookmark_kde '$T/home'"
+    [ "$status" -eq 0 ]
+    [ "$(grep -c 'wootc/host' "$T/home/.local/share/user-places.xbel")" -eq 1 ]
+    python3 -c "import xml.dom.minidom as m; m.parse('$T/home/.local/share/user-places.xbel')"
+    # Append branch: an existing places file keeps its own entries.
+    printf '%s\n' '<?xml version="1.0"?>' '<xbel>' ' <bookmark href="file:///home/x"><title>x</title></bookmark>' '</xbel>' \
+        > "$T/home/.local/share/user-places.xbel"
+    run bash -c "$fn
+        add_host_bookmark_kde '$T/home'"
+    [ "$status" -eq 0 ]
+    grep -q 'file:///home/x' "$T/home/.local/share/user-places.xbel"
+    grep -q 'file:///run/wootc/host' "$T/home/.local/share/user-places.xbel"
+    python3 -c "import xml.dom.minidom as m; m.parse('$T/home/.local/share/user-places.xbel')"
+}
+
+@test "the timelapse demo stages exist and can never fail a run" {
+    # The demo segments (migrated files on camera, Windows back untouched)
+    # are video-only: gated on the recording, disable-able, and every guest
+    # action is best-effort. A demo must never turn a proven-green run red.
+    local E2E="tests/e2e/run-e2e.sh"
+    grep -q 'demo_linux_userdata' "$E2E"
+    grep -q 'demo_windows_untouched' "$E2E"
+    # Both bail out unless video is recording, and honor the kill switch.
+    [ "$(grep -c 'WOOTC_E2E_DEMO:-1' "$E2E")" -ge 2 ]
+    [ "$(grep -c 'VIDEO_STARTED:-false.*= true .* return 0' "$E2E")" -ge 2 ] || \
+        [ "$(grep -A2 'WOOTC_E2E_DEMO:-1' "$E2E" | grep -c 'VIDEO_STARTED')" -ge 2 ]
+    # Their title cards ship with the repo (record-video mark needs the PNG).
+    [ -f tests/e2e/titlecards/userdata.png ]
+    [ -f tests/e2e/titlecards/windows.png ]
+}
