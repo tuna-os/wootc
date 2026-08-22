@@ -85,13 +85,54 @@ jobs:
             find /tmp/evidence -maxdepth 3 -type d >&2 || true
             exit 1
           fi
-          echo "Publishing GUI-driven timelapse from $vd"
-          mkdir -p pages/e2e/latest
-          cp "$vd/preview.webp" pages/e2e/latest/preview.webp
-          [ -f "$vd/e2e.webm" ] && cp "$vd/e2e.webm" pages/e2e/latest/e2e.webm || echo "(poster only; no e2e.webm)"
-          cp "$vd/.passed" pages/e2e/latest/.passed 2>/dev/null || true
+          # One walkthrough PER DISTRIBUTION, plus "latest" for the README
+          # hero. Slug from the image that actually ran: bazzite:stable →
+          # bazzite, bluefin:lts → bluefin-lts (a stable/latest tag adds
+          # nothing; any other tag disambiguates).
+          image="${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}"
+          name=$(basename "${image%:*}")
+          tag="${image##*:}"
+          [ "$tag" = "$image" ] && tag=""
+          slug="$name"
+          case "$tag" in ''|stable|latest) ;; *) slug="$name-$tag" ;; esac
+          echo "Publishing GUI-driven timelapse from $vd (slug: $slug)"
 
-          if git diff --quiet -- pages/e2e/latest; then
+          # Carry every previously published cut forward: the assets branch
+          # is force-pushed as a fresh orphan each run, so without restoring
+          # its tree first, publishing bazzite would erase bluefin's video
+          # and vice versa. Only 'latest' and this run's slug are replaced.
+          if git fetch --depth 1 origin pages-assets 2>/dev/null; then
+            git checkout FETCH_HEAD -- pages/e2e 2>/dev/null || true
+            git reset -q HEAD -- pages/e2e 2>/dev/null || true
+          fi
+
+          for dest in pages/e2e/latest "pages/e2e/$slug"; do
+            mkdir -p "$dest"
+            cp "$vd/preview.webp" "$dest/preview.webp"
+            [ -f "$vd/e2e.webm" ] && cp "$vd/e2e.webm" "$dest/e2e.webm" || echo "(poster only; no e2e.webm)"
+            cp "$vd/.passed" "$dest/.passed" 2>/dev/null || true
+            # Ship the player with every cut: slug dirs exist only on the
+            # assets branch, so they cannot rely on a committed page.
+            cp pages/e2e/latest/index.html "$dest/index.html" 2>/dev/null || true
+          done
+
+          # Rebuild the gallery from whatever cuts now exist.
+          {
+            printf '%s\n' '<!doctype html>' '<html lang="en">' '<meta charset="utf-8">' \
+              '<meta name="viewport" content="width=device-width, initial-scale=1">' \
+              '<title>wootc — walkthrough gallery</title>' \
+              '<style>:root{color-scheme:dark}body{max-width:960px;margin:2rem auto;padding:0 1rem;background:#0d1117;color:#e6edf3;font:16px/1.6 system-ui,sans-serif}h1{font-size:1.5rem}a.card{display:inline-block;width:288px;margin:.5rem;text-decoration:none;color:#e6edf3}a.card img{width:100%;border-radius:8px;background:#000}a.card span{display:block;margin-top:.3rem;text-align:center;color:#7dd3fc}</style>' \
+              '<h1>wootc — end-to-end walkthroughs</h1>' \
+              '<p>Every video is a real, green acceptance run: Windows 11 → installer GUI → native Linux from <code>root.disk</code> → back to Windows. Only passing runs are ever published.</p>'
+            for d in pages/e2e/*/; do
+              s=$(basename "$d")
+              [ -f "$d/preview.webp" ] || continue
+              printf '<a class="card" href="%s/"><img src="%s/preview.webp" alt="%s walkthrough"><span>%s</span></a>\n' "$s" "$s" "$s" "$s"
+            done
+            printf '%s\n' '</html>'
+          } > pages/e2e/index.html
+
+          if [ -z "$(git status --porcelain pages/e2e)" ]; then
             echo "Timelapse unchanged — nothing to commit."
             exit 0
           fi
@@ -110,8 +151,11 @@ jobs:
           # commit to main required.
           git checkout --orphan pages-assets
           git rm -rf --cached . >/dev/null
-          git add pages/e2e/latest
-          git commit -m "e2e visual: refresh GUI-driven walkthrough media (${{ github.run_id }})"
+          # The whole gallery, not just latest: every brand's current cut plus
+          # the index ride the assets branch (still a single orphan commit —
+          # history never accumulates, wootc#87 holds).
+          git add pages/e2e
+          git commit -m "e2e visual: refresh walkthrough media, slug=$slug (${{ github.run_id }})"
           git push -f origin HEAD:pages-assets
 
           # Ask pages.yml to redeploy with the refreshed media -- it only

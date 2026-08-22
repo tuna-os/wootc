@@ -154,3 +154,24 @@ mkrun() {
     grep -q 'not a GREEN run' "$pv"
     grep -q 'ALLOW_RED' "$pv"
 }
+
+@test "per-distribution walkthrough cuts survive each publish" {
+    # The pages-assets branch is a fresh orphan every run (wootc#87 — main's
+    # history must never accumulate media). Without restoring the previous
+    # tree first, publishing one distribution's video would silently erase
+    # every other distribution's — bazzite's cut vanishing the night bluefin's
+    # nightly runs. The publish step must fetch the prior branch, overlay
+    # pages/e2e, and commit the whole gallery; pages.yml must deploy the
+    # whole gallery, not just latest.
+    local wf=".github/workflows/e2e-gui.yml"
+    grep -q 'git fetch --depth 1 origin pages-assets' "$wf"
+    grep -q 'git checkout FETCH_HEAD -- pages/e2e' "$wf"
+    grep -q 'git add pages/e2e$' "$wf"
+    # Slug derivation exists and latest keeps being refreshed for the README.
+    grep -q 'slug="\$name' "$wf" || grep -q 'slug=' "$wf"
+    grep -q 'pages/e2e/latest "pages/e2e/\$slug"' "$wf"
+    grep -q 'git checkout FETCH_HEAD -- pages/e2e$' ".github/workflows/pages.yml"
+    # The green-only gate still stands in front of all of it.
+    grep -q 'name .passed' tests/e2e/publish-visual.sh
+    grep -q '\.passed' "$wf"
+}

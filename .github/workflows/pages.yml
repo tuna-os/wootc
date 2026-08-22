@@ -37,12 +37,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Fetch latest E2E timelapse from pages-assets branch
+      - name: Fetch E2E walkthrough media from pages-assets branch
         run: |
           if ! git fetch --depth 1 origin pages-assets; then
             echo "pages-assets branch not published yet — deploying the committed pages/ tree as-is."
           else
-            git checkout FETCH_HEAD -- pages/e2e/latest
+            # The whole gallery — per-distribution cuts and the index, not
+            # just latest — rides the assets branch.
+            git checkout FETCH_HEAD -- pages/e2e
           fi
 
       - uses: actions/configure-pages@v6
