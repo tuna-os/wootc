@@ -34,6 +34,11 @@ type Image struct {
 	// Empty is treated as "experimental" (fail safe — never surface an
 	// unproven image to an alpha user by omission).
 	Status string `json:"status"`
+	// MokEnroll is the MokManager password for images whose custom kernel
+	// needs the distribution's MOK key enrolled under Secure Boot (#248).
+	// Non-empty means: the deployer queues the enrollment, and the GUI warns
+	// the user about the one-time blue MokManager screen with this password.
+	MokEnroll string `json:"mokEnroll,omitempty"`
 }
 
 // InstallConfig is the parameters collected on Screen 1.
@@ -404,6 +409,25 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 
 // GetImages returns the installable images the active channel permits. In
 // alpha only "green" (E2E-proven) images are offered; experimental images are
+// imageNeedsMok reports whether the catalog marks this image as needing its
+// distribution's MOK key enrolled under Secure Boot (#248 — custom kernels
+// the Fedora shim does not trust, e.g. Bazzite's fsync kernel). Keyed on the
+// embedded catalog so Fedora-signed-kernel images (aurora, bluefin) never
+// get a firmware prompt they do not need; images not in the catalog default
+// to no enrollment (the boot failure it risks is loud, the prompt is scary).
+func imageNeedsMok(ref string) bool {
+	var catalog []Image
+	if json.Unmarshal(catalogJSON, &catalog) != nil {
+		return false
+	}
+	for _, img := range catalog {
+		if img.ImageRef == ref {
+			return img.MokEnroll != ""
+		}
+	}
+	return false
+}
+
 // hidden until their matrix row is green. C:\wootc\images.json (enterprise
 // override) bypasses the filter — those deployments own their own testing.
 func (a *App) GetImages() ([]Image, error) {

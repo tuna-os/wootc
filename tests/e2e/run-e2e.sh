@@ -1253,7 +1253,8 @@ if [ "$SKIP_BUILD" = false ]; then
     #   firmware → shimx64.efi → grubx64.efi → grub.cfg
     # setup-wootc.ps1 copies them to the ESP via the Samba share.
     if [ ! -f "$SCRIPT_DIR/wootc-files/shimx64.efi" ] || \
-       [ ! -f "$SCRIPT_DIR/wootc-files/grubx64.efi" ]; then
+       [ ! -f "$SCRIPT_DIR/wootc-files/grubx64.efi" ] || \
+       [ ! -f "$SCRIPT_DIR/wootc-files/mmx64.efi" ]; then
         info "Extracting signed shim + GRUB from Fedora container..."
         # Keep the stopped container until after podman cp. With `--rm`, the
         # previous `podman wait` deleted it before either signed EFI binary
@@ -1261,10 +1262,14 @@ if [ "$SKIP_BUILD" = false ]; then
         CID=$(podman create quay.io/fedora/fedora:44 \
             bash -c "dnf install -y -q shim-x64 grub2-efi-x64 2>/dev/null && \
               cp /boot/efi/EFI/fedora/shimx64.efi /tmp/ && \
-              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && echo DONE")
+              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && \
+              cp /boot/efi/EFI/fedora/mmx64.efi /tmp/ && echo DONE")
         podman start -a "$CID" >/dev/null 2>&1 || true
         podman cp "$CID:/tmp/shimx64.efi" "${SCRIPT_DIR}/wootc-files/shimx64.efi" 2>/dev/null || true
         podman cp "$CID:/tmp/grubx64.efi" "${SCRIPT_DIR}/wootc-files/grubx64.efi" 2>/dev/null || true
+        # MokManager: shim launches it for the MOK enrollment custom-kernel
+        # images queue (#248); same signed package as shim itself.
+        podman cp "$CID:/tmp/mmx64.efi" "${SCRIPT_DIR}/wootc-files/mmx64.efi" 2>/dev/null || true
         podman rm "$CID" >/dev/null 2>&1 || true
         if [ -s "$SCRIPT_DIR/wootc-files/shimx64.efi" ]; then
             info "shimx64.efi: $(du -sh "$SCRIPT_DIR/wootc-files/shimx64.efi" | cut -f1)"
@@ -1301,7 +1306,7 @@ fi
 (
     cd "$SCRIPT_DIR/wootc-files"
     : > SHA256SUMS
-    for f in deployer-vmlinuz deployer-initramfs.img shimx64.efi grubx64.efi wubildr.efi; do
+    for f in deployer-vmlinuz deployer-initramfs.img shimx64.efi grubx64.efi mmx64.efi wubildr.efi; do
         [ -f "$f" ] && sha256sum "$f" >> SHA256SUMS
     done
 )
@@ -2515,7 +2520,7 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
 
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
-foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi","mirror.txt","SHA256SUMS") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1
@@ -3444,10 +3449,80 @@ pass "Phase 2 Linux boot scheduled through BCD one-shot entry (bootsequence veri
 qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
 qga_wait_down "Phase 2 Linux boot" 300
 
+# ── MokManager driver (#248) ─────────────────────────────────────────────────
+# When the deployer queued a MOK enrollment (custom-kernel images: the target
+# kernel is not shim-trusted until the distribution's key is enrolled), the
+# FIRST shim launch after deploy runs MokManager — a firmware-console UI that
+# writes NOTHING to serial. A real user confirms it by hand; the harness
+# replays the same keystrokes through the QEMU monitor. The discriminator is
+# serial-observable: after the shim start line, GRUB prints its banner within
+# seconds — if the deploy queued an enrollment and no banner appears,
+# MokManager is on screen. Stray keys are never sent into GRUB ('e' — which
+# the password contains — opens its editor), because the sequence runs ONLY
+# behind that no-banner discriminator.
+MOK_EXTRA=0
+mok_sendkey() {
+    $DOCKER exec "$CONTAINER_NAME" python3 -c \
+        'import socket,time,sys; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(("sendkey %s\n" % sys.argv[1]).encode()); time.sleep(.3); s.recv(4096); s.close()' \
+        "$1" >/dev/null 2>&1 || true
+}
+drive_mok_manager() {
+    snapshot_serial
+    grep -aq 'MOK enrollment queued' "$PTY" || return 0
+    step "Deploy queued a MOK enrollment — watching for MokManager..."
+    local mok_from mok_deadline new_out
+    mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
+    mok_deadline=$(deadline_in 60)
+    while ! past_deadline "$mok_deadline"; do
+        sleep 5
+        snapshot_serial
+        new_out=$(tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null || true)
+        if printf '%s' "$new_out" | grep -aq 'GRUB version'; then
+            info "  GRUB banner appeared — no MokManager this boot (already enrolled?)"
+            return 0
+        fi
+        if printf '%s' "$new_out" | grep -aq 'shimx64.efi'; then
+            break
+        fi
+    done
+    # shim started (or 60s passed) and no GRUB banner: MokManager is up.
+    # Give its 10-second "press any key" screen time to settle, then walk
+    # the enrollment: any key → Enroll MOK → Continue → Yes → password →
+    # Reboot. Every step sleeps long enough for the firmware UI to repaint.
+    info "  No GRUB banner after shim — driving MokManager (Enroll MOK, password universalblue)"
+    sleep 4
+    mok_sendkey ret;  sleep 4                  # leave the press-any-key screen
+    mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Enroll MOK
+    mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Continue (past View key)
+    mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Yes
+    local ch
+    for ch in u n i v e r s a l b l u e; do mok_sendkey "$ch"; sleep 1; done
+    mok_sendkey ret; sleep 5                   # confirm password
+    mok_sendkey ret; sleep 2                   # Reboot (top item post-enroll)
+    # The observable: the NEXT shim launch reaches GRUB.
+    mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
+    mok_deadline=$(deadline_in 120)
+    while ! past_deadline "$mok_deadline"; do
+        sleep 5
+        snapshot_serial
+        if tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null | grep -aq 'GRUB version'; then
+            pass "MOK enrolled — GRUB reached on the boot after MokManager"
+            MOK_EXTRA=300
+            return 0
+        fi
+    done
+    # Not fatal here: the Phase-2 wait below is the real verdict, and its
+    # failure diagnosis (bad shim signature) will name this exact cause.
+    warn "  GRUB banner not seen within 120s of the MokManager sequence — Phase 2 wait will decide"
+    MOK_EXTRA=300
+    return 0
+}
+drive_mok_manager
+
 mark_phase phase2
 step "Waiting for Phase 2 Linux system to boot..."
 
-TIMEOUT=300
+TIMEOUT=$((300 + MOK_EXTRA))
 BOOT_STARTED=$(date +%s)
 BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
 BOOT_SUCCESS=false

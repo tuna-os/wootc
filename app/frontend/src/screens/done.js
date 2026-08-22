@@ -33,6 +33,14 @@ export function renderDoneScreen() {
       your PC simply starts Windows again as normal — Windows stays your default
       until Linux has proven it works. Your files aren't touched either way.</span>
     </div>
+    ${state.selected?.mokEnroll ? `
+    <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-muted);margin-top:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:9px 12px;text-align:left;max-width:460px">
+      <span>🔑</span><span><strong>One extra one-time step for ${state.selected?.name || 'this system'}:</strong>
+      after setup, a blue "MOK management" screen appears once. That's your PC asking
+      permission to trust ${state.selected?.name || 'the'} drivers — choose
+      <strong>Enroll MOK</strong> → <strong>Continue</strong> → <strong>Yes</strong>, and type the password
+      <strong>${state.selected.mokEnroll}</strong>. Totally normal, and it never appears again.</span>
+    </div>` : ''}
   `;
   screen.appendChild(hero);
   wrap.appendChild(screen);

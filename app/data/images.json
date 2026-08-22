@@ -193,7 +193,8 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "fedora",
-    "status": "experimental"
+    "status": "experimental",
+    "mokEnroll": "universalblue"
   },
   {
     "id": "bazzite-deck",
@@ -207,7 +208,8 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "fedora",
-    "status": "experimental"
+    "status": "experimental",
+    "mokEnroll": "universalblue"
   },
   {
     "id": "flounder-gnome",

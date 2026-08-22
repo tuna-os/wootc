@@ -108,6 +108,7 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	if err := guardESPDestinations(espPath, []string{
 		filepath.Join("EFI", "fedora", "shimx64.efi"),
 		filepath.Join("EFI", "fedora", "grubx64.efi"),
+		filepath.Join("EFI", "fedora", "mmx64.efi"),
 		filepath.Join("EFI", "wootc", "deployer-vmlinuz"),
 		filepath.Join("EFI", "wootc", "deployer-initramfs.img"),
 	}); err != nil {
@@ -135,6 +136,12 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 		if err != nil {
 			return fmt.Errorf("%s is missing from %s — the download step did not complete: %w", name, installDir, err)
 		}
+		need += st.Size()
+	}
+	// mmx64.efi (MokManager) is optional — releases before it shipped have
+	// no copy to stage — but without it shim cannot run the MOK enrollment
+	// that custom-kernel images (Bazzite, #248) queue during deploy.
+	if st, err := os.Stat(filepath.Join(installDir, "mmx64.efi")); err == nil {
 		need += st.Size()
 	}
 	var freeBytes uint64
@@ -169,13 +176,26 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	// (31081727936 named grubx64.efi, 31160072559 named shimx64.efi). A stable
 	// order will not fix a race on its own, but a nondeterministic one makes
 	// every report of it look like a different bug.
-	for _, s := range []struct{ name, rel string }{
-		{"shimx64.efi", filepath.Join("EFI", "fedora", "shimx64.efi")},
-		{"grubx64.efi", filepath.Join("EFI", "fedora", "grubx64.efi")},
-		{"deployer-vmlinuz", filepath.Join("EFI", "wootc", "deployer-vmlinuz")},
-		{"deployer-initramfs.img", filepath.Join("EFI", "wootc", "deployer-initramfs.img")},
+	for _, s := range []struct {
+		name, rel string
+		// mmx64.efi (MokManager) rides beside shim so custom-kernel images
+		// (Bazzite, #248) can complete the MOK enrollment the deployer
+		// queues. Optional: releases before it shipped have no copy, and a
+		// non-akmods install never launches it.
+		optional bool
+	}{
+		{"shimx64.efi", filepath.Join("EFI", "fedora", "shimx64.efi"), false},
+		{"grubx64.efi", filepath.Join("EFI", "fedora", "grubx64.efi"), false},
+		{"mmx64.efi", filepath.Join("EFI", "fedora", "mmx64.efi"), true},
+		{"deployer-vmlinuz", filepath.Join("EFI", "wootc", "deployer-vmlinuz"), false},
+		{"deployer-initramfs.img", filepath.Join("EFI", "wootc", "deployer-initramfs.img"), false},
 	} {
 		src := filepath.Join(installDir, s.name)
+		if s.optional {
+			if _, err := os.Stat(src); err != nil {
+				continue
+			}
+		}
 		if err := stageESPFile(espPath, s.rel, func() error {
 			if err := copyFile(src, filepath.Join(espPath, s.rel)); err != nil {
 				return fmt.Errorf("copy %s: %w", s.name, err)
@@ -205,6 +225,14 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	}
 	if cfg.ComposeFS {
 		installMode += " wootc.composefs=1"
+	}
+	// MOK enrollment is OPT-IN per image (#248): only kernels the Fedora
+	// shim cannot verify (Bazzite's fsync) need the one-time MokManager
+	// step, and images with Fedora-signed kernels (aurora, bluefin) must
+	// never be handed a firmware prompt they do not need. The deployer only
+	// queues the enrollment when this flag rides the cmdline.
+	if imageNeedsMok(cfg.ImageRef) {
+		installMode += " wootc.mok=enroll"
 	}
 	// E2E parity with setup-wootc.ps1: the harness diagnoses the deployer
 	// from the QEMU SERIAL console. console=ttyS0 sends kernel + deploy logs

@@ -100,10 +100,11 @@ MODSETUP="payload/deployer/module-setup.sh"
     grep -q 'sha256sum "$f" >> SHA256SUMS' tests/e2e/run-e2e.sh
     grep -q '"SHA256SUMS") { if (Test-Path' tests/e2e/run-e2e.sh
     grep -q 'install", "SHA256SUMS"' app/deployer_windows.go
-    # wubildr.efi is best-effort in the release pipeline, so the app must
-    # treat it as the ONE optional artifact — a release without it must not
-    # brick every online install — while everything else stays fail-closed.
-    grep -q 'func isOptionalArtifact(name string) bool { return name == "wubildr.efi" }' app/deployer_windows.go
+    # wubildr.efi is best-effort in the release pipeline and mmx64.efi only
+    # exists in releases after #248, so the app must treat exactly those two
+    # as optional — a release without them must not brick every online
+    # install — while everything else stays fail-closed.
+    grep -q 'func isOptionalArtifact(name string) bool { return name == "wubildr.efi" || name == "mmx64.efi" }' app/deployer_windows.go
     grep -q 'wubildr.efi || rm -f release-assets/wubildr.efi' .github/workflows/release.yml
 }
 

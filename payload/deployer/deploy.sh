@@ -3287,6 +3287,52 @@ VERIFY_LOOP=""
 # ║ PROVISIONER: bootc/fisherman — ENDS here. Generic teardown follows.
 # ╚═══════════════════════════════════════════════════════════════════════════
 
+# ── MOK enrollment for custom-kernel images (#248) ──────────────────────────
+# Some images (Bazzite and other Universal Blue akmods consumers) ship a
+# kernel signed by the distribution's OWN key, which Fedora's shim does not
+# trust — under Secure Boot Phase 2 dies at GRUB with "bad shim signature"
+# (run 32588754680). Upstream's own answer is enrolling their MOK key
+# (`ujust enroll-secure-boot-key`, password "universalblue"); the deployer
+# queues that same enrollment here, so the user's only job is the one-time
+# MokManager confirmation on the next boot. Best-effort by design: a
+# non-akmods image finds no cert and this is a silent no-op, and a failure
+# to queue must not kill an otherwise-good deploy — the boot failure it
+# would cause is already loud.
+MOK_QUEUED=0
+queue_mok_enrollment() {
+    # OPT-IN per image: the app sets wootc.mok=enroll only for catalog
+    # entries whose kernel needs it (mokEnroll in images.json). Images with
+    # Fedora-signed kernels (aurora, bluefin) also carry akmods certs, and
+    # enrolling on cert-presence alone would hand their users a firmware
+    # prompt their boot does not need.
+    [[ "$(read_cmdline wootc.mok "")" == "enroll" ]] || { log "  wootc.mok not requested; skipping MOK check"; return 0; }
+    command -v mokutil >/dev/null 2>&1 || { log "  mokutil not in this initramfs; skipping MOK check"; return 0; }
+    # mokutil needs efivarfs; mount is idempotent and UEFI-only.
+    mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true
+    mokutil --sb-state 2>/dev/null | grep -qi 'enabled' || { log "  Secure Boot not enabled; no MOK enrollment needed"; return 0; }
+    local cert found=0
+    for cert in "$DEPLOY_ROOT"/etc/pki/akmods/certs/*.der \
+                "$DEPLOY_ROOT"/usr/share/ublue-os/certs/*.der; do
+        [[ -f "$cert" ]] || continue
+        found=1
+        if mokutil --test-key "$cert" 2>/dev/null | grep -qi 'already enrolled'; then
+            log "  MOK key already enrolled: $(basename "$cert")"
+            continue
+        fi
+        # The password matches upstream's documented one so every existing
+        # Bazzite guide the user might find says the same thing we do.
+        if printf 'universalblue\nuniversalblue\n' | mokutil --import "$cert" >/dev/null 2>&1; then
+            log "  [wootc] MOK enrollment queued: $(basename "$cert") (password: universalblue)"
+            MOK_QUEUED=1
+        else
+            log "  [WARN] could not queue MOK enrollment for $(basename "$cert") — Secure Boot may reject this image's kernel"
+        fi
+    done
+    [[ "$found" == 0 ]] && log "  no distribution MOK certs in this image; nothing to enroll"
+    return 0
+}
+queue_mok_enrollment || true
+
 phase "reboot"
 DEPLOY_OK=1   # success — the EXIT trap shows "starting Linux", not the failure card
 log "Verification complete. Deployer requested reboot..."
@@ -3301,7 +3347,12 @@ rearm_bootnext
 # Let the final splash sit for a beat so the reboot doesn't yank a
 # mid-progress screen away from the user — and say only what is true: the
 # "starting your new Linux system" line belongs to a boot we actually armed.
-if [[ -n "$WOOTC_OBSERVED" || -n "$WOOTC_REARMED" ]]; then
+if [[ "$MOK_QUEUED" == 1 ]]; then
+    # The next boot shows firmware's blue "MOK management" screen — scary if
+    # unannounced, routine if explained. Hold this screen long enough to read.
+    splash_set 100 100 "One more one-time step: a blue 'MOK management' screen appears next. Choose Enroll MOK, then Continue, then Yes, and type the password: universalblue"
+    sleep 18 2>/dev/null || true
+elif [[ -n "$WOOTC_OBSERVED" || -n "$WOOTC_REARMED" ]]; then
     splash_set 100 100 "All set! Starting your new Linux system..."
 else
     splash_set 100 100 "All set! Restarting into Windows - open the installer there to start ${DISTRO_NAME}."

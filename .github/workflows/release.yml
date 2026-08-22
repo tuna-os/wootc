@@ -179,12 +179,17 @@ jobs:
           CID=$(podman create quay.io/fedora/fedora:44 \
             bash -c "dnf install -y -q shim-x64 grub2-efi-x64 2>/dev/null && \
               cp /boot/efi/EFI/fedora/shimx64.efi /tmp/ && \
-              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && echo DONE")
+              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && \
+              cp /boot/efi/EFI/fedora/mmx64.efi /tmp/ && echo DONE")
           podman start -a "$CID"
           podman cp "$CID:/tmp/shimx64.efi" release-assets/shimx64.efi
           podman cp "$CID:/tmp/grubx64.efi" release-assets/grubx64.efi
+          # MokManager: shim launches it for the MOK enrollment that
+          # custom-kernel images (Bazzite, #248) queue during deploy.
+          podman cp "$CID:/tmp/mmx64.efi" release-assets/mmx64.efi
           podman rm "$CID"
-          [ -s release-assets/shimx64.efi ] && [ -s release-assets/grubx64.efi ] || {
+          [ -s release-assets/shimx64.efi ] && [ -s release-assets/grubx64.efi ] \
+            && [ -s release-assets/mmx64.efi ] || {
             echo "::error::signed shim/GRUB extraction failed"; exit 1; }
           # wubildr is best-effort in the harness too — the signed shim chain
           # is the fallback path.

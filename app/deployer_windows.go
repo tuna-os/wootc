@@ -34,9 +34,11 @@ func deployerBaseURL() string {
 
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	installDir := filepath.Join(wootcDir(), "install")
-	// The signed shim+grub pair carries the Secure Boot chain; wubildr.efi
-	// remains only for the legacy NTFS fallback path.
-	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi", "wubildr.efi"}
+	// The signed shim+grub pair carries the Secure Boot chain; mmx64.efi
+	// (MokManager) lets shim complete the MOK enrollment that custom-kernel
+	// images queue during deploy (#248); wubildr.efi remains only for the
+	// legacy NTFS fallback path.
+	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi", "mmx64.efi", "wubildr.efi"}
 
 	// The SHA256SUMS manifest is REQUIRED for production boot artifacts (#53).
 	// These files become privileged kernel/initramfs/EFI inputs; wootc must
@@ -105,7 +107,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 // without. Only wubildr.efi qualifies — it serves the legacy NTFS fallback
 // path; the Secure Boot chain (shim+grub) and the deployer pair are the
 // install.
-func isOptionalArtifact(name string) bool { return name == "wubildr.efi" }
+func isOptionalArtifact(name string) bool { return name == "wubildr.efi" || name == "mmx64.efi" }
 
 // fetchChecksums returns the SHA256SUMS manifest as a filename→hash map.
 // Fail-closed (#53): every error aborts the install rather than silently

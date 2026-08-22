@@ -375,6 +375,11 @@ if ($grubDir) {
     if ((Test-Path $shimSrc) -and (Test-Path $grubEfiSrc)) {
         Copy-Item $shimSrc "$installDir\shimx64.efi" -Force
         Copy-Item $grubEfiSrc "$installDir\grubx64.efi" -Force
+        # MokManager (best-effort): shim launches it for the MOK enrollment
+        # custom-kernel images queue during deploy (#248).
+        if (Test-Path "$payloadRoot\mmx64.efi") {
+            Copy-Item "$payloadRoot\mmx64.efi" "$installDir\mmx64.efi" -Force
+        }
         Write-Host "[wootc] Copied signed shim + GRUB from share"
     } else {
         Write-Host "[wootc] WARNING: shimx64.efi and/or grubx64.efi not found on share"
@@ -480,6 +485,10 @@ if (Test-Path "$installDir\shimx64.efi") {
 if (Test-Path "$installDir\grubx64.efi") {
     Copy-Item "$installDir\grubx64.efi" "$espPath\EFI\fedora\grubx64.efi" -Force
     Write-Host "[wootc] Copied grubx64.efi to ESP:EFI/fedora/"
+}
+if (Test-Path "$installDir\mmx64.efi") {
+    Copy-Item "$installDir\mmx64.efi" "$espPath\EFI\fedora\mmx64.efi" -Force
+    Write-Host "[wootc] Copied mmx64.efi (MokManager) to ESP:EFI/fedora/"
 }
 
 # Copy deployer kernel + initramfs to ESP (GRUB reads FAT32 but not NTFS).

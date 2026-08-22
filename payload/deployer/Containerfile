@@ -22,6 +22,7 @@ RUN dnf install -y \
     curl ca-certificates jq ntfs-3g fuse \
     qemu-guest-agent qemu-img cryptsetup psmisc shadow-utils policycoreutils which \
     efibootmgr \
+    mokutil \
     && dnf clean all
 
 # ── Build fisherman statically ──────────────────────────────────────────────
@@ -67,7 +68,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
                    losetup qemu-nbd dmsetup cryptsetup systemd-cryptenroll \
                     /usr/lib/systemd/systemd-cryptsetup \
-                    efibootmgr \
+                    efibootmgr mokutil \
                     curl dhclient ip NetworkManager jq blkid chroot shred logger basename date mktemp" \
         --kernel-cmdline "rd.neednet=1 ip=dhcp quiet" \
         /out/deployer-initramfs.img \
@@ -88,7 +89,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # catch, so assert it here too.
 RUN for bin in conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
         mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
-        ntfs-3g efibootmgr \
+        ntfs-3g efibootmgr mokutil \
         df sync truncate journalctl jq tee which basename date head; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \

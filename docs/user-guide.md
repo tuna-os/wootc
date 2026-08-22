@@ -170,6 +170,15 @@ one) — **C: stays encrypted the whole time.**
 - **Passphrase** — asks for a password every boot.
 - **None** — fastest; anyone with the PC can read the Linux disk.
 
+**The one-time blue screen (Bazzite and friends).** Some distributions ship
+their own tuned kernel, and under Secure Boot your PC needs one-time
+permission to trust it. For those images (the installer tells you on the
+final screen), the first start shows a blue **"MOK management"** screen:
+choose **Enroll MOK** → **Continue** → **Yes**, and type the password
+**`universalblue`** (the same one the distribution's own documentation
+uses). That's it — the screen never appears again, and Secure Boot stays
+fully on.
+
 ---
 
 ## 8. Go Linux-only (Phase 3)
