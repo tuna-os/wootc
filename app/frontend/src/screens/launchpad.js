@@ -119,7 +119,8 @@ export function renderLaunchpad() {
   screen.appendChild(grid);
 
   // A branded installer installs its own distribution — the custom-ref field
-  // is hidden outright (hideCustomImage), on top of the channel gate.
+  // is hidden outright (hideCustomImage), on top of the channel gate. It is a
+  // power-user control, so it lives under Advanced with the other overrides.
   const customRef = (state.policy?.customImageAllowed !== false && !state.brand?.hideCustomImage) ? inputField('Custom supported OCI image', 'text', state.config.customImageRef || '', v => {
     state.config.customImageRef = v.trim();
     if (/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\/[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$/.test(state.config.customImageRef)) {
@@ -135,9 +136,16 @@ export function renderLaunchpad() {
     }
     refreshInstallValidity();
   }, 'ghcr.io/ublue-os/image:tag') : null;
-  if (customRef) screen.appendChild(customRef);
 
-  // Config fields
+  // Config fields.
+  //
+  // The default form asks for as little as a Mac's first-run setup would: a
+  // password, nothing else. Everything else has a solid default — identity
+  // mirrored from this PC, disk sized from free space, TPM-backed encryption,
+  // Windows look and Wi-Fi brought along — and every default is inspectable
+  // and changeable under Advanced. A control only earns a place on the main
+  // form when it is a question we genuinely cannot answer for the user
+  // (BitLocker placement, a missing identity).
   const fields = el('div', 'fields');
 
   // Disk size slider. The slider must not offer sizes C: cannot hold: the
@@ -159,6 +167,7 @@ export function renderLaunchpad() {
   slider.oninput = () => {
     state.config.diskSizeGB = Number(slider.value);
     sliderVal.textContent = `${state.config.diskSizeGB} GB`;
+    refreshInstallValidity();
   };
   const freeNote = el('div');
   freeNote.style.cssText = 'font-size:11.5px;color:var(--text-muted);margin-top:3px';
@@ -167,7 +176,6 @@ export function renderLaunchpad() {
   sliderRow.appendChild(sliderVal);
   diskField.appendChild(sliderRow);
   diskField.appendChild(freeNote);
-  fields.appendChild(diskField);
 
   // Identity. Both default from this Windows machine (#174), so in the normal
   // case there is nothing to type here and the row moves under Advanced —
@@ -186,11 +194,19 @@ export function renderLaunchpad() {
     state.sysinfo?.suggestedHostname || 'tunaos'));
   if (!identityDerived) fields.appendChild(idRow);
 
-  // Password
+  // Password — in the normal derived-identity case, the ONLY thing the
+  // default form asks the user to type.
   const row2 = el('div', 'field-row');
   row2.appendChild(inputField('Password', 'password', state.config.password, v => { state.config.password = v; refreshInstallValidity(); }, ''));
   row2.appendChild(inputField('Confirm Password', 'password', state.config.passwordConfirm || '', v => { state.config.passwordConfirm = v; refreshInstallValidity(); }, ''));
   fields.appendChild(row2);
+
+  // Say what the defaults will do rather than asking about each one — trust
+  // is built by naming the plan, not by a wall of controls.
+  const plan = el('div');
+  plan.id = 'plan-note';
+  plan.style.cssText = 'font-size:11.5px;color:var(--text-muted);margin-top:2px';
+  fields.appendChild(plan);
 
   // Disk encryption (SPEC §2.6)
   const encSection = el('div');
@@ -224,26 +240,25 @@ export function renderLaunchpad() {
     ppRow.appendChild(inputField('LUKS Passphrase', 'password', state.config.luksPassphrase, v => { state.config.luksPassphrase = v; refreshInstallValidity(); }, ''));
     encSection.appendChild(ppRow);
   }
-  fields.appendChild(encSection);
 
-  // Windows-Style Mode (SPEC §4.4) — opt-in. Default off so we honor the
-  // image maker's desktop defaults; ticking it brings the user's Windows
-  // wallpaper, accent, keyboard layout, taskbar pins and desktop shortcuts
-  // over on first login.
+  // Windows-Style Mode (SPEC §4.4) — ON by default: everything safe to bring
+  // along comes along (wallpaper, accent, keyboard layout, taskbar pins,
+  // desktop shortcuts), the same way a Mac migration would. Advanced holds
+  // the opt-out for anyone who wants the image maker's stock desktop.
   const lookRow = el('label');
   lookRow.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:8px;margin-top:8px;border:1.5px solid var(--border);border-radius:6px';
   lookRow.innerHTML = `<input type="checkbox" ${state.config.windowsLook ? 'checked' : ''} style="margin-top:1px">
     <span><b>Make it feel like Windows</b><br><span style="color:var(--text-muted)">Bring your wallpaper, accent color, keyboard layout, taskbar pins and desktop shortcuts over. Off keeps the desktop's own look.</span></span>`;
   lookRow.querySelector('input').onchange = (e) => { state.config.windowsLook = e.target.checked; };
   if (state.config.windowsLook) lookRow.style.borderColor = 'var(--accent)';
-  fields.appendChild(lookRow);
 
   // Auth-token migration is a separate, explicit opt-in from look/data
   // migration. The backend defaults every app to off and still refuses
   // Discord/Slack because those services prefer relinking.
+  let sessionBox = null;
   const movableSessions = state.sessionCandidates.filter(c => c.portable && c.recommend === 'copy');
   if (movableSessions.length) {
-    const sessionBox = el('div');
+    sessionBox = el('div');
     sessionBox.style.cssText = 'margin-top:8px;padding:8px;border:1.5px solid var(--border);border-radius:6px';
     sessionBox.innerHTML = `<div style="font-size:12px;font-weight:600">Signed-in app sessions</div><div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">Optional: move these sessions while Windows is online. Off means you will sign in once on Linux.</div>`;
     movableSessions.forEach(candidate => {
@@ -260,7 +275,6 @@ export function renderLaunchpad() {
       row.appendChild(copy);
       sessionBox.appendChild(row);
     });
-    fields.appendChild(sessionBox);
   }
 
   const advanced = el('details');
@@ -281,6 +295,19 @@ export function renderLaunchpad() {
     advanced.appendChild(idNote);
     idRow.style.cssText = 'margin-top:6px';
     advanced.appendChild(idRow);
+  }
+
+  // The solid-default controls: sized, chosen, and switched on for the user,
+  // adjustable here without ever being questions on the main form.
+  diskField.style.marginTop = '8px';
+  advanced.appendChild(diskField);
+  encSection.style.marginTop = '10px';
+  advanced.appendChild(encSection);
+  advanced.appendChild(lookRow);
+  if (sessionBox) advanced.appendChild(sessionBox);
+  if (customRef) {
+    customRef.style.marginTop = '8px';
+    advanced.appendChild(customRef);
   }
 
   const bootChoice = el('label');
@@ -387,6 +414,24 @@ function refreshInstallValidity() {
     hint.textContent = reason;
     hint.style.color = reason ? 'var(--danger)' : 'var(--text-muted)';
   }
+  refreshPlanNote();
+}
+
+// The main form asks one question and states the plan for everything it did
+// not ask. Every input handler funnels through refreshInstallValidity, so the
+// promise text tracks Advanced adjustments (disk size, hostname, look) live.
+function refreshPlanNote() {
+  const note = document.getElementById('plan-note');
+  if (!note) return;
+  const c = state.config;
+  const disk = state.sysinfo?.bitLockerOn
+    ? `${c.diskSizeGB} GB set aside for Linux`
+    : `${c.diskSizeGB} GB for Linux (space is only used as you fill it)`;
+  const named = c.hostname ? `this PC keeps its name (“${c.hostname}”)` : 'a computer name is set for you';
+  const brings = c.windowsLook
+    ? 'your files, Wi-Fi and the Windows look come along'
+    : 'your files and Wi-Fi come along';
+  note.textContent = `Everything else is taken care of: ${disk}, ${named}, and ${brings}. Adjust under Advanced.`;
 }
 
 export function applyImageDefaults(image) {
@@ -437,6 +482,11 @@ async function startInstall() {
       storageDrive,
       encryption:     state.config.encryption,
       luksPassphrase: state.config.luksPassphrase,
+      // windowsLook was silently dropped here for as long as the checkbox
+      // existed — the backend's collect step gated on a field that never
+      // arrived, so no real GUI install ever brought the look (or, worse,
+      // Wi-Fi) along. The field must travel with the config it belongs to.
+      windowsLook:    state.config.windowsLook,
       sessionConsent: state.config.sessionConsent,
     });
   } catch (e) {

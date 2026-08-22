@@ -108,6 +108,16 @@ async function init() {
 
   if (sysinfo.suggestedHostname) state.config.hostname = sysinfo.suggestedHostname;
 
+  // Default the disk to half of C:'s free space, 40–200 GB in 5 GB steps —
+  // a size the user never has to think about. root.disk is sparse (space is
+  // consumed only as Linux fills it), so generosity costs nothing up front;
+  // the launchpad still clamps to what C: can actually hold, and the slider
+  // lives under Advanced for anyone who wants a different number.
+  if (sysinfo.freeDiskGB > 0) {
+    const half = Math.floor(sysinfo.freeDiskGB / 2 / 5) * 5;
+    state.config.diskSizeGB = Math.min(200, Math.max(40, half));
+  }
+
   if (existing) {
     try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
     try { state.vmCapability = await GetVMCapability(); } catch { state.vmCapability = null; }

@@ -20,7 +20,7 @@ export const INSTALL_STEPS = [
   { step: 'Downloading Linux', message: 'Downloading Linux… 60%', percent: 36 },
   { step: 'Getting Linux prepared', message: 'Getting Linux prepared…', percent: 65 },
   { step: 'Making Linux bootable on your machine', message: 'Making Linux bootable on your machine…', percent: 80 },
-  { step: 'Collecting your look', message: 'Collecting your look…', percent: 90 },
+  { step: 'Collecting your look and Wi-Fi', message: 'Collecting your look and Wi-Fi…', percent: 90 },
 ];
 
 export const MIGRATION_CATEGORIES = [

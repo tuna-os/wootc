@@ -219,6 +219,31 @@ func sanitizeHostname(name string) string {
 	return out
 }
 
+// suggestUsername and suggestHostname wrap the sanitisers with the fallbacks
+// the bare-minimum launchpad contract requires: identity must ALWAYS derive,
+// because a derived identity is what keeps those fields under Advanced and
+// the default form down to a single password prompt. A Windows account named
+// entirely in non-Latin script (routine on non-English Windows, #197) would
+// otherwise sanitise to "" and turn back into a question.
+func suggestUsername(raw string) string {
+	if s := sanitizeUsername(raw); s != "" {
+		return s
+	}
+	return "winuser"
+}
+
+func suggestHostname(raw string) string {
+	if s := sanitizeHostname(raw); s != "" {
+		return s
+	}
+	// Fall back to the distribution's own name so a Bazzite install never
+	// boots calling itself "tunaos".
+	if b := sanitizeHostname(effectiveBranding().Name); b != "" {
+		return b
+	}
+	return "tunaos"
+}
+
 // DataPartition is a candidate unencrypted volume for root.disk.
 type DataPartition struct {
 	Letter    string  `json:"letter"`
@@ -934,22 +959,26 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			recordCloudDrives()
 			return nil
 		}},
-		{"Collecting your look", 92, func() error {
-			// Windows-Style Mode is opt-in (SPEC §4.4). When the user does not
-			// tick it, we collect nothing and the deployed system keeps the
-			// image maker's desktop defaults — no slurp data means apply-look
-			// no-ops on first login.
-			if !cfg.WindowsLook {
-				return nil
-			}
-			// Best-effort: never fail the install over wallpaper slurping.
-			if err := collectLook(); err != nil {
-				fmt.Fprintf(os.Stderr, "[wootc] look collection skipped: %v\n", err)
-			}
-			// Wi-Fi profiles (§4.6): recreated as NetworkManager connections on
-			// first boot, so the user is online without re-typing passwords.
+		{"Collecting your look and Wi-Fi", 92, func() error {
+			// Wi-Fi profiles (§4.6) migrate UNCONDITIONALLY: recreated as
+			// NetworkManager connections on first boot, so the user is online
+			// without re-typing a single password — the friendliest thing a
+			// migration can do, and safe. This used to hide inside the
+			// WindowsLook gate below, which the GUI additionally never sent
+			// (the field was dropped from StartInstall's payload), so no real
+			// install ever brought Wi-Fi along. Best-effort: never fail the
+			// install over either collection.
 			if err := collectWifi(); err != nil {
 				fmt.Fprintf(os.Stderr, "[wootc] wifi export skipped: %v\n", err)
+			}
+			// Windows-Style Mode (SPEC §4.4) is on by default and opt-out in
+			// the GUI. When declined we collect nothing and the deployed
+			// system keeps the image maker's desktop defaults — no slurp data
+			// means apply-look no-ops on first login.
+			if cfg.WindowsLook {
+				if err := collectLook(); err != nil {
+					fmt.Fprintf(os.Stderr, "[wootc] look collection skipped: %v\n", err)
+				}
 			}
 			return nil
 		}},
@@ -1022,7 +1051,7 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 		{"Checking your PC", 5}, {"Making room for Linux", 15},
 		{"Downloading Linux", 50}, {"Getting Linux prepared", 65},
 		{"Making Linux bootable on your machine", 80}, {"Looking at your installed apps", 85},
-		{"Collecting your look", 90},
+		{"Collecting your look and Wi-Fi", 90},
 	}
 	for _, s := range steps {
 		select {

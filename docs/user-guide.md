@@ -55,15 +55,17 @@ Download and run **wootc.exe**. You'll see the Launchpad:
 1. **Pick a desktop.** Choose from the catalog — GNOME, KDE Plasma, Niri, or
    XFCE, on an Enterprise Linux, Fedora, Arch, or Debian base. Not sure? The
    default (Yellowfin GNOME) is a great, stable starting point.
-2. **Name your setup.** Username, password, hostname, and how much disk to give
-   Linux. The preflight shows your free space live.
-3. **Choose encryption** (optional): TPM auto-unlock (recommended), a passphrase,
-   or none — see [§7](#7-encryption--bitlocker).
-4. **Optionally tick "Make it feel like Windows"** to bring your wallpaper,
-   accent color, keyboard layout, taskbar pins, and desktop shortcuts across on
-   first login. Off by default, so the desktop keeps its own look. Supported on
-   the Wayland desktops (GNOME, KDE Plasma, niri); other settings still migrate.
-5. Click **Install**. wootc creates your Linux disk file, stages a signed boot
+2. **Set a password.** That's the whole form: your username and computer name
+   are mirrored from this PC, the disk is sized from your free space, and
+   TPM-backed encryption is picked for you. The form states the plan under the
+   password field, and everything is adjustable under **Advanced** — identity,
+   disk size, encryption ([§7](#7-encryption--bitlocker)), and the look toggle.
+3. **"Make it feel like Windows" is on by default** — wallpaper, accent color,
+   keyboard layout, taskbar pins, and desktop shortcuts come across on first
+   login, and your saved Wi-Fi networks become NetworkManager connections.
+   Untick it under Advanced to keep the desktop's own look. Supported on the
+   Wayland desktops (GNOME, KDE Plasma, niri); other settings still migrate.
+4. Click **Install**. wootc creates your Linux disk file, stages a signed boot
    entry, and arms a **one-time** boot into the installer. **Nothing else on
    your PC changes.**
 
@@ -117,8 +119,8 @@ What it brings over:
 - **Wi-Fi** — your saved networks become NetworkManager connections so you're
   online on first boot. Enterprise/802.1X networks are detected but need a fresh
   sign-in.
-- **Windows-Style Mode** (if you ticked it) — wallpaper, accent, keyboard, and
-  your taskbar/desktop shortcuts.
+- **Windows-Style Mode** (on unless you turned it off under Advanced) —
+  wallpaper, accent, keyboard, and your taskbar/desktop shortcuts.
 
 **Secrets stay put.** wootc never silently copies passwords, private SSH/GPG
 keys, tokens, or credential stores — you sign in again where it matters.

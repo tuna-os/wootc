@@ -1247,8 +1247,10 @@ pre-installed during deployment.
 
 ### 4.4 Windows-Style Mode
 
-On first login, the system can optionally adopt the Windows host's
-aesthetics to reduce the visual shock of switching OS:
+On first login, the system adopts the Windows host's aesthetics to reduce
+the visual shock of switching OS. This is ON by default — everything safe
+to bring along comes along, the way a Mac migration would — with the
+opt-out under Advanced for users who want the image maker's stock desktop:
 
 - Same wallpaper (extracted via fisherman's Slurp)
 - Same accent color
@@ -1274,8 +1276,8 @@ three consent tiers:
 
 | Tier | Policy | Examples |
 |---|---|---|
-| Apply automatically | Non-secret preferences with an obvious Linux equivalent | timezone, keyboard layout, language, accessibility settings, wallpaper, accent color, hostname, browser homepage |
-| Offer with preview | Useful data or configuration whose effect the user can inspect | Wi-Fi profiles, browser data, Steam libraries, VPN endpoints, cloud-folder setup, developer tools, printers, display/audio preferences |
+| Apply automatically | Non-secret preferences with an obvious Linux equivalent, plus the connectivity a user cannot comfortably be without | timezone, keyboard layout, language, accessibility settings, wallpaper, accent color, hostname, browser homepage, personal Wi-Fi networks (open/WPA-PSK/WPA3-SAE) |
+| Offer with preview | Useful data or configuration whose effect the user can inspect | browser data, Steam libraries, VPN endpoints, cloud-folder setup, developer tools, printers, display/audio preferences |
 | Never migrate silently | Secrets, identity material, executable automation, or controller-specific state | passwords, private keys, access tokens, certificates, Bluetooth pairing keys, enterprise Wi-Fi credentials, scheduled-task commands |
 
 The maintenance control panel includes a **Bring your setup over** dashboard.
@@ -1284,8 +1286,11 @@ what remains on Windows, and how to undo the Linux-side result.
 
 #### Wi-Fi profiles
 
-Wi-Fi is an opt-in, first-class migration feature. During Windows setup,
-wootc can export selected saved profiles using `netsh wlan export profile
+Wi-Fi is a first-class migration feature, on by default: being online on
+first boot without re-typing a single network password is the friendliest
+thing a migration can do, and macOS-grade setup would never make it a
+question. During Windows setup, wootc exports saved profiles using `netsh
+wlan export profile
 ... key=clear`; this requires administrator privileges and exposes the
 network key in the exported profile. The transient export is handed to the
 first Linux boot, converted to NetworkManager connections, and securely

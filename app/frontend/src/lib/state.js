@@ -30,7 +30,10 @@ export const state = {
     bootloader: 'auto',
     encryption: 'tpm2-luks',
     luksPassphrase: '',
-    windowsLook: false,
+    // ON by default: everything safe to migrate comes along (wallpaper,
+    // accent, keyboard layout, pins, shortcuts) — Advanced holds the
+    // opt-out for anyone who wants the image maker's stock desktop.
+    windowsLook: true,
     sessionConsent: {},
   },
   progress: {

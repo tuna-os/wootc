@@ -23,16 +23,20 @@ func getSystemInfo() SystemInfo {
 	// Carry the machine's existing identity across the migration (#174): the
 	// user already knows this name. Sanitised because Windows computer names
 	// permit characters (underscores especially) that Linux hostnames do not.
-	if h, err := os.Hostname(); err == nil {
-		info.SuggestedHostname = sanitizeHostname(h)
-	}
+	// Both suggestions fall back rather than coming back empty — a derived
+	// identity is what keeps these fields under Advanced, so the default
+	// form asks for a password and nothing else.
+	rawHost, _ := os.Hostname()
+	info.SuggestedHostname = suggestHostname(rawHost)
 	// Same idea for the account name, so the launchpad can collect only a
 	// password by default instead of asking the user to invent an identity
 	// they already have. os/user gives DOMAIN\User on Windows; the sanitiser
 	// takes the account part.
+	var rawUser string
 	if u, err := user.Current(); err == nil {
-		info.SuggestedUsername = sanitizeUsername(u.Username)
+		rawUser = u.Username
 	}
+	info.SuggestedUsername = suggestUsername(rawUser)
 
 	// OS version
 	v := windows.RtlGetVersion()

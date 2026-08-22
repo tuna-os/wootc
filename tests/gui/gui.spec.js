@@ -136,12 +136,12 @@ test('installer — backend detection is automatic; forcing systemd-boot warns f
 
 test('installer — supported family custom OCI reference is accepted', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: { ...SYSINFO, secureBootOn: false } });
+  // The custom-ref field is a power-user control and lives under Advanced.
+  await page.locator('details:has-text("Advanced") summary').click();
   await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:stable');
   // A supported-family custom ref is accepted: fill a valid form and the
   // Install button enables. (Custom refs default to grub2/ostree per the
   // backend contract — covered by the "custom OCI ref defaults" test.)
-  // Identity fields live under "Advanced" now (defaults come from the PC).
-  await page.locator('details:has-text("Advanced") summary').click();
   await page.locator('.field:has-text("Linux Username") input').fill('tester');
   const pw = page.locator('input[type=password]');
   await pw.nth(0).fill('hunter2');
@@ -166,7 +166,9 @@ test('installer — BitLocker offers unencrypted-partition path (no forced decry
 
 test('installer — LUKS encryption options (§2.6) with TPM recommended', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
-  // Encryption section is visible with three radio options.
+  // Encryption defaults to TPM auto-unlock and is not a main-form question —
+  // the three radio options live under Advanced.
+  await page.locator('details:has-text("Advanced") summary').click();
   await expect(page.getByText('Disk Encryption')).toBeVisible();
   await expect(page.getByText('No encryption')).toBeVisible();
   await expect(page.getByText('TPM auto-unlock')).toBeVisible();
@@ -262,6 +264,7 @@ test('installer — custom OCI ref defaults to auto backend detection', async ({
   // the backend definitively (the configuration that took dakota green —
   // run 30710282014), so the GUI's job is to say 'auto' and stay out of it.
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
+  await page.locator('details:has-text("Advanced") summary').click();
   await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:lts');
   const sel = await page.evaluate(() => window.__WOOTC_STATE?.selected || null);
   if (sel) {
@@ -307,6 +310,43 @@ test('installer — identity stays on the main form when it cannot be derived', 
   // must remain visible rather than silently blocking the Install button.
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
   await expect(page.locator('.field:has-text("Linux Username") input')).toBeVisible();
+});
+
+// The bare-minimum contract: the default form asks for nothing a Mac's
+// first-run setup would not ask — a password, full stop. Everything else is
+// a solid default (identity mirrored from the PC, disk sized from free
+// space, TPM encryption, Windows look and Wi-Fi brought along), stated in
+// the plan note and adjustable under Advanced rather than asked up front.
+test('installer — the default form asks for a password and nothing else', async ({ page }) => {
+  await boot(page, {
+    mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, suggestedUsername: 'jreilly', suggestedHostname: 'thinkpad', freeDiskGB: 220 },
+  });
+
+  // Only the two password inputs are visible questions — no identity, no
+  // disk slider, no encryption radios, no look checkbox.
+  await expect(page.locator('.field input:visible')).toHaveCount(2);
+  await expect(page.locator('input[type=range]')).toBeHidden();
+  await expect(page.locator('input[name=encryption]').first()).toBeHidden();
+  await expect(page.getByText('Make it feel like Windows')).toBeHidden();
+
+  // The plan note states the defaults instead of asking about them:
+  // half of 220 GB free = 110 GB, and the mirrored computer name.
+  await expect(page.locator('#plan-note')).toContainText('110 GB');
+  await expect(page.locator('#plan-note')).toContainText('thinkpad');
+
+  // The defaults themselves: look ON (everything safe migrates), disk sized
+  // from free space — visible and adjustable under Advanced.
+  await page.locator('details:has-text("Advanced") summary').click();
+  await expect(page.getByRole('checkbox', { name: /Make it feel like Windows/ })).toBeChecked();
+  await expect(page.locator('input[type=range]')).toHaveValue('110');
+
+  // A password alone arms the install.
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await expect(page.locator('#install-btn')).toBeEnabled();
+  await shot(page, '14-bare-minimum-form');
 });
 
 // #175. The window is frameless, so the title bar's own controls are the ONLY

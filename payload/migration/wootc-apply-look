@@ -20,7 +20,11 @@ SLURP_DIR="${WOOTC_SLURP_DIR:-/usr/share/wootc/slurp}"
 MARKER="${WOOTC_LOOK_MARKER:-$HOME/.config/wootc/look-applied}"
 
 [[ -f "$SLURP_DIR/slurp.json" ]] || { log "no slurp data; nothing to apply"; exit 0; }
-[[ -e "$MARKER" ]] && { log "already applied for $USER"; exit 0; }
+# ${USER:-…}: autostart/first-login environments do not reliably export USER,
+# and under set -u a bare $USER makes this guard EXIT 1 instead of printing —
+# the once-only path crashing on every boot after the first. (CI runners
+# export USER, which is why only unset-USER environments ever saw it.)
+[[ -e "$MARKER" ]] && { log "already applied for ${USER:-$(id -un)}"; exit 0; }
 
 # Respect the migration chooser: skip the Windows look if it was turned off.
 if command -v wootc-selection >/dev/null 2>&1; then

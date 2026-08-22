@@ -105,3 +105,31 @@ func TestSanitizeUsernameLengthCap(t *testing.T) {
 		t.Errorf("length = %d, want 32 (useradd limit)", len(got))
 	}
 }
+
+// The bare-minimum launchpad contract: identity must ALWAYS derive, because a
+// derived identity is what keeps the username/hostname fields under Advanced
+// and the default form down to one password prompt. A profile named entirely
+// in non-Latin script (routine on non-English Windows, #197) sanitises to ""
+// — the suggestion layer must fall back, never come back empty.
+func TestSuggestIdentityNeverEmpty(t *testing.T) {
+	if got := suggestUsername("James Reilly"); got != "james-reilly" {
+		t.Errorf("suggestUsername passthrough = %q", got)
+	}
+	if got := suggestUsername("田中"); got != "winuser" {
+		t.Errorf("suggestUsername(non-Latin) = %q, want winuser", got)
+	}
+	if got := suggestUsername(""); got != "winuser" {
+		t.Errorf("suggestUsername(empty) = %q, want winuser", got)
+	}
+	if got := suggestHostname("DESKTOP-A1B2C3"); got != "desktop-a1b2c3" {
+		t.Errorf("suggestHostname passthrough = %q", got)
+	}
+	// Nothing usable: fall back to the distribution's own name (brand-aware),
+	// so a branded install never boots calling itself something else.
+	if got := suggestHostname("!!!"); got == "" {
+		t.Error("suggestHostname must never return empty")
+	}
+	if got := suggestHostname(""); got != sanitizeHostname(effectiveBranding().Name) {
+		t.Errorf("suggestHostname(empty) = %q, want the brand name", got)
+	}
+}
