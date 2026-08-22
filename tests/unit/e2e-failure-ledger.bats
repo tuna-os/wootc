@@ -205,3 +205,23 @@ setup() {
     verdict=$(grep -n 'fail "User data NOT visible in Phase 2' "$E2E" | head -1 | cut -d: -f1)
     [ "$probe" -lt "$verdict" ]
 }
+
+@test "drive mode can only install the image the directive named" {
+    # False-green class: with the requested image gated out of the catalog,
+    # the drive loop used to fill the form and click Install on the DEFAULT
+    # selection — a full E2E then went green against the wrong distribution
+    # while .passed recorded the requested one (run 32581422435: "bazzite"
+    # installed bluefin-lts; every image-agnostic assertion passed). Three
+    # layers now close it:
+    # 1. The drive loop refuses to click Install on a selection mismatch...
+    grep -q 'state.selected?.imageRef !== directive.image) return' \
+        app/frontend/src/lib/e2e.js
+    # 2. ...reports the mismatch so the harness can see it...
+    grep -q 'imageMismatch' app/frontend/src/lib/e2e.js
+    # ...and the harness fails FAST with both refs instead of timing out.
+    grep -q '"imageMismatch":true' tests/e2e/run-e2e.sh
+    grep -q 'Drive mode cannot select the requested image' tests/e2e/run-e2e.sh
+    # 3. Drive mode un-gates experimental images (the harness exists to test
+    # images BEFORE they are green), so the requested card is selectable.
+    grep -q 'WOOTC_E2E_DRIVE' app/app.go
+}

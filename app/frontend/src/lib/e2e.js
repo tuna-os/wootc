@@ -52,6 +52,16 @@ function driveInstall(directive, state) {
     if (input.oninput) input.oninput();
   }
 
+  // INTEGRITY GATE: install ONLY the image the directive named. When the
+  // requested image has no catalog card (e.g. status-gated out of GetImages)
+  // and no custom-ref field is available, the selection silently stays the
+  // DEFAULT — and clicking Install here would run a full green E2E against
+  // the wrong distribution while the harness records the requested one
+  // (run 32581422435 "bazzite" installed bluefin-lts exactly this way).
+  // Refuse, and let reportState carry the mismatch so the harness fails
+  // loudly instead of the run lying quietly.
+  if (directive.image && state.selected?.imageRef !== directive.image) return;
+
   const installButton = document.getElementById('install-btn');
   if (installButton && !installButton.disabled) {
     window.__e2eInstallDriven = true;
@@ -60,6 +70,10 @@ function driveInstall(directive, state) {
 }
 
 async function reportState(state) {
+  // The harness reads imageMismatch to fail FAST when the directive's image
+  // cannot be selected (see the integrity gate in driveInstall) — the
+  // alternative is a silent install of the default image.
+  const wantRef = window.__e2eWantImage || '';
   await E2EDriveReport(JSON.stringify({
     screen: state.screen,
     installDriven: !!window.__e2eInstallDriven,
@@ -67,6 +81,9 @@ async function reportState(state) {
     hint: (document.getElementById('install-hint') || {}).textContent || '',
     progressStep: state.progress?.step || '',
     error: state.progress?.error || null,
+    selectedRef: state.selected?.imageRef || '',
+    imageMismatch: !!(wantRef && state.screen === 'launchpad' &&
+      !window.__e2eInstallDriven && state.selected?.imageRef !== wantRef),
   }));
 }
 
@@ -82,7 +99,10 @@ export function startE2EDrive(state) {
     try {
       if (raw) {
         const directive = JSON.parse(raw);
-        if (directive.action === 'install') driveInstall(directive, state);
+        if (directive.action === 'install') {
+          window.__e2eWantImage = directive.image || '';
+          driveInstall(directive, state);
+        }
         if (directive.action === 'reboot' && state.screen === 'done' && !window.__e2eRebootDriven) {
           window.__e2eRebootDriven = true;
           Reboot();

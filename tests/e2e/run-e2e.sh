@@ -2725,6 +2725,22 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
             last_screen="$screen"
         fi
 
+        # INTEGRITY: the drive loop refuses to click Install when the
+        # directive's image is not the one actually selected on the form
+        # (e.g. gated out of the catalog) — without this gate, the run
+        # installs the DEFAULT image while the harness records the requested
+        # one (run 32581422435: "bazzite" installed bluefin-lts and every
+        # image-agnostic assertion passed). A persisting mismatch will never
+        # resolve on its own, so fail now with the two refs side by side.
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"imageMismatch":true'; then
+            local _sel
+            _sel=$(printf '%s' "$drive_state" | sed -n 's/.*"selectedRef":"\([^"]*\)".*/\1/p' | head -1)
+            fail "Drive mode cannot select the requested image: wanted $IMAGE_REF, form has '${_sel:-<none>}'"
+            fail "  The image is likely gated out of the offered catalog — the drive loop refuses to install the default in its place."
+            capture_vm_diagnostics
+            exit 1
+        fi
+
         if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"installDriven":true'; then
             driven=true
             pass "GUI form filled and Install clicked through the live bridge"

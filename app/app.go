@@ -359,6 +359,15 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 	if effectiveBranding().HideCustomImage {
 		pol.CustomImageAllowed = false
 	}
+	// The E2E harness exists precisely to test images BEFORE they are green;
+	// in drive mode the channel gate must not hide them, or a directive for
+	// an experimental image finds no card and the run silently installs the
+	// default instead (run 32581422435: "bazzite" installed bluefin-lts —
+	// the drive loop now also refuses on mismatch, this is the enabling
+	// half). Real users never run with this environment variable set.
+	if os.Getenv("WOOTC_E2E_DRIVE") == "1" {
+		pol.ExperimentalImages = true
+	}
 	return pol
 }
 

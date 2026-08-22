@@ -193,7 +193,7 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "fedora",
-    "status": "green"
+    "status": "experimental"
   },
   {
     "id": "bazzite-deck",
