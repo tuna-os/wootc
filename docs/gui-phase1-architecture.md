@@ -2,7 +2,7 @@
 
 Status: proposal, 2026-07-17 — **historical (2026-08-11):** the GUI now
 compiles, drives the E2E install in drive mode (`WOOTC_E2E_DRIVE=1`), and
-green GUI-driven runs are published in the README build/test matrix.
+green GUI-driven runs are published in the docs/status.md build/test matrix.
 Companion to `docs/SPEC.md` §3 and the E2E
 learnings accumulated on runner-a. Scope: everything that runs on Windows —
 the Wails GUI (`app/`), the install pipeline it drives, and the contract

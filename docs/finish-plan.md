@@ -10,8 +10,8 @@ deprioritized ("pretty rare").*
 > and #28/#35/#33 are closed with their fixes in `main` (`7d99c45`,
 > `8d964f4`, `2166d09`, `6b7c412`, `bffd284`). Remaining: one non-dakota
 > composefs family (marlin/flounder), `tpm2-luks` cell re-verification, and
-> the full matrix re-sweep — tracked in the README build/test matrix and
-> open issues. Read the README matrix for current status.
+> the full matrix re-sweep — tracked in the docs/status.md build/test matrix and
+> open issues. Read the docs/status.md matrix for current status.
 
 The project's green core is done: `bluefin:lts` (ostree/grub2/ext4-sealed)
 passes the full Phase 1 → 2 → 3 chain, GUI-driven, 29/29. What separates

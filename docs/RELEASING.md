@@ -8,7 +8,7 @@ matrix greens; the channel graduates when whole tiers are green.
 
 ## The single source of truth
 
-The [build/test matrix](https://github.com/tuna-os/wootc/blob/main/README.md#buildtest-matrix) is authoritative. A
+The [build/test matrix](status.md#buildtest-matrix) is authoritative. A
 combination is *green* only when the hosted E2E (`e2e-matrix.yml` /
 `e2e-gui.yml`) has passed it end-to-end — Windows seed → deploy → Phase-2
 bridge → Phase-3 native disk → seeded file on the native disk.

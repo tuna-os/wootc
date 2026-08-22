@@ -2,7 +2,8 @@
 
 ## Start here
 
-- **`README.md#buildtest-matrix`** — the one current status/roadmap source.
+- **`docs/status.md#buildtest-matrix`** — the one current status source
+  (the roadmap itself is `ROADMAP.md`).
   Green/red per image family × phase and per axis, from the E2E rig and the
   hosted matrix; a cell is only green once the hosted E2E passed it
   end-to-end (see `docs/RELEASING.md`). Open work is tracked on the org
@@ -174,7 +175,7 @@ quirks are documented in the `wootc-e2e` skill and the e2e-runner agent:
 **Green** since 2026-07-23 (rung 2 of `docs/milestones.md`): the full cycle
 passes repeatably via `run-e2e.sh` on the E2E runner, including the BitLocker
 cell (`el10-gnome-win11pro-bitlocker`, full cycle green 2026-07-28), and
-the same chain is green GUI-driven on `bluefin:lts` (README matrix,
+the same chain is green GUI-driven on `bluefin:lts` (docs/status.md matrix,
 `pages/e2e/latest`). The acceptance criteria below are the definition of
 that target:
 

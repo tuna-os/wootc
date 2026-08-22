@@ -7,8 +7,8 @@
    QGA control plane, deployer initramfs, E2E test runner) and the docs to
    read before touching each one, plus `docs/agent-lessons.md`, which
    documents traps that have each cost a 60–90 minute VM run.
-3. Check `README.md`'s build/test matrix for current known-good vs. known-red
-   status before assuming a symptom is your change's fault.
+3. Check the build/test matrix in `docs/status.md` for current known-good vs.
+   known-red status before assuming a symptom is your change's fault.
 
 ## Building and testing
 
