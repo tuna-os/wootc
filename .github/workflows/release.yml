@@ -39,6 +39,7 @@ on:
 permissions:
   contents: write
   packages: read                 # granted through to the reusable e2e-hosted (base-image pull)
+  actions: write                 # publish job dispatches winget-publish.yml for full releases
 
 concurrency:
   group: release-${{ github.event_name == 'workflow_run' && 'auto' || github.ref }}
@@ -241,3 +242,16 @@ jobs:
           files: release-assets/*
           body_path: NOTES.md
           draft: false
+
+      - name: Dispatch winget submission (full releases only)
+        # winget-publish.yml listens on release:published, but releases cut
+        # here are created with GITHUB_TOKEN, and GitHub never triggers
+        # workflows from events its own token caused (recursion guard) — the
+        # v0.1.0-alpha.1 publish proved it: 0 winget runs. An explicit
+        # workflow_dispatch through the API DOES fire, so hand it the tag.
+        if: ${{ steps.chan.outputs.prerelease == 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run winget-publish.yml --repo "${{ github.repository }}" \
+            -f tag="${{ steps.chan.outputs.tag }}"
