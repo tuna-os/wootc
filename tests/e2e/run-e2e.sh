@@ -3523,70 +3523,92 @@ qga_wait_down "Phase 2 Linux boot" 300
 
 # ── MokManager driver (#248) ─────────────────────────────────────────────────
 # When the deployer queued a MOK enrollment (custom-kernel images: the target
-# kernel is not shim-trusted until the distribution's key is enrolled), the
-# FIRST shim launch after deploy runs MokManager — a firmware-console UI that
-# writes NOTHING to serial. A real user confirms it by hand; the harness
-# replays the same keystrokes through the QEMU monitor. The discriminator is
-# serial-observable: after the shim start line, GRUB prints its banner within
-# seconds — if the deploy queued an enrollment and no banner appears,
-# MokManager is on screen. Stray keys are never sent into GRUB ('e' — which
-# the password contains — opens its editor), because the sequence runs ONLY
-# behind that no-banner discriminator.
+# kernel is not shim-trusted until the distribution's key is enrolled), shim
+# launches MokManager on the next boot. A real user confirms it by hand; the
+# harness replays the same keystrokes through the QEMU monitor.
+#
+# What run 32651824930 proved about MokManager's actual behavior:
+#   - it DOES write to serial: 'Press any key to perform MOK management'
+#     plus a visible 'Booting in N seconds' countdown;
+#   - it AUTO-CONTINUES into GRUB when the 10s countdown expires — where the
+#     untrusted kernel dies 'bad shim signature' and the firmware loops
+#     right back into MokManager, forever;
+#   - therefore a GRUB banner proves NOTHING about MokManager's absence.
+#     The old no-banner discriminator read the post-countdown pass-through
+#     banner as MokManager never having appeared, stood down, and the box
+#     sat on screen unanswered for the rest of the run.
+# So the driver keys off MokManager's OWN marker: sight it, interrupt the
+# countdown, walk the menu — and if the kernel still comes up untrusted
+# (mis-timed keystroke), catch the next loop and try once more. Stray keys
+# still cannot land in GRUB ('e' — which the password contains — opens its
+# editor): the sequence fires only on the MokManager marker itself.
 MOK_EXTRA=0
 mok_sendkey() {
     $DOCKER exec "$CONTAINER_NAME" python3 -c \
         'import socket,time,sys; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(("sendkey %s\n" % sys.argv[1]).encode()); time.sleep(.3); s.recv(4096); s.close()' \
         "$1" >/dev/null 2>&1 || true
 }
-drive_mok_manager() {
-    snapshot_serial
-    grep -aq 'MOK enrollment queued' "$PTY" || return 0
-    step "Deploy queued a MOK enrollment — watching for MokManager..."
-    local mok_from mok_deadline new_out
-    mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
-    mok_deadline=$(deadline_in 60)
-    while ! past_deadline "$mok_deadline"; do
-        sleep 5
-        snapshot_serial
-        new_out=$(tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null || true)
-        if printf '%s' "$new_out" | grep -aq 'GRUB version'; then
-            info "  GRUB banner appeared — no MokManager this boot (already enrolled?)"
-            return 0
-        fi
-        if printf '%s' "$new_out" | grep -aq 'shimx64.efi'; then
-            break
-        fi
-    done
-    # shim started (or 60s passed) and no GRUB banner: MokManager is up.
-    # Give its 10-second "press any key" screen time to settle, then walk
-    # the enrollment: any key → Enroll MOK → Continue → Yes → password →
-    # Reboot. Every step sleeps long enough for the firmware UI to repaint.
-    info "  No GRUB banner after shim — driving MokManager (Enroll MOK, password universalblue)"
-    sleep 4
-    mok_sendkey ret;  sleep 4                  # leave the press-any-key screen
+mok_sequence() {  # interrupt the countdown, then walk the enrollment menu
+    mok_sendkey ret;  sleep 3                             # leave press-any-key
     mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Enroll MOK
     mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Continue (past View key)
     mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Yes
     local ch
     for ch in u n i v e r s a l b l u e; do mok_sendkey "$ch"; sleep 1; done
-    mok_sendkey ret; sleep 5                   # confirm password
-    mok_sendkey ret; sleep 2                   # Reboot (top item post-enroll)
-    # The observable: the NEXT shim launch reaches GRUB.
+    mok_sendkey ret; sleep 5                              # confirm password
+    mok_sendkey ret; sleep 2                              # Reboot (top item post-enroll)
+}
+drive_mok_manager() {
+    snapshot_serial
+    grep -aq 'MOK enrollment queued' "$PTY" || return 0
+    step "Deploy queued a MOK enrollment — watching for MokManager..."
+    local mok_from mok_deadline new_out attempts=0
     mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
-    mok_deadline=$(deadline_in 120)
+    mok_deadline=$(deadline_in 300)
     while ! past_deadline "$mok_deadline"; do
-        sleep 5
+        sleep 2
         snapshot_serial
-        if tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null | grep -aq 'GRUB version'; then
-            pass "MOK enrolled — GRUB reached on the boot after MokManager"
+        new_out=$(tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null || true)
+        if printf '%s' "$new_out" | grep -aq 'Press any key to perform MOK management'; then
+            mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
+            attempts=$((attempts + 1))
+            info "  MokManager on screen (sighting $attempts) — driving: Enroll MOK, password universalblue"
+            mok_sequence
             MOK_EXTRA=300
-            return 0
+            if [ "$attempts" -ge 2 ]; then
+                warn "  two MokManager sequences sent — Phase 2 wait will decide"
+                return 0
+            fi
+            # Fresh window for the post-enroll boot.
+            mok_deadline=$(deadline_in 180)
+        elif printf '%s' "$new_out" | grep -aq 'bad shim signature'; then
+            # Kernel still untrusted; the firmware loops back into
+            # MokManager — keep watching from here for the next sighting.
+            mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
+            [ "$attempts" -gt 0 ] && info "  kernel still untrusted after the sequence — waiting for MokManager to reappear"
+        elif [ "$attempts" -gt 0 ] && printf '%s' "$new_out" | grep -aq 'GRUB version'; then
+            # A banner after a driven sequence looks like success — but the
+            # bad-shim error prints seconds AFTER the banner, so hold a beat
+            # and re-read before declaring anything.
+            mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
+            sleep 12
+            snapshot_serial
+            if tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null | grep -aq 'bad shim signature'; then
+                mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
+                info "  kernel still untrusted after the sequence — waiting for MokManager to reappear"
+            else
+                pass "MOK enrolled — GRUB proceeded without a shim rejection"
+                MOK_EXTRA=300
+                return 0
+            fi
         fi
     done
-    # Not fatal here: the Phase-2 wait below is the real verdict, and its
-    # failure diagnosis (bad shim signature) will name this exact cause.
-    warn "  GRUB banner not seen within 120s of the MokManager sequence — Phase 2 wait will decide"
-    MOK_EXTRA=300
+    if [ "$attempts" -eq 0 ]; then
+        info "  MokManager never appeared on serial (already enrolled?) — continuing"
+    else
+        warn "  MokManager window closed after $attempts sequence(s) — Phase 2 wait will decide"
+        MOK_EXTRA=300
+    fi
     return 0
 }
 drive_mok_manager

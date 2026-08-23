@@ -75,17 +75,26 @@ E2E=tests/e2e/run-e2e.sh
     grep -q 'find "${MOK_CERT_STASH:-/run/wootc-mok-certs}"' "$DEPLOY"
 }
 
-@test "the harness drives MokManager only behind the no-GRUB discriminator" {
-    # MokManager writes nothing to serial; GRUB prints a banner. The keystroke
-    # sequence contains 'e' (the password), which at a GRUB menu would open
-    # the editor — so the driver must be gated on BOTH the deploy's queue
-    # marker AND the absence of the GRUB banner after shim starts.
+@test "the harness drives MokManager from its own serial marker, not GRUB's absence" {
+    # Run 32651824930 disproved the original model: MokManager DOES write to
+    # serial ('Press any key to perform MOK management' + a countdown) and
+    # AUTO-CONTINUES into GRUB after 10 seconds — where the untrusted kernel
+    # dies 'bad shim signature' and the firmware loops back into MokManager.
+    # The old no-GRUB-banner discriminator read that pass-through banner as
+    # 'no MokManager this boot', stood down, and the box sat unanswered for
+    # the rest of the run. The driver must key off MokManager's own marker,
+    # and a GRUB banner may prove success only after a driven sequence AND a
+    # re-read that shows no fresh shim rejection (the error prints seconds
+    # AFTER the banner).
     grep -q "grep -aq 'MOK enrollment queued' \"\$PTY\" || return 0" "$E2E"
-    grep -q 'GRUB version' "$E2E"
-    grep -q 'no MokManager this boot' "$E2E"
-    # The verdict is the observable: GRUB reached on the boot after the
-    # sequence — and the Phase-2 budget stretches for the extra reboot.
-    grep -q 'GRUB reached on the boot after MokManager' "$E2E"
+    grep -q 'Press any key to perform MOK management' "$E2E"
+    grep -q 'bad shim signature' "$E2E"
+    grep -q 'GRUB proceeded without a shim rejection' "$E2E"
+    run grep -q 'no MokManager this boot' "$E2E"
+    [ "$status" -ne 0 ]
+    # Bounded retry across the bad-shim loop, and the Phase-2 budget still
+    # stretches for the extra reboot(s).
+    grep -q 'two MokManager sequences sent' "$E2E"
     grep -q 'TIMEOUT=$((300 + MOK_EXTRA))' "$E2E"
 }
 
