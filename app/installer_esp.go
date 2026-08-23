@@ -545,6 +545,14 @@ func configureBCD(bootloader string) error {
 			return fmt.Errorf("bcdedit %v: %w (output: %s)", args[1:], err, out)
 		}
 	}
+	// Enforce the bootsequence-only promise: /copy can register the clone in
+	// the permanent firmware displayorder too (position varies by firmware),
+	// and an entry there outlives the one-shot — after the deploy the machine
+	// would boot Linux by default instead of returning to Windows. Removing
+	// it from displayorder leaves the entry itself (and the bootsequence
+	// pointing at it) intact. Best-effort: firmwares that never added it
+	// report a harmless error here.
+	runCmd("bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/remove") //nolint:errcheck
 	return nil
 }
 
@@ -578,11 +586,25 @@ func tail(s string, n int) string {
 
 // deleteWootcBCDEntries removes every firmware entry named exactly
 // "wootc" (identifier precedes description in bcdedit output).
+//
+// Each entry is pulled out of the PERMANENT firmware displayorder before the
+// delete, because the delete itself is not reliable: /copy can fail
+// transiently ("registry key marked for deletion", #74) leaving a
+// half-created entry that /delete then fails on the same way — and that
+// zombie sat in the firmware BootOrder AHEAD of Windows, so the first boot
+// after a verified deploy went straight into Linux instead of returning to
+// Windows (aurora run 32633715971: Boot0004 "wootc" from a failed first
+// /copy booted Phase 2 while Boot0003 "Windows Boot Manager" never ran).
+// That is the exact surprise the done screen promises cannot happen. The
+// displayorder removal is a separate, smaller NVRAM write that succeeds even
+// when the object delete does not — an undeletable entry that is in no boot
+// order is inert.
 func deleteWootcBCDEntries() {
 	out, _ := runCmd("bcdedit", "/enum", "firmware")
 	re := regexp.MustCompile(`(?ms)identifier\s+(\{[^}]+\})[^{]*?description\s+wootc\s*$`)
 	for _, m := range re.FindAllStringSubmatch(out, -1) {
-		runCmd("bcdedit", "/delete", m[1]) //nolint:errcheck
+		runCmd("bcdedit", "/set", "{fwbootmgr}", "displayorder", m[1], "/remove") //nolint:errcheck
+		runCmd("bcdedit", "/delete", m[1])                                        //nolint:errcheck
 	}
 }
 

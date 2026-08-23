@@ -973,6 +973,31 @@ if ($after) { Write-Output ("SWEEP-INCOMPLETE: " + ($after -join "; ")) } else {
             warn "ESP sweep could not reach the ESP ($esp_letter); the GUI ownership guard may refuse this install"
             ;;
     esac
+    # Sweep stale "wootc" FIRMWARE entries too, not just ESP files. A prior
+    # attempt's half-created bcdedit /copy (#74's transient) leaves an entry
+    # the app's own sweep may fail to delete, and if it sits in the firmware
+    # BootOrder ahead of Windows, the post-deploy boot goes straight into
+    # Linux instead of returning to Windows — the harness then correctly
+    # refuses the run (aurora 32633715971: stale Boot0004 "wootc" booted
+    # Phase 2; Boot0003 "Windows Boot Manager" never ran). Pull each entry
+    # out of displayorder first — that smaller NVRAM write succeeds even when
+    # the object delete repeats the transient — then delete it.
+    local fw_sweep
+    fw_sweep=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$enum = cmd.exe /d /c "bcdedit /enum firmware" | Out-String
+$guids = @()
+$id = ""
+foreach ($line in ($enum -split "`r?`n")) {
+    if ($line -match "^identifier\s+(\{[0-9a-fA-F-]+\})") { $id = $Matches[1] }
+    elseif ($line -match "^description\s+wootc\s*$" -and $id) { $guids += $id; $id = "" }
+}
+if (-not $guids) { Write-Output "fw: clean"; exit 0 }
+foreach ($g in $guids) {
+    cmd.exe /d /c "bcdedit /set {fwbootmgr} displayorder $g /remove >NUL 2>&1" | Out-Null
+    cmd.exe /d /c "bcdedit /delete $g >NUL 2>&1" | Out-Null
+    Write-Output "fw: swept stale wootc entry $g"
+}' 2>&1) || true
+    printf '%s\n' "$fw_sweep" | sed 's/^/    fw-sweep: /'
     rm -f "$STORAGE_DIR/qemu.pty"
     printf '%s run_id=%s reset prior OEM handoff state\n' "$(date -u +%FT%TZ)" "$RUN_ID" > "$STORAGE_DIR/e2e-timeline.log"
     pass "Prior OEM handoff state cleared"

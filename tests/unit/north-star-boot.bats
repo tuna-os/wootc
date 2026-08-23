@@ -117,3 +117,25 @@ MODSETUP="payload/deployer/module-setup.sh"
     grep -q 'pre-trigger/10-wootc-early-splash.sh' "$MODSETUP"
     grep -q 'early-splash.sh' "$CONTAINERFILE"
 }
+
+@test "a wootc firmware entry can never survive in the permanent boot order" {
+    # The done screen promises "Windows stays your default until Linux has
+    # proven it works". A half-created bcdedit /copy (#74's transient) left a
+    # zombie "wootc" entry in the firmware BootOrder ahead of Windows, so the
+    # first boot after a verified deploy went straight into Linux (aurora run
+    # 32633715971: stale Boot0004 booted Phase 2; Boot0003 "Windows Boot
+    # Manager" never ran). Three legs:
+    #   1. the sweep pulls every wootc entry out of displayorder BEFORE the
+    #      delete — the smaller NVRAM write succeeds when /delete repeats the
+    #      transient, and an entry in no boot order is inert;
+    #   2. the fresh entry is removed from displayorder after arming — the
+    #      one-shot lives in bootsequence alone;
+    #   3. the E2E reset sweeps firmware entries too, not just ESP files, so
+    #      one run's zombie cannot fail the next.
+    grep -q '"bcdedit", "/set", "{fwbootmgr}", "displayorder", m\[1\], "/remove"' app/installer_esp.go
+    # ...and the delete still follows it (removal alone would leak objects).
+    grep -A1 'displayorder", m\[1\], "/remove"' app/installer_esp.go | grep -q '"bcdedit", "/delete", m\[1\]'
+    grep -q '"bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/remove"' app/installer_esp.go
+    grep -q 'bcdedit /set {fwbootmgr} displayorder \$g /remove' tests/e2e/run-e2e.sh
+    grep -q 'bcdedit /delete \$g' tests/e2e/run-e2e.sh
+}
