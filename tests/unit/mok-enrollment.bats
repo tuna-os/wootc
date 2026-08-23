@@ -115,3 +115,21 @@ E2E=tests/e2e/run-e2e.sh
     grep -q 'mokEnroll' app/frontend/src/screens/done.js
     grep -q 'Enroll MOK' app/frontend/src/screens/done.js
 }
+
+@test "the enrolled kernel actually gets a boot: re-arm after MokManager lands in Windows" {
+    # Run 32668924852: sequence 1 drove the enrollment, MokManager rebooted —
+    # and the firmware booted WINDOWS (the BCD one-shot was consumed booting
+    # INTO MokManager; MokManager's own reboot follows the firmware default).
+    # The newly enrolled kernel never got a boot and the wait timed out with
+    # everything having worked. The harness must re-arm the same one-shot
+    # once and reboot when Windows comes back after a driven sequence.
+    local E2E=tests/e2e/run-e2e.sh
+    grep -q 'starting Boot.\* "Windows Boot Manager"' "$E2E"
+    grep -q 'MOK_REARMED=true' "$E2E"
+    # Gated on a driven sequence and once-only — a re-arm loop could bounce
+    # the machine forever.
+    grep -q 'MOK_SIGHTINGS" -gt 0 \] && \[ "${MOK_REARMED:-false}" = false' "$E2E"
+    # The soft QGA wait cannot write the failure ledger (qga_wait's timeout
+    # branch calls fail(); this must not be able to fail the run on its own).
+    grep -q '_mok_qga_deadline=' "$E2E"
+}

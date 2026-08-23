@@ -3637,6 +3637,33 @@ while ! past_deadline "$BOOT_DEADLINE"; do
             LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
             continue
         fi
+        # MokManager's post-enroll reboot lands in WINDOWS: the BCD one-shot
+        # was consumed booting INTO MokManager, and MokManager's own reboot
+        # follows the firmware default (run 32668924852: sequence 1 driven,
+        # then 'starting Boot0003 Windows Boot Manager' — the newly enrolled
+        # kernel never got a boot and the wait timed out). Re-arm the same
+        # one-shot once and reboot, so the enrolled kernel is actually
+        # exercised. Real users are covered by the app's own re-arm paths;
+        # this is the harness closing the same loop for the observed run.
+        if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+            && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
+            MOK_REARMED=true
+            info "Windows returned after the MokManager sequence (one-shot consumed) — re-arming Phase 2"
+            # Soft wait: qga_wait's timeout branch writes to the failure
+            # ledger, and this re-arm must not be able to fail the run on
+            # its own — the boot verdict below owns the verdict.
+            _mok_qga_deadline=$(deadline_in 300)
+            while ! past_deadline "$_mok_qga_deadline"; do
+                qga_probe && break
+                sleep 10
+            done
+            qga_powershell "bcdedit --% /set {fwbootmgr} bootsequence $PHASE2_GUID /addfirst" >/dev/null 2>&1 || true
+            qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
+            BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
+            snapshot_serial || true
+            LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+            continue
+        fi
         # A real Phase-2 boot means the system reached its ACTUAL root, not just
         # that the initramfs started. "ostree=" matches the kernel cmdline echo
         # inside the initramfs, so it fired even when the boot then dropped to an
