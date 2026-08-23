@@ -3305,30 +3305,40 @@ queue_mok_enrollment() {
     # Fedora-signed kernels (aurora, bluefin) also carry akmods certs, and
     # enrolling on cert-presence alone would hand their users a firmware
     # prompt their boot does not need.
-    [[ "$(read_cmdline wootc.mok "")" == "enroll" ]] || { log "  wootc.mok not requested; skipping MOK check"; return 0; }
-    command -v mokutil >/dev/null 2>&1 || { log "  mokutil not in this initramfs; skipping MOK check"; return 0; }
+    #
+    # Every line here goes through err(), not log(): under `quiet` only
+    # stderr reaches the serial console, and the E2E's MokManager driver
+    # gates on seeing "MOK enrollment queued" THERE — the first bazzite run
+    # after this feature landed (32604794432) queued nothing visibly and the
+    # driver stayed dark, with no way to tell which branch had fired.
+    local mok_flag
+    mok_flag="$(read_cmdline wootc.mok "<absent>")"
+    err "  MOK: cmdline wootc.mok=${mok_flag}"
+    [[ "$mok_flag" == "enroll" ]] || { err "  MOK: not requested; skipping"; return 0; }
+    command -v mokutil >/dev/null 2>&1 || { err "  MOK: mokutil not in this initramfs; skipping"; return 0; }
     # mokutil needs efivarfs; mount is idempotent and UEFI-only.
     mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true
-    mokutil --sb-state 2>/dev/null | grep -qi 'enabled' || { log "  Secure Boot not enabled; no MOK enrollment needed"; return 0; }
+    mokutil --sb-state 2>/dev/null | grep -qi 'enabled' || { err "  MOK: Secure Boot not enabled; no enrollment needed"; return 0; }
     local cert found=0
     for cert in "$DEPLOY_ROOT"/etc/pki/akmods/certs/*.der \
                 "$DEPLOY_ROOT"/usr/share/ublue-os/certs/*.der; do
         [[ -f "$cert" ]] || continue
         found=1
         if mokutil --test-key "$cert" 2>/dev/null | grep -qi 'already enrolled'; then
-            log "  MOK key already enrolled: $(basename "$cert")"
+            err "  MOK: key already enrolled: $(basename "$cert")"
             continue
         fi
         # The password matches upstream's documented one so every existing
         # Bazzite guide the user might find says the same thing we do.
         if printf 'universalblue\nuniversalblue\n' | mokutil --import "$cert" >/dev/null 2>&1; then
-            log "  [wootc] MOK enrollment queued: $(basename "$cert") (password: universalblue)"
+            err "  MOK enrollment queued: $(basename "$cert") (password: universalblue)"
+            err "  MOK: pending requests now: $(mokutil --list-new 2>/dev/null | grep -c 'Subject:' || echo '?')"
             MOK_QUEUED=1
         else
-            log "  [WARN] could not queue MOK enrollment for $(basename "$cert") — Secure Boot may reject this image's kernel"
+            err "  [WARN] could not queue MOK enrollment for $(basename "$cert") — Secure Boot may reject this image's kernel"
         fi
     done
-    [[ "$found" == 0 ]] && log "  no distribution MOK certs in this image; nothing to enroll"
+    [[ "$found" == 0 ]] && err "  MOK: no distribution certs in this image ($DEPLOY_ROOT/etc/pki/akmods/certs); nothing to enroll"
     return 0
 }
 queue_mok_enrollment || true
