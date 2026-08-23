@@ -25,7 +25,7 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "fedora",
-    "status": "experimental"
+    "status": "green"
   },
   {
     "id": "dakota",
@@ -179,7 +179,7 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "fedora",
-    "status": "experimental"
+    "status": "green"
   },
   {
     "id": "bazzite",

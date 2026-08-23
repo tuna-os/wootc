@@ -35,6 +35,9 @@ E2E=tests/e2e/run-e2e.sh
     # deployed root, upstream's own documented password, and a serial marker
     # the harness gates its driver on.
     grep -q 'mokutil --sb-state' "$DEPLOY"
+    # bazzite's actual key path (its own installer imports exactly this file),
+    # plus the classic akmods layouts for other lineages.
+    grep -q '/usr/share/ublue-os/sb_pubkey.der' "$DEPLOY"
     grep -q '/etc/pki/akmods/certs/\*.der' "$DEPLOY"
     grep -q "printf 'universalblue\\\\nuniversalblue\\\\n' | mokutil --import" "$DEPLOY"
     grep -q 'MOK enrollment queued' "$DEPLOY"

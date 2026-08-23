@@ -3319,8 +3319,14 @@ queue_mok_enrollment() {
     # mokutil needs efivarfs; mount is idempotent and UEFI-only.
     mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true
     mokutil --sb-state 2>/dev/null | grep -qi 'enabled' || { err "  MOK: Secure Boot not enabled; no enrollment needed"; return 0; }
+    # Cert locations by lineage: bazzite ships its Secure Boot public key at
+    # /usr/share/ublue-os/sb_pubkey.der (its own installer hook imports
+    # exactly that path — installer/titanoboa_hook_postrootfs.sh); classic
+    # akmods layouts use /etc/pki/akmods/certs. The instrumented run
+    # 32614088877 proved the akmods paths empty on bazzite:stable.
     local cert found=0
-    for cert in "$DEPLOY_ROOT"/etc/pki/akmods/certs/*.der \
+    for cert in "$DEPLOY_ROOT"/usr/share/ublue-os/sb_pubkey.der \
+                "$DEPLOY_ROOT"/etc/pki/akmods/certs/*.der \
                 "$DEPLOY_ROOT"/usr/share/ublue-os/certs/*.der; do
         [[ -f "$cert" ]] || continue
         found=1
