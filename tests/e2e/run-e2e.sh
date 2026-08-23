@@ -3548,8 +3548,22 @@ mok_sendkey() {
         'import socket,time,sys; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(("sendkey %s\n" % sys.argv[1]).encode()); time.sleep(.3); s.recv(4096); s.close()' \
         "$1" >/dev/null 2>&1 || true
 }
-mok_sequence() {  # interrupt the countdown, then walk the enrollment menu
+mok_sequence() {  # returns 0 only when the MokManager MENU was confirmed and driven
+    # The first keypress must land while the countdown is still running. If
+    # it landed late, the machine is already past MokManager (GRUB menu, or
+    # mid-boot) — and the rest of the sequence contains 'e', which at a GRUB
+    # menu opens the editor and STRANDS the machine there, ending the loop
+    # that would have brought MokManager back. So confirm the menu actually
+    # opened (MokManager renders 'Enroll MOK' on the serial once entered)
+    # before any further key is sent; a lone stray 'ret' at a GRUB menu just
+    # boots the selected entry into the same bad-shim cycle — recoverable.
+    local pre
+    pre=$(wc -c < "$PTY" 2>/dev/null || echo 0)
     mok_sendkey ret;  sleep 3                             # leave press-any-key
+    snapshot_serial
+    if ! tail -c +"$((pre + 1))" "$PTY" 2>/dev/null | grep -aq 'Enroll MOK'; then
+        return 1
+    fi
     mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Enroll MOK
     mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Continue (past View key)
     mok_sendkey down; sleep 2; mok_sendkey ret; sleep 4   # Yes
@@ -3557,61 +3571,23 @@ mok_sequence() {  # interrupt the countdown, then walk the enrollment menu
     for ch in u n i v e r s a l b l u e; do mok_sendkey "$ch"; sleep 1; done
     mok_sendkey ret; sleep 5                              # confirm password
     mok_sendkey ret; sleep 2                              # Reboot (top item post-enroll)
-}
-drive_mok_manager() {
-    snapshot_serial
-    grep -aq 'MOK enrollment queued' "$PTY" || return 0
-    step "Deploy queued a MOK enrollment — watching for MokManager..."
-    local mok_from mok_deadline new_out attempts=0
-    mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
-    mok_deadline=$(deadline_in 300)
-    while ! past_deadline "$mok_deadline"; do
-        sleep 2
-        snapshot_serial
-        new_out=$(tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null || true)
-        if printf '%s' "$new_out" | grep -aq 'Press any key to perform MOK management'; then
-            mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
-            attempts=$((attempts + 1))
-            info "  MokManager on screen (sighting $attempts) — driving: Enroll MOK, password universalblue"
-            mok_sequence
-            MOK_EXTRA=300
-            if [ "$attempts" -ge 2 ]; then
-                warn "  two MokManager sequences sent — Phase 2 wait will decide"
-                return 0
-            fi
-            # Fresh window for the post-enroll boot.
-            mok_deadline=$(deadline_in 180)
-        elif printf '%s' "$new_out" | grep -aq 'bad shim signature'; then
-            # Kernel still untrusted; the firmware loops back into
-            # MokManager — keep watching from here for the next sighting.
-            mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
-            [ "$attempts" -gt 0 ] && info "  kernel still untrusted after the sequence — waiting for MokManager to reappear"
-        elif [ "$attempts" -gt 0 ] && printf '%s' "$new_out" | grep -aq 'GRUB version'; then
-            # A banner after a driven sequence looks like success — but the
-            # bad-shim error prints seconds AFTER the banner, so hold a beat
-            # and re-read before declaring anything.
-            mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
-            sleep 12
-            snapshot_serial
-            if tail -c +"$((mok_from + 1))" "$PTY" 2>/dev/null | grep -aq 'bad shim signature'; then
-                mok_from=$(wc -c < "$PTY" 2>/dev/null || echo 0)
-                info "  kernel still untrusted after the sequence — waiting for MokManager to reappear"
-            else
-                pass "MOK enrolled — GRUB proceeded without a shim rejection"
-                MOK_EXTRA=300
-                return 0
-            fi
-        fi
-    done
-    if [ "$attempts" -eq 0 ]; then
-        info "  MokManager never appeared on serial (already enrolled?) — continuing"
-    else
-        warn "  MokManager window closed after $attempts sequence(s) — Phase 2 wait will decide"
-        MOK_EXTRA=300
-    fi
     return 0
 }
-drive_mok_manager
+# The DRIVING happens inside the Phase-2 wait loop below — the only vantage
+# point with no assumption about WHEN the boot happens. Run 32657382594:
+# the reboot command was issued, a fixed 300s pre-loop watch window opened —
+# and Windows took over five minutes to actually restart, so MokManager
+# appeared AFTER the window closed, unanswered, while the watcher had
+# already concluded it was never coming. Here we only record whether an
+# enrollment is pending (and widen the boot budget for the extra reboots).
+MOK_PENDING=false
+MOK_SIGHTINGS=0
+snapshot_serial
+if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
+    MOK_PENDING=true
+    MOK_EXTRA=300
+    step "Deploy queued a MOK enrollment — the Phase-2 wait will drive MokManager when it appears"
+fi
 
 mark_phase phase2
 step "Waiting for Phase 2 Linux system to boot..."
@@ -3636,6 +3612,31 @@ while ! past_deadline "$BOOT_DEADLINE"; do
     [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         NEW_OUTPUT=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
+        # MokManager surfaces MID-WAIT (see the mok_sequence block above):
+        # drive it the moment its marker shows in fresh serial. Each driven
+        # sequence ends in a reboot, so the enrolled boot gets a fresh full
+        # budget; a sighting whose menu cannot be confirmed (countdown
+        # already expired) is skipped — the bad-shim cycle brings the screen
+        # back around for the next poll.
+        if [ "$MOK_PENDING" = true ] && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'Press any key to perform MOK management'; then
+            if mok_sequence; then
+                MOK_SIGHTINGS=$((MOK_SIGHTINGS + 1))
+                info "MokManager driven (sequence $MOK_SIGHTINGS): Enroll MOK, password universalblue"
+                if [ "$MOK_SIGHTINGS" -ge 2 ]; then
+                    warn "  two MokManager sequences sent — the boot verdict decides"
+                    MOK_PENDING=false
+                fi
+                BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
+            else
+                info "MokManager sighted but its menu was not confirmed (countdown expired?) — catching the next cycle"
+            fi
+            # Consume everything the sequence itself painted (menu redraws
+            # repeat the marker) — or the next poll would re-trigger on our
+            # own keystrokes' output and spray keys into the post-enroll boot.
+            snapshot_serial || true
+            LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+            continue
+        fi
         # A real Phase-2 boot means the system reached its ACTUAL root, not just
         # that the initramfs started. "ostree=" matches the kernel cmdline echo
         # inside the initramfs, so it fired even when the boot then dropped to an

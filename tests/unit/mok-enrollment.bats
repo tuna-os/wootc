@@ -75,26 +75,35 @@ E2E=tests/e2e/run-e2e.sh
     grep -q 'find "${MOK_CERT_STASH:-/run/wootc-mok-certs}"' "$DEPLOY"
 }
 
-@test "the harness drives MokManager from its own serial marker, not GRUB's absence" {
-    # Run 32651824930 disproved the original model: MokManager DOES write to
-    # serial ('Press any key to perform MOK management' + a countdown) and
-    # AUTO-CONTINUES into GRUB after 10 seconds — where the untrusted kernel
-    # dies 'bad shim signature' and the firmware loops back into MokManager.
-    # The old no-GRUB-banner discriminator read that pass-through banner as
-    # 'no MokManager this boot', stood down, and the box sat unanswered for
-    # the rest of the run. The driver must key off MokManager's own marker,
-    # and a GRUB banner may prove success only after a driven sequence AND a
-    # re-read that shows no fresh shim rejection (the error prints seconds
-    # AFTER the banner).
-    grep -q "grep -aq 'MOK enrollment queued' \"\$PTY\" || return 0" "$E2E"
+@test "MokManager is driven from inside the Phase-2 wait, on its own serial marker" {
+    # Two runs, two disproven assumptions:
+    #   32651824930 — MokManager DOES write to serial ('Press any key to
+    #     perform MOK management' + a countdown) and AUTO-CONTINUES into
+    #     GRUB after 10s, so a GRUB banner proves nothing about its absence;
+    #   32657382594 — a fixed pre-boot watch window is a timing bet: the
+    #     reboot command was issued, Windows took 5+ minutes to actually
+    #     restart, and MokManager appeared AFTER the window closed.
+    # So the sequence fires from the Phase-2 wait loop, on the marker, with
+    # a menu confirmation before any further key — the sequence contains
+    # 'e', which at a GRUB menu opens the editor and strands the machine.
+    grep -q 'MOK_PENDING=true' "$E2E"
     grep -q 'Press any key to perform MOK management' "$E2E"
-    grep -q 'bad shim signature' "$E2E"
-    grep -q 'GRUB proceeded without a shim rejection' "$E2E"
+    # The marker check lives INSIDE the Phase-2 wait loop (after its
+    # NEW_OUTPUT read), not in a separate pre-boot watcher.
+    local hook_line loop_line
+    loop_line=$(grep -n 'PHASE2_BYTE0=\$LAST_BYTE' "$E2E" | head -1 | cut -d: -f1)
+    hook_line=$(grep -n 'MOK_PENDING" = true.*Press any key to perform MOK management' "$E2E" | head -1 | cut -d: -f1)
+    [ -n "$loop_line" ] && [ -n "$hook_line" ]
+    [ "$hook_line" -gt "$loop_line" ]
+    # Menu confirmed before the dangerous keys; a stale sighting sends at
+    # most one harmless 'ret'.
+    grep -q "grep -aq 'Enroll MOK'" "$E2E"
     run grep -q 'no MokManager this boot' "$E2E"
     [ "$status" -ne 0 ]
-    # Bounded retry across the bad-shim loop, and the Phase-2 budget still
-    # stretches for the extra reboot(s).
+    # Bounded retry, fresh budget per driven sequence, widened overall
+    # budget while an enrollment is pending.
     grep -q 'two MokManager sequences sent' "$E2E"
+    grep -q 'BOOT_DEADLINE=$(deadline_in "$TIMEOUT")' "$E2E"
     grep -q 'TIMEOUT=$((300 + MOK_EXTRA))' "$E2E"
 }
 
