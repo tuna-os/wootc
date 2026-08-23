@@ -225,3 +225,39 @@ setup() {
     # images BEFORE they are green), so the requested card is selectable.
     grep -q 'WOOTC_E2E_DRIVE' app/app.go
 }
+
+@test "flake auto-retry: only harness-classified flakes are ever re-dispatched" {
+    # Two failure families are infrastructure losing the EVIDENCE channel,
+    # not the product failing: QGA going deaf mid-run (#220) and the QEMU
+    # serial feed freezing while the guest keeps working (aurora
+    # 32631919777). Those — and ONLY those — earn one automated re-dispatch.
+    # The day this landed, two real bugs (#263 cert ordering, #264 firmware
+    # boot-order leak) wore flake-shaped symptoms; an unclassified red must
+    # therefore never be retried, and a retry is a fresh full run, never a
+    # weakened gate.
+    local E2E=tests/e2e/run-e2e.sh HOSTED=.github/workflows/e2e-hosted.yml GUI=.github/workflows/e2e-gui.yml
+    # 1. The classifier writes a machine-readable verdict; stale verdicts
+    #    from a previous run are cleared before this run can fail.
+    grep -q 'note_flake()' "$E2E"
+    grep -q 'flake-verdict.txt' "$E2E"
+    grep -q 'rm -f "\$STORAGE_DIR/flake-verdict.txt"' "$E2E"
+    # 2. Exactly the two known signatures, each behind its discriminator:
+    #    qga-channel-lost only when QGA does NOT answer (a stall with a live
+    #    channel is the installer's fault), serial-feed-lost only when dracut
+    #    output proves the deployer's userspace was alive on the dead feed.
+    grep -q 'note_flake "qga-channel-lost"' "$E2E"
+    grep -B3 'note_flake "qga-channel-lost"' "$E2E" | grep -q 'QGA does NOT answer ping'
+    grep -q 'note_flake "serial-feed-lost"' "$E2E"
+    grep -B2 'note_flake "serial-feed-lost"' "$E2E" | grep -q "grep -aq 'dracut-initqueue'"
+    # 3. The reusable workflow surfaces the verdict as an output...
+    grep -q 'flake_verdict' "$HOSTED"
+    grep -q 'steps.flake.outputs.verdict' "$HOSTED"
+    # 4. ...and the retry job fires only on a FAILED run WITH a verdict, at
+    #    most once (a re-dispatched run carries flake_retry=1 and skips).
+    grep -q "needs.run.result == 'failure'" "$GUI"
+    grep -q "needs.run.outputs.flake_verdict != ''" "$GUI"
+    grep -q 'flake_retry=1' "$GUI"
+    grep -q "inputs.flake_retry == ''" "$GUI"
+    # 5. The green-only publish gate is untouched — retries never publish red.
+    grep -q 'name .passed' tests/e2e/publish-visual.sh
+}

@@ -135,6 +135,24 @@ fail() {
     printf '%s\n' "$*" >> "$WOOTC_FAILURE_LEDGER" 2>/dev/null || true
 }
 info() { printf '%b[INFO]%b %s\n' "$YELLOW" "$NC" "$*"; }
+
+# ── flake classifier ────────────────────────────────────────────────────────
+# Some failures are infrastructure losing the EVIDENCE channel, not the
+# product failing: the QGA virtio-serial goes deaf mid-run (#220), or the
+# QEMU serial feed freezes while the deployer keeps working (aurora run
+# 32631919777: last serial byte at 85s of deployer uptime, guest CPU still
+# pulling blobs). Re-running those by hand costs a human round-trip per
+# flake. note_flake records a MACHINE-READABLE verdict beside the artifacts;
+# the workflow reads it and re-dispatches the SAME run ONCE — a retry is a
+# fresh full run that must go green on its own merits. Real failures write
+# no verdict and are never retried: the day this classifier was written,
+# two genuine bugs (a MOK cert ordering bug and a firmware boot-order
+# leak) wore flake-shaped symptoms until diagnosed — auto-retrying an
+# unclassified red would have buried both.
+note_flake() {
+    printf '%s\n' "$1" > "$STORAGE_DIR/flake-verdict.txt" 2>/dev/null || true
+    warn "flake suspected ($1) — recorded for a single automated re-run"
+}
 # WOOTC_LAST_STEP is carried into the exit stamp. Without it the EXIT trap
 # overwrote stage= with a bare "exited (status 1)", discarding the only record
 # of WHERE a run died — three hosted win10 cells (run 30230608430) failed
@@ -176,6 +194,10 @@ export WOOTC_E2E_STORAGE_VOL="$STORAGE_DIR"
 # advisory lock open for the lifetime of this shell; it is released
 # automatically if the runner exits or is killed.
 mkdir -p "$STORAGE_DIR"
+# A previous run's flake verdict must never speak for this run: the retry
+# gate reads this file after the run ends, and a stale one would let a REAL
+# failure inherit a flake classification and get silently re-dispatched.
+rm -f "$STORAGE_DIR/flake-verdict.txt"
 exec 9>"$STORAGE_DIR/.run-e2e.lock"
 if ! flock -n 9; then
     echo "[FAIL] Another run-e2e.sh already owns $STORAGE_DIR/.run-e2e.lock" >&2
@@ -2848,6 +2870,9 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
             fail "  QGA answers ping NOW — so this is the installer, not the channel"
         else
             fail "  QGA does NOT answer ping — the verdict above may be a lost channel, not a stalled install"
+            # The discriminator that keeps this honest: an installer that
+            # stalled with a LIVE channel writes no verdict and is a real red.
+            note_flake "qga-channel-lost"
         fi
         capture_vm_diagnostics
         exit 1
@@ -3280,6 +3305,15 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             fail "  serial feed disconnected during the handover."
             info "  Last 20 lines of serial (may show a kernel panic or firmware messages):"
             tail -c 4000 "$PTY" 2>/dev/null | tr -d '\000' | tail -20 | sed 's/^/    /' || true
+            # Discriminate feed loss from a real boot failure: dracut lines on
+            # the PTY prove the deployer's userspace was alive and writing —
+            # so the missing [wootc] marker is the FEED dying, not the boot
+            # (aurora 32631919777: last serial byte at 85s, blobs still
+            # pulling). A panic or firmware bounce leaves no dracut output
+            # and stays a real, unretried red.
+            if tail -c 200000 "$PTY" 2>/dev/null | tr -d '\000' | grep -aq 'dracut-initqueue'; then
+                note_flake "serial-feed-lost"
+            fi
             capture_vm_diagnostics
             exit 1
         fi

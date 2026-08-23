@@ -46,6 +46,14 @@ on:
       # C:\OEM). The walkthrough timelapse from a GUI-driven run is the one
       # the README publishes.
       gui_install: { type: boolean, default: false }
+    outputs:
+      # Non-empty ONLY when run-e2e.sh classified its own failure as a known
+      # infrastructure flake (qga-channel-lost, serial-feed-lost). Callers may
+      # use it to re-dispatch the same run once; an unclassified failure must
+      # never be retried automatically — the day this was added, two real bugs
+      # wore flake-shaped symptoms until a human read the serial.
+      flake_verdict:
+        value: ${{ jobs.e2e.outputs.flake_verdict }}
 
 permissions:
   contents: read
@@ -55,6 +63,8 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 330          # under the 6 h hard cap, with headroom
+    outputs:
+      flake_verdict: ${{ steps.flake.outputs.verdict }}
     steps:
       - uses: actions/checkout@v7
         with: { submodules: recursive }
@@ -242,6 +252,18 @@ jobs:
           # diagnosed for hours — the evidence artifact is the only way in.
           set -o pipefail
           bash run-e2e.sh "$WOOTC_TARGET_IMAGE" $FLAGS 2>&1 | tee /tmp/run-e2e-console.log
+
+      # Surface the harness's own flake classification (written ONLY when the
+      # failure matched a known infra signature — see note_flake in
+      # run-e2e.sh). Callers gate a single automated re-dispatch on this;
+      # empty means real failure, never retried.
+      - name: Read flake verdict
+        id: flake
+        if: always()
+        run: |
+          v=$(cat tests/e2e/storage/flake-verdict.txt 2>/dev/null | head -1 | tr -cd 'a-z-')
+          echo "verdict=$v" >> "$GITHUB_OUTPUT"
+          [ -n "$v" ] && echo "::notice::run-e2e.sh classified this failure as a flake: $v" || true
 
       - name: Collect evidence
         if: always()

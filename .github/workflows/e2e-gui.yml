@@ -20,6 +20,10 @@ on:
         description: 'Graduate to a native disk (Phase 3). Off = the run ends back in Windows, so the timelapse closes on the untouched-Windows demo — the right cut for showcase videos.'
         type: boolean
         default: true
+      flake_retry:
+        description: 'Internal: set by the auto-retry job on its single re-dispatch of a flake-classified failure. Leave empty when dispatching by hand.'
+        type: string
+        default: ''
   schedule:
     # Nightly, offset from the headless canary so they do not contend for
     # the hosted runner pool.
@@ -28,6 +32,7 @@ on:
 permissions:
   contents: write        # commit the refreshed timelapse to pages/
   packages: read
+  actions: write         # the flake-retry job re-dispatches this workflow once
 
 concurrency:
   group: e2e-gui-publish
@@ -51,6 +56,36 @@ jobs:
     # secret to this job for no reason; the other three callers of this
     # reusable workflow (e2e-matrix.yml, e2e-nightly.yml, release.yml) already
     # call it with no secrets: block at all. See #153.
+
+  # ── flake auto-retry ──────────────────────────────────────────────────────
+  # A failure the harness ITSELF classified as infrastructure losing the
+  # evidence channel (flake-verdict.txt: qga-channel-lost, serial-feed-lost)
+  # gets exactly ONE automated re-dispatch of the same inputs. Everything
+  # about this is deliberately narrow:
+  #   - a retry is a fresh, full run that must go green on its own — no gate
+  #     is ever weakened and a red is never re-labeled;
+  #   - an UNCLASSIFIED failure is never retried: the day this landed, two
+  #     real bugs (#263's cert ordering, #264's boot-order leak) wore
+  #     flake-shaped symptoms until a human read the serial;
+  #   - the re-dispatch carries flake_retry=1 and this job skips when it is
+  #     already set, so one flake costs at most one extra run — a retry that
+  #     flakes again waits for a human (or the next nightly);
+  #   - the concurrency group holds the new run PENDING until this one ends,
+  #     and a single pending run is never cancelled by it.
+  flake-retry:
+    needs: run
+    if: ${{ always() && needs.run.result == 'failure' && needs.run.outputs.flake_verdict != '' && (github.event_name == 'schedule' || inputs.flake_retry == '') }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
+      PHASE3: ${{ github.event_name == 'schedule' && 'true' || (inputs.phase3 && 'true' || 'false') }}
+      VERDICT: ${{ needs.run.outputs.flake_verdict }}
+    steps:
+      - run: |
+          echo "Re-dispatching once: harness classified the failure as '$VERDICT'"
+          gh workflow run e2e-gui.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" \
+            -f image="$IMAGE" -f phase3="$PHASE3" -f flake_retry=1
 
   publish:
     needs: run
