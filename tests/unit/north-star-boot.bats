@@ -153,3 +153,25 @@ MODSETUP="payload/deployer/module-setup.sh"
     printf '%s' "$body" | grep -q '"bootsequence", guid, "/addfirst"'
     printf '%s' "$body" | grep -q 'deleteWootcBCDEntries()'
 }
+
+@test "the download shows live progress, not a parked bar" {
+    # Field review (aurora walkthrough, 2026-08-23): the fisherman splash
+    # band's easing reached its ceiling in ~2 minutes and PARKED there for
+    # the entire multi-GB pull — a frozen number next to a time promise
+    # reads as a hang, the exact fear the splash exists to prevent. The
+    # splash now ticks a real byte counter (scratch growth = blobs landing)
+    # and tracks the expected download size when the registry provides it.
+    local D=payload/deployer/deploy.sh
+    grep -q 'start_pull_progress_watch' "$D"
+    grep -q 'GB done so far' "$D"
+    # Evidence-driven, not animated: scratch usage delta as the numerator,
+    # skopeo-inspected layer sizes as the denominator.
+    grep -q 'LayersData' "$D"
+    grep -q 'df -Pk /var/fisherman-tmp' "$D"
+    # Monotonic and capped inside the band: an estimate may run slow but
+    # never claims more than reality earned, and never moves backwards.
+    grep -q '(( cand > lastpct )) && lastpct=' "$D"
+    grep -q '(( cand > 85 )) && cand=85' "$D"
+    # The watcher dies with the pull, and cleanup kills a stray one.
+    [ "$(grep -c 'PULL_WATCH_PID' "$D")" -ge 4 ]
+}

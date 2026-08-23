@@ -192,10 +192,12 @@ SCRATCH_LOOP=""
 SCRATCH_IMG=""
 JOURNAL_STREAM_PID=""
 HEARTBEAT_PID=""
+PULL_WATCH_PID=""
 cleanup() {
     local _rc=$? mount
     [[ -n "$JOURNAL_STREAM_PID" ]] && kill "$JOURNAL_STREAM_PID" 2>/dev/null || true
     [[ -n "$HEARTBEAT_PID" ]] && kill "$HEARTBEAT_PID" 2>/dev/null || true
+    [[ -n "$PULL_WATCH_PID" ]] && kill "$PULL_WATCH_PID" 2>/dev/null || true
 
     # On FAILURE, put the deployer's own log tail on the SERIAL. log() writes to
     # $PERSIST_LOG on the NTFS, and err() to stderr — so on a failed deploy,
@@ -1346,10 +1348,70 @@ log "Fisherman recipe:"
 # the disk-unlock secret in either one.
 jq 'if .encryption.passphrase then .encryption.passphrase = "<redacted>" else . end' "$RECIPE"
 
+# ── Live download progress on the splash ────────────────────────────────────
+# The fisherman phase is one splash band (26→86), but nearly all of its wall
+# time is the image pull — the easing animator reaches the band ceiling in a
+# couple of minutes and then the bar PARKS there for however long a multi-GB
+# download takes. A bar frozen at one number is exactly the "is it hung?"
+# fear this screen exists to prevent. Drive it from evidence instead: every
+# pulled blob lands in the scratch filesystem, so scratch growth IS the
+# download progressing. The message carries a live byte counter (a number
+# that keeps ticking is proof of life even when the percent is uncertain),
+# and when the registry told us the expected download size, the bar tracks
+# real bytes across the band. Notes on honesty:
+#   - containers-storage holds compressed blobs AND their unpacked layers,
+#     so raw growth runs ~2x the compressed total — divide that back out;
+#   - the percent is monotonic and capped at 85 inside the band, so an
+#     estimate can run slow but never claims more than reality earned;
+#   - the ceiling passed to the animator is pct+2, not 86 — letting the
+#     easing sprint ahead and then yanking it back each sample would show
+#     the bar moving BACKWARDS, which reads worse than parking;
+#   - unknown total (inspect failed): the counter still ticks and the bar
+#     crawls ~1%/30s toward 80 — the pace the old animator implied, now with
+#     visible evidence attached.
+start_pull_progress_watch() {
+    splash_on || return 0
+    local total_bytes=0 base_kib
+    if [[ "$WOOTC_OFFLINE" == 1 ]]; then
+        total_bytes=$(du -sk "$BUNDLE_OCI" 2>/dev/null | awk '{print $1 * 1024}' || true)
+    else
+        total_bytes=$(timeout 60 skopeo inspect --retry-times 2 "docker://${IMAGE}" 2>/dev/null \
+            | jq '[.LayersData[]?.Size] | add // 0' 2>/dev/null || true)
+    fi
+    [[ "$total_bytes" =~ ^[0-9]+$ ]] || total_bytes=0
+    base_kib=$(df -Pk /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3}' || true)
+    [[ "$base_kib" =~ ^[0-9]+$ ]] || return 0
+    (
+        lastpct=26 tick=0
+        while :; do
+            sleep 10
+            tick=$((tick + 1))
+            used=$(df -Pk /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3}' || true)
+            [[ "$used" =~ ^[0-9]+$ ]] || continue
+            done_kib=$(( used > base_kib ? used - base_kib : 0 ))
+            gib=$(awk -v k="$done_kib" 'BEGIN{printf "%.1f", k/1048576}')
+            if (( total_bytes > 0 )); then
+                cand=$(( 26 + done_kib * 1024 * 60 / (total_bytes * 2) ))
+            else
+                cand=$(( 26 + tick / 3 ))
+                (( cand > 80 )) && cand=80
+            fi
+            (( cand > 85 )) && cand=85
+            (( cand > lastpct )) && lastpct=$cand
+            splash_set "$lastpct" "$((lastpct + 2))" \
+                "Downloading and installing your Linux system - ${gib} GB done so far..."
+        done
+    ) &
+    PULL_WATCH_PID=$!
+}
+
 # ── Run fisherman ───────────────────────────────────────────────────────────
 phase "fisherman"
 log "Running fisherman — this pulls the image and deploys it..."
+start_pull_progress_watch
 fisherman "$RECIPE"
+[[ -n "$PULL_WATCH_PID" ]] && kill "$PULL_WATCH_PID" 2>/dev/null || true
+PULL_WATCH_PID=""
 
 losetup -d "$LOOP_DEV"
 LOOP_DEV=""
