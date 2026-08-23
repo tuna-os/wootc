@@ -914,6 +914,15 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			// network already failed while Windows could still say so —
 			// discovering that after the reboot would strand the user at a
 			// splash screen instead of an error they can act on.
+			// WOOTC_PRELOAD=0 force-disables even for branded builds: the
+			// E2E harness runs BRANDED exes (the walkthrough videos must
+			// show the installer users actually get) but the offline bundle
+			// path has its own matrix axis (#217) — until that is green,
+			// the harness proves branding and deploy separately from
+			// preload. Real users never run with this variable set.
+			if os.Getenv("WOOTC_PRELOAD") == "0" {
+				return nil
+			}
 			if !effectiveBranding().PreloadImage && os.Getenv("WOOTC_PRELOAD") == "" {
 				return nil
 			}

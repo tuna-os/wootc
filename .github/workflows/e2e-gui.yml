@@ -153,8 +153,12 @@ jobs:
           git rm -rf --cached . >/dev/null
           # The whole gallery, not just latest: every brand's current cut plus
           # the index ride the assets branch (still a single orphan commit —
-          # history never accumulates, wootc#87 holds).
-          git add pages/e2e
+          # history never accumulates, wootc#87 holds). -f is LOAD-BEARING:
+          # .gitignore excludes pages/e2e/latest media to keep it off MAIN,
+          # and a plain `git add` silently honored that on the assets branch
+          # too — every publish shipped the gallery with a media-less
+          # latest/ (the README hero 404'd while the per-slug cuts worked).
+          git add -f pages/e2e
           git commit -m "e2e visual: refresh walkthrough media, slug=$slug (${{ github.run_id }})"
           git push -f origin HEAD:pages-assets
 

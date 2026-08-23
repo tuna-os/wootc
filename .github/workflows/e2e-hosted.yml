@@ -163,8 +163,23 @@ jobs:
         run: |
           set -euo pipefail
           ( cd app/frontend && npm ci --silent && npm run build )
+          # Wear the brand that matches the image under test: a bluefin run
+          # drives the Bluefin-branded installer, exactly what a real user
+          # downloads — the walkthrough videos must show that installer, not
+          # the generic one. No matching brand directory → generic build.
+          # (Preload is separately forced off in the guest via
+          # WOOTC_PRELOAD=0 until the offline axis (#217) is green.)
+          image="${{ inputs.image }}"
+          name=$(basename "${image%:*}")
+          BRAND_FLAG=""
+          if [ -d "app/branding/$name" ]; then
+            BRAND_FLAG="-X main.brandID=$name"
+            echo "building BRANDED installer: $name"
+          else
+            echo "no brand directory for '$name' — building the generic installer"
+          fi
           ( cd app && GOOS=windows GOARCH=amd64 \
-              go build -tags desktop,production -ldflags "-w -s" \
+              go build -tags desktop,production -ldflags "-w -s $BRAND_FLAG" \
               -o ../tests/e2e/wootc-files/wootc.exe . )
           ls -lh tests/e2e/wootc-files/wootc.exe
 

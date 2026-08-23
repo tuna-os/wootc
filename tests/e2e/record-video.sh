@@ -21,8 +21,9 @@ RUNTIME="${WOOTC_CONTAINER_RUNTIME:-podman}"
 INTERVAL="${WOOTC_VIDEO_INTERVAL:-2}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CARDS_DIR="$SCRIPT_DIR/titlecards"
-CARD_HOLD="${WOOTC_VIDEO_CARD_HOLD:-16}"   # frames a title card is held (~1.6s @10fps)
-command="${1:?usage: record-video.sh start|mark|stop <outdir> [card]}"
+CARD_HOLD="${WOOTC_VIDEO_CARD_HOLD:-50}"   # frames a title card is held (~5s @10fps)
+FREEZE_HOLD="${WOOTC_VIDEO_FREEZE_HOLD:-50}" # frames a frozen moment is held (~5s @10fps)
+command="${1:?usage: record-video.sh start|mark|freeze|stop <outdir> [card]}"
 outdir="${2:?outdir required}"
 
 snap_loop() {
@@ -85,7 +86,7 @@ build_sequence() {
     mkdir -p "$outdir/seq"; rm -f "$outdir/seq"/*.ppm 2>/dev/null || true
     local out=0 idx=0 f cardppm
     for f in $(find "$outdir/frames" -maxdepth 1 -name 'f*.ppm' | sort); do
-        if [ -n "${CARD_AT[$idx]:-}" ]; then
+        if [ -n "${CARD_AT[$idx]:-}" ] && [ "${CARD_AT[$idx]}" != "@freeze" ]; then
             cardppm=$(make_card "${CARD_AT[$idx]}" "$w" "$h")
             if [ -n "$cardppm" ]; then
                 local k=0
@@ -97,7 +98,16 @@ build_sequence() {
         fi
         cp -l "$f" "$(printf '%s/seq/f%06d.ppm' "$outdir" "$out")" 2>/dev/null \
             || cp -f "$f" "$(printf '%s/seq/f%06d.ppm' "$outdir" "$out")"
-        out=$((out + 1)); idx=$((idx + 1))
+        out=$((out + 1))
+        if [ "${CARD_AT[$idx]:-}" = "@freeze" ]; then
+            # Freeze: hold this exact frame so the moment is readable.
+            local k=1
+            while [ "$k" -lt "$FREEZE_HOLD" ]; do
+                cp -f "$f" "$(printf '%s/seq/f%06d.ppm' "$outdir" "$out")"
+                out=$((out + 1)); k=$((k + 1))
+            done
+        fi
+        idx=$((idx + 1))
     done
     [ "$out" -gt 0 ] && echo "$outdir/seq" || echo "$outdir/frames"
 }
@@ -140,6 +150,14 @@ case "$command" in
         card="${3:?mark needs a card name}"
         n=$(find "$outdir/frames" -maxdepth 1 -name 'f*.ppm' 2>/dev/null | wc -l)
         printf '%s\t%s\n' "$n" "$card" >> "$outdir/markers.txt"
+        ;;
+    freeze)
+        # Hold the moment currently on screen: the just-captured frame is
+        # duplicated FREEZE_HOLD times at assembly, so a viewer gets ~5s to
+        # actually read the screen the timelapse would otherwise blink past
+        # (the migrated-files desktop, Disk Management, the done screen).
+        n=$(find "$outdir/frames" -maxdepth 1 -name 'f*.ppm' 2>/dev/null | wc -l)
+        [ "$n" -gt 0 ] && printf '%s\t@freeze\n' "$((n - 1))" >> "$outdir/markers.txt"
         ;;
     stop)
         if [ -f "$outdir/.recorder.pid" ]; then

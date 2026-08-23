@@ -166,7 +166,11 @@ mkrun() {
     local wf=".github/workflows/e2e-gui.yml"
     grep -q 'git fetch --depth 1 origin pages-assets' "$wf"
     grep -q 'git checkout FETCH_HEAD -- pages/e2e' "$wf"
-    grep -q 'git add pages/e2e$' "$wf"
+    # -f is load-bearing: .gitignore excludes latest/ media to keep it off
+    # MAIN, and a plain add silently honored that on the assets branch too —
+    # every publish shipped a media-less latest/ (hero 404) while the
+    # per-slug cuts worked.
+    grep -q 'git add -f pages/e2e$' "$wf"
     # Slug derivation exists and latest keeps being refreshed for the README.
     grep -q 'slug="\$name' "$wf" || grep -q 'slug=' "$wf"
     grep -q 'pages/e2e/latest "pages/e2e/\$slug"' "$wf"
@@ -174,4 +178,26 @@ mkrun() {
     # The green-only gate still stands in front of all of it.
     grep -q 'name .passed' tests/e2e/publish-visual.sh
     grep -q '\.passed' "$wf"
+}
+
+@test "the timelapse gives viewers time to read: 5s cards and freeze-frames" {
+    # Field review (2026-08-23): cards blinked past at 1.6s and the demo
+    # money shots compressed to ~2s of screen time — unreadable. Cards hold
+    # ~5s, and the harness freezes the frames that carry the story.
+    grep -q 'WOOTC_VIDEO_CARD_HOLD:-50' tests/e2e/record-video.sh
+    grep -q 'WOOTC_VIDEO_FREEZE_HOLD:-50' tests/e2e/record-video.sh
+    grep -q '@freeze' tests/e2e/record-video.sh
+    # The three story moments: done screen, migrated files, untouched Windows.
+    [ "$(grep -c 'freeze_frame$' tests/e2e/run-e2e.sh)" -ge 3 ]
+}
+
+@test "brand runs drive the BRANDED installer" {
+    # The walkthrough video for bluefin must show the Bluefin installer —
+    # the one a real user downloads — not the generic build. Brand derived
+    # from the image under test; preload force-disabled in the guest until
+    # the offline axis (#217) is green.
+    grep -q 'main.brandID=\$name' .github/workflows/e2e-hosted.yml
+    grep -q 'app/branding/\$name' .github/workflows/e2e-hosted.yml
+    grep -q 'set WOOTC_PRELOAD=0' tests/e2e/run-e2e.sh
+    grep -q 'os.Getenv("WOOTC_PRELOAD") == "0"' app/app.go
 }

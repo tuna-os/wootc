@@ -2130,6 +2130,14 @@ mark_phase() {
     WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" mark "$VIDEO_DIR" "$1" 2>/dev/null || true
 }
 
+# Hold the frame currently on screen for ~5s in the assembled timelapse, so
+# the moments that carry the story (the done screen, the migrated files, the
+# untouched partition table) are readable instead of a blink.
+freeze_frame() {
+    [ "${VIDEO_STARTED:-false}" = true ] || return 0
+    WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" freeze "$VIDEO_DIR" 2>/dev/null || true
+}
+
 # ── Timelapse demo stages (video-only, never load-bearing) ───────────────────
 # Two showcase segments for the published walkthrough: the migrated files on
 # the live Linux desktop, and Windows coming back untouched. The FACTS are
@@ -2177,6 +2185,7 @@ demo_linux_userdata() {
         runuser -u wootc -- env "XDG_RUNTIME_DIR=/run/user/$uid" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
             systemd-run --user --collect xdg-open /home/wootc/Documents' >/dev/null 2>&1 || true
     sleep "${WOOTC_E2E_DEMO_DWELL:-40}"
+    freeze_frame
     pass "Timelapse demo: Linux desktop segment recorded"
 }
 
@@ -2210,6 +2219,7 @@ schtasks /Create /TN wootc-e2e-demo /SC ONCE /ST $start /TR "C:\wootc\e2e-demo.c
 schtasks /Run /TN wootc-e2e-demo | Out-Null
 Write-Output "demo-task-scheduled"' >/dev/null 2>&1 || true
     sleep "${WOOTC_E2E_DEMO_DWELL:-40}"
+    freeze_frame
     qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-demo\" /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
     pass "Timelapse demo: Windows-untouched segment recorded"
 }
@@ -2524,6 +2534,7 @@ foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx6
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1
+set WOOTC_PRELOAD=0
 start `"`" C:\wootc\wootc.exe
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
 Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
@@ -2773,6 +2784,8 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         fi
         if printf '%s' "$drive_state" | grep -q '"screen":"done"'; then
             pass "GUI-driven install completed — real pipeline reached the done screen"
+            # Let the done screen actually appear in a capture, then hold it.
+            sleep 4; freeze_frame
             break
         fi
         if printf '%s' "$drive_state" | grep -q '"error":"'; then
