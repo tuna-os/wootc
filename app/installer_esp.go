@@ -480,49 +480,64 @@ func configureBCD(bootloader string) error {
 	// inheriting the ESP device/partition settings, so no drive letter is needed.
 	// This is the proven approach from WubiUEFI (millions of users).
 	//
-	// Retry, and say what the firmware list looked like when it fails (#74).
-	// This step failed on 2 of 3 runs of one cell with two different messages,
-	// both about the DISPLAY ORDER:
+	// Retry the WHOLE arm, and say what the firmware list looked like when it
+	// fails (#74). The transient BCD-store errors —
 	//     "Illegal operation attempted on a registry key marked for deletion"
 	//     "The data area passed to a system call is too small"
-	// The first reads as a transient BCD-store state; the second is what
-	// bcdedit reports when the firmware boot entry list has grown large.
+	// — were first seen on /copy (2 of 3 runs of one cell), so only /copy got
+	// the retry. Then bluefin run 32642504000 hit the SAME "marked for
+	// deletion" transient on the bootsequence step, which had no protection,
+	// and the install died on a one-shot flake. A fresh entry whose registry
+	// key has gone bad cannot be repaired by re-running one command against
+	// it — the retry must discard it (sweep) and rebuild from /copy. So the
+	// loop now wraps copy → parse → path → bootsequence as one attempt.
 	//
-	// deleteWootcBCDEntries above removes stale entries by GUID but does not
-	// repair the display order — leaving dangling references that cause
-	// /copy to fail when it internally reads or touches the display order.
-	// Repairing the display order before the copy (idempotent /addfirst of
-	// {bootmgr}) plus a bounded retry with sweep covers both failure modes.
-	var out string
+	// deleteWootcBCDEntries removes stale entries by GUID but does not repair
+	// the display order — dangling references make /copy fail when it reads
+	// or touches the display order, so each attempt repairs it first
+	// (idempotent /addfirst of {bootmgr}).
+	re := regexp.MustCompile(`\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}`)
+	var out, guid string
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
-		// Repair the display order before each attempt: deleteWootcBCDEntries
-		// above (and between attempts below) can leave dangling GUID refs.
+		guid = ""
 		runCmd("bcdedit", "/displayorder", "{bootmgr}", "/addfirst") //nolint:errcheck
 		out, err = runCmd("bcdedit", "/copy", "{bootmgr}", "/d", "wootc")
+		if err == nil {
+			if m := re.FindStringSubmatch(out); m == nil {
+				err = fmt.Errorf("could not parse GUID from bcdedit output: %q", out)
+			} else {
+				guid = "{" + m[1] + "}"
+				// One-shot bootsequence only: nothing permanent changes in
+				// the user's boot order until TunaOS is known to work.
+				// displayorder promotion is a post-deploy, user-confirmed
+				// action, not part of the install.
+				for _, args := range [][]string{
+					{"bcdedit", "/set", guid, "path", efiRelPath},
+					{"bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"},
+				} {
+					if out, err = runCmd(args[0], args[1:]...); err != nil {
+						err = fmt.Errorf("bcdedit %v: %w (output: %s)", args[1:], err, out)
+						break
+					}
+				}
+			}
+		}
 		if err == nil {
 			break
 		}
 		if attempt < 3 {
-			// A partially-created entry from the failed attempt would itself
-			// lengthen the list, so sweep before trying again.
+			// A partially-created or gone-bad entry from the failed attempt
+			// would itself poison the next one, so sweep before retrying.
 			deleteWootcBCDEntries()
 			time.Sleep(time.Duration(attempt) * 2 * time.Second)
 		}
 	}
 	if err != nil {
 		enum, _ := runCmd("bcdedit", "/enum", "firmware")
-		return fmt.Errorf("bcdedit /create: %w (output: %s) — firmware entries at failure: %d\n%s",
-			err, out, strings.Count(enum, "identifier"), tail(enum, 2000))
+		return fmt.Errorf("bcdedit arm: %w — firmware entries at failure: %d\n%s",
+			err, strings.Count(enum, "identifier"), tail(enum, 2000))
 	}
-
-	// Parse the new GUID
-	re := regexp.MustCompile(`\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}`)
-	m := re.FindStringSubmatch(out)
-	if m == nil {
-		return fmt.Errorf("could not parse GUID from bcdedit output: %q", out)
-	}
-	guid := "{" + m[1] + "}"
 
 	// Persist the GUID where setup-wootc.ps1 also records it: the E2E
 	// harness schedules the PHASE-2 loopback boot by re-arming exactly this
@@ -533,18 +548,6 @@ func configureBCD(bootloader string) error {
 		fmt.Printf("warning: could not persist bcd-guid.txt: %v\n", err)
 	}
 
-	// One-shot bootsequence only: nothing permanent changes in the user's
-	// boot order until TunaOS is known to work. displayorder promotion is a
-	// post-deploy, user-confirmed action, not part of the install.
-	cmds := [][]string{
-		{"bcdedit", "/set", guid, "path", efiRelPath},
-		{"bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"},
-	}
-	for _, args := range cmds {
-		if out, err := runCmd(args[0], args[1:]...); err != nil {
-			return fmt.Errorf("bcdedit %v: %w (output: %s)", args[1:], err, out)
-		}
-	}
 	// Enforce the bootsequence-only promise: /copy can register the clone in
 	// the permanent firmware displayorder too (position varies by firmware),
 	// and an entry there outlives the one-shot — after the deploy the machine

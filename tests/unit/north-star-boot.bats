@@ -139,3 +139,17 @@ MODSETUP="payload/deployer/module-setup.sh"
     grep -q 'bcdedit /set {fwbootmgr} displayorder \$g /remove' tests/e2e/run-e2e.sh
     grep -q 'bcdedit /delete \$g' tests/e2e/run-e2e.sh
 }
+
+@test "the one-shot arm retries as a unit — bootsequence included" {
+    # bluefin run 32642504000: the "registry key marked for deletion"
+    # transient (#74) struck the bootsequence step, which sat OUTSIDE the
+    # /copy retry loop — one flake of an unprotected command killed the whole
+    # install. A fresh entry whose registry key went bad cannot be repaired
+    # by re-running one command against it; the retry must sweep and rebuild
+    # from /copy whenever ANY arm step fails. Pin: the bootsequence set and
+    # the between-attempts sweep both live inside the attempt loop.
+    local body
+    body=$(awk '/for attempt := 1; attempt <= 3/,/bcdedit arm:/' app/installer_esp.go)
+    printf '%s' "$body" | grep -q '"bootsequence", guid, "/addfirst"'
+    printf '%s' "$body" | grep -q 'deleteWootcBCDEntries()'
+}
