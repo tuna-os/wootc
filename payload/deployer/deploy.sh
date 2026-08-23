@@ -3239,6 +3239,40 @@ GRUBEOF
         log "  [PASS] Phase-3 executable present; SELinux is permissive/disabled — labels not required (setfiles absent)"
     fi
 
+    # ── MOK cert harvest (#248) — must happen HERE, while trees exist ──────
+    # queue_mok_enrollment runs after /mnt/verify is unmounted and the verify
+    # loop detached, so a $DEPLOY_ROOT glob there dereferences an empty mount
+    # point — found=0 forever, on EVERY image (run 32624885089 reported "no
+    # distribution certs" on bazzite:stable for exactly this reason). And even
+    # while mounted, a composefs deployment's on-disk /usr is a stub and its
+    # /etc only the writable upper layer, so the cert bazzite actually ships —
+    # /etc/pki/akmods/certs/akmods-ublue.der, the exact file its own
+    # `ujust enroll-secure-boot-key` imports — appears in NEITHER tree. The
+    # container image is the one place image /etc content is always readable
+    # (podman materializes the full rootfs; the scratch teardown comes later).
+    # Harvest to tmpfs now; enrollment imports from the stash.
+    MOK_CERT_STASH=/run/wootc-mok-certs
+    if [[ "$(read_cmdline wootc.mok "")" == "enroll" ]]; then
+        mkdir -p "$MOK_CERT_STASH"
+        shopt -s nullglob
+        for _c in "$DEPLOY_ROOT"/usr/share/ublue-os/sb_pubkey.der \
+                  "$DEPLOY_ROOT"/etc/pki/akmods/certs/*.der \
+                  "$DEPLOY_ROOT"/usr/share/ublue-os/certs/*.der; do
+            cp -f "$_c" "$MOK_CERT_STASH/" 2>/dev/null \
+                && err "  MOK: cert harvested from deployment: $(basename "$_c")"
+        done
+        shopt -u nullglob
+        if ! compgen -G "$MOK_CERT_STASH/*.der" >/dev/null; then
+            err "  MOK: deployment tree carries no certs (composefs keeps image /etc out of it) — asking the container image"
+            timeout 180 podman run --rm "$IMAGE" sh -c \
+                'find /etc/pki/akmods/certs /usr/share/ublue-os -maxdepth 3 -type f -name "*.der" 2>/dev/null | head -8 | tar -cf - -T - 2>/dev/null' \
+                2>/dev/null | tar -xf - -C "$MOK_CERT_STASH" 2>/dev/null || true
+            while IFS= read -r _c; do
+                err "  MOK: cert harvested from container image: ${_c#"$MOK_CERT_STASH"/}"
+            done < <(find "$MOK_CERT_STASH" -type f -name '*.der' 2>/dev/null)
+        fi
+    fi
+
     vstage "verify-complete (all stages passed; Phase-2 ESP is staged)"
     # The composefs target ESP is mounted UNDER boot/, so it must go first or
     # the boot umount fails busy.
@@ -3319,16 +3353,12 @@ queue_mok_enrollment() {
     # mokutil needs efivarfs; mount is idempotent and UEFI-only.
     mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true
     mokutil --sb-state 2>/dev/null | grep -qi 'enabled' || { err "  MOK: Secure Boot not enabled; no enrollment needed"; return 0; }
-    # Cert locations by lineage: bazzite ships its Secure Boot public key at
-    # /usr/share/ublue-os/sb_pubkey.der (its own installer hook imports
-    # exactly that path — installer/titanoboa_hook_postrootfs.sh); classic
-    # akmods layouts use /etc/pki/akmods/certs. The instrumented run
-    # 32614088877 proved the akmods paths empty on bazzite:stable.
+    # Certs come from the tmpfs stash the verify block harvested while the
+    # deployment (and, under composefs, the container image itself) was still
+    # reachable — by the time this runs, /mnt/verify is unmounted and the
+    # loop detached, so no on-disk path is readable from here.
     local cert found=0
-    for cert in "$DEPLOY_ROOT"/usr/share/ublue-os/sb_pubkey.der \
-                "$DEPLOY_ROOT"/etc/pki/akmods/certs/*.der \
-                "$DEPLOY_ROOT"/usr/share/ublue-os/certs/*.der; do
-        [[ -f "$cert" ]] || continue
+    while IFS= read -r cert; do
         found=1
         if mokutil --test-key "$cert" 2>/dev/null | grep -qi 'already enrolled'; then
             err "  MOK: key already enrolled: $(basename "$cert")"
@@ -3343,8 +3373,8 @@ queue_mok_enrollment() {
         else
             err "  [WARN] could not queue MOK enrollment for $(basename "$cert") — Secure Boot may reject this image's kernel"
         fi
-    done
-    [[ "$found" == 0 ]] && err "  MOK: no distribution certs in this image ($DEPLOY_ROOT/etc/pki/akmods/certs); nothing to enroll"
+    done < <(find "${MOK_CERT_STASH:-/run/wootc-mok-certs}" -type f -name '*.der' 2>/dev/null | sort)
+    [[ "$found" == 0 ]] && err "  MOK: no distribution certs harvested (searched deployment + container image: /etc/pki/akmods/certs, /usr/share/ublue-os); nothing to enroll"
     return 0
 }
 queue_mok_enrollment || true

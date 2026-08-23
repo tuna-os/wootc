@@ -31,9 +31,9 @@ E2E=tests/e2e/run-e2e.sh
     grep -q 'wootc.mok=enroll' app/installer_esp.go
     grep -q 'func imageNeedsMok' app/app.go
     grep -q 'read_cmdline wootc.mok' "$DEPLOY"
-    # Secure Boot check next (no-op otherwise), cert discovery in the
-    # deployed root, upstream's own documented password, and a serial marker
-    # the harness gates its driver on.
+    # Secure Boot check next (no-op otherwise), cert discovery via the
+    # harvested stash, upstream's own documented password, and a serial
+    # marker the harness gates its driver on.
     grep -q 'mokutil --sb-state' "$DEPLOY"
     # bazzite's actual key path (its own installer imports exactly this file),
     # plus the classic akmods layouts for other lineages.
@@ -51,6 +51,28 @@ E2E=tests/e2e/run-e2e.sh
     grep -q 'mokutil' payload/deployer/Containerfile
     grep -cq 'mokutil' payload/deployer/Containerfile
     [ "$(grep -c 'mokutil' payload/deployer/Containerfile)" -ge 3 ]
+}
+
+@test "MOK certs are harvested before the verify tree is unmounted" {
+    # queue_mok_enrollment runs after /mnt/verify is unmounted and the loop
+    # detached — a $DEPLOY_ROOT glob there reads an empty mount point, so
+    # every image reported "no distribution certs" (run 32624885089, bazzite,
+    # which DOES ship /etc/pki/akmods/certs/akmods-ublue.der). Discovery must
+    # happen inside the verify block, and composefs images must be asked via
+    # the container image — the deployment's /usr is a stub and its /etc only
+    # the writable upper layer, so image-shipped certs appear in neither.
+    local harvest umount_line queue_line
+    harvest=$(grep -n 'MOK_CERT_STASH=/run/wootc-mok-certs' "$DEPLOY" | head -1 | cut -d: -f1)
+    umount_line=$(grep -n 'umount /mnt/verify 2>/dev/null || err' "$DEPLOY" | head -1 | cut -d: -f1)
+    queue_line=$(grep -n '^queue_mok_enrollment || true' "$DEPLOY" | head -1 | cut -d: -f1)
+    [ -n "$harvest" ] && [ -n "$umount_line" ] && [ -n "$queue_line" ]
+    [ "$harvest" -lt "$umount_line" ]
+    [ "$umount_line" -lt "$queue_line" ]
+    # The composefs answer: certs pulled out of the container image rootfs.
+    grep -q 'cert harvested from container image' "$DEPLOY"
+    grep -q 'find /etc/pki/akmods/certs /usr/share/ublue-os' "$DEPLOY"
+    # Enrollment consumes the stash, never the (dead) on-disk paths.
+    grep -q 'find "${MOK_CERT_STASH:-/run/wootc-mok-certs}"' "$DEPLOY"
 }
 
 @test "the harness drives MokManager only behind the no-GRUB discriminator" {
