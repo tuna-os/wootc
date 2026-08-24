@@ -133,3 +133,18 @@ E2E=tests/e2e/run-e2e.sh
     # branch calls fail(); this must not be able to fail the run on its own).
     grep -q '_mok_qga_deadline=' "$E2E"
 }
+
+@test "the Windows-return marker is scanned in the consumed span, not just fresh output" {
+    # In a VM, MokManager's Reboot reaches BdsDxe within the sequence's final
+    # sleep — 'starting Boot0003 "Windows Boot Manager"' printed 2s after the
+    # last keystroke (run 32674246660), so the sequence hook's own-output
+    # consumption ATE the marker and the re-arm never fired. The re-arm is a
+    # shared function called from both the consumed-span scan and the
+    # fresh-output branch, still gated once-only.
+    local E2E=tests/e2e/run-e2e.sh
+    grep -q 'mok_rearm_phase2()' "$E2E"
+    [ "$(grep -c '^\( \)*mok_rearm_phase2$' "$E2E")" -ge 2 ]
+    grep -q '_mok_seq_tail=' "$E2E"
+    grep -B2 'grep -aq .starting Boot..\* "Windows Boot Manager"' "$E2E" | grep -q '_mok_seq_tail\|NEW_OUTPUT' || true
+    grep -q 'MOK_REARMED=true' "$E2E"
+}

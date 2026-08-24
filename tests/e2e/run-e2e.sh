@@ -3663,6 +3663,32 @@ if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
     step "Deploy queued a MOK enrollment — the Phase-2 wait will drive MokManager when it appears"
 fi
 
+# MokManager's post-enroll reboot lands in WINDOWS (the one-shot was consumed
+# booting INTO MokManager; MokManager's own reboot follows the firmware
+# default) — re-arm the same one-shot once so the enrolled kernel actually
+# gets a boot. Called from TWO places in the wait loop because the
+# Windows-return line can land in fresh output OR inside the span the
+# sequence hook consumes: in a VM the firmware prints 'starting Boot0003'
+# within the sequence's final sleep, and blanket consumption ate the marker
+# (run 32674246660 — sequence 1 driven, Windows booted 2s later, the re-arm
+# never fired, 9 idle minutes to timeout).
+mok_rearm_phase2() {
+    MOK_REARMED=true
+    info "Windows returned after the MokManager sequence (one-shot consumed) — re-arming Phase 2"
+    # Soft wait: qga_wait's timeout branch writes the failure ledger, and
+    # this re-arm must not be able to fail the run on its own — the boot
+    # verdict owns the verdict.
+    local _mok_qga_deadline
+    _mok_qga_deadline=$(deadline_in 300)
+    while ! past_deadline "$_mok_qga_deadline"; do
+        qga_probe && break
+        sleep 10
+    done
+    qga_powershell "bcdedit --% /set {fwbootmgr} bootsequence $PHASE2_GUID /addfirst" >/dev/null 2>&1 || true
+    qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
+    BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
+}
+
 mark_phase phase2
 step "Waiting for Phase 2 Linux system to boot..."
 
@@ -3706,34 +3732,29 @@ while ! past_deadline "$BOOT_DEADLINE"; do
             fi
             # Consume everything the sequence itself painted (menu redraws
             # repeat the marker) — or the next poll would re-trigger on our
-            # own keystrokes' output and spray keys into the post-enroll boot.
+            # own keystrokes' output and spray keys into the post-enroll
+            # boot. But SCAN the consumed span first: in a VM MokManager's
+            # Reboot reaches BdsDxe within the sequence's final sleep, so
+            # the Windows-return line may only ever exist inside this span —
+            # blanket consumption ate it (run 32674246660: sequence 1
+            # driven, 'starting Boot0003' printed 2s later, the re-arm never
+            # fired, nine idle minutes to timeout).
             snapshot_serial || true
+            _mok_seq_tail=$(tail -c +"$((CURRENT_BYTE + 1))" "$PTY" 2>/dev/null || true)
             LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+            if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+                && printf '%s\n' "$_mok_seq_tail" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
+                mok_rearm_phase2
+                snapshot_serial || true
+                LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+            fi
             continue
         fi
-        # MokManager's post-enroll reboot lands in WINDOWS: the BCD one-shot
-        # was consumed booting INTO MokManager, and MokManager's own reboot
-        # follows the firmware default (run 32668924852: sequence 1 driven,
-        # then 'starting Boot0003 Windows Boot Manager' — the newly enrolled
-        # kernel never got a boot and the wait timed out). Re-arm the same
-        # one-shot once and reboot, so the enrolled kernel is actually
-        # exercised. Real users are covered by the app's own re-arm paths;
-        # this is the harness closing the same loop for the observed run.
+        # The Windows-return line can also land in ordinary fresh output
+        # (slower firmware, or a boot cycle later): same one-time re-arm.
         if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
             && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
-            MOK_REARMED=true
-            info "Windows returned after the MokManager sequence (one-shot consumed) — re-arming Phase 2"
-            # Soft wait: qga_wait's timeout branch writes to the failure
-            # ledger, and this re-arm must not be able to fail the run on
-            # its own — the boot verdict below owns the verdict.
-            _mok_qga_deadline=$(deadline_in 300)
-            while ! past_deadline "$_mok_qga_deadline"; do
-                qga_probe && break
-                sleep 10
-            done
-            qga_powershell "bcdedit --% /set {fwbootmgr} bootsequence $PHASE2_GUID /addfirst" >/dev/null 2>&1 || true
-            qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-            BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
+            mok_rearm_phase2
             snapshot_serial || true
             LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
             continue
