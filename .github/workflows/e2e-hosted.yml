@@ -190,7 +190,19 @@ jobs:
             BRAND_FLAG="-X main.brandID=$name"
             echo "building BRANDED installer: $name"
           else
-            echo "no brand directory for '$name' — building the generic installer"
+            # An image can belong to a brand's catalog without a brand of
+            # its own — dakota ships inside the Bluefin installer. A real
+            # Dakota user downloads Bluefin's exe, so that is the installer
+            # the walkthrough must show. Find the brand whose catalog lists
+            # this image id; generic only when no brand claims it.
+            for b in app/branding/*/; do
+              if grep -q "\"$name\"" "$b/brand.json" 2>/dev/null; then
+                BRAND_FLAG="-X main.brandID=$(basename "$b")"
+                echo "building BRANDED installer: $(basename "$b") (its catalog carries '$name')"
+                break
+              fi
+            done
+            [ -z "$BRAND_FLAG" ] && echo "no brand claims '$name' — building the generic installer"
           fi
           ( cd app && GOOS=windows GOARCH=amd64 \
               go build -tags desktop,production -ldflags "-w -s $BRAND_FLAG" \

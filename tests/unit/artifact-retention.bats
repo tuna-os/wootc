@@ -200,4 +200,12 @@ mkrun() {
     grep -q 'app/branding/\$name' .github/workflows/e2e-hosted.yml
     grep -q 'set WOOTC_PRELOAD=0' tests/e2e/run-e2e.sh
     grep -q 'os.Getenv("WOOTC_PRELOAD") == "0"' app/app.go
+    # An image without a brand directory of its own can still belong to a
+    # brand's CATALOG — dakota ships inside the Bluefin installer, and a
+    # real Dakota user downloads Bluefin's exe, so that is the installer the
+    # walkthrough must show. The derivation falls through to the brand whose
+    # brand.json lists the image id; generic only when no brand claims it.
+    grep -q 'brand.json' .github/workflows/e2e-hosted.yml
+    grep -q "its catalog carries" .github/workflows/e2e-hosted.yml
+    grep -q '"dakota"' app/branding/bluefin/brand.json
 }
