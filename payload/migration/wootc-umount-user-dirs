@@ -24,3 +24,17 @@ done
 for mapper in /dev/mapper/wootc-bitlk-*; do
     [[ -b "$mapper" ]] && cryptsetup close "$(basename "$mapper")" 2>/dev/null || true
 done
+
+# Credential hygiene: the BitLocker recovery key was only needed to unlock
+# the former Windows C: for profile discovery. The vault.json policy is
+# "no credentials persist on NTFS" (deploy.sh shreds it) — the recovery
+# key must not outlive the migration either. The volume is now locked, so
+# shred the key file from the storage drive (tuna-os/wootc#279).
+for key_file in \
+    /run/wootc/host/wootc/install/bitlocker-key.txt \
+    /run/wootc/host/*/wootc/install/bitlocker-key.txt; do
+    if [[ -f "$key_file" ]]; then
+        shred -u "$key_file" 2>/dev/null || rm -f "$key_file"
+        echo "[wootc] shredded BitLocker recovery key $key_file" >&2
+    fi
+done
