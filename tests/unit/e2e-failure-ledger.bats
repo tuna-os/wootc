@@ -261,3 +261,18 @@ setup() {
     # 5. The green-only publish gate is untouched — retries never publish red.
     grep -q 'name .passed' tests/e2e/publish-visual.sh
 }
+
+@test "the North Star read polls the bridge, it does not race it" {
+    # The user-data bridge is a boot-time SERVICE: on dakota (run
+    # 32700041245) wootc-passthrough finished its binds 94 seconds after the
+    # root was reached (its cloud-provider scan runs first), and the old
+    # single-shot read declared the North Star failed while its own
+    # diagnostic printed the completed Documents bind. The read must retry
+    # under a deadline; the agent-answered gate and the layered diagnostic
+    # stay as they were.
+    local E2E=tests/e2e/run-e2e.sh
+    grep -q '_ud_deadline=$(deadline_in 120)' "$E2E"
+    grep -B3 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E" | grep -q 'while ! past_deadline "$_ud_deadline"'
+    grep -q 'WOOTC_AGENT_OK' "$E2E"
+    grep -q 'User data NOT visible in Phase 2' "$E2E"
+}

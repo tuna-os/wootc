@@ -4022,8 +4022,22 @@ step "Verifying seeded user data is visible in Phase 2 \$HOME..."
 # bound nothing. Reporting that as data loss is the same defect this harness
 # keeps producing, in the one assertion that matters most.
 USERDATA_PROBE=$(qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || true)
-USERDATA_HOME=$(qga_call exec /bin/sh -c \
-    'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
+# POLL, do not race. The bridge is a boot-time SERVICE, not a filesystem
+# property: on dakota (run 32700041245) the root was reached at 07:50:40 and
+# wootc-passthrough finished its binds at 07:52:14 — 94 seconds later, the
+# cloud-provider scan running first — so a single-shot read reported the
+# North Star failed while its own diagnostic printed the completed
+# Documents bind. A real user reaches their desktop minutes after boot; the
+# honest assertion is "visible once the bridge has run", bounded here at
+# two minutes.
+USERDATA_HOME=""
+_ud_deadline=$(deadline_in 120)
+while ! past_deadline "$_ud_deadline"; do
+    USERDATA_HOME=$(qga_call exec /bin/sh -c \
+        'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
+    printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID" && break
+    sleep 5
+done
 if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
     fail "Cannot verify user data: the Phase-2 guest agent never answered, so the bridge was NOT measured"
     info "  This is an INCONCLUSIVE check, not proof of data loss — the file may well be there."
