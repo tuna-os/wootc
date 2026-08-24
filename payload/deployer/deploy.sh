@@ -2771,9 +2771,15 @@ QGAEOF
     mig_opt 644 wootc-welcome.desktop "$DEPLOY_ROOT/etc/xdg/autostart/wootc-welcome.desktop"
     # Slurped Windows look (wallpaper/theme/timezone), if the installer
     # collected it. Timezone applies system-wide right here.
+    # Session envelopes (install/slurp/session/*.enc — re-wrapped browser
+    # master keys) are deliberately NOT copied: the target-side importer
+    # does not exist yet (docs/session-migration.md), so shipping them only
+    # leaves dead credential artifacts on the installed system
+    # (tuna-os/wootc#281). slurp.json (look/identity) is still carried.
     if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
         mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
         cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        rm -rf "$DEPLOY_ROOT/usr/share/wootc/slurp/session"
         SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
         if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
             ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"
