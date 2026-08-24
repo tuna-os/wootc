@@ -78,6 +78,7 @@ for arg in "$@"; do
         --skip-install) SKIP_INSTALL=true ;;
         --phase3)       RUN_PHASE3=true ;;   # rung-3: graduate to a native disk
         --gui-install)  GUI_INSTALL=true ;;  # arm via the REAL wootc.exe GUI over CDP
+        --uninstall-check) WOOTC_E2E_UNINSTALL=1 ;;  # after Windows returns: prove leaving works
         # Concurrent-runner slot: gives this run its own container name and
         # storage dir so N VMs can share one host (run-matrix --jobs). Passed
         # as a =flag so it is visible in the process cmdline — the matrix
@@ -2271,6 +2272,79 @@ Write-Output "demo-task-scheduled"' >/dev/null 2>&1 || true
     pass "Timelapse demo: Windows-untouched segment recorded"
 }
 
+# ── Uninstall verification — leaving must be provably easy ───────────────────
+# Reversibility is half the North Star ("reversible, no data loss"), and the
+# uninstall path shipped fully built (NS-7: BCD sweep, owned-ESP cleanup,
+# install dir, power-state restore, Add/Remove entry) with NOTHING ever
+# executing it on a real machine — while #264 proved the exact failure class
+# it guards against (a zombie wootc firmware entry) happens in practice.
+# Opt-in (--uninstall-check / WOOTC_E2E_UNINSTALL=1): the showcase timelapse
+# should close on the untouched-Windows demo, not on the product removing
+# itself, and the stage adds a full Windows reboot. Every violated claim is
+# a fail() — the ledger collects them all rather than stopping at the first.
+uninstall_check() {
+    [ "${WOOTC_E2E_UNINSTALL:-0}" = "1" ] || return 0
+    step "Uninstall: running the documented uninstaller and holding it to its claims..."
+    local un_out
+    un_out=$(qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 || true)
+    printf '%s\n' "$un_out" | tail -4 | sed 's/^/    uninstall: /'
+    if ! printf '%s' "$un_out" | grep -q 'uninstalled'; then
+        fail "Uninstall: wootc.exe uninstall did not report success"
+        return 0
+    fi
+    # Claim 1: no wootc boot entry survives anywhere in the firmware list.
+    local fw
+    fw=$(qga_powershell 'cmd.exe /d /c "bcdedit /enum firmware"' 2>/dev/null | tr -d '\r' || true)
+    if printf '%s\n' "$fw" | grep -qiE 'description +wootc[[:space:]]*$'; then
+        fail "Uninstall: a 'wootc' firmware boot entry survived the sweep"
+    else
+        pass "Uninstall: no wootc boot entries remain"
+    fi
+    # Claim 2: the ESP carries nothing of ours — EFI\wootc gone, and
+    # EFI\fedora either gone or provably someone else's (no wootc marker).
+    local esp
+    esp=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$sysDisk = (Get-Partition -DriveLetter C).DiskNumber
+$p = Get-Partition -DiskNumber $sysDisk | Where-Object { $_.GptType -eq "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}" } | Select-Object -First 1
+$letter = ""
+foreach ($ap in @($p.AccessPaths)) { if ($ap -match "^([A-Za-z]):\\$") { $letter = $Matches[1] } }
+if (-not $letter) {
+    $p | Add-PartitionAccessPath -AssignDriveLetter
+    foreach ($i in 1..10) {
+        $p2 = Get-Partition -DiskNumber $p.DiskNumber -PartitionNumber $p.PartitionNumber
+        foreach ($ap in @($p2.AccessPaths)) { if ($ap -match "^([A-Za-z]):\\$") { $letter = $Matches[1] } }
+        if ($letter) { break }; Start-Sleep -Milliseconds 500
+    }
+}
+if (-not $letter) { Write-Output "ESP=NOLETTER"; exit 0 }
+Write-Output ("WOOTCDIR=" + (Test-Path "${letter}:\EFI\wootc"))
+$cfg = "${letter}:\EFI\fedora\grub.cfg"
+if (Test-Path $cfg) { Write-Output ("FEDORAOURS=" + ((Get-Content $cfg -Raw) -match "wootc")) } else { Write-Output "FEDORAOURS=False" }' 2>&1 | tr -d '\r' || true)
+    if printf '%s' "$esp" | grep -q 'ESP=NOLETTER'; then
+        fail "Uninstall: could not reach the ESP to verify the cleanup"
+    else
+        printf '%s' "$esp" | grep -q 'WOOTCDIR=True'  && fail "Uninstall: EFI\\wootc survived on the ESP" || pass "Uninstall: EFI\\wootc removed from the ESP"
+        printf '%s' "$esp" | grep -q 'FEDORAOURS=True' && fail "Uninstall: a wootc-owned EFI\\fedora survived on the ESP" || pass "Uninstall: no wootc-owned EFI\\fedora remains"
+    fi
+    # Claim 3: install state gone, the user's Linux data PRESERVED (the
+    # documented default keeps root.disk), Add/Remove entry unregistered.
+    local files
+    files=$(qga_powershell 'Write-Output ("INSTALL=" + (Test-Path "C:\wootc\install"))
+Write-Output ("ROOTDISK=" + ((Test-Path "C:\wootc\disks\root.disk") -or (Test-Path "C:\wootc\disks\root.vhdx")))
+Write-Output ("ARP=" + (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\wootc"))' 2>&1 | tr -d '\r' || true)
+    printf '%s' "$files" | grep -q 'INSTALL=False' && pass "Uninstall: install state removed" || fail "Uninstall: C:\\wootc\\install survived"
+    printf '%s' "$files" | grep -q 'ROOTDISK=True' && pass "Uninstall: root.disk preserved (documented default keeps the user's Linux data)" || fail "Uninstall: root.disk vanished — the default must never delete the user's Linux"
+    printf '%s' "$files" | grep -q 'ARP=False'     && pass "Uninstall: Add/Remove Programs entry unregistered" || fail "Uninstall: Add/Remove Programs entry survived"
+    # Claim 4: the machine boots Windows cleanly on its own — the class of
+    # leftover #264 documented (a stale entry ahead of Windows) is exactly
+    # what this reboot would expose.
+    step "Uninstall: rebooting to prove Windows boots cleanly with no wootc chain..."
+    qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
+    qga_wait_reboot "Windows after uninstall" || true
+    qga_wait_windows 600
+    pass "Uninstall: Windows rebooted cleanly on its own — the machine is restored"
+}
+
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
     info "Skipping install wait (--skip-install)"
@@ -4093,6 +4167,9 @@ else
     # Windows is verifiably back — put the untouched machine on camera
     # (video-only, best-effort).
     demo_windows_untouched
+    # Reversibility is half the promise: prove leaving works too (opt-in,
+    # after the demo — the timelapse keeps its untouched-Windows ending).
+    uninstall_check
 fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────

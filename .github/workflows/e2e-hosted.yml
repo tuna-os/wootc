@@ -46,6 +46,10 @@ on:
       # C:\OEM). The walkthrough timelapse from a GUI-driven run is the one
       # the README publishes.
       gui_install: { type: boolean, default: false }
+      # After a non-phase3 run returns to Windows: run the documented
+      # uninstaller and hold it to its claims (boot entries gone, ESP clean,
+      # root.disk preserved, Windows reboots cleanly). Adds a Windows reboot.
+      uninstall_check: { type: boolean, default: false }
     outputs:
       # Non-empty ONLY when run-e2e.sh classified its own failure as a known
       # infrastructure flake (qga-channel-lost, serial-feed-lost). Callers may
@@ -247,6 +251,7 @@ jobs:
           FLAGS=""
           [ "${{ inputs.phase3 }}" = "true" ] && FLAGS="$FLAGS --phase3"
           [ "${{ inputs.gui_install }}" = "true" ] && FLAGS="$FLAGS --gui-install"
+          [ "${{ inputs.uninstall_check }}" = "true" ] && FLAGS="$FLAGS --uninstall-check"
           # tee the run's own log. GitHub withholds workflow logs until the
           # ENTIRE matrix finishes, so without this a failing cell cannot be
           # diagnosed for hours — the evidence artifact is the only way in.
