@@ -114,3 +114,27 @@ WELCOME="payload/migration/wootc-welcome"
     [ -f tests/e2e/titlecards/userdata.png ]
     [ -f tests/e2e/titlecards/windows.png ]
 }
+
+@test "the NTFS-on-Linux doc cites code that still exists" {
+    # docs/ntfs-on-linux.md justifies the design hazard-by-hazard, each
+    # claim tied to code. A doc that outlives its anchors becomes the kind
+    # of reassuring fiction it was written to replace — pin every anchor.
+    local DOC=docs/ntfs-on-linux.md
+    [ -f "$DOC" ]
+    grep -q 'ntfs-on-linux.md' README.md
+    # Anchor: container allocation by Windows (SetLength sparse + VDL note).
+    grep -q 'SetLength (sparse on NTFS, instant)' app/disk_windows.go
+    grep -q 'setvaliddata' app/disk_windows.go
+    # Anchor: Fast Startup disabled at install, restored at uninstall.
+    grep -q 'func disableFastStartup' app/sysprobe_windows.go
+    grep -q 'func restorePriorPowerState' app/sysprobe_windows.go
+    # Anchor: the attach hook's driver probe chain, in its documented order.
+    local hook=platform/dracut/99wootc-boot/wootc-attach-loop.sh
+    grep -q 'mount -t ntfs3' "$hook"
+    grep -q 'ntfs-3g lowntfs-3g mount.ntfs-3g' "$hook"
+    # Anchor: the deployer's self-contained ntfs-3g closure.
+    grep -q 'stage_ntfs3g_closure' payload/deployer/deploy.sh
+    # Anchor: the clean-handback contract and its postmortem.
+    [ -f tests/unit/phase2-clean-ntfs-umount.bats ]
+    [ -f docs/phase2-attach-postmortem.md ]
+}

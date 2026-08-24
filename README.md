@@ -125,6 +125,7 @@ is in **alpha** on the road to a checkable 1.0: see the
 | [Status](docs/status.md) | the proven matrix and its evidence |
 | [SPEC](docs/SPEC.md) | the full specification |
 | [Architecture boundary](docs/architecture-boundary.md) | the generic-migration / bootc seam |
+| [NTFS on Linux](docs/ntfs-on-linux.md) | the known hazards, and why the design survives them |
 | [Branding & distribution](docs/branding-and-distribution.md) | one engine, five installers |
 | [Manual testing](docs/manual-testing.md) | pre-flight for real-hardware runs |
 
