@@ -31,8 +31,10 @@ func TestRegistryRef(t *testing.T) {
 			t.Errorf("%s → %s %s %s, want %s %s %s", c.in, host, repo, ref, c.host, c.repo, c.ref)
 		}
 	}
-	if _, _, _, err := registryRef("no-registry-host"); err == nil {
-		t.Error("bare name accepted; a registry host is required")
+	for _, bad := range []string{"no-registry-host", "", "   "} {
+		if _, _, _, err := registryRef(bad); err == nil {
+			t.Errorf("bare or empty name %q accepted; a registry host is required", bad)
+		}
 	}
 }
 
