@@ -20,6 +20,8 @@ func TestRegistryRef(t *testing.T) {
 		{"ghcr.io/org/name", "ghcr.io", "org/name", "latest"},
 		{"ghcr.io/org/name@sha256:abc", "ghcr.io", "org/name", "sha256:abc"},
 		{"registry.example:5000/x/y:z", "registry.example:5000", "x/y", "z"},
+		{"docker.io/library/ubuntu:22.04", "docker.io", "library/ubuntu", "22.04"},
+		{"ghcr.io/org/repo:tag@sha256:digest", "ghcr.io", "org/repo:tag", "sha256:digest"},
 	}
 	for _, c := range cases {
 		host, repo, ref, err := registryRef(c.in)
@@ -31,9 +33,9 @@ func TestRegistryRef(t *testing.T) {
 			t.Errorf("%s → %s %s %s, want %s %s %s", c.in, host, repo, ref, c.host, c.repo, c.ref)
 		}
 	}
-	for _, bad := range []string{"no-registry-host", "", "   "} {
+	for _, bad := range []string{"no-registry-host", "", "   ", "ghcr.io/", "ghcr.io/repo:", "ghcr.io/repo@"} {
 		if _, _, _, err := registryRef(bad); err == nil {
-			t.Errorf("bare or empty name %q accepted; a registry host is required", bad)
+			t.Errorf("invalid ref %q accepted; expected parse error", bad)
 		}
 	}
 }
