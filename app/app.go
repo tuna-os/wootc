@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -407,107 +406,6 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 	return nil
 }
 
-// GetImages returns the installable images the active channel permits. In
-// alpha only "green" (E2E-proven) images are offered; experimental images are
-// imageNeedsMok reports whether the catalog marks this image as needing its
-// distribution's MOK key enrolled under Secure Boot (#248 — custom kernels
-// the Fedora shim does not trust, e.g. Bazzite's fsync kernel). Keyed on the
-// embedded catalog so Fedora-signed-kernel images (aurora, bluefin) never
-// get a firmware prompt they do not need; images not in the catalog default
-// to no enrollment (the boot failure it risks is loud, the prompt is scary).
-func imageNeedsMok(ref string) bool {
-	var catalog []Image
-	if json.Unmarshal(catalogJSON, &catalog) != nil {
-		return false
-	}
-	for _, img := range catalog {
-		if img.ImageRef == ref {
-			return img.MokEnroll != ""
-		}
-	}
-	return false
-}
-
-// hidden until their matrix row is green. C:\wootc\images.json (enterprise
-// override) bypasses the filter — those deployments own their own testing.
-func (a *App) GetImages() ([]Image, error) {
-	custom := filepath.Join(wootcDir(), "images.json")
-	if data, err := os.ReadFile(custom); err == nil {
-		var override []Image
-		if json.Unmarshal(data, &override) == nil && len(override) > 0 {
-			return override, nil
-		}
-	}
-
-	var catalog []Image
-	if err := json.Unmarshal(catalogJSON, &catalog); err != nil {
-		return nil, fmt.Errorf("parse embedded catalog: %w", err)
-	}
-
-	// A bundled build pins the installer to the image it actually shipped
-	// (#177). Offering the rest of the catalog there would be a trap: every
-	// other entry needs the multi-gigabyte download this build exists to
-	// avoid, and picking one silently turns an offline install into an online
-	// one. One image, no choice — which is also the simpler flow.
-	//
-	// If the bundled ref is not in the catalog (a partner image, a pinned
-	// digest), it is surfaced as a single entry rather than dropped, otherwise
-	// the launchpad would have nothing to show at all.
-	if b := readBundleInfo(); b != nil && b.Source != "predownload" {
-		for _, img := range catalog {
-			if img.ImageRef == b.Image {
-				return []Image{img}, nil
-			}
-		}
-		return []Image{{
-			ID: "bundled", Name: "Included with this installer", Emoji: "📦",
-			ImageRef: b.Image, Status: "green",
-			Description: "Shipped with wootc — no download needed.",
-			Bootloader:  "auto",
-		}}, nil
-	}
-
-	// A branded build offers its own distribution's images and nothing else —
-	// in the brand's order, with the brand's default first-class. The green
-	// gate does not apply: the brand ships this installer FOR those images,
-	// and each card still shows its honest status ("experimental" stays
-	// visible), so nothing is smuggled past the user.
-	if picked := brandCatalogImages(catalog, effectiveBranding().Catalog); len(picked) > 0 {
-		return picked, nil
-	}
-
-	if a.GetSupportPolicy().ExperimentalImages {
-		return catalog, nil
-	}
-	green := catalog[:0]
-	for _, img := range catalog {
-		if img.Status == "green" {
-			green = append(green, img)
-		}
-	}
-	return green, nil
-}
-
-// brandCatalogImages resolves a brand's catalog ids against the embedded
-// catalog, preserving the brand's order. Unknown ids are skipped (a brand
-// naming a missing image must not blank the launchpad).
-func brandCatalogImages(catalog []Image, ids []string) []Image {
-	if len(ids) == 0 {
-		return nil
-	}
-	byID := make(map[string]Image, len(catalog))
-	for _, img := range catalog {
-		byID[img.ID] = img
-	}
-	picked := make([]Image, 0, len(ids))
-	for _, id := range ids {
-		if img, ok := byID[id]; ok {
-			picked = append(picked, img)
-		}
-	}
-	return picked
-}
-
 // ── System information ────────────────────────────────────────────────────────
 
 // GetSystemInfo inspects the host for BitLocker, Fast Startup, UEFI, etc.
@@ -566,40 +464,6 @@ type Branding struct {
 	ThemeCSS    string `json:"themeCss"`
 }
 
-func defaultBranding() Branding {
-	return Branding{
-		Name: "TunaOS", Tagline: "Bring Windows to Linux — keep everything.",
-		LogoEmoji: "🐠", Version: "0.1.0",
-		Accent: "#5b6ee1", AccentText: "#ffffff",
-		Background: "#0a0a0f", Card: "#13131e", Text: "#e8e8f0",
-		InstallVerb: "Install",
-		ProductName: "wootc", ExeName: "wootc",
-	}
-}
-
-// effectiveBranding resolves branding in layers: hardcoded defaults, then the
-// brand compiled into this binary (-X main.brandID), then the runtime overlay
-// C:\wootc\brand.json (enterprise / partner re-skin). Later layers win
-// field-by-field.
-func effectiveBranding() Branding {
-	b := defaultBranding()
-	if emb, ok := embeddedBranding(); ok {
-		mergeBranding(&b, emb)
-	}
-	if data, err := os.ReadFile(filepath.Join(wootcDir(), "brand.json")); err == nil {
-		var over Branding
-		if json.Unmarshal(data, &over) == nil {
-			mergeBranding(&b, over)
-		}
-	}
-	// Enterprise CSS overlay: appended after the embedded theme so a partner
-	// can restyle beyond what brand.json's tokens reach.
-	if css, err := os.ReadFile(filepath.Join(wootcDir(), "brand.css")); err == nil && len(css) > 0 {
-		b.ThemeCSS += "\n" + string(css)
-	}
-	return b
-}
-
 // GetBranding returns the effective branding. The frontend calls this on
 // startup and keeps it in state.brand.
 func (a *App) GetBranding() Branding {
@@ -607,38 +471,6 @@ func (a *App) GetBranding() Branding {
 }
 
 // mergeBranding overlays non-empty fields of over onto base.
-func mergeBranding(base *Branding, over Branding) {
-	set := func(dst *string, v string) {
-		if v != "" {
-			*dst = v
-		}
-	}
-	set(&base.Name, over.Name)
-	set(&base.Tagline, over.Tagline)
-	set(&base.LogoEmoji, over.LogoEmoji)
-	set(&base.Version, over.Version)
-	set(&base.Accent, over.Accent)
-	set(&base.AccentText, over.AccentText)
-	set(&base.Background, over.Background)
-	set(&base.Card, over.Card)
-	set(&base.Text, over.Text)
-	set(&base.InstallVerb, over.InstallVerb)
-	set(&base.ProductName, over.ProductName)
-	set(&base.ExeName, over.ExeName)
-	set(&base.DefaultImage, over.DefaultImage)
-	if len(over.Catalog) > 0 {
-		base.Catalog = over.Catalog
-	}
-	set(&base.FontFamily, over.FontFamily)
-	set(&base.LogoDataURI, over.LogoDataURI)
-	set(&base.FontDataURI, over.FontDataURI)
-	set(&base.ThemeCSS, over.ThemeCSS)
-	// Bools can only be turned ON by an overlay: JSON gives no way to tell
-	// "false" from "absent", and every overlay so far only wants to tighten.
-	base.HideCustomImage = base.HideCustomImage || over.HideCustomImage
-	base.PreloadImage = base.PreloadImage || over.PreloadImage
-}
-
 // ── Install ───────────────────────────────────────────────────────────────────
 
 // normalizeBootloader validates the requested boot chain and fills in the
