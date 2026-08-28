@@ -1,6 +1,6 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-08-22 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-08-28 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -23,17 +23,18 @@ Everything below is sequenced toward those four sentences.
 
 ---
 
-## Current status (2026-08-22)
+## Current status (2026-08-28)
 
 **Landed** (all on `main`, all matrix-exercised):
 - GUI-driven Phase 1 → 2 → 3 ladder proven on `bluefin:lts`; el10 Phase-2 class fixed; btrfs and BitLocker-refusal cells green.
 - **Release automation, three channels**: E2E-gated tagged releases (cuttable from a dispatch input — no tag-push rights needed), auto pre-releases from every green nightly, manual pre-releases. Every release ships all five brand exes + deployer boot artifacts + `SHA256SUMS`.
+- **First tagged release shipped**: [`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1) passed its E2E gate and was published on 2026-08-22.
 - **Branding system with real assets** (marks, typefaces, deep themes from each project's published branding), automated per-brand screenshot walkthroughs (`docs/branded-walkthroughs.md`), `just` brand args for local/manual testing.
 - **Offline-first core**: Windows-side digest-verified OCI pre-download, deployer bundle ingest, settled-hook start with bounded network wait. Wi-Fi-only laptops install with zero deploy-time network via branded builds / `WOOTC_PRELOAD=1`.
 - **North Star UX wave**: Windows on the boot menu, one-shot re-arm, calm product boots with honest copy, first-login welcome + Windows-drive bookmark, Add/Remove entry, uninstall that restores machine state, `docs/getting-started.md` + `docs/manual-testing.md`.
 - winget packaging (`TunaOS.wootc`) with auto-submission on full releases (pending the one-time `WINGET_TOKEN` secret).
 
-**In flight**: the first tagged release `v0.1.0-alpha.1` is executing its E2E gate. The nightly auto-release channel has fired end-to-end once already.
+**In flight**: nightly green runs continue to publish automatic pre-releases while work advances toward the v0.2.0-alpha real-hardware evidence gate.
 
 **Known defects with owners**: dakota Phase-2 first-boot hang (#209) · profile-migration edge cases (#197) · offline bundle E2E proof pending (#196 follow-ups) · session token rewrap unfinished, honestly labeled (#1) · console window flash (#179).
 
@@ -43,7 +44,7 @@ Everything below is sequenced toward those four sentences.
 
 Each milestone has a tracking issue carrying its live task list. A milestone ships when its checklist is empty and its gate evidence exists — dates are forecasts, gates are not.
 
-### v0.1.0-alpha — "It exists" *(gate running now)*
+### v0.1.0-alpha — "It exists" *(shipped 2026-08-22)*
 The first complete release: five brand installers + boot artifacts + SHA256SUMS, E2E-gated, `releases/latest` resolving so plain online installs work. Nightly auto pre-releases keep it fresh without human hands.
 
 ### v0.2.0-alpha — "Proven on real hardware" *(tracking: milestone issue M2)*
