@@ -65,5 +65,6 @@ HOOK="payload/deployer/deploy-hook.sh"
     # A pre-downloaded bundle records its provenance so it never pins the
     # catalog the way a shipped bundle does (#177).
     grep -q '"predownload"' app/ocipull.go
-    grep -q 'b.Source != "predownload"' app/app.go
+    # Package-wide: the guard's file is a layout choice, its presence is not.
+    grep -q 'b.Source != "predownload"' app/*.go
 }

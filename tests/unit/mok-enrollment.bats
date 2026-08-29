@@ -29,7 +29,10 @@ E2E=tests/e2e/run-e2e.sh
     # too but boot on Fedora-signed kernels — cert-presence alone would hand
     # their users a firmware prompt they do not need.
     grep -q 'wootc.mok=enroll' app/installer_esp.go
-    grep -q 'func imageNeedsMok' app/app.go
+    # Search the package, not one file: which file in package main holds this
+    # is a layout choice, and pinning it makes a pure move look like a
+    # behavior regression.
+    grep -q 'func imageNeedsMok' app/*.go
     grep -q 'read_cmdline wootc.mok' "$DEPLOY"
     # Secure Boot check next (no-op otherwise), cert discovery via the
     # harvested stash, upstream's own documented password, and a serial
