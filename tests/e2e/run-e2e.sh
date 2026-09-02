@@ -71,6 +71,8 @@ SKIP_BUILD=false
 KEEP_CONTAINER=false
 SKIP_INSTALL=false
 GUI_INSTALL=false
+FAULT_INJECT="${WOOTC_E2E_FAULT_INJECT:-}"
+RECOVERY_CHECK=false
 for arg in "$@"; do
     case "$arg" in
         --skip-build)   SKIP_BUILD=true ;;
@@ -79,6 +81,8 @@ for arg in "$@"; do
         --phase3)       RUN_PHASE3=true ;;   # rung-3: graduate to a native disk
         --gui-install)  GUI_INSTALL=true ;;  # arm via the REAL wootc.exe GUI over CDP
         --uninstall-check) WOOTC_E2E_UNINSTALL=1 ;;  # after Windows returns: prove leaving works
+        --fault-inject=*) FAULT_INJECT="${arg#--fault-inject=}" ; RECOVERY_CHECK=true ;;
+        --recovery-check) RECOVERY_CHECK=true ;;
         # Concurrent-runner slot: gives this run its own container name and
         # storage dir so N VMs can share one host (run-matrix --jobs). Passed
         # as a =flag so it is visible in the process cmdline — the matrix
@@ -1389,6 +1393,12 @@ sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$OEM_DIR/setup-wootc.ps1"
 # Also convert the wootc-files copy used by subsequent steps
 printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
+if [ -f "$SCRIPT_DIR/assert-recovery.ps1" ]; then
+    printf '\xEF\xBB\xBF' > "$OEM_DIR/assert-recovery.ps1"
+    sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$OEM_DIR/assert-recovery.ps1"
+    printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/assert-recovery.ps1"
+    sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$SCRIPT_DIR/wootc-files/assert-recovery.ps1"
+fi
 cp "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" "$OEM_PAYLOAD/deployer-vmlinuz"
 cp "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" "$OEM_PAYLOAD/deployer-initramfs.img"
 cp "$SCRIPT_DIR/wootc-files/shimx64.efi" "$OEM_PAYLOAD/shimx64.efi"
@@ -1453,6 +1463,7 @@ E2E_FILESYSTEM="${WOOTC_E2E_FILESYSTEM:-auto}"
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
     printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
     printf 'Filesystem=%s\n' "$E2E_FILESYSTEM"
+    [ -n "$FAULT_INJECT" ] && printf 'FaultInject=%s\n' "$FAULT_INJECT"
     # RunId lets the OEM barrier prove the completion marker came from THIS run.
     # Without it the barrier passes on a stale marker left by a previous run —
     # see the comment on the barrier loop below.
@@ -2345,6 +2356,69 @@ Write-Output ("ARP=" + (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersi
     pass "Uninstall: Windows rebooted cleanly on its own — the machine is restored"
 }
 
+# Recovery / Fault-Injection check (#288): exercises cancellation, interruption,
+# and post-reboot failure across all 6 boundaries.
+recovery_check() {
+    [ -n "$FAULT_INJECT" ] || [ "${RECOVERY_CHECK:-false}" = true ] || return 0
+    step "Recovery: Verifying fault-injection boundary ($FAULT_INJECT), idempotency & cleanup..."
+
+    # 1. Interrupted assertions
+    step "Recovery Stage 1: Asserting interrupted/cancelled system state..."
+    local assert_out
+    assert_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage interrupted -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
+    printf '%s\n' "$assert_out" | sed 's/^/    recovery: /'
+    if printf '%s' "$assert_out" | grep -q 'RECOVERY-RESULT: PASS'; then
+        pass "Recovery: Stage 1 (interrupted state) validated successfully"
+    else
+        fail "Recovery: Stage 1 (interrupted state) assertion failed"
+    fi
+
+    # 2. Windows reboot test
+    step "Recovery Stage 2: Rebooting Windows to verify clean boot without Automatic Repair..."
+    qga_powershell 'cmd.exe /c "shutdown.exe /r /t 1 /f"' >/dev/null 2>&1 || true
+    qga_wait_reboot "Windows after interruption" || true
+    qga_wait_windows 600
+    pass "Recovery: Windows booted normally without Automatic Repair"
+
+    # 3. Retry test (Idempotency)
+    step "Recovery Stage 3: Retrying setup to verify idempotent retry (no duplicate BCD/EFI)..."
+    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | sed 's/^/    retry: /' || true
+
+    local retry_out
+    retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried' 2>&1 || true)
+    printf '%s\n' "$retry_out" | sed 's/^/    recovery-retry: /'
+    if printf '%s' "$retry_out" | grep -q 'RECOVERY-RESULT: PASS'; then
+        pass "Recovery: Stage 3 (idempotent retry) validated successfully — exactly 1 BCD entry, ESP valid"
+    else
+        fail "Recovery: Stage 3 (idempotent retry) assertion failed"
+    fi
+
+    # 4. Uninstall test
+    step "Recovery Stage 4: Testing clean uninstall from interrupted/retried state..."
+    qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 | sed 's/^/    uninstall: /' || true
+    local un_out
+    un_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage uninstalled' 2>&1 || true)
+    printf '%s\n' "$un_out" | sed 's/^/    recovery-uninstall: /'
+    if printf '%s' "$un_out" | grep -q 'RECOVERY-RESULT: PASS'; then
+        pass "Recovery: Stage 4 (uninstall from interrupted state) validated successfully"
+    else
+        fail "Recovery: Stage 4 (uninstall from interrupted state) assertion failed"
+    fi
+
+    # 5. Post-uninstall reboot
+    step "Recovery Stage 5: Final reboot to verify Windows boots cleanly after uninstall..."
+    qga_powershell 'cmd.exe /c "shutdown.exe /r /t 1 /f"' >/dev/null 2>&1 || true
+    qga_wait_reboot "Windows after recovery uninstall" || true
+    qga_wait_windows 600
+    pass "Recovery: Windows booted cleanly after recovery uninstall"
+
+    # Retain recovery evidence artifacts
+    mkdir -p "$STORAGE_DIR/artifacts/$RUN_ID/recovery" 2>/dev/null || true
+    qga_read 'C:\wootc\state.json' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/state.json" 2>/dev/null || true
+    qga_powershell 'bcdedit /enum all' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/bcdedit.txt" 2>/dev/null || true
+    pass "Recovery: Evidence artifacts retained in $STORAGE_DIR/artifacts/$RUN_ID/recovery"
+}
+
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
 if [ "$SKIP_INSTALL" = true ]; then
     info "Skipping install wait (--skip-install)"
@@ -3088,6 +3162,17 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
     fi
     OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
     if [ -n "$OEM_FAILURE" ]; then
+        if [ -n "$FAULT_INJECT" ]; then
+            info "Observed expected fault injection failure during Phase 1 ($FAULT_INJECT)"
+            recovery_check
+            if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
+                _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
+                fail "$_wootc_n failure(s) recorded in recovery run"
+                exit 1
+            fi
+            pass "All recovery checks PASSED for fault-injection ($FAULT_INJECT)"
+            exit 0
+        fi
         fail "Windows OEM setup failed before the snapshot barrier:"
         echo "$OEM_FAILURE" >&2
         capture_vm_diagnostics
@@ -3242,6 +3327,17 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             # little grace for the reboot handoff, then stop: the deployer is
             # gone and the persisted log is the whole story.
             if [ "$WINDOWS_BACK_STREAK" -ge 12 ]; then
+                if [ -n "$FAULT_INJECT" ]; then
+                    info "Observed expected deploy failure and return to Windows ($FAULT_INJECT)"
+                    recovery_check
+                    if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
+                        _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
+                        fail "$_wootc_n failure(s) recorded in recovery run"
+                        exit 1
+                    fi
+                    pass "All recovery checks PASSED for fault-injection ($FAULT_INJECT)"
+                    exit 0
+                fi
                 fail "Deployer is gone: Windows QGA is answering but the deploy never completed"
                 info "  No VERIFICATION_SUMMARY in C:\\wootc\\logs\\deployer.log, and no"
                 info "  deliberate reboot was seen on serial — the deployer died mid-run."

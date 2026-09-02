@@ -499,6 +499,8 @@ func configureBCD(bootloader string) error {
 	re := regexp.MustCompile(`\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}`)
 	var out, guid string
 	var err error
+	// Sweep any stale wootc entries from prior interrupted/cancelled attempts so retries are strictly idempotent
+	deleteWootcBCDEntries()
 	for attempt := 1; attempt <= 3; attempt++ {
 		guid = ""
 		runCmd("bcdedit", "/displayorder", "{bootmgr}", "/addfirst") //nolint:errcheck

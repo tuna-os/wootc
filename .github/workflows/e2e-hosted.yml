@@ -50,6 +50,9 @@ on:
       # uninstaller and hold it to its claims (boot entries gone, ESP clean,
       # root.disk preserved, Windows reboots cleanly). Adds a Windows reboot.
       uninstall_check: { type: boolean, default: false }
+      # Fault-injection axis (#288): injects simulated failure or cancellation
+      # at an install boundary: "root-disk", "image-pull", "efi-staging", "bcd-arming", "pre-reboot", "deploy-failure".
+      fault_inject: { type: string, default: '' }
     outputs:
       # Non-empty ONLY when run-e2e.sh classified its own failure as a known
       # infrastructure flake (qga-channel-lost, serial-feed-lost). Callers may
@@ -264,6 +267,7 @@ jobs:
           [ "${{ inputs.phase3 }}" = "true" ] && FLAGS="$FLAGS --phase3"
           [ "${{ inputs.gui_install }}" = "true" ] && FLAGS="$FLAGS --gui-install"
           [ "${{ inputs.uninstall_check }}" = "true" ] && FLAGS="$FLAGS --uninstall-check"
+          [ -n "${{ inputs.fault_inject }}" ] && FLAGS="$FLAGS --fault-inject=${{ inputs.fault_inject }}"
           # tee the run's own log. GitHub withholds workflow logs until the
           # ENTIRE matrix finishes, so without this a failing cell cannot be
           # diagnosed for hours — the evidence artifact is the only way in.

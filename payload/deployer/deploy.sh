@@ -221,6 +221,15 @@ cleanup() {
         { journalctl -b --no-pager 2>&1 | tail -c 2000000; } \
             > /mnt/ntfs/wootc/logs/deployer-last-journal.log || true
         cat /proc/mounts > /mnt/ntfs/wootc/logs/deployer-last-mounts.log 2>&1 || true
+        if [[ "${DEPLOY_OK:-0}" != 1 ]]; then
+            printf '{"state":"failed","phase":"%s","error":"%s","updatedAt":"%s","updatedBy":"deployer"}\n' \
+                "$(cat /run/wootc-phase 2>/dev/null || echo "deployer")" \
+                "deployer exited with code $_rc" \
+                "$(date -u +%FT%TZ)" > /mnt/ntfs/wootc/state.json 2>/dev/null || true
+        else
+            printf '{"state":"deployed","updatedAt":"%s","updatedBy":"deployer"}\n' \
+                "$(date -u +%FT%TZ)" > /mnt/ntfs/wootc/state.json 2>/dev/null || true
+        fi
         # reboot -f follows an unmount failure here; without an explicit sync
         # the log data never reaches the NTFS volume (observed as a
         # correct-size file full of zeros).
@@ -299,6 +308,7 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
+FAULT="$(read_cmdline wootc.fault)"
 
 # ── Observed vs product mode ────────────────────────────────────────────────
 # The E2E harness arms the deployer with console=ttyS0 so it can watch the
@@ -637,6 +647,13 @@ JOURNAL_STREAM_PID=$!
 ) &
 HEARTBEAT_PID=$!
 phase "ntfs-mounted"
+printf '{"state":"deploying","updatedAt":"%s","updatedBy":"deployer"}\n' \
+    "$(date -u +%FT%TZ)" > /mnt/ntfs/wootc/state.json 2>/dev/null || true
+
+if [[ "$FAULT" == "deploy-failure" || "$FAULT" == "deploy" ]]; then
+    err "Simulated fault injected: deploy-failure"
+    exit 1
+fi
 
 # ── Container storage scratch ───────────────────────────────────────────────
 # The initramfs root is ramfs: a multi-GB image pull there exhausts RAM.

@@ -69,3 +69,13 @@ full	fedora-gnome-win11pro-bitlocker	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-W
 # remains covered by the Windows 11 Pro BitLocker smoke cell.
 # disabled(home-media): el10-gnome-win11home-bitlocker	ghcr.io/tuna-os/yellowfin:gnome	11	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7	bitlocker=on
 # disabled(home-media): el10-gnome-win10home-bitlocker	ghcr.io/tuna-os/yellowfin:gnome	10	home	TX9XD-98N7V-6WMQ6-BX7FG-H8Q99	bitlocker=on
+# -- Fault-injection & Recovery axis (#288) --
+smoke	recovery-image-pull-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=image-pull
+smoke	recovery-bcd-arming-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=bcd-arming
+smoke	recovery-deploy-failure-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=deploy-failure
+full	recovery-root-disk-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=root-disk
+full	recovery-efi-staging-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=efi-staging
+full	recovery-pre-reboot-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=pre-reboot
+full	recovery-image-pull-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=image-pull
+full	recovery-bcd-arming-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=bcd-arming
+

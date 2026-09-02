@@ -53,6 +53,7 @@ func headlessInstall(args []string) int {
 	fs.StringVar(&cfg.Password, "password", "", "initial user password (required; hashed before persisting)")
 	fs.StringVar(&cfg.Hostname, "hostname", "tunaos", "target hostname")
 	fs.StringVar(&cfg.Bootloader, "bootloader", "auto", "bootloader chain (auto|grub2|systemd-boot; auto lets the deployer detect the image's backend)")
+	fs.StringVar(&cfg.FaultInject, "fault-inject", "", "inject simulated fault at boundary (root-disk|image-pull|efi-staging|bcd-arming|pre-reboot)")
 	noReboot := fs.Bool("no-reboot", true, "do not reboot after arming (default true; pass -no-reboot=false to reboot)")
 	if err := fs.Parse(args); err != nil {
 		return 2
