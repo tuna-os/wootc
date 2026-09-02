@@ -19,11 +19,11 @@ because today there is a moment where that user is left without an answer.
 | # | Borrowing | The moment it fixes | Tracking |
 |---|---|---|---|
 | 1 | Secure Boot CA-generation preflight | "bad shim signature" after the reboot, with no warning before it | #322 |
-| 2 | Recovery guard on the Windows side | Windows comes back and wootc never says what happened | #285 / #287 / #290 |
-| 3 | First-boot evidence, cross-checked from Windows | "installed" is claimed by whoever wrote a file last | #285 / #287 |
-| 4 | Signed-chain refresh on the ESP after updates | the next SBAT revocation stops a working install from booting | new issue |
-| 5 | One step catalogue, diffed in CI | a renamed phase silently blinds the harness or the splash | new issue |
-| 6 | Signed catalogue and exe freshness | an old exe fetches artifacts it was never tested with | new issue |
+| 2 | Recovery guard on the Windows side | Windows comes back and wootc never says what happened | #330 (state.json), #331 (guard); under #285 |
+| 3 | First-boot evidence, cross-checked from Windows | "installed" is claimed by whoever wrote a file last | #332; under #285 |
+| 4 | Signed-chain refresh on the ESP after updates | the next SBAT revocation stops a working install from booting | #333 |
+| 5 | One step catalogue, diffed in CI | a renamed phase silently blinds the harness or the splash | #334 |
+| 6 | Signed catalogue and exe freshness | an old exe fetches artifacts it was never tested with | #335 |
 
 ---
 
