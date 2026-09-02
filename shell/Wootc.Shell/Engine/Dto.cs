@@ -178,6 +178,24 @@ public class SystemInfo
     /// </summary>
     [JsonPropertyName("suggestedUsername")]
     public string SuggestedUsername { get; set; } = string.Empty;
+
+    /// <summary>
+    /// TrustedUefiAuthorities lists the Microsoft UEFI CA generations this
+    /// machine's firmware holds in its db variable ("2011", "2023"), so the
+    /// preflight can tell before the reboot whether the signed shim this
+    /// build stages will be launched at all (#322). Empty means the db could
+    /// not be read, which warns rather than refusing.
+    /// </summary>
+    [JsonPropertyName("trustedUefiAuthorities")]
+    public List<string> TrustedUefiAuthorities { get; set; } = new();
+
+    /// <summary>
+    /// SecureBootChainWarning is set when Secure Boot is on but the db could
+    /// not be read: honest disclosure that one check could not be made,
+    /// shown before the user commits rather than after the restart.
+    /// </summary>
+    [JsonPropertyName("secureBootChainWarning")]
+    public string SecureBootChainWarning { get; set; } = string.Empty;
 }
 
 /// <summary>

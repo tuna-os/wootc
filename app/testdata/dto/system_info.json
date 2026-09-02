@@ -26,5 +26,7 @@
   ],
   "bitLockerRecoveryKeyWarning": false,
   "suggestedHostname": "my-laptop",
-  "suggestedUsername": "winuser"
+  "suggestedUsername": "winuser",
+  "trustedUefiAuthorities": null,
+  "secureBootChainWarning": ""
 }
