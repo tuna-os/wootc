@@ -15,8 +15,22 @@
 # (ostree/Fedora/EL), falls back to newest /boot/vmlinuz-* (classic
 # Debian/Arch layouts).
 #
+# The SIGNED CHAIN goes stale the same way, and worse (#333). shim, GRUB and
+# MokManager are staged once by the Windows installer and then never touched,
+# while Microsoft ships SBAT revocations through Windows Update: when a
+# generation is revoked, the firmware stops launching a shim below it, and a
+# machine that booted Linux yesterday stops today with no change the user
+# made. CVE fixes in shim and GRUB never arrive either. The deployment
+# already carries a current signed chain (bootupd's payload), so this copies
+# it forward — but only after wootc-shim-trust has graded the candidate
+# against the firmware's own trust store and the installed SBAT generation,
+# because a shim the firmware will not accept is worse than a stale one: the
+# stale one still boots.
+#
 # Test hooks: WOOTC_ESP_DIR overrides mounting (points at a fake ESP);
-# WOOTC_BOOT_DIR overrides /boot; WOOTC_CMDLINE overrides /proc/cmdline.
+# WOOTC_BOOT_DIR overrides /boot; WOOTC_CMDLINE overrides /proc/cmdline;
+# WOOTC_CHAIN_SOURCE overrides where the replacement signed chain is read
+# from (normally bootupd's staged payload).
 
 set -Eeuo pipefail
 
@@ -158,6 +172,85 @@ if [[ ! -f "$GRUB_CFG" ]] || [[ "$(cat "$GRUB_CFG")" != "$WANT_CFG" ]]; then
     log "updated $(basename "$(dirname "$GRUB_CFG")")/grub.cfg"
 fi
 fi
+
+# ── Signed chain: shim / GRUB / MokManager (#333) ───────────────────────────
+# Only in a vendor directory wootc itself owns. The marker is the same one the
+# Windows installer's D1 guard uses to refuse clobbering another Linux: if the
+# grub.cfg here is not ours, neither are the binaries beside it.
+sync_signed_chain() {
+    command -v wootc-shim-trust >/dev/null 2>&1 || {
+        log "wootc-shim-trust not installed — leaving the signed chain alone"; return 0; }
+
+    local vendor_dir="" d
+    for d in "$ESP_MNT"/EFI/*/; do
+        [[ -f "$d/grub.cfg" ]] || continue
+        grep -q '# wootc' "$d/grub.cfg" 2>/dev/null || continue
+        [[ -f "$d/shimx64.efi" ]] || continue
+        vendor_dir="${d%/}"
+        break
+    done
+    [[ -n "$vendor_dir" ]] || { log "no wootc-owned vendor directory on the ESP; signed chain untouched"; return 0; }
+
+    # Source: bootupd's staged payload first (what `bootc upgrade` refreshes),
+    # then the deployment's own ESP tree for classic layouts.
+    local src="" cand
+    if [[ -n "${WOOTC_CHAIN_SOURCE:-}" ]]; then
+        [[ -f "$WOOTC_CHAIN_SOURCE/shimx64.efi" ]] || {
+            log "WOOTC_CHAIN_SOURCE has no shimx64.efi; signed chain untouched"; return 0; }
+        src="${WOOTC_CHAIN_SOURCE%/}"
+    fi
+    for cand in /usr/lib/bootupd/updates/EFI/*/ /boot/efi/EFI/*/; do
+        [[ -n "$src" ]] && break
+        [[ -f "${cand}shimx64.efi" ]] || continue
+        src="${cand%/}"
+        break
+    done
+    [[ -n "$src" ]] || { log "no signed chain in the deployment to copy forward"; return 0; }
+
+    local archive="$ESP_MNT/EFI/wootc/archive"
+    local f stamp
+    stamp=$(sha256sum "$src/shimx64.efi" 2>/dev/null | cut -c1-16)
+    [[ -n "$stamp" ]] || return 0
+
+    # GRUB and MokManager first, shim LAST. A power cut between them then
+    # leaves a shim that still chains a GRUB it can verify; the other order
+    # leaves a new shim above an old GRUB, which is the combination that does
+    # not boot.
+    local replaced=0
+    for f in grubx64.efi mmx64.efi shimx64.efi; do
+        [[ -f "$src/$f" ]] || continue
+        [[ -f "$vendor_dir/$f" ]] || continue
+        cmp -s "$src/$f" "$vendor_dir/$f" && continue
+        # Grade the candidate. Only shim carries SBAT and a firmware-visible
+        # signature; the others ride behind it, but an unsigned GRUB would be
+        # rejected by shim just as surely, so all three are checked.
+        if ! wootc-shim-trust check "$src/$f" "$vendor_dir/$f" >/dev/null; then
+            log "keeping the installed $f (candidate refused — see above)"
+            continue
+        fi
+        mkdir -p "$archive/$stamp"
+        cp -f "$vendor_dir/$f" "$archive/$stamp/$f" 2>/dev/null || {
+            log "could not archive the current $f — refusing to replace what we cannot put back"
+            continue
+        }
+        cp -f "$src/$f" "$vendor_dir/$f.new" && sync && mv -f "$vendor_dir/$f.new" "$vendor_dir/$f" || {
+            log "failed to install $f; restoring from the archive"
+            cp -f "$archive/$stamp/$f" "$vendor_dir/$f" 2>/dev/null || true
+            rm -f "$vendor_dir/$f.new" 2>/dev/null || true
+            continue
+        }
+        if ! cmp -s "$src/$f" "$vendor_dir/$f"; then
+            log "post-write check failed for $f; restoring from the archive"
+            cp -f "$archive/$stamp/$f" "$vendor_dir/$f" 2>/dev/null || true
+            continue
+        fi
+        log "refreshed $(basename "$vendor_dir")/$f from the deployment"
+        replaced=$((replaced + 1))
+    done
+    [[ "$replaced" -gt 0 ]] && changed=1
+    return 0
+}
+sync_signed_chain
 
 if [[ "$changed" -eq 1 ]]; then
     sync

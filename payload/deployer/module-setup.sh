@@ -129,6 +129,8 @@ install() {
     inst /usr/lib/wootc/migration/org.tunaos.wootc.policy
     inst /usr/lib/wootc/migration/wootc-esp-sync
     inst /usr/lib/wootc/migration/wootc-esp-sync.service
+    inst /usr/lib/wootc/migration/wootc-esp-sync.path
+    inst /usr/lib/wootc/migration/wootc-shim-trust
     inst /usr/lib/wootc/migration/wootc-apply-look
     inst /usr/lib/wootc/migration/wootc-apply-look.desktop
     inst /usr/lib/wootc/migration/wootc-detect-apps

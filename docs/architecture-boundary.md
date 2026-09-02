@@ -26,7 +26,10 @@ that turns an attached empty block device into a bootable Linux root.
 - Post-install verification: ostree deploy-root discovery
   (`/ostree/deploy/*/deploy/*`), BLS entry patching under
   `boot/loader/entries/`, initramfs regeneration via ostree paths.
-- Target-signed shim/grub sourcing from `usr/lib/bootupd/updates/`.
+- Target-signed shim/grub sourcing from `usr/lib/bootupd/updates/` — at
+  install time, and again on every boot: `wootc-esp-sync` copies the
+  deployment's current signed chain forward onto the Windows ESP so an
+  SBAT revocation cannot strand a machine that booted yesterday (#333).
 - ESP kernel-sync globs (`boot/ostree/*/vmlinuz*`).
 
 ## The provisioner contract (adaptation seam)

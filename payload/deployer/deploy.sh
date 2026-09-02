@@ -2816,6 +2816,18 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-sync"
     install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
+    # Signed-chain refresh (#333): grades a candidate shim against the
+    # firmware's trust store and the installed SBAT generation before it is
+    # allowed onto the ESP. Without this helper wootc-esp-sync leaves the
+    # signed chain alone, which is the pre-#333 behaviour.
+    mig_opt 755 wootc-shim-trust "$DEPLOY_ROOT/var/usrlocal/bin/wootc-shim-trust"
+    if [[ -f /usr/lib/wootc/migration/wootc-esp-sync.path ]]; then
+        install -m644 /usr/lib/wootc/migration/wootc-esp-sync.path \
+            "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.path"
+        mkdir -p "$DEPLOY_ROOT/etc/systemd/system/paths.target.wants"
+        ln -sf ../wootc-esp-sync.path \
+            "$DEPLOY_ROOT/etc/systemd/system/paths.target.wants/wootc-esp-sync.path"
+    fi
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
     ln -sf ../wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync.service"

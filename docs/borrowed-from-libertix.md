@@ -288,11 +288,19 @@ Extend `wootc-esp-sync`:
    is picked up before the next reboot rather than one late.
 
 ### Tasks
-- [ ] deployer mirrors the ESP manifest to `/etc/wootc/esp-manifest`
-- [ ] `wootc-esp-sync`: signed-chain source discovery + SBAT/CA gate + archive-then-atomic replace, shim last
-- [ ] `.path` trigger unit; ordering pins in bats
-- [ ] harness: after Phase 2, plant a newer shim in the bootupd path, reboot, assert the ESP trio changed and the archive exists and the system still boots
-- [ ] `docs/architecture-boundary.md` line about bootupd sourcing becomes true
+- [x] ownership without a new manifest: refresh only a vendor directory whose
+      `grub.cfg` carries the `# wootc` marker — the same rule the installer's
+      D1 guard already applies, re-checked on every boot because a second OS
+      can be installed after us
+- [x] `wootc-esp-sync`: signed-chain source discovery + SBAT/CA gate +
+      archive-then-atomic replace, shim last (`wootc-shim-trust` grades the
+      candidate against the firmware's own `db` and the installed SBAT
+      generation)
+- [x] `.path` trigger unit on bootupd's `EFI.json`; contract pins in bats and
+      behavioural coverage in `tests/unit/test_esp_chain_refresh.py`
+- [ ] harness: after Phase 2, plant a newer shim in the bootupd path, reboot,
+      assert the ESP trio changed, the archive exists, and the system still boots
+- [x] `docs/architecture-boundary.md` line about bootupd sourcing becomes true
 
 ## 5. One step catalogue, restated everywhere, diffed in CI
 

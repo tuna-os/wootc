@@ -1,0 +1,14 @@
+[Unit]
+Description=Refresh the Windows ESP when a bootc upgrade stages a new boot chain
+# bootupd rewrites its staged payload when `bootc upgrade` lands. Watching it
+# means an updated shim reaches the ESP on the boot that staged it, rather
+# than one boot later — which matters when the reason for the update is an
+# SBAT revocation that is about to stop the current shim booting (#333).
+ConditionPathExists=/etc/wootc/host-esp.conf
+
+[Path]
+PathChanged=/usr/lib/bootupd/updates/EFI.json
+Unit=wootc-esp-sync.service
+
+[Install]
+WantedBy=paths.target

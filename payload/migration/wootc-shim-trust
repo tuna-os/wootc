@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-shim-trust
+#
+# Decide whether a candidate EFI binary may replace the one currently on the
+# Windows ESP (#333).
+#
+# wootc's Phase-2 boot chain lives on the Windows ESP: firmware → shim →
+# GRUB → the kernel pair. Those shim/GRUB copies are staged once, by the
+# Windows installer, and then never touched again — while the deployment they
+# boot keeps updating. Two things go wrong with that over time:
+#
+#   1. SBAT revocation. Microsoft ships SBAT updates through Windows Update.
+#      When a generation is revoked, a shim below it stops being launched —
+#      a machine that worked yesterday stops booting Linux today, with no
+#      change the user made.
+#   2. CVE fixes in shim and GRUB never reach the ESP at all.
+#
+# The deployment already carries a current, signed chain (bootupd's payload
+# under /usr/lib/bootupd/updates), so the fix is to copy it forward. But
+# copying blindly is its own hazard: a shim the firmware will not accept is
+# worse than a stale one, because the stale one still boots. So every
+# candidate is graded first.
+#
+#   wootc-shim-trust authorities <file.efi>  Microsoft UEFI CA generations that signed it
+#   wootc-shim-trust db                      generations this firmware trusts
+#   wootc-shim-trust sbat <file.efi>         the shim SBAT generation number
+#   wootc-shim-trust check <cand> <current>  exit 0 if <cand> is safe to install
+#
+# `check` is the one the sync script calls. It answers no — loudly, on
+# stderr, with the reason — far more readily than yes.
+
+from __future__ import annotations
+
+import re
+import struct
+import subprocess
+import sys
+import tempfile
+import uuid
+from pathlib import Path
+
+EFIVARS = Path("/sys/firmware/efi/efivars")
+IMAGE_SECURITY_DATABASE_GUID = "d719b2cb-3d3a-4596-a3bc-dad00e67656f"
+EFI_CERT_X509_GUID = uuid.UUID("a5c059a1-94e4-4aa7-87b5-ab155c2bf072")
+
+CA_PATTERNS = (
+    (re.compile(r"Microsoft Corporation UEFI CA 2011"), "2011"),
+    (re.compile(r"Microsoft (?:Corporation )?UEFI CA 2023"), "2023"),
+)
+
+
+def warn(msg: str) -> None:
+    print(f"[wootc-shim-trust] {msg}", file=sys.stderr, flush=True)
+
+
+# ── PE parsing ──────────────────────────────────────────────────────────────
+
+def _u16(d: bytes, o: int) -> int:
+    return struct.unpack_from("<H", d, o)[0] if 0 <= o and o + 2 <= len(d) else 0
+
+
+def _u32(d: bytes, o: int) -> int:
+    return struct.unpack_from("<I", d, o)[0] if 0 <= o and o + 4 <= len(d) else 0
+
+
+def _optional_header(data: bytes) -> tuple[int, int, int]:
+    """(optional header offset, data-directory offset, section table offset)."""
+    if len(data) < 0x40 or data[:2] != b"MZ":
+        raise ValueError("not a PE image")
+    pe = _u32(data, 0x3C)
+    if pe + 24 > len(data) or data[pe : pe + 4] != b"PE\0\0":
+        raise ValueError("not a PE image")
+    opt_size = _u16(data, pe + 20)
+    opt = pe + 24
+    magic = _u16(data, opt)
+    dirs = opt + (112 if magic == 0x20B else 96)
+    return opt, dirs, opt + opt_size
+
+
+def pkcs7_blobs(data: bytes) -> list[bytes]:
+    """Every WIN_CERTIFICATE payload. A dual-signed binary carries two, and
+    reading only the first reports a dual-signed shim as single-signed."""
+    _, dirs, _ = _optional_header(data)
+    off, size = _u32(data, dirs + 32), _u32(data, dirs + 36)
+    if not off or not size or off + size > len(data):
+        return []
+    blob, out, pos = data[off : off + size], [], 0
+    while pos + 8 <= len(blob):
+        length = struct.unpack_from("<I", blob, pos)[0]
+        if length < 8 or pos + length > len(blob):
+            break
+        out.append(blob[pos + 8 : pos + length])
+        pos += (length + 7) & ~7
+    return out
+
+
+def authorities(path: Path) -> list[str]:
+    data = path.read_bytes()
+    found: set[str] = set()
+    for blob in pkcs7_blobs(data):
+        with tempfile.NamedTemporaryFile(suffix=".p7") as tmp:
+            tmp.write(blob)
+            tmp.flush()
+            proc = subprocess.run(
+                ["openssl", "pkcs7", "-inform", "DER", "-in", tmp.name,
+                 "-print_certs", "-noout", "-text"],
+                capture_output=True, text=True, check=False)
+        if proc.returncode != 0:
+            continue
+        for line in re.findall(r"Issuer:.*", proc.stdout):
+            for pattern, gen in CA_PATTERNS:
+                if pattern.search(line):
+                    found.add(gen)
+    return sorted(found)
+
+
+def sbat_generation(path: Path) -> int | None:
+    """The shim component's SBAT generation, from the .sbat section.
+
+    Format is CSV: `component,generation,vendor,...`. The shim's own line is
+    what firmware revocation targets, so that is the number compared.
+    """
+    data = path.read_bytes()
+    try:
+        _, _, sections = _optional_header(data)
+        pe = _u32(data, 0x3C)
+        count = _u16(data, pe + 6)
+    except ValueError:
+        return None
+    for i in range(count):
+        ent = sections + i * 40
+        name = data[ent : ent + 8].rstrip(b"\x00").decode("ascii", "replace")
+        if name != ".sbat":
+            continue
+        size, off = _u32(data, ent + 16), _u32(data, ent + 20)
+        body = data[off : off + size].split(b"\x00")[0].decode("ascii", "replace")
+        for line in body.splitlines():
+            parts = line.split(",")
+            if len(parts) >= 2 and parts[0] == "shim":
+                try:
+                    return int(parts[1])
+                except ValueError:
+                    return None
+    return None
+
+
+# ── The firmware's own opinion ──────────────────────────────────────────────
+
+def firmware_db() -> list[str]:
+    """Microsoft UEFI CA generations in the firmware's db variable.
+
+    Empty means "could not tell" — no efivarfs, a BIOS boot, or a db we could
+    not parse — never "trusts nothing".
+    """
+    try:
+        raw = (EFIVARS / f"db-{IMAGE_SECURITY_DATABASE_GUID}").read_bytes()[4:]
+    except OSError:
+        return []
+    found: set[str] = set()
+    off = 0
+    while off + 28 <= len(raw):
+        sig_type = uuid.UUID(bytes_le=raw[off : off + 16])
+        list_size, header_size, sig_size = struct.unpack_from("<III", raw, off + 16)
+        if list_size < 28 or sig_size <= 16 or off + list_size > len(raw):
+            break
+        if sig_type == EFI_CERT_X509_GUID:
+            pos = off + 28 + header_size
+            while pos + sig_size <= off + list_size:
+                der = raw[pos + 16 : pos + sig_size]
+                with tempfile.NamedTemporaryFile(suffix=".der") as tmp:
+                    tmp.write(der)
+                    tmp.flush()
+                    proc = subprocess.run(
+                        ["openssl", "x509", "-inform", "DER", "-in", tmp.name,
+                         "-noout", "-subject"],
+                        capture_output=True, text=True, check=False)
+                if proc.returncode == 0:
+                    for pattern, gen in CA_PATTERNS:
+                        if pattern.search(proc.stdout):
+                            found.add(gen)
+                pos += sig_size
+        off += list_size
+    return sorted(found)
+
+
+def secure_boot_on() -> bool | None:
+    try:
+        raw = (EFIVARS / "SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c").read_bytes()
+    except OSError:
+        return None
+    return bool(raw[4]) if len(raw) > 4 else None
+
+
+# ── The decision ────────────────────────────────────────────────────────────
+
+def check(candidate: Path, current: Path | None) -> int:
+    """Is `candidate` safe to put on the ESP in place of `current`?"""
+    try:
+        cand_cas = authorities(candidate)
+    except (OSError, ValueError) as exc:
+        warn(f"refusing {candidate.name}: cannot read its signatures ({exc})")
+        return 1
+    if not cand_cas:
+        warn(f"refusing {candidate.name}: no Microsoft UEFI CA signature. "
+             "The firmware would not launch it.")
+        return 1
+
+    # Only the firmware's own trust store can say yes here, and only when we
+    # can read it. An unreadable db means we keep what already boots.
+    if secure_boot_on():
+        trusted = firmware_db()
+        if not trusted:
+            warn(f"refusing {candidate.name}: Secure Boot is on and the firmware's "
+                 "trust store could not be read. The chain that boots today stays.")
+            return 1
+        if not set(trusted) & set(cand_cas):
+            warn(f"refusing {candidate.name}: signed by {','.join(cand_cas)}, "
+                 f"firmware trusts {','.join(trusted)}. Installing it would stop "
+                 "this machine booting Linux.")
+            return 1
+
+    # Never move backwards through an SBAT revocation: a lower generation is
+    # exactly what firmware refuses after an update.
+    cand_gen = sbat_generation(candidate)
+    cur_gen = sbat_generation(current) if current and current.exists() else None
+    if cand_gen is not None and cur_gen is not None and cand_gen < cur_gen:
+        warn(f"refusing {candidate.name}: SBAT generation {cand_gen} is older than "
+             f"the installed {cur_gen}. A downgrade is what revocation blocks.")
+        return 1
+
+    print(f"ok {candidate.name} cas={','.join(cand_cas)} sbat={cand_gen if cand_gen is not None else '?'}")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if not argv:
+        warn(__doc__ or "usage: wootc-shim-trust <authorities|db|sbat|check> ...")
+        return 2
+    cmd, args = argv[0], argv[1:]
+    if cmd == "authorities" and args:
+        print(",".join(authorities(Path(args[0]))))
+        return 0
+    if cmd == "db":
+        print(",".join(firmware_db()))
+        return 0
+    if cmd == "sbat" and args:
+        gen = sbat_generation(Path(args[0]))
+        print("" if gen is None else gen)
+        return 0
+    if cmd == "check" and args:
+        return check(Path(args[0]), Path(args[1]) if len(args) > 1 else None)
+    warn(f"unknown or incomplete command: {' '.join(argv)}")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
