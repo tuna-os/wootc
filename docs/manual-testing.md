@@ -50,7 +50,7 @@ deliberately small. Treat it as alpha software anyway.
    opens the "Bring over from Windows" dashboard, and your Windows folders
    are bridged (look for the "Windows drive" bookmark in the file manager).
 4. **The way back**: reboot → Windows starts by default. In Windows, the
-   app's Manage screen offers "Restart into <your distro>" whenever you
+   app's Manage screen offers "Restart into `<your distro>`" whenever you
    want Linux again — and Uninstall puts everything back.
 
 ## If something goes wrong
