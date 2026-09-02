@@ -1,0 +1,44 @@
+# payload/steps.tsv — the one catalogue of phase names (#334).
+#
+# The words a user sees during an install are written in four places: the
+# Phase-1 pipeline in app/app.go, the step list the progress screen renders,
+# the deployer's phase() splash table, and the markers the E2E harness greps
+# for. Nothing held them together, and they had already drifted: five
+# backend steps were missing from the screen's list, and one entry on the
+# screen was never emitted, so it stayed grey for the whole install — which
+# to a nervous user reads as a step that did not happen.
+#
+# This file is the authority. tests/unit/step-catalogue.bats and the Go test
+# in app/steps_test.go fail when a copy drifts from it.
+#
+# owner: installer  a step in the Phase-1 pipeline (app/app.go), shown on the
+#                   progress screen by app/frontend/src/screens/progress.js
+#        deployer   a phase() call in payload/deployer/deploy.sh, shown on the
+#                   full-screen splash during the Phase-2 deploy
+#
+# id	owner	label
+Checking your PC	installer	Checking your PC
+Preparing Windows	installer	Preparing Windows
+Setting things up	installer	Setting things up
+Finding your files	installer	Finding your files
+Making room for Linux	installer	Making room for Linux
+Downloading Linux	installer	Downloading Linux
+Downloading your Linux system	installer	Downloading your Linux system
+Preparing the startup menu	installer	Preparing the startup menu
+Getting Linux prepared	installer	Getting Linux prepared
+Making Linux bootable on your machine	installer	Making Linux bootable on your machine
+Saving your settings	installer	Saving your settings
+Saving your BitLocker recovery key	installer	Saving your BitLocker recovery key
+Looking at your installed apps	installer	Looking at your installed apps
+Checking your signed-in apps	installer	Checking your signed-in apps
+Looking for your cloud drives	installer	Looking for your cloud drives
+Collecting your look and Wi-Fi	installer	Collecting your look and Wi-Fi
+Finishing up	installer	Finishing up
+ntfs-mounted	deployer	Preparing your disk...
+scratch-setup	deployer	Preparing your disk...
+network-wait	deployer	Waiting for a network connection - plug in a network cable if this takes a while...
+bundle-ingest	deployer	Loading your downloaded system - no internet needed...
+registry-preflight	deployer	Connecting to the software library...
+fisherman	deployer	Downloading and installing your Linux system...
+verification	deployer	Almost there - making sure everything is perfect...
+reboot	deployer	All set! Starting your new Linux system...

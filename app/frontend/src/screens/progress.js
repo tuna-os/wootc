@@ -9,6 +9,11 @@ import { el, btn } from '../lib/ui.js';
 // The canonical ordered step list. The Go backend emits these exact strings on
 // install:progress, so main.js's event wiring imports it to mark earlier steps
 // complete, and the step list below renders it.
+// The step list the user watches. It must be EXACTLY the pipeline's step
+// names from app.go, in order: a step whose name does not match never lights
+// up, and stays grey for the whole install — which reads as a step that did
+// not happen. payload/steps.tsv is the catalogue and app/steps_test.go fails
+// when these drift (#334).
 export const INSTALL_STEPS = [
   'Checking your PC',
   'Preparing Windows',
@@ -21,7 +26,11 @@ export const INSTALL_STEPS = [
   'Getting Linux prepared',
   'Making Linux bootable on your machine',
   'Saving your settings',
-  'Collecting your look',
+  'Saving your BitLocker recovery key',
+  'Looking at your installed apps',
+  'Checking your signed-in apps',
+  'Looking for your cloud drives',
+  'Collecting your look and Wi-Fi',
   'Finishing up',
 ];
 

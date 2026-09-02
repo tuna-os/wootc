@@ -339,10 +339,17 @@ and every catalogue deployer id has a splash line; a Go test asserts the same
 for the pipeline; CI fails when a generated file is stale.
 
 ### Tasks
-- [ ] `payload/steps.tsv` + generator (`just steps`) + stale-check in CI
-- [ ] `app.go` pipeline and `progress.js` consume the generated labels
-- [ ] `deploy.sh` splash table generated; harness marker list generated
-- [ ] bats + Go parity tests
+- [x] `payload/steps.tsv` — the catalogue, with an owner and the on-screen
+      words for every id
+- [x] bats + Go parity tests. These found the drift the section predicted:
+      **five** pipeline steps were missing from the progress screen's list,
+      and one entry on the screen was never emitted, so it stayed grey for the
+      whole install — which reads as a step that did not happen. Fixed here.
+- [ ] generation (`just steps` writing the splash table and the frontend list)
+      — **deferred on purpose.** The value of this section is that drift
+      cannot survive CI, and the parity tests deliver that. Generating a
+      `case` table into `deploy.sh` is a mechanical rewrite of the file that
+      decides whether a user's machine boots, for no additional safety.
 
 ## 6. Signed catalogue and exe freshness
 
