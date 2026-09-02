@@ -55,21 +55,29 @@ func listDataPartitions() []DataPartition {
 // is safe to remove and fold back into C:) and how much space that frees.
 func dedicatedVolumeInfo(d string) (bool, float64) {
 	// A wootc-created volume is labeled "wootc-data" and contains nothing
-	// but the wootc dir (ignoring system folders).
+	// but the wootc dir (ignoring system folders) (#197, #225).
 	out, err := runPowerShellOutput(fmt.Sprintf(
 		`$items = @(Get-ChildItem '%s:\' -Force -ErrorAction SilentlyContinue | Where-Object { `+
 			`$_.Name -notin @('$RECYCLE.BIN','System Volume Information','wootc') }); `+
 			`$v = Get-Volume -DriveLetter %s -ErrorAction SilentlyContinue; `+
-			`'{0}|{1}' -f $items.Count, [math]::Round($v.Size/1GB,1)`, d, d))
+			`'{0}|{1}|{2}' -f $items.Count, [math]::Round($v.Size/1GB,1), $(if ($v) { $v.FileSystemLabel } else { '' })`, d, d))
 	if err != nil {
 		return false, 0
 	}
 	f := strings.Split(strings.TrimSpace(out), "|")
-	if len(f) != 2 {
+	if len(f) < 2 {
 		return false, 0
 	}
+	label := ""
+	if len(f) >= 3 {
+		label = f[2]
+	}
 	sizeGB, _ := strconv.ParseFloat(f[1], 64)
-	return f[0] == "0", sizeGB
+	itemsCount, err := strconv.Atoi(strings.TrimSpace(f[0]))
+	if err != nil {
+		return false, 0
+	}
+	return isDedicatedVolume(itemsCount, label), sizeGB
 }
 
 // CreateDataPartition shrinks C: and creates a new unencrypted NTFS
@@ -115,10 +123,12 @@ Write-Output $np.DriveLetter`, sizeGB)
 func removePartitionAndExtendC(drive string) error {
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
+$v = Get-Volume -DriveLetter %s -ErrorAction SilentlyContinue
+if (-not $v -or $v.FileSystemLabel -ne '%s') { throw "Partition %s: does not have the '%s' label" }
 $p = Get-Partition -DriveLetter %s
 Remove-Partition -DriveLetter %s -Confirm:$false
 $supported = Get-PartitionSupportedSize -DriveLetter C
-Resize-Partition -DriveLetter C -Size $supported.SizeMax`, drive, drive)
+Resize-Partition -DriveLetter C -Size $supported.SizeMax`, drive, DedicatedVolumeLabel, drive, DedicatedVolumeLabel, drive, drive)
 	out, err := runPowerShellOutput(script)
 	if err != nil {
 		return fmt.Errorf("%w (output: %s)", err, strings.TrimSpace(out))

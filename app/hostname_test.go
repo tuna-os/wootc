@@ -133,3 +133,143 @@ func TestSuggestIdentityNeverEmpty(t *testing.T) {
 		t.Errorf("suggestHostname(empty) = %q, want the brand name", got)
 	}
 }
+
+// #197 / #225: Under over-the-shoulder UAC, user.Current() is the elevating
+// admin. deriveHumanUsername must derive the machine's human user rather than
+// the admin, preferring explicit elevation-boundary environment variables, then
+// the interactive desktop session owner (Win32_ComputerSystem.UserName /
+// explorer.exe process owner), falling back to the current process user.
+func TestDeriveHumanUsernameUAC(t *testing.T) {
+	cases := []struct {
+		name            string
+		envUser         string
+		interactiveUser string
+		currentUser     string
+		want            string
+	}{
+		{
+			name:            "standard UAC: interactive human preferred over elevating admin",
+			envUser:         "",
+			interactiveUser: `CORP\Alice`,
+			currentUser:     `LocalAdmin`,
+			want:            "alice",
+		},
+		{
+			name:            "elevation environment variable takes highest precedence",
+			envUser:         "Bob Smith",
+			interactiveUser: `CORP\Alice`,
+			currentUser:     `LocalAdmin`,
+			want:            "bob-smith",
+		},
+		{
+			name:            "fallback to current user when interactive user is unavailable",
+			envUser:         "",
+			interactiveUser: "",
+			currentUser:     `LocalAdmin`,
+			want:            "localadmin",
+		},
+		{
+			name:            "fallback to winuser when all signals are empty or invalid",
+			envUser:         "",
+			interactiveUser: "",
+			currentUser:     "",
+			want:            "winuser",
+		},
+		{
+			name:            "interactive user with domain stripped",
+			envUser:         "",
+			interactiveUser: `WORKGROUP\charlie`,
+			currentUser:     `Administrator`,
+			want:            "charlie",
+		},
+		{
+			name:            "interactive user with email/AzureAD stripped",
+			envUser:         "",
+			interactiveUser: `MicrosoftAccount\dana@example.com`,
+			currentUser:     `LocalAdmin`,
+			want:            "dana",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := deriveHumanUsername(tc.envUser, tc.interactiveUser, tc.currentUser)
+			if got != tc.want {
+				t.Errorf("deriveHumanUsername(%q, %q, %q) = %q, want %q",
+					tc.envUser, tc.interactiveUser, tc.currentUser, got, tc.want)
+			}
+		})
+	}
+}
+
+// #197 / #225: dedicatedVolumeInfo and removePartitionAndExtendC must require
+// the "wootc-data" volume label before claiming ownership of a partition. An
+// empty personal partition without the label must return false so RemovePartition
+// is never offered and user data cannot be destroyed.
+func TestDedicatedVolumeLabelGate(t *testing.T) {
+	cases := []struct {
+		name       string
+		itemsCount int
+		label      string
+		want       bool
+	}{
+		{
+			name:       "valid wootc partition with exact label and 0 extra items",
+			itemsCount: 0,
+			label:      "wootc-data",
+			want:       true,
+		},
+		{
+			name:       "case-insensitive label matching",
+			itemsCount: 0,
+			label:      "WOOTC-DATA",
+			want:       true,
+		},
+		{
+			name:       "label with surrounding whitespace",
+			itemsCount: 0,
+			label:      "  wootc-data  ",
+			want:       true,
+		},
+		{
+			name:       "empty personal partition without label must not be claimed",
+			itemsCount: 0,
+			label:      "",
+			want:       false,
+		},
+		{
+			name:       "empty personal partition with user label must not be claimed",
+			itemsCount: 0,
+			label:      "Personal",
+			want:       false,
+		},
+		{
+			name:       "empty partition labeled Data must not be claimed",
+			itemsCount: 0,
+			label:      "Data",
+			want:       false,
+		},
+		{
+			name:       "partition with wootc-data label but extraneous files must not be claimed",
+			itemsCount: 1,
+			label:      "wootc-data",
+			want:       false,
+		},
+		{
+			name:       "partition with wrong label and files must not be claimed",
+			itemsCount: 3,
+			label:      "Backup",
+			want:       false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isDedicatedVolume(tc.itemsCount, tc.label)
+			if got != tc.want {
+				t.Errorf("isDedicatedVolume(%d, %q) = %v, want %v",
+					tc.itemsCount, tc.label, got, tc.want)
+			}
+		})
+	}
+}

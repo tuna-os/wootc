@@ -223,6 +223,22 @@ func sanitizeHostname(name string) string {
 	return out
 }
 
+// deriveHumanUsername derives the machine's human user for Linux account creation (#197, #225).
+// When running elevated under over-the-shoulder UAC, user.Current() gives the
+// elevating admin. We resolve the user in order of preference:
+//  1. Environment variables passed across the elevation boundary (e.g. WOOTC_ORIGINAL_USER)
+//  2. The interactive desktop user (e.g. Win32_ComputerSystem.UserName / explorer.exe owner)
+//  3. The current process user (fallback)
+func deriveHumanUsername(envUser, interactiveUser, currentUser string) string {
+	if s := sanitizeUsername(envUser); s != "" {
+		return s
+	}
+	if s := sanitizeUsername(interactiveUser); s != "" {
+		return s
+	}
+	return suggestUsername(currentUser)
+}
+
 // suggestUsername and suggestHostname wrap the sanitisers with the fallbacks
 // the bare-minimum launchpad contract requires: identity must ALWAYS derive,
 // because a derived identity is what keeps those fields under Advanced and
@@ -246,6 +262,15 @@ func suggestHostname(raw string) string {
 		return b
 	}
 	return "tunaos"
+}
+
+// DedicatedVolumeLabel is the required filesystem label for a wootc-created partition (#197, #225).
+const DedicatedVolumeLabel = "wootc-data"
+
+// isDedicatedVolume reports whether a volume with the given non-system items count
+// and filesystem label belongs to wootc and is safe to remove.
+func isDedicatedVolume(itemsCount int, label string) bool {
+	return itemsCount == 0 && strings.EqualFold(strings.TrimSpace(label), DedicatedVolumeLabel)
 }
 
 // DataPartition is a candidate unencrypted volume for root.disk.
@@ -662,6 +687,7 @@ type UninstallInfo struct {
 	DiskSizeGB     float64 `json:"diskSizeGB"`
 	OnDedicatedVol bool    `json:"onDedicatedVol"` // wootc-created data partition
 	ReclaimGB      float64 `json:"reclaimGB"`      // space freed if the volume is removed
+	VolumeLabel    string  `json:"volumeLabel,omitempty"` // verified volume label (e.g. "wootc-data")
 	// Orphaned: no root.disk anywhere, but leftover boot arming (bcd-guid /
 	// state.json) exists — the "user deleted the folder by hand" case, which
 	// previously had NO GUI path to clean up the boot entry.

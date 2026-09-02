@@ -30,13 +30,15 @@ func getSystemInfo() SystemInfo {
 	info.SuggestedHostname = suggestHostname(rawHost)
 	// Same idea for the account name, so the launchpad can collect only a
 	// password by default instead of asking the user to invent an identity
-	// they already have. os/user gives DOMAIN\User on Windows; the sanitiser
-	// takes the account part.
-	var rawUser string
+	// they already have. Under over-the-shoulder UAC, user.Current() is the
+	// elevating admin — derive the machine's interactive human instead (#197, #225).
+	envUser := getElevationEnvUser()
+	interactiveUser := queryInteractiveUser()
+	var currentUser string
 	if u, err := user.Current(); err == nil {
-		rawUser = u.Username
+		currentUser = u.Username
 	}
-	info.SuggestedUsername = suggestUsername(rawUser)
+	info.SuggestedUsername = deriveHumanUsername(envUser, interactiveUser, currentUser)
 
 	// OS version
 	v := windows.RtlGetVersion()
@@ -169,6 +171,9 @@ func getUninstallInfo() UninstallInfo {
 			}
 			if d != "C" {
 				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
+				if info.OnDedicatedVol {
+					info.VolumeLabel = DedicatedVolumeLabel
+				}
 			}
 			return info
 		}
@@ -324,3 +329,48 @@ func rebootWindows() error {
 		"/c", effectiveBranding().ProductName+" is rebooting to start the installer")
 	return err
 }
+
+// ── Interactive user derivation (over-the-shoulder UAC) ───────────────────────
+
+func getElevationEnvUser() string {
+	for _, env := range []string{"WOOTC_ORIGINAL_USER", "WOOTC_INTERACTIVE_USER"} {
+		if val := strings.TrimSpace(os.Getenv(env)); val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+func queryInteractiveUser() string {
+	// Under over-the-shoulder UAC, user.Current() gives the elevating admin.
+	// Win32_ComputerSystem.UserName or explorer.exe process owner identifies
+	// the interactive desktop user (#197, #225).
+	psScript := `$u = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+if (-not $u) { $u = (Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName }
+if (-not $u) {
+    $exp = Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($exp) {
+        $owner = Invoke-CimMethod -InputObject $exp -MethodName GetOwner -ErrorAction SilentlyContinue
+        if ($owner -and $owner.User) {
+            if ($owner.Domain) { $u = "$($owner.Domain)\$($owner.User)" } else { $u = $owner.User }
+        }
+    }
+}
+if (-not $u) {
+    $exp = Get-WmiObject Win32_Process -Filter "name='explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($exp) {
+        $o = $exp.GetOwner()
+        if ($o -and $o.User) {
+            if ($o.Domain) { $u = "$($o.Domain)\$($o.User)" } else { $u = $o.User }
+        }
+    }
+}
+if ($u) { Write-Output $u }`
+
+	out, err := runPowerShellOutput(psScript)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
