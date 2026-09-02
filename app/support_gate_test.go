@@ -33,6 +33,14 @@ func TestBetaOffersExperimental(t *testing.T) {
 	}
 }
 
+func TestBetaOffersBitLocker(t *testing.T) {
+	t.Setenv("WOOTC_CHANNEL", "beta")
+	p := NewApp().GetSupportPolicy()
+	if !p.BitLockerSupported {
+		t.Errorf("beta policy must support BitLocker: %+v", p)
+	}
+}
+
 func TestAlphaPolicyGatesScenarios(t *testing.T) {
 	t.Setenv("WOOTC_CHANNEL", "alpha")
 	p := NewApp().GetSupportPolicy()

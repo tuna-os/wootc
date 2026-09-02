@@ -346,7 +346,7 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 		// Full matrix green (the beta bar): everything is on the table; the
 		// axes that are still red stay explicitly false until their issue closes.
 		pol = SupportPolicy{Channel: "beta", ExperimentalImages: true,
-			BitLockerSupported: false, CustomImageAllowed: true,
+			BitLockerSupported: true, CustomImageAllowed: true,
 			Reason: "Beta — most images and scenarios supported."}
 	case "stable":
 		pol = SupportPolicy{Channel: "stable", ExperimentalImages: true,

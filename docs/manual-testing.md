@@ -15,10 +15,14 @@ deliberately small. Treat it as alpha software anyway.
 1. **Have a backup of anything you can't lose.** wootc doesn't touch your
    files — and you should never test alpha boot software without one.
 2. **Know your BitLocker recovery key** (Settings ▸ Privacy & security ▸
-   Device encryption, or `manage-bde -protectors C: -get`). The alpha
-   refuses encrypted drives up front, but if your firmware boot order is
-   ever touched on a BitLocker machine, Windows may ask for the key once on
-   the way back. Have it *before* rebooting, not after.
+   Device encryption, or `manage-bde -protectors C: -get`). On the beta
+   channel, BitLocker-encrypted systems are supported: the installer leaves
+   `C:` fully encrypted and sets up Linux on an unencrypted partition (or
+   another volume), capturing the numerical recovery key to unlock `C:`
+   read-only during profile migration. If firmware boot order changes
+   trigger BitLocker recovery when booting back to Windows, entering your
+   48-digit numerical recovery key once unlocks the drive and restores normal
+   Windows startup. Have the key *before* rebooting, not after.
 3. **Plug in the power adapter.** The app refuses to start on battery; the
    deploy boot can take 30–60 minutes on a slow connection.
 4. **Check free disk**: 35 GB+ free on `C:` (20 GB minimum for Linux plus
