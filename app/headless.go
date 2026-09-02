@@ -19,7 +19,7 @@ func isHeadlessInvocation(args []string) bool {
 		return false
 	}
 	switch args[1] {
-	case "install", "status", "uninstall":
+	case "install", "status", "uninstall", "recover":
 		return true
 	}
 	return false
@@ -40,6 +40,8 @@ func runHeadless(args []string) int {
 		}
 		fmt.Println("uninstalled")
 		return 0
+	case "recover":
+		return headlessRecover(args[2:])
 	}
 	return 2
 }
@@ -108,5 +110,86 @@ func headlessStatus() int {
 		return 1
 	}
 	fmt.Println(string(data))
+	return 0
+}
+
+func headlessRecover(args []string) int {
+	fs := flag.NewFlagSet("recover", flag.ContinueOnError)
+	startup := fs.Bool("startup", false, "run startup recovery guard logic (decision table)")
+	prompt := fs.Bool("prompt", false, "run logon recovery prompt check")
+	status := fs.Bool("status", false, "print recovery verdict JSON")
+	tryAgain := fs.Bool("try-again", false, "re-arm from armed.json and reboot")
+	repairBoot := fs.Bool("repair-boot", false, "re-stage ESP, re-arm BCD and reboot")
+	remove := fs.Bool("remove", false, "uninstall wootc")
+	noReboot := fs.Bool("no-reboot", false, "do not reboot after try-again or repair-boot")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *startup {
+		if err := runRecoverStartup(); err != nil {
+			fmt.Fprintf(os.Stderr, "recover startup: %v\n", err)
+			return 1
+		}
+		fmt.Println("recover startup complete")
+		return 0
+	}
+
+	if *prompt {
+		if err := runRecoverPrompt(); err != nil {
+			fmt.Fprintf(os.Stderr, "recover prompt: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+
+	if *status {
+		v, err := readRecoveryVerdict()
+		if err != nil {
+			fmt.Println(`{"verdict":"none"}`)
+			return 0
+		}
+		data, err := marshalJSON(v)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover status: %v\n", err)
+			return 1
+		}
+		fmt.Println(string(data))
+		return 0
+	}
+
+	if *tryAgain {
+		if err := tryAgainFromArmed(*noReboot); err != nil {
+			fmt.Fprintf(os.Stderr, "recover try-again: %v\n", err)
+			return 1
+		}
+		fmt.Println("try-again complete")
+		return 0
+	}
+
+	if *repairBoot {
+		if err := repairBootFromArmed(*noReboot); err != nil {
+			fmt.Fprintf(os.Stderr, "recover repair-boot: %v\n", err)
+			return 1
+		}
+		fmt.Println("repair-boot complete")
+		return 0
+	}
+
+	if *remove {
+		if err := uninstall(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "recover remove: %v\n", err)
+			return 1
+		}
+		fmt.Println("removed")
+		return 0
+	}
+
+	// Default when no flag provided: run startup logic
+	if err := runRecoverStartup(); err != nil {
+		fmt.Fprintf(os.Stderr, "recover: %v\n", err)
+		return 1
+	}
 	return 0
 }

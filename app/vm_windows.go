@@ -337,7 +337,7 @@ func (a *App) InstallPreviewForReal(cfg InstallConfig) error {
 	if err := setupESP(cfg); err != nil {
 		return fmt.Errorf("set up boot files: %w", err)
 	}
-	if err := configureBCD(cfg.Bootloader); err != nil {
+	if err := configureBCD(cfg); err != nil {
 		return fmt.Errorf("configure boot entry: %w", err)
 	}
 	writeState(StateArmed, "", "")

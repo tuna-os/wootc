@@ -43,6 +43,8 @@ E2E=tests/e2e/run-e2e.sh
     grep -q 'root.disk vanished' "$E2E"
     # Claim: the Add/Remove Programs entry is unregistered.
     grep -q 'ARP=False' "$E2E"
+    # Claim: the recovery scheduled tasks are unregistered.
+    grep -q 'recovery scheduled tasks unregistered' "$E2E"
     # Claim: the machine then boots Windows cleanly on its own.
     grep -q 'rebooting to prove Windows boots cleanly' "$E2E"
     # Violations are fail() — collected by the ledger, not exit-on-first.

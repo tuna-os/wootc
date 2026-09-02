@@ -142,3 +142,15 @@ export function GetLastRun() {
 export function BootIntoLinux() {
   return window['go']['main']['App']['BootIntoLinux']();
 }
+
+export function GetRecoveryVerdict() {
+  return window['go']['main']['App']['GetRecoveryVerdict']();
+}
+
+export function TryAgain() {
+  return window['go']['main']['App']['TryAgain']();
+}
+
+export function RepairBoot() {
+  return window['go']['main']['App']['RepairBoot']();
+}

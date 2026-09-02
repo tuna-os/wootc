@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -442,10 +443,10 @@ func backupBCD() error {
 	return nil
 }
 
-func configureBCD(bootloader string) error {
+func configureBCD(cfg InstallConfig) error {
 	var efiRelPath string
 
-	switch bootloader {
+	switch cfg.Bootloader {
 	case "systemd-boot":
 		asset, err := systemdBootAsset()
 		if err != nil {
@@ -544,7 +545,7 @@ func configureBCD(bootloader string) error {
 	// entry (bcd-guid.txt), and uninstall flows read it too. Without it a
 	// GUI/headless-armed machine deploys fine but Phase 2 can never be
 	// scheduled. Best-effort: BCD itself is already armed at this point.
-	if err := os.WriteFile(`C:\wootc\install\bcd-guid.txt`, []byte(guid), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(wootcDir(), "install", "bcd-guid.txt"), []byte(guid), 0o644); err != nil {
 		fmt.Printf("warning: could not persist bcd-guid.txt: %v\n", err)
 	}
 
@@ -556,7 +557,108 @@ func configureBCD(bootloader string) error {
 	// pointing at it) intact. Best-effort: firmwares that never added it
 	// report a harmless error here.
 	runCmd("bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/remove") //nolint:errcheck
+
+	// ── Arm-time recovery guard state & task registration (§2) ────────────────
+	// 1. Stage a copy of wootc.exe under install\ and compute its hash.
+	installExe := filepath.Join(wootcDir(), "install", "wootc.exe")
+	exeHash := ""
+	curExe, errExe := os.Executable()
+	if errExe == nil {
+		if !strings.EqualFold(curExe, installExe) {
+			if inData, errRead := os.ReadFile(curExe); errRead == nil {
+				_ = os.WriteFile(installExe, inData, 0o755)
+			}
+		}
+		if h, errHash := hashFile(installExe); errHash == nil {
+			exeHash = h
+		} else if h2, errHash2 := hashFile(curExe); errHash2 == nil {
+			exeHash = h2
+		}
+	}
+
+	// 2. Track ESP files and hashes.
+	var espFiles []string
+	espHashes := make(map[string]string)
+	if espPath, err := findESP(); err == nil {
+		if owned, err := readESPOwnership(espPath); err == nil {
+			for f := range owned {
+				espFiles = append(espFiles, f)
+				fullPath := filepath.Join(espPath, filepath.FromSlash(f))
+				if h, err := hashFile(fullPath); err == nil {
+					espHashes[f] = h
+				}
+			}
+		}
+	}
+	sort.Strings(espFiles)
+
+	// 3. Discover ESP partition GUID.
+	espPartitionGuid := findESPPartitionGuid()
+
+	// 4. Read prior power state.
+	powerState := PriorPowerState{}
+	if b, err := os.ReadFile(priorPowerPath()); err == nil {
+		for _, line := range strings.Split(string(b), "\n") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				switch strings.TrimSpace(parts[0]) {
+				case "hibernate":
+					powerState.HibernateEnabled = strings.TrimSpace(parts[1])
+				case "hiberboot":
+					powerState.HiberbootEnabled = strings.TrimSpace(parts[1])
+				}
+			}
+		}
+	}
+
+	storageDrive := cfg.StorageDrive
+	if storageDrive == "" {
+		storageDrive = "C"
+	}
+
+	// 5. Persist armed.json atomically.
+	armed := ArmedState{
+		BcdGuid:          guid,
+		EspPartitionGuid: espPartitionGuid,
+		EspFiles:         espFiles,
+		EspFileHashes:    espHashes,
+		PriorPowerState:  powerState,
+		StorageDrive:     storageDrive,
+		ImageRef:         cfg.ImageRef,
+		Bootloader:       cfg.Bootloader,
+		Timestamp:        time.Now().UTC().Format(time.RFC3339),
+		ExeHash:          exeHash,
+	}
+	if err := writeArmedJSON(armed); err != nil {
+		fmt.Printf("warning: could not write armed.json: %v\n", err)
+	}
+
+	// 6. Register recovery scheduled tasks (wootc-recovery, wootc-recovery-prompt).
+	if err := registerRecoveryTasks(installExe); err != nil {
+		fmt.Printf("warning: could not register recovery tasks: %v\n", err)
+	}
+
 	return nil
+}
+
+// findESPPartitionGuid returns the GPT partition GUID of the Windows system disk's ESP.
+func findESPPartitionGuid() string {
+	script := `
+$sysDisk = (Get-Partition -DriveLetter C -ErrorAction SilentlyContinue).DiskNumber
+if ($null -ne $sysDisk) {
+    $esp = Get-Partition -DiskNumber $sysDisk -ErrorAction SilentlyContinue |
+           Where-Object { $_.GptType -eq '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' } |
+           Select-Object -First 1
+    if ($esp -and $esp.Guid) {
+        Write-Output $esp.Guid
+    }
+}
+`
+	out, err := runPowerShellOutput(script)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }
 
 // disarmOneShot undoes the boot arming after a cancelled or failed install.
@@ -576,6 +678,8 @@ func disarmOneShot() {
 		}
 		os.Remove(guidPath) //nolint:errcheck
 	}
+	_ = unregisterRecoveryTasks()
+	_ = os.Remove(filepath.Join(wootcDir(), "install", "armed.json"))
 }
 
 // tail returns the last n bytes of s, for embedding a bounded slice of a

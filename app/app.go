@@ -771,7 +771,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		}},
 		{"Preparing the startup menu", 55, func() error { return writeGrubConfig(cfg) }},
 		{"Getting Linux prepared", 65, func() error { return setupESP(cfg) }},
-		{"Making Linux bootable on your machine", 80, func() error { return configureBCD(cfg.Bootloader) }},
+		{"Making Linux bootable on your machine", 80, func() error { return configureBCD(cfg) }},
 		{"Saving your settings", 85, func() error { return writeVault(cfg) }},
 		{"Saving your BitLocker recovery key", 87, func() error {
 			// When C: is BitLocker-protected, capture the numerical recovery
@@ -909,6 +909,26 @@ func (a *App) GetLastRun() LifecycleState {
 		return LifecycleState{}
 	}
 	return s
+}
+
+// GetRecoveryVerdict returns the persisted recovery verdict so the UI can display
+// what happened after Windows restarts and provide recovery options.
+func (a *App) GetRecoveryVerdict() RecoveryVerdict {
+	v, err := readRecoveryVerdict()
+	if err != nil {
+		return RecoveryVerdict{}
+	}
+	return v
+}
+
+// TryAgain re-arms the one-shot boot entry from armed.json and reboots.
+func (a *App) TryAgain() error {
+	return tryAgainFromArmed(false)
+}
+
+// RepairBoot re-stages ESP bootloader files, re-arms BCD, and reboots.
+func (a *App) RepairBoot() error {
+	return repairBootFromArmed(false)
 }
 
 // emit sends a progress event to the frontend.

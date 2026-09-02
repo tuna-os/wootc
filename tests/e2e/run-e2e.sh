@@ -2391,6 +2391,11 @@ Write-Output ("ARP=" + (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersi
     printf '%s' "$files" | grep -q 'INSTALL=False' && pass "Uninstall: install state removed" || fail "Uninstall: C:\\wootc\\install survived"
     printf '%s' "$files" | grep -q 'ROOTDISK=True' && pass "Uninstall: root.disk preserved (documented default keeps the user's Linux data)" || fail "Uninstall: root.disk vanished — the default must never delete the user's Linux"
     printf '%s' "$files" | grep -q 'ARP=False'     && pass "Uninstall: Add/Remove Programs entry unregistered" || fail "Uninstall: Add/Remove Programs entry survived"
+    local tasks
+    tasks=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$ts = Get-ScheduledTask -TaskName "wootc-recovery*"
+if ($null -ne $ts -and @($ts).Count -gt 0) { Write-Output "TASKS=True" } else { Write-Output "TASKS=False" }' 2>&1 | tr -d '\r' || true)
+    printf '%s' "$tasks" | grep -q 'TASKS=False' && pass "Uninstall: recovery scheduled tasks unregistered" || fail "Uninstall: recovery scheduled tasks survived"
     # Claim 4: the machine boots Windows cleanly on its own — the class of
     # leftover #264 documented (a stale entry ahead of Windows) is exactly
     # what this reboot would expose.

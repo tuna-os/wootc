@@ -238,6 +238,7 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	// the Add/Remove Programs entry. "Windows is unchanged" must be true.
 	restorePriorPowerState()
 	unregisterUninstallEntry()
+	_ = unregisterRecoveryTasks()
 
 	// 1. Remove all wootc BCD entries.
 	deleteWootcBCDEntries()

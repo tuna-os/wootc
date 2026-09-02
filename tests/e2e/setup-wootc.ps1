@@ -593,9 +593,65 @@ if ($LASTEXITCODE -ne 0) {
 if ($verifyFwbmOut -notmatch [regex]::Escape($newGuid)) {
     throw "Verification failed: {fwbootmgr} bootsequence does not contain $newGuid`n$verifyFwbmOut"
 }
-Write-Host "[wootc] Verified: {fwbootmgr} bootsequence contains $newGuid"
-
 Write-Host "[wootc] BCD configured and verified successfully."
+
+# ── Step 8b: Register Recovery Guard and armed.json (§2) ────────────────────
+Write-Host "[wootc] Arming recovery guard..."
+$exeCopy = "$installDir\wootc.exe"
+if ($PayloadDir -and (Test-Path "$PayloadDir\wootc.exe")) {
+    Copy-Item -Force "$PayloadDir\wootc.exe" $exeCopy
+} elseif (Test-Path "C:\wootc\wootc.exe") {
+    Copy-Item -Force "C:\wootc\wootc.exe" $exeCopy
+}
+
+$exeHash = ""
+if (Test-Path $exeCopy) {
+    try { $exeHash = (Get-FileHash -Path $exeCopy -Algorithm SHA256).Hash.ToLower() } catch { }
+}
+
+$espGuid = ""
+try {
+    $espGuid = (Get-Partition -DiskNumber $sysDisk -ErrorAction SilentlyContinue |
+        Where-Object { $_.GptType -eq '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' } |
+        Select-Object -First 1).Guid
+} catch { }
+
+$armedObj = @{
+    bcdGuid          = $newGuid
+    espPartitionGuid = $espGuid
+    espFiles         = @("EFI\fedora\shimx64.efi", "EFI\fedora\grubx64.efi", "EFI\fedora\grub.cfg", "EFI\wootc\deployer-vmlinuz", "EFI\wootc\deployer-initramfs.img")
+    storageDrive     = $storageRoot.TrimEnd(":\")
+    imageRef         = $ImageRef
+    bootloader       = $Bootloader
+    timestamp        = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    exeHash          = $exeHash
+}
+$armedJson = $armedObj | ConvertTo-Json -Depth 4
+Set-Content -Force -Path "$installDir\armed.json" -Value $armedJson -Encoding UTF8
+
+if (Test-Path $exeCopy) {
+    try {
+        $action = New-ScheduledTaskAction -Execute $exeCopy -Argument "recover --startup"
+        $trigger = New-ScheduledTaskTrigger -AtStartup
+        $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+        Register-ScheduledTask -TaskName "wootc-recovery" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+        Write-Host "[wootc] Registered wootc-recovery scheduled task"
+    } catch {
+        Write-Host "[wootc] Warning: could not register wootc-recovery task: $_"
+    }
+
+    try {
+        $action = New-ScheduledTaskAction -Execute $exeCopy -Argument "recover --prompt"
+        $trigger = New-ScheduledTaskTrigger -AtLogOn
+        $principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+        Register-ScheduledTask -TaskName "wootc-recovery-prompt" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+        Write-Host "[wootc] Registered wootc-recovery-prompt scheduled task"
+    } catch {
+        Write-Host "[wootc] Warning: could not register wootc-recovery-prompt task: $_"
+    }
+}
 
 # ── Step 9: Disable Windows Fast Startup ────────────────────────────────────
 Write-Host "[wootc] Disabling Fast Startup..."

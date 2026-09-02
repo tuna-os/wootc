@@ -174,7 +174,7 @@ func TestGrubConfigStubs_Noop(t *testing.T) {
 	if err := setupESP(cfg); err != nil {
 		t.Errorf("setupESP: %v", err)
 	}
-	if err := configureBCD("grub2"); err != nil {
+	if err := configureBCD(cfg); err != nil {
 		t.Errorf("configureBCD: %v", err)
 	}
 	if key := captureBitLockerRecoveryKey("C:"); key != "" {
