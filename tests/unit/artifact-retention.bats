@@ -209,3 +209,22 @@ mkrun() {
     grep -q "its catalog carries" .github/workflows/e2e-hosted.yml
     grep -q '"dakota"' app/branding/bluefin/brand.json
 }
+
+@test "the exe pins its boot artifacts to its own release, never to latest" {
+    # The installer and the deployer kernel/initramfs/signed shim are cut by
+    # one release job and gated by one E2E run. An exe fetching `latest`
+    # runs whatever is newest today, and the fail-closed SHA256SUMS check
+    # cannot catch it: the manifest comes from the same moved release, so
+    # mismatched-but-consistent artifacts verify perfectly (#335).
+    grep -q 'X main.releaseTag=\$RELEASE_TAG' "$REPO_ROOT/.github/workflows/release.yml"
+    grep -q 'RELEASE_TAG="\${{ steps.chan.outputs.tag }}"' "$REPO_ROOT/.github/workflows/release.yml"
+    # A release that cannot name its own tag must fail rather than ship an
+    # exe that silently floats.
+    grep -q 'no release tag to pin the boot artifacts to' "$REPO_ROOT/.github/workflows/release.yml"
+    # The rule lives in a cross-platform file so the Linux test tier runs it.
+    [ -f "$REPO_ROOT/app/deployer_url.go" ]
+    run grep -q 'go:build windows' "$REPO_ROOT/app/deployer_url.go"
+    [ "$status" -ne 0 ]
+    # The harness/offline override still wins over the pin.
+    grep -q 'WOOTC_DEPLOYER_MIRROR' "$REPO_ROOT/app/deployer_url.go"
+}

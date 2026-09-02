@@ -15,23 +15,6 @@ import (
 
 // ── Deployer download ─────────────────────────────────────────────────────────
 
-const defaultDeployerBaseURL = "https://github.com/tuna-os/wootc/releases/latest/download/"
-
-// deployerBaseURL returns where boot artifacts + SHA256SUMS are fetched
-// from. WOOTC_DEPLOYER_MIRROR overrides it for local/offline testing (e.g. a
-// dev VM with no network route to GitHub) — the SHA256SUMS fail-closed check
-// in downloadDeployer still applies unchanged against whatever URL is used,
-// so this does not weaken verification, only where it points.
-func deployerBaseURL() string {
-	if v := strings.TrimSpace(os.Getenv("WOOTC_DEPLOYER_MIRROR")); v != "" {
-		if !strings.HasSuffix(v, "/") {
-			v += "/"
-		}
-		return v
-	}
-	return defaultDeployerBaseURL
-}
-
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	installDir := filepath.Join(wootcDir(), "install")
 	// The signed shim+grub pair carries the Secure Boot chain; mmx64.efi

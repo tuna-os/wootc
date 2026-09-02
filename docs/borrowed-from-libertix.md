@@ -377,7 +377,8 @@ mode and it shows a permanent warning.
    today it is part of the signed exe.
 
 ### Tasks
-- [ ] embed the release tag; pin `deployerBaseURL`; harness override unchanged
+- [x] embed the release tag; pin `deployerBaseURL`; harness override unchanged
+      (`app/deployer_url.go`, `-X main.releaseTag=` in `release.yml`)
 - [ ] minisign the manifest in `release.yml`; verify in `fetchChecksums`; test key for the harness and the offline bundle
 - [ ] launchpad freshness notice
 - [ ] `docs/RELEASING.md`: key custody and rotation

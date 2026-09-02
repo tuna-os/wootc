@@ -234,12 +234,20 @@ jobs:
           # Read from the shim that was actually extracted a step earlier —
           # never a second copy of the pin, which is how a stamp starts
           # describing a binary nobody is shipping.
+          # Pin the exe to the release it is cut from (#335). The installer
+          # and its boot artifacts ship together and are gated by one E2E
+          # run; an exe that fetches from `latest` would run a deployer it
+          # was never tested with, and SHA256SUMS cannot catch that — the
+          # manifest comes from the same moved release.
+          RELEASE_TAG="${{ steps.chan.outputs.tag }}"
+          [ -n "$RELEASE_TAG" ] || { echo "::error::no release tag to pin the boot artifacts to"; exit 1; }
+          echo "pinning boot artifacts to $RELEASE_TAG"
           SHIM_AUTHORITIES=$(python3 -c "import json;print(','.join(json.load(open('release-assets/shim-authorities.json'))['shimx64.efi']))")
           [ -n "$SHIM_AUTHORITIES" ] || { echo "::error::the staged shim carries no Microsoft UEFI CA"; exit 1; }
           echo "staging a shim signed by the Microsoft UEFI CA(s): $SHIM_AUTHORITIES"
           while IFS=$'\t' read -r brand exe; do
             (cd app && GOOS=windows GOARCH=amd64 go build -tags desktop,production \
-              -ldflags "-w -s -X main.brandID=$brand -X main.shimAuthorities=$SHIM_AUTHORITIES" \
+              -ldflags "-w -s -X main.brandID=$brand -X main.shimAuthorities=$SHIM_AUTHORITIES -X main.releaseTag=$RELEASE_TAG" \
               -o "../release-assets/$exe.exe" .)
             echo "built $exe.exe (brand: $brand)"
           done <<< "$brands"

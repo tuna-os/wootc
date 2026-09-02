@@ -58,3 +58,12 @@ func embeddedBranding() (Branding, bool) {
 	}
 	return b, true
 }
+
+// releaseTag is the release this binary was cut from, set at build time with
+// -ldflags "-X main.releaseTag=v0.2.0". It pins where the boot artifacts are
+// fetched from (#335): the exe and the deployer kernel/initramfs/shim ship
+// together and are gated together by one E2E run, so an installer must never
+// pull a boot chain from a release it was not tested with. Empty in a local
+// build, which falls back to `latest` — the only thing an unstamped build
+// can do.
+var releaseTag = ""
