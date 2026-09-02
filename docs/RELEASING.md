@@ -16,7 +16,7 @@ bridge → Phase-3 native disk → seeded file on the native disk.
 Two places consume that status, and they must agree:
 
 - **`app/data/images.json`** — each image carries `"status": "green" |
-  "experimental"`. Only `green` images are offered in alpha.
+  "experimental"`. Only `green` images are offered in standard channels.
 - **`app/app.go` `GetSupportPolicy()`** — per-channel gate for the *scenario*
   axes (BitLocker/FDE, custom OCI refs, encryption). The frontend reads it to
   gate the UI; `StartInstall` enforces it as the authoritative backstop.
@@ -27,72 +27,59 @@ flag) in the same PR that records the green run — never ahead of it.
 ## Channels
 
 The active channel comes from `$WOOTC_CHANNEL`, else `C:\wootc\channel.txt`,
-else the built-in default (`alpha`).
+else the built-in default (`stable` on v1.0.0+, `beta`/`alpha` for pre-release tracks).
 
 | Channel | Bar to enter | Offers |
 |---|---|---|
 | **alpha** | one image green end-to-end (incl. GUI-driven) | green images only; encryption off; no BitLocker; no custom refs |
 | **beta** | the **full matrix** green | all images; custom refs; still gates any axis whose issue is open |
-| **stable** | full matrix green + a soak period with no data-safety regressions | everything |
+| **stable** | full matrix green + 30-day soak with no data-safety regressions | everything verified green in matrix |
 
-Alpha deliberately refuses more than it allows. A blocked user with intact
-Windows is a good outcome; a walked-into-red user with a broken boot is not.
+## Release Channels in CI/CD
 
-## Alpha (now)
+`.github/workflows/release.yml` automates releases across three paths:
 
-- **Image:** `ghcr.io/projectbluefin/bluefin:lts` — the one combination green
-  end-to-end, including a full GUI-driven run.
-- **Encryption:** off only. `tpm2-luks` (Phase-2 regen, [#33](https://github.com/tuna-os/wootc/issues/33))
-  and BitLocker FDE ([#34](https://github.com/tuna-os/wootc/issues/34)) are
-  gated off; the app detects BitLocker and tells the user plainly that it is
-  coming soon rather than proceeding into a known failure.
-- **Root filesystem:** ext4 (sealed default). btrfs is blocked
-  ([#35](https://github.com/tuna-os/wootc/issues/35)).
-- **No custom OCI refs** — only the offered, tested image.
+1. **Tagged Channel (Full Releases):**
+   - Triggered by git tag (e.g. `v1.0.0`) or `workflow_dispatch` with an explicit `release_tag` (e.g. `release_tag: v1.0.0`).
+   - The workflow runs the full GUI-driven E2E gate on a hosted Windows 11 runner before building and publishing assets.
+   - Builds all five branded executables (`wootc.exe`, `TunaOS-Installer.exe`, `Bluefin-Installer.exe`, `Aurora-Installer.exe`, `Bazzite-Installer.exe`) via `app/branding/*/brand.json` and `packaging/brands.sh`.
+   - Generates deployer boot artifacts (`deployer-vmlinuz`, `deployer-initramfs.img`, `shimx64.efi`, `grubx64.efi`, `mmx64.efi`) and `SHA256SUMS`.
+   - Publishes the GitHub Release as non-prerelease.
+   - Dispatches `.github/workflows/winget-publish.yml` to automatically submit/update `TunaOS.wootc` in `microsoft/winget-pkgs`.
 
-## The unlock path to beta
+2. **Automated Pre-Release Channel (Nightlies):**
+   - Triggered on `workflow_run` completion after a green nightly GUI E2E run on `main`.
+   - Cuts `auto-vYYYYMMDD-<sha>` tagged pre-release from the proven commit SHA.
+   - Serves as the continuous daily proof ledger for the 1.0 soak gate (`docs/soak.md`).
 
-Each of these flips a gate the moment its matrix row is green:
+3. **Manual Pre-Release Channel:**
+   - Triggered via `workflow_dispatch` without an explicit release tag for test/debugging builds.
 
-- [ ] yellowfin / bonito / marlin / flounder full three-phase → `status: green`
-- [ ] composefs-native (dakota) Phase-2/3
-- [ ] Windows 10 + Home/Enterprise/LTSC editions
-- [ ] BitLocker FDE path (#34) → `BitLockerSupported: true`
-- [ ] tpm2-luks root (#33) → offer encryption
-- [ ] btrfs sealed Phase-2 (#35) → offer btrfs
-- [ ] custom OCI refs (once the deploy path is family-agnostic green) → `CustomImageAllowed: true`
+## Cutting a Full Release (e.g. v1.0.0)
 
-When the **whole matrix** is green, the default channel becomes `beta`
-(catalog all-green, custom refs on), and the axis gates open as their issues
-close.
+Cutting a full release requires no special tag-push permissions on developer workstations:
 
-## Cutting a release
+1. **Verify Prerequisites & Evidence:**
+   - Soak ledger (`docs/soak.md`) confirms 30 consecutive qualifying green days.
+   - Full-tier matrix run on `e2e-matrix.yml` is green at the release commit.
+   - Narrative release notes prepared in `docs/release-notes-<version>.md` (e.g. `docs/release-notes-v1.0.0.md`).
+2. **Dispatch the Release:**
+   ```bash
+   gh workflow run release.yml --repo tuna-os/wootc -f release_tag=v1.0.0
+   ```
+3. **Shepherd winget Auto-Submission:**
+   - `release.yml` triggers `winget-publish.yml` with `tag=v1.0.0`.
+   - `winget-publish.yml` downloads the published `wootc.exe`, hashes it, renders manifests into `rendered/manifests/t/TunaOS/wootc/<version>`, and submits the PR to `microsoft/winget-pkgs` via `wingetcreate`.
+   - Monitor the PR on `microsoft/winget-pkgs` until merged.
+4. **Milestone Rollover:**
+   - Close milestone tracking issues (e.g. #210, #211, #212, #213) with comments linking to their verification evidence.
+   - Roll `ROADMAP.md` forward to the next horizon track.
 
-Releases are **E2E-gated** — tagging publishes nothing until a real Windows VM
-has migrated to Linux and back on a hosted runner (`release.yml` → the gate
-calls the same reusable E2E the nightly proves, on the alpha image, GUI-driven).
+## User Instructions (Shipped in Release Notes / INSTALL.md)
 
-```
-git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
-# → tests → E2E gate (real Windows VM, bluefin:lts, GUI-driven) → build + publish
-```
-
-The published artifact is `wootc.exe` (Wails, Go + web UI; no runtime deps).
-`skip_e2e` exists for emergencies and documents itself in the release notes.
-
-## User instructions (shipped in the release notes / INSTALL.md)
-
-1. Download `wootc.exe`. It is not code-signed yet (alpha) — SmartScreen will
-   warn; *More info → Run anyway*.
-2. Requirements the app checks for you: Windows 10/11 64-bit, UEFI + Secure
-   Boot, TPM 2.0, **BitLocker off** (alpha), ~40 GB free.
-3. Run it, pick Bluefin, set a username + password, click Install. Nothing on
-   your PC changes until you click **Reboot Now** — and even then Windows and
-   all your files stay put; Linux lives in a file beside them.
-4. First boot shows a calm "Setting up your new Linux system" screen for
-   5–15 minutes. When it finishes you're in Linux. To go back to Windows,
-   reboot and pick Windows — or uninstall wootc from inside it (deletes a
-   folder and a boot entry).
-
-Uninstalling is always: delete `C:\wootc` and remove the "wootc" boot entry —
-the app's Control Panel does both.
+1. Download `wootc.exe` (or your preferred branded installer, or run `winget install TunaOS.wootc`).
+2. Requirements checked by the app: Windows 10/11 64-bit, UEFI + Secure Boot, TPM 2.0, ~40 GB free disk space.
+3. Run the installer, select your Linux image, set your username and password, and click **Install**. Nothing on your PC changes until you click **Reboot Now** — and even then, Windows and all your files remain untouched; Linux lives safely inside `root.disk`.
+4. First boot displays a calm setup screen for 5–15 minutes while Linux initializes.
+5. To return to Windows, reboot and select Windows from the boot menu.
+6. To uninstall wootc: run `wootc.exe uninstall` or use Windows **Settings → Installed Apps → Uninstall** (restores boot entries, power settings, ESP, and cleans `C:\wootc`).

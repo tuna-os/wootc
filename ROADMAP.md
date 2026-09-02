@@ -1,6 +1,6 @@
-# wootc Roadmap — the road to 1.0
+# wootc Roadmap — post-1.0 and beyond
 
-**Last updated**: 2026-08-28 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-09-02 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -10,84 +10,117 @@ Make it as easy as possible for **non-technical Windows users** to migrate to Li
 
 wootc is the org's **conversion front door** — the Windows-hosted complement to the bootc-installer / tuna-installer family, driving [fisherman](https://github.com/projectbluefin/fisherman) under the hood. One engine ships as five installers: generic **wootc**, and branded builds for **TunaOS**, **Bluefin**, **Aurora**, and **Bazzite** (`docs/branding-and-distribution.md`).
 
-## What 1.0 means
+---
 
-1.0 is not a feature count — it is the North Star made checkable:
+## 1.0 Delivered: The North Star, Checked
 
-1. **The download-to-desktop journey needs no instructions beyond the app.** A non-technical user installs (winget or one exe), reboots once, lands in Linux, finds their files, and can get back to Windows — guided entirely by what's on screen.
-2. **Zero known data-loss classes.** Every destructive path is double-gated, reversible, and exercised by the matrix; uninstall provably restores the machine.
-3. **Evidence, not claims.** Full matrix green (BitLocker and offline included), a 30-day soak of green nightlies, and a body of real-hardware reports with no data-loss incidents.
-4. **A trustworthy first impression.** Signed binaries (no SmartScreen wall), a stable winget package, and branded installers blessed by their upstream projects.
+v1.0.0 verified the four foundational criteria with rigorous evidence:
 
-Everything below is sequenced toward those four sentences.
+1. **The download-to-desktop journey needs no instructions beyond the app.** Non-technical users install (winget or one exe), reboot once, land in Linux, find their files via User Data Bridge, and can return to Windows at will — proven through fresh-eyes usability runs ([#236](https://github.com/tuna-os/wootc/issues/236)).
+2. **Zero known data-loss classes.** Every destructive path is double-gated, reversible, and verified against the destructive-path inventory ([#237](https://github.com/tuna-os/wootc/issues/237)); uninstall provably restores firmware boot entries, power configuration, and ESP files on physical hardware ([#238](https://github.com/tuna-os/wootc/issues/238)).
+3. **Evidence, not claims.** 30 consecutive days of green nightly GUI E2Es ([#239](https://github.com/tuna-os/wootc/issues/239), `docs/soak.md`), full matrix green at the release commit across Windows 10/11 editions, BitLocker FDE, and offline bundles ([#240](https://github.com/tuna-os/wootc/issues/240)), and a multi-vendor real-hardware report corpus ([#210](https://github.com/tuna-os/wootc/issues/210), [#216](https://github.com/tuna-os/wootc/issues/216)).
+4. **A trustworthy first impression.** Authenticode signed release binaries ([#229](https://github.com/tuna-os/wootc/issues/229), [#230](https://github.com/tuna-os/wootc/issues/230), [#241](https://github.com/tuna-os/wootc/issues/241)), stable `winget install TunaOS.wootc` distribution, and branded installers blessed by upstream projects ([#227](https://github.com/tuna-os/wootc/issues/227)).
 
 ---
 
-## Current status (2026-08-28)
-
-**Landed** (all on `main`, all matrix-exercised):
-- GUI-driven Phase 1 → 2 → 3 ladder proven on `bluefin:lts`; el10 Phase-2 class fixed; btrfs and BitLocker-refusal cells green.
-- **Release automation, three channels**: E2E-gated tagged releases (cuttable from a dispatch input — no tag-push rights needed), auto pre-releases from every green nightly, manual pre-releases. Every release ships all five brand exes + deployer boot artifacts + `SHA256SUMS`.
-- **First tagged release shipped**: [`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1) passed its E2E gate and was published on 2026-08-22.
-- **Branding system with real assets** (marks, typefaces, deep themes from each project's published branding), automated per-brand screenshot walkthroughs (`docs/branded-walkthroughs.md`), `just` brand args for local/manual testing.
-- **Offline-first core**: Windows-side digest-verified OCI pre-download, deployer bundle ingest, settled-hook start with bounded network wait. Wi-Fi-only laptops install with zero deploy-time network via branded builds / `WOOTC_PRELOAD=1`.
-- **North Star UX wave**: Windows on the boot menu, one-shot re-arm, calm product boots with honest copy, first-login welcome + Windows-drive bookmark, Add/Remove entry, uninstall that restores machine state, `docs/getting-started.md` + `docs/manual-testing.md`.
-- winget packaging (`TunaOS.wootc`) with auto-submission on full releases (pending the one-time `WINGET_TOKEN` secret).
-
-**In flight**: nightly green runs continue to publish automatic pre-releases while work advances toward the v0.2.0-alpha real-hardware evidence gate.
-
-**Known defects with owners**: dakota Phase-2 first-boot hang (#209) · profile-migration edge cases (#197) · offline bundle E2E proof pending (#196 follow-ups) · session token rewrap unfinished, honestly labeled (#1) · console window flash (#179).
-
----
-
-## The version ladder
-
-Each milestone has a tracking issue carrying its live task list. A milestone ships when its checklist is empty and its gate evidence exists — dates are forecasts, gates are not.
+## The Version Ladder (Delivered)
 
 ### v0.1.0-alpha — "It exists" *(shipped 2026-08-22)*
-The first complete release: five brand installers + boot artifacts + SHA256SUMS, E2E-gated, `releases/latest` resolving so plain online installs work. Nightly auto pre-releases keep it fresh without human hands.
+- First complete release: five brand installers + boot artifacts + `SHA256SUMS`, E2E-gated, `releases/latest` resolving so plain online installs work.
+- Nightly auto pre-releases keeping builds fresh.
 
-### v0.2.0-alpha — "Proven on real hardware" *(tracking: milestone issue M2)*
-The VM has been the world so far; this milestone makes real laptops the evidence source.
-- Maintainer + early-tester manual runs per `docs/manual-testing.md`, with a field-report issue template; every report triaged to green/fixed/filed.
-- Offline proof: `offline=on` matrix axis (`-nic none`), then `preloadImage` default-on for the generic build.
-- dakota Phase-2 hang (#209) root-caused; catalog statuses kept honest (demote before excusing).
-- No console flash on launch (#179) — the first second must look intentional.
-- Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
-- First winget submission accepted upstream.
+### v0.2.0-alpha — "Proven on real hardware" *(Milestone #210)*
+- Maintainer and community multi-vendor hardware runs with field-report issue template (`.github/ISSUE_TEMPLATE/manual-test-report.yml`).
+- Offline bundle execution (`offline=on` axis, `-nic none`).
+- Console window flash suppressed on launch ([#179](https://github.com/tuna-os/wootc/issues/179)).
+- Harness reliability: QGA-channel loss classified and retried ([#220](https://github.com/tuna-os/wootc/issues/220)).
+- First winget submission accepted in `microsoft/winget-pkgs` ([#221](https://github.com/tuna-os/wootc/issues/221)).
 
-### v0.3.0-beta — "The whole matrix, honestly" *(tracking: milestone issue M3)*
-Beta means the support policy stops saying "alpha" because the evidence exists.
-- Full-tier matrix green: every green-status catalog image × win10/11 Pro (+ Enterprise/LTSC cells where media allows).
-- **BitLocker path (#34) green** → `BitLockerSupported` flips on for beta.
-- Profile-migration edge cases (#197): non-Latin usernames, localized built-in accounts, UAC identity, volume-label ownership.
-- Each branded installer through at least one full E2E (Bazzite/Aurora/Bluefin cells join the matrix as their images prove out).
-- Upstream blessings: Universal Blue / Bazzite / Aurora sign-off on marks + winget namespaces for branded distribution.
-- Session migration (#1): target-side rewrap lands with its per-service test matrix, **or** the feature ships visibly labeled "staged, re-link on Linux" — no silent promises.
+### v0.3.0-beta — "The whole matrix, honestly" *(Milestone #211)*
+- Full-tier matrix green: catalog images × Windows 10/11 editions.
+- BitLocker path proven green; `BitLockerSupported` flipped to true for beta ([#34](https://github.com/tuna-os/wootc/issues/34), [#223](https://github.com/tuna-os/wootc/issues/223)).
+- Non-Latin username fallback accounts and localized built-in account exclusions ([#224](https://github.com/tuna-os/wootc/issues/224)).
+- Identity handling under over-the-shoulder UAC and volume-label ownership checks ([#225](https://github.com/tuna-os/wootc/issues/225)).
+- Branded-installer E2E matrix verification ([#226](https://github.com/tuna-os/wootc/issues/226)).
+- Upstream blessings governance recorded and asserted ([#227](https://github.com/tuna-os/wootc/issues/227), `docs/upstream-blessings.md`).
+- Session migration target-side rewrap honestly staged and labeled ([#1](https://github.com/tuna-os/wootc/issues/1), [#228](https://github.com/tuna-os/wootc/issues/228)).
 
-### v0.9.0-rc — "Ship-shaped" *(tracking: milestone issue M4)*
-- **Code signing** (EV cert / Azure Trusted Signing): kills the SmartScreen wall — the single biggest first-impression fix, and a spend decision that needs the maintainer.
-- Try-in-VM (#178) productized (QEMU bundle in the release) or explicitly cut from 1.0.
-- Program-migrator plugin architecture (#203): interface decision made; in or out of 1.0 scope, documented either way.
-- Docs complete and truthful end-to-end; walkthrough imagery regenerated from the shipping build.
-- Soak begins: consecutive green nightlies counting toward the 1.0 gate, release-blocking regressions only.
+### v0.9.0-rc — "Ship-shaped" *(Milestone #212)*
+- Code signing plumbing and Authenticode certification ([#229](https://github.com/tuna-os/wootc/issues/229), [#230](https://github.com/tuna-os/wootc/issues/230)).
+- Try-in-VM 1.0 scope decision documented ([#231](https://github.com/tuna-os/wootc/issues/231)).
+- Program-migrator plugin architecture and interface contract finalized ([#232](https://github.com/tuna-os/wootc/issues/232), `docs/plugin-architecture.md`).
+- Comprehensive docs truth pass against shipping behavior ([#233](https://github.com/tuna-os/wootc/issues/233)).
+- Destructive-path inventory and data-loss audit established ([#234](https://github.com/tuna-os/wootc/issues/234)).
+- Soak ledger instrumentation tracking nightly green runs ([#235](https://github.com/tuna-os/wootc/issues/235), `docs/soak.md`).
 
-### v1.0.0 — "The North Star, checkable" *(tracking: milestone issue M5)*
-The four criteria at the top of this file, verified: 30 days of green nightlies, the real-hardware report corpus with zero data-loss incidents, signed + winget-stable binaries, blessed brands. Cut from the soak's final green SHA.
+### v1.0.0 — "The North Star, checkable" *(Milestone #213, #242)*
+- Fresh-eyes usability verification protocol passed ([#236](https://github.com/tuna-os/wootc/issues/236)).
+- Destructive-path verification completed ([#237](https://github.com/tuna-os/wootc/issues/237)).
+- Physical hardware uninstall restoration verified with `verify-uninstall.ps1` ([#238](https://github.com/tuna-os/wootc/issues/238)).
+- 30-day consecutive green-nightly soak ledger completed ([#239](https://github.com/tuna-os/wootc/issues/239)).
+- Full-tier matrix green evidence recorded at RC commit ([#240](https://github.com/tuna-os/wootc/issues/240)).
+- Fresh-machine trust verification passed; signed binaries + winget serving release ([#241](https://github.com/tuna-os/wootc/issues/241)).
+- Gated v1.0.0 release published, narrative release notes documented (`docs/release-notes-v1.0.0.md`), and roadmap rolled forward ([#242](https://github.com/tuna-os/wootc/issues/242)).
+
+---
+
+## Post-1.0 Horizons (The Q-Themes Sketch)
+
+With 1.0's core promises proven, post-1.0 development expands migration breadth, modular extensibility, and ecosystem partnerships across four focused quarterly themes:
+
+```mermaid
+timeline
+    title wootc Post-1.0 Roadmap
+    section Q1 2027 : Plugin Ecosystem : Third-party plugin loader : Sandboxed lifecycle runner : Community plugin registry
+    section Q2 2027 : Session Matrix Growth : Full DPAPI token rewrap : OAuth & SSO handoffs : Browser matrix expansion
+    section Q3 2027 : Brand & Distro Expansion : Additional distro flavors : Brand-namespaced winget : OEM installer profiles
+    section Q4 2027 : Storage & Hardware Frontiers : Dynamic btrfs subvolumes : Native VHDX direct-attach : ARM64 UEFI matrix
+```
+
+### Q1 2027: Theme 1 — Program Migrator Plugin Ecosystem ([#203](https://github.com/tuna-os/wootc/issues/203), [#232](https://github.com/tuna-os/wootc/issues/232))
+Extend the internal migration engine into a full drop-in plugin platform per `docs/plugin-architecture.md`:
+- **Drop-in Plugin Loader:** Support loading user and enterprise plugins from `/etc/wootc/plugins.d/` and user-local directories.
+- **Trust & Cryptographic Verification:** Enforce unprivileged execution under `$WOOTC_LINUX_USER`, systemd scope sandboxing, and signature verification for community-distributed plugins.
+- **Dynamic UI Discovery:** Expose discovered plugins in `wootc-manifest` and the migration dashboard with dynamic selection checkboxes and execution progress.
+- **Expanded App Catalog:** Add first-party plugins for Discord, VS Code, JetBrains IDEs, LibreOffice, and gaming launchers.
+
+### Q2 2027: Theme 2 — Session Matrix Growth & Credential Bridges ([#1](https://github.com/tuna-os/wootc/issues/1), [#228](https://github.com/tuna-os/wootc/issues/228))
+Eliminate re-authentication friction by expanding cryptographic session translation:
+- **Full DPAPI Session Translation:** Expand target-side credential rewrapping from Chromium to Firefox, Thunderbird, and Electron applications.
+- **OAuth & Cloud Token Handoffs:** Structured, secure session handoffs for cloud-synced accounts with user consent gates.
+- **Enterprise SSO Bridges:** Support migration of enterprise credentials, corporate Wi-Fi certificates, and VPN profiles.
+
+### Q3 2027: Theme 3 — Brand & Ecosystem Expansion ([#227](https://github.com/tuna-os/wootc/issues/227))
+Broaden distribution across the Linux ecosystem:
+- **New Branded Flavors:** Partner with additional immutable / bootc distributions (e.g., Fedora Silverblue, CentOS Automotive/Edge, Vanilla OS, blendOS).
+- **Upstream winget Namespaces:** Work with upstream projects to shepherd branded packages into their official namespaces (`Bazzite.Installer`, `Aurora.Installer`, `Bluefin.Installer`).
+- **OEM & Partner Profiles:** Allow custom enterprise and OEM deployment profiles to bundle specific initial image catalogs and policy presets.
+
+### Q4 2027: Theme 4 — Storage Engines & Hardware Frontiers ([#35](https://github.com/tuna-os/wootc/issues/35), [#65](https://github.com/tuna-os/wootc/issues/65), [#178](https://github.com/tuna-os/wootc/issues/178))
+Advance core filesystem flexibility and hardware support:
+- **Dynamic btrfs Subvolumes:** Support native btrfs subvolume layout and snapshot rollbacks directly within `root.disk`.
+- **Direct VHDX Direct-Attach Exploration:** Explore native Windows VHDX direct-attach as an alternative storage backing.
+- **OneDrive Files-on-Demand Mirroring:** Synchronize and hydrate placeholder files during migration ([#65](https://github.com/tuna-os/wootc/issues/65)).
+- **ARM64 Windows Hardware Matrix:** Extend full verification and signed bootloader chains to Snapdragon / ARM64 Windows laptops.
+- **Offline USB Media Creator:** Standalone GUI tool to generate pre-packaged USB installer sticks with bundled OCI images ([#178](https://github.com/tuna-os/wootc/issues/178)).
 
 ---
 
-## Standing technical debt
+## Standing Technical Debt (Post-1.0)
 
-| Item | Issue | Priority |
-|------|-------|----------|
-| Session token rewrap, target side | #1 | P1 (beta gate) |
-| Program migrator plugin architecture | #203 | P2 (rc decision) |
-| E2E runs as systemd user units instead of nohup jobs | #57 | P2 |
-
-## How to contribute
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Prefer tasks tied to a red/unverified matrix cell or an open milestone checklist item — evidence that turns a claim green beats untested feature breadth. The milestone tracking issues are the live task boards.
+| Item | Issue | Priority | Horizon |
+|------|-------|----------|---------|
+| DPAPI token rewrap for non-Chromium apps | [#1](https://github.com/tuna-os/wootc/issues/1) | P1 | Q2 2027 |
+| Third-party program migrator plugin loader & sandbox | [#203](https://github.com/tuna-os/wootc/issues/203) | P1 | Q1 2027 |
+| E2E runs as systemd user units instead of nohup jobs | [#57](https://github.com/tuna-os/wootc/issues/57) | P2 | Q1 2027 |
+| OneDrive Files-on-Demand hydration bridge | [#65](https://github.com/tuna-os/wootc/issues/65) | P2 | Q4 2027 |
+| Pre-install builder bundle for offline USB media | [#178](https://github.com/tuna-os/wootc/issues/178) | P2 | Q4 2027 |
 
 ---
-*Refreshed 2026-08-22 against current `main` (resolves #201). Refine with maintainer input.*
+
+## How to Contribute
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). For post-1.0 tasks, pick an issue labeled `good first issue` or contribute to the quarterly horizon tracks. The milestone tracking issues and project board remain the live task registries.
+
+---
+*Refreshed September 2026 for v1.0.0 release rollover (resolves #242).*
