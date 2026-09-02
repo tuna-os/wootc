@@ -25,7 +25,7 @@ logo signed by someone else:
 | Question | `blessing.json` key | What a "no" costs |
 |---|---|---|
 | May we ship your **mark** (logo, colours, typeface) inside the installer? | `decisions.mark` | the branded build loses its assets |
-| May we call it **"<Brand> Installer"**? | `decisions.name` | the name reverts to generic wootc |
+| May we call it **"`<Brand>` Installer"**? | `decisions.name` | the name reverts to generic wootc |
 | May we use this **tagline**? | `decisions.tagline` | tagline reverts, brand can stay |
 | May we **distribute an exe** under your brand at all? | `decisions.distributeExe` | the exe drops from every release |
 
@@ -96,12 +96,12 @@ Adapt per project; keep it short and make the "no" genuinely free.
 >
 > 1. May we use the Bazzite mark, colours and typeface in the installer?
 > 2. May we call it "Bazzite Installer"?
-> 3. May we use the tagline "<the tagline from brand.json>"?
+> 3. May we use the tagline "`<the tagline from brand.json>`"?
 > 4. May we distribute an exe branded as Bazzite at all?
 >
-> Here is exactly what it looks like today: <branded walkthrough link>.
-> Every asset and where we took it from: <provenance link>. A real install,
-> start to finish, on video: <e2e link>.
+> Here is exactly what it looks like today: `<branded walkthrough link>`.
+> Every asset and where we took it from: `<provenance link>`. A real install,
+> start to finish, on video: `<e2e link>`.
 >
 > On winget: `Bazzite.Installer` belongs in your namespace, not ours. We
 > have the manifests rendered and would rather hand them to you than publish
