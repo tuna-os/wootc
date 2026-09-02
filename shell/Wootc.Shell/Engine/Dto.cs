@@ -542,6 +542,12 @@ public class UninstallInfo
     public double ReclaimGB { get; set; }
 
     /// <summary>
+    /// verified volume label (e.g. "wootc-data")
+    /// </summary>
+    [JsonPropertyName("volumeLabel")]
+    public string? VolumeLabel { get; set; }
+
+    /// <summary>
     /// Orphaned: no root.disk anywhere, but leftover boot arming (bcd-guid /
     /// state.json) exists — the "user deleted the folder by hand" case, which
     /// previously had NO GUI path to clean up the boot entry.

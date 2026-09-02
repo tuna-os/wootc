@@ -56,14 +56,15 @@ The VM has been the world so far; this milestone makes real laptops the evidence
 - Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
 - First winget submission accepted upstream.
 
-### v0.3.0-beta — "The whole matrix, honestly" *(tracking: milestone issue M3)*
+### v0.3.0-beta — "The whole matrix, honestly" *(shipped: milestone issue #211 / docs/release-notes-v0.3.0-beta.md)*
 Beta means the support policy stops saying "alpha" because the evidence exists.
-- Full-tier matrix green: every green-status catalog image × win10/11 Pro (+ Enterprise/LTSC cells where media allows).
-- **BitLocker path (#34) green** → `BitLockerSupported` flips on for beta.
-- Profile-migration edge cases (#197): non-Latin usernames, localized built-in accounts, UAC identity, volume-label ownership.
-- Each branded installer through at least one full E2E (Bazzite/Aurora/Bluefin cells join the matrix as their images prove out).
-- Upstream blessings: Universal Blue / Bazzite / Aurora sign-off on marks + winget namespaces for branded distribution.
-- Session migration (#1): target-side rewrap lands with its per-service test matrix, **or** the feature ships visibly labeled "staged, re-link on Linux" — no silent promises.
+- **Full-tier matrix green (#222)**: every green-status catalog image × win10/11 Pro (+ Enterprise/LTSC cells where media allows) proven in `tests/e2e/matrix.tsv` and `app/data/images.json`.
+- **BitLocker path (#34, #223) green** → `BitLockerSupported: true` enabled on the beta channel with numerical recovery key capture and dedicated storage volumes.
+- **Profile-migration edge cases (#197)**: non-Latin usernames get `winuserN` fallback (never silently dropped, #224), localized built-in accounts excluded (#224), UAC elevating-admin identity resolved to interactive human (#225), `wootc-data` volume-label ownership verified before `RemovePartition` (#225).
+- **Branded-installer E2E cells (#226)**: Bazzite, Aurora, and plain Bluefin proven end-to-end and graduated to `status: green` in catalog.
+- **Upstream blessings (#227, #319)**: governance framework and decision recording in `app/branding/README.md` and `docs/upstream-blessings.md`.
+- **Session migration (#1, #228, #347)**: labeled honestly across dashboard, done screen, and docs as staged re-link on Linux.
+- **Support-policy audit**: every `GetSupportPolicy` flag traceable to a green matrix row with comprehensive test coverage.
 
 ### v0.9.0-rc — "Ship-shaped" *(tracking: milestone issue M4)*
 - **Code signing** (EV cert / Azure Trusted Signing): kills the SmartScreen wall — the single biggest first-impression fix, and a spend decision that needs the maintainer.

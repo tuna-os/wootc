@@ -82,8 +82,9 @@ export function renderControlPanel() {
   opts.appendChild(checkbox('deleteRootDisk', 'Also delete my Linux data',
     'Removes root.disk. Your Linux files are permanently deleted. Leave unchecked to keep them for later.', true));
   if (u.onDedicatedVol && u.reclaimGB) {
+    const label = u.volumeLabel || 'wootc-data';
     opts.appendChild(checkbox('removePartition', `Give the ${Math.round(u.reclaimGB)} GB back to Windows`,
-      `Removes the wootc-data drive (${u.storageDrive}:) and extends C: into the freed space.`, false));
+      `Removes the ${label} drive (${u.storageDrive}:) and extends C: into the freed space.`, false));
   }
   screen.appendChild(opts);
 
@@ -121,10 +122,14 @@ export function renderControlPanel() {
 
 async function confirmUninstall() {
   const o = state.uninstallOpts || {};
+  const u = state.uninstallInfo || {};
   let msg = `Remove ${distroName()}?\n\nThis removes the boot entry, the ESP files, and the deployer files.`;
   if (o.deleteRootDisk) msg += '\n\n⚠ Your Linux data (root.disk) will be permanently deleted.';
   else msg += '\n\nYour Linux data (root.disk) will be kept.';
-  if (o.removePartition) msg += '\n⚠ The wootc-data drive will be removed and its space returned to C:.';
+  if (o.removePartition) {
+    const label = u.volumeLabel || 'wootc-data';
+    msg += `\n⚠ The ${label} drive (${u.storageDrive || 'D'}:) will be removed and its space returned to C:.`;
+  }
   if (!confirm(msg)) return;
   try {
     await UninstallWith({ deleteRootDisk: !!o.deleteRootDisk, removePartition: !!o.removePartition });

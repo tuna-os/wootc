@@ -22,6 +22,12 @@ Assert-True ($stateRaw -match '"state":\s*"armed"') "state.json reports armed"
 # ── root disk ────────────────────────────────────────────────────────────────
 Assert-True (Test-Path C:\wootc\disks\root.vhdx) "root.vhdx exists"
 
+# ── dedicated volume label (when separate Linux data partition exists) ───────
+$dataVol = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter -and $_.DriveLetter -ne 'C' -and (Test-Path "$($_.DriveLetter):\wootc") } | Select-Object -First 1
+if ($dataVol) {
+    Assert-True ($dataVol.FileSystemLabel -eq "wootc-data") "dedicated data partition has label 'wootc-data' (found '$($dataVol.FileSystemLabel)')"
+}
+
 # ── vault ────────────────────────────────────────────────────────────────────
 $vault = Get-Content C:\wootc\install\vault.json -Raw -ErrorAction SilentlyContinue
 Assert-True ($null -ne $vault) "vault.json exists"

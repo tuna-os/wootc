@@ -54,13 +54,13 @@ Windows is a good outcome; a walked-into-red user with a broken boot is not.
 
 Each of these flips a gate the moment its matrix row is green:
 
-- [ ] yellowfin / bonito / marlin / flounder full three-phase → `status: green`
-- [ ] composefs-native (dakota) Phase-2/3
-- [ ] Windows 10 + Home/Enterprise/LTSC editions
-- [ ] BitLocker FDE path (#34) → `BitLockerSupported: true`
+- [x] yellowfin / bonito / marlin / flounder full three-phase → `status: green`
+- [x] composefs-native (dakota) Phase-2/3
+- [x] Windows 10 + Home/Enterprise/LTSC editions
+- [x] BitLocker FDE path (#34) → `BitLockerSupported: true`
 - [ ] tpm2-luks root (#33) → offer encryption
 - [ ] btrfs sealed Phase-2 (#35) → offer btrfs
-- [ ] custom OCI refs (once the deploy path is family-agnostic green) → `CustomImageAllowed: true`
+- [x] custom OCI refs (once the deploy path is family-agnostic green) → `CustomImageAllowed: true`
 
 When the **whole matrix** is green, the default channel becomes `beta`
 (catalog all-green, custom refs on), and the axis gates open as their issues

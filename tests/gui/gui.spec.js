@@ -82,13 +82,41 @@ test('installer — done screen', async ({ page }) => {
 test('control panel — partition-aware uninstall options', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
     uninstall: { found: true, storageDrive: 'D', diskPath: 'D:\\wootc\\disks\\root.vhdx',
-      diskSizeGB: 40, onDedicatedVol: true, reclaimGB: 60 } });
+      diskSizeGB: 40, onDedicatedVol: true, reclaimGB: 60, volumeLabel: 'wootc-data' } });
   await expect(page.locator('.screen-title')).toContainText('Manage TunaOS');
   // Reversible by default: keeping data is the unchecked default.
   await expect(page.getByText('Also delete my Linux data')).toBeVisible();
   // Partition-aware option appears for a wootc-created volume.
   await expect(page.getByText(/Give the 60 GB back to Windows/)).toBeVisible();
+  await expect(page.getByText(/Removes the wootc-data drive \(D:\)/)).toBeVisible();
   await shot(page, '05-control-panel');
+});
+
+test('control panel — personal partition without wootc-data label never offers RemovePartition', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, storageDrive: 'E', diskPath: 'E:\\wootc\\disks\\root.vhdx',
+      diskSizeGB: 40, onDedicatedVol: false, reclaimGB: 0 } });
+  await expect(page.locator('.screen-title')).toContainText('Manage TunaOS');
+  await expect(page.getByText('Also delete my Linux data')).toBeVisible();
+  // Remove partition option must NOT be present
+  await expect(page.getByText(/Give the .* GB back to Windows/)).toBeHidden();
+  await expect(page.getByText(/Removes the .* drive/)).toBeHidden();
+});
+
+test('control panel — uninstall confirmation names the verified volume label', async ({ page }) => {
+  let dialogMessage = '';
+  page.on('dialog', async dialog => {
+    dialogMessage = dialog.message();
+    await dialog.dismiss();
+  });
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, storageDrive: 'D', diskPath: 'D:\\wootc\\disks\\root.vhdx',
+      diskSizeGB: 40, onDedicatedVol: true, reclaimGB: 60, volumeLabel: 'wootc-data' } });
+  // Check the remove partition option
+  await page.locator('input[type="checkbox"]').nth(1).check();
+  await page.getByRole('button', { name: /Uninstall/ }).click();
+  expect(dialogMessage).toContain('wootc-data');
+  expect(dialogMessage).toContain('D:');
 });
 
 test('control panel — Boot in VM offered when available (§6.2)', async ({ page }) => {
