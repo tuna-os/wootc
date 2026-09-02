@@ -65,8 +65,19 @@ run_fast() {
     if command -v pwsh >/dev/null; then
         echo "── powershell lint (tests/lint-ps1.ps1) ──"
         pwsh -NoProfile -File tests/lint-ps1.ps1 || rc=1
+
+        # PowerShell unit tests. The tests/field/*.ps1 verifiers grade release
+        # and uninstall evidence on machines no runner has, so their pure
+        # comparators are dot-sourced and driven from synthetic snapshots here.
+        # A grader nothing exercises is a rubber stamp.
+        echo "── powershell unit tests (tests/unit/test-*.ps1) ──"
+        for t in tests/unit/test-*.ps1; do
+            [ -e "$t" ] || continue
+            echo "   $t"
+            pwsh -NoProfile -File "$t" || rc=1
+        done
     else
-        echo "!! pwsh not installed — skipping PowerShell lint" >&2
+        echo "!! pwsh not installed — skipping PowerShell lint + unit tests" >&2
     fi
 
     if command -v go >/dev/null; then
