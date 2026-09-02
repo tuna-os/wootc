@@ -187,25 +187,65 @@ func recordPriorPowerState() {
 	if err1 != nil && err2 != nil {
 		return
 	}
-	content := fmt.Sprintf("hibernate=%s\nhiberboot=%s\n",
-		strings.TrimSpace(hibernate), strings.TrimSpace(hiberboot))
+	hib, hbb := strings.TrimSpace(hibernate), strings.TrimSpace(hiberboot)
+	content := fmt.Sprintf("hibernate=%s\nhiberboot=%s\n", hib, hbb)
 	_ = os.MkdirAll(filepath.Dir(priorPowerPath()), 0o755)
 	_ = os.WriteFile(priorPowerPath(), []byte(content), 0o644)
+	// Mirror into the Add/Remove key, which survives what the file cannot.
+	// The file lives under C:\wootc\install — so a user who deletes C:\wootc
+	// by hand and THEN uninstalls (the orphaned-leftovers path, and a case
+	// #238 tests explicitly) destroys the only record of what to restore, and
+	// restorePriorPowerState() silently returns having changed nothing:
+	// hibernation stays off forever on a machine we promised to leave
+	// unchanged. The registry key is removed by unregisterUninstallEntry(),
+	// which runs immediately AFTER the restore, so the mirror outlives exactly
+	// the window it is needed for.
+	_ = runPowerShell(fmt.Sprintf(
+		`New-Item -Path %q -Force | Out-Null; `+
+			`Set-ItemProperty -Path %q -Name WootcPriorHibernate -Value %q; `+
+			`Set-ItemProperty -Path %q -Name WootcPriorHiberboot -Value %q`,
+		uninstallRegKey, uninstallRegKey, hib, uninstallRegKey, hbb))
+}
+
+// readPriorPowerMirror reads the registry copy of the pre-install power state.
+// Returns ("", "") when no mirror exists — an install that predates the mirror,
+// or a machine wootc never touched.
+func readPriorPowerMirror() (hibernate, hiberboot string) {
+	h, err1 := runPowerShellOutput(fmt.Sprintf(
+		`(Get-ItemProperty -Path %q -Name WootcPriorHibernate -ErrorAction SilentlyContinue).WootcPriorHibernate`,
+		uninstallRegKey))
+	b, err2 := runPowerShellOutput(fmt.Sprintf(
+		`(Get-ItemProperty -Path %q -Name WootcPriorHiberboot -ErrorAction SilentlyContinue).WootcPriorHiberboot`,
+		uninstallRegKey))
+	if err1 != nil {
+		h = ""
+	}
+	if err2 != nil {
+		b = ""
+	}
+	return strings.TrimSpace(h), strings.TrimSpace(b)
 }
 
 // restorePriorPowerState re-enables hibernation / Fast Startup if — and only
 // if — they were on before wootc touched them. Best-effort by design.
 func restorePriorPowerState() {
-	b, err := os.ReadFile(priorPowerPath())
-	if err != nil {
-		return
-	}
-	content := string(b)
-	if strings.Contains(content, "hibernate=1") {
+	hibernate, hiberboot := priorPowerValues()
+	if hibernate == "1" {
 		_ = runPowerShell(`powercfg.exe /h on`)
 	}
-	if strings.Contains(content, "hiberboot=1") {
+	if hiberboot == "1" {
 		_ = runPowerShell(`Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" ` +
 			`-Name "HiberbootEnabled" -Value 1 -Type DWord -Force`)
 	}
+}
+
+// priorPowerValues resolves the recorded pre-install state, file first and
+// registry mirror second. The file is authoritative when present; the mirror
+// is what makes the orphaned-leftovers path restorable at all, because that
+// path begins by deleting the file.
+func priorPowerValues() (hibernate, hiberboot string) {
+	if b, err := os.ReadFile(priorPowerPath()); err == nil {
+		return parsePriorPower(string(b))
+	}
+	return readPriorPowerMirror()
 }

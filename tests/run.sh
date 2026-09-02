@@ -65,8 +65,21 @@ run_fast() {
     if command -v pwsh >/dev/null; then
         echo "── powershell lint (tests/lint-ps1.ps1) ──"
         pwsh -NoProfile -File tests/lint-ps1.ps1 || rc=1
+
+        # PowerShell unit tests. tests/field/verify-uninstall.ps1 grades the
+        # uninstall restoration proof (#238) on machines no runner has, so its
+        # comparators are dot-sourced and driven from synthetic snapshots here.
+        # A grader nothing exercises is a rubber stamp — and the first run of
+        # these found one: an empty-array return collapsing to $null made a
+        # perfectly clean machine report a phantom firmware entry.
+        echo "── powershell unit tests (tests/unit/test-*.ps1) ──"
+        for t in tests/unit/test-*.ps1; do
+            [ -e "$t" ] || continue
+            echo "   $t"
+            pwsh -NoProfile -File "$t" || rc=1
+        done
     else
-        echo "!! pwsh not installed — skipping PowerShell lint" >&2
+        echo "!! pwsh not installed — skipping PowerShell lint + unit tests" >&2
     fi
 
     if command -v go >/dev/null; then

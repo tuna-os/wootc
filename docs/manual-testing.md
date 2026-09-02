@@ -72,6 +72,70 @@ Then run the uninstaller (Windows ▸ Settings ▸ Apps ▸ "TunaOS (wootc)", or
 your Fast Startup/hibernation settings, and keeps `root.disk` unless you
 tick otherwise — so a fixed build can retry without re-downloading.
 
+## Proving the uninstall put everything back
+
+"One uninstall puts everything back" is a v1.0 criterion ([#238]), and on
+real hardware it is where machines differ most: firmware boot entries are
+per-vendor, and a dual-boot machine has files on the ESP that are nobody's
+business but their owner's.
+
+The failures worth catching here are **silent** — an entry that survives,
+hibernation left off, someone else's ESP file gone — and the baseline you
+would need to notice them is **deleted by the uninstall itself**. So capture
+it first:
+
+```powershell
+# After the install completes, BEFORE uninstalling (run as Administrator):
+.\tests\field\verify-uninstall.ps1 capture -Out C:\uninstall-proof
+```
+
+That snapshots the firmware boot entries, every ESP file with its SHA-256,
+the ESP ownership manifest, your live power settings, `C:\wootc`, the
+Add/Remove entry — and copies out `C:\wootc\install\prior-power.txt`, the
+installer's record of what hibernation and Fast Startup were *before* it
+touched them.
+
+Uninstall, reboot **twice**, then:
+
+```powershell
+.\tests\field\verify-uninstall.ps1 verify -Baseline C:\uninstall-proof -RootDisk keep
+```
+
+It prints — and writes to `C:\uninstall-proof\checklist.md` — a checklist with
+every box ticked or not *and the evidence for it*, and **exits non-zero if
+any box failed**. Attach that file to your report; it is the artifact [#238]
+asks for. Nothing on the machine under test is modified: the script writes
+only its own two files into the folder you name, and the one thing it changes
+system-side is a temporary drive letter for the ESP, which it removes again
+before returning.
+
+What it checks:
+
+| Box | How it is decided |
+|---|---|
+| Firmware boot entries clean | `bcdedit /enum firmware` no longer lists any wootc entry (the captured identifiers are named, so you can see what went) |
+| ESP: every wootc-claimed file gone | each path in `EFI\wootc\wootc-owned.txt` is absent |
+| ESP: nothing else touched | every other file is still there **and byte-identical** — a name-only diff would miss a rewrite |
+| Hibernation / Fast Startup restored | current values match the recorded pre-install ones. A value that was *off* must still be off; restore is not "turn on" |
+| `C:\wootc` state | judged against the choice you made — see below |
+| Add/Remove Programs entry gone | the `Uninstall\wootc` key is unregistered |
+| Windows booted clean twice | boot events since the capture, with no bugcheck or unexpected shutdown |
+
+**`C:\wootc` is not always meant to disappear.** With the default keep
+choice — what the Apps entry and bare `wootc.exe uninstall` both do — the
+folder stays, holding `disks\root.disk` and your logs, and only `install\`
+is removed. Pass `-RootDisk delete` only if you ticked *"Also delete my
+Linux data"*. Grading a correct keep run against "the folder is gone" is the
+easiest way to record a ✘ that isn't one.
+
+**The orphaned-leftovers variant.** One machine should also test the path
+where `C:\wootc` was deleted by hand *before* uninstalling. Capture first
+anyway — that is the only way the power box can be graded, because the
+record lives in the folder you are about to delete — then add `-Orphaned` to
+the verify run.
+
+[#238]: https://github.com/tuna-os/wootc/issues/238
+
 ## Debug mode
 
 Add `wootc.debug` to the deployer's GRUB entry (press `e` in the boot menu)
