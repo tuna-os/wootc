@@ -146,6 +146,67 @@ jobs:
             echo "channel=manual" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build deployer boot artifacts
+        # The same builds the E2E harness performs (tests/e2e/run-e2e.sh):
+        # deployer kernel+initramfs out of the deployer image, signed
+        # shim+GRUB out of a Fedora container, wubildr best-effort.
+        run: |
+          set -euo pipefail
+          podman build -t wootc-deployer -f payload/deployer/Containerfile .
+          for artifact in deployer-vmlinuz deployer-initramfs.img; do
+            podman run --rm --entrypoint /bin/cat wootc-deployer "/out/$artifact" \
+              > "release-assets/$artifact"
+            [ -s "release-assets/$artifact" ] || { echo "::error::empty $artifact"; exit 1; }
+          done
+          # The shim must be signed by a Microsoft UEFI CA the user's firmware
+          # actually holds, or the reboot ends at "bad shim signature" with
+          # nothing said beforehand (#322). Fedora 44 ships shim-x64-16.1-5,
+          # signed ONLY by the 2011 authority whose certificate expired
+          # 2026-06-27; 16.1-7 is dual-signed (2011 AND 2023), which boots on
+          # old and new firmware alike. Pinned by exact NVR because "latest"
+          # is how a single-signed build silently comes back. Drop the pin
+          # when a numbered Fedora ships a dual-signed shim of its own — the
+          # --require check below holds the line either way.
+          SHIM_NVR="shim-x64-16.1-7.x86_64"
+          SHIM_RPM="https://kojipkgs.fedoraproject.org/packages/shim/16.1/7/x86_64/${SHIM_NVR}.rpm"
+          # Copy out of /usr/lib/efi/shim/<ver>/ (where the package owns the
+          # files at every version seen so far), with the /boot/efi path the
+          # post-install scriptlet populates as the fallback.
+          CID=$(podman create quay.io/fedora/fedora:44 \
+            bash -c "dnf install -y -q '$SHIM_RPM' grub2-efi-x64 2>/dev/null && \
+              for f in shimx64.efi mmx64.efi; do \
+                cp /usr/lib/efi/shim/*/EFI/fedora/\$f /tmp/ 2>/dev/null || \
+                cp /boot/efi/EFI/fedora/\$f /tmp/; done && \
+              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && echo DONE")
+          podman start -a "$CID"
+          podman cp "$CID:/tmp/shimx64.efi" release-assets/shimx64.efi
+          podman cp "$CID:/tmp/grubx64.efi" release-assets/grubx64.efi
+          # MokManager: shim launches it for the MOK enrollment that
+          # custom-kernel images (Bazzite, #248) queue during deploy. Signed
+          # by Fedora's own key and verified by shim, not by the firmware —
+          # so it is deliberately NOT graded against the Microsoft CAs.
+          podman cp "$CID:/tmp/mmx64.efi" release-assets/mmx64.efi
+          podman rm "$CID"
+          [ -s release-assets/shimx64.efi ] && [ -s release-assets/grubx64.efi ] \
+            && [ -s release-assets/mmx64.efi ] || {
+            echo "::error::signed shim/GRUB extraction failed"; exit 1; }
+          # Record which Microsoft CA generations signed what we are shipping,
+          # and refuse to publish a shim that cannot boot on 2023-only
+          # firmware. The installer reads this file (or the value stamped into
+          # the exe below) to refuse BEFORE arming rather than after the
+          # reboot.
+          python3 packaging/shim-authorities.py --require 2023 --json \
+            release-assets/shimx64.efi > release-assets/shim-authorities.json
+          cat release-assets/shim-authorities.json
+          # wubildr is best-effort in the harness too — the signed shim chain
+          # is the fallback path.
+          if podman build -t wootc-wubildr -f payload/wubildr/Containerfile .; then
+            podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi \
+              > release-assets/wubildr.efi || rm -f release-assets/wubildr.efi
+          fi
+          ls -lh release-assets/
+        working-directory: ${{ github.workspace }}
+
       - name: Build brand installers (one exe per blessed brand)
         # Subshells for every directory change: the first run interleaved a
         # failed `cd`/build chain with a loop that then globbed from the
@@ -167,48 +228,22 @@ jobs:
           # silent-skip the selector refuses internally.
           brands=$(bash packaging/brands.sh list)
           [ -n "$brands" ] || { echo "::error::no brand is buildable"; exit 1; }
+          # Each exe carries which Microsoft UEFI CA generations signed the
+          # shim this release stages, so the preflight can refuse a machine
+          # whose firmware trusts neither (#322) without a network round trip.
+          # Read from the shim that was actually extracted a step earlier —
+          # never a second copy of the pin, which is how a stamp starts
+          # describing a binary nobody is shipping.
+          SHIM_AUTHORITIES=$(python3 -c "import json;print(','.join(json.load(open('release-assets/shim-authorities.json'))['shimx64.efi']))")
+          [ -n "$SHIM_AUTHORITIES" ] || { echo "::error::the staged shim carries no Microsoft UEFI CA"; exit 1; }
+          echo "staging a shim signed by the Microsoft UEFI CA(s): $SHIM_AUTHORITIES"
           while IFS=$'\t' read -r brand exe; do
             (cd app && GOOS=windows GOARCH=amd64 go build -tags desktop,production \
-              -ldflags "-w -s -X main.brandID=$brand" -o "../release-assets/$exe.exe" .)
+              -ldflags "-w -s -X main.brandID=$brand -X main.shimAuthorities=$SHIM_AUTHORITIES" \
+              -o "../release-assets/$exe.exe" .)
             echo "built $exe.exe (brand: $brand)"
           done <<< "$brands"
           ls -lh release-assets/
-
-      - name: Build deployer boot artifacts
-        # The same builds the E2E harness performs (tests/e2e/run-e2e.sh):
-        # deployer kernel+initramfs out of the deployer image, signed
-        # shim+GRUB out of a Fedora container, wubildr best-effort.
-        run: |
-          set -euo pipefail
-          podman build -t wootc-deployer -f payload/deployer/Containerfile .
-          for artifact in deployer-vmlinuz deployer-initramfs.img; do
-            podman run --rm --entrypoint /bin/cat wootc-deployer "/out/$artifact" \
-              > "release-assets/$artifact"
-            [ -s "release-assets/$artifact" ] || { echo "::error::empty $artifact"; exit 1; }
-          done
-          CID=$(podman create quay.io/fedora/fedora:44 \
-            bash -c "dnf install -y -q shim-x64 grub2-efi-x64 2>/dev/null && \
-              cp /boot/efi/EFI/fedora/shimx64.efi /tmp/ && \
-              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && \
-              cp /boot/efi/EFI/fedora/mmx64.efi /tmp/ && echo DONE")
-          podman start -a "$CID"
-          podman cp "$CID:/tmp/shimx64.efi" release-assets/shimx64.efi
-          podman cp "$CID:/tmp/grubx64.efi" release-assets/grubx64.efi
-          # MokManager: shim launches it for the MOK enrollment that
-          # custom-kernel images (Bazzite, #248) queue during deploy.
-          podman cp "$CID:/tmp/mmx64.efi" release-assets/mmx64.efi
-          podman rm "$CID"
-          [ -s release-assets/shimx64.efi ] && [ -s release-assets/grubx64.efi ] \
-            && [ -s release-assets/mmx64.efi ] || {
-            echo "::error::signed shim/GRUB extraction failed"; exit 1; }
-          # wubildr is best-effort in the harness too — the signed shim chain
-          # is the fallback path.
-          if podman build -t wootc-wubildr -f payload/wubildr/Containerfile .; then
-            podman run --rm --entrypoint /bin/cat wootc-wubildr /out/wubildr.efi \
-              > release-assets/wubildr.efi || rm -f release-assets/wubildr.efi
-          fi
-          ls -lh release-assets/
-        working-directory: ${{ github.workspace }}
 
       - name: Checksums for the release assets
         # The installer's fail-closed verification (#53/#194) and the

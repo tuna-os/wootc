@@ -152,6 +152,16 @@ type SystemInfo struct {
 	// user already has. Empty when unreadable or when nothing usable
 	// survives; the GUI then leaves the field for the user to fill.
 	SuggestedUsername string `json:"suggestedUsername"`
+	// TrustedUefiAuthorities lists the Microsoft UEFI CA generations this
+	// machine's firmware holds in its db variable ("2011", "2023"), so the
+	// preflight can tell before the reboot whether the signed shim this
+	// build stages will be launched at all (#322). Empty means the db could
+	// not be read, which warns rather than refusing.
+	TrustedUefiAuthorities []string `json:"trustedUefiAuthorities"`
+	// SecureBootChainWarning is set when Secure Boot is on but the db could
+	// not be read: honest disclosure that one check could not be made,
+	// shown before the user commits rather than after the restart.
+	SecureBootChainWarning string `json:"secureBootChainWarning"`
 }
 
 // sanitizeUsername converts a Windows account name into a legal Linux
@@ -380,12 +390,20 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 	pol := a.GetSupportPolicy()
 	// BitLocker/FDE path is not green yet (#34).
 	if !pol.BitLockerSupported {
-		si := getSystemInfo()
-		if si.BitLockerOn {
+		if getSystemInfo().BitLockerOn {
 			return fmt.Errorf("BitLocker drive encryption isn't supported in the %s yet — "+
 				"we're finishing testing so your files stay safe. It's coming soon; "+
 				"for now, wootc works on PCs where drive encryption is off", pol.Channel)
 		}
+	}
+	// Secure Boot: can this firmware launch the shim we stage? (#322)
+	// Checked here, before a single byte is written, because the failure it
+	// prevents ("bad shim signature") happens after the reboot, where the
+	// user has no way to find out why Windows came back.
+	si := getSystemInfo()
+	if v := checkSecureBootChain(si.SecureBootOn, si.SecureBootKnown,
+		si.TrustedUefiAuthorities, stagedShimAuthorities()); v.Blocked {
+		return fmt.Errorf("%s", v.Message)
 	}
 	// Only offer images the channel permits. Enterprise images.json override
 	// (custom refs) is trusted; a custom ref typed by the user is gated.

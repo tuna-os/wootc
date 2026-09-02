@@ -64,6 +64,18 @@ func getSystemInfo() SystemInfo {
 	// Secure Boot
 	info.SecureBootOn, info.SecureBootKnown = secureBootState()
 
+	// Which Microsoft UEFI CA generation does this firmware trust? (#322)
+	// Only worth asking when Secure Boot is actually on — with it off the
+	// firmware launches an unsigned loader too, and the db read costs a
+	// PowerShell spawn on a screen the user is waiting for.
+	if info.SecureBootOn {
+		info.TrustedUefiAuthorities = trustedUefiAuthorities()
+		if v := checkSecureBootChain(info.SecureBootOn, info.SecureBootKnown,
+			info.TrustedUefiAuthorities, stagedShimAuthorities()); v.Warn {
+			info.SecureBootChainWarning = v.Message
+		}
+	}
+
 	// Advisory NTFS fragmentation analysis (SPEC §3.6). Failure to analyze
 	// must not block installation.
 	info.DefragRecommended = defragRecommended(`C:`)

@@ -58,6 +58,14 @@ export function renderLaunchpad() {
     // Recovery-key warning (#63): tell the user to record their key before
     // proceeding, regardless of whether we unlock C: or carve a separate
     // volume. This is honest disclosure — independent of #61.
+    // Secure Boot is on but we could not read which certificates the
+    // firmware trusts (#322). Say so before the user commits: the check we
+    // could not make is the one that decides whether the restart reaches
+    // Linux at all.
+    if (state.sysinfo?.secureBootChainWarning) {
+      screen.appendChild(warningBanner(
+        '<b>⚠ One check we could not make:</b> ' + state.sysinfo.secureBootChainWarning));
+    }
     if (state.sysinfo?.bitLockerRecoveryKeyWarning) {
       screen.appendChild(warningBanner(
         '<b>⚠ Before you continue:</b> Make sure you have your BitLocker recovery key. ' +

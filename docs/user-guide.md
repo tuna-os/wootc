@@ -39,7 +39,11 @@ anything needs attention. Under the hood it wants:
 - **At least 35 GB of free space** on `C:` — 20 GB for Linux plus the 15 GB
   the app keeps back so Windows still has room. More is better; you choose the
   size.
-- **Secure Boot** on is fine — wootc uses a Microsoft-trusted boot chain.
+- **Secure Boot** on is fine — wootc stages a boot loader signed by Microsoft,
+  and checks *before* it changes anything that your PC's firmware trusts the
+  certificate it was signed with. If it does not, wootc says so and stops
+  rather than leaving you at a startup error
+  ([#322](https://github.com/tuna-os/wootc/issues/322)).
 - **BitLocker off**, for now. wootc never asks you to decrypt your drive, but
   the encrypted-drive path is not proven green yet, so the alpha stops before
   installing on a BitLocker-protected PC and says so

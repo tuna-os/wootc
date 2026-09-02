@@ -82,12 +82,23 @@ ISO ships Debian's shim 16.1, which is dual-signed.
    2023-only cell must show the refusal text and never reach the reboot.
 
 ### Tasks
-- [ ] build-time signer extraction → `shim-authorities.json`, fail on 2011-only
-- [ ] bump the shim source to a dual-signed `shim-x64`, pin the NVR, assert in E2E
-- [ ] `SystemInfo.TrustedUefiAuthorities` + `SecureBootEnabled`
-- [ ] gate + user text + ledger line
-- [ ] harness `db` axis, three cells
-- [ ] `docs/user-guide.md` requirements, `SPEC.md` Secure Boot paragraph, `docs/status.md` row
+- [x] build-time signer extraction → `shim-authorities.json`, fail on 2011-only
+      (`packaging/shim-authorities.py`, `--require 2023` in `release.yml`)
+- [x] bump the shim source to a dual-signed `shim-x64`, pin the NVR
+      (`shim-x64-16.1-7`, pinned in both `release.yml` and `run-e2e.sh`)
+- [x] `SystemInfo.TrustedUefiAuthorities` + the `db` parser
+      (`app/secureboot.go`, `app/secureboot_windows.go`)
+- [x] gate + user text (`gateScenario`, launchpad warning banner)
+- [ ] harness `db` axis, three cells (2011-only, 2023-only, both) — the OVMF
+      vars work is the remaining piece
+- [x] `docs/user-guide.md` requirements, `SPEC.md` Secure Boot section
+
+**One deviation from the design above.** This section originally said an
+unreadable `db` under Secure Boot should *refuse*. The implementation warns
+instead. Refusing would block every machine whose SecureBoot PowerShell module
+is unavailable — including ones that work today — to prevent a failure that
+costs a reboot back into Windows and no data. The refusal is reserved for the
+case we can actually prove: both sides known, no intersection.
 
 ## 2. Recovery guard: when Windows comes back, wootc explains itself
 

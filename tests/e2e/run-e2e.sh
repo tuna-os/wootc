@@ -1363,11 +1363,17 @@ if [ "$SKIP_BUILD" = false ]; then
         # Keep the stopped container until after podman cp. With `--rm`, the
         # previous `podman wait` deleted it before either signed EFI binary
         # could be extracted.
+        # The SAME pinned, dual-signed shim the release stages (#322). A
+        # harness that proves a 2011-only chain while the release ships a
+        # dual-signed one is testing a different product; keep this NVR in
+        # step with .github/workflows/release.yml.
+        _shim_rpm="https://kojipkgs.fedoraproject.org/packages/shim/16.1/7/x86_64/shim-x64-16.1-7.x86_64.rpm"
         CID=$(podman create quay.io/fedora/fedora:44 \
-            bash -c "dnf install -y -q shim-x64 grub2-efi-x64 2>/dev/null && \
-              cp /boot/efi/EFI/fedora/shimx64.efi /tmp/ && \
-              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && \
-              cp /boot/efi/EFI/fedora/mmx64.efi /tmp/ && echo DONE")
+            bash -c "dnf install -y -q '$_shim_rpm' grub2-efi-x64 2>/dev/null && \
+              for f in shimx64.efi mmx64.efi; do \
+                cp /usr/lib/efi/shim/*/EFI/fedora/\$f /tmp/ 2>/dev/null || \
+                cp /boot/efi/EFI/fedora/\$f /tmp/; done && \
+              cp /boot/efi/EFI/fedora/grubx64.efi /tmp/ && echo DONE")
         podman start -a "$CID" >/dev/null 2>&1 || true
         podman cp "$CID:/tmp/shimx64.efi" "${SCRIPT_DIR}/wootc-files/shimx64.efi" 2>/dev/null || true
         podman cp "$CID:/tmp/grubx64.efi" "${SCRIPT_DIR}/wootc-files/grubx64.efi" 2>/dev/null || true
