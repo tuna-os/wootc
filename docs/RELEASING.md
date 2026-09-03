@@ -86,6 +86,23 @@ boot artifacts (`deployer-vmlinuz`, `deployer-initramfs.img`, `shimx64.efi`,
 a `SHA256SUMS` covering all of them. `skip_e2e` exists for emergencies and
 documents itself in the release notes.
 
+## When a release has to be taken back
+
+[runbooks/rollback-a-bad-release.md](../runbooks/rollback-a-bad-release.md)
+is the other direction: which lever to pull for a bad build, and what each
+one reaches. The short version, because the instinct is usually wrong:
+
+- Marking the bad release a **pre-release** moves `latest` back to the last
+  good full release — that fixes the download links and every unstamped
+  build, and leaves pinned exes able to finish verifying.
+- **Deleting** the release is the only thing that reaches an exe already on
+  a user's disk, and it also 404s any published winget manifest. Reserve it
+  for a build that is dangerous, not merely broken.
+- The nightly keeps cutting `auto-v*` from `main`, so nothing is contained
+  until the offending commit is reverted or `e2e-gui.yml` is paused.
+- winget submission is one-directional; withdrawing a version means a PR
+  against `microsoft/winget-pkgs`.
+
 ## User instructions (shipped in the release notes)
 
 1. Download `wootc.exe`. It is not code-signed yet (alpha) — SmartScreen will
