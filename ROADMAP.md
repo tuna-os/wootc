@@ -1,6 +1,6 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-08-28 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-09-03 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -23,9 +23,10 @@ Everything below is sequenced toward those four sentences.
 
 ---
 
-## Current status (2026-08-28)
+## Current status (2026-09-03)
 
 **Landed** (all on `main`, all matrix-exercised):
+- **v0.3.0-beta milestone shipped**: BitLocker policy enablement with numerical recovery key capture, UAC identity resolution to interactive user, `wootc-data` volume ownership validation, program-migrator plugin architecture with JSON manifest schemas, and runbook for taking back a bad release (#211, #358, #354, #362).
 - GUI-driven Phase 1 → 2 → 3 ladder proven on `bluefin:lts`; el10 Phase-2 class fixed; btrfs and BitLocker-refusal cells green.
 - **Release automation, three channels**: E2E-gated tagged releases (cuttable from a dispatch input — no tag-push rights needed), auto pre-releases from every green nightly, manual pre-releases. Every release ships all five brand exes + deployer boot artifacts + `SHA256SUMS`.
 - **First tagged release shipped**: [`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1) passed its E2E gate and was published on 2026-08-22.
@@ -34,9 +35,9 @@ Everything below is sequenced toward those four sentences.
 - **North Star UX wave**: Windows on the boot menu, one-shot re-arm, calm product boots with honest copy, first-login welcome + Windows-drive bookmark, Add/Remove entry, uninstall that restores machine state, `docs/getting-started.md` + `docs/manual-testing.md`.
 - winget packaging (`TunaOS.wootc`) with auto-submission on full releases (pending the one-time `WINGET_TOKEN` secret).
 
-**In flight**: nightly green runs continue to publish automatic pre-releases while work advances toward the v0.2.0-alpha real-hardware evidence gate.
+**In flight**: nightly green runs continue to publish automatic pre-releases while work advances toward the v0.2.0-alpha real-hardware evidence gate and v0.9.0-rc release candidate validation.
 
-**Known defects with owners**: dakota Phase-2 first-boot hang (#209) · profile-migration edge cases (#197) · offline bundle E2E proof pending (#196 follow-ups) · session token rewrap unfinished, honestly labeled (#1) · console window flash (#179).
+**Known defects with owners**: dakota Phase-2 first-boot hang (#209) · session token rewrap unfinished, honestly labeled (#1) · console window flash (#179).
 
 ---
 
@@ -56,7 +57,7 @@ The VM has been the world so far; this milestone makes real laptops the evidence
 - Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
 - First winget submission accepted upstream.
 
-### v0.3.0-beta — "The whole matrix, honestly" *(shipped: milestone issue #211 / docs/release-notes-v0.3.0-beta.md)*
+### v0.3.0-beta — "The whole matrix, honestly" *(shipped 2026-09-03: milestone issue #211 / docs/release-notes-v0.3.0-beta.md)*
 Beta means the support policy stops saying "alpha" because the evidence exists.
 - **Full-tier matrix green (#222)**: every green-status catalog image × win10/11 Pro (+ Enterprise/LTSC cells where media allows) proven in `tests/e2e/matrix.tsv` and `app/data/images.json`.
 - **BitLocker path (#34, #223) green** → `BitLockerSupported: true` enabled on the beta channel with numerical recovery key capture and dedicated storage volumes.
