@@ -2885,6 +2885,18 @@ QGAEOF
         mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
         cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
         rm -rf "$DEPLOY_ROOT/usr/share/wootc/slurp/session"
+        # Not copying them was only half of it: the Windows-side originals
+        # stayed on NTFS, re-wrapped browser master keys waiting for an
+        # importer that does not exist — on the very volume this deploy is
+        # about to bind-mount into the installed system (wootc-host-bind),
+        # so they end up readable by root on a second OS too. Same treatment
+        # the vault gets during ingest: take what is needed, then destroy.
+        # Only *.enc; candidates.json is an app list, not a credential.
+        for enc in /mnt/ntfs/wootc/install/slurp/session/*.enc; do
+            [[ -e "$enc" ]] || continue
+            log "  Shredding staged session envelope $(basename "$enc")..."
+            shred -u "$enc" 2>/dev/null || rm -f "$enc"
+        done
         SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
         if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
             ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"
