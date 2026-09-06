@@ -2716,6 +2716,25 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
 
     gui_settle_pending_servicing
 
+    # gui_settle_pending_servicing's own logon-wait only runs after a restart.
+    # This path can reach the GUI launch straight off the initial boot, with
+    # no guarantee the autologon session has actually finished forming yet —
+    # `schtasks /Create ... /IT` needs a real interactive session or it either
+    # fails outright ("the system cannot find the file specified") or reports
+    # rc=0 while the task never actually runs (Last Result 0x41303, "task has
+    # not yet run"), which is indistinguishable from a hung wootc.exe without
+    # digging into the post-mortem. Wait for the same positive signal
+    # (Win32_ComputerSystem.UserName) before scheduling the GUI task at all.
+    local presence_deadline
+    presence_deadline=$(deadline_in 120)
+    while ! past_deadline "$presence_deadline"; do
+        # shellcheck disable=SC2016 # PowerShell variable, not a shell one.
+        if [ -n "$(qga_powershell '$u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output $u }' 2>/dev/null | tr -d '[:space:]')" ]; then
+            break
+        fi
+        sleep 5
+    done
+
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
