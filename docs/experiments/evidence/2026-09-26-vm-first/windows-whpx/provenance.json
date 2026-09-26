@@ -13,7 +13,9 @@
     "memory_mib": 2048,
     "target_gib": 24,
     "scratch_gib": 20,
-    "disks": "Dedicated disposable raw files; scratch is formatted by probe"
+    "disks": "Dedicated disposable raw files; scratch is formatted by probe",
+    "kernel_sha256": "1f4cee6c1a6fc184650cff5b0f8d996b1079d4b47ebdfe6daa1d267a4f86359b",
+    "preflight_initramfs_sha256": "70c2f9f544bda9b665088e842046109410e5a4d92f1053cbf492741e7181f6ab"
   },
   "qemu": {
     "version": "11.1.0 (v11.1.0-12130-ge470268ff4)",
@@ -28,5 +30,14 @@
     "No target desktop installed",
     "Expanded outer Hyper-V profile changed multiple flags; individual cause not isolated",
     "Launch scripts are retained experiment records, not a production runner"
-  ]
+  ],
+  "followup_preflight": {
+    "wall_limit_seconds": 900,
+    "ready_seconds": 396.0222253,
+    "process_end_seconds": 398.2027093,
+    "peak_working_set_bytes": 576700416,
+    "serial_marker": true,
+    "ipc_marker": true,
+    "target_provisioned": false
+  }
 }
