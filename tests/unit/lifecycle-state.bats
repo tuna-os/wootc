@@ -45,20 +45,12 @@ setup() {
     echo "$output" | grep -q 'write_ntfs_state "failed"'
 }
 
-@test "deploy.sh writes state files atomically (temp file, sync, rename, sync)" {
-    # write_ntfs_state must use temp file, rename, and sync
-    run grep -A35 'write_ntfs_state()' "$DEPLOY"
-    [ "$status" -eq 0 ]
-    echo "$output" | grep -q '\.tmp'
-    echo "$output" | grep -q 'mv -f'
-    echo "$output" | grep -q 'sync'
-
-    # write_deployer_started must use temp file, rename, and sync
-    run grep -A35 'write_deployer_started()' "$DEPLOY"
-    [ "$status" -eq 0 ]
-    echo "$output" | grep -q '\.tmp'
-    echo "$output" | grep -q 'mv -f'
-    echo "$output" | grep -q 'sync'
+@test "deployer metadata uses the descriptor-preserving atomic writer" {
+    for function in write_ntfs_state write_deployer_started; do
+        run sed -n "/^${function}()/,/^}/p" "$DEPLOY"
+        [ "$status" -eq 0 ]
+        echo "$output" | grep -q 'wootc-ntfs-state-write /mnt/ntfs/wootc/state.json'
+    done
 }
 
 @test "wootc-firstboot-evidence exists and writes state.json = healthy atomically" {
@@ -67,8 +59,7 @@ setup() {
     grep -q 'installed-linux-boot.json' "$FIRSTBOOT_SCRIPT"
     grep -q '"state": "healthy"' "$FIRSTBOOT_SCRIPT"
     grep -q 'state.json' "$FIRSTBOOT_SCRIPT"
-    grep -q 'mv -f' "$FIRSTBOOT_SCRIPT"
-    grep -q 'sync' "$FIRSTBOOT_SCRIPT"
+    [ "$(grep -c '^wootc-ntfs-state-write ' "$FIRSTBOOT_SCRIPT")" -eq 2 ]
 }
 
 @test "wootc-firstboot-evidence.service is ordered after host-bind" {
