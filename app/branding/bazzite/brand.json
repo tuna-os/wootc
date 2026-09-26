@@ -11,8 +11,13 @@
   "card": "#1c1c1c",
   "text": "#f0f0f0",
   "installVerb": "Install",
-  "catalog": ["bazzite", "bazzite-deck"],
+  "catalog": [
+    "bazzite",
+    "bazzite-deck"
+  ],
   "defaultImage": "bazzite",
   "hideCustomImage": true,
-  "preloadImage": true
+  "preloadImage": true,
+  "publisher": "Universal Blue",
+  "fileDescription": "Bazzite Installer"
 }

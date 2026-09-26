@@ -73,3 +73,6 @@ Real assets, taken from each project's own published branding:
 
 [ublue-os/bazzite.gg]: https://github.com/ublue-os/bazzite.gg
 [projectbluefin/website]: https://github.com/projectbluefin/website
+
+See [Make the installer your own](../../docs/distro-adoption.md) for the distro
+setup tool, identity fields, private catalogs, Windows assets, and proof steps.

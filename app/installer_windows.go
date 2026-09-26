@@ -506,18 +506,23 @@ func registerUninstallEntry() {
 	if strings.EqualFold(b.ProductName, "wootc") {
 		displayName = b.Name + " (wootc)"
 	}
-	_ = runPowerShell(fmt.Sprintf(
-		`New-Item -Path %q -Force | Out-Null; `+
-			`Set-ItemProperty -Path %q -Name DisplayName -Value %q; `+
-			`Set-ItemProperty -Path %q -Name Publisher -Value "tuna-os"; `+
-			`Set-ItemProperty -Path %q -Name DisplayIcon -Value %q; `+
-			`Set-ItemProperty -Path %q -Name InstallLocation -Value "C:\wootc"; `+
-			`Set-ItemProperty -Path %q -Name UninstallString -Value %q; `+
-			`Set-ItemProperty -Path %q -Name NoModify -Value 1 -Type DWord; `+
-			`Set-ItemProperty -Path %q -Name NoRepair -Value 1 -Type DWord`,
-		uninstallRegKey, uninstallRegKey, displayName, uninstallRegKey, uninstallRegKey, exe,
-		uninstallRegKey, uninstallRegKey, fmt.Sprintf(`"%s" uninstall`, exe),
-		uninstallRegKey, uninstallRegKey))
+	// Brand names may contain quotes. PowerShell uses doubled apostrophes,
+	// not Go's backslash quoting, in a literal string.
+	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
+	values := map[string]string{
+		"DisplayName": displayName, "Publisher": b.Publisher,
+		"DisplayVersion": b.Version, "DisplayIcon": exe,
+		"URLInfoAbout": b.WebsiteURL, "HelpLink": b.SupportURL,
+		"InstallLocation": wootcDir(),
+		"UninstallString": fmt.Sprintf(`"%s" uninstall`, exe),
+	}
+	script := "New-Item -Path " + quote(uninstallRegKey) + " -Force | Out-Null; "
+	for name, value := range values {
+		script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name " + quote(name) + " -Value " + quote(value) + "; "
+	}
+	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoModify -Value 1 -Type DWord; "
+	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoRepair -Value 1 -Type DWord"
+	_ = runPowerShell(script)
 }
 
 func unregisterUninstallEntry() {
@@ -576,4 +581,3 @@ if ($u) { Write-Output $u }`
 	}
 	return strings.TrimSpace(out)
 }
-

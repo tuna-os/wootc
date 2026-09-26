@@ -2,15 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
 
 // imageNeedsMok reports whether the embedded catalog requires MOK enrollment.
 func imageNeedsMok(ref string) bool {
-	var catalog []Image
-	if json.Unmarshal(catalogJSON, &catalog) != nil {
+	catalog, err := catalogForBrand(brandFS, brandID)
+	if err != nil {
 		return false
 	}
 	for _, img := range catalog {
@@ -32,9 +34,9 @@ func (a *App) GetImages() ([]Image, error) {
 		}
 	}
 
-	var catalog []Image
-	if err := json.Unmarshal(catalogJSON, &catalog); err != nil {
-		return nil, fmt.Errorf("parse embedded catalog: %w", err)
+	catalog, err := catalogForBrand(brandFS, brandID)
+	if err != nil {
+		return nil, err
 	}
 
 	if b := readBundleInfo(); b != nil && b.Source != "predownload" {
@@ -51,8 +53,11 @@ func (a *App) GetImages() ([]Image, error) {
 		}}, nil
 	}
 
-	if picked := brandCatalogImages(catalog, effectiveBranding().Catalog); len(picked) > 0 {
-		return picked, nil
+	if ids := effectiveBranding().Catalog; len(ids) > 0 {
+		catalog = brandCatalogImages(catalog, ids)
+		if len(catalog) == 0 {
+			return nil, fmt.Errorf("brand catalog contains no known images")
+		}
 	}
 	if a.GetSupportPolicy().ExperimentalImages {
 		return catalog, nil
@@ -64,6 +69,25 @@ func (a *App) GetImages() ([]Image, error) {
 		}
 	}
 	return green, nil
+}
+
+// A distro may embed its catalog beside its brand without editing the shared
+// upstream catalog. A malformed override must not fall back to another distro.
+func catalogForBrand(assets fs.FS, id string) ([]Image, error) {
+	data, err := fs.ReadFile(assets, "branding/"+id+"/images.json")
+	if errors.Is(err, fs.ErrNotExist) {
+		data = catalogJSON
+	} else if err != nil {
+		return nil, err
+	}
+	var catalog []Image
+	if err := json.Unmarshal(data, &catalog); err != nil {
+		return nil, fmt.Errorf("parse brand catalog: %w", err)
+	}
+	if len(catalog) == 0 {
+		return nil, fmt.Errorf("brand catalog is empty")
+	}
+	return catalog, nil
 }
 
 // brandCatalogImages preserves the configured brand order and skips stale IDs.

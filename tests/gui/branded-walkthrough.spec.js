@@ -151,3 +151,11 @@ for (const id of fs.readdirSync(BRANDS_DIR).filter(f =>
     });
   });
 }
+
+test('a downstream brand opens its own support site', async ({ page }) => {
+  const brand = { ...loadBrand('wootc'), name: 'Acme Linux', productName: 'Acme Setup', supportURL: 'https://example.com/support' };
+  await boot(page, { mode: 'installer', images: catalog.filter(i => i.status === 'green'), sysinfo: SYSINFO, brand });
+  await expect(page.locator('.titlebar-name')).toHaveText('Acme Setup');
+  await page.getByRole('button', { name: 'Get help', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__wootcWindowCalls)).toContainEqual(['BrowserOpenURL', brand.supportURL]);
+});

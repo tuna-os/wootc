@@ -11,8 +11,12 @@
   "card": "#27272a",
   "text": "#f4f4f5",
   "installVerb": "Install",
-  "catalog": ["aurora"],
+  "catalog": [
+    "aurora"
+  ],
   "defaultImage": "aurora",
   "hideCustomImage": true,
-  "preloadImage": true
+  "preloadImage": true,
+  "publisher": "Universal Blue",
+  "fileDescription": "Aurora Installer"
 }
