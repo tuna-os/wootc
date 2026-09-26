@@ -113,3 +113,49 @@ Mutation checks must remove a bounds check, swap the two bounds, release the
 lock early, or accept a success marker without its receipt. Each mutation
 must fail its corresponding test. Filesystem creation alone is not evidence
 of a completed install or a usable desktop.
+
+## Read-only fixture inventory
+
+The Windows inventory found no active QEMU process. It measured
+53,979,086,848 bytes free (50.272 GiB). The files from our experiments
+consume 4,576,790,880 bytes (4.262 GiB). Even removal of all these files
+would leave a 1,573,664,416-byte shortfall below 56 GiB.
+
+| Artifact | Allocated bytes | Disposition |
+|---|---:|---|
+| Partial helper target | 2,717,515,776 | Preserve; no completed helper receipt |
+| Installed QEMU | 1,255,998,954 | Keep until a replacement runtime is validated |
+| Old probe directory | 267,311,706 | Archive and check test ownership before any removal |
+| Cached QEMU installer | 206,615,928 | Host copy exists; removal alone cannot resolve the shortfall |
+
+The inventory did not delete files. Logs are already archived by the runner.
+The raw [inventory](evidence/2026-09-26-managed-vm/fixture-space-inventory.json)
+and [disk geometry](evidence/2026-09-26-managed-vm/fixture-disk-geometry.json)
+record the measurements. There is no duplicate runtime ZIP in this clone.
+
+The virtual disk is 95,156,174,848 bytes. The C: partition ends before an
+822,083,584-byte recovery partition. Windows reports the current C: size
+as its maximum supported size. Windows cannot use the space after recovery to extend C: directly. This agrees with the [Windows extension rules](https://learn.microsoft.com/en-us/windows-server/storage/disk-management/extend-a-basic-volume).
+
+The shared filesystem sample had 37,363,535,872 bytes free (34.8 GiB).
+After the cluster's 26 GiB guard, only 8.8 GiB remained for new writes.
+This cannot cover the candidate's 48 GiB of virtual target and scratch.
+The `local-path` StorageClass does not enable volume expansion. A change
+to its PVC size would not prove more physical capacity. See the
+[KubeVirt storage requirements](https://kubevirt.io/user-guide/storage/disks_and_volumes/).
+
+A concrete alternative is a fresh Windows fixture with at least a 128 GiB
+virtual disk. Keep the old fixture and its evidence. First add at least
+100 GiB of physical filesystem capacity on the storage node. At the measured
+free space, that would give about 134.8 GiB before new writes.
+
+Budget 32 GiB for Windows and 48 GiB for target and scratch.
+Add 8 GiB for the Windows reserve and 8 GiB for fixture assets and logs.
+Keep 26 GiB for the cluster guard. This totals 122 GiB, with about 12.8 GiB
+margin in that sample. Recheck the free space after the tests for capacity finish.
+This calculation is a plan, not a reservation.
+
+Use a new volume large enough to expose the full virtual disk. Confirm
+its size in Windows after creation. Measure C: free bytes before admission.
+Do not alter the old recovery partition to get test space. A sparse file does not satisfy the physical budget.
+Neither does a larger size in the PVC request.
