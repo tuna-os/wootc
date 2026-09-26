@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "wootc distro brand",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "productName",
+    "exeName",
+    "tagline"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "tagline": {
+      "type": "string"
+    },
+    "logoEmoji": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "accent": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "accentText": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "background": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "card": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "text": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "installVerb": {
+      "type": "string"
+    },
+    "productName": {
+      "type": "string"
+    },
+    "exeName": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "copyright": {
+      "type": "string"
+    },
+    "fileDescription": {
+      "type": "string"
+    },
+    "websiteURL": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "supportURL": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "defaultImage": {
+      "type": "string"
+    },
+    "fontFamily": {
+      "type": "string"
+    },
+    "logoDataUri": {
+      "type": "string"
+    },
+    "fontDataUri": {
+      "type": "string"
+    },
+    "themeCss": {
+      "type": "string"
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "hideCustomImage": {
+      "type": "boolean"
+    },
+    "preloadImage": {
+      "type": "boolean"
+    },
+    "catalog": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

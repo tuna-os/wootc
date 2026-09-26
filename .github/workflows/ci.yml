@@ -103,9 +103,8 @@ jobs:
 
       - name: Build wootc.exe (windows/amd64)
         run: |
-          cd app
-          GOOS=windows GOARCH=amd64 go build -tags desktop,production -ldflags "-H windowsgui -w -s" -o wootc.exe .
-          GOOS=windows GOARCH=amd64 go vet ./...
+          python3 packaging/build-windows.py --brand wootc --output app/wootc.exe --tags desktop,production
+          (cd app && GOOS=windows GOARCH=amd64 go vet ./...)
 
       - name: Build Linux migration dashboard
         run: |

@@ -420,7 +420,12 @@ type Branding struct {
 	ProductName string `json:"productName"`
 	// ExeName names the release asset ("Bazzite-Installer" → .exe). Consumed
 	// by the release workflow, carried here so one file defines a brand.
-	ExeName string `json:"exeName"`
+	ExeName         string `json:"exeName"`
+	Publisher       string `json:"publisher"`
+	Copyright       string `json:"copyright"`
+	FileDescription string `json:"fileDescription"`
+	WebsiteURL      string `json:"websiteURL"`
+	SupportURL      string `json:"supportURL"`
 	// Catalog restricts the offered images to these ids from images.json, in
 	// this order. Empty = the full (channel-gated) catalog.
 	Catalog []string `json:"catalog"`
@@ -641,8 +646,8 @@ type UninstallInfo struct {
 	StorageDrive   string  `json:"storageDrive"` // where root.disk lives
 	DiskPath       string  `json:"diskPath"`     // full path to root.disk
 	DiskSizeGB     float64 `json:"diskSizeGB"`
-	OnDedicatedVol bool    `json:"onDedicatedVol"` // wootc-created data partition
-	ReclaimGB      float64 `json:"reclaimGB"`      // space freed if the volume is removed
+	OnDedicatedVol bool    `json:"onDedicatedVol"`        // wootc-created data partition
+	ReclaimGB      float64 `json:"reclaimGB"`             // space freed if the volume is removed
 	VolumeLabel    string  `json:"volumeLabel,omitempty"` // verified volume label (e.g. "wootc-data")
 	// Orphaned: no root.disk anywhere, but leftover boot arming (bcd-guid /
 	// state.json) exists — the "user deleted the folder by hand" case, which

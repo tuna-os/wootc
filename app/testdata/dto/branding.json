@@ -11,6 +11,11 @@
   "installVerb": "Install",
   "productName": "wootc",
   "exeName": "wootc",
+  "publisher": "TunaOS",
+  "copyright": "",
+  "fileDescription": "TunaOS installer",
+  "websiteURL": "https://example.com",
+  "supportURL": "https://example.com/help",
   "catalog": [
     "yellowfin",
     "bluefin"

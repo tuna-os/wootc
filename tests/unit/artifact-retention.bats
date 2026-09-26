@@ -196,7 +196,8 @@ mkrun() {
     # the one a real user downloads — not the generic build. Brand derived
     # from the image under test; preload force-disabled in the guest until
     # the offline axis (#217) is green.
-    grep -q 'main.brandID=\$name' .github/workflows/e2e-hosted.yml
+    grep -q 'BRAND_ID="\$name"' .github/workflows/e2e-hosted.yml
+    grep -q 'packaging/build-windows.py --brand "\$BRAND_ID"' .github/workflows/e2e-hosted.yml
     grep -q 'app/branding/\$name' .github/workflows/e2e-hosted.yml
     grep -q 'set WOOTC_PRELOAD=0' tests/e2e/run-e2e.sh
     grep -q 'os.Getenv("WOOTC_PRELOAD") == "0"' app/app.go
@@ -216,7 +217,8 @@ mkrun() {
     # runs whatever is newest today, and the fail-closed SHA256SUMS check
     # cannot catch it: the manifest comes from the same moved release, so
     # mismatched-but-consistent artifacts verify perfectly (#335).
-    grep -q 'X main.releaseTag=\$RELEASE_TAG' "$REPO_ROOT/.github/workflows/release.yml"
+    grep -q -- '--version "$RELEASE_TAG"' "$REPO_ROOT/.github/workflows/release.yml"
+    grep -q 'X main.releaseTag={version}' "$REPO_ROOT/packaging/build-windows.py"
     grep -q 'RELEASE_TAG: \${{ steps.chan.outputs.tag }}' "$REPO_ROOT/.github/workflows/release.yml"
     # A release that cannot name its own tag must fail rather than ship an
     # exe that silently floats.

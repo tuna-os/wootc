@@ -69,3 +69,13 @@ func TestDeployerMirrorStillWinsOverThePin(t *testing.T) {
 		}
 	}
 }
+
+func TestDistroArtifactOriginKeepsReleasePin(t *testing.T) {
+	oldBase, oldTag := releasesBaseURL, releaseTag
+	t.Cleanup(func() { releasesBaseURL, releaseTag = oldBase, oldTag })
+	t.Setenv("WOOTC_DEPLOYER_MIRROR", "")
+	releasesBaseURL, releaseTag = "https://github.com/acme/installer/releases/", "v1.2.3"
+	if got := deployerBaseURL(); got != "https://github.com/acme/installer/releases/download/v1.2.3/" {
+		t.Fatalf("distro artifact origin lost pin: %s", got)
+	}
+}

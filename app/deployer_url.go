@@ -10,7 +10,8 @@ import (
 // tier runs on Linux. A Windows-only helper here would be a rule nothing
 // checks until a release goes out.
 
-const releasesBaseURL = "https://github.com/tuna-os/wootc/releases/"
+// Build-time release origin; runtime branding cannot redirect boot artifacts.
+var releasesBaseURL = "https://github.com/tuna-os/wootc/releases/"
 
 // deployerBaseURL returns where boot artifacts + SHA256SUMS are fetched from.
 //

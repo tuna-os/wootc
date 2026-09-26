@@ -233,6 +233,7 @@ jobs:
         # record at all is a hard error, and a pending one builds but says so.
         run: |
           set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq librsvg2-bin
           (cd app/frontend && npm ci && npm run build)
           mkdir -p release-assets
           bash packaging/brands.sh explain
@@ -259,9 +260,10 @@ jobs:
           [ -n "$SHIM_AUTHORITIES" ] || { echo "::error::the staged shim carries no Microsoft UEFI CA"; exit 1; }
           echo "staging a shim signed by the Microsoft UEFI CA(s): $SHIM_AUTHORITIES"
           while IFS=$'\t' read -r brand exe; do
-            (cd app && GOOS=windows GOARCH=amd64 go build -tags desktop,production \
-              -ldflags "-H windowsgui -w -s -X main.brandID=$brand -X main.shimAuthorities=$SHIM_AUTHORITIES -X main.releaseTag=$RELEASE_TAG" \
-              -o "../release-assets/$exe.exe" .)
+            python3 packaging/build-windows.py --brand "$brand" \
+              --output "release-assets/$exe.exe" --version "$RELEASE_TAG" \
+              --tags desktop,production \
+              --ldflags="-X main.shimAuthorities=$SHIM_AUTHORITIES"
             echo "built $exe.exe (brand: $brand)"
           done <<< "$brands"
           ls -lh release-assets/

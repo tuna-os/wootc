@@ -4,5 +4,7 @@
   "exeName": "wootc",
   "tagline": "Bring Windows to Linux — keep everything.",
   "logoEmoji": "🐠",
-  "installVerb": "Install"
+  "installVerb": "Install",
+  "publisher": "TunaOS",
+  "fileDescription": "wootc"
 }

@@ -94,6 +94,7 @@ window.runtime = {
   WindowMinimise: () => { window.__wootcWindowCalls.push('WindowMinimise'); },
   WindowHide: () => { window.__wootcWindowCalls.push('WindowHide'); },
   Quit: () => { window.__wootcWindowCalls.push('Quit'); },
+  BrowserOpenURL: (url) => { window.__wootcWindowCalls.push(['BrowserOpenURL', url]); },
   Environment: () => Promise.resolve({ buildType: 'test' }),
 };
 // NO window.wails stub. Wails v2 exposes window.runtime.Quit; window.wails

@@ -281,6 +281,21 @@ public class Branding
     [JsonPropertyName("exeName")]
     public string ExeName { get; set; } = string.Empty;
 
+    [JsonPropertyName("publisher")]
+    public string Publisher { get; set; } = string.Empty;
+
+    [JsonPropertyName("copyright")]
+    public string Copyright { get; set; } = string.Empty;
+
+    [JsonPropertyName("fileDescription")]
+    public string FileDescription { get; set; } = string.Empty;
+
+    [JsonPropertyName("websiteURL")]
+    public string WebsiteURL { get; set; } = string.Empty;
+
+    [JsonPropertyName("supportURL")]
+    public string SupportURL { get; set; } = string.Empty;
+
     /// <summary>
     /// Catalog restricts the offered images to these ids from images.json, in
     /// this order. Empty = the full (channel-gated) catalog.
