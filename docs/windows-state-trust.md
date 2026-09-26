@@ -1,97 +1,73 @@
 # Windows installer state trust
 
-The elevated app reserves `C:\wootc` with an explicit protected DACL at
-creation: SYSTEM and Administrators have inherited full control. Before reading
-branding, checksums, recovery records or install state, it audits existing
-`wootc` trees on fixed drives. The selected storage drive is checked again
-before installation changes Windows.
+The app checks the state of the installer before GUI or command-line startup. It checks
+existing `wootc` trees on fixed drives. It checks the selected data drive again
+before installation.
 
-An existing directory is **not** made trustworthy by resetting its permissions.
-The app first checks every existing file and directory for:
+New state directories get a protected DACL at creation. SYSTEM and
+Administrators have full control. There is no interval with inherited user
+write access.
 
-- An owner of SYSTEM, Administrators or TrustedInstaller.
-- No mutation grant to any other SID, including grants inherited by future
-  children. Read-only access is permitted; CREATOR OWNER inheritance is allowed
-  because only trusted principals may create children.
+The checks apply these rules to existing files and directories:
+
+- SYSTEM, Administrators or TrustedInstaller as owner.
+- No write, delete, owner-change or ACL-change grant to other accounts.
+- No unsafe grants that future children can inherit.
 - No symlink, junction or other reparse point.
 
-Unknown ACE types are refused. A deny ACE does not cancel an unsafe allow in
-this conservative policy. An administrator-managed offline bundle with trusted
-ownership and read-only access for ordinary users remains usable. An unsafe
-pre-staged manifest is refused without replacing its contents or repairing its
-ACL. This establishes local filesystem trust; it does not establish the
-publisher authenticity of a release or replace signed manifests.
+Users can retain read access. CREATOR OWNER can pass rights to children.
+Only trusted accounts can create children. The app rejects an ACE of unknown type. A deny entry does not cancel an unsafe allow entry in this policy.
 
-The volume root is checked as well: an ordinary user's `DELETE_CHILD` right on
-the parent could bypass the protected child's delete permissions. Ordinary
-create-folder rights on a volume root are allowed. The app sets a protected
-SYSTEM/Administrators ACL on the root of a **new dedicated data volume** it
-formats. It does not rewrite ACLs on an existing volume.
+The volume root must not grant user rights to delete children or change its
+ACL. The volume can give users rights to create folders. The app protects the root of
+each new data volume it formats. It does not change an existing volume's ACL.
 
-These checks follow Microsoft's [file security and access rights](https://learn.microsoft.com/en-us/windows/win32/fileio/file-security-and-access-rights)
+The checks follow Microsoft's [file access rules](https://learn.microsoft.com/en-us/windows/win32/fileio/file-security-and-access-rights)
 and [ACE inheritance rules](https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance-rules).
 
-## Refusal and compatibility
+## Existing files and offline use
 
-A refusal names the unsafe path and reason. An administrator must inspect and
-move aside untrusted state before retrying; the app does not delete it or bless
-its contents. Existing permissive data-volume roots also require administrator
-review. The developer OEM and GUI staging paths use the same conservative
-policy through `tests/e2e/state-trust.ps1`, before copying any artifacts. The
-helper is delivered with both the OEM-local and SMB payloads; a failed GUI
-staging gate stops the run before launch.
+The app stops if it finds unsafe state. It does not change the contents or
+permissions. An administrator must inspect it and move it aside before they
+try again. An ACL reset cannot show who wrote the existing files.
 
-An empty protected state directory reserved at startup is not a partial
-installation. Provisioned executables, branding and offline boot artifacts also
-do not imply that Install was clicked. Discovery uses generated lifecycle,
-power-restoration, root-disk, boot-configuration and recovery records; it still
-recognizes boot artifacts on the ESP and dedicated data volumes.
+Safe offline bundles remain usable. OEM and GUI scripts use
+`tests/e2e/state-trust.ps1` before they copy files. An error in this step stops launch.
+These local checks do not replace signed release manifests.
 
-## Windows validation
+An empty state directory is not evidence of installation. Downloads, brand files and
+the app executable are also not evidence. Discovery uses generated lifecycle,
+power, root-disk, boot and recovery records. ESP files and dedicated volumes
+can also show that installation began.
 
-The native ACL tests require an elevated Windows process. They use temporary
-folders, never the machine's actual `C:\wootc` or boot configuration:
+## Native tests
+
+Run these commands from an elevated Windows checkout:
 
 ```powershell
+cd app
 go test -run '^TestState(DescriptorTrust|Tree|Drive)' -v .
-```
-
-Cross-compiling the app or running its Linux tests cannot validate Windows ACL
-behavior. Before merging, run the native cases and check the OEM/offline rerun
-and Linux-to-Windows return on a real Windows fixture, including the BitLocker
-storage-volume path. In particular, confirm the owner and DACL of lifecycle
-files written from Linux.
-
-## Verification record — 2026-09-26
-
-On the disposable Corral/KubeVirt Windows fixture:
-
-- Native descriptor and filesystem tests passed. An alternate binary with the
-  owner, mutation-grant and reparse checks disabled failed the corresponding
-  assertions, including writable manifests, writable roots and reparse points.
-- The production app's `status` command refused a default `MkdirAll` state root
-  before reading state. The root was owned by Administrators, but inherited
-  Authenticated Users mutation rights from `C:\`.
-- After moving that confirmed-empty test root aside, production `status`
-  created a protected SYSTEM/Administrators-only root and returned
-  `{"state":"absent"}` twice. Adding a writable child caused an exit-1 refusal;
-  the planted content was unchanged. After removing that test child, `status`
-  succeeded again.
-
-The native selector above is intentionally narrow: existing lifecycle tests
-also start with `TestState` and write the actual `statePath()` on Windows.
-Do not broaden it on a machine with installed state.
-
-These results prove the Windows checks and entrypoint behavior, not a complete
-installation cycle. The OEM/GUI staging helper was also exercised on Windows PowerShell 5.1:
-protected creation, copied offline fixtures and safe reruns succeed; unsafe
-ownership, mutation grants, absent DACLs, writable precreated trees and
-junctions fail for the expected reason without repairing ACLs or content.
-Linux-written NTFS state and BitLocker-volume compatibility still need an
-end-to-end run.
-
-Run the native staging-helper contract test from an elevated Windows checkout:
-
-```powershell
+cd ..
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/e2e/test-state-trust.ps1
 ```
+
+Use the narrow Go selector. Other existing `TestState` tests write the Windows
+path for state. Tests on Linux cannot check ACLs on Windows.
+
+## Corral evidence — 2026-09-26
+
+Native Go and PowerShell 5.1 tests passed. The tests failed when we disabled
+the checks. They covered safe creation and offline copies, unsafe owners and
+write grants, missing DACLs, writable precreated trees and junctions.
+
+The production app refused a default-permission tree owned by Administrators.
+Its ACL gave write rights to Authenticated Users. Fresh protected startup
+and repeated `status` calls passed. The app refused a child file with user write rights. Its contents stayed
+unchanged. We removed that file and startup succeeded.
+
+We tested a new NTFS volume on a temporary virtual disk of 128 MiB. PowerShell
+protected its root and created state. The app accepted that state. The test
+then detached and deleted the virtual disk.
+
+Before merge, complete deployment and Linux-to-Windows return with BitLocker
+off and on. Confirm acceptance after Linux writes the lifecycle files.
