@@ -62,14 +62,34 @@ The repeat used a task with an interactive principal and no time trigger.
 It did not change the runtime files or display flags.
 Do not launch the desktop from a service session.
 
+## Verified extraction
+
+`app/internal/runtimebundle.Install` checks the ZIP hash against the outer manifest,
+then verifies the signature and all files in the inner manifest.
+The caller must hold the VM lease and supply a protected parent directory.
+The limits are 256 MiB for the ZIP, 512 MiB after extraction, 128 MiB per file,
+and 8,192 entries. These limits fit the measured bundle, including its helper.
+
+The extractor rejects links, extra or missing files, duplicate paths, differences
+in path case, Windows device names, alternate streams and paths outside the bundle.
+It writes to a private temporary directory and publishes through one rename.
+It refuses to change an existing runtime. Cancellation or a failed check removes temporary files.
+A process crash can leave private temporary files; it cannot publish a partial runtime.
+
+The real archive passed this installer on Linux and native Windows.
+Each run authenticated and installed 3,284 files, including the two manifest files.
+The [native test log](evidence/2026-09-26-vm-runtime/windows-install.log) also records
+the negative tests for corrupt payloads, unsafe paths, missing files and cancellation.
+The edited-payload test failed when we removed the hash comparison.
+
 ## Remaining release gates
 
 Prove helper preparation and a usable Linux desktop with this exact bundle.
 Test restart, persisted work, shutdown, keyboard input and missing dependencies.
 The app must offer a clear shutdown control when the QEMU close button is disabled.
 
-Complete verified download, bounded extraction and atomic runtime publication in the app.
-Do not expose a partial runtime or trust an unsigned local manifest.
+Connect the extractor to verified download and the setup controls in the app.
+Do not trust an unsigned local manifest.
 
 Record the exact corresponding source and build inputs for QEMU and its DLLs
 before distribution. The upstream binary reports commit `e470268ff4`;
