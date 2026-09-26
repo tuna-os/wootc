@@ -38,8 +38,7 @@ not a full audit. I kept the local edits in `ROADMAP.md` and `.agents/`.
 ## PR #325
 
 [Fresh-machine trust verification](https://github.com/tuna-os/wootc/pull/325)
-at `bce172d9781ffb488db8cd98c996aedadd6bdd37` has green CI. Each check helps
-collect evidence. I found two gaps in that revision:
+at `bce172d9781ffb488db8cd98c996aedadd6bdd37` has green CI. The checks are useful. I found two gaps in that revision:
 
 - **P2: partial identity can pass.** `Test-BrandIdentity` checks the product name
   and searches three fields for `wootc`. It accepts an empty company, description,
