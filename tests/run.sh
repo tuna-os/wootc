@@ -66,8 +66,8 @@ run_fast() {
         echo "── powershell lint (tests/lint-ps1.ps1) ──"
         pwsh -NoProfile -File tests/lint-ps1.ps1 || rc=1
 
-        # PowerShell unit tests. tests/field/verify-uninstall.ps1 grades the
-        # uninstall restoration proof (#238) on machines no runner has, so its
+        # PowerShell unit tests. The tests/field/*.ps1 verifiers grade release
+        # and uninstall evidence on machines no runner has, so their pure
         # comparators are dot-sourced and driven from synthetic snapshots here.
         # A grader nothing exercises is a rubber stamp — and the first run of
         # these found one: an empty-array return collapsing to $null made a

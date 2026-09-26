@@ -86,6 +86,83 @@ boot artifacts (`deployer-vmlinuz`, `deployer-initramfs.img`, `shimx64.efi`,
 a `SHA256SUMS` covering all of them. `skip_e2e` exists for emergencies and
 documents itself in the release notes.
 
+## Fresh-machine verification (v1.0 criterion 4)
+
+The checks above run on machines that already know wootc. Trust is a
+different problem. It is what the Windows of a stranger says about our files
+*before* anything runs. This includes SmartScreen, the UAC publisher line,
+the properties dialog, and whether winget knows the package. No E2E run can see this,
+because the harness never asks Windows about the binary.
+
+[#241] does this check on two machines that have never had wootc: a clean
+Windows 11 VM and a real machine.
+
+```powershell
+# On each machine, from a checkout (needs the brand configs):
+.\tests\field\verify-fresh-machine.ps1 -Tag v1.0.0 -Out C:\fresh-proof
+```
+
+The script grades all four criteria from evidence and writes `checklist.md`.
+It exits with a non-zero code if a box fails:
+
+| Box | How it is decided |
+|---|---|
+| winget serves the release | `winget show TunaOS.wootc` resolves **and** reports the version under test — a manifest that resolves to last month's alpha is a quieter failure than no package at all |
+| each asset matches `SHA256SUMS` | `Get-FileHash` against the published manifest; an asset the manifest does not list fails rather than being skipped |
+| each exe is Authenticode-signed | `Get-AuthenticodeSignature` must be `Valid` *and* name a signer. `HashMismatch` is called out separately — that is a tampered download, not an unsigned one |
+| each branded exe shows its own identity | the exe's VERSIONINFO `ProductName`/`FileDescription`/`CompanyName` match that brand and contain no "wootc" |
+
+A person must attach three screenshots, because a script cannot make them:
+- The UAC prompt.
+- The **Properties ▸ Details** tab of the exe.
+- The SmartScreen interstitial, or a note that it did not show.
+
+### Two boxes fail today, and that is correct
+
+The script reports ✘ now. The checklist keeps these gaps visible, so that
+people do not forget them:
+
+1. **No release has a signature.** `release.yml` has no step that signs the
+   files. [#229] is the choice and purchase of a signature method. This is a
+   spend decision for the maintainer. [#230] adds that method to the
+   pipeline. Until both issues are done, each signature box is ✘.
+   SmartScreen shows the wall for unknown apps, and UAC shows
+   "unknown publisher".
+
+2. **No build has a VERSIONINFO resource at all.** Thus the fourth item of
+   criterion 4 has nothing to check. The properties dialog in its screenshot
+   is blank. `just build-icon` makes `app/rsrc_windows_amd64.syso` with
+   `rsrc -ico -manifest`. **`rsrc` writes an icon and a manifest only.**
+   The `info` block in `app/wails.json` (`companyName`, `productName`,
+   `productVersion`, `copyright`) has data that no shipped binary gets.
+   The cause is that the release uses plain `go build`, not `wails build`.
+
+   To confirm this on a build:
+
+   ```sh
+   cd app && GOOS=windows GOARCH=amd64 go build -ldflags "-X main.brandID=bazzite" \
+       -o /tmp/Bazzite-Installer.exe .
+   # the PE resource directory holds ICON, GROUP_ICON and MANIFEST — no VERSION
+   ```
+
+   This gap is also a brand problem, not only a signature problem. All five
+   builds link the same `.syso`, and `-ldflags -X main.brandID=…` cannot
+   change a resource. So the version data must be **per brand**, and the
+   build must make it for each brand. If not, the properties dialog of each
+   branded exe shows `wootc`. Criterion 4 forbids that text.
+
+   The person who does [#230] changes this build loop, so that person must
+   also do this work. `rsrc` cannot do it, so the tool must change too.
+
+   The new tool **must keep the manifest**. `wootc.manifest` has
+   `requestedExecutionLevel level="requireAdministrator"`. Without it, the
+   installer does not ask for administrator rights, and no error shows.
+   `tests/unit/fresh-machine-trust.bats` checks for this.
+
+[#241]: https://github.com/tuna-os/wootc/issues/241
+[#229]: https://github.com/tuna-os/wootc/issues/229
+[#230]: https://github.com/tuna-os/wootc/issues/230
+
 ## When a release has to be taken back
 
 [runbooks/rollback-a-bad-release.md](../runbooks/rollback-a-bad-release.md)
