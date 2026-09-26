@@ -1,0 +1,136 @@
+
+TaskName                         State
+--------                         -----
+wootc-runtime-gtk-probe-20260926 Ready
+                                      
+**********************
+Windows PowerShell transcript start
+Start time: 20260926183129
+Username: WOOTC-TEST\wootc
+RunAs User: WOOTC-TEST\wootc
+Configuration Name: 
+Machine: WOOTC-TEST (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Temp\wootc-runtime-bundle-probe\gtk-interactive.ps1
+Process ID: 10092
+PSVersion: 5.1.26100.7920
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7920
+BuildVersion: 10.0.26100.7920
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+BUNDLE_GTK_BOOT=True SECONDS=2.5399571 SESSION=1
+BUNDLE_MODULE=qemu-system-x86_64.exe
+BUNDLE_MODULE=SDL2.dll
+BUNDLE_MODULE=libbz2-1.dll
+BUNDLE_MODULE=brlapi-0.8.dll
+BUNDLE_MODULE=SDL2_image.dll
+BUNDLE_MODULE=libcacard-0.dll
+BUNDLE_MODULE=libcapstone.dll
+BUNDLE_MODULE=libcurl-4.dll
+BUNDLE_MODULE=libepoxy-0.dll
+BUNDLE_MODULE=libfdt-1.dll
+BUNDLE_MODULE=libgdk-3-0.dll
+BUNDLE_MODULE=libgio-2.0-0.dll
+BUNDLE_MODULE=libglib-2.0-0.dll
+BUNDLE_MODULE=libgmodule-2.0-0.dll
+BUNDLE_MODULE=libgobject-2.0-0.dll
+BUNDLE_MODULE=libgtk-3-0.dll
+BUNDLE_MODULE=libgnutls-30.dll
+BUNDLE_MODULE=libintl-8.dll
+BUNDLE_MODULE=libjack64.dll
+BUNDLE_MODULE=libjpeg-8.dll
+BUNDLE_MODULE=libiconv-2.dll
+BUNDLE_MODULE=liblzo2-2.dll
+BUNDLE_MODULE=libncursesw6.dll
+BUNDLE_MODULE=libnfs-16.dll
+BUNDLE_MODULE=libpixman-1-0.dll
+BUNDLE_MODULE=libsasl2-3.dll
+BUNDLE_MODULE=libpng16-16.dll
+BUNDLE_MODULE=libslirp-0.dll
+BUNDLE_MODULE=libsnappy.dll
+BUNDLE_MODULE=libssh.dll
+BUNDLE_MODULE=libu2f-emu-0.dll
+BUNDLE_MODULE=libusb-1.0.dll
+BUNDLE_MODULE=libgdk_pixbuf-2.0-0.dll
+BUNDLE_MODULE=libusbredirparser-1.dll
+BUNDLE_MODULE=libcairo-2.dll
+BUNDLE_MODULE=libspice-server-1.dll
+BUNDLE_MODULE=libvirglrenderer-1.dll
+BUNDLE_MODULE=zlib1.dll
+BUNDLE_MODULE=libwinpthread-1.dll
+BUNDLE_MODULE=libzstd.dll
+BUNDLE_MODULE=libssp-0.dll
+BUNDLE_MODULE=libjxl.dll
+BUNDLE_MODULE=libtiff-6.dll
+BUNDLE_MODULE=libwebp-7.dll
+BUNDLE_MODULE=libwebpdemux-2.dll
+BUNDLE_MODULE=nss3.dll
+BUNDLE_MODULE=libnspr4.dll
+BUNDLE_MODULE=libidn2-0.dll
+BUNDLE_MODULE=libbrotlidec.dll
+BUNDLE_MODULE=libssh2-1.dll
+BUNDLE_MODULE=libpsl-5.dll
+BUNDLE_MODULE=libavif-16.dll
+BUNDLE_MODULE=libcairo-gobject-2.dll
+BUNDLE_MODULE=libpango-1.0-0.dll
+BUNDLE_MODULE=libfribidi-0.dll
+BUNDLE_MODULE=libpangowin32-1.0-0.dll
+BUNDLE_MODULE=libpcre2-8-0.dll
+BUNDLE_MODULE=libpangocairo-1.0-0.dll
+BUNDLE_MODULE=libbrotlienc.dll
+BUNDLE_MODULE=libffi-8.dll
+BUNDLE_MODULE=libgmp-10.dll
+BUNDLE_MODULE=libhogweed-7.dll
+BUNDLE_MODULE=libp11-kit-0.dll
+BUNDLE_MODULE=libnettle-9.dll
+BUNDLE_MODULE=libtasn1-6.dll
+BUNDLE_MODULE=libunistring-5.dll
+BUNDLE_MODULE=libatk-1.0-0.dll
+BUNDLE_MODULE=libgcc_s_seh-1.dll
+BUNDLE_MODULE=libdb-6.2.dll
+BUNDLE_MODULE=libsystre-0.dll
+BUNDLE_MODULE=libstdc++-6.dll
+BUNDLE_MODULE=libharfbuzz-0.dll
+BUNDLE_MODULE=libcrypto-3-x64.dll
+BUNDLE_MODULE=libgstapp-1.0-0.dll
+BUNDLE_MODULE=liblz4.dll
+BUNDLE_MODULE=libopus-0.dll
+BUNDLE_MODULE=liborc-0.4-0.dll
+BUNDLE_MODULE=libgstreamer-1.0-0.dll
+BUNDLE_MODULE=libssl-3-x64.dll
+BUNDLE_MODULE=libfreetype-6.dll
+BUNDLE_MODULE=libfontconfig-1.dll
+BUNDLE_MODULE=libhwy.dll
+BUNDLE_MODULE=libjxl_cms.dll
+BUNDLE_MODULE=libdeflate.dll
+BUNDLE_MODULE=libLerc.dll
+BUNDLE_MODULE=libjbig-0.dll
+BUNDLE_MODULE=liblzma-5.dll
+BUNDLE_MODULE=nssutil3.dll
+BUNDLE_MODULE=libsharpyuv-0.dll
+BUNDLE_MODULE=libplds4.dll
+BUNDLE_MODULE=libbrotlicommon.dll
+BUNDLE_MODULE=libdav1d-7.dll
+BUNDLE_MODULE=librav1e.dll
+BUNDLE_MODULE=libaom.dll
+BUNDLE_MODULE=libyuv.dll
+BUNDLE_MODULE=libSvtAv1Enc-4.dll
+BUNDLE_MODULE=libplc4.dll
+BUNDLE_MODULE=libthai-0.dll
+BUNDLE_MODULE=libpangoft2-1.0-0.dll
+BUNDLE_MODULE=libtre-5.dll
+BUNDLE_MODULE=libgraphite2.dll
+BUNDLE_MODULE=libgstbase-1.0-0.dll
+BUNDLE_MODULE=libexpat-1.dll
+BUNDLE_MODULE=liblcms2-2.dll
+BUNDLE_MODULE=libdatrie-1.dll
+WOOTC_WHPX_BOOTSECTOR_EXECUTED
+**********************
+Windows PowerShell transcript end
+End time: 20260926183133
+**********************
+
+
