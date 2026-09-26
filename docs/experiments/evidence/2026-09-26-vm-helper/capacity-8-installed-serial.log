@@ -1,0 +1,42 @@
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x1,0x0)
+BdsDxe: starting Boot0001 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x1,0x0)
+[0m[30m[40m[2J[01;01H[0m[37m[40m[02;42HGRUB version 2.12
+
+[04;02H┌────────────────────────────────────────────────────────────────────────────────────────────────┐[05;02H││[06;02H││[07;02H││[08;02H││[09;02H││[10;02H││[11;02H││[12;02H││[13;02H││[14;02H││[15;02H││[16;02H││[17;02H││[18;02H││[19;02H││[20;02H││[21;02H││[22;02H││[23;02H││[24;02H└────────────────────────────────────────────────────────────────────────────────────────────────┘[25;02H[26;02H     Use the ▲ and ▼ keys to select which entry is highlighted.                              
+      Press enter to boot the selected OS, `e' to edit the commands before booting or `c' for 
+      a command-line. ESC to return previous menu.                                             [0m[30m[47m[05;03H*Yellowfin (ostree:0)                                                                           [0m[37m[40m[06;03H UEFI Firmware Settings                                                                         [07;03H                                                                                                [08;03H                                                                                                [09;03H                                                                                                [10;03H                                                                                                [11;03H                                                                                                [12;03H                                                                                                [13;03H                                                                                                [14;03H                                                                                                [15;03H                                                                                                [16;03H                                                                                                [17;03H                                                                                                [18;03H                                                                                                [19;03H                                                                                                [20;03H                                                                                                [21;03H                                                                                                [22;03H                                                                                                [23;03H                                                                                                 [29;01H   The highlighted entry will be executed automatically in 1s.                                     [29;01H   The highlighted entry will be executed automatically in 0s.                                     [0m[30m[40m[2J[01;01H[0m[37m[40m[0m[30m[40m[2J[01;01H[0m[37m[40m  Booting `Yellowfin (ostree:0)'
+
+TUNAOS_DESKTOP_CONTRACT_OK desktop=gnome experience=projectbluefin/bluefin-lts
+TUNAOS_BRANDING_OK variant=yellowfin
+TUNAOS_BRANDING_GNOME_OK variant=yellowfin
+TUNAOS_INSTALL_CHECKS_BEGIN desktop=gnome
+# system state: starting
+not ok - system has booted (running or degraded)
+ok - root filesystem is immutable (ro or composefs/overlay)
+ok - /usr is read-only
+ok - bootc status succeeds
+ok - bootc reports an image reference
+ok - machine-id is committed (32-hex, not uninitialized)
+# ssh: no sshd/ssh unit enabled or active — host-key check skipped
+# graphical.target ActiveState: inactive (activating is correct from inside its own transaction)
+ok - graphical.target has not failed
+ok - graphical.target is the default target
+ok - display manager is active (display-manager.service)
+# display manager: gdm.service
+ok - display manager matches gnome contract
+ok - a network manager is active
+ok - systemd unit graph verifies (graphical.target)
+# failed systemd units: 0
+ok - package metadata intact (>100 installed packages)
+ok - system time is reasonable (year >= 2025)
+ok - hostname is set
+ok - locale is configured
+# AGENT: 1 assertion(s) failed on the INSTALLED system.
+# AGENT: this output is the guest serial console; the host copy is
+#        <output-dir>/installed-serial.log (or serial.log for the live boot).
+# AGENT: re-read the '# ' info lines above — they carry the measured
+#        values (display manager, ActiveState, ip, listeners) that say WHY.
+# AGENT: symptom-indexed catalogue: docs/ci-troubleshooting.md
+# AGENT: a check that fails on EVERY run and every flavor is a dead gate,
+#        not a known issue — see the PR quality contract in AGENTS.md.
+TUNAOS_INSTALL_CHECKS_RESULT pass=15 fail=1 desktop=gnome
