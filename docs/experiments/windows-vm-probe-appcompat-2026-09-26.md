@@ -1,7 +1,7 @@
 # Windows VM capability probe mutates the signed runtime — 2026-09-26
 
-The Corral WHPX app trial showed the VM-first action missing even though the
-QEMU runtime archive had been authenticated. The exact capability response was:
+The Corral test on Windows showed no VM-first action, though QEMU's runtime
+archive passed its check. The capability response was:
 
 ```json
 {
@@ -18,11 +18,11 @@ subsequent app start, the installer-state trust scan also rejected the
 user-writable cache file. The manifest and trust checks behaved correctly; the
 probe polluted the immutable runtime.
 
-The probe now runs from its private `.probe-*` workspace under the disposable
-preview directory. QEMU and its DLLs remain in the authenticated `qemu`
-bundle, and the workspace is removed when the probe exits. A regression test
-asserts that the command working directory is outside the runtime directory.
+The probe now runs from its private `.probe-*` folder under the disposable
+preview directory. QEMU and its DLLs stay in the signed `qemu` bundle. The
+probe removes the folder when it exits. A regression test asserts that QEMU
+starts outside the runtime folder.
 
-This fixes the specific runtime mutation found in the trial. Rebuild the
-Windows app and repeat the visible first-launch test before treating the
-VM-first capability gate as proven on Windows.
+The test found one way to change the signed runtime. Rebuild the Windows app
+and repeat the visible first-launch test before you call VM-first ready on
+Windows.
