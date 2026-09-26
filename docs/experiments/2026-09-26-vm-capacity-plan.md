@@ -159,3 +159,35 @@ Use a new volume large enough to expose the full virtual disk. Confirm
 its size in Windows after creation. Measure C: free bytes before admission.
 Do not alter the old recovery partition to get test space. A sparse file does not satisfy the physical budget.
 Neither does a larger size in the PVC request.
+
+## Smaller image-bound hypothesis
+
+Infrastructure expansion remains a fallback. The next experiment uses the
+32/16 GiB trial as a control. It then tests a separate 32/8 GiB helper
+profile for the exact digest of repaired Yellowfin. Its 8 GiB scratch hypothesis comes
+from the earlier measurement of about 6.2 GiB for scratch. That observation
+does not prove that the smaller disk will complete a fresh install.
+
+The candidate needs 32 + 8 + 8 = 48 GiB free in Windows. A new helper must
+explicitly support that scratch size and restrict its experimental profile
+to the selected immutable image. Keep the generic helper and old archives
+unchanged. No Windows trial starts before guest measurements pass and the
+cluster has enough free space above its 26 GiB guard.
+
+The host selector uses an experiment ID set at build time. Its approved
+registry is empty. An entry must bind the full image reference and digest
+to the SHA-256 of the signed runtime manifest. This binds the helper,
+kernel, QEMU and protocol metadata as one tested set of files.
+
+A tag, changed digest, different repository, changed runtime, unknown ID,
+or incompatible helper minimum must fail before disk creation. An empty
+experiment ID keeps the conservative profile. There is no environment or
+GUI override. The selected profile, capacities and manifest identity go into
+the durable state before allocation. These fields describe the provision
+operation; they are not desktop readiness evidence.
+
+The tests cover exact 48 GiB admission, a one-byte shortfall, each identity
+mismatch, legacy and 16 GiB scratch rejection, and durable state retention.
+A mutation that removes the image comparison must fail both the other-image
+and other-repository cases. These tests do not activate a profile or prove
+that an actual image fits.

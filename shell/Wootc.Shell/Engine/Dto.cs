@@ -760,6 +760,18 @@ public class VMState
     [JsonPropertyName("diskPath")]
     public string DiskPath { get; set; } = string.Empty;
 
+    [JsonPropertyName("storageProfile")]
+    public string? StorageProfile { get; set; }
+
+    [JsonPropertyName("targetCapacityBytes")]
+    public ulong TargetCapacityBytes { get; set; }
+
+    [JsonPropertyName("scratchCapacityBytes")]
+    public ulong ScratchCapacityBytes { get; set; }
+
+    [JsonPropertyName("runtimeManifestSHA256")]
+    public string? RuntimeManifestSHA256 { get; set; }
+
     [JsonPropertyName("phase")]
     public string Phase { get; set; } = string.Empty;
 
