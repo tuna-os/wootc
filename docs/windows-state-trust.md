@@ -57,3 +57,28 @@ behavior. Before merging, run the native cases and check the OEM/offline rerun
 and Linux-to-Windows return on a real Windows fixture, including the BitLocker
 storage-volume path. In particular, confirm the owner and DACL of lifecycle
 files written from Linux.
+
+## Verification record — 2026-09-26
+
+On the disposable Corral/KubeVirt Windows fixture:
+
+- Native descriptor and filesystem tests passed. An alternate binary with the
+  owner, mutation-grant and reparse checks disabled failed the corresponding
+  assertions, including writable manifests, writable roots and reparse points.
+- The production app's `status` command refused a default `MkdirAll` state root
+  before reading state. The root was owned by Administrators, but inherited
+  Authenticated Users mutation rights from `C:\`.
+- After moving that confirmed-empty test root aside, production `status`
+  created a protected SYSTEM/Administrators-only root and returned
+  `{"state":"absent"}` twice. Adding a writable child caused an exit-1 refusal;
+  the planted content was unchanged. After removing that test child, `status`
+  succeeded again.
+
+The native selector above is intentionally narrow: existing lifecycle tests
+also start with `TestState` and write the actual `statePath()` on Windows.
+Do not broaden it on a machine with installed state.
+
+These results prove the Windows checks and entrypoint behavior, not a complete
+installation cycle. Fresh OEM/GUI staging must reserve a protected directory
+before copying fixtures, and Linux-written NTFS state plus BitLocker-volume
+compatibility still need an end-to-end run.
