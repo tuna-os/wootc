@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 )
@@ -54,8 +53,7 @@ func (a *App) executeVMProbe(cap VMCapability) vmExecutionProbeResult {
 	}
 	serial := filepath.Join(dir, "serial.log")
 	accelerator := "whpx,kernel-irqchip=off"
-	cmd := exec.Command(cap.QEMUPath, "-machine", "q35", "-accel", accelerator, "-cpu", "max", "-smp", "1", "-m", "128", "-display", "none", "-monitor", "none", "-serial", "file:"+serial, "-drive", "file="+qemuEscape(disk)+",format=raw,if=floppy,readonly=on", "-boot", "a")
-	cmd.Dir = qemuDir()
+	cmd := newVMProbeCommand(cap.QEMUPath, dir, "-machine", "q35", "-accel", accelerator, "-cpu", "max", "-smp", "1", "-m", "128", "-display", "none", "-monitor", "none", "-serial", "file:"+serial, "-drive", "file="+qemuEscape(disk)+",format=raw,if=floppy,readonly=on", "-boot", "a")
 	cmd.Env = vmProcessEnvironment(qemuDir(), dir)
 	cmd.SysProcAttr = vmProcessAttributes()
 	stderr, err := os.OpenFile(filepath.Join(dir, "stderr.log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)

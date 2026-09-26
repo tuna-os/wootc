@@ -16,6 +16,15 @@ var vmProbeBootSector []byte
 
 const vmProbeMarker = "WOOTC_WHPX_BOOTSECTOR_EXECUTED"
 
+// newVMProbeCommand keeps the guest runtime in its authenticated bundle but
+// runs QEMU from disposable state. Windows may write compatibility caches
+// relative to the current directory; those files must not land in qemuDir().
+func newVMProbeCommand(qemuPath, workingDir string, args ...string) *exec.Cmd {
+	cmd := exec.Command(qemuPath, args...)
+	cmd.Dir = workingDir
+	return cmd
+}
+
 type vmExecutionProbeResult struct {
 	Status      string
 	Detail      string
