@@ -27,7 +27,7 @@ The job cannot re-sign a release after it deletes the private seed.
 The signature is 64 raw bytes over the UTF-8 domain string
 `wootc boot-artifact manifest v1`, one NUL byte, then the exact manifest bytes.
 The verifier uses Go's standard Ed25519 implementation. It rejects manifests larger
-than 256 KiB, invalid SHA-256 values, duplicate names, and paths that are not canonical relative paths.
+than 1 MiB, invalid SHA-256 values, duplicate names, and paths that are not canonical relative paths.
 Paths use forward slashes. The parser rejects absolute paths, parent traversal, and Windows drive syntax.
 Line-ending changes invalidate the signature.
 

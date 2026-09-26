@@ -9,7 +9,9 @@ import (
 	"strings"
 )
 
-const MaxManifestSize = 256 * 1024
+// The x86 runtime closure includes display data and license documentation;
+// its measured manifest is about 400 KiB. Keep a bounded 1 MiB allowance.
+const MaxManifestSize = 1024 * 1024
 const domain = "wootc boot-artifact manifest v1\x00"
 
 func Sign(key ed25519.PrivateKey, data []byte) []byte {
