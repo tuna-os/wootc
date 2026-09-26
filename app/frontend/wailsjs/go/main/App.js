@@ -154,3 +154,7 @@ export function TryAgain() {
 export function RepairBoot() {
   return window['go']['main']['App']['RepairBoot']();
 }
+
+export function GetVMState() { return window['go']['main']['App']['GetVMState'](); }
+export function StopVM() { return window['go']['main']['App']['StopVM'](); }
+export function ForceStopVM() { return window['go']['main']['App']['ForceStopVM'](); }

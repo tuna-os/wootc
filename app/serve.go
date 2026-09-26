@@ -48,6 +48,13 @@ var ProtocolMethods = []string{
 	"GetLastRun",
 	"E2EDriveDirective",
 	"E2EDriveReport",
+	"GetVMCapability",
+	"GetFreshVMCapability",
+	"GetVMState",
+	"TryInVMFresh",
+	"BootInVM",
+	"StopVM",
+	"ForceStopVM",
 	"Shutdown",
 }
 
@@ -287,6 +294,36 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		s.app.E2EDriveReport(state)
 		return nil, nil
 
+	case "GetVMCapability":
+		return s.app.GetVMCapability(), nil
+	case "GetFreshVMCapability":
+		return s.app.GetFreshVMCapability(), nil
+	case "GetVMState":
+		return s.app.GetVMState(), nil
+	case "TryInVMFresh":
+		var image string
+		if err := unmarshalStringParam(req.Params, &image); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: err.Error()}
+		}
+		if err := s.app.TryInVMFresh(image); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
+	case "BootInVM", "StopVM", "ForceStopVM":
+		var err error
+		switch req.Method {
+		case "BootInVM":
+			err = s.app.BootInVM()
+		case "StopVM":
+			err = s.app.StopVM()
+		case "ForceStopVM":
+			err = s.app.ForceStopVM()
+		}
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
+
 	case "Shutdown":
 		s.mu.Lock()
 		s.shutdown = true
@@ -316,6 +353,7 @@ func Serve(ctx context.Context, app *App, in io.Reader, out io.Writer) error {
 		// Close the transport before waiting: a worker may be emitting progress
 		// to a shell that has already gone away.
 		syncWriter.stop()
+		app.shutdownVM()
 		app.stopInstall(30*time.Second, func() {
 			fmt.Fprintln(os.Stderr, "serve: installation is still stopping; waiting for disk/boot cleanup. Do not reboot.")
 		})

@@ -381,6 +381,22 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	}
 	setStorageDrive(drive)
 
+	targetDrives := []string{drive}
+	if drive != "C" {
+		targetDrives = append(targetDrives, "C")
+	}
+	for _, d := range targetDrives {
+		disk := filepath.Join(d+`:\wootc`, "disks", "root.disk")
+		release, err := acquireVMLock(disk)
+		if err != nil {
+			return err
+		}
+		defer release()
+		if err := verifyVMDiskReleased(disk); err != nil {
+			return err
+		}
+	}
+
 	var errs []string
 
 	// 0. Put back what install changed outside its folder: hibernation /
@@ -401,10 +417,6 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	// 3. Remove the install dir, staged files, cache, and logs.
 	// Clean both the active storage drive and C: if distinct.
-	targetDrives := []string{drive}
-	if drive != "C" {
-		targetDrives = append(targetDrives, "C")
-	}
 	for _, d := range targetDrives {
 		wDir := d + `:\wootc`
 		if _, err := os.Stat(wDir); err != nil {

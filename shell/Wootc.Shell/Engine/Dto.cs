@@ -725,6 +725,46 @@ public class VMCapability
 }
 
 /// <summary>
+/// VMState records the persistent installed system, not just a process. Ready
+/// means provisioning verified the disk; DesktopReady needs separate guest proof.
+/// </summary>
+public class VMState
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("installId")]
+    public string InstallId { get; set; } = string.Empty;
+
+    [JsonPropertyName("runId")]
+    public string RunId { get; set; } = string.Empty;
+
+    [JsonPropertyName("image")]
+    public string Image { get; set; } = string.Empty;
+
+    [JsonPropertyName("diskId")]
+    public string DiskId { get; set; } = string.Empty;
+
+    [JsonPropertyName("diskPath")]
+    public string DiskPath { get; set; } = string.Empty;
+
+    [JsonPropertyName("phase")]
+    public string Phase { get; set; } = string.Empty;
+
+    [JsonPropertyName("desktopReady")]
+    public bool DesktopReady { get; set; }
+
+    [JsonPropertyName("pid")]
+    public int Pid { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    [JsonPropertyName("updatedAt")]
+    public string UpdatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// BundleInfo describes a staged offline image bundle. Written by
 /// payload/bundle/make-bundle.sh as bundle.json.
 /// </summary>
