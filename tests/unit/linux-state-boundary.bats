@@ -44,10 +44,11 @@ teardown() { chmod -R u+rwx "$T"; rm -rf "$T"; }
 @test "folder redirects cannot export installer state or the whole volume" {
     mkdir -p "$T/host/wootc/install" "$T/host/Users/fixture/Documents"
     ln -s "$T/host/wootc" "$T/host/Users/fixture/alias"
+    ln -s "$T/bin" "$T/host/Users/fixture/outside"
     sed -n '/^safe_folder_source()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs" > "$T/source-function"
     run bash -c 'source "$1"; HOST="$2"; safe_folder_source "$2/Users/fixture/Documents"' bash "$T/source-function" "$T/host"
     [ "$status" -eq 0 ]
-    for path in "$T/host" "$T/host/wootc/install" "$T/host/Users/fixture/alias"; do
+    for path in "$T/host" "$T/host/wootc/install" "$T/host/Users/fixture/alias" "$T/host/Users/fixture/outside"; do
         run bash -c 'source "$1"; HOST="$2"; safe_folder_source "$3"' bash "$T/source-function" "$T/host" "$path"
         [ "$status" -ne 0 ]
     done

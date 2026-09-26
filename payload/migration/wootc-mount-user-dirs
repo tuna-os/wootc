@@ -195,6 +195,13 @@ safe_folder_source() {
     case "${resolved,,}" in
         "${root,,}"|"${root,,}/wootc"|"${root,,}/wootc/"*|"${root,,}/"*/wootc|"${root,,}/"*/wootc/*) return 1 ;;
     esac
+    [[ "$resolved" == "$root/"* ]] && return 0
+    # The only alternate source is the volume this service unlocked itself.
+    if [[ -n "${BITLOCKER_PROFILES:-}" ]]; then
+        root=$(realpath -e -- "$BITLOCKER_PROFILES") || return 1
+        [[ "$resolved" == "$root/"* ]] && return 0
+    fi
+    return 1
 }
 
 # Bind one Windows profile into one Linux home. Shared by the exact-name path
