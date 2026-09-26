@@ -109,7 +109,7 @@ export function renderControlPanel() {
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px">Try Linux in a window</div>
         <div style="font-size:11.5px;color:var(--text-muted)">${vm.available
-          ? `Boot your installed ${distroName()} in a window using ${String(vm.accelerator || 'hardware acceleration').toUpperCase()}. Changes persist — it's the same system.`
+          ? `Boot your installed ${distroName()} in a window using ${String(vm.accelerator || 'hardware acceleration').split(',')[0].toUpperCase()}. Changes persist — it's the same system.`
           : vm.reason}</div>
       </div>`;
     const vmBtn = btn('Boot in VM', 'btn btn-ghost', async () => {

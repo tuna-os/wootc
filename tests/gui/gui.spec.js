@@ -466,3 +466,28 @@ test('a deployed install offers Restart into TunaOS', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Restart into TunaOS/ })).toBeVisible();
   await expect(page.locator('body')).toContainText('Windows stays your default');
 });
+
+
+test('VM-first account flow uses only implemented choices and supports clean restart', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: true, probeStatus: 'passed' }, vm: { available: true } });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const password = page.locator('input[type=password]');
+  await password.nth(0).fill('temporary-test-password');
+  await password.nth(1).fill('different');
+  await expect(page.locator('#vm-prepare-btn')).toBeDisabled();
+  await password.nth(1).fill('temporary-test-password');
+  await expect(page.locator('#vm-prepare-btn')).toHaveClass(/btn-primary/);
+  await expect(page.locator('#plan-note')).toContainText('apply only to installation with a reboot');
+  await page.locator('#vm-prepare-btn').click();
+  await expect(page.getByRole('heading', { name: 'Linux is starting' })).toBeVisible();
+  const calls = await page.evaluate(() => window.__wootcVMCalls);
+  expect(calls[0][0]).toBe('prepare');
+  expect(calls[0][1].username).toBe('alice');
+  expect(calls[0][1].password).toBe('temporary-test-password');
+  expect(Object.keys(calls[0][1]).sort()).toEqual(['imageRef', 'password', 'username']);
+  await expect(page.locator('body')).not.toContainText('temporary-test-password');
+  await page.getByRole('button', { name: 'Shut down Linux', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Start Linux again' })).toBeVisible();
+  await page.getByRole('button', { name: 'Start Linux again' }).click();
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['prepare', 'stop', 'boot']);
+});

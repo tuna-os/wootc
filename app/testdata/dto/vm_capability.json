@@ -1,8 +1,9 @@
 {
   "available": true,
   "reason": "",
-  "diskPath": "C:\\wootc\\preview.vhdx",
-  "accelerator": "hyperv",
-  "qemuPath": "C:\\Program Files\\qemu\\qemu-system-x86_64.exe",
-  "bundled": true
+  "diskPath": "C:\\wootc\\disks\\root.disk",
+  "accelerator": "whpx,kernel-irqchip=off",
+  "qemuPath": "C:\\wootc\\qemu\\qemu-system-x86_64.exe",
+  "bundled": true,
+  "probeStatus": "passed"
 }

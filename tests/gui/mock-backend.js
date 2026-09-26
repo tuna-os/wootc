@@ -6,6 +6,8 @@
 // window.runtime.EventsOn/EventsEmit — we implement exactly those.
 
 window.__wootcInstallEmitters = [];
+window.__wootcVMEmitters = [];
+window.__wootcVMCalls = [];
 
 function makeApp(mock) {
   const P = (v) => Promise.resolve(v);
@@ -65,7 +67,11 @@ function makeApp(mock) {
     GetUninstallInfo: () => P(mock.uninstall || { found: false }),
     UninstallWith: () => P(),
     GetVMCapability: () => P(mock.vm || { available: false, reason: '' }),
-    BootInVM: () => P(),
+    GetVMState: () => P(mock.vmState || { phase: 'absent', desktopReady: false }),
+    BootInVM: () => { window.__wootcVMCalls.push(['boot']); mock.vmState = { phase: 'running', desktopReady: false }; return P(); },
+    PrepareVM: (cfg) => { window.__wootcVMCalls.push(['prepare', cfg]); mock.vmState = { phase: 'running', desktopReady: false }; setTimeout(() => window.__wootcVMEmitters.forEach(cb => cb({ stage: 'started', message: 'Guest not yet verified' })), 20); return P(); },
+    StopVM: () => { window.__wootcVMCalls.push(['stop']); mock.vmState = { phase: 'stopped', desktopReady: false }; return P(); },
+    ForceStopVM: () => { window.__wootcVMCalls.push(['force']); mock.vmState = { phase: 'needs_recovery', desktopReady: false }; return P(); },
     GetFreshVMCapability: () => P(mock.freshVm || { available: false, reason: '' }),
     TryInVMFresh: () => P(),
     InstallPreviewForReal: () => P(),
@@ -81,6 +87,7 @@ window.__wootcWindowCalls = [];
 window.runtime = {
   EventsOnMultiple: (name, cb) => {
     if (name === 'install:progress') window.__wootcInstallEmitters.push(cb);
+    if (name === 'vm:progress') window.__wootcVMEmitters.push(cb);
     return () => {};
   },
   EventsOn: (name, cb) => window.runtime.EventsOnMultiple(name, cb, -1),

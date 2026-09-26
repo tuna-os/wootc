@@ -20,8 +20,8 @@ func TestVMRuntimeRequiresCompleteSignedClosure(t *testing.T) {
 	root := t.TempDir()
 	key := hex.EncodeToString(pub)
 	content := []byte("trusted-runtime")
-	manifest := []byte(fmt.Sprintf("%x  qemu-system-x86_64.exe\n", sha256.Sum256(content)))
-	for name, data := range map[string][]byte{"qemu-system-x86_64.exe": content, "SHA256SUMS": manifest, "SHA256SUMS.sig": artifactauth.Sign(private, manifest)} {
+	manifest := []byte(fmt.Sprintf("%x  qemu-system-x86_64.exe\n%x  required.dll\n", sha256.Sum256(content), sha256.Sum256(content)))
+	for name, data := range map[string][]byte{"qemu-system-x86_64.exe": content, "required.dll": content, "SHA256SUMS": manifest, "SHA256SUMS.sig": artifactauth.Sign(private, manifest)} {
 		if err := os.WriteFile(filepath.Join(root, name), data, 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -42,6 +42,18 @@ func TestVMRuntimeRequiresCompleteSignedClosure(t *testing.T) {
 		t.Fatal("replacement executable accepted")
 	}
 	os.WriteFile(filepath.Join(root, "qemu-system-x86_64.exe"), content, 0600)
+	if err := os.Remove(filepath.Join(root, "required.dll")); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyVMRuntime(root, key); err == nil {
+		t.Fatal("deleted signed DLL accepted as a complete runtime")
+	}
+	if err := os.WriteFile(filepath.Join(root, "required.dll"), content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyVMRuntime(root, key); err != nil {
+		t.Fatal(err)
+	}
 	other, _, _ := ed25519.GenerateKey(rand.Reader)
 	if err := verifyVMRuntime(root, hex.EncodeToString(other)); err == nil {
 		t.Fatal("untrusted signing key accepted")

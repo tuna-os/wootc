@@ -30,6 +30,7 @@ type VMCapability struct {
 	Accelerator string `json:"accelerator"`
 	QEMUPath    string `json:"qemuPath"`
 	Bundled     bool   `json:"bundled"`
+	ProbeStatus string `json:"probeStatus"`
 }
 
 func qemuDir() string  { return filepath.Join(wootcDir(), "qemu") }
@@ -38,12 +39,14 @@ func edk2Code() string { return filepath.Join(qemuDir(), "share", "edk2-x86_64-c
 
 // GetVMCapability reports whether the installed disk can be booted in a VM.
 func (a *App) GetVMCapability() VMCapability {
-	cap := a.vmRuntimeCapability()
 	state := a.GetVMState()
-	cap.DiskPath = state.DiskPath
 	if state.Phase != vmReady && state.Phase != vmStopped {
-		cap.Available = false
-		cap.Reason = "No verified, stopped VM installation is ready. " + state.Error
+		return VMCapability{DiskPath: state.DiskPath, Reason: "No verified, stopped VM installation is ready. " + state.Error}
+	}
+	cap := a.vmRuntimeCapability()
+	cap.DiskPath = state.DiskPath
+	if cap.Available {
+		cap = a.probeVMRuntime(cap)
 	}
 	return cap
 }
@@ -166,7 +169,7 @@ func (a *App) GetFreshVMCapability() VMCapability {
 		cap.Reason = "The VM builder initramfs is missing."
 		return cap
 	}
-	return cap
+	return a.probeVMRuntime(cap)
 }
 
 // TryInVMFresh provisions one persistent raw disk, then launches its VM.

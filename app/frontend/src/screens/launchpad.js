@@ -344,12 +344,12 @@ export function renderLaunchpad() {
 
   // Footer
   const footer = el('div', 'footer');
-  const installBtn = btn('Advanced: install with reboot', 'btn btn-ghost', () => startInstall());
+  const installBtn = btn(`Advanced: ${installVerb()} with reboot`, 'btn btn-ghost', () => startInstall());
   installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => Quit()));
   // VM-first is the normal path. Native installation remains an explicit action.
   if (state.freshVmCapability?.available && state.selected) {
-    const vmBtn = btn('Start Linux in a window', 'btn btn-primary', () => tryInVM());
+    const vmBtn = btn(`Start ${distroName()} in a window`, 'btn btn-primary', () => tryInVM());
     vmBtn.id = 'vm-prepare-btn'; footer.appendChild(vmBtn);
   }
   footer.appendChild(installBtn);
