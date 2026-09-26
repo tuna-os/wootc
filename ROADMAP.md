@@ -1,12 +1,19 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-09-24 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-09-26 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
 ## Mission
 
-Make it as easy as possible for **non-technical Windows users** to migrate to Linux **without losing any of their data**. wootc installs a real, image-based bootc Linux system into a single `root.disk` file on the existing Windows NTFS volume — no repartitioning, no backups required, no point of no return. Every decision is weighed against: *would a nervous Windows user get through this without fear or data loss?*
+Help **non-technical Windows users** adopt Linux **without losing their data**.
+The first experience runs Linux in a VM inside Windows, with a persistent `root.disk`.
+Native boot comes later, when the person chooses it, with the same accounts, files, and settings.
+Prioritize people with an older laptop or desktop over enterprise features.
+Ask of every decision: *can a nervous Windows user understand this and keep their work safe?*
+
+This is the product goal. Current releases do not yet provide the complete VM-first journey;
+[verification status](docs/status.md) records what the evidence proves.
 
 wootc is the org's **conversion front door** — the Windows-hosted complement to the bootc-installer / tuna-installer family, driving [fisherman](https://github.com/projectbluefin/fisherman) under the hood. One engine ships as five installers: generic **wootc**, and branded builds for **TunaOS**, **Bluefin**, **Aurora**, and **Bazzite** (`docs/branding-and-distribution.md`).
 
@@ -14,7 +21,7 @@ wootc is the org's **conversion front door** — the Windows-hosted complement t
 
 1.0 is not a feature count — it is the North Star made checkable:
 
-1. **The download-to-desktop journey needs no instructions beyond the app.** A non-technical user installs (winget or one exe), reboots once, lands in Linux, finds their files, and can get back to Windows — guided entirely by what's on screen.
+1. **The app guides the whole journey.** A non-technical person installs the app, opens Linux inside Windows, and finds their selected files. Work survives VM shutdown and restart. Later, an explicit choice enables native boot of that same system, with a route back to Windows. The app explains any Windows restart needed to enable virtualization before preparation begins.
 2. **Zero known data-loss classes.** Every destructive path is double-gated, reversible, and exercised by the matrix; uninstall provably restores the machine.
 3. **Evidence, not claims.** Full matrix green (BitLocker and offline included), a 30-day soak of green nightlies, and a body of real-hardware reports with no data-loss incidents.
 4. **A trustworthy first impression.** Signed binaries (no SmartScreen wall), a stable winget package, and branded installers blessed by their upstream projects.
@@ -23,12 +30,17 @@ Everything below is sequenced toward those four sentences.
 
 ---
 
-## Current status (2026-09-17)
+## Delivery history (recorded 2026-09-17)
 
-**Landed** (all on `main`, all matrix-exercised):
+The entries below record earlier native-path work. They do not prove the current
+build or Phase 1 inside Windows. Use [the status matrix](docs/status.md#buildtest-matrix)
+for current verification and [the VM experiments](docs/experiments/vm-first-2026-09-26.md)
+for the work to restore the intended first experience.
+
+**Landed on `main`:**
 - **v0.3.0-beta milestone shipped**: BitLocker policy enablement with numerical recovery key capture, UAC identity resolution to interactive user, `wootc-data` volume ownership validation, program-migrator plugin architecture with JSON manifest schemas, and runbook for taking back a bad release (#211, #358, #354, #362).
 - **Post-v0.3.0-beta tooling & dependency alignment**: Wails upgraded to v2.16.0 (#384), Vite upgraded to v8.3.0 (#382), `golang.org/x/crypto` to v0.57.0 (#381), `golang.org/x/sys` to v0.48.0 (#379), direct unit tests added for DTO generator (#378), and shared org STE check & Renovate preset adopted (#374, #375).
-- GUI-driven Phase 1 → 2 → 3 ladder proven on `bluefin:lts`; el10 Phase-2 class fixed; btrfs and BitLocker-refusal cells green.
+- Historical GUI-driven native deployment, native Linux boot, and graduation passed on `bluefin:lts`. Those runs did not launch Linux inside Windows.
 - **Release automation, three channels**: E2E-gated tagged releases (cuttable from a dispatch input — no tag-push rights needed), auto pre-releases from every green nightly, manual pre-releases. Every release ships all five brand exes + deployer boot artifacts + `SHA256SUMS`.
 - **First tagged release shipped**: [`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1) passed its E2E gate and was published on 2026-08-22.
 - **Branding system with real assets** (marks, typefaces, deep themes from each project's published branding), automated per-brand screenshot walkthroughs (`docs/branded-walkthroughs.md`), `just` brand args for local/manual testing.
