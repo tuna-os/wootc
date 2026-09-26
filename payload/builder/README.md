@@ -6,7 +6,8 @@ ESP, boot menu, Fast Startup, or BitLocker state.
 The current verifier supports an ostree deployment with a fallback EFI loader.
 Other layouts fail closed. A success result means the disk passed these checks.
 It does not prove a ready desktop or native boot.
-The selected image retains its own account and first-boot policy.
+In `image-default` mode, the image retains its account and first-boot policy.
+The consumer host must use `create` mode and check for the named account in the result.
 
 | Input | Contract |
 |---|---|
@@ -16,7 +17,8 @@ The selected image retains its own account and first-boot policy.
 | `wootc.image` | Registry reference with immutable `@sha256:` digest |
 | `wootc.run_id`, `wootc.install_id` | 8–64 letters, numbers, underscores, or hyphens; first character is a letter or number |
 | `wootc.ipc` | Private VirtIO serial port created by the host for this run |
-| Network | VirtIO network device with DHCP; image pull needs registry access |
+| Network | One network device with DHCP; image pull needs registry access |
+| `wootc.account_mode=create` | Create the account from a private input file before success |
 
 The helper checks both disk identities and signatures before it formats scratch.
 The helper refuses a disk with partitions, a known signature, or an active mount.
@@ -26,6 +28,26 @@ and exclusively hold the image files. It must not attach other disks.
 The helper uses ext4 scratch for both the container store and temporary files.
 Temporary files inside the bootc container use the same disk-backed store.
 It passes the target as a guest block device, without `--via-loopback`.
+
+## Private account input
+
+The host passes a protected file through
+[QEMU fw_cfg](https://www.qemu.org/docs/master/specs/fw_cfg.html):
+`-fw_cfg name=opt/wootc/install,file=<protected-path>`.
+The command line contains only a file path, never the password or hash.
+The host removes the file after the helper exits and excludes it from logs.
+Do not pass this input to the later desktop VM.
+
+The JSON fields are `schemaVersion: 1`, `runId`, `installId`, `username`, and
+`passwordHash`. The hash uses SHA-512 crypt (`$6$`), as in the existing Windows
+vault. The helper checks the run identities and input syntax before disk writes.
+It sends the hash to the target's `chpasswd -e` through standard input.
+It creates a regular account in `wheel`, checks the persistent home and password
+record, and applies the target's SELinux labels where the policy exists.
+
+The result then has `accountOutcome: "created"` and the exact `username`.
+The host must verify both. This does not prove that login or the desktop works;
+those remain separate runtime checks. Other account policies need their own adapter.
 
 ## Results and ownership
 
@@ -47,7 +69,8 @@ A process exit, a large file, or a stage message is not a success result.
   "diskId": "GPT partition-table UUID",
   "filesystemVerified": true,
   "efiVerified": true,
-  "accountOutcome": "image-default"
+  "accountOutcome": "created",
+  "username": "alice"
 }
 ```
 

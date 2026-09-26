@@ -36,12 +36,14 @@ failed() {
 }
 
 read_contract() {
-    IMAGE="" RUN_ID="" INSTALL_ID=""
+    IMAGE="" RUN_ID="" INSTALL_ID="" ACCOUNT_MODE=image-default
+    ACCOUNT_USER="" ACCOUNT_HASH="" ACCOUNT_OUTCOME=image-default
     for token in $(cat /proc/cmdline); do
         case "$token" in
             wootc.image=*) IMAGE=${token#*=} ;;
             wootc.run_id=*) RUN_ID=${token#*=} ;;
             wootc.install_id=*) INSTALL_ID=${token#*=} ;;
+            wootc.account_mode=*) ACCOUNT_MODE=${token#*=} ;;
         esac
     done
     validate_contract
@@ -54,6 +56,97 @@ validate_contract() {
         printf '%s\n' "$id" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_-]{7,63}$' ||
             failed 'invalid run or install identity'
     done
+}
+
+read_account() {
+    case "$ACCOUNT_MODE" in
+        image-default) return 0 ;;
+        create) ;;
+        *) failed 'unsupported account mode' ;;
+    esac
+    modprobe qemu_fw_cfg
+    config=/sys/firmware/qemu_fw_cfg/by_name/opt/wootc/install/raw
+    [ -r "$config" ] || failed 'private account input is unavailable'
+    # Never echo this input or put its password hash into a child command line.
+    account_json=$(head -c 8193 "$config")
+    [ "${#account_json}" -le 8192 ] || failed 'account input is too large'
+    validate_account "$account_json"
+    unset account_json
+}
+
+validate_account() {
+    account_json=$1
+    printf '%s' "$account_json" | jq -e --arg run "$RUN_ID" --arg install "$INSTALL_ID" '
+        type == "object" and .schemaVersion == 1 and
+        .runId == $run and .installId == $install and
+        (.username | type == "string") and (.passwordHash | type == "string") and
+        (.username | test("\\A[a-z_][a-z0-9_-]{0,30}\\z")) and
+        (.passwordHash | test("\\A\\$6\\$(rounds=[0-9]{4,9}\\$)?[a-zA-Z0-9./]{1,16}\\$[a-zA-Z0-9./]{86}\\z"))
+    ' >/dev/null || failed 'invalid account input or identity'
+    ACCOUNT_USER=$(printf '%s' "$account_json" | jq -r '.username')
+    ACCOUNT_HASH=$(printf '%s' "$account_json" | jq -r '.passwordHash')
+    case "$ACCOUNT_USER" in root|nobody|daemon|bin|sys) failed 'reserved account name' ;; esac
+}
+
+create_account() {  # mounted ostree root; same target-chroot contract as fisherman.
+    sysroot=$1
+    deployment=""
+    for candidate in "$sysroot"/ostree/deploy/*/deploy/*; do
+        [ -s "$candidate/usr/lib/os-release" ] || continue
+        [ -z "$deployment" ] || failed 'account target has multiple deployments'
+        deployment=$candidate
+    done
+    [ -n "$deployment" ] || failed 'account target has no supported deployment'
+    state_var=${deployment%/deploy/*}/var
+    # /home points into the stateroot's /var, not the deployment's seed /var.
+    # Bind it before useradd so the created home survives the first real boot.
+    mount --bind "$state_var" "$deployment/var"
+    mount --bind /dev "$deployment/dev"
+    if chroot "$deployment" id "$ACCOUNT_USER" >/dev/null 2>&1; then
+        failed 'account already exists in the selected image'
+    fi
+    chroot "$deployment" getent group wheel >/dev/null || failed 'image has no wheel administrator group'
+    chroot "$deployment" useradd --create-home --shell /bin/bash --groups wheel "$ACCOUNT_USER" ||
+        failed 'account creation failed'
+    printf '%s:%s\n' "$ACCOUNT_USER" "$ACCOUNT_HASH" | chroot "$deployment" chpasswd -e ||
+        failed 'password setup failed'
+    actual_hash=$(awk -F: -v user="$ACCOUNT_USER" '$1 == user { print $2 }' "$deployment/etc/shadow")
+    [ "$actual_hash" = "$ACCOUNT_HASH" ] || failed 'password setup could not be verified'
+    unset actual_hash ACCOUNT_HASH
+    account_uid=$(chroot "$deployment" id -u "$ACCOUNT_USER")
+    [ "$account_uid" -ge 1000 ] || failed 'created account is not a regular user'
+    [ -d "$state_var/home/$ACCOUNT_USER" ] || failed 'created account has no persistent home'
+    [ "$(stat -c %u "$state_var/home/$ACCOUNT_USER")" = "$account_uid" ] || failed 'home ownership is incorrect'
+    mkdir -p "$deployment/etc/tmpfiles.d"
+    printf 'Z /var/home/%s - %s %s - -\n' "$ACCOUNT_USER" "$ACCOUNT_USER" "$ACCOUNT_USER" > \
+        "$deployment/etc/tmpfiles.d/wootc-user-home.conf"
+    # Offline useradd may not retain SELinux labels when the helper kernel has
+    # no active SELinux policy. Use the TARGET policy and tools explicitly.
+    contexts=/etc/selinux/targeted/contexts/files/file_contexts
+    if [ -f "$deployment$contexts" ]; then
+        chroot "$deployment" setfiles -F "$contexts" /etc/passwd /etc/shadow /etc/group /etc/gshadow \
+            "/var/home/$ACCOUNT_USER" /etc/tmpfiles.d/wootc-user-home.conf || failed 'account security labels failed'
+    fi
+    umount "$deployment/dev" "$deployment/var"
+    ACCOUNT_OUTCOME=created
+}
+
+personalize_disk() {
+    [ "$ACCOUNT_MODE" = create ] || return 0
+    partprobe "$TARGET"
+    udevadm settle --timeout=30
+    mkdir -p /run/wootc-personalize
+    for part in "${TARGET}"[0-9]*; do
+        [ -b "$part" ] || continue
+        fs=$(blkid -o value -s TYPE "$part" || true)
+        case "$fs" in ext4|xfs|btrfs) ;; *) continue ;; esac
+        mount "$part" /run/wootc-personalize
+        if [ -d /run/wootc-personalize/ostree/deploy ]; then
+            create_account /run/wootc-personalize
+        fi
+        umount /run/wootc-personalize
+    done
+    [ "$ACCOUNT_OUTCOME" = created ] || failed 'no supported account target'
 }
 
 blank_disk() {
@@ -125,6 +218,8 @@ verify_disk() {
 }
 
 builder_main() {
+    # PID 1 may inherit only /usr/bin:/bin. Target admin tools need sbin too.
+    export PATH=/usr/sbin:/usr/bin:/sbin:/bin
     trap 'failed "unexpected command failure"' EXIT
     mount -t proc proc /proc
     mount -t sysfs sys /sys
@@ -149,6 +244,7 @@ builder_main() {
     done
     [ -c "$IPC" ] || failed 'private result channel is unavailable'
     read_contract
+    read_account
     stage storage
     prepare_storage
     stage network
@@ -172,13 +268,15 @@ builder_main() {
         -v /var/lib/containers:/var/lib/containers \
         -v /var/tmp:/var/tmp \
         "$IMAGE" bootc install to-disk --generic-image "$TARGET" || failed 'bootc install failed'
+    stage personalizing
+    personalize_disk
     stage verifying
     verify_disk
     sync
     umount /var/tmp /var/lib/containers /run/wootc-scratch
     emit "$(jq -nc --arg run "$RUN_ID" --arg install "$INSTALL_ID" \
-        --arg image "$IMAGE" --arg disk "$DISK_ID" \
-        '{type:"result",schemaVersion:1,status:"success",runId:$run,installId:$install,image:$image,diskId:$disk,filesystemVerified:true,efiVerified:true,accountOutcome:"image-default"}')"
+        --arg image "$IMAGE" --arg disk "$DISK_ID" --arg account "$ACCOUNT_OUTCOME" --arg user "$ACCOUNT_USER" \
+        '{type:"result",schemaVersion:1,status:"success",runId:$run,installId:$install,image:$image,diskId:$disk,filesystemVerified:true,efiVerified:true,accountOutcome:$account,username:$user}')"
     # Compatibility terminal: host must also bind the structured result to its run.
     emit 'STATUS=SUCCESS'
     trap - EXIT

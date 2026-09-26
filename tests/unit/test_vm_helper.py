@@ -1,4 +1,5 @@
 """Exercise the helper contract and refusal paths without block-device writes."""
+import json
 import pathlib
 import subprocess
 import unittest
@@ -8,10 +9,21 @@ LIB = ROOT / 'payload/builder/wootc-builder.sh'
 
 
 class HelperContract(unittest.TestCase):
-    def run_helper(self, body):
+    def run_helper(self, body, input_data=None):
         return subprocess.run(['bash', '-eu', '-c',
                                '. "$1"\nfailed() { echo "REFUSED:$1"; exit 91; }\n' + body,
-                               'helper-test', str(LIB)], text=True, capture_output=True)
+                               'helper-test', str(LIB)], text=True, capture_output=True, input=input_data)
+
+    def test_pid1_restores_administrator_tool_path(self):
+        # Ubuntu keeps chroot in /usr/sbin, like Yellowfin's useradd. Stop at
+        # the first mount so this exercises PID 1 setup without mount writes.
+        result = self.run_helper('''
+mount() { command -v chroot; trap - EXIT; exit 0; }
+PATH=/usr/bin:/bin
+builder_main
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.strip().endswith('/sbin/chroot'), result.stdout)
 
     def test_pinned_image_and_ids(self):
         base = 'RUN_ID=run_123456 INSTALL_ID=install_123456; '
@@ -46,6 +58,21 @@ mkfs.ext4() { echo FORMATTED; exit 92; }
             self.assertEqual(result.returncode, 91, result.stderr)
             self.assertIn(reason, result.stdout)
             self.assertNotIn('FORMATTED', result.stdout)
+
+    def test_private_account_contract_and_no_secret_output(self):
+        config = {'schemaVersion': 1, 'runId': 'run_123456', 'installId': 'install_123456',
+                  'username': 'alice', 'passwordHash': '$6$salt$' + 'a' * 86}
+        script = 'RUN_ID=run_123456 INSTALL_ID=install_123456; validate_account "$(cat)"'
+        result = self.run_helper(script, json.dumps(config))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(config['passwordHash'], result.stdout + result.stderr)
+        for key, value in [('runId', 'stale_run'), ('username', 'root'),
+                           ('username', 'alice\nroot'), ('passwordHash', 'plaintext'),
+                           ('passwordHash', config['passwordHash'] + '\nroot:injected')]:
+            changed = dict(config, **{key: value})
+            result = self.run_helper(script, json.dumps(changed))
+            self.assertEqual(result.returncode, 91, (key, result.stderr))
+            self.assertNotIn(changed['passwordHash'], result.stdout + result.stderr)
 
     def test_no_deployment_cannot_be_verified(self):
         result = self.run_helper('''

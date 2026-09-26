@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# build-builder.sh — produce the Try-in-VM builder artifacts (SPEC §6.1):
+# build-builder.sh — produce the managed VM helper artifacts:
 #   builder-vmlinuz        (Alpine kernel)
 #   builder-initramfs.img  (Alpine + podman + bootc + /init above)
 #
 # These get bundled under C:\wootc\qemu\ next to qemu-system-x86_64.exe; the
-# Windows app boots them headless to build a preview disk from an OCI image.
+# Windows app boots them headless to build its persistent disk from an OCI image.
 #
 # Runs in a Fedora/Alpine container with podman available. Output lands in
-# ./out. Deliberately self-contained and reproducible — no network state beyond
-# the Alpine package repos.
+# ./out. Package versions follow the selected Alpine repositories; capture the
+# artifact hashes for each runtime test and signed release.
 set -Eeuo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -57,5 +57,6 @@ log "packing initramfs…"
 ( cd "$ROOT" && find . -print0 | cpio --null -o --format=newc 2>/dev/null | gzip -9 ) > "$OUT/builder-initramfs.img"
 
 rm -rf "$ROOT"
+cp "$HERE/protocol.json" "$OUT/builder-protocol.json"
 log "done:"
 ls -lh "$OUT/builder-vmlinuz" "$OUT/builder-initramfs.img" >&2
