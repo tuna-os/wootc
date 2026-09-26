@@ -259,10 +259,9 @@ write_ntfs_state() {
     mkdir -p /mnt/ntfs/wootc /mnt/ntfs/wootc/install 2>/dev/null || true
     local now
     now=$(date -u +%FT%TZ 2>/dev/null || date)
-    local tmp="/mnt/ntfs/wootc/state.json.tmp"
     local final="/mnt/ntfs/wootc/state.json"
     if [ -n "$phase" ] || [ -n "$err_msg" ]; then
-        cat <<EOF > "$tmp"
+        wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
 {
   "state": "$state",
   "phase": "$phase",
@@ -272,7 +271,7 @@ write_ntfs_state() {
 }
 EOF
     else
-        cat <<EOF > "$tmp"
+        wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
 {
   "state": "$state",
   "updatedAt": "$now",
@@ -280,9 +279,6 @@ EOF
 }
 EOF
     fi
-    sync "$tmp" 2>/dev/null || sync || true
-    mv -f "$tmp" "$final" 2>/dev/null || true
-    sync "$final" 2>/dev/null || sync || true
 }
 
 write_deployer_started() {
@@ -290,18 +286,14 @@ write_deployer_started() {
     mkdir -p /mnt/ntfs/wootc/install 2>/dev/null || true
     local now
     now=$(date -u +%FT%TZ 2>/dev/null || date)
-    local tmp="/mnt/ntfs/wootc/install/deployer-started.json.tmp"
     local final="/mnt/ntfs/wootc/install/deployer-started.json"
-    cat <<EOF > "$tmp"
+    wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
 {
   "startedAt": "$now",
   "image": "${IMAGE:-}",
   "version": "0.1.0"
 }
 EOF
-    sync "$tmp" 2>/dev/null || sync || true
-    mv -f "$tmp" "$final" 2>/dev/null || true
-    sync "$final" 2>/dev/null || sync || true
 }
 
 check_fault_injection() {
@@ -2756,6 +2748,10 @@ QGAEOF
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
     ln -sf ../wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync.service"
+
+    # Preserve Windows descriptors when Linux atomically replaces metadata.
+    install -m755 /usr/bin/wootc-ntfs-state-write \
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-ntfs-state-write"
 
     # Phase-2 first-boot evidence and health marker (§2, §3): updates state.json to healthy.
     install -m755 /usr/lib/wootc/migration/wootc-firstboot-evidence \

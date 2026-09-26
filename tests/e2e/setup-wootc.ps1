@@ -44,6 +44,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'state-trust.ps1')
 
 # ── Single-instance guard ───────────────────────────────────────────────────
 # On a FRESH install two launchers race: Windows autologon fires the OEM
@@ -59,6 +60,9 @@ if (-not $gotMutex) {
     Write-Host "[wootc] another setup-wootc.ps1 already holds the lock — this instance exits (single-instance guard)."
     exit 0
 }
+
+# Reserve trusted state before partitioning or reading any pre-staged files.
+Initialize-WootcStateDirectory -Path 'C:\wootc'
 
 # Extra deployer kargs for the bootloader/composefs axes of the test matrix.
 # Both default to "auto": the deployer probes the image and picks the backend
@@ -108,6 +112,10 @@ if ($blState -ne 'off') {
     $newPart = New-Partition -DiskNumber $cPart.DiskNumber -UseMaximumSize -AssignDriveLetter
     Format-Volume -Partition $newPart -FileSystem NTFS -NewFileSystemLabel "wootc-data" -Confirm:$false | Out-Null
     $storageRoot = "$($newPart.DriveLetter):"
+    # This volume was just formatted by this invocation. Its parent delete
+    # rights must not permit replacing the protected state directory.
+    $volumeRoot = $storageRoot + [IO.Path]::DirectorySeparatorChar
+    Set-Acl -LiteralPath $volumeRoot -AclObject (New-WootcStateSecurity)
 
     # Windows 11 Device Encryption auto-encrypts NEWLY CREATED fixed volumes, so
     # the volume we just carved comes back BitLocker-protected and root.disk
@@ -177,6 +185,7 @@ Write-Host "[wootc] Setting up wootc test environment..."
 
 # ── Step 1: Create directory structure ──────────────────────────────────────
 Write-Host "[wootc] Creating directories..."
+Initialize-WootcStateDirectory -Path $wootcDir
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 New-Item -ItemType Directory -Force -Path $disksDir | Out-Null
 
