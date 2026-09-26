@@ -171,6 +171,17 @@ func getUninstallInfo() UninstallInfo {
 	for _, dp := range listDataPartitions() {
 		drives = append(drives, dp.Letter)
 	}
+	trustedDrives := drives[:0]
+	for _, d := range drives {
+		root := d + `:\wootc`
+		if _, err := os.Lstat(root); err != nil {
+			continue
+		}
+		if err := ensureTrustedStateDirectory(root); err == nil {
+			trustedDrives = append(trustedDrives, d)
+		}
+	}
+	drives = trustedDrives
 	for _, d := range drives {
 		for _, name := range []string{"root.vhdx", "root.disk"} {
 			p := d + `:\wootc\disks\` + name
@@ -199,7 +210,9 @@ func getUninstallInfo() UninstallInfo {
 	// leftover wootc directory across drives (staged, armed, failed, or partial).
 	for _, d := range drives {
 		wootcPath := d + `:\wootc`
-		if st, err := os.Stat(wootcPath); err == nil && st.IsDir() {
+		if entries, err := os.ReadDir(wootcPath); err == nil && len(entries) > 0 {
+			// Startup reserves an empty protected directory before reading
+			// state. The reservation alone is not a partial installation.
 			info := UninstallInfo{
 				Found:        true,
 				StorageDrive: d,
