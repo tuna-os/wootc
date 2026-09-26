@@ -331,7 +331,8 @@ write_deployer_started() {
     cat <<EOF > "$tmp"
 {
   "startedAt": "$now",
-  "image": "${IMAGE:-}"
+  "image": "${IMAGE:-}",
+  "version": "0.1.0"
 }
 EOF
     sync "$tmp" 2>/dev/null || sync || true
@@ -346,7 +347,11 @@ check_fault_injection() {
     [[ -z "$fault" ]] && return 0
     if [[ "$fault" == "$stage" ]]; then
         err "FAULT-INJECTION: triggering deliberate failure at ${stage}"
-        exit 1
+        if [[ "$fault" == "scratch-setup" || "$fault" == "fisherman" || "$fault" == "after-verify" || "$fault" == "verify-complete" ]]; then
+            reboot -ff
+        else
+            exit 1
+        fi
     fi
 }
 
@@ -3455,6 +3460,7 @@ GRUBEOF
     vstage "verify-complete (all stages passed; Phase-2 ESP is staged)"
     write_ntfs_state "deployed" "verify-complete"
     check_fault_injection "verify-complete"
+    check_fault_injection "after-verify"
     # The composefs target ESP is mounted UNDER boot/, so it must go first or
     # the boot umount fails busy.
     [[ -n "${ESP_BOUND_AT:-}" ]] && umount "$ESP_BOUND_AT" 2>/dev/null || true

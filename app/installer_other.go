@@ -65,7 +65,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 
 func writeGrubConfig(cfg InstallConfig) error { return nil }
 func setupESP(cfg InstallConfig) error        { return nil }
-func configureBCD(bootloader string) error    { return nil }
+func configureBCD(cfg InstallConfig) error    { return nil }
 
 func writeVault(cfg InstallConfig) error {
 	vault := map[string]string{

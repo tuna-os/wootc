@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { startE2EDrive } from './lib/e2e.js';
 import { state } from './lib/state.js';
@@ -12,6 +12,7 @@ import { renderVMPreviewScreen } from './screens/vmpreview.js';
 import { renderDoneScreen } from './screens/done.js';
 import { renderControlPanel } from './screens/control.js';
 import { renderMigrateScreen, renderMigrateRows, refreshCategories } from './screens/migrate.js';
+import { renderRecoveryScreen } from './screens/recovery.js';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ async function init() {
     return;
   }
 
-  const [images, sysinfo, existing, policy, sessionCandidates, lastRun] = await Promise.all([
+  const [images, sysinfo, existing, policy, sessionCandidates, lastRun, recoveryVerdict] = await Promise.all([
     GetImages(),
     GetSystemInfo(),
     ExistingInstallFound(),
@@ -84,8 +85,11 @@ async function init() {
     // Honesty on relaunch: a failed attempt must greet the user as a failed
     // attempt, not as "an existing installation was found".
     Promise.resolve().then(GetLastRun).catch(() => null),
+    // Recovery guard verdict (§2)
+    Promise.resolve().then(GetRecoveryVerdict).catch(() => null),
   ]);
   state.lastRun = lastRun && lastRun.state ? lastRun : null;
+  state.recoveryVerdict = recoveryVerdict && recoveryVerdict.verdict && recoveryVerdict.verdict !== 'none' && recoveryVerdict.verdict !== 'healthy' && recoveryVerdict.verdict !== 'deployed' ? recoveryVerdict : null;
 
   state.policy = policy;
   state.images = images || [];
@@ -123,7 +127,12 @@ async function init() {
     try { state.vmCapability = await GetVMCapability(); } catch { state.vmCapability = null; }
   }
   try { state.freshVmCapability = await GetFreshVMCapability(); } catch { state.freshVmCapability = null; }
-  state.screen = existing ? 'control' : 'launchpad';
+  
+  if (state.recoveryVerdict) {
+    state.screen = 'recovery';
+  } else {
+    state.screen = existing ? 'control' : 'launchpad';
+  }
   render();
 }
 
@@ -148,6 +157,7 @@ function render() {
     case 'control':   content.appendChild(renderControlPanel()); break;
     case 'migrate':   content.appendChild(renderMigrateScreen()); break;
     case 'vmpreview': content.appendChild(renderVMPreviewScreen()); break;
+    case 'recovery':  content.appendChild(renderRecoveryScreen()); break;
     default:          content.innerHTML = '<div style="padding:40px;color:#666">Loading…</div>';
   }
 

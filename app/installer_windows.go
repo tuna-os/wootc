@@ -377,6 +377,7 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	// Add/Remove key are removed). "Windows is unchanged" must be true.
 	restorePriorPowerState()
 	unregisterUninstallEntry()
+	_ = unregisterRecoveryTasks()
 
 	// 1. Remove all wootc BCD entries and disarm one-shot bootsequence.
 	deleteWootcBCDEntries()
