@@ -129,6 +129,24 @@ class WorkflowSafety(unittest.TestCase):
         presets = json.loads((ROOT / 'renovate.json').read_text())['extends']
         self.assertEqual(len(presets), len(set(presets)))
 
+    def test_winget_submission_uses_a_verified_tool_in_a_separate_job(self):
+        source = (WORKFLOWS / 'winget-publish.yml').read_text()
+        jobs = block(source, 'jobs:')
+        render = block(jobs, 'render:')
+        submit = block(jobs, 'submit:')
+        self.assertNotIn('secrets.', render)
+        self.assertIn('needs: render', submit)
+        prepare = block(submit, '- name: Prepare verified wingetcreate')
+        self.assertIn('Install-VerifiedWingetCreate -Destination $env:RUNNER_TEMP', prepare)
+        self.assertNotIn('secrets.', prepare)
+        send = block(submit, '- name: Submit to winget-pkgs')
+        self.assertIn('WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}', send)
+        self.assertIn('& $env:WINGETCREATE_EXE submit', send)
+        self.assertNotIn('--token', send)
+        self.assertNotIn('Invoke-WebRequest', send)
+        self.assertLess(submit.index('- name: Prepare verified wingetcreate'),
+                        submit.index('- name: Submit to winget-pkgs'))
+
 
 if __name__ == '__main__':
     unittest.main()

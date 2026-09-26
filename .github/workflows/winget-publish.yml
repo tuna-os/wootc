@@ -20,20 +20,16 @@ permissions:
   contents: read
 
 jobs:
-  submit:
+  render:
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: windows-latest
+    outputs:
+      manifest_dir: ${{ steps.manifests.outputs.manifest_dir }}
     steps:
-      - name: Skip pre-releases
-        if: ${{ github.event_name == 'release' && github.event.release.prerelease }}
-        run: |
-          echo "Pre-release — winget submission skipped by design."
-          echo "skip=true" >> $env:GITHUB_ENV
-
       - uses: actions/checkout@v7
-        if: ${{ env.skip != 'true' }}
 
       - name: Render manifests from the release
-        if: ${{ env.skip != 'true' }}
+        id: manifests
         shell: pwsh
         env:
           RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
@@ -63,21 +59,42 @@ jobs:
             Write-Host "rendered $dest"
           }
           Get-ChildItem $out | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName }
-          echo "MANIFEST_DIR=$out" >> $env:GITHUB_ENV
+          echo "manifest_dir=$out" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: winget-manifests
+          path: rendered/
+          if-no-files-found: error
+          retention-days: 7
+
+  submit:
+    needs: render
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: winget-manifests
+          path: rendered/
+
+      # Fetch and verify the pinned tool before exposing the submission token.
+      - name: Prepare verified wingetcreate
+        shell: pwsh
+        run: |
+          . ./packaging/winget/verified-tool.ps1
+          $tool = Install-VerifiedWingetCreate -Destination $env:RUNNER_TEMP
+          "WINGETCREATE_EXE=$tool" >> $env:GITHUB_ENV
 
       - name: Submit to winget-pkgs
-        if: ${{ env.skip != 'true' }}
         shell: pwsh
         env:
-          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          MANIFEST_DIR: ${{ needs.render.outputs.manifest_dir }}
         run: |
-          if (-not $env:WINGET_TOKEN) {
-            Write-Host "::notice::WINGET_TOKEN secret is not set — manifests were rendered and printed above, but not submitted."
-            Write-Host "::notice::Add a classic PAT with public_repo scope as the WINGET_TOKEN secret to enable automatic submission (packaging/winget/README.md)."
+          if (-not $env:WINGET_CREATE_GITHUB_TOKEN) {
+            Write-Host "::notice::WINGET_TOKEN is not set. Download the rendered manifests from this run's artifact."
             exit 0
           }
-          # wingetcreate validates the manifests, forks microsoft/winget-pkgs,
-          # and opens the PR. Works for both the first submission (creates the
-          # package) and later version updates.
-          Invoke-WebRequest -Uri https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
-          .\wingetcreate.exe submit --token $env:WINGET_TOKEN --prtitle "TunaOS.wootc: update" $env:MANIFEST_DIR
+          & $env:WINGETCREATE_EXE submit --prtitle "TunaOS.wootc: update" $env:MANIFEST_DIR
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
