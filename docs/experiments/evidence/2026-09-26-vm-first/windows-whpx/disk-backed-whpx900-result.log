@@ -1,0 +1,48 @@
+MEM=2048 READY_SECONDS=396.0222253 WORKING_SET=561967104
+MEM=2048 EXIT= TOTAL_SECONDS=398.2027093 PEAK_WORKING_SET=576700416 READY=True
+[  111.038444] rtc_cmos 00:03: alarms up to one day, y3k, 242 bytes nvram, hpet irqs
+[  111.417479] intel_pstate: CPU model not supported
+[  111.953520] ata5: SATA link down (SStatus 0 SControl 300)
+[  112.217493] ata4: SATA link down (SStatus 0 SControl 300)
+[  112.514947] ata3: SATA link down (SStatus 0 SControl 300)
+[  112.786412] gre: GRE over IPv4 demultiplexor driver
+[  112.988805] NET: Registered PF_INET6 protocol family
+[  113.251533] Segment Routing with IPv6
+[  113.420205] In-situ OAM (IOAM) with IPv6
+[  113.571166] Key type dns_resolver registered
+[  113.571166] input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input0
+[  113.754807] IPI shorthand broadcast: enabled
+[  115.073585] sched_clock: Marking stable (89595983300, 25467392500)->(152974695200, -37911319400)
+[  115.362883] ata6: SATA link down (SStatus 0 SControl 300)
+[  116.301253] registered taskstats version 1
+[  116.439944] Loading compiled-in X.509 certificates
+[  278.069968] Freeing initrd memory: 92612K
+[  278.686598] Loaded X.509 cert 'alpinelinux.org: Alpine Linux kernel key: d76a695f66ad9cd28f5c22a8508f36e91f521f7a'
+[  279.170847] Key type .fscrypt registered
+[  279.317341] Key type fscrypt-provisioning registered
+[  279.620782] Freeing unused kernel image (initmem) memory: 2808K
+[  279.767897] Write protecting the kernel read-only data: 24576k
+[  279.911802] Freeing unused kernel image (rodata/data gap) memory: 1016K
+[  280.019841] rodata_test: all tests were successful
+[  280.120130] Run /init as init process
+[  281.568917] virtio_blk virtio2: 2/0/0 default/read/poll queues
+[  282.063969] virtio_blk virtio2: [vda] 50331648 512-byte logical blocks (25.8 GB/24.0 GiB)
+[  282.271256] virtio_blk virtio3: 2/0/0 default/read/poll queues
+[  282.587133] virtio_blk virtio3: [vdb] 41943040 512-byte logical blocks (21.5 GB/20.0 GiB)
+udhcpc: started, v1.37.0
+[  302.667268] NET: Registered PF_PACKET protocol family
+udhcpc: broadcasting discover
+udhcpc: broadcasting select for 10.0.2.15, server 10.0.2.2
+udhcpc: lease of 10.0.2.15 obtained from 10.0.2.2, lease time 86400
+[  318.525249] EXT4-fs (vdb): mounted filesystem 896f8e8f-3548-4c8f-a30e-b8fa6f3cbc77 r/w with ordered data mode. Quota mode: none.
+TARGET              SOURCE                FSTYPE OPTIONS
+/var/lib/containers /dev/vdb[/containers] ext4   rw,relatime
+TARGET   SOURCE         FSTYPE OPTIONS
+/var/tmp /dev/vdb[/tmp] ext4   rw,relatime
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+    inet 10.0.2.15/24 scope global eth0
+       valid_lft forever preferred_lft forever
+WOOTC_DISK_BACKED_PROBE_READY
+[  320.714839] ACPI: PM: Preparing to enter system sleep state S5
+[  320.872064] reboot: Power down
+WOOTC_DISK_BACKED_PROBE_READY
