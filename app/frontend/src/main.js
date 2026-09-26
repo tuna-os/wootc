@@ -46,6 +46,12 @@ async function init() {
     if (['stopped', 'needs_recovery'].includes(e.stage)) state.vmState = { phase: e.stage, error: e.message };
     if (e.stage === 'needs_recovery') state.vmError = e.message;
     if (e.stage === 'error') state.vmError = e.message;
+    if (e.stage === 'runtime-ready') {
+      try { state.freshVmCapability = await GetFreshVMCapability(); } catch (e) { state.vmError = String(e); }
+      if (state.freshVmCapability?.available) state.screen = 'launchpad';
+      else state.vmError = state.vmError || state.freshVmCapability?.reason || 'The Linux window check did not finish.';
+      render(); return;
+    }
     if (['stopped', 'needs_recovery', 'started'].includes(e.stage)) {
       try { state.vmState = await GetVMState(); state.vmCapability = await GetVMCapability(); } catch {}
     }

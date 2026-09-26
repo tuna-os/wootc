@@ -5,7 +5,7 @@ import { render } from '../lib/render.js';
 import { installVerb, distroName, productName } from '../lib/branding.js';
 import { el, btn, chip, warningBanner, inputField } from '../lib/ui.js';
 import { renderProgress } from './progress.js';
-import { tryInVM } from './vmpreview.js';
+import { tryInVM, installVMRuntime } from './vmpreview.js';
 
 // ── Screen 1: Launchpad ───────────────────────────────────────────────────────
 
@@ -351,6 +351,13 @@ export function renderLaunchpad() {
   if (state.freshVmCapability?.available && state.selected) {
     const vmBtn = btn(`Start ${distroName()} in a window`, 'btn btn-primary', () => tryInVM());
     vmBtn.id = 'vm-prepare-btn'; footer.appendChild(vmBtn);
+  }
+  if (state.freshVmCapability?.runtimeNeeded) {
+    footer.appendChild(btn('Set up Linux in a window', 'btn btn-primary', () => installVMRuntime()));
+  }
+  if (!state.freshVmCapability?.available && state.freshVmCapability?.reason) {
+    const vmReason = el('div'); vmReason.style.cssText = 'font-size:12px;color:var(--text-muted)';
+    vmReason.textContent = state.freshVmCapability.reason; fields.appendChild(vmReason);
   }
   footer.appendChild(installBtn);
   // Defer validity to after mount so the hint element exists.

@@ -491,3 +491,19 @@ test('VM-first account flow uses only implemented choices and supports clean res
   await page.getByRole('button', { name: 'Start Linux again' }).click();
   expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['prepare', 'stop', 'boot']);
 });
+
+
+test('signed runtime setup returns to account setup without starting an install', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true } });
+  await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
+  await expect(page.locator('#vm-prepare-btn')).toBeVisible();
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
+});
+
+test('a release without the runtime gives an explicit error without installing Linux', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true }, runtimeError: 'This release does not include the Linux window runtime yet.' });
+  await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
+  await expect(page.locator('body')).toContainText('This release does not include the Linux window runtime yet.');
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+});

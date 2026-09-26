@@ -69,6 +69,7 @@ function makeApp(mock) {
     GetVMCapability: () => P(mock.vm || { available: false, reason: '' }),
     GetVMState: () => P(mock.vmState || { phase: 'absent', desktopReady: false }),
     BootInVM: () => { window.__wootcVMCalls.push(['boot']); mock.vmState = { phase: 'running', desktopReady: false }; return P(); },
+    InstallVMRuntime: () => { window.__wootcVMCalls.push(['runtime']); setTimeout(() => { if (mock.runtimeError) { window.__wootcVMEmitters.forEach(cb => cb({ stage: 'error', message: mock.runtimeError })); } else { mock.freshVm = { available: true, probeStatus: 'passed' }; window.__wootcVMEmitters.forEach(cb => cb({ stage: 'runtime-ready', message: 'Checking this PC' })); } }, 20); return P(); },
     PrepareVM: (cfg) => { window.__wootcVMCalls.push(['prepare', cfg]); mock.vmState = { phase: 'running', desktopReady: false }; setTimeout(() => window.__wootcVMEmitters.forEach(cb => cb({ stage: 'started', message: 'Guest not yet verified' })), 20); return P(); },
     StopVM: () => { window.__wootcVMCalls.push(['stop']); mock.vmState = { phase: 'stopped', desktopReady: false }; return P(); },
     ForceStopVM: () => { window.__wootcVMCalls.push(['force']); mock.vmState = { phase: 'needs_recovery', desktopReady: false }; return P(); },

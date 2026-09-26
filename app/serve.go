@@ -53,6 +53,7 @@ var ProtocolMethods = []string{
 	"GetVMState",
 	"TryInVMFresh",
 	"PrepareVM",
+	"InstallVMRuntime",
 	"BootInVM",
 	"StopVM",
 	"ForceStopVM",
@@ -301,6 +302,11 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return s.app.GetFreshVMCapability(), nil
 	case "GetVMState":
 		return s.app.GetVMState(), nil
+	case "InstallVMRuntime":
+		if err := s.app.InstallVMRuntime(); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
 	case "PrepareVM":
 		var cfg VMInstallConfig
 		if err := unmarshalParams(req.Params, &cfg); err != nil {

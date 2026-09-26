@@ -725,6 +725,9 @@ public class VMCapability
 
     [JsonPropertyName("probeStatus")]
     public string ProbeStatus { get; set; } = string.Empty;
+
+    [JsonPropertyName("runtimeNeeded")]
+    public bool RuntimeNeeded { get; set; }
 }
 
 /// <summary>
