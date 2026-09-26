@@ -9,32 +9,61 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// attachParentConsole attaches the process to the console of its parent process.
-// When wootc is compiled with -ldflags "-H windowsgui", Windows does not allocate
-// a console window on launch. For headless CLI subcommands (install, status, uninstall)
-// invoked from an existing terminal (e.g. PowerShell, cmd.exe), attaching to the
-// parent console enables stdout/stderr to print directly to that terminal.
+// attachParentConsole enables terminal output for GUI-subsystem CLI commands.
+// AttachConsole can replace inherited standard handles. Preserve redirected
+// pipes/files first, so status output and errors still reach their caller.
 func attachParentConsole() {
-	modkernel32 := syscall.NewLazyDLL("kernel32.dll")
-	procAttachConsole := modkernel32.NewProc("AttachConsole")
-
-	// ATTACH_PARENT_PROCESS is (DWORD)-1
+	streams := []struct {
+		id    uint32
+		name  string
+		file  **os.File
+		saved windows.Handle
+	}{
+		{windows.STD_OUTPUT_HANDLE, "/dev/stdout", &os.Stdout, 0},
+		{windows.STD_ERROR_HANDLE, "/dev/stderr", &os.Stderr, 0},
+		{windows.STD_INPUT_HANDLE, "/dev/stdin", &os.Stdin, 0},
+	}
+	defer func() {
+		for _, s := range streams {
+			if s.saved != 0 {
+				windows.CloseHandle(s.saved)
+			}
+		}
+	}()
+	for i := range streams {
+		s := &streams[i]
+		h, err := windows.GetStdHandle(s.id)
+		if err != nil || h == 0 || h == windows.InvalidHandle {
+			continue
+		}
+		kind, err := windows.GetFileType(h)
+		if err != nil || (kind != windows.FILE_TYPE_PIPE && kind != windows.FILE_TYPE_DISK) {
+			continue
+		}
+		// Duplicate before attachment in case Windows replaces or closes a handle.
+		process := windows.CurrentProcess()
+		if windows.DuplicateHandle(process, h, process, &s.saved, 0, true, windows.DUPLICATE_SAME_ACCESS) != nil {
+			return
+		}
+	}
+	attach := syscall.NewLazyDLL("kernel32.dll").NewProc("AttachConsole")
 	const attachParentProcess = ^uintptr(0)
-	r1, _, _ := procAttachConsole.Call(attachParentProcess)
-	if r1 == 0 {
+	if result, _, _ := attach.Call(attachParentProcess); result == 0 {
 		return
 	}
-
-	hStdout, err := windows.GetStdHandle(windows.STD_OUTPUT_HANDLE)
-	if err == nil && hStdout != windows.InvalidHandle {
-		os.Stdout = os.NewFile(uintptr(hStdout), "/dev/stdout")
-	}
-	hStderr, err := windows.GetStdHandle(windows.STD_ERROR_HANDLE)
-	if err == nil && hStderr != windows.InvalidHandle {
-		os.Stderr = os.NewFile(uintptr(hStderr), "/dev/stderr")
-	}
-	hStdin, err := windows.GetStdHandle(windows.STD_INPUT_HANDLE)
-	if err == nil && hStdin != windows.InvalidHandle {
-		os.Stdin = os.NewFile(uintptr(hStdin), "/dev/stdin")
+	for i := range streams {
+		s := &streams[i]
+		if s.saved != 0 {
+			// os.File owns the duplicate after this point, including if restoring the
+			// process handle table fails; Go output must retain the inherited stream.
+			_ = windows.SetStdHandle(s.id, s.saved)
+			*s.file = os.NewFile(uintptr(s.saved), s.name)
+			s.saved = 0
+			continue
+		}
+		h, err := windows.GetStdHandle(s.id)
+		if err == nil && h != 0 && h != windows.InvalidHandle {
+			*s.file = os.NewFile(uintptr(h), s.name)
+		}
 	}
 }
