@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,6 +34,7 @@ func TestServeShutdownWaitsForArmedWorkerCleanup(t *testing.T) {
 			allowCleanup := func() { releaseOnce.Do(func() { close(release) }) }
 			t.Cleanup(allowCleanup)
 			marker := filepath.Join(t.TempDir(), "bootsequence")
+			var persisted string
 			if err := app.startInstallWorker(cancel, func() {
 				if err := os.WriteFile(marker, []byte("linux armed"), 0600); err != nil {
 					t.Error(err)
@@ -41,14 +43,20 @@ func TestServeShutdownWaitsForArmedWorkerCleanup(t *testing.T) {
 				<-ctx.Done()
 				// Even a cleared status flag is insufficient: the boot operation is not done.
 				app.mutateStatus(func(s *InstallStatus) { s.Running = false })
-				close(cleaning)
-				<-release
-				if err := os.Remove(marker); err != nil {
-					t.Error(err)
+				err := finishInstallPipeline(ctx, true, func() {
+					close(cleaning)
+					<-release
+					if err := os.Remove(marker); err != nil {
+						t.Error(err)
+					}
+				}, func(state, _, _ string) { persisted = state })
+				if !errors.Is(err, context.Canceled) {
+					t.Errorf("late cancellation: %v", err)
 				}
 			}); err != nil {
 				t.Fatal(err)
 			}
+			t.Cleanup(func() { allowCleanup(); cancel(); <-app.installDone })
 			waitSignal(t, armed, "boot arming")
 			in, client := io.Pipe()
 			t.Cleanup(func() { _ = client.Close(); _ = in.Close() })
@@ -81,6 +89,9 @@ func TestServeShutdownWaitsForArmedWorkerCleanup(t *testing.T) {
 			}
 			if _, err := os.Stat(marker); !os.IsNotExist(err) {
 				t.Fatalf("boot remains armed: %v", err)
+			}
+			if persisted != StateStaged {
+				t.Fatalf("cancellation claimed success: %s", persisted)
 			}
 		})
 	}

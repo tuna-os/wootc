@@ -965,7 +965,20 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		return fmt.Errorf("fault-injection: simulated cancellation before reboot")
 	}
 
-	writeState(StateArmed, "", "")
+	return finishInstallPipeline(ctx, armed, disarmOneShot, writeState)
+}
+
+// A cancellation can arrive inside the final synchronous operation. There is
+// no next loop iteration to observe it, so check again before claiming success.
+func finishInstallPipeline(ctx context.Context, armed bool, disarm func(), persist func(string, string, string)) error {
+	if err := ctx.Err(); err != nil {
+		if armed {
+			disarm()
+		}
+		persist(StateStaged, "cancelled", "")
+		return err
+	}
+	persist(StateArmed, "", "")
 	return nil
 }
 
