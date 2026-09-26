@@ -2,17 +2,5 @@
 set -Eeuo pipefail
 
 STATE_DIR="${WOOTC_STATE_DIR:-${WOOTC_LINUX_HOME:-$HOME}/.config/wootc}"
-mkdir -p "$STATE_DIR"
-
-if command -v wootc-steam-bridge >/dev/null 2>&1; then
-    wootc-steam-bridge || true
-fi
-
-cat > "$STATE_DIR/status.json" <<'EOF'
-{
-  "status": "success",
-  "migrated": ["steam-libraries"],
-  "note": "Steam libraries bridged into Linux Steam."
-}
-EOF
-exit 0
+exec python3 "$(dirname "${BASH_SOURCE[0]}")/../../import-result.py" \
+    --state-dir "$STATE_DIR" wootc-steam-bridge

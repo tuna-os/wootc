@@ -28,7 +28,11 @@ func isHeadlessInvocation(args []string) bool {
 // runHeadless dispatches the CLI subcommand and returns the process exit
 // code. It never launches the webview.
 func runHeadless(args []string) int {
-	attachParentConsole()
+	// serve owns its inherited pipes; attaching a console replaces the
+	// standard handles and sends protocol data to the terminal instead.
+	if args[1] != "serve" {
+		attachParentConsole()
+	}
 	switch args[1] {
 	case "serve":
 		return runServe()

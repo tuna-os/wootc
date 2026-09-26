@@ -4,17 +4,5 @@ set -Eeuo pipefail
 WIN_USER="${WOOTC_WIN_USER:-}"
 LINUX_USER="${WOOTC_LINUX_USER:-${USER:-}}"
 STATE_DIR="${WOOTC_STATE_DIR:-${WOOTC_LINUX_HOME:-$HOME}/.config/wootc}"
-mkdir -p "$STATE_DIR"
-
-if command -v wootc-office-bridge >/dev/null 2>&1 && [[ -n "$WIN_USER" ]]; then
-    wootc-office-bridge "$WIN_USER" "$LINUX_USER" || true
-fi
-
-cat > "$STATE_DIR/status.json" <<'EOF'
-{
-  "status": "success",
-  "migrated": ["custom-dictionary", "templates", "fonts", "office-format-defaults"],
-  "note": "Office files now save in standard formats."
-}
-EOF
-exit 0
+exec python3 "$(dirname "${BASH_SOURCE[0]}")/../../import-result.py" \
+    --state-dir "$STATE_DIR" --require-source-user wootc-office-bridge "$WIN_USER" "$LINUX_USER"

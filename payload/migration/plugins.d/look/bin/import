@@ -2,17 +2,5 @@
 set -Eeuo pipefail
 
 STATE_DIR="${WOOTC_STATE_DIR:-${WOOTC_LINUX_HOME:-$HOME}/.config/wootc}"
-mkdir -p "$STATE_DIR"
-
-if command -v wootc-apply-look >/dev/null 2>&1; then
-    wootc-apply-look || true
-fi
-
-cat > "$STATE_DIR/status.json" <<'EOF'
-{
-  "status": "success",
-  "migrated": ["wallpaper", "theme", "accent-color"],
-  "note": "Windows look applied."
-}
-EOF
-exit 0
+exec python3 "$(dirname "${BASH_SOURCE[0]}")/../../import-result.py" \
+    --state-dir "$STATE_DIR" wootc-apply-look

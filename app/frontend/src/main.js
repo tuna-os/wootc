@@ -42,7 +42,7 @@ async function init() {
   // headless builder pulls the image and installs it onto preview.raw.
   EventsOn('vm:progress', (e) => {
     state.vmProgress = { stage: e.stage, percent: e.percent || 0, message: e.message || '' };
-    if (e.stage === 'ready') state.vmReady = true;
+    if (e.stage === 'started' || e.stage === 'ready') state.vmReady = true;
     if (e.stage === 'error') state.vmError = e.message;
     if (state.screen === 'vmpreview') render();
   });

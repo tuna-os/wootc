@@ -139,15 +139,14 @@ keys, tokens, or credential stores — you sign in again where it matters.
 
 ## 5. Try it first, commit later
 
-Not ready to reboot?
+The intended Phase 1 runs Linux inside Windows before native boot.
+Current standard releases do not yet provide that complete journey.
+The existing VM option needs a prepared Linux disk, QEMU, firmware, and an accelerator.
+The current main install path still uses the deployer after a reboot.
 
-- **Boot in VM (Phase 1)** — run your installed Linux in a window *without*
-  rebooting, right from Windows. Because wootc installs into a single `root.disk`
-  file on your existing drive without repartitioning, you can test drive your
-  actual configured Linux system safely before ever rebooting. Any changes you
-  make persist to the same disk.
-
-You're always one reboot away from Windows.
+Do not treat “Boot in VM” as proof that no earlier reboot is necessary.
+[ADR 0004](adr/0004-restore-vm-first-product.md) tracks the required VM-first path.
+It must preserve your installed system and work when you later choose native boot.
 
 ---
 
