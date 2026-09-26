@@ -159,8 +159,31 @@ func TestBrandBlessings_ForeignMarksNeedEvidence(t *testing.T) {
 
 // Self-owned is a claim too, and the cheapest one to get wrong: it is the
 // escape hatch from every check above.
+func brandOwnershipPolicy(t *testing.T) (map[string]bool, map[string]bool) {
+	t.Helper()
+	data, err := brandFS.ReadFile("branding/ownership.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policy struct {
+		SelfOwnedBrands  []string `json:"selfOwnedBrands"`
+		WingetNamespaces []string `json:"wingetNamespaces"`
+	}
+	if err := json.Unmarshal(data, &policy); err != nil {
+		t.Fatal(err)
+	}
+	ours, namespaces := map[string]bool{}, map[string]bool{}
+	for _, id := range policy.SelfOwnedBrands {
+		ours[id] = true
+	}
+	for _, namespace := range policy.WingetNamespaces {
+		namespaces[namespace] = true
+	}
+	return ours, namespaces
+}
+
 func TestBrandBlessings_SelfOwnedIsOnlyOurOwnMarks(t *testing.T) {
-	ours := map[string]bool{"wootc": true, "tunaos": true}
+	ours, _ := brandOwnershipPolicy(t)
 	for id, b := range loadBlessings(t) {
 		if b.SelfOwned && !ours[id] {
 			t.Errorf("brand %s: claims selfOwned, but only %v are this project's marks", id, ours)
@@ -175,6 +198,7 @@ func TestBrandBlessings_SelfOwnedIsOnlyOurOwnMarks(t *testing.T) {
 // owns the brand: `Bazzite.Installer` is Universal Blue's to grant, not ours
 // to take (#227 (3)).
 func TestBrandBlessings_WingetNamespaceFollowsTheMark(t *testing.T) {
+	_, namespaces := brandOwnershipPolicy(t)
 	for id, b := range loadBlessings(t) {
 		if b.Winget.Identifier == "" {
 			t.Errorf("brand %s: no winget.identifier proposed", id)
@@ -191,7 +215,7 @@ func TestBrandBlessings_WingetNamespaceFollowsTheMark(t *testing.T) {
 		if b.Winget.IdentifierAgreed && !b.SelfOwned && b.Ask.Evidence == "" {
 			t.Errorf("brand %s: winget identifier %q marked agreed with no evidence", id, b.Winget.Identifier)
 		}
-		if b.SelfOwned && !strings.HasPrefix(b.Winget.Identifier, "TunaOS.") {
+		if b.SelfOwned && !namespaces[strings.SplitN(b.Winget.Identifier, ".", 2)[0]] {
 			t.Errorf("brand %s: self-owned but its identifier %q is outside our namespace", id, b.Winget.Identifier)
 		}
 	}

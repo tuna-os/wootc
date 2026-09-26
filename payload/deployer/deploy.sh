@@ -78,95 +78,62 @@ phase() {
     # Translate each internal phase into calm, non-technical reassurance on
     # the full-screen splash (North Star: a nervous Windows user must never
     # see console/kernel output and must feel that good things are happening).
-    # Fields: <start%> <ceiling%> <friendly message>. The animator eases the
-    # bar from start toward ceiling so it is always visibly moving.
+    # These are named stages, not estimates of work completed.
     case "$1" in
-        ntfs-mounted)       splash_set  6 12 "Preparing your disk..." ;;
-        scratch-setup)      splash_set 12 18 "Preparing your disk..." ;;
-        network-wait)       splash_set 16 18 "Waiting for a network connection - plug in a network cable if this takes a while..." ;;
-        bundle-ingest)      splash_set 18 24 "Loading your downloaded system - no internet needed..." ;;
-        registry-preflight) splash_set 18 24 "Connecting to the software library..." ;;
-        fisherman)          splash_set 26 86 "Downloading and installing your Linux system..." ;;
-        verification)       splash_set 88 95 "Almost there - making sure everything is perfect..." ;;
-        reboot)             splash_set 100 100 "All set! Starting your new Linux system..." ;;
+        ntfs-mounted)       splash_set "Preparing your disk..." ;;
+        scratch-setup)      splash_set "Preparing your disk..." ;;
+        network-wait)       splash_set "Waiting for a network connection - plug in a network cable if this takes a while..." ;;
+        bundle-ingest)      splash_set "Loading your downloaded system - no internet needed..." ;;
+        registry-preflight) splash_set "Connecting to the software library..." ;;
+        fisherman)          splash_set "Installing your Linux system..." ;;
+        verification)       splash_set "Checking your Linux system..." ;;
+        reboot)             splash_set "Preparing to restart..." ;;
         *) : ;;
     esac
 }
 
-# ── Reassuring full-screen install UI ───────────────────────────────────────
-# The deployer's real work (kernel messages, container pulls, fisherman) goes
-# to the SERIAL console + persistent log. On the SCREEN the user sees only
-# this: a calm title, a friendly one-line status, a progress bar that is
-# always moving, and a standing promise that their Windows and files are safe.
-# Drawn on /dev/tty1 (the VGA text console; the deploy logs never touch it,
-# so it stays clean). `wootc.debug` turns the splash off and shows raw console
-# for troubleshooting.
+# ── Stage display ──────────────────────────────────────────────────────────
+# Animation is activity only, never evidence that a stage completed. Keep the
+# text console available on older hardware without a graphical driver.
 SPLASH_TTY=/dev/tty1
 SPLASH_STATE=/run/wootc-splash
 SPLASH_PID=""
 splash_on() { [[ "${DEBUG:-}" != 1 ]] && [[ -w "$SPLASH_TTY" ]]; }
 
-# splash_set <start%> <ceiling%> <message> — the animator eases from start
-# toward ceiling so the bar keeps creeping up within a phase (never frozen).
-splash_set() {
+splash_set() {  # <message>; publish atomically so the reader sees a whole stage.
     splash_on || return 0
-    printf '%s\t%s\t%s\n' "$1" "$2" "$3" > "$SPLASH_STATE" 2>/dev/null || true
+    printf '%s\n' "$1" > "${SPLASH_STATE}.next" 2>/dev/null &&
+        mv -f "${SPLASH_STATE}.next" "$SPLASH_STATE" 2>/dev/null || true
 }
 
-splash_paint() {  # <pct> <message> <spinner-char> [long]
-    local pct="$1" msg="$2" sp="$3" mode="${4:-}" i filled bar=""
-    filled=$(( pct * 46 / 100 ))
-    for ((i = 0; i < 46; i++)); do (( i < filled )) && bar+="#" || bar+="-"; done
-    # Repaint in place (cursor-home, clear-to-EOL per line) — no full-screen
-    # clear, so it never flickers. \033[K wipes any leftover from a longer
-    # previous message.
+splash_paint() {  # <message> <activity-character> <elapsed-seconds>
+    local msg="$1" sp="$2" elapsed="$3"
     {
-        printf '\033[H\033[?25l'
-        printf '\n\n\n\n'
-        printf '\033[1;96m                     Setting up your new Linux system\033[0m\033[K\n\n\n'
-        printf '\033[0;97m                     %s  %s\033[0m\033[K\n\n\n' "$sp" "$msg"
-        printf '\033[1;96m                     [%s] %3d%%\033[0m\033[K\n\n\n\n\n' "$bar" "$pct"
-        printf '\033[0;92m                [OK]  Your Windows and all of your files are safe.\033[0m\033[K\n\n'
-        # Past the promised window, tell the truth instead of letting the
-        # user compare a stalled bar against "5 to 15 minutes" (a full
-        # system image on a slow link is legitimately 30-60 minutes; the
-        # old copy made that look like a hang).
-        if [ "$mode" = long ]; then
-            printf '\033[0;97m                   Still working - a big download can take 30-60 minutes\033[0m\033[K\n'
-            printf '\033[0;97m                   on slower connections. Please keep your PC plugged in.\033[0m\033[K\n'
-        else
-            printf '\033[0;97m                   This usually takes about 5 to 15 minutes.\033[0m\033[K\n'
-            printf '\033[0;97m                   Please keep your PC plugged in - no need to touch anything.\033[0m\033[K\n'
-        fi
+        printf '\033[H\033[?25l\n\n\n\n'
+        printf '\033[1;96m             Setting up your new Linux system\033[0m\033[K\n\n\n'
+        printf '\033[0;97m             %s  %s\033[0m\033[K\n\n' "$sp" "$msg"
+        printf '\033[0;97m             Time in setup: %d min %02d sec\033[0m\033[K\n\n\n' "$((elapsed / 60))" "$((elapsed % 60))"
+        printf '\033[0;97m             Large files can take time to unpack and check.\033[0m\033[K\n'
+        printf '\033[0;97m             Please keep your PC plugged in.\033[0m\033[K\n'
+        printf '\033[0;97m             Setup will restart your PC when it is ready.\033[0m\033[K\n'
     } > "$SPLASH_TTY" 2>/dev/null || true
 }
 
 splash_start() {
     splash_on || return 0
-    # Own the screen: hide cursor, disable console blanking (ESC[9;0]) so it
-    # never goes black mid-deploy, and clear once (the animator repaints in
-    # place after this).
     printf '\033[?25l\033[9;0]\033[2J\033[H' > "$SPLASH_TTY" 2>/dev/null || true
     setterm -blank 0 -powerdown 0 >"$SPLASH_TTY" 2>/dev/null || true
-    splash_set 2 6 "Getting things ready..."
+    splash_set "Getting things ready..."
     (
-        local frame=0 cur=2 spinners='|/-\' last="" mode=""
+        local frame=0 spinners='|/-+' msg started now _
+        read -r started _ < /proc/uptime
+        started=${started%%.*}
         while :; do
-            local start ceil msg line
-            line=$(cat "$SPLASH_STATE" 2>/dev/null || true)
-            IFS=$'\t' read -r start ceil msg <<< "$line"
-            [ -n "${start:-}" ] || { start=2; ceil=6; msg="Working..."; }
-            # New phase → jump to its start; otherwise creep toward its ceiling.
-            if [ "$line" != "$last" ]; then cur="$start"; last="$line"; fi
-            if [ "$cur" -lt "$ceil" ]; then
-                cur=$(( cur + ( (ceil - cur) / 12 ) + 1 ))
-                [ "$cur" -gt "$ceil" ] && cur="$ceil"
-            fi
-            # 2s per frame → frame 450 is the 15-minute mark, the outer edge
-            # of the on-screen promise. Swap the footer to the honest
-            # long-download copy from there on.
-            [ "$frame" -ge 450 ] && mode=long
-            splash_paint "$cur" "$msg" "${spinners:frame%4:1}" "$mode"
+            msg=$(cat "$SPLASH_STATE" 2>/dev/null || true)
+            [[ -n "$msg" ]] || msg="Waiting for setup status..."
+            read -r now _ < /proc/uptime
+            now=${now%%.*}
+            splash_paint "$msg" "${spinners:frame%4:1}" "$((now - started))"
             frame=$(( frame + 1 ))
             sleep 2
         done
@@ -192,12 +159,10 @@ SCRATCH_LOOP=""
 SCRATCH_IMG=""
 JOURNAL_STREAM_PID=""
 HEARTBEAT_PID=""
-PULL_WATCH_PID=""
 cleanup() {
     local _rc=$? mount
     [[ -n "$JOURNAL_STREAM_PID" ]] && kill "$JOURNAL_STREAM_PID" 2>/dev/null || true
     [[ -n "$HEARTBEAT_PID" ]] && kill "$HEARTBEAT_PID" 2>/dev/null || true
-    [[ -n "$PULL_WATCH_PID" ]] && kill "$PULL_WATCH_PID" 2>/dev/null || true
 
     # On FAILURE, put the deployer's own log tail on the SERIAL. log() writes to
     # $PERSIST_LOG on the NTFS, and err() to stderr — so on a failed deploy,
@@ -244,15 +209,14 @@ cleanup() {
     [[ -n "$LOOP_DEV" ]] && losetup -d "$LOOP_DEV" 2>/dev/null || true
     splash_stop
     # On any failure the user must not be left on a frozen "installing"
-    # screen. A friendly, non-alarming message + the reassurance that Windows
-    # is untouched; the technical detail is on the serial log for us.
+    # screen. Show the recovery path; technical detail remains in the log.
     if [[ "${DEPLOY_OK:-0}" != 1 && "${DEBUG:-}" != 1 && -w "${SPLASH_TTY:-/dev/null}" ]]; then
         {
             printf '\033[H\033[2J\033[?25h\n\n\n\n'
             printf '\033[1;93m                     We could not finish setting up Linux this time.\033[0m\n\n\n'
-            printf '\033[0;92m                [OK]  Your Windows and all of your files are completely safe.\033[0m\n\n'
+            printf '\033[0;92m                Setup stopped before it could finish.\033[0m\n\n'
             printf '\033[0;97m                   Your PC will restart back into Windows in a moment.\033[0m\n'
-            printf '\033[0;97m                   You can simply try again — nothing was changed.\033[0m\n'
+            printf '\033[0;97m                   Open the installer in Windows for details and next steps.\033[0m\n'
         } > "$SPLASH_TTY" 2>/dev/null || true
         sleep 6 2>/dev/null || true
     fi
@@ -806,7 +770,7 @@ if [[ "$WOOTC_OFFLINE" != 1 ]]; then
         if (( _net_waited >= 300 )); then
             err "No network connection after 5 minutes and no pre-downloaded system was staged."
             err "Connect a network cable and try again — or reinstall using an installer that downloads the system on Windows first."
-            splash_set 100 100 "No internet connection. Restarting into Windows - connect a network cable and try again."
+            splash_set "No internet connection. Restarting into Windows - connect a network cable and try again."
             sleep 5 2>/dev/null || true
             if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
         fi
@@ -1427,71 +1391,11 @@ log "Fisherman recipe:"
 # the disk-unlock secret in either one.
 jq 'if .encryption.passphrase then .encryption.passphrase = "<redacted>" else . end' "$RECIPE"
 
-# ── Live download progress on the splash ────────────────────────────────────
-# The fisherman phase is one splash band (26→86), but nearly all of its wall
-# time is the image pull — the easing animator reaches the band ceiling in a
-# couple of minutes and then the bar PARKS there for however long a multi-GB
-# download takes. A bar frozen at one number is exactly the "is it hung?"
-# fear this screen exists to prevent. Drive it from evidence instead: every
-# pulled blob lands in the scratch filesystem, so scratch growth IS the
-# download progressing. The message carries a live byte counter (a number
-# that keeps ticking is proof of life even when the percent is uncertain),
-# and when the registry told us the expected download size, the bar tracks
-# real bytes across the band. Notes on honesty:
-#   - containers-storage holds compressed blobs AND their unpacked layers,
-#     so raw growth runs ~2x the compressed total — divide that back out;
-#   - the percent is monotonic and capped at 85 inside the band, so an
-#     estimate can run slow but never claims more than reality earned;
-#   - the ceiling passed to the animator is pct+2, not 86 — letting the
-#     easing sprint ahead and then yanking it back each sample would show
-#     the bar moving BACKWARDS, which reads worse than parking;
-#   - unknown total (inspect failed): the counter still ticks and the bar
-#     crawls ~1%/30s toward 80 — the pace the old animator implied, now with
-#     visible evidence attached.
-start_pull_progress_watch() {
-    splash_on || return 0
-    local total_bytes=0 base_kib
-    if [[ "$WOOTC_OFFLINE" == 1 ]]; then
-        total_bytes=$(du -sk "$BUNDLE_OCI" 2>/dev/null | awk '{print $1 * 1024}' || true)
-    else
-        total_bytes=$(timeout 60 skopeo inspect --retry-times 2 "docker://${IMAGE}" 2>/dev/null \
-            | jq '[.LayersData[]?.Size] | add // 0' 2>/dev/null || true)
-    fi
-    [[ "$total_bytes" =~ ^[0-9]+$ ]] || total_bytes=0
-    base_kib=$(df -Pk /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3}' || true)
-    [[ "$base_kib" =~ ^[0-9]+$ ]] || return 0
-    (
-        lastpct=26 tick=0
-        while :; do
-            sleep 10
-            tick=$((tick + 1))
-            used=$(df -Pk /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3}' || true)
-            [[ "$used" =~ ^[0-9]+$ ]] || continue
-            done_kib=$(( used > base_kib ? used - base_kib : 0 ))
-            gib=$(awk -v k="$done_kib" 'BEGIN{printf "%.1f", k/1048576}')
-            if (( total_bytes > 0 )); then
-                cand=$(( 26 + done_kib * 1024 * 60 / (total_bytes * 2) ))
-            else
-                cand=$(( 26 + tick / 3 ))
-                (( cand > 80 )) && cand=80
-            fi
-            (( cand > 85 )) && cand=85
-            (( cand > lastpct )) && lastpct=$cand
-            splash_set "$lastpct" "$((lastpct + 2))" \
-                "Downloading and installing your Linux system - ${gib} GB done so far..."
-        done
-    ) &
-    PULL_WATCH_PID=$!
-}
-
 # ── Run fisherman ───────────────────────────────────────────────────────────
 phase "fisherman"
 check_fault_injection "fisherman"
 log "Running fisherman — this pulls the image and deploys it..."
-start_pull_progress_watch
 fisherman "$RECIPE"
-[[ -n "$PULL_WATCH_PID" ]] && kill "$PULL_WATCH_PID" 2>/dev/null || true
-PULL_WATCH_PID=""
 
 losetup -d "$LOOP_DEV"
 LOOP_DEV=""
@@ -3583,12 +3487,12 @@ rearm_bootnext
 if [[ "$MOK_QUEUED" == 1 ]]; then
     # The next boot shows firmware's blue "MOK management" screen — scary if
     # unannounced, routine if explained. Hold this screen long enough to read.
-    splash_set 100 100 "One more one-time step: a blue 'MOK management' screen appears next. Choose Enroll MOK, then Continue, then Yes, and type the password: universalblue"
+    splash_set "One more one-time step: a blue 'MOK management' screen appears next. Choose Enroll MOK, then Continue, then Yes, and type the password: universalblue"
     sleep 18 2>/dev/null || true
 elif [[ -n "$WOOTC_OBSERVED" || -n "$WOOTC_REARMED" ]]; then
-    splash_set 100 100 "All set! Starting your new Linux system..."
+    splash_set "All set! Starting your new Linux system..."
 else
-    splash_set 100 100 "All set! Restarting into Windows - open the installer there to start ${DISTRO_NAME}."
+    splash_set "All set! Restarting into Windows - open the installer there to start ${DISTRO_NAME}."
 fi
 sleep 2 2>/dev/null || true
 splash_stop

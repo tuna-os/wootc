@@ -90,7 +90,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 RUN for bin in conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
         mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
         ntfs-3g efibootmgr mokutil \
-        df sync truncate journalctl jq tee which basename date head; do \
+        df sync truncate journalctl jq tee which basename date head mv; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \

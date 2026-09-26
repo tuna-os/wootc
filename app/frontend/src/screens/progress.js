@@ -96,7 +96,7 @@ function renderProgressInner() {
   // From "Making Linux bootable on your machine" onward, "nothing changed"
   // stops being true: a one-time startup entry exists. The audit caught the
   // old copy lying at exactly the moment of maximum fear — a failure at 85%
-  // read "nothing outside the wootc folder was changed" while the machine
+  // read "nothing outside the installation folder was changed" while the machine
   // was armed. Say what is actually true at each point. (On failure or
   // cancel past that step, the backend removes the entry again.)
   const bcdStep = 'Making Linux bootable on your machine';
@@ -113,8 +113,8 @@ function renderProgressInner() {
     const errCalm = el('div');
     errCalm.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:6px';
     errCalm.textContent = pastArm
-      ? 'Your files and Windows are unharmed — everything lives in the wootc folder, and the one-time startup entry has been removed again. You can safely close this and try again.'
-      : 'Your files and Windows are unharmed — nothing outside the wootc folder was changed. You can safely close this and try again.';
+      ? 'Your files and Windows are unharmed — everything lives in the installation folder, and the one-time startup entry has been removed again. You can safely close this and try again.'
+      : 'Your files and Windows are unharmed — nothing outside the installation folder was changed. You can safely close this and try again.';
     pw.appendChild(errCalm);
   }
 

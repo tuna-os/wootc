@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -31,7 +32,23 @@ func effectiveBranding() Branding {
 	if css, err := os.ReadFile(filepath.Join(wootcDir(), "brand.css")); err == nil && len(css) > 0 {
 		b.ThemeCSS += "\n" + string(css)
 	}
+	if b.Publisher == "" {
+		b.Publisher = b.Name
+	}
+	if b.FileDescription == "" {
+		b.FileDescription = b.ProductName
+	}
+	b.WebsiteURL = safeBrandURL(b.WebsiteURL)
+	b.SupportURL = safeBrandURL(b.SupportURL)
 	return b
+}
+
+func safeBrandURL(value string) string {
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
+		return ""
+	}
+	return value
 }
 
 // mergeBranding overlays non-empty fields and only tightens boolean policy.
@@ -53,6 +70,11 @@ func mergeBranding(base *Branding, over Branding) {
 	set(&base.InstallVerb, over.InstallVerb)
 	set(&base.ProductName, over.ProductName)
 	set(&base.ExeName, over.ExeName)
+	set(&base.Publisher, over.Publisher)
+	set(&base.Copyright, over.Copyright)
+	set(&base.FileDescription, over.FileDescription)
+	set(&base.WebsiteURL, over.WebsiteURL)
+	set(&base.SupportURL, over.SupportURL)
 	set(&base.DefaultImage, over.DefaultImage)
 	if len(over.Catalog) > 0 {
 		base.Catalog = over.Catalog

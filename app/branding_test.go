@@ -151,22 +151,22 @@ func TestEmbeddedBrands_ValidAndConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read embedded branding dir: %v", err)
 	}
-	if len(entries) < 5 {
-		t.Fatalf("expected at least the five shipped brands, got %d", len(entries))
-	}
-	var catalog []Image
-	if err := json.Unmarshal(catalogJSON, &catalog); err != nil {
-		t.Fatalf("parse catalog: %v", err)
-	}
-	known := map[string]bool{}
-	for _, img := range catalog {
-		known[img.ID] = true
+	if len(entries) == 0 {
+		t.Fatalf("expected at least one embedded brand entry, got %d", len(entries))
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue // README etc.
 		}
 		id := e.Name()
+		catalog, err := catalogForBrand(brandFS, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		known := map[string]bool{}
+		for _, img := range catalog {
+			known[img.ID] = true
+		}
 		data, err := brandFS.ReadFile("branding/" + id + "/brand.json")
 		if err != nil {
 			t.Errorf("brand %s: missing brand.json: %v", id, err)

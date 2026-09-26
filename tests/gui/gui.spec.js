@@ -454,7 +454,7 @@ test('a failed last run is acknowledged on relaunch', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
     lastRun: { state: 'failed', phase: 'Making room for Linux', error: 'disk full' } });
   await expect(page.locator('body')).toContainText("didn't finish");
-  await expect(page.locator('body')).toContainText('Nothing outside the wootc folder was changed');
+  await expect(page.locator('body')).toContainText('Nothing outside the installation folder was changed');
 });
 
 // Once the deployer has completed, the control panel closes the post-deploy

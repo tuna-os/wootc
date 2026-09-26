@@ -18,5 +18,7 @@
   ],
   "defaultImage": "yellowfin-gnome",
   "hideCustomImage": true,
-  "preloadImage": true
+  "preloadImage": true,
+  "publisher": "TunaOS",
+  "fileDescription": "TunaOS Installer"
 }

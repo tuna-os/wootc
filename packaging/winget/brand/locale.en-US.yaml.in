@@ -1,23 +1,16 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: {{IDENTIFIER}}
-PackageVersion: "{{VERSION}}"
+PackageVersion: {{VERSION}}
 PackageLocale: en-US
 Publisher: {{PUBLISHER}}
 PublisherUrl: {{PUBLISHER_URL}}
-PublisherSupportUrl: https://github.com/tuna-os/wootc/issues
+PublisherSupportUrl: {{SUPPORT_URL}}
 PackageName: {{PACKAGE_NAME}}
-PackageUrl: https://github.com/tuna-os/wootc
+PackageUrl: {{PACKAGE_URL}}
 License: GPL-2.0 OR MIT
 LicenseUrl: https://github.com/tuna-os/wootc/blob/main/LICENSE-GPL-2.0
 ShortDescription: {{TAGLINE}}
-Description: |-
-  {{PACKAGE_NAME}} installs {{BRAND_NAME}} from inside Windows. Everything
-  lives in one folder on your Windows drive — no partitions are touched,
-  Windows stays the default boot, your files are bridged into Linux, and one
-  uninstall puts everything back.
-
-  Built by the wootc project (https://github.com/tuna-os/wootc).
-  {{PERMISSION}}
+Description: {{DESCRIPTION}}
 Moniker: {{MONIKER}}
 Tags:
   - linux
@@ -25,6 +18,6 @@ Tags:
   - migration
   - bootc
   - installer
-ReleaseNotesUrl: "https://github.com/tuna-os/wootc/releases/tag/{{TAG}}"
+ReleaseNotesUrl: {{RELEASE_NOTES_URL}}
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

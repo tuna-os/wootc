@@ -11,8 +11,14 @@
   "card": "#161d2b",
   "text": "#e2e8f0",
   "installVerb": "Install",
-  "catalog": ["bluefin", "dakota", "bluefin-lts"],
+  "catalog": [
+    "bluefin",
+    "dakota",
+    "bluefin-lts"
+  ],
   "defaultImage": "bluefin-lts",
   "hideCustomImage": true,
-  "preloadImage": true
+  "preloadImage": true,
+  "publisher": "Universal Blue",
+  "fileDescription": "Bluefin Installer"
 }

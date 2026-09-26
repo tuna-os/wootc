@@ -2,8 +2,8 @@
 # Fresh-machine trust surface (#241, v1.0 criterion 4).
 #
 # What a stranger's Windows says about our files before anything runs. Two of
-# the four criteria cannot pass yet — nothing is signed (#229/#230), and no
-# build carries a VERSIONINFO resource — so what CI can hold is:
+# the four criteria still need field proof. Signing remains open (#229/#230);
+# linked VERSIONINFO is checked by test_windows_resources.py. CI also holds:
 #
 #   * the verifier exists, grades all four, and treats ABSENCE as failure
 #     (an unsigned binary and an identity-less exe both look like "nothing
@@ -40,8 +40,7 @@ MANIFEST=app/build/windows/wootc.manifest
 }
 
 @test "a missing exe identity fails instead of passing by absence" {
-    # No build carries VERSIONINFO today, so this is the box that decides
-    # whether the checklist tells the truth about criterion 4's fourth item.
+    # A direct go build can still omit VERSIONINFO; missing identity must fail.
     run bash -c "sed -n '/function Test-BrandIdentity/,/^}/p' $FIELD"
     [ "$status" -eq 0 ]
     [[ "$output" == *"no VERSIONINFO resource"* ]]
@@ -94,14 +93,15 @@ MANIFEST=app/build/windows/wootc.manifest
     grep -qa 'assemblyIdentity' "$SYSO"
 }
 
-@test "the release doc records both blockers with their issues" {
+@test "the release doc records signing blockers and per-brand resources" {
     grep -q 'Fresh-machine verification' docs/RELEASING.md
     grep -q 'verify-fresh-machine.ps1' docs/RELEASING.md
     # Signing: the decision and the plumbing are separate, open, and named.
     grep -q 'issues/229' docs/RELEASING.md
     grep -q 'issues/230' docs/RELEASING.md
     # The identity gap, with why it has to be per brand.
-    grep -q 'VERSIONINFO resource at all' docs/RELEASING.md
+    grep -q 'packaging/build-windows.py' docs/RELEASING.md
+    grep -q 'test_windows_resources.py' docs/RELEASING.md
     grep -q 'per brand' docs/RELEASING.md
 }
 
