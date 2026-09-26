@@ -1501,6 +1501,15 @@ fi
     fail "wootc-files/SHA256SUMS is empty — no boot artifacts to checksum"
     exit 1
 }
+# GUI fixtures use the same signature verifier as releases, with a key whose
+# public half was embedded when this test executable was built. Never stage
+# the private seed into the guest or the artifact directory.
+if $GUI_INSTALL; then
+    WOOTC_E2E_MANIFEST_KEY=$(bash "$REPO_ROOT/packaging/e2e-manifest-key.sh") || exit 1
+    (cd "$REPO_ROOT/app" && go run ./tools/signmanifest sign \
+        "$WOOTC_E2E_MANIFEST_KEY" "$SCRIPT_DIR/wootc-files/SHA256SUMS" \
+        "$SCRIPT_DIR/wootc-files/SHA256SUMS.sig") || exit 1
+fi
 info "Boot-artifact manifest staged: $(wc -l < "$SCRIPT_DIR/wootc-files/SHA256SUMS") entries"
 
 # wubildr is no longer required for Secure Boot (we use the signed shim chain).
@@ -2887,7 +2896,7 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
 
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
-foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1

@@ -49,23 +49,15 @@ func TestDeployerBaseURLFallsBackForAnUnstampedBuild(t *testing.T) {
 	}
 }
 
-func TestDeployerMirrorStillWinsOverThePin(t *testing.T) {
-	// The E2E harness and the offline bundle build their own artifacts and
-	// serve them locally; the pin must not take that away.
-	oldTag, oldMirror := releaseTag, os.Getenv("WOOTC_DEPLOYER_MIRROR")
-	t.Cleanup(func() {
-		releaseTag = oldTag
-		_ = os.Setenv("WOOTC_DEPLOYER_MIRROR", oldMirror)
-	})
-
+func TestRuntimeMirrorCannotRedirectBootArtifacts(t *testing.T) {
+	oldTag := releaseTag
+	t.Cleanup(func() { releaseTag = oldTag })
 	releaseTag = "v9.9.9"
-	for in, want := range map[string]string{
-		"http://192.0.2.10:8000/pool":  "http://192.0.2.10:8000/pool/",
-		"http://192.0.2.10:8000/pool/": "http://192.0.2.10:8000/pool/",
-	} {
-		_ = os.Setenv("WOOTC_DEPLOYER_MIRROR", in)
-		if got := deployerBaseURL(); got != want {
-			t.Errorf("mirror %q = %q, want %q", in, got, want)
+	for _, mirror := range []string{"http://192.0.2.10/pool", "https://attacker.invalid/pool"} {
+		t.Setenv("WOOTC_DEPLOYER_MIRROR", mirror)
+		t.Setenv("WOOTC_MANIFEST_PUBKEY", "attacker-key")
+		if got := deployerBaseURL(); got != "https://github.com/tuna-os/wootc/releases/download/v9.9.9/" {
+			t.Fatalf("runtime environment redirected artifacts to %q", got)
 		}
 	}
 }
