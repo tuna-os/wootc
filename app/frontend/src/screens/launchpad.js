@@ -435,6 +435,10 @@ function refreshPlanNote() {
   const note = document.getElementById('plan-note');
   if (!note) return;
   const c = state.config;
+  if (state.freshVmCapability?.available) {
+    note.textContent = `Linux starts in a window with the account “${c.username || 'your username'}”. Your Windows files stay where they are. The disk, encryption, appearance and computer-name options under Advanced apply only to installation with a reboot.`;
+    return;
+  }
   const disk = state.sysinfo?.bitLockerOn
     ? `${c.diskSizeGB} GB set aside for Linux`
     : `${c.diskSizeGB} GB for Linux (space is only used as you fill it)`;
