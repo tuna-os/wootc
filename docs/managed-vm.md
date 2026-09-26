@@ -4,10 +4,20 @@ The VM uses one Linux system in `<drive>:\wootc\disks\root.disk`.
 A restart reuses that image and `vm\firmware-vars.fd`.
 It does not redeploy Linux. Native promotion needs more proof (ADR 0004).
 
-Standard releases still need a package and acquisition path for the runtime.
+Standard releases still need to publish the signed runtime package.
+The GUI offers explicit setup through `InstallVMRuntime`.
 An executable alone is insufficient. The engine checks the complete runtime
 against a signature before execution. An absent bundle makes the capability
 unavailable. It does not cause a silent fallback to native install.
+
+Setup fetches the signed release manifest before it downloads
+`wootc-vm-runtime.zip`. An absent entry gives a clear unavailable error.
+The download has a 256 MiB limit. Extraction verifies the archive hash and
+each signed file, then publishes the complete directory in one rename.
+
+Setup owns the image lock. It needs a protected parent and 2 GiB free.
+Cancellation removes temporary files. A retry removes only reserved temporary
+paths; it preserves an existing runtime and every Linux disk.
 
 ## Runtime contract
 
@@ -49,7 +59,7 @@ A process does not prove acceleration, guest boot, or a usable desktop.
 |---|---|
 | Target and scratch | Separate 40 GiB raw files; serials `wootc-root` and `wootc-scratch` |
 | Helper memory | 3 GiB guest allocation; at least 6 GiB host RAM; lower-memory profiles need separate proof |
-| Host capacity | At least 80 GiB free before file creation |
+| Host capacity | At least 88 GiB free before file creation: target, scratch, and 8 GiB for Windows |
 | Image | Immutable OCI digest; fresh installation and run IDs |
 | Existing file | Never truncate or replace; preserve failed preparation for diagnosis |
 | Helper completion | Exit zero, one structured receipt, then `STATUS=SUCCESS` |
@@ -57,9 +67,9 @@ A process does not prove acceleration, guest boot, or a usable desktop.
 | Receipt validation | `filesystemVerified=true`, `efiVerified=true`, `accountOutcome=created` and exact username |
 | Result transport | Private file-backed virtio channel owned by this QEMU launch; no public socket |
 
-The 80 GiB gate is a conservative trial limit, not a measured physical minimum.
-The files are sparse. Product defaults still need a measurement of peak physical
-space on Windows, a reserve, and an abort before space runs low.
+The 88 GiB gate is a conservative trial limit, not a measured physical minimum.
+The files are sparse. The helper stops if free space falls below the Windows reserve.
+Product defaults still need a measurement of peak physical space on Windows.
 A lighter image with a 2 GiB helper also needs proof for older PCs.
 These are P0 requirements for the consumer path.
 

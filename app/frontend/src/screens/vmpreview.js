@@ -1,8 +1,10 @@
-import { PrepareVM, StopVM, ForceStopVM, BootInVM, GetUninstallInfo, GetVMState, GetVMCapability } from '../../wailsjs/go/main/App';
+import { PrepareVM, InstallVMRuntime, StopVM, ForceStopVM, BootInVM, GetUninstallInfo, GetVMState, GetVMCapability } from '../../wailsjs/go/main/App';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { distroName } from '../lib/branding.js';
 import { el, btn } from '../lib/ui.js';
+
+const escapeText = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ── Try in VM (§6.1) ──────────────────────────────────────────────────────────
 
@@ -13,14 +15,25 @@ export async function tryInVM() {
   state.vmProgress = { stage: 'pulling', percent: 0, message: 'Preparing the builder…' };
   state.vmReady = false;
   state.vmError = null;
+  state.vmState = null;
   render();
   try {
-    await PrepareVM({ imageRef: state.selected.imageRef, username: state.config.username, password: state.config.password });
+    state.vmStartPromise = PrepareVM({ imageRef: state.selected.imageRef, username: state.config.username, password: state.config.password });
+    await state.vmStartPromise;
     state.config.password = ''; state.config.passwordConfirm = '';
   } catch (e) {
     state.vmError = String(e);
     render();
   }
+}
+
+export async function installVMRuntime() {
+  state.screen = 'vmpreview'; state.vmReady = false; state.vmError = null;
+  state.vmState = null;
+  state.vmProgress = { stage: 'runtime-manifest', percent: 0, message: 'Checking this release…' };
+  render();
+  try { state.vmStartPromise = InstallVMRuntime(); await state.vmStartPromise; }
+  catch (e) { state.vmError = String(e); render(); }
 }
 
 export function renderVMPreviewScreen() {
@@ -33,13 +46,13 @@ export function renderVMPreviewScreen() {
   if (state.vmError) {
     screen.innerHTML = `<div style="font-size:40px">😕</div>
       <h2>Couldn't start the preview</h2>
-      <div style="color:var(--text-muted);max-width:420px">${state.vmError}</div>`;
+      <div style="color:var(--text-muted);max-width:420px">${escapeText(state.vmError)}</div>`;
     const back = btn('Back', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); });
     screen.appendChild(back);
   } else if (state.vmReady) {
     screen.innerHTML = `<div style="font-size:40px">🖥️</div>
       <h2>Linux is starting</h2>
-      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || distroName()} is starting in its own window. Sign in with your Linux username and password when the login screen appears. Your work stays on this disk. To close Linux safely, use Shut down Linux below. Native boot is not available yet.</div>`;
+      <div style="color:var(--text-muted);max-width:440px">${escapeText(state.selected?.name || distroName())} is starting in its own window. Sign in with your Linux username and password when the login screen appears. Your work stays on this disk. To close Linux safely, use Shut down Linux below. Native boot is not available yet.</div>`;
     const row = el('div'); row.style.cssText = 'display:flex;gap:10px;margin-top:8px';
     row.appendChild(btn('Shut down Linux', 'btn btn-primary', async () => {
       try { await StopVM(); state.vmState = { phase: 'stopped' }; state.vmReady = false; render(); }
@@ -63,11 +76,15 @@ export function renderVMPreviewScreen() {
     const pct = Math.round(p.percent || 0);
     screen.innerHTML = `<div style="font-size:40px">🔨</div>
       <h2>Preparing your Linux system…</h2>
-      <div style="color:var(--text-muted);max-width:440px">${p.message || 'Working…'}</div>
+      <div style="color:var(--text-muted);max-width:440px">${escapeText(p.message || 'Working…')}</div>
       <div style="width:60%;max-width:360px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px">
-        <div style="width:Preparation is in progress.;height:100%;background:var(--accent);transition:width .3s"></div>
+        <div style="width:${p.stage === 'runtime-download' ? Math.max(0, Math.min(100, pct)) : 0}%;height:100%;background:var(--accent);transition:width .3s"></div>
       </div>
       <div style="font-size:12px;color:var(--text-muted)">Preparation is in progress.</div>`;
+    if (p.stage !== 'runtime-ready') screen.appendChild(btn('Cancel setup', 'btn btn-ghost', async () => {
+      try { await state.vmStartPromise; await ForceStopVM(); state.screen = 'launchpad'; render(); }
+      catch (e) { state.vmError = String(e); render(); }
+    }));
   }
   wrap.appendChild(screen);
   return wrap;

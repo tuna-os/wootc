@@ -26,6 +26,9 @@ func (a *App) GetVMState() VMState {
 		}
 		if release, err := acquireVMLock(managedVMRootDisk()); err == nil {
 			cleanupErr := removeVMAccountInputs(previewDir())
+			if cleanupErr == nil {
+				cleanupErr = cleanupVMRuntimeStaging(wootcDir())
+			}
 			release()
 			if cleanupErr != nil {
 				return VMState{SchemaVersion: 1, Phase: vmRecovery, Error: cleanupErr.Error()}

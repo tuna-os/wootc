@@ -24,13 +24,14 @@ import (
 
 // VMCapability tells the GUI whether "Boot in VM" can run and why not.
 type VMCapability struct {
-	Available   bool   `json:"available"`
-	Reason      string `json:"reason"`
-	DiskPath    string `json:"diskPath"`
-	Accelerator string `json:"accelerator"`
-	QEMUPath    string `json:"qemuPath"`
-	Bundled     bool   `json:"bundled"`
-	ProbeStatus string `json:"probeStatus"`
+	Available     bool   `json:"available"`
+	Reason        string `json:"reason"`
+	DiskPath      string `json:"diskPath"`
+	Accelerator   string `json:"accelerator"`
+	QEMUPath      string `json:"qemuPath"`
+	Bundled       bool   `json:"bundled"`
+	ProbeStatus   string `json:"probeStatus"`
+	RuntimeNeeded bool   `json:"runtimeNeeded"`
 }
 
 func qemuDir() string  { return filepath.Join(wootcDir(), "qemu") }
@@ -119,17 +120,20 @@ func (a *App) vmRuntimeCapability() VMCapability {
 	if err := prepareTrustedStateTree(wootcDir()); err != nil {
 		return VMCapability{Reason: err.Error()}
 	}
+	if _, err := os.Lstat(qemuDir()); os.IsNotExist(err) {
+		return VMCapability{RuntimeNeeded: true, Reason: "This release needs the Linux window runtime. Set it up to check whether this PC can run it."}
+	}
 	if err := verifyVMRuntime(qemuDir(), artifactPublicKey); err != nil {
 		return VMCapability{Reason: err.Error()}
 	}
 	qemuPath, bundled := findQEMU()
 	cap := VMCapability{QEMUPath: qemuPath, Bundled: bundled}
 	if qemuPath == "" {
-		cap.Reason = "QEMU isn't installed. Reinstall wootc with the VM viewer."
+		cap.Reason = "The Linux window runtime is incomplete. Install a complete signed runtime for this release."
 		return cap
 	}
 	if _, err := os.Stat(edk2Code()); err != nil {
-		cap.Reason = "The VM firmware is missing. Reinstall wootc with the VM viewer."
+		cap.Reason = "The Linux window firmware is missing. Install a complete signed runtime for this release."
 		return cap
 	}
 	if _, err := os.Stat(edk2VarsTemplate()); err != nil {
@@ -305,6 +309,8 @@ func resolveVMImage(ctx context.Context, image string) (string, error) {
 }
 
 func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState, passwordHash string) (resultErr error) {
+	ctx, stopSpaceGuard := guardVMFreeSpace(ctx, vmWindowsReserveBytes, time.Second, func() (uint64, error) { return vmFreeBytes(wootcDir()) })
+	defer stopSpaceGuard()
 	accountPath, err := writeVMAccountInput(previewDir(), vmAccountInput{SchemaVersion: 1, RunID: state.RunID, InstallID: state.InstallID, Username: state.Username, PasswordHash: passwordHash})
 	if err != nil {
 		return err
@@ -346,9 +352,12 @@ func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState
 	}
 	defer job.Close()
 	if err = cmd.Wait(); err != nil {
+		if cause := context.Cause(ctx); cause != nil {
+			return cause
+		}
 		return fmt.Errorf("VM preparation did not complete: %w", err)
 	}
-	if err = ctx.Err(); err != nil {
+	if err = context.Cause(ctx); err != nil {
 		return err
 	}
 	log, err := os.Open(logPath)
