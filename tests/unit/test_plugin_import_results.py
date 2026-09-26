@@ -28,7 +28,8 @@ class PluginResults(unittest.TestCase):
                     marker = base/'invoked'
                     if mode != 'missing':
                         script = bins/helper
-                        script.write_text('#!/bin/sh\npython3 -c 'import json,os; r=json.load(open(os.environ["WOOTC_STATE_DIR"]+"/status.json")); assert r["status"]!="success" and r["migrated"]==[]' || exit 91\n: > "$TEST_MARKER"\nexit '+('7' if mode=='failed' else '0')+'\n')
+                        check = 'import json,os; r=json.load(open(os.environ["WOOTC_STATE_DIR"]+"/status.json")); assert r["status"]!="success" and r["migrated"]==[]'
+                        script.write_text("#!/bin/sh\npython3 -c '" + check + "' || exit 91\n: > \"$TEST_MARKER\"\nexit " + ('7' if mode=='failed' else '0') + "\n")
                         script.chmod(0o755)
                     state = base/'state'; state.mkdir()
                     (state/'status.json').write_text('{"status":"success","migrated":["stale"]}')
