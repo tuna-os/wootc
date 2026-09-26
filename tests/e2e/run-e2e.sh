@@ -822,6 +822,76 @@ qga_read() {
     qga_call_retry read "$1" || return $?
 }
 
+# Cached Windows accounts age in real time. Run 36240171646's timelapse shows
+# "Your password has expired and must be changed" before any GUI launch (#399).
+# Provision only the configured local autologon fixture account; keep its
+# password and autologon configuration intact. Never change machine-wide policy.
+gui_prepare_account() {
+    local result
+    GUI_ACCOUNT_RESTART=false
+    # shellcheck disable=SC2016 # PowerShell variables are literal.
+    if ! result=$(qga_powershell '
+$ErrorActionPreference = "Stop"
+New-Item -ItemType Directory -Force -Path C:\OEM | Out-Null
+$log = "C:\OEM\wootc-e2e.log"
+try {
+    $wl = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+    $name = [string]$wl.DefaultUserName
+    if ($wl.AutoAdminLogon -ne "1" -or $name -notin @("wootc", "Docker")) {
+        throw "autologon fixture account is missing or unexpected"
+    }
+    if ($wl.DefaultDomainName -and $wl.DefaultDomainName -notin @(".", $env:COMPUTERNAME)) {
+        throw "autologon fixture account is not local"
+    }
+    $user = Get-LocalUser -Name $name
+    if (-not $user.Enabled) { throw "autologon fixture account is disabled" }
+    $expired = $null -ne $user.PasswordExpires -and $user.PasswordExpires -le (Get-Date)
+    Add-Content -Path $log -Value "autologon: account=$name passwordExpired=$expired" -Encoding UTF8
+    Set-LocalUser -Name $name -PasswordNeverExpires $true
+    $user = Get-LocalUser -Name $name
+    if ($null -ne $user.PasswordExpires) { throw "fixture password still has an expiry date" }
+    Add-Content -Path $log -Value "autologon: fixture password expiry disabled; credentials unchanged" -Encoding UTF8
+    if ($expired) { Write-Output "autologon-account-ready restart=1" }
+    else { Write-Output "autologon-account-ready restart=0" }
+} catch {
+    Add-Content -Path $log -Value "autologon: provisioning failed: $_" -Encoding UTF8
+    throw
+}' 2>&1); then
+        printf '%s\n' "$result" >&2
+        fail "autologon-provisioning: could not prepare the local GUI fixture account (or write C:\\OEM\\wootc-e2e.log)"
+        return 1
+    fi
+    case "$(printf '%s' "$result" | tr -d '\r')" in
+        'autologon-account-ready restart=1') GUI_ACCOUNT_RESTART=true ;;
+        'autologon-account-ready restart=0') ;;
+        *) fail "autologon-provisioning: guest did not confirm the account policy"; return 1 ;;
+    esac
+}
+
+# Session-0 QGA liveness cannot satisfy schtasks /IT. A failed/empty probe must
+# never be promoted to a desktop, and the deadline must stop launch entirely.
+gui_wait_interactive_session() {
+    local deadline user
+    deadline=$(deadline_in 120)
+    while ! past_deadline "$deadline"; do
+        # shellcheck disable=SC2016 # PowerShell variables are literal.
+        if user=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_powershell '$ErrorActionPreference = "Stop"; $u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output "interactive-user=$u" }' 2>/dev/null); then
+            user=$(printf '%s' "$user" | tr -d '\r')
+            if [[ "$user" == interactive-user=*\\* ]]; then
+                pass "GUI interactive session ready: ${user#interactive-user=}"
+                return 0
+            fi
+        fi
+        sleep 5
+    done
+    # Deliberately not a retryable flake: another copy of the same expired or
+    # misconfigured snapshot cannot fix itself on a second hosted runner.
+    fail "autologon-no-session: no interactive Windows user within 120 s; GUI was not scheduled"
+    # shellcheck disable=SC2016 # PowerShell variables are literal.
+    qga_powershell 'Add-Content -Path C:\OEM\wootc-e2e.log -Value "autologon-no-session: GUI launch blocked" -Encoding UTF8; query user 2>&1' 2>&1 || true
+    return 1
+}
+
 # Which drive holds the guest's \wootc tree. NOT always C:.
 #
 # On the BitLocker axis setup-wootc.ps1 carves an unencrypted volume and sets
@@ -2614,6 +2684,9 @@ if [ -n "$SNAPSHOT_OUT" ]; then
     step "Priming Windows base image → $SNAPSHOT_OUT (clean shutdown, then compress)"
     mkdir -p "$SNAPSHOT_OUT"
 
+    # Future snapshots must remain usable after the local password ages.
+    gui_prepare_account || { capture_vm_diagnostics; exit 1; }
+
     # Clean guest shutdown so C:/NTFS is left with its dirty bit CLEAR.
     qga_powershell 'Stop-Computer -Force' >/dev/null 2>&1 \
         || qga_call exec /bin/sh -c 'shutdown /s /t 0' >/dev/null 2>&1 || true
@@ -2798,24 +2871,18 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
 
     gui_settle_pending_servicing
 
-    # gui_settle_pending_servicing's own logon-wait only runs after a restart.
-    # This path can reach the GUI launch straight off the initial boot, with
-    # no guarantee the autologon session has actually finished forming yet —
-    # `schtasks /Create ... /IT` needs a real interactive session or it either
-    # fails outright ("the system cannot find the file specified") or reports
-    # rc=0 while the task never actually runs (Last Result 0x41303, "task has
-    # not yet run"), which is indistinguishable from a hung wootc.exe without
-    # digging into the post-mortem. Wait for the same positive signal
-    # (Win32_ComputerSystem.UserName) before scheduling the GUI task at all.
-    local presence_deadline
-    presence_deadline=$(deadline_in 120)
-    while ! past_deadline "$presence_deadline"; do
-        # shellcheck disable=SC2016 # PowerShell variable, not a shell one.
-        if [ -n "$(qga_powershell '$u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output $u }' 2>/dev/null | tr -d '[:space:]')" ]; then
-            break
-        fi
-        sleep 5
-    done
+    gui_prepare_account || { capture_vm_diagnostics; exit 1; }
+    if [ "$GUI_ACCOUNT_RESTART" = true ]; then
+        info "  expired fixture password repaired — restarting Windows to retry autologon"
+        # Schedule one reboot through the non-retrying QGA path; never replay
+        # a side effect across the guest-agent transition (lesson 20).
+        qga_powershell 'shutdown.exe /r /t 5 /f; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }' \
+            || { fail "autologon-restart: could not schedule Windows restart"; capture_vm_diagnostics; exit 1; }
+        qga_wait_reboot "Windows after fixture password expiry repair" \
+            || { capture_vm_diagnostics; exit 1; }
+        qga_wait_windows 120 || { capture_vm_diagnostics; exit 1; }
+    fi
+    gui_wait_interactive_session || { capture_vm_diagnostics; exit 1; }
 
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
@@ -2834,7 +2901,7 @@ $start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
 # with "No mapping between account names and security IDs was done" (see
 # el10-gnome-win11ent). Let the GUEST answer rather than hardcoding it.
 $who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
-if (-not $who) { $who = "wootc" }
+if (-not $who) { throw "autologon-no-session: interactive user disappeared before GUI scheduling" }
 Write-Output ("launching as: " + $who)
 $mk = schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR "C:\wootc\launch-gui.cmd" /RU $who /IT /RL HIGHEST /F 2>&1
 Write-Output ("schtasks /Create rc=" + $LASTEXITCODE + " :: " + ($mk -join " "))

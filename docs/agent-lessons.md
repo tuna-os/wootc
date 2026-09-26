@@ -794,3 +794,22 @@ log to find out the red was not real.
 
 Guarded by `tests/unit/qga-channel-lost.bats` and a synthetic channel kill
 against a real socket in `tests/unit/test_qga_reconnect.py`.
+
+## 34. A cached Windows password ages even when its VM is powered off
+
+The GUI nightly's run `36240171646` (2026-09-26, #399) had a healthy QGA,
+`schtasks /Run` exit 0, and no interactive user. Its final screenshot was
+black. The timelapse's earlier frames showed the actual Windows prompt:
+**"Your password has expired and must be changed."** The restored fixture
+had aged past its local account's password lifetime.
+
+- Inspect the recording when the final screenshot hides the original screen.
+- Provision the configured local autologon test account with a non-expiring
+  password when priming and consuming snapshots. Keep its credentials intact;
+  changing machine-wide password policy is unnecessary.
+- After repairing an already-expired fixture, restart once so Windows retries
+  autologon. The observable is still an interactive user, not the policy write.
+- An interactive-session deadline must block GUI launch. The old loop timed
+  out, substituted a username, and scheduled a task that could never run.
+  `autologon-no-session` is an environment failure, not a product verdict or an
+  automatically retryable flake. A second identical snapshot has the same bug.
