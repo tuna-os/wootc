@@ -1,0 +1,19 @@
+{
+  "sourceScript": "payload/builder/build-builder.sh",
+  "alpineVersion": "3.21",
+  "result": "build-succeeded",
+  "artifacts": [
+    {
+      "name": "builder-vmlinuz",
+      "bytes": 11731968,
+      "sha256": "1f4cee6c1a6fc184650cff5b0f8d996b1079d4b47ebdfe6daa1d267a4f86359b"
+    },
+    {
+      "name": "builder-initramfs.img",
+      "bytes": 90463252,
+      "sha256": "f7b44ea5e8a360aa01006590bd2b4857e967256697d9baf6fca17bc8dac697e4"
+    }
+  ],
+  "buildElapsedSeconds": 171.01,
+  "timingCaveat": "Shared development host, not consumer deployment timing; package network and build caches uncontrolled."
+}

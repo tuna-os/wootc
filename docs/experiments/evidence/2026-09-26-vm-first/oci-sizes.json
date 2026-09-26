@@ -1,0 +1,16 @@
+[
+  {
+    "image": "ghcr.io/projectbluefin/bluefin:lts",
+    "manifestDigest": "sha256:d3dd014e5ae0a46c0ca50e498ec20f18e6331e855e8d7fc3a70f52b4758e158b",
+    "compressedLayerBytes": 2870798983,
+    "layerCount": 128,
+    "manifestFetchSeconds": 0.2
+  },
+  {
+    "image": "ghcr.io/tuna-os/yellowfin:gnome",
+    "manifestDigest": "sha256:ed95623a4943a75b5ea61edb914de5a9b6033c4fb2ddb9de60fa14d88861520d",
+    "compressedLayerBytes": 1793371955,
+    "layerCount": 65,
+    "manifestFetchSeconds": 0.15
+  }
+]
