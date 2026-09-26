@@ -1,0 +1,120 @@
+Schema files:
+-rw-r--r--. 2 root root   158 Jan  1  1970 /work/inspect/ostree/deploy/default/deploy/d863eab7c885f2448c952314aad3287285e28d2ef985b702b9f80d17a3a02246.0/usr/share/glib-2.0/schemas/00_org.gnome.shell.gschema.override
+-rw-r--r--. 2 root root 97724 Jan  1  1970 /work/inspect/ostree/deploy/default/deploy/d863eab7c885f2448c952314aad3287285e28d2ef985b702b9f80d17a3a02246.0/usr/share/glib-2.0/schemas/gschemas.compiled
+Target schema lookup:
+GNOME package:
+gnome-shell-50.0-3.el10.x86_64
+Package schema files:
+/usr/lib64/gnome-shell/Gvc-1.0.typelib
+/usr/lib64/gnome-shell/Shell-18.typelib
+/usr/lib64/gnome-shell/St-18.typelib
+/usr/lib64/gnome-shell/girepository-1.0/Shew-0.typelib
+/usr/share/glib-2.0/schemas/00_org.gnome.shell.gschema.override
+GNOME Shell requirements:
+/usr/bin/python3
+accountsservice-libs(x86-64)
+at-spi2-atk(x86-64)
+gcr(x86-64)
+gdm-libs(x86-64)
+geoclue2-libs(x86-64)
+gettext
+gjs(x86-64) >= 1.85.90
+glib2(x86-64) >= 2.86.0
+gnome-control-center
+gnome-desktop4(x86-64) >= 44.0-7
+gnome-settings-daemon(x86-64) >= 3.37.1
+gnome-shell-common = 50.0-3.el10
+gsettings-desktop-schemas(x86-64) >= 50~alpha
+gstreamer1(x86-64) >= 1.4.5
+gstreamer1-plugins-good(x86-64)
+gtk4(x86-64) >= 4.0.0
+ibus-libs(x86-64) >= 1.5.2
+libGLESv2.so.2()(64bit)
+libX11.so.6()(64bit)
+libXext.so.6()(64bit)
+libXfixes.so.3()(64bit)
+libadwaita(x86-64) >= 1.5.0
+libatk-1.0.so.0()(64bit)
+libatk-bridge-2.0.so.0()(64bit)
+libc.so.6()(64bit)
+libc.so.6(GLIBC_2.14)(64bit)
+libc.so.6(GLIBC_2.2.5)(64bit)
+libc.so.6(GLIBC_2.28)(64bit)
+libc.so.6(GLIBC_2.3)(64bit)
+libc.so.6(GLIBC_2.3.4)(64bit)
+libc.so.6(GLIBC_2.33)(64bit)
+libc.so.6(GLIBC_2.34)(64bit)
+libc.so.6(GLIBC_2.38)(64bit)
+libc.so.6(GLIBC_2.4)(64bit)
+libc.so.6(GLIBC_2.8)(64bit)
+libc.so.6(GLIBC_ABI_DT_RELR)(64bit)
+libcairo.so.2()(64bit)
+libecal-2.0.so.3()(64bit)
+libedataserver-1.2.so.27()(64bit)
+libgcc_s.so.1()(64bit)
+libgcc_s.so.1(GCC_3.0)(64bit)
+libgcc_s.so.1(GCC_3.3.1)(64bit)
+libgcr-4.so.4()(64bit)
+libgdk_pixbuf-2.0.so.0()(64bit)
+libgio-2.0.so.0()(64bit)
+libgirepository-2.0.so.0()(64bit)
+libgjs.so.0()(64bit)
+libglib-2.0.so.0()(64bit)
+libgnome-autoar-0.so.0()(64bit)
+libgnome-desktop-4.so.2()(64bit)
+libgnome-shell-menu.so()(64bit)
+libgobject-2.0.so.0()(64bit)
+libgraphene-1.0.so.0()(64bit)
+libgtk-4.so.1()(64bit)
+libgweather4(x86-64)
+libical-glib.so.3()(64bit)
+libjson-glib-1.0.so.0()(64bit)
+libjson-glib-1.0.so.0(libjson-glib-1.0.so.0)(64bit)
+libm.so.6()(64bit)
+libm.so.6(GLIBC_2.2.5)(64bit)
+libm.so.6(GLIBC_2.29)(64bit)
+libm.so.6(GLIBC_2.38)(64bit)
+libmutter-18.so.0()(64bit)
+libmutter-clutter-18.so.0()(64bit)
+libmutter-cogl-18.so.0()(64bit)
+libmutter-mtk-18.so.0()(64bit)
+libnm.so.0()(64bit)
+libnm.so.0(libnm_1_0_0)(64bit)
+libnm.so.0(libnm_1_4_0)(64bit)
+libnma-gtk4(x86-64)
+libpango-1.0.so.0()(64bit)
+libpipewire-0.3.so.0()(64bit)
+libpolkit-agent-1.so.0()(64bit)
+libpolkit-gobject-1.so.0()(64bit)
+libpulse-mainloop-glib.so.0()(64bit)
+libpulse-mainloop-glib.so.0(PULSE_0)(64bit)
+libpulse.so.0()(64bit)
+libpulse.so.0(PULSE_0)(64bit)
+librsvg2(x86-64)
+libsecret-1.so.0()(64bit)
+libshell-18.so()(64bit)
+libsoup-3.0.so.0()(64bit)
+libst-18.so()(64bit)
+libsystemd.so.0()(64bit)
+libsystemd.so.0(LIBSYSTEMD_209)(64bit)
+mutter(x86-64) = 50.0-4.el10
+pipewire-gstreamer(x86-64)
+polkit(x86-64) >= 0.100
+python3(x86-64)
+rpmlib(CompressedFileNames) <= 3.0.4-1
+rpmlib(FileDigests) <= 4.6.0-1
+rpmlib(PayloadFilesHavePrefix) <= 4.0-1
+rpmlib(PayloadIsZstd) <= 5.4.18-1
+rpmlib(TildeInVersions) <= 4.10.0-1
+rtld(GNU_HASH)
+switcheroo-control
+tecla >= 47.0
+upower(x86-64)
+xdg-desktop-portal-gnome
+xdg-desktop-portal-gtk >= 1.8.0
+xdg-user-dirs-gtk
+Installed GNOME shell/schema packages:
+gsettings-desktop-schemas-50.0-2.el10.x86_64
+gnome-shell-50.0-3.el10.x86_64
+Schema cache size:
+97724	/work/inspect/ostree/deploy/default/deploy/d863eab7c885f2448c952314aad3287285e28d2ef985b702b9f80d17a3a02246.0/usr/share/glib-2.0/schemas/gschemas.compiled

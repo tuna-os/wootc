@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "protocol": "wootc-helper",
+  "protocolVersion": 1,
+  "resultSchemaVersion": 1,
+  "terminalMarker": "STATUS=SUCCESS",
+  "targetSerial": "wootc-root",
+  "scratchSerial": "wootc-scratch",
+  "minimumDiskBytes": 34359738368,
+  "accountModes": [
+    "image-default",
+    "create"
+  ],
+  "accountOutcomes": [
+    "image-default",
+    "created"
+  ],
+  "accountInput": {
+    "transport": "fw_cfg",
+    "name": "opt/wootc/install",
+    "schemaVersion": 1
+  }
+}
