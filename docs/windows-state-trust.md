@@ -42,8 +42,10 @@ helper is delivered with both the OEM-local and SMB payloads; a failed GUI
 staging gate stops the run before launch.
 
 An empty protected state directory reserved at startup is not a partial
-installation. Discovery still recognizes directories with actual content,
-root disks, boot artifacts and dedicated data volumes.
+installation. Provisioned executables, branding and offline boot artifacts also
+do not imply that Install was clicked. Discovery uses generated lifecycle,
+power-restoration, root-disk, boot-configuration and recovery records; it still
+recognizes boot artifacts on the ESP and dedicated data volumes.
 
 ## Windows validation
 

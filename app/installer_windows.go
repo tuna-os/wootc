@@ -206,13 +206,11 @@ func getUninstallInfo() UninstallInfo {
 		}
 	}
 
-	// 2. No root.disk found on any volume, but check for partial-install or
-	// leftover wootc directory across drives (staged, armed, failed, or partial).
+	// 2. No root.disk found, but installation outputs can survive an
+	// interrupted attempt. A pre-staged offline bundle is not an attempt.
 	for _, d := range drives {
 		wootcPath := d + `:\wootc`
-		if entries, err := os.ReadDir(wootcPath); err == nil && len(entries) > 0 {
-			// Startup reserves an empty protected directory before reading
-			// state. The reservation alone is not a partial installation.
+		if hasInstallAttempt(wootcPath) {
 			info := UninstallInfo{
 				Found:        true,
 				StorageDrive: d,
