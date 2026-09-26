@@ -13,6 +13,7 @@ type VMCapability struct {
 	Accelerator string `json:"accelerator"`
 	QEMUPath    string `json:"qemuPath"`
 	Bundled     bool   `json:"bundled"`
+	ProbeStatus string `json:"probeStatus"`
 }
 
 func (a *App) GetVMCapability() VMCapability {

@@ -39,7 +39,7 @@ export function renderVMPreviewScreen() {
   } else if (state.vmReady) {
     screen.innerHTML = `<div style="font-size:40px">🖥️</div>
       <h2>Linux is starting</h2>
-      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || distroName()} is starting in its own window. Sign in with your Linux username and password when the login screen appears. Your work stays on this disk. Native boot is not available yet.</div>`;
+      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || distroName()} is starting in its own window. Sign in with your Linux username and password when the login screen appears. Your work stays on this disk. To close Linux safely, use Shut down Linux below. Native boot is not available yet.</div>`;
     const row = el('div'); row.style.cssText = 'display:flex;gap:10px;margin-top:8px';
     row.appendChild(btn('Shut down Linux', 'btn btn-primary', async () => {
       try { await StopVM(); state.vmState = { phase: 'stopped' }; state.vmReady = false; render(); }

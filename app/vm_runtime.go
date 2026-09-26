@@ -30,7 +30,8 @@ func verifyVMRuntime(root, publicKey string) error {
 		return err
 	}
 	seen := map[string]bool{}
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	verified := map[string]bool{}
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -39,6 +40,9 @@ func verifyVMRuntime(root, publicKey string) error {
 		}
 		if entry.IsDir() {
 			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return fmt.Errorf("runtime contains a nonregular file: %s", path)
 		}
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
@@ -70,6 +74,16 @@ func verifyVMRuntime(root, publicKey string) error {
 		if hex.EncodeToString(hash.Sum(nil)) != checksum {
 			return fmt.Errorf("runtime checksum mismatch: %s", name)
 		}
+		verified[name] = true
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	for name := range expected {
+		if !verified[name] {
+			return fmt.Errorf("signed runtime file is missing: %s", name)
+		}
+	}
+	return nil
 }

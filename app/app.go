@@ -229,6 +229,10 @@ type App struct {
 	vmSession     *vmSession
 	vmCancel      context.CancelFunc
 	vmPrepareDone chan struct{}
+	vmProbeMu     sync.Mutex
+	vmProbeKey    string
+	vmProbeResult vmExecutionProbeResult
+	vmProbeAt     time.Time
 }
 
 func NewApp() *App {

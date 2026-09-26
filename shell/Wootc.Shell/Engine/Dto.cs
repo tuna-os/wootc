@@ -797,6 +797,9 @@ public class VMCapability
 
     [JsonPropertyName("bundled")]
     public bool Bundled { get; set; }
+
+    [JsonPropertyName("probeStatus")]
+    public string ProbeStatus { get; set; } = string.Empty;
 }
 
 /// <summary>

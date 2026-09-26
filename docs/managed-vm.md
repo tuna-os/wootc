@@ -31,6 +31,15 @@ Its environment has an explicit allowlist. It does not inherit user PATH,
 GTK/GIO/QEMU module paths, or user configuration locations.
 
 WHPX must be enabled. The launcher selects `-cpu max`.
+Before it enables preparation, the engine boots a small probe with WHPX.
+The probe must emit a marker from actual guest code through a fresh serial file.
+It uses a read-only disk with no operating system or user files.
+
+The check has a 30-second deadline. A timeout is inconclusive on a slow or busy PC;
+it does not prove incompatibility.
+The cache expires after one minute and keys on the signed manifest.
+The measured mode is `whpx,kernel-irqchip=off`; there is no TCG fallback.
+
 Each image still needs proof of CPU compatibility, especially with x86-64-v3.
 A process does not prove acceleration, guest boot, or a usable desktop.
 
@@ -76,6 +85,11 @@ unless the user chooses to delete them.
 
 ## Stop, restart and recovery
 
+The viewer disables an abrupt quit through GTK.
+Use the visible **Shut down Linux** control in the main app, or shut down inside Linux.
+The main app can also close itself: it first requests a guest shutdown.
+These controls prevent a silent power cut when a user closes the window.
+
 QMP uses private inherited pipes. A job object in Windows owns the QEMU process.
 The host creates QEMU suspended, assigns the job, then resumes it.
 A crash before assignment can leave an inert process, but no unowned writer.
@@ -101,3 +115,18 @@ a desktop probe, and promotion of the same system to native boot.
 
 The shutdown evidence follows the [QEMU QMP reference](https://www.qemu.org/docs/master/interop/qemu-qmp-ref.html#event-SHUTDOWN).
 A guest request to power off does not prove that each application saved its documents.
+
+## Probe source
+
+The embedded boot sector is 512 bytes. Its source is in
+`app/vmprobe/serial-boot.S`. Reproduce it with GNU binutils:
+
+```sh
+as --32 app/vmprobe/serial-boot.S -o /tmp/probe.o
+ld -m elf_i386 -Ttext 0x7c00 --oformat binary -e _start /tmp/probe.o -o /tmp/probe.img
+sha256sum /tmp/probe.img app/vmprobe/serial-boot.img
+```
+
+Both hashes must be
+`f591bb62b9fce510dc7a4a096940ffbfc596d925739416559017cfb2a92e7195`.
+This probe proves execution of guest instructions, not Linux or desktop compatibility.
