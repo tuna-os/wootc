@@ -1,0 +1,19 @@
+{
+  "source": "Yellowfin ed956 baseline, pre-account, no desktop boot; missing-common image, not release-ready",
+  "sourceVirtualBytes": 42949672960,
+  "sourceAllocatedBytes": 4362088448,
+  "compression": "zstd -3 -T1, nice19, ionice class3",
+  "zstdVersion": "*** Zstandard CLI (64-bit) v1.5.5, by Yann Collet ***",
+  "compressionSeconds": 50.00959215199691,
+  "compressedBytes": 1939724807,
+  "scope": "Linux Kubernetes pod, two-CPU limit, not Windows; concurrent external workload; one sample",
+  "restoreCommand": "zstd -d --sparse, nice19, ionice class3",
+  "restoreSeconds": 45.789542222977616,
+  "restoreIncludesFileAndDirectoryFsync": true,
+  "infrastructureReserveBytes": 27917287424,
+  "restoredVirtualBytes": 42949672960,
+  "restoredAllocatedBytes": 6459318272,
+  "restoredGPTUUID": "33a8dccb-68ea-4d1f-a734-adf00762cf42",
+  "byteCompareExit": 0,
+  "originalOCICompressedBytes": 1793371955
+}

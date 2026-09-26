@@ -1,0 +1,11 @@
+{
+  "reason": "Evicted",
+  "message": "The node was low on resource: ephemeral-storage. Threshold quantity: 23502050623, available: 22043596Ki. Container qemu was using 768908Ki, request is 0, has larger consumption of ephemeral-storage. ",
+  "containerTermination": {
+    "containerID": "containerd://7616692fa47cb25ff8fc5aee6483a1ba69a817ad1c13ed33d49fe4f746494e99",
+    "exitCode": 137,
+    "finishedAt": "2026-09-26T19:28:32Z",
+    "reason": "Error",
+    "startedAt": "2026-09-26T17:48:26Z"
+  }
+}
