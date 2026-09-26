@@ -14,6 +14,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // ── JSON-RPC 2.0 Protocol Types ──────────────────────────────────────────────
@@ -83,13 +85,20 @@ type jsonrpcError struct {
 // synchronizedWriter guards concurrent writes to stdout so responses and
 // notifications never interleave.
 type synchronizedWriter struct {
-	mu  sync.Mutex
-	out io.Writer
+	mu      sync.Mutex
+	out     io.Writer
+	stopped atomic.Bool
 }
 
 func (w *synchronizedWriter) WriteLine(b []byte) error {
+	if w.stopped.Load() {
+		return io.ErrClosedPipe
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.stopped.Load() {
+		return io.ErrClosedPipe
+	}
 	if _, err := w.out.Write(b); err != nil {
 		return err
 	}
@@ -99,6 +108,16 @@ func (w *synchronizedWriter) WriteLine(b []byte) error {
 		}
 	}
 	return nil
+}
+
+// stop prevents cleanup events from waiting for an absent reader. Closing a
+// pipe also releases an in-flight Write; do not take the write mutex here.
+func (w *synchronizedWriter) stop() {
+	if !w.stopped.Swap(true) {
+		if closer, ok := w.out.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	}
 }
 
 // ── Parameter Unmarshaling ───────────────────────────────────────────────────
@@ -280,7 +299,8 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 }
 
 // Serve reads JSON-RPC 2.0 requests from in, dispatches them to app, and writes
-// responses and notifications to out.
+// responses and notifications to out. On shutdown it closes out when out is
+// an io.Closer, so a disconnected client cannot block installation cleanup.
 func Serve(ctx context.Context, app *App, in io.Reader, out io.Writer) error {
 	syncWriter := &synchronizedWriter{out: out}
 	emitter := newStdioEmitter(syncWriter)
@@ -293,8 +313,12 @@ func Serve(ctx context.Context, app *App, in io.Reader, out io.Writer) error {
 	scanner.Buffer(buf, 10*1024*1024)
 
 	defer func() {
-		// Stdin closed or server shutting down: cancel any running install and disarm.
-		app.CancelInstall()
+		// Close the transport before waiting: a worker may be emitting progress
+		// to a shell that has already gone away.
+		syncWriter.stop()
+		app.stopInstall(30*time.Second, func() {
+			fmt.Fprintln(os.Stderr, "serve: installation is still stopping; waiting for disk/boot cleanup. Do not reboot.")
+		})
 	}()
 
 	for scanner.Scan() {
