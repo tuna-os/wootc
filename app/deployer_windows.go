@@ -48,6 +48,11 @@ func downloadDeployerTo(ctx context.Context, installDir string, progress func(fl
 			// other artifact stays fail-closed (#53): no manifest entry, no
 			// install.
 			if isOptionalArtifact(name) {
+				// Later staging checks file existence. An optional cache not
+				// authenticated by this manifest must not reach the ESP.
+				if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("remove unverified optional artifact %s: %w", name, err)
+				}
 				progress(float64(i+1) / float64(len(files)))
 				continue
 			}

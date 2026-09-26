@@ -64,6 +64,24 @@ func TestSignedDeployerPipeline(t *testing.T) {
 	if downloads != 0 {
 		t.Fatal("signed offline cache attempted network")
 	}
+	// Omitting an optional entry must not leave an old unchecked EFI file for
+	// the later stage, which selects those files by existence.
+	withoutOptional := strings.Join(strings.Split(strings.TrimSpace(manifest.String()), "\n")[:4], "\n") + "\n"
+	stage("SHA256SUMS", []byte(withoutOptional))
+	stage("SHA256SUMS.sig", artifactauth.Sign(key, []byte(withoutOptional)))
+	if err := downloadDeployerTo(context.Background(), dir, func(float64) {}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"mmx64.efi", "wubildr.efi"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("unverified optional cache survived: %s", name)
+		}
+	}
+	stage("SHA256SUMS", data)
+	stage("SHA256SUMS.sig", artifactauth.Sign(key, data))
+	for name, body := range artifacts {
+		stage(name, body)
+	}
 	stage("deployer-vmlinuz", []byte("bad cache"))
 	if err := downloadDeployerTo(context.Background(), dir, func(float64) {}); err != nil {
 		t.Fatal(err)
