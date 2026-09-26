@@ -6,6 +6,13 @@
 
 ---
 
+## Current audit and next contract
+
+The [migration extension plan](specs/migration-extensions.md) records the source audit
+and the proposed version-2 contract. It identifies gaps in the discovery trust policy,
+import results, transactions, and target verification. Existing manifests are a first seam,
+not proof of a complete migration framework.
+
 ## 1. Executive Summary
 
 wootc migrates user data, applications, and settings from Windows to a container-native Linux system. Today, migration logic is baked directly into bespoke shell scripts, Python scanners, and Go endpoints across three distinct execution phases (Windows Installer GUI, Deployer initramfs, and Target first-boot / dashboard runtime).
