@@ -136,6 +136,10 @@ builder_main() {
     for driver in virtio_pci virtio_blk virtio_console virtio_net ext4 xfs btrfs overlay; do
         modprobe "$driver"
     done
+    mkdir -p /run/udev
+    udevd --daemon
+    udevadm trigger --action=add
+    udevadm settle --timeout=30
     mdev -s
     mkdir -p /dev/virtio-ports
     for port in /sys/class/virtio-ports/*; do
@@ -148,8 +152,15 @@ builder_main() {
     stage storage
     prepare_storage
     stage network
-    ip link set eth0 up
-    udhcpc -i eth0 -n -q -t 5 -T 3 || failed 'network lease failed'
+    NETWORK=""
+    for interface in /sys/class/net/*; do
+        [ -e "$interface/device" ] || continue
+        [ -z "$NETWORK" ] || failed "expected one network device"
+        NETWORK=${interface##*/}
+    done
+    [ -n "$NETWORK" ] || failed "network device unavailable"
+    ip link set "$NETWORK" up
+    udhcpc -i "$NETWORK" -n -q -t 5 -T 3 || failed 'network lease failed'
     stage pulling
     podman pull "$IMAGE" || failed 'image download failed'
     stage installing
@@ -157,7 +168,7 @@ builder_main() {
     # Disk-backed /var/tmp is also needed INSIDE the installation container.
     podman run --rm --privileged --pid=host --ipc=host --network=host \
         --security-opt label=disable \
-        -v /dev:/dev -v /sys:/sys \
+        -v /dev:/dev -v /sys:/sys -v /run/udev:/run/udev \
         -v /var/lib/containers:/var/lib/containers \
         -v /var/tmp:/var/tmp \
         "$IMAGE" bootc install to-disk --generic-image "$TARGET" || failed 'bootc install failed'

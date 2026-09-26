@@ -33,7 +33,7 @@ podman run --name "$CID" "docker.io/library/alpine:$ALPINE_VERSION" sh -c '
         podman fuse-overlayfs \
         util-linux e2fsprogs xfsprogs btrfs-progs dosfstools \
         parted blkid \
-        busybox jq \
+        busybox jq eudev \
         ca-certificates
     # bootc is not in Alpine repos; it travels inside the OCI image and is
     # invoked via `podman run ... bootc install`, so nothing to add here.
