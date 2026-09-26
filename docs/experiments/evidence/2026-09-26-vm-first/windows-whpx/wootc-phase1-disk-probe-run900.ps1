@@ -24,4 +24,3 @@ foreach ($mem in @(2048)) {
   if (Test-Path "$prefix-err.log") { Get-Content "$prefix-err.log" }
   if (Test-Path $serial) { Get-Content $serial | Select-Object -Last 45 }; if (Test-Path "$prefix-ipc.log") { Get-Content "$prefix-ipc.log" }
 }
-

@@ -23,7 +23,7 @@
 [    0.000411] tsc: Detected 2400.000 MHz processor
 [    0.040537] last_pfn = 0x7ffda max_arch_pfn = 0x400000000
 [    0.047210] MTRR map: 4 entries (3 fixed + 1 variable; max 19), built from 8 variable MTRRs
-[    0.047390] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+[    0.047390] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT
 [    0.062178] found SMP MP-table at [mem 0x000f54a0-0x000f54af]
 [    0.062203] Using GB pages for direct mapping
 [    0.062567] RAMDISK: [mem 0x7a55f000-0x7ffcffff]
@@ -293,7 +293,7 @@
 [  103.511303] ACPI: \_SB_.GSIA: Enabled at IRQ 16
 [  103.900808] ahci 0000:00:1f.2: AHCI vers 0001.0000, 32 command slots, 1.5 Gbps, SATA mode
 [  104.298825] ahci 0000:00:1f.2: 6/6 ports implemented (port mask 0x3f)
-[  104.603820] ahci 0000:00:1f.2: flags: 64bit ncq only 
+[  104.603820] ahci 0000:00:1f.2: flags: 64bit ncq only
 [  105.313200] scsi host0: ahci
 [  105.535897] scsi host1: ahci
 [  105.770512] scsi host2: ahci
