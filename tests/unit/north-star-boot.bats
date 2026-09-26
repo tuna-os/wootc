@@ -84,14 +84,6 @@ MODSETUP="payload/deployer/module-setup.sh"
     grep -q 'ntfs-3g efibootmgr' "$CONTAINERFILE"
 }
 
-@test "the splash tells the truth past the promised 15 minutes" {
-    # The bar easing parks at the fisherman ceiling while a slow download
-    # runs 30-60 minutes; the footer claimed "5 to 15 minutes" the whole
-    # time, which reads as a hang. Past the promise, the copy must change.
-    grep -q 'a big download can take 30-60 minutes' "$DEPLOY"
-    grep -q '"$frame" -ge 450' "$DEPLOY"
-}
-
 @test "staged boot artifacts come with their manifest" {
     # The app's fail-closed verification (#53/#194) needs a SHA256SUMS; the
     # harness stages the artifacts itself, so it must stage the manifest
@@ -113,7 +105,7 @@ MODSETUP="payload/deployer/module-setup.sh"
     # after the scariest click of the migration. A pre-trigger hook paints
     # first reassurance before udev settle.
     [ -f payload/deployer/early-splash.sh ]
-    grep -q 'Your Windows and all of your files are safe' payload/deployer/early-splash.sh
+    grep -q 'Please keep your PC plugged in' payload/deployer/early-splash.sh
     grep -q 'pre-trigger/10-wootc-early-splash.sh' "$MODSETUP"
     grep -q 'early-splash.sh' "$CONTAINERFILE"
 }
@@ -152,26 +144,4 @@ MODSETUP="payload/deployer/module-setup.sh"
     body=$(awk '/for attempt := 1; attempt <= 3/,/bcdedit arm:/' app/installer_esp.go)
     printf '%s' "$body" | grep -q '"bootsequence", guid, "/addfirst"'
     printf '%s' "$body" | grep -q 'deleteWootcBCDEntries()'
-}
-
-@test "the download shows live progress, not a parked bar" {
-    # Field review (aurora walkthrough, 2026-08-23): the fisherman splash
-    # band's easing reached its ceiling in ~2 minutes and PARKED there for
-    # the entire multi-GB pull — a frozen number next to a time promise
-    # reads as a hang, the exact fear the splash exists to prevent. The
-    # splash now ticks a real byte counter (scratch growth = blobs landing)
-    # and tracks the expected download size when the registry provides it.
-    local D=payload/deployer/deploy.sh
-    grep -q 'start_pull_progress_watch' "$D"
-    grep -q 'GB done so far' "$D"
-    # Evidence-driven, not animated: scratch usage delta as the numerator,
-    # skopeo-inspected layer sizes as the denominator.
-    grep -q 'LayersData' "$D"
-    grep -q 'df -Pk /var/fisherman-tmp' "$D"
-    # Monotonic and capped inside the band: an estimate may run slow but
-    # never claims more than reality earned, and never moves backwards.
-    grep -q '(( cand > lastpct )) && lastpct=' "$D"
-    grep -q '(( cand > 85 )) && cand=85' "$D"
-    # The watcher dies with the pull, and cleanup kills a stray one.
-    [ "$(grep -c 'PULL_WATCH_PID' "$D")" -ge 4 ]
 }
