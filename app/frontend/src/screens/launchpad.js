@@ -5,7 +5,7 @@ import { render } from '../lib/render.js';
 import { installVerb, distroName, productName } from '../lib/branding.js';
 import { el, btn, chip, warningBanner, inputField } from '../lib/ui.js';
 import { renderProgress } from './progress.js';
-import { tryInVM } from './vmpreview.js';
+import { tryInVM, installVMRuntime } from './vmpreview.js';
 
 // ── Screen 1: Launchpad ───────────────────────────────────────────────────────
 
@@ -344,13 +344,20 @@ export function renderLaunchpad() {
 
   // Footer
   const footer = el('div', 'footer');
-  const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
+  const installBtn = btn(`Advanced: ${installVerb()} with reboot`, 'btn btn-ghost', () => startInstall());
   installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => Quit()));
-  // Try-in-VM (§6.1): gated on fresh VM capability (deferred to post-1.0 per ADR 0001 / #231;
-  // available when builder artifacts are present in an offline bundle).
+  // VM-first is the normal path. Native installation remains an explicit action.
   if (state.freshVmCapability?.available && state.selected) {
-    footer.appendChild(btn('Try in VM', 'btn btn-ghost', () => tryInVM()));
+    const vmBtn = btn(`Start ${distroName()} in a window`, 'btn btn-primary', () => tryInVM());
+    vmBtn.id = 'vm-prepare-btn'; footer.appendChild(vmBtn);
+  }
+  if (state.freshVmCapability?.runtimeNeeded) {
+    footer.appendChild(btn('Set up Linux in a window', 'btn btn-primary', () => installVMRuntime()));
+  }
+  if (!state.freshVmCapability?.available && state.freshVmCapability?.reason) {
+    const vmReason = el('div'); vmReason.style.cssText = 'font-size:12px;color:var(--text-muted)';
+    vmReason.textContent = state.freshVmCapability.reason; fields.appendChild(vmReason);
   }
   footer.appendChild(installBtn);
   // Defer validity to after mount so the hint element exists.
@@ -388,6 +395,8 @@ function refreshInstallValidity() {
   const hint = document.getElementById('install-hint');
   if (!btn) return;
   const c = state.config;
+  const vmBtn = document.getElementById('vm-prepare-btn');
+  if (vmBtn) vmBtn.disabled = !state.selected || !/^[a-z_][a-z0-9_-]{0,31}$/.test(c.username) || c.username === 'root' || !c.password || c.password !== c.passwordConfirm;
   let reason = '';
   // Preflight safety gates (#63) come FIRST: these are conditions under which
   // starting at all risks the user's data or leaves the machine half-converted.
@@ -433,6 +442,10 @@ function refreshPlanNote() {
   const note = document.getElementById('plan-note');
   if (!note) return;
   const c = state.config;
+  if (state.freshVmCapability?.available) {
+    note.textContent = `Linux starts in a window with the account “${c.username || 'your username'}”. Your Windows files stay where they are. The disk, encryption, appearance and computer-name options under Advanced apply only to installation with a reboot.`;
+    return;
+  }
   const disk = state.sysinfo?.bitLockerOn
     ? `${c.diskSizeGB} GB set aside for Linux`
     : `${c.diskSizeGB} GB for Linux (space is only used as you fill it)`;

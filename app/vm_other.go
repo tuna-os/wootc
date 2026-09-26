@@ -7,12 +7,14 @@ import "fmt"
 // VMCapability mirrors the Windows type so the frontend bindings are stable
 // across platforms.
 type VMCapability struct {
-	Available   bool   `json:"available"`
-	Reason      string `json:"reason"`
-	DiskPath    string `json:"diskPath"`
-	Accelerator string `json:"accelerator"`
-	QEMUPath    string `json:"qemuPath"`
-	Bundled     bool   `json:"bundled"`
+	Available     bool   `json:"available"`
+	Reason        string `json:"reason"`
+	DiskPath      string `json:"diskPath"`
+	Accelerator   string `json:"accelerator"`
+	QEMUPath      string `json:"qemuPath"`
+	Bundled       bool   `json:"bundled"`
+	ProbeStatus   string `json:"probeStatus"`
+	RuntimeNeeded bool   `json:"runtimeNeeded"`
 }
 
 func (a *App) GetVMCapability() VMCapability {
@@ -33,4 +35,19 @@ func (a *App) TryInVMFresh(imageRef string) error {
 
 func (a *App) InstallPreviewForReal(cfg InstallConfig) error {
 	return fmt.Errorf("Try in VM is only available on Windows")
+}
+
+func (a *App) GetVMState() VMState {
+	return VMState{SchemaVersion: 1, Phase: "unavailable", Error: "Managed VMs are only available on Windows."}
+}
+func (a *App) StopVM() error      { return fmt.Errorf("managed VMs are only available on Windows") }
+func (a *App) ForceStopVM() error { return fmt.Errorf("managed VMs are only available on Windows") }
+func (a *App) shutdownVM()        {}
+
+func (a *App) PrepareVM(cfg VMInstallConfig) error {
+	return fmt.Errorf("managed VMs are only available on Windows")
+}
+
+func (a *App) InstallVMRuntime() error {
+	return fmt.Errorf("the VM runtime is only available on Windows")
 }

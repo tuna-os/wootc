@@ -90,8 +90,9 @@ MODSETUP="payload/deployer/module-setup.sh"
     # beside them — and the app must prefer that pre-staged manifest (the
     # offline-bundle contract) over a release fetch that 404s in E2E.
     grep -q 'sha256sum "$f" >> SHA256SUMS' tests/e2e/run-e2e.sh
-    grep -q '"SHA256SUMS") { if (Test-Path' tests/e2e/run-e2e.sh
-    grep -q 'install", "SHA256SUMS"' app/deployer_windows.go
+    grep -q '"SHA256SUMS","SHA256SUMS.sig") { if (Test-Path' tests/e2e/run-e2e.sh
+    grep -q 'fetchArtifactChecksums(ctx, installDir)' app/deployer_windows.go
+    grep -q 'filepath.Join(installDir, "SHA256SUMS")' app/artifact_manifest.go
     # wubildr.efi is best-effort in the release pipeline and mmx64.efi only
     # exists in releases after #248, so the app must treat exactly those two
     # as optional — a release without them must not brick every online

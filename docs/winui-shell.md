@@ -201,6 +201,15 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetLastRun` | — | `LifecycleState` |
 | `E2EDriveDirective` | — | `string` |
 | `E2EDriveReport` | `string` | `null` |
+| `GetVMCapability` | — | `VMCapability` | Signed runtime and persistent disk availability. |
+| `GetFreshVMCapability` | — | `VMCapability` | Signed runtime and helper availability. |
+| `GetVMState` | — | `VMState` | Durable disk lifecycle; desktop readiness requires independent evidence. |
+| `TryInVMFresh` | image string | — | Legacy call refuses preparation without account details. |
+| `InstallVMRuntime` | — | — | Acquire the signed runtime for this release; no native fallback or existing-runtime replacement. |
+| `PrepareVM` | `VMInstallConfig` | — | Prepare a persistent system with its Linux account, then launch its VM. |
+| `BootInVM` | — | — | Restart the same verified, stopped VM disk. |
+| `StopVM` | — | — | Request guest shutdown; preserve ownership until actual exit. |
+| `ForceStopVM` | — | — | Explicit forced stop; disk requires recovery before reuse. |
 | `Shutdown` | — | `null` (engine exits 0) |
 
 Notifications use `install:progress` and `vm:progress`.

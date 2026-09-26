@@ -176,10 +176,11 @@ func sampleDTOs() map[string]any {
 		"vm_capability": VMCapability{
 			Available:   true,
 			Reason:      "",
-			DiskPath:    `C:\wootc\preview.vhdx`,
-			Accelerator: "hyperv",
-			QEMUPath:    `C:\Program Files\qemu\qemu-system-x86_64.exe`,
+			DiskPath:    `C:\wootc\disks\root.disk`,
+			Accelerator: "whpx,kernel-irqchip=off",
+			QEMUPath:    `C:\wootc\qemu\qemu-system-x86_64.exe`,
 			Bundled:     true,
+			ProbeStatus: "passed",
 		},
 		"bundle_info": BundleInfo{
 			Image:      "ghcr.io/tuna-os/yellowfin:gnome",

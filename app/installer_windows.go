@@ -171,6 +171,17 @@ func getUninstallInfo() UninstallInfo {
 	for _, dp := range listDataPartitions() {
 		drives = append(drives, dp.Letter)
 	}
+	trustedDrives := drives[:0]
+	for _, d := range drives {
+		root := d + `:\wootc`
+		if _, err := os.Lstat(root); err != nil {
+			continue
+		}
+		if err := ensureTrustedStateDirectory(root); err == nil {
+			trustedDrives = append(trustedDrives, d)
+		}
+	}
+	drives = trustedDrives
 	for _, d := range drives {
 		for _, name := range []string{"root.vhdx", "root.disk"} {
 			p := d + `:\wootc\disks\` + name
@@ -195,11 +206,11 @@ func getUninstallInfo() UninstallInfo {
 		}
 	}
 
-	// 2. No root.disk found on any volume, but check for partial-install or
-	// leftover wootc directory across drives (staged, armed, failed, or partial).
+	// 2. No root.disk found, but installation outputs can survive an
+	// interrupted attempt. A pre-staged offline bundle is not an attempt.
 	for _, d := range drives {
 		wootcPath := d + `:\wootc`
-		if st, err := os.Stat(wootcPath); err == nil && st.IsDir() {
+		if hasInstallAttempt(wootcPath) {
 			info := UninstallInfo{
 				Found:        true,
 				StorageDrive: d,
@@ -370,6 +381,22 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	}
 	setStorageDrive(drive)
 
+	targetDrives := []string{drive}
+	if drive != "C" {
+		targetDrives = append(targetDrives, "C")
+	}
+	for _, d := range targetDrives {
+		disk := filepath.Join(d+`:\wootc`, "disks", "root.disk")
+		release, err := acquireVMLock(disk)
+		if err != nil {
+			return err
+		}
+		defer release()
+		if err := verifyVMDiskReleased(disk); err != nil {
+			return err
+		}
+	}
+
 	var errs []string
 
 	// 0. Put back what install changed outside its folder: hibernation /
@@ -390,10 +417,6 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	// 3. Remove the install dir, staged files, cache, and logs.
 	// Clean both the active storage drive and C: if distinct.
-	targetDrives := []string{drive}
-	if drive != "C" {
-		targetDrives = append(targetDrives, "C")
-	}
 	for _, d := range targetDrives {
 		wDir := d + `:\wootc`
 		if _, err := os.Stat(wDir); err != nil {

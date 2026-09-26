@@ -190,3 +190,9 @@ one reaches. The short version, because the instinct is usually wrong:
 
 Uninstalling is always: delete `C:\wootc` and remove the "wootc" boot entry —
 the app's Control Panel does both.
+
+## Signed boot manifests
+
+Every new release embeds a per-build verification key and ships `SHA256SUMS.sig`.
+See [artifact authentication](artifact-authentication.md) for custody, rotation,
+offline bundles, and the separate Windows code-signing gate.

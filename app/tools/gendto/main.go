@@ -31,6 +31,8 @@ var DTOStructs = []string{
 	"SessionExport",
 	"VMEvent",
 	"VMCapability",
+	"VMState",
+	"VMInstallConfig",
 	"BundleInfo",
 }
 
