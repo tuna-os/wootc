@@ -1,0 +1,48 @@
+1255998954
+
+
+Caption                : Microsoft Windows 11 Pro
+Version                : 10.0.26200
+FreePhysicalMemory     : 8840204
+TotalVisibleMemorySize : 12562840
+
+
+
+
+
+DeviceID  : C:
+FreeSpace : 60964540416
+Size      : 84520464384
+
+
+
+
+
+Path          : 
+Online        : True
+RestartNeeded : True
+
+
+
+QEMU emulator version 11.1.0 (v11.1.0-12130-ge470268ff4)
+Copyright (c) 2003-2026 Fabrice Bellard and the QEMU Project developers
+
+
+Algorithm : SHA256
+Hash      : 33090CC07675BAA5190D9F1E84BF5176B33BCBFA9BACAC522961150CDB6DBB2A
+Path      : C:\Program Files\qemu\share\edk2-x86_64-code.fd
+
+Algorithm : SHA256
+Hash      : 32807682A9E5C0E2D192ECB6077941D4BE8BCFA6B9CD6E60830C3A9F48C0555A
+Path      : C:\Program Files\qemu\share\edk2-x86_64-secure-code.fd
+
+Algorithm : SHA256
+Hash      : 6E6CC9506AA6D77E4673A9AD081C01854031E3EA8FD993A1E9825D909302EE96
+Path      : C:\Program Files\qemu\share\firmware\50-edk2-x86_64-secure.json
+
+Algorithm : SHA256
+Hash      : F6756761629339223E398BAD85CFF8DACE5310E9C88876052A0784B16BA7FF5D
+Path      : C:\Program Files\qemu\share\firmware\60-edk2-x86_64.json
+
+
+

@@ -1,0 +1,22 @@
+
+
+FeatureName : HypervisorPlatform
+State       : Enabled
+
+
+
+
+
+HypervisorPresent   : True
+TotalPhysicalMemory : 12864348160
+UserName            : WOOTC-TEST\wootc
+
+
+
+MEM=2048 TIMED_OUT
+MEM=2048 EXIT= TOTAL_SECONDS=120.5954328 PEAK_WORKING_SET=81002496 READY=False
+C:\Program Files\qemu\qemu-system-x86_64.exe: warning: Ignoring request for interrupt vector 0
+C:\Program Files\qemu\qemu-system-x86_64.exe: WHPX: Unexpected VP exit code 4
+MEM=4096 EXIT= TOTAL_SECONDS=67.2588431 PEAK_WORKING_SET=67428352 READY=False
+C:\Program Files\qemu\qemu-system-x86_64.exe: warning: Ignoring request for interrupt vector 0
+C:\Program Files\qemu\qemu-system-x86_64.exe: WHPX: Unexpected VP exit code 4

@@ -1,0 +1,47 @@
+MEM=2048 TIMED_OUT
+MEM=2048 EXIT= TOTAL_SECONDS=300.4517456 PEAK_WORKING_SET=322781184 READY=False
+[  153.975269] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[  154.250992] 00:02: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+[  160.881083] VMware PVSCSI driver - version 1.0.7.0-k
+[  161.215071] ACPI: \_SB_.GSIA: Enabled at IRQ 16
+[  162.005000] ahci 0000:00:1f.2: AHCI vers 0001.0000, 32 command slots, 1.5 Gbps, SATA mode
+[  162.367576] ahci 0000:00:1f.2: 6/6 ports implemented (port mask 0x3f)
+[  162.672419] ahci 0000:00:1f.2: flags: 64bit ncq only 
+[  164.395057] scsi host0: ahci
+[  164.779385] scsi host1: ahci
+[  165.223692] scsi host2: ahci
+[  165.619905] scsi host3: ahci
+[  166.034797] scsi host4: ahci
+[  166.431140] scsi host5: ahci
+[  166.642955] ata1: SATA max UDMA/133 abar m4096@0xfebc4000 port 0xfebc4100 irq 26 lpm-pol 1
+[  167.015635] ata2: SATA max UDMA/133 abar m4096@0xfebc4000 port 0xfebc4180 irq 26 lpm-pol 1
+[  167.475589] ata3: SATA max UDMA/133 abar m4096@0xfebc4000 port 0xfebc4200 irq 26 lpm-pol 1
+[  167.904596] ata4: SATA max UDMA/133 abar m4096@0xfebc4000 port 0xfebc4280 irq 26 lpm-pol 1
+[  168.270306] ata5: SATA max UDMA/133 abar m4096@0xfebc4000 port 0xfebc4300 irq 26 lpm-pol 1
+[  168.594106] ata6: SATA max UDMA/133 abar m4096@0xfebc4000 port 0xfebc4380 irq 26 lpm-pol 1
+[  169.113691] hv_vmbus: registering driver hv_netvsc
+[  169.353904] i8042: PNP: PS/2 Controller [PNP0303:KBD,PNP0f13:MOU] at 0x60,0x64 irq 1,12
+[  170.301192] serio: i8042 KBD port at 0x60,0x64 irq 1
+[  170.529467] serio: i8042 AUX port at 0x60,0x64 irq 12
+[  170.812182] hv_vmbus: registering driver hyperv_keyboard
+[  171.216277] rtc_cmos 00:03: RTC can wake from S4
+[  172.039131] rtc_cmos 00:03: registered as rtc0
+[  172.257743] rtc_cmos 00:03: setting system clock to 2026-09-26T17:37:46 UTC (1790444266)
+[  172.670350] rtc_cmos 00:03: alarms up to one day, y3k, 242 bytes nvram, hpet irqs
+[  172.730806] ata2: SATA link down (SStatus 0 SControl 300)
+[  172.901101] intel_pstate: CPU model not supported
+[  173.403346] gre: GRE over IPv4 demultiplexor driver
+[  173.577898] NET: Registered PF_INET6 protocol family
+[  173.678476] ata5: SATA link down (SStatus 0 SControl 300)
+[  174.056082] ata1: SATA link down (SStatus 0 SControl 300)
+[  174.474298] ata6: SATA link down (SStatus 0 SControl 300)
+[  174.671094] Segment Routing with IPv6
+[  174.739588] input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input0
+[  174.844545] In-situ OAM (IOAM) with IPv6
+[  175.375380] ata4: SATA link down (SStatus 0 SControl 300)
+[  175.610091] Key type dns_resolver registered
+[  175.755568] IPI shorthand broadcast: enabled
+[  175.888451] ata3: SATA link down (SStatus 0 SControl 300)
+[  176.593774] sched_clock: Marking stable (143610457500, 32973317000)->(228513058100, -51929283600)
+[  177.564551] registered taskstats version 1
+[  177.762368] Loading compiled-in X.509 certificates
