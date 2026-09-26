@@ -154,12 +154,11 @@ jobs:
           else
             echo "No base image ${PKG}:${TAG}; run-e2e.sh will do a full install"
           fi
-      # Build the real wootc.exe the GUI-driven run drives. Ubuntu runners
+      # Every cell needs the real CLI for lifecycle and recovery assertions. Ubuntu runners
       # ship Go + Node; the wails frontend is a plain vite build, and the
       # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
       # loader tag, so this is a stock production build.
-      - name: Set up Node for GUI-driven run
-        if: ${{ inputs.gui_install }}
+      - name: Set up Node for lifecycle CLI
         uses: actions/setup-node@v7
         with:
           # Disk reclaim removes the runner's preinstalled global Node modules.
@@ -167,16 +166,14 @@ jobs:
           # supported Node toolchain before invoking npm.
           node-version: '24'
 
-      - name: Set up Go for GUI-driven run
-        if: ${{ inputs.gui_install }}
+      - name: Set up Go for lifecycle CLI
         uses: actions/setup-go@v7
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
           go-version: '1.27.x'
 
-      - name: Build wootc.exe (GUI-driven run only)
-        if: ${{ inputs.gui_install }}
+      - name: Build wootc.exe for lifecycle and GUI checks
         env:
           WOOTC_TARGET_IMAGE: ${{ inputs.image }}
         run: |
