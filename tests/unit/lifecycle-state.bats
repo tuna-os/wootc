@@ -75,7 +75,7 @@ setup() {
     [ -f "$FIRSTBOOT_SERVICE" ]
     grep -q 'After=.*wootc-host-bind.service' "$FIRSTBOOT_SERVICE"
     grep -q 'Requires=wootc-host-bind.service' "$FIRSTBOOT_SERVICE"
-    grep -q 'ConditionPathExists=!/run/wootc/host/wootc/install/installed-linux-boot.json' "$FIRSTBOOT_SERVICE"
+    grep -q 'ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json' "$FIRSTBOOT_SERVICE"
 }
 
 @test "first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh" {

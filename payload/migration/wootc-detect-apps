@@ -20,14 +20,15 @@
 # into the fisherman recipe when run at deploy time.
 
 set -Eeuo pipefail
+HOST="${WOOTC_HOST:-/run/wootc/host}"
 log() { printf '[wootc-detect-apps] %s\n' "$*"; }
 name="${1:?usage: wootc-detect-apps <username> [linuxuser]}"
 target="${2:-$name}"
 
-mountpoint -q /run/wootc/host || { log "ERROR: /run/wootc/host not mounted"; exit 1; }
+mountpoint -q "$HOST" || { log "ERROR: $HOST not mounted"; exit 1; }
 home=$(getent passwd "$target" | cut -d: -f6)
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
-W="/run/wootc/host/Users/$name"
+W="$HOST/Users/$name"
 [[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
 
 entries=()
@@ -41,7 +42,7 @@ add() {
 
 # Check if any sessions were staged online during Windows install.
 EXPORTS_JSON=""
-for p in /run/wootc/host/wootc/install/slurp/session/exports.json /run/wootc/host/install/slurp/session/exports.json; do
+for p in "$HOST"/wootc/install/slurp/session/exports.json "$HOST"/install/slurp/session/exports.json; do
     if [[ -f "$p" ]]; then
         EXPORTS_JSON="$p"
         break
@@ -138,7 +139,7 @@ fi
 
 # Steam — handled by wootc-steam-bridge (games in place); note here for
 # the dashboard's app list completeness.
-[[ -d "/run/wootc/host/Program Files (x86)/Steam" ]] && \
+[[ -d "$HOST/Program Files (x86)/Steam" ]] && \
     add steam com.valvesoftware.Steam signin false \
         "Your game files are already bridged — sign in once and they are playable without re-download."
 
@@ -313,7 +314,7 @@ declare -A DISPLAYNAME_TO_APP=(
 )
 
 # Read the Phase-1 registry manifest, if present.
-REGJSON="/run/wootc/host/wootc/install/programs.json"
+REGJSON="$HOST/wootc/install/programs.json"
 if [[ -f "$REGJSON" ]]; then
     # Track which apps we already found via AppData so we don't double-add.
     # We parse the app key out of each JSON entry with a simple sed cut.

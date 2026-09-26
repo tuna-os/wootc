@@ -139,6 +139,29 @@ E2E-verified).
   asserted by a test that fails when the claim is false — the harness's
   founding lesson (`docs/agent-lessons.md`).
 
+## Linux access to the Windows volume
+
+The writable mount stays under `/run/initramfs`, which has mode `0700`.
+The public `/run/wootc/host` view is read-only. An empty private mount hides
+`wootc` installer directories, including state files and recovery keys.
+The service prepares the masks and read-only flag before it publishes the
+view. Failure stops the service before publication.
+
+Root services use the private path for lifecycle records and key cleanup.
+Selected user folders bind from that path into a Linux home with mode `0700`.
+The kernel NTFS driver uses `umask=000`, matching the FUSE driver access needed
+for these selected folder writes. Redirects to the volume root or installer
+state are refused. The file-manager bookmark says “Windows drive (read-only)”.
+This protects installer state and keys. The public view can still read other
+Windows files; it does not implement Windows per-user read permissions.
+
+`tests/integration/linux-state-boundary.sh DRIVER FIXTURE.vhd` exercises the
+actual mount and folder-binding functions in a private mount namespace. It
+copies a disposable Windows VHD before use. The fixture must contain
+`wootc/state.json`, `wootc/install`, and `Users/fixture/Documents`.
+Tests cover selected-folder writes, a second account, hidden keys, root writes,
+and clean unmount. Removing each protection must expose its matching failure.
+
 ## Residual risk, stated plainly
 
 The youngest component we rely on is kernel `ntfs3` in read-write mode

@@ -155,7 +155,7 @@ setup() {
 @test "Phase-2 prefers the kernel ntfs3 mount and preserves FUSE fallback" {
     # rw,force: ntfs3 refuses a volume Windows left dirty even read-only; a
     # clean shutdown is asserted upstream, force covers the post-format case.
-    grep -q 'mount -t ntfs3 -o rw,force "\$HOST_DEV" "\$HOST_MNT"' "$HOOK"
+    grep -q 'mount -t ntfs3 -o rw,force,umask=000 "\$HOST_DEV" "\$HOST_MNT"' "$HOOK"
     run grep -n 'nobarrier,async,prealloc' "$HOOK"
     [ "$status" -ne 0 ]
     grep -q '^KillMode=process$' "$REPO_ROOT/platform/dracut/99wootc-boot/wootc-attach.service"

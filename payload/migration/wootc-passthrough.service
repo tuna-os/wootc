@@ -12,6 +12,7 @@ Requires=wootc-host-bind.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+Environment=WOOTC_HOST=/run/initramfs/wootc-host
 ExecStart=/var/usrlocal/bin/wootc-mount-user-dirs
 ExecStop=/var/usrlocal/bin/wootc-umount-user-dirs
 

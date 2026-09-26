@@ -1,0 +1,46 @@
+#!/bin/bash
+# Publish the Windows drive without exposing installer metadata or its keys.
+set -Eeuo pipefail
+private=/run/initramfs
+source="$private/wootc-host"
+control="$private/wootc-view-control"
+staging="$control/public"
+mask="$control/hidden"
+public=/run/wootc/host
+
+case "${1:-}" in
+start)
+    mountpoint -q "$source"
+    if mountpoint -q "$public" || mountpoint -q "$control"; then
+        echo 'Refusing to replace an existing host view' >&2
+        exit 1
+    fi
+    chmod 0700 "$private"
+    mkdir -p "$control" "$public"
+    cleanup() { umount -R "$control" 2>/dev/null || true; }
+    trap cleanup ERR
+    mount -t tmpfs -o mode=0700,size=1m,nosuid,nodev,noexec tmpfs "$control"
+    mount --make-private "$control"
+    install -d -m 000 "$mask"
+    mkdir -p "$staging"
+    # Assemble below a private ancestor. No public writable/unmasked interval.
+    mount --bind "$source" "$staging"
+    mount --make-private "$staging"
+    shopt -s nullglob nocaseglob
+    states=("$staging"/wootc "$staging"/*/wootc)
+    ((${#states[@]} > 0))
+    for state in "${states[@]}"; do
+        [[ -d "$state" && ! -L "$state" ]]
+        mount --bind "$mask" "$state"
+        mount --make-private "$state"
+    done
+    mount -o remount,bind,ro "$staging"
+    mount --move "$staging" "$public"
+    trap - ERR
+    ;;
+stop)
+    if mountpoint -q "$public"; then umount -R "$public"; fi
+    if mountpoint -q "$control"; then umount "$control"; fi
+    ;;
+*) exit 2 ;;
+esac

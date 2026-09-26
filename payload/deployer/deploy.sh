@@ -2585,6 +2585,9 @@ if [[ -n "$VERIFY_ROOT" ]]; then
     # symlinks (systemctl --root needs D-Bus/policy that isn't available
     # here; a plain symlink is exactly what `systemctl enable` would create
     # for a WantedBy=local-fs.target oneshot unit).
+    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+    install -m644 /usr/lib/wootc/migration/wootc-host-view \
+        "$DEPLOY_ROOT/etc/wootc/host-view"
     install -m644 /usr/lib/wootc/migration/wootc-host-bind.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-host-bind.service"
     install -m644 /usr/lib/wootc/migration/wootc-passthrough.service \

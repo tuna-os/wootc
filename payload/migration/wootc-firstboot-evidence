@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-HOST="/run/wootc/host"
+HOST="/run/initramfs/wootc-host"
 
 log() {
     printf '[wootc-firstboot] %s\n' "$*"

@@ -148,6 +148,9 @@ say "host NTFS $HOST_DEV present after ${_waited:-0}s"
 
 HOST_MNT="/run/initramfs/wootc-host"
 mkdir -p "$HOST_MNT"
+# NTFS permissions may expose Windows administrator files to Linux users.
+# Keep the writable mount private; the real root publishes a filtered view.
+chmod 0700 /run/initramfs
 
 # Mount the host NTFS read-WRITE (a ro host mount would propagate a physical
 # write barrier through the loop device to the guest root fs). Try the kernel
@@ -162,7 +165,7 @@ mkdir -p "$HOST_MNT"
 NTFS_DRIVER=""
 mount_host() {
     local err_out
-    if err_out=$(mount -t ntfs3 -o rw,force "$HOST_DEV" "$HOST_MNT" 2>&1); then
+    if err_out=$(mount -t ntfs3 -o rw,force,umask=000 "$HOST_DEV" "$HOST_MNT" 2>&1); then
         NTFS_DRIVER="kernel-ntfs3"; return 0
     else
         say "ntfs3 mount failed: $err_out"
