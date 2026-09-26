@@ -34,3 +34,10 @@ func (a *App) TryInVMFresh(imageRef string) error {
 func (a *App) InstallPreviewForReal(cfg InstallConfig) error {
 	return fmt.Errorf("Try in VM is only available on Windows")
 }
+
+func (a *App) GetVMState() VMState {
+	return VMState{SchemaVersion: 1, Phase: "unavailable", Error: "Managed VMs are only available on Windows."}
+}
+func (a *App) StopVM() error      { return fmt.Errorf("managed VMs are only available on Windows") }
+func (a *App) ForceStopVM() error { return fmt.Errorf("managed VMs are only available on Windows") }
+func (a *App) shutdownVM()        {}

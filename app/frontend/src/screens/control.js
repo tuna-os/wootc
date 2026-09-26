@@ -1,5 +1,5 @@
 import { installStepLabel } from './progress.js';
-import { BootInVM, UninstallWith, BootIntoLinux } from '../../wailsjs/go/main/App';
+import { BootInVM, StopVM, ForceStopVM, GetVMState, GetVMCapability, UninstallWith, BootIntoLinux } from '../../wailsjs/go/main/App';
 import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
@@ -102,6 +102,15 @@ export function renderControlPanel() {
 
   // Boot-in-VM (§6.2): view Linux without rebooting, when the VM viewer is
   // present and WHPX is on.
+  if (['running', 'stopping'].includes(state.vmState?.phase)) {
+    screen.appendChild(btn('Shut down Linux', 'btn btn-primary', async () => {
+      try { await StopVM(); state.vmState = await GetVMState(); state.vmCapability = await GetVMCapability(); render(); } catch (e) { alert(String(e)); }
+    }));
+    screen.appendChild(btn('Force stop…', 'btn btn-danger', async () => {
+      if (!confirm('Force stop Linux? Unsaved work may be lost and recovery will be required.')) return;
+      try { await ForceStopVM(); state.vmState = await GetVMState(); state.vmCapability = await GetVMCapability(); render(); } catch (e) { alert(String(e)); }
+    }));
+  }
   const vm = state.vmCapability;
   if (vm) {
     const vmCard = el('div');
@@ -114,7 +123,7 @@ export function renderControlPanel() {
           : vm.reason}</div>
       </div>`;
     const vmBtn = btn('Boot in VM', 'btn btn-ghost', async () => {
-      try { await BootInVM(); } catch (e) { alert('Could not start the VM: ' + e); }
+      try { await BootInVM(); state.vmState = await GetVMState(); state.vmCapability = await GetVMCapability(); render(); } catch (e) { alert('Could not start the VM: ' + e); }
     });
     vmBtn.style.flexShrink = '0';
     vmBtn.disabled = !vm.available;

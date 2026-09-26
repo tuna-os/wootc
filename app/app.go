@@ -220,11 +220,15 @@ type App struct {
 	// mu guards status, cancellation, completion, and shutdown. GetStatus() is polled from the frontend
 	// on a timer while the install goroutine mutates status concurrently —
 	// without the lock that is a data race the Go race detector flags.
-	mu          sync.Mutex
-	status      InstallStatus
-	cancel      context.CancelFunc
-	installDone chan struct{}
-	stopping    bool
+	mu            sync.Mutex
+	status        InstallStatus
+	cancel        context.CancelFunc
+	installDone   chan struct{}
+	stopping      bool
+	vmMu          sync.Mutex
+	vmSession     *vmSession
+	vmCancel      context.CancelFunc
+	vmPrepareDone chan struct{}
 }
 
 func NewApp() *App {
@@ -271,6 +275,7 @@ func (a *App) startup(ctx context.Context) {
 func previewMode() bool { return os.Getenv("WOOTC_UI_PREVIEW") == "1" }
 
 func (a *App) shutdown(ctx context.Context) {
+	a.shutdownVM()
 	a.mu.Lock()
 	cancel := a.cancel
 	a.mu.Unlock()
@@ -706,6 +711,11 @@ type UninstallInfo struct {
 // post-deploy loop (North Star audit): even when the deployer could not
 // re-arm itself, the user has a button that actually starts their Linux.
 func (a *App) BootIntoLinux() error {
+	release, err := acquireNativeInstallLease(wootcDir())
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := armOneShotFromPersistedGUID(); err != nil {
 		return err
 	}
@@ -904,6 +914,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 	if err := prepareInstallState(cfg.StorageDrive); err != nil {
 		return err
 	}
+	release, err := acquireNativeInstallLease(wootcDir())
+	if err != nil {
+		return err
+	}
+	defer release()
 	// GUI routing is advisory. Enforce data preservation for every backend
 	// caller before changing power settings, files, or firmware boot entries.
 	if err := requireNewInstallRootDisk(); err != nil {
