@@ -741,7 +741,9 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 // so E2E can exercise the exact production pipeline without a display.
 func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
 	// Direct root.disk + vault to the chosen (possibly unencrypted) volume.
-	setStorageDrive(cfg.StorageDrive)
+	if err := prepareInstallState(cfg.StorageDrive); err != nil {
+		return err
+	}
 	steps := []struct {
 		name    string
 		percent float64

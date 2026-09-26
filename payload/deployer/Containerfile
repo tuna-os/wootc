@@ -29,12 +29,15 @@ RUN dnf install -y \
 # Fisherman is a Go binary — build it statically so it needs no runtime deps.
 FROM docker.io/library/golang:1.27 AS gobuilder
 COPY fisherman /src/fisherman
+COPY payload/ntfs-state-write /src/ntfs-state-write
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /wootc-ntfs-state-write /src/ntfs-state-write/main.go /src/ntfs-state-write/security.go
 WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
 
 # ── Copy fisherman into the initramfs builder ───────────────────────────────
 FROM builder
 COPY --from=gobuilder /fisherman /usr/bin/fisherman
+COPY --from=gobuilder /wootc-ntfs-state-write /usr/bin/wootc-ntfs-state-write
 
 # ── Deployer script ─────────────────────────────────────────────────────────
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
@@ -62,7 +65,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # ext4) and the initramfs kernel could not mount what mkfs.xfs had just
 # written (GH bonito repro 20260724T0031: exit 32, blkid TYPE=xfs).
         --add-drivers "xfs btrfs" \
-        --install "podman skopeo fisherman ostree cpio \
+        --install "podman skopeo fisherman wootc-ntfs-state-write ostree cpio \
                    /usr/share/containers/policy.json /usr/share/containers/registries.conf \
                    ntfs-3g lowntfs-3g mount.ntfs \
                    parted mkfs.ext4 mkfs.vfat mkfs.xfs mkfs.btrfs \
@@ -87,7 +90,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # image that could not be injected became a FATAL refusal instead of taking
 # the fallback. That is precisely the silent-drop failure this loop exists to
 # catch, so assert it here too.
-RUN for bin in conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
+RUN for bin in wootc-ntfs-state-write conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
         mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
         ntfs-3g efibootmgr mokutil \
         df sync truncate journalctl jq tee which basename date head mv; do \
