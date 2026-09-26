@@ -364,6 +364,7 @@ LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
 DEBUG="$(read_cmdline wootc.debug)"
+FAULT="$(read_cmdline wootc.fault)"
 
 # ── Observed vs product mode ────────────────────────────────────────────────
 # The E2E harness arms the deployer with console=ttyS0 so it can watch the
@@ -704,6 +705,11 @@ HEARTBEAT_PID=$!
 phase "ntfs-mounted"
 write_deployer_started
 write_ntfs_state "deploying" "ntfs-mounted"
+
+if [[ "$FAULT" == "deploy-failure" || "$FAULT" == "deploy" ]]; then
+    err "Simulated fault injected: deploy-failure"
+    exit 1
+fi
 
 # ── Container storage scratch ───────────────────────────────────────────────
 # The initramfs root is ramfs: a multi-GB image pull there exhausts RAM.

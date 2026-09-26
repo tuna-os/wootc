@@ -60,6 +60,9 @@ type InstallConfig struct {
 	// SessionConsent is opt-in per app because it authorizes moving auth
 	// material. An absent or false entry never stages a session envelope.
 	SessionConsent map[string]bool `json:"sessionConsent,omitempty"`
+	// FaultInject injects a simulated failure or cancellation at a specific
+	// install boundary (root-disk|image-pull|efi-staging|bcd-arming|pre-reboot).
+	FaultInject string `json:"faultInject,omitempty"`
 }
 
 // ProgressEvent is emitted during install for the frontend progress bar.

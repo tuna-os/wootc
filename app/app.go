@@ -849,6 +849,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		}},
 	}
 
+	fault := cfg.FaultInject
+	if fault == "" {
+		fault = os.Getenv("WOOTC_FAULT_INJECT")
+	}
+
 	// Track whether the one-shot boot entry is armed. From "Making Linux
 	// bootable on your machine" (configureBCD) onward, a failure or a
 	// cancel must DISARM it — otherwise a user who changed their mind, or
@@ -861,12 +866,42 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		case <-ctx.Done():
 			if armed {
 				disarmOneShot()
-				writeState(StateStaged, "cancelled", "")
 			}
+			writeState(StateStaged, "cancelled", "")
 			return ctx.Err()
 		default:
 		}
 		emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
+
+		if fault != "" {
+			switch {
+			case fault == "root-disk" && s.name == "Making room for Linux":
+				if armed {
+					disarmOneShot()
+				}
+				writeState(StateFailed, s.name, "fault-injection: simulated failure during root disk creation")
+				return fmt.Errorf("%s: fault-injection: simulated failure during root disk creation", s.name)
+			case (fault == "image-pull" || fault == "image-download") && (s.name == "Downloading Linux" || s.name == "Downloading your Linux system"):
+				if armed {
+					disarmOneShot()
+				}
+				writeState(StateFailed, s.name, "fault-injection: simulated failure during image download")
+				return fmt.Errorf("%s: fault-injection: simulated failure during image download", s.name)
+			case (fault == "efi-staging" || fault == "efi") && s.name == "Getting Linux prepared":
+				if armed {
+					disarmOneShot()
+				}
+				writeState(StateFailed, s.name, "fault-injection: simulated failure during EFI staging")
+				return fmt.Errorf("%s: fault-injection: simulated failure during EFI staging", s.name)
+			case (fault == "bcd-arming" || fault == "bcd") && s.name == "Making Linux bootable on your machine":
+				if armed {
+					disarmOneShot()
+				}
+				writeState(StateFailed, s.name, "fault-injection: simulated failure during BCD arming")
+				return fmt.Errorf("%s: fault-injection: simulated failure during BCD arming", s.name)
+			}
+		}
+
 		if err := s.fn(); err != nil {
 			if armed {
 				disarmOneShot()
@@ -878,6 +913,15 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			armed = true
 		}
 	}
+
+	if fault == "pre-reboot" {
+		if armed {
+			disarmOneShot()
+		}
+		writeState(StateStaged, "cancelled", "fault-injection: simulated cancellation before reboot")
+		return fmt.Errorf("fault-injection: simulated cancellation before reboot")
+	}
+
 	writeState(StateArmed, "", "")
 	return nil
 }

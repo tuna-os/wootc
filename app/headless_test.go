@@ -82,6 +82,17 @@ func TestHeadlessInstallRejectsBadBootloader(t *testing.T) {
 	}
 }
 
+func TestHeadlessInstallAcceptsFaultInjectFlag(t *testing.T) {
+	// Validates that -fault-inject flag is recognized and accepted by flag parsing.
+	// Without required credentials, it should return 2 (validation failure), not flag parse error.
+	args := []string{
+		"-fault-inject", "image-pull",
+	}
+	if got := headlessInstall(args); got != 2 {
+		t.Errorf("headlessInstall(-fault-inject only) = %d, want 2 (missing credentials)", got)
+	}
+}
+
 // ── headlessStatus ───────────────────────────────────────────────────────────
 
 func captureStdout(t *testing.T, fn func()) string {

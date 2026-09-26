@@ -460,6 +460,13 @@ public class InstallConfig
     /// </summary>
     [JsonPropertyName("sessionConsent")]
     public Dictionary<string, bool>? SessionConsent { get; set; }
+
+    /// <summary>
+    /// FaultInject injects a simulated failure or cancellation at a specific
+    /// install boundary (root-disk|image-pull|efi-staging|bcd-arming|pre-reboot).
+    /// </summary>
+    [JsonPropertyName("faultInject")]
+    public string? FaultInject { get; set; }
 }
 
 /// <summary>

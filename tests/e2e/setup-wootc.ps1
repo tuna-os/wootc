@@ -36,7 +36,11 @@ param(
     [string]$Filesystem = "auto",
     # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
     # makes setup self-contained and avoids requiring SMB/WinRM to be ready.
-    [string]$PayloadDir = ""
+    [string]$PayloadDir = "",
+    # Fault-injection axis (#288): injects simulated failure or cancellation
+    # at an install boundary: "root-disk", "image-pull", "efi-staging", "bcd-arming", "pre-reboot".
+    [ValidateSet("root-disk", "image-pull", "efi-staging", "bcd-arming", "pre-reboot", "")]
+    [string]$FaultInject = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -232,6 +236,13 @@ Write-Host "[wootc] root.disk VDL extended to full $DiskSizeGB GB: $diskPath"
 
 Write-Host "[wootc] root.disk created: $diskPath ($DiskSizeGB GB dynamic VHDX)"
 
+if ($FaultInject -eq "root-disk") {
+    Write-Host "[wootc] Injected fault at boundary: root-disk"
+    $st = @{ state = "failed"; phase = "root-disk"; error = "fault-injection: simulated failure during root disk creation"; updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); updatedBy = "setup-wootc" } | ConvertTo-Json -Compress
+    Set-Content -Force -Path "$wootcDir\state.json" -Value $st -Encoding UTF8
+    throw "fault-injection: simulated failure during root disk creation"
+}
+
 # ── Step 3: Copy deployer files ─────────────────────────────────────────────
 # Files should be available via a shared volume or SMB.
 # In the test harness, we use dockur/windows custom CD-ROM mount
@@ -307,6 +318,15 @@ if ($payloadRoot -and (Test-Path "$payloadRoot\e2e-phase3")) {
 # the deployer probes it and silently pulls direct when absent/dead.
 if ($payloadRoot -and (Test-Path "$payloadRoot\mirror.txt")) {
     Copy-Item "$payloadRoot\mirror.txt" "$installDir\mirror.txt" -Force
+}
+
+if ($FaultInject -eq "image-pull") {
+    Write-Host "[wootc] Injected fault at boundary: image-pull (simulating interrupted image pull)"
+    New-Item -ItemType Directory -Force -Path "$wootcDir\bundle\oci\blobs\sha256" | Out-Null
+    Set-Content -Path "$wootcDir\bundle\oci\blobs\sha256\partialblob.part" -Value "INCOMPLETE_BLOB" -Encoding ASCII
+    $st = @{ state = "failed"; phase = "image-pull"; error = "fault-injection: simulated failure during image download"; updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); updatedBy = "setup-wootc" } | ConvertTo-Json -Compress
+    Set-Content -Force -Path "$wootcDir\state.json" -Value $st -Encoding UTF8
+    throw "fault-injection: simulated failure during image download"
 }
 
 # ── Credential vault (SPEC: vault.json) ─────────────────────────────────────
@@ -535,12 +555,28 @@ foreach ($gd in $grubVendorDirs) {
 }
 Write-Host "[wootc] Wrote deployer grub.cfg to ESP:EFI/{fedora,redhat,wootc}/grub.cfg"
 
+if ($FaultInject -eq "efi-staging") {
+    Write-Host "[wootc] Injected fault at boundary: efi-staging (simulating interrupted EFI staging)"
+    $st = @{ state = "failed"; phase = "efi-staging"; error = "fault-injection: simulated failure during EFI staging"; updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); updatedBy = "setup-wootc" } | ConvertTo-Json -Compress
+    Set-Content -Force -Path "$wootcDir\state.json" -Value $st -Encoding UTF8
+    throw "fault-injection: simulated failure during EFI staging"
+}
+
 # ── Step 8: Configure BCD ───────────────────────────────────────────────────
 # Add a one-shot UEFI firmware entry pointing to the signed shim → GRUB chain.
 # Every native bcdedit call is exit-code-checked; every observable must be proven
 # before the setup-complete marker is written (#50).
 
 Write-Host "[wootc] Configuring BCD..."
+
+# Sweep any stale wootc firmware entries before creating a new one to guarantee idempotency on retry
+$existingFw = (& bcdedit /enum firmware 2>&1) | Out-String
+$re = [regex]'(?ms)identifier\s+(\{[0-9a-fA-F-]{36}\})[^{]*?description\s+wootc.*$'
+foreach ($match in $re.Matches($existingFw)) {
+    $oldGuid = $match.Groups[1].Value
+    try { & bcdedit /set "{fwbootmgr}" displayorder $oldGuid /remove 2>&1 | Out-Null } catch {}
+    try { & bcdedit /delete $oldGuid 2>&1 | Out-Null } catch {}
+}
 
 # Create a new BCD entry by cloning the Windows Boot Manager.
 $bcdCreateOutput = (& bcdedit /copy "{bootmgr}" /d "wootc Deployer" 2>&1) | Out-String
@@ -558,6 +594,18 @@ Write-Host "[wootc] New BCD entry GUID: $newGuid"
 
 # Persist the GUID so the E2E runner can re-arm the one-shot for Phase 2.
 Set-Content -Force -Path "$installDir\bcd-guid.txt" -Value $newGuid -Encoding ASCII
+
+if ($FaultInject -eq "bcd-arming") {
+    Write-Host "[wootc] Injected fault at boundary: bcd-arming (simulating failure during BCD arming)"
+    try { & bcdedit /deletevalue "{fwbootmgr}" bootsequence 2>&1 | Out-Null } catch {}
+    if ($newGuid) {
+        try { & bcdedit /set "{fwbootmgr}" displayorder $newGuid /remove 2>&1 | Out-Null } catch {}
+        try { & bcdedit /delete $newGuid 2>&1 | Out-Null } catch {}
+    }
+    $st = @{ state = "failed"; phase = "bcd-arming"; error = "fault-injection: simulated failure during BCD arming"; updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); updatedBy = "setup-wootc" } | ConvertTo-Json -Compress
+    Set-Content -Force -Path "$wootcDir\state.json" -Value $st -Encoding UTF8
+    throw "fault-injection: simulated failure during BCD arming"
+}
 
 # Point to the shim (Microsoft-signed, Fedora build). Shim verifies
 # grubx64.efi (Fedora-signed), which loads grub.cfg from EFI/fedora/.
@@ -606,6 +654,21 @@ try {
 } catch {
     Write-Host "[wootc] Warning: could not disable Fast Startup"
 }
+
+if ($FaultInject -eq "pre-reboot") {
+    Write-Host "[wootc] Injected fault at boundary: pre-reboot (simulating cancellation before reboot)"
+    try { & bcdedit /deletevalue "{fwbootmgr}" bootsequence 2>&1 | Out-Null } catch {}
+    if ($newGuid) {
+        try { & bcdedit /set "{fwbootmgr}" displayorder $newGuid /remove 2>&1 | Out-Null } catch {}
+        try { & bcdedit /delete $newGuid 2>&1 | Out-Null } catch {}
+    }
+    $st = @{ state = "staged"; phase = "cancelled"; error = "fault-injection: simulated cancellation before reboot"; updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); updatedBy = "setup-wootc" } | ConvertTo-Json -Compress
+    Set-Content -Force -Path "$wootcDir\state.json" -Value $st -Encoding UTF8
+    throw "fault-injection: simulated cancellation before reboot"
+}
+
+$st = @{ state = "armed"; updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); updatedBy = "setup-wootc" } | ConvertTo-Json -Compress
+Set-Content -Force -Path "$wootcDir\state.json" -Value $st -Encoding UTF8
 
 # ── Step 10: Print summary ──────────────────────────────────────────────────
 Write-Host ""
