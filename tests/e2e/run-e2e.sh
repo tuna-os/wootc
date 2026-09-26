@@ -832,6 +832,7 @@ gui_prepare_account() {
     # shellcheck disable=SC2016 # PowerShell variables are literal.
     if ! result=$(qga_powershell '
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 New-Item -ItemType Directory -Force -Path C:\OEM | Out-Null
 $log = "C:\OEM\wootc-e2e.log"
 try {
