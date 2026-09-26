@@ -799,11 +799,11 @@ against a real socket in `tests/unit/test_qga_reconnect.py`.
 
 The GUI nightly failed in run `36240171646` (2026-09-26, #399). QGA answered,
 `schtasks /Run` exited 0, but no interactive user existed. The final screenshot
-was black. Earlier video frames showed the Windows prompt:
+was black. The video showed this Windows prompt:
 `Your password has expired and must be changed.` The restored fixture had
 aged past its account's password lifetime.
 
-- Inspect earlier video frames when the final screenshot hides the original screen.
+- Use the video if the final screenshot hides the original screen.
 - Set `PasswordNeverExpires` on the local account that the fixture uses for autologon.
   Apply this policy when you create and restore snapshots. Keep the credentials intact.
   Do not change the policy for other accounts.
