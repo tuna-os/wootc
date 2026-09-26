@@ -181,6 +181,7 @@ jobs:
           WOOTC_TARGET_IMAGE: ${{ inputs.image }}
         run: |
           set -euo pipefail
+          sudo apt-get install -y -qq librsvg2-bin
           ( cd app/frontend && npm ci --silent && npm run build )
           # Wear the brand that matches the image under test: a bluefin run
           # drives the Bluefin-branded installer, exactly what a real user
@@ -190,9 +191,9 @@ jobs:
           # WOOTC_PRELOAD=0 until the offline axis (#217) is green.)
           image="$WOOTC_TARGET_IMAGE"
           name=$(basename "${image%:*}")
-          BRAND_FLAG=""
+          BRAND_ID=wootc
           if [ -d "app/branding/$name" ]; then
-            BRAND_FLAG="-X main.brandID=$name"
+            BRAND_ID="$name"
             echo "building BRANDED installer: $name"
           else
             # An image can belong to a brand's catalog without a brand of
@@ -201,17 +202,19 @@ jobs:
             # the walkthrough must show. Find the brand whose catalog lists
             # this image id; generic only when no brand claims it.
             for b in app/branding/*/; do
-              if grep -q "\"$name\"" "$b/brand.json" 2>/dev/null; then
-                BRAND_FLAG="-X main.brandID=$(basename "$b")"
+              if grep -Fq "\"$name\"" "$b/brand.json" 2>/dev/null; then
+                BRAND_ID="$(basename "$b")"
                 echo "building BRANDED installer: $(basename "$b") (its catalog carries '$name')"
                 break
               fi
             done
-            [ -z "$BRAND_FLAG" ] && echo "no brand claims '$name' — building the generic installer"
+            [ "$BRAND_ID" = wootc ] && echo "no brand claims '$name' — building the generic installer"
           fi
-          ( cd app && GOOS=windows GOARCH=amd64 \
-              go build -tags desktop,production -ldflags "-H windowsgui -w -s $BRAND_FLAG" \
-              -o ../tests/e2e/wootc-files/wootc.exe . )
+          # Use the release build path so the walkthrough proves the same
+          # icon, Windows metadata, elevation manifest, and runtime brand.
+          # Omit --version: E2E uses the locally staged boot artifacts.
+          python3 packaging/build-windows.py --brand "$BRAND_ID" \
+              --output tests/e2e/wootc-files/wootc.exe
           ls -lh tests/e2e/wootc-files/wootc.exe
 
       - name: Run the E2E (restores base image if pulled, else full install)
