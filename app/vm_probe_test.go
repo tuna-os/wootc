@@ -30,6 +30,19 @@ func TestVMExecutionProbeChild(t *testing.T) {
 	time.Sleep(time.Minute)
 	os.Exit(0)
 }
+func TestVMProbeCommandRunsOutsideTheAuthenticatedRuntime(t *testing.T) {
+	root := t.TempDir()
+	runtimeDir := filepath.Join(root, "qemu")
+	privateDir := filepath.Join(root, "preview", ".probe-run")
+	cmd := newVMProbeCommand(filepath.Join(runtimeDir, "qemu-system-x86_64.exe"), privateDir, "-version")
+	if filepath.Clean(cmd.Dir) != filepath.Clean(privateDir) {
+		t.Fatalf("probe working directory = %q, want disposable directory %q", cmd.Dir, privateDir)
+	}
+	if filepath.Clean(cmd.Dir) == filepath.Clean(runtimeDir) {
+		t.Fatal("probe may write host-generated files into the authenticated runtime")
+	}
+}
+
 func TestVMExecutionProbeNeedsActualSerial(t *testing.T) {
 	for _, mode := range []string{"guest", "stdout", "hung", "exit"} {
 		t.Run(mode, func(t *testing.T) {
