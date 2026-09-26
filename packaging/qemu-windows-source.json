@@ -1,0 +1,7 @@
+{
+  "version": "11.1.0",
+  "url": "https://qemu.weilnetz.de/w64/2026/qemu-w64-setup-20260811.exe",
+  "sha512": "5bcf9eed634e8575a37b74f445af41a2fe4106da512d0c30c368301d4c105037fdfab40a5287367a28a957624cddebbc8c07e16c88ab6634f554cdf3d16bf543",
+  "source": "https://qemu.weilnetz.de/w64/2026/",
+  "upstream_downloads": "https://www.qemu.org/download/"
+}

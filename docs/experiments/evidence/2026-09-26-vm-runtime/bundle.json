@@ -1,0 +1,12 @@
+{
+  "bytes": 183295958,
+  "sha256": "7b40edf55a7686cd6e59088432717e3c5293b2378d115c671d922da7c97e869b",
+  "runtime_bytes": 321059722,
+  "manifest_files": 3282,
+  "manifest_bytes": 398147,
+  "helper_commit": "4f9985d",
+  "helper_account_outcome": "image-default",
+  "public_key": "def3840b56c1553b4a4de45f995fa007e30f9ff5763007e142ab924fbaefe661",
+  "scope": "Experimental local packaging. No runtime release or full Linux desktop verdict.",
+  "installer_test_exe_sha256": "2e17329d4c61503268a555deba69b131ccc83e9965ddb639af9aa36490c6b2fc"
+}
