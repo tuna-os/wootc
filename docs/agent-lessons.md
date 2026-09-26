@@ -797,19 +797,19 @@ against a real socket in `tests/unit/test_qga_reconnect.py`.
 
 ## 34. A cached Windows password ages even when its VM is powered off
 
-The GUI nightly's run `36240171646` (2026-09-26, #399) had a healthy QGA,
-`schtasks /Run` exit 0, and no interactive user. Its final screenshot was
-black. The timelapse's earlier frames showed the actual Windows prompt:
-**"Your password has expired and must be changed."** The restored fixture
-had aged past its local account's password lifetime.
+The GUI nightly failed in run `36240171646` (2026-09-26, #399). QGA answered,
+`schtasks /Run` exited 0, but no interactive user existed. The final screenshot
+was black. Earlier video frames showed the Windows prompt:
+`Your password has expired and must be changed.` The restored fixture had
+aged past its account's password lifetime.
 
-- Inspect the recording when the final screenshot hides the original screen.
-- Provision the configured local autologon test account with a non-expiring
-  password when priming and consuming snapshots. Keep its credentials intact;
-  changing machine-wide password policy is unnecessary.
-- After repairing an already-expired fixture, restart once so Windows retries
-  autologon. The observable is still an interactive user, not the policy write.
+- Inspect earlier video frames when the final screenshot hides the original screen.
+- Set `PasswordNeverExpires` on the local account that the fixture uses for autologon.
+  Apply this policy when you create and restore snapshots. Keep the credentials intact.
+  Do not change the policy for other accounts.
+- After the repair of an expired fixture, restart once so Windows retries autologon.
+  Then verify that an interactive user exists. The policy write alone does not prove this.
 - An interactive-session deadline must block GUI launch. The old loop timed
   out, substituted a username, and scheduled a task that could never run.
-  `autologon-no-session` is an environment failure, not a product verdict or an
-  automatically retryable flake. A second identical snapshot has the same bug.
+  `autologon-no-session` is an environment failure. It is not a product verdict or an automatic retry trigger.
+  A second identical snapshot has the same bug.
