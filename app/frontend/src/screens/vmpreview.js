@@ -1,4 +1,4 @@
-import { TryInVMFresh, InstallPreviewForReal } from '../../wailsjs/go/main/App';
+import { TryInVMFresh } from '../../wailsjs/go/main/App';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { distroName } from '../lib/branding.js';
@@ -21,28 +21,6 @@ export async function tryInVM() {
   }
 }
 
-async function installPreviewForReal() {
-  try {
-    await InstallPreviewForReal({
-      imageRef:   state.selected.imageRef,
-      diskSizeGB: state.config.diskSizeGB,
-      username:   state.config.username,
-      password:   state.config.password,
-      hostname:   state.config.hostname,
-      bootloader: state.config.bootloader,
-      composeFs:  state.config.composeFs,
-      encryption: state.config.encryption,
-      luksPassphrase: state.config.luksPassphrase,
-      windowsLook: state.config.windowsLook,
-      sessionConsent: state.config.sessionConsent,
-    });
-    state.screen = 'done';
-    render();
-  } catch (e) {
-    alert('Could not finalize the install: ' + e);
-  }
-}
-
 export function renderVMPreviewScreen() {
   const wrap = el('div');
   wrap.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
@@ -58,11 +36,10 @@ export function renderVMPreviewScreen() {
     screen.appendChild(back);
   } else if (state.vmReady) {
     screen.innerHTML = `<div style="font-size:40px">🖥️</div>
-      <h2>Your preview is running</h2>
-      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || distroName()} is booting in its own window — try it out. If you like it, install it for real using the same disk (no re-download, no re-deploy).</div>`;
+      <h2>Your VM window has opened</h2>
+      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || distroName()} has started in its own window. Check that Linux reaches its desktop. Native boot is not available from this preview yet; keep the disk to preserve your work.</div>`;
     const row = el('div'); row.style.cssText = 'display:flex;gap:10px;margin-top:8px';
     row.appendChild(btn('Not now', 'btn btn-ghost', () => { state.screen = 'launchpad'; render(); }));
-    row.appendChild(btn('Install for Real →', 'btn btn-primary', () => installPreviewForReal()));
     screen.appendChild(row);
   } else {
     const pct = Math.round(p.percent || 0);
