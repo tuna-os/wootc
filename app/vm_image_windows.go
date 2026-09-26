@@ -3,6 +3,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"golang.org/x/sys/windows"
 	"os"
 	"path/filepath"
@@ -22,13 +24,23 @@ func currentVMStoragePlan() (vmStoragePlan, vmStorageMinimums, error) {
 	return plan, minimums, err
 }
 
-func createVMImageFiles() error {
-	// The caller verified the complete signed runtime before it acquired the
-	// image lease. Metadata cannot lower the image profile by itself.
-	plan, minimums, err := currentVMStoragePlan()
+func selectCurrentVMStorageProfile(image string) (vmStorageSelection, error) {
+	_, minimums, err := currentVMStoragePlan()
 	if err != nil {
-		return err
+		return vmStorageSelection{}, err
 	}
+	manifest, err := readLocalMetadata(filepath.Join(qemuDir(), "SHA256SUMS"), 1<<20)
+	if err != nil {
+		return vmStorageSelection{}, err
+	}
+	identity := fmt.Sprintf("%x", sha256.Sum256(manifest))
+	return selectVMStorageProfile(vmCapacityExperiment, image, identity, minimums, approvedVMStorageProfiles())
+}
+
+func createVMImageFiles(selection vmStorageSelection) error {
+	// Selection uses the complete authenticated runtime while the image lease
+	// is held. Metadata cannot lower the image profile by itself.
+	plan, minimums := selection.Plan, selection.Minimums
 	available, err := vmFreeBytes(wootcDir())
 	if err != nil {
 		return err

@@ -124,6 +124,8 @@ func goTypeToCSharp(f StructField) (string, string) {
 			return "int", ""
 		case "int64":
 			return "long", ""
+		case "uint64":
+			return "ulong", ""
 		case "float64":
 			return "double", ""
 		case "bool":
@@ -146,6 +148,8 @@ func mapBasicType(t string) string {
 		return "int"
 	case "int64":
 		return "long"
+	case "uint64":
+		return "ulong"
 	case "float64":
 		return "double"
 	case "bool":
