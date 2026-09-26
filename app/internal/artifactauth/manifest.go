@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -42,7 +43,7 @@ func Parse(data []byte) (map[string]string, error) {
 		}
 		hash, err := hex.DecodeString(fields[0])
 		name := strings.TrimPrefix(fields[1], "*")
-		if err != nil || len(hash) != 32 || name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\:\x00") {
+		if err != nil || len(hash) != 32 || name == "" || name == "." || name == ".." || strings.ContainsAny(name, "\\:\x00") || path.IsAbs(name) || path.Clean(name) != name || strings.HasPrefix(name, "../") {
 			return nil, fmt.Errorf("invalid manifest entry at line %d", i+1)
 		}
 		if _, exists := sums[name]; exists {
