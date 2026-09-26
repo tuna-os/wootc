@@ -32,10 +32,12 @@ export function applyBranding(b) {
 
 // The brand's mark as an <img> (real asset), or the emoji as a fallback —
 // emojis survive only where they ARE the branding (the generic TunaOS build).
+const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
 export function brandMark(cls = '') {
   const b = state.brand || {};
-  if (b.logoDataUri) return `<img class="${cls}" src="${b.logoDataUri}" alt="${b.name || ''} logo">`;
-  return `<span class="${cls}">${b.logoEmoji || '🐠'}</span>`;
+  if (b.logoDataUri) return `<img class="${escapeHTML(cls)}" src="${escapeHTML(b.logoDataUri)}" alt="${escapeHTML(b.name || '')} logo">`;
+  return `<span class="${escapeHTML(cls)}">${escapeHTML(b.logoEmoji || '🐠')}</span>`;
 }
 
 export function installVerb() {

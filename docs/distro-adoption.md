@@ -65,13 +65,15 @@ Keep keyboard focus, large text, and screen-reader labels intact.
 ```sh
 (cd app/frontend && npm ci && npm run build)
 python3 packaging/build-windows.py --brand acme \
-  --version v1.2.3 --output dist/Acme-Installer.exe
+  --artifact-repository acme/installer --version v1.2.3 --output dist/Acme-Installer.exe
 ```
 
 The helper creates per-brand Windows resources in a temporary copy.
 It keeps administrator elevation and the GUI subsystem.
 The release version sets the executable metadata and boot-artifact pin.
 Publish the matching boot artifacts at that release before distribution.
+The repository defaults to `GITHUB_REPOSITORY` in CI, or `tuna-os/wootc` locally.
+The artifact origin stays inside the binary; a brand file cannot change it.
 
 | Check | Required proof |
 |---|---|

@@ -83,7 +83,9 @@ def resources(root, brand, version, work):
     }
 
 
-def build(root, brand, output, version, tags, ldflags):
+def build(root, brand, output, version, tags, ldflags, repository="tuna-os/wootc"):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+", repository):
+        raise ValueError("artifact repository must be owner/repository")
     output = Path(output).resolve()
     # Isolate resources as well as source: simultaneous builds cannot inherit
     # another brand's .syso, and a failed build never dirties the source tree.
@@ -101,6 +103,7 @@ def build(root, brand, output, version, tags, ldflags):
         # The protected flags come last so callers cannot accidentally remove
         # the GUI subsystem or compile a different runtime brand identity.
         flags = f"{ldflags} -H windowsgui -w -s -X main.brandID={brand}"
+        flags += f" -X main.releasesBaseURL=https://github.com/{repository}/releases/"
         if version != "0.0.0-dev":
             flags += f" -X main.releaseTag={version}"
         subprocess.run(["go", "build", "-tags", tags, "-ldflags", flags, "-o", str(output), "."],
@@ -114,9 +117,12 @@ def main():
     parser.add_argument("--version", default=os.environ.get("RELEASE_TAG") or "0.0.0-dev")
     parser.add_argument("--tags", default="desktop,production,native_webview2loader")
     parser.add_argument("--ldflags", default="")
+    parser.add_argument("--artifact-repository", default=os.environ.get("GITHUB_REPOSITORY") or "tuna-os/wootc",
+                        help="GitHub owner/repository for matching boot artifacts")
     args = parser.parse_args()
     try:
-        build(ROOT, args.brand, args.output, args.version, args.tags, args.ldflags)
+        subprocess.run([sys.executable, str(ROOT / "packaging/brand.py"), "validate", "--brand", args.brand], check=True)
+        build(ROOT, args.brand, args.output, args.version, args.tags, args.ldflags, args.artifact_repository)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Windows build failed: {error}\n")
 

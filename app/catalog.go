@@ -48,7 +48,7 @@ func (a *App) GetImages() ([]Image, error) {
 		return []Image{{
 			ID: "bundled", Name: "Included with this installer", Emoji: "📦",
 			ImageRef: b.Image, Status: "green",
-			Description: "Shipped with wootc — no download needed.",
+			Description: "Included with this installer — no download needed.",
 			Bootloader:  "auto",
 		}}, nil
 	}

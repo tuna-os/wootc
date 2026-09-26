@@ -28,7 +28,7 @@ export function renderLaunchpad() {
   if (state.lastRun?.state === 'failed') {
     screen.appendChild(warningBanner(
       `<b>Your last install attempt didn't finish</b> (stopped at "${state.lastRun.phase || 'an early step'}"). ` +
-      'Nothing outside the wootc folder was changed and no Linux boot is armed. ' +
+      'Nothing outside the installation folder was changed and no Linux boot is armed. ' +
       'You can simply try again below.'
     ));
   }

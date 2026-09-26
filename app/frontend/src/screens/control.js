@@ -22,7 +22,7 @@ export function renderControlPanel() {
   if (state.lastRun?.state === 'failed') {
     screen.appendChild(warningBanner(
       `<b>Your last install attempt didn't finish</b> (stopped at "${state.lastRun.phase || 'an early step'}"). ` +
-      'Nothing outside the wootc folder was changed and no Linux boot is armed. ' +
+      'Nothing outside the installation folder was changed and no Linux boot is armed. ' +
       'Choose Reinstall below to try again, or Uninstall to clean everything up.'
     ));
   }
@@ -39,7 +39,7 @@ export function renderControlPanel() {
       <div style="font-size:12.5px;color:var(--text-muted)">The Linux disk file is gone, but a startup entry and boot files remain. Uninstall below removes them — Windows is unaffected either way.</div>
     `;
   } else {
-    const path = u.diskPath || 'C:\\wootc\\disks\\root.vhdx';
+    const path = u.diskPath || 'C:\\wootc\\disks\\root.disk';
     const sizeStr = u.diskSizeGB ? ` (${Math.round(u.diskSizeGB)} GB)` : '';
     card.innerHTML = `
       <div style="font-weight:600;font-size:14px">${path}${sizeStr}</div>

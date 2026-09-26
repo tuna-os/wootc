@@ -10,8 +10,8 @@ export function renderTitleBar() {
   const bar = el('div', 'titlebar');
   bar.innerHTML = `
     ${brandMark('titlebar-logo')}
-    <span class="titlebar-name">${b.productName || b.name || 'wootc'}</span>
-    <span class="titlebar-version">${b.version || ''}</span>
+    <span class="titlebar-name"></span>
+    <span class="titlebar-version"></span>
     <span class="titlebar-step">${stepLabel()}</span>
     <div class="titlebar-controls">
       <button class="titlebar-btn" id="win-min" title="Minimise" aria-label="Minimise">
@@ -22,6 +22,8 @@ export function renderTitleBar() {
       </button>
     </div>
   `;
+  bar.querySelector('.titlebar-name').textContent = b.productName || b.name || 'wootc';
+  bar.querySelector('.titlebar-version').textContent = b.version || '';
   // A distro's support destination is separate from the platform's tracker.
   if (b.supportURL && /^https:\/\//.test(b.supportURL)) {
     const help = el('button', 'titlebar-btn');
