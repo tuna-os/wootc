@@ -20,6 +20,7 @@ func TestVMOwnedJobReapsChildOnClose(t *testing.T) {
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestVMOwnedJobReapsChildOnClose$")
 	cmd.Env = append(os.Environ(), "WOOTC_TEST_JOB_CHILD=1")
+	cmd.SysProcAttr = vmProcessAttributes()
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)

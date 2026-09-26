@@ -19,6 +19,7 @@ type vmBuilderReceipt struct {
 	FilesystemVerified bool   `json:"filesystemVerified"`
 	EFIVerified        bool   `json:"efiVerified"`
 	AccountOutcome     string `json:"accountOutcome"`
+	Username           string `json:"username,omitempty"`
 }
 
 func verifyVMBuilderReceipt(input io.Reader, expected VMState) (vmBuilderReceipt, error) {
@@ -66,7 +67,11 @@ func verifyVMBuilderReceipt(input io.Reader, expected VMState) (vmBuilderReceipt
 	if receipt.SchemaVersion != 1 || receipt.Status != "success" || receipt.RunID != expected.RunID || receipt.InstallID != expected.InstallID || receipt.Image != expected.Image {
 		return receipt, fmt.Errorf("builder result does not match this installation/run/image")
 	}
-	if !receipt.FilesystemVerified || !receipt.EFIVerified || receipt.AccountOutcome != "image-default" {
+	accountOutcome := expected.AccountOutcome
+	if accountOutcome == "" {
+		accountOutcome = "image-default"
+	}
+	if !receipt.FilesystemVerified || !receipt.EFIVerified || receipt.AccountOutcome != accountOutcome || receipt.Username != expected.Username {
 		return receipt, fmt.Errorf("builder did not verify the filesystem, EFI boot, and account outcome")
 	}
 	diskID, err := vmDiskIdentity(expected.DiskPath)

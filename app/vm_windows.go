@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -76,6 +75,10 @@ func (a *App) BootInVM() error {
 	}
 	release, err := acquireVMLock(managedVMRootDisk())
 	if err != nil {
+		return err
+	}
+	if err := removeVMAccountInputs(previewDir()); err != nil {
+		release()
 		return err
 	}
 	state, err := readVMState(vmStatePath(wootcDir()))
@@ -170,9 +173,19 @@ func (a *App) GetFreshVMCapability() VMCapability {
 // Completion needs a matching helper receipt and actual disk identity.
 // Non-blocking: returns after the worker starts, before provisioning completes.
 func (a *App) TryInVMFresh(imageRef string) error {
-	if strings.TrimSpace(imageRef) == "" || strings.ContainsAny(imageRef, " \t\r\n") {
-		return fmt.Errorf("select a valid operating system image")
+	return fmt.Errorf("Linux account details are required; use PrepareVM")
+}
+
+func (a *App) PrepareVM(cfg VMInstallConfig) error {
+	if err := validateVMInstallConfig(cfg); err != nil {
+		return err
 	}
+	hash, err := hashPassword(cfg.Password)
+	cfg.Password = ""
+	if err != nil {
+		return fmt.Errorf("could not prepare the Linux password")
+	}
+	imageRef := cfg.ImageRef
 	cap := a.GetFreshVMCapability()
 	if !cap.Available {
 		return fmt.Errorf("%s", cap.Reason)
@@ -182,6 +195,10 @@ func (a *App) TryInVMFresh(imageRef string) error {
 	}
 	release, err := acquireVMLock(managedVMRootDisk())
 	if err != nil {
+		return err
+	}
+	if err := removeVMAccountInputs(previewDir()); err != nil {
+		release()
 		return err
 	}
 	if _, err := os.Lstat(managedVMRootDisk()); !os.IsNotExist(err) {
@@ -210,7 +227,7 @@ func (a *App) TryInVMFresh(imageRef string) error {
 		defer close(done)
 		defer cancel()
 		defer func() { a.vmMu.Lock(); a.vmCancel = nil; a.vmPrepareDone = nil; a.vmMu.Unlock() }()
-		state := VMState{SchemaVersion: 1, InstallID: newVMID(), RunID: newVMID(), Image: imageRef, DiskPath: managedVMRootDisk(), Phase: vmPreparing}
+		state := VMState{SchemaVersion: 1, InstallID: newVMID(), RunID: newVMID(), Image: imageRef, DiskPath: managedVMRootDisk(), Phase: vmPreparing, Username: cfg.Username, AccountOutcome: "created"}
 		err := writeVMState(vmStatePath(wootcDir()), state)
 		if err == nil {
 			state.Image, err = resolveVMImage(ctx, imageRef)
@@ -222,7 +239,8 @@ func (a *App) TryInVMFresh(imageRef string) error {
 			err = createVMImageFiles()
 		}
 		if err == nil {
-			err = a.runBuilderVM(ctx, cap, &state)
+			err = a.runBuilderVM(ctx, cap, &state, hash)
+			hash = ""
 		}
 		if err == nil {
 			state.Phase = vmReady
@@ -283,13 +301,23 @@ func resolveVMImage(ctx context.Context, image string) (string, error) {
 	return host + "/" + repo + "@" + digest, nil
 }
 
-func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState) error {
+func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState, passwordHash string) (resultErr error) {
+	accountPath, err := writeVMAccountInput(previewDir(), vmAccountInput{SchemaVersion: 1, RunID: state.RunID, InstallID: state.InstallID, Username: state.Username, PasswordHash: passwordHash})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := os.Remove(accountPath); err != nil && !os.IsNotExist(err) && resultErr == nil {
+			resultErr = fmt.Errorf("could not remove private account input")
+		}
+	}()
 	logPath := filepath.Join(previewDir(), state.RunID+"-builder.log")
 	serialPath := filepath.Join(previewDir(), state.RunID+"-serial.log")
 	a.emitVM(VMEvent{Stage: "pulling", Message: "Preparing your persistent Linux system. Windows will remain available."})
 	args := []string{"-accel", cap.Accelerator, "-display", "none", "-m", "3072", "-smp", "2", "-machine", "q35", "-cpu", "max",
 		"-kernel", builderKernel(), "-initrd", builderInitrd(),
-		"-append", "console=ttyS0 quiet wootc.image=" + state.Image + " wootc.run_id=" + state.RunID + " wootc.install_id=" + state.InstallID,
+		"-append", "console=ttyS0 quiet wootc.image=" + state.Image + " wootc.run_id=" + state.RunID + " wootc.install_id=" + state.InstallID + " wootc.account_mode=create",
+		"-fw_cfg", "name=opt/wootc/install,file=" + qemuEscape(accountPath),
 		"-drive", vmDiskDrive(state.DiskPath) + ",serial=wootc-root",
 		"-drive", vmDiskDrive(filepath.Join(previewDir(), "scratch.disk")) + ",serial=wootc-scratch",
 		"-nic", "user", "-chardev", "file,id=ipc,path=" + qemuEscape(logPath), "-device", "virtio-serial",
@@ -297,7 +325,7 @@ func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState
 	cmd := exec.CommandContext(ctx, cap.QEMUPath, args...)
 	cmd.Dir = filepath.Dir(cap.QEMUPath)
 	cmd.Env = vmProcessEnvironment(cmd.Dir, previewDir())
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = vmProcessAttributes()
 	stderr, err := os.OpenFile(filepath.Join(previewDir(), state.RunID+"-builder-error.log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return err

@@ -8,15 +8,29 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 )
 
 func (a *App) GetVMState() VMState {
+	if previewMode() {
+		return VMState{SchemaVersion: 1, Phase: "unavailable", Error: "VM execution is unavailable in the UI test harness."}
+	}
 	a.vmMu.Lock()
 	defer a.vmMu.Unlock()
 	if a.vmSession != nil {
 		return a.vmSession.snapshot()
+	}
+	if a.vmCancel == nil {
+		if err := prepareTrustedStateTree(wootcDir()); err != nil {
+			return VMState{SchemaVersion: 1, Phase: vmRecovery, Error: err.Error()}
+		}
+		if release, err := acquireVMLock(managedVMRootDisk()); err == nil {
+			cleanupErr := removeVMAccountInputs(previewDir())
+			release()
+			if cleanupErr != nil {
+				return VMState{SchemaVersion: 1, Phase: vmRecovery, Error: cleanupErr.Error()}
+			}
+		}
 	}
 	state, err := readVMState(vmStatePath(wootcDir()))
 	if os.IsNotExist(err) {
@@ -158,7 +172,7 @@ func (a *App) launchManagedDesktop(cap VMCapability, state VMState, release func
 	cmd := exec.Command(cap.QEMUPath, args...)
 	cmd.Dir = filepath.Dir(cap.QEMUPath)
 	cmd.Env = vmProcessEnvironment(cmd.Dir, previewDir())
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = vmProcessAttributes()
 	log, err := os.OpenFile(filepath.Join(wootcDir(), "vm", "qemu.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return err

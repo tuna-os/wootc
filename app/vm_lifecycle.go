@@ -25,17 +25,19 @@ const (
 // VMState records the persistent installed system, not just a process. Ready
 // means provisioning verified the disk; DesktopReady needs separate guest proof.
 type VMState struct {
-	SchemaVersion int    `json:"schemaVersion"`
-	InstallID     string `json:"installId"`
-	RunID         string `json:"runId"`
-	Image         string `json:"image"`
-	DiskID        string `json:"diskId"`
-	DiskPath      string `json:"diskPath"`
-	Phase         string `json:"phase"`
-	DesktopReady  bool   `json:"desktopReady"`
-	PID           int    `json:"pid"`
-	Error         string `json:"error,omitempty"`
-	UpdatedAt     string `json:"updatedAt"`
+	SchemaVersion  int    `json:"schemaVersion"`
+	InstallID      string `json:"installId"`
+	RunID          string `json:"runId"`
+	Image          string `json:"image"`
+	Username       string `json:"username,omitempty"`
+	AccountOutcome string `json:"accountOutcome,omitempty"`
+	DiskID         string `json:"diskId"`
+	DiskPath       string `json:"diskPath"`
+	Phase          string `json:"phase"`
+	DesktopReady   bool   `json:"desktopReady"`
+	PID            int    `json:"pid"`
+	Error          string `json:"error,omitempty"`
+	UpdatedAt      string `json:"updatedAt"`
 }
 
 func readVMState(path string) (VMState, error) {

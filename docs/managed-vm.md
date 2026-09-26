@@ -45,7 +45,7 @@ A process does not prove acceleration, guest boot, or a usable desktop.
 | Existing file | Never truncate or replace; preserve failed preparation for diagnosis |
 | Helper completion | Exit zero, one structured receipt, then `STATUS=SUCCESS` |
 | Receipt identity | Exact image/run/install IDs and the GPT GUID read from the target |
-| Receipt validation | `filesystemVerified=true`, `efiVerified=true`, `accountOutcome=image-default` |
+| Receipt validation | `filesystemVerified=true`, `efiVerified=true`, `accountOutcome=created` and exact username |
 | Result transport | Private file-backed virtio channel owned by this QEMU launch; no public socket |
 
 The 80 GiB gate is a conservative trial limit, not a measured physical minimum.
@@ -54,8 +54,18 @@ space on Windows, a reserve, and an abort before space runs low.
 A lighter image with a 2 GiB helper also needs proof for older PCs.
 These are P0 requirements for the consumer path.
 
-This evidence proves the installed disk. It does not prove account setup or a
-usable desktop.
+The host sends account input through private `fw_cfg` data.
+The file contains a password hash, never a plaintext password.
+It stays under the protected VM directory, outside logs and durable state.
+The host removes it after the helper exits. After a crash, cleanup first takes
+the image lock. It removes only account input, not the Linux disk.
+
+The GUI reuses the Linux username and password fields. It derives the username
+from Windows when possible. `PrepareVM` accepts these choices. Without an account,
+`TryInVMFresh` refuses preparation.
+
+This evidence proves the installed disk and the helper's account result.
+A usable login and desktop still need independent guest evidence.
 
 A mutex in Windows protects the image across engine processes.
 An exclusive file handle also detects an unmanaged process that still has the
@@ -67,6 +77,9 @@ unless the user chooses to delete them.
 ## Stop, restart and recovery
 
 QMP uses private inherited pipes. A job object in Windows owns the QEMU process.
+The host creates QEMU suspended, assigns the job, then resumes it.
+A crash before assignment can leave an inert process, but no unowned writer.
+
 If the engine exits, Windows stops that process. The engine writes state before
 launch. An interruption leaves a record that needs recovery.
 It never trusts a reused process ID.
@@ -83,7 +96,7 @@ It never trusts a reused process ID.
 | `desktopReady` | Always false until independent guest evidence exists |
 
 The bounded wait allows the engine to exit. A forced stop never becomes a
-clean stop. Follow-up work includes filesystem recovery, account/OOBE setup,
+clean stop. Follow-up work includes filesystem recovery, account/login proof,
 a desktop probe, and promotion of the same system to native boot.
 
 The shutdown evidence follows the [QEMU QMP reference](https://www.qemu.org/docs/master/interop/qemu-qmp-ref.html#event-SHUTDOWN).
