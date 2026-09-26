@@ -141,7 +141,8 @@ E2E-verified).
 
 ## Linux access to the Windows volume
 
-The writable mount stays under `/run/initramfs`, which has mode `0700`.
+During boot from `root.disk`, the writable host mount stays under
+`/run/initramfs`, which has mode `0700`.
 The public `/run/wootc/host` view is read-only. An empty private mount hides
 `wootc` installer directories, including state files and recovery keys.
 The service prepares the masks and read-only flag before it publishes the
@@ -154,6 +155,8 @@ for these selected folder writes. Redirects to the volume root or installer
 state are refused. The file-manager bookmark says “Windows drive (read-only)”.
 This protects installer state and keys. The public view can still read other
 Windows files; it does not implement Windows per-user read permissions.
+The separate `wootc-import` path for external disks does not yet use this
+private view. Do not assume that it hides installer data on an imported disk.
 
 `tests/integration/linux-state-boundary.sh DRIVER FIXTURE.vhd` exercises the
 actual mount and folder-binding functions in a private mount namespace. It
