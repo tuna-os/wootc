@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -134,41 +135,51 @@ func (r *readingSignal) Read(p []byte) (int, error) {
 }
 
 type writingSignal struct {
-	*io.PipeWriter
+	io.WriteCloser
 	entered chan struct{}
 	once    sync.Once
 }
 
 func (w *writingSignal) Write(p []byte) (int, error) {
 	w.once.Do(func() { close(w.entered) })
-	return w.PipeWriter.Write(p)
+	return w.WriteCloser.Write(p)
 }
 
 func TestServeDisconnectUnblocksInFlightProgressWrite(t *testing.T) {
 	app := NewApp()
 	in, client := io.Pipe()
-	outReader, outWriter := io.Pipe()
+	outReader, outWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer in.Close()
 	defer client.Close()
 	defer outReader.Close()
 	defer outWriter.Close()
 	reader := &readingSignal{Reader: in, ready: make(chan struct{})}
-	writer := &writingSignal{PipeWriter: outWriter, entered: make(chan struct{})}
+	writer := &writingSignal{WriteCloser: outWriter, entered: make(chan struct{})}
 	result := make(chan error, 1)
 	go func() { result <- Serve(context.Background(), app, reader, writer) }()
 	waitSignal(t, reader.ready, "serve transport setup")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cleaned := make(chan struct{})
+	writeReturned := make(chan struct{})
 	if err := app.startInstallWorker(cancel, func() {
-		app.emit(ProgressEvent{Step: "armed"}) // blocked: nobody reads outReader
+		app.emit(ProgressEvent{Step: "armed", Message: strings.Repeat("x", 1024*1024)})
+		close(writeReturned)
 		<-ctx.Done()
 		app.emit(ProgressEvent{Step: "disarmed"}) // future writes must also be inert
 		close(cleaned)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	waitSignal(t, writer.entered, "blocked notification")
+	waitSignal(t, writer.entered, "notification write")
+	select {
+	case <-writeReturned:
+		t.Fatal("notification did not fill the OS pipe; test never blocked")
+	case <-time.After(50 * time.Millisecond):
+	}
 	_ = client.Close()
 	select {
 	case err := <-result:
