@@ -813,3 +813,32 @@ aged past its account's password lifetime.
   out, substituted a username, and scheduled a task that could never run.
   `autologon-no-session` is an environment failure. It is not a product verdict or an automatic retry trigger.
   A second identical snapshot has the same bug.
+
+## 35. Guest free space does not prove KubeVirt node capacity
+
+On 2026-09-26, storage pressure on the shared node stopped a helper trial
+inside Windows after 4,710.74 seconds (78.5 minutes). The helper had started
+to install OS layers. It had not returned a success receipt. Another test
+pod had already left the node. Free space had fallen below the kubelet
+threshold of 23,502,050,623 bytes. The experiment's former 8 GiB node guard was too low.
+
+- Check the node filesystem `availableBytes`, or `df -B1` on the volume
+  that stores VM disks, before and during a trial. Windows C: free space and a sparse
+  disk's logical size do not measure this shared capacity.
+- This rig now reserves at least **26 GiB on the node**, above the observed
+  eviction threshold with headroom. Recheck the node's threshold before a
+  future run. Other pods can consume the same filesystem.
+- Keep this infrastructure reserve separate from the application's **8 GiB
+  consumer reserve**. A kubelet eviction policy is not a laptop requirement.
+- If the node crosses the rig reserve, stop only the identified test writer.
+  Do not wait below the reserve for another cleanup job. Preserve the outer
+  Windows fixture and record a storage-pressure stop, not a helper failure.
+- After the writer exits, archive the evidence, then delete its disposable
+  scratch disk. A file deletion in Windows does not prove that the node has
+  recovered physical space. This trial needed ReTrim inside Windows. A new
+  node measurement showed that available bytes rose from 24,140,267,520 to
+  34,515,693,568. Confirm free space on the node before you start another trial.
+
+The [recorded result](experiments/evidence/2026-09-26-vm-first/windows-helper-storage-stop.json)
+retains the empty helper receipt and the harness termination reason.
+No claim of an installed desktop or a complete installation follows from this run.
