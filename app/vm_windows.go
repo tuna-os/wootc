@@ -173,6 +173,11 @@ func (a *App) GetFreshVMCapability() VMCapability {
 		cap.Reason = "The VM builder initramfs is missing."
 		return cap
 	}
+	if _, _, err := currentVMStoragePlan(); err != nil {
+		cap.Available = false
+		cap.Reason = err.Error()
+		return cap
+	}
 	return a.probeVMRuntime(cap)
 }
 
