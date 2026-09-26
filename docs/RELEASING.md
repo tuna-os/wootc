@@ -117,47 +117,39 @@ A person must attach three screenshots, because a script cannot make them:
 - The **Properties ▸ Details** tab of the exe.
 - The SmartScreen interstitial, or a note that it did not show.
 
-### Two boxes fail today, and that is correct
+### Signatures and file identity
 
-The script reports ✘ now. The checklist keeps these gaps visible, so that
-people do not forget them:
+**No release has a signature.** `release.yml` has no step that signs the
+files. [#229] is the choice and purchase of a signature method. This is a
+spend decision for the maintainer. [#230] adds that method to the pipeline.
+Until both issues are done, each signature box is ✘. SmartScreen shows the
+wall for unknown apps, and UAC shows "unknown publisher".
 
-1. **No release has a signature.** `release.yml` has no step that signs the
-   files. [#229] is the choice and purchase of a signature method. This is a
-   spend decision for the maintainer. [#230] adds that method to the
-   pipeline. Until both issues are done, each signature box is ✘.
-   SmartScreen shows the wall for unknown apps, and UAC shows
-   "unknown publisher".
+The release now builds a VERSIONINFO resource **per brand** through
+`packaging/build-windows.py`. It reads the product name, description,
+publisher, copyright, and file name from `app/branding/<brand>/brand.json`.
+The release tag supplies the version. A tag such as `v1.2.3` also sets the
+numeric version. Auto release tags stay in the text fields; their numeric
+version is `0.0.0.0`.
 
-2. **No build has a VERSIONINFO resource at all.** Thus the fourth item of
-   criterion 4 has nothing to check. The properties dialog in its screenshot
-   is blank. `just build-icon` makes `app/rsrc_windows_amd64.syso` with
-   `rsrc -ico -manifest`. **`rsrc` writes an icon and a manifest only.**
-   The `info` block in `app/wails.json` (`companyName`, `productName`,
-   `productVersion`, `copyright`) has data that no shipped binary gets.
-   The cause is that the release uses plain `go build`, not `wails build`.
+The build uses the brand's `icon.ico` when present. Otherwise, it converts
+`logo.svg` with `rsvg-convert`. If neither is usable, it reports the platform
+icon fallback. A conversion error stops the build. The release job installs
+`rsvg-convert`, so brands with a logo get their own icon.
 
-   To confirm this on a build:
+The helper builds from a temporary copy of the app. It does not change the resource file in the source tree. To build a brand after the frontend build:
 
-   ```sh
-   cd app && GOOS=windows GOARCH=amd64 go build -ldflags "-X main.brandID=bazzite" \
-       -o /tmp/Bazzite-Installer.exe .
-   # the PE resource directory holds ICON, GROUP_ICON and MANIFEST — no VERSION
-   ```
+```sh
+python3 packaging/build-windows.py --brand bazzite \
+    --version v1.2.3 --output /tmp/Bazzite-Installer.exe
+```
 
-   This gap is also a brand problem, not only a signature problem. All five
-   builds link the same `.syso`, and `-ldflags -X main.brandID=…` cannot
-   change a resource. So the version data must be **per brand**, and the
-   build must make it for each brand. If not, the properties dialog of each
-   branded exe shows `wootc`. Criterion 4 forbids that text.
-
-   The person who does [#230] changes this build loop, so that person must
-   also do this work. `rsrc` cannot do it, so the tool must change too.
-
-   The new tool **must keep the manifest**. `wootc.manifest` has
-   `requestedExecutionLevel level="requireAdministrator"`. Without it, the
-   installer does not ask for administrator rights, and no error shows.
-   `tests/unit/fresh-machine-trust.bats` checks for this.
+The resource tool keeps the administrator manifest, Windows compatibility,
+and DPI settings. `tests/unit/test_windows_resources.py` builds
+a pair of Windows files and reads their PE resource tables. It checks the brand
+text, version, icon bytes, administrator request, and GUI subsystem.
+The file identity does not sign the installer or set the UAC publisher.
+Use the field verifier and attach screenshots for the published files.
 
 [#241]: https://github.com/tuna-os/wootc/issues/241
 [#229]: https://github.com/tuna-os/wootc/issues/229

@@ -132,7 +132,7 @@ build-icon:
     #!/usr/bin/env bash
     set -euo pipefail
     command -v rsvg-convert >/dev/null || { echo "need rsvg-convert (librsvg)" >&2; exit 1; }
-    command -v "$(go env GOPATH)/bin/rsrc" >/dev/null 2>&1 || go install github.com/akavel/rsrc@latest
+    command -v "$(go env GOPATH)/bin/rsrc" >/dev/null 2>&1 || go install github.com/akavel/rsrc@v0.10.2
     cd app/build
     rsvg-convert -w 256 -h 256 appicon.svg -o appicon.png
     mkdir -p windows
@@ -159,10 +159,7 @@ build-wootc-exe brand="wootc":
         ls app/branding >&2; exit 1; }
     mkdir -p "{{ FILES }}"
     (cd app/frontend && npm install --silent && npm run build >/dev/null)
-    (cd app && GOOS=windows GOARCH=amd64 \
-        go build -tags desktop,production,native_webview2loader \
-        -ldflags "-w -s -X main.brandID={{ brand }}" \
-        -o "{{ FILES }}/wootc.exe" .)
+    python3 packaging/build-windows.py --brand "{{ brand }}" --output "{{ FILES }}/wootc.exe"
     echo "brand: {{ brand }} ($(jq -r '.productName // "wootc"' "app/branding/{{ brand }}/brand.json"))"
     ls -lh "{{ FILES }}/wootc.exe"
 
@@ -177,10 +174,7 @@ build-brands out="dist":
         brand=$(basename "$dir")
         exe=$(jq -r '.exeName // empty' "$dir/brand.json")
         [ -n "$exe" ] || { echo "$dir/brand.json has no exeName" >&2; exit 1; }
-        (cd app && GOOS=windows GOARCH=amd64 \
-            go build -tags desktop,production,native_webview2loader \
-            -ldflags "-w -s -X main.brandID=$brand" \
-            -o "../{{ out }}/$exe.exe" .)
+        python3 packaging/build-windows.py --brand "$brand" --output "{{ out }}/$exe.exe"
         echo "built {{ out }}/$exe.exe (brand: $brand)"
     done
     ls -lh "{{ out }}"
