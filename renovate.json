@@ -19,6 +19,13 @@
       ],
       "automerge": false,
       "enabled": false
+    },
+    {
+      "description": "Experiment evidence records measured inputs. Keep its historical dependencies unchanged; production dependencies still update. See PR #424.",
+      "matchFileNames": [
+        "docs/experiments/evidence/**"
+      ],
+      "enabled": false
     }
   ]
 }
