@@ -11,6 +11,6 @@ grep -q 'wootc\.debug' /proc/cmdline 2>/dev/null && return 0
     printf '\033[?25l\033[2J\033[H\n\n\n\n'
     printf '\033[1;96m                     Setting up your new Linux system\033[0m\n\n\n'
     printf '\033[0;97m                     Getting started - this can pause for a moment...\033[0m\n\n\n\n\n\n\n'
-    printf '\033[0;92m                [OK]  Your Windows and all of your files are safe.\033[0m\n'
+    printf '\033[0;92m                Please keep your PC plugged in.\033[0m\n'
 } > /dev/tty1 2>/dev/null || true
 return 0
