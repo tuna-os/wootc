@@ -94,3 +94,34 @@ func TestDownloadedManifestAuthentication(t *testing.T) {
 		t.Fatal("accepted forged downloaded signature")
 	}
 }
+
+func TestInvalidLocalManifestDoesNotFallBackToNetwork(t *testing.T) {
+	calls := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, "unexpected network fetch", http.StatusNotFound)
+	}))
+	defer server.Close()
+	oldClient, oldBase := artifactClient, releasesBaseURL
+	t.Cleanup(func() { artifactClient, releasesBaseURL = oldClient, oldBase })
+	artifactClient, releasesBaseURL = server.Client(), server.URL+"/"
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "SHA256SUMS"), []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fetchArtifactChecksums(context.Background(), dir); err == nil {
+		t.Fatal("accepted invalid local manifest")
+	}
+	if calls != 0 {
+		t.Fatalf("hid local failure behind %d network requests", calls)
+	}
+}
+
+func TestArtifactMetadataSizeBound(t *testing.T) {
+	if _, err := readBounded(strings.NewReader(strings.Repeat("x", 65)), 64); err == nil {
+		t.Fatal("accepted oversized metadata")
+	}
+	if got, err := readBounded(strings.NewReader(strings.Repeat("x", 64)), 64); err != nil || len(got) != 64 {
+		t.Fatalf("rejected exact bound: %v", err)
+	}
+}

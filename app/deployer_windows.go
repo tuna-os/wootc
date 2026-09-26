@@ -16,7 +16,10 @@ import (
 // ── Deployer download ─────────────────────────────────────────────────────────
 
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
-	installDir := filepath.Join(wootcDir(), "install")
+	return downloadDeployerTo(ctx, filepath.Join(wootcDir(), "install"), progress)
+}
+
+func downloadDeployerTo(ctx context.Context, installDir string, progress func(float64)) error {
 	// The signed shim+grub pair carries the Secure Boot chain; mmx64.efi
 	// (MokManager) lets shim complete the MOK enrollment that custom-kernel
 	// images queue during deploy (#248); wubildr.efi remains only for the
@@ -28,7 +31,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	// never install a boot artifact it cannot verify. This is fail-closed:
 	// an unreachable manifest, a missing entry, a corrupt cache, and a
 	// checksum mismatch all abort the install.
-	sums, err := fetchChecksums(ctx)
+	sums, err := fetchArtifactChecksums(ctx, installDir)
 	if err != nil {
 		return fmt.Errorf("cannot verify boot artifacts: SHA256SUMS manifest unavailable: %w", err)
 	}
