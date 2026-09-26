@@ -242,6 +242,11 @@ bind_profile() {
         fi
         # Converted to native storage (wootc-convert-dir) — stop bridging.
         [[ -e "$home/.config/wootc/converted-$folder" ]] && continue
+        # Do not follow a user-created Documents symlink into another path.
+        if [[ -L "$dst" ]]; then
+            warn "refusing symlink folder destination: $dst"
+            continue
+        fi
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"

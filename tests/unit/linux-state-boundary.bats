@@ -53,3 +53,21 @@ teardown() { chmod -R u+rwx "$T"; rm -rf "$T"; }
         [ "$status" -ne 0 ]
     done
 }
+@test "a user-created folder symlink is never used as a bind destination" {
+    HOST="$T/host"
+    mkdir -p "$HOST/Users/fixture/Documents" "$T/home" "$T/elsewhere"
+    ln -s "$T/elsewhere" "$T/home/Documents"
+    eval "$(sed -n '/^safe_folder_source()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    eval "$(sed -n '/^bind_profile()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    sel_on() { return 0; }
+    resolved_folder() { return 0; }
+    add_host_bookmark() { :; }
+    log() { echo "$*"; }
+    warn() { echo "$*" >&2; }
+    FOLDERS=(Documents)
+    bound=0
+    run bind_profile "$HOST/Users/fixture/" "$(id -un)" "$T/home"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'refusing symlink folder destination'* ]]
+    [ ! -s "$CALLS" ]
+}
