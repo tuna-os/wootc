@@ -121,3 +121,28 @@ func TestStateTreeRejectsReparsePoint(t *testing.T) {
 		t.Fatalf("wanted reparse refusal: %v", err)
 	}
 }
+
+func TestStateTreeRejectsWritableRootWithoutRepair(t *testing.T) {
+	root := trustedFixture(t)
+	applyTestDACL(t, root, "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FW;;;BU)")
+	if err := prepareTrustedStateTree(root); err == nil {
+		t.Fatal("accepted writable root")
+	}
+	if err := inspectStateObject(root, false); err == nil {
+		t.Fatal("unsafe root ACL was silently repaired")
+	}
+}
+
+func TestStateDriveRejectsInvalidInputBeforeSelection(t *testing.T) {
+	previous := storageDrive
+	t.Cleanup(func() { storageDrive = previous })
+	storageDrive = "C"
+	for _, invalid := range []string{`C:\wootc`, `C:\`, `..\E`, "C:D", "1"} {
+		if err := prepareInstallState(invalid); err == nil {
+			t.Fatalf("accepted %q", invalid)
+		}
+		if storageDrive != "C" {
+			t.Fatalf("rejected %q changed selected drive to %q", invalid, storageDrive)
+		}
+	}
+}
