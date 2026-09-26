@@ -3,7 +3,7 @@
 # packaging/winget/render-brand.sh into the brand's OWN namespace. Never
 # submitted by this repo without a recorded yes (app/branding/*/blessing.json).
 PackageIdentifier: {{IDENTIFIER}}
-PackageVersion: "{{VERSION}}"
+PackageVersion: {{VERSION}}
 DefaultLocale: en-US
 ManifestType: version
 ManifestVersion: 1.6.0
