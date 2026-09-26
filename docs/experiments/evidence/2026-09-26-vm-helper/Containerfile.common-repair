@@ -1,0 +1,4 @@
+FROM ghcr.io/tuna-os/yellowfin@sha256:ed95623a4943a75b5ea61edb914de5a9b6033c4fb2ddb9de60fa14d88861520d
+COPY gnome-shell-common-50.0-3.el10.noarch.rpm /tmp/wootc-common.rpm
+RUN echo 'a3db660a7e453cf1364757a7e2fff10cbbaf0df8467e0a67f5247b0c459d05d2  /tmp/wootc-common.rpm' | sha256sum -c - && rpm -Uvh /tmp/wootc-common.rpm && gsettings list-schemas | grep '^org.gnome.shell$' && rm /tmp/wootc-common.rpm
+LABEL org.wootc.experiment="2026-09-26-missing-gnome-shell-common"

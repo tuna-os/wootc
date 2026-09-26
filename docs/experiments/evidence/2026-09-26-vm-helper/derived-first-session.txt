@@ -1,0 +1,9 @@
+Sep 26 19:15:07 ip-10-0-2-15.eu-north-1.compute.internal systemd[1]: Started session-c1.scope - Session c1 of User gdm-greeter.
+Sep 26 19:15:07 ip-10-0-2-15.eu-north-1.compute.internal gnome-shell[1506]: Running GNOME Shell (using mutter 50.0) as a Wayland display server
+Sep 26 19:15:43 ip-10-0-2-15.eu-north-1.compute.internal (systemd)[3033]: pam_unix(systemd-user:session): session opened for user wootctest(uid=1000) by wootctest(uid=0)
+Sep 26 19:15:43 ip-10-0-2-15.eu-north-1.compute.internal systemd[1]: Started session-2.scope - Session 2 of User wootctest.
+Sep 26 19:15:43 ip-10-0-2-15.eu-north-1.compute.internal gdm-password][3002]: pam_unix(gdm-password:session): session opened for user wootctest(uid=1000) by wootctest(uid=0)
+Sep 26 19:15:43 ip-10-0-2-15.eu-north-1.compute.internal gnome-shell[3150]: Running GNOME Shell (using mutter 50.0) as a Wayland display server
+Sep 26 19:15:56 ip-10-0-2-15.eu-north-1.compute.internal systemd[1]: Reached target graphical.target - Graphical Interface.
+Sep 26 19:18:34 ip-10-0-2-15.eu-north-1.compute.internal systemd[1]: Reached target poweroff.target - System Power Off.
+Sep 26 19:18:34 ip-10-0-2-15.eu-north-1.compute.internal systemd-shutdown[1]: Syncing filesystems and block devices.
