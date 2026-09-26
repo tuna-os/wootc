@@ -49,7 +49,7 @@ The native ACL tests require an elevated Windows process. They use temporary
 folders, never the machine's actual `C:\wootc` or boot configuration:
 
 ```powershell
-go test -run '^TestState(DescriptorTrust|Tree)' -v .
+go test -run '^TestState' -v .
 ```
 
 Cross-compiling the app or running its Linux tests cannot validate Windows ACL
