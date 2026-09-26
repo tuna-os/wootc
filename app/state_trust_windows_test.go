@@ -24,13 +24,13 @@ func TestStateDescriptorTrust(t *testing.T) {
 		{"user write", "O:BAD:(A;;FW;;;BU)", false, false},
 		{"everyone write", "O:BAD:(A;;FW;;;WD)", false, false},
 		{"user delete", "O:BAD:(A;;SD;;;BU)", false, false},
-		{"user delete child", "O:BAD:(A;;DC;;;BU)", false, false},
+		{"user delete child", "O:BAD:(A;;0x00000040;;;BU)", false, false},
 		{"user change ACL", "O:BAD:(A;;WD;;;BU)", false, false},
 		{"user change owner", "O:BAD:(A;;WO;;;BU)", false, false},
 		{"future writable children", "O:BAD:(A;OICIIO;FW;;;BU)", false, false},
 		{"creator owner children", "O:BAD:(A;OICIIO;FA;;;CO)(A;;FA;;;BA)", false, true},
 		{"volume create child allowed", "O:BAD:(A;;0x00000006;;;BU)(A;;FA;;;BA)", true, true},
-		{"volume delete child refused", "O:BAD:(A;;DC;;;BU)(A;;FA;;;BA)", true, false},
+		{"volume delete child refused", "O:BAD:(A;;0x00000040;;;BU)(A;;FA;;;BA)", true, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
