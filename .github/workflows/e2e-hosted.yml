@@ -213,7 +213,11 @@ jobs:
           # Use the release build path so the walkthrough proves the same
           # icon, Windows metadata, elevation manifest, and runtime brand.
           # Omit --version: E2E uses the locally staged boot artifacts.
+          key_dir=$(mktemp -d "$RUNNER_TEMP/wootc-e2e-signing.XXXXXX")
+          (cd app && go run ./tools/signmanifest generate "$key_dir/seed" "$key_dir/public.hex")
+          echo "WOOTC_E2E_MANIFEST_KEY=$key_dir/seed" >> "$GITHUB_ENV"
           python3 packaging/build-windows.py --brand "$BRAND_ID" \
+              --manifest-public-key "$key_dir/public.hex" \
               --output tests/e2e/wootc-files/wootc.exe
           ls -lh tests/e2e/wootc-files/wootc.exe
 
