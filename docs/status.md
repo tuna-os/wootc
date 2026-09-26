@@ -6,10 +6,29 @@ The [ROADMAP](../ROADMAP.md) says where the project is going; this page says
 what the evidence supports today. The verification ladder itself is defined
 in [milestones.md](milestones.md).
 
-A case is only marked ✅ once the whole chain passes: Windows seed → deploy →
-Phase-2 boot → seeded file readable from Linux.
+The native-cycle matrix below records Windows seed → deploy → native Linux boot
+→ seeded file readable from Linux. It does not prove Phase 1 inside Windows.
+[ADR 0004](adr/0004-restore-vm-first-product.md) needs a usable Linux VM,
+with persistent user work, before native promotion. That gate remains open.
 
-## Proven end-to-end (KVM E2E rig: Windows 11 + TPM 2.0 + Secure Boot)
+## Phase 1: Linux inside Windows
+
+| Gate | Status | Evidence as of 2026-09-26 |
+|---|:--:|---|
+| Windows-hosted VM readiness | 🟡 | Experimental helper preflight passed under nested WHPX: both disks, DHCP, scratch mounts, and matching serial/IPC marker; full target desktop unproven |
+| Persistent target preparation and first desktop | ⚪ | No complete Windows-hosted target desktop proof yet |
+| Guest work survives VM restart and native promotion | ⚪ | Same-disk lifecycle and migration acceptance remain open |
+
+The [Windows preflight evidence](experiments/vm-first-2026-09-26.md#experiment-3-windows-hypervisor-prerequisites)
+used a disposable target and scratch disk. It did not install a distro.
+The 2 GiB helper reached its readiness marker in 396 seconds and powered off.
+These nested-server timings do not measure performance on older PCs.
+A helper result does not prove Phase 1.
+
+## Historical native-cycle evidence (KVM E2E rig: Windows 11 + TPM 2.0 + Secure Boot)
+
+These runs armed native installation from Windows. Earlier reports called that
+step “Phase 1”; they did not run the installed Linux desktop inside Windows.
 
 - ✅ **Arm (rung 1):** the real `wootc.exe` arms a virgin Windows VM over QGA —
   root disk, signed chain, one-shot BCD, `state.json = armed` (24/24).
@@ -21,20 +40,28 @@ Phase-2 boot → seeded file readable from Linux.
   The initramfs mounts NTFS with the kernel driver, attaches the raw disk with
   `losetup`, resolves the root UUID, runs OSTree prepare-root, switches to the
   real deployment, reaches the graphical system, and exposes Linux QGA.
-- ✅ **GUI + migration:** installer GUI (Playwright-tested), User Data Bridge
-  and WSL/Office/Steam/browser bridges (unit-tested), external-disk import
-  engine, Try-in-VM orchestration, Phase-3 planner.
 - ✅ **Graduate to native disk (Phase 3 / rung 3):** the VM boots Phase 2,
   independently verifies a blank `/dev/sdb`, runs the native `bootc install`,
   reboots into the graduated system, and confirms the file seeded in Windows
   survived onto the native disk — Windows and `root.disk` untouched (29/29).
-- ✅ **GUI-driven full run:** the entire Phase-1 → 2 → 3 chain armed by the
-  **real `wootc.exe` GUI** (drive mode — the app drives its own live form),
+- ✅ **GUI-driven native cycle:** native install → native Linux boot →
+  graduation, armed by the **real `wootc.exe` GUI** (drive mode),
   green end-to-end on `bluefin:lts`. The timelapse on the
   [walkthrough page](https://tuna-os.github.io/wootc/e2e/latest/) is that run.
 - ✅ **E2E-gated releases:** `v0.1.0-alpha.1` was published only after a fresh
   full GUI-driven run passed on the exact tagged commit; nightly green runs cut
   automatic pre-releases from the SHA they proved.
+
+GUI controls have Playwright coverage. Migration bridges and the planner have
+unit coverage. These component checks do not prove the VM desktop or that user
+work survives a change from VM to native boot.
+
+The GUI follow-up [run 36255744397](https://github.com/tuna-os/wootc/actions/runs/36255744397)
+proved the expired-password repair, an interactive Windows session, and GUI launch.
+It then timed out on the management screen without an Install click.
+The app classified staged payload files as a previous installation. [Issue #399](https://github.com/tuna-os/wootc/issues/399)
+remains open; this run did not reach the deployer or Linux. Historical native
+passes below do not establish a current full-cycle pass for that revision.
 
 ## Build/test matrix
 
@@ -63,9 +90,9 @@ re-runs since (dates on the affected rows).
 > wrote its pid file and dockur silently disabled TPM. Fixed in `4a087eb`;
 > GitHub-hosted runners are back in scope.
 
-**Image family × phase** (Windows 11 Pro, Secure Boot + TPM 2.0):
+**Historical native-cycle matrix** (Windows 11 Pro, Secure Boot + TPM 2.0):
 
-| Image family | Backend / rootfs | Arm (P1) | Deploy | Phase-2 boot | Phase-3 graduate | GUI-driven full run |
+| Image family | Backend / rootfs | Native arm | Deploy | Phase-2 boot | Phase-3 graduate | GUI-driven native cycle |
 |---|---|:--:|:--:|:--:|:--:|:--:|
 | `bluefin:lts` | ostree · ext4-sealed | ✅ | ✅ | ✅ | ✅ (29/29) | ✅ |
 | `yellowfin:gnome` (EL10) | ostree · ext4-sealed | ✅ | ✅ | ✅ | ✅ | ⚪ |
@@ -99,10 +126,10 @@ ostree images that ship no `bootupd`.
 | BitLocker FDE (unencrypted-volume path) | ✅ | refusal path green 2026-08-22; full install path is the v0.3.0-beta gate — [#34](https://github.com/tuna-os/wootc/issues/34). Setup carves unencrypted volume E: for `root.disk` while C: stays encrypted |
 | Offline (`-nic none`, pre-downloaded image) | ⚪ | code path shipped (branded builds / `WOOTC_PRELOAD=1`); matrix axis tracked as [#217](https://github.com/tuna-os/wootc/issues/217) |
 
-The full three-phase chain (Windows seed → deploy → Phase-2 bridge →
-Phase-3 native disk → seeded file on the native disk) is **green end-to-end
-on `bluefin:lts`** — both via the script path (29/29) and driven entirely
-through the real `wootc.exe` GUI (drive mode), and it gates every release.
+The historical native chain passed on `bluefin:lts` through the script path
+(29/29) and the real GUI. It checked the seeded file after native deployment,
+Phase-2 boot, and Phase-3 graduation. The release gate exercises
+that native chain. It does not establish the Windows-hosted Phase-1 journey.
 
 ## Running the E2E yourself
 
