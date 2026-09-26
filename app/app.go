@@ -223,12 +223,14 @@ type DataPartition struct {
 type App struct {
 	ctx     context.Context
 	emitter EventEmitter
-	// mu guards status and cancel. GetStatus() is polled from the frontend
+	// mu guards status, cancellation, completion, and shutdown. GetStatus() is polled from the frontend
 	// on a timer while the install goroutine mutates status concurrently —
 	// without the lock that is a data race the Go race detector flags.
-	mu     sync.Mutex
-	status InstallStatus
-	cancel context.CancelFunc
+	mu          sync.Mutex
+	status      InstallStatus
+	cancel      context.CancelFunc
+	installDone chan struct{}
+	stopping    bool
 }
 
 func NewApp() *App {
@@ -503,27 +505,14 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 
 	ctx, cancel := context.WithCancel(a.ctx)
 
-	// Atomically claim the install slot: reject a concurrent StartInstall
-	// rather than spawn a second pipeline against the same disk. Preserve
-	// Existing so the Control Panel routing survives a re-install.
-	a.mu.Lock()
-	if a.status.Running {
-		a.mu.Unlock()
-		cancel()
-		return fmt.Errorf("install already in progress")
-	}
-	a.status = InstallStatus{Running: true, Existing: a.status.Existing}
-	a.cancel = cancel
-	a.mu.Unlock()
+	return a.startInstallWorker(cancel, func() {
+		// Preview mode: emit a scripted progress run so the GUI's progress and
+		// done screens can be driven under CDP without a real install.
+		if previewMode() {
+			a.runPreviewInstall(ctx)
+			return
+		}
 
-	// Preview mode: emit a scripted progress run so the GUI's progress and
-	// done screens can be driven under CDP without a real install.
-	if previewMode() {
-		go a.runPreviewInstall(ctx)
-		return nil
-	}
-
-	go func() {
 		err := a.runInstall(ctx, cfg)
 		// Always clear Running, including the cancellation path, so a cancelled
 		// install does not leave the GUI stuck on the progress screen.
@@ -544,9 +533,63 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 				Step: "done", Message: "Installation complete. Reboot to start TunaOS.", Percent: 100, Done: true,
 			})
 		}
-	}()
+	})
+}
 
+// startInstallWorker owns the slot until the entire worker, including cleanup,
+// returns. Shutdown uses that observable completion, never a cancelled context
+// or Running flag as a proxy for a finished disk/boot operation.
+func (a *App) startInstallWorker(cancel context.CancelFunc, work func()) error {
+	a.mu.Lock()
+	workerActive := false
+	if a.installDone != nil {
+		select {
+		case <-a.installDone:
+		default:
+			workerActive = true
+		}
+	}
+	if a.stopping || a.status.Running || workerActive {
+		a.mu.Unlock()
+		cancel()
+		return fmt.Errorf("install already in progress or engine stopping")
+	}
+	a.status = InstallStatus{Running: true, Existing: a.status.Existing}
+	a.cancel = cancel
+	done := make(chan struct{})
+	a.installDone = done
+	a.mu.Unlock()
+	go func() {
+		defer close(done)
+		defer cancel()
+		work()
+	}()
 	return nil
+}
+
+// stopInstall waits through uncancellable operations and their cleanup. Killing
+// the process after a deadline could interrupt BCD disarming or disk writes.
+// Warn after the grace period, but retain the worker until it actually finishes.
+func (a *App) stopInstall(grace time.Duration, warn func()) {
+	a.mu.Lock()
+	a.stopping = true
+	cancel, done := a.cancel, a.installDone
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done == nil {
+		return
+	}
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return
+	case <-timer.C:
+		warn()
+		<-done
+	}
 }
 
 // DefragDrive performs the optional NTFS optimization offered by the
@@ -641,8 +684,8 @@ type UninstallInfo struct {
 	StorageDrive   string  `json:"storageDrive"` // where root.disk lives
 	DiskPath       string  `json:"diskPath"`     // full path to root.disk
 	DiskSizeGB     float64 `json:"diskSizeGB"`
-	OnDedicatedVol bool    `json:"onDedicatedVol"` // wootc-created data partition
-	ReclaimGB      float64 `json:"reclaimGB"`      // space freed if the volume is removed
+	OnDedicatedVol bool    `json:"onDedicatedVol"`        // wootc-created data partition
+	ReclaimGB      float64 `json:"reclaimGB"`             // space freed if the volume is removed
 	VolumeLabel    string  `json:"volumeLabel,omitempty"` // verified volume label (e.g. "wootc-data")
 	// Orphaned: no root.disk anywhere, but leftover boot arming (bcd-guid /
 	// state.json) exists — the "user deleted the folder by hand" case, which
