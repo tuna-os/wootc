@@ -1528,6 +1528,11 @@ sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$OEM_DIR/setup-wootc.ps1"
 # Also convert the wootc-files copy used by subsequent steps
 printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
+# Shared trust gate must accompany both the OEM-local and SMB GUI payloads.
+for state_payload in "$OEM_DIR/state-trust.ps1" "$SCRIPT_DIR/wootc-files/state-trust.ps1"; do
+    printf '\xEF\xBB\xBF' > "$state_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/state-trust.ps1" >> "$state_payload"
+done
 if [ -f "$SCRIPT_DIR/assert-recovery.ps1" ]; then
     printf '\xEF\xBB\xBF' > "$OEM_DIR/assert-recovery.ps1"
     sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$OEM_DIR/assert-recovery.ps1"
@@ -2885,7 +2890,10 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
     fi
     gui_wait_interactive_session || { capture_vm_diagnostics; exit 1; }
 
-    qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
+    qga_powershell '$ErrorActionPreference = "Stop"
+. "\\host.lan\Data\state-trust.ps1"
+Initialize-WootcStateDirectory -Path C:\wootc
+New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
@@ -2895,7 +2903,7 @@ set WOOTC_PRELOAD=0
 start `"`" C:\wootc\wootc.exe
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
 Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
-schtasks /Delete /TN wootc-gui-e2e /F 2>$null
+try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
 $start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
 # /RU must name the account that is actually autologged on: Pro media use
 # "wootc", Enterprise/LTSC use "docker". A wrong name fails /Create outright
@@ -2908,7 +2916,10 @@ $mk = schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR "C:\wootc\launc
 Write-Output ("schtasks /Create rc=" + $LASTEXITCODE + " :: " + ($mk -join " "))
 $rn = schtasks /Run /TN wootc-gui-e2e 2>&1
 Write-Output ("schtasks /Run rc=" + $LASTEXITCODE + " :: " + ($rn -join " "))
-Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || warn "    (GUI staging call failed)"
+Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
+        fail "GUI staging failed before a trustworthy app launch"
+        return 1
+    }
     # The QGA powershell completing only proves the task was scheduled, not
     # that wootc.exe actually started.  Poll for the real readiness signal:
     # e2e-drive-state.json (written by the drive loop every 2 s once the app
