@@ -141,6 +141,18 @@ fail() {
 }
 info() { printf '%b[INFO]%b %s\n' "$YELLOW" "$NC" "$*"; }
 
+# Every axis asserts real CLI lifecycle output, including OEM/BitLocker runs.
+# Fail before creating a VM if that required executable was not built.
+prepare_status_cli() {
+    local binary="$SCRIPT_DIR/wootc-files/wootc.exe"
+    if [ ! -s "$binary" ]; then
+        fail "Required status CLI missing: build tests/e2e/wootc-files/wootc.exe before E2E"
+        return 1
+    fi
+    sha256sum "$binary" | cut -d ' ' -f 1 > "$binary.sha256"
+}
+prepare_status_cli || exit 1
+
 # ── flake classifier ────────────────────────────────────────────────────────
 # Some failures are infrastructure losing the EVIDENCE channel, not the
 # product failing: the QGA virtio-serial goes deaf mid-run (#220), or the
@@ -1530,6 +1542,7 @@ fi
 export WOOTC_E2E_OEM_VOL="$OEM_DIR"
 OEM_PAYLOAD="$OEM_DIR/payload"
 mkdir -p "$OEM_PAYLOAD/grub"
+cp "$SCRIPT_DIR/wootc-files/wootc.exe" "$SCRIPT_DIR/wootc-files/wootc.exe.sha256" "$OEM_PAYLOAD/"
 # Convert to CRLF line endings: PowerShell 5.1 on Windows misparses LF-only
 # files (Get-Content -Raw and the internal script parser both corrupt them).
 printf '\xEF\xBB\xBF' > "$OEM_DIR/setup-wootc.ps1"
@@ -1541,6 +1554,10 @@ sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wo
 for state_payload in "$OEM_DIR/state-trust.ps1" "$SCRIPT_DIR/wootc-files/state-trust.ps1"; do
     printf '\xEF\xBB\xBF' > "$state_payload"
     sed 's/$/\r/' "$SCRIPT_DIR/state-trust.ps1" >> "$state_payload"
+done
+for cli_payload in "$OEM_DIR/stage-status-cli.ps1" "$SCRIPT_DIR/wootc-files/stage-status-cli.ps1"; do
+    printf '\xEF\xBB\xBF' > "$cli_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/stage-status-cli.ps1" >> "$cli_payload"
 done
 if [ -f "$SCRIPT_DIR/assert-recovery.ps1" ]; then
     printf '\xEF\xBB\xBF' > "$OEM_DIR/assert-recovery.ps1"
@@ -2903,7 +2920,8 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
 . "\\host.lan\Data\state-trust.ps1"
 Initialize-WootcStateDirectory -Path C:\wootc
 New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
-Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
+. "\\host.lan\Data\stage-status-cli.ps1"
+Copy-WootcStatusCLI -SourceDirectory "\\host.lan\Data" -Destination "C:\wootc\wootc.exe"
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"

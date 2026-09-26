@@ -63,6 +63,10 @@ if (-not $gotMutex) {
 
 # Reserve trusted state before partitioning or reading any pre-staged files.
 Initialize-WootcStateDirectory -Path 'C:\wootc'
+. (Join-Path $PSScriptRoot 'stage-status-cli.ps1')
+$cliSource = $PayloadDir
+if (-not $cliSource) { $cliSource = '\\host.lan\Data' }
+Copy-WootcStatusCLI -SourceDirectory $cliSource -Destination 'C:\wootc\wootc.exe'
 
 # Extra deployer kargs for the bootloader/composefs axes of the test matrix.
 # Both default to "auto": the deployer probes the image and picks the backend
