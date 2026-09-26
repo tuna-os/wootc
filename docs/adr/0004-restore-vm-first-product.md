@@ -25,7 +25,7 @@ Do not silently replace the intended first experience with a deployer reboot.
 
 ## How the product diverged
 
-| Evidence | What it establishes |
+| Evidence at review | What it established |
 |---|---|
 | #178, `CONTEXT.md`, ADR 0001 | VM first, then native boot of the same disk |
 | #318 / commit `50941d1` | Fresh builder deferred to reduce the distribution footprint; post-install VM treated as sufficient |
@@ -36,6 +36,11 @@ Do not silently replace the intended first experience with a deployer reboot.
 | `InstallPreviewForReal` | Renames/copies a preview and arms boot without a proven VM stop or shared-disk compatibility gate |
 | `tests/e2e/phase1/assert-phase1.ps1` | Checks a staged native install and old `root.vhdx`; does not prove Linux runs inside Windows |
 | WinUI phase-C plan | Previously omitted the VM surface because it inherited the deferral |
+
+PR #411 selects the raw format when it launches the disk and checks for an explicit result.
+It rejects guest errors, preserves an existing preview disk, and blocks unsafe promotion.
+These checks close some defects in the table; they do not provide the missing VM lifecycle.
+The [VM experiments](../experiments/vm-first-2026-09-26.md) track the next checks.
 
 A renamed test or a visible button cannot fix these gaps.
 Do not claim Phase 1 support until the actual Windows-hosted guest passes its gate.

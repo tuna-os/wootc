@@ -1,0 +1,21 @@
+{
+  "scope": "preflight-only; no target image installed",
+  "initramfsSha256": "70c2f9f544bda9b665088e842046109410e5a4d92f1053cbf492741e7181f6ab",
+  "initramfsBytes": 94832515,
+  "ramGiB": 2,
+  "cpuCount": 1,
+  "accelerator": "tcg",
+  "hostOS": "Linux",
+  "targetGiB": 20,
+  "scratchGiB": 8,
+  "observations": {
+    "targetBlockDevice": "/dev/vda",
+    "scratchBlockDevice": "/dev/vdb",
+    "imageStoreFilesystem": "ext4",
+    "temporaryStoreFilesystem": "ext4",
+    "dhcp": "lease obtained",
+    "serialTerminalMarker": "WOOTC_DISK_BACKED_PROBE_READY",
+    "ipcTerminalMarker": "WOOTC_DISK_BACKED_PROBE_READY",
+    "processExit": 0
+  }
+}

@@ -1,0 +1,23 @@
+	Command being timed: "timeout 120 qemu-system-x86_64 -accel tcg,thread=single -machine q35 -m 2G -smp 1 -display none -monitor none -kernel /tmp/wootc-vm-experiments/legacy-builder/builder-vmlinuz -initrd /tmp/wootc-vm-experiments/legacy-builder/builder-initramfs.img -append console=ttyS0 wootc.image=ghcr.io/tuna-os/yellowfin@sha256:ed95623a4943a75b5ea61edb914de5a9b6033c4fb2ddb9de60fa14d88861520d -drive file=/tmp/wootc-vm-experiments/legacy-probe.raw,format=raw,if=virtio -nic user -device virtio-serial -chardev file,id=ipc,path=/tmp/wootc-vm-experiments/legacy-ipc.log -device virtserialport,chardev=ipc,name=wootc.ipc -serial file:/tmp/wootc-vm-experiments/legacy-serial.log"
+	User time (seconds): 12.55
+	System time (seconds): 2.50
+	Percent of CPU this job got: 56%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:26.55
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 587536
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 383
+	Minor (reclaiming a frame) page faults: 124252
+	Voluntary context switches: 5500
+	Involuntary context switches: 14242
+	Swaps: 0
+	File system inputs: 241120
+	File system outputs: 56
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

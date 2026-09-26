@@ -1,0 +1,23 @@
+	Command being timed: "timeout 120 qemu-system-x86_64 -accel tcg,thread=single -machine q35 -m 2G -smp 1 -display none -monitor none -kernel /tmp/wootc-vm-experiments/legacy-builder/builder-vmlinuz -initrd /tmp/wootc-vm-experiments/disk-backed-probe-initramfs.img -append console=ttyS0 -drive file=/tmp/wootc-vm-experiments/legacy-probe.raw,format=raw,if=virtio -drive file=/tmp/wootc-vm-experiments/scratch-probe.raw,format=raw,if=virtio -nic user,model=virtio-net-pci -device virtio-serial -chardev file,id=ipc,path=/tmp/wootc-vm-experiments/disk-backed-ipc.log -device virtserialport,chardev=ipc,name=wootc.ipc -serial file:/tmp/wootc-vm-experiments/disk-backed-serial.log"
+	User time (seconds): 20.28
+	System time (seconds): 2.57
+	Percent of CPU this job got: 57%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:39.59
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 687188
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 387
+	Minor (reclaiming a frame) page faults: 114887
+	Voluntary context switches: 11795
+	Involuntary context switches: 26863
+	Swaps: 0
+	File system inputs: 87888
+	File system outputs: 12896
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

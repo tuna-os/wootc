@@ -1,0 +1,41 @@
+--- payload/builder/wootc-builder-init
++++ experiment-only/init
+@@ -31,6 +31,38 @@
+ mkdir -p /dev/pts /dev/shm
+ mount -t devpts devpts /dev/pts 2>/dev/null || true
+ mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
++
++# EXPERIMENT ONLY: attached disks are disposable files, never host volumes.
++for driver in virtio_pci virtio_blk virtio_console virtio_net ext4; do
++    modprobe "$driver" || fail "module $driver unavailable"
++done
++mdev -s
++mkdir -p /dev/virtio-ports
++for port in /sys/class/virtio-ports/*; do
++    [ -f "$port/name" ] || continue
++    [ "$(cat "$port/name")" = "wootc.ipc" ] || continue
++    ln -sf "/dev/$(basename "$port")" "$IPC"
++done
++[ -e "$IPC" ] || fail "IPC unavailable"
++[ -b /dev/vda ] || fail "target block device missing"
++[ -b /dev/vdb ] || fail "scratch block device missing"
++ip link set eth0 up || fail "network device missing"
++udhcpc -i eth0 -n -q -t 3 || fail "DHCP failed"
++mkfs.ext4 -q -F /dev/vdb || fail "scratch format failed"
++mkdir -p /run/wootc-scratch /var/lib/containers /var/tmp
++mount /dev/vdb /run/wootc-scratch || fail "scratch mount failed"
++mkdir -p /run/wootc-scratch/containers /run/wootc-scratch/tmp
++mount --bind /run/wootc-scratch/containers /var/lib/containers
++mount --bind /run/wootc-scratch/tmp /var/tmp
++findmnt -T /var/lib/containers
++findmnt -T /var/tmp
++ip -4 addr show eth0
++printf 'WOOTC_DISK_BACKED_PROBE_READY\n' > "$IPC"
++echo WOOTC_DISK_BACKED_PROBE_READY
++sync
++poweroff -f
++# No target provision in this probe.
++exit 0
+ 
+ # Read the image ref from the kernel cmdline (wootc.image=...).
+ IMAGE=""

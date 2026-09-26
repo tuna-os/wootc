@@ -1,0 +1,19 @@
+
+
+FeatureName : HypervisorPlatform
+State       : Enabled
+
+
+
+
+
+HypervisorPresent   : True
+TotalPhysicalMemory : 12864348160
+UserName            : WOOTC-TEST\wootc
+
+
+
+MEM=2048 TIMED_OUT
+MEM=2048 EXIT= TOTAL_SECONDS=60.5014655 PEAK_WORKING_SET=177889280 READY=False
+MEM=4096 TIMED_OUT
+MEM=4096 EXIT= TOTAL_SECONDS=60.6382021 PEAK_WORKING_SET=197550080 READY=False

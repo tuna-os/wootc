@@ -1,0 +1,5 @@
+ACCEL=tcg READY=True SECONDS=0.8780065
+WOOTC_WHPX_BOOTSECTOR_EXECUTED
+ACCEL=whpx,kernel-irqchip=off READY=True SECONDS=9.2923332
+C:\Program Files\qemu\qemu-system-x86_64.exe: warning: host doesn't support requested feature: CPUID[eax=80000001h].ECX.svm [bit 2]
+WOOTC_WHPX_BOOTSECTOR_EXECUTED

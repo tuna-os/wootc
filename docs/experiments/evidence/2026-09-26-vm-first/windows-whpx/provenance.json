@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-26",
+  "environment": "KubeVirt -> Windows 11 Pro 10.0.26200 -> QEMU WHPX",
+  "outer_vm": {
+    "cpus": 4,
+    "memory_gib": 12,
+    "cpu_mode": "host-passthrough",
+    "secure_boot": true,
+    "tpm": true
+  },
+  "helper_vm": {
+    "cpus": 2,
+    "memory_mib": 2048,
+    "target_gib": 24,
+    "scratch_gib": 20,
+    "disks": "Dedicated disposable raw files; scratch is formatted by probe"
+  },
+  "qemu": {
+    "version": "11.1.0 (v11.1.0-12130-ge470268ff4)",
+    "installer": "qemu-w64-setup-20260811.exe",
+    "source": "https://qemu.weilnetz.de/w64/2026/",
+    "bytes": 206615928,
+    "installed_all_architecture_bytes": 1255998954,
+    "sha512": "5bcf9eed634e8575a37b74f445af41a2fe4106da512d0c30c368301d4c105037fdfab40a5287367a28a957624cddebbc8c07e16c88ab6634f554cdf3d16bf543"
+  },
+  "limits": [
+    "Nested test environment, not older-PC performance",
+    "No target desktop installed",
+    "Expanded outer Hyper-V profile changed multiple flags; individual cause not isolated",
+    "Launch scripts are retained experiment records, not a production runner"
+  ]
+}
