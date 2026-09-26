@@ -1,62 +1,186 @@
-# The WinUI 3 shell — replacing Wails on Windows
+# Native Windows shell: status and cutover
 
-**Decision (maintainer, 2026-09-02, #304):** the Windows installer becomes a
-native **WinUI 3** application. Wails and the embedded web frontend are
-retired on Windows. The Linux side stays GTK4/libadwaita (already native).
+WinUI 3 remains the chosen Windows UI. Linux keeps GTK4/libadwaita.
+The existing consumer installer stays the default until native proof passes.
+This revision corrects the transport and identity assumptions in the earlier design.
 
-This document is the architecture and the cut-over plan. It is written
-against the code on `main` as of `c666581`, and it deliberately keeps every
-contract the harness and the deployer already depend on.
+## Current source, 2026-09-26
 
-## What stays, what goes
-
-| Piece | Today | After |
+| Phase | Actual state | Remaining work |
 |---|---|---|
-| Install engine (Phase 1 pipeline, BCD, ESP, vault, sessions, uninstall, recovery) | Go, `app/`, in-process behind Wails bindings | Go, `app/`, unchanged logic, exposed by `wootc.exe serve` |
-| Windows UI | Wails v2 + 2,300 lines of vanilla JS/CSS in `app/frontend/` | WinUI 3 (C#, .NET 8, Windows App SDK) in `shell/` |
-| Headless CLI (`install`, `status`, `uninstall`, `recover`) | `wootc.exe <cmd>` | unchanged |
-| E2E drive mode (`C:\wootc\e2e-drive.json` → `e2e-drive-state.json`) | directives executed as DOM events in `lib/e2e.js` | same files, same directives, executed against the shell's view-models |
-| Branding (`app/branding/<brand>/brand.json`, `theme.css`) | CSS variables set from `GetBranding()` | XAML resources set from the same `GetBranding()` payload; `theme.css` retired |
-| Linux migration dashboard | `wootc-dashboard` Wails/webkit build in `ci.yml` (built, never shipped) | removed with Wails; `payload/migration/*-gui` (GTK4/Adw) remain the Linux UI |
-| GUI tests | Playwright over a dev-server build of the frontend | view-model unit tests (xUnit) + a UI Automation smoke on `windows-latest` |
-| WebView2 runtime dependency | required (download on Windows 10) | gone |
+| A: engine protocol | Go `wootc.exe serve`, protocol tests, DTO generator exist | Safe disconnect barrier and preservation of transport handles need correction |
+| B: scaffold (#343) | `shell/` contains generated `Engine/Dto.cs` only | Native projects, authenticated transport, brand resources, CI, preview package |
+| C: experience (#344) | No native views or UI tests | Consumer screens, migration preview, E2E drive mode, accessibility, full-cycle proof |
+| D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
+| E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
 
-## Architecture
+The future preview and results follow the [migration extension plan](specs/migration-extensions.md). Those APIs do not exist in `serve` yet.
+Phase 1 must run Linux inside Windows before native promotion.
+Carry VM preparation, launch, stop, and resume through the shell.
+The [VM-first correction](adr/0004-restore-vm-first-product.md) supersedes the earlier VM deferral.
+The [enterprise proposal](specs/enterprise-migration.md) remains optional.
 
+## Keep the engine contract stable
+
+The Go engine owns install, storage, boot, recovery, and uninstall policy.
+The shell owns presentation and the current person's choices.
+Existing method names and DTO shapes remain stable unless a versioned change replaces them.
+Generate C# DTOs from Go and retain protocol goldens.
+
+Keep `wootc.exe install`, `status`, `uninstall`, `recover`, and stdio `serve`
+for headless tools and tests. The native GUI needs a separate transport adapter.
+A transport adapter must not add a second implementation of install logic.
+
+Proposed layout:
+
+```text
+shell/
+  Wootc.Shell/                 WinUI application
+    Engine/                   authenticated client, generated DTOs
+    Branding/                 validated identity and XAML tokens
+    ViewModels/               assessment, choices, progress, recovery
+    Views/                    native controls and accessible labels
+    Drive/                    E2E directives through view-model actions
+  Wootc.Shell.Core/            testable state and protocol logic without WinUI
+  Wootc.Shell.Tests/           unit/contract tests, including Linux CI
+  Wootc.Shell.UiTest/          Windows UI Automation and screenshot evidence
 ```
-Bluefin-Installer.exe  (WinUI 3 shell, runs as the logged-in user, NOT elevated)
-   │  spawns, with the UAC prompt, one child:
-   ▼
-wootc.exe serve        (Go engine, requireAdministrator manifest, no window)
-   │  JSON-RPC 2.0, newline-delimited, over the child's stdin/stdout
-   │  requests:  the 14 methods that were Wails bindings
-   │  notifications: install:progress, vm:progress
-   ▼
-C:\wootc\…             state.json, install\, disks\  (unchanged)
-```
 
-Three properties fall out of this split and are the reason for it:
+## Correct elevation and transport
 
-1. **The engine never changes shape.** `StartInstall`, `GetSystemInfo`,
-   `GetBranding`, `GetUninstallInfo`, `UninstallWith`, `BootIntoLinux`,
-   `GetLastRun`, `E2EDriveDirective`/`E2EDriveReport` and the rest keep their
-   names and JSON DTOs. This is exactly what #297 asks for ("thin Wails
-   adapter; preserve exported method names and DTO shapes") — `serve` is that
-   adapter, minus Wails.
-2. **Identity is explicit.** The shell runs as the human; the engine runs
-   elevated. The shell passes the interactive user's name and profile into
-   `StartInstall` instead of the engine guessing it from an elevated token
-   (the over-the-shoulder UAC problem of #225/#317 disappears structurally).
-3. **One shell binary, branded at runtime.** The shell skins itself from
-   `GetBranding()` (accent, background, card, text, font, product name,
-   tagline, catalog). Per-brand builds differ only in exe name, icon and
-   VERSIONINFO, which the release matrix already varies.
+The old proposal combined `runas` with redirected child stdin/stdout.
+That launch model is invalid: `runas` uses ShellExecute, while .NET stream
+redirection needs `UseShellExecute=false`.
+See [Microsoft's process contract](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.useshellexecute)
+and [shell launch verbs](https://learn.microsoft.com/en-us/windows/win32/shell/launch).
 
-### The `serve` protocol
+Proposed native transport:
 
-`wootc.exe serve` reads JSON-RPC 2.0 requests from stdin and writes responses
-and notifications to stdout, one JSON object per line. Nothing else ever
-writes to stdout in this mode; logs go to stderr and `C:\wootc\logs\`.
+1. Start the shell without elevation. Show local brand assets and read-only assessment.
+2. Request UAC only for an operation that needs it. Launch the engine from its trusted absolute path with `runas`.
+3. Retain the engine process handle. Do not redirect its standard streams through ShellExecute.
+4. Use a named pipe with a unique local name with explicit ACLs, first-instance protection, and no remote clients.
+5. Authenticate both peers against their expected process handles and tokens before any RPC.
+6. Derive the source SID and session from the authenticated shell token.
+7. Exchange protocol version, build identity, brand identity, and capabilities. Reject incompatible pairs before any mutation.
+8. Send existing JSON-RPC messages over that pipe, with bounded message sizes and connection deadlines.
+
+A random pipe name is not authentication.
+Do not grant pipe access to all local users to accommodate alternate-admin UAC.
+The authenticated source token, elevated token, and selected profile have distinct roles.
+If impersonation fails, stop the request; never continue under the privileged token.
+See Microsoft's [pipe security](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights),
+[client process identity](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeclientprocessid),
+and [impersonation contract](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient).
+
+On UAC refusal, keep the branded assessment visible with an Allow button.
+Do not place passwords, tokens, or unlock keys in process arguments or rendezvous files.
+Reject a replaced engine, wrong-session peer, stale endpoint, or replayed handshake.
+These checks need native Windows tests before the transport becomes a release path.
+
+## Preserve the original person's identity
+
+The old design claimed a fix for alternate-admin UAC through explicit profile fields.
+The current `InstallConfig` has no verified source-user contract.
+Several collectors still read `HKCU` or `USERPROFILE` in the elevated process.
+A supplied path or username is not proof of ownership.
+
+Keep user-specific collection in the original unelevated session where possible.
+Bind exports to the source SID, profile identity, session, plan, and consent.
+Resolve Known Folders through the verified user token when necessary.
+Use a separate privileged engine only for operations that need machine access.
+See [Known Folder resolution](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shgetknownfolderpath)
+and [DPAPI's user context](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptunprotectdata).
+
+Tests must include a standard user who supplies a different administrator's credentials.
+The data preview and exported data must still belong to the original person.
+Never use the administrator's browser profile as an automatic fallback.
+
+## Disconnect, cancel, and recovery
+
+EOF or a crash of the shell must request cancellation. It cannot mean immediate process exit.
+The engine must wait for active work to reach a safe boundary and finish cleanup.
+A BCD entry needs observed disarm or a persisted recovery result before exit.
+A test of disconnect must start an armed operation to prove cleanup.
+
+Keep RPC stdout separate from diagnostics. Logs go to stderr and the protected log directory.
+Stdio mode must preserve its supplied handles. Do not attach a console over them.
+Bound individual operations; a timeout must not kill a worker mid-mutation and report success.
+A reconnect reads durable state and confirms the active run before another install starts.
+
+## Consumer screens and migration
+
+| Surface | Required behavior |
+|---|---|
+| Assessment | Hardware and space results, chosen distro, clear blocked reasons, help without UAC |
+| Migration preview | What will move, what stays linked to Windows, what needs sign-in, space and consent |
+| Preparation/install | Observed named stages, cancel behavior, honest errors and elapsed time |
+| VM | Prepare the persistent image, open Linux inside Windows, stop/resume, and offer native promotion later |
+| Ready | Next reboot, MOK instructions if applicable, Windows return path, migration still owed on Linux |
+| Manage | Enter Linux, inspect outcomes, repair, uninstall with preservation choices |
+| Recovery | Explain the last failed step and the safe next action from durable state |
+
+The Linux GTK tools own first-login import, target verification, and sign-in guidance.
+The Windows shell does not infer successful migration from a completed Linux install.
+Expose details progressively; keep the default journey short for a casual user.
+
+## Native distro identity
+
+The same brand config must reach the shell, engine, setup package, and Apps entry.
+UAC names the engine's publisher, so shell-only identity is insufficient.
+Bundle local assets for the brand after validation for startup and UAC refusal.
+Translate palette, typeface, logos, title, and support links into native resources.
+CSS is not a native theme contract; document which custom layouts lack support.
+Use the distro config from the adoption work, with versioned extensions.
+
+Use standard Windows controls, light/dark themes, and a high-contrast fallback.
+Mica and animation are optional. They cannot be prerequisites on older GPUs.
+Test keyboard-only use, screen readers, large text, DPI changes, and reduced motion.
+Target 1366×768 and low-memory machines as explicit test cohorts.
+
+## Packaging and offline proof
+
+Publish the shell as a preview beside the current installer first.
+An Inno Setup wrapper can provide one download for an unpackaged self-contained bundle.
+Keep the Go engine beside the shell and retain the standalone headless asset.
+Package cleanup and Linux uninstall need separate, clearly named ownership.
+Do not remove Linux data merely because a user removes the preview shell.
+
+Pin .NET, Windows App SDK, and build-tool versions before the package experiment.
+The self-contained settings for .NET and Windows App SDK are separate.
+One Microsoft guide describes single-file support for specific configurations.
+Another guide still describes limitations. Do not make an unconditional single-file promise.
+Prove the chosen artifact on a clean offline VM with neither runtime preinstalled.
+See the [unpackaged guide](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/unpackage-winui-app)
+and [self-contained deployment](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/self-contained-deploy/deploy-self-contained-apps).
+
+Derive the Windows minimum from the chosen SDK, .NET runtime, and project configuration.
+Do not infer it only from the minimum for Windows App SDK.
+Test Windows 10 and 11 before a change to the product requirements.
+MSIX, signatures, and winget changes need their own proven distribution path.
+A native UI does not remove SmartScreen or code-signature requirements.
+
+## Evidence before cutover
+
+| Gate | Evidence |
+|---|---|
+| Transport | Native authenticated-peer tests; refusal of wrong SID/session/process; cancellation during mutation |
+| Build | Windows CI builds and packages every eligible brand; generated DTOs remain current |
+| UI parity | Real controls, screenshots, accessible names, keyboard flow, truthful blocked reasons |
+| Drive contract | Existing `e2e-drive.json` directives operate view-models; image mismatch fails closed |
+| Migration | Same plan/result fixtures on native Windows and GTK; partial results and retry stay visible |
+| Deployment | Shell-driven Windows → deployer → Linux → Windows cycle, including offline and BitLocker cohorts |
+| Recovery | Kill shell at safe test points; cancel; restart; inspect durable state; repair; uninstall |
+| Consumer hardware | Low memory, slow disk, older GPU, high DPI, no development tools or WebView2 |
+| Distribution | Own metadata/icons, clean-machine setup and removal, retained matching boot artifacts |
+
+Carry engine evidence only for unchanged code and contracts.
+Native UI, transport, identity, setup, and accessibility need new evidence.
+Do not mark a matrix cell green from a Wails run after the shell cutover.
+Track this rule with #357 and the [release ladder](milestones.md).
+Retain the legacy build until a native release passes its gates, before phase E removes it.
+
+## Current stdio protocol reference
 
 | Method | Params | Result |
 |---|---|---|
@@ -79,119 +203,5 @@ writes to stdout in this mode; logs go to stderr and `C:\wootc\logs\`.
 | `E2EDriveReport` | `string` | `null` |
 | `Shutdown` | — | `null` (engine exits 0) |
 
-Notifications: `{"method":"install:progress","params":ProgressEvent}` and
-`{"method":"vm:progress","params":…}` — the same payloads `runtime.EventsEmit`
-sends today. The engine exits when stdin closes, so a crashed shell cannot
-leave an elevated engine alive; an install already past "Making Linux
-bootable" finishes its step and disarms exactly as `CancelInstall` does.
-
-The protocol is documented by a Go test that round-trips every method
-through a pipe and pins the DTO JSON against golden files, so a field rename
-in `app.go` fails the test before it breaks the shell.
-
-### Shell layout
-
-```
-shell/
-  Wootc.Shell/                 WinUI 3 app (net8.0-windows10.0.19041, WindowsAppSDK)
-    App.xaml(.cs)              startup: spawn engine, GetBranding, apply theme, route
-    Engine/EngineClient.cs     process + JSON-RPC client, typed DTOs (generated)
-    Engine/Dto.cs              generated from app/*.go json tags (go:generate)
-    ViewModels/                Launchpad, Progress, Done, Control, Recovery
-    Views/                     one XAML page per view-model
-    Branding/BrandTheme.cs     Branding → ResourceDictionary (accent, backdrop, font)
-    Drive/E2EDrive.cs          e2e-drive.json directives → view-model actions → report
-  Wootc.Shell.Tests/           xUnit: view-model state machine, drive directives, DTO goldens
-  Wootc.Shell.UiTest/          FlaUI smoke: launch, land on Launchpad, Install disabled/enabled reasons
-```
-
-Screens map one-to-one from `app/frontend/src/screens/`: `launchpad`,
-`progress`, `done`, `control`, plus `recovery` from #331. `vmpreview` is not
-carried over: #318 cuts pre-install Try-in-VM from 1.0. `migrate` is Linux-only
-and leaves with Wails.
-
-Design language: Fluent, Mica backdrop, system light/dark, the brand accent
-as the app accent, the brand font when installed with a Segoe UI Variable
-fallback. The frameless custom title bar of the Wails app (#175) becomes the
-standard WinUI title bar with `ExtendsContentIntoTitleBar`.
-
-### Elevation
-
-The shell manifest does **not** request administrator. On first engine call
-the shell starts `wootc.exe serve` with the `runas` verb; Windows shows one
-UAC prompt naming the engine's publisher. Every later call rides the same
-child. If the user declines, the shell shows the launchpad read-only with the
-reason ("wootc needs permission to change startup settings") and an
-**Allow** button that retries — the same honesty the battery and BitLocker
-gates already practice.
-
-### E2E and GUI tests
-
-- `run-e2e.sh --gui-install` keeps working unchanged: the harness writes
-  `e2e-drive.json`; the shell's `E2EDrive` polls `E2EDriveDirective` every
-  2 s (as `lib/e2e.js` does), applies `install` to the Launchpad view-model
-  (image card, username, hostname, passwords, encryption), enforces the same
-  image-integrity gate (`imageMismatch`), clicks Install, and on the Done
-  screen honours `reboot`. It reports through `E2EDriveReport` with the same
-  state JSON the harness parses today.
-- `tests/gui/gui.spec.js` (Playwright against the web frontend) is replaced
-  by `Wootc.Shell.Tests` (view-model logic, runs on Linux under `dotnet test`
-  with the WinUI project excluded) and `Wootc.Shell.UiTest` (FlaUI on
-  `windows-latest`: launch, screenshot each screen, assert the Install
-  button's disabled reason text). The GUI screenshot gallery job renders from
-  the UiTest screenshots.
-- The CDP-based recipe in `tests/e2e/phase1/README.md` is deleted; it never
-  worked with stock Wails and has no WinUI equivalent.
-
-### Packaging and delivery
-
-WinUI 3 cannot be published as a single-file exe. Two delivery forms, in
-order:
-
-1. **Now (unsigned, alpha):** `dotnet publish` self-contained, unpackaged
-   (`WindowsPackageType=None`, `WindowsAppSDKSelfContained=true`), wrapped by
-   **Inno Setup** into one `Bluefin-Installer-Setup.exe` per brand. No runtime
-   to download, installs to `%LOCALAPPDATA%\Programs\<Brand>`, adds the
-   Add/Remove entry the engine registers today. SmartScreen warns, exactly as
-   it does for the unsigned Wails exe.
-2. **When signed (#229/#230):** the same publish output as **MSIX** per brand,
-   winget `InstallerType: msix` replacing `portable` in
-   `packaging/winget/*.yaml.in`. MSIX cannot be installed unsigned, so signing
-   is a hard prerequisite for this form, not for the shell itself.
-
-The engine exe ships inside the shell's folder; the release keeps publishing
-`wootc.exe` on its own for the headless and harness paths.
-
-### Build and CI
-
-- `windows-latest` job: `dotnet restore/build/test` for `shell/`, `dotnet
-  publish` per brand from `packaging/brands.sh` (#319) with
-  `-p:AssemblyName=<exeName> -p:ApplicationIcon=… -p:Version=…`, Inno Setup via
-  the `innosetup` Chocolatey package, artifacts uploaded beside the Go
-  artifacts. Go engine build unchanged.
-- `ci.yml` drops `wootc-dashboard` (Linux Wails) and the Wails Windows build
-  once the shell is the release artifact; until then both build.
-- Windows App SDK floor: Windows 10 1809 (10.0.17763). `docs/user-guide.md`
-  requirements line gains it; every supported machine already meets it.
-
-## Cut-over plan
-
-| Phase | Deliverable | Depends on |
-|---|---|---|
-| A | `wootc.exe serve` + protocol golden tests + DTO generator; Wails untouched | #297 seams (done as part of it) |
-| B | `shell/` scaffold, CI build on windows-latest, brand matrix, Inno packaging; ships as a **preview** asset next to the Wails exe | A |
-| C | Screens complete; drive mode; UiTest gallery; one green `--gui-install` E2E with the shell | B, #331 for the Recovery screen |
-| D | Release artifacts switch to the shell; Wails exe kept one release as `wootc-legacy.exe` | C |
-| E | Delete Wails, `app/frontend/`, `wailsjs/`, `migration_linux.go`, dashboard build, Playwright GUI tests; `docs/` truth pass | D + one clean release |
-
-Each phase is one PR series; nothing in A–C changes what a user downloads.
-
-## What this does not fix, said plainly
-
-- **Signing.** SmartScreen and the UAC publisher line are the same problem
-  before and after; #229 is the fix. WinUI does not help or hurt it.
-- **The Linux side on KDE.** Bazzite and Aurora users still see GTK windows
-  for the migration tools. A Breeze-aware theme is the cheap step; Kirigami
-  twins are a separate decision.
-- **Windows 10 without WebView2** was the one concrete usability cost of
-  Wails; it is gone. Windows 10 below 1809 was never supported.
+Notifications use `install:progress` and `vm:progress`.
+The VM methods still need a versioned native-shell contract.

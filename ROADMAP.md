@@ -71,22 +71,23 @@ Beta means the support policy stops saying "alpha" because the evidence exists.
 ### v0.9.0-rc — "Ship-shaped" *(tracking: milestone issue M4)*
 - **Code signing** (EV cert / Azure Trusted Signing): kills the SmartScreen wall — the single biggest first-impression fix, and a spend decision that needs the maintainer.
 - **WinUI 3 shell replaces Wails (Epic #340, decided 2026-09-02)**: the entire installer UI — the surface every one of the four 1.0 criteria is written about — is being rebuilt. Phase A merged (Go engine now speaks JSON-RPC over stdio via `wootc.exe serve`); Phases B–E (#343–#346) carry the shell, screens, release cutover, and Wails removal. Evidence gathered on the outgoing Wails UI (matrix cells, field reports) needs an explicit carryover or re-verification rule before it counts toward the WinUI build — see #357.
-- **Try-in-VM (#178, #231)**: Explicitly cut from 1.0; Phase 1 Boot-in-VM on `root.disk` ([ADR 0001](docs/adr/0001-phase1-first-architecture.md)) provides the primary zero-risk VM test path without bundling ~100MB+ of QEMU/builder binaries.
-- **Program-migrator plugin architecture (#203)**: Delivered in commit `341fbd8`; plugin discovery interface and manifest JSON schemas established for 1.0.
+- **VM-first (#178)**: Required first experience. Prepare and run the persistent Linux image inside Windows before native boot. [ADR 0004](docs/adr/0004-restore-vm-first-product.md) replaces the #318 deferral; current releases do not yet meet this gate.
+- **Migration adapters (#203)**: Discovery and manifests exist. The [extension plan](docs/specs/migration-extensions.md) adds truthful results, transactions, compatibility, and scoped execution before broad support.
 - **Libertix-derived boot-chain hardening (#308)**: [Libertix](https://github.com/ekimiateam/libertix) solves the same install-Linux-from-Windows problem with the opposite disk model (real partition vs our `root.disk`), so its geometry code is irrelevant but its around-the-reboot designs carry over — specified in `docs/borrowed-from-libertix.md` as six trackable items: Secure Boot CA preflight (#322), recovery guard (#331), first-boot evidence cross-checked from Windows (#332), ESP signed-chain refresh (#333), one step catalogue diffed in CI (#334), pinned + signed artifacts (#335).
 - Docs complete and truthful end-to-end; walkthrough imagery regenerated from the shipping build.
 - Soak begins: consecutive green nightlies counting toward the 1.0 gate, release-blocking regressions only.
 
 ### Scope decisions
 
-#### Try-in-VM vs. Phase 1 Boot-in-VM (#178, #231)
+#### VM first, native boot later (#178)
 
-**Decision**: Pre-install "Try in VM" fresh image preview is **explicitly cut from 1.0**. Phase 1 **Boot in VM** is the supported 1.0 VM experience.
-
-- **Background**: Issue #178 and SPEC §6.1 initially proposed a pre-install "Try in VM" mode using a two-stage handoff (a headless Alpine builder VM synthesizing a temporary `preview.raw` virtual disk from an OCI image before booting an interactive preview).
-- **Architectural Rationale**: Under the accepted Phase 1-first architecture ([ADR 0001](docs/adr/0001-phase1-first-architecture.md)), wootc populates a single `root.disk` file directly on the NTFS volume without repartitioning. Upon install completion, the user can immediately choose **Boot in VM now** (SPEC §6.2) on Windows. Because `root.disk` is self-contained and uncommitted to firmware boot until Phase 2, Phase 1 provides the exact same "try before rebooting" safety guarantee on the real installed system.
-- **Distribution Footprint**: Shipping the builder kernel (`builder-vmlinuz`), initramfs (`builder-initramfs.img`), and a complete Windows QEMU runtime adds ~100+ MB of non-vendored binaries to the release installer without delivering safety or capabilities beyond Phase 1.
-- **Surfaces**: In 1.0 releases, the pre-install builder VM is cut from default user paths (`GetFreshVMCapability` remains capability-gated and unbundled, keeping the button hidden on standard builds). 1.0 documentation (`docs/user-guide.md`) directs users to Phase 1 Boot-in-VM. Pre-install builder bundling and offline packaging (#178) are deferred to post-1.0.
+The maintainer reaffirmed this direction on 2026-09-26.
+Linux must run inside Windows before the person chooses native boot.
+Both modes must preserve the same installed system and user work.
+PR #318 deferred the fresh builder but treated post-install VM boot as sufficient.
+The actual install still required the native deployer, so that did not meet ADR 0001.
+[ADR 0004](docs/adr/0004-restore-vm-first-product.md) records the repair plan and acceptance gates.
+The WinUI rewrite must carry this journey. Do not remove the VM surface at cutover.
 
 ### v1.0.0 — "The North Star, checkable" *(tracking: milestone issue M5)*
 The four criteria at the top of this file, verified: 30 days of green nightlies, the real-hardware report corpus with zero data-loss incidents, signed + winget-stable binaries, blessed brands. Cut from the soak's final green SHA.
@@ -100,7 +101,7 @@ The four criteria at the top of this file, verified: 30 days of green nightlies,
 | Session token rewrap verification | #1 | P2 (v0.9.0-rc validation; beta gate resolved via staged re-link #347) |
 | Program migrator plugin architecture | #203 | P2 (rc decision — delivered in #354) |
 | E2E runs as systemd user units instead of nohup jobs | #57 | P2 |
-| Try-in-VM pre-install builder VM | #178 | P3 (post-1.0; cut for 1.0 per #231 / ADR 0001) |
+| VM-first persistent Linux inside Windows | #178 | Product priority; incomplete, required before the VM-first claim |
 
 ## How to contribute
 
