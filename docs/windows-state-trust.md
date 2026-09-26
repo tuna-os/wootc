@@ -36,8 +36,10 @@ and [ACE inheritance rules](https://learn.microsoft.com/en-us/windows/win32/seca
 A refusal names the unsafe path and reason. An administrator must inspect and
 move aside untrusted state before retrying; the app does not delete it or bless
 its contents. Existing permissive data-volume roots also require administrator
-review. The developer OEM PowerShell harness has a separate staging path;
-these app checks do not retrofit its standalone execution.
+review. The developer OEM and GUI staging paths use the same conservative
+policy through `tests/e2e/state-trust.ps1`, before copying any artifacts. The
+helper is delivered with both the OEM-local and SMB payloads; a failed GUI
+staging gate stops the run before launch.
 
 An empty protected state directory reserved at startup is not a partial
 installation. Discovery still recognizes directories with actual content,
@@ -79,6 +81,15 @@ also start with `TestState` and write the actual `statePath()` on Windows.
 Do not broaden it on a machine with installed state.
 
 These results prove the Windows checks and entrypoint behavior, not a complete
-installation cycle. Fresh OEM/GUI staging must reserve a protected directory
-before copying fixtures, and Linux-written NTFS state plus BitLocker-volume
-compatibility still need an end-to-end run.
+installation cycle. The OEM/GUI staging helper was also exercised on Windows PowerShell 5.1:
+protected creation, copied offline fixtures and safe reruns succeed; unsafe
+ownership, mutation grants, absent DACLs, writable precreated trees and
+junctions fail for the expected reason without repairing ACLs or content.
+Linux-written NTFS state and BitLocker-volume compatibility still need an
+end-to-end run.
+
+Run the native staging-helper contract test from an elevated Windows checkout:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/e2e/test-state-trust.ps1
+```
