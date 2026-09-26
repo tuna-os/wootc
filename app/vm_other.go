@@ -41,3 +41,7 @@ func (a *App) GetVMState() VMState {
 func (a *App) StopVM() error      { return fmt.Errorf("managed VMs are only available on Windows") }
 func (a *App) ForceStopVM() error { return fmt.Errorf("managed VMs are only available on Windows") }
 func (a *App) shutdownVM()        {}
+
+func (a *App) PrepareVM(cfg VMInstallConfig) error {
+	return fmt.Errorf("managed VMs are only available on Windows")
+}

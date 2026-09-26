@@ -3,9 +3,11 @@
 package main
 
 import (
+	"fmt"
 	"golang.org/x/sys/windows"
 	"io"
 	"os/exec"
+	"syscall"
 	"unsafe"
 )
 
@@ -33,5 +35,44 @@ func ownVMProcess(cmd *exec.Cmd) (io.Closer, error) {
 		windows.CloseHandle(job)
 		return nil, err
 	}
+	if cmd.SysProcAttr != nil && cmd.SysProcAttr.CreationFlags&windows.CREATE_SUSPENDED != 0 {
+		if err := resumeVMPrimaryThread(uint32(cmd.Process.Pid)); err != nil {
+			windows.CloseHandle(job)
+			return nil, err
+		}
+	}
 	return &vmJob{handle: job}, nil
+}
+
+// Suspend before the child can open a disk, assign ownership, then resume.
+// A crash before assignment may leave an inert process, never an unowned writer.
+func vmProcessAttributes() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_SUSPENDED}
+}
+func resumeVMPrimaryThread(pid uint32) error {
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(snapshot)
+	entry := windows.ThreadEntry32{Size: uint32(unsafe.Sizeof(windows.ThreadEntry32{}))}
+	for err = windows.Thread32First(snapshot, &entry); err == nil; err = windows.Thread32Next(snapshot, &entry) {
+		if entry.OwnerProcessID != pid {
+			continue
+		}
+		thread, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, entry.ThreadID)
+		if err != nil {
+			return err
+		}
+		previous, err := windows.ResumeThread(thread)
+		windows.CloseHandle(thread)
+		if err != nil {
+			return err
+		}
+		if previous != 1 {
+			return fmt.Errorf("unexpected VM thread suspension count: %d", previous)
+		}
+		return nil
+	}
+	return fmt.Errorf("could not find suspended VM primary thread: %w", err)
 }

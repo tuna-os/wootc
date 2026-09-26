@@ -742,6 +742,12 @@ public class VMState
     [JsonPropertyName("image")]
     public string Image { get; set; } = string.Empty;
 
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    [JsonPropertyName("accountOutcome")]
+    public string? AccountOutcome { get; set; }
+
     [JsonPropertyName("diskId")]
     public string DiskId { get; set; } = string.Empty;
 
@@ -762,6 +768,22 @@ public class VMState
 
     [JsonPropertyName("updatedAt")]
     public string UpdatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// VMInstallConfig contains only the choices implemented by the VM preparation
+/// path. Do not reuse native-install encryption/migration flags as implied promises.
+/// </summary>
+public class VMInstallConfig
+{
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("password")]
+    public string Password { get; set; } = string.Empty;
 }
 
 /// <summary>

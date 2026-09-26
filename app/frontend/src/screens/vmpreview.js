@@ -1,4 +1,4 @@
-import { TryInVMFresh, StopVM, ForceStopVM, BootInVM, GetUninstallInfo, GetVMState, GetVMCapability } from '../../wailsjs/go/main/App';
+import { PrepareVM, StopVM, ForceStopVM, BootInVM, GetUninstallInfo, GetVMState, GetVMCapability } from '../../wailsjs/go/main/App';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { distroName } from '../lib/branding.js';
@@ -8,13 +8,15 @@ import { el, btn } from '../lib/ui.js';
 
 export async function tryInVM() {
   if (!state.selected) return;
+  if (!state.config.password || state.config.password !== state.config.passwordConfirm) { alert('Set and confirm your Linux password first.'); return; }
   state.screen = 'vmpreview';
   state.vmProgress = { stage: 'pulling', percent: 0, message: 'Preparing the builder…' };
   state.vmReady = false;
   state.vmError = null;
   render();
   try {
-    await TryInVMFresh(state.selected.imageRef);
+    await PrepareVM({ imageRef: state.selected.imageRef, username: state.config.username, password: state.config.password });
+    state.config.password = ''; state.config.passwordConfirm = '';
   } catch (e) {
     state.vmError = String(e);
     render();
@@ -36,8 +38,8 @@ export function renderVMPreviewScreen() {
     screen.appendChild(back);
   } else if (state.vmReady) {
     screen.innerHTML = `<div style="font-size:40px">🖥️</div>
-      <h2>Your VM window has opened</h2>
-      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || distroName()} has started in its own window. Check that Linux reaches its desktop. Native boot is not available from this preview yet; keep the disk to preserve your work.</div>`;
+      <h2>Linux is starting</h2>
+      <div style="color:var(--text-muted);max-width:440px">${state.selected?.name || distroName()} is starting in its own window. Sign in with your Linux username and password when the login screen appears. Your work stays on this disk. Native boot is not available yet.</div>`;
     const row = el('div'); row.style.cssText = 'display:flex;gap:10px;margin-top:8px';
     row.appendChild(btn('Shut down Linux', 'btn btn-primary', async () => {
       try { await StopVM(); state.vmState = { phase: 'stopped' }; state.vmReady = false; render(); }

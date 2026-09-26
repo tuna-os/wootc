@@ -158,3 +158,5 @@ export function RepairBoot() {
 export function GetVMState() { return window['go']['main']['App']['GetVMState'](); }
 export function StopVM() { return window['go']['main']['App']['StopVM'](); }
 export function ForceStopVM() { return window['go']['main']['App']['ForceStopVM'](); }
+
+export function PrepareVM(config) { return window['go']['main']['App']['PrepareVM'](config); }

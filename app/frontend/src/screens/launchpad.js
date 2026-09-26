@@ -344,13 +344,13 @@ export function renderLaunchpad() {
 
   // Footer
   const footer = el('div', 'footer');
-  const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
+  const installBtn = btn('Advanced: install with reboot', 'btn btn-ghost', () => startInstall());
   installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => Quit()));
-  // Try-in-VM (§6.1): gated on fresh VM capability (deferred to post-1.0 per ADR 0001 / #231;
-  // available when builder artifacts are present in an offline bundle).
+  // VM-first is the normal path. Native installation remains an explicit action.
   if (state.freshVmCapability?.available && state.selected) {
-    footer.appendChild(btn('Try in VM', 'btn btn-ghost', () => tryInVM()));
+    const vmBtn = btn('Start Linux in a window', 'btn btn-primary', () => tryInVM());
+    vmBtn.id = 'vm-prepare-btn'; footer.appendChild(vmBtn);
   }
   footer.appendChild(installBtn);
   // Defer validity to after mount so the hint element exists.
@@ -388,6 +388,8 @@ function refreshInstallValidity() {
   const hint = document.getElementById('install-hint');
   if (!btn) return;
   const c = state.config;
+  const vmBtn = document.getElementById('vm-prepare-btn');
+  if (vmBtn) vmBtn.disabled = !state.selected || !/^[a-z_][a-z0-9_-]{0,31}$/.test(c.username) || c.username === 'root' || !c.password || c.password !== c.passwordConfirm;
   let reason = '';
   // Preflight safety gates (#63) come FIRST: these are conditions under which
   // starting at all risks the user's data or leaves the machine half-converted.

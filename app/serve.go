@@ -52,6 +52,7 @@ var ProtocolMethods = []string{
 	"GetFreshVMCapability",
 	"GetVMState",
 	"TryInVMFresh",
+	"PrepareVM",
 	"BootInVM",
 	"StopVM",
 	"ForceStopVM",
@@ -300,6 +301,15 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return s.app.GetFreshVMCapability(), nil
 	case "GetVMState":
 		return s.app.GetVMState(), nil
+	case "PrepareVM":
+		var cfg VMInstallConfig
+		if err := unmarshalParams(req.Params, &cfg); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "invalid VM account parameters"}
+		}
+		if err := s.app.PrepareVM(cfg); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
 	case "TryInVMFresh":
 		var image string
 		if err := unmarshalStringParam(req.Params, &image); err != nil {
