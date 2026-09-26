@@ -1,0 +1,38 @@
+{
+  "sourceImage": "ghcr.io/tuna-os/yellowfin@sha256:ed95623a4943a75b5ea61edb914de5a9b6033c4fb2ddb9de60fa14d88861520d",
+  "addedRPM": "gnome-shell-common-50.0-3.el10.noarch.rpm",
+  "rpmSHA256": "a3db660a7e453cf1364757a7e2fff10cbbaf0df8467e0a67f5247b0c459d05d2",
+  "rpmFactoryRun": 33857079036,
+  "rpmArtifact": 9934887804,
+  "image": "ttl.sh/2e6295b0-50ea-42b2-838a-57df8a1022be@sha256:4562f4f0fde8cc0ba49e7ce627be2ba35d803c9aa768e79220a1a58c3b0d148b",
+  "imageConfig": "sha256:1d69a5e1e0365ce35c3f30b48e454229142b0e95a8417872e3859f695eb55712",
+  "registry": "ttl.sh anonymous ephemeral registry,24h tag; normal TLS",
+  "containsAccountOrPrivateData": false,
+  "purpose": "isolated missing-common desktop experiment; not a release image",
+  "qemuGuestAgentInstalled": false,
+  "localOCIArchiveSHA256": "441531a5f76b8852932c06a24c126ef4c347e7f1b956589f8cf7224edded660c",
+  "helperSourceCommit": "0cb8776a8b1cf9153f8ed61c9e81ed1aebbee6b1",
+  "helperKernelUptimeAtPoweroffSeconds": 286.272467,
+  "helperRAMBytes": 2147483648,
+  "desktopRAMBytes": 3221225472,
+  "gptDiskID": "76b8f1cb-02c2-494c-bba0-3e3074f61005",
+  "finalDesktopQEMUExitCode": 0,
+  "userFileMarker": "phase1-76b8f1cb",
+  "userSetting": {
+    "schema": "org.gnome.desktop.interface",
+    "key": "color-scheme",
+    "value": "prefer-dark"
+  },
+  "persistenceAcrossCleanShutdownAndRelaunch": true,
+  "platformScope": "Linux KVM, not Windows WHPX",
+  "desktopDevices": [
+    "machine=q35",
+    "cpu=host",
+    "smp=2",
+    "virtio-blk-pci raw disk serial=wootc-root",
+    "virtio-vga, no GL requested",
+    "virtio-net-pci,user NAT",
+    "OVMF4M, no Secure Boot proof",
+    "display=none, HMP keyboard/screenshots"
+  ]
+}
