@@ -73,6 +73,7 @@ Beta means the support policy stops saying "alpha" because the evidence exists.
 - **WinUI 3 shell replaces Wails (Epic #340, decided 2026-09-02)**: the entire installer UI — the surface every one of the four 1.0 criteria is written about — is being rebuilt. Phase A merged (Go engine now speaks JSON-RPC over stdio via `wootc.exe serve`); Phases B–E (#343–#346) carry the shell, screens, release cutover, and Wails removal. Evidence gathered on the outgoing Wails UI (matrix cells, field reports) needs an explicit carryover or re-verification rule before it counts toward the WinUI build — see #357.
 - **Try-in-VM (#178, #231)**: Explicitly cut from 1.0; Phase 1 Boot-in-VM on `root.disk` ([ADR 0001](docs/adr/0001-phase1-first-architecture.md)) provides the primary zero-risk VM test path without bundling ~100MB+ of QEMU/builder binaries.
 - **Program-migrator plugin architecture (#203)**: Delivered in commit `341fbd8`; plugin discovery interface and manifest JSON schemas established for 1.0.
+- **Libertix-derived boot-chain hardening (#308)**: [Libertix](https://github.com/ekimiateam/libertix) solves the same install-Linux-from-Windows problem with the opposite disk model (real partition vs our `root.disk`), so its geometry code is irrelevant but its around-the-reboot designs carry over — specified in `docs/borrowed-from-libertix.md` as six trackable items: Secure Boot CA preflight (#322), recovery guard (#331), first-boot evidence cross-checked from Windows (#332), ESP signed-chain refresh (#333), one step catalogue diffed in CI (#334), pinned + signed artifacts (#335).
 - Docs complete and truthful end-to-end; walkthrough imagery regenerated from the shipping build.
 - Soak begins: consecutive green nightlies counting toward the 1.0 gate, release-blocking regressions only.
 
@@ -106,4 +107,4 @@ The four criteria at the top of this file, verified: 30 days of green nightlies,
 See [CONTRIBUTING.md](./CONTRIBUTING.md). Prefer tasks tied to a red/unverified matrix cell or an open milestone checklist item — evidence that turns a claim green beats untested feature breadth. The milestone tracking issues are the live task boards.
 
 ---
-*Refreshed 2026-09-17 against current `main` (resolves #394); WinUI 3 shell migration added 2026-09-24 (see #357). Refine with maintainer input.*
+*Refreshed 2026-09-17 against current `main` (resolves #394); WinUI 3 shell migration added 2026-09-24 (see #357); Libertix hardening added 2026-09-26 (see #308). Refine with maintainer input.*

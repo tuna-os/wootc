@@ -35,8 +35,13 @@ jobs:
       - name: Render manifests from the release
         if: ${{ env.skip != 'true' }}
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
         run: |
-          $tag = if ('${{ github.event_name }}' -eq 'release') { '${{ github.event.release.tag_name }}' } else { '${{ inputs.tag }}' }
+          $tag = $env:RELEASE_TAG
+          if ($tag -cnotmatch '\Av?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\z') {
+            throw 'Expected a release tag such as v1.2.3 or v1.2.3-rc.1'
+          }
           $version = $tag -replace '^v',''
           $url = "https://github.com/${{ github.repository }}/releases/download/$tag/wootc.exe"
           Write-Host "tag=$tag version=$version"

@@ -34,9 +34,8 @@ on:
     - cron: '0 7 * * *'
 
 permissions:
-  contents: write        # commit the refreshed timelapse to pages/
+  contents: read
   packages: read
-  actions: write         # the flake-retry job re-dispatches this workflow once
 
 concurrency:
   group: e2e-gui-publish
@@ -79,6 +78,8 @@ jobs:
   #   - the concurrency group holds the new run PENDING until this one ends,
   #     and a single pending run is never cancelled by it.
   flake-retry:
+    permissions:
+      actions: write     # re-dispatch this workflow once
     needs: run
     if: ${{ always() && needs.run.result == 'failure' && needs.run.outputs.flake_verdict != '' && (github.event_name == 'schedule' || inputs.flake_retry == '') }}
     runs-on: ubuntu-latest
@@ -95,6 +96,8 @@ jobs:
             -f image="$IMAGE" -f phase3="$PHASE3" -f uninstall_check="$UNCHK" -f flake_retry=1
 
   publish:
+    permissions:
+      contents: write    # publish media and dispatch the Pages refresh
     needs: run
     # Belt: only a passing run reaches here. Braces: the .passed gate below
     # is the real proof, so a run that "succeeded" without the marker still
@@ -113,6 +116,8 @@ jobs:
           path: /tmp/evidence
 
       - name: Publish the GUI-driven timelapse (green runs only)
+        env:
+          WOOTC_TARGET_IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
         run: |
           set -euo pipefail
           # run-e2e.sh writes .passed into the video dir ONLY on ALL TESTS
@@ -131,7 +136,7 @@ jobs:
           # hero. Slug from the image that actually ran: bazzite:stable →
           # bazzite, bluefin:lts → bluefin-lts (a stable/latest tag adds
           # nothing; any other tag disambiguates).
-          image="${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}"
+          image="$WOOTC_TARGET_IMAGE"
           name=$(basename "${image%:*}")
           tag="${image##*:}"
           [ "$tag" = "$image" ] && tag=""
