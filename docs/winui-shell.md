@@ -179,3 +179,29 @@ Native UI, transport, identity, setup, and accessibility need new evidence.
 Do not mark a matrix cell green from a Wails run after the shell cutover.
 Track this rule with #357 and the [release ladder](milestones.md).
 Retain the legacy build until a native release passes its gates, before phase E removes it.
+
+## Current stdio protocol reference
+
+| Method | Params | Result |
+|---|---|---|
+| `GetSupportPolicy` | — | `SupportPolicy` |
+| `GetSystemInfo` | — | `SystemInfo` |
+| `GetBranding` | — | `Branding` |
+| `GetImages` | — | `[]Image` |
+| `GetSessionCandidates` | — | as today |
+| `StartInstall` | `InstallConfig` | `null` or error |
+| `CancelInstall` | — | `null` |
+| `GetStatus` | — | `InstallStatus` |
+| `DefragDrive` | — | `null` |
+| `Reboot` | — | `null` |
+| `ExistingInstallFound` | — | `bool` |
+| `GetUninstallInfo` | — | `UninstallInfo` |
+| `UninstallWith` | `UninstallOptions` | `null` |
+| `BootIntoLinux` | — | `null` |
+| `GetLastRun` | — | `LifecycleState` |
+| `E2EDriveDirective` | — | `string` |
+| `E2EDriveReport` | `string` | `null` |
+| `Shutdown` | — | `null` (engine exits 0) |
+
+Notifications use `install:progress` and `vm:progress`.
+The VM methods still need a versioned native-shell contract.

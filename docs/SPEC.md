@@ -970,7 +970,7 @@ The Windows installer (`wootc.exe`) has four screens:
 ```
 
 **Button actions:**
-- **[Try in VM]**: (Optional / Post-1.0 offline bundle; gated by `GetFreshVMCapability`).
+- **[Try in VM]**: Required VM-first direction; current builds remain capability-gated until ADR 0004 passes.
   Bypasses BCD modification. Launches a background Alpine builder VM to pull
   the OCI image into a local virtual disk and starts QEMU immediately (§6.1).
   No reboot. In standard 1.0 builds, this affordance is hidden in favor of
@@ -1439,12 +1439,12 @@ performance. Two distinct modes:
 
 ### 6.1 Fresh VM from OCI Image (Two-Stage QEMU Handoff)
 
-> **Status (1.0 Scope)**: Deferred to post-1.0 per [ADR 0001](adr/0001-phase1-first-architecture.md)
-> and [#231](https://github.com/tuna-os/wootc/issues/231). The 1.0 distribution relies on
-> §6.2 (Phase 1 Boot-in-VM) against the installed `root.disk`, avoiding bundling ~100MB+
-> of builder/QEMU binaries in standard installer releases while providing a zero-risk VM
-> trial of the real system. The underlying capability check and builder scripts are preserved
-> for evaluation and potential post-1.0 offline bundles.
+> **Status, 2026-09-26:** The maintainer requires VM-first as the primary journey.
+> [ADR 0004](adr/0004-restore-vm-first-product.md) supersedes the #318 deferral.
+> Current releases do not yet provide a proven VM-first path.
+> The design below is historical input; disk ownership, readiness, and native promotion
+> must meet ADR 0004 before release claims.
+
 
 "Try before you install" — the user clicks **[Try in VM]** on the
 Launchpad, and wootc builds a bootable disk image and launches it in
