@@ -168,7 +168,7 @@ func (a *App) launchManagedDesktop(cap VMCapability, state VMState, release func
 		"-drive", "if=pflash,format=raw,readonly=on,file=" + qemuEscape(edk2Code()),
 		"-drive", "if=pflash,format=raw,file=" + qemuEscape(managedVMVars()),
 		"-nic", "user", "-display", "gtk,window-close=off,show-menubar=off", "-qmp", "stdio", "-monitor", "none",
-		"-name", effectiveBranding().Name + " (VM)"}
+		"-name", qemuEscape(effectiveBranding().Name + " (VM)")}
 	cmd := exec.Command(cap.QEMUPath, args...)
 	cmd.Dir = filepath.Dir(cap.QEMUPath)
 	cmd.Env = vmProcessEnvironment(cmd.Dir, previewDir())
