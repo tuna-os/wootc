@@ -1,0 +1,51 @@
+{
+  "supportedC": {
+    "sizeMax": 84520468480,
+    "sizeMin": 30600552448
+  },
+  "partitions": [
+    {
+      "DiskNumber": 0,
+      "PartitionNumber": 1,
+      "DriveLetter": null,
+      "Offset": 1048576,
+      "Size": 536870912,
+      "Type": "System"
+    },
+    {
+      "DiskNumber": 0,
+      "PartitionNumber": 2,
+      "DriveLetter": null,
+      "Offset": 537919488,
+      "Size": 16777216,
+      "Type": "Reserved"
+    },
+    {
+      "DiskNumber": 0,
+      "PartitionNumber": 3,
+      "DriveLetter": "C",
+      "Offset": 554696704,
+      "Size": 84520468480,
+      "Type": "Basic"
+    },
+    {
+      "DiskNumber": 0,
+      "PartitionNumber": 4,
+      "DriveLetter": null,
+      "Offset": 85075165184,
+      "Size": 822083584,
+      "Type": "Recovery"
+    }
+  ],
+  "disks": [
+    {
+      "Number": 0,
+      "FriendlyName": "QEMU QEMU HARDDISK",
+      "PartitionStyle": "GPT",
+      "Size": 95156174848,
+      "AllocatedSize": 85898297344,
+      "IsBoot": true,
+      "IsSystem": true
+    }
+  ]
+}

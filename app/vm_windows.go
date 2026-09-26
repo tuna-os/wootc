@@ -173,6 +173,11 @@ func (a *App) GetFreshVMCapability() VMCapability {
 		cap.Reason = "The VM builder initramfs is missing."
 		return cap
 	}
+	if _, _, err := currentVMStoragePlan(); err != nil {
+		cap.Available = false
+		cap.Reason = err.Error()
+		return cap
+	}
 	return a.probeVMRuntime(cap)
 }
 
@@ -239,11 +244,19 @@ func (a *App) PrepareVM(cfg VMInstallConfig) error {
 		if err == nil {
 			state.Image, err = resolveVMImage(ctx, imageRef)
 		}
+		var storage vmStorageSelection
 		if err == nil {
+			storage, err = selectCurrentVMStorageProfile(state.Image)
+		}
+		if err == nil {
+			state.StorageProfile = storage.ProfileID
+			state.TargetCapacityBytes = storage.Plan.Target
+			state.ScratchCapacityBytes = storage.Plan.Scratch
+			state.RuntimeManifestSHA256 = storage.RuntimeManifestSHA256
 			err = writeVMState(vmStatePath(wootcDir()), state)
 		}
 		if err == nil {
-			err = createVMImageFiles()
+			err = createVMImageFiles(storage)
 		}
 		if err == nil {
 			err = a.runBuilderVM(ctx, cap, &state, hash)

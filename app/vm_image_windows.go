@@ -3,22 +3,59 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"golang.org/x/sys/windows"
 	"os"
 	"path/filepath"
 )
 
-func createVMImageFiles() error {
+func currentVMStoragePlan() (vmStoragePlan, vmStorageMinimums, error) {
+	plan := defaultVMStoragePlan()
+	metadata, err := readLocalMetadata(filepath.Join(qemuDir(), "builder-protocol.json"), 64<<10)
+	if err != nil {
+		return plan, vmStorageMinimums{}, err
+	}
+	minimums, err := parseVMStorageMinimums(metadata)
+	if err != nil {
+		return plan, minimums, err
+	}
+	_, err = plan.requiredFree(minimums)
+	return plan, minimums, err
+}
+
+func selectCurrentVMStorageProfile(image string) (vmStorageSelection, error) {
+	_, minimums, err := currentVMStoragePlan()
+	if err != nil {
+		return vmStorageSelection{}, err
+	}
+	manifest, err := readLocalMetadata(filepath.Join(qemuDir(), "SHA256SUMS"), 1<<20)
+	if err != nil {
+		return vmStorageSelection{}, err
+	}
+	identity := fmt.Sprintf("%x", sha256.Sum256(manifest))
+	return selectVMStorageProfile(vmCapacityExperiment, image, identity, minimums, approvedVMStorageProfiles())
+}
+
+func createVMImageFiles(selection vmStorageSelection) error {
+	// Selection uses the complete authenticated runtime while the image lease
+	// is held. Metadata cannot lower the image profile by itself.
+	plan, minimums := selection.Plan, selection.Minimums
 	available, err := vmFreeBytes(wootcDir())
 	if err != nil {
 		return err
 	}
-	const capacity = uint64(40) << 30
-	if available < 2*capacity+vmWindowsReserveBytes {
-		return fmt.Errorf("VM preparation needs at least 88 GB free for the Linux disk, scratch space and an 8 GB Windows reserve")
+	if err := plan.admit(minimums, available); err != nil {
+		return err
 	}
-	for _, path := range []string{managedVMRootDisk(), filepath.Join(previewDir(), "scratch.disk")} {
+	for _, disk := range []struct {
+		path     string
+		capacity uint64
+	}{
+		{managedVMRootDisk(), plan.Target},
+		{filepath.Join(previewDir(), "scratch.disk"), plan.Scratch},
+	} {
+		path, capacity := disk.path, disk.capacity
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 		if err != nil {
 			return err

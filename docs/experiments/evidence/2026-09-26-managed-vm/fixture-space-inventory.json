@@ -1,0 +1,180 @@
+{
+  "experiments": [
+    {
+      "logicalBytes": 47369411162,
+      "path": "C:\\Windows\\Temp\\wootc-phase1-probe",
+      "allocatedBytes": 267311706,
+      "largeFiles": [
+        {
+          "logicalBytes": 94832515,
+          "path": "C:\\Windows\\Temp\\wootc-phase1-probe\\disk-backed-probe-initramfs.img",
+          "allocatedBytes": 94832515,
+          "modifiedUTC": "2026-09-26T17:26:39.2716499Z"
+        },
+        {
+          "logicalBytes": 21474836480,
+          "path": "C:\\Windows\\Temp\\wootc-phase1-probe\\experiment-scratch.raw",
+          "allocatedBytes": 142540800,
+          "modifiedUTC": "2026-09-26T17:51:48.5800102Z"
+        },
+        {
+          "logicalBytes": 25769803776,
+          "path": "C:\\Windows\\Temp\\wootc-phase1-probe\\experiment-target.raw",
+          "allocatedBytes": 0,
+          "modifiedUTC": "2026-09-26T17:29:47.2042830Z"
+        }
+      ],
+      "fileCount": 39
+    },
+    {
+      "logicalBytes": 43052725817,
+      "path": "C:\\Windows\\Temp\\wootc-production-helper",
+      "allocatedBytes": 2820568633,
+      "largeFiles": [
+        {
+          "logicalBytes": 91185367,
+          "path": "C:\\Windows\\Temp\\wootc-production-helper\\builder-initramfs.img",
+          "allocatedBytes": 91185367,
+          "modifiedUTC": "2026-09-26T18:08:10.9261067Z"
+        },
+        {
+          "logicalBytes": 42949672960,
+          "path": "C:\\Windows\\Temp\\wootc-production-helper\\root.disk",
+          "allocatedBytes": 2717515776,
+          "modifiedUTC": "2026-09-26T19:30:25.1098281Z"
+        }
+      ],
+      "fileCount": 12
+    },
+    {
+      "logicalBytes": 206615928,
+      "path": "C:\\Windows\\Temp\\qemu-w64-setup-20260811.exe",
+      "allocatedBytes": 206615928,
+      "largeFiles": [
+        {
+          "logicalBytes": 206615928,
+          "path": "C:\\Windows\\Temp\\qemu-w64-setup-20260811.exe",
+          "allocatedBytes": 206615928,
+          "modifiedUTC": "2026-09-26T17:13:16.9759705Z"
+        }
+      ],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 10444800,
+      "path": "C:\\Windows\\Temp\\wootc-console-mutant.test.exe",
+      "allocatedBytes": 10444800,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 10446336,
+      "path": "C:\\Windows\\Temp\\wootc-console-redirect.test.exe",
+      "allocatedBytes": 10446336,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 1849856,
+      "path": "C:\\Windows\\Temp\\wootc-gui-status-attach-probe.exe",
+      "allocatedBytes": 1849856,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 1853952,
+      "path": "C:\\Windows\\Temp\\wootc-gui-status-fixed-probe.exe",
+      "allocatedBytes": 1853952,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 1665024,
+      "path": "C:\\Windows\\Temp\\wootc-gui-status-probe.exe",
+      "allocatedBytes": 1665024,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 33895,
+      "path": "C:\\Windows\\Temp\\wootc-production-helper-evidence.zip",
+      "allocatedBytes": 33895,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 0,
+      "path": "C:\\Windows\\Temp\\wootc-qemu-download.log",
+      "allocatedBytes": 0,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 1632,
+      "path": "C:\\Windows\\Temp\\wootc-qemu-install.log",
+      "allocatedBytes": 1632,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 6,
+      "path": "C:\\Windows\\Temp\\wootc-qemu-install.status",
+      "allocatedBytes": 6,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 6,
+      "path": "C:\\Windows\\Temp\\wootc-supervisor-trial-child.txt",
+      "allocatedBytes": 6,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 146,
+      "path": "C:\\Windows\\Temp\\wootc-whpx-enable.log",
+      "allocatedBytes": 146,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 6,
+      "path": "C:\\Windows\\Temp\\wootc-whpx-enable.status",
+      "allocatedBytes": 6,
+      "largeFiles": [],
+      "fileCount": 1
+    },
+    {
+      "logicalBytes": 1255998954,
+      "path": "C:\\Program Files\\qemu",
+      "allocatedBytes": 1255998954,
+      "largeFiles": [
+        {
+          "logicalBytes": 67108864,
+          "path": "C:\\Program Files\\qemu\\share\\edk2-aarch64-code.fd",
+          "allocatedBytes": 67108864,
+          "modifiedUTC": "2026-08-11T19:20:44.0000000Z"
+        },
+        {
+          "logicalBytes": 67108864,
+          "path": "C:\\Program Files\\qemu\\share\\edk2-arm-code.fd",
+          "allocatedBytes": 67108864,
+          "modifiedUTC": "2026-08-11T19:20:44.0000000Z"
+        },
+        {
+          "logicalBytes": 67108864,
+          "path": "C:\\Program Files\\qemu\\share\\edk2-arm-vars.fd",
+          "allocatedBytes": 67108864,
+          "modifiedUTC": "2026-08-11T19:20:46.0000000Z"
+        }
+      ],
+      "fileCount": 3385
+    }
+  ],
+  "utc": "2026-09-26T19:39:07.1258692Z",
+  "volume": {
+    "sizeBytes": 84520464384,
+    "freeBytes": 53979086848
+  },
+  "qemuProcesses": []
+}
