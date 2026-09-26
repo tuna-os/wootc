@@ -1,0 +1,8 @@
+{
+  "kernelSHA256": "1f4cee6c1a6fc184650cff5b0f8d996b1079d4b47ebdfe6daa1d267a4f86359b",
+  "initramfsSHA256": "c99ab0c71bc09d3fd98e78144373510aab2428ab1c309d22f6c471a39954d219",
+  "protocolSHA256": "2a7450309e557468c1b5cab5122287de3e19d14487659dd52896b37149ff4569",
+  "accountTransport": "QEMU fw_cfg opt/wootc/install",
+  "inputContainsTestPasswordHash": true,
+  "secretInputRetainedInRepository": false
+}

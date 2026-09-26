@@ -1,0 +1,4 @@
+Sep 26 18:28:10 ip-10-0-2-15.eu-north-1.compute.internal gdm-password][1907]: pam_unix(gdm-password:session): session opened for user wootctest(uid=1000) by wootctest(uid=0)
+Sep 26 18:28:18 ip-10-0-2-15.eu-north-1.compute.internal gnome-shell[2053]: g_log_set_writer_func() called multiple times
+Sep 26 18:28:19 ip-10-0-2-15.eu-north-1.compute.internal systemd-coredump[2716]: Process 2053 (gnome-shell) of user 1000 dumped core.
+Sep 26 18:28:19 ip-10-0-2-15.eu-north-1.compute.internal gdm-password][1907]: pam_unix(gdm-password:session): session closed for user wootctest

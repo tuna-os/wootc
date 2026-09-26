@@ -1,0 +1,12 @@
+{
+  "sampleIntervalSeconds": 15,
+  "guestRAMBytes": 2147483648,
+  "vcpu": 2,
+  "virtualBytesPerDisk": 42949672960,
+  "sampledPeakRootAllocatedBytes": 4344262656,
+  "sampledPeakScratchAllocatedBytes": 6282854400,
+  "sampledPeakQEMURSSBytes": 2265546752,
+  "helperPoweroffKernelUptimeSeconds": 280.330652,
+  "helperProcessExit": 0,
+  "note": "15-second sampled peaks; not guarantees or image profile free-space requirements. RSS includes host QEMU overhead. Desktop boot uses3GiB separately."
+}
