@@ -1,0 +1,16 @@
+QEMU emulator version 11.1.0 (v11.1.0-12130-ge470268ff4)
+Copyright (c) 2003-2026 Fabrice Bellard and the QEMU Project developers
+Available display backend types:
+none
+gtk
+sdl
+egl-headless
+curses
+spice-app
+dbus
+
+Some display backends support suboptions, which can be set with
+   -display backend,option=value,option=value...
+For a short list of the suboptions for each display, see the top-level -help output; more detail is in the documentation.
+BUNDLE_TCG_BOOT=True SECONDS=0.5450885
+WOOTC_WHPX_BOOTSECTOR_EXECUTED
