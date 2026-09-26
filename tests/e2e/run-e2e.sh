@@ -1501,6 +1501,15 @@ fi
     fail "wootc-files/SHA256SUMS is empty — no boot artifacts to checksum"
     exit 1
 }
+# GUI fixtures use the same signature verifier as releases, with a key whose
+# public half was embedded when this test executable was built. Never stage
+# the private seed into the guest or the artifact directory.
+if $GUI_INSTALL; then
+    WOOTC_E2E_MANIFEST_KEY=$(bash "$REPO_ROOT/packaging/e2e-manifest-key.sh") || exit 1
+    (cd "$REPO_ROOT/app" && go run ./tools/signmanifest sign \
+        "$WOOTC_E2E_MANIFEST_KEY" "$SCRIPT_DIR/wootc-files/SHA256SUMS" \
+        "$SCRIPT_DIR/wootc-files/SHA256SUMS.sig") || exit 1
+fi
 info "Boot-artifact manifest staged: $(wc -l < "$SCRIPT_DIR/wootc-files/SHA256SUMS") entries"
 
 # wubildr is no longer required for Secure Boot (we use the signed shim chain).
@@ -1528,6 +1537,11 @@ sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$OEM_DIR/setup-wootc.ps1"
 # Also convert the wootc-files copy used by subsequent steps
 printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
 sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wootc.ps1"
+# Shared trust gate must accompany both the OEM-local and SMB GUI payloads.
+for state_payload in "$OEM_DIR/state-trust.ps1" "$SCRIPT_DIR/wootc-files/state-trust.ps1"; do
+    printf '\xEF\xBB\xBF' > "$state_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/state-trust.ps1" >> "$state_payload"
+done
 if [ -f "$SCRIPT_DIR/assert-recovery.ps1" ]; then
     printf '\xEF\xBB\xBF' > "$OEM_DIR/assert-recovery.ps1"
     sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$OEM_DIR/assert-recovery.ps1"
@@ -2885,9 +2899,12 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
     fi
     gui_wait_interactive_session || { capture_vm_diagnostics; exit 1; }
 
-    qga_powershell 'New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
+    qga_powershell '$ErrorActionPreference = "Stop"
+. "\\host.lan\Data\state-trust.ps1"
+Initialize-WootcStateDirectory -Path C:\wootc
+New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
-foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1
@@ -2895,7 +2912,7 @@ set WOOTC_PRELOAD=0
 start `"`" C:\wootc\wootc.exe
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
 Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
-schtasks /Delete /TN wootc-gui-e2e /F 2>$null
+try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
 $start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
 # /RU must name the account that is actually autologged on: Pro media use
 # "wootc", Enterprise/LTSC use "docker". A wrong name fails /Create outright
@@ -2908,7 +2925,10 @@ $mk = schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR "C:\wootc\launc
 Write-Output ("schtasks /Create rc=" + $LASTEXITCODE + " :: " + ($mk -join " "))
 $rn = schtasks /Run /TN wootc-gui-e2e 2>&1
 Write-Output ("schtasks /Run rc=" + $LASTEXITCODE + " :: " + ($rn -join " "))
-Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || warn "    (GUI staging call failed)"
+Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
+        fail "GUI staging failed before a trustworthy app launch"
+        return 1
+    }
     # The QGA powershell completing only proves the task was scheduled, not
     # that wootc.exe actually started.  Poll for the real readiness signal:
     # e2e-drive-state.json (written by the drive loop every 2 s once the app
@@ -3834,12 +3854,37 @@ if ! qga_windows_probe; then
     qga_wait_reboot "Windows after deployer"
 fi
 
+# Keep native CLI output and transport errors separate. PowerShell 5.1 can
+# turn native stderr into a terminating error before it reaches stdout.
+capture_lifecycle_status() {
+    local phase="$1"
+    _state_exit=0
+    # shellcheck disable=SC2016
+    qga_powershell '& cmd.exe /d /c "C:\wootc\wootc.exe status"; exit $LASTEXITCODE' \
+        > "$ARTIFACT_DIR/status-$phase.stdout" \
+        2> "$ARTIFACT_DIR/status-$phase.stderr" || _state_exit=$?
+    printf '%s\n' "$_state_exit" > "$ARTIFACT_DIR/status-$phase.exit"
+    _state_raw=$(tr -d '\r' < "$ARTIFACT_DIR/status-$phase.stdout")
+}
+
+capture_lifecycle_failure() {
+    local phase="$1"
+    info "Status CLI/transport exit: $_state_exit; diagnostics: status-$phase.*"
+    sed -n '1,60p' "$ARTIFACT_DIR/status-$phase.stderr" >&2
+    # Read descriptors only; cap enumeration and retain errors for diagnosis.
+    # shellcheck disable=SC2016
+    qga_powershell '$ErrorActionPreference="Continue"; Get-PSDrive -PSProvider FileSystem | ForEach-Object { $root=Join-Path $_.Root "wootc"; if (Test-Path -LiteralPath $root) { @((Get-Item -LiteralPath $root); (Get-ChildItem -LiteralPath $root -Force -Recurse -ErrorAction Continue | Select-Object -First 128)) | ForEach-Object { try { $a=Get-Acl -LiteralPath $_.FullName -ErrorAction Stop; [pscustomobject]@{path=$_.FullName;owner=$a.Owner;sddl=$a.Sddl;attributes=[string]$_.Attributes} | ConvertTo-Json -Compress } catch { Write-Output $_ } } } }' \
+        > "$ARTIFACT_DIR/status-$phase.acl" \
+        2> "$ARTIFACT_DIR/status-$phase.acl.stderr" || true
+}
+
 step "Asserting deployer lifecycle state on Windows..."
 # shellcheck disable=SC2016
-_state_raw=$(qga_powershell '& C:\wootc\wootc.exe status 2>&1' 2>/dev/null | tr -d '\r' || true)
-if echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"deployed"'; then
+capture_lifecycle_status deployed
+if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"deployed"'; then
     pass "wootc.exe status reports deployed after deployer finished"
 else
+    capture_lifecycle_failure deployed
     fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
 fi
 
@@ -4499,10 +4544,11 @@ else
     pass "One-shot Phase 2 boot consumed; Windows returned successfully"
     step "Asserting Phase-2 first boot lifecycle state on Windows..."
     # shellcheck disable=SC2016
-    _state_raw=$(qga_powershell '& C:\wootc\wootc.exe status 2>&1' 2>/dev/null | tr -d '\r' || true)
-    if echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"'; then
+    capture_lifecycle_status healthy
+    if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"'; then
         pass "wootc.exe status reports healthy after Phase-2 first boot"
     else
+        capture_lifecycle_failure healthy
         fail "wootc.exe status did not report healthy after Phase-2 first boot (got: '$_state_raw')"
     fi
     # Windows is verifiably back — put the untouched machine on camera
