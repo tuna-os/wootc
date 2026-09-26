@@ -501,9 +501,11 @@ test('signed runtime setup returns to account setup without starting an install'
 });
 
 test('a release without the runtime gives an explicit error without installing Linux', async ({ page }) => {
-  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true }, runtimeError: 'This release does not include the Linux window runtime yet.' });
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true }, runtimeError: 'This release does not include the Linux window runtime yet. <img src=x onerror=alert(1)>' });
   await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
   await expect(page.locator('body')).toContainText('This release does not include the Linux window runtime yet.');
+  await expect(page.locator('body')).toContainText('<img src=x onerror=alert(1)>');
+  await expect(page.locator('img[src=x]')).toHaveCount(0);
   expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
   await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
 });
