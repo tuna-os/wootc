@@ -37,9 +37,8 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
   packages: read                 # granted through to the reusable e2e-hosted (base-image pull)
-  actions: write                 # publish job dispatches winget-publish.yml for full releases
 
 concurrency:
   group: release-${{ github.event_name == 'workflow_run' && 'auto' || github.ref }}
@@ -81,6 +80,10 @@ jobs:
   # ── 3. publish — only reachable when a gate passed (or was waived) ────────
   publish:
     name: build + publish
+    permissions:
+      contents: write
+      packages: read
+      actions: write             # dispatch winget-publish.yml for full releases
     needs: [tests, e2e-gate]
     if: >-
       ${{ always() && (
@@ -119,7 +122,16 @@ jobs:
 
       - name: Resolve channel + tag
         id: chan
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag }}
         run: |
+          # Reject output-file/manifest injection as well as malformed tags.
+          tag="${REQUESTED_TAG}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then tag="${GITHUB_REF_NAME}"; fi
+          if [ -n "$tag" ] && [[ ! "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error::Expected a release tag such as v1.2.3 or v1.2.3-rc.1'
+            exit 1
+          fi
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             sha="${{ github.event.workflow_run.head_sha }}"
             echo "tag=auto-v$(date -u +%Y%m%d)-${sha::7}" >> "$GITHUB_OUTPUT"
@@ -129,13 +141,13 @@ jobs:
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
             echo "channel=tagged" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ inputs.release_tag }}" ]; then
+          elif [ -n "$REQUESTED_TAG" ]; then
             # Dispatch with an explicit tag: a FULL release. The release
             # action creates the tag at the dispatched SHA using the
             # workflow's own token, so cutting a release needs no tag-push
             # rights anywhere else — pick the branch, name the tag, and the
             # same E2E gate stands in front of it.
-            echo "tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+            echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
             echo "channel=tagged" >> "$GITHUB_OUTPUT"
           else
@@ -208,6 +220,8 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       - name: Build brand installers (one exe per blessed brand)
+        env:
+          RELEASE_TAG: ${{ steps.chan.outputs.tag }}
         # Subshells for every directory change: the first run interleaved a
         # failed `cd`/build chain with a loop that then globbed from the
         # wrong directory. Nothing here moves the step's own cwd.
@@ -239,7 +253,6 @@ jobs:
           # run; an exe that fetches from `latest` would run a deployer it
           # was never tested with, and SHA256SUMS cannot catch that — the
           # manifest comes from the same moved release.
-          RELEASE_TAG="${{ steps.chan.outputs.tag }}"
           [ -n "$RELEASE_TAG" ] || { echo "::error::no release tag to pin the boot artifacts to"; exit 1; }
           echo "pinning boot artifacts to $RELEASE_TAG"
           SHIM_AUTHORITIES=$(python3 -c "import json;print(','.join(json.load(open('release-assets/shim-authorities.json'))['shimx64.efi']))")
@@ -263,9 +276,11 @@ jobs:
           cd release-assets && sha256sum * > SHA256SUMS && cat SHA256SUMS
 
       - name: Record what gated this build
+        env:
+          RELEASE_TAG: ${{ steps.chan.outputs.tag }}
         run: |
           {
-            echo "## wootc ${{ steps.chan.outputs.tag }}"
+            echo "## wootc $RELEASE_TAG"
             echo
             if [ "${{ steps.chan.outputs.channel }}" = "auto" ]; then
               echo "Automated pre-release, cut from the exact commit the nightly"
@@ -310,6 +325,7 @@ jobs:
         if: ${{ steps.chan.outputs.prerelease == 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.chan.outputs.tag }}
         run: |
           gh workflow run winget-publish.yml --repo "${{ github.repository }}" \
-            -f tag="${{ steps.chan.outputs.tag }}"
+            -f tag="$RELEASE_TAG"

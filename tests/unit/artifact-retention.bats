@@ -217,7 +217,7 @@ mkrun() {
     # cannot catch it: the manifest comes from the same moved release, so
     # mismatched-but-consistent artifacts verify perfectly (#335).
     grep -q 'X main.releaseTag=\$RELEASE_TAG' "$REPO_ROOT/.github/workflows/release.yml"
-    grep -q 'RELEASE_TAG="\${{ steps.chan.outputs.tag }}"' "$REPO_ROOT/.github/workflows/release.yml"
+    grep -q 'RELEASE_TAG: \${{ steps.chan.outputs.tag }}' "$REPO_ROOT/.github/workflows/release.yml"
     # A release that cannot name its own tag must fail rather than ship an
     # exe that silently floats.
     grep -q 'no release tag to pin the boot artifacts to' "$REPO_ROOT/.github/workflows/release.yml"
