@@ -12,7 +12,7 @@ setup() {
 printf 'mount %s\n' "$*" >> "$CALLS"
 if [[ "$*" == *'remount,bind,ro'* && ${FAIL_RO:-} == 1 ]]; then exit 1; fi
 # Simulate the host bind contents for the mask-selection path.
-if [[ "$1" == --bind && "$2" == */wootc-host ]]; then mkdir -p "$3/wootc"; fi
+if [[ "$1" == --bind && "$2" == */wootc-host ]]; then mkdir -p "$3/${STATE_NAME:-wootc}"; fi
 SH
     printf '#!/bin/bash\n[[ "${*: -1}" == */wootc-host ]]\n' > "$T/bin/mountpoint"
     printf '#!/bin/bash\nprintf "umount %%s\\n" "$*" >> "$CALLS"\n' > "$T/bin/umount"
@@ -70,4 +70,10 @@ teardown() { chmod -R u+rwx "$T"; rm -rf "$T"; }
     [ "$status" -eq 0 ]
     [[ "$output" == *'refusing symlink folder destination'* ]]
     [ ! -s "$CALLS" ]
+}
+
+@test "a case-sensitive uppercase installer directory is also masked" {
+    run env STATE_NAME=WOOTC bash "$T/view" start
+    [ "$status" -eq 0 ]
+    grep -q 'mount --bind .*hidden .*public/WOOTC' "$CALLS"
 }

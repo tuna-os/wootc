@@ -26,8 +26,8 @@ start)
     # Assemble below a private ancestor. No public writable/unmasked interval.
     mount --bind "$source" "$staging"
     mount --make-private "$staging"
-    shopt -s nullglob nocaseglob
-    states=("$staging"/wootc "$staging"/*/wootc)
+    shopt -s nullglob
+    states=("$staging"/[wW][oO][oO][tT][cC] "$staging"/*/[wW][oO][oO][tT][cC])
     ((${#states[@]} > 0))
     for state in "${states[@]}"; do
         [[ -d "$state" && ! -L "$state" ]]
