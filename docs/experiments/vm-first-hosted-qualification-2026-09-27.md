@@ -156,3 +156,46 @@ wrong signed closure, missing editor, absent interactive session, stale/cross-ru
 GUI save failure, unchanged boot and changed disk/firmware identity. Each must refuse.
 Record the exact candidate, runtime/image/helper hashes, actual outer argv and all
 current-run evidence. Keep #178 open until the actual desktop/persistence gate passes.
+
+## Implemented read-only stage and display routing proposal
+
+`tests/e2e/vm-first/qualify-host.py` queries `/proc`, the selected KVM module's nested
+parameter, KVM API/capability ioctls and the actual storage filesystem's available
+bytes. It never calls CREATE_VM. The new manual workflow does not install Windows,
+reclaim disk or grant extra KVM permissions. A failed observation emits an explicit
+refusal; denied KVM access needs separately reviewed runner provisioning. The
+30-second external bound and artifact requirement make timeout/missing receipts red.
+Normal PR CI runs the actual consumer controls without running the host probe.
+
+The exact proposed outer CPU argument is checked for an explicit extension and
+contradictory masks; this is a proposal check, not a measured launched CPU. The
+receipt deliberately leaves guest/desktop qualification false. Subsequent launch
+must compare actual expanded argv and Windows processor observations to this proposal.
+No actual hosted nested CPU measurement is available until an authorized manual stage.
+
+Stack inspection found neither #419 nor #418 wholly contains the other's exact head;
+#422 likewise diverges from the latest #418 head. Shared merge bases are
+`c7ff613a2380d13f721d0292ebf3c973f57b20d7` (#419/#418) and
+`14b5365fdb3eef37055d1523d18688b76452d346` (#418/#422). Integrate the reviewed missing
+commits and resolve shared engine/runtime/storage files, rather than cherry-picking
+whole stacks blindly.
+
+The #418 `qmpClient` already owns inherited stdin/stdout pipes, serializes writes and
+correlates IDs, but currently returns only errors and discards response bodies. A
+scoped test extension should retain this same client and bounded context. Add typed
+response decoding for `query-status`, `query-mice`, `screendump` and `input-send-event`;
+verify a successful response body and matching command ID. Serialize test actions
+with lifecycle operations, reject stopping/recovery sessions, and use the existing
+engine-owned session/disk identity. Do not create a second QMP listener or permit
+arbitrary execute/HMP commands. The API should accept validated keys/pointer events
+and a bounded capture action, not arbitrary paths; the engine chooses a private
+capture path and reports its hash with run/install/session identity. QMP framebuffer
+and delivered key input still prove neither GNOME identity nor editor semantic state.
+
+The Windows ordinary-user window observer can independently prove the real GTK
+process/window/foreground relation. Guest semantic telemetry remains a separate
+unapproved image/helper contract. Until that contract is reviewed, display routing
+may be exercised with mocked QMP responses but cannot claim full desktop acceptance.
+Actual negative controls must include failed/missing/duplicate QMP responses, wrong
+session/disk, lifecycle races, capture outside the owned directory, and successful
+key acknowledgment without a corresponding current editor observation.
