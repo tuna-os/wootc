@@ -148,7 +148,8 @@ class Transport:
         code = ('import socket,time,json,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(3); '
                 's.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); '
                 '\nfor command in json.loads(sys.argv[1]):\n'
-                ' s.sendall((command+"\\n").encode()); time.sleep(.1); s.recv(4096)\n'
+                ' s.sendall((command+"\\n").encode()); time.sleep(.1); response=s.recv(4096).decode(errors="replace")\n'
+                ' if "error" in response.lower() or "unknown command" in response.lower(): raise RuntimeError(response)\n'
                 's.close()')
         self.command([self.runtime, "exec", self.container, "python3", "-c", code, json.dumps(commands)])
 
@@ -159,6 +160,8 @@ class Transport:
 
     def screenshot(self, stage):
         remote = f"/run/shm/wootc-editor-{stage}.ppm"
+        self.command([self.runtime, "exec", self.container, "python3", "-c",
+                      "import os,sys; p=sys.argv[1]; os.path.exists(p) and os.unlink(p)", remote])
         self.hmp([f"screendump {remote}"])
         self.command([self.runtime, "cp", f"{self.container}:{remote}", str(self.output / f"{stage}.ppm")])
 
