@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "fdd7fc972cab7eda282dbf06b1d35a2de9a9fc39",
+  "targetCapacityBytes": 34359738368,
+  "scratchCapacityBytes": 17179869184,
+  "helperRAMBytes": 2147483648,
+  "desktopRAMBytes": 3221225472,
+  "desktopProcessExit": 0,
+  "diskId": "3b6b7eba-ac83-4cf9-8ca2-34255e8d96bc",
+  "scope": "Linux KVM, manual authenticated desktop; not Windows or persistence retest",
+  "artifacts": {
+    "builder-vmlinuz": "1f4cee6c1a6fc184650cff5b0f8d996b1079d4b47ebdfe6daa1d267a4f86359b",
+    "builder-initramfs.img": "a425a499a6495c670989216b764810b21c695c34fe0b49b157c7ae4efa2406d0",
+    "builder-protocol.json": "8fdc369c5e517158d117afbdd7b3a802faf1ed4cec1dd6e7f8f9eb249c837ee4"
+  }
+}

@@ -1,0 +1,33 @@
+--- a/payload/builder/wootc-builder.sh
++++ b/payload/builder/wootc-builder.sh
+@@ -5,7 +5,7 @@
+ IPC=/dev/virtio-ports/wootc.ipc
+ STAGE=bootstrap
+ MIN_TARGET_BYTES=34359738368
+-MIN_SCRATCH_BYTES=17179869184
++MIN_SCRATCH_BYTES=8589934592
+ 
+ emit() {
+     # One bounded JSON record per write on the private host-created channel.
+@@ -52,6 +52,7 @@
+ }
+ 
+ validate_contract() {
++    [ "$IMAGE" = "ttl.sh/2e6295b0-50ea-42b2-838a-57df8a1022be@sha256:4562f4f0fde8cc0ba49e7ce627be2ba35d803c9aa768e79220a1a58c3b0d148b" ] || failed 'experimental capacity profile requires its exact image'
+     printf '%s\n' "$IMAGE" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9._:/-]*@sha256:[a-f0-9]{64}$' ||
+         failed 'image must be pinned by its sha256 digest'
+     for id in "$RUN_ID" "$INSTALL_ID"; do
+--- a/payload/builder/protocol.json
++++ b/payload/builder/protocol.json
+@@ -21,5 +21,10 @@
+     "schemaVersion": 1
+   },
+   "minimumTargetDiskBytes": 34359738368,
+-  "minimumScratchDiskBytes": 17179869184
++  "minimumScratchDiskBytes": 8589934592,
++  "experimentalCapacityProfile": {
++    "id": "yellowfin-common-20260926-32-8",
++    "image": "ttl.sh/2e6295b0-50ea-42b2-838a-57df8a1022be@sha256:4562f4f0fde8cc0ba49e7ce627be2ba35d803c9aa768e79220a1a58c3b0d148b",
++    "status": "unproven"
++  }
+ }

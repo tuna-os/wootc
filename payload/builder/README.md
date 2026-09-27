@@ -12,13 +12,17 @@ The consumer host must use `create` mode and check for the named account in the 
 | Input | Contract |
 |---|---|
 | `/dev/vda` | Blank target, VirtIO block serial `wootc-root`, at least 32 GiB |
-| `/dev/vdb` | Blank scratch, VirtIO block serial `wootc-scratch`, at least 32 GiB |
+| `/dev/vdb` | Blank scratch, VirtIO block serial `wootc-scratch`, at least 16 GiB |
 | Capacity | These are minimums. The host must budget space for the selected image on both volumes. Large images can need more. |
 | `wootc.image` | Registry reference with immutable `@sha256:` digest |
 | `wootc.run_id`, `wootc.install_id` | 8–64 letters, numbers, underscores, or hyphens; first character is a letter or number |
 | `wootc.ipc` | Private VirtIO serial port created by the host for this run |
 | Network | One network device with DHCP; image pull needs registry access |
 | `wootc.account_mode=create` | Create the account from a private input file before success |
+
+The protocol descriptor has separate `minimumTargetDiskBytes` and `minimumScratchDiskBytes`.
+The legacy `minimumDiskBytes` remains 32 GiB as a conservative fallback for old hosts.
+A host must not treat a missing capacity as zero. These floors do not replace a capacity profile for the selected image.
 
 The helper checks both disk identities and signatures before it formats scratch.
 The helper refuses a disk with partitions, a known signature, or an active mount.

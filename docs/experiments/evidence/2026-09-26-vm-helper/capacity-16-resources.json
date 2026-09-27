@@ -1,0 +1,356 @@
+{
+  "processExit": 0,
+  "stopReason": null,
+  "elapsedSeconds": 290.01931585001876,
+  "reserveBytes": 27917287424,
+  "samples": [
+    {
+      "elapsed": 2.247502561658621e-05,
+      "availableBytes": 43815116800,
+      "capacity-root.diskAllocatedBytes": 0,
+      "capacity-scratch.diskAllocatedBytes": 0
+    },
+    {
+      "elapsed": 5.000361500016879,
+      "availableBytes": 43812929536,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 1048576
+    },
+    {
+      "elapsed": 10.000718444003724,
+      "availableBytes": 43652055040,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 161890304
+    },
+    {
+      "elapsed": 15.000997115013888,
+      "availableBytes": 43078217728,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 735727616
+    },
+    {
+      "elapsed": 20.00340743601555,
+      "availableBytes": 42604404736,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 1209688064
+    },
+    {
+      "elapsed": 25.003670439007692,
+      "availableBytes": 41961627648,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 1852465152
+    },
+    {
+      "elapsed": 30.003955902007874,
+      "availableBytes": 41161560064,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 2652532736
+    },
+    {
+      "elapsed": 35.00424186702003,
+      "availableBytes": 40868044800,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 2946134016
+    },
+    {
+      "elapsed": 40.004530464007985,
+      "availableBytes": 40232636416,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 3581571072
+    },
+    {
+      "elapsed": 45.004802085022675,
+      "availableBytes": 39735541760,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 4076503040
+    },
+    {
+      "elapsed": 50.00507001701044,
+      "availableBytes": 39261581312,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 4550463488
+    },
+    {
+      "elapsed": 55.00545555600547,
+      "availableBytes": 38792994816,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 5019049984
+    },
+    {
+      "elapsed": 60.005761801003246,
+      "availableBytes": 38334763008,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 5477281792
+    },
+    {
+      "elapsed": 65.00607693800703,
+      "availableBytes": 38020182016,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 5791854592
+    },
+    {
+      "elapsed": 70.00635246100137,
+      "availableBytes": 37537837056,
+      "capacity-root.diskAllocatedBytes": 1048576,
+      "capacity-scratch.diskAllocatedBytes": 6274199552
+    },
+    {
+      "elapsed": 75.00662248302251,
+      "availableBytes": 37285093376,
+      "capacity-root.diskAllocatedBytes": 76550144,
+      "capacity-scratch.diskAllocatedBytes": 6451408896
+    },
+    {
+      "elapsed": 80.00687817600556,
+      "availableBytes": 37090054144,
+      "capacity-root.diskAllocatedBytes": 242229248,
+      "capacity-scratch.diskAllocatedBytes": 6480769024
+    },
+    {
+      "elapsed": 85.00716892202036,
+      "availableBytes": 36801691648,
+      "capacity-root.diskAllocatedBytes": 530591744,
+      "capacity-scratch.diskAllocatedBytes": 6480769024
+    },
+    {
+      "elapsed": 90.00747172502452,
+      "availableBytes": 36266946560,
+      "capacity-root.diskAllocatedBytes": 825241600,
+      "capacity-scratch.diskAllocatedBytes": 6720897024
+    },
+    {
+      "elapsed": 95.00772460101871,
+      "availableBytes": 36059340800,
+      "capacity-root.diskAllocatedBytes": 1032855552,
+      "capacity-scratch.diskAllocatedBytes": 6720897024
+    },
+    {
+      "elapsed": 100.00812371802749,
+      "availableBytes": 35724845056,
+      "capacity-root.diskAllocatedBytes": 1242570752,
+      "capacity-scratch.diskAllocatedBytes": 6845677568
+    },
+    {
+      "elapsed": 105.00841917502112,
+      "availableBytes": 35365109760,
+      "capacity-root.diskAllocatedBytes": 1571827712,
+      "capacity-scratch.diskAllocatedBytes": 6876086272
+    },
+    {
+      "elapsed": 110.00873649402638,
+      "availableBytes": 35081981952,
+      "capacity-root.diskAllocatedBytes": 1854955520,
+      "capacity-scratch.diskAllocatedBytes": 6876086272
+    },
+    {
+      "elapsed": 115.00905623901053,
+      "availableBytes": 34828259328,
+      "capacity-root.diskAllocatedBytes": 2053136384,
+      "capacity-scratch.diskAllocatedBytes": 6929563648
+    },
+    {
+      "elapsed": 120.00933589600027,
+      "availableBytes": 34577657856,
+      "capacity-root.diskAllocatedBytes": 2303746048,
+      "capacity-scratch.diskAllocatedBytes": 6929563648
+    },
+    {
+      "elapsed": 125.0096166600124,
+      "availableBytes": 34283008000,
+      "capacity-root.diskAllocatedBytes": 2598395904,
+      "capacity-scratch.diskAllocatedBytes": 6929563648
+    },
+    {
+      "elapsed": 130.00987323501613,
+      "availableBytes": 34099494912,
+      "capacity-root.diskAllocatedBytes": 2781908992,
+      "capacity-scratch.diskAllocatedBytes": 6929563648
+    },
+    {
+      "elapsed": 135.01016657601576,
+      "availableBytes": 33893978112,
+      "capacity-root.diskAllocatedBytes": 2987425792,
+      "capacity-scratch.diskAllocatedBytes": 6929563648
+    },
+    {
+      "elapsed": 140.0105121200031,
+      "availableBytes": 33554391040,
+      "capacity-root.diskAllocatedBytes": 3231739904,
+      "capacity-scratch.diskAllocatedBytes": 7027081216
+    },
+    {
+      "elapsed": 145.01082381501328,
+      "availableBytes": 33123422208,
+      "capacity-root.diskAllocatedBytes": 3562045440,
+      "capacity-scratch.diskAllocatedBytes": 7127744512
+    },
+    {
+      "elapsed": 150.01109943701886,
+      "availableBytes": 32860217344,
+      "capacity-root.diskAllocatedBytes": 3808473088,
+      "capacity-scratch.diskAllocatedBytes": 7144521728
+    },
+    {
+      "elapsed": 155.01143329701154,
+      "availableBytes": 32429068288,
+      "capacity-root.diskAllocatedBytes": 4028674048,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 160.0117172820028,
+      "availableBytes": 32222629888,
+      "capacity-root.diskAllocatedBytes": 4235243520,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 165.01197789402795,
+      "availableBytes": 32220258304,
+      "capacity-root.diskAllocatedBytes": 4237332480,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 170.0122929070203,
+      "availableBytes": 32220258304,
+      "capacity-root.diskAllocatedBytes": 4237332480,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 175.01270185000612,
+      "availableBytes": 32220258304,
+      "capacity-root.diskAllocatedBytes": 4237332480,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 180.012976773025,
+      "availableBytes": 32213991424,
+      "capacity-root.diskAllocatedBytes": 4243628032,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 185.01327189200674,
+      "availableBytes": 32188829696,
+      "capacity-root.diskAllocatedBytes": 4268789760,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 190.01354142601485,
+      "availableBytes": 32180457472,
+      "capacity-root.diskAllocatedBytes": 4277161984,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 195.01379595600883,
+      "availableBytes": 32173281280,
+      "capacity-root.diskAllocatedBytes": 4284502016,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 200.01410346201737,
+      "availableBytes": 32169050112,
+      "capacity-root.diskAllocatedBytes": 4288692224,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 205.0143727560062,
+      "availableBytes": 32169058304,
+      "capacity-root.diskAllocatedBytes": 4288692224,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 210.01475854602177,
+      "availableBytes": 32169058304,
+      "capacity-root.diskAllocatedBytes": 4288692224,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 215.01501456002006,
+      "availableBytes": 32123965440,
+      "capacity-root.diskAllocatedBytes": 4333785088,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 220.01526546402602,
+      "availableBytes": 32117673984,
+      "capacity-root.diskAllocatedBytes": 4340076544,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 225.01553355299984,
+      "availableBytes": 32113487872,
+      "capacity-root.diskAllocatedBytes": 4344262656,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 230.01582158601377,
+      "availableBytes": 32106147840,
+      "capacity-root.diskAllocatedBytes": 4351602688,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 235.0161000470107,
+      "availableBytes": 32103002112,
+      "capacity-root.diskAllocatedBytes": 4354748416,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 240.01637650001794,
+      "availableBytes": 32095657984,
+      "capacity-root.diskAllocatedBytes": 4362092544,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 245.01662596600363,
+      "availableBytes": 32087269376,
+      "capacity-root.diskAllocatedBytes": 4370481152,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 250.01698882100754,
+      "availableBytes": 32079929344,
+      "capacity-root.diskAllocatedBytes": 4377821184,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 255.01726464700187,
+      "availableBytes": 32074571776,
+      "capacity-root.diskAllocatedBytes": 4383068160,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 260.0175303010037,
+      "availableBytes": 32074358784,
+      "capacity-root.diskAllocatedBytes": 4383068160,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 265.0178397280106,
+      "availableBytes": 32073527296,
+      "capacity-root.diskAllocatedBytes": 4384116736,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 270.01816011601477,
+      "availableBytes": 32072540160,
+      "capacity-root.diskAllocatedBytes": 4385165312,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 275.0184048390074,
+      "availableBytes": 32072548352,
+      "capacity-root.diskAllocatedBytes": 4385157120,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 280.01869892000104,
+      "availableBytes": 32052350976,
+      "capacity-root.diskAllocatedBytes": 4405080064,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    },
+    {
+      "elapsed": 285.0189754110179,
+      "availableBytes": 32037679104,
+      "capacity-root.diskAllocatedBytes": 4419760128,
+      "capacity-scratch.diskAllocatedBytes": 7355285504
+    }
+  ]
+}

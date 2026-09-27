@@ -46,18 +46,31 @@ builder_main
 function [() { if test "$1" = -b; then return 0; fi; builtin [ "$@"; }
 cat() { if [[ $1 == */vda/serial ]]; then echo "${ROOT_SERIAL:-wootc-root}"; else echo wootc-scratch; fi; }
 lsblk() { if [[ $1 == -dn ]]; then echo disk; else echo "${@: -1}"; fi; }
-blockdev() { echo "${CAPACITY:-34359738368}"; }
+blockdev() { if [[ ${@: -1} == /dev/vdb ]]; then echo "${SCRATCH_CAPACITY:-17179869184}"; else echo "${CAPACITY:-34359738368}"; fi; }
 wipefs() { if [[ ${@: -1} == /dev/vdb && ${DIRTY:-0} == 1 ]]; then echo '{"signatures":[{}]}'; else echo '{"signatures":[]}'; fi; }
 findmnt() { return 1; }
 mkfs.ext4() { echo FORMATTED; exit 92; }
 '''
         for setup, reason in [('ROOT_SERIAL=untrusted', 'identity'),
                               ('DIRTY=1', 'contains data'),
-                              ('CAPACITY=1024', '32 GiB')]:
+                              ('CAPACITY=34359738367', '32 GiB'),
+                              ('SCRATCH_CAPACITY=17179869183', '16 GiB')]:
             result = self.run_helper(common + setup + '\nprepare_storage')
             self.assertEqual(result.returncode, 91, result.stderr)
             self.assertIn(reason, result.stdout)
             self.assertNotIn('FORMATTED', result.stdout)
+        # Exact independent boundaries reach the first format, without real writes.
+        result = self.run_helper(common + 'prepare_storage')
+        self.assertEqual(result.returncode, 92, result.stderr)
+        self.assertIn('FORMATTED', result.stdout)
+
+    def test_protocol_minimums_match_guest_enforcement(self):
+        protocol = json.loads((ROOT / 'payload/builder/protocol.json').read_text())
+        result = self.run_helper('printf "%s %s" "$MIN_TARGET_BYTES" "$MIN_SCRATCH_BYTES"')
+        target, scratch = map(int, result.stdout.split())
+        self.assertEqual(protocol['minimumTargetDiskBytes'], target)
+        self.assertEqual(protocol['minimumScratchDiskBytes'], scratch)
+        self.assertGreaterEqual(protocol['minimumDiskBytes'], max(target, scratch))
 
     def test_private_account_contract_and_no_secret_output(self):
         config = {'schemaVersion': 1, 'runId': 'run_123456', 'installId': 'install_123456',

@@ -19,5 +19,7 @@
     "transport": "fw_cfg",
     "name": "opt/wootc/install",
     "schemaVersion": 1
-  }
+  },
+  "minimumTargetDiskBytes": 34359738368,
+  "minimumScratchDiskBytes": 17179869184
 }

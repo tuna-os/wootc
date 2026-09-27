@@ -4,6 +4,8 @@ TARGET=/dev/vda
 SCRATCH=/dev/vdb
 IPC=/dev/virtio-ports/wootc.ipc
 STAGE=bootstrap
+MIN_TARGET_BYTES=34359738368
+MIN_SCRATCH_BYTES=17179869184
 
 emit() {
     # One bounded JSON record per write on the private host-created channel.
@@ -150,12 +152,13 @@ personalize_disk() {
 }
 
 blank_disk() {
-    disk=$1 expected=$2
+    disk=$1 expected=$2 minimum=$3
     [ -b "$disk" ] || failed "missing dedicated disk $disk"
     [ "$(cat "/sys/block/${disk##*/}/serial")" = "$expected" ] ||
         failed "unexpected disk identity for $disk"
     [ "$(lsblk -dn -o TYPE "$disk")" = disk ] || failed 'target is not a whole virtual disk'
-    [ "$(blockdev --getsize64 "$disk")" -ge 34359738368 ] || failed "disk $disk needs at least 32 GiB"
+    [ "$(blockdev --getsize64 "$disk")" -ge "$minimum" ] ||
+        failed "disk $disk needs at least $((minimum / 1073741824)) GiB"
     [ "$(lsblk -nr -o NAME "$disk" | wc -l)" -eq 1 ] || failed "disk $disk already has partitions"
     [ "$(wipefs --no-act --json "$disk" | jq '.signatures | length')" -eq 0 ] ||
         failed "disk $disk already contains data"
@@ -164,8 +167,8 @@ blank_disk() {
 
 prepare_storage() {
     # Validate BOTH identities and signatures before the first destructive call.
-    blank_disk "$TARGET" wootc-root
-    blank_disk "$SCRATCH" wootc-scratch
+    blank_disk "$TARGET" wootc-root "$MIN_TARGET_BYTES"
+    blank_disk "$SCRATCH" wootc-scratch "$MIN_SCRATCH_BYTES"
     mkfs.ext4 -q -F "$SCRATCH"
     mkdir -p /run/wootc-scratch /var/lib/containers /var/tmp /run/containers
     mount "$SCRATCH" /run/wootc-scratch

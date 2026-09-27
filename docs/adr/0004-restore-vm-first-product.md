@@ -173,3 +173,10 @@ It ends with a usable Linux desktop in a window, without a host Linux boot.
 Create a file and change an app preference, restart the VM, then promote natively.
 Verify the same file and preference, return to Windows, and launch the VM again.
 Record host boot identity, boot configuration, disk identity, guest evidence, and screenshots.
+
+See the [read-only review](../experiments/vm-first-2026-09-26.md#read-only-review-promotion-of-the-same-vm-disk).
+It records the source-level gaps and observable gates.
+Compatibility of raw GPT is only partial evidence. Keep the generic BLS
+entries for VM boot. Add NTFS and loop arguments only to the native entries.
+Native promotion stays gated until the same account, file and setting survive
+VM boot, native boot, Windows return, and another VM boot.
