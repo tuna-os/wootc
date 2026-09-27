@@ -106,7 +106,7 @@ function Assert-WootcFixtureReceiptDirectory {
         if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $allowed) { throw 'Unsafe receipt ancestor owner' }
         # Creating unrelated siblings is harmless; deleting/replacing this
         # directory or changing its ACL is not. The leaf also forbids writes.
-        $mask = 0x500D0150L
+        $mask = 0x500D0040L
         if ($ancestor.FullName -eq $item.FullName) { $mask = $mask -bor 0x40000116L }
         foreach ($rule in @($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))) {
             if (($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
