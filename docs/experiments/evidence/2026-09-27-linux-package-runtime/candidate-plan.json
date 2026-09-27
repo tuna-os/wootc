@@ -1,0 +1,120 @@
+{
+  "acquisitionPerformed": false,
+  "baseline": {
+    "canonicalEncoding": "sorted compact JSON name\u2192{architecture,version}, followed by LF",
+    "canonicalInventorySha256": "74fbf9cf16061ecb58322c36629093bcd87fde623c84f9ffb0ba24bf07aff014",
+    "expectedInstalledPackages": 322,
+    "observedFromActualImage": false,
+    "preMutation": "successful guest dpkg-query must equal entire exact declared inventory; digest equality alone without parsed equality is insufficient",
+    "qgaAlreadyInstalled": false
+  },
+  "baselineObservedFromImage": false,
+  "bootstrap": {
+    "docs": "https://docs.cloud-init.io/en/latest/reference/datasources/nocloud.html#source-2-drive-with-labeled-filesystem",
+    "growpart": "disabled; refuse inadequate guest space rather than guessing filesystem expansion",
+    "method": "read-only CIDATA ISO with NoCloud user-data/meta-data, frozen helper/policy/packages; no cloud-image customization or package injection before baseline observation",
+    "network": "QEMU -nic none and no network device or host filesystem share",
+    "package_update": false,
+    "package_upgrade": false,
+    "packages": [],
+    "qga": "owned private Unix socket and virtio-serial org.qemu.guest_agent.0 exist before launch; agent becomes available only after old phase installs it",
+    "rootAndEsp": "observe actual root/block ancestry and existing mounts inside the exclusively owned overlay; no expected ESP UUID or mounted path guessed; no foreign disk, host block passthrough or shared filesystem"
+  },
+  "cancellationAndRetention": {
+    "absoluteBudgetSeconds": 1200,
+    "cancel": "TERM then bounded wait/KILL only exact owned process group; reject reused/foreign PID; reap children and stop at deadline even without guest progress",
+    "cleanup": "close/unlink only own sockets after child exit; preserve immutable inputs, overlay, serial and hashes on failure; no prune, retained fixture deletion or host package mutation",
+    "nativeSourceStillRequired": true,
+    "owner": "Popen-owned process/session with executable+cmdline+start-time identity; exclusive scratch nonce and UUID",
+    "quota": "bounded serial/result output plus guest/host capacity readback; quota failure cancels owned VM"
+  },
+  "capacity": {
+    "formula": "2*cloud stored bytes + 3*actual cloud virtual bytes + 4*unique package bytes + 64MiB seed cap + 2GiB reserve",
+    "guestFreeBytesBeforeEachPhase": 1073741824,
+    "guestSpaceObserved": false,
+    "illustrationBytesUsingPublishedRawSize": 12833621632,
+    "illustrationUsesUnobservedVirtualSize": true,
+    "maximumActualVirtualBytes": 8589934592,
+    "overlayStoredBytesQuota": "actual virtual bytes + 512MiB; monitor and cancel on quota before filling host filesystem",
+    "requireBeforeStart": "successful qemu-img actual virtual size and host free bytes; formula and 64GiB host floor must both pass"
+  },
+  "classicOsBootAcceptance": false,
+  "cloud": {
+    "acquiredSha256": null,
+    "actualVirtualSizeObserved": false,
+    "beforeExecution": "complete download must match exact published size/SHA512; then pin local SHA256 and successful qemu-img info with no backing/data-file before immutable freeze",
+    "publishedBytes": 433651712,
+    "publishedRawBytes": 3221225472,
+    "publishedSha512": "a733e7d49442a03e70d03e4eb5aaf3967f3efc69ef70952f9bb10fc1ee2c4876eb95956b5ad2d31350e5fada768feb651352535fb8cd1233f61998a5a7d2e93c",
+    "url": "https://cloud.debian.org/images/cloud/trixie/20260914-2601/debian-13-generic-amd64-20260914-2601.qcow2"
+  },
+  "executionApproved": false,
+  "firmwareAcceptance": false,
+  "host": {
+    "guestCpus": 2,
+    "guestRamBytes": 2147483648,
+    "kvmApi": 12,
+    "measuredEligibility": false,
+    "minimumCpus": 4,
+    "minimumFreeBytes": 68719476736,
+    "minimumMemAvailableBytes": 11811160064,
+    "ownedTools": "pin QEMU/qemu-img/OVMF, ISO seed builder and package/helper closure; libguestfs and Windows TPM are unnecessary for this separate run"
+  },
+  "packages": {
+    "combinedWithoutDedupBytes": 26278448,
+    "newArchiveBytes": 12606016,
+    "newPackagesAcquired": false,
+    "oldArchiveBytes": 13672432,
+    "totalExpectedAcquisitionBytesWithUniquePackages": 455664032,
+    "uniqueArchiveBytes": 22012320,
+    "uniqueArchives": 30
+  },
+  "remainingSource": [
+    "NoCloud guest bootstrap typed producer and actual extracted controls",
+    "host typed serial comparator + post-old QGA readback controls",
+    "Linux-only owned launcher with no-network/device allowlist/cancellation/quota controls",
+    "source-only measured-host workflow and pinned artifact acquisition protocol"
+  ],
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "scope": "independent Linux-only actual package consumer run; no Windows return, boot chain or firmware acceptance",
+  "serialProof": {
+    "independentReadback": "after old agent starts, positive Linux identity and current bootId via QGA; after new phase re-read actual dpkg inventory and hash-bound result in guest, not serial success alone",
+    "notAuthority": [
+      "cloud-init status/log message",
+      "generic guest-ping",
+      "a source-only expected package digest",
+      "previous result file"
+    ],
+    "publication": "bounded typed JSON records from actual helper; remove stale result first, atomic success publication; host rejects missing/duplicate/out-of-order/truncated/wrong-challenge/wrong-boot/wrong-hash/nonzero records",
+    "requiredFields": [
+      "schemaVersion",
+      "scratchId",
+      "fresh hostChallenge",
+      "seedSha256",
+      "helperSha256",
+      "policySha256",
+      "current canonical bootId",
+      "stage",
+      "actual parsed inventory and digest",
+      "exact consumer exit status",
+      "before/after same bootId"
+    ],
+    "stages": [
+      "baseline-observed before any package injection",
+      "old-installed only after successful actual apt and exact after inventory",
+      "new-installed only after successful actual apt and exact after inventory"
+    ]
+  },
+  "sourceCheckpoint": "9fea4cd",
+  "sourceHashes": {
+    "docs/experiments/evidence/2026-09-27-esp-orchestrator/authenticated-dependencies/authenticated-dependency-plan.json": "ada5ba0f52a7c42620a5d0e5b8c2926c452022accd3877b5fe6a436ec3cb83a8",
+    "docs/experiments/evidence/2026-09-27-linux-package-runtime/SHA512SUMS": "4833d6c69d4d8b02a5cfe2415d02fef5125ed98999b8a9f2937b01146921c4cf",
+    "docs/experiments/evidence/2026-09-27-linux-package-runtime/debian-13-generic-amd64.json": "b9ee0bde0c8d0d2a487010a368a2c4b505555a7b4f86366abdd8bdc8d01e811a",
+    "tests/e2e/esp-chain/package-consumer.py": "764b08b7987a356633dfde64bba1ac8d6c3a86005970a9a52f329b7caf71348d",
+    "tests/e2e/esp-chain/package-policy.py": "ea605a34fdae13b89ad4b976ac2d7619bc29e46d529b3c563c736b5d2d109439"
+  },
+  "sourcePlanStatus": "candidate specification; guest bootstrap and owned launcher adaptation still need source controls/review",
+  "windowsBaselineNeededForThisPackageProof": false,
+  "windowsBaselineStillNeededForFull333Acceptance": true
+}
