@@ -28,5 +28,7 @@
       "log": "failed-userdata.before.raw.log",
       "sha256": "aebc3097f21358048048c4aebd1e8394971ca1844396f08a63f6f932aef4dcee"
     }
-  ]
+  ],
+  "mockPrefixSha256": "6a12b5886ebf48c64c4a9363ee11195b811d0bebcd0ea9e200d84159ca2ba7d5",
+  "replayVerification": "Both retained logs reproduce byte-for-byte using before-mock-prefix.sh + before-consumer.sh with recorded NATIVE_RC/DATA_RC and PATH=/usr/bin:/bin."
 }
