@@ -2,6 +2,7 @@
 import copy
 import base64
 import hashlib
+import json
 import os
 from pathlib import Path
 import runpy
@@ -29,12 +30,18 @@ class AcceptanceTests(unittest.TestCase):
         captures = []
         for index, hashes in enumerate((old, new, new)):
             boot = dict(identity, bootId='00000000-0000-0000-0000-'+str(index).zfill(12), secureBoot=True, rootKind='loop')
+            facts = {'schemaVersion': 1, 'sourceKind': 'classic', 'os': {'ID': 'debian', 'VERSION_ID': '13'},
+                     'packages': {name: {'version': 'old' if not index else 'new', 'architecture': 'amd64'} for name in ('shim-signed', 'shim-helpers-amd64-signed', 'grub-efi-amd64-signed')},
+                     'packageManager': 'dpkg', 'rootFsUuid': identity['rootFsUuid'], 'sourceFsUuid': 'fixture-source',
+                     'kernelRelease': 'fixture-kernel', 'components': hashes}
+            facts['version'] = 'classic-sha256:'+hashlib.sha256(json.dumps(facts, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            facts['timestamp'] = str(index)
             captures.append({'vmUuid': 'fixture-vm', 'observation': boot, 'trioHashes': hashes, 'sourceHashes': hashes,
                              'signatureProof': {'verified': True}, 'failedUnits': [], 'pendingJournal': False,
-                             'receipt': {'ownedManifestSha256': 'fixture', 'preparedBootId': boot['bootId'], 'sourceEFI': {'version': 'old' if not index else 'new'}}, 'foreignFiles': {'EFI/Microsoft/a': 'kept'},
+                             'receipt': {'ownedManifestSha256': 'fixture', 'preparedBootId': boot['bootId'], 'sourceEFI': copy.deepcopy(facts)}, 'foreignFiles': {'EFI/Microsoft/a': 'kept'},
                              'firmwareObservationSource': 'current-boot-efivars', 'archiveHashes': old if index else None, 'firmwareTrustHashes': dict(dict.fromkeys(('SecureBoot', 'SetupMode', 'db', 'dbx', 'MokListXRT'), '3'*64), SbatLevelRT=hashlib.sha256(raw).hexdigest()), 'firmwareSbatVariableBase64': encoded, 'firmwareSbatPolicy': {'sbat': 1, 'grub': 1},
                              'upgradeSignatureProof': {'verified': True, 'current': old, 'candidate': new} if index else None,
-                             'sourceFacts': {'sourceKind': 'classic', 'version': 'old' if not index else 'new', 'timestamp': str(index)}})
+                             'sourceFacts': facts})
         windows = {'vmUuid': 'fixture-vm', 'scratchId': plan['scratchId'], 'os': 'Windows_NT', 'hostUuid': identity['hostUuid'], 'afterLinuxBootId': '00000000-0000-0000-0000-000000000002'}
         windows['bitlocker'] = dict.fromkeys(('host', 'system'), {'volumeStatus': 'FullyDecrypted', 'protectionStatus': 'Off', 'encryptionPercentage': 0})
         plan['firmwareTrustHashes'] = dict(captures[0]['firmwareTrustHashes'])
@@ -86,6 +93,11 @@ class AcceptanceTests(unittest.TestCase):
             if data.get('trioHashes') == self.args[0]['newHashes']:
                 data['sourceHashes']['shimx64.efi'] = self.args[0]['oldHashes']['shimx64.efi']
         self.args[0]['sbatTransition']['newShimSha256'] = self.args[0]['newHashes']['shimx64.efi']
+        for capture in self.args[1:4]:
+            facts = capture['sourceFacts']
+            body = {k: v for k, v in facts.items() if k not in ('version', 'timestamp')}
+            facts['version'] = 'classic-sha256:'+hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            capture['receipt']['sourceEFI'] = copy.deepcopy(facts)
         self.assertTrue(accept(*self.args)['observationsMatch'])
         self.args[0]['requireAllComponentsChanged'] = True
         with self.assertRaises(ValueError):

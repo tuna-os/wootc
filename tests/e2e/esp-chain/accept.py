@@ -77,6 +77,39 @@ def validate_firmware(capture, plan, is_old):
         require(hashes == plan['firmwareTrustHashes'], 'baseline trust differs from pinned firmware export')
 
 
+def validate_source(capture):
+    facts = capture['sourceFacts']
+    prepared = capture['receipt']['sourceEFI']
+    require(isinstance(facts, dict) and isinstance(prepared, dict), 'source facts or prepared source absent')
+    stable = lambda data: {k: v for k, v in data.items() if k != 'timestamp'}
+    require(stable(facts) == stable(prepared), 'prepared source differs from current source facts')
+    require(isinstance(facts.get('version'), str) and bool(facts['version'].strip()), 'current source version absent')
+    require(isinstance(facts.get('timestamp'), str) and bool(facts['timestamp'].strip()), 'current source timestamp absent')
+    kind = capture['observation']['deploymentKind']
+    if kind == 'classic':
+        require(facts.get('sourceKind') == 'classic', 'classic source facts absent')
+        require(set(facts) == {'schemaVersion', 'sourceKind', 'os', 'packages', 'packageManager', 'rootFsUuid', 'sourceFsUuid', 'kernelRelease', 'components', 'version', 'timestamp'}, 'incomplete classic source shape')
+        require(type(facts['schemaVersion']) is int and facts['schemaVersion'] == 1, 'unknown classic source schema')
+        release = facts['os']
+        require(isinstance(release, dict) and set(release) == {'ID', 'VERSION_ID'} and all(isinstance(v, str) and v.strip() for v in release.values()), 'classic OS facts absent')
+        managers = {'debian': 'dpkg', 'ubuntu': 'dpkg', 'fedora': 'rpm', 'almalinux': 'rpm', 'rocky': 'rpm', 'centos': 'rpm', 'rhel': 'rpm'}
+        require(release['ID'] in managers and facts['packageManager'] == managers[release['ID']], 'unsupported classic package source')
+        require(facts['rootFsUuid'] == capture['observation']['rootFsUuid'] and all(isinstance(facts[k], str) and facts[k].strip() for k in ('rootFsUuid', 'sourceFsUuid', 'kernelRelease')), 'classic root or kernel source identity absent')
+        require(facts['components'] == capture['sourceHashes'], 'classic source components differ from measured bytes')
+        packages = facts['packages']
+        expected = {'shim-signed', 'grub-efi-amd64-signed'} if release['ID'] == 'ubuntu' else ({'shim-signed', 'shim-helpers-amd64-signed', 'grub-efi-amd64-signed'} if facts['packageManager'] == 'dpkg' else {'shim-x64', 'grub2-efi-x64'})
+        require(isinstance(packages, dict) and set(packages) == expected, 'incomplete classic source package roles')
+        require(all(isinstance(p, dict) and set(p) == {'version', 'architecture'} and all(isinstance(v, str) and v.strip() for v in p.values()) for p in packages.values()), 'incomplete classic package identity')
+        body = {k: v for k, v in facts.items() if k not in ('version', 'timestamp')}
+        stamp = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        require(facts['version'] == 'classic-sha256:'+stamp, 'classic source version is not bound to current facts')
+    elif kind == 'bootc':
+        require(facts.get('sourceKind') in (None, 'bootupd'), 'unsupported bootupd source kind')
+        require(isinstance(facts.get('versions', []), list), 'malformed bootupd package versions')
+    else:
+        raise ValueError('unsupported deployment source kind')
+
+
 def validate_initial(plan, capture):
     validate_firmware(capture, plan, True)
     require(capture['vmUuid'].lower() == plan['vmUuid'].lower(), 'first Linux capture belongs to another VM')
@@ -89,6 +122,9 @@ def validate_initial(plan, capture):
     require(capture['signatureProof']['verified'] is True, 'first Linux signature/policy proof absent')
     require(capture['failedUnits'] == [] and capture['pendingJournal'] is False, 'first Linux has failed units or pending recovery')
     require(capture['receipt']['preparedBootId'] == boot['bootId'] and capture['receipt']['sourceEFI']['version'] == capture['sourceFacts']['version'], 'first Linux source receipt is stale')
+    validate_source(capture)
+    if boot['deploymentKind'] == 'bootc':
+        require(boot['imageDigest'] == plan['oldImageDigest'] and boot['imageRef'] == plan['imageRef'], 'first Linux booted image differs')
 
 
 def validate(plan, old, new, reboot, windows):
@@ -120,6 +156,7 @@ def validate(plan, old, new, reboot, windows):
         require(capture['receipt']['ownedManifestSha256'] == old['receipt']['ownedManifestSha256'], 'ownership changed')
         require(capture['foreignFiles'] == old['foreignFiles'], 'foreign or Windows ESP bytes changed')
         require(str(uuid.UUID(boot['bootId'])) == boot['bootId'], 'malformed kernel boot ID')
+        validate_source(capture)
         validate_firmware(capture, plan, capture is old)
         ids.append(boot['bootId'])
     require(len(set(ids)) == 3, 'cached boot capture or no reboot')

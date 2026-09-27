@@ -186,6 +186,34 @@ class OrchestratorTests(unittest.TestCase):
             run(self.transport, self.plan)
         self.assertEqual(self.agent.executions, 1)
 
+    def test_wrong_initial_source_kind_refuses_before_upgrade(self):
+        self.args[1]['sourceFacts']['sourceKind'] = 'unknown'
+        self.args[1]['receipt']['sourceEFI']['sourceKind'] = 'unknown'
+        with self.assertRaisesRegex(ValueError, 'classic source facts absent'):
+            run(self.transport, self.plan)
+        self.assertEqual(self.agent.executions, 1)
+
+    def test_empty_initial_source_version_refuses_before_upgrade(self):
+        self.args[1]['sourceFacts']['version'] = ''
+        self.args[1]['receipt']['sourceEFI']['version'] = ''
+        with self.assertRaisesRegex(ValueError, 'current source version absent'):
+            run(self.transport, self.plan)
+        self.assertEqual(self.agent.executions, 1)
+
+    def test_stale_consistent_source_receipt_refuses_before_upgrade(self):
+        self.args[1]['sourceFacts']['version'] = 'classic-sha256:'+'a'*64
+        self.args[1]['receipt']['sourceEFI']['version'] = self.args[1]['sourceFacts']['version']
+        with self.assertRaisesRegex(ValueError, 'version is not bound to current facts'):
+            run(self.transport, self.plan)
+        self.assertEqual(self.agent.executions, 1)
+
+    def test_incomplete_source_shape_refuses_before_upgrade(self):
+        del self.args[1]['sourceFacts']['packages']
+        del self.args[1]['receipt']['sourceEFI']['packages']
+        with self.assertRaisesRegex(ValueError, 'incomplete classic source shape'):
+            run(self.transport, self.plan)
+        self.assertEqual(self.agent.executions, 1)
+
     def test_wrong_baseline_trust_refuses_before_upgrade(self):
         self.args[1]['firmwareTrustHashes']['db'] = '9'*64
         with self.assertRaisesRegex(ValueError, 'firmware trust changed'):

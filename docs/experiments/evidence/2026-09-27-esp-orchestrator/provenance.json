@@ -4,6 +4,7 @@
     "expectedPolicyAloneAcceptance": false,
     "expectedPolicySource": "pinned old shim embedded policy",
     "firstLinuxGate": "fresh current-boot efivars, complete old source/trio/root binding and fresh receipt before upgrade",
+    "preUpgradeSourceGate": "supported source kind, complete current source shape, content-bound classic version and identical prepared/current stable source facts",
     "windowsRuntimeStatus": "unknown"
   },
   "classicOsBootAcceptance": false,
@@ -39,8 +40,8 @@
     "acceptanceFixtureControls": 8,
     "launcherFileProcessSocketControls": 14,
     "producerPreflightFreezeControls": 15,
-    "qgaSocketControls": 15,
-    "total": 144
+    "qgaSocketControls": 19,
+    "total": 148
   },
   "newDocumentSteFindings": 0,
   "pinnedPrimarySources": {
@@ -118,7 +119,7 @@
     "platform/dracut/99wootc-boot/wootc-stage-shutdown.sh": "779bd6155fa1b36a0a339bd7b2e2de0ba2704b451c47d3d68dc6cbcde9b41e8b",
     "platform/dracut/99wootc-boot/wootc-umount-host.sh": "4081b5b8898d680779e6221d111bbd7e35ea27acc7174363563872ab21600385",
     "tests/audit-esp-orchestrator.py": "9f1abf5f2834e6389e61fb8696690e89fd6f7012d3cc71fa06225df9dcbeb773",
-    "tests/e2e/esp-chain/accept.py": "d17bc38e426ee6f18b5ef27a2a731b0cf34ce7835f39e205001e02b0ae51fc48",
+    "tests/e2e/esp-chain/accept.py": "2f248db831bea39033b866f320748cc12c587de6f2a40f0dda013f614d674a5a",
     "tests/e2e/esp-chain/arm-classic.ps1": "3de475291dbaa043285353dc3c675bb2cfd09fd2a470af394c10aff24a5b0e7a",
     "tests/e2e/esp-chain/capture-windows.ps1": "3c079a90507989659587e07f9c437b4edd7b8ac0e8a4070c3a8845513f103e27",
     "tests/e2e/esp-chain/capture.py": "5aaf7e3e4130c1366219b43abbcc74c067193c6f700ceee971f05ab0ad410b61",
@@ -135,10 +136,10 @@
     "tests/unit/test_wootc_chain_verify.py": "2a65f52562b763da45c61dcc7d89d167681a091e95f5acfcce47e74e7eb36287",
     "tests/unit/test_wootc_classic_producer.py": "e2cc5cb9955f05c00ce2ba39eb2a144392df26611bfef838e892779bb0926c86",
     "tests/unit/test_wootc_classic_source.py": "d754a1212b2bd46ba47bc584b1b268ce98b1826ee9b45307718e6bd4dff9d4a5",
-    "tests/unit/test_wootc_esp_acceptance.py": "39fc61b90cf5c7e16765bda4fc365b25fbfea30a63cdb8e61bfec8157521b6a6",
+    "tests/unit/test_wootc_esp_acceptance.py": "9292155e79092f349eb7bb7f1fc31a255006a73009d9819849a72c1d68e38975",
     "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
     "tests/unit/test_wootc_esp_launcher.py": "07e662910ef398c992662fc9bff16cb465cbc6172f9a73db64c9bdc9c3c86546",
-    "tests/unit/test_wootc_esp_orchestrator.py": "c82685e542a7e5a3524481ab5ed5f8f8d7526157e40a2ead5d692003da537d73",
+    "tests/unit/test_wootc_esp_orchestrator.py": "684ea317cb21f53536965bad0c976dc23f576636da967aaf25784ceea983a32e",
     "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
     "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
     "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"
