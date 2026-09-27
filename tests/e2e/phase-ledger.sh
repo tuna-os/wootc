@@ -48,3 +48,32 @@ wootc_phase_observe_output() {
         return 1
     fi
 }
+
+# Keep the observation in the caller's shell; command substitution would lose
+# current phase/carry updates. The sentinel preserves actual trailing newlines.
+wootc_phase_read_serial_chunk() {
+    local path="$1" start="$2" end="$3" size LC_ALL=C
+    if ! [[ "$start" =~ ^[0-9]+$ && "$end" =~ ^[0-9]+$ ]] || [ "$end" -lt "$start" ]; then
+        wootc_phase_boundary
+        NEW_OUTPUT=""
+        return 1
+    fi
+    if ! size=$(stat -c%s -- "$path" 2>/dev/null) || [ "$size" -lt "$end" ]; then
+        wootc_phase_boundary
+        NEW_OUTPUT=""
+        return 1
+    fi
+    if ! NEW_OUTPUT=$(dd if="$path" bs=64K iflag=skip_bytes,count_bytes skip="$start" count="$((end - start))" status=none && printf '\001'); then
+        wootc_phase_boundary
+        NEW_OUTPUT=""
+        return 1
+    fi
+    NEW_OUTPUT=${NEW_OUTPUT%$'\001'}
+    # A concurrent truncation can make dd succeed after a short read.
+    if [ "${#NEW_OUTPUT}" -ne "$((end - start))" ]; then
+        wootc_phase_boundary
+        NEW_OUTPUT=""
+        return 1
+    fi
+    wootc_phase_observe_output "$NEW_OUTPUT"
+}

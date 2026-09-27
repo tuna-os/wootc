@@ -183,6 +183,42 @@ exit 0
         self.assertNotIn('phase: firstboot-evidence', missing.stdout)
 
 
+    def test_actual_serial_reader_preserves_partial_lines_and_rejects_read_failure(self):
+        self.assertEqual(self.generate().returncode, 0)
+        serial = self.root / 'serial.log'
+        serial.write_text('[wootc] phase: verification\n')
+        ledger = self.root / 'serial-ledger.jsonl'
+        script = r'''source "$1"; source "$2"
+WOOTC_PHASE_LEDGER="$3"; RUN_ID=test-run
+wootc_phase_read_serial_chunk "$4" 0 22 || exit 1
+[ -z "$WOOTC_CURRENT_PHASE_ID" ] || exit 2
+[ -n "$WOOTC_PHASE_CARRY" ] || exit 3
+wootc_phase_read_serial_chunk "$4" 22 28 || exit 4
+[ "$WOOTC_CURRENT_PHASE_ID" = verification ] || exit 5
+[[ "$NEW_OUTPUT" == *$'\n' ]] || exit 6
+wootc_phase_read_serial_chunk "$4-missing" 0 22 && exit 7
+[ -z "$WOOTC_CURRENT_PHASE_ID$WOOTC_PHASE_CARRY$NEW_OUTPUT" ] || exit 8
+wootc_phase_read_serial_chunk "$4" 28 0 && exit 9
+wootc_phase_read_serial_chunk "$4" 0 29 && exit 10
+# Simulate truncation after stat: successful dd returns fewer bytes.
+WOOTC_CURRENT_PHASE_ID=verification
+dd() { printf 'short'; }
+wootc_phase_read_serial_chunk "$4" 0 28 && exit 11
+[ -z "$WOOTC_CURRENT_PHASE_ID$WOOTC_PHASE_CARRY$NEW_OUTPUT" ] || exit 12
+# Also ensure a dd failure cannot be hidden by the newline sentinel.
+dd() { return 1; }
+wootc_phase_read_serial_chunk "$4" 0 28 && exit 13
+[ -z "$WOOTC_CURRENT_PHASE_ID$WOOTC_PHASE_CARRY$NEW_OUTPUT" ] || exit 14
+exit 0
+'''
+        subprocess.run(['bash', '-c', script, 'serial-reader', str(self.root / 'tests/e2e/steps.sh'),
+                        str(ROOT / 'tests/e2e/phase-ledger.sh'), str(ledger), str(serial)], check=True)
+        import json
+        records = [json.loads(line) for line in ledger.read_text().splitlines()]
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['phaseId'], 'verification')
+
+
 
 if __name__ == '__main__':
     unittest.main()

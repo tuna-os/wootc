@@ -3599,9 +3599,9 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
     if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
 
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
-        NEW_OUTPUT=$(dd if="$PTY" bs=64K iflag=skip_bytes,count_bytes skip="$LAST_BYTE" count="$((CURRENT_BYTE - LAST_BYTE))" status=none; printf '\001')
-        NEW_OUTPUT=${NEW_OUTPUT%$'\001'}
-        wootc_phase_observe_output "$NEW_OUTPUT" || { fail "Could not persist observed phase vocabulary"; exit 1; }
+        wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
+            fail "Could not read serial output and persist its observed phase vocabulary"; exit 1;
+        }
 
         # Per-run telemetry timeline: every [wootc]/fisherman marker with a
         # wall-clock timestamp, including phase transitions and heartbeats
@@ -4089,9 +4089,9 @@ while ! past_deadline "$BOOT_DEADLINE"; do
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
-        NEW_OUTPUT=$(dd if="$PTY" bs=64K iflag=skip_bytes,count_bytes skip="$LAST_BYTE" count="$((CURRENT_BYTE - LAST_BYTE))" status=none; printf '\001')
-        NEW_OUTPUT=${NEW_OUTPUT%$'\001'}
-        wootc_phase_observe_output "$NEW_OUTPUT" || { fail "Could not persist observed phase vocabulary"; exit 1; }
+        wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
+            fail "Could not read serial output and persist its observed phase vocabulary"; exit 1;
+        }
         # MokManager surfaces MID-WAIT (see the mok_sequence block above):
         # drive it the moment its marker shows in fresh serial. Each driven
         # sequence ends in a reboot, so the enrolled boot gets a fresh full
@@ -4478,6 +4478,8 @@ FIRSTBOOT_DIAG=$(qga_call exec /bin/sh -c '
     echo "--- firstboot marker ---"
     cat /run/initramfs/wootc-host/wootc/install/installed-linux-boot.json 2>&1 || true' 2>/dev/null || true)
 if [ -n "$FIRSTBOOT_DIAG" ]; then
+    # QGA journal is a separate source; never join it to a torn serial line.
+    wootc_phase_boundary
     wootc_phase_observe_output "$FIRSTBOOT_DIAG"$'\n' || { fail "Could not persist observed firstboot phase"; exit 1; }
     info "Phase-2 firstboot unit and persisted-state diagnostics:"
     printf '%s\n' "$FIRSTBOOT_DIAG"
