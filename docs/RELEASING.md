@@ -66,6 +66,26 @@ When the **whole matrix** is green, the default channel becomes `beta`
 (catalog all-green, custom refs on), and the axis gates open as their issues
 close.
 
+## Native shell release gates
+
+The [roadmap](../ROADMAP.md#native-shell-sequence-and-evidence-357) puts the
+WinUI default change before 1.0. Phase B packages remain preview assets.
+Phase C must prove the native consumer journey, the VM journey, and full cycles.
+Phase D changes the default only after those gates pass. Keep the legacy
+artifact for one release. Phase E follows a clean native release and the docs audit.
+
+A release cannot use old Wails passes as native UI or setup proof. Carry only
+component evidence whose engine code and contract did not change. Re-run the
+native hardware journeys, branded walks, accessibility checks, and matrix cells.
+A new artifact needs fresh signature checks and offline tests of its package.
+
+The 1.0 soak needs phase D and all RC prerequisites complete, then a recorded
+start date. Each eligible row must name the native shell, source SHA, artifact
+identity, verdict, and GUI proof run on main. Exclude Wails rows.
+A shell or transport change needs fresh proof; its earlier streak cannot carry.
+The ledger is still open in #235. Do not claim the #239 streak from a release
+list alone or from dates before these gates pass.
+
 ## Cutting a release
 
 Releases are **E2E-gated** — tagging publishes nothing until a real Windows VM
