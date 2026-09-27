@@ -34,7 +34,8 @@ setup() {
 }
 
 @test "Phase-2 bridge check is a live QGA content read against RUN_ID" {
-    grep -q 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E"
+    grep -Fq "USERDATA_PATH='/home/wootc/Documents/wootc-e2e-userdata.txt'" "$E2E"
+    grep -Fq "USERDATA_PATH='/home/wootc/Documents/From Windows/wootc-e2e-userdata.txt'" "$E2E"
     grep -Fq 'printf '"'"'%s'"'"' "$USERDATA_HOME" | grep -q "$RUN_ID"' "$E2E"
     # Failure diagnostics must localize the broken layer, not just say "no".
     grep -q 'host-bind:' "$E2E"
@@ -91,8 +92,23 @@ setup() {
     # journal — undiagnosable from the outside. It must always log a summary,
     # and a matching user whose home is absent is a named deployment bug.
     local mud="$REPO_ROOT/payload/migration/wootc-mount-user-dirs"
-    grep -q 'summary: \$bound folder binds across \$matched matching user' "$mud"
+    grep -q 'summary: \$bound folder binds and \$copied persistent copies across \$matched matching user' "$mud"
     grep -q 'no home directory' "$mud"
+}
+
+@test "BitLocker E2E seeds encrypted C: and proves an editable persistent Linux copy" {
+    grep -q 'WOOTC_E2E_BITLOCKER.*on' "$E2E"
+    grep -q 'drive="C:"' "$E2E"
+    grep -q 'ordinary Linux user saved and reopened an edit' "$E2E"
+    grep -q 'saved Linux edit survived the environment restart' "$E2E"
+    grep -q 'encrypted Windows original stayed unchanged' "$E2E"
+}
+
+@test "BitLocker Documents copy helper is carried into the initramfs and installed system" {
+    grep -q 'inst /usr/lib/wootc/migration/wootc-copy-windows-documents' \
+        "$REPO_ROOT/payload/deployer/module-setup.sh"
+    grep -Fq 'install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents' \
+        "$REPO_ROOT/payload/deployer/deploy.sh"
 }
 
 @test "fisherman pins user homes into the stateroot var" {

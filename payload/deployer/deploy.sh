@@ -2642,6 +2642,8 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import-browser"
     install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-convert-dir"
+    install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents \
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-copy-windows-documents"
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
         "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
     # Optional post-install utilities. These are not required for the deployer

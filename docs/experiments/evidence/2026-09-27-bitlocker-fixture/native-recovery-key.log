@@ -1,0 +1,7 @@
+PASS missing protector created and private key verified
+PASS existing protector reused
+PASS creation failure stops and removes stale key
+PASS refresh refuses missing protector
+PASS malformed password refused
+PASS plaintext fixture refused
+PASS permission failure stops and removes key
