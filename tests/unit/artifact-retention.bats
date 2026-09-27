@@ -28,6 +28,7 @@ mkrun() {
     mkdir -p "$d/video"
     echo "serial data for $1" > "$d/qemu.pty"
     echo "log data for $1"    > "$d/e2e.log"
+    echo "result data for $1" > "$d/results.jsonl"
     head -c 1048576 /dev/zero > "$d/video/big.mp4"
     touch -d "$2" "$d"
 }
@@ -58,6 +59,7 @@ mkrun() {
     [ -f "$STORAGE_DIR/artifacts/.evidence/old1/qemu.pty" ]
     [ -f "$STORAGE_DIR/artifacts/.evidence/old1/e2e.log" ]
     grep -q "serial data for old1" "$STORAGE_DIR/artifacts/.evidence/old1/qemu.pty"
+    grep -q "result data for old1" "$STORAGE_DIR/artifacts/.evidence/old1/results.jsonl"
 }
 
 @test "the bulk (video) is NOT preserved — that is the point" {
