@@ -56,6 +56,15 @@ jobs:
         run: |
           $env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'
           dotnet test Wootc.Shell.UiTests --configuration Release --logger "trx;LogFileName=native-ui.trx"
+      - name: Retain own preview startup event diagnostics
+        if: failure()
+        shell: pwsh
+        run: |
+          $records = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue |
+            Where-Object { $_.ProviderName -in @('Application Error','.NET Runtime','Windows Error Reporting') -and $_.Message -match 'Wootc[.]Shell' } |
+            Select-Object -First 8 TimeCreated, ProviderName, Id, Message
+          $records | ConvertTo-Json -Depth 3 | Set-Content -Encoding utf8 out/winui-startup-events.json
+          Get-Content out/winui-startup-events.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -63,6 +72,7 @@ jobs:
           path: |
             out/winui-preview/
             shell/Wootc.Shell.UiTests/TestResults/*.trx
+            out/winui-startup-events.json
           if-no-files-found: error
 
   native-peer:
