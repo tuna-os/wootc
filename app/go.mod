@@ -6,6 +6,7 @@ require (
 	github.com/tredoe/osutil v1.5.0
 	github.com/wailsapp/wails/v2 v2.16.0
 	golang.org/x/crypto v0.57.0
+	golang.org/x/mod v0.41.0
 	golang.org/x/sys v0.48.0
 )
 

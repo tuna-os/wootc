@@ -187,6 +187,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetSupportPolicy` | — | `SupportPolicy` |
 | `GetSystemInfo` | — | `SystemInfo` |
 | `GetBranding` | — | `Branding` |
+| `GetReleaseNotice` | — | `ReleaseNotice` (optional newer release) |
 | `GetImages` | — | `[]Image` |
 | `GetSessionCandidates` | — | as today |
 | `StartInstall` | `InstallConfig` | `null` or error |

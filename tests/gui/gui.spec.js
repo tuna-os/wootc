@@ -487,3 +487,35 @@ test('control panel — verified summary renders record text safely', async ({ p
   await expect(page.locator('.boot-evidence-summary img')).toHaveCount(0);
   expect(await page.evaluate(() => window.proofInjected)).toBeUndefined();
 });
+
+
+test('new release notice preserves a form in use and opens the release page', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    releaseNoticeDelay: 1500,
+    releaseNotice: { version: 'v1.0.0-beta.2', url: 'https://github.com/tuna-os/wootc/releases/tag/v1.0.0-beta.2' } });
+  const username = page.locator('.field:has-text("Linux Username") input');
+  await username.fill('alice');
+  await username.focus();
+  await expect(page.locator('#release-notice')).toContainText('A newer wootc is available (v1.0.0-beta.2).');
+  await expect(username).toHaveValue('alice');
+  await expect(username).toBeFocused();
+  await page.evaluate(() => { window.runtime.BrowserOpenURL = url => { window.__releaseOpened = url; }; });
+  await page.getByRole('button', { name: 'View release' }).click();
+  await expect.poll(() => page.evaluate(() => window.__releaseOpened)).toBe('https://github.com/tuna-os/wootc/releases/tag/v1.0.0-beta.2');
+});
+
+test('release notice failure leaves the launchpad usable', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, releaseNoticeFailure: true });
+  await expect(page.locator('.image-card')).toHaveCount(4);
+  await expect(page.locator('#release-notice')).toBeEmpty();
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  await expect(page.locator('.field:has-text("Linux Username") input')).toHaveValue('alice');
+});
+
+test('release notice rejects a non-release link', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    releaseNotice: { version: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)' } });
+  await expect(page.locator('.image-card')).toHaveCount(4);
+  await expect(page.locator('#release-notice')).toBeEmpty();
+  await expect(page.locator('#release-notice img')).toHaveCount(0);
+});

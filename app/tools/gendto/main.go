@@ -20,6 +20,7 @@ var DTOStructs = []string{
 	"SystemInfo",
 	"DataPartition",
 	"Branding",
+	"ReleaseNotice",
 	"Image",
 	"InstallConfig",
 	"ProgressEvent",
