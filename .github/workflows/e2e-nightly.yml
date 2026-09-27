@@ -10,7 +10,7 @@ on:
       win_version: { description: 'Dockur version (11, 10, 11e, 11l)', default: '11' }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
       use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
-      gui_install: { description: 'Arm Phase 1 through the wootc.exe GUI instead of the OEM script', type: boolean, default: false }
+      gui_install: { description: 'Run native install through the wootc.exe GUI', type: boolean, default: false }
       phase3: { description: 'Run rung-3 graduate (full 1→2→3 onto a blank 2nd disk)', type: boolean, default: false }
       bootloader: { description: 'Force Phase-2 bootloader: grub2 (ostree) | systemd (composefs) | blank=auto', type: string, default: '' }
 
