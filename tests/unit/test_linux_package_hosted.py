@@ -35,7 +35,10 @@ class HostedTests(unittest.TestCase):
     def test_actual_root_tool_is_protected_but_private_tmp_is_refused(self):
         self.assertTrue(MODULE['protected']('/usr/bin/true').is_file())
         path=Path(self.temp.name)/'mutable-tool';path.write_text('fixture')
-        with self.assertRaises(ValueError):MODULE['protected'](path)
+        with self.assertRaises(ValueError) as caught:MODULE['protected'](path)
+        diagnostic=str(caught.exception)
+        self.assertIn(str(path),diagnostic)
+        for field in ('uid=','gid=','mode='):self.assertIn(field,diagnostic)
 
     def test_malformed_source_sha_refuses_before_any_stage(self):
         env=dict(ENV);env['GITHUB_SHA']='unreviewed'

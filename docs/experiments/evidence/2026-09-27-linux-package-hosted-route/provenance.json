@@ -26,9 +26,9 @@
   "sourceHashes": {
     ".github/workflows/linux-package-execute.yml": "03721be52b86483497e965c41f9ea9d9b8a13483dcbe543651d2e6f513a2abbc",
     "docs/experiments/evidence/2026-09-27-linux-package-hosted-route/controls.log": "2aa53cc64128c8479be17bb9599169c0bed393398a45877f1dc1154d8f92b268",
-    "tests/e2e/package-runtime/hosted-execute.py": "e431886b5e904a8060c9fa268e79d55915806d0d1525cd979af2b052c48ab859",
+    "tests/e2e/package-runtime/hosted-execute.py": "f46357c5b3bdd111371092b5f021fc630f508e67e9a5e19dff194e2e09bed4ad",
     "tests/e2e/package-runtime/launch.py": "857f053fb3c92b071f09acb113fa0a235ceb9ccbb998e0901bca90b1d48f7bfb",
-    "tests/unit/test_linux_package_hosted.py": "486fd37629cd8fd27be26761937c5dc021474407b692254213a8e0d8dfd40ced",
+    "tests/unit/test_linux_package_hosted.py": "3521abcd921e6bd5d3f8a75628f4a23fc753ebef12478dc739ec71d87cd47dc3",
     "tests/unit/test_linux_package_launcher.py": "c1e544e1d3278930389041b923661027a940a9f561ad1e99e40037bee6da9784"
   },
   "truthfulPhaseContract": "executionRequested is intent; processStarted/runtimeExecuted require Popen and positively observed owned identity; guestBaselineObserved requires validated sameboot typed guest baseline; package acceptance requires independent old/new QGA observations"

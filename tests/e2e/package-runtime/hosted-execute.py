@@ -23,12 +23,16 @@ def hosted(env):
 
 
 def protected(path):
-    path=Path(path).resolve(strict=True);info=path.stat()
+    source=Path(path);path=source.resolve(strict=True);info=path.stat()
     if not stat.S_ISREG(info.st_mode) or info.st_uid!=0 or info.st_mode&0o022:
-        raise ValueError('host tool/firmware source is not protected regular root file')
+        raise ValueError('host source is not protected regular root file: source='+str(source)+' resolved='+str(path)+
+                         ' uid='+str(info.st_uid)+' gid='+str(info.st_gid)+' mode='+oct(stat.S_IMODE(info.st_mode)))
     for parent in path.parents:
         meta=parent.stat()
-        if meta.st_uid!=0 or meta.st_mode&0o022:raise ValueError('host source parent is writable')
+        if meta.st_uid!=0 or meta.st_mode&0o022:
+            raise ValueError('host source parent is writable: source='+str(source)+' resolved='+str(path)+
+                             ' parent='+str(parent)+' uid='+str(meta.st_uid)+' gid='+str(meta.st_gid)+
+                             ' mode='+oct(stat.S_IMODE(meta.st_mode)))
     return path
 
 
