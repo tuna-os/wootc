@@ -187,6 +187,24 @@ echo COMPLETED
         self.assertNotIn('RETURNED',result.stdout)
         self.assertNotIn('PASS',result.stdout)
 
+    def test_actual_deployer_return_waits_without_requesting_another_restart(self):
+        source=(ROOT/'tests/e2e/run-e2e.sh').read_text()
+        start=source.index('if ! qga_windows_probe; then',source.index('# Only wait for the Windows return'))
+        consumer=source[start:source.index('\nfi',start)+3]
+        for identity_status in ['0','7']:
+            body='''qga_wait_windows() { echo WAIT-WINDOWS; return "$WAIT_RC"; }
+qga_restart_windows() { echo UNEXPECTED-RESTART; return 0; }
+qga_wait_reboot() { echo UNEXPECTED-REBOOT-WAIT; return 0; }
+'''+consumer+'\necho RETURNED'
+            result,calls,_=self.shell(body,IDENTITY_RC=identity_status,WAIT_RC='0')
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual('WAIT-WINDOWS' in result.stdout,identity_status=='7')
+            self.assertNotIn('UNEXPECTED',result.stdout)
+            self.assertNotIn('restart',calls)
+        refused,_,_=self.shell(body,IDENTITY_RC='7',WAIT_RC='1')
+        self.assertNotEqual(refused.returncode,0)
+        self.assertNotIn('RETURNED',refused.stdout)
+
     def test_failed_cpu_stdout_is_ignored_and_low_cpu_never_proves_setup_prompt(self):
         with tempfile.TemporaryDirectory() as tmp:
             runtime=Path(tmp)/'runtime'
