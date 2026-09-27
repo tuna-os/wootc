@@ -5,6 +5,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"golang.org/x/sys/windows"
 	"io"
 	"os"
 	"path/filepath"
@@ -113,9 +117,15 @@ for ($sequence=1; $sequence -le 2; $sequence++) {
 			case "stderr-overflow":
 				nativeStorageQuery = good + "\n[Console]::Error.WriteLine([string]::new([char]'x',70000))"
 			case "held-stderr":
-				child := `[Console]::Error.WriteLine("held-fixture-before-add-type")
-Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class PipeControl{[DllImport("kernel32.dll")]public static extern IntPtr GetStdHandle(int n);[DllImport("kernel32.dll")]public static extern bool SetHandleInformation(IntPtr h,uint mask,uint flags);}'
-[Console]::Error.WriteLine("held-fixture-after-add-type")
+				assembly, digest := prepareNativeHeldStderrAssembly(t, good)
+				child := `[Console]::Error.WriteLine("held-fixture-before-assembly-load")
+$assemblyPath='` + strings.ReplaceAll(assembly, "'", "''") + `'
+$assemblyBytes=[System.IO.File]::ReadAllBytes($assemblyPath)
+$sha=[System.Security.Cryptography.SHA256]::Create()
+$actual=[System.BitConverter]::ToString($sha.ComputeHash($assemblyBytes)).Replace('-','').ToLowerInvariant()
+if ($actual -ne '` + digest + `') {throw 'Owned fixture assembly identity refused'}
+[System.Reflection.Assembly]::Load($assemblyBytes) | Out-Null
+[Console]::Error.WriteLine("held-fixture-after-assembly-load")
 if (-not [PipeControl]::SetHandleInformation([PipeControl]::GetStdHandle(-11),1,0)) {throw 'Owned stdout inheritance refusal'}
 $code="[Console]::Error.WriteLine('owned-descendant-started'); [System.Threading.Thread]::Sleep(30000)"
 $encoded=[System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($code))
@@ -135,6 +145,10 @@ $child=[System.Diagnostics.Process]::Start($info)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+			deadline, hasDeadline := ctx.Deadline()
+			if !hasDeadline || time.Until(deadline) > 5*time.Second {
+				t.Fatal("synthetic observation deadline exceeded five seconds")
+			}
 			session, err := startNativeStorageSession(ctx)
 			if err != nil {
 				retainNativeStorageQueryFailure(t, err)
@@ -160,7 +174,7 @@ $child=[System.Diagnostics.Process]::Start($info)
 			if !session.streamsJoined {
 				t.Fatal("stderr reader termination unknown")
 			}
-			if change == "held-stderr" && (!session.streamsJoined || !session.forcedCleanup || !strings.Contains(string(session.stderr.Bytes()), "owned-descendant-started")) {
+			if change == "held-stderr" && (!session.streamsJoined || !session.forcedCleanup || !strings.Contains(string(session.stderr.Bytes()), "owned-descendant-started") || !strings.Contains(string(session.stderr.Bytes()), "held-fixture-after-assembly-load") || !strings.Contains(string(session.stderr.Bytes()), "held-fixture-child-start-returned")) {
 				t.Fatal("actual held-stderr child/forced cleanup not observed")
 			}
 			if change == "stderr-overflow" && session.stderrErr == nil {
@@ -171,6 +185,76 @@ $child=[System.Diagnostics.Process]::Start($info)
 			}
 		})
 	}
+}
+
+// Cold compilation runs as bounded fixture preparation before the unchanged
+// five-second observation deadline. The timed helper loads these exact bytes
+// and still spawns a real descendant holding its inherited stderr pipe.
+func prepareNativeHeldStderrAssembly(t *testing.T, good string) (string, string) {
+	t.Helper()
+	directory := t.TempDir()
+	sd, err := windows.SecurityDescriptorFromString(stateDirectorySDDL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acl, _, err := sd.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = windows.SetNamedSecurityInfo(directory, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, "held-fixture.dll")
+	original := nativeStorageQuery
+	defer func() { nativeStorageQuery = original }()
+	nativeStorageQuery = `[Console]::Error.WriteLine("held-fixture-compile-start")
+Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class PipeControl{[DllImport("kernel32.dll")]public static extern IntPtr GetStdHandle(int n);[DllImport("kernel32.dll")]public static extern bool SetHandleInformation(IntPtr h,uint mask,uint flags);}' -OutputAssembly '` + strings.ReplaceAll(path, "'", "''") + `' -ErrorAction Stop
+[Console]::Error.WriteLine("held-fixture-compile-complete")
+` + good
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	session, err := startNativeStorageSession(ctx)
+	if err != nil {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatal(err)
+	}
+	defer session.close(true)
+	for range 2 {
+		if _, err = session.query(ctx); err != nil {
+			retainNativeStorageQueryFailure(t, err)
+			t.Fatal("bounded fixture compilation failed", err)
+		}
+	}
+	if !session.exited || !session.drained || !session.streamsJoined || session.forcedCleanup || session.exitCode != 0 || !strings.Contains(string(session.stderr.Bytes()), "held-fixture-compile-complete") {
+		retainNativeStorageQueryFailure(t, session.failure())
+		t.Fatal("owned fixture preparation not observed complete")
+	}
+	st, err := os.Lstat(path)
+	if err != nil || !st.Mode().IsRegular() || st.Size() <= 0 || st.Size() > 65536 {
+		t.Fatal("fixture assembly unavailable or oversized")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(raw)
+	digest := hex.EncodeToString(sum[:])
+	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
+	if base == "" {
+		t.Fatal("private proof directory required")
+	}
+	prefix := filepath.Join(base, t.Name())
+	if err = os.MkdirAll(filepath.Dir(prefix), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(prefix+".warm.stderr.raw", session.stderr.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "fixturePreparationMilliseconds": time.Since(session.started).Milliseconds(), "fixturePreparationBoundMilliseconds": 10000, "observationDeadlineMilliseconds": 5000, "assemblySha256": digest, "assemblySize": len(raw), "parentExited": session.exited, "jobDrained": session.drained, "streamsDrained": session.streamsJoined, "exitCode": session.exitCode, "scope": "owned synthetic fixture preparation; no storage or protector mutation"})
+	if err = os.WriteFile(prefix+".warm.json", record, 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path, digest
 }
 
 // readerOnly deliberately removes strings.Reader/bytes.Reader WriterTo. Both
