@@ -1,0 +1,57 @@
+{
+  "sourceFiles": [
+    {
+      "path": "/tmp/wootc-boot-query.ps1",
+      "rawSha256": "b74a43410e579d013752acf77e181cc14542230904cfd4cfd83eacd74eb31324",
+      "stagedSha256": "a09d9cfd082041c2230051b0dd0a2fb11f4e88f66b034a97fea7c37eed2528dc",
+      "retainedLiteral": "boot-query.literal.ps1",
+      "rawBytes": 425
+    },
+    {
+      "path": "/tmp/wootc-restart-request.ps1",
+      "rawSha256": "c8e0c9b4be619925550a43cbc1e9e35185424a026fd919592e85f965acc64b2e",
+      "stagedSha256": "369ac347926e81f25acd7396366fb2365b62fd32bc0be9852f6bbc1d4a406fc6",
+      "retainedLiteral": "restart-request.literal.ps1",
+      "rawBytes": 209
+    }
+  ],
+  "invocationSha256": "88e0c8cddb294c01f81d7d38196a1bbc098512994b2e25f2b033cb23fc310ce8",
+  "qgaClientPath": "/tmp/wootc-correlated-receipt-qga.py",
+  "qgaClientSha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+  "scope": "One read-only CIM boot observation; mocked CIM failures/OS identity; only mocked cancellation and restart requests, no actual shutdown/registry/service/account mutation",
+  "nativeGuestExit": 0,
+  "nativePowerShellVersion": "5.1.26100.9444",
+  "tests": {
+    "actualCimRead": 1,
+    "bootMocks": 4,
+    "restartMocks": 3
+  },
+  "retainedFiles": {
+    "wootc-restart-native.raw.log": {
+      "sha256": "4f3956f204d9fef4ec29cfd28fe42448d0d31d0215273b6357ea34beb904fcfb",
+      "bytes": 752,
+      "normalizedLfSha256": "faf9174fdbc03f904402e48411ac66b4539ba352bce2caa89a12f06035dd6261"
+    },
+    "wootc-restart-native.raw.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "normalizedLfSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "wootc-restart-native-invocation.ps1": {
+      "sha256": "88e0c8cddb294c01f81d7d38196a1bbc098512994b2e25f2b033cb23fc310ce8",
+      "bytes": 5740,
+      "normalizedLfSha256": "88e0c8cddb294c01f81d7d38196a1bbc098512994b2e25f2b033cb23fc310ce8"
+    }
+  },
+  "sourceCommit": "786810beca30a9d791e36de97372664966df2dec",
+  "containingSources": {
+    "tests/e2e/lib/qga-transport.sh": "f418c0d75eabeae5720b53cd38f14e911bd3b1329eef30714fa6f3c46f49c729",
+    "tests/e2e/lib/gui-session.sh": "5cebaba9baafcb91951ac98152431f6f9515fe8fac26b68456561a91982f036a",
+    "tests/e2e/run-e2e.sh": "c74e8f35bb1f6ee07ff814b58120252821d79ede131381a8993c576efac68f4a",
+    "tests/e2e/windows-boot-receipt.py": "07d201107b7aaeb8bd27c06c8d44237f1656f64cc492257f455997d58af66b97",
+    "tests/unit/test_windows_restart.py": "06755cd406efaa4506a0fe2cd74fc3152ba27532dfc1ea43311310fbf871e8f0",
+    "tests/unit/test_gui_session.py": "c5e506eb827c75993ff2dc53c5a805fbc5b3c31f5b7f6096e8b36a30e46b355a",
+    "tests/unit/phase2-windows-return.bats": "7c3f303e984cbb58d7f5bca6adb6f06d7d3a877a1d6652b1ff91f448aadfb8b2"
+  },
+  "limits": "Native proof executes the two literal PowerShell fragments only. Bash orchestration and host parser are exercised by separate host controls; full VM/restart acceptance is not claimed. Leading LF is retained; staging adds only UTF-8 BOM and CRLF."
+}

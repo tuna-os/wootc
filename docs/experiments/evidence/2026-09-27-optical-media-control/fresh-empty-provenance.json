@@ -1,0 +1,90 @@
+{
+  "sourceCommit": "8fdbbacd4bdc1849dc59d3e412c21f651112c608",
+  "capturedAt": "2026-09-27T13:41:53.645290+00:00",
+  "sourceSHA256": {
+    "tests/e2e/qmp-optical-media.py": "534d2c8c24cba969bfe89419a8d21e4f3c05c31de4afafcf1c08c88eb451de84",
+    "tests/e2e/compose.yml": "960c99fc2fd46924716827e507fdc8219236a804c3484ce02963b28f7979e4ad",
+    "tests/e2e/build-ssh-image.sh": "9263c9be75a4c0e547c0f08b2c100ea48caea03f6ff309193345175dcc43fc9c",
+    "tests/unit/test_optical_media_control.py": "a774f2acbdaf9232c5c7c1544df44464c6da86eab8b21271db450896b2aec5e6"
+  },
+  "controls": {
+    "command": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests/unit",
+      "-p",
+      "test_optical_media_control.py"
+    ],
+    "exitCode": 0,
+    "count": 12
+  },
+  "native": {
+    "qemuArgv": [
+      "qemu-system-x86_64",
+      "-machine",
+      "q35,accel=tcg",
+      "-m",
+      "128",
+      "-nodefaults",
+      "-display",
+      "none",
+      "-S",
+      "-qmp",
+      "unix:/tmp/wootc-optical-empty-proof-xlxmujav/qmp.sock,server=on,wait=off",
+      "-drive",
+      "file=/tmp/wootc-optical-empty-proof-xlxmujav/owned.iso,id=owned-cd,format=raw,readonly=on,media=cdrom,if=none",
+      "-device",
+      "ide-cd,drive=owned-cd,bus=ide.0,bootindex=9",
+      "-drive",
+      "file=/tmp/wootc-optical-empty-proof-xlxmujav/owned.raw,id=owned-data,format=raw,if=none",
+      "-device",
+      "virtio-blk-pci,drive=owned-data"
+    ],
+    "helperArgv": [
+      "python3",
+      "tests/e2e/qmp-optical-media.py",
+      "--socket",
+      "/tmp/wootc-optical-empty-proof-xlxmujav/qmp.sock",
+      "--allow",
+      "/tmp/wootc-optical-empty-proof-xlxmujav/owned.iso",
+      "--timeout",
+      "3",
+      "--check-empty"
+    ],
+    "emptyExitCode": 0,
+    "reinsertedExitCode": 1,
+    "reinsertedMediumStillPresent": true,
+    "dataBeforeSHA256": "23ccc6e0f80ca67dcd84e70c1411aebb94cf45ad6c1abd232f19199440f36dc0",
+    "dataAfterSHA256": "23ccc6e0f80ca67dcd84e70c1411aebb94cf45ad6c1abd232f19199440f36dc0"
+  },
+  "rawSHA256": {
+    "fresh-empty-qemu.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-empty-native-detach.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-empty-controls.stderr.log": "532fae0a9762fe9c7b7f50299f881e62b5ac2fad2d654fa684dd50097bc10295",
+    "fresh-empty-native-positive.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-empty-native-detach.stdout.log": "2df43921a3f16afdc205a89872e0c4bafe54bd9eb351dfc21b53880a16a418b5",
+    "fresh-empty-controls.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-empty-qemu.stderr.log": "77c64497c19b8a6b8b5bbd9c30fa4e67a551ad4e6fe811d29905a6f5d46dd654",
+    "fresh-empty-native-reinserted.stderr.log": "bba8fedce303440b1855078edde60e7c5717407f4b7994c934e05eba1a7282a6",
+    "fresh-empty-native-reinserted.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-empty-native-positive.stdout.log": "ac9f517924565227cb9a07c4403bd705fe51ee0859284903575f73920cb453ba"
+  },
+  "beforeSHA256": {
+    "reopened.before.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "reopened.before.stdout.log": "47948725849a06d0e404d7deab2424565ce40d7b709cdcb9a540fe5fc28ea6ad",
+    "reopened.before-source.sh": "64d6dc67ad21339793311f6b143bbced8bc74fa9aa438607f0f9f95c12b90007",
+    "reopened.before.json": "fe673463efd699b2086072f11cc6bbfad8b153979a7cad9adc40ec2693a3dc22",
+    "reopened.before-invocation.sh": "3750628f79a677196cc958667f76af2035b19c2fb289218603ee9523cff31b0b"
+  },
+  "scope": "Actual source-bound old caller accepts a changed boot without checking reattached media. New --check-empty is read-only, performs successful current inventory and QOM readback, emits operation check-empty and no removed IDs, refuses current insertion/unknown/error. Twelve controls include actual wire status failure with plausible inventory and real paused QEMU empty positive/reinserted refusal with the medium still present and immutable data bytes. No Windows OS boot, actual fixture/BitLocker operation or acceptance dispatch. OEM owns fresh boot correlation/caller integration.",
+  "beforeDependencies": {
+    "sourceCommit": "adb232b120cc928aa1ea96d96b301d3f4a7d1b09",
+    "sourceSHA256": {
+      "reopened-before/verify-fixture-boot-observation.py": "cfd2798f83bd64bbb65177206c6909d2bec6fd483f7bd0b4b2f21db11cad2e19"
+    },
+    "replay": "source reopened.before-source.sh; SCRIPT_DIR points to retained reopened-before validator, with public synthetic before/current tokens in reopened.before-invocation.sh"
+  }
+}

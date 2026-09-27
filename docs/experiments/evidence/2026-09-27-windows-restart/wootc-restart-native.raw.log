@@ -1,0 +1,11 @@
+NATIVE_POWERSHELL 5.1.26100.9444
+SOURCE /tmp/wootc-boot-query.ps1 RAW b74a43410e579d013752acf77e181cc14542230904cfd4cfd83eacd74eb31324 STAGED a09d9cfd082041c2230051b0dd0a2fb11f4e88f66b034a97fea7c37eed2528dc
+SOURCE /tmp/wootc-restart-request.ps1 RAW c8e0c9b4be619925550a43cbc1e9e35185424a026fd919592e85f965acc64b2e STAGED 369ac347926e81f25acd7396366fb2365b62fd32bc0be9852f6bbc1d4a406fc6
+PASS actual read-only Windows CIM boot identity
+PASS boot query dateTime
+PASS boot query null
+PASS boot query throw
+PASS boot query wrongOS
+PASS mocked restart native exit 0 with ignored no-pending cancellation
+PASS mocked restart native exit 1 with ignored no-pending cancellation
+PASS mocked restart native exit 256 with ignored no-pending cancellation

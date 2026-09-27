@@ -416,3 +416,17 @@ setup() {
     grep -q 'That request alone does not prove the service exists or runs' docs/e2e-architecture.md
     ! grep -q 'deployed system is given a control channel' docs/e2e-architecture.md
 }
+
+@test "release rollback distinguishes remote withdrawal from signed local cache" {
+    # The current engine authenticates local metadata first. Deleting a release
+    # cannot recall valid cached inputs, and preparation precedes downloads.
+    grep -q 'readLocalMetadata(path, artifactauth.MaxManifestSize)' app/artifact_manifest.go
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'Remote asset removal cannot revoke' runbooks/rollback-a-bad-release.md ||
+        grep -q 'local cache and offline bundle can remain usable' runbooks/rollback-a-bad-release.md
+    grep -q 'SHA256SUMS.sig' runbooks/rollback-a-bad-release.md
+    grep -q 'removes its private seed after use' runbooks/rollback-a-bad-release.md
+    grep -q 'preparation occur before that stage' runbooks/rollback-a-bad-release.md
+    ! grep -q 'installs nothing' runbooks/rollback-a-bad-release.md
+    ! grep -q 'upload the matching regenerated' runbooks/rollback-a-bad-release.md
+}
