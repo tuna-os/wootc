@@ -55,7 +55,7 @@ jobs:
           global-json-file: shell/global.json
       - name: Restore and publish the native preview
         working-directory: shell
-        run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 --output ../out/winui-preview
+        run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} --output ../out/winui-preview
       - name: Observe the actual native startup window with UI Automation
         working-directory: shell
         shell: pwsh

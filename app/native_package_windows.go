@@ -16,6 +16,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+const nativePackageManifestLimit = 1024 * 1024
+
 // Native preview bundles are installed into a protected directory. The
 // manifest correlates artifacts; protected ownership/ACLs establish authority.
 // It is never accepted from the peer or from a writable download directory.
@@ -97,10 +99,10 @@ func readNativePackage(enginePath string) (nativePackageManifest, error) {
 	}
 	defer file.Close()
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Size() > nativeHandshakeLimit {
+	if err != nil || !info.Mode().IsRegular() || info.Size() > nativePackageManifestLimit {
 		return manifest, fmt.Errorf("invalid native package manifest file")
 	}
-	decoder := json.NewDecoder(io.LimitReader(file, nativeHandshakeLimit+1))
+	decoder := json.NewDecoder(io.LimitReader(file, nativePackageManifestLimit+1))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&manifest); err != nil {
 		return manifest, fmt.Errorf("invalid native package manifest: %w", err)
@@ -112,6 +114,9 @@ func readNativePackage(enginePath string) (nativePackageManifest, error) {
 	if manifest.SchemaVersion != 1 || manifest.ProtocolVersion != nativeProtocolVersion ||
 		!lowerHexLength(manifest.BuildID, 40) || manifest.BuildID != nativeBuildID || manifest.BrandID != brandID {
 		return manifest, fmt.Errorf("native package differs from this engine build")
+	}
+	if len(manifest.Files) > 4096 {
+		return manifest, fmt.Errorf("native package artifact count exceeds limit")
 	}
 	for _, required := range []string{filepath.Base(enginePath), "Wootc.Shell.exe", "Wootc.Shell.dll", "Wootc.Shell.pri", "Branding/brand.json"} {
 		if _, ok := manifest.Files[required]; !ok {
