@@ -25,7 +25,7 @@ script uses those quoted flags. No failed invocation counts as a test pass.
 - A staged manifest needs the embedded key and a valid signature.
 - Downloads of boot files must use HTTPS. They do not use proxy settings from the environment.
 - A downloaded manifest needs a valid signature.
-- An invalid manifest in the staging directory stops the install without a download.
+- An invalid manifest in the local directory stops the install without a download.
 - Manifest and signature reads have size limits.
 - The environment cannot change the source of boot files.
 - The downloader on Windows checks signatures and hashes of cached files.
