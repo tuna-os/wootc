@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('app/frontend/wailsjs/go/main/App.js');
+let calls=0,fail=false;
+const receipt={bootId:'controlled-current-boot',desktopQualified:false,editorQualified:false};
+const failure=new Error('controlled observer unavailable');
+globalThis.window={go:{main:{App:{ObserveVMGuestSession(...args){calls++;assert.equal(args.length,0);return fail?Promise.reject(failure):Promise.resolve(receipt);}}}}};
+const bridge=await import('data:text/javascript;base64,'+source.toString('base64'));
+assert.equal(await bridge.ObserveVMGuestSession({command:'must-not-forward'}),receipt);
+fail=true;await assert.rejects(bridge.ObserveVMGuestSession(),error=>error===failure);
+assert.equal(calls,2);
+console.log('Actual frontend binding PASS: no arguments forwarded; observed result and refusal preserved. Synthetic bridge only; no UI or guest acceptance.');

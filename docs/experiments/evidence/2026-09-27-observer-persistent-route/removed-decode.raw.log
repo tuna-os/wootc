@@ -1,0 +1,12 @@
+--- FAIL: TestVMGuestRouteActualConsumerRefusals (0.00s)
+    --- FAIL: TestVMGuestRouteActualConsumerRefusals/foreign-request (0.00s)
+        vm_guest_route_test.go:110: invalid actual observation accepted
+    --- FAIL: TestVMGuestRouteActualConsumerRefusals/wrong-root (0.00s)
+        vm_guest_route_test.go:110: invalid actual observation accepted
+    --- FAIL: TestVMGuestRouteActualConsumerRefusals/ordinary-root-user (0.00s)
+        vm_guest_route_test.go:110: invalid actual observation accepted
+    --- FAIL: TestVMGuestRouteActualConsumerRefusals/desktop-proxy (0.00s)
+        vm_guest_route_test.go:110: invalid actual observation accepted
+FAIL
+FAIL	wootc	0.009s
+FAIL
