@@ -13,6 +13,7 @@ Request schema 1 (exact fields):
   runId, installId                 ASCII [A-Za-z0-9._-], 1..128
   diskId                          canonical lowercase GPT UUID
   sessionId, requestId            32 lowercase hex
+  serviceSha256, ancestrySha256   authenticated builder source hashes
   username                        selected configured ordinary account
   action                          observe-boot-session only
 
@@ -58,6 +59,12 @@ Next transport source (NOT implemented or enabled):
   Same disk after a clean stop/restart still needs a new observed boot ID.
   Fixed authenticated personalization must stage interpreter/service and
   reviewed ancestry bytes; availability must be positively checked.
+  Proposed unit: /usr/bin/python3 -I -B
+    /usr/libexec/wootc-observer/boot_probe.py
+  Explicit module path: /usr/libexec/wootc-observer/wootc_ancestry.py
+  UID0/protected canonical ancestry for module/tool files; no PYTHONPATH
+  or user-writable cwd/tool lookup. Fixed /usr/bin and /usr/sbin tools.
+  Missing interpreter/module/tool/source hash refuses before observation.
 
 Next GUI semantic source (NOT implemented or enabled):
   Read-only ordinary-user accessibility observer in the actual selected

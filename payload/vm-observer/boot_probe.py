@@ -3,9 +3,14 @@
 import base64
 import json
 import io
+import hashlib
+import inspect
+import stat
+import importlib.util
 import select
 import selectors
 import signal
+import sys
 import os
 from pathlib import Path
 import re
@@ -14,7 +19,7 @@ import time
 
 MAX_MESSAGE = 256 * 1024
 UUID = re.compile(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}')
-IDENTITY_FIELDS = {'schemaVersion', 'runId', 'installId', 'diskId', 'sessionId', 'requestId', 'username', 'action'}
+IDENTITY_FIELDS = {'schemaVersion', 'runId', 'installId', 'diskId', 'sessionId', 'requestId', 'username', 'action', 'serviceSha256', 'ancestrySha256'}
 
 
 def unique(pairs):
@@ -58,12 +63,15 @@ def request(raw):
         raise ValueError('invalid disk identity')
     if type(value['username']) is not str or not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', value['username']):
         raise ValueError('invalid ordinary username')
+    for field in ('serviceSha256', 'ancestrySha256'):
+        if type(value[field]) is not str or not re.fullmatch(r'[0-9a-f]{64}', value[field]):
+            raise ValueError('invalid authenticated source hash')
     if value['action'] != 'observe-boot-session':
         raise ValueError('unsupported read-only probe action')
     return value
 
 
-def run(argv, deadline):
+def _run_owned(argv, deadline):
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise TimeoutError('probe deadline expired')
@@ -110,6 +118,31 @@ def run(argv, deadline):
         child.wait(timeout=0.5)
         child.stdout.close()
         child.stderr.close()
+
+
+TOOLS = {'loginctl': '/usr/bin/loginctl', 'lsblk': '/usr/bin/lsblk',
+         'findmnt': '/usr/bin/findmnt', 'losetup': '/usr/sbin/losetup'}
+
+
+def protected_file(path):
+    path = Path(path)
+    resolved = path.resolve(strict=True)
+    for entry in [resolved, *resolved.parents]:
+        observed = entry.stat()
+        if observed.st_uid != 0 or observed.st_mode & 0o022:
+            raise ValueError('unprotected guest observation dependency')
+    if not stat.S_ISREG(resolved.stat().st_mode):
+        raise ValueError('guest observation dependency is not a regular file')
+    return resolved
+
+
+def run(argv, deadline):
+    if not argv or argv[0] not in TOOLS:
+        raise ValueError('unsupported guest observation executable')
+    resolved = protected_file(TOOLS[argv[0]])
+    if not os.access(resolved, os.X_OK):
+        raise ValueError('fixed observation executable unavailable')
+    return _run_owned([str(resolved), *argv[1:]], deadline)
 
 
 def boot():
@@ -239,6 +272,10 @@ def backing(disk_id, deadline, ancestry_type):
 
 def observe(value, ancestry_type):
     deadline = time.monotonic() + 8
+    actual_service = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    actual_ancestry = hashlib.sha256(Path(inspect.getsourcefile(ancestry_type)).read_bytes()).hexdigest()
+    if (actual_service, actual_ancestry) != (value['serviceSha256'], value['ancestrySha256']):
+        raise ValueError('guest observation source differs from authenticated request')
     before = boot()
     if os.uname().sysname != 'Linux':
         raise ValueError('current Linux identity not observed')
@@ -327,8 +364,17 @@ def serve(stream, output, ancestry_type):
 def main():
     # Future authenticated personalization must stage the reviewed ancestry
     # module alongside this file. This draft changes no installed image.
-    import stat
-    from wootc_ancestry import Ancestry
+    namespace = Path('/usr/libexec/wootc-observer')
+    service = protected_file(namespace / 'boot_probe.py')
+    if service != Path(__file__).resolve(strict=True):
+        raise ValueError('guest observer launched from another namespace')
+    dependency = protected_file(namespace / 'wootc_ancestry.py')
+    # Explicit protected file loading; no user cwd/PYTHONPATH import search.
+    spec = importlib.util.spec_from_file_location('wootc_ancestry', dependency)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    Ancestry = module.Ancestry
     path = Path('/dev/virtio-ports/org.wootc.observation.1')
     resolved = path.resolve(strict=True)
     if not str(resolved).startswith('/dev/vport') or not stat.S_ISCHR(resolved.stat().st_mode):

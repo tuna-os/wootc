@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fixed read-only producer controls; no guest install or desktop acceptance."""
 import copy
+import hashlib
 import importlib.util
 import io
 import json
@@ -15,12 +16,14 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 def load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); return module
+    module = importlib.util.module_from_spec(spec); sys.modules[name]=module; spec.loader.exec_module(module); return module
 probe = load('vm_guest_probe', ROOT/'payload/vm-observer/boot_probe.py')
 ancestry = load('vm_guest_ancestry', ROOT/'tests/e2e/phase3_ancestry.py')
 REQUEST = dict(schemaVersion=1, runId='run', installId='install',
                diskId='12345678-1234-1234-1234-123456789abc', sessionId='a'*32,
-               requestId='b'*32, username='wootc', action='observe-boot-session')
+               requestId='b'*32, username='wootc', action='observe-boot-session',
+               serviceSha256=hashlib.sha256((ROOT/'payload/vm-observer/boot_probe.py').read_bytes()).hexdigest(),
+               ancestrySha256=hashlib.sha256((ROOT/'tests/e2e/phase3_ancestry.py').read_bytes()).hexdigest())
 SESSION = {'Id':'2', 'User':'1000', 'Name':'wootc', 'Active':'yes', 'Remote':'no',
            'Type':'wayland', 'Class':'user', 'State':'active', 'Leader':'99', 'LeaderStartTicks':'12345'}
 
@@ -45,19 +48,26 @@ class Probe(unittest.TestCase):
     def test_failed_command_plausible_stdout_is_not_observation(self):
         for status in [1,124]:
             with self.assertRaises(ValueError):
-                probe.run([sys.executable,'-c',f"import sys;print('Linux');sys.exit({status})"],time.monotonic()+1)
+                probe._run_owned([sys.executable,'-c',f"import sys;print('Linux');sys.exit({status})"],time.monotonic()+1)
         with mock.patch.object(probe.subprocess, 'Popen') as run:
-            with self.assertRaises(TimeoutError):probe.run(['uname'],time.monotonic()-1)
+            with self.assertRaises(TimeoutError):probe._run_owned(['uname'],time.monotonic()-1)
             run.assert_not_called()
 
     def test_actual_owned_child_output_overflow_and_stall_are_bounded(self):
         for stream in ('stdout','stderr'):
             with self.subTest(stream=stream), self.assertRaises(ValueError):
-                probe.run([sys.executable,'-c',f"import sys,time;sys.{stream}.write('x'*300000);sys.{stream}.flush();time.sleep(20)"],time.monotonic()+2)
+                probe._run_owned([sys.executable,'-c',f"import sys,time;sys.{stream}.write('x'*300000);sys.{stream}.flush();time.sleep(20)"],time.monotonic()+2)
         began=time.monotonic()
         with self.assertRaises(TimeoutError):
-            probe.run([sys.executable,'-c','import time;time.sleep(20)'],time.monotonic()+0.1)
+            probe._run_owned([sys.executable,'-c','import time;time.sleep(20)'],time.monotonic()+0.1)
         self.assertLess(time.monotonic()-began,1)
+
+    def test_unknown_or_user_writable_tool_namespace_refuses_before_child(self):
+        with mock.patch.object(probe.subprocess,'Popen') as start:
+            with self.assertRaises(ValueError):probe.run(['sh','-c','anything'],time.monotonic()+1)
+            with mock.patch.object(probe,'protected_file',side_effect=ValueError('unprotected')):
+                with self.assertRaises(ValueError):probe.run(['lsblk','--json'],time.monotonic()+1)
+            start.assert_not_called()
 
     def test_actual_local_linux_boot_read_is_canonical(self):
         self.assertRegex(probe.boot(), probe.UUID)
@@ -87,6 +97,9 @@ class Probe(unittest.TestCase):
             return probe.observe(REQUEST, ancestry.Ancestry)
 
     def test_same_boot_session_and_root_are_required_before_reply(self):
+        with mock.patch.object(probe,'boot') as boot:
+            with self.assertRaises(ValueError):probe.observe(dict(REQUEST,serviceSha256='0'*64),ancestry.Ancestry)
+            boot.assert_not_called()
         observed=self.observation()
         self.assertEqual(observed['bootId'], REQUEST['diskId'])
         self.assertFalse(observed['desktopQualified']);self.assertFalse(observed['editorQualified'])
