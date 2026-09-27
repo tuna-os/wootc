@@ -2576,7 +2576,7 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
                                 info "  wootc.exe process observation: $wootc_alive"
                                 info "  No current run-bound report; product hang is not established"
                             fi
-                            fail "  last screen reached: ${last_screen:-<none>}"
+                            info "  last screen reached: ${last_screen:-<none>}"
                             capture_vm_diagnostics
                             exit 1
                         fi
@@ -2597,8 +2597,8 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
                         fi
                     fi
                     qga_channel_lost "the GUI-driven install"
-                    fail "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
-                    fail "  last readable state: ${last_good:-<never read one>}"
+                    info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
+                    info "  last readable state: ${last_good:-<never read one>}"
                     capture_vm_diagnostics
                     exit 1
                 fi
@@ -2703,16 +2703,16 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         # class is claimed.
         if ! qga_probe && ! qga_reconnect_cycle; then
             qga_channel_lost "the GUI-driven install"
-            fail "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
-            fail "  last readable state: ${last_good:-<never read one>}"
-            fail "  unreadable reads: $total_empty of ~180"
+            info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
+            info "  last readable state: ${last_good:-<never read one>}"
+            info "  unreadable reads: $total_empty of ~180"
             capture_vm_diagnostics
             exit 1
         fi
         infra_fail "GUI-driven completion was not observed within 30m"
-        fail "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
-        fail "  last readable state: ${last_good:-<never read one>}"
-        fail "  unreadable reads: $total_empty of ~180"
+        info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
+        info "  last readable state: ${last_good:-<never read one>}"
+        info "  unreadable reads: $total_empty of ~180"
         info "  QGA ping answers; this does not establish GUI identity or progress"
         capture_vm_diagnostics
         exit 1
