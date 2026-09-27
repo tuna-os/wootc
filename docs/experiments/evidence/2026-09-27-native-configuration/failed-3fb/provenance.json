@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "head": "3fb652fe3bf341f4cf5c516058c1ad637c526dd8",
+  "run": 36336952612,
+  "testedMerge": "11c4c85af0900902f5090c17bac767340a57cc2b",
+  "artifact": {
+    "id": 10937811490,
+    "size": 45492,
+    "digest": "f8706c163f8edb9e1eb813f2f5f8dd5e16e9f3fcbd85e9c09b7560a74d58b91d",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "Actual query refused before execution due wrong PSHOME assembly-path assumption; no successful storage/protection observation. Actual trusted Cim manifest names two assemblies; no DLLs observed inside module directory.",
+  "files": {
+    "query/artifact.zip": "f8706c163f8edb9e1eb813f2f5f8dd5e16e9f3fcbd85e9c09b7560a74d58b91d",
+    "query/receipt.json": "53b4853f7abde8d7f66e2c0f38bacc1ed09606ec81ba052b1270d8ce076162eb",
+    "query/stderr.raw": "b058cd09d854e4c0e6550d78e6cb4f4c023ddd28e9446314e421f1e77bdee321",
+    "query/stdout.raw": "32a26e70601a81106d9defa523ffd1a83e965b7e55e8dc9aeae7038a192a38bc",
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee",
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902",
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+    "query/system-query/trusted-system-modules/inventory.json": "8c71920a9b7016c3ea1ee8679893745b426f21877eeec09928cd71139201b533"
+  }
+}

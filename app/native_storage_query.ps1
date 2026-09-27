@@ -1,6 +1,13 @@
-$stage = 'import-utility'
+$stage = 'load-cim-assemblies'
 try {
 $PSModuleAutoLoadingPreference = 'None'
+foreach ($assemblyName in @('Microsoft.Management.Infrastructure', 'Microsoft.Management.Infrastructure.CimCmdlets')) {
+    $assemblyPath = "$env:windir\Microsoft.NET\assembly\GAC_MSIL\$assemblyName\v4.0_1.0.0.0__31bf3856ad364e35\$assemblyName.dll"
+    $assembly = [System.Reflection.Assembly]::LoadFrom($assemblyPath)
+    $expectedIdentity = "$assemblyName, Version=1.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
+    if ($assembly.FullName -ne $expectedIdentity -or -not [string]::Equals($assembly.Location, $assemblyPath, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'CIM assembly binding refused' }
+}
+$stage = 'import-utility'
 Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop
 $stage = 'import-cim'
 Import-Module -Name "$PSHOME\Modules\CimCmdlets\CimCmdlets.psd1" -ErrorAction Stop

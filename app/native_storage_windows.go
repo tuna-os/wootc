@@ -79,8 +79,13 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	}
 	shellDirectory := filepath.Join(systemDirectory, "WindowsPowerShell", "v1.0")
 	shellPath := filepath.Join(shellDirectory, "powershell.exe")
-	if err := auditNativePackagePath(filepath.Join(shellDirectory, "Microsoft.Management.Infrastructure.CimCmdlets.dll")); err != nil {
-		return nil, err
+	// The Windows PowerShell CIM manifest names strong-named GAC assemblies,
+	// not DLLs in PSHOME. Audit the observed .NET 4 system binding before load.
+	for _, name := range []string{"Microsoft.Management.Infrastructure", "Microsoft.Management.Infrastructure.CimCmdlets"} {
+		assembly := filepath.Join(windowsDirectory, "Microsoft.NET", "assembly", "GAC_MSIL", name, "v4.0_1.0.0.0__31bf3856ad364e35", name+".dll")
+		if err := auditNativePackagePath(assembly); err != nil {
+			return nil, err
+		}
 	}
 	// Apply the existing protected-path policy, including all ancestors;
 	// this is observation only and borrows no relaxed drive-root exception.
