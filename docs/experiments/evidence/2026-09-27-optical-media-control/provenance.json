@@ -1,0 +1,117 @@
+{
+  "sourceCommit": "48c35d8a181250291a7a023043929d04a75fd0ef",
+  "capturedAt": "2026-09-27T13:25:24.368047+00:00",
+  "sourceSHA256": {
+    "tests/e2e/qmp-optical-media.py": "2638ba299f647dbe1a255c631c31fb414d2e168c892390f02f50403d92750221",
+    "tests/e2e/compose.yml": "960c99fc2fd46924716827e507fdc8219236a804c3484ce02963b28f7979e4ad",
+    "tests/e2e/build-ssh-image.sh": "9263c9be75a4c0e547c0f08b2c100ea48caea03f6ff309193345175dcc43fc9c",
+    "tests/unit/test_optical_media_control.py": "f5e49f756c3c9ab495727f61417d4335c33f4e4142ca963b6f1f63c7d65ac065"
+  },
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/unit",
+        "-p",
+        "test_optical_media_control.py"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "controls.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "controls.stderr.log",
+        "sha256": "38edcd84a43937415555752755643ee159000b939771645dc12937e328f9c10c"
+      }
+    },
+    {
+      "command": [
+        "shellcheck",
+        "--severity=warning",
+        "tests/e2e/build-ssh-image.sh"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "shellcheck.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "shellcheck.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "bash",
+        "-n",
+        "tests/e2e/build-ssh-image.sh"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "syntax.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "syntax.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "native": {
+    "qemuArgv": [
+      "qemu-system-x86_64",
+      "-machine",
+      "q35,accel=tcg",
+      "-m",
+      "128",
+      "-nodefaults",
+      "-display",
+      "none",
+      "-S",
+      "-qmp",
+      "unix:/tmp/wootc-optical-proof-oos7izqd/qmp.sock,server=on,wait=off",
+      "-drive",
+      "file=/tmp/wootc-optical-proof-oos7izqd/owned.iso,id=owned-cd,format=raw,readonly=on,media=cdrom,if=none",
+      "-device",
+      "ide-cd,drive=owned-cd,bus=ide.0,bootindex=9",
+      "-drive",
+      "file=/tmp/wootc-optical-proof-oos7izqd/owned.raw,id=owned-data,format=raw,if=none",
+      "-device",
+      "virtio-blk-pci,drive=owned-data"
+    ],
+    "helperArgv": [
+      "python3",
+      "tests/e2e/qmp-optical-media.py",
+      "--socket",
+      "/tmp/wootc-optical-proof-oos7izqd/qmp.sock",
+      "--allow",
+      "/tmp/wootc-optical-proof-oos7izqd/owned.iso",
+      "--timeout",
+      "3"
+    ],
+    "helperExitCode": 0,
+    "dataBeforeSHA256": "23ccc6e0f80ca67dcd84e70c1411aebb94cf45ad6c1abd232f19199440f36dc0",
+    "dataAfterSHA256": "23ccc6e0f80ca67dcd84e70c1411aebb94cf45ad6c1abd232f19199440f36dc0",
+    "scratchCleanup": "QEMU terminated and owned temporary directory removed; no OS boot, KVM or retained fixtures used"
+  },
+  "qemuVersion": "QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)",
+  "rawSHA256": {
+    "native-receipt.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "syntax.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "shellcheck.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "controls.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "shellcheck.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "syntax.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-qemu.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "controls.stderr.log": "38edcd84a43937415555752755643ee159000b939771645dc12937e328f9c10c",
+    "native-qemu.stderr.log": "064bf8f3b4ec341220bd3a543586349e1e4b6ee059094122fccf779dac8668c8",
+    "native-receipt.stdout.log": "c11d648390f83fa7a126e1c33babaf5df6cc4490809a77402b442ca51ce71d39"
+  },
+  "scope": "9 production client/entrypoint controls including successful real paused QEMU TCG query/QOM/eject/readback, unknown-media and data-disk refusal, immutable scratch data bytes, actual wire error+plausible return, duplicate fields/wrong IDs, blocking socket deadline and actual private tmpfs directory. Optical helper alone does not prove Windows boot identity or BitLocker activation; OEM owns correlated before/after/new-boot caller gates. No acceptance retry or retained fixture mutation.",
+  "apiReference": "https://www.qemu.org/docs/master/interop/qemu-qmp-ref.html"
+}
