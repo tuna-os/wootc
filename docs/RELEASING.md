@@ -103,7 +103,7 @@ git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
 Every release ships the **full artifact set** from `release.yml`.
 It includes one installer per brand directory: `wootc.exe`,
 `TunaOS-Installer.exe`, `Bluefin-Installer.exe`, `Bazzite-Installer.exe`, and
-`Aurora-Installer.exe`. These use Wails with Go and a web UI, with no runtime dependencies.
+`Aurora-Installer.exe`. These use Wails with Go and a web UI. Their Windows interface needs the WebView2 runtime.
 
 The shared boot artifacts are `deployer-vmlinuz`, `deployer-initramfs.img`,
 `shimx64.efi`, `grubx64.efi`, and `mmx64.efi`.

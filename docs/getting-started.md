@@ -8,8 +8,8 @@ Their appearance and available choices depend on your Windows settings.
 
 Grab the latest `wootc.exe` from the
 [Releases page](https://github.com/tuna-os/wootc/releases/latest). Save it
-anywhere — Downloads is fine. There is nothing to "install"; wootc is a
-single program you run.
+anywhere — Downloads is fine. wootc is a single program that you run.
+Its current Wails interface needs the WebView2 runtime. If that runtime is missing, the app can show a prompt to install it.
 
 Prefer a specific distribution? The same release page carries branded
 builds of the identical engine — `Bazzite-Installer.exe`,

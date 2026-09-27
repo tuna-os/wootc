@@ -165,3 +165,10 @@ The guide now links that source and qualifies the prompts and continuation choic
 A checksum match and publisher identity are separate facts. The app also checks a signature on the boot manifest.
 
 Four new docs-truth cases pin the corrections. The fresh-machine RC screenshots remain open.
+
+## Runtime dependency follow-up — 2026-09-27, against `119bbc0`
+
+The release guide said that the Wails installers have no runtime dependencies.
+The first-screen guide said there is nothing to install.
+The current Wails interface needs WebView2. The GUI path in E2E checks for that runtime and installs it if absent.
+Both guides now disclose that dependency. A fifth check pins it to the actual bootstrap command and registry check.

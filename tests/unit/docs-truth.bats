@@ -309,3 +309,12 @@ setup() {
     grep -q 'checks hashes and a signed manifest for its boot artifacts' docs/getting-started.md
     ! grep -q 'same verification on every boot artifact' docs/getting-started.md
 }
+
+@test "startup guides disclose the Windows WebView2 runtime dependency" {
+    grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
+    grep -q 'EdgeUpdate.*Clients' tests/e2e/run-e2e.sh
+    grep -q 'interface needs the WebView2 runtime' docs/RELEASING.md
+    grep -q 'interface needs the WebView2 runtime' docs/getting-started.md
+    ! grep -q 'no runtime depend' docs/RELEASING.md
+    ! grep -q 'There is nothing to "install"' docs/getting-started.md
+}
