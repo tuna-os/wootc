@@ -13,22 +13,11 @@
   "commandFailureNativeControls": 115,
   "diskIdentityNativeControls": 109,
   "firmwareAcceptance": false,
-  "guestAgentLifecycleCorrection": {
-    "actualOriginalGuestAgentState": "unknown; old inventory includes archive, console says static unit skipped; independent QGA timed out",
-    "currentControlCount": 130,
-    "currentGuestExecution": false,
-    "evidence": "docs/experiments/evidence/2026-09-27-package-agent-lifecycle",
-    "lifecycleObservationFixturesExplicit": true,
-    "originalTrial": 36342353432,
-    "priorProvenance": "docs/experiments/evidence/2026-09-27-package-agent-lifecycle/runtime-prior-provenance.json",
-    "sourceCheckpoint": "28833f0",
-    "unknownCleanupEvidence": "docs/experiments/evidence/2026-09-27-package-agent-lifecycle/unknown-cleanup"
-  },
   "historicalCandidateCheckpoint": "a9542c0",
   "hostPrefixNativeControls": 98,
   "independentPhaseReadbackContract": "old installation pauses until fresh QGA readback is approved; separately pinned advance rechecks exact digest before new installation; final new state receives independent fresh QGA readback",
   "mainBase": "347f696ef855866e2230dc4e761a1caf11609657",
-  "nativeControls": 130,
+  "nativeControls": 119,
   "offlineCacheCorrection": {
     "changedSources": [
       "tests/e2e/esp-chain/package-consumer.py"
@@ -54,12 +43,6 @@
   "runtimeExecuted": false,
   "schemaVersion": 1,
   "scope": "source controls, actual authorized public acquisition and native archive readback; no VM or guest installation",
-  "serialLifecycleCorrection": {
-    "correctedRuntimeExecuted": false,
-    "evidence": "docs/experiments/evidence/2026-09-27-package-serial-lifecycle",
-    "originalTrial": "36339827190",
-    "priorProvenance": "runtime-prior-provenance.json"
-  },
   "sourceHashes": {
     ".github/workflows/ci-tests.yml": "be9b288a4eccf2e901ea82b749bb2db867155da320920c169f0d50874c6897a3",
     ".github/workflows/linux-package-execute.yml": "69af504b713c34b313e56ddf4b800f61989e7e5cf5e7f3b06cfcc5f0f269f5f6",
@@ -112,7 +95,7 @@
     "tests/e2e/esp-chain/package-policy.py": "ea605a34fdae13b89ad4b976ac2d7619bc29e46d529b3c563c736b5d2d109439",
     "tests/e2e/package-runtime/acquire.py": "fb191f3d0d3f57f8e3989b2e40757b67438ffaed3381b55a8d4a9463eb2fa156",
     "tests/e2e/package-runtime/advance.py": "6226424e5e6596a0733512a90ba2d18de8953289f27832a5819e24f0eba46709",
-    "tests/e2e/package-runtime/bootstrap.py": "dc34711b46ef5bd664f6995632d01ea3141527127903ff8c6479927f8ebdfb86",
+    "tests/e2e/package-runtime/bootstrap.py": "4e81866c41f15f0393b9b68c0996ae477ec397120b59fc2256578a8b0f3b6286",
     "tests/e2e/package-runtime/host-data-proof.py": "e262400cc2458bc15d6bccd3c8ab04c0a90b36bfc24ff164a329c112cbf9b22a",
     "tests/e2e/package-runtime/host-data.py": "a1b3c9d3fd7451e1174d2f572fce8a91d2ffc7a5d2805d5251f70c5f3b068713",
     "tests/e2e/package-runtime/host-namespace.py": "9588456c5c217275eaf7fd9a811e4adbcddf46376b49ee391d5f15bbce18e747",
@@ -125,9 +108,7 @@
     "tests/e2e/package-runtime/serial-proof.py": "fc93b48fd9651724e130cb1cde5c3b277e4ddb9d3956dd4a862928a4982472c0",
     "tests/e2e/qga.py": "39d8a3990a5620e60ba7d7ad347d1776114aebcbbfb3f47398262496838c9d28",
     "tests/unit/test_linux_package_acquisition.py": "20534b9be4530dc51adbf58c19044f2373326c486a6b392b453f4b91c72b1fb0",
-    "tests/unit/test_linux_package_agent_command.py": "fa9f0a9f64e005e2b632006c6d978b4063f47b51548ebd7e3faea761220dc6ba",
-    "tests/unit/test_linux_package_agent_lifecycle.py": "a686b2705bfa977f8bd36758c2045d872cd220074867ef83acf8f61797a6224a",
-    "tests/unit/test_linux_package_bootstrap.py": "cea5397e7e4e7249e9943e001e1cd6c75274ebe93aa01f2c9ebfb5eb557fc58e",
+    "tests/unit/test_linux_package_bootstrap.py": "ab7eb9f338bfa58de2089526c0f71da81a9e9125e280fc713265ce2c0636f26b",
     "tests/unit/test_linux_package_command_failure.py": "b7c7ec113d34e400b8e32f887aa0764f2c7838bfa7d4962160b3528afc79fe3e",
     "tests/unit/test_linux_package_disk_identity.py": "26ff275a69ee00221d40005c2c63d6a4aad603f5c67285eb9e6556f7894e178e",
     "tests/unit/test_linux_package_elf.py": "ceb15599bca66288fe3f57dc1fc962645ea6e8d960428c8f6eea2a727c5a1d0f",
@@ -144,5 +125,11 @@
   },
   "sourceLauncherImplemented": true,
   "sourceProducerImplemented": true,
-  "sourceSerialAndQgaComparatorImplemented": true
+  "sourceSerialAndQgaComparatorImplemented": true,
+  "serialLifecycleCorrection": {
+    "evidence": "docs/experiments/evidence/2026-09-27-package-serial-lifecycle",
+    "originalTrial": "36339827190",
+    "correctedRuntimeExecuted": false,
+    "priorProvenance": "runtime-prior-provenance.json"
+  }
 }

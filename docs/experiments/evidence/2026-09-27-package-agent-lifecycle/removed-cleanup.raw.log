@@ -1,0 +1,33 @@
+test_closed_stream_survivor_and_escaped_group_are_reaped (<run_path>.AgentCommandTests.test_closed_stream_survivor_and_escaped_group_are_reaped) ... 
+  test_closed_stream_survivor_and_escaped_group_are_reaped (<run_path>.AgentCommandTests.test_closed_stream_survivor_and_escaped_group_are_reaped) (escaped=False) ... FAIL
+  test_closed_stream_survivor_and_escaped_group_are_reaped (<run_path>.AgentCommandTests.test_closed_stream_survivor_and_escaped_group_are_reaped) (escaped=True) ... FAIL
+
+======================================================================
+FAIL: test_closed_stream_survivor_and_escaped_group_are_reaped (<run_path>.AgentCommandTests.test_closed_stream_survivor_and_escaped_group_are_reaped) (escaped=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_linux_package_agent_command.py", line 43, in test_closed_stream_survivor_and_escaped_group_are_reaped
+    self.assert_gone(int(marker.read_text()))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "tests/unit/test_linux_package_agent_command.py", line 19, in assert_gone
+    self.assertFalse(Path('/proc/'+str(pid)).exists(),'owned descendant must be reaped, not merely signalled')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : owned descendant must be reaped, not merely signalled
+
+======================================================================
+FAIL: test_closed_stream_survivor_and_escaped_group_are_reaped (<run_path>.AgentCommandTests.test_closed_stream_survivor_and_escaped_group_are_reaped) (escaped=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_linux_package_agent_command.py", line 43, in test_closed_stream_survivor_and_escaped_group_are_reaped
+    self.assert_gone(int(marker.read_text()))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "tests/unit/test_linux_package_agent_command.py", line 19, in assert_gone
+    self.assertFalse(Path('/proc/'+str(pid)).exists(),'owned descendant must be reaped, not merely signalled')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : owned descendant must be reaped, not merely signalled
+
+----------------------------------------------------------------------
+Ran 1 test in 0.044s
+
+FAILED (failures=2)
+REMOVED-CLEANUP RED: actual owned descendants survived accepted parent completion
