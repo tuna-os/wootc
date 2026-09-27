@@ -503,6 +503,7 @@ test('VM-first action explains the next required account detail', async ({ page 
 
   await page.locator('.field:has-text("Linux Username") input').fill('alice');
   await expect(vmButton).toHaveText('Set your Linux password below');
+  await shot(page, '15-vm-first-launchpad');
   const password = page.locator('input[type=password]');
   await password.nth(0).fill('temporary-guidance-password');
   await expect(vmButton).toHaveText('Passwords do not match');
