@@ -8,6 +8,7 @@ Only completed UTC days count. Every scheduled attempt is retained. Wails, missi
 
 | UTC date | Source / attempt | Verdict | Native artifact | Auto release | Diagnosis / exclusion |
 |---|---|---|---|---|---|
+| 2026-09-27 | [4ea4d46e443e / 36319295694:1](https://github.com/tuna-os/wootc/actions/runs/36319295694) | failure | unproven / — | — | Native semantic proof missing |
 | 2026-09-26 | [7e13b9766518 / 36265248670:1](https://github.com/tuna-os/wootc/actions/runs/36265248670) | success | unproven / — | — | Not a run from repository main |
 | 2026-09-26 | [747094fbadbb / 36264482887:1](https://github.com/tuna-os/wootc/actions/runs/36264482887) | cancelled | unproven / — | — | Not a run from repository main |
 | 2026-09-26 | [2effe640936e / 36262721613:1](https://github.com/tuna-os/wootc/actions/runs/36262721613) | failure | unproven / — | — | Not a run from repository main |
