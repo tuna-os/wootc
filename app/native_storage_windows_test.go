@@ -357,14 +357,14 @@ func TestNativeConfigurationActualUtilityDependencyOrderCounter(t *testing.T) {
 		retainNativeStorageQueryFailure(t, err)
 		t.Fatalf("correct dependency order did not observe system storage: %v", err)
 	}
-	utility := `Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop` + "\n"
+	utility := `Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop` + nativeStorageQueryLineEnding(original)
 	if strings.Count(original, utility) != 1 {
 		t.Fatal("actual protected Utility import not found")
 	}
 	// Recreate the measured old ordering without changing module discovery,
 	// interpreter, ACL gates, environment or any storage/protection state.
 	broken := strings.Replace(original, utility, "", 1)
-	bitlocker := `Import-Module -Name "$PSHOME\Modules\BitLocker\BitLocker.psd1" -ErrorAction Stop` + "\n"
+	bitlocker := `Import-Module -Name "$PSHOME\Modules\BitLocker\BitLocker.psd1" -ErrorAction Stop` + nativeStorageQueryLineEnding(original)
 	if !strings.Contains(broken, bitlocker) {
 		t.Fatal("actual protected BitLocker import not found")
 	}
@@ -390,7 +390,7 @@ func TestNativeConfigurationActualCimDependencyCounter(t *testing.T) {
 		retainNativeStorageQueryFailure(t, err)
 		t.Fatalf("correct CIM dependency did not observe system storage: %v", err)
 	}
-	cim := `Import-Module -Name "$PSHOME\Modules\CimCmdlets\CimCmdlets.psd1" -ErrorAction Stop` + "\n"
+	cim := `Import-Module -Name "$PSHOME\Modules\CimCmdlets\CimCmdlets.psd1" -ErrorAction Stop` + nativeStorageQueryLineEnding(original)
 	if strings.Count(original, cim) != 1 {
 		t.Fatal("actual protected CIM import not found")
 	}
@@ -432,4 +432,12 @@ func TestNativeConfigurationActualImportWarningCounter(t *testing.T) {
 		retainNativeStorageQueryFailure(t, err)
 		t.Fatalf("restored warning isolation refused: %v", err)
 	}
+}
+
+// Match the actual embedded checkout bytes without normalizing/restaging them.
+func nativeStorageQueryLineEnding(query string) string {
+	if strings.Contains(query, "\r\n") {
+		return "\r\n"
+	}
+	return "\n"
 }
