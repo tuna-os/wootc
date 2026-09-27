@@ -22,14 +22,15 @@ script uses those quoted flags. No failed invocation counts as a test pass.
 
 ## Result
 
-- Staged manifests require the embedded key and a valid signature.
-- Boot downloads reject HTTPS downgrades and ignore ambient proxy settings.
-- Downloaded manifests require a valid signature.
-- Invalid staged manifests cannot fall back to network downloads.
+- A staged manifest needs the embedded key and a valid signature.
+- Downloads of boot files must use HTTPS. They do not use proxy settings from the environment.
+- A downloaded manifest needs a valid signature.
+- An invalid manifest in the staging directory stops the install without a download.
 - Manifest and signature reads have size limits.
-- Runtime mirror variables cannot select the boot artifact source.
-- The Windows download pipeline checks signed caches, removes unchecked optional
-  files, repairs a corrupt cache, and rejects corrupt downloads and forged manifests.
+- The environment cannot change the source of boot files.
+- The downloader on Windows checks signatures and hashes of cached files.
+  It removes optional files without a signed hash and repairs a corrupt cache.
+  It rejects corrupt downloads and forged manifests.
 
 These tests support the fix for [#371](https://github.com/tuna-os/wootc/issues/371)
 in [#416](https://github.com/tuna-os/wootc/pull/416). The
