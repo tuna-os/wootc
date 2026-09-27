@@ -9,11 +9,11 @@ if (Test-Path -LiteralPath $temporaryDir) { throw 'Refusing existing directory' 
 if ($LASTEXITCODE -ne 0) { throw 'Failed private temporary ACL' }
 try {
  $binaryPath=Join-Path $temporaryDir 'esp-cleanup.test.exe'
- Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-035916d121de4131a5237ae0d6b3eb71.test.exe' -OutFile $binaryPath
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-d67801e7fafb4ff9acde56be6da4bb42.test.exe' -OutFile $binaryPath
  if ((Get-FileHash -LiteralPath $binaryPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '70c3cd8b093902642430dcb4c79554c413ddce2cbf6bcecfb4f25be1d39709f4') { throw 'Binary checksum mismatch' }
  $archivePath=Join-Path $temporaryDir 'sources.zip'
- Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-035916d121de4131a5237ae0d6b3eb71.zip' -OutFile $archivePath
- if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '24781de0b13ea4a339957139a992d7fd0a098eb0f9bfb92ff52abd4abf3bfb99') { throw 'Archive checksum mismatch' }
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-d67801e7fafb4ff9acde56be6da4bb42.zip' -OutFile $archivePath
+ if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '812dcc1b215cfd1cabd55bcdd9566d21cdca2d6ca1d21f63ee06de31c4d7db88') { throw 'Archive checksum mismatch' }
  Expand-Archive -LiteralPath $archivePath -DestinationPath $temporaryDir
  Write-Output 'BINARY_SHA256 70c3cd8b093902642430dcb4c79554c413ddce2cbf6bcecfb4f25be1d39709f4'
  $manifestPath=Join-Path $temporaryDir 'source-manifest.json'

@@ -107,24 +107,24 @@ SOURCE app/vm_other.go SHA256 2c1669776844e0b14e399e5460dfaec3c82238984943279d01
 SOURCE app/vm_windows.go SHA256 83432aff61432b88f0b62726ca5254cdb5e3e987be1c93100d53c2f2678915fd
 SOURCE app/winexec_windows.go SHA256 d8f8d46555be294c565cbb445c6e8f46c75b701deb47b22ca8677ca260f2692f
 SOURCE app/partition-policy.ps1 SHA256 f64658c0debd1c923712899c92307aebc0fa22ba0f3bdaacd73509d2ea5dea8c
-SOURCE app/partition-policy.tests.ps1 SHA256 f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529
+SOURCE app/partition-policy.tests.ps1 SHA256 9376624ffe9af26cf5b07a12f6a75e61376a9b4a5419036f27e0a18ee592166e
 SOURCE shell/Wootc.Shell/Engine/Dto.cs SHA256 cb7d2f3d7290f769a4fb76305296d03be88952d286f52d054b4f51f11f817c84
 === RUN   TestPartitionReceiptRequiresStableIdentity
+=== RUN   TestPartitionReceiptRequiresStableIdentity/invalid_GUID
 === RUN   TestPartitionReceiptRequiresStableIdentity/zero_GUID
 === RUN   TestPartitionReceiptRequiresStableIdentity/Windows_target
 === RUN   TestPartitionReceiptRequiresStableIdentity/different_disk
 === RUN   TestPartitionReceiptRequiresStableIdentity/schema
 === RUN   TestPartitionReceiptRequiresStableIdentity/size
 === RUN   TestPartitionReceiptRequiresStableIdentity/timestamp
-=== RUN   TestPartitionReceiptRequiresStableIdentity/invalid_GUID
 --- PASS: TestPartitionReceiptRequiresStableIdentity (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/invalid_GUID (0.00s)
     --- PASS: TestPartitionReceiptRequiresStableIdentity/zero_GUID (0.00s)
     --- PASS: TestPartitionReceiptRequiresStableIdentity/Windows_target (0.00s)
     --- PASS: TestPartitionReceiptRequiresStableIdentity/different_disk (0.00s)
     --- PASS: TestPartitionReceiptRequiresStableIdentity/schema (0.00s)
     --- PASS: TestPartitionReceiptRequiresStableIdentity/size (0.00s)
     --- PASS: TestPartitionReceiptRequiresStableIdentity/timestamp (0.00s)
-    --- PASS: TestPartitionReceiptRequiresStableIdentity/invalid_GUID (0.00s)
 === RUN   TestPartitionReceiptRejectsMalformedRecords
 --- PASS: TestPartitionReceiptRejectsMalformedRecords (0.00s)
 === RUN   TestPartitionReceiptPreservesExistingAuthority
@@ -136,11 +136,11 @@ SOURCE shell/Wootc.Shell/Engine/Dto.cs SHA256 cb7d2f3d7290f769a4fb76305296d03be8
 === RUN   TestPartitionReceiptCompletionCleanupRetries/failure-at-.deleted
 === RUN   TestPartitionReceiptCompletionCleanupRetries/failure-at-
 === RUN   TestPartitionReceiptCompletionCleanupRetries/failure-at-.complete
---- PASS: TestPartitionReceiptCompletionCleanupRetries (0.22s)
-    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at-.removal (0.06s)
-    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at-.deleted (0.05s)
-    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at- (0.05s)
-    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at-.complete (0.06s)
+--- PASS: TestPartitionReceiptCompletionCleanupRetries (0.20s)
+    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at-.removal (0.05s)
+    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at-.deleted (0.04s)
+    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at- (0.06s)
+    --- PASS: TestPartitionReceiptCompletionCleanupRetries/failure-at-.complete (0.05s)
 === RUN   TestPartitionReceiptProgramDataParents
     partition_receipt_windows_test.go:16: readonly actual ProgramData parent trust accepted: C:\ProgramData\wootc-partition-receipts
 --- PASS: TestPartitionReceiptProgramDataParents (0.01s)

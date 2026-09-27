@@ -1,23 +1,23 @@
 {
-  "validatedSourceCommit": "0cae3fb53a1433b0ae540d7260b088dad61fd195",
+  "validatedSourceCommit": "c385f2231edbe1a0ffb239dd0854b96a80ffe01c",
   "fixture": "winbase-399",
   "scope": "Actual embedded partition policy against mocked Storage cmdlets; actual disposable private-TEMP companion file deletion and receipt persistence. No real partition, BitLocker, ESP, BCD, boot, or installer-tree mutation.",
   "logs": [
     {
       "name": "policy",
       "guestExitCode": 0,
-      "rawSha256": "3a12ab1dc8d018acd6c3136a82fccb57b7ed2fbcc3790ca8f4455e64c6366715",
-      "normalizedSha256": "197c271c0f73be50a2fe9bb7273492dd30a0d760ef2dc8c56dc65f2f5996f54a",
+      "rawSha256": "7f8f1c3af7b4c5bc5a8b922e4e5f75735ab83f3ed78e75b103d5479ed6e0a5b1",
+      "normalizedSha256": "75c6c6f8afcdf89b0e2901d0a2b11514fd476b63fb2e2abd79f47e78a3264aea",
       "normalization": "CRLF to LF only",
-      "invocationSha256": "307e2d0e7ef843716473ccb05fbe57a24bb810a55bdfa176acb12aa7c424ae38"
+      "invocationSha256": "8fb4d16ce2f4c041b0df28b253b8cf6ba40dd25bbb9ee0e6241bd2aa9f1cc60b"
     },
     {
       "name": "receipt",
       "guestExitCode": 0,
-      "rawSha256": "282e8bcf66d9204d2adcbce6c23aa6f76dcb84f9e776df362996d95386b74e45",
-      "normalizedSha256": "08d95dfb05ab0332b8fd96e2017e9129fed5db26cbbe5e404a000070b42cd80b",
+      "rawSha256": "42c6d61188ae273849e3df68c47f12c490f68702cfc5c01571d0eaf576ce7686",
+      "normalizedSha256": "6cfcd7d40d43ecdb8c717c3544b8f75e001ac73988eb3166e55e43f934c17185",
       "normalization": "CRLF to LF only",
-      "invocationSha256": "a973dea5ce15008f5247d8b0a1621549ebf4e0e71bc941f8a521612c469aa28d"
+      "invocationSha256": "994d1e841bc2faeebea41254e79f5fb8fd8dcf33a23a7aebf05c150179a2797f"
     }
   ],
   "powerShellSources": [
@@ -25,19 +25,19 @@
       "source": "app/partition-policy.ps1",
       "rawSha256": "f64658c0debd1c923712899c92307aebc0fa22ba0f3bdaacd73509d2ea5dea8c",
       "stagedSha256": "491e6aaa31c3f5de4893b6ea1f18de257f0e3e7e2a2908cc9bb83fa198c4c078",
-      "name": "wootc-partition-policy-audit-4ccf35bf8b074e27a9db26975fa2c4ea-0.ps1"
+      "name": "wootc-partition-policy-audit-2b1d61dbed484d9abf5559b002d282d7-0.ps1"
     },
     {
       "source": "app/partition-policy.tests.ps1",
-      "rawSha256": "f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529",
-      "stagedSha256": "cbe4d3520ec898b1141b509a1aaece92abcf0ae0ed6a65ef0fb79275b42ce95c",
-      "name": "wootc-partition-policy-audit-4ccf35bf8b074e27a9db26975fa2c4ea-1.ps1"
+      "rawSha256": "9376624ffe9af26cf5b07a12f6a75e61376a9b4a5419036f27e0a18ee592166e",
+      "stagedSha256": "af76a4ab5595250115ee2747f03de17927030d1a278984cbec02e1b3abc36a96",
+      "name": "wootc-partition-policy-audit-2b1d61dbed484d9abf5559b002d282d7-1.ps1"
     },
     {
       "source": "tests/lint-ps1.ps1",
       "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
       "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8",
-      "name": "wootc-partition-policy-audit-4ccf35bf8b074e27a9db26975fa2c4ea-2.ps1"
+      "name": "wootc-partition-policy-audit-2b1d61dbed484d9abf5559b002d282d7-2.ps1"
     }
   ],
   "goSources": [
@@ -475,7 +475,7 @@
     },
     {
       "path": "app/partition-policy.tests.ps1",
-      "sha256": "f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529"
+      "sha256": "9376624ffe9af26cf5b07a12f6a75e61376a9b4a5419036f27e0a18ee592166e"
     },
     {
       "path": "shell/Wootc.Shell/Engine/Dto.cs",
@@ -483,7 +483,7 @@
     }
   ],
   "binarySha256": "70c3cd8b093902642430dcb4c79554c413ddce2cbf6bcecfb4f25be1d39709f4",
-  "sourcesArchiveSha256": "24781de0b13ea4a339957139a992d7fd0a098eb0f9bfb92ff52abd4abf3bfb99",
+  "sourcesArchiveSha256": "812dcc1b215cfd1cabd55bcdd9566d21cdca2d6ca1d21f63ee06de31c4d7db88",
   "positiveWindowsIdentity": "Windows_NT checked in both invocations",
   "primarySources": [
     "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-partition",
@@ -496,7 +496,7 @@
     "BCD ownership and error propagation, power restoration and recovery task cleanup remain separate open audit work.",
     "A lost deletion observation before durable .deleted persistence refuses automatic extension retry."
   ],
-  "supersedesValidatedSourceCommit": "6be62ac2e8c31794dc4435d7804fea2fe9fae02c",
+  "supersedesValidatedSourceCommit": "0cae3fb53a1433b0ae540d7260b088dad61fd195",
   "integratedMainCommit": "08f1af1",
   "sourceArchiveManifest": "All app/*.go and policy/test/C# DTO sources hash checked from authenticated source archive",
   "additionalObservedControls": [
