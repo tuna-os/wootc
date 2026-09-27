@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "7e13b976651893e3079959c76e8314a83652a39e",
+  "runUrl": "https://github.com/tuna-os/wootc/actions/runs/36265248670",
+  "event": "workflow_dispatch",
+  "branch": "fix/artifact-manifest-auth",
+  "shell": "Wails",
+  "artifactId": 10915602411,
+  "artifactName": "e2e-run-36265248670",
+  "artifactZipSha256": "cd9ee5029a137d9d10e850ab436f763085d375e0fa1755000a9f2b5d5bc5c562",
+  "workflowLogSha256": "b7263bc2b17aff7ef8228a38cbd842f0a03d16257f7b9dc1f6c31e523a5cc76e",
+  "image": "ghcr.io/projectbluefin/bluefin:lts",
+  "windows": "11 Pro",
+  "bitlocker": "off",
+  "phase3": true,
+  "failureLedgerBytes": 0,
+  "finalObservedSystem": "graduated Linux, non-loop root",
+  "doesNotProve": [
+    "Windows return after graduation",
+    "Windows-hosted VM desktop",
+    "GUI editor save",
+    "new installed-boot record",
+    "WinUI shell",
+    "three scheduled main greens"
+  ]
+}
