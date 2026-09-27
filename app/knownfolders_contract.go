@@ -2,7 +2,9 @@ package main
 
 // KnownFolders is the manifest Phase 1 leaves for the Phase-2 bridge.
 type KnownFolders struct {
-	// User is the Windows account these paths belong to.
+	// User identifies the Windows profile directory matched by the Linux bridge.
+	// Native collection uses the captured profile basename; the legacy writer
+	// still supplies USERNAME and may differ for renamed or localized accounts.
 	User string `json:"user"`
 	// Folders maps a canonical folder name to its resolved WINDOWS path.
 	Folders map[string]string `json:"folders"`
