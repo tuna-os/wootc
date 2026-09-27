@@ -318,10 +318,10 @@ remain unchanged so persisted diagnostics and fault-injection controls stay
 compatible when presentation labels change.
 
 `just steps` regenerates checked-in Go constants and immutable lookups, product
-frontend ID constants, shell vocabulary and GUI fixture definitions. `just
-steps-check` and the single Lint workflow fail on stale generated output without
-rewriting it. The generator rejects duplicate IDs, invalid owners and missing
-labels.
+frontend ID constants, shell vocabulary and GUI fixture definitions.
+`just steps-check` rejects stale files. The Lint workflow runs the same check.
+Neither writes files. The generator validates IDs, owners and labels. It rejects
+duplicate IDs, invalid owners and missing labels.
 
 The actual installer pipeline uses generated constants. `GetInstallSteps` returns
 a defensive copy of its generated ID/owner/label entries; the frontend matches
@@ -330,22 +330,21 @@ progress by `phaseId` and renders backend labels as literal text. Deployer
 initramfs. Installed firstboot sources the same table and records the observed
 `firstboot-evidence` ID in its evidence record.
 
-The harness consumes generated marker vocabulary and records current-run
-observations and failures in `phase-ledger.jsonl`. It carries incomplete serial
+The harness reads markers from the generated vocabulary. It records observations
+and failures from the current run in `phase-ledger.jsonl`. It carries incomplete serial
 lines across reads, bounds the carry and clears attribution at boot/Windows
 boundaries. These observations do not assert completion. The existing freeform
 failure ledger remains available. Lifecycle states and recovery verdict enums
-remain separate; additive `phaseId` fields contain only recognized observed
-phase IDs, with legacy diagnostic fields preserved.
+remain separate. The added `phaseId` field contains an ID only when known and
+observed. The old fields for diagnosis stay available.
 
 ### Validation
 
 Bats checks every announced deployer phase against the catalogue. Runtime Go
-checks compare the actual pipeline order and backend catalogue. Behavior and
-mutation checks cover changed installer/splash/firstboot labels, stale generated
-outputs, invalid catalogues, actual frontend ID matching, chunked serial markers
-and phase attribution across boot transitions. An earlier ID-only test allowed
-catalogue and splash label mutations to stay green; that gap is now tested.
+checks compare the actual pipeline order and backend catalogue. Other tests change labels in the installer, splash and firstboot catalogue.
+They also check stale files, invalid catalogues, frontend ID matches, split serial
+markers and phase context across boots. Earlier tests checked only IDs. They
+missed changes to catalogue and splash labels. The new tests catch that gap.
 
 The richer firstboot collector in draft #434 still needs this vocabulary
 integrated before its separate runtime acceptance. This catalogue work does not
