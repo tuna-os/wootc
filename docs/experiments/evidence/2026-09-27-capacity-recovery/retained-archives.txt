@@ -1,0 +1,4 @@
+/work/root.disk.zst 3215193941 6279680
+/work/yellowfin-neutral.disk.zst 1939724807 3788528
+Filesystem        1B-blocks         Used   Available Use% Mounted on
+none           156680331264 112609120256 44071211008  72% /work
