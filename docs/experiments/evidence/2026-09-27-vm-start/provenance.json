@@ -1,0 +1,37 @@
+{
+  "scope": "Linux controlled runtime/compose plus owned scratch and local TCP sockets; no VM, fixture or host network configuration mutation; no hosted acceptance",
+  "sourceCommit": "51655ef901652e79082816540626b6cd7fecdf45",
+  "hostOS": "Linux",
+  "sourceSha256": {
+    "tests/e2e/run-e2e.sh": "68745a69fdb234214ee2c2e4758577e4e36df1fd12e46bebc1b58231f2d524a2",
+    "tests/e2e/lib/vm-start.sh": "1932dfc09017435e4abe14c6b46d85468461454735528d00cbaf386241f98c7c",
+    "tests/unit/test_vm_start.py": "18b7dcb1fbcabf58f06b6f17b2bfce35357d6fd32be8cc88b8a1f68d237bf9c7",
+    "tests/unit/compose-startup.bats": "984fa7ee689692d71c26a231b54c03f0adcd090864dcc6370f455a067b1334db"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_vm_start.py"
+      ],
+      "startedAt": "2026-09-27T11:00:38.411284+00:00",
+      "completedAt": "2026-09-27T11:00:56.237977+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "bats",
+        "tests/unit/compose-startup.bats"
+      ],
+      "startedAt": "2026-09-27T11:00:56.238393+00:00",
+      "completedAt": "2026-09-27T11:00:56.993873+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "vm-start.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "vm-start.stderr.log": "ec78c31f32b94b2ec9a011ad9ab8c8865801dac30b718a3c492d28898b1a690e",
+    "compose.stdout.log": "71fc903fb2f7b5ae2390656d9bf2501a0f4a2f45407b13cc55e6e05328d6e8df",
+    "compose.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
