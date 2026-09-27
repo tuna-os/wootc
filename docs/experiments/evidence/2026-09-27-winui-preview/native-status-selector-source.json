@@ -7,5 +7,5 @@
     "app/status_location_test.go": "e1cb9191ae32ed55ac9103dcb25f8023836bd8c4108fc1dc82a7e9b48e0b99bd",
     "app/status_location_windows_test.go": "a978a2655a0326d23b03625fe4c17f29de92459addaf22084b630f3dfce2ace4"
   },
-  "scope": "Narrow unchanged reuse of read-only unique trusted attempt discovery and refusal tests from draft #431. Native session invokes it only after OS peer/package authentication and before lifecycle/recovery reads. Existing main CLI remains unchanged; #458 runtime/main integration is separate."
+  "scope": "Initial narrow unchanged reuse at 5acc8c9 of read-only unique trusted attempt discovery and refusal tests from draft #431. Later lifecycle/other-platform reader changes are bound by strict-records-pure-provenance.json and their hosted validation. Native session invokes discovery only after OS peer/package authentication. Existing main CLI remains unchanged; #458 runtime/main integration is separate."
 }
