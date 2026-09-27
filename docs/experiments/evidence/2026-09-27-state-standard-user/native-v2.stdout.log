@@ -1,0 +1,7 @@
+SOURCE 71d65fdff28f1604d4133807878d8f3bc86879b0 NativeDriverHash cb68bbea45309fdbc62087122edf7073bcf68bd7f4a1c7da15f7dbede3750281
+NATIVE_ACL_INPUT Windows=5.1.26100.9444 BinarySha256=b0eed81f2553db421775021498578d59a235b1495fbf47fd22e4ed85db4b6cca FileSystem=NTFS FreshOwnedVolume=true
+=== RUN   TestNativeStateStandardUserAndAlternateVolume
+    state_trust_standard_user_windows_test.go:70: Access is denied.
+--- FAIL: TestNativeStateStandardUserAndAlternateVolume (0.02s)
+FAIL
+PASS native ACL fixture cleanup observed

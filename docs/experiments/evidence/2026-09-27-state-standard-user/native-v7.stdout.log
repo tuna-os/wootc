@@ -1,0 +1,93 @@
+SOURCE 27ebee564e16161279dd4e93167deb7a8344f683 NativeDriverHash 1c159a8697061058c08cadecd4753b0af2e31edf525ac1c6e3c1fa53fc6a1ee8
+{"schemaVersion":1,"freshOwnedNtfsVolume":true,"sddl":"O:SYG:SYD:(A;OICIIO;SDGXGWGR;;;AU)(A;;0x1301bf;;;AU)(A;;FA;;;SY)(A;OICIIO;GA;;;SY)(A;OICIIO;GA;;;BA)(A;;FA;;;BA)(A;;0x1200a9;;;BU)(A;OICIIO;GXGR;;;BU)","entries":[{"sid":"S-1-5-11","rightsSigned":-536805376,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false},{"sid":"S-1-5-11","rightsSigned":1245631,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-18","rightsSigned":2032127,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-18","rightsSigned":268435456,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false},{"sid":"S-1-5-32-544","rightsSigned":268435456,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false},{"sid":"S-1-5-32-544","rightsSigned":2032127,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-32-545","rightsSigned":1179817,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-32-545","rightsSigned":-1610612736,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false}]}
+NATIVE_ACL_INPUT Windows=5.1.26100.9444 BinarySha256=e2bf2af35417399952657ac25127011b850275db9bcd335a7edd6dcc119fae17 FileSystem=NTFS FreshOwnedVolume=true
+=== RUN   TestStateRoundTrip
+--- PASS: TestStateRoundTrip (0.02s)
+=== RUN   TestStateRoundTripFailureFields
+--- PASS: TestStateRoundTripFailureFields (0.01s)
+=== RUN   TestStateTransitions
+--- PASS: TestStateTransitions (0.05s)
+=== RUN   TestNativeStateStandardUserAndAlternateVolume
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/new_root_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/new_inherited_install_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/overwrite_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/delete_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/rename_protected_state_root
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/replace_root_DACL
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/new_root_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/new_inherited_install_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/overwrite_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/delete_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/rename_protected_state_root
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/replace_root_DACL
+--- PASS: TestNativeStateStandardUserAndAlternateVolume (0.05s)
+    --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume (0.02s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/new_root_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/new_inherited_install_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/overwrite_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/delete_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/rename_protected_state_root (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/replace_root_DACL (0.00s)
+    --- PASS: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS (0.01s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/new_root_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/new_inherited_install_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/overwrite_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/delete_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/rename_protected_state_root (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS/replace_root_DACL (0.00s)
+=== RUN   TestStateDescriptorTrust
+=== RUN   TestStateDescriptorTrust/protected
+=== RUN   TestStateDescriptorTrust/system_owner
+=== RUN   TestStateDescriptorTrust/legacy_readonly
+=== RUN   TestStateDescriptorTrust/user_owner
+=== RUN   TestStateDescriptorTrust/null_DACL
+=== RUN   TestStateDescriptorTrust/user_write
+=== RUN   TestStateDescriptorTrust/everyone_write
+=== RUN   TestStateDescriptorTrust/user_delete
+=== RUN   TestStateDescriptorTrust/user_delete_child
+=== RUN   TestStateDescriptorTrust/user_change_ACL
+=== RUN   TestStateDescriptorTrust/user_change_owner
+=== RUN   TestStateDescriptorTrust/future_writable_children
+=== RUN   TestStateDescriptorTrust/creator_owner_children
+=== RUN   TestStateDescriptorTrust/volume_create_child_allowed
+=== RUN   TestStateDescriptorTrust/ancestor_delete_refused
+=== RUN   TestStateDescriptorTrust/state_object_delete_refused
+=== RUN   TestStateDescriptorTrust/volume_change_ACL_refused
+=== RUN   TestStateDescriptorTrust/volume_change_owner_refused
+=== RUN   TestStateDescriptorTrust/volume_delete_child_refused
+--- PASS: TestStateDescriptorTrust (0.01s)
+    --- PASS: TestStateDescriptorTrust/protected (0.00s)
+    --- PASS: TestStateDescriptorTrust/system_owner (0.00s)
+    --- PASS: TestStateDescriptorTrust/legacy_readonly (0.00s)
+    --- PASS: TestStateDescriptorTrust/user_owner (0.00s)
+    --- PASS: TestStateDescriptorTrust/null_DACL (0.00s)
+    --- PASS: TestStateDescriptorTrust/user_write (0.00s)
+    --- PASS: TestStateDescriptorTrust/everyone_write (0.00s)
+    --- PASS: TestStateDescriptorTrust/user_delete (0.00s)
+    --- PASS: TestStateDescriptorTrust/user_delete_child (0.00s)
+    --- PASS: TestStateDescriptorTrust/user_change_ACL (0.00s)
+    --- PASS: TestStateDescriptorTrust/user_change_owner (0.00s)
+    --- PASS: TestStateDescriptorTrust/future_writable_children (0.00s)
+    --- PASS: TestStateDescriptorTrust/creator_owner_children (0.00s)
+    --- PASS: TestStateDescriptorTrust/volume_create_child_allowed (0.00s)
+    --- PASS: TestStateDescriptorTrust/ancestor_delete_refused (0.00s)
+    --- PASS: TestStateDescriptorTrust/state_object_delete_refused (0.00s)
+    --- PASS: TestStateDescriptorTrust/volume_change_ACL_refused (0.00s)
+    --- PASS: TestStateDescriptorTrust/volume_change_owner_refused (0.00s)
+    --- PASS: TestStateDescriptorTrust/volume_delete_child_refused (0.00s)
+=== RUN   TestStateTreeNewAndOfflineRerun
+--- PASS: TestStateTreeNewAndOfflineRerun (0.02s)
+=== RUN   TestStateTreeRejectsWritableManifestWithoutRepair
+--- PASS: TestStateTreeRejectsWritableManifestWithoutRepair (0.01s)
+=== RUN   TestStateTreeRejectsReparsePoint
+--- PASS: TestStateTreeRejectsReparsePoint (0.00s)
+=== RUN   TestStateTreeRejectsWritableRootWithoutRepair
+--- PASS: TestStateTreeRejectsWritableRootWithoutRepair (0.00s)
+=== RUN   TestStateDriveRejectsInvalidInputBeforeSelection
+--- PASS: TestStateDriveRejectsInvalidInputBeforeSelection (0.00s)
+=== RUN   TestLiteralVolumeDeleteDoesNotExemptOtherAncestors
+--- PASS: TestLiteralVolumeDeleteDoesNotExemptOtherAncestors (0.00s)
+PASS
+PASS native ACL fixture cleanup observed
