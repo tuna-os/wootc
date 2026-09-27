@@ -5,6 +5,9 @@ It includes main `347f696`. It does not change the runtime or image.
 The engine remains the sole owner of its inherited QMP pipes.
 There is no new listener or public command endpoint.
 
+The live session clears `DesktopReady` at start.
+A record on disk cannot replace current guest semantics.
+
 | Boundary | Source behavior |
 |---|---|
 | Replies | Typed return/error; duplicate fields, absent return, null, unknown IDs and replay refuse |
