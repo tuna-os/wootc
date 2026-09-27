@@ -117,6 +117,9 @@ def validate_simulation(output, selected):
     if any(pinned.get(name) != identity for name, identity in expected_installs.items()):
         raise ValueError('approved transition is not bound to the frozen bundle')
     installs, removals, configurations = {}, set(), {}
+    # APT appends a transient broken-dependency list while ordering a plan.
+    # These annotations describe solver state, not additional mutations.
+    annotation = r'(?: \[(?:[a-z0-9][a-z0-9+.-]*:(?:amd64|all) )*\])?'
     for line in output.splitlines():
         # Human summaries are not mutation evidence. Reserved mutation words must
         # parse completely; a truncated observation cannot become a summary.
@@ -124,7 +127,7 @@ def validate_simulation(output, selected):
         if kind not in ('Inst', 'Conf', 'Remv'):
             continue
         if kind == 'Remv':
-            match = re.fullmatch(r'Remv ([a-z0-9][a-z0-9+.-]*)(?::(amd64|all))? \[([^]\s]+)\]', line)
+            match = re.fullmatch(r'Remv ([a-z0-9][a-z0-9+.-]*)(?::(amd64|all))? \[([^]\s]+)\]'+annotation, line)
             if not match:
                 raise ValueError('unknown apt removal observation')
             name, qualifier, version = match.groups()
@@ -136,7 +139,7 @@ def validate_simulation(output, selected):
             continue
         match = re.fullmatch(
             r'(?:Inst|Conf) ([a-z0-9][a-z0-9+.-]*)(?::(amd64|all))?'
-            r'(?: \[([^]\s]+)\])? \(([^()\s]+) [^()\n]*\[(amd64|all)\]\)(?: \[\])?', line)
+            r'(?: \[([^]\s]+)\])? \(([^()\s]+) [^()\n]*\[(amd64|all)\]\)'+annotation, line)
         if not match:
             raise ValueError('unknown apt install or configuration observation')
         name, qualifier, previous, version, architecture = match.groups()

@@ -162,7 +162,7 @@ class PackageConsumerTests(unittest.TestCase):
         for observation in (valid+valid, b'Inst\n', b'Inst fixture-package [1] (2 Local [all])\n',
                             b'Inst fixture-package:all [1] (2 Local [amd64])\n',
                             b'Inst fixture-package [foreign] (2 Local [amd64])\n',
-                            valid+b'Remv\n', valid+b' Inst fixture-package [1] (2 Local [amd64])\n', valid+b'Conf fixture-package (foreign Local [amd64])\n',
+                            valid+b'Remv\n', valid+b'Remv initramfs-tools [1] [unclosed\n', valid+b' Inst fixture-package [1] (2 Local [amd64])\n', valid+b'Conf fixture-package (foreign Local [amd64])\n',
                             valid+b'Conf fixture-package (2 Local [amd64])\n'*2):
             with self.subTest(observation=observation):
                 self.simulation_output = observation
@@ -234,6 +234,66 @@ class PackageConsumerTests(unittest.TestCase):
             path.chmod(0o600); path.write_bytes(b'changed after approval')
         with self.assertRaisesRegex(ValueError, 'frozen bundle changed'): self.consume(callback)
         self.assertFalse(self.applied)
+
+    def test_real_apt_local_simulations_both_architectures_and_transitions(self):
+        private = self.folder/'real-apt'; private.mkdir()
+        lists = private/'lists'; lists.mkdir()
+        (lists/'partial').mkdir()
+        status = private/'status'
+        before = {'fixture-package': {'version':'1','architecture':'amd64'},
+                  'fixture-data': {'version':'1','architecture':'all'},
+                  'initramfs-tools': {'version':'1','architecture':'all'}}
+        captures = []
+        for version in ('2', '3'):
+            after = {name: {'version':version,'architecture':architecture}
+                     for name,architecture in (('fixture-package','amd64'),('fixture-data','all'))}
+            status.write_text(''.join('Package: '+name+'\nStatus: install ok installed\nVersion: '+value['version']+'\nArchitecture: '+value['architecture']+'\nMaintainer: Fixture <fixture@example.invalid>\nDescription: Private simulation status\n\n' for name,value in before.items()))
+            status_hash = hashlib.sha256(status.read_bytes()).hexdigest()
+            entries = []; archives = []
+            for name,identity in after.items():
+                build = private/(name+'-'+version); (build/'DEBIAN').mkdir(parents=True)
+                conflict = 'Conflicts: initramfs-tools\n' if name=='fixture-package' else ''
+                (build/'DEBIAN/control').write_text('Package: '+name+'\nVersion: '+version+'\nArchitecture: '+identity['architecture']+'\n'+conflict+'Maintainer: Fixture <fixture@example.invalid>\nDescription: Native APT simulation fixture\n')
+                archive = private/(name+'_'+version+'_'+identity['architecture']+'.deb')
+                subprocess.run(['/usr/bin/dpkg-deb','--build','--root-owner-group',str(build),str(archive)],check=True,capture_output=True)
+                archives.append(str(archive)); entries.append(dict(package=name,**identity))
+            command = ['/usr/bin/apt-get','--simulate','-o','Dir::Etc::sourcelist=/dev/null',
+                       '-o','Dir::Etc::sourceparts=-','-o','Dir::State::lists='+str(lists),
+                       '-o','Dir::State::status='+str(status),'-o','Dir::Cache='+str(private/'cache'),
+                       '--no-download','--no-install-recommends','--allow-downgrades','--yes','install']+archives
+            result = MODULE['execute'](command,check=True,timeout=30,capture_output=True,env=dict(os.environ,LC_ALL='C'))
+            self.assertEqual(result.returncode,0)
+            self.assertEqual(hashlib.sha256(status.read_bytes()).hexdigest(),status_hash)
+            selected = dict(beforeInventory=before,afterInventory=after,packages=entries,
+                            allowedRemovals=['initramfs-tools'] if version=='2' else [])
+            MODULE['validate_simulation'](result.stdout.decode(),selected)
+            self.assertIn(b'[amd64]',result.stdout); self.assertIn(b'[all]',result.stdout)
+            self.assertIn(b'Conf fixture-data',result.stdout)
+            if version=='2': self.assertIn(b'Remv initramfs-tools [1]',result.stdout)
+            captures.append({'phase':'old' if version=='2' else 'new','returncode':result.returncode,
+                             'stdout':result.stdout.decode(),'stderr':result.stderr.decode(),
+                             'statusUnchanged':True,'statusBeforeSha256':status_hash,
+                             'command':[value.replace(str(private),'<owned-private>') for value in command]})
+            before = after
+        if os.environ.get('WOOTC_NATIVE_APT_PROOF'):
+            Path(os.environ['WOOTC_NATIVE_APT_PROOF']).write_text(json.dumps(captures,sort_keys=True,indent=2)+'\n')
+
+    def test_retained_authenticated_solver_output_grammar_and_exact_delta(self):
+        folder = ROOT/'docs/experiments/evidence/2026-09-27-esp-orchestrator/authenticated-dependencies'
+        plan = json.loads((folder/'authenticated-dependency-plan.json').read_text())
+        policy = runpy.run_path(str(ROOT/'tests/e2e/esp-chain/package-policy.py'))['build_policy'](plan,'a'*32)
+        for phase,basename in (('old','old9'),('new','new')):
+            self.assertEqual(json.loads((folder/(basename+'-exit.json')).read_text())['returncode'],0)
+            output = (folder/(basename+'-stdout.txt')).read_text()
+            selected = policy['phases'][phase]
+            changes = {name for name,identity in selected['afterInventory'].items()
+                       if selected['beforeInventory'].get(name)!=identity}
+            # Historical solver requested every bundle archive, including unchanged
+            # packages. Current consumer intentionally forbids those reinstalls.
+            with self.assertRaises(ValueError): MODULE['validate_simulation'](output,selected)
+            delta = '\n'.join(line for line in output.splitlines()
+                              if not line.startswith(('Inst ','Conf ')) or line.split()[1].split(':')[0] in changes)
+            MODULE['validate_simulation'](delta,selected)
 
     def test_native_output_bound_kills_and_reaps_command(self):
         with self.assertRaisesRegex(ValueError, 'output exceeds bound'):

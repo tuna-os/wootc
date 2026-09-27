@@ -49,10 +49,10 @@
   "nativeTests": {
     "acceptanceFixtureControls": 8,
     "launcherFileProcessSocketControls": 14,
-    "offlinePackageConsumerControls": 26,
+    "offlinePackageConsumerControls": 28,
     "producerPreflightFreezeControls": 18,
     "qgaSocketControls": 19,
-    "total": 177
+    "total": 179
   },
   "newDocumentSteFindings": 0,
   "offlinePackageConsumer": {
@@ -62,12 +62,14 @@
     "boundedNativeStatusQueries": true,
     "freshFrozenArchiveCopies": true,
     "mutableNetworkPrerequisiteInstall": false,
+    "nativeAptProof": "docs/experiments/evidence/2026-09-27-esp-orchestrator/native-apt-simulation-proof.json",
     "normalAptLocalFilesNoDownload": true,
     "onlyChangedVersionsInstalled": true,
     "policyAndArchiveHashesIncludedInActualQgaHelperClosure": true,
     "preflightExactObservedInventoryTransition": true,
     "preflightFailureBeforeCallbackAndInstaller": true,
-    "priorReviewedSourceCheckpoint": "6148730",
+    "priorReviewedSourceCheckpoint": "2529d0f",
+    "realPrivateAptSimulationControls": 2,
     "retiredConfigFilesAllowedOnlyAtExactOriginalVersionAndArchitecture": true,
     "scope": "native unsigned-format archives, mocked apt/guest state and real bounded child process controls; no actual guest package installation or firmware acceptance",
     "scratchRemovalAllowlist": [
@@ -195,7 +197,8 @@
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/dependency-metadata/grub2-common-2.12-9.json": "c583d4fa237a1f4d8eacfe59026b90712164d97a8dc0b0d5c8a26343a6549719",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/dependency-metadata/index.json": "1f1b7a3d32ec1800040c8be8cc62fe6a1078e030c1e58b13773ccb93cf1b57e2",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/hosted-execution-plan.json": "d4166d144679f92446a51c4f3dded7034e7cbcac7e55e26e1befc5dfee44e709",
-    "docs/experiments/evidence/2026-09-27-esp-orchestrator/offline-package-native-tests.log": "47fc6f0b7f0a9ae4989cfdb7bc69fde8cd9d0fb747d01cf5788f4625843fe840",
+    "docs/experiments/evidence/2026-09-27-esp-orchestrator/native-apt-simulation-proof.json": "b472fa252f759225a9583db34cc134dc8fb5f7f9c0f0a44488707ebefdce0b54",
+    "docs/experiments/evidence/2026-09-27-esp-orchestrator/offline-package-native-tests.log": "45ebb3af8d619bfe006f34ad9363e1bf55c24390126334113088a79cc617774b",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/windows-baseline-plan.json": "702fe3ec6c1ebca55ffc125a8b8d12f34fba4dc3457efd35ec1bb03e88e8c8f8",
     "payload/migration/lib/wootc_boot_identity.py": "895042a2b5c7cd22bfb5c60596e1fd486db3343f0594cd208fbc7ba6374bd83c",
     "payload/migration/lib/wootc_chain_source.py": "c48df7dac5991ac194a351e5b9662a0ecc93e1577f4f645be72e060664f44fee",
@@ -220,7 +223,7 @@
     "tests/e2e/esp-chain/capture.py": "5aaf7e3e4130c1366219b43abbcc74c067193c6f700ceee971f05ab0ad410b61",
     "tests/e2e/esp-chain/launch.py": "228b70875562c40b8ce6a9b60f12fdca05f823799589d8ff28564915f07ed754",
     "tests/e2e/esp-chain/orchestrate.py": "fd967ecd450f06b64ebd1e0208e4bf05ddd3e338290cb183bc23c569bff06341",
-    "tests/e2e/esp-chain/package-consumer.py": "844804cdbe55b8f62482e5b59916e152a07722129447bc7bcaccce9c8dfd5d19",
+    "tests/e2e/esp-chain/package-consumer.py": "764b08b7987a356633dfde64bba1ac8d6c3a86005970a9a52f329b7caf71348d",
     "tests/e2e/esp-chain/package-policy.py": "ea605a34fdae13b89ad4b976ac2d7619bc29e46d529b3c563c736b5d2d109439",
     "tests/e2e/esp-chain/produce-classic.py": "29381ac5193c893e1c99235df4cd62527c493a435df38f613b6f44adfe71782a",
     "tests/e2e/esp-chain/scratch.py": "f13bbbc0738b269ca0d83a619ccda93cf3b0047f2aa5be37e802b08480647caf",
@@ -239,7 +242,7 @@
     "tests/unit/test_wootc_esp_orchestrator.py": "684ea317cb21f53536965bad0c976dc23f576636da967aaf25784ceea983a32e",
     "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
     "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
-    "tests/unit/test_wootc_package_consumer.py": "060ae6db38432546e64df4c770e7bced32de1153e75df468839a48b7206dfba1",
+    "tests/unit/test_wootc_package_consumer.py": "ace31b5c8482b43c2817d2800acee429a308ab74d07d1f85550020299c5de8b0",
     "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"
   },
   "steFindings": 1518,
