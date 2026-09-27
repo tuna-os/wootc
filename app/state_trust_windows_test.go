@@ -30,6 +30,10 @@ func TestStateDescriptorTrust(t *testing.T) {
 		{"future writable children", "O:BAD:(A;OICIIO;FW;;;BU)", false, false},
 		{"creator owner children", "O:BAD:(A;OICIIO;FA;;;CO)(A;;FA;;;BA)", false, true},
 		{"volume create child allowed", "O:BAD:(A;;0x00000006;;;BU)(A;;FA;;;BA)", true, true},
+		{"volume root delete allowed", "O:BAD:(A;;SD;;;BU)(A;;FA;;;BA)", true, true},
+		{"state object delete refused", "O:BAD:(A;;SD;;;BU)(A;;FA;;;BA)", false, false},
+		{"volume change ACL refused", "O:BAD:(A;;WD;;;BU)(A;;FA;;;BA)", true, false},
+		{"volume change owner refused", "O:BAD:(A;;WO;;;BU)(A;;FA;;;BA)", true, false},
 		{"volume delete child refused", "O:BAD:(A;;0x00000040;;;BU)(A;;FA;;;BA)", true, false},
 	}
 	for _, tc := range tests {

@@ -139,6 +139,7 @@ func TestNativeStateStandardUserAndAlternateVolume(t *testing.T) {
 				{"new inherited install child", func() error { return os.WriteFile(filepath.Join(install, "plant.txt"), []byte("public"), 0600) }},
 				{"overwrite manifest", func() error { return os.WriteFile(manifest, []byte("replacement"), 0600) }},
 				{"delete manifest", func() error { return os.Remove(manifest) }},
+				{"rename protected state root", func() error { return os.Rename(tc.root, filepath.Join(tc.writable, "public-renamed-state")) }},
 				{"replace root DACL", func() error {
 					sd, err := windows.SecurityDescriptorFromString("D:P(A;OICI;FA;;;WD)")
 					if err != nil {
