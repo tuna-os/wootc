@@ -29,12 +29,15 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Expected native Windows PowerShell 5.1' }
-          $directory=Join-Path $env:RUNNER_TEMP "wootc-bitlocker-controls-$([guid]::NewGuid().ToString('N'))"
+          $originalTemp=$env:TEMP
+          $commonData=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
+          $directory=Join-Path $commonData "wootc-bitlocker-controls-$([guid]::NewGuid().ToString('N'))"
           if (Test-Path -LiteralPath $directory) { throw 'Refusing existing temporary directory' }
           [IO.Directory]::CreateDirectory($directory) | Out-Null
           & icacls.exe $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' *> $null
           if ($LASTEXITCODE -ne 0) { throw 'Private temporary ACL failed' }
           try {
+            $env:TEMP=$directory
             $sources=@('fixture-bitlocker-key.ps1','fixture-bitlocker-protection.ps1','fixture-bitlocker-key.tests.ps1','fixture-bitlocker-protection.tests.ps1','fixture-bitlocker-diagnostics.tests.ps1')
             foreach ($source in $sources) {
               $original=Join-Path 'tests/e2e' $source
@@ -45,9 +48,12 @@ jobs:
             }
             & ./tests/lint-ps1.ps1 -Files @($sources | ForEach-Object { Join-Path $directory $_ })
             if ($LASTEXITCODE -ne 0) { throw 'Native parser/lint failed' }
+            . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $directory 'fixture-bitlocker-key.ps1'))))
+            Assert-WootcFixtureReceiptDirectory -Directory $directory
             & (Join-Path $directory 'fixture-bitlocker-key.tests.ps1')
             & (Join-Path $directory 'fixture-bitlocker-protection.tests.ps1')
             & (Join-Path $directory 'fixture-bitlocker-diagnostics.tests.ps1')
           } finally {
+            $env:TEMP=$originalTemp
             Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop
           }
