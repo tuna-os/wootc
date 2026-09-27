@@ -3902,6 +3902,7 @@ demo_linux_userdata
 
 # ── Step 10: boot the result, not merely its installer ─────────────────────
 if [ "${RUN_PHASE3:-false}" = true ]; then
+    wootc_phase_boundary
     step "Rebooting Phase 2 into the one-shot Phase 3 native install..."
     # NEVER send this reboot through QGA. Any attempt the dying Phase 2
     # fails to consume stays queued in the virtio-serial channel until the
@@ -3918,20 +3919,30 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # a Linux guest, letting a not-yet-rebooted Phase 2 answer the native wait.
     for _ in $(seq 1 24); do qga_probe || break; sleep 5; done
     qga_wait "Phase 3 native system" 600
-    P3_NATIVE_PROOF=$(qga_call exec /bin/sh -c \
-        'printf "UNAME=%s\n" "$(uname -s)"; printf "CMDLINE="; cat /proc/cmdline; printf "TARGET="; cat /etc/wootc/native-target 2>/dev/null || true' \
-        2>/dev/null || true)
+    # A failed guest command cannot establish facts even with plausible stdout.
+    if ! P3_SNAPSHOT_SCRIPT=$(cat "$SCRIPT_DIR/phase3-snapshot.sh"); then
+        infra_fail "Could not read Phase 3 observation script"
+        exit 1
+    fi
+    if ! P3_NATIVE_PROOF=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        "$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot native 2>/dev/null); then
+        infra_fail "Phase 3 native boot observation command failed"
+        exit 1
+    fi
     printf '%s\n' "$P3_NATIVE_PROOF"
-    if ! echo "$P3_NATIVE_PROOF" | grep -q '^UNAME=Linux$'; then
-        fail "Phase 3 target did not boot Linux"
+    P3_PROOF_STATUS=0
+    P3_NATIVE_BOOT_ID=$(printf '%s' "$P3_NATIVE_PROOF" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" "$P3_TARGET") \
+        || P3_PROOF_STATUS=$?
+    if [ "$P3_PROOF_STATUS" -eq 3 ]; then
+        product_fail "Phase 3 native boot observations do not match the graduated target"
+        exit 1
+    elif [ "$P3_PROOF_STATUS" -ne 0 ]; then
+        infra_fail "Phase 3 native boot observations are unavailable or invalid"
         exit 1
     fi
-    if echo "$P3_NATIVE_PROOF" | grep -qE '^CMDLINE=.*(^| )(loop|wootc\.rootdisk)='; then
-        product_fail "Phase 3 reboot returned to loopback Phase 2 instead of the native disk"
-        exit 1
-    fi
-    if ! echo "$P3_NATIVE_PROOF" | grep -q "^TARGET=$P3_TARGET$"; then
-        product_fail "Phase 3 boot lacks the native-target identity written during graduation"
+    P3_NATIVE_PROOF_FILE="$ARTIFACT_DIR/phase3-native-observation.log"
+    if ! printf '%s\n' "$P3_NATIVE_PROOF" > "$P3_NATIVE_PROOF_FILE"; then
+        infra_fail "Could not retain current Phase 3 native observations"
         exit 1
     fi
     product_pass native-boot "Phase 3 native system booted from the graduated install (non-loopback)"
@@ -3948,18 +3959,25 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # unconfined context; /run is proven agent-readable (the Phase-3
     # graduation result travels the same way). Direct read kept as fallback
     # for unconfined-agent images.
-    P3_USERDATA=$(qga_call exec /bin/sh -c \
-        'cat /run/wootc-e2e-native-userdata 2>/dev/null; \
-         f=$(ls /home/wootc/Documents/wootc-e2e-userdata.txt /var/home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null | head -1); \
-         [ -n "$f" ] && { printf "SRC=%s\n" "$(findmnt -no SOURCE "$(df -P "$f" | awk "NR==2{print \$6}")" 2>/dev/null)"; cat "$f"; }; :' \
-        2>/dev/null || true)
-    if printf '%s' "$P3_USERDATA" | grep -q "$RUN_ID"; then
+    if ! P3_USERDATA=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        "$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot userdata 2>/dev/null); then
+        infra_fail "Phase 3 native user-data observation command failed"
+        exit 1
+    fi
+    P3_USERDATA_STATUS=0
+    printf '%s' "$P3_USERDATA" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_PROOF_FILE" "$RUN_ID" "$P3_TARGET" "$P3_NATIVE_BOOT_ID" \
+        || P3_USERDATA_STATUS=$?
+    if [ "$P3_USERDATA_STATUS" -ne 0 ] && [ "$P3_USERDATA_STATUS" -ne 3 ]; then
+        infra_fail "Phase 3 user-data identity or ancestry is unavailable or invalid"
+        exit 1
+    elif [ "$P3_USERDATA_STATUS" -eq 0 ]; then
         product_pass native-user-data "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"
     else
         product_fail "Seeded user data did NOT persist onto the native disk (wanted RUN_ID $RUN_ID)"
         printf '%s\n' "$P3_USERDATA" | sed 's/^/  /'
         exit 1
     fi
+
 else
     step "Rebooting Phase 2 Linux and verifying return to Windows..."
     # A guest-exec RPC accepting the request only proves a process SPAWNED —

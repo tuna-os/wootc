@@ -1,0 +1,7 @@
+UNAME=Linux
+CMDLINE=root=UUID=native ro
+TARGET=/dev/sdb
+PRODUCT-PASS native-boot Phase 3 native system booted from the graduated install (non-loopback)
+PRODUCT-PASS native-user-data User data survived to the native disk: SRC=/dev/sdb3
+
+STDERR
