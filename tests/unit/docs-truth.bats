@@ -240,3 +240,17 @@ setup() {
         grep -q "id=\"$anchor\"" docs/user-guide.md
     done
 }
+
+@test "release guide matches the tagged native graduation gate and its waiver" {
+    local gate
+    gate=$(sed -n '/^  e2e-gate:/,/^  publish:/p' .github/workflows/release.yml)
+    printf '%s\n' "$gate" | grep -q 'gui_install: true'
+    printf '%s\n' "$gate" | grep -q 'phase3: true'
+    printf '%s\n' "$gate" | grep -q "bitlocker: 'off'"
+    grep -q 'Phase 3 native system booted from the graduated install (non-loopback)' tests/e2e/run-e2e.sh
+    grep -q 'It ends in graduated Linux' docs/RELEASING.md
+    grep -q 'Windows return after graduation' docs/RELEASING.md
+    grep -q 'stages selected by that run' docs/RELEASING.md
+    grep -q 'skip_e2e.*can waive the gate' docs/RELEASING.md
+    ! grep -q 'has migrated to Linux and back on a hosted runner' docs/RELEASING.md
+}

@@ -88,9 +88,15 @@ list alone or from dates before these gates pass.
 
 ## Cutting a release
 
-Releases are **E2E-gated** — tagging publishes nothing until a real Windows VM
-has migrated to Linux and back on a hosted runner (`release.yml` → the gate
-calls the same reusable E2E the nightly proves, on the alpha image, GUI-driven).
+Releases are **E2E-gated**. The tagged gate uses Windows 11, Bluefin LTS,
+BitLocker off, GUI install, and `phase3: true` on a hosted runner.
+It ends in graduated Linux and checks this run's file from Windows Documents.
+That final boot does not prove a Windows return after graduation.
+
+Automatic pre-releases use the successful GUI run on main and build its exact
+source SHA. Their proof covers the stages selected by that run.
+The `skip_e2e` input can waive the gate for an emergency dispatch; the release
+notes state that the gate was waived.
 
 ```
 git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
