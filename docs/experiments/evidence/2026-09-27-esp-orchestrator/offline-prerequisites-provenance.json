@@ -46,7 +46,7 @@
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/offline-prerequisites-tests.log": "bdb24b757caec61f0f4e20e286ed3e8716ef594901ae109aa298302b744c6266",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/qualified-execution-source-plan.json": "bf8c65457ff5001e8fa7246b6d2ef6e0eb66da0e6583d6ef72d7b85dd2decc73",
     "tests/audit-classic-offline.py": "7cf5d45a4d1f2a77910189762fb6ed0e6346c60f943c045ba188bcc7e74075ec",
-    "tests/e2e/esp-chain/package-consumer.py": "764b08b7987a356633dfde64bba1ac8d6c3a86005970a9a52f329b7caf71348d",
+    "tests/e2e/esp-chain/package-consumer.py": "4a635996f26cb7c14690422154076bbb3fee896d86cf3cfdafbcef20189b6fc0",
     "tests/e2e/esp-chain/package-policy.py": "ea605a34fdae13b89ad4b976ac2d7619bc29e46d529b3c563c736b5d2d109439",
     "tests/unit/test_wootc_package_consumer.py": "109d89e6b49d6d850fd45d01c6051849f7fc76ca957de11f0433bd93a1351082"
   },
