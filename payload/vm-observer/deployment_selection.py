@@ -40,6 +40,28 @@ def protected_boot_link(link, sysroot, directory):
     raise ValueError('installed boot link depth exceeds bound')
 
 
+def installed_bls_directory(sysroot, relative, directory):
+    base = sysroot / relative
+    if not os.path.lexists(base):
+        return None, None
+    directory(base)
+    loader = base / 'loader'
+    if not os.path.lexists(loader):
+        return None, None
+    facts = loader.lstat()
+    lease = None
+    if stat.S_ISLNK(facts.st_mode):
+        target = os.readlink(loader)
+        if facts.st_uid != 0 or target not in {'loader.0', 'loader.1'}:
+            raise ValueError('installed active loader link unsupported')
+        lease = (loader, facts.st_dev, facts.st_ino, target)
+        loader = base / target
+    directory(loader)
+    entries = loader / 'entries'
+    directory(entries)
+    return entries, lease
+
+
 def select_installed_deployment(sysroot, expected_image, protected_read, directory):
     sysroot = Path(sysroot)
     directory(sysroot)
@@ -85,12 +107,13 @@ def select_installed_deployment(sysroot, expected_image, protected_read, directo
         raise ValueError('installed deployment origin differs from pinned image')
     state_var = root / 'var'
     directory(state_var)
-    selections = []
-    for relative in ['boot/loader/entries', 'boot/efi/loader/entries']:
-        entries = sysroot / relative
-        if not entries.exists():
+    selections, loader_leases = [], []
+    for relative in ['boot', 'boot/efi']:
+        entries, lease = installed_bls_directory(sysroot, relative, directory)
+        if entries is None:
             continue
-        directory(entries)
+        if lease is not None:
+            loader_leases.append(lease)
         files = sorted(entries.iterdir())
         if len(files) > 128:
             raise ValueError('installed BLS inventory exceeds bound')
@@ -113,10 +136,16 @@ def select_installed_deployment(sysroot, expected_image, protected_read, directo
             directory(resolved)
             if (resolved.stat().st_dev, resolved.stat().st_ino) != (deployment.stat().st_dev, deployment.stat().st_ino):
                 raise ValueError('installed BLS deployment inode differs')
-            selections.append({'path': str(file), 'options': options[0], 'content': content})
+            selections.append({'path': str(file), 'options': options[0], 'content': content, 'bootLink': str(link)})
     if len(selections) != 1:
         raise ValueError('unique current installed BLS selector required')
     if protected_read(origin_file) != origin_bytes or protected_read(Path(selections[0]['path'])).decode('utf-8') != selections[0].pop('content'):
         raise ValueError('installed origin/BLS changed during selection')
+    for link, dev, ino, target in loader_leases:
+        facts = link.lstat()
+        if not stat.S_ISLNK(facts.st_mode) or facts.st_uid != 0 or (facts.st_dev, facts.st_ino) != (dev, ino) or os.readlink(link) != target:
+            raise ValueError('installed active loader changed during selection')
+    if protected_boot_link(Path(selections[0]['bootLink']), sysroot, directory) != deployment:
+        raise ValueError('installed boot link changed during selection')
     return {'deployment': str(deployment), 'stateVar': str(state_var),
             'image': expected_image, 'bls': selections[0], 'configurationOnly': True}

@@ -46,6 +46,26 @@ class SelectionControls(unittest.TestCase):
  def test_actual_bls_origin_link_select_same_deployment(self):
   result=self.select();self.assertEqual(result['deployment'],str(self.deployment));self.assertEqual(result['stateVar'],str(self.var));self.assertEqual(result['image'],self.image)
   self.assertTrue(result['configurationOnly'])
+ def active_loader(self):
+  loader=self.root/'boot/loader';real=self.root/'boot/loader.1'
+  loader.rename(real);loader.symlink_to('loader.1');self.bls=real/'entries/selected.conf'
+  return loader,real
+ def test_actual_active_loader_relative_link_selects_same_deployment(self):
+  self.active_loader();self.assertEqual(self.select()['deployment'],str(self.deployment))
+ def test_active_loader_retarget_during_bls_read_refuses(self):
+  loader,real=self.active_loader();other=self.root/'boot/loader.0';(other/'entries').mkdir(parents=True,mode=0o755);other.chmod(0o755)
+  self.file(other/'entries/selected.conf',self.bls.read_text())
+  def read(path):
+   value=bundle.read_owned(path)
+   if path==self.bls and loader.is_symlink():loader.unlink();loader.symlink_to('loader.0')
+   return value
+  with self.assertRaisesRegex(ValueError,'loader changed'):self.select(read)
+ def test_active_loader_absolute_cycle_foreign_targets_refuse(self):
+  loader,real=self.active_loader()
+  for target in [str(real),'loader','foreign']:
+   loader.unlink();loader.symlink_to(target)
+   with self.assertRaises(ValueError):self.select()
+
  def test_wrong_full_pinned_origin_refuses(self):
   self.file(self.origin,'[origin]\ncontainer-image-reference=ostree-unverified-registry:foreign@sha256:'+'b'*64+'\n')
   with self.assertRaises(ValueError):self.select()
