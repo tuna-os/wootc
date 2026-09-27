@@ -364,7 +364,7 @@ def serve(stream, output, ancestry_type):
 def main():
     # Future authenticated personalization must stage the reviewed ancestry
     # module alongside this file. This draft changes no installed image.
-    namespace = Path('/usr/libexec/wootc-observer')
+    namespace = Path('/var/usrlocal/lib/wootc/observer')
     service = protected_file(namespace / 'boot_probe.py')
     if service != Path(__file__).resolve(strict=True):
         raise ValueError('guest observer launched from another namespace')

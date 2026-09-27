@@ -1,0 +1,31 @@
+[Unit]
+Description=Read-only wootc boot and session observations
+After=systemd-udevd.service
+RequiresMountsFor=/var/usrlocal/lib/wootc/observer
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I -S -B /var/usrlocal/lib/wootc/observer/boot_probe.py
+User=root
+Group=root
+UMask=0077
+UnsetEnvironment=PYTHONHOME PYTHONPATH LD_LIBRARY_PATH LD_PRELOAD
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+KillMode=control-group
+TimeoutStopSec=2
+Restart=on-failure
+RestartSec=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
