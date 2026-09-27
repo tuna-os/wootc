@@ -8,7 +8,7 @@ wootc_gui_configure() {
     WOOTC_GUI_SCRIPT_DIR="$1"
     WOOTC_GUI_POWERSHELL="$2"
     WOOTC_GUI_IDENTITY="$3"
-    WOOTC_GUI_WAIT_REBOOT="$4"
+    WOOTC_GUI_RESTART_WINDOWS="$4"
 }
 gui_prepare_account() {
     "${WOOTC_GUI_IDENTITY:?Configure GUI first}" || { infra_fail "GUI account preparation requires positive Windows identity"; return 1; }
@@ -123,8 +123,7 @@ Write-Output "update service stop requested"' >/dev/null 2>&1 || true
         return 0
     fi
     info "Windows reports $pending; restarting as the app instructs"
-    "${WOOTC_GUI_POWERSHELL:?Configure GUI first}" 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || { infra_fail "Servicing restart request failed"; return 1; }
-    "${WOOTC_GUI_WAIT_REBOOT:?Configure GUI first}" "Windows after the pending-servicing restart" || return 1
+    "${WOOTC_GUI_RESTART_WINDOWS:?Configure GUI first}" "Windows after the pending-servicing restart" || return 1
     gui_wait_interactive_session 300 || return 1
     pending=$(gui_servicing_probe) || { infra_fail "GUI servicing status after restart is unknown; launch refused"; return 1; }
     if [ "$pending" != clean ]; then
