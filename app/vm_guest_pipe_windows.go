@@ -114,23 +114,11 @@ func exchangeVMGuestPipe(ctx context.Context, expected *nativeProcessPeer, reque
 		return result, err
 	}
 	payload = append(payload, '\n')
-	if n, e := connection.Write(payload); e != nil || n != len(payload) {
-		if e == nil {
-			e = io.ErrShortWrite
-		}
-		return result, e
-	}
-	reader := bufio.NewReader(io.LimitReader(connection, (256<<10)+1))
-	raw, err := reader.ReadBytes('\n')
+	raw, err := vmGuestPipeFrame(connection, payload)
 	if err != nil {
-		return result, fmt.Errorf("bounded guest reply incomplete: %w", err)
+		return result, err
 	}
-	if len(raw) > 256<<10 {
-		return result, fmt.Errorf("guest reply exceeds bound")
-	}
-	if reader.Buffered() != 0 {
-		return result, fmt.Errorf("unsolicited guest reply bytes")
-	}
+
 	if err = verifyVMGuestPipeServer(pipe, expected); err != nil {
 		return result, err
 	}
@@ -138,4 +126,29 @@ func exchangeVMGuestPipe(ctx context.Context, expected *nativeProcessPeer, reque
 		return result, err
 	}
 	return decodeVMGuestObservation(raw, request)
+}
+
+// Internal bounded IO primitive; production callers supply only typed probes.
+func vmGuestPipeFrame(connection *os.File, payload []byte) ([]byte, error) {
+	if len(payload) == 0 || len(payload) > 256<<10 || payload[len(payload)-1] != '\n' {
+		return nil, fmt.Errorf("guest request frame outside bound")
+	}
+	if n, e := connection.Write(payload); e != nil || n != len(payload) {
+		if e == nil {
+			e = io.ErrShortWrite
+		}
+		return nil, fmt.Errorf("write guest request: %w", e)
+	}
+	reader := bufio.NewReader(io.LimitReader(connection, (256<<10)+1))
+	raw, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, fmt.Errorf("read guest reply: %w", err)
+	}
+	if len(raw) > 256<<10 {
+		return nil, fmt.Errorf("guest reply exceeds bound")
+	}
+	if reader.Buffered() != 0 {
+		return nil, fmt.Errorf("unsolicited guest reply bytes")
+	}
+	return raw, nil
 }

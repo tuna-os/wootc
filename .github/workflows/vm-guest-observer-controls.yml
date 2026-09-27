@@ -1,0 +1,60 @@
+name: VM guest observer source controls
+
+on:
+  pull_request:
+    paths:
+      - 'app/vm_guest*.go'
+      - 'payload/vm-observer/**'
+      - 'tests/unit/test_vm_guest_probe.py'
+      - '.github/workflows/vm-guest-observer-controls.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Read-only producer and actual pipe controls
+        run: python3 tests/unit/test_vm_guest_probe.py
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+          cache: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Build actual frontend for engine embed
+        working-directory: app/frontend
+        run: npm ci; if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }; npm run build; if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }
+      - name: Actual bounded Windows pipe and strict reply controls
+        shell: powershell
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          $ErrorActionPreference='Stop'
+          $receipt=Join-Path $env:RUNNER_TEMP 'vm-guest-pipe-controls.log'
+          & git rev-parse HEAD
+          & go version
+          Get-CimInstance Win32_OperatingSystem | Select-Object Version,BuildNumber
+          foreach ($file in @('app/vm_guest_pipe_windows.go','app/vm_guest_pipe_windows_test.go','app/vm_guest_protocol.go','app/vm_guest_protocol_test.go','payload/vm-observer/boot_probe.py','tests/e2e/phase3_ancestry.py')) {
+            Write-Output "SOURCE $file SHA256 $((Get-FileHash -LiteralPath $file).Hash)"
+          }
+          & go test -C app . -run '^TestVMGuest' -count=1 -v 2>&1 | Tee-Object -FilePath $receipt
+          if ($LASTEXITCODE -ne 0) { throw 'Actual Windows pipe controls failed' }
+          if (Select-String -LiteralPath $receipt -Pattern '^--- SKIP:' -Quiet) { throw 'Windows source controls skipped' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: vm-guest-pipe-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vm-guest-pipe-controls.log
+          if-no-files-found: error
+          retention-days: 30

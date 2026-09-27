@@ -39,6 +39,10 @@ func TestVMGuestPipeChild(t *testing.T) {
 	if os.Getenv("WOOTC_VM_PIPE_MODE") == "death" {
 		return
 	}
+	if os.Getenv("WOOTC_VM_PIPE_MODE") == "blocked-write" {
+		time.Sleep(5 * time.Second)
+		return
+	}
 	input := []byte{}
 	for len(input) < 4096 {
 		buffer := make([]byte, 1)
@@ -115,7 +119,7 @@ func vmGuestWindowsFixture(t *testing.T, req vmGuestProbeRequest, reply map[stri
 	return peer, func() { peer.close(); cleanup() }
 }
 func TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation(t *testing.T) {
-	for _, mode := range []string{"success", "blocked-read", "cancel", "death", "foreign-peer"} {
+	for _, mode := range []string{"success", "blocked-read", "cancel", "death", "expected-process-dead", "foreign-peer"} {
 		t.Run(mode, func(t *testing.T) {
 			req, reply := guestProbeFixture()
 			nonce, err := freshVMSessionID()
@@ -130,6 +134,23 @@ func TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation(t *testing.T) {
 			}
 			peer, cleanup := vmGuestWindowsFixture(t, req, reply, fixtureMode)
 			defer cleanup()
+			if mode == "expected-process-dead" {
+				process, e := os.FindProcess(int(peer.pid))
+				if e != nil {
+					t.Fatal(e)
+				}
+				if e = process.Kill(); e != nil {
+					t.Fatal(e)
+				}
+				state, e := windows.WaitForSingleObject(peer.handle, 1000)
+				if e != nil || state != windows.WAIT_OBJECT_0 {
+					t.Fatalf("owned process death not observed: %v %v", state, e)
+				}
+				if e = peer.checkAlive(); e == nil {
+					t.Fatal("dead process remained alive")
+				}
+				t.Log("actual retained expected process exit observed")
+			}
 			expected := peer
 			if mode == "foreign-peer" {
 				expected, err = observeNativeProcessPeer(uint32(os.Getpid()))
@@ -168,4 +189,40 @@ func TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVMGuestWindowsPipeActualBlockedWrite(t *testing.T) {
+	req, reply := guestProbeFixture()
+	nonce, err := freshVMSessionID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.SessionID = nonce
+	reply["sessionId"] = nonce
+	peer, cleanup := vmGuestWindowsFixture(t, req, reply, "blocked-write")
+	defer cleanup()
+	name, _ := vmGuestPipeName(req.SessionID)
+	path, _ := windows.UTF16PtrFromString(name)
+	handle, err := windows.CreateFile(path, windows.GENERIC_READ|windows.GENERIC_WRITE, 0, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OVERLAPPED, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection := os.NewFile(uintptr(handle), name)
+	defer connection.Close()
+	if err = verifyVMGuestPipeServer(handle, peer); err != nil {
+		t.Fatal(err)
+	}
+	if err = connection.SetDeadline(time.Now().Add(150 * time.Millisecond)); err != nil {
+		t.Fatalf("actual bounded Windows IO unavailable: %v", err)
+	}
+	payload := append([]byte(strings.Repeat("x", (256<<10)-1)), '\n')
+	began := time.Now()
+	_, err = vmGuestPipeFrame(connection, payload)
+	if err == nil || !strings.Contains(err.Error(), "write guest request:") {
+		t.Fatalf("no actual blocked write observed: %v", err)
+	}
+	if time.Since(began) > time.Second {
+		t.Fatal("blocked pipe writer unbounded")
+	}
+	t.Log("actual write phase deadline observed before any reply read")
 }
