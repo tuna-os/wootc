@@ -33,9 +33,22 @@ if [[ ${FIRSTBOOT_FAIL_STATE_WRITE:-0} == 1 && "$target" == */wootc/state.json ]
     echo "injected state write failure" >&2
     exit 72
 fi
+if [[ "$target" == */installed-linux-boot.complete ]]; then
+    [ -f "$WOOTC_FIRSTBOOT_SUMMARY_DIR/installed-linux-boot-summary.json" ] || exit 73
+fi
 cat > "$target"
 SH
+    cat > "$tmp/collector.py" <<'PYFAKE'
+import json
+print(json.dumps({"state": "healthy", "updatedBy": "wootc-firstboot", "kernel": "6.1",
+    "sourceImageRef": "example/image:tag", "imageDigest": "sha256:" + "a" * 64,
+    "writtenAt": "2026-09-27T00:00:00Z", "bridge": {"boundFolders": 0, "matchedUsers": 0}}))
+PYFAKE
+    export WOOTC_FIRSTBOOT_COLLECTOR="$tmp/collector.py"
+    export WOOTC_FIRSTBOOT_PUBLISHER="$REPO_ROOT/payload/migration/wootc-collect-firstboot.py"
+    export WOOTC_FIRSTBOOT_SUMMARY_DIR="$tmp/summary"
     chmod +x "$tmp/bin/mountpoint" "$tmp/bin/wootc-ntfs-state-write"
+    FIRSTBOOT_MOUNT_PRESENT=1 "$tmp/bin/mountpoint"
 }
 
 @test "deploy.sh is syntactically valid" {
@@ -85,14 +98,14 @@ SH
     grep -q 'installed-linux-boot.json' "$FIRSTBOOT_SCRIPT"
     grep -q '"state": "healthy"' "$FIRSTBOOT_SCRIPT"
     grep -q 'state.json' "$FIRSTBOOT_SCRIPT"
-    [ "$(grep -c '^wootc-ntfs-state-write ' "$FIRSTBOOT_SCRIPT")" -eq 2 ]
+    [ "$(grep -c '^wootc-ntfs-state-write ' "$FIRSTBOOT_SCRIPT")" -eq 3 ]
 }
 
 @test "wootc-firstboot-evidence.service is ordered after host-bind" {
     [ -f "$FIRSTBOOT_SERVICE" ]
     grep -q 'After=.*wootc-host-bind.service' "$FIRSTBOOT_SERVICE"
     grep -q 'Requires=wootc-host-bind.service' "$FIRSTBOOT_SERVICE"
-    grep -q 'ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json' "$FIRSTBOOT_SERVICE"
+    grep -q 'ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.complete' "$FIRSTBOOT_SERVICE"
 }
 
 @test "firstboot service PATH includes the staged NTFS state writer" {
@@ -111,8 +124,11 @@ SH
     [ "$status" -eq 0 ]
     python3 -c 'import json,sys; state=json.load(open(sys.argv[1])); evidence=json.load(open(sys.argv[2])); assert state["state"] == "healthy" and state["updatedBy"] == "wootc-firstboot"; assert evidence["state"] == "healthy" and evidence["updatedBy"] == "wootc-firstboot"' \
         "$tmp/host/wootc/state.json" "$tmp/host/wootc/install/installed-linux-boot.json"
-    [ "$(sed -n '1p' "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
-    [ "$(sed -n '2p' "$tmp/helper-calls")" = "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ "$(sed -n '1p' "$tmp/helper-calls")" = "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ "$(sed -n '2p' "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
+    [ "$(sed -n '3p' "$tmp/helper-calls")" = "$tmp/host/wootc/install/installed-linux-boot.complete" ]
+    [ -f "$tmp/summary/installed-linux-boot-summary.json" ]
+    [ "$(stat -c %a "$tmp/summary/installed-linux-boot-summary.json")" = 644 ]
     rm -rf "$tmp"
 }
 
@@ -143,28 +159,45 @@ SH
     [ "$status" -ne 0 ]
     [[ "$output" == *"first-boot state write failed"* ]]
     [ "$(cat "$tmp/host/wootc/state.json")" = '{"state":"deployed"}' ]
-    [ ! -e "$tmp/host/wootc/install/installed-linux-boot.json" ]
-    [ "$(wc -l < "$tmp/helper-calls")" -eq 1 ]
-    [ "$(cat "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
+    [ -e "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ ! -e "$tmp/host/wootc/install/installed-linux-boot.complete" ]
+    [ "$(wc -l < "$tmp/helper-calls")" -eq 2 ]
+    [ "$(tail -1 "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
+    rm -rf "$tmp"
+}
+
+@test "firstboot leaves the retry marker absent when the public summary is refused" {
+    tmp=$(mktemp -d)
+    make_firstboot_fakes "$tmp"
+    printf '{"state":"deployed"}\n' > "$tmp/host/wootc/state.json"
+    mkdir "$tmp/untrusted-summary"
+    chmod 0777 "$tmp/untrusted-summary"
+    run env WOOTC_FIRSTBOOT_HOST="$tmp/host" FIRSTBOOT_MOUNT_PRESENT=1 \
+        WOOTC_FIRSTBOOT_SUMMARY_DIR="$tmp/untrusted-summary" FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not writable by other users"* ]]
+    [ -e "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ ! -e "$tmp/host/wootc/install/installed-linux-boot.complete" ]
+    [ ! -e "$tmp/untrusted-summary/installed-linux-boot-summary.json" ]
     rm -rf "$tmp"
 }
 
 @test "first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh" {
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence' "$MODULE_SETUP"
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence.service' "$MODULE_SETUP"
+    grep -q 'inst_simple /usr/lib/wootc/migration/wootc-collect-firstboot.py' "$MODULE_SETUP"
+    grep -q 'var/usrlocal/bin/wootc-collect-firstboot.py' "$DEPLOY"
     grep -q 'wootc-firstboot-evidence.service' "$DEPLOY"
     grep -q 'etc/systemd/system/multi-user.target.wants/wootc-firstboot-evidence.service' "$DEPLOY"
 }
 
-@test "deployHasCompleted stops trusting journal file alone" {
-    # deployHasCompleted must not return true merely for deployer-last-journal.log
-    run grep -A10 'func deployHasCompleted' "$INSTALLER_WIN"
+@test "deployHasCompleted requires verified installed Linux evidence" {
+    run sed -n '/^func deployHasCompleted(/,/^}/p' "$INSTALLER_WIN"
     [ "$status" -eq 0 ]
-    # Must NOT have os.Stat on deployer-last-journal.log returning true
-    run bash -c "grep -A5 'func deployHasCompleted' '$INSTALLER_WIN' | grep 'deployer-last-journal.log'"
-    [ "$status" -ne 0 ]
-    # Must check StateDeployed or StateHealthy
-    echo "$output" | grep -q 'StateDeployed' || grep -A10 'func deployHasCompleted' "$INSTALLER_WIN" | grep -q 'StateDeployed'
+    [[ "$output" == *"installedLinuxEvidence"* ]]
+    [[ "$output" != *"StateDeployed"* ]]
+    [[ "$output" != *"deployer-last-journal.log"* ]]
 }
 
 @test "state.go defines all six lifecycle states" {

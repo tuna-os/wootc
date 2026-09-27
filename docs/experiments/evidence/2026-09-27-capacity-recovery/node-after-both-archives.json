@@ -1,0 +1,12 @@
+{
+  "node": "ip-10-20-1-12",
+  "fs": {
+    "time": "2026-09-27T05:13:37Z",
+    "availableBytes": 44071211008,
+    "capacityBytes": 156680331264,
+    "usedBytes": 112609120256,
+    "inodesFree": 76482190,
+    "inodes": 76541440,
+    "inodesUsed": 59250
+  }
+}

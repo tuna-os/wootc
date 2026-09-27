@@ -1,12 +1,12 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict } from '../wailsjs/go/main/App';
+import { GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { startE2EDrive } from './lib/e2e.js';
 import { state } from './lib/state.js';
 import { setRenderer } from './lib/render.js';
 import { applyBranding } from './lib/branding.js';
 import { renderTitleBar } from './lib/titlebar.js';
-import { renderLaunchpad, applyImageDefaults } from './screens/launchpad.js';
+import { renderLaunchpad, applyImageDefaults, showReleaseNotice } from './screens/launchpad.js';
 import { INSTALL_STEPS, renderProgressScreen, renderProgress } from './screens/progress.js';
 import { renderVMPreviewScreen } from './screens/vmpreview.js';
 import { renderDoneScreen } from './screens/done.js';
@@ -134,6 +134,11 @@ async function init() {
     state.screen = existing ? 'control' : 'launchpad';
   }
   render();
+  // This is advisory and starts after rendering, outside installation gates.
+  Promise.resolve().then(GetReleaseNotice).then(notice => {
+    state.releaseNotice = notice;
+    showReleaseNotice(notice);
+  }).catch(() => {});
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────

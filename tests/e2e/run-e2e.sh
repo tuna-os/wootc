@@ -940,6 +940,71 @@ gui_wait_interactive_session() {
     return 1
 }
 
+# Observe actual Wails-rendered DOM after the installed Linux boot returns.
+# Expected facts come from the live Linux observer, never from a UI model.
+verify_installed_boot_gui() {
+    local directive receipt deadline launch_file
+    directive="$ARTIFACT_DIR/control-panel-ui-directive.json"
+    receipt="$ARTIFACT_DIR/control-panel-ui-state.json"
+    launch_file="$ARTIFACT_DIR/launch-control-panel-proof.ps1"
+    qga_windows_probe || { fail "Control-panel UI proof requires positive Windows identity"; return 1; }
+    jq -e --arg run "$RUN_ID" --arg nonce "$RUN_ID-ui-$RANDOM-$RANDOM" '
+      .current as $c | {action:"verify-installed-boot",runId:$run,nonce:$nonce,
+        expected:{kernel:$c.kernel,sourceImageRef:$c.sourceImageRef,
+          boundFolders:$c.bridge.boundFolders,matchedUsers:$c.bridge.matchedUsers}} |
+      select((.expected.kernel|type)=="string" and (.expected.kernel|length)>0 and
+        (.expected.sourceImageRef|type)=="string" and (.expected.sourceImageRef|length)>0 and
+        (.expected.boundFolders|type)=="number" and (.expected.matchedUsers|type)=="number")
+    ' "$FIRSTBOOT_RECORD_FILE" > "$directive" || { fail "Independent first-boot UI facts unavailable"; return 1; }
+    gui_prepare_account || return 1
+    if [ "$GUI_ACCOUNT_RESTART" = true ]; then
+        qga_powershell 'shutdown.exe /r /t 5 /f' >/dev/null || return 1
+        qga_wait_reboot "Windows UI fixture account repair" || return 1
+        qga_wait_windows 120 || return 1
+    fi
+    gui_wait_interactive_session || return 1
+    # PS5.1 consumes only BOM/CRLF fixture scripts. Stage after Windows identity.
+    printf '\xEF\xBB\xBF' > "$launch_file"
+    sed 's/$/\r/' "$SCRIPT_DIR/launch-control-panel-proof.ps1" >> "$launch_file"
+    $DOCKER cp "$launch_file" "$CONTAINER_NAME:/tmp/control-proof.ps1" || return 1
+    qga_call write /tmp/control-proof.ps1 'C:\OEM\launch-control-panel-proof.ps1' || return 1
+    qga_powershell '& C:\OEM\launch-control-panel-proof.ps1' > "$ARTIFACT_DIR/control-panel-ui-launch.log" 2>&1 || {
+        fail "Actual Windows control-panel launch failed (see launch evidence)"; return 1;
+    }
+    deadline=$(deadline_in 90)
+    while ! past_deadline "$deadline"; do
+        if qga_read 'C:\wootc\e2e-drive-state.json' > "$receipt" 2>/dev/null; then break; fi
+        sleep 3
+    done
+    # Remove the ONCE trigger before sending any directive and prove one UI.
+    # shellcheck disable=SC2016
+    qga_powershell '$ErrorActionPreference="Stop"
+schtasks.exe /Delete /TN wootc-control-proof /F | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "control-panel task trigger removal failed" }
+Start-Sleep -Seconds 4
+if (@(Get-Process wootc -ErrorAction SilentlyContinue).Count -ne 1) { throw "control-panel UI process count is not one" }
+' >> "$ARTIFACT_DIR/control-panel-ui-launch.log" 2>&1 || return 1
+    $DOCKER cp "$directive" "$CONTAINER_NAME:/tmp/control-proof-directive.json" || return 1
+    qga_call write /tmp/control-proof-directive.json 'C:\wootc\e2e-drive.json' || return 1
+    deadline=$(deadline_in 120)
+    while ! past_deadline "$deadline"; do
+        if qga_read 'C:\wootc\e2e-drive-state.json' > "$receipt" 2>/dev/null &&
+            python3 "$SCRIPT_DIR/verify-control-panel-receipt.py" "$directive" "$receipt" 2> "$ARTIFACT_DIR/control-panel-ui-check.stderr"; then
+            # Fresh framebuffer is accompanying evidence, never the verdict.
+            $DOCKER exec "$CONTAINER_NAME" rm -f /tmp/snap.ppm /tmp/wootc-screen.png || return 1
+            $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/control-proof-screenshot.py" || return 1
+            timeout 30 $DOCKER exec "$CONTAINER_NAME" python3 /tmp/control-proof-screenshot.py || return 1
+            $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" "$ARTIFACT_DIR/control-panel-ui.png" || return 1
+            $DOCKER cp "$CONTAINER_NAME:/tmp/snap.ppm" "$ARTIFACT_DIR/control-panel-ui.ppm" || return 1
+            pass "Actual Windows control panel renders this boot's kernel, source image and bridge counts"
+            return 0
+        fi
+        sleep 3
+    done
+    fail "Windows control panel did not render this boot's observed facts with a current-run receipt"
+    return 1
+}
+
 # Which drive holds the guest's \wootc tree. NOT always C:.
 #
 # On the BitLocker axis setup-wootc.ps1 carves an unencrypted volume and sets
@@ -1987,6 +2052,10 @@ PYEOF
         ;;
     *) fail "WOOTC_E2E_BITLOCKER must be on|off (got: $E2E_BITLOCKER)"; exit 1 ;;
 esac
+if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ] && [ "$E2E_BITLOCKER" != on ]; then
+    fail "GUI Documents proof requires the real BitLocker on fixture"
+    exit 1
+fi
 export WOOTC_E2E_BITLOCKER="$E2E_BITLOCKER"
 printf '[INFO] BitLocker axis: %s (C: %s)\n' "$E2E_BITLOCKER" \
     "$([ "$E2E_BITLOCKER" = on ] && echo 'auto-encrypted → root.disk needs an unencrypted volume' || echo 'plaintext')" >&2
@@ -4481,19 +4550,33 @@ if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
     # Exercise the destination as the ordinary desktop user, then read it
     # back in a fresh process. The source lives on encrypted C: and must remain
     # unchanged while the Linux copy accepts edits.
-    EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
-    step "Editing the imported Windows Documents copy as Linux user wootc..."
-    EDIT_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/sh -c \
-        "printf '%s\\n' '$EDIT_MARKER' >> '$USERDATA_PATH' && cat '$USERDATA_PATH'" \
-        2>/dev/null || true)
-    REOPEN_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" \
-        2>/dev/null || true)
-    if printf '%s' "$EDIT_OUTPUT" | grep -Fq "$EDIT_MARKER" \
-        && printf '%s' "$REOPEN_OUTPUT" | grep -Fq "$EDIT_MARKER"; then
-        pass "BitLocker Documents: ordinary Linux user saved and reopened an edit"
+    if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+        EDIT_MARKER="wootc-e2e-gui-edit-$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"
+        step "Editing Documents through the ordinary user's GNOME editor..."
+        if ! python3 "$SCRIPT_DIR/gui-document-proof.py" edit --runtime "$DOCKER" \
+            --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
+            --output "$ARTIFACT_DIR/gui-documents/first-boot" \
+            > "$ARTIFACT_DIR/gui-documents-first.json"; then
+            fail "GUI Documents: editor open, edit, save, close, and reopen proof failed"
+            exit 1
+        fi
+        GUI_EDIT_SHA=$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-first.json")
+        pass "GUI Documents: ordinary user saved, closed, and reopened the imported file"
     else
-        fail "BitLocker Documents: ordinary Linux user could not save and reopen an edit"
-        info "  write/read output: ${REOPEN_OUTPUT:-<empty>}"
+        EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
+        step "Editing the imported Windows Documents copy as Linux user wootc..."
+        EDIT_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/sh -c \
+            "printf '%s\\n' '$EDIT_MARKER' >> '$USERDATA_PATH' && cat '$USERDATA_PATH'" \
+            2>/dev/null || true)
+        REOPEN_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" \
+            2>/dev/null || true)
+        if printf '%s' "$EDIT_OUTPUT" | grep -Fq "$EDIT_MARKER" \
+            && printf '%s' "$REOPEN_OUTPUT" | grep -Fq "$EDIT_MARKER"; then
+            pass "BitLocker Documents: ordinary Linux user saved and reopened an edit"
+        else
+            fail "BitLocker Documents: ordinary Linux user could not save and reopen an edit"
+            info "  write/read output: ${REOPEN_OUTPUT:-<empty>}"
+        fi
     fi
     ORIGINAL_DOC=$(qga_call exec /bin/sh -c \
         'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
@@ -4548,6 +4631,37 @@ if [ -n "$FIRSTBOOT_DIAG" ]; then
     printf '%s\n' "$FIRSTBOOT_DIAG"
 else
     info "Phase-2 firstboot diagnostics unavailable through QGA"
+fi
+
+# Compare the persisted product record with facts collected from this running
+# installed Linux. Neither a lifecycle word nor a previous record proves this boot.
+FIRSTBOOT_RECORD_FILE="$ARTIFACT_DIR/installed-linux-boot-check.json"
+if qga_call exec /usr/bin/python3 -c '
+import importlib.util,json,pathlib
+host=pathlib.Path("/run/initramfs/wootc-host")
+helper=pathlib.Path("/var/usrlocal/bin/wootc-collect-firstboot.py")
+spec=importlib.util.spec_from_file_location("firstboot_observer",helper)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+current=module.collect(host)
+path=host/"wootc/install/installed-linux-boot.json"
+with path.open(encoding="utf-8-sig") as stream:
+    raw=stream.read(65537)
+if len(raw)>65536: raise ValueError("oversized firstboot record")
+persisted=json.loads(raw)
+for key in current:
+    if key != "writtenAt" and persisted.get(key) != current[key]:
+        raise ValueError("persisted firstboot record differs from current boot: "+key)
+state=json.loads((host/"wootc/state.json").read_text(encoding="utf-8-sig"))
+if state.get("state") != "healthy": raise ValueError("firstboot state is not healthy")
+if not (host/"wootc/install/installed-linux-boot.complete").is_file():
+    raise ValueError("firstboot publication did not complete")
+print(json.dumps({"persisted":persisted,"current":current},indent=2))
+' > "$FIRSTBOOT_RECORD_FILE" 2> "$ARTIFACT_DIR/installed-linux-boot-check.stderr"; then
+    pass "Installed Linux first-boot record matches this boot, disk, image, ESP and bridge"
+else
+    fail "Installed Linux first-boot record is absent, incomplete or differs from this boot"
+    cat "$ARTIFACT_DIR/installed-linux-boot-check.stderr"
 fi
 
 # The data assertions above proved the bridge; now put it on camera while
@@ -4676,6 +4790,9 @@ else
         fail "wootc.exe status did not report healthy after Phase-2 first boot (got: '$_state_raw')"
     fi
 
+    step "Verifying the real Windows control-panel first-boot summary..."
+    verify_installed_boot_gui || { capture_vm_diagnostics; exit 1; }
+
     if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
         # A visible copy is only useful if it survives stopping and starting
         # the installed environment. Return to Windows, re-arm the exact
@@ -4709,6 +4826,20 @@ else
             fail "BitLocker Documents: saved Linux edit did not survive the environment restart"
             info "  second-boot readback: ${PERSISTED_EDIT:-<empty>}"
             exit 1
+        fi
+        if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+            if ! python3 "$SCRIPT_DIR/gui-document-proof.py" reopen --runtime "$DOCKER" \
+                --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
+                --output "$ARTIFACT_DIR/gui-documents/second-boot" \
+                > "$ARTIFACT_DIR/gui-documents-second.json"; then
+                fail "GUI Documents: editor could not reopen saved bytes after the environment restart"
+                exit 1
+            fi
+            if [ "$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-second.json")" != "$GUI_EDIT_SHA" ]; then
+                fail "GUI Documents: saved bytes changed across the environment restart"
+                exit 1
+            fi
+            pass "GUI Documents: real editor reopened the same saved bytes after restart"
         fi
         SECOND_SOURCE=$(qga_call exec /bin/sh -c \
             'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \

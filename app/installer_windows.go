@@ -194,7 +194,12 @@ func getUninstallInfo() UninstallInfo {
 				StorageDrive: d,
 				DiskPath:     p,
 				DiskSizeGB:   float64(st.Size()) / (1 << 30),
-				Deployed:     deployHasCompleted(d),
+				BootPending:  linuxBootPending(d),
+			}
+			if !info.Orphaned {
+				info.BootEvidence, _ = installedLinuxEvidence(d)
+				info.Deployed = info.BootEvidence != nil
+				info.BootPending = info.BootPending && !info.Deployed
 			}
 			if d != "C" {
 				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
@@ -215,8 +220,8 @@ func getUninstallInfo() UninstallInfo {
 				Found:        true,
 				StorageDrive: d,
 				Orphaned:     true,
-				Deployed:     deployHasCompleted(d),
 			}
+
 			if d != "C" {
 				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
 				if info.OnDedicatedVol {
@@ -328,20 +333,18 @@ func cleanupESP() error {
 	return nil
 }
 
-// deployHasCompleted reports whether the deployer has finished at least once
-// on this machine based on lifecycle state in state.json (written by deploy.sh
-// on completion as "deployed", or by first boot as "healthy").
+// deployHasCompleted requires an observed installed Linux boot whose identity
+// matches this installation and the current Windows host volume and ESP.
 func deployHasCompleted(drive string) bool {
-	if s, ok := readState(); ok && (s.State == StateDeployed || s.State == StateHealthy) {
-		return true
-	}
-	if drive != "" {
-		p := filepath.Join(drive+`:\wootc`, "state.json")
-		if s, ok := readStateFrom(p); ok && (s.State == StateDeployed || s.State == StateHealthy) {
-			return true
-		}
-	}
-	return false
+	_, err := installedLinuxEvidence(drive)
+	return err == nil
+}
+
+// The first installed boot is still available before proof exists. This is a
+// staging state, not an installed/healthy claim.
+func linuxBootPending(drive string) bool {
+	s, ok := readStateFrom(filepath.Join(drive+`:\wootc`, "state.json"))
+	return ok && (s.State == StateDeployed || s.State == StateHealthy)
 }
 
 // armOneShotFromPersistedGUID re-arms the existing wootc firmware entry for

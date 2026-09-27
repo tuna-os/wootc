@@ -1,0 +1,99 @@
+SOURCE_SHA=cb02711bca818a174a47ca370653011e4a04f0ad
+BINARY_SHA256=5c6507df051a34e2726b242253d12a1f4ca12f9d174c0fbde0a852859bdca32c
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/old_installation
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_ESP
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_disk
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_kernel
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_service_result
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_boot_number
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_bridge_result
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_folder_count
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_user_count
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_source
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/stale_timestamp
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/failed_service
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_state
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_loader
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_host
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_image_digest
+--- PASS: TestLinuxBootEvidenceRejectsWrongInstallation (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/old_installation (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_ESP (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_disk (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_kernel (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_service_result (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_boot_number (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_bridge_result (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_folder_count (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_user_count (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_source (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/stale_timestamp (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/failed_service (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_state (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_loader (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_host (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_image_digest (0.00s)
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/secureBoot
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/failedUnits
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/kernel
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/imageDigest
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/installationId
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/boundFolders
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/matchedUsers
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bitlockerUnlocked
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bindings
+--- PASS: TestLinuxBootEvidenceRequiresMeasuredFields (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/secureBoot (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/failedUnits (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/kernel (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/imageDigest (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/installationId (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/boundFolders (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/matchedUsers (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bitlockerUnlocked (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bindings (0.00s)
+=== RUN   TestBootRecordRejectsTruncationAndOversize
+=== RUN   TestBootRecordRejectsTruncationAndOversize/valid
+=== RUN   TestBootRecordRejectsTruncationAndOversize/BOM
+=== RUN   TestBootRecordRejectsTruncationAndOversize/truncated
+=== RUN   TestBootRecordRejectsTruncationAndOversize/oversize
+=== RUN   TestBootRecordRejectsTruncationAndOversize/trailing
+--- PASS: TestBootRecordRejectsTruncationAndOversize (0.07s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/valid (0.02s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/BOM (0.00s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/truncated (0.00s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/oversize (0.03s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/trailing (0.01s)
+=== RUN   TestInstallationIdentityIsFreshAndComplete
+--- PASS: TestInstallationIdentityIsFreshAndComplete (0.00s)
+=== RUN   TestNTFSHostUUIDMatchesNativeVolume
+--- PASS: TestNTFSHostUUIDMatchesNativeVolume (0.04s)
+=== RUN   TestStatusDiscoverySelectsInstallationPastPayload
+--- PASS: TestStatusDiscoverySelectsInstallationPastPayload (0.01s)
+=== RUN   TestStatusDiscoveryRejectsCompetingInstallations
+--- PASS: TestStatusDiscoveryRejectsCompetingInstallations (0.01s)
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537
+--- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts (0.05s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537 (0.02s)
+=== RUN   TestStatusDiscoveryAbsentDoesNotCreateFiles
+--- PASS: TestStatusDiscoveryAbsentDoesNotCreateFiles (0.00s)
+=== RUN   TestStatusAuditRejectsUnsafeTreeWithoutRepair
+--- PASS: TestStatusAuditRejectsUnsafeTreeWithoutRepair (0.01s)
+=== RUN   TestStatusAuditRejectsReparseTree
+--- PASS: TestStatusAuditRejectsReparseTree (0.00s)
+PASS
