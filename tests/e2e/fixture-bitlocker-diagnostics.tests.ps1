@@ -54,7 +54,7 @@ function Export-WootcFixtureBitLockerKeyCore { param($Destination,[switch]$Ensur
         [IO.File]::WriteAllText($script:WootcFixtureBeforeReceipt.path,'{"PublicSensitiveDiagnosticMarker":')
         throw [ComponentModel.Win32Exception]::new(5,$script:sensitiveMarker)
     }
-    if ($script:case -eq 'alreadyOn') { return }
+    if ($script:case -in @('alreadyOn','ancestorSiblingRights')) { return }
     if ($script:case -like 'key*') { & $script:realExport -Destination $Destination -EnsureProtector:$EnsureProtector }
 }
 function Write-WootcFixtureFailureMetadata {
@@ -131,6 +131,45 @@ $unsafeChild=Join-Path $weakDir 'private-child'
 $inheritedDir=Join-Path $dir 'private-inherited-child'
 [IO.Directory]::CreateDirectory($inheritedDir) | Out-Null
 if ([IO.DirectoryInfo]::new($inheritedDir).GetAccessControl().AreAccessRulesProtected) { throw 'Inherited private leaf control is not inherited' }
+$siblingDir=Join-Path $dir 'public-sibling-creation-parent'
+[IO.Directory]::CreateDirectory($siblingDir) | Out-Null
+$siblingAcl=[IO.DirectoryInfo]::new($siblingDir).GetAccessControl()
+$siblingRule=[Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new('S-1-1-0'),[Security.AccessControl.FileSystemRights]278,[Security.AccessControl.AccessControlType]::Allow)
+$siblingAcl.AddAccessRule($siblingRule)
+[IO.DirectoryInfo]::new($siblingDir).SetAccessControl($siblingAcl)
+$siblingChild=Join-Path $siblingDir 'private-inherited-child'
+[IO.Directory]::CreateDirectory($siblingChild) | Out-Null
+
+# Verbatim prior production audit body from eb1acbf (same helper bytes as fb9352a).
+# Body SHA256: b968a65fa78e6ac7f929e6285f4856759f0e32188b1821c271170aeae8810f22
+$script:previousAncestorAudit=[scriptblock]::Create(@'
+param([string]$Directory)
+    $item = [IO.DirectoryInfo]::new($Directory)
+    if (-not $item.Exists) { throw 'Missing private receipt directory' }
+    $allowed = @('S-1-5-18','S-1-5-32-544','S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+    $ancestor = $item
+    while ($null -ne $ancestor) {
+        if (($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Unsafe receipt ancestry' }
+        $acl = $ancestor.GetAccessControl()
+        if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $allowed) { throw 'Unsafe receipt ancestor owner' }
+        # Creating unrelated siblings is harmless; deleting/replacing this
+        # directory or changing its ACL is not. The leaf also forbids writes.
+        $mask = 0x500D0150L
+        if ($ancestor.FullName -eq $item.FullName) { $mask = $mask -bor 0x40000116L }
+        foreach ($rule in @($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))) {
+            if (($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
+            if ($rule.AccessControlType -eq 'Deny') { continue }
+            if ($rule.AccessControlType -ne 'Allow') { throw 'Unknown receipt access rule' }
+            if (([long]$rule.FileSystemRights -band $mask) -ne 0 -and $rule.IdentityReference.Value -notin $allowed) { throw 'Unsafe receipt ancestor access' }
+        }
+        $ancestor = $ancestor.Parent
+    }
+'@)
+$previousFailed=$false
+try { & $script:previousAncestorAudit -Directory $siblingChild } catch { $previousFailed=$true }
+if (-not $previousFailed) { throw 'Prior actual audit did not refuse harmless ancestor rights control' }
+Assert-WootcFixtureReceiptDirectory -Directory $siblingChild
+Write-Output 'PASS prior production audit refuses actual ancestor0x116; current audit accepts private child without destructive ancestor rights'
 $originalPath=$script:path
 function Update-DiagnosticSpies {
     if (($script:addCalls+$script:resumeCalls+$script:exportCalls) -gt 0) {
@@ -166,7 +205,7 @@ $script:realIcacls=(Get-Command icacls.exe -CommandType Application).Source
 Reset-DiagnosticMock
 if ($script:case -in @('enrollWin32','brokenDiagnostic','writerFailure','prefixSecret','malformedRecord','unknownRecord','duplicateRecord')) { $script:volume.KeyProtector=@($script:volume.KeyProtector[0]) }
 if ($script:case -eq 'paused') { $script:volume.VolumeStatus='EncryptionPaused' }
-if ($script:case -eq 'alreadyOn') { $script:volume.ProtectionStatus='On' }
+if ($script:case -in @('alreadyOn','ancestorSiblingRights')) { $script:volume.ProtectionStatus='On' }
 Update-DiagnosticSpies
 '@
     $null=$pipeline.AddScript($setup).AddArgument($script:case).AddArgument($script:path).AddArgument($script:spyPath)
@@ -174,6 +213,7 @@ Update-DiagnosticSpies
 }
 $checks = @(
     @{name='alreadyOn';positive=$true},
+    @{name='ancestorSiblingRights';positive=$true},
     @{name='queryWin32';scope='activation';stage='query-volume';kind='operation-error';native=5},
     @{name='paused';scope='activation';stage='validate-volume';kind='policy-refusal'},
     @{name='exportWin32';scope='activation';stage='export-recovery';kind='operation-error';native=5},
@@ -206,9 +246,10 @@ try {
             $script:path=$originalPath
             if ($script:case -eq 'receiptRefusal') { $script:path=Join-Path $unsafeChild 'public-key.txt' }
             if ($script:case -eq 'alreadyOn') { $script:path=Join-Path $inheritedDir 'public-key.txt' }
+            if ($script:case -eq 'ancestorSiblingRights') { $script:path=Join-Path $siblingChild 'public-key.txt' }
             if ($script:case -in @('enrollWin32','brokenDiagnostic','writerFailure','prefixSecret','malformedRecord','unknownRecord','duplicateRecord')) { $script:volume.KeyProtector=@($script:volume.KeyProtector[0]) }
             if ($script:case -eq 'paused') { $script:volume.VolumeStatus='EncryptionPaused' }
-if ($script:case -eq 'alreadyOn') { $script:volume.ProtectionStatus='On' }
+if ($script:case -in @('alreadyOn','ancestorSiblingRights')) { $script:volume.ProtectionStatus='On' }
             $lines = [Collections.Generic.List[string]]::new()
             $failed=$false
             try { Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath $script:path | ForEach-Object { $lines.Add([string]$_) } } catch {
