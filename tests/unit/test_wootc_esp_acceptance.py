@@ -36,6 +36,7 @@ class AcceptanceTests(unittest.TestCase):
                              'upgradeSignatureProof': {'verified': True, 'current': old, 'candidate': new} if index else None,
                              'sourceFacts': {'sourceKind': 'classic', 'version': 'old' if not index else 'new', 'timestamp': str(index)}})
         windows = {'vmUuid': 'fixture-vm', 'scratchId': plan['scratchId'], 'os': 'Windows_NT', 'hostUuid': identity['hostUuid'], 'afterLinuxBootId': '00000000-0000-0000-0000-000000000002'}
+        windows['bitlocker'] = dict.fromkeys(('host', 'system'), {'volumeStatus': 'FullyDecrypted', 'protectionStatus': 'Off', 'encryptionPercentage': 0})
         plan['firmwareTrustHashes'] = dict(captures[0]['firmwareTrustHashes'])
         self.args = [plan, *captures, windows]
 

@@ -172,6 +172,20 @@ class OrchestratorTests(unittest.TestCase):
         self.assertTrue(self.transport.ledger.is_file())
         self.assertEqual(len(list(self.folder.glob('*-result.json'))), 1)
 
+    def test_wrong_baseline_trust_refuses_before_upgrade(self):
+        self.args[1]['firmwareTrustHashes']['db'] = '9'*64
+        with self.assertRaisesRegex(ValueError, 'firmware trust changed'):
+            run(self.transport, self.plan)
+        self.assertFalse(any(e.get('purpose') == 'real-classic-package-upgrade' for e in self.transport.events))
+        self.assertEqual(self.agent.executions, 1)
+
+    def test_unobserved_decryption_refuses_before_bcd_arm(self):
+        del self.args[-1]['bitlocker']
+        with self.assertRaisesRegex(ValueError, 'observed unencrypted'):
+            self.transport.bootstrap_classic(self.plan)
+        self.assertEqual(self.agent.executions, 1)
+        self.assertFalse(any(e['kind'] == 'windows-bcd-verified' for e in self.transport.events))
+
     def test_stale_windows_response_never_verifies_chronology(self):
         self.agent.stale_windows = True
         with self.assertRaisesRegex(ValueError, 'stale capture'):
@@ -229,7 +243,9 @@ class OrchestratorTests(unittest.TestCase):
 
     def test_owned_socket_does_not_authorize_wrong_host_process(self):
         (self.folder/'disk.qcow2').write_bytes(b'fixture')
+        (self.folder/'disk.qcow2').chmod(0o600)
         (self.folder/'qemu.pid').write_text(str(os.getpid()))
+        (self.folder/'qemu.pid').chmod(0o600)
         with self.assertRaisesRegex(ValueError, 'not one owned QEMU'):
             check_vm(self.folder, self.record)
 

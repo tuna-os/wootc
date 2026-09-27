@@ -46,6 +46,24 @@ def sbat_plan(old_variable, new_variable, new_shim):
             'newShimSha256': hashlib.sha256(Path(new_shim).read_bytes()).hexdigest()}
 
 
+def validate_firmware(capture, plan, is_old):
+    required = {'SecureBoot', 'SetupMode', 'db', 'dbx', 'MokListXRT', 'SbatLevelRT'}
+    hashes = capture['firmwareTrustHashes']
+    require(set(hashes) == required, 'incomplete firmware trust observations')
+    require(all(v is None and k == 'MokListXRT' or isinstance(v, str) and re.fullmatch('[0-9a-f]{64}', v) for k, v in hashes.items()), 'invalid firmware trust hash')
+    raw, policy = policy_variable(capture['firmwareSbatVariableBase64'])
+    require(hashlib.sha256(raw).hexdigest() == hashes['SbatLevelRT'], 'SBAT bytes do not match observed hash')
+    require(policy == capture['firmwareSbatPolicy'], 'SBAT parsed policy differs from observed bytes')
+    transition = plan['sbatTransition']
+    require(transition['newShimSha256'] == plan['newHashes']['shimx64.efi'], 'SBAT plan is not bound to candidate shim')
+    expected, _ = policy_variable(transition['oldVariableBase64' if is_old else 'newVariableBase64'])
+    require(raw == expected, 'SBAT policy differs from exact approved transition')
+    stable = lambda data: {k: v for k, v in data.items() if k != 'SbatLevelRT'}
+    require(stable(hashes) == stable(plan['firmwareTrustHashes']), 'firmware trust changed')
+    if is_old:
+        require(hashes == plan['firmwareTrustHashes'], 'baseline trust differs from pinned firmware export')
+
+
 def validate(plan, old, new, reboot, windows):
     require(plan['schemaVersion'] == 1, 'unknown plan schema')
     require(re.fullmatch('[0-9a-f]{32}', plan['scratchId']), 'missing exclusive scratch identity')
@@ -56,7 +74,6 @@ def validate(plan, old, new, reboot, windows):
         require(all(plan['oldHashes'][n] != plan['newHashes'][n] for n in FILES), 'fixture must change every signed component')
     transition = plan['sbatTransition']
     require(transition['newShimSha256'] == plan['newHashes']['shimx64.efi'], 'SBAT plan is not bound to candidate shim')
-    planned_raw = [policy_variable(transition[key])[0] for key in ('oldVariableBase64', 'newVariableBase64')]
     require(old['firmwareTrustHashes'] == plan['firmwareTrustHashes'], 'baseline trust differs from pinned firmware export')
     ids = []
     first = old['observation']
@@ -76,15 +93,7 @@ def validate(plan, old, new, reboot, windows):
         require(capture['receipt']['ownedManifestSha256'] == old['receipt']['ownedManifestSha256'], 'ownership changed')
         require(capture['foreignFiles'] == old['foreignFiles'], 'foreign or Windows ESP bytes changed')
         require(str(uuid.UUID(boot['bootId'])) == boot['bootId'], 'malformed kernel boot ID')
-        required_trust = {'SecureBoot', 'SetupMode', 'db', 'dbx', 'MokListXRT', 'SbatLevelRT'}
-        require(set(capture['firmwareTrustHashes']) == required_trust, 'incomplete firmware trust observations')
-        require(all(v is None and k == 'MokListXRT' or isinstance(v, str) and re.fullmatch('[0-9a-f]{64}', v) for k, v in capture['firmwareTrustHashes'].items()), 'invalid firmware trust hash')
-        raw, policy = policy_variable(capture['firmwareSbatVariableBase64'])
-        require(hashlib.sha256(raw).hexdigest() == capture['firmwareTrustHashes']['SbatLevelRT'], 'SBAT bytes do not match observed hash')
-        require(policy == capture['firmwareSbatPolicy'], 'SBAT parsed policy differs from observed bytes')
-        require(raw == planned_raw[0 if capture is old else 1], 'SBAT policy differs from exact approved transition')
-        stable_trust = lambda data: {k: v for k, v in data['firmwareTrustHashes'].items() if k != 'SbatLevelRT'}
-        require(stable_trust(capture) == stable_trust(old), 'firmware trust changed')
+        validate_firmware(capture, plan, capture is old)
         ids.append(boot['bootId'])
     require(len(set(ids)) == 3, 'cached boot capture or no reboot')
     require(new['archiveHashes'] == reboot['archiveHashes'] == plan['oldHashes'], 'whole old archive absent')
@@ -106,6 +115,9 @@ def validate(plan, old, new, reboot, windows):
     require(windows['scratchId'] == plan['scratchId'] and windows['os'] == 'Windows_NT', 'actual Windows return absent')
     require(windows['hostUuid'] == first['hostUuid'], 'Windows returned on another host volume')
     require(windows['afterLinuxBootId'] == ids[-1], 'Windows return is stale or out of order')
+    if kind == 'classic':
+        for role in ('host', 'system'):
+            require(windows.get('bitlocker', {}).get(role) == {'volumeStatus': 'FullyDecrypted', 'protectionStatus': 'Off', 'encryptionPercentage': 0}, 'classic Windows volume encryption state is unsupported')
     return {'observationsMatch': True, 'firmwareAcceptance': False, 'chronologyVerified': False, 'scratchId': plan['scratchId'], 'deploymentKind': kind,
             'scope': 'capture facts match; echoed correlation fields do not prove transport chronology or firmware acceptance'}
 

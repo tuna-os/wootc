@@ -122,6 +122,7 @@ def produce(parent, config, run=subprocess.run):
     original_config = copy.deepcopy(config)
     config = freeze_inputs(parent, config)
     record = provision(parent, Path(config['windowsBaseline']['path']), config['windowsBaseline']['sha256'], run)
+    Path(record['overlay']).chmod(0o600)
     folder = Path(record['overlay']).parent
     source_folder = folder/'source-closure'; source_folder.mkdir(mode=0o700)
     frozen_sources = {p: freeze_file(p, source_folder/str(i), h) for i, (p, h) in enumerate(source_pins.items())}
@@ -350,6 +351,7 @@ systemctl enable qemu-guest-agent.service wootc-host-bind.service wootc-esp-sync
                          'rootDiskPath': '/wootc/disks/root.disk', 'loaderVendor': loader, 'deploymentKind': 'classic',
                          'bootCurrent': {'espPartitionGuid': esp_guid, 'loaderPath': record['loaderPath']}}}
     (folder/'plan.json').write_text(json.dumps(plan, indent=2)+'\n')
+    (folder/'plan.json').chmod(0o600)
     record['planSha256'] = sha(folder/'plan.json')
     (folder/'scratch.json').write_text(json.dumps(record, indent=2)+'\n')
     return record
