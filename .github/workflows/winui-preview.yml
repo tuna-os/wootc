@@ -54,6 +54,7 @@ jobs:
         working-directory: shell
         shell: pwsh
         run: |
+          $env:WOOTC_NATIVE_PREVIEW_DIAGNOSTICS = '1'
           $env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'
           dotnet test Wootc.Shell.UiTests --configuration Release --logger "trx;LogFileName=native-ui.trx"
       - name: Retain own preview startup event diagnostics
@@ -65,6 +66,23 @@ jobs:
             Select-Object -First 8 TimeCreated, ProviderName, Id, Message)
           ConvertTo-Json -InputObject $records -Depth 3 | Set-Content -Encoding utf8 out/winui-startup-events.json
           Get-Content out/winui-startup-events.json
+      - name: Retain generated XAML loader and metadata diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out/winui-source-diagnostics | Out-Null
+          Get-ChildItem shell/Wootc.Shell/obj -Recurse -File |
+            Where-Object { $_.Name -match '^(App|MainWindow|XamlTypeInfo)[.]g[.]' } |
+            Copy-Item -Destination out/winui-source-diagnostics
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: winui-preview-diagnostics
+          path: |
+            out/winui-source-diagnostics/
+            out/winui-startup-events.json
+            shell/Wootc.Shell.UiTests/TestResults/*.trx
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: always()
         with:
