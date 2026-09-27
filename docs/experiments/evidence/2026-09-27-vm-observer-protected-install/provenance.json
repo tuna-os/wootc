@@ -1,0 +1,39 @@
+{
+  "sourceCommit": "ff2c2ed9ca71b3bb24ced285eec4e8471b5ba99c",
+  "scope": "Dormant source only; no builder hook, actual target invocation, bind mount, service enable, VM or desktop/editor acceptance",
+  "controls": {
+    "totalPassed": 39,
+    "actualLocal": "Private file IO/inodes/modes, owned child positive/failed status/blocking deadline; system Python -I-S-B preflight",
+    "controlledObservations": "Root metadata on private /tmp fixtures, mount inventory/bind effects, SELinux configuration/tools/xattrs",
+    "mutation": "Removing both successful bind/remount current mount+inode guards makes the noop-bind assertion fail; removing just the first leaves redundant second guard active"
+  },
+  "requiredBeforeBuilderInvocation": [
+    "Selected actual image/deployment/root.disk and stateroot ancestry",
+    "Authenticated initrd bundle closure and exact retained source row",
+    "Protected native tool registry/interpreter/stdlib/ELF closure",
+    "Current installed BLS + filesystem policy",
+    "Composed bind/input validation + install transaction + target SELinux labels + unit/enable readbacks"
+  ],
+  "sourceSha256": {
+    "payload/vm-observer/boot_probe.py": "cd2efd909c7f0e96a1d1ea3a4dd18f0631ee0edd4231f5a7c90b9b29f9bdd196",
+    "payload/vm-observer/input_binding.py": "df8a8b326c48f6b6903d37a5f14492ce4072725cc1bb6a25a2acb7445e5616a5",
+    "payload/vm-observer/install_bundle.py": "cd9e8eebc99182b7e8758e7afc49fc3e760afea2f7342a9d2195c26263a7b17e",
+    "payload/vm-observer/install_policy.py": "b71270d9036f62512efd9e89cc1d3a7db14c2f8deb61d86b8fe0300d92c61460",
+    "payload/vm-observer/installer_commands.py": "c6905b1a68d57c64d03a27ae092b490f8024a5b64830e1387e2bd7187640567a",
+    "payload/vm-observer/label_policy.py": "6ebffdcb214930bdacc8956c92ab10ce4d31a31c03b9091800414c87c689d835",
+    "payload/vm-observer/owned_binding.py": "30ffc5e7859c7ca077f1eb95cb4241789afc8318f76296f03206f3b183b014c2",
+    "payload/vm-observer/python_environment.py": "b2c9efc2416f975c1404ef622a5d8a3cdb95ec2e0c3667b6094f2eddac1fad0c",
+    "payload/vm-observer/wootc-observer.service": "481c94f9fa5baf862641be2759db704fbee5ea4cc57b5dc0c98df89397500bd1",
+    "tests/unit/test_vm_observer_input_binding.py": "ac1e4f9160b23fb644496d265a4363433f84da6aa1204b6fa7e05d60157259bf",
+    "tests/unit/test_vm_observer_install_bundle.py": "b694e5ccafbf3876626983afe570ab80514975b6986f1dfba905d5a8287bd8e0",
+    "tests/unit/test_vm_observer_install_policy.py": "194a07d3701f8481b846fb478e37bdccfa608e8cae8912424b3d45308ba532df",
+    "tests/unit/test_vm_observer_installer_commands.py": "a483fdfb1728f930653c1fb535acf110fb4201841edfb8e7888dc12edaeea287",
+    "tests/unit/test_vm_observer_label_policy.py": "6debccf5fff15cd38bdc24ab491588eadbc34a7aa02115b768ea3aa4222ba746",
+    "tests/unit/test_vm_observer_owned_binding.py": "c697253da3a521485af87fd1c5b534dc263651cb5c28ea01703678826e987cc1",
+    "tests/unit/test_vm_observer_python_environment.py": "aff02925ee7b859da51df1ed97e54e99079379654c472e8c6770426dc38023d2"
+  },
+  "evidenceSha256": {
+    "owned-bind-readbacks-removed.raw.log": "e35b143be6bfcee78f8f85f3fd44a8bb14245185e8cc263f5cf77c474dc40937",
+    "controls.raw.log": "3fa394e16ddc3f1d001514327939c463136c5a903a35c6a439d7d431a367e257"
+  }
+}

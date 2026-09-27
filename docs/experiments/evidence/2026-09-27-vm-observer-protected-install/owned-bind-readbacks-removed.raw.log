@@ -1,0 +1,15 @@
+test_successful_noop_bind_never_invokes_consumer (controls.LifecycleControls.test_successful_noop_bind_never_invokes_consumer) ... FAIL
+
+======================================================================
+FAIL: test_successful_noop_bind_never_invokes_consumer (controls.LifecycleControls.test_successful_noop_bind_never_invokes_consumer)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-vm-observer-protected-install/tests/unit/test_vm_observer_owned_binding.py", line 46, in test_successful_noop_bind_never_invokes_consumer
+    with self.assertRaises(ValueError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.010s
+
+FAILED (failures=1)
