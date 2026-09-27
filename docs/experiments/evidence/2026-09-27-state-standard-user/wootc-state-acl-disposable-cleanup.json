@@ -1,0 +1,34 @@
+{
+  "scope": "Only exact redundant task-owned binary stage copies and accidental nested placeholder; original executed binaries/source/logs retained",
+  "records": [
+    {
+      "removedDuplicate": "/tmp/wootc-state-standard-user-v3.test.exe",
+      "retained": "/tmp/wootc-state-standard-user.test.exe",
+      "sha256": "b0eed81f2553db421775021498578d59a235b1495fbf47fd22e4ed85db4b6cca",
+      "bytes": 15351808
+    },
+    {
+      "removedDuplicate": "/tmp/wootc-acl-278aa9a13ab942a6a0101ef2037857c0-binary.exe",
+      "retained": "/tmp/wootc-state-standard-user.test.exe",
+      "sha256": "b0eed81f2553db421775021498578d59a235b1495fbf47fd22e4ed85db4b6cca",
+      "bytes": 15351808
+    },
+    {
+      "removedDuplicate": "/tmp/wootc-acl-7cec5d13dfb24d29bab4bf84bf5dbb1d-binary.exe",
+      "retained": "/tmp/wootc-state-standard-user-v3-current.test.exe",
+      "sha256": "219197b65f71363db424be32328ebea4043373ada79e71b7b45ee989f8dceedd",
+      "bytes": 15352320
+    },
+    {
+      "removedDuplicate": "/tmp/wootc-acl-2f86ae41e9fb4878bf0731286cbb6f11-binary.exe",
+      "retained": "/tmp/wootc-state-standard-user-v7.test.exe",
+      "sha256": "e2bf2af35417399952657ac25127011b850275db9bcd335a7edd6dcc119fae17",
+      "bytes": 15354368
+    },
+    {
+      "removedAccidentalPlaceholder": "/tmp/wootc-state-trust-native-proof/app/app/frontend/dist/index.html",
+      "bytes": 43
+    }
+  ],
+  "totalBytes": 61410347
+}

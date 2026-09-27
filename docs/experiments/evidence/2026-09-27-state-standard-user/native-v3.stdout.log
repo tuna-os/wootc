@@ -1,0 +1,21 @@
+SOURCE f7c38eb6400f931bbd94fc6a75fd228edb415794 NativeDriverHash cb68bbea45309fdbc62087122edf7073bcf68bd7f4a1c7da15f7dbede3750281
+NATIVE_ACL_INPUT Windows=5.1.26100.9444 BinarySha256=219197b65f71363db424be32328ebea4043373ada79e71b7b45ee989f8dceedd FileSystem=NTFS FreshOwnedVolume=true
+=== RUN   TestNativeStateStandardUserAndAlternateVolume
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/new_root_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/new_inherited_install_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/overwrite_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/delete_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/replace_root_DACL
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS
+    state_trust_standard_user_windows_test.go:124: trusted atomic creation: unsafe state volume Z:: DACL gives mutation rights to S-1-5-11
+--- FAIL: TestNativeStateStandardUserAndAlternateVolume (0.05s)
+    --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume (0.03s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/new_root_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/new_inherited_install_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/overwrite_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/delete_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/replace_root_DACL (0.00s)
+    --- FAIL: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS (0.00s)
+FAIL
+PASS native ACL fixture cleanup observed
