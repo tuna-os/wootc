@@ -4,6 +4,7 @@
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+    export WOOTC_STEPS_FILE="$REPO_ROOT/payload/steps.sh"
     DEPLOY="$REPO_ROOT/payload/deployer/deploy.sh"
     MODULE_SETUP="$REPO_ROOT/payload/deployer/module-setup.sh"
     FIRSTBOOT_SCRIPT="$REPO_ROOT/payload/migration/wootc-firstboot-evidence"

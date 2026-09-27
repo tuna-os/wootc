@@ -12,7 +12,7 @@
     printf '#!/bin/sh\nexit 0\n' > "$BATS_TEST_TMPDIR/bin/mountpoint"
     printf '#!/bin/sh\necho "descriptor refusal" >&2\nexit 1\n' > "$BATS_TEST_TMPDIR/bin/wootc-ntfs-state-write"
     chmod +x "$BATS_TEST_TMPDIR/bin/"*
-    run env WOOTC_FIRSTBOOT_HOST="$BATS_TEST_TMPDIR/host" \
+    run env WOOTC_STEPS_FILE="$BATS_TEST_DIRNAME/../../payload/steps.sh" WOOTC_FIRSTBOOT_HOST="$BATS_TEST_TMPDIR/host" \
         PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash "$BATS_TEST_TMPDIR/firstboot"
     [ "$status" -ne 0 ]
     [[ "$output" == *"descriptor refusal"* ]]

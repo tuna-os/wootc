@@ -60,8 +60,10 @@ HOOK="payload/deployer/deploy-hook.sh"
     # verification.
     grep -q 'refusing corrupted or tampered content' app/ocipull.go
     grep -q 'refusing tampered content' app/ocipull.go
-    grep -q '"Downloading your Linux system"' app/app.go
-    grep -q "'Downloading your Linux system'" app/frontend/src/screens/progress.js
+    grep -q '{StepInstallerDownloadingYourLinuxSystem,' app/app.go
+    grep -q 'return stageImageBundle(ctx, cfg.ImageRef,' app/app.go
+    grep -q 'setInstallSteps(await GetInstallSteps())' app/frontend/src/main.js
+    grep -q 'stepLabels.set(step.id, step.label)' app/frontend/src/screens/progress.js
     # A pre-downloaded bundle records its provenance so it never pins the
     # catalog the way a shipped bundle does (#177).
     grep -q '"predownload"' app/ocipull.go

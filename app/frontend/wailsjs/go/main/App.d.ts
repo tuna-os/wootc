@@ -137,3 +137,11 @@ export function TryAgain():Promise<void>;
 export function RepairBoot():Promise<void>;
 
 export function GetReleaseNotice(): Promise<{version: string; url: string}>;
+
+export interface StepDefinition {
+  id: string;
+  owner: string;
+  label: string;
+}
+
+export function GetInstallSteps():Promise<StepDefinition[]>;

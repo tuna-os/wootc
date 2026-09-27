@@ -24,6 +24,7 @@ const (
 
 // LifecycleState is the persisted contents of state.json.
 type LifecycleState struct {
+	PhaseID   string `json:"phaseId,omitempty"`
 	State     string `json:"state"`
 	Phase     string `json:"phase,omitempty"` // failing step/phase when failed
 	Error     string `json:"error,omitempty"`
@@ -41,6 +42,7 @@ func writeState(state, phase, errMsg string) {
 	s := LifecycleState{
 		State:     state,
 		Phase:     phase,
+		PhaseID:   observedStepID(phase),
 		Error:     errMsg,
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 		UpdatedBy: "wootc-installer",

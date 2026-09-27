@@ -501,6 +501,9 @@ public class InstallConfig
 /// </summary>
 public class ProgressEvent
 {
+    [JsonPropertyName("phaseId")]
+    public string? PhaseId { get; set; }
+
     [JsonPropertyName("step")]
     public string Step { get; set; } = string.Empty;
 
@@ -515,6 +518,60 @@ public class ProgressEvent
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+}
+
+public class StepDefinition
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("owner")]
+    public string Owner { get; set; } = string.Empty;
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// RecoveryVerdict is persisted at C:\wootc\install\recovery-verdict.json.
+/// </summary>
+public class RecoveryVerdict
+{
+    [JsonPropertyName("phaseId")]
+    public string? PhaseId { get; set; }
+
+    [JsonPropertyName("verdict")]
+    public string Verdict { get; set; } = string.Empty;
+
+    [JsonPropertyName("phase")]
+    public string? Phase { get; set; }
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("details")]
+    public string? Details { get; set; }
+
+    [JsonPropertyName("logTail")]
+    public List<string>? LogTail { get; set; }
+
+    [JsonPropertyName("untouched")]
+    public bool Untouched { get; set; }
+
+    [JsonPropertyName("canTryAgain")]
+    public bool CanTryAgain { get; set; }
+
+    [JsonPropertyName("canRemove")]
+    public bool CanRemove { get; set; }
+
+    [JsonPropertyName("canRepairBoot")]
+    public bool CanRepairBoot { get; set; }
+
+    [JsonPropertyName("timestamp")]
+    public string Timestamp { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -621,6 +678,9 @@ public class UninstallOptions
 /// </summary>
 public class LifecycleState
 {
+    [JsonPropertyName("phaseId")]
+    public string? PhaseId { get; set; }
+
     [JsonPropertyName("state")]
     public string State { get; set; } = string.Empty;
 
