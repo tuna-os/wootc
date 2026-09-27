@@ -18,6 +18,41 @@ class LauncherTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.folder=Path(self.temp.name)
         self.command=['/usr/bin/python3','-c','import time;time.sleep(10)']
 
+    def test_actual_owned_spawn_reports_start_after_identity_before_observation(self):
+        events=[]
+        def started(identity):
+            self.assertEqual(identity,MODULE['process_identity'](identity['pid']))
+            events.append('started')
+        def observe(*args):
+            self.assertEqual(events,['started']);return {'fixtureObservation':True}
+        MODULE['run_owned'](self.command,self.folder,observe,seconds=1,on_started=started)
+        self.assertEqual(events,['started'])
+
+    def launch_fixture(self,changes):
+        record={'actualVirtualBytes':1,'scratchId':'a'*32,'vmUuid':'12345678-1234-1234-1234-123456789abc'}
+        (self.folder/'base.qcow2').write_bytes(b'fixture')
+        boundaries={'checked':lambda path:(self.folder,record),'qualify':lambda path:{'freeBytes':2**40}}
+        boundaries.update(changes)
+        with patch.dict(MODULE['launch'].__globals__,boundaries):
+            with self.assertRaises((ValueError,FileNotFoundError)):
+                MODULE['launch'](self.folder,None,None)
+        persisted=json.loads((self.folder/'ownership.json').read_text())
+        self.assertTrue(persisted['executionRequested'])
+        for field in ('runtimeExecuted','processStarted','guestBaselineObserved'):
+            self.assertFalse(persisted[field])
+        self.assertFalse((self.folder/'pid.json').exists())
+
+    def test_actual_launcher_qualification_failure_keeps_process_unstarted(self):
+        def fail(*args):raise ValueError('qualified host absent')
+        self.launch_fixture({'qualify':fail})
+
+    def test_actual_launcher_protected_tool_failure_keeps_process_unstarted(self):
+        def fail():raise ValueError('protected QEMU source absent')
+        self.launch_fixture({'protected_qemu':fail})
+
+    def test_actual_popen_missing_executable_keeps_process_unstarted(self):
+        self.launch_fixture({'command':lambda *args:[str(self.folder/'missing-executable')]})
+
     def test_no_progress_deadline_stops_and_reaps_actual_owned_process(self):
         began=time.monotonic()
         with self.assertRaises(TimeoutError):MODULE['run_owned'](self.command,self.folder,lambda *args:None,seconds=.05)

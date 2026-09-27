@@ -78,7 +78,7 @@ def stop_owned(child,identity):
         return child.wait(timeout=2)
 
 
-def run_owned(command,folder,observe,seconds=1200):
+def run_owned(command,folder,observe,seconds=1200,on_started=None):
     """Actual process controls use native fixture commands; production supplies only QEMU."""
     folder=Path(folder)
     with (folder/'process.stdout').open('xb') as output,(folder/'process.stderr').open('xb') as errors:
@@ -88,6 +88,7 @@ def run_owned(command,folder,observe,seconds=1200):
     try:
         identity=process_identity(child.pid)
         (folder/'pid.json').write_text(json.dumps(identity,sort_keys=True)+'\n')
+        if on_started is not None:on_started(identity)
         while True:
             remaining=deadline-time.monotonic()
             if remaining<=0:raise TimeoutError('owned runtime absolute deadline expired')
@@ -137,7 +138,7 @@ def command(folder,record):
             '-device','virtserialport,chardev=qga,name=org.qemu.guest_agent.0']
 
 
-def make_observer(folder,record,readback,acknowledge):
+def make_observer(folder,record,readback,acknowledge,on_baseline=None):
     folder=Path(folder);serial=folder/'serial.log';state={'oldVerified':False}
     def observe(child,remaining):
         for path,limit in ((serial,262144),(folder/'overlay.qcow2',record['actualVirtualBytes']+512*1024**2),
@@ -155,6 +156,7 @@ def make_observer(folder,record,readback,acknowledge):
         if not state['oldVerified']:
             if len(lines)<2:return None
             COMPARE(text,record,through='old')
+            if on_baseline is not None:on_baseline()
             owned_qga_socket(child,folder)
             record['readbackChallenge']=os.urandom(32).hex()
             deadline=time.monotonic()+remaining
@@ -180,15 +182,23 @@ def make_observer(folder,record,readback,acknowledge):
     return observe
 
 
-def launch(folder,readback,acknowledge):
+def launch(folder,readback,acknowledge,on_started=None,on_baseline=None):
     folder,record=checked(folder)
+    record.update(executionRequested=True,processStarted=False,runtimeExecuted=False,guestBaselineObserved=False)
+    def save():(folder/'ownership.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
+    save()
     facts=qualify(folder)
     required=2*(folder/'base.qcow2').stat().st_size+3*record['actualVirtualBytes']+4*22012320+64*1024**2+2*1024**3
     if facts['freeBytes']<required:raise ValueError('actual scratch capacity below runtime formula')
-    record['measuredHost']=facts;record['runtimeExecuted']=True
-    (folder/'ownership.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
-    observe=make_observer(folder,record,readback,acknowledge)
-    result=run_owned(command(folder,record),folder,observe)
+    record['measuredHost']=facts;save()
+    def started(identity):
+        record.update(processStarted=True,runtimeExecuted=True,ownedProcessIdentity=identity);save()
+        if on_started is not None:on_started(identity)
+    def baseline():
+        record['guestBaselineObserved']=True;save()
+        if on_baseline is not None:on_baseline()
+    observe=make_observer(folder,record,readback,acknowledge,baseline)
+    result=run_owned(command(folder,record),folder,observe,on_started=started)
     (folder/'accepted.json').write_text(json.dumps(result,sort_keys=True)+'\n')
     return result
 
