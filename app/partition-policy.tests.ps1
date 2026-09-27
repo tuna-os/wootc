@@ -153,3 +153,9 @@ if ($result -ne 'partition-removal-observed' -or $script:removeCalls -ne 1 -or $
 $result=Remove-WootcCreatedPartition -Drive '' -Receipt $script:receipt -ExplicitRemoval -AllowExtensionRetry
 if ($result -ne 'partition-removal-and-extension-verified' -or $script:removeCalls -ne 1 -or $script:resizeCalls -ne 1) { throw 'Observed deletion retry did not bind original Windows source' }
 Write-Output 'PASS separate observed deletion precedes extension and permits safe retry'
+
+Reset-Fixture
+$failed=$false
+try { Remove-WootcCreatedPartition -Drive C -Receipt $script:receipt -ExplicitRemoval | Out-Null } catch { $failed=$true }
+if (-not $failed -or $script:removeCalls -ne 0 -or $script:resizeCalls -ne 0) { throw 'Explicit C removal request mutated storage' }
+Write-Output 'PASS explicit C removal request refused without mutation'
