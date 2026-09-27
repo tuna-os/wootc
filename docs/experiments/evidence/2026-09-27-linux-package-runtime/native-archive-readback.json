@@ -1,0 +1,310 @@
+{
+  "actualGuestBaselineObserved": false,
+  "archiveReadbacks": [
+    {
+      "actualControl": [
+        "dracut-core",
+        "106-6",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "dracut-core_106-6_amd64.deb",
+      "sha256": "3d42a242f2a1d6a8dcef15a66ddbb1263050695b2cff544b57a7a12d88338686"
+    },
+    {
+      "actualControl": [
+        "dracut-install",
+        "106-6",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "dracut-install_106-6_amd64.deb",
+      "sha256": "5ef87c15510db933d4ec7617b88012b436b0ebfc248e4c7d3b6baf9aa5acbc76"
+    },
+    {
+      "actualControl": [
+        "dracut",
+        "106-6",
+        "all"
+      ],
+      "exitStatus": 0,
+      "name": "dracut_106-6_all.deb",
+      "sha256": "01d71791af2b8306296c48f22b3aef390df21c84eb1328ded174722f19e1d349"
+    },
+    {
+      "actualControl": [
+        "efibootmgr",
+        "18-2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "efibootmgr_18-2_amd64.deb",
+      "sha256": "617327cab7f7d4457bbcbb5aef603f89d5bc408e487cb85b006939b8c70b0b09"
+    },
+    {
+      "actualControl": [
+        "fuse3",
+        "3.17.2-3",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "fuse3_3.17.2-3_amd64.deb",
+      "sha256": "4866550a235224b538a66fcaf95c8a796b6968d21c6f231086e142350b302eea"
+    },
+    {
+      "actualControl": [
+        "grub-common",
+        "2.12-9+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-common_2.12-9+deb13u2_amd64.deb",
+      "sha256": "a59d34a52e98450165ffc05b75886e139ad77b9d851d25b11eaa973cbdcb3bdd"
+    },
+    {
+      "actualControl": [
+        "grub-common",
+        "2.12-9",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-common_2.12-9_amd64.deb",
+      "sha256": "8ed602eda13469c0f18fb081ca7baf72d13edf97ae9ffaa46b0221f50d7268e8"
+    },
+    {
+      "actualControl": [
+        "grub-efi-amd64-bin",
+        "2.12-9+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-efi-amd64-bin_2.12-9+deb13u2_amd64.deb",
+      "sha256": "d486d62c83aa197f83c1dd0560ffd96d91c896f4d58485164eb7e1623e7bfde2"
+    },
+    {
+      "actualControl": [
+        "grub-efi-amd64-bin",
+        "2.12-9",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-efi-amd64-bin_2.12-9_amd64.deb",
+      "sha256": "39f030641355cca517293163505508c0513e754fd13bbe21b822c2358fe778d4"
+    },
+    {
+      "actualControl": [
+        "grub-efi-amd64-signed",
+        "1+2.12+9+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+      "sha256": "da8bb31308a3682a7d9343fc42bf7f603ad85bb5483eeb3ece23e2f1be2e9bbd"
+    },
+    {
+      "actualControl": [
+        "grub-efi-amd64-signed",
+        "1+2.12+9",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-efi-amd64-signed_1+2.12+9_amd64.deb",
+      "sha256": "2854085908185cc3ed4f611d31f927bce572d3e3394a1a173771e994e85ef81e"
+    },
+    {
+      "actualControl": [
+        "grub-efi-amd64-unsigned",
+        "2.12-9+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-efi-amd64-unsigned_2.12-9+deb13u2_amd64.deb",
+      "sha256": "f30a4ab589f70af74bea89df37f538ad2faa7c6c41b2e7fa3b54a8fb81bf4193"
+    },
+    {
+      "actualControl": [
+        "grub-efi-amd64-unsigned",
+        "2.12-9",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-efi-amd64-unsigned_2.12-9_amd64.deb",
+      "sha256": "3f44189d1d62bd065512707362f330d14a4256f967b91a715033ddfb5fe806e2"
+    },
+    {
+      "actualControl": [
+        "grub-pc-bin",
+        "2.12-9+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-pc-bin_2.12-9+deb13u2_amd64.deb",
+      "sha256": "ebeaa7a12f6a96127dec15d2a64a6d3d8278b9a8bc5531185d990e1c97a4728d"
+    },
+    {
+      "actualControl": [
+        "grub-pc-bin",
+        "2.12-9",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub-pc-bin_2.12-9_amd64.deb",
+      "sha256": "ce335f0f3f39c42ff1d2b242b7b103ee58c6ab41a70e3ef90c0d4d5fa8974921"
+    },
+    {
+      "actualControl": [
+        "grub2-common",
+        "2.12-9+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub2-common_2.12-9+deb13u2_amd64.deb",
+      "sha256": "0eeac6998ef810a67ecd6bef103bc4005e2b3559a99ee0e06483f3b6a473ad1f"
+    },
+    {
+      "actualControl": [
+        "grub2-common",
+        "2.12-9",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "grub2-common_2.12-9_amd64.deb",
+      "sha256": "737ff34249363b346173935177de1fb9232a416c2dbb08fd8c05064aead2b919"
+    },
+    {
+      "actualControl": [
+        "libfuse3-4",
+        "3.17.2-3",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "libfuse3-4_3.17.2-3_amd64.deb",
+      "sha256": "92e2d521ff872755a13aa69dba7b24025a7dc0f0f5aa708c9a86cd3565f570da"
+    },
+    {
+      "actualControl": [
+        "libgcrypt20",
+        "1.11.0-7+deb13u1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "libgcrypt20_1.11.0-7+deb13u1_amd64.deb",
+      "sha256": "f0eb41f8cb40896e0822e9ab65611e8383c12b721c76c54764f744abb4a8c247"
+    },
+    {
+      "actualControl": [
+        "libgpg-error0",
+        "1.51-4",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "libgpg-error0_1.51-4_amd64.deb",
+      "sha256": "22b95570fd41c113ef6f5651563b4d748292844baab1278a46eb940c1dec2322"
+    },
+    {
+      "actualControl": [
+        "libntfs-3g89t64",
+        "1:2022.10.3-5+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "libntfs-3g89t64_2022.10.3-5+deb13u2_amd64.deb",
+      "sha256": "74641ea68ec67b37781435f0335b49747e300c4fd2ead3fdbb02d7a03569c5a3"
+    },
+    {
+      "actualControl": [
+        "libpython3-stdlib",
+        "3.13.5-1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "libpython3-stdlib_3.13.5-1_amd64.deb",
+      "sha256": "7e142ed64a81ccdd39714f213467bd365736ef341adb2be11be981f638b9175f"
+    },
+    {
+      "actualControl": [
+        "ntfs-3g",
+        "1:2022.10.3-5+deb13u2",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "ntfs-3g_2022.10.3-5+deb13u2_amd64.deb",
+      "sha256": "a3cc777da48b3ae5f85ea0b193d81949be41c73dc8c310a87ec9dd3b59b49061"
+    },
+    {
+      "actualControl": [
+        "python3-minimal",
+        "3.13.5-1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "python3-minimal_3.13.5-1_amd64.deb",
+      "sha256": "a5d2371bebf3689f676e3f3bae800371bcc4392a8a51269e23d528249b399615"
+    },
+    {
+      "actualControl": [
+        "python3",
+        "3.13.5-1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "python3_3.13.5-1_amd64.deb",
+      "sha256": "c1388174dc7140e6c19a6dd39f8a0dcb38a835cd66c65644e0dded43d5223cb0"
+    },
+    {
+      "actualControl": [
+        "qemu-guest-agent",
+        "1:10.0.13+ds-0+deb13u1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "qemu-guest-agent_10.0.13+ds-0+deb13u1_amd64.deb",
+      "sha256": "7d7d6be6a52d6ea21eabdb78f686e4bb886f933171d33f5f3cf3cf2390343abd"
+    },
+    {
+      "actualControl": [
+        "qemu-utils",
+        "1:10.0.13+ds-0+deb13u1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "qemu-utils_10.0.13+ds-0+deb13u1_amd64.deb",
+      "sha256": "6d31339b1630153fe7c5f8a51426b8fa6ce35731aeb015a84f2d333c4e4dca30"
+    },
+    {
+      "actualControl": [
+        "shim-helpers-amd64-signed",
+        "1+16.1+2~deb13u1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+      "sha256": "7e950d75d5a40ecc0a99f727452ce35780b47a04d9a2cc3b1ff7c2bb316c033e"
+    },
+    {
+      "actualControl": [
+        "shim-signed-common",
+        "1.51~1+deb13u1+16.1-2~deb13u1",
+        "all"
+      ],
+      "exitStatus": 0,
+      "name": "shim-signed-common_1.51~1+deb13u1+16.1-2~deb13u1_all.deb",
+      "sha256": "d26f0c83436223bc805a3c77a025df18f60f4c8328f6c96233355bba8e0a5251"
+    },
+    {
+      "actualControl": [
+        "shim-signed",
+        "1.51~1+deb13u1+16.1-2~deb13u1",
+        "amd64"
+      ],
+      "exitStatus": 0,
+      "name": "shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+      "sha256": "3c802fa303c0e6bf126adee74028d1042e3120360d159c2c05181dc9b2f61005"
+    }
+  ],
+  "archives": 30,
+  "classicOsBootAcceptance": false,
+  "firmwareAcceptance": false,
+  "packageInstallationAccepted": false,
+  "scope": "actual acquired public archive identity/hash readback only; no host package installation or guest execution"
+}
