@@ -1,0 +1,11 @@
+Get:1 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/old9 trixie InRelease [168 kB]
+Get:1 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/old9 trixie InRelease [168 kB]
+Get:2 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/new trixie InRelease [140 kB]
+Get:2 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/new trixie InRelease [140 kB]
+Get:3 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/old9 trixie/main amd64 Packages [9669 kB]
+Ign:3 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/old9 trixie/main amd64 Packages
+Get:3 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/old9 trixie/main amd64 Packages [9669 kB]
+Get:4 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/new trixie/main amd64 Packages [9678 kB]
+Ign:4 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/new trixie/main amd64 Packages
+Get:4 file:/tmp/wootc-debian-authenticated-repository-metadata/solver/repo/new trixie/main amd64 Packages [9678 kB]
+Reading package lists...
