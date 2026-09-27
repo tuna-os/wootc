@@ -1,0 +1,29 @@
+[
+  {
+    "actualOwnedProcessExecuted": true,
+    "observation": "FileNotFoundError",
+    "errno": 2,
+    "testsRun": 1,
+    "errors": 0,
+    "failures": 0,
+    "expected": true
+  },
+  {
+    "actualOwnedProcessExecuted": true,
+    "observation": "ProcessLookupError",
+    "errno": 3,
+    "testsRun": 1,
+    "errors": 0,
+    "failures": 0,
+    "expected": true
+  },
+  {
+    "actualOwnedProcessExecuted": true,
+    "observation": "PermissionError",
+    "errno": 13,
+    "testsRun": 1,
+    "errors": 1,
+    "failures": 0,
+    "expected": true
+  }
+]
