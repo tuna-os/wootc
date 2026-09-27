@@ -1,0 +1,159 @@
+{
+  "baseHead": "b4d4083cdeeba25c950bf4cdbca3f50a754c1949",
+  "modifiedSources": true,
+  "sourceFiles": [
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.ps1",
+      "rawSha256": "fa9c9901ff3488e23e3e0b866ea8842af569404481074238e94ef0df161a9f45",
+      "stagedSha256": "7d70cbcf9d2f67470f86b9a42c9370ee375e0c4d1246048a2d337370ece38878",
+      "name": "wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-0.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.ps1",
+      "rawSha256": "8973a28a75e18361822bf7b8b879b9527c9421b3d819ff115936aa060e8c9f4a",
+      "stagedSha256": "cbbdf64bcb2bfbd6cb4631a50f08dce4d2f3d2a5c66f93501178b3dfa7d3192c",
+      "name": "wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-1.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.tests.ps1",
+      "rawSha256": "36ea43ee821b01a055c07401adbf8140223711288a1f3e187565ab4598fdba6c",
+      "stagedSha256": "a526afb7e181c2e572b0212aaeabec96f99603c867a96d32ffb5670047e07be2",
+      "name": "wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-2.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.tests.ps1",
+      "rawSha256": "c449029201f8982b6dc9385354bc2d27bc0c1a11b64c268994c3939f3e7fd156",
+      "stagedSha256": "ac3d013ff5d98fa7d81f8150656d210b5585adbbcbd378270090804d3d48507c",
+      "name": "wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-3.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-diagnostics.tests.ps1",
+      "rawSha256": "9910053784a6875f4f6f13a75888b120731c6c502ba0cfb78d57dfc96535bffb",
+      "stagedSha256": "7343dc8c4841503fba57d3c5ba7be893f95828169f44db320e9df61cceedb78d",
+      "name": "wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-4.ps1"
+    },
+    {
+      "source": "tests/lint-ps1.ps1",
+      "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8",
+      "name": "wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-5.ps1"
+    }
+  ],
+  "invocationSha256": "ec99eb18a25483b62e05fee90a11eb7f561cefc1ba771bdfbe8d5b858074d434",
+  "qgaHelperSha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+  "executionPolicy": "Bypass command-line flag for this disposable PowerShell process only; no persisted policy/registry change",
+  "scope": "Only mocked BitLocker/TPM cmdlets and fresh protected TEMP files/transcripts/ACL; no actual volume/protector/policy/disk changes",
+  "sourceCommit": "fb9352a61fdc0de2591fd0e95f87eeb5bfd94598",
+  "guestExitCode": 0,
+  "nativePowerShellVersion": "5.1.26100.9444",
+  "fixture": "winbase-399",
+  "observations": [
+    "Ready JSON survives private boundary with no unnecessary enrollment/activation",
+    "15 stage/numeric/policy/cleanup/fallback refusal cases execute child mocks",
+    "Prefixed password, malformed JSON, unknown field, duplicate field and malformed receipt cannot cross parent transcript boundary",
+    "Inherited private leaf accepted; foreign ancestor DELETE_CHILD refuses before mutation",
+    "Mutation spies read matching before-stage/runId closed receipt first",
+    "Same-run CreateNew collision preserves prior receipt bytes",
+    "Parent transcript contains neither public recovery-password fixture nor sensitive marker",
+    "Receipt reads open regular/no-reparse files and check length before allocating at most16384 bytes; actual oversized receipt refuses",
+    "Actual unchanged fixture-bitlocker-receipt.py accepts native wrapper successful exact before+ready two-line output"
+  ],
+  "limitations": [
+    "Underlying actual activation failure operation remains unknown until a diagnostic-enabled acceptance",
+    "No real ProtectionOn/enrollment or full Windows/Linux acceptance proof",
+    "Existing policy tests execute core implementations; new private-boundary controls exercise public wrapper with child mocks"
+  ],
+  "counterexample": {
+    "guestExitCode": 1,
+    "description": "Exact saved pre-boundary source invocation rerun after final success: all14 diagnostic stage cases pass, actual transcript assertion fails. Original failed raw log was overwritten after a filename mismatch, so this retained raw log is the explicit superseding rerun. Source/staged hashes bind retained failed-direct-sources. public-direct-transcript is a separate second capture with case boundaries, decoded from stdout and retained; its original raw containing line was not retained. All data is public synthetic fixture material. Existing key.tests expected old-behavior warning/information mutant likewise uses only public fixture material."
+  },
+  "files": {
+    "qga-native-client.py": {
+      "sha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+      "bytes": 1424
+    },
+    "hostless-probe.raw.stderr": {
+      "sha256": "018966bf53cb60e3be45739d0b615e36ec0cd64fb2dc331e24320ce44f76ddff",
+      "bytes": 840
+    },
+    "failed-direct-invocation.ps1": {
+      "sha256": "ebbd35b718d915b079fb5c857d62f77ce6fb2ecddd5c27baa7d00cf49d04789c",
+      "bytes": 5094
+    },
+    "positive-receipt.txt": {
+      "sha256": "9e3d387746ca0fe50522f403add4531498e15e36969bebb9c597ebe4c0255526",
+      "bytes": 627
+    },
+    "native-invocation.ps1": {
+      "sha256": "ec99eb18a25483b62e05fee90a11eb7f561cefc1ba771bdfbe8d5b858074d434",
+      "bytes": 5094
+    },
+    "failed-direct-source-provenance.json": {
+      "sha256": "607c424f33a16a3169123db0dd6e9b0adfac036bda8dccee04b8bfe2076c4b6a",
+      "bytes": 2554
+    },
+    "hostless-probe.ps1": {
+      "sha256": "adcf7645d2ff3ad88ad79ff57f41d6e1251000be66c90b3d881751b8fb8cdb65",
+      "bytes": 902
+    },
+    "hostless-probe.raw.log": {
+      "sha256": "1f6e56329a4d3727423a5532cab83c8eb4417cc676483dc55d10174169d449fe",
+      "bytes": 42
+    },
+    "native.raw.log": {
+      "sha256": "601ae81cb83d7b67f7bca5018ea72476aff0dde0ff0de7f7a9c30e793dec7eb6",
+      "bytes": 7108
+    },
+    "failed-direct.raw.stderr": {
+      "sha256": "064b1399eacf7654de6e4e40821ba94c1ce7673caa46c141d41ca32e28226a0b",
+      "bytes": 8638
+    },
+    "native.normalized.log": {
+      "sha256": "e3d855dfdda65772bf1f7db70b822afa1fbc9420d06af123026d8da37fc6ce35",
+      "bytes": 7033
+    },
+    "native.raw.stderr": {
+      "sha256": "66b4a74eaccaafa21473307a28ab800beeb6804ee5bc8825e4bc5c8a66db6f36",
+      "bytes": 7842
+    },
+    "public-direct-transcript.txt": {
+      "sha256": "d86478fc4d06ca8b0a29ab2351fc5ed0ddd11f4aca72cea34eba0026573bb2bb",
+      "bytes": 19853
+    },
+    "failed-direct.raw.log": {
+      "sha256": "cf619661d1ae69f986cdf5d2fa535083fce51710d8b11f75111a1e4e928f6745",
+      "bytes": 4663
+    },
+    "failed-direct-sources/fixture-bitlocker-protection.tests.ps1": {
+      "sha256": "cf9e16d85ea6d842f72fb8d01d31c729f808af09d90ed8761b56642693820a94",
+      "bytes": 9122
+    },
+    "failed-direct-sources/fixture-bitlocker-key.ps1": {
+      "sha256": "76127615cdc23adf18af64a1af3a08f117844bc50ba5a563d34049fc242b3cdc",
+      "bytes": 6966
+    },
+    "failed-direct-sources/fixture-bitlocker-diagnostics.tests.ps1": {
+      "sha256": "d6d9490b569db5e493401c6a19676c551bcdd1d0473ea4e9eefcec29918ec0a3",
+      "bytes": 10994
+    },
+    "failed-direct-sources/lint-ps1.ps1": {
+      "sha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "bytes": 6090
+    },
+    "failed-direct-sources/fixture-bitlocker-protection.ps1": {
+      "sha256": "757f6df7ded7afeb6b3dffff1fdb1129dfca908d4438e477dc30fcc7f4d66738",
+      "bytes": 8308
+    },
+    "failed-direct-sources/fixture-bitlocker-key.tests.ps1": {
+      "sha256": "d269b8272f88171bc2393874ff7d8364bc285738c4d4ffa5229f54cd988c7fd1",
+      "bytes": 6371
+    }
+  },
+  "executionSourceState": "Native execution used base b4d4083cdeeba25c950bf4cdbca3f50a754c1949 plus modifications; all executed raw source bytes below were subsequently verified byte-identical to immutable sourceCommit.",
+  "receiptValidatorSHA256": "03ccf24890ff4686f739de00fbdf651b2e101c1ffbf560ab53343447e1b89615",
+  "linuxChecks": {
+    "pythonBitLockerTests": 9,
+    "batsBitLockerTests": 3,
+    "gitDiffCheck": "pass"
+  }
+}
