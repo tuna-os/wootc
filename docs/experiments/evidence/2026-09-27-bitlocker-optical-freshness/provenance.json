@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "1b6943db3efe33eb947ffa8612714a7361e6efeb",
+  "frozenPriorCandidate": "adb232b120cc928aa1ea96d96b301d3f4a7d1b09",
+  "failedAcceptanceSource": "3d4b5601aa8cef901043ebe6737ca4c125bb43b7",
+  "approvedOpticalSource": "8fdbbacd4bdc1849dc59d3e412c21f651112c608",
+  "approvedOpticalProof": "67e7f4d",
+  "sourceHashes": {
+    ".github/workflows/bitlocker-fixture-controls.yml": "870c2f70658f28956aff3cc5519e42088e33dab20931bac1fc234895ffc7aecc",
+    "tests/e2e/lib/fixture-bitlocker.sh": "be9043904f0715c4c6087a6ae6feb0eb04a476d1a3a9875bfbaf3910f661a9ac",
+    "tests/e2e/lib/fixture-optical-media.sh": "1ca8c15768d4f83ee862b1eefa84954f7b3649296dd11ea93d83780a7a1c5493",
+    "tests/e2e/run-e2e.sh": "2fa0ea36d756f2cc33d814b83e21802a09e2c2212a148a7c8706eb8088ab647e",
+    "tests/e2e/verify-optical-detach-receipt.py": "b47fc020b42f52e38e08bfc2a841c0a1a58d330f9f7792c6a93e67e4cf10688f",
+    "tests/e2e/qmp-optical-media.py": "534d2c8c24cba969bfe89419a8d21e4f3c05c31de4afafcf1c08c88eb451de84",
+    "tests/e2e/windows-boot-observation.ps1": "b74a43410e579d013752acf77e181cc14542230904cfd4cfd83eacd74eb31324",
+    "tests/unit/test_fixture_optical_media.py": "ace1b12a72196342d5f3f5cc0f8d0fcc7e82a4699f2a52169122fa355a1b2037",
+    "tests/unit/test_bitlocker_activation_runner.py": "d4d5985806aaa06a85af7716e4dba4940952f53f10a77fa2b187e2c06867b54c",
+    "tests/unit/test_optical_media_control.py": "a774f2acbdaf9232c5c7c1544df44464c6da86eab8b21271db450896b2aec5e6"
+  },
+  "evidenceHashes": {
+    "bitlocker.raw.log": "bcec0d111a471e5ae5e153df16dd5cacb5847707b449f6fe5c58b91aec6f32b0",
+    "guard-mutant.raw.log": "777d82f582c5ba6666e49a0e3b37066df41581d8fe5a76418551242c74471c18",
+    "fixture.raw.log": "e7178df0275c83ea38dc8b0263ac452f79f270169545a94a976a43bbf0d29da7",
+    "optical.raw.log": "b7a68b93b0359e08ec7e39d63da00c545af1bcf24ff02486e0696076db8ddf5c"
+  },
+  "controls": {
+    "fixtureAndBoot": 8,
+    "bitlocker": 12,
+    "optical": 12,
+    "opticalSkipped": 0,
+    "removedGuardMutantActuallyActivates": true
+  },
+  "nativeWindowsQuery": "Unchanged bytes; existing exact PS5.1 component proof retained in 2026-09-27-bitlocker-optical-prerequisite. No new Windows mutation.",
+  "scope": "Mocked production caller and actual paused no-OS QEMU optical controls. No real Windows media removal, TPM activation, GUI Documents or full acceptance success inferred.",
+  "hostedExactGatesComplete": false,
+  "fullAcceptanceDispatched": false,
+  "dispatchReviewRequired": true,
+  "collection": "Private existing activation-before receipts and safe numeric operation diagnostics remain unchanged."
+}
