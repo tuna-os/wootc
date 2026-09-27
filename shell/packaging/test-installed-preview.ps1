@@ -54,7 +54,9 @@ try {
     $null=Invoke-OwnedNative -Executable $download -Arguments @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/NOICONS',"/DIR=$toolDirectory")
     $compiler=Join-Path $toolDirectory 'ISCC.exe'
     $version=[Diagnostics.FileVersionInfo]::GetVersionInfo($compiler)
-    if ($version.FileMajorPart -ne 7 -or $version.FileMinorPart -ne 1 -or $version.FileBuildPart -ne 0) { throw 'Compiler version differs from pinned release' }
+    $compilerVersion=(& $compiler --version | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $compilerVersion -cne '7.1.0') { throw 'Compiler engine version differs from pinned release' }
+    [ordered]@{toolSha256=$toolHash;signer=$signature.SignerCertificate.Subject;peFileVersion=$version.FileVersion;compilerEngineVersion=$compilerVersion} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'compiler-observations.json') -Encoding utf8
     $brandPath=Join-Path $PSScriptRoot "../../app/branding/$BrandId/brand.json"
     $brand=Get-Content -LiteralPath $brandPath -Raw | ConvertFrom-Json
     $null=Invoke-OwnedNative -Executable $compiler -TimeoutSeconds 300 -Arguments @("/DSourceDir=$package","/DOutputDir=$output","/DBrandId=$BrandId","/DProductName=$($brand.productName)","/DPublisher=$($brand.publisher)","/DBuildId=$BuildId",(Join-Path $PSScriptRoot 'preview.iss'))
@@ -89,7 +91,7 @@ try {
     foreach ($path in @($foreignRoot,$foreignBundle)) { if ((Get-FileHash -LiteralPath $path).Hash -cne $foreignHash) { throw 'Preview uninstall changed foreign bytes' } }
     $afterUninstall=StateHashes
     if (($afterStartup | ConvertTo-Json -Compress) -cne ($afterUninstall | ConvertTo-Json -Compress)) { throw 'Preview uninstall changed engine installation state' }
-    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
+    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'packaging-observations.json') -Encoding utf8
     Write-Output "PASS actual $BrandId preview compile/install/brand/startup RPC/uninstall with foreign-file preservation"
 } finally {
