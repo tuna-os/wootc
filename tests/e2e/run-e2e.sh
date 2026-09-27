@@ -458,63 +458,54 @@ $COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.y
 # shellcheck source=tests/e2e/lib/qga-transport.sh
 source "$SCRIPT_DIR/lib/qga-transport.sh"
 wootc_qga_configure "$DOCKER" "$CONTAINER_NAME" /tmp/qga.py
+wootc_qga_boot_configure "$SCRIPT_DIR/windows-boot-receipt.py" || exit 1
 
 qga_wait_windows() {
-    local timeout="$1" elapsed=0 idle_hits=0 cpu
-    step "Waiting for QGA: Windows guest..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if qga_windows_probe; then
-            pass "QGA available: Windows guest"
+    local budget="$1" started deadline remaining pause now cpu idle_hits=0 next_idle_check
+    wootc_qga_valid_timeout "$budget" || { infra_fail "Invalid Windows identity deadline"; return 2; }
+    wootc_phase_boundary
+    step "Waiting for positive Windows identity..."
+    started=$(date +%s)
+    deadline=$((started + budget))
+    next_idle_check=$((started + 900))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        remaining=$((deadline - $(date +%s)))
+        if qga_windows_probe "$remaining"; then
+            pass "Positive Windows identity observed"
             return 0
         fi
-        sleep 10
-        elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m of $((timeout/60))m)"
-        # IDLE-HANG DETECTOR. A Windows Setup parked on a prompt (e.g. the
-        # edition picker with "No images are available" when the answer file's
-        # product key matches no image in the ISO — see #58) burns this ENTIRE
-        # budget while the VM sits near 0% CPU. That cost several 45-90 minute
-        # runs today and was repeatedly misread as "slow runner", which sent us
-        # raising timeouts that could never help. A real install pegs the CPU;
-        # an idle guest is waiting for a human. Detect it, screenshot it, and
-        # fail in minutes with a verdict that names the actual condition.
-        if [ "$elapsed" -ge 900 ] && [ $((elapsed % 300)) -eq 0 ]; then
-            cpu=$($DOCKER exec "$CONTAINER_NAME" sh -c \
-                "ps -eo pcpu,args | grep '[q]emu-system' | head -1 | awk '{print \$1}'" 2>/dev/null | tr -d ' \r\n' || true)
-            if [ -n "$cpu" ] && awk -v c="$cpu" 'BEGIN{exit !(c < 10)}' 2>/dev/null; then
-                idle_hits=$((idle_hits + 1))
-                warn "  guest CPU ${cpu}% — Windows Setup may be waiting for input (${idle_hits}/3)"
-                if [ "$idle_hits" -ge 3 ]; then
-                    fail "Windows Setup appears WEDGED on a prompt: guest idle (<10% CPU) for ~15 min, not installing"
-                    fail "  A real install pegs the CPU. Check the screenshot in the artifacts (see #58)."
-                    # The overwhelmingly common cause is the EDITION PICKER: the
-                    # answer file's key matched several images in this ISO, or
-                    # none. By now Dockur has downloaded the media, so we can
-                    # finally READ what it actually contains and say so —
-                    # turning a 45-minute mystery into a named, actionable fix.
-                    local wedged_iso names
-                    wedged_iso=$(ls -1 "$STORAGE_DIR"/windows.*.iso "$STORAGE_DIR"/custom.iso 2>/dev/null | head -1 || true)
-                    if [ -n "$wedged_iso" ]; then
-                        names=$(list_win_image_names "$wedged_iso" | paste -sd'|' - 2>/dev/null || true)
-                        if [ -n "$names" ]; then
-                            fail "  this ISO contains: $names"
-                            fail "  if Setup is on the edition picker, re-run with"
-                            fail "  WOOTC_E2E_WIN_IMAGE_NAME set to the one you want (#58)."
-                        else
-                            fail "  (could not read the ISO's image list — install wimlib-utils + p7zip to have it named here)"
-                        fi
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        now=$(date +%s)
+        if [ "$now" -ge "$next_idle_check" ]; then
+            next_idle_check=$((now + 300))
+            [ "$remaining" -le 5 ] || remaining=5
+            # Failed process queries cannot contribute plausible CPU stdout.
+            if cpu=$(timeout "$remaining" "$DOCKER" exec "$CONTAINER_NAME" sh -c \
+                'ps -eo pcpu,args' 2>/dev/null); then
+                cpu=$(printf '%s\n' "$cpu" | awk '$2 ~ /qemu-system-/ {count++; value=$1} END {if(count==1) print value; else exit 1}') || cpu=""
+                if [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] && awk -v c="$cpu" 'BEGIN{exit !(c < 10)}'; then
+                    idle_hits=$((idle_hits + 1))
+                    warn "Windows identity unavailable; observed guest CPU ${cpu}% (${idle_hits}/3 samples)"
+                    if [ "$idle_hits" -ge 3 ]; then
+                        infra_fail "Windows identity unavailable with repeated low CPU; startup observation refused"
+                        return 1
                     fi
-                    cache_downloaded_iso "$ISO_CACHE_DIR" "$WINDOWS_ISO_CACHE" "$STORAGE_DIR"
-                    capture_vm_diagnostics
-                    return 1
+                else
+                    idle_hits=0
                 fi
             else
                 idle_hits=0
+                warn "Guest CPU observation failed; Windows identity remains unknown"
             fi
         fi
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        pause=10
+        [ "$remaining" -ge "$pause" ] || pause="$remaining"
+        sleep "$pause"
     done
-    fail "Windows QGA did not become available within $((timeout / 60)) minutes"
+    infra_fail "Windows identity unavailable within the deadline"
     return 1
 }
 
@@ -524,7 +515,7 @@ qga_wait_windows() {
 # password and autologon configuration intact. Never change machine-wide policy.
 # shellcheck source=tests/e2e/lib/gui-session.sh
 source "$SCRIPT_DIR/lib/gui-session.sh"
-wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_wait_reboot
+wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_restart_windows
 
 # Which drive holds the guest's \wootc tree. NOT always C:.
 #
@@ -2043,9 +2034,7 @@ if ($null -ne $ts -and @($ts).Count -gt 0) { Write-Output "TASKS=True" } else { 
     # leftover #264 documented (a stale entry ahead of Windows) is exactly
     # what this reboot would expose.
     step "Uninstall: rebooting to prove Windows boots cleanly with no wootc chain..."
-    qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after uninstall" || true
-    qga_wait_windows 600
+    qga_restart_windows "Windows after uninstall" 600 || return 1
     pass "Uninstall: Windows rebooted cleanly on its own — the machine is restored"
 }
 
@@ -2068,9 +2057,7 @@ recovery_check() {
 
     # 2. Windows reboot test
     step "Recovery Stage 2: Rebooting Windows to verify clean boot without Automatic Repair..."
-    qga_powershell 'cmd.exe /c "shutdown.exe /r /t 1 /f"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after interruption" || true
-    qga_wait_windows 600
+    qga_restart_windows "Windows after interruption" 600 || return 1
     pass "Recovery: Windows booted normally without Automatic Repair"
 
     # 3. Retry test (Idempotency)
@@ -2100,9 +2087,7 @@ recovery_check() {
 
     # 5. Post-uninstall reboot
     step "Recovery Stage 5: Final reboot to verify Windows boots cleanly after uninstall..."
-    qga_powershell 'cmd.exe /c "shutdown.exe /r /t 1 /f"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after recovery uninstall" || true
-    qga_wait_windows 600
+    qga_restart_windows "Windows after recovery uninstall" 600 || return 1
     product_pass recovery-windows "Recovery: Windows booted cleanly after recovery uninstall"
 
     # Retain recovery evidence artifacts
@@ -2345,11 +2330,8 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
         info "  expired fixture password repaired — restarting Windows to retry autologon"
         # Schedule one reboot through the non-retrying QGA path; never replay
         # a side effect across the guest-agent transition (lesson 20).
-        qga_powershell 'shutdown.exe /r /t 5 /f; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }' \
-            || { fail "autologon-restart: could not schedule Windows restart"; capture_vm_diagnostics; exit 1; }
-        qga_wait_reboot "Windows after fixture password expiry repair" \
+        qga_restart_windows "Windows after fixture password expiry repair" 600 \
             || { capture_vm_diagnostics; exit 1; }
-        qga_wait_windows 120 || { capture_vm_diagnostics; exit 1; }
     fi
     gui_wait_interactive_session || { capture_vm_diagnostics; exit 1; }
 
@@ -3280,7 +3262,7 @@ fi
 # Only wait for the Windows return when it is not already up (deploy detected
 # purely from the serial console before the initramfs→Windows reboot settled).
 if ! qga_windows_probe; then
-    qga_wait_reboot "Windows after deployer"
+    qga_wait_windows 600 || exit 1
 fi
 
 # Keep native CLI output and transport errors separate. PowerShell 5.1 can

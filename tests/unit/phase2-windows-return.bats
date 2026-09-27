@@ -202,11 +202,13 @@ observe_with() {
     # actually testing something, not just printing a green line unconditionally.
     run bash -c "
         set -uo pipefail
+        source '$REPO_ROOT/tests/e2e/lib/qga-transport.sh'
+        wootc_phase_boundary() { :; }
         deadline_in() { echo \$(( \$(date +%s) + \$1 )); }
         past_deadline() { [ \"\$(date +%s)\" -ge \"\$1\" ]; }
         step() { :; }
         pass() { :; }
-        fail() { echo 'WOULD-FAIL'; exit 1; }
+        infra_fail() { echo 'WOULD-FAIL'; exit 1; }
         info() { :; }
         qga_windows_probe() { return 1; }
         qga_call() { :; }
