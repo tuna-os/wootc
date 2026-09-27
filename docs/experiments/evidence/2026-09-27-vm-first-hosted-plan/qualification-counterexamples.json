@@ -1,0 +1,38 @@
+[
+  {
+    "case": "mask",
+    "productionExit": 1,
+    "removedAssessmentExit": 0,
+    "productionRefusals": [
+      "outer-cpu-extension-not-explicitly-preserved"
+    ],
+    "scope": "synthetic observations through actual main; mutation proves counterexample sensitivity"
+  },
+  {
+    "case": "nested",
+    "productionExit": 1,
+    "removedAssessmentExit": 0,
+    "productionRefusals": [
+      "host-nesting-not-enabled"
+    ],
+    "scope": "synthetic observations through actual main; mutation proves counterexample sensitivity"
+  },
+  {
+    "case": "kvm",
+    "productionExit": 1,
+    "removedAssessmentExit": 0,
+    "productionRefusals": [
+      "kvm-unusable"
+    ],
+    "scope": "synthetic observations through actual main; mutation proves counterexample sensitivity"
+  },
+  {
+    "case": "capacity",
+    "productionExit": 1,
+    "removedAssessmentExit": 0,
+    "productionRefusals": [
+      "host-storage-capacity"
+    ],
+    "scope": "synthetic observations through actual main; mutation proves counterexample sensitivity"
+  }
+]
