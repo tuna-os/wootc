@@ -1,0 +1,38 @@
+test_command_tampered_serial_or_full_binding_refuses_before_tool_lookup (<run_path>.DiskIdentityTests.test_command_tampered_serial_or_full_binding_refuses_before_tool_lookup) ... FAIL
+
+======================================================================
+FAIL: test_command_tampered_serial_or_full_binding_refuses_before_tool_lookup (<run_path>.DiskIdentityTests.test_command_tampered_serial_or_full_binding_refuses_before_tool_lookup)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_linux_package_disk_identity.py", line 74, in test_command_tampered_serial_or_full_binding_refuses_before_tool_lookup
+    with self.assertRaises(ValueError):LAUNCH['command'](self.folder,record)
+                                       ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp0jkkwrd5/tests/e2e/package-runtime/launch.py", line 139, in command
+    qemu=protected_qemu()
+  File "tests/unit/test_linux_package_disk_identity.py", line 70, in forbidden
+    def forbidden():raise AssertionError('tampered serial reached QEMU lookup')
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: tampered serial reached QEMU lookup
+
+----------------------------------------------------------------------
+Ran 1 test in 0.003s
+
+FAILED (failures=1)
+test_root_partition_or_loop_serial_cannot_replace_actual_disk_identity (<run_path>.DiskIdentityTests.test_root_partition_or_loop_serial_cannot_replace_actual_disk_identity) ... FAIL
+
+======================================================================
+FAIL: test_root_partition_or_loop_serial_cannot_replace_actual_disk_identity (<run_path>.DiskIdentityTests.test_root_partition_or_loop_serial_cannot_replace_actual_disk_identity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_linux_package_disk_identity.py", line 60, in test_root_partition_or_loop_serial_cannot_replace_actual_disk_identity
+    with self.assertRaises(BOOTSTRAP['RootIdentityRefusal']):BOOTSTRAP['root_identity'](wrong,self.serial)
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RootIdentityRefusal not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)
+expected RED command guard removal
+expected RED partition serial override
+original production source hashes unchanged

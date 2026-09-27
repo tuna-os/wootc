@@ -30,6 +30,8 @@ RUN dnf install -y \
 FROM docker.io/library/golang:1.27 AS gobuilder
 COPY fisherman /src/fisherman
 COPY payload/ntfs-state-write /src/ntfs-state-write
+COPY payload/json-check /src/json-check
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /wootc-json-check /src/json-check/main.go
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /wootc-ntfs-state-write /src/ntfs-state-write/main.go /src/ntfs-state-write/security.go
 WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
@@ -37,10 +39,12 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
 # ── Copy fisherman into the initramfs builder ───────────────────────────────
 FROM builder
 COPY --from=gobuilder /fisherman /usr/bin/fisherman
+COPY --from=gobuilder /wootc-json-check /usr/bin/wootc-json-check
 COPY --from=gobuilder /wootc-ntfs-state-write /usr/bin/wootc-ntfs-state-write
 
 # ── Deployer script ─────────────────────────────────────────────────────────
 COPY payload/steps.sh /usr/libexec/wootc-steps.sh
+COPY payload/deployer/offline-bundle.sh /usr/libexec/wootc-offline-bundle.sh
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
 RUN chmod +x /usr/bin/wootc-deploy
 
@@ -91,7 +95,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # image that could not be injected became a FATAL refusal instead of taking
 # the fallback. That is precisely the silent-drop failure this loop exists to
 # catch, so assert it here too.
-RUN for bin in wootc-ntfs-state-write conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
+RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
         mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
         ntfs-3g efibootmgr mokutil \
         df sync truncate journalctl jq tee which basename date head mv; do \

@@ -86,8 +86,12 @@ class HostedTests(unittest.TestCase):
         (self.folder/'serial.log').write_bytes(b'x'*300000)
         (self.folder/'cloud.qcow2').write_bytes(b'private image fixture')
         MODULE['retain'](self.folder,artifacts)
-        self.assertEqual((artifacts/'owned-serial.log').stat().st_size,262144)
-        self.assertTrue((artifacts/'owned-serial.log.truncated').exists())
+        self.assertEqual((artifacts/'owned-serial.log').stat().st_size,300000)
+        self.assertFalse((artifacts/'owned-serial.log.truncated').exists())
+        (self.folder/'process.stdout').write_bytes(b'x'*300000)
+        MODULE['retain'](self.folder,artifacts)
+        self.assertEqual((artifacts/'owned-process.stdout').stat().st_size,262144)
+        self.assertTrue((artifacts/'owned-process.stdout.truncated').exists())
         self.assertFalse((artifacts/'owned-cloud.qcow2').exists())
 
 

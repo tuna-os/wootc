@@ -23,7 +23,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Stage exact sources and run mock-only controls
         shell: powershell
         run: |
