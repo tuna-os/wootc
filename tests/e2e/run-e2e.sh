@@ -522,72 +522,9 @@ qga_wait_windows() {
 # "Your password has expired and must be changed" before any GUI launch (#399).
 # Provision only the configured local autologon fixture account; keep its
 # password and autologon configuration intact. Never change machine-wide policy.
-gui_prepare_account() {
-    local result
-    GUI_ACCOUNT_RESTART=false
-    # shellcheck disable=SC2016 # PowerShell variables are literal.
-    if ! result=$(qga_powershell '
-$ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
-New-Item -ItemType Directory -Force -Path C:\OEM | Out-Null
-$log = "C:\OEM\wootc-e2e.log"
-try {
-    $wl = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-    $name = [string]$wl.DefaultUserName
-    if ($wl.AutoAdminLogon -ne "1" -or $name -notin @("wootc", "Docker")) {
-        throw "autologon fixture account is missing or unexpected"
-    }
-    if ($wl.DefaultDomainName -and $wl.DefaultDomainName -notin @(".", $env:COMPUTERNAME)) {
-        throw "autologon fixture account is not local"
-    }
-    $user = Get-LocalUser -Name $name
-    if (-not $user.Enabled) { throw "autologon fixture account is disabled" }
-    $expired = $null -ne $user.PasswordExpires -and $user.PasswordExpires -le (Get-Date)
-    Add-Content -Path $log -Value "autologon: account=$name passwordExpired=$expired" -Encoding UTF8
-    Set-LocalUser -Name $name -PasswordNeverExpires $true
-    $user = Get-LocalUser -Name $name
-    if ($null -ne $user.PasswordExpires) { throw "fixture password still has an expiry date" }
-    Add-Content -Path $log -Value "autologon: fixture password expiry disabled; credentials unchanged" -Encoding UTF8
-    if ($expired) { Write-Output "autologon-account-ready restart=1" }
-    else { Write-Output "autologon-account-ready restart=0" }
-} catch {
-    Add-Content -Path $log -Value "autologon: provisioning failed: $_" -Encoding UTF8
-    throw
-}' 2>&1); then
-        printf '%s\n' "$result" >&2
-        fail "autologon-provisioning: could not prepare the local GUI fixture account (or write C:\\OEM\\wootc-e2e.log)"
-        return 1
-    fi
-    case "$(printf '%s' "$result" | tr -d '\r')" in
-        'autologon-account-ready restart=1') GUI_ACCOUNT_RESTART=true ;;
-        'autologon-account-ready restart=0') ;;
-        *) fail "autologon-provisioning: guest did not confirm the account policy"; return 1 ;;
-    esac
-}
-
-# Session-0 QGA liveness cannot satisfy schtasks /IT. A failed/empty probe must
-# never be promoted to a desktop, and the deadline must stop launch entirely.
-gui_wait_interactive_session() {
-    local deadline user
-    deadline=$(deadline_in 120)
-    while ! past_deadline "$deadline"; do
-        # shellcheck disable=SC2016 # PowerShell variables are literal.
-        if user=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_powershell '$ErrorActionPreference = "Stop"; $u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output "interactive-user=$u" }' 2>/dev/null); then
-            user=$(printf '%s' "$user" | tr -d '\r')
-            if [[ "$user" == interactive-user=*\\* ]]; then
-                pass "GUI interactive session ready: ${user#interactive-user=}"
-                return 0
-            fi
-        fi
-        sleep 5
-    done
-    # Deliberately not a retryable flake: another copy of the same expired or
-    # misconfigured snapshot cannot fix itself on a second hosted runner.
-    fail "autologon-no-session: no interactive Windows user within 120 s; GUI was not scheduled"
-    # shellcheck disable=SC2016 # PowerShell variables are literal.
-    qga_powershell 'Add-Content -Path C:\OEM\wootc-e2e.log -Value "autologon-no-session: GUI launch blocked" -Encoding UTF8; query user 2>&1' 2>&1 || true
-    return 1
-}
+# shellcheck source=tests/e2e/lib/gui-session.sh
+source "$SCRIPT_DIR/lib/gui-session.sh"
+wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_wait_reboot
 
 # Which drive holds the guest's \wootc tree. NOT always C:.
 #
@@ -2323,57 +2260,6 @@ reset_oem_attempt
 # workaround — a user who follows the app's instruction arrives here too.
 # If a restart does not clear it, say so and leave the app's own refusal as
 # the verdict rather than pretending the machine is ready.
-gui_settle_pending_servicing() {
-    # Stop the update machinery FIRST, or "cleared" does not stay cleared:
-    # el10-gnome-win10pro (run 32556250889) restarted, probed clean
-    # ("Pending servicing cleared by a restart"), launched the GUI — and two
-    # minutes later the app refused with "(servicing)" because Windows
-    # Update had resumed post-reboot and staged fresh work between our probe
-    # and the app's. An E2E VM has no business updating mid-test; disabling
-    # wuauserv/UsoSvc makes the settle below stick. Best-effort per service
-    # (WaaSMedicSvc actively resists), logged, never fatal.
-    qga_powershell 'foreach ($svc in "wuauserv","UsoSvc","WaaSMedicSvc") {
-  try { Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue } catch {}
-  try { Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue } catch {}
-}
-Write-Output "update services stopped"' >/dev/null 2>&1 || true
-    info "    Windows Update services stopped+disabled for the test run (servicing state can no longer re-stage mid-run)"
-    # shellcheck disable=SC2016 # PowerShell variables must remain literal.
-    local probe='$r = @()
-if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") { $r += "servicing" }
-if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired") { $r += "windows-update" }
-Write-Output ($r -join ",")'
-    local pending
-    pending=$(qga_powershell "$probe" 2>/dev/null | tr -d '[:space:]' || true)
-    if [ -z "$pending" ]; then
-        info "    no pending servicing operation — the app's preflight has nothing to refuse"
-        return 0
-    fi
-    info "    Windows is mid-servicing ($pending) — restarting the guest, exactly as the app instructs a user to"
-    qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after the pending-servicing restart"
-    # QGA answers from session 0 well before autologon completes, and the GUI
-    # is launched with `schtasks /IT` — which needs a real interactive session
-    # or it fails with "the system cannot find the file specified", the same
-    # opaque message el10-gnome-win11ent produced. Wait for the logged-on user
-    # to exist, positively, rather than assuming the agent implies a desktop.
-    local logon_deadline
-    logon_deadline=$(deadline_in 300)
-    while ! past_deadline "$logon_deadline"; do
-        # shellcheck disable=SC2016 # PowerShell variable, not a shell one.
-        if [ -n "$(qga_powershell '$u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output $u }' 2>/dev/null | tr -d '[:space:]')" ]; then
-            break
-        fi
-        sleep 10
-    done
-    pending=$(qga_powershell "$probe" 2>/dev/null | tr -d '[:space:]' || true)
-    if [ -n "$pending" ]; then
-        warn "    still mid-servicing after the restart ($pending) — the app will refuse, and it will be right to"
-        return 0
-    fi
-    pass "Pending servicing cleared by a restart — the machine is migration-ready"
-}
-
 # ── GUI-driven Phase 1 (--gui-install) ──────────────────────────────────────
 # Arms the machine through the REAL wootc.exe GUI instead of the OEM
 # setup-wootc.ps1 script: stage the app + artifacts, launch it with a CDP
@@ -2448,7 +2334,7 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
             || warn "    WebView2 still absent after 7m — the GUI will stall on its install prompt"
     fi
 
-    gui_settle_pending_servicing
+    gui_settle_pending_servicing || { capture_vm_diagnostics; exit 1; }
 
     gui_prepare_account || { capture_vm_diagnostics; exit 1; }
     if [ "$GUI_ACCOUNT_RESTART" = true ]; then

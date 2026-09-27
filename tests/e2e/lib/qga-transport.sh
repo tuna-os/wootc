@@ -146,8 +146,10 @@ qga_wait_reboot() {
 
 
 qga_windows_probe() {
-    local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' 2>/dev/null) || return 1
+    local os probe_timeout="${1-5}"
+    wootc_qga_valid_timeout "$probe_timeout" || return 2
+    [ "$probe_timeout" -le 5 ] || probe_timeout=5
+    os=$(WOOTC_QGA_CALL_TIMEOUT="$probe_timeout" qga_powershell '$env:OS' 2>/dev/null) || return 1
     os=$(printf '%s' "$os" | tr -d '\r\n')
     if [[ "$os" == Windows_NT ]]; then
         # A phase observed in the Linux guest cannot describe a Windows action.
