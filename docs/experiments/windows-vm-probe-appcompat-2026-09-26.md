@@ -11,18 +11,28 @@ archive passed its check. The capability response was:
 ```
 
 The first probe launched QEMU with its current directory set to
-`C:\wootc\qemu`. Windows created `cversions.2.db` and two companion
-compatibility-cache files in a literal `%SystemDrive%\ProgramData` path under
-that directory. Those files were absent from the signed runtime manifest. On a
+`C:\wootc\qemu`. Windows created `cversions.2.db` and two other app cache files
+under a folder named `%SystemDrive%\ProgramData`. Those files were absent from the signed runtime manifest. On a
 subsequent app start, the installer-state trust scan also rejected the
-user-writable cache file. The manifest and trust checks behaved correctly; the
-probe polluted the immutable runtime.
+user-writable cache file. The manifest and trust checks worked; the probe
+changed the signed runtime.
 
 The probe now runs from its private `.probe-*` folder under the disposable
 preview directory. QEMU and its DLLs stay in the signed `qemu` bundle. The
 probe removes the folder when it exits. A regression test asserts that QEMU
 starts outside the runtime folder.
 
-The test found one way to change the signed runtime. Rebuild the Windows app
-and repeat the visible first-launch test before you call VM-first ready on
+This trial shows that the probe can change the signed runtime. Rebuild the
+Windows app and repeat the visible first-launch test before you call VM-first
+ready on Windows.
+
+## Retest outcome
+
+The first rebuilt app lacked the public key that signed the test runtime. It
+refused the runtime before the probe. I recovered the old app's public key and
+checked the runtime signature on the build host.
+
+The KubeVirt log then reported a guest-agent shutdown event. Its VMI stayed
+ready, but Windows did not reconnect QGA after a restart. I stopped the VMI
+after 20 minutes and kept its PVC. This run did not confirm the probe fix on
 Windows.
