@@ -7,6 +7,7 @@ namespace Wootc.Shell.Native;
 internal sealed class NativeDiagnosticState
 {
     private string? primaryRpcFailure;
+    private string? primaryStartupFailure;
     private readonly object gate = new();
 
     internal string Project(string stage, Exception? error, Process? engine)
@@ -18,12 +19,15 @@ internal sealed class NativeDiagnosticState
         {
             if (error is not null && stage.StartsWith("rpc-", StringComparison.Ordinal))
                 primaryRpcFailure ??= $"{stage}; {failure}";
-            return $"Stage:{stage}; {failure}; Engine:{process}; PrimaryRpc:{primaryRpcFailure ?? "none"}";
+            if (error is not null && stage.StartsWith("startup-", StringComparison.Ordinal))
+                primaryStartupFailure ??= $"{stage}; {failure}";
+            return $"Stage:{stage}; {failure}; Engine:{process}; PrimaryRpc:{primaryRpcFailure ?? "none"}; PrimaryStartup:{primaryStartupFailure ?? "none"}";
         }
     }
 
     private static string SafeStage(string stage) => stage switch
     {
+        "startup-selection" or "startup-application" or "startup-dispatcher" or
         "package" or "launch" or "pipe-open" or "peer" or "hello-ready" or "authenticated" or
         "cleanup-pending" or "cleanup-exited" or "session-cleanup-wait" or
         "session-cleanup-pending" or "session-cleanup-exited" or

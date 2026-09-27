@@ -67,9 +67,10 @@ public sealed class StartupWindowTests
         string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "wootc-native-rpc-test-" + Guid.NewGuid().ToString("N"));
         Assert.False(Directory.Exists(root));
         string stateRoot = Path.Combine(Path.GetPathRoot(root)!, "wootc");
-        Assert.False(File.Exists(Path.Combine(stateRoot, "disks", "root.disk")));
+        Assert.False(Directory.Exists(stateRoot), "Hosted startup fixture must begin without an installer root");
         string[] BeforeState() => Directory.Exists(stateRoot) ? Directory.GetFiles(stateRoot, "*", SearchOption.AllDirectories).Order().ToArray() : Array.Empty<string>();
         var before = BeforeState();
+        string volumeAcl = new DirectoryInfo(Path.GetPathRoot(stateRoot)!).GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.All);
         string observations = Path.Combine(Path.GetDirectoryName(published)!, "..", "native-startup-state-observations.json");
         File.WriteAllBytes(observations, JsonSerializer.SerializeToUtf8Bytes(new { buildId, before, phase = "Before authenticated engine launch" }));
         var security = new DirectorySecurity();
@@ -128,6 +129,19 @@ public sealed class StartupWindowTests
                 if (!process.HasExited) { process.CloseMainWindow(); if (!process.WaitForExit(5000)) { process.Kill(); process.WaitForExit(5000); } }
             }
             Assert.False(File.Exists(Path.Combine(stateRoot, "disks", "root.disk")));
+            Assert.False(Directory.Exists(stateRoot), "Read-only startup and three reads created an installer root");
+            Assert.Equal(before, BeforeState());
+            Assert.Equal(volumeAcl, new DirectoryInfo(Path.GetPathRoot(stateRoot)!).GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.All));
+            // Only this later malformed-record fixture owns the fresh root.
+            var stateSecurity = new DirectorySecurity();
+            stateSecurity.SetAccessRuleProtection(true, false);
+            stateSecurity.SetOwner(new SecurityIdentifier("S-1-5-32-544"));
+            foreach (string sid in new[] { "S-1-5-18", "S-1-5-32-544" }) stateSecurity.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid), FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+            new DirectoryInfo(stateRoot).Create(stateSecurity);
+            string marker = Path.Combine(stateRoot, "public-readonly-marker.txt");
+            File.WriteAllText(marker, "preserve public marker");
+            byte[] markerHash = SHA256.HashData(File.ReadAllBytes(marker));
+            string stateAcl = new DirectoryInfo(stateRoot).GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.All);
             string lifecyclePath = Path.Combine(stateRoot, "state.json");
             string recoveryPath = Path.Combine(stateRoot, "install", "recovery-verdict.json");
             Assert.False(File.Exists(lifecyclePath));
@@ -143,12 +157,20 @@ public sealed class StartupWindowTests
                 try { await ObserveUnavailableWithoutRoute(Path.Combine(root, "Wootc.Shell.exe")); }
                 finally
                 {
+                    Assert.Equal(markerHash, SHA256.HashData(File.ReadAllBytes(marker)));
+                    Assert.Equal(stateAcl, new DirectoryInfo(stateRoot).GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.All));
                     Assert.Equal(state, File.ReadAllText(lifecyclePath));
                     File.Delete(lifecyclePath);
                     if (malformedRecovery) { Assert.Equal("{}", File.ReadAllText(recoveryPath)); File.Delete(recoveryPath); }
                 }
             }
-            File.WriteAllBytes(observations, JsonSerializer.SerializeToUtf8Bytes(new { buildId, before, after = BeforeState(), scope = "Disposable hosted Windows; actual same-user elevated startup RPC; no interactive UAC or installation" }));
+            Assert.Equal(markerHash, SHA256.HashData(File.ReadAllBytes(marker)));
+            File.Delete(marker);
+            string installDirectory = Path.Combine(stateRoot, "install");
+            if (Directory.Exists(installDirectory)) Directory.Delete(installDirectory, recursive:false);
+            Directory.Delete(stateRoot, recursive:false);
+            Assert.False(Directory.Exists(stateRoot));
+            File.WriteAllBytes(observations, JsonSerializer.SerializeToUtf8Bytes(new { buildId, before, after = BeforeState(), readOnlyStartupRootAbsent=true, volumeAclUnchanged=true, malformedRecordsAndAclUnchanged=true, scope = "Disposable hosted Windows; actual same-user elevated startup RPC; no interactive UAC or installation" }));
         }
         finally { Directory.Delete(root, recursive: true); }
     }

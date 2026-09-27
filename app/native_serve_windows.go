@@ -5,7 +5,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -94,7 +93,8 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 	}
 	rawOwned = false
 	defer connection.Close()
-	if err := connection.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+	handshakeDeadline := time.Now().Add(10 * time.Second)
+	if err := connection.SetDeadline(handshakeDeadline); err != nil {
 		return fmt.Errorf("native handshake requires bounded pipe IO: %w", err)
 	}
 	reader := bufio.NewReaderSize(connection, nativeHandshakeLimit)
@@ -108,17 +108,42 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 	if err := verifyNativePipeClient(pipe, source); err != nil {
 		return err
 	}
-	// Bind lifecycle/recovery reads to the uniquely trusted attempted install.
-	// Competing, malformed or unsafe attempts cannot become a guessed route.
-	if _, _, err := readStatusState(); err != nil {
-		return fmt.Errorf("native startup installation discovery: %w", err)
-	}
-	// Neither launch arguments nor hello claims have reached installer state.
-	if err := initializeStateTrust(); err != nil {
-		return fmt.Errorf("native engine state trust: %w", err)
-	}
-	hello.Kind = "ready"
-	if err := json.NewEncoder(connection).Encode(hello); err != nil {
+	// All preparation runs within the existing handshake deadline. Selection
+	// audits only; it never creates roots, changes ACLs, or starts file logging.
+	startupCtx, cancelStartup := context.WithDeadline(ctx, handshakeDeadline)
+	defer cancelStartup()
+	app := NewApp()
+	syncWriter := &synchronizedWriter{out: connection}
+	var dispatcher *Server
+	var selectedRoot string
+	var selectedFound bool
+	err = prepareNativeAssessment(startupCtx, hello, connection, func(readCtx context.Context) (bool, error) {
+		_, root, found, err := selectWindowsStatusState(readCtx, true)
+		if err == nil {
+			selectedRoot, selectedFound = root, found
+		}
+		return found, err
+	}, func(found bool) error {
+		if found {
+			setStorageDrive(filepath.VolumeName(selectedRoot)[:1])
+		}
+		app.ctx = ctx
+		app.SetEmitter(newStdioEmitter(syncWriter))
+		app.setStatus(InstallStatus{Existing: found})
+		return nil
+	}, func() error {
+		dispatcher = NewAssessmentServer(app, syncWriter)
+		dispatcher.strictStartup = true
+		dispatcher.startupValidate = func(readCtx context.Context) error {
+			_, root, currentFound, err := selectWindowsStatusState(readCtx, true)
+			if err != nil || currentFound != selectedFound || root != selectedRoot {
+				return fmt.Errorf("native installation observation changed")
+			}
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 	if err := connection.SetDeadline(time.Time{}); err != nil {
@@ -143,8 +168,6 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 			}
 		}
 	}()
-	initServeLogging()
-	app := NewApp()
-	app.startup(runCtx)
-	return serveRPC(runCtx, app, reader, connection, true)
+	app.ctx = runCtx
+	return servePreparedRPC(runCtx, app, reader, syncWriter, dispatcher)
 }

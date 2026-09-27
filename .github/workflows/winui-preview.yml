@@ -10,6 +10,8 @@ on:
       - 'app/native_handshake*'
       - 'app/native_package*'
       - 'app/native_serve*'
+      - 'app/native_readiness*'
+      - 'app/native_audit*'
       - 'app/main.go'
       - 'app/status_location*'
       - 'app/tools/gendto/**'
@@ -132,7 +134,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force frontend/dist | Out-Null
           Set-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'
-          go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
+          go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve|Assessment|Audit)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
 
   preview-packaging:
     name: Branded preview package (${{ matrix.brand }})

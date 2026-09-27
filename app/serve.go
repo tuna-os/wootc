@@ -181,12 +181,13 @@ func unmarshalStringParam(raw json.RawMessage, target *string) error {
 // ── JSON-RPC 2.0 Server ─────────────────────────────────────────────────────
 
 type Server struct {
-	strictStartup  bool
-	assessmentOnly bool
-	app            *App
-	writer         *synchronizedWriter
-	mu             sync.Mutex
-	shutdown       bool
+	strictStartup   bool
+	startupValidate func(context.Context) error
+	assessmentOnly  bool
+	app             *App
+	writer          *synchronizedWriter
+	mu              sync.Mutex
+	shutdown        bool
 }
 
 func NewServer(app *App, writer *synchronizedWriter) *Server {
@@ -265,6 +266,12 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return nil, nil
 
 	case "GetStatus":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+
 		return s.app.GetStatus(), nil
 
 	case "DefragDrive":
@@ -302,26 +309,39 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return nil, nil
 
 	case "GetLastRun":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
 		if s.strictStartup {
-			if err := auditTrustedStateDirectory(wootcDir()); err != nil {
-				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
 			}
 			state, err := readNativeStartupLifecycle(wootcDir())
 			if err != nil {
-				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native lifecycle observation refused"}
 			}
 			return state, nil
 		}
 		return s.app.GetLastRun(), nil
-
 	case "GetRecoveryVerdict":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
 		if s.strictStartup {
-			if err := auditTrustedStateDirectory(wootcDir()); err != nil {
-				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
 			}
 			verdict, err := readNativeStartupRecovery(wootcDir())
 			if err != nil {
-				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native recovery observation refused"}
 			}
 			return verdict, nil
 		}
@@ -363,7 +383,10 @@ func serveRPC(ctx context.Context, app *App, in io.Reader, out io.Writer, strict
 
 	srv := NewServer(app, syncWriter)
 	srv.strictStartup = strictStartup
+	return servePreparedRPC(ctx, app, in, syncWriter, srv)
+}
 
+func servePreparedRPC(ctx context.Context, app *App, in io.Reader, syncWriter *synchronizedWriter, srv *Server) error {
 	scanner := bufio.NewScanner(in)
 	buf := make([]byte, 1024*1024)
 	scanner.Buffer(buf, 10*1024*1024)

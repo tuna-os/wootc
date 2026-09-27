@@ -76,8 +76,7 @@ public sealed class NativeEngineConnector : IEngineConnector
             var hello = new NativeProtocol.Handshake { Kind = "hello", ProtocolVersion = 1, Session = request.SessionId, BuildId = package.Manifest.BuildId, BrandId = package.Manifest.BrandId };
             byte[] encoded = JsonSerializer.SerializeToUtf8Bytes(hello);
             await pipe.WriteAsync(encoded, deadline.Token); await pipe.WriteAsync(new byte[] { (byte)'\n' }, deadline.Token); await pipe.FlushAsync(deadline.Token);
-            byte[] line = await NativeEngineSession.ReadLineAsync(pipe, 16384, deadline.Token);
-            NativeProtocol.ValidateReady(line, hello);
+            await NativeProtocol.ReadStartupAsync(pipe, hello, phase => { stage = phase; Observe(stage, engine: engine); }, deadline.Token);
             WindowsPeer.VerifyPipeServer(pipe.SafePipeHandle, engine, source, package.EnginePath);
             Observe("authenticated", engine: engine);
             return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine)));
