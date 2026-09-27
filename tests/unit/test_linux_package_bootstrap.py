@@ -27,9 +27,10 @@ class BootstrapTests(unittest.TestCase):
         (self.seed/'bootstrap.py').write_bytes((ROOT/'tests/e2e/package-runtime/bootstrap.py').read_bytes())
         (self.seed/'package-consumer.py').write_text('fixture-only source')
         (self.seed/'readback.py').write_text('fixture-only source')
+        (self.seed/'advance.py').write_text('fixture-only source')
         self.manifest={'schemaVersion':1,'scratchId':'a'*32,'challenge':'b'*64,'vmUuid':BOOT,
                        'baselineSha256':MODULE['canonical_inventory'](self.before),
-                       'helperHashes':{name:MODULE['sha'](self.seed/name) for name in ('bootstrap.py','package-consumer.py','packages.json','readback.py')}}
+                       'helperHashes':{name:MODULE['sha'](self.seed/name) for name in ('bootstrap.py','package-consumer.py','packages.json','readback.py','advance.py')}}
         self.save()
         self.consume_error=False;self.false_result=False
         def inventory(*args):return copy.deepcopy(self.state)
@@ -44,7 +45,8 @@ class BootstrapTests(unittest.TestCase):
 
     def run_producer(self,boot=lambda:BOOT):
         return MODULE['run'](self.seed,self.workspace,self.events.append,boot,
-                            lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64})
+                            lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},
+                            advance_wait=lambda *args:None)
 
     def test_actual_producer_reports_complete_same_boot_sequence(self):
         result=self.run_producer()
@@ -91,6 +93,33 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(self.operations,['old'])
         self.assertEqual([event['stage'] for event in self.events],['baseline-observed'])
         self.assertFalse((self.workspace/'result.json').exists())
+
+
+    def test_no_old_approval_deadline_prevents_new_install(self):
+        def waiter(workspace,common,observe_boot):
+            return MODULE['wait_advance'](workspace,common,observe_boot,.02)
+        with self.assertRaises(TimeoutError):
+            MODULE['run'](self.seed,self.workspace,self.events.append,lambda:BOOT,
+                          lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},advance_wait=waiter)
+        self.assertEqual(self.operations,['old'])
+        self.assertEqual([event['stage'] for event in self.events],['baseline-observed','old-installed'])
+        self.assertFalse((self.workspace/'result.json').exists())
+
+    def test_actual_phase_acknowledgement_identity_and_freshness(self):
+        self.workspace.mkdir()
+        common=dict(scratchId='a'*32,challenge='b'*64,bootId=BOOT,seedSha256='c'*64)
+        value=dict(common,validatedPhase='old',readbackChallenge='d'*64,approvedReadbackSha256='e'*64)
+        MODULE['atomic_result'](self.workspace,'advance-old.json',value)
+        self.assertEqual(MODULE['wait_advance'](self.workspace,common,lambda:BOOT,.1),value)
+        for field,replacement in [('seedSha256','f'*64),('readbackChallenge','b'*64),('approvedReadbackSha256','bad')]:
+            wrong=dict(value);wrong[field]=replacement
+            MODULE['atomic_result'](self.workspace,'advance-old.json',wrong)
+            with self.assertRaises(ValueError):MODULE['wait_advance'](self.workspace,common,lambda:BOOT,.1)
+
+    def test_changed_boot_during_old_handshake_refuses(self):
+        self.workspace.mkdir()
+        with self.assertRaisesRegex(ValueError,'boot changed'):
+            MODULE['wait_advance'](self.workspace,{'bootId':BOOT},lambda:'foreign',.1)
 
 
 if __name__=='__main__':unittest.main()

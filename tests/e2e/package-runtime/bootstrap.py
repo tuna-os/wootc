@@ -11,6 +11,7 @@ import stat
 import struct
 import subprocess
 import tempfile
+import time
 
 PREFIX = 'WOOTC_PACKAGE_RUNTIME_V1 '
 
@@ -30,8 +31,38 @@ def canonical_inventory(value):
     return hashlib.sha256((json.dumps(value,sort_keys=True,separators=(',',':'))+'\n').encode()).hexdigest()
 
 
+def atomic_result(workspace,name,data):
+    with tempfile.NamedTemporaryFile(dir=workspace,delete=False) as stream:
+        stream.write((json.dumps(data,sort_keys=True)+'\n').encode());stream.flush();os.fsync(stream.fileno())
+        temporary=Path(stream.name)
+    temporary.chmod(0o600);temporary.replace(workspace/name)
+    descriptor=os.open(workspace,os.O_RDONLY|os.O_DIRECTORY)
+    try:os.fsync(descriptor)
+    finally:os.close(descriptor)
+
+
+def wait_advance(workspace,common,observe_boot=boot_id,seconds=300):
+    deadline=time.monotonic()+seconds
+    path=Path(workspace)/'advance-old.json'
+    while time.monotonic()<deadline:
+        if observe_boot()!=common['bootId']:raise ValueError('boot changed during phase handshake')
+        if path.exists():
+            if path.is_symlink() or path.stat().st_size>4096:raise ValueError('invalid phase acknowledgement file')
+            value=json.loads(path.read_text())
+            for name in ('scratchId','challenge','bootId','seedSha256'):
+                if value.get(name)!=common[name]:raise ValueError('phase acknowledgement identity differs')
+            if (value.get('validatedPhase')!='old' or
+                    not re.fullmatch('[0-9a-f]{64}',value.get('readbackChallenge','')) or
+                    value['readbackChallenge']==common['challenge'] or
+                    not re.fullmatch('[0-9a-f]{64}',value.get('approvedReadbackSha256',''))):
+                raise ValueError('independent approved old phase acknowledgement required')
+            return value
+        time.sleep(min(.1,max(0,deadline-time.monotonic())))
+    raise TimeoutError('old phase independent observation acknowledgement deadline expired')
+
+
 def run(seed, workspace, emit, observe_boot=boot_id, read_module=runpy.run_path,
-        environment=None):
+        environment=None,advance_wait=None):
     """Injected boundaries exist for native tests; CLI always uses real guest reads."""
     seed, workspace = Path(seed), Path(workspace)
     manifest = json.loads((seed/'manifest.json').read_text())
@@ -41,7 +72,7 @@ def run(seed, workspace, emit, observe_boot=boot_id, read_module=runpy.run_path,
             not re.fullmatch('[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',manifest.get('vmUuid',''))):
         raise ValueError('incomplete fresh guest manifest')
     hashes = manifest['helperHashes']
-    required = {'bootstrap.py','package-consumer.py','packages.json','readback.py'}
+    required = {'bootstrap.py','package-consumer.py','packages.json','readback.py','advance.py'}
     if set(hashes) != required or any(not re.fullmatch('[0-9a-f]{64}',value) for value in hashes.values()):
         raise ValueError('complete helper closure required')
     if sha(__file__) != hashes['bootstrap.py']:
@@ -77,6 +108,7 @@ def run(seed, workspace, emit, observe_boot=boot_id, read_module=runpy.run_path,
         if observe_boot()!=initial_boot: raise ValueError('boot changed across package operation')
         data = dict(common,stage=stage,inventory=inventory,inventorySha256=canonical_inventory(inventory),
                     exitStatus=status)
+        atomic_result(workspace,'phase-result.json',data)
         emit(data)
         return data
     publication('baseline-observed',actual,0)
@@ -111,16 +143,13 @@ def run(seed, workspace, emit, observe_boot=boot_id, read_module=runpy.run_path,
         if observed!=policy['phases'][phase]['afterInventory']:
             raise ValueError('actual post-phase inventory differs')
         publication(phase+'-installed',observed,0)
+        if phase=='old':
+            waiter=wait_advance if advance_wait is None else advance_wait
+            waiter(workspace,common,observe_boot)
     result = dict(common,stage='complete',inventory=observed,
                   inventorySha256=canonical_inventory(observed),exitStatus=0)
     if observe_boot()!=initial_boot: raise ValueError('boot changed before final publication')
-    with tempfile.NamedTemporaryFile(dir=workspace,delete=False) as stream:
-        stream.write((json.dumps(result,sort_keys=True)+'\n').encode());stream.flush();os.fsync(stream.fileno())
-        temporary = Path(stream.name)
-    temporary.chmod(0o600);temporary.replace(workspace/'result.json')
-    descriptor=os.open(workspace,os.O_RDONLY|os.O_DIRECTORY)
-    try:os.fsync(descriptor)
-    finally:os.close(descriptor)
+    atomic_result(workspace,'result.json',result)
     emit(result)
     return result
 

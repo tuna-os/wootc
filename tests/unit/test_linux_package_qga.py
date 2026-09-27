@@ -60,7 +60,7 @@ class QgaTests(unittest.TestCase):
         self.assertEqual(self.execute(),{'fixtureGuestReply':True})
         request=next(value for value in self.requests if value['execute']=='guest-exec')
         self.assertEqual(request['arguments']['path'],'/usr/bin/python3')
-        self.assertEqual(request['arguments']['arg'][-1],'b'*64)
+        self.assertIn('b'*64,request['arguments']['arg'])
         self.assertIn('/run/wootc-package-seed/readback.py',request['arguments']['arg'])
 
     def test_failed_guest_status_with_plausible_stdout_refuses(self):

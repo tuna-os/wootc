@@ -137,14 +137,8 @@ def command(folder,record):
             '-device','virtserialport,chardev=qga,name=org.qemu.guest_agent.0']
 
 
-def launch(folder,readback):
-    folder,record=checked(folder)
-    facts=qualify(folder)
-    required=2*(folder/'base.qcow2').stat().st_size+3*record['actualVirtualBytes']+4*22012320+64*1024**2+2*1024**3
-    if facts['freeBytes']<required:raise ValueError('actual scratch capacity below runtime formula')
-    record['measuredHost']=facts;record['runtimeExecuted']=True
-    (folder/'ownership.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
-    serial=folder/'serial.log'
+def make_observer(folder,record,readback,acknowledge):
+    folder=Path(folder);serial=folder/'serial.log';state={'oldVerified':False}
     def observe(child,remaining):
         for path,limit in ((serial,262144),(folder/'overlay.qcow2',record['actualVirtualBytes']+512*1024**2),
                            (folder/'process.stdout',262144),(folder/'process.stderr',262144)):
@@ -153,20 +147,51 @@ def launch(folder,readback):
         if not serial.exists():return None
         with serial.open('rb') as stream:raw=stream.read(262145)
         if len(raw)>262144:raise ValueError('serial read exceeds quota')
+        # The live writer may be halfway through its final line. Only a complete
+        # newline-terminated record can become an observation.
+        raw=raw[:raw.rfind(b'\n')+1]
         text=raw.decode('utf-8',errors='strict')
-        # A partial boot is neither a success nor a reason to replay installation.
-        if len([line for line in text.splitlines() if line.startswith('WOOTC_PACKAGE_RUNTIME_V1 ')])<4:return None
+        lines=[line for line in text.splitlines() if line.startswith('WOOTC_PACKAGE_RUNTIME_V1 ')]
+        if not state['oldVerified']:
+            if len(lines)<2:return None
+            COMPARE(text,record,through='old')
+            owned_qga_socket(child,folder)
+            record['readbackChallenge']=os.urandom(32).hex()
+            deadline=time.monotonic()+remaining
+            current=readback(folder,record,max(.01,deadline-time.monotonic()),'old')
+            COMPARE(text,record,current,through='old')
+            approved=hashlib.sha256(json.dumps(current,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+            ack=acknowledge(folder,record,approved,max(.01,deadline-time.monotonic()))
+            expected={name:current['result'][name] for name in ('scratchId','challenge','bootId','seedSha256')}
+            expected.update(validatedPhase='old',readbackChallenge=record['readbackChallenge'],approvedReadbackSha256=approved)
+            if ack!=expected:raise ValueError('old phase acknowledgement differs from independent approval')
+            (folder/'old-phase-readback.json').write_text(json.dumps(current,sort_keys=True)+'\n')
+            (folder/'old-phase-advance.json').write_text(json.dumps(ack,sort_keys=True)+'\n')
+            state['oldVerified']=True
+            return None
+        if len(lines)<4:return None
         COMPARE(text,record)
         owned_qga_socket(child,folder)
         record['readbackChallenge']=os.urandom(32).hex()
-        current=readback(folder,record,remaining)
+        current=readback(folder,record,remaining,'new')
         return COMPARE(text,record,current)
+    return observe
+
+
+def launch(folder,readback,acknowledge):
+    folder,record=checked(folder)
+    facts=qualify(folder)
+    required=2*(folder/'base.qcow2').stat().st_size+3*record['actualVirtualBytes']+4*22012320+64*1024**2+2*1024**3
+    if facts['freeBytes']<required:raise ValueError('actual scratch capacity below runtime formula')
+    record['measuredHost']=facts;record['runtimeExecuted']=True
+    (folder/'ownership.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
+    observe=make_observer(folder,record,readback,acknowledge)
     result=run_owned(command(folder,record),folder,observe)
     (folder/'accepted.json').write_text(json.dumps(result,sort_keys=True)+'\n')
     return result
 
 
-def readback(folder,record,remaining):
+def readback(folder,record,remaining,phase='new'):
     socket=folder/'qga.sock';info=socket.lstat()
     if not stat.S_ISSOCK(info.st_mode) or info.st_uid!=os.getuid():
         raise ValueError('QGA path is not owned actual socket')
@@ -174,7 +199,16 @@ def readback(folder,record,remaining):
         if sha(folder/name)!=expected:raise ValueError('host readback closure changed')
     consumer=runpy.run_path(str(ROOT/'tests/e2e/esp-chain/package-consumer.py'))
     response=consumer['execute'](['/usr/bin/python3',str(folder/'qga-readback.py'),str(socket),
-        record['readbackChallenge'],str(max(.01,remaining))],timeout=remaining,capture_output=True)
+        record['readbackChallenge'],str(max(.01,min(30,remaining))),'--phase',phase],timeout=min(30,remaining),capture_output=True)
+    return json.loads(response.stdout)
+
+def acknowledge(folder,record,approved,remaining):
+    for name,expected in record['hostHelperHashes'].items():
+        if sha(folder/name)!=expected:raise ValueError('host acknowledgement closure changed')
+    consumer=runpy.run_path(str(ROOT/'tests/e2e/esp-chain/package-consumer.py'))
+    response=consumer['execute'](['/usr/bin/python3',str(folder/'qga-readback.py'),str(folder/'qga.sock'),
+        record['readbackChallenge'],str(max(.01,min(30,remaining))),'--approved',approved],
+        timeout=min(30,remaining),capture_output=True)
     return json.loads(response.stdout)
 
 
@@ -184,4 +218,4 @@ if __name__=='__main__':
     if not args.execute:
         folder,record=checked(args.scratch)
         print(json.dumps({'inputsMatch':True,'executionRequested':False,'firmwareAcceptance':False}))
-    else:print(json.dumps(launch(args.scratch,readback),sort_keys=True))
+    else:print(json.dumps(launch(args.scratch,readback,acknowledge),sort_keys=True))

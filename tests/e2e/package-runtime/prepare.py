@@ -61,9 +61,10 @@ def prepare(inputs,scratch,run=subprocess.run):
     for name,value in wanted.items():freeze(inputs/name,seed/name,value)
     for name,source_path in {'bootstrap.py':Path(__file__).with_name('bootstrap.py'),
                              'readback.py':Path(__file__).with_name('readback.py'),
+                             'advance.py':Path(__file__).with_name('advance.py'),
                              'package-consumer.py':ROOT/'tests/e2e/esp-chain/package-consumer.py'}.items():
         freeze(source_path,seed/name,sha(source_path))
-    hashes={name:sha(seed/name) for name in ('bootstrap.py','readback.py','package-consumer.py','packages.json')}
+    hashes={name:sha(seed/name) for name in ('bootstrap.py','readback.py','advance.py','package-consumer.py','packages.json')}
     before=policy['phases']['old']['beforeInventory']
     baseline_sha=hashlib.sha256((json.dumps(before,sort_keys=True,separators=(',',':'))+'\n').encode()).hexdigest()
     manifest={'schemaVersion':1,'scratchId':scratch_id,'vmUuid':vm_uuid,'challenge':challenge,

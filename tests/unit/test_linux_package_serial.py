@@ -16,14 +16,14 @@ class SerialTests(unittest.TestCase):
         old={'fixture':{'version':'2','architecture':'all'}}
         new={'fixture':{'version':'3','architecture':'all'}}
         self.plan={'scratchId':'a'*32,'challenge':'b'*64,'seedSha256':'c'*64,
-                   'helperHashes':{'bootstrap.py':'d'*64,'package-consumer.py':'d'*64,'packages.json':'e'*64,'readback.py':'f'*64},'policySha256':'e'*64,
+                   'helperHashes':{'bootstrap.py':'d'*64,'package-consumer.py':'d'*64,'packages.json':'e'*64,'readback.py':'f'*64,'advance.py':'a'*64},'policySha256':'e'*64,
                    'readbackChallenge':'9'*64,'qgaReadbackSourceSha256':'f'*64,'policy':{'phases':{'old':{'beforeInventory':before,'afterInventory':old},'new':{'afterInventory':new}}}}
         self.records=[]
         for stage,inventory in zip(MODULE['STAGES'],[before,old,new,new]):
             self.records.append(dict(schemaVersion=1,exitStatus=0,bootId=BOOT,stage=stage,inventory=inventory,
                 inventorySha256=MODULE['inventory_digest'](inventory),**{k:self.plan[k] for k in ('scratchId','challenge','seedSha256','helperHashes','policySha256')}))
         self.qga={'os':'Linux','bootId':BOOT,'challenge':self.plan['readbackChallenge'],'currentInventory':new,
-                  'result':copy.deepcopy(self.records[-1]),'sourceSha256':'f'*64,'exitStatus':0}
+                  'result':copy.deepcopy(self.records[-1]),'sourceSha256':'f'*64,'seedSha256':'c'*64,'exitStatus':0}
 
     def serial(self):return '\n'.join(MODULE['PREFIX']+json.dumps(value) for value in self.records)
 
@@ -51,7 +51,7 @@ class SerialTests(unittest.TestCase):
                 with self.assertRaises(ValueError):MODULE['validate'](self.serial(),self.plan,self.qga)
 
     def test_cached_or_failed_qga_refuses(self):
-        for name,value in (('bootId','ffffffff-1234-1234-1234-123456789abc'),('challenge','0'*64),('exitStatus',1),('exitStatus',False),('os','Windows_NT'),('currentInventory',{}),('sourceSha256','0'*64),('result',{})):
+        for name,value in (('bootId','ffffffff-1234-1234-1234-123456789abc'),('challenge','0'*64),('exitStatus',1),('exitStatus',False),('os','Windows_NT'),('currentInventory',{}),('sourceSha256','0'*64),('seedSha256','0'*64),('result',{})):
             observed=copy.deepcopy(self.qga);observed[name]=value
             with self.subTest(name=name):
                 with self.assertRaises(ValueError):MODULE['validate'](self.serial(),self.plan,observed)
