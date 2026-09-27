@@ -1,0 +1,58 @@
+name: Lint
+
+# One job preserves both former lint scopes, including PRs with a stacked base.
+# Keep the existing required status name so branch protection can still gate it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: lint (shellcheck + yamllint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: ShellCheck
+        run: |
+          shellcheck --severity=warning \
+            payload/deployer/*.sh \
+            platform/dracut/99wootc-boot/*.sh \
+            tests/e2e/run-e2e.sh
+
+      - name: ShellCheck migration scripts
+        run: |
+          shellcheck --severity=error \
+            payload/migration/wootc-go-native \
+            payload/migration/wootc-wifi-bridge \
+            payload/migration/wootc-wsl-bridge \
+            payload/migration/wootc-apply-look
+
+      - name: yamllint
+        run: |
+          pip install --break-system-packages yamllint
+          yamllint tests/e2e/compose.yml
+
+      - name: Validate autounattend.xml
+        run: |
+          pip install --break-system-packages xmlschema
+          python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('tests/e2e/autounattend.xml')
+          print('XML is well-formed')
+          root = tree.getroot()
+          assert root.tag == '{urn:schemas-microsoft-com:unattend}unattend'
+          print('Root element is unattend')
+          "
+
