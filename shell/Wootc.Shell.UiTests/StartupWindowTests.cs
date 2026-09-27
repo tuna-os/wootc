@@ -8,7 +8,7 @@ namespace Wootc.Shell.UiTests;
 public sealed class StartupWindowTests
 {
     [Fact]
-    public void ActualPreviewShowsLocalBrandBeforeEngineConnection()
+    public async Task ActualPreviewShowsLocalBrandBeforeEngineConnection()
     {
         string executable = Environment.GetEnvironmentVariable("WOOTC_NATIVE_PREVIEW_EXE")
             ?? throw new InvalidOperationException("The actual published preview executable is required");
@@ -37,7 +37,7 @@ public sealed class StartupWindowTests
         catch (Exception error)
         {
             if (process.HasExited)
-                throw new InvalidOperationException($"Preview exited with code {process.ExitCode}. stderr: {stderr.GetAwaiter().GetResult()} stdout: {stdout.GetAwaiter().GetResult()}", error);
+                throw new InvalidOperationException($"Preview exited with code {process.ExitCode}. stderr: {await stderr} stdout: {await stdout}", error);
             throw;
         }
         finally
