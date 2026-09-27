@@ -8,7 +8,12 @@ function Export-WootcFixtureBitLockerKey {
         }
         $kp = $volume.KeyProtector | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } | Select-Object -First 1
         if (-not $kp -and $EnsureProtector) {
-            Add-BitLockerKeyProtector -MountPoint 'C:' -RecoveryPasswordProtector -ErrorAction Stop | Out-Null
+            # The Windows cmdlet can write recovery material to warning/host
+            # streams as well as success output. Prevent warning/information creation before transcript capture;
+            # redirects alone do not protect a PowerShell transcript. Suppress
+            # any remaining output streams;
+            # terminating errors still reach the generic catch below.
+            Add-BitLockerKeyProtector -MountPoint 'C:' -RecoveryPasswordProtector -ErrorAction Stop -WarningAction SilentlyContinue -InformationAction SilentlyContinue *> $null
             $volume = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction Stop
             $kp = $volume.KeyProtector | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } | Select-Object -First 1
         }
