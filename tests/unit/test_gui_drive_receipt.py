@@ -32,8 +32,7 @@ class GuiDriveReceiptTests(unittest.TestCase):
         end = source.index('            fi', start) + len('            fi')
         body = source[start:end]
         def run(reply, status, code=body):
-            script = '\n'.join(['qga_read() { printf '%s' "$CASE_REPLY"; return "$CASE_STATUS"; }',
-                'drive_state=""', code, 'printf '%s' "$drive_state"'])
+            script = '\n'.join(['qga_read() { printf \'%s\' "$CASE_REPLY"; return "$CASE_STATUS"; }', 'drive_state=""', code, 'printf \'%s\' "$drive_state"'])
             env = dict(os.environ, CASE_REPLY=reply, CASE_STATUS=str(status),
                        SCRIPT_DIR=str(PARSER.parent), RUN_ID=RUN, drive_directive_id=DIRECTIVE, IMAGE_REF=IMAGE)
             result = subprocess.run(['bash', '-c', script], env=env, text=True, capture_output=True)
