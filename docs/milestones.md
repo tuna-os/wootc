@@ -4,6 +4,22 @@ The road to MVP is climbed one rung at a time; a rung is only "done" when
 its E2E harness proves it repeatably, and each rung builds on the one
 below. (North Star: README.md. Boundary rules: docs/architecture-boundary.md.)
 
+## Native shell evidence boundary
+
+The dated rungs below describe native-install tests of the earlier product.
+They do not prove Linux inside Windows or the WinUI consumer journey.
+Use [current status](status.md#buildtest-matrix) for present claims.
+
+The [roadmap sequence](../ROADMAP.md#native-shell-sequence-and-evidence-357)
+places the native preview, default change, and removal gates before 1.0.
+Carry engine proof only when its code and contract stay unchanged.
+WinUI needs new transport, identity, UI, setup, accessibility, and full-cycle proof.
+A Wails hardware report can explain an engine defect. It does not verify controls in the new shell.
+
+After the default changes, each GUI matrix and soak row must identify the native
+shell and tested artifact. Earlier Wails rows remain historical evidence.
+They do not start or extend the native 30-day streak.
+
 ## Rung 1 — Phase 1 alone: installer produces a boot-ready disk
 
 **Claim:** on a virgin Windows machine, wootc (GUI or headless) ends with
