@@ -3,6 +3,7 @@ import json,runpy,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 CONSUMER=runpy.run_path(str(ROOT/'tests/e2e/esp-chain/package-consumer.py'))
+HOSTED=runpy.run_path(str(ROOT/'tests/e2e/package-runtime/hosted-execute.py'))
 LAUNCH=runpy.run_path(str(ROOT/'tests/e2e/package-runtime/launch.py'))
 BOOTSTRAP=runpy.run_path(str(ROOT/'tests/e2e/package-runtime/bootstrap.py'))
 class FailureTests(unittest.TestCase):
@@ -63,4 +64,22 @@ class FailureTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'guest producer refused'):observer(None,10)
             self.assertEqual((seed/'command-failure.stdout').read_bytes(),raised.exception.stdout)
             self.assertEqual((seed/'command-failure.stderr').read_bytes(),raised.exception.stderr)
+    def test_maximum_binary_failure_survives_actual_observer_and_artifact_retention(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stage=Path(temporary);guest=stage/'guest';guest.mkdir();artifacts=stage/'artifacts';artifacts.mkdir()
+            manifest={'scratchId':'a'*32,'challenge':'b'*64,'vmUuid':'12345678-1234-1234-1234-123456789abc'}
+            (guest/'manifest.json').write_text(json.dumps(manifest));records=[]
+            stdout=bytes(range(256))*512;stderr=bytes(reversed(range(256)))*512
+            def fail(*_):raise subprocess.CalledProcessError(100,['apt-get'],output=stdout,stderr=stderr)
+            with self.assertRaises(subprocess.CalledProcessError):BOOTSTRAP['run_reported'](guest,guest/'workspace',records.append,operation=fail,observe_boot=lambda:'11111111-2222-3333-4444-555555555555')
+            raw=''.join(BOOTSTRAP['PREFIX']+json.dumps(record)+'\n' for record in records).encode();self.assertGreater(len(raw),262144)
+            (guest/'serial.log').write_bytes(raw)
+            def forbidden(*_):raise AssertionError('failure evidence cannot require QGA')
+            with self.assertRaisesRegex(ValueError,'guest producer refused'):LAUNCH['make_observer'](guest,dict(manifest,actualVirtualBytes=1024**3),forbidden,forbidden)(None,10)
+            HOSTED['retain'](stage,artifacts)
+            self.assertEqual((artifacts/'guest-serial.log').read_bytes(),raw)
+            self.assertFalse((artifacts/'guest-serial.log.truncated').exists())
+            self.assertEqual((artifacts/'guest-command-failure.stdout').read_bytes(),stdout)
+            self.assertEqual((artifacts/'guest-command-failure.stderr').read_bytes(),stderr)
+            self.assertEqual(json.loads((artifacts/'guest-guest-failure.json').read_text())['commandFailure']['files'],records[-1]['commandFailure']['files'])
 if __name__=='__main__':unittest.main()
