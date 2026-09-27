@@ -42,32 +42,42 @@ func TestNativeStateStandardUserAndAlternateVolume(t *testing.T) {
 		defer runtime.UnlockOSThread()
 		ok, _, err := dll.NewProc("ImpersonateLoggedOnUser").Call(uintptr(token))
 		if ok == 0 {
-			return err
+			return fmt.Errorf("impersonate native logon token: %w", err)
 		}
 		defer func() {
 			if ok, _, err := dll.NewProc("RevertToSelf").Call(); ok == 0 {
 				panic(err)
 			}
 		}()
+		var threadToken windows.Token
+		if err := windows.OpenThreadToken(windows.CurrentThread(), windows.TOKEN_QUERY, true, &threadToken); err != nil {
+			return fmt.Errorf("read actual thread token: %w", err)
+		}
+		defer threadToken.Close()
+		actual, err := threadToken.GetTokenUser()
+		if err != nil {
+			return err
+		}
+		if actual.User.Sid.String() != sid {
+			return fmt.Errorf("native filesystem operation has wrong thread identity")
+		}
 		return fn()
 	}
-	adminSID, _ := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
-	usersSID, _ := windows.CreateWellKnownSid(windows.WinBuiltinUsersSid)
-	if err := asUser(func() error {
-		admin, err := windows.Token(0).IsMember(adminSID)
-		if err != nil {
-			return err
+	groups, err := token.GetTokenGroups()
+	if err != nil {
+		t.Fatalf("read actual logon token groups: %v", err)
+	}
+	users := false
+	for _, group := range groups.AllGroups() {
+		if group.Sid.IsWellKnown(windows.WinBuiltinAdministratorsSid) {
+			t.Fatal("fixture token contains Administrators")
 		}
-		users, err := windows.Token(0).IsMember(usersSID)
-		if err != nil {
-			return err
+		if group.Sid.IsWellKnown(windows.WinBuiltinUsersSid) && group.Attributes&windows.SE_GROUP_ENABLED != 0 {
+			users = true
 		}
-		if admin || !users {
-			return fmt.Errorf("wrong actual token group membership")
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
+	}
+	if !users {
+		t.Fatal("fixture token lacks enabled Users group")
 	}
 	for _, tc := range []struct {
 		name, root, writable string
