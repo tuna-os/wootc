@@ -45,7 +45,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(events,['started'])
 
     def launch_fixture(self,changes):
-        record={'actualVirtualBytes':1,'scratchId':'a'*32,'vmUuid':'12345678-1234-1234-1234-123456789abc'}
+        record={'actualVirtualBytes':1,'scratchId':'a'*32,'challenge':'b'*64,'diskSerial':MODULE['BOOTSTRAP']['disk_serial']('a'*32,'b'*64),'vmUuid':'12345678-1234-1234-1234-123456789abc'}
         (self.folder/'base.qcow2').write_bytes(b'fixture')
         boundaries={'checked':lambda path:(self.folder,record),'qualify':lambda path:{'freeBytes':2**40}}
         boundaries.update(changes)
@@ -128,7 +128,7 @@ class LauncherTests(unittest.TestCase):
             child.terminate();child.wait(timeout=2);foreign.terminate();foreign.wait(timeout=2)
 
     def test_command_has_only_owned_disks_no_network_or_shared_host_path(self):
-        record={'scratchId':'a'*32,'vmUuid':'12345678-1234-1234-1234-123456789abc',
+        record={'scratchId':'a'*32,'challenge':'b'*64,'diskSerial':MODULE['BOOTSTRAP']['disk_serial']('a'*32,'b'*64),'vmUuid':'12345678-1234-1234-1234-123456789abc',
                 'qemuDataPath':'/run/wootc-package-host-1-1/usr/share/qemu'}
         # No guest executable is needed for this declarative argument control.
         with patch.dict(MODULE['command'].__globals__,{'protected_qemu':lambda:'/usr/bin/qemu-system-x86_64'}):
@@ -137,7 +137,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(command[command.index('-L')+1],record['qemuDataPath'])
         self.assertNotIn('-netdev',command);self.assertNotIn('-virtfs',command);self.assertNotIn('-fsdev',command)
         self.assertEqual(sum(value.startswith('if=') for value in command),4)
-        self.assertIn('virtio-blk-pci,drive=root,serial=WOOTC-PKG-'+record['scratchId'],command)
+        self.assertIn('virtio-blk-pci,drive=root,serial='+record['diskSerial'],command)
 
 
 if __name__=='__main__':unittest.main()

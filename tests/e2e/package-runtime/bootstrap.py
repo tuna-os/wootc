@@ -1,4 +1,5 @@
 """Guest-only NoCloud package proof; no host-package or VM launcher entry point."""
+import base64
 import fcntl
 import hashlib
 import json
@@ -14,6 +15,45 @@ import tempfile
 import time
 
 PREFIX = 'WOOTC_PACKAGE_RUNTIME_V1 '
+
+
+def disk_serial(scratch_id,challenge):
+    if not re.fullmatch('[0-9a-f]{32}',scratch_id) or not re.fullmatch('[0-9a-f]{64}',challenge):
+        raise ValueError('complete scratch/challenge disk binding required')
+    # Virtio GET_ID carries at most20 bytes. Hash every input byte, and retain
+    # the full independent scratch/challenge/VM identities in the manifest.
+    return hashlib.sha256(('wootc-package-disk-v1\0'+scratch_id+'\0'+challenge).encode('ascii')).hexdigest()[:20]
+
+
+class RootIdentityRefusal(ValueError):
+    def __init__(self,facts):
+        super().__init__('actual root ancestry differs from owned scratch disk')
+        self.root_identity_facts=facts
+
+
+def root_identity(devices,expected):
+    if not re.fullmatch('[0-9a-f]{20}',expected):raise ValueError('bounded exact disk serial required')
+    roots=[];visited=0
+    def walk(rows,serial=None,disk=None,depth=0):
+        nonlocal visited
+        if depth>32 or len(rows)>128:raise ValueError('root ancestry table exceeds bound')
+        for device in rows:
+            visited+=1
+            if visited>256:raise ValueError('root ancestry node count exceeds bound')
+            name=device.get('name');kind=device.get('type');observed=device.get('serial')
+            if not isinstance(name,str) or len(name)>128 or (observed is not None and (not isinstance(observed,str) or len(observed)>128)):
+                raise ValueError('root ancestry field exceeds bound')
+            if kind=='disk':current=observed;owner=name
+            elif kind=='part' and disk is not None:current=serial;owner=disk
+            else:current=None;owner=None
+            if '/' in (device.get('mountpoints') or []):
+                roots.append({'rootDevice':name,'rootType':kind,'diskDevice':owner,'serial':current})
+            walk(device.get('children',[]),current,owner,depth+1)
+    walk(devices)
+    facts={'expectedSerial':expected,'roots':roots}
+    if len(json.dumps(facts))>8192:raise ValueError('root ancestry facts exceed bound')
+    if len(roots)!=1 or roots[0]['serial']!=expected:raise RootIdentityRefusal(facts)
+    return facts
 
 
 def sha(path):
@@ -71,6 +111,8 @@ def run(seed, workspace, emit, observe_boot=boot_id, read_module=runpy.run_path,
             not re.fullmatch('[0-9a-f]{64}',manifest.get('challenge','')) or
             not re.fullmatch('[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',manifest.get('vmUuid',''))):
         raise ValueError('incomplete fresh guest manifest')
+    if manifest.get('diskSerial')!=disk_serial(manifest['scratchId'],manifest['challenge']):
+        raise ValueError('manifest disk serial differs from full scratch/challenge binding')
     hashes = manifest['helperHashes']
     required = {'bootstrap.py','package-consumer.py','packages.json','readback.py','advance.py'}
     if set(hashes) != required or any(not re.fullmatch('[0-9a-f]{64}',value) for value in hashes.values()):
@@ -160,17 +202,9 @@ def actual_environment(manifest,seed):
     observed = Path('/sys/class/dmi/id/product_uuid').read_text().strip().lower()
     if observed != manifest['vmUuid']:
         raise ValueError('guest UUID differs from owned VM')
-    result = subprocess.run(['/usr/bin/lsblk','--json','--output','NAME,SERIAL,MOUNTPOINTS'],
+    result = subprocess.run(['/usr/bin/lsblk','--json','--output','NAME,TYPE,SERIAL,MOUNTPOINTS'],
                             check=True,capture_output=True,timeout=10)
-    matches=[]
-    def walk(devices, serial=None):
-        for device in devices:
-            current=device.get('serial') or serial
-            if '/' in (device.get('mountpoints') or []): matches.append(current)
-            walk(device.get('children',[]),current)
-    walk(json.loads(result.stdout)['blockdevices'])
-    if matches != ['WOOTC-PKG-'+manifest['scratchId']]:
-        raise ValueError('actual root ancestry differs from owned scratch disk')
+    root_identity(json.loads(result.stdout)['blockdevices'],manifest['diskSerial'])
     mount = subprocess.run(['/usr/bin/findmnt','--json','--target',str(seed),
                             '--output','SOURCE,TARGET,FSTYPE,OPTIONS'],
                            check=True,capture_output=True,timeout=10)
@@ -194,6 +228,43 @@ def actual_environment(manifest,seed):
     finally: os.close(descriptor)
 
 
+def run_reported(seed,workspace,emit,operation=None,observe_boot=boot_id):
+    try:return (run if operation is None else operation)(seed,workspace,emit)
+    except Exception as error:
+        manifest_path=Path(seed)/'manifest.json'
+        if manifest_path.stat().st_size>65536:raise
+        manifest=json.loads(manifest_path.read_text())
+        failure={'schemaVersion':1,'stage':'failed','scratchId':manifest.get('scratchId'),
+                 'challenge':manifest.get('challenge'),'vmUuid':manifest.get('vmUuid'),'bootId':observe_boot(),
+                 'failureType':type(error).__name__,'failure':str(error)[:1024]}
+        if isinstance(error,RootIdentityRefusal):failure['rootIdentityFacts']=error.root_identity_facts
+        if isinstance(error,subprocess.CalledProcessError):
+            stdout=error.stdout or b'';stderr=error.stderr or b''
+            if isinstance(stdout,str):stdout=stdout.encode()
+            if isinstance(stderr,str):stderr=stderr.encode()
+            if len(stdout)+len(stderr)>262144:raise ValueError('failure output exceeds command bound') from error
+            failure['failure']='package command returned nonzero'
+            failure['commandFailure']={'returnCode':error.returncode,
+                'operation':getattr(error,'wootc_operation','subprocess'),
+                'phase':getattr(error,'wootc_phase','unknown'),
+                'stdout':stdout[:512].decode('utf-8',errors='replace'),
+                'stderr':stderr[:1024].decode('utf-8',errors='replace'),
+                'stdoutBytes':len(stdout),'stderrBytes':len(stderr),
+                'stdoutTruncated':len(stdout)>512,'stderrTruncated':len(stderr)>1024,
+                'files':{}}
+            for name,data in [('stdout',stdout),('stderr',stderr)]:
+                failure['commandFailure']['files'][name]={'size':len(data),'sha256':hashlib.sha256(data).hexdigest()}
+                # Complete failure-only bytes survive an absent/replaced QGA.
+                # Final failure refs authorize reconstruction, never success.
+                for index,offset in enumerate(range(0,len(data),8192)):
+                    emit({key:failure[key] for key in ('schemaVersion','scratchId','challenge','vmUuid','bootId')} |
+                         {'stage':'command-output','stream':name,'index':index,
+                          'data':base64.b64encode(data[offset:offset+8192]).decode('ascii')})
+        if len(json.dumps(failure))>16384:raise ValueError('guest failure record exceeds bound') from error
+        emit(failure)
+        raise
+
+
 if __name__ == '__main__':
     import argparse
     parser=argparse.ArgumentParser();parser.add_argument('seed');parser.add_argument('workspace');args=parser.parse_args()
@@ -201,4 +272,4 @@ if __name__ == '__main__':
     # and general serial text never count as package execution evidence.
     with open('/dev/ttyS0','a',buffering=1) as serial:
         def emit(value): serial.write(PREFIX+json.dumps(value,sort_keys=True)+'\n')
-        run(args.seed,args.workspace,emit)
+        run_reported(args.seed,args.workspace,emit)

@@ -1,0 +1,15 @@
+test_failed_or_malformed_identity_with_live_ping_never_proves_handover (fixture.HandoverTests.test_failed_or_malformed_identity_with_live_ping_never_proves_handover) ... FAIL
+
+======================================================================
+FAIL: test_failed_or_malformed_identity_with_live_ping_never_proves_handover (fixture.HandoverTests.test_failed_or_malformed_identity_with_live_ping_never_proves_handover)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-gui-handover-fixture/tests/unit/test_gui_observations.py", line 73, in test_failed_or_malformed_identity_with_live_ping_never_proves_handover
+    self.assertNotEqual(result.returncode, 0)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0
+
+----------------------------------------------------------------------
+Ran 1 test in 0.030s
+
+FAILED (failures=1)

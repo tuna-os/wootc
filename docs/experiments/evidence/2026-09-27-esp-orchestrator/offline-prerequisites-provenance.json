@@ -4,11 +4,23 @@
   "actualGuestInstallation": false,
   "classicOsBootAcceptance": false,
   "compressedIndexesScope": "preserved external hash-bound inputs; not bundled or acquired again",
-  "consumerControls": 28,
+  "consumerControls": 31,
   "exactSimulationRepairCheckpoint": "2529d0f",
   "firmwareAcceptance": false,
   "hostedFocusedJob": "classic-offline in .github/workflows/ci-tests.yml",
   "mainBase": "132f0bd1b112f66e8d51610c08ecc4e9a62412d7",
+  "offlineCacheCorrection": {
+    "changedSources": [
+      "tests/e2e/esp-chain/package-consumer.py",
+      "tests/unit/test_wootc_package_consumer.py"
+    ],
+    "checkpoint": "45d4a54",
+    "correctedRuntimeExecuted": false,
+    "currentConsumerControls": 31,
+    "currentRuntimeControls": 115,
+    "historicalProvenance": "docs/experiments/evidence/2026-09-27-offline-apt-cache/classic-prior-provenance.json",
+    "originalPartiallyChangedGuestPreserved": true
+  },
   "preservedIntegrationCheckpoint": "0ed8d7d",
   "procObservationRepairCheckpoint": "b518f08",
   "producerIntegrated": false,
@@ -46,9 +58,9 @@
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/offline-prerequisites-tests.log": "bdb24b757caec61f0f4e20e286ed3e8716ef594901ae109aa298302b744c6266",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/qualified-execution-source-plan.json": "bf8c65457ff5001e8fa7246b6d2ef6e0eb66da0e6583d6ef72d7b85dd2decc73",
     "tests/audit-classic-offline.py": "7cf5d45a4d1f2a77910189762fb6ed0e6346c60f943c045ba188bcc7e74075ec",
-    "tests/e2e/esp-chain/package-consumer.py": "764b08b7987a356633dfde64bba1ac8d6c3a86005970a9a52f329b7caf71348d",
+    "tests/e2e/esp-chain/package-consumer.py": "2eaeffa0ff26a30efd58c45bac5d501a124384e5fd0b8f3b116de27461c00bd8",
     "tests/e2e/esp-chain/package-policy.py": "ea605a34fdae13b89ad4b976ac2d7619bc29e46d529b3c563c736b5d2d109439",
-    "tests/unit/test_wootc_package_consumer.py": "109d89e6b49d6d850fd45d01c6051849f7fc76ca957de11f0433bd93a1351082"
+    "tests/unit/test_wootc_package_consumer.py": "8a82b0214e5b5c77e36aade2b288c2ed4712f23ad65292fce1950f7981f754a5"
   },
   "windowsBaselineQualified": false
 }

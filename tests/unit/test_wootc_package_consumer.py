@@ -84,6 +84,60 @@ class PackageConsumerTests(unittest.TestCase):
         self.assertEqual(self.state, self.after)
         self.assertEqual(list(self.folder.glob('offline-bundle-*')), [])
 
+    def test_native_apt_calls_private_recorder_with_verified_absolute_cache(self):
+        # Real APT executes a private dpkg recorder, never host dpkg/package state.
+        private = self.folder/'apt-private'; private.mkdir()
+        for name in ('etc/parts', 'etc/preferences.d', 'lists/partial', 'state', 'log', 'cache/archives/partial'):
+            (private/name).mkdir(parents=True, exist_ok=True)
+        status = private/'state/status'
+        status.write_text('Package: fixture-package\nStatus: install ok installed\nVersion: 1\nArchitecture: amd64\nMaintainer: Test <test@example.invalid>\nDescription: Private status\n\n')
+        initial_status = status.read_bytes()
+        recorder = private/'dpkg-recorder'; records = private/'calls.jsonl'
+        recorder.write_text('#!/usr/bin/python3\nimport sys,json,hashlib\nfrom pathlib import Path\na=sys.argv[1:]\nfacts={"args":a,"archives":{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in a if p.endswith(".deb")}}\nwith open('+repr(str(records))+',"a") as f: f.write(json.dumps(facts)+"\\n")\n')
+        recorder.chmod(0o700)
+        values = {'Dir::Etc':str(private/'etc'), 'Dir::Etc::parts':'parts',
+                  'Dir::Etc::main':'main', 'Dir::State':str(private/'state'),
+                  'Dir::State::status':str(status), 'Dir::Log':str(private/'log'),
+                  'Dir::Cache':str(private/'cache'), 'Dir::Bin::dpkg':str(recorder)}
+        config = private/'config'
+        config.write_text('\n'.join(k+' '+json.dumps(v)+';' for k,v in values.items()))
+        receipts=[]
+        def real_apt(argv, **kwargs):
+            if argv[0] != '/usr/bin/apt-get': return self.run_command(argv, **kwargs)
+            kwargs['env']=dict(kwargs.get('env',os.environ),APT_CONFIG=str(config))
+            result=MODULE['execute'](argv, **kwargs)
+            receipts.append({'argv':argv,'returncode':result.returncode,'stdout':result.stdout.decode(),'stderr':result.stderr.decode()})
+            if '--simulate' not in argv: self.state=copy.deepcopy(self.after)
+            return result
+        MODULE['consume'](self.folder,'old',real_apt)
+        rows=[json.loads(line) for line in records.read_text().splitlines()]
+        unpack=[row for row in rows if '--unpack' in row['args']]
+        self.assertEqual(len(unpack),1)
+        paths=list(unpack[0]['archives']);self.assertEqual(len(paths),1)
+        self.assertTrue(Path(paths[0]).is_absolute())
+        self.assertIn('/archives/',paths[0])
+        self.assertEqual(unpack[0]['archives'][paths[0]],self.policy['phases']['old']['packages'][0]['sha256'])
+        self.assertEqual(status.read_bytes(),initial_status)
+        self.assertEqual([row['returncode'] for row in receipts],[0,0])
+        if os.environ.get('WOOTC_NATIVE_APT_CACHE_PROOF'):
+            Path(os.environ['WOOTC_NATIVE_APT_CACHE_PROOF']).write_text(json.dumps({'scope':'native APT/private dpkg recorder, no installed-package acceptance','commands':receipts,'recorder':rows},indent=2)+'\n')
+
+    def test_native_apt_epoch_archive_uses_percent_escaped_cache_identity(self):
+        control=self.folder/'build/DEBIAN/control'
+        control.write_text(control.read_text().replace('Version: 2\n','Version: 2:2\n'))
+        subprocess.run(['/usr/bin/dpkg-deb','--build','--root-owner-group',str(control.parent.parent),str(self.archive)],check=True,capture_output=True)
+        self.after['fixture-package']['version']='2:2'
+        entry=self.policy['phases']['old']['packages'][0]
+        entry['version']='2:2';entry['sha256']=hashlib.sha256(self.archive.read_bytes()).hexdigest()
+        self.save_policy()
+        self.test_native_apt_calls_private_recorder_with_verified_absolute_cache()
+
+    def test_epoch_cache_name_and_unsafe_version_refusal(self):
+        entry=self.policy['phases']['old']['packages'][0]
+        self.assertEqual(MODULE['apt_archive_name'](dict(entry,version='2:1.0~rc1-1')),'fixture-package_2%3a1.0~rc1-1_amd64.deb')
+        for version in ('../2','2/foreign','1_2','1%32','1\n2','1:2:3'):
+            with self.assertRaises(ValueError): MODULE['apt_archive_name'](dict(entry,version=version))
+
     def test_missing_or_wrong_package_never_calls_installer(self):
         self.archive.unlink(); self.assert_preflight_refuses()
 
@@ -230,7 +284,7 @@ class PackageConsumerTests(unittest.TestCase):
 
     def test_frozen_snapshot_change_after_callback_refuses_actual_install(self):
         def callback():
-            path = next(self.folder.glob('offline-bundle-*/*.deb'))
+            path = next(self.folder.glob('offline-bundle-*/archives/*.deb'))
             path.chmod(0o600); path.write_bytes(b'changed after approval')
         with self.assertRaisesRegex(ValueError, 'frozen bundle changed'): self.consume(callback)
         self.assertFalse(self.applied)
