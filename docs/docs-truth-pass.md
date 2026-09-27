@@ -121,3 +121,15 @@ The guide also states the limits of VM-first use, native graduation, and hardwar
 Its OS requirements stay the same. Earlier section anchors still resolve.
 The revised text has no English findings under the shared checker.
 RC timing, fresh package screenshots, hardware recovery, and signature acceptance remain open.
+
+## Focused release gate pass — 2026-09-27, against `79fbb1e`
+
+The release guide said that a tag proves migration to Linux and back.
+The tagged workflow selects GUI install and native graduation with `phase3: true`.
+It ends in graduated Linux. It checks the seeded file there.
+It does not prove a Windows return after graduation.
+
+The guide now states those observations, the automatic channel's selected stages,
+and the emergency waiver. A check in `tests/unit/docs-truth.bats` pins the claim
+to the tagged workflow and the runner's native boot check.
+The RC walk, signature checks, and hardware acceptance remain open.
