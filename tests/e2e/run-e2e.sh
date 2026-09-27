@@ -2267,6 +2267,10 @@ reset_oem_attempt
 # context cannot render WebView2), then drive the actual install form from a
 # playwright container. The driver's last act is clicking "Reboot Now →",
 # which boots the deployer — the rest of the run verifies as normal.
+# shellcheck source=tests/e2e/lib/gui-observations.sh
+source "$SCRIPT_DIR/lib/gui-observations.sh"
+wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
+
 gui_install_arm() {
     # Seed while Windows is alive — the OEM path seeds inside
     # snapshot_before_deployer, which the GUI path never reaches, and the
@@ -2708,53 +2712,20 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
 
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
-    qga_powershell '@"
-{"action":"reboot"}
-"@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii' >/dev/null
-    pass "Reboot directive issued — deployer takes over"
+    gui_write_reboot_directive || { capture_vm_diagnostics; exit 1; }
+    info "Reboot directive written through the guest command"
 
-    # Verify the reboot ACTUALLY took effect before handing control to the
-    # deployer monitor. On a hosted runner the app's reboot handler can stall
-    # (e.g., if the WebView2 host process is wedged), leaving the VM sitting
-    # at the Windows desktop forever while Step 7 waits for a deployer that
-    # can never appear — the exact Mode-B signature (#71).
-    #
-    # Wait for Windows QGA to go DOWN, proving the guest is rebooting. If
-    # Windows keeps answering after a generous grace period, the reboot
-    # directive was consumed but did not take effect, and the deployer will
-    # never boot. Fail early with a clear signal instead of burning the
-    # 90-minute deploy budget on an impossible wait.
+    # A failed Windows probe is unknown identity, and ping loss is only a
+    # transport observation. Positive Linux or channel loss hands observation
+    # to the deployer monitor, which must still prove the actual boot and work.
     step "Waiting for Windows to reboot after GUI install..."
-    local reboot_deadline reboot_ok=false
-    reboot_deadline=$(deadline_in 180)
-    while ! past_deadline "$reboot_deadline"; do
-        if ! qga_probe; then
-            info "  Windows QGA is gone — reboot is underway"
-            reboot_ok=true
-            break
-        fi
-        if ! qga_windows_probe; then
-            info "  Windows agent no longer answers — reboot is underway"
-            reboot_ok=true
-            break
-        fi
-        sleep 10
-    done
-    if [ "$reboot_ok" = false ]; then
-        fail "Windows did NOT reboot within 3 minutes of the reboot directive"
-        fail "  The GUI app received the directive but the VM is still running Windows."
-        fail "  The deployer will never boot. Last screen reached: ${last_screen:-<none>}"
-        fail "  This is the Mode-B signature (#71): Phase 1 never handed over."
-        info "  Checking wootc.exe state for post-mortem:"
-        qga_powershell '
-$p = Get-Process wootc -ErrorAction SilentlyContinue
-Write-Output ("wootc.exe: " + $(if ($p) { "alive pid=" + $p.Id + " cpu=" + $p.CPU } else { "dead" }))
-Write-Output ("shutdown pending: " + (Get-WinEvent -LogName System -MaxEvents 20 -FilterXPath "*[System[EventID=1074 or EventID=6006 or EventID=6008]]" | Select-Object -First 3 | ForEach-Object { $_.TimeCreated.ToString("HH:mm:ss") + " " + $_.Message }) -join " | ")
-' 2>&1 | sed 's/^/    /' || true
-        capture_vm_diagnostics
-        exit 1
+    gui_wait_handover 180 || { capture_vm_diagnostics; exit 1; }
+    if [ "$WOOTC_GUI_HANDOVER_OBSERVATION" = linux ]; then
+        info "Positive Linux identity observed after the GUI reboot directive"
+    else
+        info "QGA transport unavailable after the GUI directive; deployer monitor must establish the actual boot"
     fi
-    pass "Windows reboot confirmed — deployer handover in progress"
+
 }
 
 if [ "$GUI_INSTALL" = true ]; then

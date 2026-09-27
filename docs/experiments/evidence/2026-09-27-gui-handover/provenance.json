@@ -1,0 +1,38 @@
+{
+  "sourceCommit": "4ada49091b573d4db2a8687a903250d1833c6781",
+  "scope": "Controlled Linux GUI handover callbacks and real bounded owned runtime; no guest/VM/GUI product acceptance. Transport unavailability is not identity or reboot proof.",
+  "sourceSha256": {
+    "tests/e2e/run-e2e.sh": "7106abf3a7941aaf8ca4e969056a5021ab4c6d06c6da010a2fbb1130b7310c4d",
+    "tests/e2e/lib/gui-observations.sh": "907ecdd5ea769c7d5627d5b860487601ae81e36cc755d93876516a476c10b45e",
+    "tests/e2e/lib/qga-transport.sh": "1d3a3d4fb2258690fa736fc736f195e3dd18414d3445438c0fecd1fdba0423df",
+    "tests/unit/test_gui_observations.py": "fe184a3e209aadae5c4f9ac762be805c98e060f5b6a3bfdba89abe1eee21f5d4"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_observations.py"
+      ],
+      "startedAt": "2026-09-27T11:39:44.632167+00:00",
+      "completedAt": "2026-09-27T11:39:53.275558+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "bats",
+        "tests/unit/multi-instance.bats",
+        "tests/unit/qga-channel-lost.bats",
+        "tests/unit/phase2-windows-return.bats"
+      ],
+      "startedAt": "2026-09-27T11:39:53.275822+00:00",
+      "completedAt": "2026-09-27T11:40:21.338577+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "handover.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "handover.stderr.log": "e332e9c7e2b6120928ffe2d8f3884437ac56149a50227a53c861568177735245",
+    "consumers.stdout.log": "09c4ed3a26a87eb20247dc1109acbecf25bbd339315093a3d21d30aa9974c0f9",
+    "consumers.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

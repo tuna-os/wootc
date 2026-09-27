@@ -1,0 +1,39 @@
+{
+  "sourceCommit": "f793c0af416c4bbe1ccd467c9381a1d2d7ae8923",
+  "scope": "Superseding controlled directive/status/readback/handover/phase-boundary proof; no guest/VM/desktop/product acceptance. Prior evidence retained.",
+  "sourceSha256": {
+    "tests/e2e/run-e2e.sh": "9b2caf05f788a8e7d2e84587e357588b2299014beacc8d90f5e3d34896b8070d",
+    "tests/e2e/lib/gui-observations.sh": "7fa37c60ee2e454411843f2a092486e1635cde917d99a69b664460da7c7c26d5",
+    "tests/e2e/lib/qga-transport.sh": "8bdd4f395dbb96f280a2e06d647ae25c24a59b7b3b4a6c0a315f6be2f6c1a796",
+    "tests/e2e/phase-ledger.sh": "11b137ec0bdc93bd19f505f8c6882d151aba300487307d654c7e2aae4a1a5148",
+    "tests/unit/test_gui_observations.py": "acecd5b70bf7f2ebba402bedf20832531b4a2ae794236dde2eaa6f67870d33a7"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_observations.py"
+      ],
+      "startedAt": "2026-09-27T11:48:25.753305+00:00",
+      "completedAt": "2026-09-27T11:48:35.553590+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "bats",
+        "tests/unit/multi-instance.bats",
+        "tests/unit/qga-channel-lost.bats",
+        "tests/unit/phase2-windows-return.bats"
+      ],
+      "startedAt": "2026-09-27T11:48:35.553841+00:00",
+      "completedAt": "2026-09-27T11:49:03.687756+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "handover-v3.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "handover-v3.stderr.log": "984e6c2bdb49e63489f36e3074d7e9a0367fc8a11c4d8fb819bd4e961edb4820",
+    "consumers-v3.stdout.log": "09c4ed3a26a87eb20247dc1109acbecf25bbd339315093a3d21d30aa9974c0f9",
+    "consumers-v3.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
