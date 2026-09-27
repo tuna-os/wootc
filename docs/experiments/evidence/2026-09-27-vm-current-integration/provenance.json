@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "base": "d39cc4a48adf5b55bf0a22ea7e498a8ff150810e",
+  "draftHeads": {
+    "418": "e85f9d6fa9cb03fe61623e76485349c878e8d47f",
+    "419": "4fb714534c21aea0a1241e9c4efc05d0b243c242",
+    "422": "5168dd5f9ea6ee96f64f235fdefd7b13913827a9"
+  },
+  "featureIntegrationHead": "f5275bc",
+  "goSuitePassed": true,
+  "realFrontendBuildPassed": true,
+  "focusedFrontendControls": 4,
+  "fullFrontendControls": 43,
+  "actualGuardRemovalFailed": true,
+  "guestExecutionObserved": false,
+  "desktopAcceptance": false,
+  "scope": "Integrated source and frontend with mock engine only. No native Windows runtime, Linux desktop/editor/persistence or promotion acceptance.",
+  "conflictResolution": "Preserved main ordered installer step catalogue and root preservation checks; inserted managed disk lease; combined frontend imports and release notices; kept native typed drive/reboot correlation and extended it to prepare-vm. No older disk/NTFS/firstboot/runner/auth branch state imported.",
+  "newChanges": {
+    "tests/gui/gui.spec.js": "75ec57b2802bcefe8cc7a7f4c97ba1730eac442dd3e0fd3c341d4aad16b447f9",
+    "tests/gui/mock-backend.js": "64290999cfc96e5adf2f7f4eb53cf020d9b10ce15b493af2118e57a6d45735af",
+    "app/frontend/src/lib/e2e.js": "02d55c01f2b4e60c1c246b972627186e14d8cab3479ccdc1ec9da0ab3eb6f059"
+  },
+  "evidenceHashes": {
+    "old-untyped-directive-failed.log": "632226e39aa0c35742a08f54576356db17622870e6e49cc91bacdbc6f37f8d30",
+    "typed-drive-controls.log": "cf24b3887dfd86f5d5b0b08902370321269ffb205aebc998c531f80088e08c0b",
+    "removed-guard-mutant.log": "e56510372206b0c7cae12d2288a4aebe3dca9beedbd469d7483764990f50c5d9",
+    "full-frontend-controls.log": "03cfc7ab0999c83b4fc6316a1af8982ca4b29e30eb67ab28a08c35438de1ecaa",
+    "removed-guard-mutant.json": "c5af4b0b52b6ed8903fd43d1d65d193021bc35f63376642e4427877ae2518ce1"
+  }
+}

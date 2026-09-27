@@ -80,7 +80,7 @@ function makeApp(mock) {
     StopVM: () => { window.__wootcVMCalls.push(['stop']); mock.vmState = { phase: 'stopped', desktopReady: false }; return P(); },
     ForceStopVM: () => { window.__wootcVMCalls.push(['force']); mock.vmState = { phase: 'needs_recovery', desktopReady: false }; return P(); },
     GetFreshVMCapability: () => P(mock.freshVm || { available: false, reason: '' }),
-    E2EDriveDirective: () => P(mock.driveDirective || ''),
+    E2EDriveDirective: () => { window.__wootcE2EDirectiveReads = (window.__wootcE2EDirectiveReads || 0) + 1; return P(mock.driveDirective || ''); },
     E2EDriveReport: (state) => {
       try { window.__wootcE2EReports.push(JSON.parse(state)); } catch {}
       return P();

@@ -620,6 +620,7 @@ test('E2E drive observes the VM-first button and prepares through the real launc
     mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
     freshVm: { available: true, probeStatus: 'passed' },
     driveDirective: JSON.stringify({
+      schemaVersion: 1, runId: 'vm-source-control', directiveId: 'a'.repeat(32),
       action: 'prepare-vm', image,
       username: 'alice', password,
     }),
@@ -637,6 +638,8 @@ test('E2E drive observes the VM-first button and prepares through the real launc
     !report.vmImageMismatch
   ))).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.some(report =>
+    report.schemaVersion === 1 && report.runId === 'vm-source-control' &&
+    report.directiveId === 'a'.repeat(32) && report.action === 'prepare-vm' && report.vmPrepareDriven &&
     report.screen === 'vmpreview' && report.freshVmAvailable && report.vmReady &&
     report.vmProgressStage === 'started'
   ))).toBe(true);
@@ -659,3 +662,18 @@ test('a release without the runtime gives an explicit error without installing L
   expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
   await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
 });
+
+
+for (const missing of ['schemaVersion', 'runId', 'directiveId']) {
+  test(`VM preparation drive refuses a directive missing ${missing}`, async ({ page }) => {
+    const directive = { schemaVersion: 1, runId: 'vm-refusal-control', directiveId: 'b'.repeat(32),
+      action: 'prepare-vm', image: IMAGES[1].imageRef, username: 'alice', password: 'disposable-control-password' };
+    delete directive[missing];
+    await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+      freshVm: { available: true, probeStatus: 'passed' }, driveDirective: JSON.stringify(directive) });
+    await expect.poll(() => page.evaluate(() => window.__wootcE2EDirectiveReads)).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => window.__wootcVMCalls)).toEqual([]);
+    expect(await page.evaluate(() => window.__wootcE2EReports)).toEqual([]);
+    await expect(page.locator('#vm-prepare-btn')).toBeVisible();
+  });
+}

@@ -1,0 +1,44 @@
+[WebServer] (node:3170408) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:3170423) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:3170434) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 gui.spec.js:668:3 › VM preparation drive refuses a directive missing schemaVersion (3.3s)
+
+
+  1) gui.spec.js:668:3 › VM preparation drive refuses a directive missing schemaVersion ────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 10
+
+    - Array []
+    + Array [
+    +   Array [
+    +     "prepare",
+    +     Object {
+    +       "imageRef": "ghcr.io/tuna-os/yellowfin:kde",
+    +       "password": "disposable-control-password",
+    +       "username": "alice",
+    +     },
+    +   ],
+    + ]
+
+      673 |       freshVm: { available: true, probeStatus: 'passed' }, driveDirective: JSON.stringify(directive) });
+      674 |     await expect.poll(() => page.evaluate(() => window.__wootcE2EDirectiveReads)).toBeGreaterThanOrEqual(2);
+    > 675 |     expect(await page.evaluate(() => window.__wootcVMCalls)).toEqual([]);
+          |                                                              ^
+      676 |     expect(await page.evaluate(() => window.__wootcE2EReports)).toEqual([]);
+      677 |     await expect(page.locator('#vm-prepare-btn')).toBeVisible();
+      678 |   });
+        at /tmp/wootc-vm-first-current-candidate/tests/gui/gui.spec.js:675:62
+
+    Error Context: .results/gui-VM-preparation-drive-r-69caa-ctive-missing-schemaVersion/error-context.md
+
+  1 failed
+    gui.spec.js:668:3 › VM preparation drive refuses a directive missing schemaVersion ─────────────
