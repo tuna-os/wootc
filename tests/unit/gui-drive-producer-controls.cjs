@@ -63,5 +63,19 @@ async function settle() { await new Promise(resolve => setImmediate(resolve)); }
  failedState.screen = 'done'; failedScheduled(); await settle();
  assert.equal(failedClicks, 1); assert.equal(failedReports.length, 1);
  assert.equal(failedReports[0].installDriven, false);
- console.log(JSON.stringify({controls: 7, thrownClickReceipt: failedReports[0], scope: 'actual frontend module with DOM and bridge spies', installReceipt: reports[1]}));
+ // An unselectable requested image must never click the default selection.
+ const mismatchReports = []; let mismatchClicks = 0;
+ const mismatchContext = {...context, window: {},
+  document: {...context.document, getElementById(id) {
+    return id === 'install-btn' ? {disabled: false, click() { mismatchClicks++; }} : null;
+  }},
+  E2EDriveDirective: async () => JSON.stringify({...identity, action: 'install', image, username: 'wootc', hostname: 'test', password: 'public-test'}),
+  E2EDriveReport: async raw => mismatchReports.push(JSON.parse(raw)),
+ };
+ vm.runInNewContext(source, mismatchContext);
+ mismatchContext.startE2EDrive({screen: 'launchpad', selected: {imageRef: 'unrequested-default'}}); await settle();
+ assert.equal(mismatchClicks, 0); assert.equal(mismatchReports.length, 1);
+ assert.equal(mismatchReports[0].installDriven, false);
+ assert.equal(mismatchReports[0].imageMismatch, true);
+ console.log(JSON.stringify({controls: 8, mismatchReceipt: mismatchReports[0], thrownClickReceipt: failedReports[0], scope: 'actual frontend module with DOM and bridge spies', installReceipt: reports[1]}));
 })().catch(error => { console.error(error); process.exitCode = 1; });

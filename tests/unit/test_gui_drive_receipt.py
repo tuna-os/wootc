@@ -52,11 +52,14 @@ class GuiDriveReceiptTests(unittest.TestCase):
                                  str(ROOT / 'app/frontend/src/lib/e2e.js')], text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         proof = json.loads(result.stdout)
-        self.assertEqual(proof['controls'], 7)
+        self.assertEqual(proof['controls'], 8)
         raw = json.dumps(proof['installReceipt'])
         receipt = json.loads(module.validate(raw, 'current', DIRECTIVE, IMAGE))
         self.assertEqual(receipt['screen'], 'done')
         self.assertTrue(receipt['installDriven'])
+        mismatch=json.loads(module.validate(json.dumps(proof['mismatchReceipt']), 'current', DIRECTIVE, IMAGE))
+        self.assertTrue(mismatch['imageMismatch'])
+        self.assertFalse(mismatch['installDriven'])
         with self.assertRaises(ValueError):
             module.validate(json.dumps(proof['thrownClickReceipt']), 'current', DIRECTIVE, IMAGE)
         # The actual old flag ordering turns that thrown click into 'driven'.
@@ -66,6 +69,12 @@ class GuiDriveReceiptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             mutant=Path(tmp)/'old-click.js'
             mutant.write_text(source.replace(fixed,'window.__e2eInstallDriven = true;\n    installButton.click();',1))
+            result=subprocess.run(['node', str(ROOT/'tests/unit/gui-drive-producer-controls.cjs'), str(mutant)],text=True,capture_output=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('AssertionError',result.stderr)
+            image_guard='if (directive.image && state.selected?.imageRef !== directive.image) return;'
+            self.assertIn(image_guard,source)
+            mutant.write_text(source.replace(image_guard,'',1))
             result=subprocess.run(['node', str(ROOT/'tests/unit/gui-drive-producer-controls.cjs'), str(mutant)],text=True,capture_output=True)
             self.assertNotEqual(result.returncode,0)
             self.assertIn('AssertionError',result.stderr)
