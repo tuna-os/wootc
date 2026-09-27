@@ -100,14 +100,15 @@ public sealed class StartupWindowTests
             {
                 var window = application.GetMainWindow(automation, TimeSpan.FromSeconds(30));
                 Assert.NotNull(window);
-                Assert.Equal("Offline", window.FindFirstDescendant(cf => cf.ByAutomationId("ConnectionStatus")).Name);
-                window.FindFirstDescendant(cf => cf.ByAutomationId("ConnectEngine")).AsButton().Invoke();
+                AutomationElement Find(string id) => window.FindFirstDescendant(cf => cf.ByAutomationId(id)) ?? throw new InvalidOperationException($"Preview element {id} is absent");
+                Assert.Equal("Offline", Find("ConnectionStatus").Name);
+                Find("ConnectEngine").AsButton().Invoke();
                 async Task ExpectName(string id, string expected)
                 {
                     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-                    while (window.FindFirstDescendant(cf => cf.ByAutomationId(id)).Name != expected)
+                    while (Find(id).Name != expected)
                     {
-                        if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected {id}={expected}; observed {window.FindFirstDescendant(cf => cf.ByAutomationId(id)).Name}; connection={window.FindFirstDescendant(cf => cf.ByAutomationId("ConnectionStatus")).Name}");
+                        if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected {id}={expected}; observed {Find(id).Name}; connection={Find("ConnectionStatus").Name}");
                         await Task.Delay(100, deadline.Token);
                     }
                 }
@@ -115,7 +116,7 @@ public sealed class StartupWindowTests
                 await ExpectName("StartupRoute", "Review your computer before installation");
                 await ExpectName("StartupObservations", "Running: False; Existing: False; Lifecycle: ; Recovery: ");
                 Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
-                window.FindFirstDescendant(cf => cf.ByAutomationId("DisconnectEngine")).AsButton().Invoke();
+                Find("DisconnectEngine").AsButton().Invoke();
                 await ExpectName("ConnectionStatus", "Offline");
                 window.Close();
                 using var closeDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
