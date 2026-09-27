@@ -104,6 +104,10 @@
       "sha256": "601ae81cb83d7b67f7bca5018ea72476aff0dde0ff0de7f7a9c30e793dec7eb6",
       "bytes": 7108
     },
+    ".gitattributes": {
+      "sha256": "e437fbd6e49172cf105332274805f641567e4e6e68317dd861b2866ffe23a45e",
+      "bytes": 88
+    },
     "failed-direct.raw.stderr": {
       "sha256": "064b1399eacf7654de6e4e40821ba94c1ce7673caa46c141d41ca32e28226a0b",
       "bytes": 8638
