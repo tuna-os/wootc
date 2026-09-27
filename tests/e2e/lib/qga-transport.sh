@@ -145,6 +145,9 @@ qga_wait_reboot() {
 }
 
 
+# GUI session callers invoke this callback by its configured name and pass the
+# remaining deadline; direct callers use the default five-second budget.
+# shellcheck disable=SC2120
 qga_windows_probe() {
     local os probe_timeout="${1-5}"
     wootc_qga_valid_timeout "$probe_timeout" || return 2
