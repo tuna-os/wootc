@@ -387,3 +387,32 @@ setup() {
     grep -q 'Wails interface needs the WebView2 runtime' README.md
     grep -q 'Policy can prevent continuation' README.md
 }
+
+@test "E2E architecture separates historical native diagrams from current acceptance" {
+    grep -q 'They do not prove Linux inside Windows or the WinUI journey' docs/e2e-architecture.md
+    grep -q 'status.md#buildtest-matrix' docs/e2e-architecture.md
+    ! grep -q 'Everything here was validated live' docs/e2e-architecture.md
+}
+
+@test "E2E architecture follows the actual sourced runner boundaries" {
+    for module in qga-transport host-runtime retention vm-start; do
+        grep -q "source .*lib/$module.sh" tests/e2e/run-e2e.sh
+        grep -q "$module.sh" docs/e2e-architecture.md
+    done
+    grep -q 'Neither probe accepts a token when its command fails' docs/e2e-architecture.md
+    ! grep -q 'transport,.*still need separate modules' docs/e2e-architecture.md
+}
+
+@test "E2E architecture does not claim an atomic deployer menu handoff" {
+    grep -q 'for gd in "$TARGET_VENDOR" fedora wootc' payload/deployer/deploy.sh
+    grep -Fq '> "/mnt/esp/EFI/$gd/grub.cfg"' payload/deployer/deploy.sh
+    grep -q 'this is not an atomic handoff' docs/e2e-architecture.md
+    grep -q 'An interrupted update can leave partial boot state' docs/e2e-architecture.md
+    ! grep -q 'atomically with a successful deployment' docs/e2e-architecture.md
+}
+
+@test "E2E architecture distinguishes a QGA service request from a working channel" {
+    grep -Fq 'MGMT_KARG="systemd.wants=qemu-guest-agent.service"' payload/deployer/deploy.sh
+    grep -q 'That request alone does not prove the service exists or runs' docs/e2e-architecture.md
+    ! grep -q 'deployed system is given a control channel' docs/e2e-architecture.md
+}

@@ -522,72 +522,9 @@ qga_wait_windows() {
 # "Your password has expired and must be changed" before any GUI launch (#399).
 # Provision only the configured local autologon fixture account; keep its
 # password and autologon configuration intact. Never change machine-wide policy.
-gui_prepare_account() {
-    local result
-    GUI_ACCOUNT_RESTART=false
-    # shellcheck disable=SC2016 # PowerShell variables are literal.
-    if ! result=$(qga_powershell '
-$ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
-New-Item -ItemType Directory -Force -Path C:\OEM | Out-Null
-$log = "C:\OEM\wootc-e2e.log"
-try {
-    $wl = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-    $name = [string]$wl.DefaultUserName
-    if ($wl.AutoAdminLogon -ne "1" -or $name -notin @("wootc", "Docker")) {
-        throw "autologon fixture account is missing or unexpected"
-    }
-    if ($wl.DefaultDomainName -and $wl.DefaultDomainName -notin @(".", $env:COMPUTERNAME)) {
-        throw "autologon fixture account is not local"
-    }
-    $user = Get-LocalUser -Name $name
-    if (-not $user.Enabled) { throw "autologon fixture account is disabled" }
-    $expired = $null -ne $user.PasswordExpires -and $user.PasswordExpires -le (Get-Date)
-    Add-Content -Path $log -Value "autologon: account=$name passwordExpired=$expired" -Encoding UTF8
-    Set-LocalUser -Name $name -PasswordNeverExpires $true
-    $user = Get-LocalUser -Name $name
-    if ($null -ne $user.PasswordExpires) { throw "fixture password still has an expiry date" }
-    Add-Content -Path $log -Value "autologon: fixture password expiry disabled; credentials unchanged" -Encoding UTF8
-    if ($expired) { Write-Output "autologon-account-ready restart=1" }
-    else { Write-Output "autologon-account-ready restart=0" }
-} catch {
-    Add-Content -Path $log -Value "autologon: provisioning failed: $_" -Encoding UTF8
-    throw
-}' 2>&1); then
-        printf '%s\n' "$result" >&2
-        fail "autologon-provisioning: could not prepare the local GUI fixture account (or write C:\\OEM\\wootc-e2e.log)"
-        return 1
-    fi
-    case "$(printf '%s' "$result" | tr -d '\r')" in
-        'autologon-account-ready restart=1') GUI_ACCOUNT_RESTART=true ;;
-        'autologon-account-ready restart=0') ;;
-        *) fail "autologon-provisioning: guest did not confirm the account policy"; return 1 ;;
-    esac
-}
-
-# Session-0 QGA liveness cannot satisfy schtasks /IT. A failed/empty probe must
-# never be promoted to a desktop, and the deadline must stop launch entirely.
-gui_wait_interactive_session() {
-    local deadline user
-    deadline=$(deadline_in 120)
-    while ! past_deadline "$deadline"; do
-        # shellcheck disable=SC2016 # PowerShell variables are literal.
-        if user=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_powershell '$ErrorActionPreference = "Stop"; $u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output "interactive-user=$u" }' 2>/dev/null); then
-            user=$(printf '%s' "$user" | tr -d '\r')
-            if [[ "$user" == interactive-user=*\\* ]]; then
-                pass "GUI interactive session ready: ${user#interactive-user=}"
-                return 0
-            fi
-        fi
-        sleep 5
-    done
-    # Deliberately not a retryable flake: another copy of the same expired or
-    # misconfigured snapshot cannot fix itself on a second hosted runner.
-    fail "autologon-no-session: no interactive Windows user within 120 s; GUI was not scheduled"
-    # shellcheck disable=SC2016 # PowerShell variables are literal.
-    qga_powershell 'Add-Content -Path C:\OEM\wootc-e2e.log -Value "autologon-no-session: GUI launch blocked" -Encoding UTF8; query user 2>&1' 2>&1 || true
-    return 1
-}
+# shellcheck source=tests/e2e/lib/gui-session.sh
+source "$SCRIPT_DIR/lib/gui-session.sh"
+wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_wait_reboot
 
 # Which drive holds the guest's \wootc tree. NOT always C:.
 #
@@ -1754,102 +1691,15 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     rm -f "$STORAGE_DIR/phase3/data2.qcow2"
 fi
 
-# Self-healing container start. Rootless podman occasionally leaves a phantom
-# "podman0 already exists but is a Tun interface" in its network run-state
-# after a crashed run — netavark then refuses every bridge start until the
-# stale state is cleared. Detect that specific failure and auto-heal once so
-# the runner needs no manual host babysitting.
-# Avoid host-port clashes without killing anything. The compose file maps
-# noVNC/RDP/VNC/ssh purely for debug convenience (QGA is the real control
-# plane), so if a default port is already taken — e.g. gnome-remote-desktop
-# owns 3389, or a monitoring stack owns a port — pick a free alternative and
-# export the override the compose file reads. We never kill the holder: it may
-# be a legitimate service (the operator's own remote desktop).
-port_free() { ! { exec 3<>"/dev/tcp/127.0.0.1/$1"; } 2>/dev/null || { exec 3>&- 3<&-; return 1; }; }
-pick_free_ports() {
-    local var base p
-    for pair in "WOOTC_E2E_NOVNC_PORT:8006" "WOOTC_E2E_RDP_PORT:3389" \
-                "WOOTC_E2E_VNC_PORT:5900" "WOOTC_E2E_SSH_PORT:2222" \
-                "WOOTC_E2E_CDP_PORT:9222"; do
-        var="${pair%%:*}"; base="${pair##*:}"
-        p="${!var:-$base}"
-        if ! port_free "$p"; then
-            local alt
-            for alt in $(seq $((base + 10000)) $((base + 10050))); do
-                port_free "$alt" && { p="$alt"; break; }
-            done
-            warn "host port $base is in use — mapping $var=$p instead"
-        fi
-        export "$var=$p"
-    done
-}
-
-# Rebuild the baked-in-sshd image if it went missing (e.g. `podman system
-# prune` reclaimed it). Compose then fails trying to pull it from localhost.
-rebuild_ssh_image_if_missing() {
-    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
-    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 1
-    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || return 1
-    warn "e2e ssh image missing — rebuilding via build-ssh-image.sh"
-    bash "$SCRIPT_DIR/build-ssh-image.sh"
-}
-
-# Build the e2e ssh image BEFORE compose needs it.
-#
-# compose.yml references localhost/wootc-e2e-windows-ssh:latest, which only ever
-# exists because build-ssh-image.sh made it locally. On any host that has never
-# built it — a fresh GitHub hosted runner, or a laptop after `podman system
-# prune -af` — compose interprets "localhost/..." as a REGISTRY and tries to
-# pull over HTTPS from localhost:443. Recovering after that failure works, but
-# recovering from a failure we can trivially prevent is the wrong order.
-ensure_ssh_image() {
-    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
-    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 0
-    $DOCKER image exists "$img" 2>/dev/null && return 0
-    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || {
-        fail "e2e ssh image $img is missing and build-ssh-image.sh is not executable"
-        return 1
-    }
-    step "Building the e2e ssh image (absent on this host)..."
-    bash "$SCRIPT_DIR/build-ssh-image.sh" || { fail "build-ssh-image.sh failed"; return 1; }
-    $DOCKER image exists "$img" 2>/dev/null || { fail "build completed but $img still absent"; return 1; }
-    pass "e2e ssh image built"
-}
-
-compose_up_windows() {
-    ensure_ssh_image || return 1
-    pick_free_ports
-    $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-    local out
-    if out=$($COMPOSE -f compose.yml up -d windows 2>&1); then
-        printf '%s\n' "$out"
-        return 0
-    fi
-    printf '%s\n' "$out" >&2
-    # (1) netavark phantom bridge — clear stale rootless network run-state.
-    if printf '%s' "$out" | grep -q "already exists but is a Tun interface"; then
-        warn "netavark phantom bridge detected — clearing stale rootless network state and retrying"
-        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-        local netdir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/containers/networks"
-        rm -rf "${netdir:?}/"* 2>/dev/null || true
-        $DOCKER network reload --all 2>/dev/null || true
-        $COMPOSE -f compose.yml up -d windows
-        return $?
-    fi
-    # (2) the e2e ssh image was pruned — rebuild it, then retry.
-    if printf '%s' "$out" | grep -qiE "pinging container registry localhost|no such image|manifest unknown"; then
-        rebuild_ssh_image_if_missing && { $COMPOSE -f compose.yml up -d windows; return $?; }
-    fi
-    # (3) a port clashed after our pre-check (race) — re-pick and retry once.
-    if printf '%s' "$out" | grep -qi "address already in use"; then
-        warn "host port clash — re-selecting free ports and retrying"
-        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-        pick_free_ports
-        $COMPOSE -f compose.yml up -d windows
-        return $?
-    fi
-    return 1
-}
+# Start only the configured VM. Host network conflicts are infrastructure
+# failures; the adapter never removes unrelated network state.
+# shellcheck source=tests/e2e/lib/vm-start.sh
+source "$SCRIPT_DIR/lib/vm-start.sh"
+if [ "$COMPOSE" = podman-compose ]; then
+    wootc_vm_configure "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR" "$SCRIPT_DIR/compose.yml" podman-compose
+else
+    wootc_vm_configure "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR" "$SCRIPT_DIR/compose.yml" "$DOCKER" compose
+fi
 # Do NOT ignore the result, and do NOT trust it either.
 #
 # This call used to be bare, so when every recovery path failed the script still
@@ -1877,15 +1727,15 @@ while ! past_deadline "$RAM_WAIT_DEADLINE"; do
 done
 
 if ! compose_up_windows; then
-    fail "Could not start the Windows container (all recovery paths exhausted)"
-    fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
-    fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
-    fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
+    infra_fail "Could not start the Windows container (all recovery paths exhausted)"
+    infra_fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
+    infra_fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
+    infra_fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
-if ! $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
-    fail "compose reported success but $CONTAINER_NAME does not exist"
-    fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
+if ! wootc_vm_call container exists "$CONTAINER_NAME" 2>/dev/null; then
+    infra_fail "compose reported success but $CONTAINER_NAME does not exist"
+    infra_fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
 info "Container $CONTAINER_NAME started"
@@ -1894,14 +1744,7 @@ info "Container $CONTAINER_NAME started"
 # A first run extracts the ISO, injects drivers, and rebuilds the installer
 # image — several minutes on slower disks — so poll long (up to 15 min) and
 # distinguish "QEMU never started" from a real acceleration failure.
-qemu_argv_sample() { $DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true; }
-QEMU_CMD=""
-for _ in $(seq 1 300); do
-    QEMU_CMD=$(qemu_argv_sample)
-    [ -n "$QEMU_CMD" ] && break
-    sleep 3
-done
-if [ -z "$QEMU_CMD" ]; then
+if ! QEMU_CMD=$(wootc_vm_wait_argv 900 started); then
     fail "QEMU did not start within 15 minutes (Dockur still preparing the image, or it crashed)"
     capture_vm_diagnostics
     exit 1
@@ -1917,22 +1760,11 @@ fi
 # /storage2/data2.qcow2), so a short read fails them all spuriously.
 # Re-sample until the argv shows acceleration, and only call it a real failure
 # once the process has had time to finish exec'ing.
-QEMU_ARGV_DEADLINE=$(deadline_in 60)
-until [[ ( "$QEMU_CMD" == *"-accel=kvm"* || "$QEMU_CMD" == *"accel=kvm"* ) && "$QEMU_CMD" == *"-enable-kvm"* ]]; do
-    if past_deadline "$QEMU_ARGV_DEADLINE"; then
-        fail "QEMU is not using KVM acceleration"
-        info "settled QEMU argv: ${QEMU_CMD:-<qemu no longer running>}"
-        capture_vm_diagnostics
-        exit 1
-    fi
-    sleep 2
-    NEXT_QEMU_CMD=$(qemu_argv_sample)
-    # An empty sample means QEMU exited; keep the last good line for the
-    # verdict rather than reporting an empty command line.
-    if [ -n "$NEXT_QEMU_CMD" ]; then
-        QEMU_CMD="$NEXT_QEMU_CMD"
-    fi
-done
+if ! QEMU_CMD=$(wootc_vm_wait_argv 60 accelerated "$QEMU_CMD"); then
+    fail "QEMU is not using KVM acceleration"
+    capture_vm_diagnostics
+    exit 1
+fi
 QEMU_RAM_MB=$(awk '{
     for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+[MG]$/) {
         value = $(i + 1)
@@ -2428,57 +2260,6 @@ reset_oem_attempt
 # workaround — a user who follows the app's instruction arrives here too.
 # If a restart does not clear it, say so and leave the app's own refusal as
 # the verdict rather than pretending the machine is ready.
-gui_settle_pending_servicing() {
-    # Stop the update machinery FIRST, or "cleared" does not stay cleared:
-    # el10-gnome-win10pro (run 32556250889) restarted, probed clean
-    # ("Pending servicing cleared by a restart"), launched the GUI — and two
-    # minutes later the app refused with "(servicing)" because Windows
-    # Update had resumed post-reboot and staged fresh work between our probe
-    # and the app's. An E2E VM has no business updating mid-test; disabling
-    # wuauserv/UsoSvc makes the settle below stick. Best-effort per service
-    # (WaaSMedicSvc actively resists), logged, never fatal.
-    qga_powershell 'foreach ($svc in "wuauserv","UsoSvc","WaaSMedicSvc") {
-  try { Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue } catch {}
-  try { Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue } catch {}
-}
-Write-Output "update services stopped"' >/dev/null 2>&1 || true
-    info "    Windows Update services stopped+disabled for the test run (servicing state can no longer re-stage mid-run)"
-    # shellcheck disable=SC2016 # PowerShell variables must remain literal.
-    local probe='$r = @()
-if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") { $r += "servicing" }
-if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired") { $r += "windows-update" }
-Write-Output ($r -join ",")'
-    local pending
-    pending=$(qga_powershell "$probe" 2>/dev/null | tr -d '[:space:]' || true)
-    if [ -z "$pending" ]; then
-        info "    no pending servicing operation — the app's preflight has nothing to refuse"
-        return 0
-    fi
-    info "    Windows is mid-servicing ($pending) — restarting the guest, exactly as the app instructs a user to"
-    qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after the pending-servicing restart"
-    # QGA answers from session 0 well before autologon completes, and the GUI
-    # is launched with `schtasks /IT` — which needs a real interactive session
-    # or it fails with "the system cannot find the file specified", the same
-    # opaque message el10-gnome-win11ent produced. Wait for the logged-on user
-    # to exist, positively, rather than assuming the agent implies a desktop.
-    local logon_deadline
-    logon_deadline=$(deadline_in 300)
-    while ! past_deadline "$logon_deadline"; do
-        # shellcheck disable=SC2016 # PowerShell variable, not a shell one.
-        if [ -n "$(qga_powershell '$u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output $u }' 2>/dev/null | tr -d '[:space:]')" ]; then
-            break
-        fi
-        sleep 10
-    done
-    pending=$(qga_powershell "$probe" 2>/dev/null | tr -d '[:space:]' || true)
-    if [ -n "$pending" ]; then
-        warn "    still mid-servicing after the restart ($pending) — the app will refuse, and it will be right to"
-        return 0
-    fi
-    pass "Pending servicing cleared by a restart — the machine is migration-ready"
-}
-
 # ── GUI-driven Phase 1 (--gui-install) ──────────────────────────────────────
 # Arms the machine through the REAL wootc.exe GUI instead of the OEM
 # setup-wootc.ps1 script: stage the app + artifacts, launch it with a CDP
@@ -2486,6 +2267,10 @@ Write-Output ($r -join ",")'
 # context cannot render WebView2), then drive the actual install form from a
 # playwright container. The driver's last act is clicking "Reboot Now →",
 # which boots the deployer — the rest of the run verifies as normal.
+# shellcheck source=tests/e2e/lib/gui-observations.sh
+source "$SCRIPT_DIR/lib/gui-observations.sh"
+wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
+
 gui_install_arm() {
     # Seed while Windows is alive — the OEM path seeds inside
     # snapshot_before_deployer, which the GUI path never reaches, and the
@@ -2553,7 +2338,7 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
             || warn "    WebView2 still absent after 7m — the GUI will stall on its install prompt"
     fi
 
-    gui_settle_pending_servicing
+    gui_settle_pending_servicing || { capture_vm_diagnostics; exit 1; }
 
     gui_prepare_account || { capture_vm_diagnostics; exit 1; }
     if [ "$GUI_ACCOUNT_RESTART" = true ]; then
@@ -2927,53 +2712,20 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
 
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
-    qga_powershell '@"
-{"action":"reboot"}
-"@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii' >/dev/null
-    pass "Reboot directive issued — deployer takes over"
+    gui_write_reboot_directive || { capture_vm_diagnostics; exit 1; }
+    info "Reboot directive written through the guest command"
 
-    # Verify the reboot ACTUALLY took effect before handing control to the
-    # deployer monitor. On a hosted runner the app's reboot handler can stall
-    # (e.g., if the WebView2 host process is wedged), leaving the VM sitting
-    # at the Windows desktop forever while Step 7 waits for a deployer that
-    # can never appear — the exact Mode-B signature (#71).
-    #
-    # Wait for Windows QGA to go DOWN, proving the guest is rebooting. If
-    # Windows keeps answering after a generous grace period, the reboot
-    # directive was consumed but did not take effect, and the deployer will
-    # never boot. Fail early with a clear signal instead of burning the
-    # 90-minute deploy budget on an impossible wait.
+    # A failed Windows probe is unknown identity, and ping loss is only a
+    # transport observation. Positive Linux or channel loss hands observation
+    # to the deployer monitor, which must still prove the actual boot and work.
     step "Waiting for Windows to reboot after GUI install..."
-    local reboot_deadline reboot_ok=false
-    reboot_deadline=$(deadline_in 180)
-    while ! past_deadline "$reboot_deadline"; do
-        if ! qga_probe; then
-            info "  Windows QGA is gone — reboot is underway"
-            reboot_ok=true
-            break
-        fi
-        if ! qga_windows_probe; then
-            info "  Windows agent no longer answers — reboot is underway"
-            reboot_ok=true
-            break
-        fi
-        sleep 10
-    done
-    if [ "$reboot_ok" = false ]; then
-        fail "Windows did NOT reboot within 3 minutes of the reboot directive"
-        fail "  The GUI app received the directive but the VM is still running Windows."
-        fail "  The deployer will never boot. Last screen reached: ${last_screen:-<none>}"
-        fail "  This is the Mode-B signature (#71): Phase 1 never handed over."
-        info "  Checking wootc.exe state for post-mortem:"
-        qga_powershell '
-$p = Get-Process wootc -ErrorAction SilentlyContinue
-Write-Output ("wootc.exe: " + $(if ($p) { "alive pid=" + $p.Id + " cpu=" + $p.CPU } else { "dead" }))
-Write-Output ("shutdown pending: " + (Get-WinEvent -LogName System -MaxEvents 20 -FilterXPath "*[System[EventID=1074 or EventID=6006 or EventID=6008]]" | Select-Object -First 3 | ForEach-Object { $_.TimeCreated.ToString("HH:mm:ss") + " " + $_.Message }) -join " | ")
-' 2>&1 | sed 's/^/    /' || true
-        capture_vm_diagnostics
-        exit 1
+    gui_wait_handover 180 || { capture_vm_diagnostics; exit 1; }
+    if [ "$WOOTC_GUI_HANDOVER_OBSERVATION" = linux ]; then
+        info "Positive Linux identity observed after the GUI reboot directive"
+    else
+        info "QGA transport unavailable after the GUI directive; deployer monitor must establish the actual boot"
     fi
-    pass "Windows reboot confirmed — deployer handover in progress"
+
 }
 
 if [ "$GUI_INSTALL" = true ]; then
