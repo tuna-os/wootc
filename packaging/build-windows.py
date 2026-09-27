@@ -83,9 +83,14 @@ def resources(root, brand, version, work):
     }
 
 
-def build(root, brand, output, version, tags, ldflags, repository="tuna-os/wootc"):
+def build(root, brand, output, version, tags, ldflags, repository="tuna-os/wootc", manifest_public_key=None):
     if not re.fullmatch(r"[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+", repository):
         raise ValueError("artifact repository must be owner/repository")
+    public_key = ""
+    if manifest_public_key:
+        public_key = Path(manifest_public_key).read_text().strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", public_key):
+            raise ValueError("manifest public key must be 32 bytes encoded as hex")
     output = Path(output).resolve()
     # Isolate resources as well as source: simultaneous builds cannot inherit
     # another brand's .syso, and a failed build never dirties the source tree.
@@ -104,6 +109,7 @@ def build(root, brand, output, version, tags, ldflags, repository="tuna-os/wootc
         # the GUI subsystem or compile a different runtime brand identity.
         flags = f"{ldflags} -H windowsgui -w -s -X main.brandID={brand}"
         flags += f" -X main.releasesBaseURL=https://github.com/{repository}/releases/"
+        flags += f" -X main.artifactPublicKey={public_key}"
         if version != "0.0.0-dev":
             flags += f" -X main.releaseTag={version}"
         subprocess.run(["go", "build", "-tags", tags, "-ldflags", flags, "-o", str(output), "."],
@@ -119,10 +125,11 @@ def main():
     parser.add_argument("--ldflags", default="")
     parser.add_argument("--artifact-repository", default=os.environ.get("GITHUB_REPOSITORY") or "tuna-os/wootc",
                         help="GitHub owner/repository for matching boot artifacts")
+    parser.add_argument("--manifest-public-key", help="public hex key for the matching signed SHA256SUMS")
     args = parser.parse_args()
     try:
         subprocess.run([sys.executable, str(ROOT / "packaging/brand.py"), "validate", "--brand", args.brand], check=True)
-        build(ROOT, args.brand, args.output, args.version, args.tags, args.ldflags, args.artifact_repository)
+        build(ROOT, args.brand, args.output, args.version, args.tags, args.ldflags, args.artifact_repository, args.manifest_public_key)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Windows build failed: {error}\n")
 

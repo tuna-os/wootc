@@ -159,7 +159,8 @@ build-wootc-exe brand="wootc":
         ls app/branding >&2; exit 1; }
     mkdir -p "{{ FILES }}"
     (cd app/frontend && npm install --silent && npm run build >/dev/null)
-    python3 packaging/build-windows.py --brand "{{ brand }}" --output "{{ FILES }}/wootc.exe"
+    key=$(bash packaging/e2e-manifest-key.sh --create)
+    python3 packaging/build-windows.py --brand "{{ brand }}" --output "{{ FILES }}/wootc.exe" --manifest-public-key "$key.pub"
     echo "brand: {{ brand }} ($(jq -r '.productName // "wootc"' "app/branding/{{ brand }}/brand.json"))"
     ls -lh "{{ FILES }}/wootc.exe"
 
@@ -524,22 +525,10 @@ vm-wootc-fresh: build-wootc-exe build
         echo "QGA never came up — the guest may still be booting; check 'just console'." >&2
         exit 1
     }
-    # The real wootc.exe always fetches SHA256SUMS + boot artifacts from
-    # GitHub Releases (installer_windows.go, fail-closed per #53) — it never
-    # looks at files staged locally. WOOTC_DEPLOYER_MIRROR overrides the base
-    # URL for exactly this kind of offline dev VM. Serve wootc-files/ over
-    # HTTP from inside the container's own netns (same trick dockur uses for
-    # noVNC on 8006: excluded from the QEMU_DNAT-to-guest catch-all so it
-    # resolves locally instead of being redirected into the guest) — the
-    # Samba share (\\host.lan\Data) already proves that path reaches the
-    # guest, this just adds an HTTP listener beside it.
-    echo "Regenerating SHA256SUMS and starting the local deployer mirror..."
+    # Stage signed local artifacts; runtime mirror overrides are ignored.
+    key=$(bash packaging/e2e-manifest-key.sh)
     ( cd "{{ FILES }}" && sha256sum deployer-vmlinuz deployer-initramfs.img shimx64.efi grubx64.efi wubildr.efi > SHA256SUMS )
-    mirror_port=18080
-    podman exec "{{ CTR }}" iptables -t nat -C QEMU_DNAT -p tcp --dport "$mirror_port" -j RETURN 2>/dev/null || \
-        podman exec "{{ CTR }}" iptables -t nat -I QEMU_DNAT 1 -p tcp --dport "$mirror_port" -j RETURN
-    podman exec "{{ CTR }}" pkill -f "http.server $mirror_port" 2>/dev/null || true
-    podman exec -d "{{ CTR }}" python3 -m http.server "$mirror_port" --directory /shared --bind 0.0.0.0
+    ( cd app && go run ./tools/signmanifest sign "$key" "{{ FILES }}/SHA256SUMS" "{{ FILES }}/SHA256SUMS.sig" )
     echo "Installing wootc.exe + install artifacts + Desktop shortcut..."
     # A single script file pushed via `qga.py write` and run with a trivial
     # one-line -Command, rather than threading a multi-line PowerShell block
@@ -547,16 +536,13 @@ vm-wootc-fresh: build-wootc-exe build
     # own $-expansion — too many layers to keep straight reliably.
     # Fully-quoted heredoc: bash performs zero escaping/expansion inside, so
     # PowerShell's own $vars and UNC \\-paths need no backslash gymnastics.
-    # The one dynamic value (the mirror port) goes in via a sed placeholder
-    # afterward instead.
     cat > "{{ STORAGE }}/install-wootc.ps1" <<'PS1'
     New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
     Copy-Item \\host.lan\Data\wootc.exe C:\wootc\wootc.exe -Force
-    foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi","SHA256SUMS") {
+    foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","wubildr.efi","SHA256SUMS","SHA256SUMS.sig") {
         if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force }
     }
     @"
-    set WOOTC_DEPLOYER_MIRROR=http://host.lan:__MIRROR_PORT__/
     start "" C:\wootc\wootc.exe
     "@ | Set-Content -Path C:\wootc\launch-manual.cmd -Encoding ascii
     $ws = New-Object -ComObject WScript.Shell
@@ -567,7 +553,6 @@ vm-wootc-fresh: build-wootc-exe build
     $sc.Save()
     Write-Output "installed"
     PS1
-    sed -i "s/__MIRROR_PORT__/$mirror_port/" "{{ STORAGE }}/install-wootc.ps1"
     podman cp "{{ STORAGE }}/install-wootc.ps1" "{{ CTR }}:/tmp/install-wootc.ps1"
     podman exec "{{ CTR }}" python3 /tmp/qga.py write /tmp/install-wootc.ps1 'C:\wootc-install.ps1'
     podman exec "{{ CTR }}" python3 /tmp/qga.py powershell "& 'C:\wootc-install.ps1'"

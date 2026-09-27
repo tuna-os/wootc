@@ -43,11 +43,15 @@ func copyFile(src, dst string) error {
 }
 
 func downloadFile(ctx context.Context, url, dest string, progress func(float64)) error {
+	return downloadFileWithClient(ctx, http.DefaultClient, url, dest, progress)
+}
+
+func downloadFileWithClient(ctx context.Context, client *http.Client, url, dest string, progress func(float64)) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

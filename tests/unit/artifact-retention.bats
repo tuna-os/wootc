@@ -227,6 +227,7 @@ mkrun() {
     [ -f "$REPO_ROOT/app/deployer_url.go" ]
     run grep -q 'go:build windows' "$REPO_ROOT/app/deployer_url.go"
     [ "$status" -ne 0 ]
-    # The harness/offline override still wins over the pin.
-    grep -q 'WOOTC_DEPLOYER_MIRROR' "$REPO_ROOT/app/deployer_url.go"
+    # Runtime mirror redirection is rejected by executable Go tests. The
+    # harness supplies a signature matching its compiled fixture key.
+    grep -q -- '--manifest-public-key' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
 }

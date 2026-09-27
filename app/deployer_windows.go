@@ -16,7 +16,10 @@ import (
 // ── Deployer download ─────────────────────────────────────────────────────────
 
 func downloadDeployer(ctx context.Context, progress func(float64)) error {
-	installDir := filepath.Join(wootcDir(), "install")
+	return downloadDeployerTo(ctx, filepath.Join(wootcDir(), "install"), progress)
+}
+
+func downloadDeployerTo(ctx context.Context, installDir string, progress func(float64)) error {
 	// The signed shim+grub pair carries the Secure Boot chain; mmx64.efi
 	// (MokManager) lets shim complete the MOK enrollment that custom-kernel
 	// images queue during deploy (#248); wubildr.efi remains only for the
@@ -28,7 +31,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 	// never install a boot artifact it cannot verify. This is fail-closed:
 	// an unreachable manifest, a missing entry, a corrupt cache, and a
 	// checksum mismatch all abort the install.
-	sums, err := fetchChecksums(ctx)
+	sums, err := fetchArtifactChecksums(ctx, installDir)
 	if err != nil {
 		return fmt.Errorf("cannot verify boot artifacts: SHA256SUMS manifest unavailable: %w", err)
 	}
@@ -45,6 +48,11 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 			// other artifact stays fail-closed (#53): no manifest entry, no
 			// install.
 			if isOptionalArtifact(name) {
+				// Later staging checks file existence. An optional cache not
+				// authenticated by this manifest must not reach the ESP.
+				if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("remove unverified optional artifact %s: %w", name, err)
+				}
 				progress(float64(i+1) / float64(len(files)))
 				continue
 			}
@@ -66,7 +74,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 			os.Remove(dest) //nolint:errcheck
 		}
 
-		if err := downloadFile(ctx, deployerBaseURL()+name, dest, func(p float64) {
+		if err := downloadBootArtifact(ctx, deployerBaseURL()+name, dest, func(p float64) {
 			base := float64(i) / float64(len(files))
 			progress(base + p/float64(len(files)))
 		}); err != nil {
@@ -92,50 +100,9 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 // install.
 func isOptionalArtifact(name string) bool { return name == "wubildr.efi" || name == "mmx64.efi" }
 
-// fetchChecksums returns the SHA256SUMS manifest as a filename→hash map.
-// Fail-closed (#53): every error aborts the install rather than silently
-// disabling verification of privileged boot artifacts.
-//
-// A manifest PRE-STAGED at install\SHA256SUMS wins over the network fetch.
-// That is the offline-bundle contract (#194): an administrator (or the E2E
-// harness) who staged the boot artifacts stages their manifest beside them —
-// same trust domain, since writing C:\wootc\install already requires admin —
-// and an air-gapped machine can then install without a route to GitHub.
-// Requiring the network fetch even when everything was staged locally is
-// what broke both the offline story and every GUI E2E cell after #194
-// (run 32549251225: 'SHA256SUMS manifest unavailable: HTTP 404').
-// Verification itself is unchanged either way: every artifact, cached or
-// downloaded, must match the manifest or the install aborts.
+// fetchChecksums authenticates both staged and downloaded manifests.
 func fetchChecksums(ctx context.Context) (map[string]string, error) {
-	local := filepath.Join(wootcDir(), "install", "SHA256SUMS")
-	if data, err := os.ReadFile(local); err == nil {
-		if sums := parseChecksums(data); len(sums) > 0 {
-			return sums, nil
-		}
-		return nil, fmt.Errorf("pre-staged manifest %s exists but contains no checksums", local)
-	}
-	tmp := filepath.Join(os.TempDir(), "wootc-SHA256SUMS")
-	if err := downloadFile(ctx, deployerBaseURL()+"SHA256SUMS", tmp, func(float64) {}); err != nil {
-		return nil, fmt.Errorf("fetch SHA256SUMS: %w", err)
-	}
-	defer os.Remove(tmp) //nolint:errcheck
-	data, err := os.ReadFile(tmp)
-	if err != nil {
-		return nil, fmt.Errorf("read SHA256SUMS: %w", err)
-	}
-	return parseChecksums(data), nil
-}
-
-func parseChecksums(data []byte) map[string]string {
-	sums := map[string]string{}
-	for _, line := range strings.Split(string(data), "\n") {
-		f := strings.Fields(line)
-		if len(f) == 2 {
-			// coreutils format: "<hash>  <name>" (name may have a * prefix).
-			sums[strings.TrimPrefix(f[1], "*")] = f[0]
-		}
-	}
-	return sums
+	return fetchArtifactChecksums(ctx, filepath.Join(wootcDir(), "install"))
 }
 
 // sha256File returns the lowercase hex SHA-256 of a file.
