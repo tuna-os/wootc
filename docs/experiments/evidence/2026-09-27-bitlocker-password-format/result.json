@@ -1,0 +1,18 @@
+{
+  "cryptsetup": "cryptsetup 2.7.0 flags: UDEV BLKID KEYRING FIPS KERNEL_CAPI HW_OPAL",
+  "imageSha256": "7e371aa37bdada572013768da2663f7378e4f49e2bda1e4e6c2d011a6ff6a128",
+  "results": [
+    {
+      "case": "canonical-55",
+      "inputCharacters": 55,
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "case": "stripped-48",
+      "inputCharacters": 48,
+      "exit": 2,
+      "stderr": "No key available with this passphrase."
+    }
+  ]
+}

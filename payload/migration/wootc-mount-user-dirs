@@ -82,21 +82,41 @@ find_bitlocker_profiles() {
     fi
     log "found BitLocker-encrypted volume: ${bl_vol}"
 
-    # The numerical recovery password is 48 digits grouped as 8 blocks of 6.
-    # Read it from the key file, stripping whitespace and hyphens.
-    local recovery_key
-    recovery_key=$(tr -d '[:space:]-' < "$key_file" 2>/dev/null || true)
-    if [[ -z "$recovery_key" || "${#recovery_key}" -lt 48 ]]; then
-        warn "BitLocker recovery key file is empty or too short (${#recovery_key} chars, need at least 48)"
+    # cryptsetup recognizes recovery protectors only in Windows's canonical
+    # 55-character form. Removing the seven hyphens turns it into an unrelated
+    # 48-character passphrase which can never unlock that recovery protector.
+    local recovery_key group value
+    local -a key_lines=() key_groups=()
+    mapfile -t key_lines < "$key_file"
+    if [[ ${#key_lines[@]} != 1 ]]; then
+        warn "BitLocker recovery password format invalid (expected one line); refusing unlock"
         return 0
     fi
+    recovery_key="${key_lines[0]%$'\r'}"
+    if [[ ! "$recovery_key" =~ ^[0-9]{6}(-[0-9]{6}){7}$ ]]; then
+        warn "BitLocker recovery password format invalid (expected eight hyphen-separated groups); refusing unlock"
+        return 0
+    fi
+    IFS=- read -r -a key_groups <<< "$recovery_key"
+    for group in "${key_groups[@]}"; do
+        value=$((10#$group))
+        if (( value % 11 != 0 || value / 11 > 65535 )); then
+            warn "BitLocker recovery password format invalid (group checksum or range); refusing unlock"
+            return 0
+        fi
+    done
 
     # Unlock and mount the BitLocker volume.
     local mapper="wootc-bitlk-$$"
     local mnt="/run/wootc/bitlk-tmp"
     mkdir -p "$mnt"
-    if ! printf '%s' "$recovery_key" | cryptsetup bitlkOpen "$bl_vol" "$mapper" --key-file=- 2>/dev/null; then
-        warn "cryptsetup bitlkOpen failed for ${bl_vol} — recovery key may be stale or volume is not BitLocker"
+    local unlock_rc=0
+    printf '%s' "$recovery_key" | cryptsetup bitlkOpen "$bl_vol" "$mapper" --key-file=- 2>/dev/null || unlock_rc=$?
+    unset recovery_key key_lines key_groups
+    if (( unlock_rc != 0 )); then
+        # Exit status is public; the recovery password and tool input are not.
+        # Do not label a validated key stale without decryptor evidence.
+        warn "cryptsetup bitlkOpen failed for ${bl_vol} (exit $unlock_rc; password format validated)"
         rmdir "$mnt" 2>/dev/null || true
         return 0
     fi
