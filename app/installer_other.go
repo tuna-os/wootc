@@ -37,6 +37,7 @@ func defragDrive() error                         { return fmt.Errorf("defragment
 func disableFastStartup() error                  { return nil }
 func recordKnownFolders()                        {}
 func createDirectories() error                   { return os.MkdirAll("/tmp/wootc/install", 0o755) }
+func requireNewInstallRootDisk() error           { return nil }
 func createRootDisk(sizeGB int) error {
 	// Create a small placeholder file for dev testing
 	path := "/tmp/wootc/disks/root.vhdx"

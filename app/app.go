@@ -744,6 +744,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 	if err := prepareInstallState(cfg.StorageDrive); err != nil {
 		return err
 	}
+	// GUI routing is advisory. Enforce data preservation for every backend
+	// caller before changing power settings, files, or firmware boot entries.
+	if err := requireNewInstallRootDisk(); err != nil {
+		return err
+	}
 	steps := []struct {
 		name    string
 		percent float64
