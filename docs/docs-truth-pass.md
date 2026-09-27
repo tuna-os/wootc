@@ -100,3 +100,24 @@ can reach that fallback — `defaultBranding()` sets a tagline and every
 reader once, via a doc that quoted it. Removing it is a frontend change and
 was out of scope for a docs pass; `docs-truth.bats` now pins the doc to the
 real `brand.json` tagline instead, so the two cannot drift again.
+
+## Focused guide pass — 2026-09-27, against `85a032f`
+
+This pass compares the user guide with current source and retained VM evidence.
+It is not a walk through an RC build on real hardware.
+
+Four incorrect claims now have checks in `tests/unit/docs-truth.bats`:
+
+- The guide said the deployer restarts into the new desktop.
+  Windows normally returns first. The Manage screen offers an explicit Linux boot choice.
+- The guide excluded all passwords from profile imports.
+  The Firefox helper copies a complete profile, including saved passwords.
+- Windows removal appeared as an available final step in the guide.
+  The helper prints a plan. The helper has no consumer execution for that plan.
+- Exact restoration of Windows after uninstall appeared in the guide.
+  Cleanup can fail. The guide now describes its intended actions and reported errors.
+
+The guide also states the limits of VM-first use, native graduation, and hardware evidence.
+Its OS requirements stay the same. Earlier section anchors still resolve.
+The revised text has no English findings under the shared checker.
+RC timing, fresh package screenshots, hardware recovery, and signature acceptance remain open.
