@@ -254,3 +254,25 @@ setup() {
     grep -q 'skip_e2e.*can waive the gate' docs/RELEASING.md
     ! grep -q 'has migrated to Linux and back on a hosted runner' docs/RELEASING.md
 }
+
+@test "release user instructions disclose Install writes before reboot" {
+    grep -q 'createRootDisk(cfg.DiskSizeGB)' app/app.go
+    grep -q 'configureBCD(cfg)' app/app.go
+    grep -q 'Install creates the Linux disk file and changes the boot setup before you' docs/RELEASING.md
+    ! grep -q 'Nothing on.*your PC changes until' <(tr '\n' ' ' < docs/RELEASING.md)
+}
+
+@test "release user instructions describe Windows return and explicit Linux boot" {
+    grep -q 'BootIntoLinux' app/frontend/src/screens/control.js
+    grep -q 'Windows normally returns after' docs/RELEASING.md
+    grep -q 'Restart into Bluefin' docs/RELEASING.md
+    ! grep -q "When it finishes you're in Linux" docs/RELEASING.md
+}
+
+@test "release user instructions qualify cleanup and disclose the data choice" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'cleanup can leave files or boot state behind' docs/RELEASING.md
+    grep -q 'is a separate choice' docs/RELEASING.md
+    ! grep -q 'Uninstalling is always' docs/RELEASING.md
+}
