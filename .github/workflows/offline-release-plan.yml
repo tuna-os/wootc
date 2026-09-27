@@ -1,0 +1,52 @@
+name: Offline release metadata plan
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact reviewed workflow source commit
+        required: true
+      catalogue_id:
+        description: Unique green entry in the reviewed embedded catalogue
+        required: true
+        default: yellowfin-gnome
+      root_digest:
+        description: Optional expected root sha256; otherwise observe catalogue tag once, metadata only
+        required: false
+permissions:
+  contents: read
+jobs:
+  metadata-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Bind requested source before metadata observation
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Install metadata tools; acquire no selected image layers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+          go build -o "$RUNNER_TEMP/wootc-json-check" payload/json-check/main.go
+      - name: Resolve exact root and selected descriptors only
+        env:
+          CATALOGUE_ID: ${{ inputs.catalogue_id }}
+          ROOT_DIGEST: ${{ inputs.root_digest }}
+        run: |
+          python3 tests/offline-release/plan.py \
+            --catalogue-id "$CATALOGUE_ID" --root-digest "$ROOT_DIGEST" \
+            --checker "$RUNNER_TEMP/wootc-json-check" \
+            --output "$RUNNER_TEMP/offline-release-plan.json"
+          sha256sum "$RUNNER_TEMP/offline-release-plan.json" > "$RUNNER_TEMP/offline-release-plan.sha256"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: offline-release-metadata-plan
+          path: |
+            ${{ runner.temp }}/offline-release-plan.json
+            ${{ runner.temp }}/offline-release-plan.sha256
+          if-no-files-found: warn
+          retention-days: 14
