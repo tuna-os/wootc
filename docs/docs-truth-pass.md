@@ -152,3 +152,23 @@ The release guide now has no findings under the shared English checker.
 Its gates, artifact names, channel limits, and requirements remain the same.
 All 24 checks in `tests/unit/docs-truth.bats` pass.
 The count for the repository falls from 1671 to 1635. The budget follows that count.
+
+## Focused first-screen guide pass — 2026-09-27, against `5354e42`
+
+The first-screen guide still limited all preparation to a folder and a boot entry.
+Install also writes boot files to the EFI system partition and changes Windows startup settings.
+The guide promised restoration after uninstall. Cleanup can fail, and Linux data removal is a separate choice.
+
+The guide also guaranteed warnings and explained them only as a lack of downloads or a signature.
+Microsoft documents checks for file and publisher reputation, including negative reputation and policy limits.
+The guide now links that source and qualifies the prompts and continuation choices.
+A checksum match and publisher identity are separate facts. The app also checks a signature on the boot manifest.
+
+Four new docs-truth cases pin the corrections. The fresh-machine RC screenshots remain open.
+
+## Runtime dependency follow-up — 2026-09-27, against `119bbc0`
+
+The release guide said that the Wails installers have no runtime dependencies.
+The first-screen guide said there is nothing to install.
+The current Wails interface needs WebView2. The GUI path in E2E checks for that runtime and installs it if absent.
+Both guides now disclose that dependency. A fifth check pins it to the actual bootstrap command and registry check.
