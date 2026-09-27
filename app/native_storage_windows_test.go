@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -448,5 +449,32 @@ func TestNativeConfigurationStoragePhaseRejectsUnknownText(t *testing.T) {
 	}
 	if nativeStoragePhase([]byte("public synthetic secret")) != "no-child-phase-observed" {
 		t.Fatal("raw child text became phase")
+	}
+}
+
+func TestNativeConfigurationStorageDiagnosticProjectionExcludesRawAndRefusesInvalidFacts(t *testing.T) {
+	failure := &nativeStorageObservationFailure{ExitCode: 1, Stdout: []byte("private-secret"), Stderr: []byte("private-path"), Phase: "import-storage", AuditStage: "complete", ContextState: "deadline", CommandAttempted: true, CommandStarted: true, WaitCompleted: true, CommandPID: 100, DeadlineExceeded: true, AuditMilliseconds: 12, CommandMilliseconds: 9988}
+	data := nativeConfigurationFailureData(failure)
+	if data == nil {
+		t.Fatal("observed failure diagnostic absent")
+	}
+	encoded, err := json.Marshal(data)
+	if err != nil || bytes.Contains(encoded, []byte("private")) {
+		t.Fatal("raw command content crossed diagnostic boundary")
+	}
+	original := *failure
+	failure.DeadlineExceeded = false
+	if nativeConfigurationFailureData(failure) != nil {
+		t.Fatal("deadline inconsistency accepted")
+	}
+	*failure = original
+	failure.Phase = "private-secret"
+	if nativeConfigurationFailureData(failure) != nil {
+		t.Fatal("unknown phase accepted")
+	}
+	*failure = original
+	failure.AuditMilliseconds = 60000
+	if nativeConfigurationFailureData(failure) != nil {
+		t.Fatal("aggregate timing overflow accepted")
 	}
 }

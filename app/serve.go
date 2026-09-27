@@ -244,7 +244,7 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		}
 		snapshot, err := s.configurationRead(ctx)
 		if err != nil {
-			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native configuration observation refused"}
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native configuration observation refused", Data: nativeConfigurationFailureData(err)}
 		}
 		return snapshot, nil
 	case "GetSupportPolicy":

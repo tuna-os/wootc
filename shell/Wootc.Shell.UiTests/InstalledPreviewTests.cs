@@ -85,10 +85,25 @@ public sealed class InstalledPreviewTests
             var secondRead=Find("ReadConfiguration").AsButton();
             secondRead.Focus();
             Assert.False(secondRead.IsOffscreen);
-            secondRead.Invoke();
+            using (var completionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                while (!secondRead.IsEnabled || !secondRead.Properties.HelpText.Value.EndsWith("; State:completed", StringComparison.Ordinal))
+                {
+                    if (completionDeadline.IsCancellationRequested) throw new InvalidOperationException($"First configuration consumer did not complete; {secondRead.Properties.HelpText.Value}; enabled={secondRead.IsEnabled}");
+                    await Task.Delay(50);
+                }
+            }
+            string completedRead = secondRead.Properties.HelpText.Value;
+            string generationPrefix = "ConfigurationGeneration:";
+            Assert.StartsWith(generationPrefix, completedRead);
+            long completedGeneration = long.Parse(completedRead[generationPrefix.Length..].Split(';')[0], System.Globalization.CultureInfo.InvariantCulture);
+            string expectedPending = $"ConfigurationGeneration:{completedGeneration + 1}; State:pending";
+            Assert.True(secondRead.IsEnabled);
+            try { secondRead.Invoke(); }
+            catch (Exception) { throw new InvalidOperationException($"Second read UI dispatch refused; before={completedRead}; after={secondRead.Properties.HelpText.Value}; enabled={secondRead.IsEnabled}"); }
             using (var pendingDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             {
-                while (Find("ReadConfiguration").IsEnabled)
+                while (secondRead.IsEnabled || secondRead.Properties.HelpText.Value != expectedPending || !Find("ConnectionStatus").Properties.HelpText.Value.StartsWith("Stage:rpc-configuration-response;", StringComparison.Ordinal))
                 {
                     if (pendingDeadline.IsCancellationRequested) throw new InvalidOperationException("Actual second configuration read did not start");
                     await Task.Delay(50);

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,5 +48,32 @@ func TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters(t *testi
 	data, err := os.ReadFile(marker)
 	if err != nil || string(data) != "unchanged" {
 		t.Fatal("configuration assessment mutated private fixture")
+	}
+}
+
+type nativeConfigurationDiagnosticFixtureError struct{}
+
+func (*nativeConfigurationDiagnosticFixtureError) Error() string { return "private-secret-and-path" }
+func (*nativeConfigurationDiagnosticFixtureError) nativeConfigurationDiagnostic() any {
+	return map[string]any{"schemaVersion": 1, "kind": "storage-observation"}
+}
+func TestNativeConfigurationRPCFailureKeepsFixedDiagnostic(t *testing.T) {
+	server := newConfigurationAssessmentServer(&App{}, &synchronizedWriter{out: &bytes.Buffer{}}, func(context.Context) (NativeConfigurationSnapshot, error) {
+		return NativeConfigurationSnapshot{}, &nativeConfigurationDiagnosticFixtureError{}
+	})
+	result, failure := server.dispatch(context.Background(), jsonrpcRequest{Method: "GetNativeConfiguration"})
+	if result != nil || failure == nil || failure.Message != "native configuration observation refused" || failure.Data == nil {
+		t.Fatal("current failed request lost bounded diagnostic")
+	}
+	encoded, err := json.Marshal(failure)
+	if err != nil || bytes.Contains(encoded, []byte("private")) {
+		t.Fatal("error text escaped")
+	}
+	server.configurationRead = func(context.Context) (NativeConfigurationSnapshot, error) {
+		return NativeConfigurationSnapshot{}, fmt.Errorf("private-secret")
+	}
+	_, failure = server.dispatch(context.Background(), jsonrpcRequest{Method: "GetNativeConfiguration"})
+	if failure == nil || failure.Data != nil {
+		t.Fatal("unknown failure gained diagnostic authority")
 	}
 }

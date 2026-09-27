@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         using var read = new CancellationTokenSource();
         configurationRead = read;
         long generation = ++configurationGeneration;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; State:pending");
         try
         {
             var snapshot = await controller.ReadConfigurationAsync(read.Token);
@@ -77,7 +78,7 @@ public sealed partial class MainWindow : Window
         finally
         {
             if (ReferenceEquals(configurationRead, read)) configurationRead = null;
-            if (generation == configurationGeneration) { updatingConfiguration = false; ConfigurationButton.IsEnabled = controller.Connection == ConnectionState.Ready; }
+            if (generation == configurationGeneration) { updatingConfiguration = false; ConfigurationButton.IsEnabled = controller.Connection == ConnectionState.Ready; Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; State:completed"); }
         }
         if (generation == configurationGeneration) RefreshConfiguration();
     }

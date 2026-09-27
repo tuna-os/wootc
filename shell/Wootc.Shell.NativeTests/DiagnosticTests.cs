@@ -44,4 +44,37 @@ public sealed class DiagnosticTests
         Assert.Equal("Failure:deadline; HResult:-2146233029; NativeCode:0", NativeEngineConnector.DescribeFailure(new OperationCanceledException(publicSecret)));
         Assert.DoesNotContain(publicSecret, NativeEngineConnector.DescribeFailure(new Exception(publicSecret)));
     }
+
+    internal const string StorageDiagnostic = """
+    {"schemaVersion":1,"kind":"storage-observation","phase":"import-storage","auditStage":"complete","contextState":"deadline","commandAttempted":true,"commandStarted":true,"waitCompleted":true,"commandPid":100,"exitCode":1,"deadlineExceeded":true,"auditMilliseconds":12,"commandMilliseconds":9988}
+    """;
+
+    [Fact]
+    public void StrictStorageFailureProjectionRejectsAmbiguityAndKeepsNoRawText()
+    {
+        using var valid=System.Text.Json.JsonDocument.Parse(StorageDiagnostic);
+        var failure=StorageObservationFailure.Decode(valid.RootElement);
+        var state=new NativeDiagnosticState();
+        state.Project("rpc-configuration-response",failure,null);
+        string latest=state.Project("session-cleanup-exited",null,null);
+        Assert.Contains("StoragePhase:import-storage",latest);
+        Assert.Contains("CommandMs:9988",latest);
+        foreach (string invalid in new[]{
+            StorageDiagnostic.Replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"schemaVersion\":1"),
+            StorageDiagnostic.Replace("\"kind\":", "\"Kind\":"),
+            StorageDiagnostic.Replace("import-storage","private-path-secret"),
+            StorageDiagnostic.Replace("\"deadlineExceeded\":true", "\"deadlineExceeded\":false"),
+            StorageDiagnostic.Replace("\"auditMilliseconds\":12", "\"auditMilliseconds\":60000"),
+            StorageDiagnostic.Replace("\"commandPid\":100", "\"commandPid\":-1"),
+            StorageDiagnostic.Replace("\"commandStarted\":true", "\"commandStarted\":false"),
+            StorageDiagnostic.Replace("\"auditMilliseconds\":12", "\"auditMilliseconds\":60001"),
+            StorageDiagnostic.Replace("\"commandMilliseconds\":9988", "\"commandMilliseconds\":9223372036854775808"),
+            StorageDiagnostic.Replace("\"contextState\":\"deadline\"", "\"contextState\":\"active\""),
+            StorageDiagnostic.Replace("\"exitCode\":1", "\"exitCode\":\"secret\"")
+        })
+        {
+            using var document=System.Text.Json.JsonDocument.Parse(invalid);
+            Assert.ThrowsAny<Exception>(()=>StorageObservationFailure.Decode(document.RootElement));
+        }
+    }
 }

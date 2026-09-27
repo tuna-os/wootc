@@ -18,7 +18,7 @@ internal sealed class NativeDiagnosticState
         lock (gate)
         {
             if (error is not null && stage.StartsWith("rpc-", StringComparison.Ordinal))
-                primaryRpcFailure ??= $"{stage}; {failure}";
+                primaryRpcFailure ??= $"{stage}; {failure}" + (error is StorageObservationFailure storage ? $"; {storage.Projection}" : "");
             if (error is not null && stage.StartsWith("startup-", StringComparison.Ordinal))
                 primaryStartupFailure ??= $"{stage}; {failure}";
             return $"Stage:{stage}; {failure}; Engine:{process}; PrimaryRpc:{primaryRpcFailure ?? "none"}; PrimaryStartup:{primaryStartupFailure ?? "none"}";

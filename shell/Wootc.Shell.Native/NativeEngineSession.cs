@@ -15,6 +15,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
     private readonly TimeSpan disconnectTimeout;
     private readonly SemaphoreSlim writes = new(1, 1);
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> pending = new();
+    private readonly ConcurrentDictionary<long, string> pendingMethods = new();
     private readonly CancellationTokenSource readerStop = new();
     private readonly Task reader;
     private long nextId;
@@ -70,7 +71,13 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
                 bool hasResult = root.TryGetProperty("result", out _);
                 if (hasError == hasResult) throw new InvalidDataException("Ambiguous engine response outcome");
                 if (!pending.TryRemove(value, out var completion)) continue; // Canceled request's late response.
-                if (root.TryGetProperty("error", out var error))
+                pendingMethods.TryRemove(value, out var responseMethod);
+                if (root.TryGetProperty("error", out var error) && error.TryGetProperty("data", out var storageData))
+                {
+                    if (responseMethod != "GetNativeConfiguration") completion.TrySetException(new InvalidDataException("Unexpected diagnostic response"));
+                    else { try { completion.TrySetException(StorageObservationFailure.Decode(storageData)); } catch { completion.TrySetException(new InvalidDataException("Storage diagnostic refused")); } }
+                }
+                else if (root.TryGetProperty("error", out error))
                     completion.TrySetException(new InvalidDataException(error.TryGetProperty("message", out var text) ? text.GetString() ?? "Engine request failed" : "Engine request failed"));
                 else if (root.TryGetProperty("result", out var result)) completion.TrySetResult(result.Clone());
                 else completion.TrySetException(new InvalidDataException("Engine response has no result"));
@@ -91,6 +98,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
         long id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!pending.TryAdd(id, completion)) throw new InvalidOperationException("Duplicate engine request identity");
+        pendingMethods[id] = method;
         string stage = RpcStage(method) + "-request";
         try
         {
@@ -112,7 +120,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
             return decoded;
         }
         catch (Exception error) { observe?.Invoke(stage, error); throw; }
-        finally { pending.TryRemove(id, out _); }
+        finally { pending.TryRemove(id, out _); pendingMethods.TryRemove(id, out _); }
     }
 
     public async Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken)

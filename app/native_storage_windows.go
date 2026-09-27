@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -54,6 +55,15 @@ type nativeStorageObservationFailure struct {
 
 func (e *nativeStorageObservationFailure) Error() string {
 	return "storage observation command refused"
+}
+
+// Only fixed enums and bounded process/timing facts cross the authenticated
+// current-response boundary. Captured command text/streams never leave here.
+func (e *nativeStorageObservationFailure) nativeConfigurationDiagnostic() any {
+	if !slices.Contains([]string{"no-child-phase-observed", "load-cim-assemblies", "import-utility", "import-cim", "import-storage", "import-bitlocker", "read-volumes", "read-partition", "read-disk", "read-protection", "serialize"}, e.Phase) || !slices.Contains([]string{"kernel-directories", "storage-assembly", "cim-assemblies", "interpreter", "storage-module", "bitlocker-module", "utility-module", "cim-module", "complete"}, e.AuditStage) || !slices.Contains([]string{"active", "canceled", "deadline", "unavailable"}, e.ContextState) || e.CommandPID < 0 || e.AuditMilliseconds < 0 || e.CommandMilliseconds < 0 || e.AuditMilliseconds > 60000 || e.CommandMilliseconds > 60000 || e.AuditMilliseconds+e.CommandMilliseconds > 60000 || (e.CommandStarted && (!e.CommandAttempted || e.CommandPID == 0)) || (!e.CommandStarted && e.CommandPID != 0) || (e.WaitCompleted && !e.CommandStarted) || (!e.CommandAttempted && e.CommandMilliseconds != 0) || (!e.WaitCompleted && e.ExitCode != -1) || (e.DeadlineExceeded != (e.ContextState == "deadline")) || (!e.CommandStarted && e.Phase != "no-child-phase-observed") {
+		return nil
+	}
+	return map[string]any{"schemaVersion": 1, "kind": "storage-observation", "phase": e.Phase, "auditStage": e.AuditStage, "contextState": e.ContextState, "commandAttempted": e.CommandAttempted, "commandStarted": e.CommandStarted, "waitCompleted": e.WaitCompleted, "commandPid": e.CommandPID, "exitCode": e.ExitCode, "deadlineExceeded": e.DeadlineExceeded, "auditMilliseconds": e.AuditMilliseconds, "commandMilliseconds": e.CommandMilliseconds}
 }
 
 func storageQueryExitCode(command *exec.Cmd) int {
