@@ -37,6 +37,11 @@ try {
  if ($partitions.Count -ne 1 -or $partitions[0].DriveLetter -cne $letter[0]) { throw 'Owned disk has wrong observed partition/letter' }
  $volume=$partitions[0] | Get-Volume
  if ($volume.FileSystem -cne 'NTFS' -or $volume.FileSystemLabel -cne "WOOTC_ACL_$($id.Substring(0,8))") { throw 'Fresh owned NTFS identity mismatch' }
+ $mountRoot=$letter[0] + ':\'
+ $volumeAcl=Get-Acl -LiteralPath $mountRoot
+ if ($volumeAcl.Sddl.Length -gt 4096 -or @($volumeAcl.Access).Count -gt 64) { throw 'Fresh volume ACL exceeds bounded evidence limits' }
+ $aclRows=@($volumeAcl.Access | ForEach-Object { [ordered]@{sid=$_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value;rights=[uint32]$_.FileSystemRights;type=[string]$_.AccessControlType;inheritance=[string]$_.InheritanceFlags;propagation=[string]$_.PropagationFlags;inherited=$_.IsInherited} })
+ [ordered]@{schemaVersion=1;freshOwnedNtfsVolume=$true;sddl=$volumeAcl.Sddl;entries=$aclRows} | ConvertTo-Json -Depth 4 -Compress | Write-Output
  $password=[Guid]::NewGuid().ToString('N')+'aA1!'
  $account=New-LocalUser -Name $name -Password (ConvertTo-SecureString $password -AsPlainText -Force) -Description "wootc ACL $($id.Substring(0,16))"
  $accountSid=$account.SID.Value
