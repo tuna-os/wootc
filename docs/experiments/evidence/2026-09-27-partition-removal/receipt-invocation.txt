@@ -9,29 +9,20 @@ if (Test-Path -LiteralPath $temporaryDir) { throw 'Refusing existing directory' 
 if ($LASTEXITCODE -ne 0) { throw 'Failed private temporary ACL' }
 try {
  $binaryPath=Join-Path $temporaryDir 'esp-cleanup.test.exe'
- Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-864a77f492184daeb50f6bd665f2f167.test.exe' -OutFile $binaryPath
- if ((Get-FileHash -LiteralPath $binaryPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '8c890dbffdb785f5014dbcddd3267566fffccdbe56d0d250c2f881b0c35f5720') { throw 'Binary checksum mismatch' }
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-035916d121de4131a5237ae0d6b3eb71.test.exe' -OutFile $binaryPath
+ if ((Get-FileHash -LiteralPath $binaryPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '70c3cd8b093902642430dcb4c79554c413ddce2cbf6bcecfb4f25be1d39709f4') { throw 'Binary checksum mismatch' }
  $archivePath=Join-Path $temporaryDir 'sources.zip'
- Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-864a77f492184daeb50f6bd665f2f167.zip' -OutFile $archivePath
- if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '4fef897e199c98f615d88bbd17463a4992fd300664868665feced9615d0e8d56') { throw 'Archive checksum mismatch' }
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-035916d121de4131a5237ae0d6b3eb71.zip' -OutFile $archivePath
+ if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '24781de0b13ea4a339957139a992d7fd0a098eb0f9bfb92ff52abd4abf3bfb99') { throw 'Archive checksum mismatch' }
  Expand-Archive -LiteralPath $archivePath -DestinationPath $temporaryDir
- Write-Output 'BINARY_SHA256 8c890dbffdb785f5014dbcddd3267566fffccdbe56d0d250c2f881b0c35f5720'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/partition_receipt.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'ef00cbc4d82eee5505f2b4889243f379eafd64d37059fa30b1a894e308038eda') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/partition_receipt.go SHA256 ef00cbc4d82eee5505f2b4889243f379eafd64d37059fa30b1a894e308038eda'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/partition_receipt_test.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '8879cbcb7878a006adf08612e5a5655f7b27fd6914c41b3c5d56ece92ee63e6c') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/partition_receipt_test.go SHA256 8879cbcb7878a006adf08612e5a5655f7b27fd6914c41b3c5d56ece92ee63e6c'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/partition_receipt_windows.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '388edbfa82f30ff47cd4bc8a4d76a33dd96ef2eb1ab007e61bf2f2ad888dc428') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/partition_receipt_windows.go SHA256 388edbfa82f30ff47cd4bc8a4d76a33dd96ef2eb1ab007e61bf2f2ad888dc428'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/partition-policy.ps1') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f64658c0debd1c923712899c92307aebc0fa22ba0f3bdaacd73509d2ea5dea8c') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/partition-policy.ps1 SHA256 f64658c0debd1c923712899c92307aebc0fa22ba0f3bdaacd73509d2ea5dea8c'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/partition-policy.tests.ps1') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/partition-policy.tests.ps1 SHA256 f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/disk_windows.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'ac20a59174fd0708353817dda26ba6c98af8d36352298ed4de131e58a836cc25') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/disk_windows.go SHA256 ac20a59174fd0708353817dda26ba6c98af8d36352298ed4de131e58a836cc25'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/app.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'edfeacc2361c1a99d4aadb178fd31fabb56c158e08038ee4c6d94aba04a03bb9') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/app.go SHA256 edfeacc2361c1a99d4aadb178fd31fabb56c158e08038ee4c6d94aba04a03bb9'
- if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/installer_windows.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c69a4fcefea36c5d15285af37f16482ce39571a1d55874254b0db8a96aac97fa') { throw 'Source checksum mismatch' }
- Write-Output 'SOURCE app/installer_windows.go SHA256 c69a4fcefea36c5d15285af37f16482ce39571a1d55874254b0db8a96aac97fa'
+ Write-Output 'BINARY_SHA256 70c3cd8b093902642430dcb4c79554c413ddce2cbf6bcecfb4f25be1d39709f4'
+ $manifestPath=Join-Path $temporaryDir 'source-manifest.json'
+ $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+ foreach ($entry in $manifest) {
+  $sourcePath=Join-Path $temporaryDir $entry.path
+  if ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) { throw 'Source checksum mismatch' }
+  Write-Output "SOURCE $($entry.path) SHA256 $($entry.sha256)"
+ }
  $priorTemp=$env:TEMP
  $priorTmp=$env:TMP
  $env:TEMP=$temporaryDir
