@@ -1,0 +1,45 @@
+{
+  "scope": "Linux controlled adapter tests with mocked runtime and owned temporary storage; no guest, protector or live fixture operations; no hosted runtime acceptance",
+  "sourceCommit": "66c890abced2ccbeef0b2b0f8008ba6b1191dfd6",
+  "hostOS": "Linux",
+  "sourceSha256": {
+    "tests/e2e/run-e2e.sh": "c087fb7a266afb593650503a43e15030e334a346718c86815753879828132110",
+    "tests/e2e/lib/qga-transport.sh": "d97a20ebaa4c4a393cd5a942763e375422cc1ef133db52b5f56b864864342230",
+    "tests/e2e/lib/host-runtime.sh": "d75ef72d6035b99a8b4a72fd1352823e4e225bafaf376915cd4fc489b376e7f1",
+    "tests/e2e/lib/retention.sh": "d8df56dbe6a9d077c1ebcaf28d6237820ca0346b6fee453f176202e2dbc3b91d",
+    "tests/unit/test_e2e_adapters.py": "b991367298fd6c31c08d38028334336c2688da04d98ab6c5173ad30d7f1eea58",
+    "tests/unit/artifact-retention.bats": "a3508700acb631749b3bb736e9b8861567118f317dd36fa8724c21a4e65fd9dd"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/unit",
+        "-p",
+        "test_e2e_adapters.py"
+      ],
+      "startedAt": "2026-09-27T10:26:01.875522+00:00",
+      "completedAt": "2026-09-27T10:26:06.238176+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "bats",
+        "tests/unit/artifact-retention.bats"
+      ],
+      "startedAt": "2026-09-27T10:26:06.238201+00:00",
+      "completedAt": "2026-09-27T10:26:09.524567+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "adapters.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "adapters.stderr.log": "d119bcca37bcb03c347063261ce1d3f19be465bbb5c2dd39545cf7f09c685da9",
+    "retention.stdout.log": "5a1fc5b58eedece8cf51683cf6da0523712f184747d39bf50fd3738af6f83582",
+    "retention.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

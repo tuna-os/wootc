@@ -1,0 +1,23 @@
+1..22
+ok 1 run-e2e.sh is syntactically valid
+ok 2 keeps the N newest runs and prunes the rest
+ok 3 serial and logs from pruned runs are preserved as evidence
+ok 4 a failed evidence copy retains the complete source run
+ok 5 a successful exit without copied bytes cannot authorize deletion
+ok 6 failed run and evidence enumeration cannot delete old runs
+ok 7 actual source deletion follows a verified complete text archive
+ok 8 the bulk (video) is NOT preserved — that is the point
+ok 9 the evidence directory is never itself pruned
+ok 10 an empty or missing artifacts dir is a clean no-op
+ok 11 fewer runs than the keep count prunes nothing
+ok 12 retention runs on startup so a run cannot be blocked by its predecessors
+ok 13 preflight demands headroom for two runs, not the bare minimum for one
+ok 14 a hosted runner's ~114 GiB clears the requirement
+ok 15 the requirement is overridable for unusual hosts
+ok 16 the cached-ISO and reuse paths keep proportional headroom
+ok 17 the keep count is overridable
+ok 18 the README timelapse only publishes green runs
+ok 19 per-distribution walkthrough cuts survive each publish
+ok 20 the timelapse gives viewers time to read: 5s cards and freeze-frames
+ok 21 brand runs drive the BRANDED installer
+ok 22 the exe pins its boot artifacts to its own release, never to latest
