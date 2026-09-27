@@ -11,6 +11,8 @@ public sealed partial class MainWindow : Window
     private readonly StartupController controller;
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
+    private long configurationGeneration;
+    private CancellationTokenSource? configurationRead;
 
     public MainWindow()
     {
@@ -26,7 +28,7 @@ public sealed partial class MainWindow : Window
         DistributionName.Text = brand.Name;
         controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic)));
-        Closed += async (_, _) => { await controller.DisposeAsync(); };
+        Closed += async (_, _) => { InvalidateConfigurationRead(); await controller.DisposeAsync(); };
     }
     private async void Connect_Click(object sender, RoutedEventArgs args)
     {
@@ -39,6 +41,10 @@ public sealed partial class MainWindow : Window
     private async void Disconnect_Click(object sender, RoutedEventArgs args)
     {
         DisconnectButton.IsEnabled = false;
+        InvalidateConfigurationRead();
+        ConfigurationButton.IsEnabled = false;
+        ConnectionStatus.Text = "Disconnecting engine";
+        ClearConfiguration();
         try { await controller.DisposeAsync(); }
         catch (Exception error) { ConnectionStatus.Text = $"Disconnect pending: {error.Message}"; }
         UpdateConnection();
@@ -47,9 +53,13 @@ public sealed partial class MainWindow : Window
     private async void Configuration_Click(object sender, RoutedEventArgs args)
     {
         ConfigurationButton.IsEnabled = false;
+        using var read = new CancellationTokenSource();
+        configurationRead = read;
+        long generation = ++configurationGeneration;
         try
         {
-            var snapshot = await controller.ReadConfigurationAsync();
+            var snapshot = await controller.ReadConfigurationAsync(read.Token);
+            if (generation != configurationGeneration || controller.Connection != ConnectionState.Ready) return;
             var observed = new ConsumerConfiguration(snapshot.BrandId);
             observed.ApplyCatalogue(ConfigurationProjection.ToCatalogue(snapshot));
             updatingConfiguration = true;
@@ -62,9 +72,19 @@ public sealed partial class MainWindow : Window
             ConfigurationObservation.Text = $"Catalogue: {snapshot.CatalogueSource}; channel: {snapshot.Policy.Channel}; storage: {snapshot.StorageStatus}; installation authorization: unavailable";
             ConfigurationPanel.Visibility = Visibility.Visible;
         }
-        catch { ClearConfiguration(); StartupObservations.Text = "Linux configuration observation is unavailable"; }
-        finally { updatingConfiguration = false; ConfigurationButton.IsEnabled = controller.Connection == ConnectionState.Ready; }
-        RefreshConfiguration();
+        catch { if (generation == configurationGeneration) { ClearConfiguration(); StartupObservations.Text = "Linux configuration observation is unavailable"; } }
+        finally
+        {
+            if (ReferenceEquals(configurationRead, read)) configurationRead = null;
+            if (generation == configurationGeneration) { updatingConfiguration = false; ConfigurationButton.IsEnabled = controller.Connection == ConnectionState.Ready; }
+        }
+        if (generation == configurationGeneration) RefreshConfiguration();
+    }
+
+    private void InvalidateConfigurationRead()
+    {
+        ++configurationGeneration;
+        configurationRead?.Cancel();
     }
 
     private void ClearConfiguration()

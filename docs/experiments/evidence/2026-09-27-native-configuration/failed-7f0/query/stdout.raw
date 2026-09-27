@@ -1,0 +1,130 @@
+{"Time":"2026-09-27T17:57:05.9524544Z","Action":"start","Package":"wootc"}
+{"Time":"2026-09-27T17:57:05.9786722Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters"}
+{"Time":"2026-09-27T17:57:05.9786722Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters","Output":"=== RUN   TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters\n"}
+{"Time":"2026-09-27T17:57:05.9827348Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters","Output":"--- PASS: TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters (0.00s)\n"}
+{"Time":"2026-09-27T17:57:05.9827348Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters","Elapsed":0}
+{"Time":"2026-09-27T17:57:05.9827348Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse"}
+{"Time":"2026-09-27T17:57:05.9827348Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse","Output":"=== RUN   TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse\n"}
+{"Time":"2026-09-27T17:57:05.9856986Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse","Output":"--- PASS: TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse (0.00s)\n"}
+{"Time":"2026-09-27T17:57:05.9856986Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse","Elapsed":0}
+{"Time":"2026-09-27T17:57:05.9856986Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage"}
+{"Time":"2026-09-27T17:57:05.9856986Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage","Output":"=== RUN   TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage\n"}
+{"Time":"2026-09-27T17:57:05.9868824Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage","Output":"--- PASS: TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage (0.00s)\n"}
+{"Time":"2026-09-27T17:57:05.9868824Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage","Elapsed":0}
+{"Time":"2026-09-27T17:57:05.9868824Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationMalformedOverridesNeverFallBack"}
+{"Time":"2026-09-27T17:57:05.9868824Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationMalformedOverridesNeverFallBack","Output":"=== RUN   TestNativeConfigurationMalformedOverridesNeverFallBack\n"}
+{"Time":"2026-09-27T17:57:05.9927773Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationMalformedOverridesNeverFallBack","Output":"--- PASS: TestNativeConfigurationMalformedOverridesNeverFallBack (0.01s)\n"}
+{"Time":"2026-09-27T17:57:05.9933371Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationMalformedOverridesNeverFallBack","Elapsed":0.01}
+{"Time":"2026-09-27T17:57:05.9933371Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationAmbiguousPayloadMetadataRefuses"}
+{"Time":"2026-09-27T17:57:05.9933371Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAmbiguousPayloadMetadataRefuses","Output":"=== RUN   TestNativeConfigurationAmbiguousPayloadMetadataRefuses\n"}
+{"Time":"2026-09-27T17:57:05.9950972Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAmbiguousPayloadMetadataRefuses","Output":"--- PASS: TestNativeConfigurationAmbiguousPayloadMetadataRefuses (0.00s)\n"}
+{"Time":"2026-09-27T17:57:05.9950972Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationAmbiguousPayloadMetadataRefuses","Elapsed":0}
+{"Time":"2026-09-27T17:57:05.9950972Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses"}
+{"Time":"2026-09-27T17:57:05.9950972Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses","Output":"=== RUN   TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses\n"}
+{"Time":"2026-09-27T17:57:05.9950972Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json"}
+{"Time":"2026-09-27T17:57:05.9950972Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json","Output":"=== RUN   TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json\n"}
+{"Time":"2026-09-27T17:57:05.9973709Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json","Output":"--- PASS: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json (0.00s)\n"}
+{"Time":"2026-09-27T17:57:05.9973709Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json","Elapsed":0}
+{"Time":"2026-09-27T17:57:05.9973709Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt"}
+{"Time":"2026-09-27T17:57:05.9973709Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt","Output":"=== RUN   TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt\n"}
+{"Time":"2026-09-27T17:57:05.9996872Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt","Output":"--- PASS: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt (0.00s)\n"}
+{"Time":"2026-09-27T17:57:05.9996872Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt","Elapsed":0}
+{"Time":"2026-09-27T17:57:05.9996872Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json"}
+{"Time":"2026-09-27T17:57:05.9996872Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json","Output":"=== RUN   TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json\n"}
+{"Time":"2026-09-27T17:57:06.0018705Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json","Output":"--- PASS: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0018705Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0018705Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json"}
+{"Time":"2026-09-27T17:57:06.0018705Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json","Output":"=== RUN   TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json\n"}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json","Output":"--- PASS: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses","Output":"--- PASS: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses (0.01s)\n"}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses","Elapsed":0.01}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse"}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse","Output":"=== RUN   TestNativeConfigurationChangedMetadataAndRootIdentityRefuse\n"}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes"}
+{"Time":"2026-09-27T17:57:06.0039252Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes","Output":"=== RUN   TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes\n"}
+{"Time":"2026-09-27T17:57:06.0059474Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes","Output":"--- PASS: TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0063016Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0063016Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete"}
+{"Time":"2026-09-27T17:57:06.0063016Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete","Output":"=== RUN   TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete\n"}
+{"Time":"2026-09-27T17:57:06.007384Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete","Output":"--- PASS: TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.007384Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.007384Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap"}
+{"Time":"2026-09-27T17:57:06.007384Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap","Output":"=== RUN   TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap\n"}
+{"Time":"2026-09-27T17:57:06.0096972Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap","Output":"--- PASS: TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0096972Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0096972Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse","Output":"--- PASS: TestNativeConfigurationChangedMetadataAndRootIdentityRefuse (0.01s)\n"}
+{"Time":"2026-09-27T17:57:06.0096972Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationChangedMetadataAndRootIdentityRefuse","Elapsed":0.01}
+{"Time":"2026-09-27T17:57:06.0096972Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity"}
+{"Time":"2026-09-27T17:57:06.0096972Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity","Output":"=== RUN   TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity","Output":"--- PASS: TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0118595Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata","Output":"=== RUN   TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata\n"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity","Output":"--- PASS: TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice","Output":"=== RUN   TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice\n"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice","Output":"--- PASS: TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice (0.00s)\n"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice","Elapsed":0}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly"}
+{"Time":"2026-09-27T17:57:06.0124067Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly","Output":"=== RUN   TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly\n"}
+{"Time":"2026-09-27T17:57:10.828201Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly","Output":"--- PASS: TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly (4.82s)\n"}
+{"Time":"2026-09-27T17:57:10.8287405Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly","Elapsed":4.82}
+{"Time":"2026-09-27T17:57:10.8287405Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedModuleShadow"}
+{"Time":"2026-09-27T17:57:10.8287405Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedModuleShadow","Output":"=== RUN   TestNativeConfigurationStorageIgnoresInheritedModuleShadow\n"}
+{"Time":"2026-09-27T17:57:13.2875786Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedModuleShadow","Output":"--- PASS: TestNativeConfigurationStorageIgnoresInheritedModuleShadow (2.46s)\n"}
+{"Time":"2026-09-27T17:57:13.2875786Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedModuleShadow","Elapsed":2.46}
+{"Time":"2026-09-27T17:57:13.2875786Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory"}
+{"Time":"2026-09-27T17:57:13.2875786Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory","Output":"=== RUN   TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory\n"}
+{"Time":"2026-09-27T17:57:15.4547833Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory","Output":"--- PASS: TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory (2.17s)\n"}
+{"Time":"2026-09-27T17:57:15.4547833Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory","Elapsed":2.17}
+{"Time":"2026-09-27T17:57:15.4547833Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationActualTrustedModuleManifestInventory"}
+{"Time":"2026-09-27T17:57:15.4547833Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualTrustedModuleManifestInventory","Output":"=== RUN   TestNativeConfigurationActualTrustedModuleManifestInventory\n"}
+{"Time":"2026-09-27T17:57:15.5321598Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualTrustedModuleManifestInventory","Output":"--- PASS: TestNativeConfigurationActualTrustedModuleManifestInventory (0.08s)\n"}
+{"Time":"2026-09-27T17:57:15.5321598Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationActualTrustedModuleManifestInventory","Elapsed":0.08}
+{"Time":"2026-09-27T17:57:15.5321598Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationActualUtilityDependencyOrderCounter"}
+{"Time":"2026-09-27T17:57:15.5321598Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualUtilityDependencyOrderCounter","Output":"=== RUN   TestNativeConfigurationActualUtilityDependencyOrderCounter\n"}
+{"Time":"2026-09-27T17:57:17.4831172Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualUtilityDependencyOrderCounter","Output":"    native_storage_windows_test.go:362: actual protected Utility import not found\n"}
+{"Time":"2026-09-27T17:57:17.4831172Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualUtilityDependencyOrderCounter","Output":"--- FAIL: TestNativeConfigurationActualUtilityDependencyOrderCounter (1.95s)\n"}
+{"Time":"2026-09-27T17:57:17.4831172Z","Action":"fail","Package":"wootc","Test":"TestNativeConfigurationActualUtilityDependencyOrderCounter","Elapsed":1.95}
+{"Time":"2026-09-27T17:57:17.4831172Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationActualCimDependencyCounter"}
+{"Time":"2026-09-27T17:57:17.4831172Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualCimDependencyCounter","Output":"=== RUN   TestNativeConfigurationActualCimDependencyCounter\n"}
+{"Time":"2026-09-27T17:57:19.4164633Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualCimDependencyCounter","Output":"    native_storage_windows_test.go:395: actual protected CIM import not found\n"}
+{"Time":"2026-09-27T17:57:19.4164633Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualCimDependencyCounter","Output":"--- FAIL: TestNativeConfigurationActualCimDependencyCounter (1.93s)\n"}
+{"Time":"2026-09-27T17:57:19.4164633Z","Action":"fail","Package":"wootc","Test":"TestNativeConfigurationActualCimDependencyCounter","Elapsed":1.93}
+{"Time":"2026-09-27T17:57:19.4164633Z","Action":"run","Package":"wootc","Test":"TestNativeConfigurationActualImportWarningCounter"}
+{"Time":"2026-09-27T17:57:19.4164633Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualImportWarningCounter","Output":"=== RUN   TestNativeConfigurationActualImportWarningCounter\n"}
+{"Time":"2026-09-27T17:57:25.9438271Z","Action":"output","Package":"wootc","Test":"TestNativeConfigurationActualImportWarningCounter","Output":"--- PASS: TestNativeConfigurationActualImportWarningCounter (6.53s)\n"}
+{"Time":"2026-09-27T17:57:25.9438271Z","Action":"pass","Package":"wootc","Test":"TestNativeConfigurationActualImportWarningCounter","Elapsed":6.53}
+{"Time":"2026-09-27T17:57:25.9438271Z","Action":"output","Package":"wootc","Output":"FAIL\n"}
+{"Time":"2026-09-27T17:57:25.9470451Z","Action":"output","Package":"wootc","Output":"FAIL\twootc\t19.994s\n"}
+{"Time":"2026-09-27T17:57:25.9470451Z","Action":"fail","Package":"wootc","Elapsed":19.994}

@@ -42,7 +42,7 @@ public sealed class InstalledPreviewTests
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                 while (Find(id).Name != expected)
                 {
-                    if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected installed {id}={expected}; observed {Find(id).Name}; {Find("ConnectionStatus").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}");
+                    if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected installed {id}={expected}; observed {Find(id).Name}; {Find("ConnectionStatus").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}; disconnectEnabled={Find("DisconnectEngine").IsEnabled}; disconnectOffscreen={Find("DisconnectEngine").IsOffscreen}");
                     await Task.Delay(100);
                 }
             }
@@ -58,7 +58,7 @@ public sealed class InstalledPreviewTests
                 {
                     configurationObservation=window.FindFirstDescendant(cf=>cf.ByAutomationId("ConfigurationObservation"));
                     if (configurationObservation?.Name.Contains("installation authorization: unavailable") == true) break;
-                    if (configurationDeadline.IsCancellationRequested) throw new InvalidOperationException($"Actual configuration RPC/view unavailable; {Find("StartupObservations").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}");
+                    if (configurationDeadline.IsCancellationRequested) throw new InvalidOperationException($"Actual configuration RPC/view unavailable; {Find("StartupObservations").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}; disconnectEnabled={Find("DisconnectEngine").IsEnabled}; disconnectOffscreen={Find("DisconnectEngine").IsOffscreen}");
                     await Task.Delay(100);
                 }
                 Assert.NotNull(configurationObservation);
@@ -69,6 +69,7 @@ public sealed class InstalledPreviewTests
             images.Expand();
             Assert.NotEmpty(images.Items);
             images.Select(0);
+            images.Collapse();
             Assert.Contains("content verified: False",Find("ImageFacts").Name);
             Find("LinuxUsername").AsTextBox().Text="fixture_user";
             Find("LinuxPassword").Focus();
@@ -79,9 +80,28 @@ public sealed class InstalledPreviewTests
             var selectedEncryption=Find("LinuxEncryption").AsComboBox().SelectedItem;
             Assert.NotNull(selectedEncryption);
             Assert.Equal("TPM auto-unlock",selectedEncryption.Text);
-            Find("DisconnectEngine").AsButton().Invoke();
+            // Drive a real second configuration RPC, then disconnect while its
+            // consumer is pending. A late response must not restore the form.
+            var secondRead=Find("ReadConfiguration").AsButton();
+            secondRead.Focus();
+            Assert.False(secondRead.IsOffscreen);
+            secondRead.Invoke();
+            using (var pendingDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                while (Find("ReadConfiguration").IsEnabled)
+                {
+                    if (pendingDeadline.IsCancellationRequested) throw new InvalidOperationException("Actual second configuration read did not start");
+                    await Task.Delay(50);
+                }
+            }
+            var disconnect=Find("DisconnectEngine").AsButton();
+            disconnect.Focus();
+            Assert.True(disconnect.IsEnabled);
+            Assert.False(disconnect.IsOffscreen);
+            disconnect.Invoke();
             await Expect("ConnectionStatus", "Offline");
             Assert.False(Find("ReadConfiguration").IsEnabled);
+            Assert.Null(window.FindFirstDescendant(cf=>cf.ByAutomationId("ConfigurationObservation")));
             window.Close();
             using var closeDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await process.WaitForExitAsync(closeDeadline.Token);
