@@ -61,9 +61,25 @@ def prepare():
 
 def process(pid):
     path = Path(f"/proc/{pid}")
-    return {"pid": pid, "uid": path.stat().st_uid,
-            "exe": os.readlink(path / "exe"),
-            "command": (path / "cmdline").read_bytes().replace(b"\0", b" ").decode()}
+    def lifetime():
+        fields = (path / "stat").read_text().rsplit(")", 1)[1].split()
+        if fields[0] == "Z":
+            raise RuntimeError("Editor process has exited")
+        return fields[19]
+    started = lifetime()
+    value = {"pid": pid, "uid": path.stat().st_uid, "startTicks": started,
+             "exe": os.readlink(path / "exe"),
+             "command": (path / "cmdline").read_bytes().replace(b"\0", b" ").decode()}
+    if lifetime() != started:
+        raise RuntimeError("Process identity changed during observation")
+    return value
+
+
+def verify_process(snapshot):
+    current = process(snapshot["pid"])
+    if any(current[key] != snapshot[key] for key in ("pid", "uid", "startTicks", "exe")):
+        raise RuntimeError("Editor process exited or changed during observation")
+
 
 
 def editor_processes():
@@ -76,9 +92,56 @@ def editor_processes():
             p = process(int(path.name))
             if p["uid"] == uid and Path(p["exe"]).name == "gnome-text-editor":
                 result.append(p)
-        except (FileNotFoundError, PermissionError, ProcessLookupError):
+        except (OSError, ProcessLookupError, RuntimeError):
             pass
     return result
+
+
+def ancestors(pid):
+    result = []
+    for _ in range(32):
+        if pid <= 1:
+            break
+        item = process(pid)
+        result.append(item)
+        status = Path(f"/proc/{pid}/status").read_text()
+        verify_process(item)
+        pid = int(next(line.split()[1] for line in status.splitlines() if line.startswith("PPid:")))
+    return result
+
+
+def flatpak_app(pid):
+    info = configparser.ConfigParser()
+    info.read(f"/proc/{pid}/root/.flatpak-info")
+    return info.get("Application", "name", fallback="")
+
+
+def editor_identity(peer_pid, uid):
+    peer = process(peer_pid)
+    if peer["uid"] != uid:
+        return None
+    if Path(peer["exe"]).name == "gnome-text-editor":
+        verify_process(peer)
+        return peer
+    if Path(peer["exe"]).name != "xdg-dbus-proxy":
+        return None
+    # Flatpak accessibility connections belong to its D-Bus proxy. Require
+    # the real editor in the same specific sandbox wrapper, never merely a
+    # shared systemd/session ancestor or an application name in the tree.
+    wrappers = {(p["pid"], p["startTicks"]) for p in ancestors(peer_pid) if Path(p["exe"]).name in ("flatpak", "bwrap")}
+    matches = []
+    for candidate in editor_processes():
+        if candidate["uid"] != uid or flatpak_app(candidate["pid"]) != "org.gnome.TextEditor":
+            continue
+        shared = wrappers.intersection((p["pid"], p["startTicks"]) for p in ancestors(candidate["pid"]))
+        if shared:
+            matches.append({**candidate, "accessibilityPeer": peer,
+                            "flatpakApp": "org.gnome.TextEditor", "sharedWrapperIdentities": sorted(shared)})
+    if len(matches) != 1:
+        return None
+    verify_process(peer)
+    verify_process(matches[0])
+    return matches[0]
 
 
 def tooling():
@@ -182,10 +245,10 @@ class Accessibility:
             app = self.call("atspi_accessible_get_child_at_index", root, index)
             pid = self.call("atspi_accessible_get_process_id", app)
             try:
-                p = process(pid)
+                p = editor_identity(pid, uid)
             except (OSError, ProcessLookupError):
                 continue
-            if p["uid"] != uid or Path(p["exe"]).name != "gnome-text-editor":
+            if not p:
                 continue
             queue = [(app, [])]
             visited = 0
@@ -211,6 +274,9 @@ class Accessibility:
                 queue += [(self.call("atspi_accessible_get_child_at_index", node, i), ancestors + [name]) for i in range(children)]
         if len(candidates) != 1:
             raise RuntimeError(f"Expected one visible editable document buffer; found {len(candidates)}; tree={summary}")
+        verify_process(candidates[0]["process"])
+        if "accessibilityPeer" in candidates[0]["process"]:
+            verify_process(candidates[0]["process"]["accessibilityPeer"])
         return candidates[0]
 
 

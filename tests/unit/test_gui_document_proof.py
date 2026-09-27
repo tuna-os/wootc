@@ -49,7 +49,7 @@ class FakeDesktop:
             if action == 'focus':
                 self.focused = True
             return {'showing': True, 'editable': self.defect != 'readonly', 'focused': self.focused,
-                    'buffer': self.buffer, 'process': {'pid': 100 + self.opens,
+                    'buffer': self.buffer, 'process': {'pid': 100 + self.opens, 'startTicks': str(100 + self.opens),
                                                      'uid': 0 if self.defect == 'root' else 1000,
                                                      'exe': '/usr/bin/gnome-text-editor', 'command': '/usr/bin/gnome-text-editor'}}
         if action == 'closed':
@@ -176,6 +176,41 @@ class TransportTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'positive Linux'):
             transport.stage()
         self.assertEqual(calls, [('exec', '/usr/bin/uname', '-s')])
+
+
+class GuestIdentityTests(unittest.TestCase):
+    def test_flatpak_proxy_requires_the_same_editor_sandbox_and_app_id(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
+        editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
+        wrapper = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
+        unrelated = {'pid': 21, 'startTicks': '21', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
+        with patch.object(guest, 'process', side_effect=lambda pid: peer if pid == 40 else editor), patch.object(guest, 'editor_processes', return_value=[editor]):
+            with patch.object(guest, 'flatpak_app', return_value='org.gnome.TextEditor'):
+                with patch.object(guest, 'ancestors', side_effect=lambda pid: [peer, wrapper] if pid == 40 else [editor, wrapper]):
+                    self.assertEqual(guest.editor_identity(40, 1000)['pid'], 60)
+                with patch.object(guest, 'ancestors', side_effect=lambda pid: [peer, wrapper] if pid == 40 else [editor, unrelated]):
+                    self.assertIsNone(guest.editor_identity(40, 1000))
+            with patch.object(guest, 'flatpak_app', return_value='org.example.Other'), patch.object(guest, 'ancestors', return_value=[wrapper]):
+                self.assertIsNone(guest.editor_identity(40, 1000))
+            with patch.object(guest, 'flatpak_app', return_value='org.gnome.TextEditor'):
+                with patch.object(guest, 'editor_processes', return_value=[editor, {**editor, 'pid': 61}]), patch.object(guest, 'ancestors', return_value=[wrapper]):
+                    self.assertIsNone(guest.editor_identity(40, 1000))
+                with patch.object(guest, 'ancestors', side_effect=lambda pid: [wrapper] if pid == 40 else [{**wrapper, 'startTicks': 'reused'}]):
+                    self.assertIsNone(guest.editor_identity(40, 1000))
+            self.assertIsNone(guest.editor_identity(40, 0))
+        native = {**editor, 'exe': '/usr/bin/gnome-text-editor'}
+        with patch.object(guest, 'process', return_value=native):
+            self.assertEqual(guest.editor_identity(60, 1000), native)
+        with patch.object(guest, 'process', side_effect=[native, {**native, 'startTicks': 'reused'}]):
+            with self.assertRaisesRegex(RuntimeError, 'changed during'):
+                guest.editor_identity(60, 1000)
+        with patch.object(guest, 'process', side_effect=[native, FileNotFoundError('exited')]):
+            with self.assertRaises(FileNotFoundError):
+                guest.editor_identity(60, 1000)
+
 
 
 if __name__ == '__main__':

@@ -18,7 +18,7 @@ class Proof:
     def __init__(self, transport, seed, marker, evidence, pause=time.sleep, clock=time.monotonic):
         self.transport, self.seed, self.marker = transport, seed, marker
         self.evidence, self.pause, self.clock = evidence, pause, clock
-        self.pid = None
+        self.pid, self.start_ticks = None, None
 
     def record(self, stage, value):
         with self.evidence.open("a") as output:
@@ -48,14 +48,15 @@ class Proof:
         p = observed["process"]
         if not p["uid"] or Path(p["exe"]).name != "gnome-text-editor":
             raise RuntimeError("Document was not opened by the ordinary user's GNOME editor")
-        self.pid = p["pid"]
+        self.pid, self.start_ticks = p["pid"], p["startTicks"]
         self.transport.screenshot(stage)
         return observed
 
     def focus(self):
         self.record("focus-request", self.transport.observe("focus"))
         self.wait("focused-buffer", "probe", lambda value: value.get("focused") and
-                  value.get("process", {}).get("pid") == self.pid and self.seed in value.get("buffer", ""))
+                  value.get("process", {}).get("pid") == self.pid and
+                  value.get("process", {}).get("startTicks") == self.start_ticks and self.seed in value.get("buffer", ""))
 
     def close(self, stage):
         self.focus()
