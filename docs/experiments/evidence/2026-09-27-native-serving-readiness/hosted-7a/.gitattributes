@@ -1,0 +1,4 @@
+*.raw.log -text
+*.trx -text
+*.zip -text
+*.json -text

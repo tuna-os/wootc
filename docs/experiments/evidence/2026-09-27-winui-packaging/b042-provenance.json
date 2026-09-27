@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "b04275c1594b3fa49674f4127b3718329322ea0a",
+  "runId": 36321570365,
+  "testedMerge": "095a45b1abe3e3703b2f830aaf0501a57b1e52a8",
+  "nativeBuildId": "095a45b1abe3e3703b2f830aaf0501a57b1e52a8",
+  "conclusion": "success",
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/winui-preview.yml",
+      "sha256": "2febc90ee61cf4a97b1d57213180aa5e10aa7bdf5efd9be902d0bbcf12aa939e"
+    },
+    {
+      "path": "shell/packaging/test-installed-preview.ps1",
+      "sha256": "afdc18ed8d054c53898775eadb948539fcab7af1d8c16f957c5bec7d0d709624"
+    },
+    {
+      "path": "shell/packaging/wait-uninstaller-removal.ps1",
+      "sha256": "79d22397960058ebd91b3456e2d1d3b3e8047cdbf3de9d145ee8872805f1a099"
+    },
+    {
+      "path": "shell/packaging/test-uninstaller-removal.ps1",
+      "sha256": "b09e487aa78365cc72b2018ad0ad2601854e1aefe6bc7bd35586a5f119d53c23"
+    },
+    {
+      "path": "shell/packaging/preview.iss",
+      "sha256": "3254fdec293c55217a5a5d83afe402104ca556b9d5dee40d945b69a7e356bddf"
+    },
+    {
+      "path": "shell/packaging/write-manifest.ps1",
+      "sha256": "529972b2476dd83bbbe91a9905c3650071b212c13599825e2a05ebb9a8845f74"
+    },
+    {
+      "path": "shell/packaging/test-manifest.ps1",
+      "sha256": "602716dd5ec38d7ba6ec21dd09a6532940be0e5b1196c0cb7cf65081cd0f5f5c"
+    },
+    {
+      "path": "shell/packaging/inno-tool.json",
+      "sha256": "8a7636f4205fa0d496a00d1bc4f3beb02c8e05b291a3775cb6ef50460843c441"
+    },
+    {
+      "path": "shell/Wootc.Shell.UiTests/InstalledPreviewTests.cs",
+      "sha256": "6fe338aadc1f61150001fc478d6337030fe9c1c653c77761528b65da2a6d7310"
+    },
+    {
+      "path": "shell/Wootc.Shell.Native/NativeEngineConnector.cs",
+      "sha256": "f2245491a3f5f7b6ab5e186137aa5529cd8a38bc2297f143140ce3ec0c729cd1"
+    },
+    {
+      "path": "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs",
+      "sha256": "37f9bd3ef186e4b26544434ee423cce8f1870221cb50f15029d11a6ff1e67952"
+    },
+    {
+      "path": "shell/Wootc.Shell/MainWindow.xaml.cs",
+      "sha256": "8598657562eba99a957855e79000f3fcd9fc731508b1fae470e0937e3467f201"
+    }
+  ],
+  "brands": [
+    {
+      "brand": "aurora",
+      "artifactId": 10932593108,
+      "artifactDigest": "sha256:1bd775829f8085fa44b221afb0d3911b4f503801f756a228c5a96d0b5e9b48ca",
+      "artifactSize": 67908811,
+      "selectedRangeFiles": [
+        {
+          "path": "b042-aurora-compiler-observations.json",
+          "sha256": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763"
+        },
+        {
+          "path": "b042-aurora-packaging-cleanup.json",
+          "sha256": "1f0b99113e4c0b51fce37f8b7ebb8c3a13f6c5e230d56a221f970dc7b17cbdc0"
+        },
+        {
+          "path": "b042-aurora-native-package.json",
+          "sha256": "78970f0f1a5aaaa2fce7680da0efe5a7bc0a58ec4dfee7883126dc6bdc7e11a5"
+        },
+        {
+          "path": "b042-aurora-packaging-observations.json",
+          "sha256": "a3f5f2590d4ade1780173422ed73f4c319fe255a6ec1e250f3c1f4eab4575467"
+        }
+      ],
+      "rawLog": "b042-aurora.raw.log",
+      "rawSha256": "8ce3383859fdc355ec2d98aeab517ac2b73aab47f2ab4023177cec6d463fd02f",
+      "conclusion": "success",
+      "uninstallerSelfRemovalMilliseconds": 570,
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "bazzite",
+      "artifactId": 10932473781,
+      "artifactDigest": "sha256:780fb82a8b636acbed27c2f8fdf5671ef9012224c057c703154b82f6f2b41413",
+      "artifactSize": 67909955,
+      "selectedRangeFiles": [
+        {
+          "path": "b042-bazzite-compiler-observations.json",
+          "sha256": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763"
+        },
+        {
+          "path": "b042-bazzite-packaging-cleanup.json",
+          "sha256": "6b2d3abcf06d17673a9e63c179cb6e7395970bf2ba9db03b31eb4372ef126b23"
+        },
+        {
+          "path": "b042-bazzite-native-package.json",
+          "sha256": "5672005f99bc5accc29af592258957eafd58e9ce1d5a40e5bb2b81a3f38e3f74"
+        },
+        {
+          "path": "b042-bazzite-packaging-observations.json",
+          "sha256": "78d9492379a127b652570d6a8076e49299d63e69c52077c9e57de4fbab23dd32"
+        }
+      ],
+      "rawLog": "b042-bazzite.raw.log",
+      "rawSha256": "30ee6487ce4de0343b36d110bd849c9bc2859c576e8884a727bfcdf16d4ad2b2",
+      "conclusion": "success",
+      "uninstallerSelfRemovalMilliseconds": 610,
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "bluefin",
+      "artifactId": 10932453931,
+      "artifactDigest": "sha256:d1825e95707687eb92d9f2668670bf515e383aa7b952d9c2228834c110457f73",
+      "artifactSize": 67909288,
+      "selectedRangeFiles": [
+        {
+          "path": "b042-bluefin-compiler-observations.json",
+          "sha256": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763"
+        },
+        {
+          "path": "b042-bluefin-packaging-cleanup.json",
+          "sha256": "bc85deb6b0bb95d58e42631f20c8cb48712ddf0f8ecfea06b482ac3e27fcf0ae"
+        },
+        {
+          "path": "b042-bluefin-native-package.json",
+          "sha256": "c4150f2fe1352224b8830216d7956ac73a2daee7a48d1463685900a1a4f601b0"
+        },
+        {
+          "path": "b042-bluefin-packaging-observations.json",
+          "sha256": "a37735fbb3f71fc798c80a6a213d9e810cddcfee8edbf2d934b318e304c26dd2"
+        }
+      ],
+      "rawLog": "b042-bluefin.raw.log",
+      "rawSha256": "c30a604ab22bada29e41d9db8825811ad951b657462a82712f0626e0ceaa78dc",
+      "conclusion": "success",
+      "uninstallerSelfRemovalMilliseconds": 569,
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "tunaos",
+      "artifactId": 10932453925,
+      "artifactDigest": "sha256:3f811ce9a8f05d15f3ff169109581b05c7baa775dede8c7fe9ee7680de01ebe6",
+      "artifactSize": 67913700,
+      "selectedRangeFiles": [
+        {
+          "path": "b042-tunaos-compiler-observations.json",
+          "sha256": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763"
+        },
+        {
+          "path": "b042-tunaos-packaging-cleanup.json",
+          "sha256": "c4858e2676904dffd52f6376c907f1f2fffce4e22023ebfde0b15a50dbafe6ef"
+        },
+        {
+          "path": "b042-tunaos-native-package.json",
+          "sha256": "312f024c58b90da2e0624b9a906e2c8d05196b9a9718b6a49cc01093c94df278"
+        },
+        {
+          "path": "b042-tunaos-packaging-observations.json",
+          "sha256": "d40313d8b17723f05e6e3dc1c0bfd9928e4943a9d2aa9040834a3ffa9e1c3a2b"
+        }
+      ],
+      "rawLog": "b042-tunaos.raw.log",
+      "rawSha256": "bbdd10267c520d587adee06e7308e5648634e493e54af2e3f4f9738d544310b7",
+      "conclusion": "success",
+      "uninstallerSelfRemovalMilliseconds": 577,
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "wootc",
+      "artifactId": 10931729074,
+      "artifactDigest": "sha256:4a4dbb1608d49a7f6e643b0783250004ca9b694357ab9e2092043f706bd48577",
+      "artifactSize": 67908367,
+      "selectedRangeFiles": [
+        {
+          "path": "b042-wootc-compiler-observations.json",
+          "sha256": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763"
+        },
+        {
+          "path": "b042-wootc-packaging-cleanup.json",
+          "sha256": "f66d950c48aadbc2ddfc62eb0d44a0f0e38e16e5db7f168e6dafaebd2c851a87"
+        },
+        {
+          "path": "b042-wootc-native-package.json",
+          "sha256": "e2217b8e4cd8c3bc5e6178cb3c1860f7cc397c257a932c01143ad069d90db35f"
+        },
+        {
+          "path": "b042-wootc-packaging-observations.json",
+          "sha256": "13c85873293235a4a41a0e1fcd00bc1ebc3023356fc77723517a170dbfce99cd"
+        }
+      ],
+      "rawLog": "b042-wootc.raw.log",
+      "rawSha256": "505109c888ce04ea3134d1a04159f92aaf8f76de680cba904f1f2e774ac09870",
+      "conclusion": "success",
+      "uninstallerSelfRemovalMilliseconds": 547,
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    }
+  ],
+  "nativeLogSha256": "d8c8040fb1feeb65365dca21869e7cffe2a86cf27a547e12b1c57ca2f81fd7f7",
+  "scope": {
+    "allFiveInstalledPreviewBrandsObserved": true,
+    "authenticatedSameUserElevatedStartupRpc": true,
+    "interactiveUacProved": false,
+    "originalUserAlternateAdminBridgeProved": false,
+    "linuxInstallJourneyProved": false,
+    "minimumOsRuntimeProved": false,
+    "offlineRuntimeProved": false
+  },
+  "priorFailedSourcesPreserved": [
+    "533e1f53e50744b55481f5d9f0b1a906549ff4fb",
+    "7578f884ae63efa1eecc2e207a8fe8cfc2372394",
+    "bda4c7f94a96b14ab47c061c6ec0cb8ad7f51165"
+  ]
+}

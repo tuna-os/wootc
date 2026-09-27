@@ -15,7 +15,13 @@ import (
 var assets embed.FS
 
 func main() {
-	if err := initializeStateTrust(); err != nil {
+	// Native transport authenticates the OS peer and protected package before
+	// any installer-state creation. Existing GUI/stdio startup is unchanged.
+	if len(os.Args) > 1 && os.Args[1] == "--native-serve" {
+		os.Exit(runNativeServe(os.Args))
+	}
+
+	if err := initializeStateTrustForInvocation(os.Args); err != nil {
 		reportStateTrustFailure(err)
 		os.Exit(1)
 	}

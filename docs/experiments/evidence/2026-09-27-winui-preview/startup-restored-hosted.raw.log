@@ -1,0 +1,960 @@
+Native preview XAML and packaging build	Set up job	﻿2026-09-27T09:49:36.5183227Z Current runner version: '2.337.0'
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5262405Z ##[group]Runner Image Provisioner
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5264762Z Hosted Compute Agent
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5266205Z Version: 20260828.587
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5267320Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5269175Z Build Date: 2026-08-28T16:44:25Z
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5270660Z Worker ID: {baa3aa52-3049-4731-aa9b-ca1437cb35b1}
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5271996Z Azure Region: northcentralus
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5273134Z ##[endgroup]
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5275436Z ##[group]Operating System
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5276512Z Microsoft Windows Server 2025
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5277678Z 10.0.26100
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5278444Z Datacenter
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5278988Z ##[endgroup]
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5279532Z ##[group]Runner Image
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5280333Z Image: windows-2025-vs2026
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5280962Z Version: 20260922.246.2
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5283138Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5286294Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5288080Z ##[endgroup]
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5290423Z ##[group]GITHUB_TOKEN Permissions
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5292684Z Contents: read
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5293511Z Metadata: read
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5294062Z ##[endgroup]
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5297481Z Secret source: Actions
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5299087Z Cache mode: write
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5300160Z Prepare workflow directory
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5838698Z Prepare all required actions
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.5913176Z Getting action download info
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:36.8273287Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:37.0023036Z Download action repository 'actions/setup-dotnet@v6' (SHA:a98b56852c35b8e3190ac28c8c2271da59106c68)
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:37.3962230Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+Native preview XAML and packaging build	Set up job	2026-09-27T09:49:37.6824433Z Complete job name: Native preview XAML and packaging build
+Native preview XAML and packaging build	Run actions/checkout@v7	﻿2026-09-27T09:49:37.8748191Z ##[group]Run actions/checkout@v7
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8749983Z with:
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8751038Z   repository: tuna-os/wootc
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8760695Z   token: ***
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8761705Z   ssh-strict: true
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8762641Z   ssh-user: git
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8763565Z   persist-credentials: true
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8764617Z   clean: true
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8765602Z   sparse-checkout-cone-mode: true
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8766723Z   fetch-depth: 1
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8767670Z   fetch-tags: false
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8768590Z   show-progress: true
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8769564Z   lfs: false
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8770471Z   submodules: false
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8771429Z   set-safe-directory: true
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8772504Z   allow-unsafe-pr-checkout: false
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:37.8773938Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.1291776Z Syncing repository: tuna-os/wootc
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.1295674Z ##[group]Getting Git version info
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.1297466Z Working directory is 'D:\a\wootc\wootc'
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.2585882Z [command]"C:\Program Files\Git\bin\git.exe" version
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.7263814Z git version 2.55.0.windows.5
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.7341590Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.7359616Z Temporarily overriding HOME='D:\a\_temp\5d81ccf6-4a9d-495f-8f8d-345df3b5b20f' before making global git config changes
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.7363838Z Adding repository directory to the temporary git global config as a safe directory
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.7372844Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.9339902Z Deleting the contents of 'D:\a\wootc\wootc'
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.9349312Z ##[group]Determining repository object format
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.9352372Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.9356157Z ##[group]Initializing the repository
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:38.9367380Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.1476125Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.1570098Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.3825137Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.3825879Z ##[group]Disabling automatic garbage collection
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.3839231Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.5081316Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.5090191Z ##[group]Setting up auth
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.5091810Z Removing SSH command configuration
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.5093301Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:39.6204485Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:42.3499219Z Removing HTTP extra header
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:42.3514614Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:42.5165752Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:44.3667248Z Removing includeIf entries pointing to credentials config files
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:44.3669163Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:44.5385989Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:45.6114066Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:45.6753996Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git.path D:\a\_temp\git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:45.7821125Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D:\a\_temp\git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:45.8821626Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:45.9817265Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:46.0889217Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:46.0890334Z ##[group]Fetching the repository
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:46.0907853Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +aeaa642be5dc0a175eac8afa3df04f3dccdecd9b:refs/remotes/pull/450/merge
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.3705797Z From https://github.com/tuna-os/wootc
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.3706822Z  * [new ref]         aeaa642be5dc0a175eac8afa3df04f3dccdecd9b -> pull/450/merge
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.3761671Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.3762294Z ##[group]Determining the checkout info
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.3764515Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.3774532Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.4267134Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.4567929Z ##[group]Checking out the ref
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.4577220Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/450/merge
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7223989Z Note: switching to 'refs/remotes/pull/450/merge'.
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7224582Z 
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7225043Z You are in 'detached HEAD' state. You can look around, make experimental
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7225902Z changes and commit them, and you can discard any commits you make in this
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7226701Z state without impacting any branches by switching back to a branch.
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7227227Z 
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7227524Z If you want to create a new branch to retain commits you create, you may
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7228268Z do so (now or later) by using -c with the switch command. Example:
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7228717Z 
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7228896Z   git switch -c <new-branch-name>
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7229201Z 
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7229362Z Or undo this operation with:
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7229611Z 
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7229739Z   git switch -
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7229940Z 
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7230302Z Turn off this advice by setting config variable advice.detachedHead to false
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7230811Z 
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7231445Z HEAD is now at aeaa642 Merge c7909017929a2cf8b64bfb431980998e09be9681 into fa501447c87bedbd91fa3e07dcf35500b9b86eff
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7357571Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.7797411Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Native preview XAML and packaging build	Run actions/checkout@v7	2026-09-27T09:49:48.8157014Z aeaa642be5dc0a175eac8afa3df04f3dccdecd9b
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	﻿2026-09-27T09:49:48.8640967Z ##[group]Run actions/setup-dotnet@v6
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:48.8641313Z with:
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:48.8641515Z   global-json-file: shell/global.json
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:48.8641779Z   cache: false
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:48.8641954Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:49.1770925Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Runtime dotnet -Channel LTS
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:50.5580502Z dotnet-install: .NET Core Runtime with version '10.0.12' is already installed.
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:50.7269311Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Version 8.0.425
+Native preview XAML and packaging build	Run actions/setup-dotnet@v6	2026-09-27T09:49:51.4413138Z dotnet-install: .NET Core SDK with version '8.0.425' is already installed.
+Native preview XAML and packaging build	Restore and publish the native preview	﻿2026-09-27T09:49:51.5508577Z ##[group]Run dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 --output ../out/winui-preview
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:49:51.5509733Z ^[[36;1mdotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 --output ../out/winui-preview^[[0m
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:49:51.5981161Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:49:51.5981573Z env:
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:49:51.5981782Z   DOTNET_ROOT: C:\Program Files\dotnet
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:49:51.5982064Z ##[endgroup]
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:50:02.4560528Z   Determining projects to restore...
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:50:03.1433986Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Core\Wootc.Shell.Core.csproj (in 123 ms).
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:50:39.0920922Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell\Wootc.Shell.csproj (in 36.09 sec).
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:50:44.6713414Z   Wootc.Shell.Core -> D:\a\wootc\wootc\shell\Wootc.Shell.Core\bin\x64\Release\net8.0\Wootc.Shell.Core.dll
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:50:57.3890660Z   Wootc.Shell -> D:\a\wootc\wootc\shell\Wootc.Shell\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\Wootc.Shell.dll
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T09:50:59.2163294Z   Wootc.Shell -> D:\a\wootc\wootc\out\winui-preview\
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	﻿2026-09-27T09:50:59.3857597Z ##[group]Run $env:WOOTC_NATIVE_PREVIEW_DIAGNOSTICS = '1'
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:50:59.3858138Z ^[[36;1m$env:WOOTC_NATIVE_PREVIEW_DIAGNOSTICS = '1'^[[0m
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:50:59.3858671Z ^[[36;1m$env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'^[[0m
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:50:59.3859588Z ^[[36;1mdotnet test Wootc.Shell.UiTests --configuration Release --logger "trx;LogFileName=native-ui.trx"^[[0m
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:50:59.3933105Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:50:59.3933471Z env:
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:50:59.3933706Z   DOTNET_ROOT: C:\Program Files\dotnet
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:50:59.3933957Z ##[endgroup]
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:00.6218207Z   Determining projects to restore...
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:10.5587238Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\Wootc.Shell.UiTests.csproj (in 9.69 sec).
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:11.7174005Z   Wootc.Shell.UiTests -> D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:11.7301192Z Test run for D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll (.NETCoreApp,Version=v8.0)
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:11.9294458Z VSTest version 17.11.1 (x64)
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:11.9345452Z 
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:12.3064394Z Starting test execution, please wait...
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:12.3634197Z A total of 1 test files matched the specified pattern.
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:15.0556556Z Results File: D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\TestResults\native-ui.trx
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:15.0559060Z 
+Native preview XAML and packaging build	Observe the actual native startup window with UI Automation	2026-09-27T09:51:15.0599424Z Passed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 1 s - Wootc.Shell.UiTests.dll (net8.0)
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	﻿2026-09-27T09:51:15.1571687Z ##[group]Run New-Item -ItemType Directory -Force out/winui-source-diagnostics | Out-Null
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1572445Z ^[[36;1mNew-Item -ItemType Directory -Force out/winui-source-diagnostics | Out-Null^[[0m
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1573139Z ^[[36;1m$resourceFiles = @(Get-ChildItem shell/Wootc.Shell/bin,out/winui-preview -Recurse -File -Filter '*.pri' |^[[0m
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1573983Z ^[[36;1m  Select-Object FullName,Length,@{Name='SHA256';Expression={(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}})^[[0m
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1574900Z ^[[36;1mConvertTo-Json -InputObject $resourceFiles -Depth 3 | Set-Content -Encoding utf8 out/winui-source-diagnostics/resource-indexes.json^[[0m
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1575592Z ^[[36;1mGet-ChildItem shell/Wootc.Shell/obj -Recurse -File |^[[0m
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1576249Z ^[[36;1m  Where-Object { $_.Name -match '^(App|MainWindow|XamlTypeInfo)[.]g[.]' } |^[[0m
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1576714Z ^[[36;1m  Copy-Item -Destination out/winui-source-diagnostics^[[0m
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1645821Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1646163Z env:
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1646360Z   DOTNET_ROOT: C:\Program Files\dotnet
+Native preview XAML and packaging build	Retain generated XAML loader and metadata diagnostics	2026-09-27T09:51:15.1646608Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	﻿2026-09-27T09:51:15.7550424Z ##[group]Run actions/upload-artifact@v7
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7550798Z with:
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7551018Z   name: winui-preview-diagnostics
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7552098Z   path: out/winui-source-diagnostics/
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	out/winui-startup-events.json
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	shell/Wootc.Shell.UiTests/TestResults/*.trx
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7552697Z   if-no-files-found: error
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7552944Z   compression-level: 6
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7553153Z   overwrite: false
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7553348Z   include-hidden-files: false
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7553565Z   archive: true
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7553736Z env:
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7553919Z   DOTNET_ROOT: C:\Program Files\dotnet
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.7554170Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.9338316Z Multiple search paths detected. Calculating the least common ancestor of all paths
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.9341324Z The least common ancestor is D:\a\wootc\wootc. This will be the root directory of the artifact
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.9342093Z With the provided path, there will be 7 files uploaded
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.9347491Z Artifact name is valid!
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:15.9348760Z Root directory input is valid!
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.1832854Z Uploading artifact: winui-preview-diagnostics.zip
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.1880667Z Beginning upload of artifact content to blob storage
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.3565058Z Uploaded bytes 11338
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.3924194Z Finished uploading artifact content to blob storage!
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.3925298Z SHA256 digest of uploaded artifact is 161dbbf26d394373fdf8f9d063888924319cf7ba930055d02341a0ecb2c70e9b
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.3926348Z Finalizing artifact upload
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6623126Z Artifact winui-preview-diagnostics successfully finalized. Artifact ID 10929246562
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6624723Z Artifact winui-preview-diagnostics has been successfully uploaded! Final size is 11338 bytes. Artifact ID is 10929246562
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6632497Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36310538081/artifacts/10929246562
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	﻿2026-09-27T09:51:16.6927388Z ##[group]Run actions/upload-artifact@v7
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6927760Z with:
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6927955Z   name: winui-preview-unpackaged
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6928441Z   path: out/winui-preview/
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	shell/Wootc.Shell.UiTests/TestResults/*.trx
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	out/winui-startup-events.json
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6928938Z   if-no-files-found: error
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6929175Z   compression-level: 6
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6929370Z   overwrite: false
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6929568Z   include-hidden-files: false
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6929788Z   archive: true
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6929954Z env:
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6930129Z   DOTNET_ROOT: C:\Program Files\dotnet
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:16.6930370Z ##[endgroup]
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:17.0676090Z Multiple search paths detected. Calculating the least common ancestor of all paths
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:17.0677942Z The least common ancestor is D:\a\wootc\wootc. This will be the root directory of the artifact
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:17.0678872Z With the provided path, there will be 517 files uploaded
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:17.0679760Z Artifact name is valid!
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:17.0680178Z Root directory input is valid!
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:17.3144953Z Uploading artifact: winui-preview-unpackaged.zip
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:17.3191539Z Beginning upload of artifact content to blob storage
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:18.4222165Z Uploaded bytes 8388608
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:18.7656161Z Uploaded bytes 16777216
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:19.3025031Z Uploaded bytes 25165824
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:19.9692201Z Uploaded bytes 33554432
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:20.7459531Z Uploaded bytes 41943040
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:21.5910494Z Uploaded bytes 50331648
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:22.2794515Z Uploaded bytes 58720256
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:22.9828543Z Uploaded bytes 67108864
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:23.5594472Z Uploaded bytes 75497472
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:24.2031737Z Uploaded bytes 83886080
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:24.8525952Z Uploaded bytes 92274688
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:24.8858762Z Uploaded bytes 92525607
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:24.9140220Z Finished uploading artifact content to blob storage!
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:24.9144820Z SHA256 digest of uploaded artifact is 960c9315ceb5dc441c6f43ce9099e799f3935b7956c64746a1b1854f8fe1f03b
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:24.9147414Z Finalizing artifact upload
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:25.1798324Z Artifact winui-preview-unpackaged successfully finalized. Artifact ID 10928369558
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:25.1799600Z Artifact winui-preview-unpackaged has been successfully uploaded! Final size is 92525607 bytes. Artifact ID is 10928369558
+Native preview XAML and packaging build	Run actions/upload-artifact@v7	2026-09-27T09:51:25.1809149Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36310538081/artifacts/10928369558
+Native preview XAML and packaging build	Post Run actions/setup-dotnet@v6	﻿2026-09-27T09:51:25.2154947Z Post job cleanup.
+Native preview XAML and packaging build	Post Run actions/checkout@v7	﻿2026-09-27T09:51:25.3901368Z Post job cleanup.
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.6039095Z [command]"C:\Program Files\Git\bin\git.exe" version
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.6313279Z git version 2.55.0.windows.5
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.6383913Z Temporarily overriding HOME='D:\a\_temp\facef85e-2019-4bff-8631-1a34b0845c35' before making global git config changes
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.6384730Z Adding repository directory to the temporary git global config as a safe directory
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.6394733Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.6702326Z Removing SSH command configuration
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.6712625Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:25.7040056Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.2612196Z Removing HTTP extra header
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.2622047Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.2943090Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8205126Z Removing includeIf entries pointing to credentials config files
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8215780Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8482373Z includeif.gitdir:D:/a/wootc/wootc/.git.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8483602Z includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8484378Z includeif.gitdir:/github/workspace/.git.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8485140Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8524967Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8785612Z D:\a\_temp\git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.8830534Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git.path D\:\\a\\_temp\\git\-credentials\-1cf02276\-6470\-4036\-83e5\-bcb9f65efab9\.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.9188374Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.9450396Z D:\a\_temp\git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.9493788Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-1cf02276\-6470\-4036\-83e5\-bcb9f65efab9\.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:26.9807178Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:27.0081620Z /github/runner_temp/git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:27.0126064Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-1cf02276\-6470\-4036\-83e5\-bcb9f65efab9\.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:27.0437241Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:27.0696249Z /github/runner_temp/git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:27.0741433Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-1cf02276\-6470\-4036\-83e5\-bcb9f65efab9\.config
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:27.1052873Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Native preview XAML and packaging build	Post Run actions/checkout@v7	2026-09-27T09:51:27.6643135Z Removing credentials config 'D:\a\_temp\git-credentials-1cf02276-6470-4036-83e5-bcb9f65efab9.config'
+Native preview XAML and packaging build	Complete job	﻿2026-09-27T09:51:27.6839540Z Cleaning up orphan processes
+Native preview XAML and packaging build	Complete job	2026-09-27T09:51:27.7445627Z Terminate orphan process: pid (9824) (dotnet)
+Native preview XAML and packaging build	Complete job	2026-09-27T09:51:27.7528386Z Terminate orphan process: pid (9652) (conhost)
+Core startup contract (windows-latest)	Set up job	﻿2026-09-27T09:49:36.2525927Z Current runner version: '2.337.0'
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2573617Z ##[group]Runner Image Provisioner
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2574508Z Hosted Compute Agent
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2575014Z Version: 20260828.587
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2575619Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2576293Z Build Date: 2026-08-28T16:44:25Z
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2576899Z Worker ID: {8168ca8a-228a-4f1a-8cc8-ba6353eaaea5}
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2577585Z Azure Region: southcentralus
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2578129Z ##[endgroup]
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2579369Z ##[group]Operating System
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2579940Z Microsoft Windows Server 2025
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2580526Z 10.0.26100
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2581010Z Datacenter
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2581488Z ##[endgroup]
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2581983Z ##[group]Runner Image
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2582518Z Image: windows-2025-vs2026
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2583034Z Version: 20260922.246.2
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2584207Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2586080Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2586990Z ##[endgroup]
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2588012Z ##[group]GITHUB_TOKEN Permissions
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2590650Z Contents: read
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2591261Z Metadata: read
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2591836Z ##[endgroup]
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2593928Z Secret source: Actions
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2595046Z Cache mode: write
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2595877Z Prepare workflow directory
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.2973571Z Prepare all required actions
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.3024105Z Getting action download info
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.5783444Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:36.6891943Z Download action repository 'actions/setup-dotnet@v6' (SHA:a98b56852c35b8e3190ac28c8c2271da59106c68)
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:37.1660978Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+Core startup contract (windows-latest)	Set up job	2026-09-27T09:49:37.4055389Z Complete job name: Core startup contract (windows-latest)
+Core startup contract (windows-latest)	Run actions/checkout@v7	﻿2026-09-27T09:49:37.6029839Z ##[group]Run actions/checkout@v7
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6031263Z with:
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6031703Z   repository: tuna-os/wootc
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6036063Z   token: ***
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6036796Z   ssh-strict: true
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6037252Z   ssh-user: git
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6037675Z   persist-credentials: true
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6038143Z   clean: true
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6038579Z   sparse-checkout-cone-mode: true
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6039088Z   fetch-depth: 1
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6039499Z   fetch-tags: false
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6039930Z   show-progress: true
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6040365Z   lfs: false
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6040767Z   submodules: false
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6041191Z   set-safe-directory: true
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6041690Z   allow-unsafe-pr-checkout: false
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.6042567Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.7613724Z Syncing repository: tuna-os/wootc
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.7615734Z ##[group]Getting Git version info
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.7616419Z Working directory is 'D:\a\wootc\wootc'
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:37.8414308Z [command]"C:\Program Files\Git\bin\git.exe" version
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.2429168Z git version 2.55.0.windows.5
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.2480541Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.2496504Z Temporarily overriding HOME='D:\a\_temp\58e76046-eec0-409c-82c2-6952ef7d2fab' before making global git config changes
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.2499292Z Adding repository directory to the temporary git global config as a safe directory
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.2505746Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.3169652Z Deleting the contents of 'D:\a\wootc\wootc'
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.3176856Z ##[group]Determining repository object format
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.3179715Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.3181901Z ##[group]Initializing the repository
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.3189183Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.4035153Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.4089217Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.4775238Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.4779066Z ##[group]Disabling automatic garbage collection
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.4783923Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.5106848Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.5108804Z ##[group]Setting up auth
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.5110674Z Removing SSH command configuration
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.5118711Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:38.5421329Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:40.1002806Z Removing HTTP extra header
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:40.1011585Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:40.1293241Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:40.6523823Z Removing includeIf entries pointing to credentials config files
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:40.6535026Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:40.6818028Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.1742303Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.2043234Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git.path D:\a\_temp\git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.2335518Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D:\a\_temp\git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.2733117Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.3038532Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.3343147Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.3344018Z ##[group]Fetching the repository
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:41.3356520Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +aeaa642be5dc0a175eac8afa3df04f3dccdecd9b:refs/remotes/pull/450/merge
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.8415781Z From https://github.com/tuna-os/wootc
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.8416975Z  * [new ref]         aeaa642be5dc0a175eac8afa3df04f3dccdecd9b -> pull/450/merge
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.8474057Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.8474996Z ##[group]Determining the checkout info
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.8476277Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.8485903Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.8930138Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.9216425Z ##[group]Checking out the ref
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:42.9225459Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/450/merge
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1369321Z Note: switching to 'refs/remotes/pull/450/merge'.
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1369966Z 
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1370538Z You are in 'detached HEAD' state. You can look around, make experimental
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1371450Z changes and commit them, and you can discard any commits you make in this
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1372684Z state without impacting any branches by switching back to a branch.
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1373184Z 
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1373549Z If you want to create a new branch to retain commits you create, you may
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1374167Z do so (now or later) by using -c with the switch command. Example:
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1374449Z 
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1374588Z   git switch -c <new-branch-name>
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1374844Z 
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1374969Z Or undo this operation with:
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1375458Z 
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1375676Z   git switch -
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1375826Z 
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1376129Z Turn off this advice by setting config variable advice.detachedHead to false
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1376435Z 
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1376871Z HEAD is now at aeaa642 Merge c7909017929a2cf8b64bfb431980998e09be9681 into fa501447c87bedbd91fa3e07dcf35500b9b86eff
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1506045Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.1945562Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Core startup contract (windows-latest)	Run actions/checkout@v7	2026-09-27T09:49:43.2198963Z aeaa642be5dc0a175eac8afa3df04f3dccdecd9b
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	﻿2026-09-27T09:49:43.2666729Z ##[group]Run actions/setup-dotnet@v6
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:43.2667429Z with:
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:43.2667811Z   global-json-file: shell/global.json
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:43.2668232Z   cache: false
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:43.2668578Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:43.5566507Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Runtime dotnet -Channel LTS
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:44.9714888Z dotnet-install: .NET Core Runtime with version '10.0.12' is already installed.
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:45.0982374Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Version 8.0.425
+Core startup contract (windows-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:45.7538791Z dotnet-install: .NET Core SDK with version '8.0.425' is already installed.
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	﻿2026-09-27T09:49:45.8507094Z ##[group]Run dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:45.8508139Z ^[[36;1mdotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"^[[0m
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:45.9108418Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:45.9108871Z env:
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:45.9109248Z   DOTNET_ROOT: C:\Program Files\dotnet
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:45.9109640Z ##[endgroup]
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:59.0479254Z   Determining projects to restore...
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:59.9653327Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Core\Wootc.Shell.Core.csproj (in 169 ms).
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:04.0449686Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Tests\Wootc.Shell.Tests.csproj (in 4.28 sec).
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:10.1316442Z   Wootc.Shell.Core -> D:\a\wootc\wootc\shell\Wootc.Shell.Core\bin\Release\net8.0\Wootc.Shell.Core.dll
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:10.6912660Z   Wootc.Shell.Tests -> D:\a\wootc\wootc\shell\Wootc.Shell.Tests\bin\Release\net8.0\Wootc.Shell.Tests.dll
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:10.6984569Z Test run for D:\a\wootc\wootc\shell\Wootc.Shell.Tests\bin\Release\net8.0\Wootc.Shell.Tests.dll (.NETCoreApp,Version=v8.0)
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:11.0111097Z VSTest version 17.11.1 (x64)
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:11.0159907Z 
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:11.4857712Z Starting test execution, please wait...
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:11.5509346Z A total of 1 test files matched the specified pattern.
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:12.2160412Z Results File: D:\a\wootc\wootc\shell\Wootc.Shell.Tests\TestResults\core.trx
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:12.2163038Z 
+Core startup contract (windows-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:50:12.2203129Z Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 48 ms - Wootc.Shell.Tests.dll (net8.0)
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	﻿2026-09-27T09:50:12.3880052Z ##[group]Run actions/upload-artifact@v7
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3880501Z with:
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3880786Z   name: winui-core-windows-latest
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3881212Z   path: shell/Wootc.Shell.Tests/TestResults/*.trx
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3881584Z   if-no-files-found: error
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3881879Z   compression-level: 6
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3882183Z   overwrite: false
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3882499Z   include-hidden-files: false
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3882827Z   archive: true
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3883089Z env:
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3883360Z   DOTNET_ROOT: C:\Program Files\dotnet
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.3883702Z ##[endgroup]
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.5670893Z With the provided path, there will be 1 file uploaded
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.5676788Z Artifact name is valid!
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.5677594Z Root directory input is valid!
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.8692451Z Uploading artifact: winui-core-windows-latest.zip
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:12.8734107Z Beginning upload of artifact content to blob storage
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:13.0509360Z Uploaded bytes 2717
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:13.0942185Z Finished uploading artifact content to blob storage!
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:13.0943648Z SHA256 digest of uploaded artifact is 23b4f4dfe6d8a9f8a56cfe71999a183c008dc60acedb9c477ef6fa2a7df2d3b5
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:13.0945153Z Finalizing artifact upload
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:13.4032202Z Artifact winui-core-windows-latest successfully finalized. Artifact ID 10929351176
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:13.4033194Z Artifact winui-core-windows-latest has been successfully uploaded! Final size is 2717 bytes. Artifact ID is 10929351176
+Core startup contract (windows-latest)	Run actions/upload-artifact@v7	2026-09-27T09:50:13.4040135Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36310538081/artifacts/10929351176
+Core startup contract (windows-latest)	Post Run actions/setup-dotnet@v6	﻿2026-09-27T09:50:13.4372328Z Post job cleanup.
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	﻿2026-09-27T09:50:13.6263697Z Post job cleanup.
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.8178341Z [command]"C:\Program Files\Git\bin\git.exe" version
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.8445183Z git version 2.55.0.windows.5
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.8509745Z Temporarily overriding HOME='D:\a\_temp\b815f463-6881-4094-b67a-d74dbc91b1d1' before making global git config changes
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.8510718Z Adding repository directory to the temporary git global config as a safe directory
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.8520252Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.8804342Z Removing SSH command configuration
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.8814382Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:13.9106395Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:14.4350535Z Removing HTTP extra header
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:14.4361928Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:14.4668079Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0293064Z Removing includeIf entries pointing to credentials config files
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0305085Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0551418Z includeif.gitdir:D:/a/wootc/wootc/.git.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0552557Z includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0553157Z includeif.gitdir:/github/workspace/.git.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0553747Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0595365Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0836573Z D:\a\_temp\git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.0882058Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git.path D\:\\a\\_temp\\git\-credentials\-2408db91\-1a4b\-410f\-833f\-be04d298d3b7\.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.1210238Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.1453137Z D:\a\_temp\git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.1496776Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-2408db91\-1a4b\-410f\-833f\-be04d298d3b7\.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.1782508Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.2022662Z /github/runner_temp/git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.2065679Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-2408db91\-1a4b\-410f\-833f\-be04d298d3b7\.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.2347068Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.2584426Z /github/runner_temp/git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.2626936Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-2408db91\-1a4b\-410f\-833f\-be04d298d3b7\.config
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.2935753Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Core startup contract (windows-latest)	Post Run actions/checkout@v7	2026-09-27T09:50:15.8093132Z Removing credentials config 'D:\a\_temp\git-credentials-2408db91-1a4b-410f-833f-be04d298d3b7.config'
+Core startup contract (windows-latest)	Complete job	﻿2026-09-27T09:50:15.8318368Z Cleaning up orphan processes
+Core startup contract (windows-latest)	Complete job	2026-09-27T09:50:15.9097652Z Terminate orphan process: pid (6324) (dotnet)
+Core startup contract (windows-latest)	Complete job	2026-09-27T09:50:15.9205592Z Terminate orphan process: pid (6344) (conhost)
+Native Windows process identity observations	Set up job	﻿2026-09-27T09:49:40.0652673Z Current runner version: '2.337.0'
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0710148Z ##[group]Runner Image Provisioner
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0710974Z Hosted Compute Agent
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0711565Z Version: 20260828.587
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0712165Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0712945Z Build Date: 2026-08-28T16:44:25Z
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0713625Z Worker ID: {036d4794-6564-4495-ab83-a94351caacbd}
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0714316Z Azure Region: eastus2
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0714932Z ##[endgroup]
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0716233Z ##[group]Operating System
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0717020Z Microsoft Windows Server 2025
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0717620Z 10.0.26100
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0718103Z Datacenter
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0718627Z ##[endgroup]
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0719920Z ##[group]Runner Image
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0720980Z Image: windows-2025-vs2026
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0722109Z Version: 20260922.246.2
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0724161Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0728141Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0729882Z ##[endgroup]
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0731866Z ##[group]GITHUB_TOKEN Permissions
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0734697Z Contents: read
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0735780Z Metadata: read
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0736482Z ##[endgroup]
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0739747Z Secret source: Actions
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0741415Z Cache mode: write
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.0742630Z Prepare workflow directory
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.1140094Z Prepare all required actions
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.1189352Z Getting action download info
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.3011044Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.4424257Z Download action repository 'actions/setup-go@v7' (SHA:b7ad1dad31e06c5925ef5d2fc7ad053ef454303e)
+Native Windows process identity observations	Set up job	2026-09-27T09:49:40.8164536Z Complete job name: Native Windows process identity observations
+Native Windows process identity observations	Run actions/checkout@v7	﻿2026-09-27T09:49:40.9491851Z ##[group]Run actions/checkout@v7
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9492887Z with:
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9493306Z   repository: tuna-os/wootc
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9497109Z   token: ***
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9497514Z   ssh-strict: true
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9497918Z   ssh-user: git
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9498333Z   persist-credentials: true
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9498795Z   clean: true
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9499206Z   sparse-checkout-cone-mode: true
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9499691Z   fetch-depth: 1
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9500101Z   fetch-tags: false
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9500534Z   show-progress: true
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9500955Z   lfs: false
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9501344Z   submodules: false
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9501767Z   set-safe-directory: true
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9502254Z   allow-unsafe-pr-checkout: false
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:40.9502950Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.1180406Z Syncing repository: tuna-os/wootc
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.1183719Z ##[group]Getting Git version info
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.1185357Z Working directory is 'D:\a\wootc\wootc'
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.2312393Z [command]"C:\Program Files\Git\bin\git.exe" version
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.6315467Z git version 2.55.0.windows.5
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.6366016Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.6384824Z Temporarily overriding HOME='D:\a\_temp\7425aa78-740d-4bef-817f-e4652a7daa43' before making global git config changes
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.6387340Z Adding repository directory to the temporary git global config as a safe directory
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.6397674Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.7077923Z Deleting the contents of 'D:\a\wootc\wootc'
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.7083089Z ##[group]Determining repository object format
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.7085192Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.7086420Z ##[group]Initializing the repository
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.7094074Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.8069334Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.8113084Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.8753409Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.8754694Z ##[group]Disabling automatic garbage collection
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.8761660Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.9049771Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.9051922Z ##[group]Setting up auth
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.9053449Z Removing SSH command configuration
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.9061113Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:41.9347714Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:43.4394125Z Removing HTTP extra header
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:43.4404178Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:43.4698059Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.0001195Z Removing includeIf entries pointing to credentials config files
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.0010710Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.0309961Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.5602075Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.5905977Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git.path D:\a\_temp\git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.6194474Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D:\a\_temp\git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.6529761Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.6824661Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.7146321Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.7147195Z ##[group]Fetching the repository
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:44.7159366Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +aeaa642be5dc0a175eac8afa3df04f3dccdecd9b:refs/remotes/pull/450/merge
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.8750448Z From https://github.com/tuna-os/wootc
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.8751924Z  * [new ref]         aeaa642be5dc0a175eac8afa3df04f3dccdecd9b -> pull/450/merge
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.8797748Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.8798340Z ##[group]Determining the checkout info
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.8799040Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.8813454Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.9267371Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.9560920Z ##[group]Checking out the ref
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:45.9569403Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/450/merge
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2369822Z Note: switching to 'refs/remotes/pull/450/merge'.
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2371843Z 
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2372309Z You are in 'detached HEAD' state. You can look around, make experimental
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2374288Z changes and commit them, and you can discard any commits you make in this
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2375167Z state without impacting any branches by switching back to a branch.
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2375480Z 
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2375794Z If you want to create a new branch to retain commits you create, you may
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2376362Z do so (now or later) by using -c with the switch command. Example:
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2376687Z 
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2376805Z   git switch -c <new-branch-name>
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2377065Z 
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2377187Z Or undo this operation with:
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2377403Z 
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2377536Z   git switch -
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2377688Z 
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2377982Z Turn off this advice by setting config variable advice.detachedHead to false
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2378340Z 
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2378802Z HEAD is now at aeaa642 Merge c7909017929a2cf8b64bfb431980998e09be9681 into fa501447c87bedbd91fa3e07dcf35500b9b86eff
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2488512Z ##[endgroup]
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.2897874Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Native Windows process identity observations	Run actions/checkout@v7	2026-09-27T09:49:46.3166078Z aeaa642be5dc0a175eac8afa3df04f3dccdecd9b
+Native Windows process identity observations	Run actions/setup-go@v7	﻿2026-09-27T09:49:46.3672584Z ##[group]Run actions/setup-go@v7
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.3673276Z with:
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.3673699Z   go-version-file: app/go.mod
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.3674233Z   check-latest: false
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.3679059Z   token: ***
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.3679450Z   cache: true
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.3679884Z ##[endgroup]
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.5238061Z Setup go version spec 1.26.0
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.5240159Z Attempting to download 1.26.0...
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.9875731Z matching 1.26.0...
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:46.9893688Z Acquiring 1.26.0 from https://github.com/actions/go-versions/releases/download/1.26.0-21889650668/go-1.26.0-win32-x64.zip
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:47.5873214Z Extracting Go...
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:47.7025323Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp\go-1.26.0-win32-x64.zip', 'D:\a\_temp\b5439dd0-fa51-4970-98c3-a2173c74e2b0', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp\go-1.26.0-win32-x64.zip' -DestinationPath 'D:\a\_temp\b5439dd0-fa51-4970-98c3-a2173c74e2b0' -Force } else { throw $_ } } ;"
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:52.4553430Z Successfully extracted go to D:\a\_temp\b5439dd0-fa51-4970-98c3-a2173c74e2b0
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:49:52.4554196Z Adding to the cache ...
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.5532482Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64 => D:\hostedtoolcache\windows\go\1.26.0\x64
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.5536874Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64.complete => D:\hostedtoolcache\windows\go\1.26.0\x64.complete
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.5537572Z Successfully cached go to C:\hostedtoolcache\windows\go\1.26.0\x64
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.5542786Z Added go to the path
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.5544423Z Successfully set up Go version 1.26.0
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9039983Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOMODCACHE
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9093829Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOCACHE
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9332851Z C:\Users\runneradmin\go\pkg\mod
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9405115Z C:\Users\runneradmin\AppData\Local\go-build
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9452161Z ##[warning]Restore cache failed: Dependencies file is not found in D:\a\wootc\wootc. Supported file pattern: go.mod
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9479343Z go version go1.26.0 windows/amd64
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9479654Z 
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:03.9480388Z ##[group]go env
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3021314Z set AR=ar
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3021757Z set CC=gcc
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3022092Z set CGO_CFLAGS=-O2 -g
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3022436Z set CGO_CPPFLAGS=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3022745Z set CGO_CXXFLAGS=-O2 -g
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3023071Z set CGO_ENABLED=1
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3023361Z set CGO_FFLAGS=-O2 -g
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3023714Z set CGO_LDFLAGS=-O2 -g
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3024022Z set CXX=g++
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3024278Z set GCCGO=gccgo
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3024548Z set GO111MODULE=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3024807Z set GOAMD64=v1
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3025102Z set GOARCH=amd64
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3025372Z set GOAUTH=netrc
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3025637Z set GOBIN=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3025992Z set GOCACHE=C:\Users\runneradmin\AppData\Local\go-build
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3026447Z set GOCACHEPROG=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3026742Z set GODEBUG=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3027114Z set GOENV=C:\Users\runneradmin\AppData\Roaming\go\env
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3027569Z set GOEXE=.exe
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3027873Z set GOEXPERIMENT=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3028148Z set GOFIPS140=off
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3028447Z set GOFLAGS=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3029975Z set GOGCCFLAGS=-m64 -mthreads -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\RUNNER~1\AppData\Local\Temp\go-build2512950758=/tmp/go-build -gno-record-gcc-switches
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3033678Z set GOHOSTARCH=amd64
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3034001Z set GOHOSTOS=windows
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3034303Z set GOINSECURE=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3034622Z set GOMOD=NUL
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3034964Z set GOMODCACHE=C:\Users\runneradmin\go\pkg\mod
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3035391Z set GONOPROXY=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3035650Z set GONOSUMDB=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3035915Z set GOOS=windows
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3036224Z set GOPATH=C:\Users\runneradmin\go
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3036654Z set GOPRIVATE=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3037088Z set GOPROXY=https://proxy.golang.org,direct
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3037624Z set GOROOT=C:\hostedtoolcache\windows\go\1.26.0\x64
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3038103Z set GOSUMDB=sum.golang.org
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3038445Z set GOTELEMETRY=local
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3038953Z set GOTELEMETRYDIR=C:\Users\runneradmin\AppData\Roaming\go\telemetry
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3039516Z set GOTMPDIR=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3039795Z set GOTOOLCHAIN=local
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3040333Z set GOTOOLDIR=C:\hostedtoolcache\windows\go\1.26.0\x64\pkg\tool\windows_amd64
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3040932Z set GOVCS=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3041210Z set GOVERSION=go1.26.0
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3041502Z set GOWORK=
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3041786Z set PKG_CONFIG=pkg-config
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3042008Z 
+Native Windows process identity observations	Run actions/setup-go@v7	2026-09-27T09:50:07.3042441Z ##[endgroup]
+Native Windows process identity observations	Observe actual process tokens and retained handles	﻿2026-09-27T09:50:07.3375136Z ##[group]Run New-Item -ItemType Directory -Force frontend/dist | Out-Null
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.3375795Z ^[[36;1mNew-Item -ItemType Directory -Force frontend/dist | Out-Null^[[0m
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.3376369Z ^[[36;1mSet-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'^[[0m
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.3376979Z ^[[36;1mgo test -count=1 -v -timeout 60s -run '^TestNative(PeerObservation|Pipe)' .^[[0m
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.3945247Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.3945622Z env:
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.3945803Z   GOTOOLCHAIN: local
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.3946010Z ##[endgroup]
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.8609316Z go: downloading github.com/tredoe/osutil v1.5.0
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:07.8641992Z go: downloading github.com/wailsapp/wails/v2 v2.16.0
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:09.4870650Z go: downloading golang.org/x/crypto v0.57.0
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:09.4871284Z go: downloading golang.org/x/mod v0.41.0
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:09.4871777Z go: downloading golang.org/x/sys v0.48.0
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:12.7702570Z go: downloading github.com/leaanthony/slicer v1.6.0
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:12.7904095Z go: downloading github.com/leaanthony/u v1.1.1
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:13.0864892Z go: downloading github.com/leaanthony/go-ansi-parser v1.6.1
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:13.1108377Z go: downloading github.com/pkg/errors v0.9.1
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:13.1314144Z go: downloading github.com/wailsapp/go-webview2 v1.0.22
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:13.3269023Z go: downloading github.com/rivo/uniseg v0.4.7
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.4135121Z === RUN   TestNativePeerObservationUsesActualProcessIdentity
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.4138946Z --- PASS: TestNativePeerObservationUsesActualProcessIdentity (0.00s)
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.4139647Z === RUN   TestNativePeerObservationRejectsMissingOrUnknownProcess
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.4141537Z --- PASS: TestNativePeerObservationRejectsMissingOrUnknownProcess (0.00s)
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.4142636Z === RUN   TestNativePipeActualConnectionIdentity
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.4160420Z --- PASS: TestNativePipeActualConnectionIdentity (0.00s)
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.4160999Z === RUN   TestNativePipeFirstInstanceAndCancellation
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.5360519Z --- PASS: TestNativePipeFirstInstanceAndCancellation (0.12s)
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.5361798Z PASS
+Native Windows process identity observations	Observe actual process tokens and retained handles	2026-09-27T09:50:38.5389254Z ok  	wootc	0.154s
+Native Windows process identity observations	Post Run actions/setup-go@v7	﻿2026-09-27T09:50:38.9516000Z Post job cleanup.
+Native Windows process identity observations	Post Run actions/setup-go@v7	2026-09-27T09:50:39.2032178Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOMODCACHE
+Native Windows process identity observations	Post Run actions/setup-go@v7	2026-09-27T09:50:39.2114578Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOCACHE
+Native Windows process identity observations	Post Run actions/setup-go@v7	2026-09-27T09:50:39.2379868Z C:\Users\runneradmin\go\pkg\mod
+Native Windows process identity observations	Post Run actions/setup-go@v7	2026-09-27T09:50:39.2410031Z C:\Users\runneradmin\AppData\Local\go-build
+Native Windows process identity observations	Post Run actions/setup-go@v7	2026-09-27T09:50:39.2427288Z Primary key was not generated. Please check the log messages above for more errors or information
+Native Windows process identity observations	Post Run actions/checkout@v7	﻿2026-09-27T09:50:39.2749134Z Post job cleanup.
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.5010375Z [command]"C:\Program Files\Git\bin\git.exe" version
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.5335469Z git version 2.55.0.windows.5
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.5411099Z Temporarily overriding HOME='D:\a\_temp\b32a932f-26b3-452c-91c5-ad1fdc402ff2' before making global git config changes
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.5412374Z Adding repository directory to the temporary git global config as a safe directory
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.5423335Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.5807869Z Removing SSH command configuration
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.5820491Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:39.6225089Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.3019039Z Removing HTTP extra header
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.3028998Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.3330095Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.8947804Z Removing includeIf entries pointing to credentials config files
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.8960211Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9221308Z includeif.gitdir:D:/a/wootc/wootc/.git.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9221995Z includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9222648Z includeif.gitdir:/github/workspace/.git.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9223315Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9258075Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9512244Z D:\a\_temp\git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9553982Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git.path D\:\\a\\_temp\\git\-credentials\-9000c163\-cc87\-48ec\-9f2e\-5d0b07e93f26\.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:40.9857588Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.0114132Z D:\a\_temp\git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.0156255Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-9000c163\-cc87\-48ec\-9f2e\-5d0b07e93f26\.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.0453861Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.0704951Z /github/runner_temp/git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.0742031Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-9000c163\-cc87\-48ec\-9f2e\-5d0b07e93f26\.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.1056206Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.1324188Z /github/runner_temp/git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.1407145Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-9000c163\-cc87\-48ec\-9f2e\-5d0b07e93f26\.config
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.1713407Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Native Windows process identity observations	Post Run actions/checkout@v7	2026-09-27T09:50:41.7341941Z Removing credentials config 'D:\a\_temp\git-credentials-9000c163-cc87-48ec-9f2e-5d0b07e93f26.config'
+Native Windows process identity observations	Complete job	﻿2026-09-27T09:50:41.7562826Z Cleaning up orphan processes
+Core startup contract (ubuntu-latest)	Set up job	﻿2026-09-27T09:49:31.0024381Z Current runner version: '2.337.0'
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0053845Z ##[group]Runner Image Provisioner
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0055222Z Hosted Compute Agent
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0056061Z Version: 20260828.587
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0057092Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0058561Z Build Date: 2026-08-28T16:44:25Z
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0059761Z Worker ID: {b5706ff1-4176-499b-b9f3-5624c44d6f6a}
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0061074Z Azure Region: northcentralus
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0062342Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0065058Z ##[group]Operating System
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0066431Z Ubuntu
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0067458Z 24.04.5
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0068394Z LTS
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0069531Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0070431Z ##[group]Runner Image
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0071490Z Image: ubuntu-24.04
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0072423Z Version: 20260920.314.1
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0074185Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260920.314/images/ubuntu/Ubuntu2404-Readme.md
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0077599Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260920.314
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0079316Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0080696Z ##[group]GITHUB_TOKEN Permissions
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0082881Z Contents: read
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0083541Z Metadata: read
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0084146Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0086969Z Secret source: Actions
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0087954Z Cache mode: write
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0088835Z Prepare workflow directory
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0588482Z Prepare all required actions
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.0663673Z Getting action download info
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.3353840Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.4442373Z Download action repository 'actions/setup-dotnet@v6' (SHA:a98b56852c35b8e3190ac28c8c2271da59106c68)
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.8075812Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+Core startup contract (ubuntu-latest)	Set up job	2026-09-27T09:49:31.9847475Z Complete job name: Core startup contract (ubuntu-latest)
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	﻿2026-09-27T09:49:32.0833721Z ##[group]Run actions/checkout@v7
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0835098Z with:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0835658Z   repository: tuna-os/wootc
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0839906Z   token: ***
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0840390Z   ssh-strict: true
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0840866Z   ssh-user: git
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0841357Z   persist-credentials: true
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0841884Z   clean: true
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0842365Z   sparse-checkout-cone-mode: true
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0842932Z   fetch-depth: 1
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0843413Z   fetch-tags: false
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0843889Z   show-progress: true
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0844375Z   lfs: false
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0845226Z   submodules: false
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0845794Z   set-safe-directory: true
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0846355Z   allow-unsafe-pr-checkout: false
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.0847318Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.1904506Z Syncing repository: tuna-os/wootc
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.1907802Z ##[group]Getting Git version info
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.1909155Z Working directory is '/home/runner/work/wootc/wootc'
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.1911092Z [command]/usr/bin/git version
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.1971083Z git version 2.55.0
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.1995295Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2006862Z Temporarily overriding HOME='/home/runner/work/_temp/39d18556-67f3-4bfe-a936-57783ceb31e4' before making global git config changes
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2009363Z Adding repository directory to the temporary git global config as a safe directory
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2012534Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2066112Z Deleting the contents of '/home/runner/work/wootc/wootc'
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2086396Z ##[group]Determining repository object format
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2088616Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2090343Z ##[group]Initializing the repository
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2092068Z [command]/usr/bin/git init /home/runner/work/wootc/wootc
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2193318Z hint: Using 'master' as the name for the initial branch. This default branch name
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2196221Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2198638Z hint: to use in all of your new repositories, which will suppress this warning,
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2200096Z hint: call:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2200768Z hint:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2201881Z hint: 	git config --global init.defaultBranch <name>
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2203132Z hint:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2203857Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2205408Z hint: 'development'. The just-created branch can be renamed via this command:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2206889Z hint:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2207448Z hint: 	git branch -m <name>
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2208229Z hint:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2209564Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2210862Z Initialized empty Git repository in /home/runner/work/wootc/wootc/.git/
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2212706Z [command]/usr/bin/git remote add origin https://github.com/tuna-os/wootc
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2262540Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2264019Z ##[group]Disabling automatic garbage collection
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2266486Z [command]/usr/bin/git config --local gc.auto 0
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2302780Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2304386Z ##[group]Setting up auth
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2305724Z Removing SSH command configuration
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2310594Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2346927Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2732260Z Removing HTTP extra header
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2739441Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.2791810Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3036613Z Removing includeIf entries pointing to credentials config files
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3038751Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3076755Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3311629Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3356099Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git.path /home/runner/work/_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3429621Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3470978Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3511404Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3546947Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3548648Z ##[group]Fetching the repository
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:32.3556498Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +aeaa642be5dc0a175eac8afa3df04f3dccdecd9b:refs/remotes/pull/450/merge
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.0910449Z From https://github.com/tuna-os/wootc
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.0912918Z  * [new ref]         aeaa642be5dc0a175eac8afa3df04f3dccdecd9b -> pull/450/merge
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.0919990Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.0926051Z ##[group]Determining the checkout info
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.0928868Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.0930225Z [command]/usr/bin/git sparse-checkout disable
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.0997625Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1035794Z ##[group]Checking out the ref
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1038708Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/450/merge
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1789138Z Note: switching to 'refs/remotes/pull/450/merge'.
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1790609Z 
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1791425Z You are in 'detached HEAD' state. You can look around, make experimental
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1793352Z changes and commit them, and you can discard any commits you make in this
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1796198Z state without impacting any branches by switching back to a branch.
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1798184Z 
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1799485Z If you want to create a new branch to retain commits you create, you may
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1802815Z do so (now or later) by using -c with the switch command. Example:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1805126Z 
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1806002Z   git switch -c <new-branch-name>
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1807470Z 
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1808322Z Or undo this operation with:
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1809878Z 
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1810679Z   git switch -
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1811696Z 
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1813189Z Turn off this advice by setting config variable advice.detachedHead to false
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1815666Z 
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1818225Z HEAD is now at aeaa642 Merge c7909017929a2cf8b64bfb431980998e09be9681 into fa501447c87bedbd91fa3e07dcf35500b9b86eff
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1824415Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1860476Z [command]/usr/bin/git log -1 --format=%H
+Core startup contract (ubuntu-latest)	Run actions/checkout@v7	2026-09-27T09:49:33.1892211Z aeaa642be5dc0a175eac8afa3df04f3dccdecd9b
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	﻿2026-09-27T09:49:33.2316771Z ##[group]Run actions/setup-dotnet@v6
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.2318049Z with:
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.2318998Z   global-json-file: shell/global.json
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.2320213Z   cache: false
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.2321115Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.3742490Z [command]/home/runner/work/_actions/actions/setup-dotnet/v6/externals/install-dotnet.sh --skip-non-versioned-files --runtime dotnet --channel LTS
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.6180546Z dotnet-install: .NET Core Runtime with version '10.0.12' is already installed.
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.6206956Z [command]/home/runner/work/_actions/actions/setup-dotnet/v6/externals/install-dotnet.sh --skip-non-versioned-files --version 8.0.425
+Core startup contract (ubuntu-latest)	Run actions/setup-dotnet@v6	2026-09-27T09:49:33.7760341Z dotnet-install: .NET Core SDK with version '8.0.425' is already installed.
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	﻿2026-09-27T09:49:33.7970228Z ##[group]Run dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:33.7971837Z ^[[36;1mdotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"^[[0m
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:33.8243424Z shell: /usr/bin/bash -e {0}
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:33.8244478Z env:
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:33.8245675Z   DOTNET_ROOT: /usr/share/dotnet
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:33.8246666Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:39.5280621Z   Determining projects to restore...
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:40.3591573Z   Restored /home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj (in 97 ms).
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:41.3861827Z   Restored /home/runner/work/wootc/wootc/shell/Wootc.Shell.Tests/Wootc.Shell.Tests.csproj (in 1.14 sec).
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:48.7350109Z   Wootc.Shell.Core -> /home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/bin/Release/net8.0/Wootc.Shell.Core.dll
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:49.2304323Z   Wootc.Shell.Tests -> /home/runner/work/wootc/wootc/shell/Wootc.Shell.Tests/bin/Release/net8.0/Wootc.Shell.Tests.dll
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:49.2399030Z Test run for /home/runner/work/wootc/wootc/shell/Wootc.Shell.Tests/bin/Release/net8.0/Wootc.Shell.Tests.dll (.NETCoreApp,Version=v8.0)
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:49.5069438Z VSTest version 17.11.1 (x64)
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:49.5164010Z 
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:50.2124113Z Starting test execution, please wait...
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:50.2781992Z A total of 1 test files matched the specified pattern.
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:51.0134215Z Results File: /home/runner/work/wootc/wootc/shell/Wootc.Shell.Tests/TestResults/core.trx
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:51.0136343Z 
+Core startup contract (ubuntu-latest)	Run startup, route and refusal counterexamples	2026-09-27T09:49:51.0185234Z Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 61 ms - Wootc.Shell.Tests.dll (net8.0)
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	﻿2026-09-27T09:49:51.0948616Z ##[group]Run actions/upload-artifact@v7
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0949161Z with:
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0949524Z   name: winui-core-ubuntu-latest
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0950059Z   path: shell/Wootc.Shell.Tests/TestResults/*.trx
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0950655Z   if-no-files-found: error
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0951085Z   compression-level: 6
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0951477Z   overwrite: false
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0951859Z   include-hidden-files: false
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0952278Z   archive: true
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0952653Z env:
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0953014Z   DOTNET_ROOT: /usr/share/dotnet
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.0953489Z ##[endgroup]
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.2506249Z With the provided path, there will be 1 file uploaded
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.2565607Z Artifact name is valid!
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.2566568Z Root directory input is valid!
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.4952084Z Uploading artifact: winui-core-ubuntu-latest.zip
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.4998275Z Beginning upload of artifact content to blob storage
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.6207924Z Uploaded bytes 2698
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.6471884Z Finished uploading artifact content to blob storage!
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.6474142Z SHA256 digest of uploaded artifact is 6476e29733b22c77486da8db61a0264c7880b74d776416f5cf542472d5c442d7
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.6476345Z Finalizing artifact upload
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.9125552Z Artifact winui-core-ubuntu-latest successfully finalized. Artifact ID 10929185923
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.9126999Z Artifact winui-core-ubuntu-latest has been successfully uploaded! Final size is 2698 bytes. Artifact ID is 10929185923
+Core startup contract (ubuntu-latest)	Run actions/upload-artifact@v7	2026-09-27T09:49:51.9131725Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36310538081/artifacts/10929185923
+Core startup contract (ubuntu-latest)	Post Run actions/setup-dotnet@v6	﻿2026-09-27T09:49:51.9325651Z Post job cleanup.
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	﻿2026-09-27T09:49:52.0809126Z Post job cleanup.
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1786821Z [command]/usr/bin/git version
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1846573Z git version 2.55.0
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1886375Z Temporarily overriding HOME='/home/runner/work/_temp/a6ca720d-d748-44ec-9aaf-14385b4a787d' before making global git config changes
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1888167Z Adding repository directory to the temporary git global config as a safe directory
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1889516Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1947166Z Removing SSH command configuration
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1965886Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.1988120Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2270688Z Removing HTTP extra header
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2279815Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2329711Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2661955Z Removing includeIf entries pointing to credentials config files
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2663276Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2672045Z includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2673182Z includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2674254Z includeif.gitdir:/github/workspace/.git.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2675722Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2691071Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2722568Z /home/runner/work/_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2736266Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-ad764cab\-0117\-400f\-8ef7\-e97b31a3314e\.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2790670Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2838041Z /home/runner/work/_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2849731Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-ad764cab\-0117\-400f\-8ef7\-e97b31a3314e\.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2899150Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2928887Z /github/runner_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2941499Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-ad764cab\-0117\-400f\-8ef7\-e97b31a3314e\.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.2983576Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.3019438Z /github/runner_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.3032153Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-ad764cab\-0117\-400f\-8ef7\-e97b31a3314e\.config
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.3087457Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Core startup contract (ubuntu-latest)	Post Run actions/checkout@v7	2026-09-27T09:49:52.3395629Z Removing credentials config '/home/runner/work/_temp/git-credentials-ad764cab-0117-400f-8ef7-e97b31a3314e.config'
+Core startup contract (ubuntu-latest)	Complete job	﻿2026-09-27T09:49:52.3581333Z Cleaning up orphan processes
+Core startup contract (ubuntu-latest)	Complete job	2026-09-27T09:49:52.3911977Z Terminate orphan process: pid (2396) (dotnet)

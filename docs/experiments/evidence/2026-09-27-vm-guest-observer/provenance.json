@@ -1,0 +1,42 @@
+{
+  "sourceCommit": "1fbdb53fafe876e9a77328acdbbd115f9ea8c9ec",
+  "scope": "Source-only observer and disabled Windows duplex pipe adapter. No guest, desktop or editor acceptance.",
+  "sources": {
+    "app/vm_guest_pipe_windows.go": "bf696d191dd79ac17dc1d0d54859d8aa617da9b9a93baf5f20b97dfb16e340a7",
+    "app/vm_guest_pipe_windows_test.go": "6c66a526e0b63dd9b0f9d732877d7c5dca3ba7fe1ff2584bcc51ffd6adfff3f3",
+    "app/vm_guest_protocol.go": "39f593fe177ebb59c3cc0b7a4a7d4f9d1ede54d6d0030e5dee5619410643793a",
+    "app/vm_guest_protocol_test.go": "9e36982025b3f732557df0d98d7e37280de20cb28bdc679a75394854362b1a4f",
+    "payload/vm-observer/boot_probe.py": "94e93f1c2ae154818b9ad61b15f244eb9c997ff76ac4781b1c9792bcef67cf2a",
+    "tests/unit/test_vm_guest_probe.py": "8d2fca6533ff907ee1a0f3a407281fcdfbe8ca10c1aa8e98a399e4ff801bde8e",
+    "tests/e2e/phase3_ancestry.py": "2bdcd2cd4d041ec77a6816a53829b90f4f8ded330bd308ee2711c048b12c84ef",
+    "app/vm_qmp.go": "1a434e11459306dafc415eac323e98f4c3f5d8a2b1ee94bfb9568dcdfe12e66f",
+    "app/vm_display.go": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "app/native_peer_windows.go": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+    ".github/workflows/vm-guest-observer-controls.yml": "c729c31a04c6c58e6d2bedab540763ca79d75c34c0e7f96acc9f4707b8ef4c70"
+  },
+  "logs": {
+    "wootc-guest-observer-controls.raw.log": "a3d05c72d5a2471a7377120f413a889a649e5e5ba7547953821a0beb7fee92c4",
+    "wootc-guest-current-full-go.raw.log": "2b425af7298553742d20430a886c2283bc3a38803d3e00f0ff54758824f8a16c",
+    "wootc-guest-current-host-controls.raw.log": "856d78845fc889c303c53e51e6ca8bb52dbc17196e35f7fd394b6a3a7ab76a9e",
+    "wootc-guest-pipe-crosscompile.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "wootc-guest-observer-actionlint.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "checks": {
+    "python": "11 controls pass, including real owned child and pipe bounds; guest observations controlled",
+    "go": "go test -C app ./... passes on Linux",
+    "focused": "Guest/QMP/display focused controls pass on Linux",
+    "windows": "Crosscompile only. Actual Windows runtime controls pending hosted workflow.",
+    "workflow": "actionlint passes"
+  },
+  "retiredUnexecutedCrosscompileBinary": {
+    "sha256": "2d3673a51fa11594a12a39d70211ac26741e1912f4e0322b1b4e43386287e8b5",
+    "bytes": 17149440,
+    "executed": false
+  },
+  "stillOwed": [
+    "Actual Windows bounded IPC controls",
+    "Independent host graph acceptance",
+    "Authenticated protected service installation and lifecycle",
+    "Actual selected target desktop and ordinary editor persistence"
+  ]
+}

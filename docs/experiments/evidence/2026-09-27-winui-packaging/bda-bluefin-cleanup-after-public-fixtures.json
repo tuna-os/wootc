@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "buildId": "9ab2148d5316e4661fd5f0f6c895e7fe077d689d",
+  "brandId": "bluefin",
+  "observation": "after-public-fixtures",
+  "entries": [
+    {
+      "path": "unins000.exe",
+      "directory": false,
+      "reparse": false,
+      "sha256": "42ACD6DE7ED9844F8E6F7DC11AD42BE375A51814B6D6940988EF5AE573F9AD8F"
+    }
+  ]
+}

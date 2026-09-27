@@ -121,7 +121,15 @@ func headlessInstall(args []string) int {
 }
 
 func headlessStatus() int {
-	s, ok := readState()
+	return headlessStatusWithReader(readStatusState)
+}
+
+func headlessStatusWithReader(read func() (LifecycleState, bool, error)) int {
+	s, ok, err := read()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "status: cannot safely read installation state")
+		return 1
+	}
 	if !ok {
 		fmt.Println(`{"state":"absent"}`)
 		return 0

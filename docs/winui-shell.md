@@ -8,11 +8,19 @@ This revision corrects the transport and identity assumptions in the earlier des
 
 | Phase | Actual state | Remaining work |
 |---|---|---|
-| A: engine protocol | Go stdio RPC and DTO generator exist; disconnect waits for install cleanup; console attachment preserves redirected transport handles | Native authenticated transport and consumer journey proof remain in B/C |
-| B: scaffold (#343) | `shell/` contains generated `Engine/Dto.cs` only | Native projects, authenticated transport, brand resources, CI, preview package |
-| C: experience (#344) | No native views or UI tests | Consumer screens, migration preview, E2E drive mode, accessibility, full-cycle proof |
+| A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
+| B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks | Real UAC refusal, original-user collection, minimum OS, native brand assets, and preview release assets |
+| C: experience (#344) | A read-only startup view and UI Automation controls exist | Consumer screens, VM and migration flows, drive mode, accessibility, persistence, and the full journey |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
 | E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
+
+This preview candidate retains [run 36328543336](https://github.com/tuna-os/wootc/actions/runs/36328543336).
+It tested merge `68e6f452` from head `7aee354`.
+The adapter passed 30 tests. Both tests for the UI passed at startup. No test skipped.
+The [source and artifact record](experiments/evidence/2026-09-27-native-serving-readiness/hosted-7a/provenance.json) binds those checks.
+
+The tests used the same elevated user. They do not prove interactive UAC or installation.
+The current Wails installer and release assets remain the default.
 
 The future preview and results follow the [migration extension plan](specs/migration-extensions.md). Those APIs do not exist in `serve` yet.
 Phase 1 must run Linux inside Windows before native promotion.
@@ -51,9 +59,9 @@ shell/
 On 2026-09-27, Microsoft identifies **2.5.1** as the stable version of
 Windows App SDK. The [download page](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads)
 and [package page](https://www.nuget.org/packages/Microsoft.WindowsAppSDK/2.5.1)
-show that version. Review the dependency and its .NET compatibility before
-the scaffold pins it. A cached package version does not prove current support.
-The hosted restore/build must prove the chosen package combination.
+show that version. The preview pins that package and .NET SDK 8.0.425.
+The hosted run above restored, built, and tested that combination.
+It does not prove the minimum OS in the manifest.
 
 The [SDK support contract](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/support)
 includes backward compatibility to Windows 10 1809, build 17763.
@@ -211,6 +219,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetBranding` | — | `Branding` |
 | `GetReleaseNotice` | — | `ReleaseNotice` (optional newer release) |
 | `GetImages` | — | `[]Image` |
+| `GetInstallSteps` | — | `[]StepDefinition` |
 | `GetSessionCandidates` | — | as today |
 | `StartInstall` | `InstallConfig` | `null` or error |
 | `CancelInstall` | — | `null` |
@@ -222,6 +231,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `UninstallWith` | `UninstallOptions` | `null` |
 | `BootIntoLinux` | — | `null` |
 | `GetLastRun` | — | `LifecycleState` |
+| `GetRecoveryVerdict` | — | `RecoveryVerdict` |
 | `E2EDriveDirective` | — | `string` |
 | `E2EDriveReport` | `string` | `null` |
 | `GetVMCapability` | — | `VMCapability` | Signed runtime and persistent disk availability. |
