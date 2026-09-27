@@ -46,7 +46,7 @@ public sealed class DiagnosticTests
     }
 
     internal const string StorageDiagnostic = """
-    {"schemaVersion":1,"kind":"storage-observation","phase":"import-storage","auditStage":"complete","contextState":"deadline","commandAttempted":true,"commandStarted":true,"waitCompleted":true,"commandPid":100,"exitCode":1,"deadlineExceeded":true,"auditMilliseconds":12,"commandMilliseconds":9988}
+    {"callPhase":"standalone-query","callMilliseconds":10000,"phaseTimings":{"root-enumeration":0,"initial-selection":0,"storage-first-query":10000,"storage-capacity":0,"metadata-read":0,"metadata-root-audit":0,"catalogue-policy":0,"metadata-revalidation":0,"storage-second-query":0,"storage-identity-reread":0,"final-selection":0},"schemaVersion":1,"kind":"storage-observation","phase":"import-storage","auditStage":"complete","contextState":"deadline","commandAttempted":true,"commandStarted":true,"waitCompleted":true,"commandPid":100,"exitCode":1,"deadlineExceeded":true,"auditMilliseconds":12,"commandMilliseconds":9988}
     """;
 
     [Fact]
@@ -63,6 +63,10 @@ public sealed class DiagnosticTests
             StorageDiagnostic.Replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"schemaVersion\":1"),
             StorageDiagnostic.Replace("\"kind\":", "\"Kind\":"),
             StorageDiagnostic.Replace("import-storage","private-path-secret"),
+            StorageDiagnostic.Replace("\"callPhase\":\"standalone-query\"", "\"callPhase\":\"private-path\""),
+            StorageDiagnostic.Replace("\"callMilliseconds\":10000", "\"callMilliseconds\":9999"),
+            StorageDiagnostic.Replace("\"root-enumeration\":0", "\"root-enumeration\":0,\"root-enumeration\":0"),
+            StorageDiagnostic.Replace("\"root-enumeration\":0", "\"unknown-phase\":0"),
             StorageDiagnostic.Replace("\"deadlineExceeded\":true", "\"deadlineExceeded\":false"),
             StorageDiagnostic.Replace("\"auditMilliseconds\":12", "\"auditMilliseconds\":60000"),
             StorageDiagnostic.Replace("\"commandPid\":100", "\"commandPid\":-1"),

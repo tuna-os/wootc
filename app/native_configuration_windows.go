@@ -4,15 +4,28 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
 	"time"
 )
 
-func observeWindowsNativeConfiguration(ctx context.Context, selectedRoot string, selectedFound bool) (NativeConfigurationSnapshot, error) {
+func observeWindowsNativeConfiguration(ctx context.Context, selectedRoot string, selectedFound bool) (result NativeConfigurationSnapshot, resultErr error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	timing := newNativeConfigurationTiming()
+	defer func() {
+		if resultErr != nil {
+			var failure *nativeStorageObservationFailure
+			if !errors.As(resultErr, &failure) {
+				state := nativeStorageContextState(ctx)
+				failure = &nativeStorageObservationFailure{ExitCode: -1, Phase: "no-child-phase-observed", AuditStage: "not-started", ContextState: state, DeadlineExceeded: state == "deadline"}
+			}
+			failure.CallPhase, failure.CallMilliseconds, failure.PhaseTimings = timing.finish()
+			resultErr = failure
+		}
+	}()
 	var empty NativeConfigurationSnapshot
 	roots, err := windowsFixedStateRoots()
 	if err != nil {
@@ -35,13 +48,16 @@ func observeWindowsNativeConfiguration(ctx context.Context, selectedRoot string,
 		}
 		return nil
 	}
+	timing.mark("initial-selection")
 	if err := validateSelection(); err != nil {
 		return empty, err
 	}
 	var snapshot NativeConfigurationSnapshot
-	storage, err := observeNativeStorage(ctx, func() error {
+	storage, err := observeNativeStorageTimed(ctx, func() error {
 		var readErr error
-		snapshot, readErr = readNativeConfiguration(ctx, roots, selectedRoot, selectedFound, func(root string) error {
+		snapshot, readErr = readNativeConfigurationTimed(ctx, roots, selectedRoot, selectedFound, func(root string) error {
+			previous := timing.phase
+			timing.mark("metadata-root-audit")
 			volume := filepath.VolumeName(root)
 			if len(volume) != 2 || volume[1] != ':' || filepath.Clean(root) != volume+`\wootc` {
 				return fmt.Errorf("invalid configuration location")
@@ -49,13 +65,18 @@ func observeWindowsNativeConfiguration(ctx context.Context, selectedRoot string,
 			if err := inspectStateObject(volume+`\`, true); err != nil {
 				return err
 			}
-			return auditNativeStatusTree(ctx, root, 4096, func(path string) error { return inspectStateObject(path, false) })
-		})
+			err := auditNativeStatusTree(ctx, root, 4096, func(path string) error { return inspectStateObject(path, false) })
+			if err == nil {
+				timing.mark(previous)
+			}
+			return err
+		}, timing.mark)
 		return readErr
-	})
+	}, timing.mark)
 	if err != nil {
 		return empty, err
 	}
+	timing.mark("final-selection")
 	if err := validateSelection(); err != nil {
 		return empty, err
 	}

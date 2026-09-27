@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters(t *testing.T) {
@@ -75,5 +76,28 @@ func TestNativeConfigurationRPCFailureKeepsFixedDiagnostic(t *testing.T) {
 	_, failure = server.dispatch(context.Background(), jsonrpcRequest{Method: "GetNativeConfiguration"})
 	if failure == nil || failure.Data != nil {
 		t.Fatal("unknown failure gained diagnostic authority")
+	}
+}
+
+func TestNativeConfigurationTimingAttributesWholeObservedCall(t *testing.T) {
+	timing := newNativeConfigurationTiming()
+	time.Sleep(2 * time.Millisecond)
+	timing.mark("initial-selection")
+	time.Sleep(2 * time.Millisecond)
+	timing.mark("storage-first-query")
+	time.Sleep(2 * time.Millisecond)
+	phase, total, durations := timing.finish()
+	if phase != "storage-first-query" || total < 6 || durations["root-enumeration"] < 2 || durations["initial-selection"] < 2 || durations["storage-first-query"] < 2 {
+		t.Fatal("whole call lost measured earlier phases")
+	}
+	var sum int64
+	for _, duration := range durations {
+		if duration < 0 {
+			t.Fatal("negative monotonic duration")
+		}
+		sum += duration
+	}
+	if sum > total || total-sum > 256 {
+		t.Fatal("observed phase timing inconsistent")
 	}
 }

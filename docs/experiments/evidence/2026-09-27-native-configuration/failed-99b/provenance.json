@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "source": "99b6a71a1d742a23ee46585a0da070dd410eb848",
+  "run": 36342118819,
+  "scope": "Actual native CLR fixture compile failed CS8086; all five installed UI gates failed. TunaOS positively reported read-disk/shared-context deadline with audit3ms/child1672ms, without preceding-call spans. Bluefin response deadline lacked child diagnosis. Aurora/Bazzite observed generation2 pending before explicit second invocation. Wootc observed button disabled after completed read. No causal keyboard/budget attribution or full UI/install claim.",
+  "files": {
+    "brands/wootc.raw.log": {
+      "sha256": "8bade6eeec709fc7e45cec2f5217befa8ea17dd9dc1b0c81e04307d58c8e5873",
+      "size": 97134
+    },
+    "brands/bluefin.raw.log": {
+      "sha256": "1d3d2a939ed7d72f66e0017e64e7ef00f1ae29102f31d6a0fdf2b34b991d7082",
+      "size": 97445
+    },
+    "brands/aurora.raw.log": {
+      "sha256": "b01e5755e27b4a0d173b5939ed5ff7a20817424ac25fd7a7e9ae9ae8d763d2ae",
+      "size": 97171
+    },
+    "brands/tunaos.raw.log": {
+      "sha256": "eaa7fed068a718c540341341de61a3c4449c7ca660ef4928995993bca416ef2b",
+      "size": 97577
+    },
+    "brands/bazzite.raw.log": {
+      "sha256": "e09b2218ee875c820f801a0a0597fa65a36a29b2277ba797a96a8885b939e6db",
+      "size": 97175
+    },
+    "native.raw.log": {
+      "sha256": "88ddbcad2af8cdc745de9d03a640587e9f723c84096085716bec503692cb9831",
+      "size": 33647
+    }
+  }
+}

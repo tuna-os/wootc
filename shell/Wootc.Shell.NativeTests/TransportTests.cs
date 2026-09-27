@@ -220,11 +220,22 @@ public sealed class TransportTests
         var session=new NativeEngineSession(client,owned,(stage,error)=>latest=projector.Project(stage,error,owned));
         try
         {
-            var call=session.CallAsync<InstallStatus>(method,deadline.Token);
+            var flushedId = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var call=session.CallAsync<InstallStatus>(method,deadline.Token,id=>flushedId.TrySetResult(id));
             using var request=JsonDocument.Parse(await NativeEngineSession.ReadLineAsync(server,4096,deadline.Token));
             long id=request.RootElement.GetProperty("id").GetInt64();
             Assert.Equal(method,request.RootElement.GetProperty("method").GetString());
-            string reply=$"{{\"jsonrpc\":\"2.0\",\"id\":{id},\"error\":{{\"code\":-32603,\"message\":\"generic failure\",\"data\":{DiagnosticTests.StorageDiagnostic}}}}}}\n";
+            if (diagnosticExpected)
+            {
+                using var flushDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                long observed;
+                try {observed=await flushedId.Task.WaitAsync(flushDeadline.Token);}
+                catch(OperationCanceledException){throw new InvalidOperationException("Configuration post-flush observation missing or foreign");}
+                Assert.True(observed==id,"Configuration post-flush observation missing or foreign");
+            }
+            else Assert.False(flushedId.Task.IsCompleted);
+            using var diagnostic=JsonDocument.Parse(DiagnosticTests.StorageDiagnostic);
+            string reply=JsonSerializer.Serialize(new { jsonrpc="2.0", id, error=new { code=-32603, message="generic failure", data=diagnostic.RootElement } })+"\n";
             await server.WriteAsync(Encoding.UTF8.GetBytes(reply),deadline.Token);await server.FlushAsync(deadline.Token);
             if (diagnosticExpected) await Assert.ThrowsAsync<StorageObservationFailure>(()=>call);
             else await Assert.ThrowsAsync<InvalidDataException>(()=>call);

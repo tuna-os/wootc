@@ -13,6 +13,9 @@ public sealed partial class MainWindow : Window
     private bool updatingConfiguration;
     private long configurationGeneration;
     private CancellationTokenSource? configurationRead;
+    private bool closing;
+    private readonly bool observeFixtureInput = Environment.GetEnvironmentVariable("WOOTC_NATIVE_PREVIEW_INPUT_OBSERVATION") == "1";
+    private int passwordChanges, confirmationChanges;
 
     public MainWindow()
     {
@@ -27,8 +30,8 @@ public sealed partial class MainWindow : Window
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
         controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic)));
-        Closed += async (_, _) => { InvalidateConfigurationRead(); await controller.DisposeAsync(); };
+            DispatcherQueue.TryEnqueue(() => { if (!closing) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic); })));
+        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); await controller.DisposeAsync(); };
     }
     private async void Connect_Click(object sender, RoutedEventArgs args)
     {
@@ -58,9 +61,18 @@ public sealed partial class MainWindow : Window
         configurationRead = read;
         long generation = ++configurationGeneration;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; State:pending");
+        long flushedRequest = 0;
         try
         {
-            var snapshot = await controller.ReadConfigurationAsync(read.Token);
+            var snapshot = await controller.ReadConfigurationAsync(read.Token, id =>
+            {
+                Interlocked.Exchange(ref flushedRequest, id);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (generation == configurationGeneration && ReferenceEquals(configurationRead, read))
+                        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; Request:{id}; State:pending");
+                });
+            });
             if (generation != configurationGeneration || controller.Connection != ConnectionState.Ready) return;
             var observed = new ConsumerConfiguration(snapshot.BrandId);
             observed.ApplyCatalogue(ConfigurationProjection.ToCatalogue(snapshot));
@@ -78,7 +90,7 @@ public sealed partial class MainWindow : Window
         finally
         {
             if (ReferenceEquals(configurationRead, read)) configurationRead = null;
-            if (generation == configurationGeneration) { updatingConfiguration = false; ConfigurationButton.IsEnabled = controller.Connection == ConnectionState.Ready; Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; State:completed"); }
+            if (generation == configurationGeneration) { updatingConfiguration = false; ConfigurationButton.IsEnabled = controller.Connection == ConnectionState.Ready; Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; Request:{Interlocked.Read(ref flushedRequest)}; State:completed"); }
         }
         if (generation == configurationGeneration) RefreshConfiguration();
     }
@@ -97,11 +109,21 @@ public sealed partial class MainWindow : Window
         ImageChoice.ItemsSource = null; StorageChoice.ItemsSource = null;
         LinuxUsername.Text = ""; LinuxHostname.Text = "";
         LinuxPassword.Password = ""; LinuxPasswordConfirmation.Password = ""; LinuxLuksPassphrase.Password = "";
+
         LinuxEncryption.SelectedItem = null; LinuxDiskSize.Value = double.NaN; LinuxWindowsLook.IsChecked = false;
         ImageFacts.Text = ""; StorageFacts.Text = ""; InstallBlockedReason.Text = "";
     }
 
-    private void ConfigurationChanged(object sender, object args) => RefreshConfiguration();
+    private void ConfigurationChanged(object sender, object args)
+    {
+        // Optional hosted fixture change-sequence receipt only. No password value
+        // is exposed and no configuration/operation capability is granted.
+        if (observeFixtureInput && ReferenceEquals(sender,LinuxPassword))
+        { passwordChanges=Math.Min(passwordChanges+1,1000000); Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(LinuxPassword,$"InputChangeSequence:{passwordChanges}"); }
+        if (observeFixtureInput && ReferenceEquals(sender,LinuxPasswordConfirmation))
+        { confirmationChanges=Math.Min(confirmationChanges+1,1000000); Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(LinuxPasswordConfirmation,$"InputChangeSequence:{confirmationChanges}"); }
+        RefreshConfiguration();
+    }
 
     private void RefreshConfiguration()
     {
@@ -110,6 +132,7 @@ public sealed partial class MainWindow : Window
         configuration.SelectStorage((StorageChoice.SelectedItem as NativeConfigurationStorage)?.Id ?? "");
         configuration.Username = LinuxUsername.Text;
         configuration.Password = LinuxPassword.Password;
+
         configuration.PasswordConfirmation = LinuxPasswordConfirmation.Password;
         configuration.Hostname = LinuxHostname.Text;
         configuration.DiskSizeGb = double.IsNaN(LinuxDiskSize.Value) ? 0 : (int)LinuxDiskSize.Value;

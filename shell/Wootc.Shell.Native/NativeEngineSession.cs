@@ -93,7 +93,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
         "GetRecoveryVerdict" => "rpc-recovery", "GetNativeConfiguration" => "rpc-configuration", _ => "rpc-other"
     };
 
-    internal async Task<T> CallAsync<T>(string method, CancellationToken token)
+    internal async Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null)
     {
         long id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -109,6 +109,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
             await writes.WaitAsync(token);
             try { await pipe.WriteAsync(request, token); await pipe.FlushAsync(token); }
             finally { writes.Release(); }
+            if (method == "GetNativeConfiguration") requestFlushed?.Invoke(id);
             stage = RpcStage(method) + "-response";
             observe?.Invoke(stage, null);
             var result = await completion.Task.WaitAsync(token);
@@ -133,11 +134,11 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
         return new(status, recovery, lifecycle);
     }
 
-    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken)
+    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(15));
-        return await CallAsync<NativeConfigurationSnapshot>("GetNativeConfiguration", deadline.Token);
+        return await CallAsync<NativeConfigurationSnapshot>("GetNativeConfiguration", deadline.Token, requestFlushed);
     }
 
     public async ValueTask DisposeAsync()

@@ -73,6 +73,9 @@ type NativeConfigurationStorage struct {
 // Payload metadata is usable only from one unambiguous audited root; a real
 // installation binds configuration to its selected root, never a C: proxy.
 func readNativeConfiguration(ctx context.Context, roots []string, selectedRoot string, found bool, audit func(string) error) (NativeConfigurationSnapshot, error) {
+	return readNativeConfigurationTimed(ctx, roots, selectedRoot, found, audit, nil)
+}
+func readNativeConfigurationTimed(ctx context.Context, roots []string, selectedRoot string, found bool, audit func(string) error, mark func(string)) (NativeConfigurationSnapshot, error) {
 	var snapshot NativeConfigurationSnapshot
 	root := selectedRoot
 	if found && root == "" {
@@ -122,6 +125,9 @@ func readNativeConfiguration(ctx context.Context, roots []string, selectedRoot s
 		if _, ok := candidates[root]; !ok {
 			return snapshot, fmt.Errorf("selected configuration root disappeared")
 		}
+	}
+	if mark != nil {
+		mark("catalogue-policy")
 	}
 	files := candidates[root]
 	brand := defaultBranding()
@@ -190,6 +196,9 @@ func readNativeConfiguration(ctx context.Context, roots []string, selectedRoot s
 			return snapshot, fmt.Errorf("bundle digest invalid")
 		}
 		bundle = NativeConfigurationBundle{State: "metadata-only", ImageRef: metadata.Image, Digest: metadata.Digest}
+	}
+	if mark != nil {
+		mark("metadata-revalidation")
 	}
 	// Re-observe presence as well as contents across every candidate root.
 	// Newly created metadata cannot silently replace an embedded fallback.

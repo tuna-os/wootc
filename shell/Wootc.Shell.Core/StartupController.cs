@@ -22,7 +22,7 @@ public interface IEngineSession : IAsyncDisposable
 
 public interface IConfigurationEngineSession : IEngineSession
 {
-    Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken);
+    Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null);
 }
 
 public sealed class StartupController : IAsyncDisposable
@@ -110,14 +110,14 @@ public sealed class StartupController : IAsyncDisposable
         finally { connectionGate.Release(); }
     }
 
-    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken = default)
+    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken = default, Action<long>? requestFlushed = null)
     {
         await connectionGate.WaitAsync(cancellationToken);
         try
         {
             if (Connection != ConnectionState.Ready || session is not IConfigurationEngineSession reader)
                 throw new InvalidOperationException("Authenticated configuration session is unavailable");
-            return await reader.ReadConfigurationAsync(cancellationToken);
+            return await reader.ReadConfigurationAsync(cancellationToken, requestFlushed);
         }
         finally { connectionGate.Release(); }
     }

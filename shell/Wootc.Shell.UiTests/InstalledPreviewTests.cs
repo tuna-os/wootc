@@ -22,7 +22,9 @@ public sealed class InstalledPreviewTests
         Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(executable)!, "native-package.json")));
         Assert.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) + Path.DirectorySeparatorChar, executable, StringComparison.OrdinalIgnoreCase);
         using var automation = new UIA3Automation();
-        using var process = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(executable)! })
+        var launch = new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(executable)! };
+        launch.Environment["WOOTC_NATIVE_PREVIEW_INPUT_OBSERVATION"]="1";
+        using var process = Process.Start(launch)
             ?? throw new InvalidOperationException("Installed shell did not start");
         _ = process.Handle;
         using var application = Application.Attach(process.Id);
@@ -63,6 +65,26 @@ public sealed class InstalledPreviewTests
                 }
                 Assert.NotNull(configurationObservation);
             }
+            using (var firstCompletion = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                while(!Find("ReadConfiguration").Properties.HelpText.Value.EndsWith("; State:completed",StringComparison.Ordinal))
+                {if(firstCompletion.IsCancellationRequested)throw new InvalidOperationException("First configuration view appeared without completed consumer");await Task.Delay(50);}
+            }
+            string initialGeneration=Find("ReadConfiguration").Properties.HelpText.Value;
+            async Task TypePublicPassword(string id)
+            {
+                const string publicPassword="public component fixture password";
+                var field=Find(id);field.Focus();
+                Assert.True(field.Properties.HasKeyboardFocus.Value,$"Public {id} typing refused: keyboard focus not observed");
+                string previous=field.Properties.HelpText.Value;
+                int prior=string.IsNullOrEmpty(previous)?0:int.Parse(previous["InputChangeSequence:".Length..],System.Globalization.CultureInfo.InvariantCulture);
+                FlaUI.Core.Input.Keyboard.Type(publicPassword);
+                using var inputDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                while(field.Properties.HelpText.Value!=$"InputChangeSequence:{prior+publicPassword.Length}")
+                {if(inputDeadline.IsCancellationRequested)throw new InvalidOperationException($"Public {id} input consumption not observed; {field.Properties.HelpText.Value}; focus={field.Properties.HasKeyboardFocus.Value}; read={Find("ReadConfiguration").Properties.HelpText.Value}");await Task.Delay(50);}
+                Assert.True(field.Properties.HasKeyboardFocus.Value,$"Public {id} input receipt arrived without retained keyboard focus");
+                Assert.Equal(initialGeneration,Find("ReadConfiguration").Properties.HelpText.Value);
+            }
             Assert.False(Find("InstallLinux").IsEnabled);
             Assert.Contains("Choose",Find("InstallBlockedReason").Name);
             var images=Find("ImageChoice").AsComboBox();
@@ -72,10 +94,8 @@ public sealed class InstalledPreviewTests
             images.Collapse();
             Assert.Contains("content verified: False",Find("ImageFacts").Name);
             Find("LinuxUsername").AsTextBox().Text="fixture_user";
-            Find("LinuxPassword").Focus();
-            FlaUI.Core.Input.Keyboard.Type("public component fixture password");
-            Find("LinuxPasswordConfirmation").Focus();
-            FlaUI.Core.Input.Keyboard.Type("public component fixture password");
+            await TypePublicPassword("LinuxPassword");
+            await TypePublicPassword("LinuxPasswordConfirmation");
             Assert.False(Find("InstallLinux").IsEnabled);
             var selectedEncryption=Find("LinuxEncryption").AsComboBox().SelectedItem;
             Assert.NotNull(selectedEncryption);
@@ -83,7 +103,9 @@ public sealed class InstalledPreviewTests
             // Drive a real second configuration RPC, then disconnect while its
             // consumer is pending. A late response must not restore the form.
             var secondRead=Find("ReadConfiguration").AsButton();
+            string beforeFocus=secondRead.Properties.HelpText.Value;
             secondRead.Focus();
+            Assert.Equal(beforeFocus,secondRead.Properties.HelpText.Value);
             Assert.False(secondRead.IsOffscreen);
             using (var completionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             {
@@ -97,13 +119,20 @@ public sealed class InstalledPreviewTests
             string generationPrefix = "ConfigurationGeneration:";
             Assert.StartsWith(generationPrefix, completedRead);
             long completedGeneration = long.Parse(completedRead[generationPrefix.Length..].Split(';')[0], System.Globalization.CultureInfo.InvariantCulture);
-            string expectedPending = $"ConfigurationGeneration:{completedGeneration + 1}; State:pending";
+            long completedRequest = long.Parse(completedRead.Split(';')[1].Trim()["Request:".Length..], System.Globalization.CultureInfo.InvariantCulture);
+            Assert.True(completedRequest > 0);
+            bool CurrentRequestPending()
+            {
+                string observed = secondRead.Properties.HelpText.Value;
+                string prefix=$"ConfigurationGeneration:{completedGeneration + 1}; Request:";
+                return observed.StartsWith(prefix, StringComparison.Ordinal) && observed.EndsWith("; State:pending", StringComparison.Ordinal) && long.TryParse(observed[prefix.Length..].Split(';')[0], out long request) && request > completedRequest;
+            }
             Assert.True(secondRead.IsEnabled);
             try { secondRead.Invoke(); }
             catch (Exception) { throw new InvalidOperationException($"Second read UI dispatch refused; before={completedRead}; after={secondRead.Properties.HelpText.Value}; enabled={secondRead.IsEnabled}"); }
             using (var pendingDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             {
-                while (secondRead.IsEnabled || secondRead.Properties.HelpText.Value != expectedPending || !Find("ConnectionStatus").Properties.HelpText.Value.StartsWith("Stage:rpc-configuration-response;", StringComparison.Ordinal))
+                while (secondRead.IsEnabled || !CurrentRequestPending())
                 {
                     if (pendingDeadline.IsCancellationRequested) throw new InvalidOperationException("Actual second configuration read did not start");
                     await Task.Delay(50);
