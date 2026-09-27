@@ -8,13 +8,14 @@
 # screen was never emitted, so it stayed grey for the whole install — which
 # to a nervous user reads as a step that did not happen.
 #
-# This file is the authority. tests/unit/step-catalogue.bats and the Go test
-# in app/steps_test.go fail when a copy drifts from it.
+# This file is the authority. Run just steps after edits. CI checks every
+# generated consumer and behavior tests reject label as well as ID drift.
 #
 # owner: installer  a step in the Phase-1 pipeline (app/app.go), shown on the
 #                   progress screen by app/frontend/src/screens/progress.js
 #        deployer   a phase() call in payload/deployer/deploy.sh, shown on the
 #                   full-screen splash during the Phase-2 deploy
+#        firstboot  publication of installed Linux boot evidence
 #
 # id	owner	label
 Checking your PC	installer	Checking your PC
@@ -42,3 +43,4 @@ registry-preflight	deployer	Connecting to the software library...
 fisherman	deployer	Installing your Linux system...
 verification	deployer	Checking your Linux system...
 reboot	deployer	Preparing to restart...
+firstboot-evidence	firstboot	Verifying your installed Linux boot...

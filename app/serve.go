@@ -206,6 +206,9 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 	case "GetBranding":
 		return s.app.GetBranding(), nil
 
+	case "GetInstallSteps":
+		return s.app.GetInstallSteps(), nil
+
 	case "GetImages":
 		imgs, err := s.app.GetImages()
 		if err != nil {

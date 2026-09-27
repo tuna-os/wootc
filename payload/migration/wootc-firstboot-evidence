@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+# shellcheck source=payload/steps.sh
+source "${WOOTC_STEPS_FILE:-/var/usrlocal/lib/wootc/steps.sh}"
+
 HOST="${WOOTC_FIRSTBOOT_HOST:-/run/initramfs/wootc-host}"
 
 INSTALL_DIR="$HOST/wootc/install"
@@ -37,6 +40,10 @@ if ! mountpoint -q "$HOST"; then
     exit 1
 fi
 
+[[ $(wootc_step_owner firstboot-evidence) == firstboot ]]
+log "phase: firstboot-evidence"
+log "$(wootc_step_label firstboot-evidence)"
+
 mkdir -p "$INSTALL_DIR"
 
 NOW=$(date -u +%FT%TZ 2>/dev/null || date)
@@ -57,6 +64,7 @@ JSONEOF
 wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" <<JSONEOF
 {
   "state": "healthy",
+  "phaseId": "firstboot-evidence",
   "kernel": "$KERNEL_VER",
   "writtenAt": "$NOW",
   "updatedBy": "wootc-firstboot"

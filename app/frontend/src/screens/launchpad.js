@@ -1,3 +1,4 @@
+import { installStepLabel } from './progress.js';
 import { StartInstall, CreateDataPartition, DefragDrive } from '../../wailsjs/go/main/App';
 import { BrowserOpenURL, Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
@@ -6,6 +7,9 @@ import { installVerb, distroName, productName } from '../lib/branding.js';
 import { el, btn, chip, warningBanner, inputField } from '../lib/ui.js';
 import { renderProgress } from './progress.js';
 import { tryInVM } from './vmpreview.js';
+
+const escapePhaseLabel = value => String(value).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // ── Screen 1: Launchpad ───────────────────────────────────────────────────────
 
@@ -31,7 +35,7 @@ export function renderLaunchpad() {
   // existed, with "an existing installation was found").
   if (state.lastRun?.state === 'failed') {
     screen.appendChild(warningBanner(
-      `<b>Your last install attempt didn't finish</b> (stopped at "${state.lastRun.phase || 'an early step'}"). ` +
+      `<b>Your last install attempt didn't finish</b> (stopped at "${escapePhaseLabel(installStepLabel(state.lastRun.phaseId || state.lastRun.phase) || 'an early step')}"). ` +
       'Nothing outside the installation folder was changed and no Linux boot is armed. ' +
       'You can simply try again below.'
     ));

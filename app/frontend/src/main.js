@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict } from '../wailsjs/go/main/App';
+import { GetInstallSteps, GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { startE2EDrive } from './lib/e2e.js';
 import { state } from './lib/state.js';
@@ -7,7 +7,7 @@ import { setRenderer } from './lib/render.js';
 import { applyBranding } from './lib/branding.js';
 import { renderTitleBar } from './lib/titlebar.js';
 import { renderLaunchpad, applyImageDefaults, showReleaseNotice } from './screens/launchpad.js';
-import { INSTALL_STEPS, renderProgressScreen, renderProgress } from './screens/progress.js';
+import { INSTALL_STEPS, setInstallSteps, renderProgressScreen, renderProgress } from './screens/progress.js';
 import { renderVMPreviewScreen } from './screens/vmpreview.js';
 import { renderDoneScreen } from './screens/done.js';
 import { renderControlPanel } from './screens/control.js';
@@ -18,16 +18,18 @@ import { renderRecoveryScreen } from './screens/recovery.js';
 
 async function init() {
   try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'TunaOS', productName: 'wootc', tagline: '', logoEmoji: '🐠', version: '0.1.0', installVerb: 'Install' }); }
+  setInstallSteps(await GetInstallSteps());
   // Listen for progress events from Go backend
   EventsOn('install:progress', (e) => {
-    state.progress.step = e.step;
+    state.progress.step = e.phaseId || e.step;
     state.progress.message = e.message;
     state.progress.percent = e.percent;
     if (e.error) state.progress.error = e.error;
     if (e.done) { state.screen = 'done'; render(); return; }
-    if (e.step && !state.progress.completedSteps.includes(e.step)) {
+    const phaseId = e.phaseId || e.step;
+    if (phaseId && !state.progress.completedSteps.includes(phaseId)) {
       // Mark previous step as done when a new one starts
-      const idx = INSTALL_STEPS.indexOf(e.step);
+      const idx = INSTALL_STEPS.indexOf(phaseId);
       if (idx > 0) {
         for (let i = 0; i < idx; i++) {
           if (!state.progress.completedSteps.includes(INSTALL_STEPS[i]))
@@ -175,5 +177,9 @@ function render() {
 // hand it the router before anything can ask for one.
 setRenderer(render);
 
-init().catch(console.error);
+init().catch(error => {
+  console.error(error);
+  const app = document.getElementById('app');
+  app.textContent = 'The installer could not load its step catalogue. Please reopen the installer.';
+});
 startE2EDrive(state);
