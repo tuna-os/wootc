@@ -1,0 +1,3 @@
+W: Unable to read /etc/apt/-/ - DirectoryExists (2: No such file or directory)
+W: Unable to read /dev/null - RealFileExists (2: No such file or directory)
+E: Internal Error, Pathname to install is not absolute 'dracut-core_106-6_amd64.deb'
