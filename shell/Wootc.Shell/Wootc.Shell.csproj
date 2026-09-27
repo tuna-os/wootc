@@ -18,4 +18,17 @@
     <Compile Remove="Engine/Dto.cs" />
     <Content Include="../../app/branding/wootc/brand.json" Link="Branding/brand.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- Unpackaged MRT Core currently generates the app PRI without publishing it.
+       Keep the generated resource index beside the executable, not only SDK PRIs. -->
+  <Target Name="PublishNativePreviewResourceIndex"
+          BeforeTargets="ComputeResolvedFilesToPublishList"
+          DependsOnTargets="$(GenerateProjectPriFile)">
+    <Error Condition="!Exists('$(ProjectPriFullPath)')" Text="The native preview resource index was not generated." />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(ProjectPriFullPath)">
+        <RelativePath>$(ProjectPriFileName)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>

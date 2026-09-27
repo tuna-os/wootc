@@ -71,6 +71,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force out/winui-source-diagnostics | Out-Null
+          $resourceFiles = @(Get-ChildItem shell/Wootc.Shell/bin,out/winui-preview -Recurse -File -Filter '*.pri' |
+            Select-Object FullName,Length,@{Name='SHA256';Expression={(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}})
+          ConvertTo-Json -InputObject $resourceFiles -Depth 3 | Set-Content -Encoding utf8 out/winui-source-diagnostics/resource-indexes.json
           Get-ChildItem shell/Wootc.Shell/obj -Recurse -File |
             Where-Object { $_.Name -match '^(App|MainWindow|XamlTypeInfo)[.]g[.]' } |
             Copy-Item -Destination out/winui-source-diagnostics
