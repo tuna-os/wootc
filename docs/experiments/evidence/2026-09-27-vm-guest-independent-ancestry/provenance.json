@@ -1,0 +1,28 @@
+{
+  "sourceCommit": "79c327e95b54699993316724e3871d7d299d159e",
+  "sources": {
+    "app/vm_guest_ancestry.go": "2cdd4f8cf704f386e1901db77a326fdccd79895a4e6647fb7c22f657c04bbd6d",
+    "app/vm_guest_ancestry_test.go": "dc69855c3dddb5b31efa30c94690945ea7303b2c2d1911ef5c5572b4cf8973e0",
+    "app/vm_guest_protocol.go": "0f2670f9840e802129bd1818acd88411f53c3b2c1d3f8e02581a0190bc35362f",
+    "app/vm_guest_protocol_test.go": "bdb088e5e27fb5fe51315f8fbf46c3cb94abcc51b887f39541f8893fe03ba202",
+    "tests/e2e/phase3_ancestry.py": "2bdcd2cd4d041ec77a6816a53829b90f4f8ded330bd308ee2711c048b12c84ef"
+  },
+  "logs": {
+    "wootc-independent-ancestry-expanded.raw.log": "a5dd3f112b55294050fcc8ec7fbb3afc0d572d812a702781c22c7b78f7445049",
+    "wootc-independent-ancestry-full-go.raw.log": "87d1e7a9e80810eca1f2a31686fe6a4b67f8ab21242fc0a01c76f9935384780d",
+    "wootc-independent-ancestry-removed-guard.raw.log": "9b75e8a6fcb30cfbeef7cd5b3c9198d50f46e80d00223727c770340609c679cc"
+  },
+  "scope": "Packaged Go independently recomputes ancestry from measured authenticated observer graph. No VM execution, installed service, guest desktop or editor qualification.",
+  "checks": {
+    "focused": "actual decodeVMGuestObservation consumer plus projection/member controls PASS",
+    "full": "Linux go test -C app ./... PASS",
+    "mutation": "isolated disposable app copy with actual decoder verifyVMGuestRoot call removed: actual TestVMGuestIndependentAncestryConsumer RED exit1; shared source was never mutated; copy removed",
+    "mutationBaseline": "3c489af; production decoder call and consumer test bytes unchanged at79c327e. Later member UUID control was not part of this initial mutation."
+  },
+  "stillOwed": [
+    "Hosted combined Windows graph controls",
+    "Authenticated installed service/unit exact bytes and protected dependency ancestry",
+    "Actual selected image filesystem policy and root boot",
+    "Ordinary user desktop/editor persistence"
+  ]
+}
