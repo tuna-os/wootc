@@ -88,12 +88,10 @@ func verifyVMObserverReceipt(input io.Reader, expected VMState, hashes map[strin
 				return nil, fmt.Errorf("installed observer source differs from authenticated runtime")
 			}
 		}
-		for _, name := range []string{"labels", "targetDependencies", "offlineAncestry", "offlineBootAncestry", "persistenceConfiguration"} {
-			var value map[string]json.RawMessage
-			if json.Unmarshal(raw[name], &value) != nil || len(value) == 0 {
-				return nil, fmt.Errorf("observer installation facts absent")
-			}
+		if err := verifyVMObserverAudit(raw, expected.DiskID); err != nil {
+			return nil, err
 		}
+
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err

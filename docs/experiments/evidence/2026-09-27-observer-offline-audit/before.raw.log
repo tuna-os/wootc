@@ -1,0 +1,14 @@
+--- FAIL: TestObserverActualInstallerPrivateEmissionAndHostReceipt (0.34s)
+    --- FAIL: TestObserverActualInstallerPrivateEmissionAndHostReceipt/invalidAudit_labels (0.00s)
+        vm_observer_receipt_test.go:60: invalid nonempty offline audit accepted
+    --- FAIL: TestObserverActualInstallerPrivateEmissionAndHostReceipt/invalidAudit_targetDependencies (0.00s)
+        vm_observer_receipt_test.go:60: invalid nonempty offline audit accepted
+    --- FAIL: TestObserverActualInstallerPrivateEmissionAndHostReceipt/invalidAudit_offlineAncestry (0.00s)
+        vm_observer_receipt_test.go:60: invalid nonempty offline audit accepted
+    --- FAIL: TestObserverActualInstallerPrivateEmissionAndHostReceipt/invalidAudit_offlineBootAncestry (0.00s)
+        vm_observer_receipt_test.go:60: invalid nonempty offline audit accepted
+    --- FAIL: TestObserverActualInstallerPrivateEmissionAndHostReceipt/invalidAudit_persistenceConfiguration (0.00s)
+        vm_observer_receipt_test.go:60: invalid nonempty offline audit accepted
+FAIL
+FAIL	wootc	0.354s
+FAIL

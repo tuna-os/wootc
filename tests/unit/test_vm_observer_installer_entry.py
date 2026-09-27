@@ -23,7 +23,7 @@ class InstallerCallerControls(unittest.TestCase):
         info=Path('/').stat()
         self.args=SimpleNamespace(catalogue_sha256='a'*64,input_inode=str(info.st_dev)+':'+str(info.st_ino),input_source='rootfs[/usr/lib/wootc-observer]',input_major='0:1',root_major='8:3',boot_major='8:2',disk=DISK,image='ghcr.io/example/image@sha256:'+'a'*64,run_id='run_test123',install_id='install_test123')
         self.selected={'deployment':'/','stateVar':'/var','image':self.args.image,'bls':{'options':'root=UUID=selected'}}
-        self.environment={'interpreter':'/usr/bin/python3','stdlibRoots':['/usr/lib/python3'],'loadedDependencies':{},'mappedDependencies':[]}
+        self.environment={'interpreter':'/usr/bin/python3','stdlibRoots':['/usr/lib/python3'],'loadedDependencies':{'/usr/bin/python3':'a'*64},'mappedDependencies':['/usr/bin/python3']}
         @contextmanager
         def transaction(*_):
             self.events.append('write')
@@ -32,14 +32,14 @@ class InstallerCallerControls(unittest.TestCase):
         def labels(*_):
             self.events.append('label')
             if self.label_failure:raise ValueError('actual native labeling refusal')
-            return {'required':False}
+            return {'configuredMode':'disabled','labelsRequired':False,'labels':{}}
         def selection(*_):
             self.events.append('selection')
             return dict(self.selected,image='foreign') if self.final_image_changed and self.events.count('selection')>1 else self.selected
         self.modules={'python_environment.py':{'inspect_environment':lambda:self.environment,'protected_path':lambda p:(None,Path(p))},
           'install_bundle.py':{'directory':lambda p:None,'read_owned':lambda p:b'protected','observer_transaction':transaction},
           'installer_commands.py':COMMAND,'deployment_selection.py':{'select_installed_deployment':selection},
-          'boot_probe.py':{'_run_owned':self.run_command},'install_policy.py':{'validate_persistence':lambda *_:{'configurationOnly':True}},
+          'boot_probe.py':{'_run_owned':self.run_command},'install_policy.py':{'validate_persistence':lambda *_:{'etcPersistent':True,'varPersistent':True,'configurationOnly':True}},
           'label_policy.py':{'label_transaction_objects':labels},'install_graph.py':GRAPH}
     def run_command(self,argv,deadline):
         self.events.append('query')

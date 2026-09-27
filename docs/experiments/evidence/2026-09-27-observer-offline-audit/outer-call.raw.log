@@ -1,0 +1,8 @@
+test_actual_outer_direct_caller_retains_context_receipt_cleanup_and_exit_trap (test_vm_observer_outer_call.OuterCallerControls.test_actual_outer_direct_caller_retains_context_receipt_cleanup_and_exit_trap) ... ok
+test_actual_subshell_caller_mutant_refuses_context_and_never_publishes (test_vm_observer_outer_call.OuterCallerControls.test_actual_subshell_caller_mutant_refuses_context_and_never_publishes) ... ok
+test_target_refusal_cleans_all_leases_and_never_publishes (test_vm_observer_outer_call.OuterCallerControls.test_target_refusal_cleans_all_leases_and_never_publishes) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.084s
+
+OK

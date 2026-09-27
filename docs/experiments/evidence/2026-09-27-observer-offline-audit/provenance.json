@@ -1,0 +1,26 @@
+{
+  "scope": "Typed audit schema and consistency from authenticated installer; not independent host syscalls or actual target execution. Current guest root acceptance remains the separate independent boot graph decoder.",
+  "beforeSource": "a07ea55",
+  "beforeCounter": "Actual private-channel consumer accepted each nonempty {valid:false} audit object; five actual subtests red against frozen prior source.",
+  "sourceHashes": {
+    "app/vm_observer_audit.go": "0762b3ad9e14337d18ca428b51afaab82992f06cafe853882994ed5867f1fe46",
+    "app/vm_observer_receipt.go": "db24e1a89415e483cc573c554ea5dd0c83c3510a816ce721fc7d4b4fcca437b0",
+    "app/vm_observer_receipt_test.go": "cab28a3f93beb8c48e7582b3fa039676124a7eb454f0486107e88e0bfc2e2975",
+    "payload/builder/wootc-builder.sh": "5fdc85873a7b0b62c10855afd29bf5b8294c7a0fe79095906fbcd113f0b16695",
+    "tests/unit/test_vm_observer_outer_call.py": "bc95be35e5479f25e466d23b1b2e0da4289a367b9365584b87316d27455e22e9",
+    "tests/unit/test_vm_observer_installer_entry.py": "0f206118f9faa3277fbdc9aeacacee2896d9fbcc41b36423af7d7db44fc44212"
+  },
+  "outerComposition": "Actual outer observer_install_owned and production direct caller lines execute. Only fixed bundle path substituted privately; mount/tool/preflight leaves controlled. Actual native /proc PID read, Bash context, preserved EXIT trap, six view releases plus original boot cleanup and receipt globals measured. No mount/chroot/target execution. Subshell mutant refuses; target failure cleans and publishes nothing.",
+  "pythonControls": 85,
+  "evidenceHashes": {
+    "outer-call.raw.log": "5a93442f0e4d77d246af2bc9a5ac003b94f013a0f969683f3cae1e2e4f096771",
+    "before.raw.log": "c8262c605da22754c71461be07556ea2f4709f4da912f70838517d107a176a3f",
+    "python.raw.log": "797997feac7b990f28b0b75a465ec4e59b1477c44d37916a5cac34abcfaf977a",
+    "go.raw.log": "28e0f1162036b1de1d074800259ff9b9e8fcdca5e44b473a9906506b1b0f7029",
+    "all-go.raw.log": "bb601814d04653586b7db04d20980bedbbc9d68cc8917e2323b38e1815adaed3"
+  },
+  "targetInstallationExecuted": false,
+  "guestBootAccepted": false,
+  "desktopQualified": false,
+  "editorQualified": false
+}

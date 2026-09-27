@@ -47,6 +47,41 @@ func TestObserverActualInstallerPrivateEmissionAndHostReceipt(t *testing.T) {
 			}
 		})
 	}
+	for _, field := range []string{"labels", "targetDependencies", "offlineAncestry", "offlineBootAncestry", "persistenceConfiguration"} {
+		t.Run("invalidAudit_"+field, func(t *testing.T) {
+			altered := map[string]interface{}{}
+			for k, v := range record {
+				altered[k] = v
+			}
+			altered[field] = map[string]interface{}{"valid": false}
+			bad, _ := json.Marshal(altered)
+			bad = append(append(bad, '\n'), result...)
+			if _, err = verifyVMObserverReceipt(bytes.NewReader(bad), expected, hashes); err == nil {
+				t.Fatal("invalid nonempty offline audit accepted")
+			}
+		})
+	}
+	for _, name := range []string{"disabledRequiresLabels", "differentRootBootDisk", "foreignDependency", "persistentVarUnknown"} {
+		t.Run(name, func(t *testing.T) {
+			var altered map[string]interface{}
+			_ = json.Unmarshal(bytes.TrimSpace(raw), &altered)
+			switch name {
+			case "disabledRequiresLabels":
+				altered["labels"].(map[string]interface{})["labelsRequired"] = true
+			case "differentRootBootDisk":
+				altered["offlineBootAncestry"].(map[string]interface{})["selectedDiskDevice"] = "/dev/vdb"
+			case "foreignDependency":
+				altered["targetDependencies"].(map[string]interface{})["mappedDependencies"] = []string{"/var/home/user/library.so"}
+			case "persistentVarUnknown":
+				altered["persistenceConfiguration"].(map[string]interface{})["varPersistent"] = false
+			}
+			bad, _ := json.Marshal(altered)
+			bad = append(append(bad, '\n'), result...)
+			if _, err = verifyVMObserverReceipt(bytes.NewReader(bad), expected, hashes); err == nil {
+				t.Fatal("contradictory offline audit accepted")
+			}
+		})
+	}
 	for name, input := range map[string][]byte{
 		"absent": result, "duplicate": append(append(append([]byte{}, raw...), raw...), result...),
 		"late":            append(append([]byte{}, result...), raw...),

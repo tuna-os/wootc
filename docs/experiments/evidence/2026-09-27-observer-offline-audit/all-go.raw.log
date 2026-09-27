@@ -1,0 +1,5 @@
+ok  	wootc	6.830s
+ok  	wootc/internal/artifactauth	(cached)
+ok  	wootc/internal/runtimebundle	(cached)
+ok  	wootc/tools/gendto	(cached)
+ok  	wootc/tools/signmanifest	(cached)
