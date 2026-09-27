@@ -1,13 +1,13 @@
 {
-  "workflowRunId": 36313591892,
-  "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892",
-  "workflowHeadSha": "1d7bd01bd44b80b2860d5263be558ae51722d672",
-  "actualCheckoutCommit": "579b989887c1d9e64faa0bb1903c272ab024526e",
+  "workflowRunId": 36314008323,
+  "url": "https://github.com/tuna-os/wootc/actions/runs/36314008323",
+  "workflowHeadSha": "9ee99f163c69baeb61f67d008c946e7d3a41919b",
+  "actualCheckoutCommit": "7d6cb6528506ba7bf254d551eca0640e5f560735",
   "checkoutParents": [
-    "323b7baa0d092ca49b0895cd7a1753296301c784",
-    "1d7bd01bd44b80b2860d5263be558ae51722d672"
+    "f20dff96f90ca6f7ba54102fd79d73cf11531150",
+    "9ee99f163c69baeb61f67d008c946e7d3a41919b"
   ],
-  "nativeBuildId": "579b989887c1d9e64faa0bb1903c272ab024526e",
+  "nativeBuildId": "7d6cb6528506ba7bf254d551eca0640e5f560735",
   "source": {
     ".github/workflows/winui-preview.yml": {
       "sha256": "cd845ec4c7d4c6849a752222cababafa54885938aef60af17a5ae8569eea044e",
@@ -82,7 +82,7 @@
       "matchesHeadBytes": true
     },
     "shell/Wootc.Shell.UiTests/StartupWindowTests.cs": {
-      "sha256": "4f232bf7482c23f993203b394425170441b353e7586fef068ad2d360a9b1201a",
+      "sha256": "a13e2a2989b6510df0ef6a9a99735104c3e3f64244e3e847653e37bbfa04cb8c",
       "matchesHeadBytes": true
     },
     "shell/Wootc.Shell.UiTests/Wootc.Shell.UiTests.csproj": {
@@ -102,11 +102,11 @@
       "matchesHeadBytes": true
     },
     "shell/Wootc.Shell/MainWindow.xaml": {
-      "sha256": "ad255483074437670168b877d2bf5ceee2f2be2eee55429486273b74ffbcb8d8",
+      "sha256": "e00a1cd31fa5aed6a6923db94230e6b46b0716134c103e3d037b0912be618ded",
       "matchesHeadBytes": true
     },
     "shell/Wootc.Shell/MainWindow.xaml.cs": {
-      "sha256": "b232d9732b0214a04e979e6f56a569945cbf7879452d4b1ec7732172e441868b",
+      "sha256": "90c67fcbccbfb8b781548a09cccb0de2c3557e0a27b403bd2bf7fdf00b670083",
       "matchesHeadBytes": true
     },
     "shell/Wootc.Shell/Wootc.Shell.csproj": {
@@ -209,6 +209,10 @@
       "sha256": "a978a2655a0326d23b03625fe4c17f29de92459addaf22084b630f3dfce2ace4",
       "matchesHeadBytes": true
     },
+    "app/status_race_test.go": {
+      "sha256": "7940c6c82e81be5cde951e951e13ce77e861f37a2b1a3851d69272c056582818",
+      "matchesHeadBytes": true
+    },
     "app/status_records.go": {
       "sha256": "edbe981508c1c0fac9c0aab8529726e95e4dfb908dc7c36543768456d2944540",
       "matchesHeadBytes": true
@@ -220,76 +224,81 @@
   },
   "jobs": [
     {
-      "id": 108604010604,
+      "id": 108605162162,
       "name": "Native preview XAML and packaging build",
       "conclusion": "success",
-      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010604"
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36314008323/job/108605162162"
     },
     {
-      "id": 108604010759,
-      "name": "Core startup contract (ubuntu-latest)",
-      "conclusion": "success",
-      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010759"
-    },
-    {
-      "id": 108604010782,
+      "id": 108605162273,
       "name": "Core startup contract (windows-latest)",
       "conclusion": "success",
-      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010782"
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36314008323/job/108605162273"
     },
     {
-      "id": 108604010789,
+      "id": 108605162280,
       "name": "Native Windows process identity observations",
       "conclusion": "success",
-      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010789"
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36314008323/job/108605162280"
+    },
+    {
+      "id": 108605162307,
+      "name": "Core startup contract (ubuntu-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36314008323/job/108605162307"
     }
   ],
   "artifacts": [
     {
-      "id": 10930605048,
-      "name": "winui-preview-unpackaged",
-      "digest": "sha256:827f70877b9f596836033ec478d88119b3c6fa12c205784dd16f6252aa21381f",
-      "sizeBytes": 98938015
-    },
-    {
-      "id": 10929956577,
-      "name": "winui-core-ubuntu-latest",
-      "digest": "sha256:e078ce1ddee92961854adc534eebb65a119dddcbd896d11c6b4748102b807068",
-      "sizeBytes": 2844
-    },
-    {
-      "id": 10929732925,
-      "name": "winui-preview-diagnostics",
-      "digest": "sha256:1c5cccb96a9ae115db922776ef87adc24f43fe02e95affc5d213fec4d8b9b171",
-      "sizeBytes": 15805
-    },
-    {
-      "id": 10929587619,
+      "id": 10930330459,
       "name": "winui-core-windows-latest",
-      "digest": "sha256:75f9a0bb848a7089e339cca7631175ae60320f98662199956b781421c670894a",
-      "sizeBytes": 2868
+      "digest": "sha256:5e25fe81dc274cc912e384a0da857b4f0afb59cc58cc3c0f6ced5f01b5f506d1",
+      "sizeBytes": 2866
+    },
+    {
+      "id": 10929892466,
+      "name": "winui-preview-unpackaged",
+      "digest": "sha256:0d30243c664c1c8786126adda5079a07c17b7f9ee50c9b5dda167e497799c377",
+      "sizeBytes": 98938071
+    },
+    {
+      "id": 10929743334,
+      "name": "winui-core-ubuntu-latest",
+      "digest": "sha256:24def9b4717c066e9c199e1617ca229abb2c3cf8f489e93e772e5ac0d78fd105",
+      "sizeBytes": 2838
+    },
+    {
+      "id": 10929728660,
+      "name": "winui-preview-diagnostics",
+      "digest": "sha256:e0497cb4ec4b57cec5ddef44202d480954c209e036207a01c59ffac4cb2d80b1",
+      "sizeBytes": 15785
     }
   ],
   "retainedLogs": {
     "native": {
-      "rawFile": "startup-rpc-native.raw.log",
-      "rawSha256": "be18286aec6a7fd38fdb1f03a14ad293a9a5a8c2981df4698e8b24abcd3931f7",
-      "normalizedFile": "startup-rpc-native.normalized.log",
-      "normalizedSha256": "4a72e52e12e4cae78fd81a93441f6bb41a388463a49b6ef27c03bff32ebdf55f"
+      "rawFile": "startup-record-refusals-native.raw.log",
+      "rawSha256": "e6348c007508a8ccae1f1fe1be79c6086d4c45fba65ed612ffb4cb146f82ded7",
+      "normalizedFile": "startup-record-refusals-native.normalized.log",
+      "normalizedSha256": "10cc566e20a3160f192859c8efda534c50a9fd3f06e684dca503316d530d20e7"
     },
     "go": {
-      "rawFile": "startup-rpc-go.raw.log",
-      "rawSha256": "91639ad9912eb23cafdc080e5b929242d45f1718ea562a1d9cffbd72ce0bb9f7",
-      "normalizedFile": "startup-rpc-go.normalized.log",
-      "normalizedSha256": "0f8e191f143f701f2a21074ebfad6430525cca27a56558ccb6a0126877cd3705"
+      "rawFile": "startup-record-refusals-go.raw.log",
+      "rawSha256": "785881077b6df9dab00919927f6800ff753ba22588d5b46b0cbbbe4d96721e8c",
+      "normalizedFile": "startup-record-refusals-go.normalized.log",
+      "normalizedSha256": "4333fc1e2247a5d88c80abb85a437036e805088b8f426bdca8133b52b6f81d60"
     }
   },
-  "diagnosticsArchiveSha256": "1c5cccb96a9ae115db922776ef87adc24f43fe02e95affc5d213fec4d8b9b171",
-  "startupStateObservationFile": "startup-rpc-state-observations.json",
+  "diagnosticsArchiveSha256": "e0497cb4ec4b57cec5ddef44202d480954c209e036207a01c59ffac4cb2d80b1",
+  "startupStateObservationFile": "startup-record-refusals-state-observations.json",
   "observed": [
     "Actual CLR native adapter 18 tests passed, zero skipped; includes framed missing/partial/duplicate status and observed retained-process cleanup controls",
     "Actual UI tests 2 passed: initial brand/missing-PRI/restored visible window and actual protected-package C# shell to Go startup RPC, distinct status/lifecycle/recovery route, explicit disconnect",
     "Actual Go process, pipe, package, handshake, status and CLI refusal controls passed"
+  ],
+  "persistedRecordControls": [
+    "Actual shell and Go engine refused both duplicate failed/healthy lifecycle orders as Unavailable with explicit unread status and no authenticated startup observations",
+    "Valid failed lifecycle plus malformed recovery object refused through actual getter RPC; no guessed route",
+    "Exact test-owned public records remained unchanged and were removed; final state file inventory empty"
   ],
   "notProved": [
     "Interactive UAC decline and retry",
@@ -297,6 +306,6 @@
     "Native installation journey",
     "Windows 10 minimum OS runtime"
   ],
-  "startupStateObservationSha256": "02f1816188d3647188bf563a4781dd8c50c8a305decb63083518b0cf1421df4c",
-  "context": "Same-user elevated hosted Windows service token; no interactive consent observation. State file inventory before and after was empty; no install/storage RPC exposed in shell."
+  "startupStateObservationSha256": "6546ed2039484692d2e8ca19228cd5f8bbd48dfe2dbdf228d3c57658e49d7e44",
+  "context": "Same-user elevated hosted Windows service token; no interactive consent observation. All records created by the negative fixture were removed after exact byte checks; final state file inventory empty."
 }

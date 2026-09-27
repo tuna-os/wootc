@@ -1,0 +1,332 @@
+﻿2026-09-27T10:54:33.2339263Z Current runner version: '2.337.0'
+2026-09-27T10:54:33.2374550Z ##[group]Runner Image Provisioner
+2026-09-27T10:54:33.2376251Z Hosted Compute Agent
+2026-09-27T10:54:33.2377235Z Version: 20260828.587
+2026-09-27T10:54:33.2378326Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-27T10:54:33.2379511Z Build Date: 2026-08-28T16:44:25Z
+2026-09-27T10:54:33.2380607Z Worker ID: {8412048c-9b92-4fa1-b202-1e5a2067869f}
+2026-09-27T10:54:33.2381855Z Azure Region: westcentralus
+2026-09-27T10:54:33.2382838Z ##[endgroup]
+2026-09-27T10:54:33.2384909Z ##[group]Operating System
+2026-09-27T10:54:33.2386068Z Microsoft Windows Server 2025
+2026-09-27T10:54:33.2387128Z 10.0.26100
+2026-09-27T10:54:33.2388004Z Datacenter
+2026-09-27T10:54:33.2388876Z ##[endgroup]
+2026-09-27T10:54:33.2389863Z ##[group]Runner Image
+2026-09-27T10:54:33.2390935Z Image: windows-2025-vs2026
+2026-09-27T10:54:33.2392019Z Version: 20260922.246.2
+2026-09-27T10:54:33.2394797Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+2026-09-27T10:54:33.2398316Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+2026-09-27T10:54:33.2400179Z ##[endgroup]
+2026-09-27T10:54:33.2402134Z ##[group]GITHUB_TOKEN Permissions
+2026-09-27T10:54:33.2405005Z Contents: read
+2026-09-27T10:54:33.2405985Z Metadata: read
+2026-09-27T10:54:33.2406985Z ##[endgroup]
+2026-09-27T10:54:33.2409987Z Secret source: Actions
+2026-09-27T10:54:33.2411542Z Cache mode: write
+2026-09-27T10:54:33.2413282Z Prepare workflow directory
+2026-09-27T10:54:33.2864561Z Prepare all required actions
+2026-09-27T10:54:33.2923194Z Getting action download info
+2026-09-27T10:54:33.5522826Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-27T10:54:33.6819600Z Download action repository 'actions/setup-go@v7' (SHA:b7ad1dad31e06c5925ef5d2fc7ad053ef454303e)
+2026-09-27T10:54:34.3122448Z Complete job name: Native Windows process identity observations
+2026-09-27T10:54:34.4560701Z ##[group]Run actions/checkout@v7
+2026-09-27T10:54:34.4561784Z with:
+2026-09-27T10:54:34.4562241Z   repository: tuna-os/wootc
+2026-09-27T10:54:34.4566741Z   token: ***
+2026-09-27T10:54:34.4567195Z   ssh-strict: true
+2026-09-27T10:54:34.4567647Z   ssh-user: git
+2026-09-27T10:54:34.4568092Z   persist-credentials: true
+2026-09-27T10:54:34.4568593Z   clean: true
+2026-09-27T10:54:34.4569044Z   sparse-checkout-cone-mode: true
+2026-09-27T10:54:34.4569575Z   fetch-depth: 1
+2026-09-27T10:54:34.4570011Z   fetch-tags: false
+2026-09-27T10:54:34.4570459Z   show-progress: true
+2026-09-27T10:54:34.4570915Z   lfs: false
+2026-09-27T10:54:34.4571365Z   submodules: false
+2026-09-27T10:54:34.4571834Z   set-safe-directory: true
+2026-09-27T10:54:34.4572345Z   allow-unsafe-pr-checkout: false
+2026-09-27T10:54:34.4573153Z ##[endgroup]
+2026-09-27T10:54:34.6053743Z Syncing repository: tuna-os/wootc
+2026-09-27T10:54:34.6055627Z ##[group]Getting Git version info
+2026-09-27T10:54:34.6056955Z Working directory is 'D:\a\wootc\wootc'
+2026-09-27T10:54:34.7044204Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-09-27T10:54:35.0481980Z git version 2.55.0.windows.5
+2026-09-27T10:54:35.0535208Z ##[endgroup]
+2026-09-27T10:54:35.0551722Z Temporarily overriding HOME='D:\a\_temp\2818fa08-eea3-4dd5-90f1-038b4e3db379' before making global git config changes
+2026-09-27T10:54:35.0554029Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T10:54:35.0562311Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+2026-09-27T10:54:35.1166589Z Deleting the contents of 'D:\a\wootc\wootc'
+2026-09-27T10:54:35.1171928Z ##[group]Determining repository object format
+2026-09-27T10:54:35.1173772Z ##[endgroup]
+2026-09-27T10:54:35.1175017Z ##[group]Initializing the repository
+2026-09-27T10:54:35.1182490Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+2026-09-27T10:54:35.2019444Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+2026-09-27T10:54:35.2066422Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+2026-09-27T10:54:35.2661760Z ##[endgroup]
+2026-09-27T10:54:35.2665405Z ##[group]Disabling automatic garbage collection
+2026-09-27T10:54:35.2670049Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-09-27T10:54:35.3034659Z ##[endgroup]
+2026-09-27T10:54:35.3037380Z ##[group]Setting up auth
+2026-09-27T10:54:35.3039471Z Removing SSH command configuration
+2026-09-27T10:54:35.3047557Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T10:54:35.3396905Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-09-27T10:54:36.7196545Z Removing HTTP extra header
+2026-09-27T10:54:36.7206624Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T10:54:36.7506382Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-09-27T10:54:37.2934556Z Removing includeIf entries pointing to credentials config files
+2026-09-27T10:54:37.2945928Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T10:54:37.3244985Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-09-27T10:54:37.8612269Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-09-27T10:54:37.8931735Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git.path D:\a\_temp\git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:54:37.9232964Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D:\a\_temp\git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:54:37.9582934Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:54:37.9886041Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:54:38.0234990Z ##[endgroup]
+2026-09-27T10:54:38.0235985Z ##[group]Fetching the repository
+2026-09-27T10:54:38.0254261Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +7d6cb6528506ba7bf254d551eca0640e5f560735:refs/remotes/pull/450/merge
+2026-09-27T10:54:39.5805223Z From https://github.com/tuna-os/wootc
+2026-09-27T10:54:39.5808701Z  * [new ref]         7d6cb6528506ba7bf254d551eca0640e5f560735 -> pull/450/merge
+2026-09-27T10:54:39.5848723Z ##[endgroup]
+2026-09-27T10:54:39.5849301Z ##[group]Determining the checkout info
+2026-09-27T10:54:39.5850259Z ##[endgroup]
+2026-09-27T10:54:39.5858909Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-09-27T10:54:39.6298863Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-09-27T10:54:39.6594716Z ##[group]Checking out the ref
+2026-09-27T10:54:39.6603219Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/450/merge
+2026-09-27T10:54:39.9415624Z Note: switching to 'refs/remotes/pull/450/merge'.
+2026-09-27T10:54:39.9417700Z 
+2026-09-27T10:54:39.9418131Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-27T10:54:39.9419080Z changes and commit them, and you can discard any commits you make in this
+2026-09-27T10:54:39.9420080Z state without impacting any branches by switching back to a branch.
+2026-09-27T10:54:39.9420619Z 
+2026-09-27T10:54:39.9421069Z If you want to create a new branch to retain commits you create, you may
+2026-09-27T10:54:39.9421834Z do so (now or later) by using -c with the switch command. Example:
+2026-09-27T10:54:39.9422136Z 
+2026-09-27T10:54:39.9422309Z   git switch -c <new-branch-name>
+2026-09-27T10:54:39.9422575Z 
+2026-09-27T10:54:39.9422700Z Or undo this operation with:
+2026-09-27T10:54:39.9422901Z 
+2026-09-27T10:54:39.9422999Z   git switch -
+2026-09-27T10:54:39.9423170Z 
+2026-09-27T10:54:39.9423433Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-27T10:54:39.9423800Z 
+2026-09-27T10:54:39.9424266Z HEAD is now at 7d6cb65 Merge 9ee99f163c69baeb61f67d008c946e7d3a41919b into f20dff96f90ca6f7ba54102fd79d73cf11531150
+2026-09-27T10:54:39.9545875Z ##[endgroup]
+2026-09-27T10:54:39.9943810Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-09-27T10:54:40.0223278Z 7d6cb6528506ba7bf254d551eca0640e5f560735
+2026-09-27T10:54:40.0787673Z ##[group]Run actions/setup-go@v7
+2026-09-27T10:54:40.0787978Z with:
+2026-09-27T10:54:40.0788172Z   go-version-file: app/go.mod
+2026-09-27T10:54:40.0788399Z   check-latest: false
+2026-09-27T10:54:40.0791309Z   token: ***
+2026-09-27T10:54:40.0791505Z   cache: true
+2026-09-27T10:54:40.0791685Z ##[endgroup]
+2026-09-27T10:54:40.2247801Z Setup go version spec 1.26.0
+2026-09-27T10:54:40.2263395Z Attempting to download 1.26.0...
+2026-09-27T10:54:41.0387682Z matching 1.26.0...
+2026-09-27T10:54:41.0403345Z Acquiring 1.26.0 from https://github.com/actions/go-versions/releases/download/1.26.0-21889650668/go-1.26.0-win32-x64.zip
+2026-09-27T10:54:41.8343853Z Extracting Go...
+2026-09-27T10:54:41.9501611Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp\go-1.26.0-win32-x64.zip', 'D:\a\_temp\dfd7a8c4-02f2-4e14-aa81-fad47117779f', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp\go-1.26.0-win32-x64.zip' -DestinationPath 'D:\a\_temp\dfd7a8c4-02f2-4e14-aa81-fad47117779f' -Force } else { throw $_ } } ;"
+2026-09-27T10:54:46.9337375Z Successfully extracted go to D:\a\_temp\dfd7a8c4-02f2-4e14-aa81-fad47117779f
+2026-09-27T10:54:46.9338074Z Adding to the cache ...
+2026-09-27T10:54:57.8939314Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64 => D:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T10:54:57.8944502Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64.complete => D:\hostedtoolcache\windows\go\1.26.0\x64.complete
+2026-09-27T10:54:57.8945650Z Successfully cached go to C:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T10:54:57.8951841Z Added go to the path
+2026-09-27T10:54:57.8953822Z Successfully set up Go version 1.26.0
+2026-09-27T10:54:58.2310803Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOCACHE
+2026-09-27T10:54:58.2359971Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOMODCACHE
+2026-09-27T10:54:58.2643590Z C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T10:54:58.2662179Z C:\Users\runneradmin\go\pkg\mod
+2026-09-27T10:54:58.2702383Z ##[warning]Restore cache failed: Dependencies file is not found in D:\a\wootc\wootc. Supported file pattern: go.mod
+2026-09-27T10:54:58.2726666Z go version go1.26.0 windows/amd64
+2026-09-27T10:54:58.2726982Z 
+2026-09-27T10:54:58.2728048Z ##[group]go env
+2026-09-27T10:55:01.0621523Z set AR=ar
+2026-09-27T10:55:01.0621935Z set CC=gcc
+2026-09-27T10:55:01.0622145Z set CGO_CFLAGS=-O2 -g
+2026-09-27T10:55:01.0622380Z set CGO_CPPFLAGS=
+2026-09-27T10:55:01.0622585Z set CGO_CXXFLAGS=-O2 -g
+2026-09-27T10:55:01.0622801Z set CGO_ENABLED=1
+2026-09-27T10:55:01.0623022Z set CGO_FFLAGS=-O2 -g
+2026-09-27T10:55:01.0623227Z set CGO_LDFLAGS=-O2 -g
+2026-09-27T10:55:01.0623414Z set CXX=g++
+2026-09-27T10:55:01.0623576Z set GCCGO=gccgo
+2026-09-27T10:55:01.0623759Z set GO111MODULE=
+2026-09-27T10:55:01.0623930Z set GOAMD64=v1
+2026-09-27T10:55:01.0624098Z set GOARCH=amd64
+2026-09-27T10:55:01.0624266Z set GOAUTH=netrc
+2026-09-27T10:55:01.0624459Z set GOBIN=
+2026-09-27T10:55:01.0624695Z set GOCACHE=C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T10:55:01.0625000Z set GOCACHEPROG=
+2026-09-27T10:55:01.0625181Z set GODEBUG=
+2026-09-27T10:55:01.0625417Z set GOENV=C:\Users\runneradmin\AppData\Roaming\go\env
+2026-09-27T10:55:01.0625692Z set GOEXE=.exe
+2026-09-27T10:55:01.0625879Z set GOEXPERIMENT=
+2026-09-27T10:55:01.0626060Z set GOFIPS140=off
+2026-09-27T10:55:01.0626232Z set GOFLAGS=
+2026-09-27T10:55:01.0628997Z set GOGCCFLAGS=-m64 -mthreads -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\RUNNER~1\AppData\Local\Temp\go-build3373607283=/tmp/go-build -gno-record-gcc-switches
+2026-09-27T10:55:01.0629876Z set GOHOSTARCH=amd64
+2026-09-27T10:55:01.0630099Z set GOHOSTOS=windows
+2026-09-27T10:55:01.0630291Z set GOINSECURE=
+2026-09-27T10:55:01.0630480Z set GOMOD=NUL
+2026-09-27T10:55:01.0630710Z set GOMODCACHE=C:\Users\runneradmin\go\pkg\mod
+2026-09-27T10:55:01.0630988Z set GONOPROXY=
+2026-09-27T10:55:01.0631163Z set GONOSUMDB=
+2026-09-27T10:55:01.0631337Z set GOOS=windows
+2026-09-27T10:55:01.0631540Z set GOPATH=C:\Users\runneradmin\go
+2026-09-27T10:55:01.0631797Z set GOPRIVATE=
+2026-09-27T10:55:01.0632092Z set GOPROXY=https://proxy.golang.org,direct
+2026-09-27T10:55:01.0632434Z set GOROOT=C:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T10:55:01.0632740Z set GOSUMDB=sum.golang.org
+2026-09-27T10:55:01.0632961Z set GOTELEMETRY=local
+2026-09-27T10:55:01.0633268Z set GOTELEMETRYDIR=C:\Users\runneradmin\AppData\Roaming\go\telemetry
+2026-09-27T10:55:01.0633616Z set GOTMPDIR=
+2026-09-27T10:55:01.0633796Z set GOTOOLCHAIN=local
+2026-09-27T10:55:01.0634135Z set GOTOOLDIR=C:\hostedtoolcache\windows\go\1.26.0\x64\pkg\tool\windows_amd64
+2026-09-27T10:55:01.0634496Z set GOVCS=
+2026-09-27T10:55:01.0634668Z set GOVERSION=go1.26.0
+2026-09-27T10:55:01.0634856Z set GOWORK=
+2026-09-27T10:55:01.0635035Z set PKG_CONFIG=pkg-config
+2026-09-27T10:55:01.0635176Z 
+2026-09-27T10:55:01.0635478Z ##[endgroup]
+2026-09-27T10:55:01.0934527Z ##[group]Run New-Item -ItemType Directory -Force frontend/dist | Out-Null
+2026-09-27T10:55:01.0935172Z New-Item -ItemType Directory -Force frontend/dist | Out-Null
+2026-09-27T10:55:01.0935747Z Set-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'
+2026-09-27T10:55:01.0936753Z go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
+2026-09-27T10:55:01.1394966Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T10:55:01.1395336Z env:
+2026-09-27T10:55:01.1395511Z   GOTOOLCHAIN: local
+2026-09-27T10:55:01.1395713Z ##[endgroup]
+2026-09-27T10:55:01.6063969Z go: downloading github.com/tredoe/osutil v1.5.0
+2026-09-27T10:55:01.6081543Z go: downloading github.com/wailsapp/wails/v2 v2.16.0
+2026-09-27T10:55:03.0705859Z go: downloading golang.org/x/mod v0.41.0
+2026-09-27T10:55:03.0707146Z go: downloading golang.org/x/sys v0.48.0
+2026-09-27T10:55:03.0707727Z go: downloading golang.org/x/crypto v0.57.0
+2026-09-27T10:55:04.8700473Z go: downloading github.com/leaanthony/u v1.1.1
+2026-09-27T10:55:04.8915912Z go: downloading github.com/leaanthony/slicer v1.6.0
+2026-09-27T10:55:05.1122795Z go: downloading github.com/leaanthony/go-ansi-parser v1.6.1
+2026-09-27T10:55:05.1313901Z go: downloading github.com/pkg/errors v0.9.1
+2026-09-27T10:55:05.1443489Z go: downloading github.com/wailsapp/go-webview2 v1.0.22
+2026-09-27T10:55:05.6289562Z go: downloading github.com/rivo/uniseg v0.4.7
+2026-09-27T10:55:28.0818310Z === RUN   TestNativeHandshakeSessionIsolation
+2026-09-27T10:55:28.0819024Z --- PASS: TestNativeHandshakeSessionIsolation (0.00s)
+2026-09-27T10:55:28.0819447Z === RUN   TestNativeHandshakeBoundsAndAmbiguity
+2026-09-27T10:55:28.0824892Z --- PASS: TestNativeHandshakeBoundsAndAmbiguity (0.00s)
+2026-09-27T10:55:28.0825665Z === RUN   TestNativePackageProtectedFilesAndManifest
+2026-09-27T10:55:28.0942271Z === RUN   TestNativePackageProtectedFilesAndManifest/changed_managed_assembly
+2026-09-27T10:55:28.0962410Z === RUN   TestNativePackageProtectedFilesAndManifest/unrecorded_dependency
+2026-09-27T10:55:28.0984314Z === RUN   TestNativePackageProtectedFilesAndManifest/invalid_manifest_../outside
+2026-09-27T10:55:28.0993187Z === RUN   TestNativePackageProtectedFilesAndManifest/invalid_manifest_C:/outside
+2026-09-27T10:55:28.1001170Z === RUN   TestNativePackageProtectedFilesAndManifest/invalid_manifest_Branding\brand.json
+2026-09-27T10:55:28.1008913Z === RUN   TestNativePackageProtectedFilesAndManifest/invalid_manifest_Branding/../outside
+2026-09-27T10:55:28.1016441Z === RUN   TestNativePackageProtectedFilesAndManifest/invalid_manifest_/outside
+2026-09-27T10:55:28.1024254Z === RUN   TestNativePackageProtectedFilesAndManifest/wrong_build
+2026-09-27T10:55:28.1032038Z === RUN   TestNativePackageProtectedFilesAndManifest/writable_assembly
+2026-09-27T10:55:28.1057097Z --- PASS: TestNativePackageProtectedFilesAndManifest (0.02s)
+2026-09-27T10:55:28.1058198Z     --- PASS: TestNativePackageProtectedFilesAndManifest/changed_managed_assembly (0.00s)
+2026-09-27T10:55:28.1059461Z     --- PASS: TestNativePackageProtectedFilesAndManifest/unrecorded_dependency (0.00s)
+2026-09-27T10:55:28.1061060Z     --- PASS: TestNativePackageProtectedFilesAndManifest/invalid_manifest_../outside (0.00s)
+2026-09-27T10:55:28.1062469Z     --- PASS: TestNativePackageProtectedFilesAndManifest/invalid_manifest_C:/outside (0.00s)
+2026-09-27T10:55:28.1063912Z     --- PASS: TestNativePackageProtectedFilesAndManifest/invalid_manifest_Branding\brand.json (0.00s)
+2026-09-27T10:55:28.1065403Z     --- PASS: TestNativePackageProtectedFilesAndManifest/invalid_manifest_Branding/../outside (0.00s)
+2026-09-27T10:55:28.1066786Z     --- PASS: TestNativePackageProtectedFilesAndManifest/invalid_manifest_/outside (0.00s)
+2026-09-27T10:55:28.1068005Z     --- PASS: TestNativePackageProtectedFilesAndManifest/wrong_build (0.00s)
+2026-09-27T10:55:28.1071160Z     --- PASS: TestNativePackageProtectedFilesAndManifest/writable_assembly (0.00s)
+2026-09-27T10:55:28.1071796Z === RUN   TestNativePeerObservationUsesActualProcessIdentity
+2026-09-27T10:55:28.1072291Z --- PASS: TestNativePeerObservationUsesActualProcessIdentity (0.00s)
+2026-09-27T10:55:28.1072802Z === RUN   TestNativePeerObservationRejectsMissingOrUnknownProcess
+2026-09-27T10:55:28.1073333Z --- PASS: TestNativePeerObservationRejectsMissingOrUnknownProcess (0.00s)
+2026-09-27T10:55:28.1073936Z === RUN   TestNativePipeActualConnectionIdentity
+2026-09-27T10:55:28.2081513Z --- PASS: TestNativePipeActualConnectionIdentity (0.10s)
+2026-09-27T10:55:28.2082404Z === RUN   TestNativePipeFirstInstanceAndCancellation
+2026-09-27T10:55:28.3101190Z --- PASS: TestNativePipeFirstInstanceAndCancellation (0.10s)
+2026-09-27T10:55:28.3102015Z === RUN   TestNativeServeRefusesInvalidLaunchBeforeState
+2026-09-27T10:55:28.3102843Z native-serve: invalid launch arguments
+2026-09-27T10:55:28.3103857Z native-serve: invalid launch arguments
+2026-09-27T10:55:28.3104295Z native-serve: invalid launch arguments
+2026-09-27T10:55:28.3104797Z native-serve: invalid launch arguments
+2026-09-27T10:55:28.3105458Z native-serve: invalid launch arguments
+2026-09-27T10:55:28.3106091Z --- PASS: TestNativeServeRefusesInvalidLaunchBeforeState (0.00s)
+2026-09-27T10:55:28.3108255Z === RUN   TestServeStartupReadContracts
+2026-09-27T10:55:28.3108827Z === RUN   TestServeStartupReadContracts/GetLastRun
+2026-09-27T10:55:28.3109493Z === RUN   TestServeStartupReadContracts/GetRecoveryVerdict
+2026-09-27T10:55:28.3110215Z === RUN   TestServeStartupReadContracts/GetInstallSteps
+2026-09-27T10:55:28.3110827Z --- PASS: TestServeStartupReadContracts (0.00s)
+2026-09-27T10:55:28.3111573Z     --- PASS: TestServeStartupReadContracts/GetLastRun (0.00s)
+2026-09-27T10:55:28.3112562Z     --- PASS: TestServeStartupReadContracts/GetRecoveryVerdict (0.00s)
+2026-09-27T10:55:28.3113591Z     --- PASS: TestServeStartupReadContracts/GetInstallSteps (0.00s)
+2026-09-27T10:55:28.3114305Z === RUN   TestProtocolMatchesWinuiShellSpec
+2026-09-27T10:55:28.3118253Z --- PASS: TestProtocolMatchesWinuiShellSpec (0.00s)
+2026-09-27T10:55:28.3118951Z === RUN   TestStatusDiscoverySelectsInstallationPastPayload
+2026-09-27T10:55:28.3163364Z --- PASS: TestStatusDiscoverySelectsInstallationPastPayload (0.00s)
+2026-09-27T10:55:28.3164627Z === RUN   TestStatusDiscoveryRejectsCompetingInstallations
+2026-09-27T10:55:28.3199051Z --- PASS: TestStatusDiscoveryRejectsCompetingInstallations (0.00s)
+2026-09-27T10:55:28.3199972Z === RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts
+2026-09-27T10:55:28.3200836Z === RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1
+2026-09-27T10:55:28.3221704Z === RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2
+2026-09-27T10:55:28.3240825Z === RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4
+2026-09-27T10:55:28.3262245Z === RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76
+2026-09-27T10:55:28.3282347Z === RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19
+2026-09-27T10:55:28.3302298Z === RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537
+2026-09-27T10:55:28.3355690Z --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts (0.02s)
+2026-09-27T10:55:28.3356936Z     --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1 (0.00s)
+2026-09-27T10:55:28.3358221Z     --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2 (0.00s)
+2026-09-27T10:55:28.3359515Z     --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4 (0.00s)
+2026-09-27T10:55:28.3360811Z     --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76 (0.00s)
+2026-09-27T10:55:28.3362107Z     --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19 (0.00s)
+2026-09-27T10:55:28.3363413Z     --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537 (0.00s)
+2026-09-27T10:55:28.3365358Z === RUN   TestStatusDiscoveryAbsentDoesNotCreateFiles
+2026-09-27T10:55:28.3370856Z --- PASS: TestStatusDiscoveryAbsentDoesNotCreateFiles (0.00s)
+2026-09-27T10:55:28.3371708Z === RUN   TestStatusAuditRejectsUnsafeTreeWithoutRepair
+2026-09-27T10:55:28.3407633Z --- PASS: TestStatusAuditRejectsUnsafeTreeWithoutRepair (0.00s)
+2026-09-27T10:55:28.3408336Z === RUN   TestStatusAuditRejectsReparseTree
+2026-09-27T10:55:28.3444233Z --- PASS: TestStatusAuditRejectsReparseTree (0.00s)
+2026-09-27T10:55:28.3444823Z === RUN   TestStatusConcurrentAccess
+2026-09-27T10:55:28.3453144Z --- PASS: TestStatusConcurrentAccess (0.00s)
+2026-09-27T10:55:28.3453772Z === RUN   TestStatusRecordsRefuseAmbiguousLifecycleInsteadOfFreshRoute
+2026-09-27T10:55:28.3547228Z --- PASS: TestStatusRecordsRefuseAmbiguousLifecycleInsteadOfFreshRoute (0.01s)
+2026-09-27T10:55:28.3547941Z === RUN   TestStatusRecordsRecoveryMissingIsDistinctFromMalformed
+2026-09-27T10:55:28.3599150Z --- PASS: TestStatusRecordsRecoveryMissingIsDistinctFromMalformed (0.00s)
+2026-09-27T10:55:28.3599890Z PASS
+2026-09-27T10:55:28.3637608Z ok  	wootc	0.310s
+2026-09-27T10:55:28.7839998Z Post job cleanup.
+2026-09-27T10:55:29.0440452Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOMODCACHE
+2026-09-27T10:55:29.0529074Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOCACHE
+2026-09-27T10:55:29.0862714Z C:\Users\runneradmin\go\pkg\mod
+2026-09-27T10:55:29.0878200Z C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T10:55:29.0899486Z Primary key was not generated. Please check the log messages above for more errors or information
+2026-09-27T10:55:29.1202299Z Post job cleanup.
+2026-09-27T10:55:29.3164323Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-09-27T10:55:29.3449297Z git version 2.55.0.windows.5
+2026-09-27T10:55:29.3522993Z Temporarily overriding HOME='D:\a\_temp\921624ab-3556-4fe6-99a2-df0d976169b4' before making global git config changes
+2026-09-27T10:55:29.3524374Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T10:55:29.3537849Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+2026-09-27T10:55:29.3868062Z Removing SSH command configuration
+2026-09-27T10:55:29.3879714Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T10:55:29.4247997Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-09-27T10:55:29.9708697Z Removing HTTP extra header
+2026-09-27T10:55:29.9721481Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T10:55:30.0075908Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-09-27T10:55:30.5730434Z Removing includeIf entries pointing to credentials config files
+2026-09-27T10:55:30.5741589Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T10:55:30.6005779Z includeif.gitdir:D:/a/wootc/wootc/.git.path
+2026-09-27T10:55:30.6006341Z includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+2026-09-27T10:55:30.6006732Z includeif.gitdir:/github/workspace/.git.path
+2026-09-27T10:55:30.6007135Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T10:55:30.6044009Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git.path
+2026-09-27T10:55:30.6296120Z D:\a\_temp\git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:55:30.6338415Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git.path D\:\\a\\_temp\\git\-credentials\-2c2b98da\-909c\-4276\-979f\-271886c82fac\.config
+2026-09-27T10:55:30.6680284Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+2026-09-27T10:55:30.6929791Z D:\a\_temp\git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:55:30.6969007Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-2c2b98da\-909c\-4276\-979f\-271886c82fac\.config
+2026-09-27T10:55:30.7261773Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-27T10:55:30.7510754Z /github/runner_temp/git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:55:30.7547527Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-2c2b98da\-909c\-4276\-979f\-271886c82fac\.config
+2026-09-27T10:55:30.7835705Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T10:55:30.8086968Z /github/runner_temp/git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config
+2026-09-27T10:55:30.8125033Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-2c2b98da\-909c\-4276\-979f\-271886c82fac\.config
+2026-09-27T10:55:30.8421051Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-09-27T10:55:31.3597101Z Removing credentials config 'D:\a\_temp\git-credentials-2c2b98da-909c-4276-979f-271886c82fac.config'
+2026-09-27T10:55:31.3785040Z Cleaning up orphan processes
