@@ -73,7 +73,27 @@ class OpticalTests(unittest.TestCase):
             with self.assertRaises(OPTICAL.Refusal):OPTICAL.detach(spy,['/storage/win11x64.iso'])
             self.assertEqual(len([name for name,_ in spy.calls if name=='eject']),1)
 
-    def wire(self,response=None,delay=0,timeout=.3):
+    def test_read_only_current_empty_check_never_ejects_or_repairs_media(self):
+        empty=copy.deepcopy(CD);empty.pop('inserted');spy=Spy([empty,DISK])
+        value=OPTICAL.check_empty(spy,['/storage/win11x64.iso'])
+        self.assertEqual(value['operation'],'check-empty');self.assertEqual(value['removed'],[])
+        self.assertNotIn('eject',[name for name,_ in spy.calls])
+        for spy in [Spy(),Spy(error='query-block'),Spy([empty,DISK],kind='unknown')]:
+            with self.assertRaises(OPTICAL.Refusal):OPTICAL.check_empty(spy,['/storage/win11x64.iso'])
+            self.assertNotIn('eject',[name for name,_ in spy.calls])
+
+    def test_read_only_empty_check_refuses_media_reinserted_between_observations(self):
+        empty=copy.deepcopy(CD);empty.pop('inserted')
+        class Reinsert(Spy):
+            def command(self,name,arguments=None):
+                value=super().command(name,arguments)
+                if name=='query-block':self.rows=copy.deepcopy([CD,DISK])
+                return value
+        spy=Reinsert([empty,DISK])
+        with self.assertRaises(OPTICAL.Refusal):OPTICAL.check_empty(spy,['/storage/win11x64.iso'])
+        self.assertNotIn('eject',[name for name,_ in spy.calls])
+
+    def wire(self,response=None,delay=0,timeout=.3,action=None):
         with tempfile.TemporaryDirectory() as tmp:
             path=str(Path(tmp)/'qmp.sock');server=socket.socket(socket.AF_UNIX);server.bind(path);server.listen(1)
             calls=[]
@@ -86,14 +106,19 @@ class OpticalTests(unittest.TestCase):
                         for line in stream:
                             request=json.loads(line);calls.append(request)
                             time.sleep(delay)
-                            packet=response or {'return':{},'id':request['id']}
+                            packet=response(request) if callable(response) else response
+                            packet=packet or {'return':{},'id':request['id']}
                             if isinstance(packet,bytes):conn.sendall(packet)
                             else:conn.sendall((json.dumps(packet)+'\n').encode())
                 except (BrokenPipeError,ConnectionResetError):pass
                 finally:server.close()
             thread=threading.Thread(target=serve,daemon=True);thread.start();start=time.monotonic()
             try:
-                client=OPTICAL.QMP(path,timeout);client.close();result=True
+                client=OPTICAL.QMP(path,timeout)
+                try:
+                    if action=='check-empty':OPTICAL.check_empty(client,['/storage/win11x64.iso'])
+                    result=True
+                finally:client.close()
             except (OPTICAL.Refusal,OSError):result=False
             elapsed=time.monotonic()-start;thread.join(timeout=1)
             return result,elapsed,calls
@@ -104,6 +129,16 @@ class OpticalTests(unittest.TestCase):
                          b'{"return":{},"return":{},"id":"optical-1"}\n']:
             result,_,calls=self.wire(response)
             self.assertFalse(result);self.assertEqual(len(calls),1)
+
+    def test_actual_check_empty_wire_refuses_failed_query_with_valid_looking_inventory(self):
+        empty=copy.deepcopy(CD);empty.pop('inserted')
+        def reply(request):
+            if request['execute']=='query-block':
+                return {'id':request['id'],'error':{'class':'GenericError'},'return':[empty,DISK]}
+            return {'id':request['id'],'return':{}}
+        result,_,calls=self.wire(reply,action='check-empty')
+        self.assertFalse(result)
+        self.assertEqual([item['execute'] for item in calls],['qmp_capabilities','query-block'])
 
     def test_actual_blocking_socket_obeys_whole_deadline(self):
         result,elapsed,_=self.wire(delay=.5,timeout=.08)
@@ -159,6 +194,13 @@ class OpticalTests(unittest.TestCase):
                     observed=OPTICAL.observe(client,{str(iso)})
                     self.assertEqual(observed[0]['medium'],str(iso))
                     receipt=OPTICAL.detach(client,[str(iso)])
+                    current=OPTICAL.check_empty(client,[str(iso)])
+                    self.assertEqual(current['operation'],'check-empty')
+                    self.assertEqual(current['removed'],[])
+                    self.assertEqual(client.command('blockdev-change-medium',{'id':receipt['after'][0]['qdev'],
+                                         'filename':str(iso),'format':'raw'}),{})
+                    with self.assertRaises(OPTICAL.Refusal):OPTICAL.check_empty(client,[str(iso)])
+                    self.assertEqual(OPTICAL.observe(client,{str(iso)})[0]['medium'],str(iso))
                 finally:client.close()
                 self.assertTrue(receipt['empty']);self.assertEqual(len(receipt['removed']),1)
                 self.assertEqual(receipt['before'][0]['type'],'ide-cd')
