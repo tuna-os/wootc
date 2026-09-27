@@ -16,11 +16,14 @@ function Get-BitLockerVolume { param($MountPoint, $ErrorAction)
     if ($MountPoint -ne 'C:') { throw 'Wrong fixture volume' }
     [pscustomobject]@{ VolumeStatus=$script:status; KeyProtector=$script:protector }
 }
-function Add-BitLockerKeyProtector { param($MountPoint, [switch]$RecoveryPasswordProtector, $ErrorAction)
+function Add-BitLockerKeyProtector { [CmdletBinding()] param($MountPoint, [switch]$RecoveryPasswordProtector)
     if ($MountPoint -ne 'C:' -or -not $RecoveryPasswordProtector) { throw 'Wrong protector request' }
     $script:adds++
     if ($script:failAdd) { throw 'Simulated creation failure' }
     $script:protector = [pscustomobject]@{KeyProtectorType='RecoveryPassword'; RecoveryPassword=$script:password}
+    Write-Output $script:password
+    Write-Warning $script:password
+    Write-Information $script:password
 }
 function Assert-Failure { param([scriptblock]$Action, [string]$Path)
     $failed=$false
@@ -34,7 +37,16 @@ function Assert-Failure { param([scriptblock]$Action, [string]$Path)
 }
 try {
     $path = Join-Path $dir 'key.txt'
-    Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector
+    $transcriptPath = Join-Path $dir 'synthetic-transcript.txt'
+    Start-Transcript -LiteralPath $transcriptPath -Force | Out-Null
+    try {
+        $exportOutput = @(Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector *>&1)
+    } finally { Stop-Transcript | Out-Null }
+    if ($exportOutput.Count -ne 0) { throw 'Recovery material escaped an output stream' }
+    if ((Get-Content -LiteralPath $transcriptPath -Raw) -match [regex]::Escape($script:password)) {
+        throw 'Recovery material escaped into the OEM transcript'
+    }
+    Write-Output 'PASS synthetic recovery material suppressed from success/warning/information streams and transcript'
     if ($script:adds -ne 1 -or -not (Test-Path $path)) { throw 'Missing protector was not created and saved' }
     Write-Output 'PASS missing protector created and private key verified'
     $keyBytes = [IO.File]::ReadAllBytes($path)
@@ -71,6 +83,23 @@ try {
     Assert-Failure { Export-WootcFixtureBitLockerKey -Destination $path } $path
     Remove-Item Function:\icacls.exe
     Write-Output 'PASS permission failure stops and removes key'
+    # Execute the old output-only behavior under a native transcript using the
+    # public synthetic warning. This must expose the regression, not just match
+    # source text. Restore the exact helper afterward.
+    $originalHelper = Get-Content -LiteralPath $HelperPath -Raw
+    $mutantHelper = $originalHelper.Replace('-WarningAction SilentlyContinue -InformationAction SilentlyContinue *> $null', '| Out-Null')
+    if ($mutantHelper -ceq $originalHelper) { throw 'Privacy counterexample was not applied' }
+    . ([ScriptBlock]::Create($mutantHelper))
+    $script:protector=$null; $script:failAdd=$false
+    $mutantTranscript = Join-Path $dir 'synthetic-old-behavior.txt'
+    Start-Transcript -LiteralPath $mutantTranscript -Force | Out-Null
+    try { Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector 3>$null } finally { Stop-Transcript | Out-Null }
+    if ((Get-Content -LiteralPath $mutantTranscript -Raw) -notmatch [regex]::Escape($script:password)) {
+        throw 'Old output-only behavior did not expose the synthetic warning in the transcript'
+    }
+    . ([ScriptBlock]::Create($originalHelper))
+    Write-Output 'PASS actual old-behavior mutant exposes synthetic warning through native transcript'
+
 } finally {
     Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
 }
