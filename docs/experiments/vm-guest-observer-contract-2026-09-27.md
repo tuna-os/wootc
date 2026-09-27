@@ -1,6 +1,6 @@
 # VM guest observation draft — 2026-09-27
 
-Source only. No guest service is installed. No VM is started.
+Source only. These controls install no guest service and start no VM.
 
 ```text
 Current source:

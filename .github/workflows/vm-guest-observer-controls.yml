@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'app/vm_guest*.go'
+      - 'app/vm_qmp.go'
+      - 'app/vm_display.go'
+      - 'app/native_peer_windows.go'
+      - 'app/go.mod'
+      - 'app/go.sum'
+      - 'tests/e2e/phase3_ancestry.py'
       - 'payload/vm-observer/**'
       - 'tests/unit/test_vm_guest_probe.py'
       - '.github/workflows/vm-guest-observer-controls.yml'
