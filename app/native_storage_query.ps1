@@ -1,11 +1,11 @@
-$stage = 'import-storage'
+$stage = 'import-utility'
 try {
 $PSModuleAutoLoadingPreference = 'None'
+Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop
+$stage = 'import-storage'
 Import-Module -Name "$PSHOME\Modules\Storage\Storage.psd1" -ErrorAction Stop
 $stage = 'import-bitlocker'
 Import-Module -Name "$PSHOME\Modules\BitLocker\BitLocker.psd1" -ErrorAction Stop
-$stage = 'import-utility'
-Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop
 $ErrorActionPreference = 'Stop'
 $WarningPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
@@ -40,6 +40,7 @@ Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Dep
     $dependency = 'unclassified'
     switch ([string]$_.CategoryInfo.TargetName) {
         'New-Object' { $dependency = 'new-object' }
+        'New-Alias' { $dependency = 'new-alias' }
         'Import-LocalizedData' { $dependency = 'import-localized-data' }
         'Get-CimInstance' { $dependency = 'get-cim-instance' }
         'Add-Type' { $dependency = 'add-type' }

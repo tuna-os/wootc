@@ -246,3 +246,36 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestNativeConfigurationActualUtilityDependencyOrderCounter(t *testing.T) {
+	original := nativeStorageQuery
+	defer func() { nativeStorageQuery = original }()
+	rows, err := queryNativeStorage(context.Background())
+	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatalf("correct dependency order did not observe system storage: %v", err)
+	}
+	utility := `Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop` + "\n"
+	if strings.Count(original, utility) != 1 {
+		t.Fatal("actual protected Utility import not found")
+	}
+	// Recreate the measured old ordering without changing module discovery,
+	// interpreter, ACL gates, environment or any storage/protection state.
+	broken := strings.Replace(original, utility, "", 1)
+	bitlocker := `Import-Module -Name "$PSHOME\Modules\BitLocker\BitLocker.psd1" -ErrorAction Stop` + "\n"
+	if !strings.Contains(broken, bitlocker) {
+		t.Fatal("actual protected BitLocker import not found")
+	}
+	nativeStorageQuery = strings.Replace(broken, bitlocker, bitlocker+utility, 1)
+	_, err = queryNativeStorage(context.Background())
+	var failure *nativeStorageObservationFailure
+	if !errors.As(err, &failure) || !strings.Contains(string(failure.Stderr), "loader=command-not-found") {
+		t.Fatal("old dependency-order counterexample did not refuse with observed loader class")
+	}
+	nativeStorageQuery = original
+	rows, err = queryNativeStorage(context.Background())
+	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatalf("restored dependency order did not observe system storage: %v", err)
+	}
+}
