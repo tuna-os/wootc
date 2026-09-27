@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_final_readback_retention_failure_blocks_acceptance (test_linux_package_observer.ObserverTests.test_final_readback_retention_failure_blocks_acceptance)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-package-final-readback/tests/unit/test_linux_package_observer.py", line 95, in test_final_readback_retention_failure_blocks_acceptance
+    with self.assertRaises(IsADirectoryError):self.observe(self.child,1)
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: IsADirectoryError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.054s
+
+FAILED (failures=1)

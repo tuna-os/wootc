@@ -233,7 +233,17 @@ def make_observer(folder,record,readback,acknowledge,on_baseline=None):
         owned_qga_socket(child,folder)
         record['readbackChallenge']=os.urandom(32).hex()
         current=readback(folder,record,remaining,'new')
-        return COMPARE(text,record,current)
+        accepted=COMPARE(text,record,current)
+        # Export the actual independent response and the exact comparator inputs,
+        # rather than leaving only a boolean once the disposable guest is gone.
+        names=('scratchId','challenge','seedSha256','helperHashes','policySha256',
+               'qgaReadbackSourceSha256','readbackChallenge','policy')
+        proof={'plan':{name:record[name] for name in names},
+               'readback':current,'accepted':accepted}
+        raw=(json.dumps(proof,sort_keys=True)+'\n').encode()
+        if len(raw)>262144:raise ValueError('final readback proof exceeds retention bound')
+        (folder/'final-readback.json').write_bytes(raw)
+        return accepted
     return observe
 
 

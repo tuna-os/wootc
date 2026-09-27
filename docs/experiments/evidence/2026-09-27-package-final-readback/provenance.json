@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "1da5e196492410aabb4674a8a17777e6f20b9ac7",
+  "sourceHashes": {
+    "tests/e2e/package-runtime/launch.py": "fadef3a2895acbf5693359953785950d60ed71a9686153ed328a9a42afc4e876",
+    "tests/e2e/package-runtime/hosted-execute.py": "380788f1afe6f6e350abb5cdbdd4541f9f724a7e2da4de191526f4f1b9c86be0",
+    "tests/unit/test_linux_package_observer.py": "787d5fc0886288c1b3d3a0de373924b0cff8ec5441c4f7fa03f0c2670196d070"
+  },
+  "evidenceHashes": {
+    "producer-removed.raw.log": "0e87500dd39f368dce5843601539a7b890b09865b134de7ad626ba29721f93d0",
+    "runtime-prior-provenance.json": "e199b1da93f15f7c20b50ce8d82e4d18f964c8a83175eced65a6b62be1e1efae",
+    "controls.raw.log": "a7a053b821f218e4e30c59f9d564b1f36bf9e7144b70e5aefd6c9c9fcd0260ab",
+    "export-removed.raw.log": "a8aad0035f74af0f4ae87b877a7930f2d1ccf733e96ca1fcd789a6188d7f6b4d",
+    "passed-1da/proof.zip": "24c152dbf2e1ac9c755d33eb8f55a052c442081ad05ef32f816d65dc4f0e8b04",
+    "passed-1da/root-review.json": "73c9041d9071f9addd8dcc7341b152bf7eab8499fa8e00a4c4938c8f7b6d6a1c"
+  },
+  "controls": 131,
+  "producerRetentionRemovedRed": true,
+  "exportEntryRemovedRed": true,
+  "runtimeExecuted": false,
+  "scope": "Actual process/socket observer fixtures and hosted exporter retention, with controlled QGA response leaves. Historical successful1da runtime retained; no new VM dispatched. Final independent new-phase readback absent from historical artifact; correction cannot backfill it.",
+  "historicalRuntime": {
+    "runId": 36345420818,
+    "artifactId": 10940510943,
+    "sourceCommit": "1da5e196492410aabb4674a8a17777e6f20b9ac7",
+    "workflowConclusion": "success",
+    "firmwareAcceptance": false,
+    "classicOsBootAcceptance": false
+  }
+}
