@@ -1,0 +1,183 @@
+name: WinUI preview
+
+on:
+  pull_request:
+    paths:
+      - 'shell/**'
+      - 'tests/native_configuration_flush_controls.py'
+      - 'tests/windows_owned_process.py'
+      - 'app/serve*'
+      - 'app/native_peer*'
+      - 'app/native_pipe*'
+      - 'app/native_handshake*'
+      - 'app/native_package*'
+      - 'app/native_serve*'
+      - 'app/native_readiness*'
+      - 'app/native_audit*'
+      - 'app/native_configuration*'
+      - 'app/native_storage*'
+      - 'app/main.go'
+      - 'app/status_location*'
+      - 'app/tools/gendto/**'
+      - '.github/workflows/winui-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winui-preview-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  core:
+    name: Core startup contract (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: shell/global.json
+      - name: Run startup, route and refusal counterexamples
+        working-directory: shell
+        run: dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: winui-core-${{ matrix.os }}
+          path: shell/Wootc.Shell.Tests/TestResults/*.trx
+          if-no-files-found: error
+
+  native-build:
+    name: Native preview XAML and packaging build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: shell/global.json
+      - name: Restore and publish the native preview
+        working-directory: shell
+        run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} --output ../out/winui-preview
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+      - name: Build the exact preview engine for authenticated startup RPC
+        working-directory: app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force frontend/dist | Out-Null
+          Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
+          go build -ldflags "-X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
+      - name: Test actual Windows adapter identities and private package controls
+        working-directory: shell
+        run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
+      - name: Prove actual current configuration flush identity and restored counter
+        run: python tests/native_configuration_flush_controls.py
+      - name: Observe the actual native startup window with UI Automation
+        working-directory: shell
+        shell: pwsh
+        run: |
+          $env:WOOTC_NATIVE_BUILD_ID = '${{ github.sha }}'
+          $env:WOOTC_NATIVE_PREVIEW_DIAGNOSTICS = '1'
+          $env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'
+          dotnet test Wootc.Shell.UiTests --configuration Release --filter FullyQualifiedName~StartupWindowTests --logger "trx;LogFileName=native-ui.trx"
+      - name: Retain own preview startup event diagnostics
+        if: failure()
+        shell: pwsh
+        run: |
+          $records = @(Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue |
+            Where-Object { $_.ProviderName -in @('Application Error','.NET Runtime','Windows Error Reporting') -and $_.Message -match 'Wootc[.]Shell' } |
+            Select-Object -First 8 TimeCreated, ProviderName, Id, Message)
+          ConvertTo-Json -InputObject $records -Depth 3 | Set-Content -Encoding utf8 out/winui-startup-events.json
+          Get-Content out/winui-startup-events.json
+      - name: Retain generated XAML loader and metadata diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out/winui-source-diagnostics | Out-Null
+          $resourceFiles = @(Get-ChildItem shell/Wootc.Shell/bin,out/winui-preview -Recurse -File -Filter '*.pri' |
+            Select-Object FullName,Length,@{Name='SHA256';Expression={(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}})
+          ConvertTo-Json -InputObject $resourceFiles -Depth 3 | Set-Content -Encoding utf8 out/winui-source-diagnostics/resource-indexes.json
+          Get-ChildItem shell/Wootc.Shell/obj -Recurse -File |
+            Where-Object { $_.Name -match '^(App|MainWindow|XamlTypeInfo)[.]g[.]' } |
+            Copy-Item -Destination out/winui-source-diagnostics
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: winui-preview-diagnostics
+          path: |
+            out/configuration-flush-controls/
+            out/winui-source-diagnostics/
+            out/winui-startup-events.json
+            out/native-startup-state-observations.json
+            shell/Wootc.Shell.UiTests/TestResults/*.trx
+            shell/Wootc.Shell.NativeTests/TestResults/*.trx
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: winui-preview-unpackaged
+          path: |
+            out/winui-preview/
+            shell/Wootc.Shell.UiTests/TestResults/*.trx
+            out/winui-startup-events.json
+          if-no-files-found: error
+
+  native-peer:
+    name: Native Windows process identity observations
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+      - name: Observe actual process tokens and retained handles
+        working-directory: app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force frontend/dist | Out-Null
+          Set-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'
+          go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve|Assessment|Audit)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
+
+  preview-packaging:
+    name: Branded preview package (${{ matrix.brand }})
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [wootc, tunaos, aurora, bazzite, bluefin]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: shell/global.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+      - name: Publish the selected preview brand and exact engine
+        shell: pwsh
+        run: |
+          dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} -p:NativeBrandId=${{ matrix.brand }} --output out/branded-preview
+          if ($LASTEXITCODE -ne 0) { throw 'Branded native publish refused' }
+          New-Item -ItemType Directory -Force app/frontend/dist | Out-Null
+          Set-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
+          Push-Location app
+          try { go build -ldflags "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
+          if ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }
+      - name: Compile, install, observe and remove only the preview package
+        shell: pwsh
+        run: ./shell/packaging/test-installed-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: winui-preview-package-${{ matrix.brand }}
+          path: |
+            out/preview-installer/
+            out/branded-preview/native-package.json
+            shell/Wootc.Shell.UiTests/TestResults/*.trx
+          if-no-files-found: error

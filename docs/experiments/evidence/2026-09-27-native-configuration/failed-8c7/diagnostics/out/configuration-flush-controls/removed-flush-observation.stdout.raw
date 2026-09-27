@@ -1,0 +1,18 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Wootc.Shell.Core -> D:\a\wootc\wootc\shell\Wootc.Shell.Core\bin\Release\net8.0\Wootc.Shell.Core.dll
+  Wootc.Shell.Native -> D:\a\wootc\wootc\shell\Wootc.Shell.Native\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.Native.dll
+  Wootc.Shell.NativeTests -> D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.NativeTests.dll
+Test run for D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.NativeTests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+  Failed Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(method: "GetNativeConfiguration", diagnosticExpected: True) [2 s]
+  Error Message:
+   Assert.Contains() Failure: Sub-string not found
+String:    "Stage:rpc-configuration-response; Failure"···
+Not found: "Stage:session-cleanup-exited"
+  Stack Trace:
+     at Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(String method, Boolean diagnosticExpected) in D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\TransportTests.cs:line 249
+--- End of stack trace from previous location ---
+Results File: D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\TestResults\flush-controls.trx
+
+Failed!  - Failed:     1, Passed:     1, Skipped:     0, Total:     2, Duration: 2 s - Wootc.Shell.NativeTests.dll (net8.0)

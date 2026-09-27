@@ -1,0 +1,52 @@
+[
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\shell\\Wootc.Shell\\bin\\x64\\Release\\net8.0-windows10.0.19041.0\\win-x64\\Microsoft.UI.pri",
+    "Length": 101528,
+    "SHA256": "BAFB8C79DCA23D79BBDDB7B22BAF000DD88803041CF958A68D9E03979CDA946C"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\shell\\Wootc.Shell\\bin\\x64\\Release\\net8.0-windows10.0.19041.0\\win-x64\\Microsoft.UI.Xaml.Controls.pri",
+    "Length": 2088000,
+    "SHA256": "5EDB56C0E4688A74CECC4297CB21BD3AAF9F4FBBD2EFD18A1C49464744EF8CF3"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\shell\\Wootc.Shell\\bin\\x64\\Release\\net8.0-windows10.0.19041.0\\win-x64\\Microsoft.Windows.Workloads.pri",
+    "Length": 1680,
+    "SHA256": "B0C170307C815146A2ECBC4BB08B8D6223DA167FF5C048E942CCD9A9A192AE86"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\shell\\Wootc.Shell\\bin\\x64\\Release\\net8.0-windows10.0.19041.0\\win-x64\\Microsoft.WindowsAppRuntime.pri",
+    "Length": 11296,
+    "SHA256": "0EC8D17E6CE296BA51AA539F8F3FC1B93B8BB53C20C82BA440F07E5CD1CE081E"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\shell\\Wootc.Shell\\bin\\x64\\Release\\net8.0-windows10.0.19041.0\\win-x64\\Wootc.Shell.pri",
+    "Length": 2189640,
+    "SHA256": "6227E3DC8A5F91FB8852FD8451F7408EB06B4A2E4CAD0742AD0BAD00594FDB90"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\out\\winui-preview\\Microsoft.UI.pri",
+    "Length": 101528,
+    "SHA256": "BAFB8C79DCA23D79BBDDB7B22BAF000DD88803041CF958A68D9E03979CDA946C"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\out\\winui-preview\\Microsoft.UI.Xaml.Controls.pri",
+    "Length": 2088000,
+    "SHA256": "5EDB56C0E4688A74CECC4297CB21BD3AAF9F4FBBD2EFD18A1C49464744EF8CF3"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\out\\winui-preview\\Microsoft.Windows.Workloads.pri",
+    "Length": 1680,
+    "SHA256": "B0C170307C815146A2ECBC4BB08B8D6223DA167FF5C048E942CCD9A9A192AE86"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\out\\winui-preview\\Microsoft.WindowsAppRuntime.pri",
+    "Length": 11296,
+    "SHA256": "0EC8D17E6CE296BA51AA539F8F3FC1B93B8BB53C20C82BA440F07E5CD1CE081E"
+  },
+  {
+    "FullName": "D:\\a\\wootc\\wootc\\out\\winui-preview\\Wootc.Shell.pri",
+    "Length": 2189640,
+    "SHA256": "6227E3DC8A5F91FB8852FD8451F7408EB06B4A2E4CAD0742AD0BAD00594FDB90"
+  }
+]
