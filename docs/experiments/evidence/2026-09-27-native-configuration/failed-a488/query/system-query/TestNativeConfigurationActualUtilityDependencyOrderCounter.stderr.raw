@@ -1,0 +1,1 @@
+native-storage-failure stage=read-protection depth=0 type=command-not-found hresult=-2146233087 category=13 loader=command-not-found dependency=get-cim-instance

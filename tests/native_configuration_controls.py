@@ -30,7 +30,7 @@ try:
         if event.get("Action") in ("pass", "fail", "skip") and event.get("Test"):
             receipt["tests"].append({"name": event["Test"], "outcome": event["Action"]})
     required = {"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly", "TestNativeConfigurationStorageIgnoresInheritedModuleShadow",
-        "TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory", "TestNativeConfigurationActualUtilityDependencyOrderCounter", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters", "TestNativeConfigurationActualTrustedModuleManifestInventory"}
+        "TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory", "TestNativeConfigurationActualUtilityDependencyOrderCounter", "TestNativeConfigurationActualCimDependencyCounter", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters", "TestNativeConfigurationActualTrustedModuleManifestInventory"}
     passed = {test["name"] for test in receipt["tests"] if test["outcome"] == "pass"}
     receipt["accepted"] = completed.returncode == 0 and required <= passed and all(test["outcome"] == "pass" for test in receipt["tests"])
 finally:

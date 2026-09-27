@@ -79,12 +79,15 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	}
 	shellDirectory := filepath.Join(systemDirectory, "WindowsPowerShell", "v1.0")
 	shellPath := filepath.Join(shellDirectory, "powershell.exe")
+	if err := auditNativePackagePath(filepath.Join(shellDirectory, "Microsoft.Management.Infrastructure.CimCmdlets.dll")); err != nil {
+		return nil, err
+	}
 	// Apply the existing protected-path policy, including all ancestors;
 	// this is observation only and borrows no relaxed drive-root exception.
 	if err := auditNativePackagePath(shellPath); err != nil {
 		return nil, err
 	}
-	for _, name := range []string{"Storage", "BitLocker", "Microsoft.PowerShell.Utility"} {
+	for _, name := range []string{"Storage", "BitLocker", "Microsoft.PowerShell.Utility", "CimCmdlets"} {
 		module := filepath.Join(shellDirectory, "Modules", name)
 		if err := auditNativePackagePath(module); err != nil {
 			return nil, err

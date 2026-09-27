@@ -178,7 +178,7 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 		SHA256 string `json:"sha256"`
 	}
 	inventory := map[string][]manifest{}
-	for _, name := range []string{"Storage", "BitLocker", "Microsoft.PowerShell.Utility"} {
+	for _, name := range []string{"Storage", "BitLocker", "Microsoft.PowerShell.Utility", "CimCmdlets"} {
 		inventory[name] = []manifest{}
 		module := filepath.Join(system, "WindowsPowerShell", "v1.0", "Modules", name)
 		if err := auditNativePackagePath(module); err != nil {
@@ -277,5 +277,31 @@ func TestNativeConfigurationActualUtilityDependencyOrderCounter(t *testing.T) {
 	if err != nil || len(rows) == 0 {
 		retainNativeStorageQueryFailure(t, err)
 		t.Fatalf("restored dependency order did not observe system storage: %v", err)
+	}
+}
+
+func TestNativeConfigurationActualCimDependencyCounter(t *testing.T) {
+	original := nativeStorageQuery
+	defer func() { nativeStorageQuery = original }()
+	rows, err := queryNativeStorage(context.Background())
+	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatalf("correct CIM dependency did not observe system storage: %v", err)
+	}
+	cim := `Import-Module -Name "$PSHOME\Modules\CimCmdlets\CimCmdlets.psd1" -ErrorAction Stop` + "\n"
+	if strings.Count(original, cim) != 1 {
+		t.Fatal("actual protected CIM import not found")
+	}
+	nativeStorageQuery = strings.Replace(original, cim, "", 1)
+	_, err = queryNativeStorage(context.Background())
+	var failure *nativeStorageObservationFailure
+	if !errors.As(err, &failure) || !strings.Contains(string(failure.Stderr), "dependency=get-cim-instance") {
+		t.Fatal("removed CIM dependency did not refuse with observed missing command")
+	}
+	nativeStorageQuery = original
+	rows, err = queryNativeStorage(context.Background())
+	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatalf("restored CIM dependency did not observe system storage: %v", err)
 	}
 }

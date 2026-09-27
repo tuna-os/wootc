@@ -2,6 +2,8 @@ $stage = 'import-utility'
 try {
 $PSModuleAutoLoadingPreference = 'None'
 Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop
+$stage = 'import-cim'
+Import-Module -Name "$PSHOME\Modules\CimCmdlets\CimCmdlets.psd1" -ErrorAction Stop
 $stage = 'import-storage'
 Import-Module -Name "$PSHOME\Modules\Storage\Storage.psd1" -ErrorAction Stop
 $stage = 'import-bitlocker'
