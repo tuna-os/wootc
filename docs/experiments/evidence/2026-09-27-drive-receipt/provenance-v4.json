@@ -1,0 +1,51 @@
+{
+  "sourceCommit": "8581832f7b01d1300f204fbaeb369cc6ae88d0cd",
+  "scope": "Component consumer controls; no browser, Windows GUI or VM acceptance",
+  "frontendControls": 8,
+  "hostControls": 10,
+  "focusedBats": 33,
+  "results": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/unit",
+        "-p",
+        "test_gui_drive_receipt.py"
+      ],
+      "exitCode": 0,
+      "stdout": "consumer-v4.stdout.log",
+      "stderr": "consumer-v4.stderr.log"
+    },
+    {
+      "command": [
+        "bats",
+        "tests/unit/e2e-failure-ledger.bats",
+        "tests/unit/qga-channel-lost.bats"
+      ],
+      "exitCode": 0,
+      "stdout": "legacy-consumers-v4.stdout.log",
+      "stderr": "legacy-consumers-v4.stderr.log"
+    }
+  ],
+  "sourceHashes": {
+    "tests/unit/e2e-failure-ledger.bats": "d7f5114da93b039e8b4c5837e3260078a057ab198bf505acc80777bf85db5ebb",
+    "tests/unit/qga-channel-lost.bats": "14ffd03ea68ed15f23307571973be833c377197820972b9eaf751c60ca6a0e50",
+    "tests/unit/gui-drive-producer-controls.cjs": "b7b5e8b09825a60767dcbbfe25770ac8096ce44969ef56e3abf7bda85039b710",
+    "tests/unit/test_gui_drive_receipt.py": "608e748fc759f68a4c79963cadccaf74786fe7a99fd730a1da6758a4ac22c2c2",
+    "tests/e2e/run-e2e.sh": "aa170cc3ad222fdd63182493eac652e5aa167b5c4a6cb4dc495c927207d7d492",
+    "tests/e2e/gui-drive-receipt.py": "b791144db47510eca70685c4c605af27e0d314f164e8993eb64f4eb012f8a337",
+    "app/frontend/src/lib/e2e.js": "0efd4b49a5d8b6819e42999fe2271bd92356945394eb89c545945557b226959e"
+  },
+  "priorHostedFailure": {
+    "runId": 36318127471,
+    "sourceCommit": "d001f022b3084cfdab7a47323becff419eca8d3f",
+    "failures": [
+      "old substring imageMismatch assertion",
+      "old ping-based product timeout assertion"
+    ]
+  }
+}

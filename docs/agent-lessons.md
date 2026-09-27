@@ -1,23 +1,21 @@
 # Agent lessons — sharpening the axe
 
-Hard-won knowledge from working on wootc's boot chain and E2E harness. Written
-after a session where **six distinct harness defects** made real failures
-unattributable, and where roughly half the failures were self-inflicted.
+Lessons from wootc's boot chain and E2E harness.
+Six defects in the harness hid the causes of real failures in one session.
+About half the failures came from our own changes.
 
-Read this before touching the E2E harness, the deployer, or the runners. Most
-entries cost at least one 60–90 minute VM run to learn.
+Read this before you change the E2E harness, deployer, or runners.
+Most entries cost at least one run of 60–90 minutes.
 
 ---
 
 ## 1. The dominant bug class
 
-**Status derived from a proxy rather than from an observable.**
+**A proxy can produce a status without the required observation.**
+Every serious defect in this session followed that pattern.
+Ask what a check would report if the event it asserts never occurred.
 
-Every serious defect found in this session was an instance of it. When adding
-any check, ask: *what does this assert, and what would it print if the thing it
-asserts never happened?*
-
-Real examples, all shipped and all wrong:
+These checks all shipped with defects:
 
 | Check | Passed when | Consequence |
 |---|---|---|
@@ -28,112 +26,111 @@ Real examples, all shipped and all wrong:
 | `[ -f "$PTY" ]` | a previous run's file existed | a run analysed another run's serial |
 | counter `ELAPSED` | never | timeouts 1.5× nominal; progress lines off by 30 minutes |
 
-**Rule:** a check must fail when the underlying thing is absent. Prove that by
-mutation-testing it — break the code and confirm the test goes red.
+**Rule:** a check must fail when the required event is absent.
+Break the code and confirm that the test fails.
 
 ## 2. Liveness: what lies and what doesn't
 
-Three liveness signals lied during this session:
+These signals were unreliable in this session:
 
-- **`pgrep -f "run-e2e.sh"` over ssh** matches *your own ssh command*, because
-  the pattern appears in its command line. Reported runs as alive that did not
-  exist. Use `pgrep -f ... | grep -v $$`, or better, don't use pgrep.
-- **`systemctl --user is-active`** is meaningless on a host where the run was
-  launched with `nohup` rather than `systemd-run`. Know how it was started.
-- **Log tail** lies when `StandardOutput=file:` (truncates) is combined with
-  `StandardError=append:` on the same file — old stderr survives into the new
-  run's log and interleaves. Use the same mode for both, and locate the current
-  run by its `Run ID` line.
+- **`pgrep -f "run-e2e.sh"` over ssh** matches *your own ssh command*.
+  Its command line contains the pattern, so it can report a run that does not exist.
+  Filter your process with `pgrep -f ... | grep -v $$`, or inspect the process tree.
+- **`systemctl --user is-active`** cannot report a run that you launched with `nohup` outside that unit.
+  Check how you launched the run.
+- **Log tail** can mix runs when `StandardOutput=file:` truncates a file but `StandardError=append:` preserves old errors.
+  Use append for both streams. Locate the current run by its `Run ID` line.
 
-**What has never lied:**
+Use these observations to diagnose the current run:
 
-- **log mtime** (`stat -c %Y`) — is the run writing?
-- **guest CPU** — `podman exec <c> ps -eo pcpu,args | grep qemu-system`
-- **the process tree** — `systemctl --user status <unit>` shows children;
-  a `sleep 3` child means a poll loop is running, not a hang.
+- **log mtime** (`stat -c %Y`) — did the log change?
+- **guest CPU** (`podman exec <container> ps -eo pcpu,args`) — does QEMU consume CPU in the current run?
+- **process tree** (`systemctl --user status <unit>`) — which children does this unit own?
+  A `sleep 3` child can explain a pause.
+
+These observations do not prove the identity of a guest, its installation, or a successful boot.
+Each claim needs a successful command and current facts.
 
 ## 3. Serial silence is not death
 
-`bootc install` produces **no serial output for 10+ minutes** while extracting
-layers. Time-since-last-write alone is not a failure signal and will cry wolf.
+`bootc install` can produce **no serial output for 10+ minutes** as it extracts layers.
+The time since the last output cannot prove a failure.
 
-**The discriminator is guest CPU:**
+In the recorded runs, useful work continued without output at high CPU (130–170%).
+An idle CPU with no output was a useful clue.
+A deploy that appeared stuck for 13 minutes succeeded.
+A similar run did not. Check CPU as a diagnostic (#40), then inspect the guest for the cause.
 
-- silence + high CPU (130–170%) → working normally
-- silence + idle CPU → actually wedged
-
-This is why a deploy that looked hung for 13 minutes was fine, and why another
-that looked identical was dead. Check CPU before concluding anything (#40).
+A sample of CPU use cannot identify a prompt in Setup or prove a product verdict.
+If guest identity remains unknown, record an infrastructure failure.
 
 ## 4. Timeouts must be wall-clock, and bounded at the blocking call
 
-Two separate defects here:
+Two defects affected the timeouts.
 
-**Counter-based loops drift.** `ELAPSED=$((ELAPSED+5))` next to `sleep 5` does
-not measure time — every blocking call in the loop body (QGA probes,
-snapshotting) burns real time without advancing it. Measured drift: **0.68× wall
-clock**, so "45 minutes" was really ~66. Use `deadline_in`/`past_deadline`.
+**Counters drift.** `ELAPSED=$((ELAPSED+5))` beside `sleep 5` does not measure elapsed time.
+QGA probes and snapshots consume time that the counter omits.
+The measured rate was **0.68× wall clock**: a wait of 45 minutes took about 66 minutes.
+Use `deadline_in` and `past_deadline`.
 
-*Recurred 2026-07-22* in `wootc-attach-loop.sh`: a "60s" host-NTFS wait added
-3s per iteration while `udevadm settle` returned instantly on an empty queue —
-the budget burned in ~2 wall-seconds, before the virtio-scsi bus was scanned,
-and Phase 2 fell to the emergency shell. kmsg timestamps are the drift
-detector (claimed 60s; entered 1.07s, exited 3.37s). In an initramfs use a
-`/proc/uptime` deadline plus an **unconditional** per-iteration `sleep` —
-never let a probe's exit status gate the sleep. Guarded in
-`raw-loopback.bats` ("wall-clock with an unconditional sleep").
+The defect recurred on 2026-07-22 in `wootc-attach-loop.sh`.
+A nominal 60-second wait for host NTFS added 3 seconds per iteration.
+`udevadm settle` returned at once on an empty queue.
+The budget expired in about 2 wall-seconds, before virtio-scsi discovered the disk.
+Phase 2 reached the emergency shell.
 
-**A wall-clock deadline cannot rescue a loop whose body never returns.**
-`qga_call` had no timeout, so a hung `podman exec` froze the loop forever and
-the deadline was never evaluated. Every blocking external call needs its own
-`timeout`.
+The timestamps in kernel messages showed the error: the hook entered at 1.07 seconds and exited at 3.37 seconds.
+In an initramfs, use a `/proc/uptime` deadline and an **unconditional** sleep per iteration.
+Never let a probe's status control that sleep.
+The `raw-loopback.bats` check is "wall-clock with an unconditional sleep".
 
-**Corollary:** fixing the clock made budgets honest and revealed they had never
-been calibrated against real time. Expect this — an accurate measurement often
-exposes a second problem that the inaccuracy was hiding.
+**A deadline cannot stop a call that never returns.**
+`qga_call` had no timeout. A stuck `podman exec` stopped the loop before its next deadline check.
+Set a timeout on every external call that can wait.
+
+An accurate clock can reveal another defect: a budget that was never enough for the elapsed time.
+Recheck the budget after you correct the clock.
 
 ## 5. Removing something can expose what it was hiding
 
-The pre-deployer snapshot spent 10–20 minutes doing an fsfreeze + 28 GiB copy.
-It was **accidentally load-bearing as a `sleep`**: it gave Windows OEM setup the
-time it needed to stage BootNext. Disabling it (correctly — see §7) exposed a
-long-standing race where the barrier passed instantly on a stale marker.
+The snapshot before the deployer spent 10–20 minutes on an fsfreeze and a 28 GiB copy.
+That delay gave time for Windows OEM setup to stage BootNext.
+When we removed the snapshot (see §7), a barrier could pass on a stale marker before setup finished.
 
-Both changes were right. But when you remove a slow step, watch for races it was
-masking, and replace the delay with a **real check**, never another sleep.
+Both changes were necessary.
+When you remove a slow step, check which races its delay concealed.
+Check a current observation at the barrier; another sleep cannot prove the event occurred.
 
 ## 6. Testing traps in this repo
 
-- **`/tmp` is `noexec` on the dev box.** PATH stubs written to
-  `BATS_TEST_TMPDIR` cannot execute, so every "nothing was called" assertion
-  passes **vacuously**. `setup()` must create a stub, run it, and fall back to
-  `$HOME/.cache` if it fails. See `go-native.bats`, `pick-blank-disk.bats`.
-- **Case-sensitive guards cover only what you thought of.** A regression test
-  matching `$ELAPSED` reported green while three lowercase `$elapsed` loops were
-  still broken.
-- **A test can match its own documentation.** A guard grepping for
-  `need at least` matched the comment block explaining the guard, not the code,
-  and reported a bug that did not exist.
-- **Mutation-test anything that matters.** Break the code, confirm red, restore.
-  Every safety test in this repo should have been through this.
+- **`/tmp` is `noexec` on the dev box.**
+  PATH stubs in `BATS_TEST_TMPDIR` cannot execute there.
+  A test can then report that no command ran because the stub itself failed.
+  `setup()` must create and execute a stub; use `$HOME/.cache` if that fails.
+  See `go-native.bats` and `pick-blank-disk.bats`.
+- **Case-sensitive guards cover only their pattern.**
+  A check for `$ELAPSED` missed three loops that used lowercase `$elapsed`.
+- **A test can match its own documentation.**
+  A check for `need at least` matched a comment about the guard, not the code.
+  It then reported a defect that did not exist.
+- **Test the counterexample.**
+  Break the code, confirm failure, then restore it.
+  Do this for every test that protects a safety requirement.
 
 ## 7. Runner operations
 
-- **Never `podman system prune -af` on a host with a live run.** It killed three
-  runs simultaneously, and separately deleted the locally-built
-  `wootc-e2e-windows-ssh:latest` image, which then caused compose to try pulling
-  from a registry literally named `localhost`.
-- **`loginctl enable-linger <user>`** is required, or systemd kills the run when
-  your ssh session closes. Runs died ~10 minutes after disconnect until this was
-  set.
-- **Launch with `systemd-run --user`**, passing `XDG_RUNTIME_DIR` and `HOME`
-  explicitly, or rootless podman resolves *root* storage paths and fails with
-  `permission denied` on `/run/containers/storage`.
-- **Check for a live run before any cleanup.** Disk pressure is real, but so is
-  killing an hour of work.
-- **Prefer GitHub hosted runners** (`e2e-hosted.yml`, ubuntu-latest with
-  `/dev/kvm`). The laptops each failed differently: podman storage drift, a KVM
-  regression after `podman system migrate`, and an undersized 238 GiB disk.
+- **Never `podman system prune -af` on a host with a live run.**
+  It killed three runs at once and deleted the local image `wootc-e2e-windows-ssh:latest`.
+  Compose then tried to pull from a registry named `localhost`.
+- **`loginctl enable-linger <user>` is required.**
+  Without it, systemd killed runs when the ssh session closed.
+- **Launch with `systemd-run --user`.**
+  Pass `XDG_RUNTIME_DIR` and `HOME` explicitly.
+  Otherwise rootless podman can use storage paths for root and fail with `permission denied` on `/run/containers/storage`.
+- **Check for a live run before any cleanup.**
+  Keep its storage, snapshots, and evidence. Remove only disposable files that you own.
+- **Prefer runners hosted by GitHub** (`e2e-hosted.yml`, ubuntu-latest with `/dev/kvm`).
+  The laptops each failed for a different reason; see the table below.
 
 ## 8. Domain knowledge worth keeping
 

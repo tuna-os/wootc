@@ -1,0 +1,3 @@
+*.ps1 -text -diff
+*.log -text -diff
+*.stderr -text -diff

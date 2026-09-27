@@ -105,43 +105,139 @@ qga_channel_lost() {
 
 
 qga_wait() {
-    local label="$1" timeout="$2" elapsed=0
-    step "Waiting for QGA: $label..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if qga_probe; then
-            pass "QGA available: $label"
+    local label="$1" budget="$2" deadline remaining pause
+    wootc_qga_valid_timeout "$budget" || { infra_fail "Invalid QGA liveness deadline"; return 2; }
+    step "Waiting for QGA liveness: $label..."
+    deadline=$(( $(date +%s) + budget ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -le 5 ] || remaining=5
+        if WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_call ping >/dev/null 2>&1; then
+            pass "QGA available (identity unverified): $label"
             return 0
         fi
-        sleep 10
-        elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA ($label)... ($(( elapsed / 60 ))m)"
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        pause=10
+        [ "$remaining" -ge "$pause" ] || pause="$remaining"
+        sleep "$pause"
     done
-    infra_fail "QGA did not become available for $label within $((timeout / 60)) minutes"
+    infra_fail "QGA liveness unavailable for $label within the deadline"
     return 1
 }
-
-
 qga_wait_down() {
-    local label="$1" timeout="${2:-120}" elapsed=0
-    info "Waiting for Windows QGA to go away before $label..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if ! qga_windows_probe; then
-            return 0
+    local label="$1" budget="${2-120}" deadline remaining pause
+    wootc_qga_valid_timeout "$budget" || { infra_fail "Invalid QGA departure deadline"; return 2; }
+    deadline=$(( $(date +%s) + budget ))
+    WOOTC_QGA_DEPARTURE=unknown
+    wootc_phase_boundary
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        remaining=$((deadline - $(date +%s)))
+        if qga_windows_probe "$remaining"; then
+            WOOTC_QGA_DEPARTURE=windows
+        else
+            remaining=$((deadline - $(date +%s)))
+            [ "$remaining" -gt 0 ] || break
+            if qga_linux_probe "$remaining"; then
+                WOOTC_QGA_DEPARTURE=linux
+                info "Positive Linux identity observed before $label"
+                return 0
+            fi
+            remaining=$((deadline - $(date +%s)))
+            [ "$remaining" -gt 0 ] || break
+            [ "$remaining" -le 5 ] || remaining=5
+            if ! WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_call ping >/dev/null 2>&1; then
+                [ "$(date +%s)" -lt "$deadline" ] || break
+                WOOTC_QGA_DEPARTURE=transport-unavailable
+                info "QGA transport unavailable before $label; actual boot still requires observation"
+                return 0
+            fi
+            WOOTC_QGA_DEPARTURE=unknown
         fi
-        sleep 5
-        elapsed=$((elapsed + 5))
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        pause=5
+        [ "$remaining" -ge "$pause" ] || pause="$remaining"
+        sleep "$pause"
     done
-    infra_fail "Windows QGA did not go away before $label"
+    infra_fail "Windows departure could not be observed before $label (last: $WOOTC_QGA_DEPARTURE)"
     return 1
 }
 
-
+# Explicit host parser path; sourcing still performs no runtime/guest operation.
+wootc_qga_boot_configure() {
+    [ "$#" -eq 1 ] && [[ "$1" = /* ]] && [ -f "$1" ] || return 2
+    WOOTC_QGA_BOOT_PARSER="$1"
+}
+qga_windows_boot_observe() {
+    local budget="$1" result
+    wootc_qga_valid_timeout "$budget" || return 2
+    [ "$budget" -le 5 ] || budget=5
+    # shellcheck disable=SC2016
+    result=$(WOOTC_QGA_CALL_TIMEOUT="$budget" qga_powershell '
+$ErrorActionPreference = "Stop"
+if ($env:OS -ne "Windows_NT") { throw "Expected Windows identity" }
+$system = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+if ($null -eq $system.LastBootUpTime) { throw "Missing Windows boot observation" }
+$bootTime = $system.LastBootUpTime.ToFileTimeUtc()
+$record = @{ schemaVersion = 1; os = $env:OS; bootId = "$bootTime" }
+$record | ConvertTo-Json -Compress -Depth 3
+' 2>/dev/null) || return 1
+    result=$(printf '%s' "$result" | python3 "${WOOTC_QGA_BOOT_PARSER:?Configure Windows boot parser first}") || return 1
+    printf '%s\n' "$result"
+}
 qga_wait_reboot() {
-    local label="$1"
-    qga_wait_down "$label" 120
-    qga_wait "$label" 600
+    local label="$1" before="${2-}" budget="${3-600}" deadline remaining observed pause
+    [[ "$before" =~ ^[1-9][0-9]{8,18}$ ]] && wootc_qga_valid_timeout "$budget" || {
+        infra_fail "Windows restart requires a successful pre-request boot observation"; return 2;
+    }
+    deadline=$(( $(date +%s) + budget ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        remaining=$((deadline - $(date +%s)))
+        if observed=$(qga_windows_boot_observe "$remaining"); then
+            wootc_phase_boundary
+            if [ "$observed" != "$before" ]; then
+                pass "Windows new boot observed: $label"
+                return 0
+            fi
+        fi
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        pause=5
+        [ "$remaining" -ge "$pause" ] || pause="$remaining"
+        sleep "$pause"
+    done
+    infra_fail "Windows new boot could not be observed for $label within the deadline"
+    return 1
+}
+qga_restart_windows() {
+    local label="$1" budget="${2-600}" deadline remaining before requested
+    wootc_qga_valid_timeout "$budget" || { infra_fail "Invalid Windows restart deadline"; return 2; }
+    deadline=$(( $(date +%s) + budget ))
+    wootc_phase_boundary
+    before=$(qga_windows_boot_observe "$budget") || {
+        infra_fail "Windows restart baseline is unknown; request refused: $label"; return 1;
+    }
+    wootc_phase_boundary
+    remaining=$((deadline - $(date +%s)))
+    [ "$remaining" -gt 0 ] || { infra_fail "Windows restart deadline expired before request"; return 1; }
+    [ "$remaining" -le 60 ] || remaining=60
+    # One request only. Failure/timeout is ambiguous and must not be replayed.
+    # shellcheck disable=SC2016
+    requested=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_powershell '
+$ErrorActionPreference = "Stop"
+cmd.exe /d /c "shutdown.exe /a >NUL 2>&1"
+shutdown.exe /r /t 1 /f
+if ($LASTEXITCODE -ne 0) { throw "Windows restart request refused" }
+Write-Output "windows-restart-requested"
+' 2>/dev/null) || { infra_fail "Windows restart request failed: $label"; return 1; }
+    requested=$(printf '%s' "$requested" | tr -d '\r\n')
+    [ "$requested" = windows-restart-requested ] || {
+        infra_fail "Windows restart request acknowledgment is unknown: $label"; return 1;
+    }
+    remaining=$((deadline - $(date +%s)))
+    [ "$remaining" -gt 0 ] || { infra_fail "Windows restart deadline expired after request"; return 1; }
+    qga_wait_reboot "$label" "$before" "$remaining"
 }
 
 
@@ -164,8 +260,10 @@ qga_windows_probe() {
 
 
 qga_linux_probe() {
-    local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'uname -s' 2>/dev/null) || return 1
+    local os budget="${1-5}"
+    wootc_qga_valid_timeout "$budget" || return 2
+    [ "$budget" -le 5 ] || budget=5
+    os=$(WOOTC_QGA_CALL_TIMEOUT="$budget" qga_call exec /bin/sh -c 'uname -s' 2>/dev/null) || return 1
     os=$(printf '%s' "$os" | tr -d '\r\n')
     [[ "$os" == Linux ]]
 }

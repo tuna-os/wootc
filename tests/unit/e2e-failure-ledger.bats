@@ -228,7 +228,9 @@ setup() {
     # 2. ...reports the mismatch so the harness can see it...
     grep -q 'imageMismatch' app/frontend/src/lib/e2e.js
     # ...and the harness fails FAST with both refs instead of timing out.
-    grep -q '"imageMismatch":true' tests/e2e/run-e2e.sh
+    # The scenario consumes a validated field; text in hint/error cannot
+    # impersonate it. The actual consumer/parser countercontrols execute below.
+    grep -q 'json.load(sys.stdin)\["imageMismatch"\] is True' tests/e2e/run-e2e.sh
     grep -q 'Drive mode cannot select the requested image' tests/e2e/run-e2e.sh
     # 3. Drive mode un-gates experimental images (the harness exists to test
     # images BEFORE they are green), so the requested card is selectable.

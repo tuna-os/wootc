@@ -26,7 +26,7 @@ info() { echo "INFO $*"; }
 fail() { echo "FAIL $*"; }
 infra_fail() { fail "$@"; }
 qga_windows_probe() { return "${IDENTITY_RC:-0}"; }
-qga_wait_reboot() { echo REBOOT-WAIT >> "$CALLS"; return 0; }
+qga_restart_windows() { echo RESTART-WINDOWS >> "$CALLS"; return "${RESTART_RC:-0}"; }
 deadline_in() { echo "$(( $(date +%s) + $1 ))"; }
 past_deadline() { [ "$(cat "$TICKS")" -ge 2 ]; }
 sleep() { echo "$(( $(cat "$TICKS") + 1 ))" > "$TICKS"; }
@@ -49,7 +49,7 @@ qga_powershell() {
     printf '%s' "${REPLY:-}"
     return "${REPLY_RC:-0}"
 }
-""" + f"source '{module or MODULE}'\nwootc_gui_configure '{RUNNER.parent}' qga_powershell qga_windows_probe qga_wait_reboot\n" + body
+""" + f"source '{module or MODULE}'\nwootc_gui_configure '{RUNNER.parent}' qga_powershell qga_windows_probe qga_restart_windows\n" + body
             ticks, calls = Path(tmp) / "ticks", Path(tmp) / "calls"
             ticks.write_text("0")
             probe_count = Path(tmp) / "probe-count"
@@ -145,9 +145,18 @@ qga_powershell() {
                                        SERVICING_REPLY=pending, SERVICING_AFTER=after,
                                        SESSION_REPLY='interactive-user=DESKTOP\\wootc')
             self.assertEqual(result.returncode, status, result.stderr)
-            self.assertIn('REBOOT-WAIT', calls)
-            self.assertIn('shutdown.exe /r', calls)
+            self.assertIn('RESTART-WINDOWS', calls)
+            self.assertEqual(calls.count('RESTART-WINDOWS'), 1)
             self.assertEqual('SCHEDULED' in result.stdout, status == 0)
+
+    def test_failed_restart_callback_stops_before_readback_or_launch(self):
+        pending=json.dumps(dict(schemaVersion=1,os='Windows_NT',pending=['servicing']))
+        result,calls=self.shell('gui_settle_pending_servicing; echo LAUNCHED',SERVICING_REPLY=pending,RESTART_RC='1')
+        self.assertNotEqual(result.returncode,0)
+        self.assertNotIn('LAUNCHED',result.stdout)
+        self.assertEqual(calls.count('RESTART-WINDOWS'),1)
+        self.assertEqual(calls.count('ConvertTo-Json'),1)
+        self.assertNotIn('interactive-user=',calls)
 
     def test_wrong_os_account_gate_records_actual_infrastructure_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -185,7 +194,7 @@ infra_fail() {{ echo "$*" >&2; }}
 pass() {{ echo "$*"; }}
 deadline_in() {{ echo "$(( $(date +%s) + $1 ))"; }}
 past_deadline() {{ [ "$(date +%s)" -ge "$1" ]; }}
-wootc_gui_configure '{RUNNER.parent}' qga_powershell qga_windows_probe qga_wait_reboot
+wootc_gui_configure '{RUNNER.parent}' qga_powershell qga_windows_probe qga_restart_windows
 gui_wait_interactive_session 1
 echo SCHEDULED
 """
@@ -211,7 +220,7 @@ infra_fail() {{ echo "$*" >&2; }}
 pass() {{ echo "$*"; }}
 deadline_in() {{ echo "$(( $(date +%s) + $1 ))"; }}
 past_deadline() {{ [ "$(date +%s)" -ge "$1" ]; }}
-wootc_gui_configure '{RUNNER.parent}' qga_powershell qga_windows_probe qga_wait_reboot
+wootc_gui_configure '{RUNNER.parent}' qga_powershell qga_windows_probe qga_restart_windows
 gui_wait_interactive_session 1
 echo SCHEDULED
 """
