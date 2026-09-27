@@ -1,0 +1,59 @@
+name: Read-only CLI status controls
+
+on:
+  pull_request:
+    paths:
+      - 'app/main.go'
+      - 'app/headless*.go'
+      - 'app/status_*.go'
+      - 'app/state_trust*.go'
+      - '.github/workflows/readonly-cli-status.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Actual Windows read-only status controls
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: {go-version: '1.27', cache: false}
+      - name: Execute private status and refusal controls
+        shell: powershell
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          $ErrorActionPreference='Stop'
+          $originalTemp=$env:TEMP
+          $originalTmp=$env:TMP
+          $common=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
+          $directory=Join-Path $common "wootc-status-controls-$([guid]::NewGuid().ToString('N'))"
+          if (Test-Path -LiteralPath $directory) { throw 'Refusing existing control directory' }
+          [IO.Directory]::CreateDirectory($directory) | Out-Null
+          & icacls.exe $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' *> $null
+          if ($LASTEXITCODE -ne 0) { throw 'Private control ACL failed' }
+          try {
+            $env:TEMP=$directory
+            $env:TMP=$directory
+            foreach ($source in @('app/main.go','app/headless.go','app/status_location.go','app/status_location_windows.go','app/status_records.go','app/status_entrypoint_test.go','app/status_location_windows_test.go','app/state_trust_windows.go')) {
+              Write-Output "SOURCE $source SHA256 $((Get-FileHash -LiteralPath $source).Hash)"
+            }
+            & git rev-parse HEAD
+            & go version
+            $assets=Join-Path 'app/frontend' 'dist'
+            if (Test-Path -LiteralPath $assets) { throw 'Refusing unexpected prebuilt assets' }
+            [IO.Directory]::CreateDirectory($assets) | Out-Null
+            [IO.File]::WriteAllText((Join-Path $assets 'index.html'),'<title>Unit-test embed placeholder</title>')
+            Push-Location app
+            try {
+              & go test -count=1 -v -timeout 60s -run '^(TestStatus|TestHeadlessStatus)' .
+              if ($LASTEXITCODE -ne 0) { throw 'Actual read-only status control failed' }
+            } finally { Pop-Location }
+          } finally {
+            $env:TEMP=$originalTemp
+            $env:TMP=$originalTmp
+            Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop
+          }

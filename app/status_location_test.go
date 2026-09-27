@@ -94,3 +94,18 @@ func TestStatusDiscoveryAbsentDoesNotCreateFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestStatusInvocationSkipsOnlyReadOnlyStatusInitialization(t *testing.T) {
+	for _, args := range [][]string{{"wootc.exe", "status"}, {"wootc.exe", "status", "unexpected"}, {"wootc.exe"}, {"wootc.exe", "install"}, {"wootc.exe", "serve"}, {"wootc.exe", "recover", "--status"}, {"wootc.exe", "status-other"}} {
+		calls := 0
+		blocked := fmt.Errorf("initializer sentinel")
+		err := initializeStateTrustForInvocationWith(args, func() error { calls++; return blocked })
+		skip := len(args) > 1 && args[1] == "status"
+		if skip && (calls != 0 || err != nil) {
+			t.Fatalf("status invoked mutating initialization: %v %d", err, calls)
+		}
+		if !skip && (calls != 1 || err != blocked) {
+			t.Fatalf("other invocation lost initialization gate: %v %d", err, calls)
+		}
+	}
+}

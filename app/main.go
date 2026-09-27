@@ -21,7 +21,7 @@ func main() {
 		os.Exit(runNativeServe(os.Args))
 	}
 
-	if err := initializeStateTrust(); err != nil {
+	if err := initializeStateTrustForInvocation(os.Args); err != nil {
 		reportStateTrustFailure(err)
 		os.Exit(1)
 	}
