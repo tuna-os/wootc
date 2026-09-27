@@ -38,7 +38,7 @@ class WorkflowSafety(unittest.TestCase):
     def test_main_runs_do_not_share_a_cancellable_group(self):
         # A false cancel-in-progress alone still drops pending runs in a
         # shared group. Non-PR runs must also have distinct group keys.
-        for name in ('ci.yml', 'ci-tests.yml'):
+        for name in ('ci.yml', 'ci-tests.yml', 'lint.yml'):
             with self.subTest(workflow=name):
                 concurrency = block((WORKFLOWS / name).read_text(), 'concurrency:')
                 self.assertIn('${{ github.workflow }}-${{ github.event_name }}', concurrency)
@@ -48,7 +48,7 @@ class WorkflowSafety(unittest.TestCase):
     def test_write_permissions_are_scoped_to_publishing_and_retry(self):
         allowed = {'release.yml': {'publish:'},
                    'e2e-gui.yml': {'publish:', 'flake-retry:'}}
-        for name in ('ci.yml', 'ci-tests.yml', 'ste.yml', *allowed):
+        for name in ('ci.yml', 'ci-tests.yml', 'lint.yml', 'ste.yml', *allowed):
             source = (WORKFLOWS / name).read_text()
             with self.subTest(workflow=name):
                 self.assertNotIn(': write', block(source, 'permissions:'))

@@ -47,28 +47,6 @@ jobs:
       - name: Run containerized bridge suite
         run: bash tests/migration/test-bridge.sh
 
-  lint:
-    name: lint (shellcheck + yamllint)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install linters
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq shellcheck
-          pip install --break-system-packages --quiet yamllint
-      - name: yamllint
-        run: yamllint tests/e2e/compose.yml
-      - name: shellcheck (payloads + harness)
-        run: |
-          shellcheck -S error \
-            payload/deployer/deploy.sh \
-            payload/migration/wootc-go-native \
-            payload/migration/wootc-wifi-bridge \
-            payload/migration/wootc-wsl-bridge \
-            payload/migration/wootc-apply-look \
-            tests/e2e/run-e2e.sh
-
   gui-shots:
     name: GUI screenshots render
     runs-on: ubuntu-latest
