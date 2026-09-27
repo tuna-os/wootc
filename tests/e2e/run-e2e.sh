@@ -830,6 +830,41 @@ qga_powershell() {
     qga_call powershell "$1" || return $?
 }
 
+# A recovery password can exist while C: is still converting. Do not boot the
+# Linux BitLocker consumer until Windows reports the supported fixture state.
+bitlocker_wait_fixture_ready() {
+    local timeout_s="${1:-1800}" deadline remaining call_timeout result pause
+    deadline=$(deadline_in "$timeout_s")
+    while ! past_deadline "$deadline"; do
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        call_timeout=$remaining
+        [ "$call_timeout" -le 10 ] || call_timeout=10
+        # shellcheck disable=SC2016 # Literal PowerShell variables.
+        if result=$(WOOTC_QGA_CALL_TIMEOUT="$call_timeout" qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-readiness.ps1"; Get-WootcFixtureBitLockerReadiness' 2>/dev/null); then
+            result=$(printf '%s' "$result" | tr -d '\r')
+            if [[ "$result" =~ ^bitlocker-fixture\ status=(FullyDecrypted|FullyEncrypted|EncryptionInProgress|DecryptionInProgress|EncryptionPaused|DecryptionPaused)\ percentage=(100|[0-9]{1,2})\ protection=(On|Off|Unknown)\ ready=(True|False)$ ]]; then
+                info "$result"
+                if [[ "$result" == 'bitlocker-fixture status=FullyEncrypted percentage=100 protection=On ready=True' ]] && ! past_deadline "$deadline"; then
+                    pass "BitLocker fixture C: fully encrypted, 100%, protection on"
+                    return 0
+                fi
+            else
+                info "BitLocker fixture observation malformed; readiness not established"
+            fi
+        else
+            info "BitLocker fixture observation unavailable; readiness not established"
+        fi
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        pause=$remaining
+        [ "$pause" -le 5 ] || pause=5
+        sleep "$pause"
+    done
+    fail "BitLocker fixture C: not positively ready within $timeout_s s; installed Linux boot was not scheduled"
+    return 1
+}
+
 qga_read() {
     qga_call_retry read "$1" || return $?
 }
@@ -1206,18 +1241,18 @@ if ($u) { Write-Output ($u -replace "^.*\\","") }' 2>/dev/null | tr -d '[:space:
 
 seed_user_data() {
     step "Seeding user data in the Windows profile (Documents, browsers, Office, apps)..."
-    # On BitLocker runs C: is encrypted and the deployer mounts the carved
-    # unencrypted volume (e.g. E:) instead.  Seeding on C: guarantees the
-    # deployer can never read the marker, so ask the guest where the wootc
-    # tree lives — that is exactly the volume the deployer will mount — and
-    # create Users\wootc\Documents there.  The User Data Bridge then finds the
-    # profile through the same path the deployer sees at /run/wootc/host.
-    # (run 20260728T002802Z: el10-gnome-win11pro-bitlocker failed twice because
-    # the seed landed on the encrypted C: while the deployer mounted the empty
-    # carved E:, so wootc-mount-user-dirs found no profile anywhere.)
     local drive out attempt
-    drive=$(qga_powershell 'Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Where-Object { Test-Path ($_.Name + ":\wootc\install") } | Select-Object -First 1 -ExpandProperty Name' 2>/dev/null | tr -d '[:space:]')
-    case "$drive" in [A-Za-z]) drive="${drive}:" ;; *) drive="C:" ;; esac
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+        # A real BitLocker fixture must put the profile on encrypted C:. The
+        # recovery key and root.disk stay on the carved unencrypted volume;
+        # Phase 2 must unlock C: and copy Documents into its persistent Linux
+        # workspace. Seeding on E: only tested an ordinary NTFS profile.
+        drive="C:"
+        info "BitLocker fixture: seeding the Windows profile on encrypted C:"
+    else
+        drive=$(qga_powershell 'Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Where-Object { Test-Path ($_.Name + ":\wootc\install") } | Select-Object -First 1 -ExpandProperty Name' 2>/dev/null | tr -d '[:space:]')
+        case "$drive" in [A-Za-z]) drive="${drive}:" ;; *) drive="C:" ;; esac
+    fi
     local guser; guser=$(guest_windows_user)
     local seed_dir="${drive}\\Users\\${guser}\\Documents"
     for attempt in 1 2 3; do
@@ -1554,6 +1589,14 @@ sed 's/$/\r/' "$SCRIPT_DIR/setup-wootc.ps1" >> "$SCRIPT_DIR/wootc-files/setup-wo
 for state_payload in "$OEM_DIR/state-trust.ps1" "$SCRIPT_DIR/wootc-files/state-trust.ps1"; do
     printf '\xEF\xBB\xBF' > "$state_payload"
     sed 's/$/\r/' "$SCRIPT_DIR/state-trust.ps1" >> "$state_payload"
+done
+for key_payload in "$OEM_DIR/fixture-bitlocker-key.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-key.ps1"; do
+    printf '\xEF\xBB\xBF' > "$key_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/fixture-bitlocker-key.ps1" >> "$key_payload"
+done
+for readiness_payload in "$OEM_DIR/fixture-bitlocker-readiness.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-readiness.ps1"; do
+    printf '\xEF\xBB\xBF' > "$readiness_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/fixture-bitlocker-readiness.ps1" >> "$readiness_payload"
 done
 for cli_payload in "$OEM_DIR/stage-status-cli.ps1" "$SCRIPT_DIR/wootc-files/stage-status-cli.ps1"; do
     printf '\xEF\xBB\xBF' > "$cli_payload"
@@ -3906,6 +3949,13 @@ else
     fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
 fi
 
+# Match the existing 1800-second fixture drive-preparation deadline. Every
+# external QGA call and polling sleep consumes this same wall-clock budget.
+if [[ "$E2E_BITLOCKER" == "on" ]]; then
+    step "Waiting for BitLocker fixture C: encryption completion before installed Linux..."
+    bitlocker_wait_fixture_ready 1800 || exit 1
+fi
+
 step "Scheduling one-shot Phase 2 Linux boot..."
 # Re-extend NTFS ValidDataLength (VDL) on root.disk before Phase 2 boots.
 # fuse-ntfs-3g resets VDL to the highest byte it actually wrote during the
@@ -4391,11 +4441,15 @@ USERDATA_PROBE=$(qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || t
 # Documents bind. A real user reaches their desktop minutes after boot; the
 # honest assertion is "visible once the bridge has run", bounded here at
 # two minutes.
+USERDATA_PATH='/home/wootc/Documents/wootc-e2e-userdata.txt'
+if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+    USERDATA_PATH='/home/wootc/Documents/From Windows/wootc-e2e-userdata.txt'
+fi
 USERDATA_HOME=""
 _ud_deadline=$(deadline_in 120)
 while ! past_deadline "$_ud_deadline"; do
     USERDATA_HOME=$(qga_call exec /bin/sh -c \
-        'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
+        "cat '$USERDATA_PATH' 2>/dev/null" 2>/dev/null || true)
     printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID" && break
     sleep 5
 done
@@ -4404,7 +4458,7 @@ if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
     info "  This is an INCONCLUSIVE check, not proof of data loss — the file may well be there."
     info "  Fix the agent in Phase 2 (is qemu-guest-agent present and enabled in this image?), then re-run."
 elif printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
-    pass "User data: Windows Documents file readable in /home/wootc with this run's ID"
+    pass "User data: Windows Documents file readable at $USERDATA_PATH with this run's ID"
 else
     USERDATA_DIAG=$(qga_call exec /bin/sh -c \
         'echo "host-bind: $(mountpoint -q /run/wootc/host && echo mounted || echo ABSENT)"; \
@@ -4412,6 +4466,7 @@ else
          echo "seed@host: $(find /run/wootc/host -maxdepth 7 -type f -name "wootc-e2e-userdata.txt" -exec cat {} + 2>/dev/null || echo ABSENT)"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
          echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
+         echo "linux-copy: $(cat "/home/wootc/Documents/From Windows/.wootc-import-complete" 2>/dev/null || echo ABSENT)"; \
          echo "unit:      enabled=$(systemctl is-enabled wootc-host-bind 2>&1) active=$(systemctl is-active wootc-host-bind 2>&1)"; \
          systemctl status wootc-host-bind --no-pager 2>&1 | tail -4; \
          echo "ntfs-src:  $(findmnt -n /run/initramfs/wootc-host 2>/dev/null || echo ABSENT)"; \
@@ -4420,6 +4475,36 @@ else
     fail "User data NOT visible in Phase 2 \$HOME (expected RUN_ID $RUN_ID)"
     printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
     PASSTHROUGH_OK=false
+fi
+
+if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+    # Exercise the destination as the ordinary desktop user, then read it
+    # back in a fresh process. The source lives on encrypted C: and must remain
+    # unchanged while the Linux copy accepts edits.
+    EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
+    step "Editing the imported Windows Documents copy as Linux user wootc..."
+    EDIT_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/sh -c \
+        "printf '%s\\n' '$EDIT_MARKER' >> '$USERDATA_PATH' && cat '$USERDATA_PATH'" \
+        2>/dev/null || true)
+    REOPEN_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" \
+        2>/dev/null || true)
+    if printf '%s' "$EDIT_OUTPUT" | grep -Fq "$EDIT_MARKER" \
+        && printf '%s' "$REOPEN_OUTPUT" | grep -Fq "$EDIT_MARKER"; then
+        pass "BitLocker Documents: ordinary Linux user saved and reopened an edit"
+    else
+        fail "BitLocker Documents: ordinary Linux user could not save and reopen an edit"
+        info "  write/read output: ${REOPEN_OUTPUT:-<empty>}"
+    fi
+    ORIGINAL_DOC=$(qga_call exec /bin/sh -c \
+        'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
+        2>/dev/null || true)
+    if printf '%s' "$ORIGINAL_DOC" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
+        && ! printf '%s' "$ORIGINAL_DOC" | grep -Fq "$EDIT_MARKER"; then
+        pass "BitLocker Documents: encrypted Windows original stayed unchanged"
+    else
+        fail "BitLocker Documents: Windows original changed or could not be verified"
+        info "  encrypted source readback: ${ORIGINAL_DOC:-<empty>}"
+    fi
 fi
 
 # ── HARD GATE: prove Phase 2 actually ran ───────────────────────────────────
@@ -4590,6 +4675,64 @@ else
         capture_lifecycle_failure healthy
         fail "wootc.exe status did not report healthy after Phase-2 first boot (got: '$_state_raw')"
     fi
+
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+        # A visible copy is only useful if it survives stopping and starting
+        # the installed environment. Return to Windows, re-arm the exact
+        # one-shot Phase-2 entry, boot the same root.disk again, and read back
+        # the ordinary user's edit before returning to Windows a second time.
+        step "Rebooting the installed BitLocker environment to prove the saved copy persists..."
+        # Shutdown removes the temporary bridge key. Refresh it from Windows
+        # for this deliberate second migration check; never print its value.
+        # shellcheck disable=SC2016
+        if ! qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-key.ps1"; Export-WootcFixtureBitLockerKey -Destination '"'$(guest_wootc_root)\wootc\install\bitlocker-key.txt'"'' >/dev/null; then
+            fail "Could not refresh the protected recovery key for the second BitLocker boot"
+            exit 1
+        fi
+        qga_powershell "bcdedit --% /set {fwbootmgr} bootsequence $PHASE2_GUID /addfirst" >/dev/null
+        if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | grep -qiF "$PHASE2_GUID"; then
+            fail "Could not re-arm Phase 2 for the BitLocker Documents persistence check"
+            exit 1
+        fi
+        qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
+        qga_wait_down "BitLocker Documents persistence boot" 300
+        qga_wait "BitLocker Documents persistence boot" 600
+        if ! qga_linux_probe; then
+            fail "The second one-shot boot did not positively identify Phase-2 Linux"
+            exit 1
+        fi
+        pass "Second boot reached the installed Phase-2 Linux system"
+        PERSISTED_EDIT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" 2>/dev/null || true)
+        if printf '%s' "$PERSISTED_EDIT" | grep -Fq "$EDIT_MARKER"; then
+            pass "BitLocker Documents: saved Linux edit survived the environment restart"
+        else
+            fail "BitLocker Documents: saved Linux edit did not survive the environment restart"
+            info "  second-boot readback: ${PERSISTED_EDIT:-<empty>}"
+            exit 1
+        fi
+        SECOND_SOURCE=$(qga_call exec /bin/sh -c \
+            'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
+            2>/dev/null || true)
+        if printf '%s' "$SECOND_SOURCE" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
+            && ! printf '%s' "$SECOND_SOURCE" | grep -Fq "$EDIT_MARKER"; then
+            pass "BitLocker Documents: Windows source is still unchanged after restart"
+        else
+            fail "BitLocker Documents: Windows source changed or is unavailable after restart"
+            info "  encrypted source readback: ${SECOND_SOURCE:-<empty>}"
+            exit 1
+        fi
+        WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'systemctl reboot || systemctl reboot -ff' 2>/dev/null || true
+        case "$(p2_reboot_observe)" in
+            down|windows) ;;
+            linux)
+                $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket,time; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(b"system_reset\n"); time.sleep(.4); s.recv(4096); s.close()' || true
+                ;;
+            *) info "Phase-2 return identity was inconclusive; waiting without a reset" ;;
+        esac
+        qga_wait_windows 600
+        pass "Windows returned after the BitLocker persistence reboot"
+    fi
+
     # Windows is verifiably back — put the untouched machine on camera
     # (video-only, best-effort).
     demo_windows_untouched

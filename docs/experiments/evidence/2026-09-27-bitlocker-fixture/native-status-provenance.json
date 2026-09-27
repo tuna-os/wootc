@@ -1,0 +1,7 @@
+{
+  "sourceHead": "eaf2cd26af65345af4e643546ea08394b7c445b8",
+  "binarySha256": "5c7552cd9b0f082fc21eb431dc15ab16af048c98dfa3ab3f54d8ebbfe611d81a",
+  "stagedName": "wootc-status-discovery-exact-c998acc311ce43e4a13d822817e86488.test.exe",
+  "buildCommand": "GOOS=windows GOARCH=amd64 go test -c -o /tmp/wootc-status-discovery-exact.test.exe .",
+  "testCommand": "-test.v -test.run ^(TestStatusDiscovery.*|TestStatusAudit.*)$"
+}

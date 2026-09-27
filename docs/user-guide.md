@@ -132,6 +132,15 @@ What it brings over:
 - **Windows-Style Mode** (on unless you turned it off under Advanced) —
   wallpaper, accent, keyboard, and your taskbar/desktop shortcuts.
 
+On a BitLocker-protected Windows drive, the original stays read-only.
+When your installer supports BitLocker migration, wootc copies Documents once
+to **Documents → From Windows** on the Linux disk. You can edit this copy.
+Changes stay with Linux and do not sync back to Windows.
+If Linux has insufficient free space, wootc skips the copy.
+The Windows folder stays read-only: you can open files but cannot save changes there.
+wootc does not copy later Windows changes over your Linux edits.
+[#427](https://github.com/tuna-os/wootc/issues/427) tracks the required evidence for this copy.
+
 **Secrets stay put.** wootc never silently copies passwords, private SSH/GPG
 keys, tokens, or credential stores — you sign in again where it matters.
 

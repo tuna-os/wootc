@@ -79,6 +79,14 @@ It ended in graduated Linux, so it does not prove a Windows return after graduat
 It does not prove the Windows-hosted VM journey, a GUI editor save, the new installed-boot record, or the WinUI shell.
 Later candidates still need their own gates.
 
+The full-install native follow-up [run 36290894695](https://github.com/tuna-os/wootc/actions/runs/36290894695)
+passed on `b90e46b` (2026-09-27, #423). The firstboot service in Linux
+succeeded and wrote `healthy`. After Windows returned,
+`wootc.exe status` also reported `healthy`.
+This was the scripted native cycle with BitLocker off. It does not resolve
+the GUI failure in #399. Editing Documents with BitLocker and Phase 1
+inside Windows still need evidence.
+
 ## Build/test matrix
 
 Red/green status per combination, from the KVM E2E rig (laptop runners) and

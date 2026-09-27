@@ -1,0 +1,43 @@
+{
+  "baseHead": "7e39e5770f6bb84ca7663a606426231dd160574f",
+  "modifiedNativeTest": true,
+  "sourceFiles": [
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.ps1",
+      "rawSha256": "53f159f7c9aaf7d5015a0e59915791a4536abf16d9f720863960d2ad4b1e7707",
+      "stagedSha256": "53af46b855703adbe00d823517f60a88b7000c54a3732102b5b24ffd9b62109e",
+      "name": "wootc-fixture-readiness-audit-f202f30463654dac89e9f84faa0f7fc5-0.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.tests.ps1",
+      "rawSha256": "cc57d2cb87936a4aa6b9d65e0d4a2903c10fb29110f54de14b69d44128f7babf",
+      "stagedSha256": "010defb02682eb0405b540d944e836db33bbc99b3feacb6850ed307755169aaa",
+      "name": "wootc-fixture-readiness-audit-f202f30463654dac89e9f84faa0f7fc5-1.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-readiness.ps1",
+      "rawSha256": "0d9277fed917331851c069bd96242b5debeb35d902a5fedbf167083cc44d4d84",
+      "stagedSha256": "18d4464058344c57a108bc96abc7551e76b6129ea1134bfaf2a78ce30b1b1824",
+      "name": "wootc-fixture-readiness-audit-f202f30463654dac89e9f84faa0f7fc5-2.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-readiness.tests.ps1",
+      "rawSha256": "7cfe867828f94cbdeb64b8c9604a67b052853677f08a5b1890bbb5fe1e601833",
+      "stagedSha256": "a9d08110c60b57fe214391e72d2d1dbb98664821b528d76eaf808688a187ecab",
+      "name": "wootc-fixture-readiness-audit-f202f30463654dac89e9f84faa0f7fc5-3.ps1"
+    },
+    {
+      "source": "tests/lint-ps1.ps1",
+      "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8",
+      "name": "wootc-fixture-readiness-audit-f202f30463654dac89e9f84faa0f7fc5-4.ps1"
+    }
+  ],
+  "behaviorScope": "Mocked BitLocker cmdlets and disposable protected temp files; no real protector/volume operations",
+  "sourceCommit": "defcc76386207576a634f4ed1d2cf8d907ddcec7",
+  "nativeExitCode": 0,
+  "doesNotProve": "Actual BitLocker conversion completion or hosted full-cycle acceptance",
+  "originalCapturedLogSha256": "cb6a52a38ba95deaa91d2abb62e2ed7c2bc349fa9cfadae7505320b48e9b3565",
+  "retainedLogSha256": "078e5cde236eec72a0f84de6b614e166406c8100fb64aa9b57c0781b415684cc",
+  "retainedLogEncoding": "UTF-8; Git normalizes CRLF to LF"
+}

@@ -279,7 +279,7 @@ setup() {
     # stay as they were.
     local E2E=tests/e2e/run-e2e.sh
     grep -q '_ud_deadline=$(deadline_in 120)' "$E2E"
-    grep -B3 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E" | grep -q 'while ! past_deadline "$_ud_deadline"'
+    grep -B3 'cat.*USERDATA_PATH' "$E2E" | grep -q 'while ! past_deadline "$_ud_deadline"'
     grep -q 'WOOTC_AGENT_OK' "$E2E"
     grep -q 'User data NOT visible in Phase 2' "$E2E"
 }
