@@ -1754,102 +1754,15 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     rm -f "$STORAGE_DIR/phase3/data2.qcow2"
 fi
 
-# Self-healing container start. Rootless podman occasionally leaves a phantom
-# "podman0 already exists but is a Tun interface" in its network run-state
-# after a crashed run — netavark then refuses every bridge start until the
-# stale state is cleared. Detect that specific failure and auto-heal once so
-# the runner needs no manual host babysitting.
-# Avoid host-port clashes without killing anything. The compose file maps
-# noVNC/RDP/VNC/ssh purely for debug convenience (QGA is the real control
-# plane), so if a default port is already taken — e.g. gnome-remote-desktop
-# owns 3389, or a monitoring stack owns a port — pick a free alternative and
-# export the override the compose file reads. We never kill the holder: it may
-# be a legitimate service (the operator's own remote desktop).
-port_free() { ! { exec 3<>"/dev/tcp/127.0.0.1/$1"; } 2>/dev/null || { exec 3>&- 3<&-; return 1; }; }
-pick_free_ports() {
-    local var base p
-    for pair in "WOOTC_E2E_NOVNC_PORT:8006" "WOOTC_E2E_RDP_PORT:3389" \
-                "WOOTC_E2E_VNC_PORT:5900" "WOOTC_E2E_SSH_PORT:2222" \
-                "WOOTC_E2E_CDP_PORT:9222"; do
-        var="${pair%%:*}"; base="${pair##*:}"
-        p="${!var:-$base}"
-        if ! port_free "$p"; then
-            local alt
-            for alt in $(seq $((base + 10000)) $((base + 10050))); do
-                port_free "$alt" && { p="$alt"; break; }
-            done
-            warn "host port $base is in use — mapping $var=$p instead"
-        fi
-        export "$var=$p"
-    done
-}
-
-# Rebuild the baked-in-sshd image if it went missing (e.g. `podman system
-# prune` reclaimed it). Compose then fails trying to pull it from localhost.
-rebuild_ssh_image_if_missing() {
-    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
-    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 1
-    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || return 1
-    warn "e2e ssh image missing — rebuilding via build-ssh-image.sh"
-    bash "$SCRIPT_DIR/build-ssh-image.sh"
-}
-
-# Build the e2e ssh image BEFORE compose needs it.
-#
-# compose.yml references localhost/wootc-e2e-windows-ssh:latest, which only ever
-# exists because build-ssh-image.sh made it locally. On any host that has never
-# built it — a fresh GitHub hosted runner, or a laptop after `podman system
-# prune -af` — compose interprets "localhost/..." as a REGISTRY and tries to
-# pull over HTTPS from localhost:443. Recovering after that failure works, but
-# recovering from a failure we can trivially prevent is the wrong order.
-ensure_ssh_image() {
-    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
-    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 0
-    $DOCKER image exists "$img" 2>/dev/null && return 0
-    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || {
-        fail "e2e ssh image $img is missing and build-ssh-image.sh is not executable"
-        return 1
-    }
-    step "Building the e2e ssh image (absent on this host)..."
-    bash "$SCRIPT_DIR/build-ssh-image.sh" || { fail "build-ssh-image.sh failed"; return 1; }
-    $DOCKER image exists "$img" 2>/dev/null || { fail "build completed but $img still absent"; return 1; }
-    pass "e2e ssh image built"
-}
-
-compose_up_windows() {
-    ensure_ssh_image || return 1
-    pick_free_ports
-    $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-    local out
-    if out=$($COMPOSE -f compose.yml up -d windows 2>&1); then
-        printf '%s\n' "$out"
-        return 0
-    fi
-    printf '%s\n' "$out" >&2
-    # (1) netavark phantom bridge — clear stale rootless network run-state.
-    if printf '%s' "$out" | grep -q "already exists but is a Tun interface"; then
-        warn "netavark phantom bridge detected — clearing stale rootless network state and retrying"
-        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-        local netdir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/containers/networks"
-        rm -rf "${netdir:?}/"* 2>/dev/null || true
-        $DOCKER network reload --all 2>/dev/null || true
-        $COMPOSE -f compose.yml up -d windows
-        return $?
-    fi
-    # (2) the e2e ssh image was pruned — rebuild it, then retry.
-    if printf '%s' "$out" | grep -qiE "pinging container registry localhost|no such image|manifest unknown"; then
-        rebuild_ssh_image_if_missing && { $COMPOSE -f compose.yml up -d windows; return $?; }
-    fi
-    # (3) a port clashed after our pre-check (race) — re-pick and retry once.
-    if printf '%s' "$out" | grep -qi "address already in use"; then
-        warn "host port clash — re-selecting free ports and retrying"
-        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-        pick_free_ports
-        $COMPOSE -f compose.yml up -d windows
-        return $?
-    fi
-    return 1
-}
+# Start only the configured VM. Host network conflicts are infrastructure
+# failures; the adapter never removes unrelated network state.
+# shellcheck source=tests/e2e/lib/vm-start.sh
+source "$SCRIPT_DIR/lib/vm-start.sh"
+if [ "$COMPOSE" = podman-compose ]; then
+    wootc_vm_configure "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR" "$SCRIPT_DIR/compose.yml" podman-compose
+else
+    wootc_vm_configure "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR" "$SCRIPT_DIR/compose.yml" "$DOCKER" compose
+fi
 # Do NOT ignore the result, and do NOT trust it either.
 #
 # This call used to be bare, so when every recovery path failed the script still
@@ -1877,15 +1790,15 @@ while ! past_deadline "$RAM_WAIT_DEADLINE"; do
 done
 
 if ! compose_up_windows; then
-    fail "Could not start the Windows container (all recovery paths exhausted)"
-    fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
-    fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
-    fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
+    infra_fail "Could not start the Windows container (all recovery paths exhausted)"
+    infra_fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
+    infra_fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
+    infra_fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
-if ! $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
-    fail "compose reported success but $CONTAINER_NAME does not exist"
-    fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
+if ! wootc_vm_call container exists "$CONTAINER_NAME" 2>/dev/null; then
+    infra_fail "compose reported success but $CONTAINER_NAME does not exist"
+    infra_fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
 info "Container $CONTAINER_NAME started"
@@ -1894,14 +1807,7 @@ info "Container $CONTAINER_NAME started"
 # A first run extracts the ISO, injects drivers, and rebuilds the installer
 # image — several minutes on slower disks — so poll long (up to 15 min) and
 # distinguish "QEMU never started" from a real acceleration failure.
-qemu_argv_sample() { $DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true; }
-QEMU_CMD=""
-for _ in $(seq 1 300); do
-    QEMU_CMD=$(qemu_argv_sample)
-    [ -n "$QEMU_CMD" ] && break
-    sleep 3
-done
-if [ -z "$QEMU_CMD" ]; then
+if ! QEMU_CMD=$(wootc_vm_wait_argv 900 started); then
     fail "QEMU did not start within 15 minutes (Dockur still preparing the image, or it crashed)"
     capture_vm_diagnostics
     exit 1
@@ -1917,22 +1823,11 @@ fi
 # /storage2/data2.qcow2), so a short read fails them all spuriously.
 # Re-sample until the argv shows acceleration, and only call it a real failure
 # once the process has had time to finish exec'ing.
-QEMU_ARGV_DEADLINE=$(deadline_in 60)
-until [[ ( "$QEMU_CMD" == *"-accel=kvm"* || "$QEMU_CMD" == *"accel=kvm"* ) && "$QEMU_CMD" == *"-enable-kvm"* ]]; do
-    if past_deadline "$QEMU_ARGV_DEADLINE"; then
-        fail "QEMU is not using KVM acceleration"
-        info "settled QEMU argv: ${QEMU_CMD:-<qemu no longer running>}"
-        capture_vm_diagnostics
-        exit 1
-    fi
-    sleep 2
-    NEXT_QEMU_CMD=$(qemu_argv_sample)
-    # An empty sample means QEMU exited; keep the last good line for the
-    # verdict rather than reporting an empty command line.
-    if [ -n "$NEXT_QEMU_CMD" ]; then
-        QEMU_CMD="$NEXT_QEMU_CMD"
-    fi
-done
+if ! QEMU_CMD=$(wootc_vm_wait_argv 60 accelerated "$QEMU_CMD"); then
+    fail "QEMU is not using KVM acceleration"
+    capture_vm_diagnostics
+    exit 1
+fi
 QEMU_RAM_MB=$(awk '{
     for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+[MG]$/) {
         value = $(i + 1)
