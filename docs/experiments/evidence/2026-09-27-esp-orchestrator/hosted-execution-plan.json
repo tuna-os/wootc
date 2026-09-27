@@ -1,0 +1,117 @@
+{
+  "baselineProducer": {
+    "baselineAcquisitionAuthorized": false,
+    "currentRecipeOnly": true,
+    "existingRetainedFixtureEligible": false,
+    "matchingTpmLauncherImplemented": false,
+    "noTpmLauncherCountsAsMatchingTpmProof": false,
+    "owner": "Windows OEM layer",
+    "recipe": "windows-baseline-plan.json",
+    "requiredObservations": [
+      "fresh Windows_NT and Professional client build",
+      "system/host volumes FullyDecrypted Off0",
+      "actual GPT partition GUIDs and full64-bit NTFS identity",
+      "successful absence enumeration of all product arms/installation/root.disk",
+      "actual SecureBoot and original firmware variables",
+      "coherent stopped disk+TPM+NVRAM+UUID export",
+      "separate disposable clone re-observation"
+    ],
+    "requiresNewUuidAndPrivateDiskTpmNvram": true
+  },
+  "classicOsBootAcceptance": false,
+  "controlledStages": [
+    {
+      "required": "root review of exact offline consumer, producer integration and countercontrols; fresh hosted normal CI on frozen source head",
+      "stage": "source review"
+    },
+    {
+      "required": "measure actual KVM API/resources/tools and pin closure; reject missing or unknown facts before acquisition",
+      "stage": "host qualification"
+    },
+    {
+      "required": "complete QGA-only Windows source/bootstrap/probe and matchingTPM/NVRAM launcher, then independent source review",
+      "stage": "new baseline code closure"
+    },
+    {
+      "required": "separate authorization; normal authenticated repository metadata SHA256 pins; preserve originals and all failure evidence",
+      "stage": "small package acquisition"
+    },
+    {
+      "required": "separate authorization after qualified host/baseline producer closure; published cloudSHA512 plus localSHA256 and standalone qcow2 metadata",
+      "stage": "cloud and media acquisition"
+    },
+    {
+      "required": "fresh exclusive scratchUUID; every input frozen; exact actual dpkg inventory; local-only apt; allowlisted scratch removals; exact after inventory; no modified retained source",
+      "stage": "offline producer"
+    },
+    {
+      "required": "actual currentBootCurrent/loop/NTFS/ESP and authenticated old source/trio; currentBoot efivars/runtimeSBAT; expected oldshim policy is not an observation",
+      "stage": "first Linux approval"
+    },
+    {
+      "required": "new real signed bytes, immutable complete old archive, fresh sourceVersion/receipt, actual differentBootIds, stable trust and exact approvedSBAT transition",
+      "stage": "upgrade and reboot"
+    },
+    {
+      "required": "fresh transport sequence and challenge after last actual LinuxBootId; actual selected NTFS volume, UUID and decryption facts",
+      "stage": "Windows return"
+    },
+    {
+      "required": "separate Ubuntu/RPM/bootc cases and crash recovery; no Debian-only full333 closure",
+      "stage": "provider acceptance"
+    }
+  ],
+  "executionAuthorized": false,
+  "firmwareAcceptance": false,
+  "hostQualification": {
+    "mustPinObservedClosure": [
+      "QEMU binary and package version",
+      "SMM-required OVMF code and upstream contract",
+      "original NVRAM and measured variable export",
+      "libguestfs appliance and tool/package hashes",
+      "TPM backend/state version and export protocol"
+    ],
+    "proposedRunner": "GitHub hosted ubuntu-24.04, dedicated fresh workflow",
+    "requireObserved": {
+      "dynamicStorageFormula": "max(20GiB,WindowsQcowSourceBytes+cloudQcowSourceBytes+2*observedCloudVirtualBytes+12GiBreserve+allFrozenSupportBytes)",
+      "freeStoragePlanningBytesAtLeast": 68719476736,
+      "kvmOpenReadWriteAndApiVersion": 12,
+      "logicalCpusAtLeast": 4,
+      "memAvailableBytesAtLeast": 11811160064
+    },
+    "runnerFactsObserved": false,
+    "toolInstallAuthorized": false,
+    "tools": [
+      "qemu-system-x86_64",
+      "qemu-img",
+      "virt-customize",
+      "guestfish",
+      "Python guestfs module",
+      "swtpm",
+      "swtpm_setup",
+      "gpgv",
+      "apt-get"
+    ]
+  },
+  "localIneligibilityIsNotGlobalBlock": true,
+  "schemaVersion": 1,
+  "scope": "source-only plan for a fresh owned hosted case; no workflow dispatch, packages, media, OS images or VM acquisition",
+  "sourcePrerequisites": {
+    "archiveAcquireAuthorized": false,
+    "beforeInventoryPackagePins": 322,
+    "guestPackageInstallObserved": false,
+    "metadataRecord": "authenticated-dependencies/authenticated-dependency-plan.json",
+    "newBundlePins": 20,
+    "offlinePackageConsumer": "tests/e2e/esp-chain/package-consumer.py",
+    "oldBundlePins": 24,
+    "ubuntuAndRpmPrerequisiteContractsReady": false
+  },
+  "unperformed": [
+    "hosted qualification job",
+    "baseline code/runtime closure",
+    "package/media/cloud acquisition",
+    "offline guest package consumer execution",
+    "actual classic OS boot",
+    "firmware transaction acceptance"
+  ]
+}

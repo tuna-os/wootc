@@ -11,6 +11,16 @@ It must also name the OS, verifier files, and a free space floor of 20 GiB.
 The code copies each input to a new private file before it uses the input.
 A source change makes the code stop.
 
+The Debian case needs all 24 old and 20 new package files from the signed
+index plan. The code checks their hashes and package fields, then copies
+them to a private folder. It checks the list of all current packages before
+any install. Apt uses only local files, with no download or source list.
+
+The old install may remove only the two packages for initramfs in that
+plan. The new install must remove none. The code checks the full package
+list again after the install. RPM and Ubuntu package sets still need their
+own complete plan from a signed index.
+
 The image must not use an external disk or data file.
 The space check uses the real virtual size, source sizes, and a reserve.
 The 20 GiB floor alone does not prove enough space.

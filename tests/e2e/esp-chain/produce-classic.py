@@ -20,6 +20,20 @@ sys.path.insert(0, str(ROOT/'payload/migration/lib'))
 from wootc_chain_verify import FILES, verify_transition, Verifier, checked_database, efi_variable, DB_GUID, SHIM_GUID, GLOBAL
 from wootc_pe import PE, X509
 provision = runpy.run_path(str(Path(__file__).with_name('scratch.py')))['provision']
+package_policy = runpy.run_path(str(Path(__file__).with_name('package-policy.py')))
+
+
+def offline_policy(config, scratch_id, source_path=None):
+    if config['osId'] != 'debian':
+        raise ValueError('authenticated offline prerequisite closure for this classic OS is still missing')
+    source = json.loads((package_policy['PLAN'] if source_path is None else source_path).read_text())
+    policy = package_policy['build_policy'](source, scratch_id)
+    for phase, key in (('old', 'oldPackages'), ('new', 'newPackages')):
+        wanted = {entry['name']: entry['sha256'] for entry in policy['phases'][phase]['packages']}
+        supplied = {Path(entry['path']).name: entry['sha256'] for entry in config[key]}
+        if supplied != wanted or len(supplied) != len(config[key]):
+            raise ValueError('complete authenticated '+phase+' offline package bundle required')
+    return policy
 
 
 def sha(path):
@@ -90,6 +104,7 @@ def checked_inputs(config):
         raise ValueError('actual baseline firmware is not Secure Boot outside SetupMode')
     if config['minimumFreeBytes'] < 20*1024**3:
         raise ValueError('producer space floor must be at least 20GiB')
+    offline_policy(config, '0'*32)
     return closure, variables
 
 
@@ -176,6 +191,7 @@ def guest_open(module, path, readonly=False):
 
 def produce(parent, config, run=subprocess.run):
     source_pins = {p: sha(p) for directory in (ROOT/'payload/migration', ROOT/'platform/dracut/99wootc-boot', Path(__file__).parent) for p in directory.rglob('*') if p.is_file() and p.suffix != '.pyc' and '__pycache__' not in p.parts}
+    source_pins[package_policy['PLAN']] = sha(package_policy['PLAN'])
     closure, variables = checked_inputs(config)  # Refuse malformed sources before any write.
     for executable in ('qemu-img', 'virt-customize'):
         if not shutil.which(executable):
@@ -251,21 +267,24 @@ def produce(parent, config, run=subprocess.run):
     for path in closure.iterdir():
         if path.is_file():
             uploads[path] = '/var/usrlocal/lib/wootc/sbverify/'+path.name
-    for name in ('capture.py', 'upgrade-classic.py', 'stage-classic-source.py'):
+    for name in ('capture.py', 'upgrade-classic.py', 'stage-classic-source.py', 'package-consumer.py'):
         uploads[Path(__file__).with_name(name)] = '/var/usrlocal/lib/wootc-qa/'+name
     for entry in config['oldPackages']+config['newPackages']:
         uploads[Path(entry['path'])] = '/var/lib/wootc/qa-upgrade/'+Path(entry['path']).name
-    manager = 'dpkg' if config['osId'] in ('debian', 'ubuntu') else 'rpm'
+    policy = offline_policy(config, record['scratchId'], frozen_sources[package_policy['PLAN']])
     package_record = folder/'packages.json'
-    package_record.write_text(json.dumps({'manager': manager, 'newPackages': {Path(e['path']).name: e['sha256'] for e in config['newPackages']}}))
+    package_record.write_text(json.dumps(policy, sort_keys=True)+'\n')
     uploads[package_record] = '/var/lib/wootc/qa-upgrade/packages.json'
+    ownership_record = folder/'package-ownership.json'
+    ownership_record.write_text(json.dumps({'scope': 'exclusive-classic-qa-root', 'scratchId': record['scratchId'],
+                                           'policySha256': sha(package_record)})+'\n')
+    uploads[ownership_record] = '/var/lib/wootc/qa-upgrade/ownership.json'
     prepare = folder/'prepare-classic.sh'
-    old_names = [shlex.quote('/var/lib/wootc/qa-upgrade/'+Path(e['path']).name) for e in config['oldPackages']]
-    prerequisites = ('apt-get update\nDEBIAN_FRONTEND=noninteractive apt-get install -y dracut ntfs-3g qemu-guest-agent python3 efibootmgr' if manager == 'dpkg' else 'dnf install -y dracut ntfs-3g qemu-guest-agent python3 efibootmgr')
-    install = ('dpkg --install ' if manager == 'dpkg' else 'dnf --assumeyes --allowerasing install ')+ ' '.join(old_names)
     prepare.write_text('''#!/bin/bash
 set -Eeuo pipefail
-'''+prerequisites+'\n'+install+'''
+chmod 0755 /var/lib/wootc/qa-upgrade
+chmod 0644 /var/lib/wootc/qa-upgrade/packages.json /var/lib/wootc/qa-upgrade/ownership.json
+python3 /var/usrlocal/lib/wootc-qa/package-consumer.py old
 chmod 0755 /var/usrlocal/bin/wootc-esp-* /var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2 /var/usrlocal/lib/wootc/sbverify/sbverify /var/usrlocal/lib/wootc/sbverify/sbpehash
 python3 /var/usrlocal/lib/wootc-qa/stage-classic-source.py
 kernel=$(find /boot -maxdepth 1 -name 'vmlinuz-*' -type f | sort -V | tail -1)
@@ -430,7 +449,7 @@ systemctl enable qemu-guest-agent.service wootc-host-bind.service wootc-esp-sync
     if any(sha(path) != uploaded_hashes[destination] for path, destination in uploads.items()):
         raise ValueError('host source changed during producer')
     helpers_linux = {destination: uploaded_hashes[destination] for path, destination in uploads.items()
-                     if destination.startswith('/var/usrlocal/')}
+                     if destination.startswith(('/var/usrlocal/', '/var/lib/wootc/qa-upgrade/'))}
     plan = {'schemaVersion': 1, 'scratchId': record['scratchId'], 'vmUuid': record['vmUuid'],
             'firmwareTrustHashes': {n: sha(variables/(n+'-'+g)) if (variables/(n+'-'+g)).exists() else None for n, g in [('SecureBoot', GLOBAL), ('SetupMode', GLOBAL), ('db', DB_GUID), ('dbx', DB_GUID), ('SbatLevelRT', SHIM_GUID), ('MokListXRT', SHIM_GUID)]},
             'sbatTransition': transition, 'oldHashes': old_hashes, 'newHashes': {n: sha(new/n) for n in FILES},

@@ -87,12 +87,17 @@ class ProducerTests(unittest.TestCase):
 
     def test_package_mutation_refuses_before_guest_upgrade(self):
         upgrade = runpy.run_path(str(ROOT/'tests/e2e/esp-chain/upgrade-classic.py'))['upgrade']
-        import json
-        (self.root/'packages.json').write_text(json.dumps({'manager': 'dpkg', 'newPackages': {'new.deb': '0'*64}}))
-        calls = []
-        with self.assertRaisesRegex(ValueError, 'package hash differs'):
-            upgrade(self.root, run=lambda *a, **k: calls.append(a))
-        self.assertEqual(calls, [])
+        fixture = runpy.run_path(str(ROOT/'tests/unit/test_wootc_package_consumer.py'))['PackageConsumerTests']()
+        fixture.setUp()
+        try:
+            fixture.policy['phases']['new'] = copy.deepcopy(fixture.policy['phases']['old'])
+            fixture.save_policy(); fixture.archive.write_bytes(b'changed after staging')
+            with self.assertRaisesRegex(ValueError, 'package hash differs'):
+                upgrade(fixture.folder, run=fixture.run_command)
+            self.assertFalse(fixture.applied)
+            self.assertTrue(all(argv[0] == '/usr/bin/dpkg-query' for argv, _ in fixture.calls))
+        finally:
+            fixture.tearDown()
 
     def metadata(self, changes=None, mutate=False):
         calls = []
@@ -150,6 +155,37 @@ class ProducerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'capacity is unknown'):
                     MODULE['guest_free_bytes'](SimpleNamespace(statvfs=lambda path: fields))
         self.assertEqual(MODULE['guest_free_bytes'](SimpleNamespace(statvfs=lambda path: {'frsize':4096,'bavail':100})),409600)
+
+    def authenticated_bundle_config(self):
+        helper = MODULE['package_policy']
+        policy = helper['build_policy'](json.loads(helper['PLAN'].read_text()), 'a'*32)
+        config = {'osId': 'debian'}
+        for phase, key in (('old', 'oldPackages'), ('new', 'newPackages')):
+            config[key] = [{'path': str(self.root/e['name']), 'sha256': e['sha256']} for e in policy['phases'][phase]['packages']]
+        return config
+
+    def test_exact_authenticated_old_and_new_bundle_contract(self):
+        config = self.authenticated_bundle_config()
+        policy = MODULE['offline_policy'](config, 'a'*32)
+        self.assertEqual(len(policy['phases']['old']['packages']), 24)
+        self.assertEqual(len(policy['phases']['new']['packages']), 20)
+        self.assertEqual(len(policy['phases']['old']['beforeInventory']), 322)
+        self.assertEqual(policy['phases']['new']['beforeInventory'], policy['phases']['old']['afterInventory'])
+        self.assertEqual(set(policy['phases']['old']['allowedRemovals']), {'initramfs-tools', 'cloud-initramfs-growroot'})
+
+    def test_incomplete_or_changed_authenticated_bundle_refuses(self):
+        for mutation in ('missing', 'changed', 'duplicate'):
+            config = self.authenticated_bundle_config()
+            if mutation == 'missing': config['oldPackages'].pop()
+            elif mutation == 'changed': config['newPackages'][0]['sha256'] = '0'*64
+            else: config['newPackages'].append(config['newPackages'][0])
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(ValueError, 'complete authenticated'):
+                MODULE['offline_policy'](config, 'a'*32)
+
+    def test_rpm_missing_prerequisite_closure_has_no_network_fallback(self):
+        config = self.authenticated_bundle_config(); config['osId'] = 'fedora'
+        with self.assertRaisesRegex(ValueError, 'offline prerequisite closure'):
+            MODULE['offline_policy'](config, 'a'*32)
 
 
 if __name__ == '__main__':

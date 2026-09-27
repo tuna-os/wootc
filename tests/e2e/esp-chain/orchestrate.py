@@ -172,8 +172,19 @@ def expected_helpers(kind, plan):
                 for name in ('capture-windows.ps1', 'arm-classic.ps1')}
     paths = {ROOT/'payload/migration'/name: '/var/usrlocal/bin/'+name for name in ('wootc-esp-control', 'wootc-esp-sync')}
     paths.update({p: '/var/usrlocal/lib/wootc/'+p.name for p in (ROOT/'payload/migration/lib').glob('wootc_*.py')})
-    paths.update({Path(__file__).with_name(n): '/var/usrlocal/lib/wootc-qa/'+n for n in ('capture.py', 'upgrade-classic.py', 'stage-classic-source.py')})
+    paths.update({Path(__file__).with_name(n): '/var/usrlocal/lib/wootc-qa/'+n for n in ('capture.py', 'upgrade-classic.py', 'stage-classic-source.py', 'package-consumer.py')})
     hashes = {destination: hashlib.sha256(path.read_bytes()).hexdigest() for path, destination in paths.items()}
+    if plan['identity']['deploymentKind'] == 'classic':
+        policy_module = runpy.run_path(str(Path(__file__).with_name('package-policy.py')))
+        policy = policy_module['build_policy'](json.loads(policy_module['PLAN'].read_text()), plan['scratchId'])
+        policy_bytes = (json.dumps(policy, sort_keys=True)+'\n').encode()
+        policy_hash = hashlib.sha256(policy_bytes).hexdigest()
+        hashes['/var/lib/wootc/qa-upgrade/packages.json'] = policy_hash
+        owner = {'scope': 'exclusive-classic-qa-root', 'scratchId': plan['scratchId'], 'policySha256': policy_hash}
+        hashes['/var/lib/wootc/qa-upgrade/ownership.json'] = hashlib.sha256((json.dumps(owner)+'\n').encode()).hexdigest()
+        for phase in policy['phases'].values():
+            for entry in phase['packages']:
+                hashes['/var/lib/wootc/qa-upgrade/'+entry['name']] = entry['sha256']
     pins = json.loads((ROOT/'docs/experiments/evidence/2026-09-27-classic-versioned-rpm/provenance.json').read_text())['verifierClosureHashes']
     hashes.update({'/var/usrlocal/lib/wootc/sbverify/'+n: value for n, value in pins.items()})
     return hashes
