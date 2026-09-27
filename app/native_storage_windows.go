@@ -44,16 +44,17 @@ func (b *boundedNativeOutput) Write(p []byte) (int, error) {
 }
 
 type nativeStorageObservationFailure struct {
-	ExitCode                                        int
-	Stdout, Stderr                                  []byte
-	Phase, AuditStage, ContextState                 string
-	CommandAttempted, CommandStarted, WaitCompleted bool
-	CommandPID                                      int
-	DeadlineExceeded                                bool
-	AuditMilliseconds, CommandMilliseconds          int64
-	CallPhase                                       string
-	CallMilliseconds                                int64
-	PhaseTimings                                    map[string]int64
+	PreparedParentExited, PreparedJobDrained, PreparedStreamsDrained, PreparedForcedCleanup bool
+	ExitCode                                                                                int
+	Stdout, Stderr                                                                          []byte
+	Phase, AuditStage, ContextState                                                         string
+	CommandAttempted, CommandStarted, WaitCompleted                                         bool
+	CommandPID                                                                              int
+	DeadlineExceeded                                                                        bool
+	AuditMilliseconds, CommandMilliseconds                                                  int64
+	CallPhase                                                                               string
+	CallMilliseconds                                                                        int64
+	PhaseTimings                                                                            map[string]int64
 }
 
 func (e *nativeStorageObservationFailure) Error() string {
@@ -101,29 +102,54 @@ func storageQueryExitCode(command *exec.Cmd) int {
 }
 
 func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
-	started := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	command, auditMilliseconds, err := prepareNativeStorageCommand(ctx)
+	if err != nil {
+		return nil, err
+	}
+	output := &boundedNativeOutput{}
+	command.Stdout = output
+	stderr := &boundedNativeOutput{}
+	command.Stderr = stderr
+
+	commandStarted := time.Now()
+	failure := func() *nativeStorageObservationFailure {
+		return &nativeStorageObservationFailure{ExitCode: storageQueryExitCode(command), Stdout: append([]byte(nil), output.Bytes()...), Stderr: append([]byte(nil), stderr.Bytes()...), Phase: nativeStoragePhase(stderr.Bytes()), AuditStage: "complete", ContextState: nativeStorageContextState(ctx), CommandAttempted: true, CommandStarted: command.Process != nil, WaitCompleted: command.ProcessState != nil, CommandPID: storageQueryPID(command), DeadlineExceeded: ctx.Err() == context.DeadlineExceeded, AuditMilliseconds: auditMilliseconds, CommandMilliseconds: time.Since(commandStarted).Milliseconds()}
+	}
+	// Only the fixed error class reaches the caller; no arbitrary stderr text.
+	if err := command.Run(); err != nil {
+		return nil, failure()
+	}
+	rows, err := decodeNativeStorageRows(output.Bytes())
+	if err != nil {
+		return nil, failure()
+	}
+	return rows, nil
+}
+
+func prepareNativeStorageCommand(ctx context.Context) (*exec.Cmd, int64, error) {
+	started := time.Now()
 	auditStage := "kernel-directories"
 	auditFailure := func() error {
 		return &nativeStorageObservationFailure{ExitCode: -1, Phase: "no-child-phase-observed", AuditStage: auditStage, ContextState: nativeStorageContextState(ctx), DeadlineExceeded: ctx.Err() == context.DeadlineExceeded, AuditMilliseconds: time.Since(started).Milliseconds()}
 	}
 	systemDirectory, err := windows.GetSystemDirectory()
 	if err != nil {
-		return nil, auditFailure()
+		return nil, 0, auditFailure()
 	}
 	windowsDirectory, err := windows.GetWindowsDirectory()
 	if err != nil {
-		return nil, auditFailure()
+		return nil, 0, auditFailure()
 	}
 	if !strings.EqualFold(filepath.Clean(systemDirectory), filepath.Join(windowsDirectory, "System32")) {
-		return nil, auditFailure()
+		return nil, 0, auditFailure()
 	}
 	// The protected Storage manifest resolves this assembly through windir.
 	// Bind both environment spellings to the kernel-observed Windows directory.
 	auditStage = "storage-assembly"
 	if err := auditNativePackagePath(filepath.Join(systemDirectory, "Microsoft.Windows.Storage.Core.dll")); err != nil {
-		return nil, auditFailure()
+		return nil, 0, auditFailure()
 	}
 	shellDirectory := filepath.Join(systemDirectory, "WindowsPowerShell", "v1.0")
 	shellPath := filepath.Join(shellDirectory, "powershell.exe")
@@ -133,31 +159,30 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	for _, name := range []string{"Microsoft.Management.Infrastructure", "Microsoft.Management.Infrastructure.CimCmdlets"} {
 		assembly := filepath.Join(windowsDirectory, "Microsoft.NET", "assembly", "GAC_MSIL", name, "v4.0_1.0.0.0__31bf3856ad364e35", name+".dll")
 		if err := auditNativePackagePath(assembly); err != nil {
-			return nil, auditFailure()
+			return nil, 0, auditFailure()
 		}
 	}
 	// Apply the current protected-path policy, including all ancestors.
 	// This observation does not repair ACLs or create state.
 	auditStage = "interpreter"
 	if err := auditNativePackagePath(shellPath); err != nil {
-		return nil, auditFailure()
+		return nil, 0, auditFailure()
 	}
 	for _, name := range []string{"Storage", "BitLocker", "Microsoft.PowerShell.Utility", "CimCmdlets"} {
 		auditStage = map[string]string{"Storage": "storage-module", "BitLocker": "bitlocker-module", "Microsoft.PowerShell.Utility": "utility-module", "CimCmdlets": "cim-module"}[name]
 		module := filepath.Join(shellDirectory, "Modules", name)
 		if err := auditNativePackagePath(module); err != nil {
-			return nil, auditFailure()
+			return nil, 0, auditFailure()
 		}
 		if err := auditNativeStatusTree(ctx, module, 512, func(path string) error { return inspectStateObject(path, false) }); err != nil {
-			return nil, auditFailure()
+			return nil, 0, auditFailure()
 		}
 	}
-	auditStage = "complete"
 	command := exec.CommandContext(ctx, shellPath, "-NoProfile", "-NonInteractive", "-Command", nativeStorageQuery)
 	environment := make([]string, 0, len(os.Environ())+2)
 	for _, variable := range os.Environ() {
 		key, _, _ := strings.Cut(variable, "=")
-		if !strings.EqualFold(key, "PSModulePath") && !strings.EqualFold(key, "PSModuleAnalysisCachePath") && !strings.EqualFold(key, "PATH") && !strings.EqualFold(key, "windir") && !strings.EqualFold(key, "SystemRoot") {
+		if !strings.EqualFold(key, "PSModulePath") && !strings.EqualFold(key, "PSModuleAnalysisCachePath") && !strings.EqualFold(key, "PATH") && !strings.EqualFold(key, "windir") && !strings.EqualFold(key, "SystemRoot") && !strings.EqualFold(key, "WOOTC_NATIVE_STORAGE_SESSION") {
 			environment = append(environment, variable)
 		}
 	}
@@ -165,22 +190,13 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	command.Dir = shellDirectory
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	command.WaitDelay = time.Second
-	output := &boundedNativeOutput{}
-	command.Stdout = output
-	stderr := &boundedNativeOutput{}
-	command.Stderr = stderr
-	auditMilliseconds := time.Since(started).Milliseconds()
-	commandStarted := time.Now()
-	failure := func() *nativeStorageObservationFailure {
-		return &nativeStorageObservationFailure{ExitCode: storageQueryExitCode(command), Stdout: append([]byte(nil), output.Bytes()...), Stderr: append([]byte(nil), stderr.Bytes()...), Phase: nativeStoragePhase(stderr.Bytes()), AuditStage: auditStage, ContextState: nativeStorageContextState(ctx), CommandAttempted: true, CommandStarted: command.Process != nil, WaitCompleted: command.ProcessState != nil, CommandPID: storageQueryPID(command), DeadlineExceeded: ctx.Err() == context.DeadlineExceeded, AuditMilliseconds: auditMilliseconds, CommandMilliseconds: time.Since(commandStarted).Milliseconds()}
-	}
-	// Only the fixed error class reaches the caller; no arbitrary stderr text.
-	if err := command.Run(); err != nil {
-		return nil, failure()
-	}
+	return command, time.Since(started).Milliseconds(), nil
+}
+
+func decodeNativeStorageRows(data []byte) ([]nativeStorageRow, error) {
 	var raw []json.RawMessage
-	if err := json.Unmarshal(output.Bytes(), &raw); err != nil || raw == nil || len(raw) > 26 {
-		return nil, failure()
+	if err := json.Unmarshal(data, &raw); err != nil || raw == nil || len(raw) > 26 {
+		return nil, fmt.Errorf("storage rows refused")
 	}
 	rows := make([]nativeStorageRow, 0, len(raw))
 	seen := map[string]bool{}
@@ -246,8 +262,23 @@ func observeNativeNtfsSerial(letter string) (string, error) {
 func observeNativeStorage(ctx context.Context, between func() error) ([]NativeConfigurationStorage, error) {
 	return observeNativeStorageTimed(ctx, between, nil)
 }
-func observeNativeStorageTimed(ctx context.Context, between func() error, mark func(string)) ([]NativeConfigurationStorage, error) {
-	return observeNativeStorageWithTiming(ctx, between, queryNativeStorage, observeNativeNtfsSerial, func(letter string) (uint64, uint64, error) {
+func observeNativeStorageTimed(ctx context.Context, between func() error, mark func(string)) (result []NativeConfigurationStorage, resultErr error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if mark != nil {
+		mark("storage-first-query")
+	}
+	session, err := startNativeStorageSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := session.close(true); closeErr != nil && resultErr == nil {
+			result = nil
+			resultErr = session.failure()
+		}
+	}()
+	return observeNativeStorageWithTiming(ctx, between, session.query, observeNativeNtfsSerial, func(letter string) (uint64, uint64, error) {
 		path, _ := windows.UTF16PtrFromString(letter + `:\`)
 		var available, total uint64
 		err := windows.GetDiskFreeSpaceEx(path, &available, &total, nil)

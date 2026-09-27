@@ -20,11 +20,6 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        if (observeFixtureInput)
-        {
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(LinuxPassword,"InputChangeSequence:0");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(LinuxPasswordConfirmation,"InputChangeSequence:0");
-        }
         // Local branding is available before any elevation or engine connection.
         string path = Path.Combine(AppContext.BaseDirectory, "Branding", "brand.json");
         var brand = JsonSerializer.Deserialize<Branding>(File.ReadAllText(path))

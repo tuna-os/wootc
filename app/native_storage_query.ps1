@@ -1,5 +1,7 @@
+$clock = [System.Diagnostics.Stopwatch]::StartNew()
 $stage = 'load-cim-assemblies'
 [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
 try {
 $WarningPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
@@ -12,30 +14,48 @@ foreach ($assemblyName in @('Microsoft.Management.Infrastructure', 'Microsoft.Ma
 }
 $stage = 'import-utility'
 [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
 Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop
 $stage = 'import-cim'
 [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
 Import-Module -Name "$PSHOME\Modules\CimCmdlets\CimCmdlets.psd1" -ErrorAction Stop
 $stage = 'import-storage'
 [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
 Import-Module -Name "$PSHOME\Modules\Storage\Storage.psd1" -ErrorAction Stop
 $stage = 'import-bitlocker'
 [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
 Import-Module -Name "$PSHOME\Modules\BitLocker\BitLocker.psd1" -ErrorAction Stop
 $ErrorActionPreference = 'Stop'
+$nonce = [string]$env:WOOTC_NATIVE_STORAGE_SESSION
+$paired = -not [string]::IsNullOrEmpty($nonce)
+if ($paired -and $nonce -cnotmatch '^[0-9a-f]{32}$') { throw 'Storage session refused' }
+$count = 1
+if ($paired) { $count = 2 }
+for ($sequence = 1; $sequence -le $count; $sequence++) {
+    if ($paired) {
+        $request = [Console]::In.ReadLine()
+        $expected = "$nonce|$sequence"
+        if ($request -cne $expected) { throw 'Storage snapshot request refused' }
+    }
 $rows = @()
 $stage = 'read-volumes'
 [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
 $volumes = @(Storage\Get-Volume -ErrorAction Stop | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter -and $_.FileSystem -eq 'NTFS' })
 foreach ($volume in $volumes) {
     $drive = [string]$volume.DriveLetter
     $stage = 'read-partition'
     [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
     $parts = @(Storage\Get-Partition -DriveLetter $drive -ErrorAction Stop)
     if ($parts.Count -ne 1) { throw 'Storage partition observation refused' }
     $part = $parts[0]
     $stage = 'read-disk'
     [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
     $disks = @(Storage\Get-Disk -Number $part.DiskNumber -ErrorAction Stop)
     if ($disks.Count -ne 1) { throw 'Storage disk observation refused' }
     $disk = $disks[0]
@@ -43,6 +63,7 @@ foreach ($volume in $volumes) {
     $mount = "$drive`:"
     $stage = 'read-protection'
     [Console]::Error.WriteLine("storage-phase|$stage")
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
     $protection = @(BitLocker\Get-BitLockerVolume -MountPoint $mount -ErrorAction Stop)
     if ($protection.Count -ne 1) { throw 'Storage protection observation refused' }
     $state = $protection[0]
@@ -51,7 +72,16 @@ foreach ($volume in $volumes) {
 }
 $stage = 'serialize'
 [Console]::Error.WriteLine("storage-phase|$stage")
-Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Depth 3
+[Console]::Error.WriteLine("storage-cost|$stage|$($clock.ElapsedMilliseconds)")
+if ($paired) {
+    $frame = [pscustomobject]@{ schemaVersion=1; nonce=$nonce; sequence=$sequence; pid=$PID; rows=@($rows) }
+    $json = Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject $frame -Compress -Depth 4
+    [Console]::Out.WriteLine($json)
+    [Console]::Out.Flush()
+} else {
+    Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Depth 3
+}
+}
 } catch {
     $exception = $_.Exception
     $category = [int]$_.CategoryInfo.Category

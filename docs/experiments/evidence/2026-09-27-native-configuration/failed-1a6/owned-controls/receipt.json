@@ -1,0 +1,534 @@
+{
+  "schemaVersion": 1,
+  "runId": "36344171677",
+  "runAttempt": "1",
+  "testedHead": "f6be21c25d28f5a42d083f7e34a315499a238b1f",
+  "scope": "Actual Windows CLR matching local-pipe configuration request ID, removed post-flush callback refusal and exact restoration; no installed GUI/install journey claim.",
+  "gitSources": {
+    "shell/Wootc.Shell.Native/NativeEngineSession.cs": "4e5b06289e5f6dd00d2021eac3d4a50f1b056ff1687db47dba4a228a742b7782",
+    "shell/Wootc.Shell.Native/NativeDiagnosticState.cs": "d9698bdc48c53205412c8f8f8081fae607d668d372bfeae0e775d4ac6d304ab0",
+    "shell/Wootc.Shell.Native/StorageObservationFailure.cs": "8ec7f214ab2402be9b74ce437cc01b41d20b9a9e78452c9e5231fac60febf327",
+    "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs": "b398580f4d96d89a68df1f97ee91d8d9cea27d7f4a7f34d6eca0daca9a1bacf8",
+    "shell/Wootc.Shell.NativeTests/TransportTests.cs": "2271746492ff289e9e898f52545e12c9ab026f2d32bb2cdd844aff90b182ed6d",
+    "shell/Wootc.Shell.Core/StartupController.cs": "ec1486de76ec6affc25478c39c4232a35c18131c3ecfd160ade6d3761bb7a782",
+    "shell/Wootc.Shell/MainWindow.xaml.cs": "d54eaafecd3ba7bda1433d83138a111c038f09317a2a6058d46307f1c08bdadc",
+    "shell/global.json": "4e7d5022b2a5a8d02bb951bb264a4c8613eabc332572a0af5f9743d23f23d84e",
+    "tests/native_configuration_flush_controls.py": "5d0a28f17b21db8b466f083b78fd72cc4614ac14ba2cdbbc32740968c63d432c",
+    "tests/windows_owned_process.py": "3348422332db561d08efb10b59466eda449f98f33cceafa661002fc25b6c9119",
+    ".github/workflows/winui-preview.yml": "81d26ea165657af4455b28dc31e9eeb2d13832c07245efd777c3491ed7196e93"
+  },
+  "checkoutSources": {
+    "shell/Wootc.Shell.Native/NativeEngineSession.cs": "3f9d983d8ae5440d6ea7617ab55435866b6e1fab589b46eb8688e0b8921ea1c5",
+    "shell/Wootc.Shell.Native/NativeDiagnosticState.cs": "1cdb921f3930fe28475f52b75df69b4ca7d01474a09a4092b65b51e0c5f0957a",
+    "shell/Wootc.Shell.Native/StorageObservationFailure.cs": "fdb28761348d43e2a4afe45a849be88b74afdfb4116587f9a4fd9cef49c11a08",
+    "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs": "81c177cb72a6013f738833dff5575c9c33142eb8e26c26a533738b10819fde86",
+    "shell/Wootc.Shell.NativeTests/TransportTests.cs": "f0fdf895bad525a4d992bfd8a7b9c69e259db296db7327744fa33e0fe70f0c95",
+    "shell/Wootc.Shell.Core/StartupController.cs": "bf89c470f5094e7cb55f007d297011e06dc4084560040b831cde0e2433e6bdb4",
+    "shell/Wootc.Shell/MainWindow.xaml.cs": "064b64634c9c8b770a8d39e1f58c00f24437189de0df2c20a43052f80f715b7e",
+    "shell/global.json": "fa37ba52b1ace203d6c52a01d12bd83a19c4e9e513d4ff38280fd5e83a9415c2",
+    "tests/native_configuration_flush_controls.py": "9a0d6a05b4bc724b457957bc5c61e8fce6b13f9b4052d3151668c1f2e23cbffd",
+    "tests/windows_owned_process.py": "a79bd0c62a94c22f04a42d336d32b7fe5c06612eafd25b5da2968a94a99c5c55",
+    ".github/workflows/winui-preview.yml": "04de8e009e2fa5b525e66c0dae49d66bf9aa528f7a5b6b4f8047464a560aa158"
+  },
+  "outcomes": [
+    {
+      "name": "identity-head",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 9124,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 172
+      }
+    },
+    {
+      "name": "identity-source-0",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 7528,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 218
+      }
+    },
+    {
+      "name": "identity-source-1",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 5100,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 62
+      }
+    },
+    {
+      "name": "identity-source-2",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 4620,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 62
+      }
+    },
+    {
+      "name": "identity-source-3",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 2240,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 77
+      }
+    },
+    {
+      "name": "identity-source-4",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 5884,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 77
+      }
+    },
+    {
+      "name": "identity-source-5",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 1772,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 77
+      }
+    },
+    {
+      "name": "identity-source-6",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 6860,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 78
+      }
+    },
+    {
+      "name": "identity-source-7",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 2768,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 62
+      }
+    },
+    {
+      "name": "identity-source-8",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 5380,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 77
+      }
+    },
+    {
+      "name": "identity-source-9",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 5880,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 62
+      }
+    },
+    {
+      "name": "identity-source-10",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 3396,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 94
+      }
+    },
+    {
+      "name": "identity-dotnet-version",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 5540,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 217
+      }
+    },
+    {
+      "name": "owned-positive",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 6040,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 77
+      }
+    },
+    {
+      "name": "owned-deadline-tree",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": true,
+        "overflow": false,
+        "exitCode": 1,
+        "pid": 7072,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 3031
+      }
+    },
+    {
+      "name": "owned-output-bound",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": true,
+        "exitCode": 1,
+        "pid": 9004,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 62
+      }
+    },
+    {
+      "name": "positive",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 0,
+        "pid": 4020,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 10343
+      },
+      "tests": [
+        "Passed",
+        "Passed"
+      ]
+    },
+    {
+      "name": "removed-flush-observation",
+      "state": "observed",
+      "process": {
+        "started": true,
+        "assignedBeforeResume": true,
+        "parentExited": true,
+        "jobDrained": true,
+        "streamsDrained": true,
+        "timeout": false,
+        "overflow": false,
+        "exitCode": 1,
+        "pid": 7256,
+        "failureStage": null,
+        "win32Error": null,
+        "elapsedMilliseconds": 11531
+      },
+      "tests": [
+        "Failed",
+        "Passed"
+      ]
+    }
+  ],
+  "accepted": false,
+  "toolHashes": {
+    "dotnet": "ab1b71fd3dd71062e074c9fab8312081a81b7f2b3e0327c48c4d249c8d1a3135",
+    "python": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a",
+    "git": "78211c7ed73988da93a6d8a33d47ec6187f464d7ea2a9a00c182bbd7a1ecf30f"
+  },
+  "toolPaths": {
+    "dotnet": "C:\\Program Files\\dotnet\\dotnet.exe",
+    "python": "C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe",
+    "git": "C:\\Program Files\\Git\\bin\\git.exe"
+  },
+  "rawFiles": {
+    "identity-dotnet-version.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-dotnet-version.stdout.raw": {
+      "sha256": "3db6bca4b50618b2e0d2d55d23b3d0541fe039ab6f731df0e9c47317b400ce52",
+      "size": 10
+    },
+    "identity-head.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-head.stdout.raw": {
+      "sha256": "261958d432bff8d4eb466d34f2da47c2c7669d194a141358284ab5a75d7b7ec2",
+      "size": 41
+    },
+    "identity-source-0.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-0.stdout.raw": {
+      "sha256": "4e5b06289e5f6dd00d2021eac3d4a50f1b056ff1687db47dba4a228a742b7782",
+      "size": 9173
+    },
+    "identity-source-1.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-1.stdout.raw": {
+      "sha256": "d9698bdc48c53205412c8f8f8081fae607d668d372bfeae0e775d4ac6d304ab0",
+      "size": 2290
+    },
+    "identity-source-10.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-10.stdout.raw": {
+      "sha256": "81d26ea165657af4455b28dc31e9eeb2d13832c07245efd777c3491ed7196e93",
+      "size": 8439
+    },
+    "identity-source-2.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-2.stdout.raw": {
+      "sha256": "8ec7f214ab2402be9b74ce437cc01b41d20b9a9e78452c9e5231fac60febf327",
+      "size": 4549
+    },
+    "identity-source-3.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-3.stdout.raw": {
+      "sha256": "b398580f4d96d89a68df1f97ee91d8d9cea27d7f4a7f34d6eca0daca9a1bacf8",
+      "size": 5257
+    },
+    "identity-source-4.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-4.stdout.raw": {
+      "sha256": "2271746492ff289e9e898f52545e12c9ab026f2d32bb2cdd844aff90b182ed6d",
+      "size": 16192
+    },
+    "identity-source-5.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-5.stdout.raw": {
+      "sha256": "ec1486de76ec6affc25478c39c4232a35c18131c3ecfd160ade6d3761bb7a782",
+      "size": 6472
+    },
+    "identity-source-6.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-6.stdout.raw": {
+      "sha256": "d54eaafecd3ba7bda1433d83138a111c038f09317a2a6058d46307f1c08bdadc",
+      "size": 10535
+    },
+    "identity-source-7.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-7.stdout.raw": {
+      "sha256": "4e7d5022b2a5a8d02bb951bb264a4c8613eabc332572a0af5f9743d23f23d84e",
+      "size": 105
+    },
+    "identity-source-8.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-8.stdout.raw": {
+      "sha256": "5d0a28f17b21db8b466f083b78fd72cc4614ac14ba2cdbbc32740968c63d432c",
+      "size": 8140
+    },
+    "identity-source-9.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "identity-source-9.stdout.raw": {
+      "sha256": "3348422332db561d08efb10b59466eda449f98f33cceafa661002fc25b6c9119",
+      "size": 9858
+    },
+    "owned-deadline-tree.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "owned-deadline-tree.stdout.raw": {
+      "sha256": "f2b0bf2efef7bec44e92633eb0ff7ec0bcf5f2cdefd816b169cfd41d73cf7e55",
+      "size": 26
+    },
+    "owned-output-bound.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "owned-output-bound.stdout.raw": {
+      "sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+      "size": 65536
+    },
+    "owned-positive.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "owned-positive.stdout.raw": {
+      "sha256": "f37c50258d850584f873873dc1de506d8f8d5c24a5a79dcda65dd805c6282ac3",
+      "size": 27
+    },
+    "positive.stderr.raw": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "positive.stdout.raw": {
+      "sha256": "5c3f2d2ae3ae4342a30aba713ea90bf47a44ea5268e099bb758a8b204e7b581c",
+      "size": 892
+    },
+    "positive.trx": {
+      "sha256": "9eed5b582b7bb381624d009565895d2f7f199b8c2fa3ea090e33c13afce998d7",
+      "size": 4697
+    },
+    "removed-flush-observation.stderr.raw": {
+      "sha256": "38d22810140e415e44b0db5800f0c5e1dbf10ead844cfa3049317f108a250d5e",
+      "size": 188
+    },
+    "removed-flush-observation.stdout.raw": {
+      "sha256": "bd289d92da4a4d41c8f43a9986a66f4995d7c066476db6bf722cf38a5624904b",
+      "size": 1519
+    },
+    "removed-flush-observation.trx": {
+      "sha256": "21e465b7096091596ff2ff1ba5acced952e77374ce1decb61622b6f1bb33e37a",
+      "size": 6296
+    }
+  },
+  "dotnetVersion": "10.0.401",
+  "restoredSourceSha256": "3f9d983d8ae5440d6ea7617ab55435866b6e1fab589b46eb8688e0b8921ea1c5"
+}

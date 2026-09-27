@@ -32,7 +32,7 @@ jobs:
             $env:TEMP=$directory
             $env:TMP=$directory
             & git rev-parse HEAD
-            foreach ($source in @('app/native_configuration.go','app/native_configuration_windows.go','app/native_storage_windows.go','app/native_storage_query.ps1','app/native_storage_windows_test.go','app/native_configuration_rpc_test.go')) {
+            foreach ($source in @('app/native_configuration.go','app/native_configuration_windows.go','app/native_storage_windows.go','app/native_storage_session_windows.go','app/native_storage_session_windows_test.go','app/native_storage_query.ps1','app/native_storage_windows_test.go','app/native_configuration_rpc_test.go')) {
               Write-Output "SOURCE $source SHA256 $((Get-FileHash -LiteralPath $source).Hash)"
             }
             $assets=Join-Path 'app/frontend' 'dist'

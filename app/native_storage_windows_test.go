@@ -148,13 +148,16 @@ func retainNativeStorageQueryFailure(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 	prefix := filepath.Join(base, t.Name())
+	if err := os.MkdirAll(filepath.Dir(prefix), 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(prefix+".stdout.raw", failure.Stdout, 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(prefix+".stderr.raw", failure.Stderr, 0600); err != nil {
 		t.Fatal(err)
 	}
-	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "test": t.Name(), "exitCode": failure.ExitCode, "childPhase": failure.Phase, "auditStage": failure.AuditStage, "contextState": failure.ContextState, "commandAttempted": failure.CommandAttempted, "commandStarted": failure.CommandStarted, "commandPid": failure.CommandPID, "waitCompleted": failure.WaitCompleted, "deadlineExceeded": failure.DeadlineExceeded, "auditMilliseconds": failure.AuditMilliseconds, "commandMilliseconds": failure.CommandMilliseconds, "bounded": true, "scope": "fixed read-only source; diagnostic catch emits stage/type/numeric fields only"})
+	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "test": t.Name(), "exitCode": failure.ExitCode, "childPhase": failure.Phase, "auditStage": failure.AuditStage, "contextState": failure.ContextState, "commandAttempted": failure.CommandAttempted, "commandStarted": failure.CommandStarted, "commandPid": failure.CommandPID, "waitCompleted": failure.WaitCompleted, "deadlineExceeded": failure.DeadlineExceeded, "auditMilliseconds": failure.AuditMilliseconds, "commandMilliseconds": failure.CommandMilliseconds, "preparedParentExited": failure.PreparedParentExited, "preparedJobDrained": failure.PreparedJobDrained, "preparedStreamsDrained": failure.PreparedStreamsDrained, "preparedForcedCleanup": failure.PreparedForcedCleanup, "bounded": true, "scope": "fixed read-only source; diagnostic catch emits stage/type/numeric fields only"})
 	if err := os.WriteFile(prefix+".json", record, 0600); err != nil {
 		t.Fatal(err)
 	}

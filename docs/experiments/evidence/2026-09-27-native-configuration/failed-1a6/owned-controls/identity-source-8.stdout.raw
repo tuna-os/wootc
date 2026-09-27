@@ -98,7 +98,7 @@ def process_controls():
     persist()
 
 
-def run(name, expected_failed, expected_marker=None):
+def run(name, expected_failed):
     trx.unlink(missing_ok=True)
     entry, facts = owned(name, command)
     assert not facts["timeout"] and not facts["overflow"], "Owned CLR execution exceeded bounds"
@@ -111,7 +111,7 @@ def run(name, expected_failed, expected_marker=None):
     assert len(outcomes) == 2 and outcomes.count("Failed") == expected_failed and outcomes.count("Passed") == 2-expected_failed
     assert (facts["exitCode"] != 0) == bool(expected_failed)
     if expected_failed:
-        assert expected_marker in (output/(name+".stdout.raw")).read_bytes()+(output/(name+".stderr.raw")).read_bytes()
+        assert b"Configuration post-flush observation missing or foreign" in (output/(name+".stdout.raw")).read_bytes()+(output/(name+".stderr.raw")).read_bytes()
 
 persist()
 try:
@@ -120,16 +120,10 @@ try:
     run("positive", 0)
     assert safe_to_restore
     source.write_bytes(original.replace(needle, b'// Deliberate owned counter: no post-flush observation.'))
-    run("removed-flush-observation", 1,b"Configuration post-flush observation missing or foreign")
+    run("removed-flush-observation", 1)
     assert safe_to_restore
     source.write_bytes(original)
     run("restored", 0)
-    assert safe_to_restore
-    source.write_bytes(original.replace(needle,b'requestFlushed?.Invoke(id);'))
-    run("wrong-method-flush-observation",1,b"Unexpected configuration flush observation on another method")
-    assert safe_to_restore
-    source.write_bytes(original)
-    run("restored-purpose-guard",0)
     assert source.read_bytes() == original
     receipt["accepted"] = True
 finally:
