@@ -1,0 +1,1 @@
+{"schema":1,"before":[{"device":"owned-cd","qdev":"/machine/peripheral-anon/device[0]","type":"ide-cd","bootIndex":9,"medium":"/tmp/wootc-optical-proof-oos7izqd/owned.iso"}],"removed":["/machine/peripheral-anon/device[0]"],"after":[{"device":"owned-cd","qdev":"/machine/peripheral-anon/device[0]","type":"ide-cd","bootIndex":9,"medium":null}],"empty":true}
