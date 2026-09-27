@@ -1,0 +1,6 @@
+=== RUN   TestAssessmentRPCObservedCancellationAndShutdown
+--- PASS: TestAssessmentRPCObservedCancellationAndShutdown (0.00s)
+=== RUN   TestAssessmentRPCRejectsOtherMethodsBeforeParameterAndBackendWork
+--- PASS: TestAssessmentRPCRejectsOtherMethodsBeforeParameterAndBackendWork (0.00s)
+PASS
+ok  	wootc	0.007s
