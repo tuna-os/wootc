@@ -272,21 +272,9 @@ func hasWootcESPArtifacts() bool {
 	if err != nil {
 		return false
 	}
-	if _, err := os.Stat(filepath.Join(espPath, "EFI", "wootc")); err == nil {
-		return true
-	}
-	if ownsFedoraNamespace(espPath) {
-		return true
-	}
-	redhatGrub := filepath.Join(espPath, "EFI", "redhat", "grub.cfg")
-	if data, err := os.ReadFile(redhatGrub); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		return true
-	}
-	loaderConf := filepath.Join(espPath, "loader", "loader.conf")
-	if data, err := os.ReadFile(loaderConf); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		return true
-	}
-	return false
+	owned, err := hasESPOwnedFiles(espPath)
+	// An unreadable or unsafe ownership record is unresolved cleanup evidence.
+	return owned || err != nil
 }
 
 // hasUninstallRegistryEntry reports whether the Add/Remove Programs key exists.
@@ -296,36 +284,13 @@ func hasUninstallRegistryEntry() bool {
 	return err == nil && strings.TrimSpace(out) == "EXISTS"
 }
 
-// cleanupESP removes all wootc-staged files and directories from the ESP.
+// cleanupESP deletes only attributable regular files, preserving neighbours.
 func cleanupESP() error {
 	espPath, err := findESP()
 	if err != nil {
-		return nil
+		return fmt.Errorf("locate EFI boot partition for cleanup: %w", err)
 	}
-
-	// 1. Remove EFI\wootc (our own namespace)
-	_ = os.RemoveAll(filepath.Join(espPath, "EFI", "wootc"))
-
-	// 2. Remove EFI\fedora if staged by wootc (verified via "# wootc" ownership marker)
-	if ownsFedoraNamespace(espPath) {
-		_ = os.RemoveAll(filepath.Join(espPath, "EFI", "fedora"))
-	}
-
-	// 3. Remove EFI\redhat if staged by wootc
-	redhatGrub := filepath.Join(espPath, "EFI", "redhat", "grub.cfg")
-	if data, err := os.ReadFile(redhatGrub); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		_ = os.RemoveAll(filepath.Join(espPath, "EFI", "redhat"))
-	}
-
-	// 4. Remove systemd-boot loader configuration if staged by wootc
-	loaderConf := filepath.Join(espPath, "loader", "loader.conf")
-	if data, err := os.ReadFile(loaderConf); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		_ = os.Remove(filepath.Join(espPath, "loader", "entries", "wootc-deployer.conf"))
-		_ = os.Remove(loaderConf)
-		_ = os.RemoveAll(filepath.Join(espPath, "EFI", "systemd"))
-	}
-
-	return nil
+	return cleanupESPOwnedFiles(espPath)
 }
 
 // deployHasCompleted reports whether the deployer has finished at least once
