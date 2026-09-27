@@ -1,0 +1,7 @@
+NATIVE_POWERSHELL 5.1.26100.9444
+SOURCE /tmp/wootc-bitlocker-media-acceptance/tests/e2e/windows-boot-observation.ps1 RAW b74a43410e579d013752acf77e181cc14542230904cfd4cfd83eacd74eb31324 STAGED a09d9cfd082041c2230051b0dd0a2fb11f4e88f66b034a97fea7c37eed2528dc
+PASS actual read-only Windows CIM boot identity
+PASS boot query dateTime
+PASS boot query null
+PASS boot query throw
+PASS boot query wrongOS

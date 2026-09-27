@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "candidateSourceCommit": "916a5c28397802684af26ab1a05afba518c0c427",
+  "baseFrozenAcceptance": "3d4b5601aa8cef901043ebe6737ca4c125bb43b7",
+  "originalFailedProtectedBase": "b4d4083",
+  "opticalSourceOriginal": "48c35d8a181250291a7a023043929d04a75fd0ef",
+  "opticalProofOriginal": "ca196cd5967d6f152196043f066a33115d8613e0",
+  "reviewRequiredBeforeDispatch": true,
+  "hostedGatesPassed": false,
+  "fullVmDispatched": false,
+  "inputs": {
+    "win_version": "11",
+    "image": "ghcr.io/tuna-os/yellowfin:gnome",
+    "bitlocker": "on",
+    "gui_documents": true,
+    "use_base_image": false,
+    "phase3": false,
+    "bootloader": "auto"
+  },
+  "operationOrder": [
+    "current Windows boot observation",
+    "one owned optical media query/eject/empty readback",
+    "same current Windows boot readback",
+    "normal deployer handoff and Windows return",
+    "observed different Windows boot",
+    "one TPM enrollment/activation attempt",
+    "independent ProtectionOn readback",
+    "installed Linux and GUI Documents acceptance"
+  ],
+  "noReplay": true,
+  "correlatedActivationReceiptPreserved": true
+}

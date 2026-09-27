@@ -1,0 +1,88 @@
+{
+  "sourceFiles": [
+    {
+      "path": "/tmp/wootc-bitlocker-media-acceptance/tests/e2e/windows-boot-observation.ps1",
+      "rawSha256": "b74a43410e579d013752acf77e181cc14542230904cfd4cfd83eacd74eb31324",
+      "stagedSha256": "a09d9cfd082041c2230051b0dd0a2fb11f4e88f66b034a97fea7c37eed2528dc"
+    }
+  ],
+  "invocationSha256": "e65e4bd403c486b5489edaf868950f0170bfe48aab5732821a80b2d5ace5edbf",
+  "qgaClientPath": "/tmp/wootc-correlated-receipt-qga.py",
+  "qgaClientSha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+  "scope": "Exact Windows query only: one actual read-only OS CIM; mocked DateTime/null/throw/wrongOS. Actual host caller/parser and separate paused-QEMU component controls. No actual Windows optical removal, TPM enrollment, ProtectionOn or installed Linux acceptance.",
+  "sourceCommit": "916a5c28397802684af26ab1a05afba518c0c427",
+  "nativeGuestExit": 0,
+  "nativePowerShellVersion": "5.1.26100.9444",
+  "nativeControls": {
+    "actualReadOnlyCim": 1,
+    "mockCimAndOSCases": 4
+  },
+  "retainedFiles": {
+    "boot-native.raw.log": {
+      "sha256": "c9776b6cf259351b4d96d799ea624c170a62c0423292247e1ce7bf2b3ba4d5e9",
+      "size": 405
+    },
+    "boot-native.raw.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "boot-native-invocation.ps1": {
+      "sha256": "e65e4bd403c486b5489edaf868950f0170bfe48aab5732821a80b2d5ace5edbf",
+      "size": 3632
+    },
+    "boot-native-qga-client.py": {
+      "sha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+      "size": 1424
+    },
+    "caller-controls.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    "caller-controls.stderr": {
+      "sha256": "ea23c62e0153533692e4d7695727749ac451bc511d20eb2158b2b4b05b84e01f",
+      "size": 104
+    }
+  },
+  "sourceFilesImmutable": [
+    {
+      "path": "tests/e2e/windows-boot-observation.ps1",
+      "sha256": "b74a43410e579d013752acf77e181cc14542230904cfd4cfd83eacd74eb31324"
+    },
+    {
+      "path": "tests/e2e/lib/fixture-optical-media.sh",
+      "sha256": "64d6dc67ad21339793311f6b143bbced8bc74fa9aa438607f0f9f95c12b90007"
+    },
+    {
+      "path": "tests/e2e/verify-fixture-boot-observation.py",
+      "sha256": "cfd2798f83bd64bbb65177206c6909d2bec6fd483f7bd0b4b2f21db11cad2e19"
+    },
+    {
+      "path": "tests/e2e/verify-optical-detach-receipt.py",
+      "sha256": "e4fa0d0505a92aae45d6dd27e78abdcd28f39ebbc75b88cf87f80b2ce6f9dd40"
+    },
+    {
+      "path": "tests/e2e/run-e2e.sh",
+      "sha256": "57cab6b53c8197896476eecf36446a15053e2790c1e2075bbdd73c3838d2f9ef"
+    },
+    {
+      "path": "tests/e2e/qmp-optical-media.py",
+      "sha256": "2638ba299f647dbe1a255c631c31fb414d2e168c892390f02f50403d92750221"
+    },
+    {
+      "path": "tests/e2e/compose.yml",
+      "sha256": "960c99fc2fd46924716827e507fdc8219236a804c3484ce02963b28f7979e4ad"
+    },
+    {
+      "path": "tests/e2e/build-ssh-image.sh",
+      "sha256": "9263c9be75a4c0e547c0f08b2c100ea48caea03f6ff309193345175dcc43fc9c"
+    },
+    {
+      "path": "tests/unit/test_fixture_boot_observation.py",
+      "sha256": "71f3ba30ebb803ccb6c483ce9c987c5887a0ea5c90bc30b8762b1eb18b674162"
+    },
+    {
+      "path": "tests/unit/test_fixture_optical_media.py",
+      "sha256": "b47520b5e71f415a39eac474d2313ad3dbc9a53caa7f6547071a36225de4fc6b"
+    }
+  ]
+}

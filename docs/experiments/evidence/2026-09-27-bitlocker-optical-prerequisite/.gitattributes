@@ -1,1 +1,6 @@
 *.json -text
+*.raw.log -text
+*.raw.stderr -text
+*-invocation.ps1 -text
+*-qga-client.py -text
+caller-controls.* -text
