@@ -37,3 +37,20 @@ jobs:
           name: winui-core-${{ matrix.os }}
           path: shell/Wootc.Shell.Tests/TestResults/*.trx
           if-no-files-found: error
+
+  native-build:
+    name: Native preview XAML and packaging build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: shell/global.json
+      - name: Restore and publish the native preview
+        working-directory: shell
+        run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 --output ../out/winui-preview
+      - uses: actions/upload-artifact@v7
+        with:
+          name: winui-preview-unpackaged
+          path: out/winui-preview/
+          if-no-files-found: error

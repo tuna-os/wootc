@@ -90,6 +90,31 @@ public sealed class StartupTests
         Assert.True(controller.CanRequestPermission);
     }
 
+    [Fact]
+    public async Task FailedDisconnectBlocksAnotherEngineUntilCleanupCompletes()
+    {
+        var session = new FaultingDisconnectSession();
+        var connector = new FakeConnector { Result = new(ConnectionOutcome.Connected, session) };
+        var controller = new StartupController(Brand, connector);
+        await controller.RequestPermissionAsync();
+        Assert.Equal(ConnectionState.DisconnectPending, controller.Connection);
+        Assert.False(controller.CanRequestPermission);
+        await controller.RequestPermissionAsync();
+        Assert.Single(connector.Requests);
+        session.AllowCleanup = true;
+        await controller.DisposeAsync();
+        Assert.Equal(ConnectionState.Offline, controller.Connection);
+    }
+
+    private sealed class FaultingDisconnectSession : IEngineSession
+    {
+        public bool AllowCleanup { get; set; }
+        public Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken) =>
+            throw new InvalidDataException("Invalid engine snapshot");
+        public ValueTask DisposeAsync() => AllowCleanup ? ValueTask.CompletedTask :
+            ValueTask.FromException(new IOException("Cleanup barrier has not completed"));
+    }
+
     private sealed class FakeConnector : IEngineConnector
     {
         public ConnectionAttempt Result { get; set; } = new(ConnectionOutcome.Unavailable);

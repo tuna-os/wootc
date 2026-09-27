@@ -3,7 +3,7 @@ using Wootc.Shell.Engine;
 namespace Wootc.Shell.Core;
 
 public enum StartupRoute { Assessment, Progress, Manage, Recovery }
-public enum ConnectionState { Offline, RequestingPermission, Ready, PermissionDeclined, Unavailable }
+public enum ConnectionState { Offline, RequestingPermission, Ready, PermissionDeclined, Unavailable, DisconnectPending }
 public enum ConnectionOutcome { Connected, PermissionDeclined, Incompatible, Unavailable }
 public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? LastRun);
 public sealed record ConnectRequest(string SessionId);
@@ -29,7 +29,7 @@ public sealed class StartupController : IAsyncDisposable
     public ConnectionState Connection { get; private set; } = ConnectionState.Offline;
     public StartupRoute Route { get; private set; } = StartupRoute.Assessment;
     public string? Problem { get; private set; }
-    public bool CanRequestPermission => Connection is not ConnectionState.RequestingPermission and not ConnectionState.Ready;
+    public bool CanRequestPermission => Connection is not ConnectionState.RequestingPermission and not ConnectionState.Ready and not ConnectionState.DisconnectPending;
 
     public StartupController(Branding brand, IEngineConnector connector)
     {
@@ -57,13 +57,18 @@ public sealed class StartupController : IAsyncDisposable
         try
         {
             if (Connection == ConnectionState.Ready) return;
+            if (Connection == ConnectionState.DisconnectPending) await DisconnectAsync();
             Connection = ConnectionState.RequestingPermission;
             Problem = null;
             var request = new ConnectRequest(Guid.NewGuid().ToString("N"));
             var attempt = await connector.ConnectAsync(request, cancellationToken);
             if (attempt.Outcome != ConnectionOutcome.Connected)
             {
-                if (attempt.Session is not null) await attempt.Session.DisposeAsync();
+                if (attempt.Session is not null)
+                {
+                    session = attempt.Session;
+                    await DisconnectAsync();
+                }
                 Connection = attempt.Outcome == ConnectionOutcome.PermissionDeclined
                     ? ConnectionState.PermissionDeclined : ConnectionState.Unavailable;
                 Problem = attempt.Reason;
@@ -79,16 +84,28 @@ public sealed class StartupController : IAsyncDisposable
         }
         catch (Exception error)
         {
-            await DisconnectAsync();
-            Connection = ConnectionState.Unavailable;
-            Problem = error.Message;
+            try
+            {
+                await DisconnectAsync();
+                Connection = ConnectionState.Unavailable;
+                Problem = error.Message;
+            }
+            catch (Exception cleanupError)
+            {
+                Problem = $"The engine has not completed disconnect: {cleanupError.Message}";
+            }
         }
         finally { connectionGate.Release(); }
     }
 
     private async Task DisconnectAsync()
     {
-        if (session is not null) { await session.DisposeAsync(); session = null; }
+        if (session is not null)
+        {
+            Connection = ConnectionState.DisconnectPending;
+            await session.DisposeAsync();
+            session = null;
+        }
         Connection = ConnectionState.Offline;
         Route = StartupRoute.Assessment;
     }
