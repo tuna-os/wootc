@@ -1,0 +1,40 @@
+{
+  "baseCommit": "0d93a6dd6a09e5eb374b0c8cb8b3a108edfe8f7c",
+  "sourceFiles": [
+    {
+      "path": "app/esp_cleanup.go",
+      "sha256": "7b600abe4afed7ab329b2e6177d27d3457ac37484aab3f29c39651eeb5140990"
+    },
+    {
+      "path": "app/esp_cleanup_test.go",
+      "sha256": "06723520948ec5bfc4618ad9cb7c1642bf3c82ffd6d2a419b171f07fa478e99a"
+    },
+    {
+      "path": "app/esp_ownership.go",
+      "sha256": "8c76409519216e77add404649020f977b4e19d0b23fa82028386b1268c3d4937"
+    },
+    {
+      "path": "app/installer_windows.go",
+      "sha256": "68aba6d8aca3fe7a3d857e661847fb87853debd41debc2380076ebad3c0a4a40"
+    }
+  ],
+  "binarySha256": "66b145ebd63be33cc28b0226c797700aed3628c8f02954d6ae2d8f76d976f380",
+  "sourcesArchiveSha256": "7c313bddf0918a73c5113671b493650eb93e4fd724376d11638ef8a15a55ce53",
+  "scope": "Only TestESPCleanup cases in fresh private TEMP. No real ESP/BCD/disk/BitLocker operations.",
+  "validatedSourceCommit": "0d93a6dd6a09e5eb374b0c8cb8b3a108edfe8f7c",
+  "nativeExitCode": 0,
+  "nativeTests": "^TestESPCleanup",
+  "nativeSummary": "Nine passed; one ambiguity control skipped on case-insensitive NTFS and passed on Linux",
+  "logs": {
+    "rawSha256": "7924f9adb84d6a0b8188174537d7ae9f62713b8e46d60d42d2686f491db769b2",
+    "normalizedSha256": "089154b8302f4a4edc5252ae2473ef24b056b825f4af5a2f29894eb6ac9257cf",
+    "normalization": "CRLF bytes replaced with LF only",
+    "invocationSha256": "edd96cc43e5e00ab097ec21fbc9e84a45bbbb7ff77659ce05b79637bd8223c3e"
+  },
+  "verification": [
+    "Native Windows source archive, individual source files and binary SHA256 checked before test execution",
+    "Linux ESP ownership/cleanup/uninstall Go tests passed",
+    "Existing partial-uninstall source checks passed",
+    "Windows amd64 test binary cross-compilation passed"
+  ]
+}

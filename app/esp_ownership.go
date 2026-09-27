@@ -64,6 +64,7 @@ const wootcGrubMarker = "# wootc deployer"
 //   - setup-wootc.ps1:     "# wootc first-boot installer menu" / "# wootc deployer - ..."
 //   - deploy.sh (Phase 2): "# wootc Phase 2 — boot installed system ..." and
 //     "# wootc Phase 2 (composefs) ..."
+//
 // Matching only the first refused wootc's own post-deploy ESP: a user who
 // completed a deploy and later reinstalled got "belongs to another operating
 // system" from the very files wootc wrote (GUI cell, run 31076749824). A
@@ -78,8 +79,12 @@ func espManifestPath(espPath string) string {
 // readESPOwnership returns the set of ESP-relative paths wootc has written.
 // A missing manifest is not an error: it means wootc has never installed here.
 func readESPOwnership(espPath string) (map[string]bool, error) {
+	return readESPOwnershipFile(espManifestPath(espPath))
+}
+
+func readESPOwnershipFile(path string) (map[string]bool, error) {
 	owned := map[string]bool{}
-	f, err := os.Open(espManifestPath(espPath))
+	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return owned, nil
@@ -92,6 +97,12 @@ func readESPOwnership(espPath string) (map[string]bool, error) {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
+		}
+		if line != sc.Text() {
+			return nil, fmt.Errorf("ambiguous whitespace in ESP ownership path")
+		}
+		if err := validateESPRelativeFile(line); err != nil {
+			return nil, err
 		}
 		owned[normalizeESPPath(line)] = true
 	}
@@ -183,6 +194,9 @@ func recordESPOwnership(espPath string, relPaths []string) error {
 		return err
 	}
 	for _, rel := range relPaths {
+		if err := validateESPRelativeFile(rel); err != nil {
+			return err
+		}
 		owned[normalizeESPPath(rel)] = true
 	}
 	if err := os.MkdirAll(filepath.Dir(espManifestPath(espPath)), 0o755); err != nil {
