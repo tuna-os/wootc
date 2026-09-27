@@ -133,3 +133,15 @@ The guide now states those observations, the automatic channel's selected stages
 and the emergency waiver. A check in `tests/unit/docs-truth.bats` pins the claim
 to the tagged workflow and the runner's native boot check.
 The RC walk, signature checks, and hardware acceptance remain open.
+
+## Focused release instructions pass — 2026-09-27, against `fa50144`
+
+The release guide still had three incorrect user instructions after the guide pass.
+Install creates the Linux disk and changes boot setup before the restart button.
+The one-time deployer boot normally returns to Windows. Manage offers the Linux boot choice.
+Uninstall attempts cleanup and can leave files or boot state behind.
+Linux data removal is a separate choice in Manage.
+
+Three checks in `tests/unit/docs-truth.bats` pin these corrections to current source.
+The release instructions no longer promise a fixed first-boot time.
+RC timing, package screenshots, hardware recovery, and signature acceptance remain open.

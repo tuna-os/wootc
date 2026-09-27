@@ -206,16 +206,15 @@ one reaches. The short version, because the instinct is usually wrong:
    Boot, TPM 2.0, **BitLocker off** (alpha), and at least 35 GB free on `C:`
    (20 GB for Linux plus the 15 GB headroom the launchpad reserves for
    Windows).
-3. Run it, pick Bluefin, set a username + password, click Install. Nothing on
-   your PC changes until you click **Reboot Now** — and even then Windows and
-   all your files stay put; Linux lives in a file beside them.
-4. First boot shows a calm "Setting up your new Linux system" screen for
-   5–15 minutes. When it finishes you're in Linux. To go back to Windows,
-   reboot and pick Windows — or uninstall wootc from inside it (deletes a
-   folder and a boot entry).
+3. Run it, pick Bluefin, set a username + password, and click Install.
+   Install creates the Linux disk file and changes the boot setup before you
+   click **Reboot Now**. Save your work before you restart.
+4. The one-time deployer boot prepares Linux. Windows normally returns after
+   that boot. Open Manage and choose **Restart into Bluefin** to start Linux.
 
-Uninstalling is always: delete `C:\wootc` and remove the "wootc" boot entry —
-the app's Control Panel does both.
+Uninstall attempts to remove the installed files and boot setup. An incomplete
+cleanup can leave files or boot state behind. In Manage, **Also delete my Linux
+data** is a separate choice. Review that choice before you confirm removal.
 
 ## Signed boot manifests
 
