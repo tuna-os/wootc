@@ -83,7 +83,7 @@ qga_powershell() {
                 self.assertIn("GUI launch blocked", calls)
 
     def test_gui_and_snapshot_paths_use_account_provisioning(self):
-        prime = SOURCE.split('if [ -n "$SNAPSHOT_OUT" ]; then', 1)[1].split('# ALWAYS reset', 1)[0]
+        prime = (Path(__file__).resolve().parents[2] / 'tests/e2e/lib/snapshot-prime.sh').read_text()
         self.assertLess(prime.index('gui_prepare_account ||'), prime.index("Stop-Computer"))
         gui = SOURCE.split('gui_install_arm() {', 1)[1]
         self.assertLess(gui.index('gui_prepare_account ||'), gui.index('gui_wait_interactive_session ||'))

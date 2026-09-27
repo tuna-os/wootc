@@ -31,13 +31,7 @@ set -Eeuo pipefail
 # barrier" sat 70 lines above it, and the matrix takes the LAST [FAIL] as the
 # verdict. Sites that call fail+exit have already said their piece, so say
 # nothing for them. -E propagates the trap into functions and subshells.
-wootc_report_abort() {
-    local rc="$1" cmd="$2"
-    # fail+exit sites have already printed their own reason.
-    case "$cmd" in exit*) return 0 ;; esac
-    printf '[FAIL] run-e2e.sh aborted: %s (exit %s)\n' "$cmd" "$rc" >&2
-}
-trap 'wootc_report_abort "$?" "$BASH_COMMAND"' ERR
+
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -45,6 +39,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/steps.sh"
 # shellcheck source=tests/e2e/phase-ledger.sh
 source "$SCRIPT_DIR/phase-ledger.sh"
+# shellcheck source=tests/e2e/lib/results.sh
+source "$SCRIPT_DIR/lib/results.sh"
+# shellcheck source=tests/e2e/lib/result-runner.sh
+source "$SCRIPT_DIR/lib/result-runner.sh"
+# shellcheck source=tests/e2e/lib/snapshot-prime.sh
+source "$SCRIPT_DIR/lib/snapshot-prime.sh"
+trap 'wootc_report_abort "$?" "$BASH_COMMAND"' ERR
 # IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
 # blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
 # the image (this silently produced wootc.image=--skip-install once the deployer
@@ -115,38 +116,21 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-pass() { printf '%b[PASS]%b %s\n' "$GREEN" "$NC" "$*"; }
-warn() { printf '%b[WARN]%b %s\n' "$YELLOW" "$NC" "$*"; }
-# Every fail() is RECORDED, and the final banner is gated on the ledger being
-# empty. Until now fail() only echoed: a fail site that did not itself `exit 1`
-# was decorative, and the run sailed on to "ALL TESTS PASSED".
-#
-# That is not hypothetical. el10-gnome-win11pro-bitlocker (20260727T004500Z)
-# printed ALL TESTS PASSED with BOTH of these in its log:
-#     [FAIL] Passthrough: errors detected in boot output:
-#     [FAIL] User data NOT visible in Phase 2 $HOME (expected RUN_ID ...)
-# The second is the North Star itself — the whole product claim is that the
-# user's data survives — and the matrix recorded the case as PASS. Both sites
-# set PASSTHROUGH_OK=false, but nothing anywhere gated on that variable.
-#
-# The ledger is a FILE, not a variable: fail() is called from inside command
-# substitutions and pipelines, whose variable writes are lost with the subshell.
+RUN_ID="${WOOTC_E2E_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${HOSTNAME:-unknown}-$$}"
+RUN_STARTED_AT="$(date -u +%FT%TZ)"
+WOOTC_RESULT_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-results.$$.jsonl"
+RESULT_SCENARIO=full-cycle
+if [ "${RUN_PHASE3:-false}" = true ]; then RESULT_SCENARIO=native-cycle; fi
+if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
+if [ -n "${WOOTC_E2E_SNAPSHOT_OUT:-}" ]; then RESULT_SCENARIO="snapshot-prime"; fi
+RESULT_REQUIRED=""
+if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ]; then RESULT_REQUIRED=gui-install; fi
+wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
+export WOOTC_RESULT_LEDGER
+trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
 WOOTC_FAILURE_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-failures.$$"
-: > "$WOOTC_FAILURE_LEDGER" 2>/dev/null || WOOTC_FAILURE_LEDGER=/dev/null
+: > "$WOOTC_FAILURE_LEDGER" || exit 2
 export WOOTC_FAILURE_LEDGER
-fail() {
-    # printf '%b' the COLOURS, '%s' the MESSAGE. `echo -e` interpreted escapes
-    # in the message too, so any Windows path was corrupted in the one place it
-    # mattered most: "C:\\OEM\\run-wootc-e2e.ps1" printed as
-    # "C:\\OEMun-wootc-e2e.ps1" because \r became a carriage return. \t, \n and
-    # \b mangle just as silently.
-    printf '%b[FAIL]%b %s\n' "$RED" "$NC" "$*" >&2
-    printf '%s\n' "$*" >> "$WOOTC_FAILURE_LEDGER" 2>/dev/null || true
-    if [ -n "${WOOTC_PHASE_LEDGER:-}" ] && [ -n "${WOOTC_CURRENT_PHASE_ID:-}" ]; then
-        wootc_phase_record failed "$WOOTC_CURRENT_PHASE_ID" "$*" || return 1
-    fi
-}
-info() { printf '%b[INFO]%b %s\n' "$YELLOW" "$NC" "$*"; }
 
 # Every axis asserts real CLI lifecycle output, including OEM/BitLocker runs.
 # Fail before creating a VM if that required executable was not built.
@@ -231,8 +215,7 @@ fi
 # Keep a small, atomic status record next to the VM disk.  Remote runners can
 # outlive the SSH command that launched them, so the process ID and run ID are
 # the authoritative way to tell an active test from an orphaned VM.
-RUN_ID="${WOOTC_E2E_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${HOSTNAME:-unknown}-$$}"
-RUN_STARTED_AT="$(date -u +%FT%TZ)"
+# Run identity was initialized before any result writer.
 RUN_STATE_FILE="$STORAGE_DIR/run-e2e.current"
 ARTIFACT_DIR="$STORAGE_DIR/artifacts/$RUN_ID"
 WOOTC_PHASE_LEDGER="$ARTIFACT_DIR/phase-ledger.jsonl"
@@ -240,6 +223,10 @@ WOOTC_CURRENT_PHASE_ID=""
 VIDEO_DIR="$ARTIFACT_DIR/video"
 VIDEO_STARTED=false
 mkdir -p "$ARTIFACT_DIR"
+[ ! -e "$ARTIFACT_DIR/results.jsonl" ] && [ ! -e "$VIDEO_DIR/.passed" ] || { fail "Run evidence path already exists; refusing stale result authority"; exit 2; }
+cp -- "$WOOTC_RESULT_LEDGER" "$ARTIFACT_DIR/results.jsonl"
+WOOTC_RESULT_LEDGER="$ARTIFACT_DIR/results.jsonl"
+export WOOTC_RESULT_LEDGER
 
 # ── artifact retention ──────────────────────────────────────────────────────
 # Each run writes a full artifact set — container logs, screenshots, video, a
@@ -290,7 +277,7 @@ prune_old_artifacts() {
         local name; name=$(basename "$d")
         mkdir -p "$evidence/$name"
         # Text-sized evidence only: serial + logs under 50 MiB.
-        find "$d" -maxdepth 1 -type f \( -name '*.log' -o -name 'qemu.pty' -o -name '*.txt' -o -name '*.json' \) \
+        find "$d" -maxdepth 1 -type f \( -name '*.log' -o -name 'qemu.pty' -o -name '*.txt' -o -name '*.json' -o -name '*.jsonl' \) \
             -size -50M -exec cp {} "$evidence/$name/" \; 2>/dev/null || true
         rm -rf "$d"
     done
@@ -315,7 +302,7 @@ run_state "started"
 # preflight abort leaves stage=started forever, indistinguishable from a live
 # run — the remote launch guard then refuses to start the next run. Replaced
 # by `trap cleanup EXIT` further down.
-trap 'run_state "exited (status $?) during: ${WOOTC_LAST_STEP:-startup}"' EXIT
+trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; run_state "exited (status $rc) during: ${WOOTC_LAST_STEP:-startup}"; exit "$rc"' EXIT
 info "Run ID: $RUN_ID (status: $RUN_STATE_FILE)"
 printf '%s\n' "$RUN_ID" > "$ARTIFACT_DIR/run-id.txt"
 uname -a > "$ARTIFACT_DIR/host-uname.txt" 2>&1 || true
@@ -340,10 +327,10 @@ host_preflight() {
     mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
     disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
 
-    command -v podman >/dev/null || { fail "podman is required"; return 1; }
-    command -v python3 >/dev/null || { fail "python3 is required for QGA"; return 1; }
-    [ -r /dev/kvm ] && [ -w /dev/kvm ] || { fail "/dev/kvm is not accessible"; return 1; }
-    [ -c /dev/net/tun ] || { fail "/dev/net/tun is unavailable"; return 1; }
+    command -v podman >/dev/null || { infra_fail "podman is required"; return 1; }
+    command -v python3 >/dev/null || { infra_fail "python3 is required for QGA"; return 1; }
+    [ -r /dev/kvm ] && [ -w /dev/kvm ] || { infra_fail "/dev/kvm is not accessible"; return 1; }
+    [ -c /dev/net/tun ] || { infra_fail "/dev/net/tun is unavailable"; return 1; }
     # Memory: a point-in-time MemAvailable sample on a host running sibling
     # instances is transient — a neighbor's build spike or install phase can
     # eat gigabytes for a few minutes. Wait for the dip to pass (10 min)
@@ -357,7 +344,7 @@ host_preflight() {
     local mem_deadline; mem_deadline=$(deadline_in 600)
     while [ $(( ${mem_available_kib:-0} / 1024 )) -lt "$need_mem_mib" ]; do
         if past_deadline "$mem_deadline"; then
-            fail "Only $((mem_available_kib / 1024)) MiB host RAM available after 10 min; need ${need_mem_mib} MiB before starting Windows"
+            infra_fail "Only $((mem_available_kib / 1024)) MiB host RAM available after 10 min; need ${need_mem_mib} MiB before starting Windows"
             return 1
         fi
         info "Waiting for host memory: $((mem_available_kib / 1024)) MiB available, want ${need_mem_mib} MiB..."
@@ -381,7 +368,7 @@ host_preflight() {
         [ "$SKIP_INSTALL" = false ] || required_free_gib=55
     fi
     if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
-        fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
+        infra_fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
         return 1
     fi
     pass "Host preflight: $((mem_available_kib / 1024)) MiB RAM available, $((disk_available_kib / 1024 / 1024)) GiB disk free, KVM/TUN ready"
@@ -435,6 +422,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 cleanup() {
     local result=$?
+    wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$result" || result=1
     run_state "exited (status $result) during: ${WOOTC_LAST_STEP:-startup}"
     # Whatever happened, keep the installer media: the next run on this host can
     # then read its image names before Setup starts (#58) and skips a multi-GB
@@ -467,7 +455,7 @@ cleanup() {
     else
         info "Container kept (--keep): $CONTAINER_NAME"
     fi
-    return "$result"
+    exit "$result"
 }
 trap cleanup EXIT
 
@@ -683,10 +671,10 @@ qga_reconnect_cycle() {
 # the re-dispatch decision needs no human to read the log.
 qga_channel_lost() {
     local where="$1"
-    fail "CLASSIFICATION: qga-channel-lost — the QGA channel died during $where"
-    fail "  QGA does NOT answer ping, and one bounded reconnect cycle did not bring the channel back."
-    fail "  This run has NO verdict on the product: the install may have finished, stalled or failed,"
-    fail "  and with the channel deaf the harness cannot tell — so it does not guess."
+    infra_fail "CLASSIFICATION: qga-channel-lost — the QGA channel died during $where"
+    infra_fail "  QGA does NOT answer ping, and one bounded reconnect cycle did not bring the channel back."
+    infra_fail "  This run has NO verdict on the product: the install may have finished, stalled or failed,"
+    infra_fail "  and with the channel deaf the harness cannot tell — so it does not guess."
     note_flake "qga-channel-lost"
 }
 
@@ -703,7 +691,7 @@ qga_wait() {
         elapsed=$((elapsed + 10))
         [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA ($label)... ($(( elapsed / 60 ))m)"
     done
-    fail "QGA did not become available for $label within $((timeout / 60)) minutes"
+    infra_fail "QGA did not become available for $label within $((timeout / 60)) minutes"
     return 1
 }
 
@@ -718,7 +706,7 @@ qga_wait_down() {
         sleep 5
         elapsed=$((elapsed + 5))
     done
-    fail "Windows QGA did not go away before $label"
+    infra_fail "Windows QGA did not go away before $label"
     return 1
 }
 
@@ -2671,9 +2659,9 @@ recovery_check() {
     assert_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage interrupted -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
     printf '%s\n' "$assert_out" | sed 's/^/    recovery: /'
     if printf '%s' "$assert_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        pass "Recovery: Stage 1 (interrupted state) validated successfully"
+        product_pass recovery-interrupted "Recovery: Stage 1 (interrupted state) validated successfully"
     else
-        fail "Recovery: Stage 1 (interrupted state) assertion failed"
+        product_fail "Recovery: Stage 1 (interrupted state) assertion failed"
     fi
 
     # 2. Windows reboot test
@@ -2691,9 +2679,9 @@ recovery_check() {
     retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried' 2>&1 || true)
     printf '%s\n' "$retry_out" | sed 's/^/    recovery-retry: /'
     if printf '%s' "$retry_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        pass "Recovery: Stage 3 (idempotent retry) validated successfully — exactly 1 BCD entry, ESP valid"
+        product_pass recovery-retry "Recovery: Stage 3 (idempotent retry) validated successfully — exactly 1 BCD entry, ESP valid"
     else
-        fail "Recovery: Stage 3 (idempotent retry) assertion failed"
+        product_fail "Recovery: Stage 3 (idempotent retry) assertion failed"
     fi
 
     # 4. Uninstall test
@@ -2703,9 +2691,9 @@ recovery_check() {
     un_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage uninstalled' 2>&1 || true)
     printf '%s\n' "$un_out" | sed 's/^/    recovery-uninstall: /'
     if printf '%s' "$un_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        pass "Recovery: Stage 4 (uninstall from interrupted state) validated successfully"
+        product_pass recovery-uninstall "Recovery: Stage 4 (uninstall from interrupted state) validated successfully"
     else
-        fail "Recovery: Stage 4 (uninstall from interrupted state) assertion failed"
+        product_fail "Recovery: Stage 4 (uninstall from interrupted state) assertion failed"
     fi
 
     # 5. Post-uninstall reboot
@@ -2713,7 +2701,7 @@ recovery_check() {
     qga_powershell 'cmd.exe /c "shutdown.exe /r /t 1 /f"' >/dev/null 2>&1 || true
     qga_wait_reboot "Windows after recovery uninstall" || true
     qga_wait_windows 600
-    pass "Recovery: Windows booted cleanly after recovery uninstall"
+    product_pass recovery-windows "Recovery: Windows booted cleanly after recovery uninstall"
 
     # Retain recovery evidence artifacts
     mkdir -p "$STORAGE_DIR/artifacts/$RUN_ID/recovery" 2>/dev/null || true
@@ -2837,40 +2825,8 @@ fi
 # The oras push happens in CI (e2e-snapshot.yml); this only produces the bundle.
 SNAPSHOT_OUT="${WOOTC_E2E_SNAPSHOT_OUT:-}"
 if [ -n "$SNAPSHOT_OUT" ]; then
-    [ "$SKIP_INSTALL" = false ] || { fail "WOOTC_E2E_SNAPSHOT_OUT needs a fresh install; do not combine with --skip-install"; exit 1; }
-    command -v qemu-img >/dev/null 2>&1 || { fail "WOOTC_E2E_SNAPSHOT_OUT requires qemu-img (install qemu-utils)"; exit 1; }
-    step "Priming Windows base image → $SNAPSHOT_OUT (clean shutdown, then compress)"
-    mkdir -p "$SNAPSHOT_OUT"
-
-    # Future snapshots must remain usable after the local password ages.
-    gui_prepare_account || { capture_vm_diagnostics; exit 1; }
-
-    # Clean guest shutdown so C:/NTFS is left with its dirty bit CLEAR.
-    qga_powershell 'Stop-Computer -Force' >/dev/null 2>&1 \
-        || qga_call exec /bin/sh -c 'shutdown /s /t 0' >/dev/null 2>&1 || true
-    info "Waiting for the guest to power off cleanly (QGA to go away)..."
-    prime_deadline=$(deadline_in 300)
-    while ! past_deadline "$prime_deadline"; do
-        qga_windows_probe || break   # QGA unreachable == guest powered off
-        sleep 5
-    done
-
-    # Drop the container so nothing holds data.qcow2 open, THEN convert.
-    $COMPOSE -f compose.yml down 2>/dev/null || $DOCKER stop "$CONTAINER_NAME" 2>/dev/null || true
-    [ -s "$STORAGE_DIR/data.qcow2" ] || { fail "prime: data.qcow2 missing/empty after install"; exit 1; }
-
-    step "Compressing base image (qemu-img convert -c → standalone qcow2)..."
-    qemu-img convert -c -O qcow2 "$STORAGE_DIR/data.qcow2" "$SNAPSHOT_OUT/data.qcow2" \
-        || { fail "prime: qemu-img convert failed"; exit 1; }
-    # dockur's installed-markers so a restore does not trigger a reinstall.
-    for f in "$STORAGE_DIR"/windows.*; do [ -e "$f" ] && cp "$f" "$SNAPSHOT_OUT/"; done
-    # The correctness key the restore side validates against (same formula as
-    # ANSWER_SHA), doubling as the answer-file stamp the reuse guard checks.
-    { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}' \
-        > "$SNAPSHOT_OUT/snapshot.key"
-    cp "$SNAPSHOT_OUT/snapshot.key" "$SNAPSHOT_OUT/.wootc-autounattend.sha256"
-    ls -lh "$SNAPSHOT_OUT" >&2 || true
-    pass "Pristine Windows base image ready at $SNAPSHOT_OUT (key $(cat "$SNAPSHOT_OUT/snapshot.key"))"
+    [ "$SKIP_INSTALL" = false ] || { infra_fail "WOOTC_E2E_SNAPSHOT_OUT needs a fresh install; do not combine with --skip-install"; exit 1; }
+    prime_snapshot || exit 1
     exit 0
 fi
 
@@ -3326,7 +3282,7 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
             blocked_reads=0
         fi
         if printf '%s' "$drive_state" | grep -q '"screen":"done"'; then
-            pass "GUI-driven install completed — real pipeline reached the done screen"
+            product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
             # Let the done screen actually appear in a capture, then hold it.
             sleep 4; freeze_frame
             break
@@ -3393,7 +3349,7 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
     if printf '%s\n' "$BCD_FW" | grep -qi 'bootsequence'; then
         pass "BCD one-shot armed after GUI install (bootsequence present)"
     else
-        fail "GUI install finished but {fwbootmgr} has NO bootsequence — the app's arm never landed"
+        product_fail "GUI install finished but {fwbootmgr} has NO bootsequence — the app's arm never landed"
         printf '%s\n' "$BCD_FW" | head -14
         capture_vm_diagnostics
         exit 1
@@ -3527,6 +3483,7 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
                 fail "$_wootc_n failure(s) recorded in recovery run"
                 exit 1
             fi
+            wootc_result_finish "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$WOOTC_FAILURE_LEDGER" "" "$IMAGE_REF" || exit 1
             pass "All recovery checks PASSED for fault-injection ($FAULT_INJECT)"
             exit 0
         fi
@@ -3692,7 +3649,8 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
                         fail "$_wootc_n failure(s) recorded in recovery run"
                         exit 1
                     fi
-                    pass "All recovery checks PASSED for fault-injection ($FAULT_INJECT)"
+                    wootc_result_finish "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$WOOTC_FAILURE_LEDGER" "" "$IMAGE_REF" || exit 1
+            pass "All recovery checks PASSED for fault-injection ($FAULT_INJECT)"
                     exit 0
                 fi
                 fail "Deployer is gone: Windows QGA is answering but the deploy never completed"
@@ -4028,10 +3986,10 @@ step "Asserting deployer lifecycle state on Windows..."
 # shellcheck disable=SC2016
 capture_lifecycle_status deployed
 if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"deployed"'; then
-    pass "wootc.exe status reports deployed after deployer finished"
+    product_pass deployed "wootc.exe status reports deployed after deployer finished"
 else
     capture_lifecycle_failure deployed
-    fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
+    product_fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
 fi
 
 # Match the existing 1800-second fixture drive-preparation deadline. Every
@@ -4264,7 +4222,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         # emergency shell — reporting PASS for a system with no root at all.
         if printf '%s\n' "$NEW_OUTPUT" | grep -E "Reached target (multi-user|graphical)|login:|Welcome to" >/dev/null 2>&1; then
             BOOT_SUCCESS=true
-            pass "Phase 2 Linux system booted (reached its real root)"
+            product_pass linux-root "Phase 2 Linux system booted (reached its real root)"
             break
         fi
         # Emergency mode = root never appeared. Fail fast and say why, instead of
@@ -4546,7 +4504,7 @@ if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
     info "  This is an INCONCLUSIVE check, not proof of data loss — the file may well be there."
     info "  Fix the agent in Phase 2 (is qemu-guest-agent present and enabled in this image?), then re-run."
 elif printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
-    pass "User data: Windows Documents file readable at $USERDATA_PATH with this run's ID"
+    product_pass user-data "User data: Windows Documents file readable at $USERDATA_PATH with this run's ID"
 else
     USERDATA_DIAG=$(qga_call exec /bin/sh -c \
         'echo "host-bind: $(mountpoint -q /run/wootc/host && echo mounted || echo ABSENT)"; \
@@ -4560,7 +4518,7 @@ else
          echo "ntfs-src:  $(findmnt -n /run/initramfs/wootc-host 2>/dev/null || echo ABSENT)"; \
          echo "passthru:  enabled=$(systemctl is-enabled wootc-passthrough 2>&1) active=$(systemctl is-active wootc-passthrough 2>&1)"; \
          journalctl -u wootc-passthrough --no-pager 2>/dev/null | tail -6' 2>/dev/null || true)
-    fail "User data NOT visible in Phase 2 \$HOME (expected RUN_ID $RUN_ID)"
+    product_fail "User data NOT visible in Phase 2 \$HOME (expected RUN_ID $RUN_ID)"
     printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
     PASSTHROUGH_OK=false
 fi
@@ -4622,9 +4580,9 @@ fi
 PHASE2_PROOF=$(printf '%s' "$PASSTHROUGH_MARKERS" | grep -aiE \
     "wootc: attached dynamic VHDX|host NTFS mounted via|wootc-host-bind|Reached target (multi-user|graphical)" | head -3 || true)
 if [ -n "$PHASE2_PROOF" ]; then
-    pass "Phase 2 proof of life: $(printf '%s' "$PHASE2_PROOF" | head -1 | cut -c1-70)"
+    product_pass linux-proof "Phase 2 proof of life: $(printf '%s' "$PHASE2_PROOF" | head -1 | cut -c1-70)"
 else
-    fail "Phase 2 produced NO proof of life — no loop-attach, no host bridge, no real root."
+    product_fail "Phase 2 produced NO proof of life — no loop-attach, no host bridge, no real root."
     fail "  Refusing to report success: an unbooted Phase 2 still reboots to Windows,"
     fail "  so the return-to-Windows check below cannot distinguish it from a real boot."
     printf '%s' "$PASSTHROUGH_MARKERS" | tail -20
@@ -4717,14 +4675,14 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         exit 1
     fi
     if echo "$P3_NATIVE_PROOF" | grep -qE '^CMDLINE=.*(^| )(loop|wootc\.rootdisk)='; then
-        fail "Phase 3 reboot returned to loopback Phase 2 instead of the native disk"
+        product_fail "Phase 3 reboot returned to loopback Phase 2 instead of the native disk"
         exit 1
     fi
     if ! echo "$P3_NATIVE_PROOF" | grep -q "^TARGET=$P3_TARGET$"; then
-        fail "Phase 3 boot lacks the native-target identity written during graduation"
+        product_fail "Phase 3 boot lacks the native-target identity written during graduation"
         exit 1
     fi
-    pass "Phase 3 native system booted from the graduated install (non-loopback)"
+    product_pass native-boot "Phase 3 native system booted from the graduated install (non-loopback)"
     # The point of it all: the file seeded in Windows before the deployer ever
     # ran must now live on the NATIVE disk — no NTFS, no loopback, no bind in
     # the chain (the natively-booted system has no /run/wootc/host at all). Content must
@@ -4744,9 +4702,9 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
          [ -n "$f" ] && { printf "SRC=%s\n" "$(findmnt -no SOURCE "$(df -P "$f" | awk "NR==2{print \$6}")" 2>/dev/null)"; cat "$f"; }; :' \
         2>/dev/null || true)
     if printf '%s' "$P3_USERDATA" | grep -q "$RUN_ID"; then
-        pass "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"
+        product_pass native-user-data "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"
     else
-        fail "Seeded user data did NOT persist onto the native disk (wanted RUN_ID $RUN_ID)"
+        product_fail "Seeded user data did NOT persist onto the native disk (wanted RUN_ID $RUN_ID)"
         printf '%s\n' "$P3_USERDATA" | sed 's/^/  /'
         exit 1
     fi
@@ -4801,15 +4759,15 @@ else
     # Assert WINDOWS answered, not merely "some agent": a Phase 2 that never
     # went down would satisfy a bare QGA wait instantly and fake the return.
     qga_wait_windows 600
-    pass "One-shot Phase 2 boot consumed; Windows returned successfully"
+    product_pass windows-return "One-shot Phase 2 boot consumed; Windows returned successfully"
     step "Asserting Phase-2 first boot lifecycle state on Windows..."
     # shellcheck disable=SC2016
     capture_lifecycle_status healthy
     if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"'; then
-        pass "wootc.exe status reports healthy after Phase-2 first boot"
+        product_pass healthy "wootc.exe status reports healthy after Phase-2 first boot"
     else
         capture_lifecycle_failure healthy
-        fail "wootc.exe status did not report healthy after Phase-2 first boot (got: '$_state_raw')"
+        product_fail "wootc.exe status did not report healthy after Phase-2 first boot (got: '$_state_raw')"
     fi
 
     step "Verifying the real Windows control-panel first-boot summary..."
@@ -4910,6 +4868,8 @@ if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
     exit 1
 fi
 
+wootc_result_finish "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$WOOTC_FAILURE_LEDGER" "$VIDEO_DIR/.passed" "$IMAGE_REF" || exit 1
+
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║   wootc E2E test: ALL TESTS PASSED   ║${NC}"
@@ -4920,7 +4880,6 @@ info "Image tested: $IMAGE_REF"
 # Green-only publish gate: the README/Pages timelapse must never show a red
 # run. Stamp a marker beside the recording that ONLY a full pass reaches;
 # publish-visual.sh refuses any run whose video dir lacks it.
-mkdir -p "$VIDEO_DIR"
-printf '%s image=%s\n' "$RUN_ID" "$IMAGE_REF" > "$VIDEO_DIR/.passed"
+# Green-only publish gate: result API wrote VIDEO_DIR/.passed after its terminal commit.
 
 exit 0
