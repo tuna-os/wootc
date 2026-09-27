@@ -56,6 +56,16 @@ jobs:
       - name: Restore and publish the native preview
         working-directory: shell
         run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} --output ../out/winui-preview
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+      - name: Build the exact preview engine for authenticated startup RPC
+        working-directory: app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force frontend/dist | Out-Null
+          Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
+          go build -ldflags "-X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
       - name: Test actual Windows adapter identities and private package controls
         working-directory: shell
         run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
@@ -63,6 +73,7 @@ jobs:
         working-directory: shell
         shell: pwsh
         run: |
+          $env:WOOTC_NATIVE_BUILD_ID = '${{ github.sha }}'
           $env:WOOTC_NATIVE_PREVIEW_DIAGNOSTICS = '1'
           $env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'
           dotnet test Wootc.Shell.UiTests --configuration Release --logger "trx;LogFileName=native-ui.trx"
@@ -93,6 +104,7 @@ jobs:
           path: |
             out/winui-source-diagnostics/
             out/winui-startup-events.json
+            out/native-startup-state-observations.json
             shell/Wootc.Shell.UiTests/TestResults/*.trx
             shell/Wootc.Shell.NativeTests/TestResults/*.trx
           if-no-files-found: error

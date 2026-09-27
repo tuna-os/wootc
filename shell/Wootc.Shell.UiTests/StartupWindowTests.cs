@@ -1,6 +1,10 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Text.Json;
 using FlaUI.Core;
+using FlaUI.Core.AutomationElements;
 using FlaUI.UIA3;
 using Xunit;
 
@@ -51,6 +55,81 @@ public sealed class StartupWindowTests
         finally { File.Move(retainedIndex, resourceIndex); }
         Assert.Equal(originalIndexHash, SHA256.HashData(File.ReadAllBytes(resourceIndex)));
         await ObserveVisiblePreview(executable);
+    }
+
+    [Fact]
+    public async Task ActualAuthenticatedGoStartupRpcSelectsFreshRouteAndDisconnects()
+    {
+        string published = Environment.GetEnvironmentVariable("WOOTC_NATIVE_PREVIEW_EXE")
+            ?? throw new InvalidOperationException("Published preview executable required");
+        string buildId = Environment.GetEnvironmentVariable("WOOTC_NATIVE_BUILD_ID")
+            ?? throw new InvalidOperationException("Exact native build identity required");
+        string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "wootc-native-rpc-test-" + Guid.NewGuid().ToString("N"));
+        Assert.False(Directory.Exists(root));
+        string stateRoot = Path.Combine(Path.GetPathRoot(root)!, "wootc");
+        Assert.False(File.Exists(Path.Combine(stateRoot, "disks", "root.disk")));
+        string[] BeforeState() => Directory.Exists(stateRoot) ? Directory.GetFiles(stateRoot, "*", SearchOption.AllDirectories).Order().ToArray() : Array.Empty<string>();
+        var before = BeforeState();
+        string observations = Path.Combine(Path.GetDirectoryName(published)!, "..", "native-startup-state-observations.json");
+        File.WriteAllBytes(observations, JsonSerializer.SerializeToUtf8Bytes(new { buildId, before, phase = "Before authenticated engine launch" }));
+        var security = new DirectorySecurity();
+        security.SetAccessRuleProtection(true, false);
+        security.SetOwner(new SecurityIdentifier("S-1-5-32-544"));
+        foreach (string sid in new[] { "S-1-5-18", "S-1-5-32-544" })
+            security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid), FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier("S-1-5-32-545"), FileSystemRights.ReadAndExecute, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+        new DirectoryInfo(root).Create(security);
+        try
+        {
+            string source = Path.GetDirectoryName(published)!;
+            var files = new Dictionary<string, string>();
+            foreach (string original in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+            {
+                string relative = Path.GetRelativePath(source, original);
+                string target = Path.Combine(root, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(original, target);
+                files.Add(relative.Replace('\\', '/'), Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(target))).ToLowerInvariant());
+            }
+            File.WriteAllBytes(Path.Combine(root, "native-package.json"), JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, protocolVersion = 1, buildId, brandId = "wootc", files }));
+            using var automation = new UIA3Automation();
+            using var process = Process.Start(new ProcessStartInfo(Path.Combine(root, "Wootc.Shell.exe")) { UseShellExecute = false, WorkingDirectory = root })!;
+            _ = process.Handle;
+            using var application = Application.Attach(process.Id);
+            try
+            {
+                var window = application.GetMainWindow(automation, TimeSpan.FromSeconds(30));
+                Assert.NotNull(window);
+                Assert.Equal("Offline", window.FindFirstDescendant(cf => cf.ByAutomationId("ConnectionStatus")).Name);
+                window.FindFirstDescendant(cf => cf.ByAutomationId("ConnectEngine")).AsButton().Invoke();
+                async Task ExpectName(string id, string expected)
+                {
+                    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                    while (window.FindFirstDescendant(cf => cf.ByAutomationId(id)).Name != expected)
+                    {
+                        if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected {id}={expected}; observed {window.FindFirstDescendant(cf => cf.ByAutomationId(id)).Name}; connection={window.FindFirstDescendant(cf => cf.ByAutomationId("ConnectionStatus")).Name}");
+                        await Task.Delay(100, deadline.Token);
+                    }
+                }
+                await ExpectName("ConnectionStatus", "Ready");
+                await ExpectName("StartupRoute", "Review your computer before installation");
+                await ExpectName("StartupObservations", "Running: False; Existing: False; Lifecycle: ; Recovery: ");
+                Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
+                window.FindFirstDescendant(cf => cf.ByAutomationId("DisconnectEngine")).AsButton().Invoke();
+                await ExpectName("ConnectionStatus", "Offline");
+                window.Close();
+                using var closeDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await process.WaitForExitAsync(closeDeadline.Token);
+                Assert.Equal(0, process.ExitCode);
+            }
+            finally
+            {
+                if (!process.HasExited) { process.CloseMainWindow(); if (!process.WaitForExit(5000)) { process.Kill(); process.WaitForExit(5000); } }
+            }
+            Assert.False(File.Exists(Path.Combine(stateRoot, "disks", "root.disk")));
+            File.WriteAllBytes(observations, JsonSerializer.SerializeToUtf8Bytes(new { buildId, before, after = BeforeState(), scope = "Disposable hosted Windows; actual same-user elevated startup RPC; no interactive UAC or installation" }));
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 
     private static async Task ObserveVisiblePreview(string executable)

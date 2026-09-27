@@ -29,6 +29,7 @@ public sealed class StartupController : IAsyncDisposable
     public ConnectionState Connection { get; private set; } = ConnectionState.Offline;
     public StartupRoute Route { get; private set; } = StartupRoute.Assessment;
     public string? Problem { get; private set; }
+    public StartupSnapshot? Snapshot { get; private set; }
     public bool CanRequestPermission => Connection is not ConnectionState.RequestingPermission and not ConnectionState.Ready and not ConnectionState.DisconnectPending;
 
     public StartupController(Branding brand, IEngineConnector connector)
@@ -79,7 +80,9 @@ public sealed class StartupController : IAsyncDisposable
                 return;
             }
             session = attempt.Session ?? throw new InvalidDataException("Authenticated engine session is missing");
-            Route = SelectRoute(await session.ReadStartupAsync(cancellationToken));
+            var observed = await session.ReadStartupAsync(cancellationToken);
+            Route = SelectRoute(observed);
+            Snapshot = observed;
             Connection = ConnectionState.Ready;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -112,6 +115,7 @@ public sealed class StartupController : IAsyncDisposable
         }
         Connection = ConnectionState.Offline;
         Route = StartupRoute.Assessment;
+        Snapshot = null;
     }
     public async ValueTask DisposeAsync()
     {

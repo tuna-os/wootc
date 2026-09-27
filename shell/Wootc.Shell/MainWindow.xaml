@@ -4,6 +4,11 @@
     <TextBlock x:Name="DistributionName" AutomationProperties.AutomationId="DistributionName" />
     <TextBlock Text="Native installer preview" FontSize="20" FontWeight="SemiBold" />
     <TextBlock Text="Review your computer before installing Linux." TextWrapping="Wrap" />
-    <TextBlock Text="The authenticated engine connection is being implemented. This preview cannot install or change your computer." TextWrapping="Wrap" AutomationProperties.AutomationId="PreviewStatus" />
+    <TextBlock Text="This preview can read startup status through the authenticated engine. It cannot install Linux or change storage." TextWrapping="Wrap" AutomationProperties.AutomationId="PreviewStatus" />
+    <TextBlock x:Name="ConnectionStatus" Text="Offline" AutomationProperties.AutomationId="ConnectionStatus" TextWrapping="Wrap" />
+    <TextBlock x:Name="StartupRouteText" AutomationProperties.AutomationId="StartupRoute" TextWrapping="Wrap" />
+    <TextBlock x:Name="StartupObservations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
+    <Button x:Name="ConnectButton" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
+    <Button x:Name="DisconnectButton" Content="Disconnect engine" Click="Disconnect_Click" IsEnabled="False" AutomationProperties.AutomationId="DisconnectEngine" />
   </StackPanel></Grid>
 </Window>
