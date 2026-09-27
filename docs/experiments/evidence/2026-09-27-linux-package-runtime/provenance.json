@@ -11,7 +11,7 @@
   "firmwareAcceptance": false,
   "historicalCandidateCheckpoint": "a9542c0",
   "independentPhaseReadbackContract": "old installation pauses until fresh QGA readback is approved; separately pinned advance rechecks exact digest before new installation; final new state receives independent fresh QGA readback",
-  "mainBase": "73456c6aaae77b6b73193a5979e213c98890d17b",
+  "mainBase": "347f696ef855866e2230dc4e761a1caf11609657",
   "nativeControls": 52,
   "packageInstallationAccepted": false,
   "partialSerialContract": "only newline-complete records enter production comparator; incomplete live final record waits inside shared deadline",
