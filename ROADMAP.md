@@ -115,8 +115,8 @@ start date. Only native-shell GUI nightlies on main can qualify. Each row must
 name the shell, source SHA, artifact identity, verdict, and proof run. No Wails
 row counts toward the native streak. A shell or transport change needs new
 proof; do not inherit a streak across it. The ledger in #235 must apply this
-rule before #239 can cite 30 days. The ledger does not exist yet. It has no
-eligible streak. See [the release gates](docs/RELEASING.md#native-shell-release-gates).
+rule before #239 can cite 30 days. The [ledger](docs/soak.md) records runs. It has no
+recorded start or eligible streak. See [the release gates](docs/RELEASING.md#native-shell-release-gates).
 
 ### Scope decisions
 

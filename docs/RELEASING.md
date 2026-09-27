@@ -83,7 +83,7 @@ The 1.0 soak needs phase D and all RC prerequisites complete, then a recorded
 start date. Each eligible row must name the native shell, source SHA, artifact
 identity, verdict, and GUI proof run on main. Exclude Wails rows.
 A shell or transport change needs fresh proof; its earlier streak cannot carry.
-The ledger is still open in #235. Do not claim the #239 streak from a release
+Use the [run ledger](soak.md) for #235. Do not claim the #239 streak from a release
 list alone or from dates before these gates pass.
 
 ## Cutting a release

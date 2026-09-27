@@ -16,6 +16,7 @@
 
 INSTALLER_WIN=app/installer_windows.go
 DISK_WIN=app/disk_windows.go
+PARTITION_POLICY=app/partition-policy.ps1
 HEADLESS_GO=app/headless.go
 PROBE_WIN=app/sysprobe_windows.go
 
@@ -35,15 +36,19 @@ PROBE_WIN=app/sysprobe_windows.go
     grep -q 'opts.DeleteRootDisk || opts.RemovePartition || !rootDiskExists' "$INSTALLER_WIN"
 }
 
-@test "dedicated volume verification requires exact wootc-data label and refuses EFI system partition" {
-    grep -q "FileSystemLabel -ne 'wootc-data'" "$DISK_WIN"
-    grep -q "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" "$DISK_WIN"
-    grep -q "Type -eq 'System'" "$DISK_WIN"
-    grep -q "Refusing to remove EFI system partition" "$DISK_WIN"
+@test "dedicated volume verification uses receipt policy and accepts only non-system basic NTFS partitions" {
+    grep -q 'readStoragePartitionReceipt' "$DISK_WIN"
+    grep -q "FileSystemLabel -ne 'wootc-data'" "$PARTITION_POLICY"
+    grep -q "FileSystemType -ne 'NTFS'" "$PARTITION_POLICY"
+    grep -q "GptType -ne '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'" "$PARTITION_POLICY"
+    grep -q "Type -ne 'Basic'" "$PARTITION_POLICY"
+    grep -q 'Remove-Partition -InputObject $binding.Partition' "$PARTITION_POLICY"
 }
 
-@test "partition reclaim refuses to remove drive C:" {
-    grep -q "refusing to remove partition on drive C:" "$DISK_WIN"
+@test "partition reclaim refuses C and consumes only a receipt-bound target" {
+    grep -q "\$Drive -eq 'C'" "$PARTITION_POLICY"
+    grep -q 'partitionGuid' "$PARTITION_POLICY"
+    grep -q 'sourceCPartitionGuid' "$PARTITION_POLICY"
 }
 
 @test "uninstall verifies clean convergence and reports leftover artifacts" {
