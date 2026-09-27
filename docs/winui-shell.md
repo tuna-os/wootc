@@ -4,11 +4,11 @@ WinUI 3 remains the chosen Windows UI. Linux keeps GTK4/libadwaita.
 The existing consumer installer stays the default until native proof passes.
 This revision corrects the transport and identity assumptions in the earlier design.
 
-## Current source, 2026-09-26
+## Current source, 2026-09-27
 
 | Phase | Actual state | Remaining work |
 |---|---|---|
-| A: engine protocol | Go `wootc.exe serve`, protocol tests, DTO generator exist | Safe disconnect barrier and preservation of transport handles need correction |
+| A: engine protocol | Go stdio RPC and DTO generator exist; disconnect waits for install cleanup; console attachment preserves redirected transport handles | Native authenticated transport and consumer journey proof remain in B/C |
 | B: scaffold (#343) | `shell/` contains generated `Engine/Dto.cs` only | Native projects, authenticated transport, brand resources, CI, preview package |
 | C: experience (#344) | No native views or UI tests | Consumer screens, migration preview, E2E drive mode, accessibility, full-cycle proof |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
@@ -45,6 +45,27 @@ shell/
   Wootc.Shell.Tests/           unit/contract tests, including Linux CI
   Wootc.Shell.UiTest/          Windows UI Automation and screenshot evidence
 ```
+
+## Build dependency and OS evidence
+
+On 2026-09-27, Microsoft identifies **2.5.1** as the stable version of
+Windows App SDK. The [download page](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads)
+and [package page](https://www.nuget.org/packages/Microsoft.WindowsAppSDK/2.5.1)
+show that version. Review the dependency and its .NET compatibility before
+the scaffold pins it. A cached package version does not prove current support.
+The hosted restore/build must prove the chosen package combination.
+
+The [SDK support contract](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/support)
+includes backward compatibility to Windows 10 1809, build 17763.
+That does not prove wootc works on that OS.
+The requested `net8.0-windows10.0.19041` compile target and the minimum runtime
+OS are separate settings. Review `TargetPlatformMinVersion` and
+`SupportedOSPlatformVersion`, then test the actual native package on the
+claimed minimum OS before the user guide adopts that floor.
+
+The completed stdio cleanup and console fixes have tests in
+`app/serve_shutdown_test.go` and `app/console_windows_test.go`.
+These tests do not supply authentication between native peers or shell acceptance.
 
 ## Correct elevation and transport
 
@@ -148,7 +169,8 @@ Do not remove Linux data merely because a user removes the preview shell.
 
 Pin .NET, Windows App SDK, and build-tool versions before the package experiment.
 The self-contained settings for .NET and Windows App SDK are separate.
-One Microsoft guide describes single-file support for specific configurations.
+
+A guide from Microsoft describes support for single files in specific configurations.
 Another guide still describes limitations. Do not make an unconditional single-file promise.
 Prove the chosen artifact on a clean offline VM with neither runtime preinstalled.
 See the [unpackaged guide](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/unpackage-winui-app)
