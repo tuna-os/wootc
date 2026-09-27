@@ -36,6 +36,7 @@ var ProtocolMethods = []string{
 	"GetBranding",
 	"GetReleaseNotice",
 	"GetImages",
+	"GetInstallSteps",
 	"GetSessionCandidates",
 	"StartInstall",
 	"CancelInstall",
@@ -47,6 +48,7 @@ var ProtocolMethods = []string{
 	"UninstallWith",
 	"BootIntoLinux",
 	"GetLastRun",
+	"GetRecoveryVerdict",
 	"E2EDriveDirective",
 	"E2EDriveReport",
 	"Shutdown",
@@ -282,6 +284,9 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 
 	case "GetLastRun":
 		return s.app.GetLastRun(), nil
+
+	case "GetRecoveryVerdict":
+		return s.app.GetRecoveryVerdict(), nil
 
 	case "E2EDriveDirective":
 		return s.app.E2EDriveDirective(), nil

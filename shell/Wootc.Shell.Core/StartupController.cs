@@ -5,7 +5,7 @@ namespace Wootc.Shell.Core;
 public enum StartupRoute { Assessment, Progress, Manage, Recovery }
 public enum ConnectionState { Offline, RequestingPermission, Ready, PermissionDeclined, Unavailable, DisconnectPending }
 public enum ConnectionOutcome { Connected, PermissionDeclined, Incompatible, Unavailable }
-public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? LastRun);
+public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? Recovery, LifecycleState? LastRun = null);
 public sealed record ConnectRequest(string SessionId);
 public sealed record ConnectionAttempt(ConnectionOutcome Outcome, IEngineSession? Session = null, string? Reason = null);
 
@@ -42,7 +42,11 @@ public sealed class StartupController : IAsyncDisposable
     public static StartupRoute SelectRoute(StartupSnapshot snapshot)
     {
         if (snapshot.Status.Running) return StartupRoute.Progress;
-        string verdict = snapshot.LastRun?.Verdict ?? "";
+        string lifecycle = snapshot.LastRun?.State ?? "";
+        if (lifecycle == "failed") return StartupRoute.Recovery;
+        if (lifecycle is not ("" or "staged" or "armed" or "deploying" or "deployed" or "healthy"))
+            throw new InvalidDataException("The engine returned an unsupported lifecycle state");
+        string verdict = snapshot.Recovery?.Verdict ?? "";
         if (verdict is "failed" or "interrupted" or "one-shot-never-booted") return StartupRoute.Recovery;
         if (verdict is not ("" or "healthy" or "deployed"))
             throw new InvalidDataException("The engine returned an unsupported recovery verdict");

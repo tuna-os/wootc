@@ -108,6 +108,11 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 	if err := verifyNativePipeClient(pipe, source); err != nil {
 		return err
 	}
+	// Bind lifecycle/recovery reads to the uniquely trusted attempted install.
+	// Competing, malformed or unsafe attempts cannot become a guessed route.
+	if _, _, err := readStatusState(); err != nil {
+		return fmt.Errorf("native startup installation discovery: %w", err)
+	}
 	// Neither launch arguments nor hello claims have reached installer state.
 	if err := initializeStateTrust(); err != nil {
 		return fmt.Errorf("native engine state trust: %w", err)

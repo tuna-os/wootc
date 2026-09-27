@@ -37,6 +37,16 @@ public sealed class StartupTests
         Assert.Equal(StartupRoute.Recovery, StartupController.SelectRoute(new(new InstallStatus(), new RecoveryVerdict { Verdict = verdict })));
 
     [Fact]
+    public void ActualLastRunPayloadKeepsLifecycleSeparateFromVerdict()
+    {
+        var lifecycle = System.Text.Json.JsonSerializer.Deserialize<LifecycleState>("{\"state\":\"failed\",\"phaseId\":\"firstboot-evidence\",\"error\":\"public fixture failure\"}");
+        Assert.NotNull(lifecycle);
+        Assert.Equal(StartupRoute.Recovery, StartupController.SelectRoute(new(new InstallStatus { Existing = true }, null, lifecycle)));
+        Assert.Equal(StartupRoute.Manage, StartupController.SelectRoute(new(new InstallStatus { Existing = true }, new RecoveryVerdict { Verdict = "healthy" }, new LifecycleState { State = "deployed" })));
+        Assert.Throws<InvalidDataException>(() => StartupController.SelectRoute(new(new InstallStatus(), null, new LifecycleState { State = "interrupted" })));
+    }
+
+    [Fact]
     public void ActiveWorkTakesPriorityOverPastFailure() =>
         Assert.Equal(StartupRoute.Progress, StartupController.SelectRoute(new(new InstallStatus { Running = true }, new RecoveryVerdict { Verdict = "failed" })));
 
