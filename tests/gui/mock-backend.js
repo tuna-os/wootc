@@ -8,6 +8,7 @@
 window.__wootcInstallEmitters = [];
 window.__wootcVMEmitters = [];
 window.__wootcVMCalls = [];
+window.__wootcE2EReports = [];
 
 function makeApp(mock) {
   const P = (v) => Promise.resolve(v);
@@ -74,6 +75,11 @@ function makeApp(mock) {
     StopVM: () => { window.__wootcVMCalls.push(['stop']); mock.vmState = { phase: 'stopped', desktopReady: false }; return P(); },
     ForceStopVM: () => { window.__wootcVMCalls.push(['force']); mock.vmState = { phase: 'needs_recovery', desktopReady: false }; return P(); },
     GetFreshVMCapability: () => P(mock.freshVm || { available: false, reason: '' }),
+    E2EDriveDirective: () => P(mock.driveDirective || ''),
+    E2EDriveReport: (state) => {
+      try { window.__wootcE2EReports.push(JSON.parse(state)); } catch {}
+      return P();
+    },
     TryInVMFresh: () => P(),
     InstallPreviewForReal: () => P(),
     DefragDrive: () => { if (mock.defragError) return Promise.reject(mock.defragError); return P(); },
