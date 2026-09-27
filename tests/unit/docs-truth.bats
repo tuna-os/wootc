@@ -318,3 +318,72 @@ setup() {
     ! grep -q 'no runtime depend' docs/RELEASING.md
     ! grep -q 'There is nothing to "install"' docs/getting-started.md
 }
+
+@test "roadmap separates native preview work from complete consumer proof" {
+    grep -q 'JSON-RPC' app/serve.go
+    grep -q 'Phase B (#343) has a draft native preview and hosted component proof' ROADMAP.md
+    grep -q 'Phase C (#344) still needs the complete native consumer and VM journey' ROADMAP.md
+    ! grep -q 'Phases B.*not yet started' ROADMAP.md
+}
+
+@test "roadmap separates restoration requirement from current partial cleanup" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'Evidence must prove that uninstall restores the machine' ROADMAP.md
+    grep -q 'Uninstall tries cleanup; complete restoration still needs proof' ROADMAP.md
+    ! grep -q 'uninstall that restores machine state' ROADMAP.md
+}
+
+@test "roadmap requires a SmartScreen observation beyond a valid signature" {
+    grep -q 'Windows policy can prevent continuation' docs/getting-started.md
+    grep -q 'A valid signature alone does not guarantee' ROADMAP.md
+    grep -q 'fresh-machine SmartScreen behavior (#230)' ROADMAP.md
+    grep -q 'Signed binaries must pass the SmartScreen gate on a fresh machine' ROADMAP.md
+    ! grep -q 'kills the SmartScreen wall' ROADMAP.md
+}
+
+@test "README qualifies the VM goal against current desktop evidence" {
+    grep -q 'No complete Windows-hosted target desktop proof yet' docs/status.md
+    grep -q 'Current releases do not yet provide the complete Linux-inside-Windows journey' README.md
+    grep -q 'VM-first goal' README.md
+    ! grep -q 'Try before you reboot.*boot the result' <(tr '\n' ' ' < README.md)
+}
+
+@test "README exposes preparation settings and normal Windows return" {
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'changes Windows startup settings' README.md
+    grep -q 'Windows normally returns after deployment' README.md
+    grep -q 'Manage offers an explicit Linux boot choice' README.md
+    ! grep -q 'Nothing else on the machine is touched' README.md
+}
+
+@test "README separates cleanup from restoration and Linux data removal" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'Uninstall tries cleanup; it can leave files or boot state behind' README.md
+    grep -q 'Linux data removal is a separate choice' README.md
+    ! grep -q 'uninstall and leave no trace' README.md
+    ! grep -q 'uninstalling is deleting a folder' README.md
+}
+
+@test "README matches release graduation and its manual waiver" {
+    grep -q 'phase3: true' .github/workflows/release.yml
+    grep -q 'Emergency: publish WITHOUT the E2E gate' .github/workflows/release.yml
+    grep -q 'does not prove a Windows return after graduation' README.md
+    grep -q 'manual emergency waiver remains' README.md
+    ! grep -q 'returns to Windows cleanly' README.md
+}
+
+@test "README qualifies browser secrets instead of a blanket exclusion" {
+    grep -q 'Firefox passwords came across with the profile' payload/migration/wootc-import-browser
+    grep -q 'A complete Firefox profile can include saved passwords' README.md
+    ! grep -q 'passwords, keys, and tokens stay' README.md
+}
+
+@test "README discloses runtime and distinguishes hashes from signed manifests" {
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
+    grep -q 'checks hashes, and verifies a signed manifest' README.md
+    grep -q 'Wails interface needs the WebView2 runtime' README.md
+    grep -q 'Policy can prevent continuation' README.md
+}
