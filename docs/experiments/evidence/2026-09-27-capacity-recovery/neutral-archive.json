@@ -1,0 +1,11 @@
+{
+  "source": "yellowfin-neutral.disk",
+  "archive": "yellowfin-neutral.disk.zst",
+  "sourceBytes": 42949672960,
+  "sourceAllocatedBytes": 4362088448,
+  "archiveBytes": 1939724807,
+  "sha256Uncompressed": "222075a981cfe40c8d3d8533d15c0fbf8076d5e94f25e467af8abfc8eebdf56c",
+  "byteForByteRoundTripVerified": true,
+  "decompressedBytesVerified": 42949672960,
+  "recordedAt": "2026-09-27T05:13:02Z"
+}

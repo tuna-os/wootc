@@ -1,0 +1,14 @@
+{
+  "source": "root.disk",
+  "archive": "root.disk.zst",
+  "sourceBytes": 42949672960,
+  "sourceAllocatedBytes": 7806664704,
+  "archiveBytes": 3215193941,
+  "sha256Uncompressed": "d31d9fcccf5a8acfe4abe32ac9edb0983a467e9079a65fa1f1e3d25b73f08197",
+  "decompressedBytesVerified": 42949672960,
+  "byteForByteRoundTripVerified": true,
+  "reserveBytes": 27917287424,
+  "elapsedSeconds": 230.66044075900572,
+  "recordedAt": "2026-09-27T05:10:37Z",
+  "rawRemoved": true
+}
