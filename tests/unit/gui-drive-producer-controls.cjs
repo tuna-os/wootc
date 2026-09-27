@@ -53,8 +53,19 @@ async function settle() { await new Promise(resolve => setImmediate(resolve)); }
  scheduled(); await settle(); assert.equal(reboots, 1);
  const rebootReceipt = reports.at(-1);
  fieldsEqual(rebootReceipt, installFields);
- await context.reportState(state, {...identity, action: 'prepare-vm'});
- const prepareReceipt = reports.at(-1);
+ const prepareReports = []; let prepareClicks = 0;
+ const prepareContext = {...context, window: {},
+  document: {...context.document, getElementById(id) {
+   return id === 'vm-prepare-btn' ? {disabled: false, click() { prepareClicks++; }} : null;
+  }},
+  E2EDriveDirective: async () => JSON.stringify({...identity, action: 'prepare-vm', image, username: 'wootc', password: 'public-test'}),
+  E2EDriveReport: async raw => prepareReports.push(JSON.parse(raw)),
+ };
+ vm.runInNewContext(source, prepareContext);
+ prepareContext.startE2EDrive({...state, screen: 'launchpad'}); await settle();
+ assert.equal(prepareClicks, 1);
+ const prepareReceipt = prepareReports.at(-1);
+ assert.equal(prepareReceipt.vmPrepareDriven, true);
  fieldsEqual(prepareReceipt, [...installFields, ...vmFields]);
  // A click that throws never reports installDriven and is not replayed.
  const failedReports = []; let failedScheduled, failedClicks = 0;
