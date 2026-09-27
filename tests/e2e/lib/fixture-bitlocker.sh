@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2016 # Single-quoted PowerShell variables expand in the guest.
 # A recovery password can exist while C: is still converting. Do not boot the
 # Linux BitLocker consumer until Windows reports the supported fixture state.
 bitlocker_wait_fixture_ready() {
@@ -36,7 +37,7 @@ bitlocker_wait_fixture_ready() {
 
 # Dedicated fixture activation and final read-only readiness share one deadline.
 bitlocker_prepare_fixture() {
-    local timeout_s="${1:-1800}" deadline remaining limit result root activation
+    local timeout_s="${1:-1800}" deadline remaining limit result root activation receipt_run_id
     deadline=$(deadline_in "$timeout_s")
     while ! past_deadline "$deadline"; do
         remaining=$((deadline - $(date +%s)))
@@ -69,10 +70,13 @@ bitlocker_prepare_fixture() {
     [ "$remaining" -gt 0 ] || return 1
     activation="$ARTIFACT_DIR/bitlocker-activation.txt"
     printf '%s\n' "$RUN_ID" > "$ARTIFACT_DIR/bitlocker-activation-run-id.txt" || return 1
+    receipt_run_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
+    printf '%s\n' "$receipt_run_id" > "$ARTIFACT_DIR/bitlocker-activation-receipt-run-id.txt" || return 1
     # A timeout/failure does not replay enrollment. This command is called once.
     # Its only output is whitelisted before metadata and the final observation.
-    if ! WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-key.ps1"; . "C:\OEM\fixture-bitlocker-protection.ps1"; Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath '"'$root\wootc\install\bitlocker-key.txt'" \
+    if ! WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-key.ps1"; . "C:\OEM\fixture-bitlocker-protection.ps1"; Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath '"'$root\wootc\install\bitlocker-key.txt' -RunId '$receipt_run_id'" \
         2>&1 | python3 "$SCRIPT_DIR/safe-log.py" > "$activation"; then
+        bitlocker_collect_before_receipt "$root" "$receipt_run_id" || true
         infra_fail "BitLocker fixture activation failed or timed out; enrollment will not be replayed"; return 1
     fi
     python3 "$SCRIPT_DIR/fixture-bitlocker-receipt.py" "$activation" || { infra_fail "BitLocker fixture activation has no valid current receipt"; return 1; }
@@ -80,4 +84,21 @@ bitlocker_prepare_fixture() {
     [ "$remaining" -gt 0 ] || { infra_fail "BitLocker fixture activation exceeded its deadline"; return 1; }
     # No activation receipt substitutes for an independent ProtectionOn readback.
     bitlocker_wait_fixture_ready "$remaining" "$deadline"
+}
+
+# One read of the known current-call receipt; never enumerate or replay activation.
+bitlocker_collect_before_receipt() {
+    local root="$1" receipt_run_id="$2" scratch result=0 guest_path
+    [[ "$root" =~ ^[A-Za-z]:$ && "$receipt_run_id" =~ ^[0-9a-f]{32}$ ]] || return 1
+    guest_path="$root\\wootc\\install\\bitlocker-key.txt.activation-$receipt_run_id.json"
+    scratch=$(mktemp -d "${TMPDIR:-/tmp}/wootc-before-receipt.XXXXXX") || return 1
+    # stderr is never receipt input. Only child-validated canonical JSON can leave
+    # the hostless reader. Timeout/failure remains a failure, not absence of state.
+    WOOTC_QGA_CALL_TIMEOUT=15 qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-key.ps1"; Get-WootcFixtureBeforeReceipt -RecoveryKeyPath '"'$root\wootc\install\bitlocker-key.txt' -RunId '$receipt_run_id'" > "$scratch/stdout" 2> "$scratch/stderr" || result=1
+    python3 "$SCRIPT_DIR/safe-log.py" < "$scratch/stderr" > "$ARTIFACT_DIR/bitlocker-before-receipt-read.stderr" || result=1
+    if [ "$result" -eq 0 ]; then
+        python3 "$SCRIPT_DIR/retain-bitlocker-before-receipt.py" "$scratch/stdout" "$ARTIFACT_DIR/bitlocker-before-receipts" "$receipt_run_id" "$guest_path" "$RUN_ID" "$SCRIPT_DIR/fixture-bitlocker-key.ps1" || result=1
+    fi
+    rm -rf "$scratch"
+    return "$result"
 }

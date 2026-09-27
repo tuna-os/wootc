@@ -252,7 +252,13 @@ try {
 if ($script:case -in @('alreadyOn','ancestorSiblingRights')) { $script:volume.ProtectionStatus='On' }
             $lines = [Collections.Generic.List[string]]::new()
             $failed=$false
-            try { Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath $script:path | ForEach-Object { $lines.Add([string]$_) } } catch {
+            $correlatedRun=[guid]::NewGuid().ToString('N')
+            try {
+                if ($script:case -eq 'alreadyOn') {
+                    Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath $script:path -RunId $correlatedRun | ForEach-Object { $lines.Add([string]$_) }
+                    if (-not [IO.File]::Exists("$script:path.activation-$correlatedRun.json")) { throw 'Caller correlation did not bind actual durable path' }
+                } else { Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath $script:path | ForEach-Object { $lines.Add([string]$_) } }
+            } catch {
                 $failed=$true
                 if ($_.Exception.Message -ne 'BitLocker fixture protection activation failed; refusing to schedule installed Linux') { throw 'Original exception escaped final boundary' }
             }
@@ -316,6 +322,45 @@ if ($script:case -in @('alreadyOn','ancestorSiblingRights')) { $script:volume.Pr
     $collisionFailed=$false
     try { Write-WootcFixtureBeforeReceipt -KeyPath $collisionPath -Metadata ([pscustomobject]@{schemaVersion=1;stage='before'}) } catch { $collisionFailed=$true }
     if (-not $collisionFailed -or [Convert]::ToBase64String([IO.File]::ReadAllBytes($collisionReceipt)) -cne [Convert]::ToBase64String($collisionBytes)) { throw 'Exclusive receipt creation overwrote prior evidence' }
+    # Exercise the production reader with real disposable files/ACL and the
+    # actual system module factory; no BitLocker cmdlet is called by this reader.
+    function New-WootcFixturePrivatePipeline { & $script:realFactory }
+    $readRun=[guid]::NewGuid().ToString('N')
+    $readKey=Join-Path $dir 'public-read-key.txt'
+    $script:WootcFixtureRunId=$readRun
+    $readMetadata=[pscustomobject]@{schemaVersion=1;stage='before';mountPoint='C:';volumeStatus='FullyEncrypted';percentage=100;protection='Off';tpmPresent=$true;tpmReady=$true;protectors=@()}
+    Write-WootcFixtureBeforeReceipt -KeyPath $readKey -Metadata $readMetadata
+    $readPath="$readKey.activation-$readRun.json"
+    $validBytes=[IO.File]::ReadAllBytes($readPath)
+    $readTranscript=Join-Path $dir 'public-reader-transcript.txt'
+    Start-Transcript -LiteralPath $readTranscript -Force | Out-Null
+    try {
+        $positive=Get-WootcFixtureBeforeReceipt -RecoveryKeyPath $readKey -RunId $readRun
+        if ($positive -cne [Text.Encoding]::UTF8.GetString($validBytes)) { throw 'Reader did not preserve exact canonical bytes' }
+        foreach ($readCase in @('wrongRun','missing','oversized','duplicate','secretField','malformed','directory','unsafeAcl')) {
+            & $script:realRemove -LiteralPath $readPath -Recurse -Force -ErrorAction SilentlyContinue
+            [IO.File]::WriteAllBytes($readPath,$validBytes)
+            switch ($readCase) {
+                'wrongRun' { [IO.File]::WriteAllText($readPath,([Text.Encoding]::UTF8.GetString($validBytes).Replace($readRun,'00000000000000000000000000000000'))) }
+                'missing' { & $script:realRemove -LiteralPath $readPath -Force }
+                'oversized' { [IO.File]::WriteAllText($readPath,('x' * 16385)) }
+                'duplicate' { [IO.File]::WriteAllText($readPath,([Text.Encoding]::UTF8.GetString($validBytes).Replace('{','{"schemaVersion":1,'))) }
+                'secretField' { [IO.File]::WriteAllText($readPath,([Text.Encoding]::UTF8.GetString($validBytes).Replace('{',"{`"recoveryPassword`":`"$script:publicKey`","))) }
+                'malformed' { [IO.File]::WriteAllText($readPath,$script:publicKey) }
+                'directory' { & $script:realRemove -LiteralPath $readPath -Force; [IO.Directory]::CreateDirectory($readPath) | Out-Null }
+                'unsafeAcl' { & $script:realIcacls $readPath /grant '*S-1-1-0:R' *> $null; if ($LASTEXITCODE -ne 0) { throw 'Could not create controlled unsafe ACL' } }
+            }
+            $refused=$false; $readLines=@()
+            try { $readLines=@(Get-WootcFixtureBeforeReceipt -RecoveryKeyPath $readKey -RunId $readRun) } catch {
+                $refused=$true
+                if ($_.Exception.Message -cne 'BitLocker fixture before receipt unavailable') { throw 'Reader leaked original failure' }
+            }
+            if (-not $refused -or $readLines.Count -ne 0) { throw "Reader accepted $readCase" }
+            Write-Output "PASS production receipt reader refuses $readCase"
+        }
+    } finally { Stop-Transcript | Out-Null }
+    if ([IO.File]::ReadAllText($readTranscript).Contains($script:publicKey)) { throw 'Receipt reader leaked malformed public key to caller transcript' }
+    Write-Output 'PASS caller-correlated receipt read and parent transcript privacy'
     Write-Output 'PASS exclusive receipt creation refuses same-run collision and preserves original bytes'
     Write-Output 'PASS durable before receipts validated and untrusted receipt ACL refuses all mutations'
     Write-Output 'PASS actual transcript rejects public sensitive strings, key output, warnings, information, original errors and cleanup errors'

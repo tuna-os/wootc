@@ -133,7 +133,11 @@ function Initialize-WootcFixtureBitLockerProtectionCore {
 }
 
 function Initialize-WootcFixtureBitLockerProtection {
-    param([Parameter(Mandatory=$true)][string]$RecoveryKeyPath)
-    Invoke-WootcFixturePrivateOperation -Operation activate -Path $RecoveryKeyPath -EnsureProtector $true
+    param([Parameter(Mandatory=$true)][string]$RecoveryKeyPath,[ValidatePattern('^[0-9a-f]{32}$')][string]$RunId)
+    if ([string]::IsNullOrEmpty($RunId)) {
+        Invoke-WootcFixturePrivateOperation -Operation activate -Path $RecoveryKeyPath -EnsureProtector $true
+    } else {
+        Invoke-WootcFixturePrivateOperation -Operation activate -Path $RecoveryKeyPath -EnsureProtector $true -RunId $RunId
+    }
 }
 $script:WootcFixtureProtectionClosure = "function Get-WootcFixtureCompleteEncryptedVolume { $((Get-Command Get-WootcFixtureCompleteEncryptedVolume).Definition) }`nfunction Get-WootcFixtureProtectorMetadata { $((Get-Command Get-WootcFixtureProtectorMetadata).Definition) }`nfunction Initialize-WootcFixtureBitLockerProtectionCore { $((Get-Command Initialize-WootcFixtureBitLockerProtectionCore).Definition) }`n"

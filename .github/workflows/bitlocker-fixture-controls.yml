@@ -1,0 +1,83 @@
+name: BitLocker fixture controls
+
+on:
+  pull_request:
+    paths:
+      - 'tests/e2e/fixture-bitlocker-*.ps1'
+      - 'tests/e2e/lib/fixture-bitlocker.sh'
+      - 'tests/e2e/retain-bitlocker-before-receipt.py'
+      - 'tests/unit/test_bitlocker*.py'
+      - 'tests/lint-ps1.ps1'
+      - '.github/workflows/bitlocker-fixture-controls.yml'
+  push:
+    branches: [main, 'fix/fixture-activation-diagnostics-main']
+    paths:
+      - 'tests/e2e/fixture-bitlocker-*.ps1'
+      - 'tests/e2e/lib/fixture-bitlocker.sh'
+      - 'tests/e2e/retain-bitlocker-before-receipt.py'
+      - 'tests/unit/test_bitlocker*.py'
+      - 'tests/lint-ps1.ps1'
+      - '.github/workflows/bitlocker-fixture-controls.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retention-controls:
+    name: Private before receipt controls
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s tests/unit -p 'test_bitlocker*py'
+
+  native-mocks:
+    name: Native PS5.1 fixture controls
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage exact sources and run mock-only controls
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Expected native Windows PowerShell 5.1' }
+          $originalTemp=$env:TEMP
+          $commonData=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
+          $directory=Join-Path $commonData "wootc-bitlocker-controls-$([guid]::NewGuid().ToString('N'))"
+          if (Test-Path -LiteralPath $directory) { throw 'Refusing existing temporary directory' }
+          [IO.Directory]::CreateDirectory($directory) | Out-Null
+          & icacls.exe $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' *> $null
+          if ($LASTEXITCODE -ne 0) { throw 'Private temporary ACL failed' }
+          try {
+            $env:TEMP=$directory
+            $sources=@('fixture-bitlocker-key.ps1','fixture-bitlocker-protection.ps1','fixture-bitlocker-key.tests.ps1','fixture-bitlocker-protection.tests.ps1','fixture-bitlocker-diagnostics.tests.ps1')
+            foreach ($source in $sources) {
+              $original=Join-Path 'tests/e2e' $source
+              $target=Join-Path $directory $source
+              $text=[IO.File]::ReadAllText($original).Replace("`r`n","`n").Replace("`n","`r`n")
+              [IO.File]::WriteAllText($target,$text,[Text.UTF8Encoding]::new($true))
+              Write-Output "SOURCE $source RAW_SHA256 $((Get-FileHash -LiteralPath $original).Hash) STAGED_SHA256 $((Get-FileHash -LiteralPath $target).Hash)"
+            }
+            & ./tests/lint-ps1.ps1 -Files @($sources | ForEach-Object { Join-Path $directory $_ })
+            if ($LASTEXITCODE -ne 0) { throw 'Native parser/lint failed' }
+            . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $directory 'fixture-bitlocker-key.ps1'))))
+            try { Assert-WootcFixtureReceiptDirectory -Directory $directory } catch {
+              $ancestor=[IO.DirectoryInfo]::new($directory)
+              while ($null -ne $ancestor) {
+                $acl=$ancestor.GetAccessControl()
+                $rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object {
+                  [pscustomobject]@{sid=$_.IdentityReference.Value;rights=[long]$_.FileSystemRights;type=[string]$_.AccessControlType;propagation=[int]$_.PropagationFlags}
+                })
+                [pscustomobject]@{path=$ancestor.FullName;owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value;rules=$rules} | ConvertTo-Json -Compress -Depth 4 | Write-Output
+                $ancestor=$ancestor.Parent
+              }
+              throw 'Hosted private receipt ancestry refused'
+            }
+            & (Join-Path $directory 'fixture-bitlocker-key.tests.ps1')
+            & (Join-Path $directory 'fixture-bitlocker-protection.tests.ps1')
+            & (Join-Path $directory 'fixture-bitlocker-diagnostics.tests.ps1')
+          } finally {
+            $env:TEMP=$originalTemp
+            Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop
+          }

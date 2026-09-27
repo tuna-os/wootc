@@ -229,10 +229,11 @@ Import-Module -Name $tpmModule -ErrorAction Stop *> $null
 }
 
 function Invoke-WootcFixturePrivateOperation {
-    param([ValidateSet('export','activate')][string]$Operation,[string]$Path,[bool]$EnsureProtector)
+    param([ValidateSet('export','activate')][string]$Operation,[string]$Path,[bool]$EnsureProtector,[ValidatePattern('^[0-9a-f]{32}$')][string]$RunId)
     $pipeline = $null
     $failed = $true
-    $runId = [guid]::NewGuid().ToString('N')
+    if ([string]::IsNullOrEmpty($RunId)) { $RunId = [guid]::NewGuid().ToString('N') }
+    $runId = $RunId
     try {
         $pipeline = New-WootcFixturePrivatePipeline
         $worker = @'
@@ -292,6 +293,37 @@ try {
         if ($Operation -eq 'export') { throw 'BitLocker fixture recovery key preparation failed; refusing to arm the boot' }
         throw 'BitLocker fixture protection activation failed; refusing to schedule installed Linux'
     }
+}
+
+function Get-WootcFixtureBeforeReceipt {
+    param([Parameter(Mandatory=$true)][string]$RecoveryKeyPath,[Parameter(Mandatory=$true)][ValidatePattern('^[0-9a-f]{32}$')][string]$RunId)
+    $pipeline = $null
+    try {
+        $pipeline = New-WootcFixturePrivatePipeline
+        $worker = @'
+param($keyPath,$runId)
+try {
+    $path = "$keyPath.activation-$runId.json"
+    Assert-WootcFixtureReceiptDirectory -Directory ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($path)))
+    $acl = [IO.FileInfo]::new($path).GetAccessControl()
+    $allowed = @('S-1-5-18','S-1-5-32-544')
+    if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $allowed) { throw 'Unsafe receipt owner' }
+    foreach ($rule in @($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))) {
+        if ($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference.Value -notin $allowed) { throw 'Unsafe receipt access' }
+    }
+    $bytes = Read-WootcFixtureBoundedReceiptBytes -Path $path
+    $json = [Text.Encoding]::UTF8.GetString($bytes)
+    $safe = ConvertTo-WootcFixtureSafeRecord -Record $json
+    $value = $safe | ConvertFrom-Json
+    if ($value.stage -cne 'before' -or $value.runId -cne $runId) { throw 'Wrong receipt identity' }
+    [pscustomobject]@{valid=$true;record=$safe}
+} catch { [pscustomobject]@{valid=$false;record=$null} }
+'@
+        $null = $pipeline.AddScript($worker).AddArgument($RecoveryKeyPath).AddArgument($RunId)
+        $result = @($pipeline.Invoke())
+        if ($result.Count -ne 1 -or $result[0].valid -isnot [bool] -or -not $result[0].valid -or $result[0].record -isnot [string] -or $result[0].record.Length -gt 16384) { throw 'Unavailable fixture receipt' }
+        Write-Output $result[0].record
+    } catch { throw 'BitLocker fixture before receipt unavailable' } finally { if ($null -ne $pipeline) { $pipeline.Dispose() } }
 }
 
 function Export-WootcFixtureBitLockerKey {
