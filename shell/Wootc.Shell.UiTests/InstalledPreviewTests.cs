@@ -53,11 +53,15 @@ public sealed class InstalledPreviewTests
             Find("ReadConfiguration").AsButton().Invoke();
             using (var configurationDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
             {
-                while (!Find("ConfigurationObservation").Name.Contains("installation authorization: unavailable"))
+                AutomationElement? configurationObservation=null;
+                while (true)
                 {
+                    configurationObservation=window.FindFirstDescendant(cf=>cf.ByAutomationId("ConfigurationObservation"));
+                    if (configurationObservation?.Name.Contains("installation authorization: unavailable") == true) break;
                     if (configurationDeadline.IsCancellationRequested) throw new InvalidOperationException($"Actual configuration RPC/view unavailable; {Find("StartupObservations").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}");
                     await Task.Delay(100);
                 }
+                Assert.NotNull(configurationObservation);
             }
             Assert.False(Find("InstallLinux").IsEnabled);
             Assert.Contains("Choose",Find("InstallBlockedReason").Name);

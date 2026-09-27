@@ -29,12 +29,12 @@ try:
         event = json.loads(line)
         if event.get("Action") in ("pass", "fail", "skip") and event.get("Test"):
             receipt["tests"].append({"name": event["Test"], "outcome": event["Action"]})
-    required = {"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly", "TestNativeConfigurationStorageIgnoresInheritedModuleShadow", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters"}
+    required = {"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly", "TestNativeConfigurationStorageIgnoresInheritedModuleShadow", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters", "TestNativeConfigurationActualTrustedModuleManifestInventory"}
     passed = {test["name"] for test in receipt["tests"] if test["outcome"] == "pass"}
     receipt["accepted"] = completed.returncode == 0 and required <= passed and all(test["outcome"] == "pass" for test in receipt["tests"])
 finally:
     receipt["rawFiles"] = {str(p.relative_to(output)): {"sha256": digest(p), "size": p.stat().st_size} for p in output.rglob("*.raw")}
-    receipt["diagnosticRecords"] = {str(p.relative_to(output)): {"sha256": digest(p), "size": p.stat().st_size} for p in (output/"system-query").glob("*.json")}
+    receipt["diagnosticRecords"] = {str(p.relative_to(output)): {"sha256": digest(p), "size": p.stat().st_size} for p in (output/"system-query").rglob("*") if p.is_file()}
     (output/"receipt.json").write_text(json.dumps(receipt, indent=2)+"\n", encoding="utf-8")
 if not receipt.get("accepted"):
     raise SystemExit("Actual native controls failed or skipped; retained raw bytes and receipt")

@@ -4,9 +4,13 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/sys/windows"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,6 +141,81 @@ func retainNativeStorageQueryFailure(t *testing.T, err error) {
 	}
 	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "test": t.Name(), "exitCode": failure.ExitCode, "bounded": true, "scope": "fixed read-only source; diagnostic catch emits stage/type/numeric fields only"})
 	if err := os.WriteFile(prefix+".json", record, 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
+	system, err := windows.GetSystemDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
+	if base == "" {
+		t.Fatal("private hosted diagnostic destination required")
+	}
+	destination := filepath.Join(base, "trusted-system-modules")
+	if err := os.Mkdir(destination, 0700); err != nil {
+		t.Fatal(err)
+	}
+	type manifest struct {
+		Path   string `json:"path"`
+		Size   int64  `json:"size"`
+		SHA256 string `json:"sha256"`
+	}
+	inventory := map[string][]manifest{}
+	for _, name := range []string{"Storage", "BitLocker", "Microsoft.PowerShell.Utility"} {
+		inventory[name] = []manifest{}
+		module := filepath.Join(system, "WindowsPowerShell", "v1.0", "Modules", name)
+		if err := auditNativePackagePath(module); err != nil {
+			t.Fatal(err)
+		}
+		if err := auditNativeStatusTree(context.Background(), module, 512, func(path string) error { return inspectStateObject(path, false) }); err != nil {
+			t.Fatal(err)
+		}
+		count := 0
+		err := filepath.WalkDir(module, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			count++
+			if count > 512 {
+				return fmt.Errorf("module inventory exceeds bound")
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			if !strings.EqualFold(entry.Name(), name+".psd1") {
+				return nil
+			}
+			data, err := readBoundedStatusRecord(path)
+			if err != nil {
+				return err
+			}
+			if len(data) > 64*1024 {
+				return fmt.Errorf("manifest exceeds bound")
+			}
+			relative, err := filepath.Rel(module, path)
+			if err != nil {
+				return err
+			}
+			hash := sha256.Sum256(data)
+			inventory[name] = append(inventory[name], manifest{Path: relative, Size: int64(len(data)), SHA256: hex.EncodeToString(hash[:])})
+			owned := filepath.Join(destination, name, relative)
+			if err := os.MkdirAll(filepath.Dir(owned), 0700); err != nil {
+				return err
+			}
+			return os.WriteFile(owned, data, 0600)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := json.MarshalIndent(map[string]any{"schemaVersion": 1, "scope": "actual protected system module manifests only; no module execution or state mutation", "modules": inventory}, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(destination, "inventory.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 }
