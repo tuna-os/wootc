@@ -72,7 +72,9 @@ public sealed class InstalledPreviewTests
             Find("LinuxPasswordConfirmation").Focus();
             FlaUI.Core.Input.Keyboard.Type("public component fixture password");
             Assert.False(Find("InstallLinux").IsEnabled);
-            Assert.Equal("TPM auto-unlock",Find("LinuxEncryption").AsComboBox().SelectedItem.Text);
+            var selectedEncryption=Find("LinuxEncryption").AsComboBox().SelectedItem;
+            Assert.NotNull(selectedEncryption);
+            Assert.Equal("TPM auto-unlock",selectedEncryption.Text);
             Find("DisconnectEngine").AsButton().Invoke();
             await Expect("ConnectionStatus", "Offline");
             Assert.False(Find("ReadConfiguration").IsEnabled);

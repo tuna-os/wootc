@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "failedHead": "e3a8541",
+  "testedMerge": "a5c0209a",
+  "jobId": 108661427323,
+  "artifactId": 10936412291,
+  "observations": [
+    "actual Windows path swap accepted",
+    "fixed protected system query failed before eligible volume observations"
+  ],
+  "causeOfQueryFailure": "not yet attributed; new fixed stage/type/numeric diagnostics pending",
+  "files": {
+    "stdout.raw": "534e8d8add4f2f597607a4a96592f3e0d83bdc2537880eac7f489b25da440d71",
+    "receipt.json": "99978c3df1af551c58442178e12976e3fe38c59519cf83dcc09570287b9b9c90",
+    ".gitattributes": "790f5f7d9cddfcf9839093868d537bef7e7734e7b65213ed2db612c4d0da2f8d",
+    "stderr.raw": "7bd7a1044e835ab34eb59f658be0a288d0a1810872363cb70a50838407105def"
+  }
+}

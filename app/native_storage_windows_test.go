@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -74,6 +76,7 @@ func TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice(t *testing.
 func TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly(t *testing.T) {
 	rows, err := queryNativeStorage(context.Background())
 	if err != nil {
+		retainNativeStorageQueryFailure(t, err)
 		t.Fatal(err)
 	}
 	for _, row := range rows {
@@ -104,9 +107,36 @@ func TestNativeConfigurationStorageIgnoresInheritedModuleShadow(t *testing.T) {
 	t.Setenv("PSModulePath", root)
 	rows, err := queryNativeStorage(context.Background())
 	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
 		t.Fatalf("trusted system query did not execute: %v", err)
 	}
 	if _, err := os.Lstat(marker); !os.IsNotExist(err) {
 		t.Fatal("inherited module shadow executed")
+	}
+}
+
+func retainNativeStorageQueryFailure(t *testing.T, err error) {
+	t.Helper()
+	var failure *nativeStorageObservationFailure
+	if !errors.As(err, &failure) {
+		return
+	}
+	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
+	if base == "" {
+		return
+	}
+	if err := os.MkdirAll(base, 0700); err != nil {
+		t.Fatal(err)
+	}
+	prefix := filepath.Join(base, t.Name())
+	if err := os.WriteFile(prefix+".stdout.raw", failure.Stdout, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(prefix+".stderr.raw", failure.Stderr, 0600); err != nil {
+		t.Fatal(err)
+	}
+	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "test": t.Name(), "exitCode": failure.ExitCode, "bounded": true, "scope": "fixed read-only source; diagnostic catch emits stage/type/numeric fields only"})
+	if err := os.WriteFile(prefix+".json", record, 0600); err != nil {
+		t.Fatal(err)
 	}
 }

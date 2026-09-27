@@ -42,6 +42,22 @@ func (b *boundedNativeOutput) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 
+type nativeStorageObservationFailure struct {
+	ExitCode       int
+	Stdout, Stderr []byte
+}
+
+func (e *nativeStorageObservationFailure) Error() string {
+	return "storage observation command refused"
+}
+
+func storageQueryExitCode(command *exec.Cmd) int {
+	if command.ProcessState == nil {
+		return -1
+	}
+	return command.ProcessState.ExitCode()
+}
+
 func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -79,9 +95,11 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	command.WaitDelay = time.Second
 	output := &boundedNativeOutput{}
 	command.Stdout = output
+	stderr := &boundedNativeOutput{}
+	command.Stderr = stderr
 	// Only the fixed error class reaches the caller; no arbitrary stderr text.
 	if err := command.Run(); err != nil {
-		return nil, fmt.Errorf("storage observation command refused")
+		return nil, &nativeStorageObservationFailure{ExitCode: storageQueryExitCode(command), Stdout: append([]byte(nil), output.Bytes()...), Stderr: append([]byte(nil), stderr.Bytes()...)}
 	}
 	var raw []json.RawMessage
 	if err := json.Unmarshal(output.Bytes(), &raw); err != nil || raw == nil || len(raw) > 26 {

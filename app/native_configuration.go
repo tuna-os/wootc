@@ -79,17 +79,22 @@ func readNativeConfiguration(ctx context.Context, roots []string, selectedRoot s
 		return snapshot, fmt.Errorf("configuration root binding missing")
 	}
 	candidates := map[string]map[string][]byte{}
-	rootObjects := map[string]os.FileInfo{}
+	rootObjects := map[string]*nativeConfigurationRoot{}
 	for _, candidate := range roots {
 		if err := ctx.Err(); err != nil {
 			return snapshot, err
 		}
-		if info, err := os.Lstat(candidate); os.IsNotExist(err) {
+		if _, err := os.Lstat(candidate); os.IsNotExist(err) {
 			continue
 		} else if err != nil {
 			return snapshot, err
 		} else {
-			rootObjects[candidate] = info
+			captured, err := captureNativeConfigurationRoot(candidate)
+			if err != nil {
+				return snapshot, err
+			}
+			defer captured.close()
+			rootObjects[candidate] = captured
 		}
 		if err := audit(candidate); err != nil {
 			return snapshot, err
@@ -220,8 +225,8 @@ func readNativeConfiguration(ctx context.Context, roots []string, selectedRoot s
 			}
 		}
 
-		after, err := os.Lstat(candidate)
-		if err != nil || !os.SameFile(rootObjects[candidate], after) {
+		matched, err := rootObjects[candidate].matches(candidate)
+		if err != nil || !matched {
 			return snapshot, fmt.Errorf("configuration root identity changed")
 		}
 	}

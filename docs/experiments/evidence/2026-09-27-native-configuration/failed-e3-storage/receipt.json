@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "scope": "hosted Windows read-only system query and private Go fixtures; no installation",
+  "runId": "36334066073",
+  "runAttempt": "1",
+  "testedHead": "a5c0209aa0a5f479c4e3adf85b8b08c0b7beb066",
+  "checkoutSources": {
+    "app/app.go": "2351865bd937906359dd1529f862ce1de61a2ce7bfabdd583aa3659f83fa9d66",
+    "app/catalog.go": "fde209e1598c18a23ec99d689d61cc55c7d9a34069d15cc3c4f60dabd19cbff5",
+    "app/native_configuration.go": "8f0c86265758e62c8c1b694c583165bcb08a93fd5e4da63b49ecd74710256a97",
+    "app/native_configuration_windows.go": "2146702dbe0292a1c6d092f0f17eab9d9ac7188e84b9676f2169a39fb7d32a9c",
+    "app/native_configuration_test.go": "c2316be3e375e7bef949ea0f62f68af30d5e200d01385fe4f16ab043847dda3a",
+    "app/native_configuration_rpc_test.go": "bd94c88b33da7f04ccdce1ef629c9f69d44d5106d3dd97a2d527478fe40bd4ba",
+    "app/native_storage_windows.go": "48ed3a0bdcfa4c0bcb19f753937b8aeeb27fcace28cf71d4062b31eaa88d5fea",
+    "app/native_storage_windows_test.go": "e53de7d09eb6b53f0adc1bd2f8f9c71c98fd2c1b60c468972a7560bba4d6f394",
+    "app/native_storage_query.ps1": "cb1b2afe57949e294047fcbcd4ca79a3358b8e90f403d172e24e9763dedabcc2",
+    "app/status_location_windows.go": "20bbf777926319eb1cafd4f6235776b044d8f749ac718b2510782292d0b02ee9",
+    "app/serve.go": "b45c3037247d7ff8c3414f9e68b22f01cb83a8ab7def2f6188b325304cd97056",
+    "app/native_serve_windows.go": "9bcb6f3d5ffd70bca1be0e7297a00b86721ca2a18630e1013e91d36fea03a15a",
+    "app/state_trust_windows.go": "0fa843795ef1a6070b609fc8ade1222147be207a222267e212f1d1d8f9a39303",
+    "app/go.mod": "7e083365e3205c3e1d5d89809e6bf9f063c20aeb3337972a2816bf7a9a0fedf9",
+    "app/go.sum": "834942c1a88fc11b419d56899bdf78e57d15bf84b352b9a2226b303e80a34192",
+    "tests/native_configuration_controls.py": "2e5a978cba4dcf46fa22b284317bb649fa4de11d2af440dd16de48ba23adfaaa",
+    ".github/workflows/native-configuration.yml": "2279ec3740bf404eab440bb826eb399e38572a2f815ae829242c38c801be33ca"
+  },
+  "tools": {
+    "go": {
+      "path": "C:\\hostedtoolcache\\windows\\go\\1.26.0\\x64\\bin\\go.EXE",
+      "sha256": "c2f0bc63168a96e854e6e5dd32493cc00a415ddcd4bf94580e302c103b23adfe"
+    },
+    "python": {
+      "path": "C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe",
+      "sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a"
+    }
+  },
+  "returnCode": 1,
+  "tests": [
+    {
+      "name": "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationMalformedOverridesNeverFallBack",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAmbiguousPayloadMetadataRefuses",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap",
+      "outcome": "fail"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse",
+      "outcome": "fail"
+    },
+    {
+      "name": "TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly",
+      "outcome": "fail"
+    },
+    {
+      "name": "TestNativeConfigurationStorageIgnoresInheritedModuleShadow",
+      "outcome": "fail"
+    }
+  ],
+  "gitSources": {
+    "app/app.go": "e875462452962f3002bde10eb0cf0fbab85b919a2d9f6ae4baaeb3fd74100768",
+    "app/catalog.go": "01fe9e35ba1d5d61e10654d74dcefb0b9cc82b5e45159e97af87cc177ba33de3",
+    "app/native_configuration.go": "f5d5553d0014a34587fd42f1dff17a3fc749165f02e29ccf0bfb7b769db31410",
+    "app/native_configuration_windows.go": "9c786837473fd9508e073cb06e01a43ab02f1a8142ec85a7e7e32aed84d695fe",
+    "app/native_configuration_test.go": "d78b449a8f78e71c053795f63a2d8e0c6a09035a43ddd572e87b98251bbae1f9",
+    "app/native_configuration_rpc_test.go": "d73a44e39687bf75b286efee2ab144ee146245dda5e3361b579c2907bdcae390",
+    "app/native_storage_windows.go": "23a1b95206d9f9b42ca546124d41e211954fda57dbb11cd20dfe774218aee5cf",
+    "app/native_storage_windows_test.go": "9f51800562fbdde9aedb878d97a5691adbe87fd07445342750f649079721ebfb",
+    "app/native_storage_query.ps1": "2f44eb7af8c9738f2ad6d534a5f3c27cbd62b35fe4767269de915ac59b61362f",
+    "app/status_location_windows.go": "2b1423003714daa301c45eb107797862bf3278339f3cccdd8b09a7c5fa9ffa87",
+    "app/serve.go": "4b5688f252437016fed5b1e2a1539dd0ae0de18e2724d3327eaa256eec47e92b",
+    "app/native_serve_windows.go": "69f68977feefc800a0c312feeae364fac934eaafd03c248cf3833ac696089b80",
+    "app/state_trust_windows.go": "14060d7c9c404d859780f812b4d889c5203e5c3d58cc6e757a8c972e5b73128e",
+    "app/go.mod": "bf8b0302409344410ce0c7aa8bc7af3396a2a06d44b873a444325ac22c7a4a94",
+    "app/go.sum": "1839c01cebca590e44eba9b25df774e94536238793e500e2ca8d694b83d644f2",
+    "tests/native_configuration_controls.py": "85a411d3d0e46ebda7e648d715e1fb953e454775fdc9a8f567e50da1264a7671",
+    ".github/workflows/native-configuration.yml": "51a789585373fa97058a9fd8d82635248a9189c643e6d6687eafdeb8bdf94794"
+  },
+  "arguments": [
+    "C:\\hostedtoolcache\\windows\\go\\1.26.0\\x64\\bin\\go.EXE",
+    "test",
+    "-count=1",
+    "-json",
+    "-timeout",
+    "90s",
+    "-run",
+    "^TestNativeConfiguration",
+    "."
+  ],
+  "accepted": false,
+  "rawFiles": {
+    "stderr.raw": {
+      "sha256": "7bd7a1044e835ab34eb59f658be0a288d0a1810872363cb70a50838407105def",
+      "size": 533
+    },
+    "stdout.raw": {
+      "sha256": "534e8d8add4f2f597607a4a96592f3e0d83bdc2537880eac7f489b25da440d71",
+      "size": 22154
+    }
+  }
+}

@@ -75,7 +75,7 @@ public sealed partial class MainWindow : Window
         ImageChoice.ItemsSource = null; StorageChoice.ItemsSource = null;
         LinuxUsername.Text = ""; LinuxHostname.Text = "";
         LinuxPassword.Password = ""; LinuxPasswordConfirmation.Password = ""; LinuxLuksPassphrase.Password = "";
-        LinuxEncryption.SelectedItem = null;
+        LinuxEncryption.SelectedItem = null; LinuxDiskSize.Value = double.NaN; LinuxWindowsLook.IsChecked = false;
         ImageFacts.Text = ""; StorageFacts.Text = ""; InstallBlockedReason.Text = "";
     }
 
