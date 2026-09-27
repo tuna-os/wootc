@@ -1,0 +1,51 @@
+{
+  "actualFullHostClosurePassed": true,
+  "actualKernelNamespacePositiveObserved": true,
+  "artifactBytes": 163720,
+  "artifactId": 10935862895,
+  "artifactSha256": "14fe638f55c60b8b8f5068287d64b870162ea82ab3c78c243fff83b566199dea",
+  "authenticatedPrefixProduced": true,
+  "classicOsBootAcceptance": false,
+  "controlsJob": 108654732613,
+  "controlsRun": 36331691694,
+  "fastJob": 108654757551,
+  "fastRun": 36331691671,
+  "firmwareAcceptance": false,
+  "kernelReadonlyWriteRefusals": [
+    "/usr/share",
+    "/usr/lib/ipxe/qemu"
+  ],
+  "localFixtureOwnerObservation": {
+    "package": "qemu-system-common",
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so",
+    "version": "1:8.2.2+ds-0ubuntu1.18"
+  },
+  "normalFastFailure": "required real ELF fixture absent; tests remain unskipped",
+  "packageArchivesVerified": 6,
+  "packageInstallationAccepted": false,
+  "proofHashes": {
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/apt/config": "b35beb056f59d914b5a4c6a01b1ce72e0d8da7d363b0a35e0dafeeda44ac0cf7",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/apt/etc/ubuntu.sources": "322c5e40e230c21b68eea349e5650f36a67434e63419f7d6b7b09296ff574255",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/apt/lists/archive.ubuntu.com_ubuntu_dists_noble-security_InRelease": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/apt/lists/archive.ubuntu.com_ubuntu_dists_noble-updates_InRelease": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/apt/lists/archive.ubuntu.com_ubuntu_dists_noble_InRelease": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/archive-key.gpg": "5ebbeeb474034b1fa7e50abbe6f136e177fc826219e01f314b3623f7b3097e96",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/artifacts.json": "745a6f05e33caf1b7bc490a596ad12ecec5e851d11fddaef961754cdad2819ea",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/export.json": "829b6a3fee6aedbc55615e81bcff21d7625da2225ce2cda53cc88e904b781e03",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/fast-failure.raw.log": "078187dff524c355fc336063c009736cf172f47a595029687534cbb6233695d5",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/host-data.json": "90abf593e35e508becb83ce316008f5c6bd76deee2305ca4178fe359fbb0d507",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/namespace.json": "4a6ee07a300a8c2b63ebf6afe557e41b249821f14079a2fec61cc3dac496767b",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/source.raw.log": "c7ff2910e4c3e1e140ed2d2f360fafd42b8cf4a4e99fc3bb0f419ab3af2ccebb",
+    "docs/experiments/evidence/2026-09-27-linux-host-prefix/hosted8fa/tested-merge.json": "a4c1f488a2f6183b89fb06c872aae49be501ac025aebc9f6e7f51d535b6ce27c"
+  },
+  "protectedFilesRead": 284,
+  "resourceFilesRead": 110,
+  "reviewedSource": "8fa0e6956cf47493bb28456ae8dfb0b38d480ed5",
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "signedRawIndexPinsVerified": 6,
+  "signedReleasesVerified": 3,
+  "sourceJob": 108654732561,
+  "sourceRun": 36331691668,
+  "testedMergeSource": "e5b4387cf5fdf8ffe4f799aee483c5f2b30edc10"
+}

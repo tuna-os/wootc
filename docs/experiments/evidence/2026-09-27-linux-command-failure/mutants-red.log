@@ -1,0 +1,15 @@
+F
+======================================================================
+FAIL: test_actual_failed_command_retains_status_and_both_streams (<run_path>.FailureTests.test_actual_failed_command_retains_status_and_both_streams)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_linux_package_command_failure.py", line 14, in test_actual_failed_command_retains_status_and_both_streams
+    self.assertEqual(error.stdout,b'actual package output\n')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != b'actual package output\n'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.029s
+
+FAILED (failures=1)
+actual nonzero command retention removed: RED; original source unchanged

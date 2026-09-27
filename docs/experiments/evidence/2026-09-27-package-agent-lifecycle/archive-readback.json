@@ -1,0 +1,23 @@
+{
+  "archiveSha256": "7d7d6be6a52d6ea21eabdb78f686e4bb886f933171d33f5f3cf3cf2390343abd",
+  "nativeCommand": [
+    "/usr/bin/dpkg-deb",
+    "--fsys-tarfile",
+    "retained-approved-archive"
+  ],
+  "fileReadbacks": {
+    "/usr/sbin/qemu-ga": {
+      "sha256": "ffaa27fa0ace4d0803c6c1393ecd1c382c2e0fb88bf81f72788a36fde33badea",
+      "size": 1087040
+    },
+    "/usr/lib/systemd/system/qemu-guest-agent.service": {
+      "sha256": "fb4fbdbf513be055bd6cabb974aee312dba0e900402ce0404941ea2e979c9cef",
+      "size": 229
+    },
+    "/usr/lib/udev/rules.d/60-qemu-guest-agent.rules": {
+      "sha256": "c25178c4315fddc557245f023464c6cd8d7325c9ec8f79db292db20d082a4c7a",
+      "size": 131
+    }
+  },
+  "packageInstallation": false
+}

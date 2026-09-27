@@ -1,0 +1,533 @@
+[
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "be47dbab2facbb2553ea42cc746bd03c709b58779f3e0cb46fc6b9116efe7b8b",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libc.so.6",
+      "ld-linux-x86-64.so.2"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/accel-tcg-i386.so",
+    "readelfSha256": "d543dceb5cb3ab5f42ba94bfba0ac49769e526bf10b3425887ad13c26c031957",
+    "sourceSha256": "bbaaf2a24df5546d87a4973e4c02e93eea4347b015db029ef6749e1a00fcf013"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "f245592ad808fe43311d2fa6c391a4a993ec8f6b28735ca6a465955b6d3068ca",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libc.so.6",
+      "ld-linux-x86-64.so.2"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/accel-tcg-x86_64.so",
+    "readelfSha256": "d543dceb5cb3ab5f42ba94bfba0ac49769e526bf10b3425887ad13c26c031957",
+    "sourceSha256": "bbaaf2a24df5546d87a4973e4c02e93eea4347b015db029ef6749e1a00fcf013"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "b1cc7682ce9f47bbc0890562d09a117a1f18e30cd00d7a81132caae8d2878e99",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libasound.so.2",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-alsa.so",
+    "readelfSha256": "7cd2d3469182a9b06a7f5b9aa91bff699c6d0089fd2bef7db882d578f5f91d7e",
+    "sourceSha256": "61ae23810f132f0be2e5e8321aa32e22ed84dd8e84b4c13997926c382dcc49ca"
+  },
+  {
+    "dynamicEntries": 29,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "944fdd07d29cde1775f6205ab634ad688574123151c7454af0b3d23159e53026",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-dbus.so",
+    "readelfSha256": "8e0ae3656e39c0449c606aae624605952b82d4937783b7d6a372908ec532e9c3",
+    "sourceSha256": "21b417d4c75cfef66397c27d20bdc6bed9b338ed321a693fa16d59599b7b759f"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "d319590112ad6426dc0919ace8d363631bdb63f16f238f3af62fedac4b8b1204",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libjack.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-jack.so",
+    "readelfSha256": "5c7e074b2b82f08998c3125f2ee50c26ba25d371f4f5b8138bed15d4ee7fdcac",
+    "sourceSha256": "ff21252a1651c3e51c895e84299299d5d0a6f30276113f3f05f0d09796e4185b"
+  },
+  {
+    "dynamicEntries": 26,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "84a328de1b83feaef1621895690eda6f9ed660789f51f070578260d7f6f98bb6",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-oss.so",
+    "readelfSha256": "25968d6d98fa4ac2873e10ce03813be0add2504aba347683d5b58e5f0ecc911d",
+    "sourceSha256": "a22bf7f81e790767259f5f5e71c2f19ba4c118f85d696a5abce4c32cc853ab15"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "b72917a5e3bf44929eae889e4c404a21ff8524120b5edffe370d197a6d067b8b",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libpulse.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-pa.so",
+    "readelfSha256": "042cf2c994ef571e0dfb05f97515b8c21c0390a81e4a67bacbc75711d45d2d9f",
+    "sourceSha256": "d93c05a6720be6421e29e482e9c854706e6ee6acadfaedb4ed70d57b0a1afab7"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "2ea833e9564457eea71a129cfa46d52c9ad33fb1fca874705c682ba3bccd7a66",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libpipewire-0.3.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-pipewire.so",
+    "readelfSha256": "982fbfd82e4d34bd56f224fef4b70d3e1d764aef768c42987ae4d5d0b7cf6a9a",
+    "sourceSha256": "bebd59f650254a16e2ee5be3fef425a4072486aff57401af268b210badee6516"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "2c778ec36c93e2b95fba1b0a3d4c8a72963bdd1f70ef99681ea2f5ab76baca73",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libSDL2-2.0.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-sdl.so",
+    "readelfSha256": "9f3ba3f759f81deced785be5d4191cf90fdc9a72a119ba014e074bbe32044a7e",
+    "sourceSha256": "5ac845e0a6bcfcb7387b731a62dcc56f3f36aaeac706198c1d49f9f6e15dd536"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "2b0172b07f3cc4173b7db697bb2176c661938dbf18a37ad4e0b97379133897f4",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libspice-server.so.1",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/audio-spice.so",
+    "readelfSha256": "e6d815b791688abbf1ac8175cbc2ebc6841efa26417e1ef693dfab528ac3447e",
+    "sourceSha256": "c13c6d7251cc332e52a4b03d867b384ecc341beb9f0a7d940e88a63265ca6c4a"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "95ff712c03114b813712ad40e8175927770b84409858f0686aa78ef88fa9a561",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libcurl-gnutls.so.4",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/block-curl.so",
+    "readelfSha256": "130a079b6b6c8db3d192042efcd22e437305f3efe3616ac7857c2dd02ef454c8",
+    "sourceSha256": "923a8710a0a5c38ed704f77e3c1a81160e12b81763ec4bb0af75dcf26f9d6b68"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "b4300e9930ac3437c3d647959f30583857e6a030805dc5d37ce43dab74ae7ac5",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libbz2.so.1.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/block-dmg-bz2.so",
+    "readelfSha256": "78d799b6196bd877782b8889321737240e4e4f925dcf72c6915b7480f2ae4045",
+    "sourceSha256": "bdd40b3caaa4f8255f5f63aba7210bfa5e2b52cf57b7eb86048774d674463545"
+  },
+  {
+    "dynamicEntries": 28,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "4d0c9579de7c38774167fa88612f7a3ff4da4902f8fddc11de8e12df6033695f",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libiscsi.so.7",
+      "libm.so.6",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/block-iscsi.so",
+    "readelfSha256": "018e33d7c587f8e3bc46abd8f708073cda13510cdf02171858a8ae003c8efab0",
+    "sourceSha256": "c037917651e8e5644673e20712b0142de69a07990f0e0d2f83053b831fb60d6a"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "60d2e6b9ca08573e05edc257a8288ba364d58d1af53f8f35e9105edb71f854a7",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libnfs.so.14",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/block-nfs.so",
+    "readelfSha256": "13f5837defa5cdb9538c937ad3f01fc5da03a514525c4d106e573d7693071bf1",
+    "sourceSha256": "ba87ea06b8f5c1dec060aad67fa5a63d07945cf13f084b1a1ea9e4d89121eda2"
+  },
+  {
+    "dynamicEntries": 28,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "5308e381aa5038b01cac8a1a5724c3ede8ff832f51658637834f05e6b6373a0a",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "librbd.so.1",
+      "librados.so.2",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/block-rbd.so",
+    "readelfSha256": "95d7a8a748e3416a0980e215093858da9287f83fe93816bb6b81385b80ddb83c",
+    "sourceSha256": "6b6f47178f7aa35f1635449bed7c30ee94d0011cc7d069daccb1ec25942834c2"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "0fc56656108971b3597ba291d91017bd4ed56bd669bf12256dbdf947da924ffc",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libssh.so.4",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/block-ssh.so",
+    "readelfSha256": "f8ec552b31e80cb9bf5b8fdc82b2fc2974ac046a42bc79c9323dc5c3e8298947",
+    "sourceSha256": "77e92f00f0e5ee7108cd2839762ea0431eeaf162dc8e2d274d420a3125da4e7a"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "ae3b8fb5a7d39b6e336a8349e34afff164d57a5809b35605f327f7fa927ddae1",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libbrlapi.so.0.8",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/chardev-baum.so",
+    "readelfSha256": "d2af11721812c9367c1ae0f3e764ede78d21546e321456065eb76324022abdf6",
+    "sourceSha256": "85327da20a8baab77256c8640d179ad0a03a66be89ff2baed148d152a1efe98d"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "0c243627ad6a956661c9e957bfeaaa5a420df9f05b4db859483ce24e6646468e",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libspice-server.so.1",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/chardev-spice.so",
+    "readelfSha256": "bdf6226874678f4a4fbe36b9fe612455d831df2aed9e25ecf622658bd1a5c569",
+    "sourceSha256": "31d8220931442a8a572d583c537f231d5e865995bc71c188fc06948ef6a08335"
+  },
+  {
+    "dynamicEntries": 28,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "cac66071ecb456ce4efa9c93014d9e9a0de0014d28bddee4a7057884fa49aa7d",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libpixman-1.so.0",
+      "libspice-server.so.1",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-qxl.so",
+    "readelfSha256": "289ed3aacbacfda4a806ce50e71e35894fc8243d7f8f215786a17bcb6ec3df26",
+    "sourceSha256": "69d0fb8ece3ed58391f353f9511b48fc9469a13a9890e98fa33a4b1156614d75"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "4833e2e31396eb924460e0d0b635f28904684b61447c780e4b9b96849a1e8926",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libvirglrenderer.so.1",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-gl.so",
+    "readelfSha256": "d7b1f73a7ec80a27e4a90cbedc7007dbc44b86ecd7a47a690df5dd7fca5d0da1",
+    "sourceSha256": "f6b65b7dac98ea1d43b78ff3a7fdb20b528cf7750bea0ba21177efcda553e8ef"
+  },
+  {
+    "dynamicEntries": 22,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "9b120d249221f666321ccea012e26ab31e6c44763c4ad8795a7a664adefbc858",
+    "lddZeroDependencyOutput": "statically linked",
+    "neededNames": [],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci-gl.so",
+    "readelfSha256": "dbf96bdf7f50997e09720f08efd2c7ceefcfdd62f4947c1a3fb4e0107c627b5a",
+    "sourceSha256": "15288ead1f80803710f90eb5dcb789ff0c11726016d99648312ea32e1b247a2f"
+  },
+  {
+    "dynamicEntries": 22,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "9b120d249221f666321ccea012e26ab31e6c44763c4ad8795a7a664adefbc858",
+    "lddZeroDependencyOutput": "statically linked",
+    "neededNames": [],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so",
+    "readelfSha256": "838118ded2d3b29cd29ae383d0f08e346f15cfe1c992a3fd9a390818cb203d9d",
+    "sourceSha256": "7be97d929e5bd50434956f08de96f704fe11adb6ab30037be85f750f65d3b49e"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "e80d2b61cbe10a4edef0d85978e48f37b00bcef2bbe35522a705fcb19a4a9140",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libpixman-1.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu.so",
+    "readelfSha256": "8766ccba2837a5db8f1b4a325947ed52af2216c14a297bfbc7b84b7f56fda741",
+    "sourceSha256": "ccbe4aea9e08f48caf4b5268fc4dccc34bb1a0bbf4e0400703589099dbef5bd3"
+  },
+  {
+    "dynamicEntries": 22,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "9b120d249221f666321ccea012e26ab31e6c44763c4ad8795a7a664adefbc858",
+    "lddZeroDependencyOutput": "statically linked",
+    "neededNames": [],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-vga-gl.so",
+    "readelfSha256": "35a9d713b9a0fb602a95180100158ade4604ee54d96b833cd7e07e06c4b55a12",
+    "sourceSha256": "d3599df23873a32eb9f19c5e6b0577e1dc386b4b1e20c1e0d349e6d7e5b216ae"
+  },
+  {
+    "dynamicEntries": 22,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "9b120d249221f666321ccea012e26ab31e6c44763c4ad8795a7a664adefbc858",
+    "lddZeroDependencyOutput": "statically linked",
+    "neededNames": [],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-vga.so",
+    "readelfSha256": "3c8df8b81dbcf0c51f997b43a138e8ea759b5672701e265bca69d65e2b37a941",
+    "sourceSha256": "1e0df172e2287a0c49661015e90d68b7c7b2781cba5783c54b55cf2ff82bd602"
+  },
+  {
+    "dynamicEntries": 22,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "9b120d249221f666321ccea012e26ab31e6c44763c4ad8795a7a664adefbc858",
+    "lddZeroDependencyOutput": "statically linked",
+    "neededNames": [],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-s390x-virtio-gpu-ccw.so",
+    "readelfSha256": "9f339721267f24a229fa5722a297278453c9b97ae96eecdaf3750b4a430f879c",
+    "sourceSha256": "61b8b2d6ac3543dbe03cdcdac7a92ed2ba8b5202399e3b194d922e44c62f30b6"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "b23cd4b13df8ba1fb2ce6087239eb722a5fc1fd2c08177638f65dd7bb8857bb8",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libusb-1.0.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-usb-host.so",
+    "readelfSha256": "51b84d928836188c3bfe1849f9a15e75d84a29309e57ee931303dd46b5e9f1be",
+    "sourceSha256": "046ba76f3aa3c2bafdea6a003719a1e372dde7e6c77cf8984ee707d211885db5"
+  },
+  {
+    "dynamicEntries": 27,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "ee9289f19f89dcbcb6e5230f5988cf32c3f60b6465a8a57cef206aac3a43d878",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libusbredirparser.so.1",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-usb-redirect.so",
+    "readelfSha256": "8449a1787a4b69995b937f990d09ff4f23e82ba228996d2186703e5446fd9b82",
+    "sourceSha256": "78135b4362b71ae6b9fddb04f217901a9c834e61f36e01b64b5a19c470e74e40"
+  },
+  {
+    "dynamicEntries": 28,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "be9518ccb2b0efcab999af2bd45d5d431d231a21c4438dd91d2cf64dc346bb86",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libcacard.so.0",
+      "libglib-2.0.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/hw-usb-smartcard.so",
+    "readelfSha256": "db8159284e0d0d52142f65fb9f92f941c9e3137ae652f06641c8cc3333e70cdb",
+    "sourceSha256": "d8cc03b3c3e01ae7e4383e72d3037c9ecc5f24f724775e5bd60f7676f1fb34bd"
+  },
+  {
+    "dynamicEntries": 29,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "fa3d114c60accea0be7e7dc03af8cd82690c71122f0f53cafadf0f05e7d18a81",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libncursesw.so.6",
+      "libtinfo.so.6",
+      "libglib-2.0.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-curses.so",
+    "readelfSha256": "170498034d2b412f1e146ab4754a6d2ae30815c02dcfd68475118adfbd91fe57",
+    "sourceSha256": "a3be01d9ed8de4d5504eb05d946fe3a04212e57f8ce30e46be560734f32fbd07"
+  },
+  {
+    "dynamicEntries": 31,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "49e6e9a2a4bbfcbbd4a4d6e764f2eb031408c55de51002819a47330f310224af",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libepoxy.so.0",
+      "libpixman-1.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-dbus.so",
+    "readelfSha256": "ba55ffbe39e13a243c68a25b4daf124324e53795a8d923b2c7fdf864cbc02223",
+    "sourceSha256": "14e53d43a9611ddab7014535c4bb7a59e8644cf0b7e7ba725da0f4ab55da9a3b"
+  },
+  {
+    "dynamicEntries": 28,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "41aad7d6b8dca72e50b5d7bc3cbe31f385185d65d2814aa0ae256960033ae5aa",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libepoxy.so.0",
+      "libpixman-1.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-egl-headless.so",
+    "readelfSha256": "53c1ddadb2bda2c590e0996851f260557e492fa6561c7b77dedcaba184a44042",
+    "sourceSha256": "be6f597a972ed918fdf9eb0b6a710201e819b12e604109dd8406067c45e42561"
+  },
+  {
+    "dynamicEntries": 36,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "5c24cf7b95a17502a6607ae3ffca7a6499e9b0d296345218827a9a91f0c36d69",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libvte-2.91.so.0",
+      "libpixman-1.so.0",
+      "libX11.so.6",
+      "libepoxy.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-gtk.so",
+    "readelfSha256": "3bea0fa21941bb4c36b867554c174e30bef791dfd4b40dc98815548112d93029",
+    "sourceSha256": "aa76754cab0813910b05def76c84b289d78c64e81f1acd5332cb67253243ce0b"
+  },
+  {
+    "dynamicEntries": 29,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "63507594d2c927b84b9e605ce0d9de6f7392bfe1d5a5200594eb7bf4afed2f66",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libgbm.so.1",
+      "libpixman-1.so.0",
+      "libepoxy.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-opengl.so",
+    "readelfSha256": "7feab1489b394a226dbbef442efa90d4e9cb0daf68bdc07089ccfb8a7448af4f",
+    "sourceSha256": "456898b5eca8f1e0995b4c1e44e9cae6bd1c6fd2dcbbcddc0ff45053b6180655"
+  },
+  {
+    "dynamicEntries": 30,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "d119465b2d9d222a15a0e47b33d2196aed6264f6c71989d6daa4d622835f7966",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libSDL2-2.0.so.0",
+      "libpixman-1.so.0",
+      "libglib-2.0.so.0",
+      "libX11.so.6",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-sdl.so",
+    "readelfSha256": "171748c64545cf630dd0afaf397b211d7f42ee7e6bcb5feeb5b375ca2f0b0bc5",
+    "sourceSha256": "efbf8475b0e3423cdb9b3571a4ab18f81bb4785b6697c6dd7c6647fb82535582"
+  },
+  {
+    "dynamicEntries": 28,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "f4d6be3978a863f166aedc24cdc2fa6b0eca7964c755652e71d0b88ab4e31a9d",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libgio-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-spice-app.so",
+    "readelfSha256": "ab0e9cb7055fd3b1de469d9bf0dc26471dcc004063c7b536fd9784b0309054ce",
+    "sourceSha256": "89c7b603d780cc0a28cafa3f00e1ec731813305a838478f20021d743bfc286e5"
+  },
+  {
+    "dynamicEntries": 28,
+    "elfType": 3,
+    "hasInterpreter": false,
+    "lddSha256": "f505e9638e0e635fec1845808c7fe15f08a5f55b2f4cb64798eee03dda712968",
+    "lddZeroDependencyOutput": null,
+    "neededNames": [
+      "libspice-server.so.1",
+      "libpixman-1.so.0",
+      "libc.so.6"
+    ],
+    "path": "/usr/lib/x86_64-linux-gnu/qemu/ui-spice-core.so",
+    "readelfSha256": "aa0c36362a57031e78ce391dfba0781fcd7ccaf2f7826d0fa6035f2fa539a01d",
+    "sourceSha256": "ff5aab07b49706df51eda42e46650d1dae5c45e69d3af84e2cb4c75faf6bc28c"
+  }
+]

@@ -30,6 +30,7 @@ class BootstrapTests(unittest.TestCase):
         (self.seed/'advance.py').write_text('fixture-only source')
         self.manifest={'schemaVersion':1,'scratchId':'a'*32,'challenge':'b'*64,'vmUuid':BOOT,
                        'baselineSha256':MODULE['canonical_inventory'](self.before),
+                       'diskSerial':MODULE['disk_serial']('a'*32,'b'*64),
                        'helperHashes':{name:MODULE['sha'](self.seed/name) for name in ('bootstrap.py','package-consumer.py','packages.json','readback.py','advance.py')}}
         self.save()
         self.consume_error=False;self.false_result=False
@@ -46,7 +47,7 @@ class BootstrapTests(unittest.TestCase):
     def run_producer(self,boot=lambda:BOOT):
         return MODULE['run'](self.seed,self.workspace,self.events.append,boot,
                             lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},
-                            advance_wait=lambda *args:None)
+                            advance_wait=lambda *args:None,agent_prepare=lambda *args:{'unitPrepared':True,'bootId':BOOT,'agentResponding':False})
 
     def test_actual_producer_reports_complete_same_boot_sequence(self):
         result=self.run_producer()
@@ -54,6 +55,27 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(self.operations,['old','new'])
         self.assertEqual(json.loads((self.workspace/'result.json').read_text()),result)
         self.assertEqual(result['inventory'],self.new)
+
+    def test_actual_failure_wrapper_emits_bounded_current_identity_without_success(self):
+        facts={'expectedSerial':self.manifest['diskSerial'],'roots':[{'serial':'f'*20}]}
+        def refuse(*args):raise MODULE['RootIdentityRefusal'](facts)
+        with self.assertRaises(MODULE['RootIdentityRefusal']):
+            MODULE['run_reported'](self.seed,self.workspace,self.events.append,refuse,lambda:BOOT)
+        self.assertEqual(len(self.events),1)
+        failure=self.events[0]
+        self.assertEqual(failure['stage'],'failed');self.assertEqual(failure['bootId'],BOOT)
+        self.assertEqual(failure['scratchId'],self.manifest['scratchId'])
+        self.assertEqual(failure['challenge'],self.manifest['challenge'])
+        self.assertEqual(failure['vmUuid'],self.manifest['vmUuid'])
+        self.assertEqual(failure['rootIdentityFacts'],facts)
+        self.assertEqual(self.operations,[]);self.assertFalse(self.workspace.exists())
+
+    def test_tampered_manifest_serial_refuses_before_any_consumer_or_success(self):
+        for field,value in [('diskSerial','f'*20),('scratchId','c'*32),('challenge','c'*64)]:
+            original=self.manifest[field];self.manifest[field]=value;self.save()
+            with self.assertRaisesRegex(ValueError,'disk serial'):self.run_producer()
+            self.assertEqual(self.operations,[]);self.assertEqual(self.events,[])
+            self.manifest[field]=original;self.save()
 
     def test_wrong_baseline_refuses_before_consumer_or_serial_success(self):
         self.state['fixture']['version']='foreign'
@@ -100,7 +122,7 @@ class BootstrapTests(unittest.TestCase):
             return MODULE['wait_advance'](workspace,common,observe_boot,.02)
         with self.assertRaises(TimeoutError):
             MODULE['run'](self.seed,self.workspace,self.events.append,lambda:BOOT,
-                          lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},advance_wait=waiter)
+                          lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},advance_wait=waiter,agent_prepare=lambda *args:{'unitPrepared':True,'bootId':BOOT,'agentResponding':False})
         self.assertEqual(self.operations,['old'])
         self.assertEqual([event['stage'] for event in self.events],['baseline-observed','old-installed'])
         self.assertFalse((self.workspace/'result.json').exists())

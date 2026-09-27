@@ -1,0 +1,20 @@
+test_non_tty_and_oversize_refuse (<run_path>.SerialLifecycleTests.test_non_tty_and_oversize_refuse) ... ERROR
+
+======================================================================
+ERROR: test_non_tty_and_oversize_refuse (<run_path>.SerialLifecycleTests.test_non_tty_and_oversize_refuse)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_linux_package_serial_lifecycle.py", line 57, in test_non_tty_and_oversize_refuse
+    with self.assertRaises(ValueError):MODULE['serial_emit']({'stage':'complete'},path)
+                                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "removed-current-tty-guard", line 286, in serial_emit
+  File "/home/linuxbrew/.linuxbrew/Cellar/python@3.14/3.14.7/lib/python3.14/selectors.py", line 345, in register
+    self._selector.register(key.fd, poller_events)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 1] Operation not permitted
+
+----------------------------------------------------------------------
+Ran 1 test in 0.003s
+
+FAILED (errors=1)
+Removed current TTY guard mutant RED; actual test rejects /dev/null and regular files.

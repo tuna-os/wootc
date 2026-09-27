@@ -722,15 +722,17 @@ if [[ -f "$BUNDLE_OCI/index.json" ]]; then
     if [[ -n "$_bundle_ref" && "$_bundle_ref" == "$IMAGE" ]]; then
         phase "bundle-ingest"
         log "Offline bundle for ${IMAGE} found — ingesting the OCI layout (no network needed)..."
-        _bundle_digest=$(jq -r '.digest // empty' /mnt/ntfs/wootc/bundle/bundle.json 2>/dev/null || echo "")
-        [[ -n "$_bundle_digest" ]] && log "  bundle pinned at ${_bundle_digest}"
-        _iid=$(timeout 1800 podman pull -q "oci:${BUNDLE_OCI}" 2>/dev/null || true)
-        if [[ -n "$_iid" ]] && timeout 60 podman tag "$_iid" "$IMAGE"; then
+        if source /usr/libexec/wootc-offline-bundle.sh && \
+            wootc_bundle_ingest /mnt/ntfs/wootc/bundle "$IMAGE"; then
             WOOTC_OFFLINE=1
-            log "  [PASS] bundle ingested as ${IMAGE} (${_iid})"
+            log "  [PASS] bundle bytes and imported image verified for ${IMAGE}"
         else
-            # Best-effort by design: a broken bundle must degrade to the
-            # network path, not strand the machine.
+            _bundle_result=$?
+            if [[ "$_bundle_result" == 2 ]]; then
+                err "  [FAIL] selected image tag identity could not be verified; refusing deployment"
+                exit 1
+            fi
+            # A bundle rejected before tag publication can use the network.
             log "  [WARN] bundle ingest failed — falling back to the network"
         fi
     elif [[ -n "$_bundle_ref" ]]; then
@@ -1317,41 +1319,11 @@ if [[ -n "$VAULT_USER" && -n "$VAULT_PASSWORD_HASH" ]]; then
     USER_JSON=",\"user\": { \"username\": \"${VAULT_USER}\", \"password\": \"${VAULT_PASSWORD_HASH}\", \"groups\": [\"wheel\"] }"
 fi
 
-# ── Offline image bundle (#177) ─────────────────────────────────────────────
-# If wootc shipped with a pre-staged image store, point fisherman at it and the
-# multi-gigabyte pull never happens: bootc.go bind-mounts each
-# additionalImageStores path read-only into the bootc container, so podman
-# resolves the image locally.
-#
-# This is the step most likely to strand a user — a flaky mirror partway
-# through a migration is the worst possible moment to lose the network — so
-# when a bundle is present it is preferred, and when it is absent nothing
-# changes and we pull as before.
-#
-# Deliberately NOT fatal if the bundle looks wrong: falling back to the network
-# still completes the install, whereas refusing would turn a merely-suboptimal
-# bundle into a dead machine.
+# Verified OCI bundles were imported before probes into the primary store.
+# Legacy vfs stores cannot supply an overlay additionalImageStore (#196).
 BUNDLE_JSON=""
-BUNDLE_STORE="/mnt/ntfs/wootc/bundle/store"
-if [[ -d "$BUNDLE_STORE" ]]; then
-    _bundle_img=""
-    if [[ -f "/mnt/ntfs/wootc/bundle/bundle.json" ]]; then
-        _bundle_img=$(jq -r '.image // empty' "/mnt/ntfs/wootc/bundle/bundle.json" 2>/dev/null || echo "")
-    fi
-    # Compare against SOURCE_IMAGE, the registry ref the user actually chose.
-    # $IMAGE may have been rewritten by ntfs-3g injection to
-    # localhost/wootc-ntfs-injected:latest by this point, and a bundle that
-    # matched the selection exactly must not be rejected over the deployer's
-    # own transient tag.
-    if [[ -n "$_bundle_img" && "$_bundle_img" != "$SOURCE_IMAGE" ]]; then
-        # A bundle for a DIFFERENT image is not an error — the user may have
-        # changed their mind in the GUI — but silently pulling several GB when
-        # they expected offline is worth saying out loud.
-        log "  Bundle holds ${_bundle_img}, not ${SOURCE_IMAGE}; ignoring it and pulling instead"
-    else
-        BUNDLE_JSON=",\"additionalImageStores\": [\"${BUNDLE_STORE}\"]"
-        log "Offline image bundle found at ${BUNDLE_STORE} — skipping the image download"
-    fi
+if [[ -d /mnt/ntfs/wootc/bundle/store && "$WOOTC_OFFLINE" != 1 ]]; then
+    log "  [WARN] legacy image store cannot provide offline deployment; rebuild as OCI"
 fi
 
 RECIPE="/tmp/recipe.json"

@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://archive.ubuntu.com/ubuntu
+Suites: noble noble-updates noble-security
+Components: main universe
+Architectures: amd64
+Signed-By: /run/wootc-package-host-36331691668-1/archive-key.gpg

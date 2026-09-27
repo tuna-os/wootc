@@ -1,0 +1,3 @@
+*.raw -text whitespace=cr-at-eol
+*.json -text whitespace=cr-at-eol
+*.zip -text whitespace=cr-at-eol

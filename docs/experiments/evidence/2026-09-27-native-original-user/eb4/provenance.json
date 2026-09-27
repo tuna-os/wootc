@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "eb4a4b7c3d817701005daf1dc2e207a4dd8adf3f",
+  "run": 36338569204,
+  "job": 108674034049,
+  "testedHead": "eb4a4b7c3d817701005daf1dc2e207a4dd8adf3f",
+  "artifact": {
+    "id": 10938500664,
+    "size": 2714,
+    "digest": "eb78167b04310d8a3ce1fd174f6e57d77c3d223c6913ceeb6352fe9216a82624",
+    "apiDigestAndSizeVerified": true
+  },
+  "scope": "Actual same-user elevated interactive capture and retained-token known-folder collector with fatal persistence/refusal controls. No pipeline/Install route, original unelevated caller, interactive UAC, alternate-admin, cross-volume bridge or full journey proof.",
+  "files": {
+    "query/artifact.zip": "eb78167b04310d8a3ce1fd174f6e57d77c3d223c6913ceeb6352fe9216a82624",
+    "query/receipt.json": "b05967ba258dd5e5f3ae730b95f80a5dce98935c608918bb384bf97f5ad79ee0",
+    "query/stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/stdout.raw": "e2dcea405a04df476fd7a6955173f5b12c7be99857540ce29478d6253165e237"
+  }
+}

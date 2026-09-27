@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "scope": "actual retained token/profile/binding reads and refusal controls; no interactive capture, operation authorization or installation proof",
+  "runId": "36336625137",
+  "runAttempt": "1",
+  "testedHead": "010c136a49a03c642587eaec905d041cea4cb20d",
+  "checkoutSources": {
+    "app/native_peer_windows.go": "3c7bd546475b838f45911059e176647bb58cc19de06e9ea2578ff8359e40ee8a",
+    "app/native_original_user_windows.go": "73a4d1826dd54bf5bdadea706d7623dbc56311a998db100fd3e3eeaa4ac327d5",
+    "app/native_original_user_windows_test.go": "1242705fe60d4bcff983bd7cbfe8cad5828d8ec59c775d595d05428fb21c335f",
+    "app/go.mod": "7e083365e3205c3e1d5d89809e6bf9f063c20aeb3337972a2816bf7a9a0fedf9",
+    "app/go.sum": "834942c1a88fc11b419d56899bdf78e57d15bf84b352b9a2226b303e80a34192",
+    "tests/native_original_user_controls.py": "17dae1194cac3e2fa841fd08e2ff2c4d74511410874fcd3b1b9f25113d762f7d",
+    ".github/workflows/native-original-user.yml": "b0cdfa9828a6b5807479d31e41553684527a498b47963306836680eeda374797"
+  },
+  "gitSources": {
+    "app/native_peer_windows.go": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+    "app/native_original_user_windows.go": "708690eef151e9e358e5b6a26a16c2f2f7f635f50ffcca7ebb8850542ffa19e1",
+    "app/native_original_user_windows_test.go": "513252fd289324594a52a4bc419f3a8d3b08a63f4fafff48b8d14987b81dd7fc",
+    "app/go.mod": "bf8b0302409344410ce0c7aa8bc7af3396a2a06d44b873a444325ac22c7a4a94",
+    "app/go.sum": "1839c01cebca590e44eba9b25df774e94536238793e500e2ca8d694b83d644f2",
+    "tests/native_original_user_controls.py": "e2b8eb45d64eff03554845a65db6662b5d4d1d7a18def959327964fbd76e0a4f",
+    ".github/workflows/native-original-user.yml": "2146ea4ae45da4b5e757840826be8174f90e21b3b6610119d2bcf5b252af999c"
+  },
+  "tools": {
+    "go": "c2f0bc63168a96e854e6e5dd32493cc00a415ddcd4bf94580e302c103b23adfe",
+    "python": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a"
+  },
+  "accepted": false,
+  "tests": [
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-source",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-engine",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/alternative-admin",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserCannotReplaceObservedTokenWithPeerFields",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualTokenProfileAndBindingReadOnly",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualNoninteractiveTokenRefuses",
+      "outcome": "fail"
+    }
+  ],
+  "stdout.raw": "57a6d332fda390f06ef1f8bd8e41de87d077d3536e6abfc3ab68be11d5148ed9",
+  "stderr.raw": "18a8590315993e3bd11e87f38ebd23cf798435394bb45ff46dfc56a49c5b9751",
+  "exitCode": 1
+}

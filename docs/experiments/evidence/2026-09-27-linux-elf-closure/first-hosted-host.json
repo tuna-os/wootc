@@ -1,0 +1,29 @@
+{
+  "acquisitionPerformed": false,
+  "cpus": 4,
+  "firmwareSha256": {
+    "/usr/share/OVMF/OVMF_CODE_4M.fd": "949bfa5389c4c48582737481e7d24f46b3a16b276ef44c4089a56858c6a0a446",
+    "/usr/share/OVMF/OVMF_VARS_4M.fd": "5d2ac383371b408398accee7ec27c8c09ea5b74a0de0ceea6513388b15be5d1e"
+  },
+  "freeBytes": 114137468928,
+  "measuredResources": {
+    "cpus": 4,
+    "freeBytes": 114137468928,
+    "kvmApi": 12,
+    "memAvailableBytes": 15569580032
+  },
+  "memAvailableBytes": 15569580032,
+  "qualified": true,
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "toolSha256": {
+    "genisoimage": "9bacc5951ca0767701cfd8e6b47537f199977e51a6e943f4edfdcf9d639d99d2",
+    "qemu-img": "634320b91165669917123e8e79cce1c4d00cee0a4aa4d662d7c0a8186479b3fb",
+    "qemu-system-x86_64": "8a35ccba41582fc6c38b9df85fc9e35fa1d42f414d2d7d8090ee9b2f5e7c0854"
+  },
+  "tools": {
+    "genisoimage": "/usr/bin/genisoimage",
+    "qemu-img": "/usr/bin/qemu-img",
+    "qemu-system-x86_64": "/usr/bin/qemu-system-x86_64"
+  }
+}
