@@ -183,16 +183,17 @@ Use the field verifier and attach screenshots for the published files.
 ## When a release has to be taken back
 
 [runbooks/rollback-a-bad-release.md](../runbooks/rollback-a-bad-release.md)
-is the other direction: which lever to pull for a bad build, and what each
-one reaches. The short version, because the instinct is usually wrong:
+sets the decision order and verification steps for a bad release.
 
-- Mark the bad release as a **pre-release** to move `latest` back to the last good full release.
-  This repairs download links and unstamped builds. Pinned exes can still verify their files.
-- **Delete** the release to reach an exe already on a user's disk.
-  This also makes published winget manifests return 404. Use this action for a dangerous build.
-- The nightly continues to publish `auto-v*` from `main`.
-  Revert the faulty commit or pause `e2e-gui.yml` to stop further releases.
-- Submit a PR against `microsoft/winget-pkgs` to withdraw a winget version.
+- Mark the bad release as a **pre-release** and explicitly select a full release that passed its tests for `latest`.
+  If no full release passed its tests, remove download recommendations until a replacement passes.
+- **Delete** remote assets only for a dangerous build.
+  Uncached downloads can then fail; valid signed caches and offline bundles can still work.
+  Removal can also break a published winget URL and cannot undo an installation.
+- Revert the faulty source or pause `e2e-gui.yml`; inspect release jobs that are active too.
+- Verify `SHA256SUMS.sig` with the manifest and the installer's embedded key.
+  The release job discards its private seed, so a new key cannot sign a replacement for an old installer.
+- Verify a merged winget withdrawal or replacement through a fresh package-source query.
 
 ## User instructions (shipped in the release notes)
 
