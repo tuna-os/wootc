@@ -49,7 +49,7 @@ try {
  $env:WOOTC_ACL_USER=$name; $env:WOOTC_ACL_PASSWORD=$password; $env:WOOTC_ACL_SID=$accountSid
  $env:WOOTC_ACL_FIXTURE=$public; $env:WOOTC_ACL_ALTERNATE=$letter[0] + ':\'
  Write-Output "NATIVE_ACL_INPUT Windows=$($PSVersionTable.PSVersion) BinarySha256=$BinarySha256 FileSystem=$($volume.FileSystem) FreshOwnedVolume=true"
- & $binary '-test.v' '-test.run' '^(TestNativeStateStandardUserAndAlternateVolume|TestState.*|TestLiteralVolumeDeleteDoesNotExemptOtherAncestors)$' '-test.timeout' '60s'
+ & $binary '-test.v' '-test.run' '^(TestNativeStateStandardUserAndAlternateVolume|TestState(DescriptorTrust|Tree.*|Drive.*)|TestLiteralVolumeDeleteDoesNotExemptOtherAncestors)$' '-test.timeout' '60s'
  if ($LASTEXITCODE -ne 0) { throw "Actual native ACL controls failed with exit $LASTEXITCODE" }
  } finally {
  $cleanupErrors=[Collections.Generic.List[string]]::new()
