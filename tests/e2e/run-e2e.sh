@@ -1555,6 +1555,10 @@ for state_payload in "$OEM_DIR/state-trust.ps1" "$SCRIPT_DIR/wootc-files/state-t
     printf '\xEF\xBB\xBF' > "$state_payload"
     sed 's/$/\r/' "$SCRIPT_DIR/state-trust.ps1" >> "$state_payload"
 done
+for key_payload in "$OEM_DIR/fixture-bitlocker-key.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-key.ps1"; do
+    printf '\xEF\xBB\xBF' > "$key_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/fixture-bitlocker-key.ps1" >> "$key_payload"
+done
 for cli_payload in "$OEM_DIR/stage-status-cli.ps1" "$SCRIPT_DIR/wootc-files/stage-status-cli.ps1"; do
     printf '\xEF\xBB\xBF' > "$cli_payload"
     sed 's/$/\r/' "$SCRIPT_DIR/stage-status-cli.ps1" >> "$cli_payload"
@@ -4635,7 +4639,7 @@ else
         # Shutdown removes the temporary bridge key. Refresh it from Windows
         # for this deliberate second migration check; never print its value.
         # shellcheck disable=SC2016
-        if ! qga_powershell '$ErrorActionPreference="Stop"; $kp=Get-BitLockerVolume -MountPoint "C:" | Select-Object -ExpandProperty KeyProtector | Where-Object { $_.KeyProtectorType -eq "RecoveryPassword" } | Select-Object -First 1; if (-not $kp -or ($kp.RecoveryPassword -replace "-", "") -notmatch "^[0-9]{48}$") { throw "No valid recovery password for persistence fixture" }; $path='"'$(guest_wootc_root)\wootc\install\bitlocker-key.txt'"'; Set-Content -LiteralPath $path -Value $kp.RecoveryPassword -Encoding ASCII; & icacls.exe $path /inheritance:r /grant:r "*S-1-5-18:F" "*S-1-5-32-544:F" | Out-Null; if ($LASTEXITCODE -ne 0) { Remove-Item -LiteralPath $path -Force; throw "Could not protect persistence fixture key" }' >/dev/null; then
+        if ! qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-key.ps1"; Export-WootcFixtureBitLockerKey -Destination '"'$(guest_wootc_root)\wootc\install\bitlocker-key.txt'"'' >/dev/null; then
             fail "Could not refresh the protected recovery key for the second BitLocker boot"
             exit 1
         fi
