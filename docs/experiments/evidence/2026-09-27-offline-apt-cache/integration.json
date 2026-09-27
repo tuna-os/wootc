@@ -1,0 +1,18 @@
+{
+  "controls": {
+    "consumer": 31,
+    "runtime": 115
+  },
+  "evidenceSha256": {
+    "integrated-consumer-controls.raw.log": "ab5665a23992ee3994e52b2a1fdad2ac37bbf231bfe4893dbef0c748449fc837",
+    "integrated-runtime-controls.raw.log": "ed568103ee08f20e0ed41d9f0c436738fb35d2c4fbc1c44b3c285b5b1bcee2df"
+  },
+  "integratedMain": "60cda6e15c3488859131a815e9b1e9ac777feae5",
+  "runtimeDispatched": false,
+  "schemaVersion": 1,
+  "sourceSha256": {
+    "tests/e2e/esp-chain/package-consumer.py": "2eaeffa0ff26a30efd58c45bac5d501a124384e5fd0b8f3b116de27461c00bd8",
+    "tests/unit/test_wootc_package_consumer.py": "8a82b0214e5b5c77e36aade2b288c2ed4712f23ad65292fce1950f7981f754a5"
+  },
+  "testedCommit": "6146ba76efe5dfdd1608197ff3f02214955bdfa5"
+}

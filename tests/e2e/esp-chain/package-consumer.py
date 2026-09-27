@@ -49,6 +49,17 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def apt_archive_name(entry):
+    # APT pkgAcqArchive/QuoteString canonical archive identity, including epochs.
+    version = entry['version']
+    if not isinstance(version, str) or not re.fullmatch(r'(?:[0-9]+:)?[0-9][A-Za-z0-9.+~\-]*', version):
+        raise ValueError('unsupported package version for canonical offline cache')
+    def quoted(value, bad):
+        return ''.join('%%%02x' % ord(char) if char in bad or char == '%' or
+                       ord(char) <= 32 or ord(char) >= 127 else char for char in value)
+    return quoted(entry['package'], '_:')+'_'+quoted(version, '_:')+'_'+quoted(entry['architecture'], '_:.')+'.deb'
+
+
 def inventory(run, allowed_retired=None):
     result = run(['/usr/bin/dpkg-query', '-W', '-f', '${binary:Package}\t${Version}\t${Architecture}\t${db:Status-Status}\n'],
                  check=True, timeout=30, capture_output=True)
@@ -183,12 +194,17 @@ def consume(folder=Path('/var/lib/wootc/qa-upgrade'), phase='new', run=execute, 
         if inventory(run, retired) != selected['beforeInventory']:
             raise ValueError('actual before-mutation dpkg inventory differs')
         with tempfile.TemporaryDirectory(prefix='offline-bundle-', dir=folder) as temporary:
-            frozen = []
+            archives = Path(temporary)/'archives'; archives.mkdir(mode=0o700)
+            (archives/'partial').mkdir(mode=0o700)
+            frozen = []; frozen_facts = []; cache_names = set()
             for entry in selected['packages']:
                 source = folder/entry['name']
                 if source.is_symlink() or not source.is_file() or digest(source) != entry['sha256']:
                     raise ValueError('staged package hash differs or package missing')
-                target = Path(temporary)/entry['name']
+                cache_name = apt_archive_name(entry)
+                if cache_name in cache_names: raise ValueError('ambiguous canonical archive cache identity')
+                cache_names.add(cache_name)
+                target = archives/cache_name
                 with source.open('rb') as reader, target.open('xb') as writer:
                     shutil.copyfileobj(reader, writer); writer.flush(); os.fsync(writer.fileno())
                 target.chmod(0o400)
@@ -199,6 +215,8 @@ def consume(folder=Path('/var/lib/wootc/qa-upgrade'), phase='new', run=execute, 
                 if len(result.stdout) > 4096 or result.stdout.decode().strip().split('\t') != [entry['package'], entry['version'], entry['architecture']]:
                     raise ValueError('package control identity differs from pinned bundle')
                 frozen.append(str(target))
+                facts=target.lstat()
+                frozen_facts.append((facts.st_dev,facts.st_ino,facts.st_size,facts.st_mtime_ns))
             empty_lists = Path(temporary)/'lists'; empty_lists.mkdir(mode=0o700)
             changes = [path for path, entry in zip(frozen, selected['packages'])
                        if selected['beforeInventory'].get(entry['package']) !=
@@ -206,7 +224,8 @@ def consume(folder=Path('/var/lib/wootc/qa-upgrade'), phase='new', run=execute, 
             if not changes:
                 raise ValueError('offline phase has no actual package version changes')
             command = ['/usr/bin/apt-get', '-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-',
-                       '-o', 'Dir::State::lists='+str(empty_lists), '--no-download',
+                       '-o', 'Dir::State::lists='+str(empty_lists),
+                       '-o', 'Dir::Cache::archives='+str(archives), '--no-download',
                        '--no-install-recommends', '--allow-downgrades', '--yes', 'install']+changes
             result = run(command[:1]+['--simulate']+command[1:], check=True, timeout=60, capture_output=True,
                          env=dict(os.environ, LC_ALL='C'))
@@ -218,8 +237,13 @@ def consume(folder=Path('/var/lib/wootc/qa-upgrade'), phase='new', run=execute, 
             if checked_policy(folder, phase) != policy:
                 raise ValueError('QA policy changed across preflight')
             if before_install is not None: before_install()
-            if any(digest(path) != entry['sha256'] for path, entry in zip(frozen, selected['packages'])):
-                raise ValueError('frozen bundle changed before install')
+            for path, entry, retained in zip(frozen, selected['packages'], frozen_facts):
+                current=Path(path).lstat()
+                if (Path(path).is_symlink() or not Path(path).is_file() or current.st_uid != os.geteuid() or
+                        current.st_mode & 0o222 or current.st_nlink != 1 or
+                        (current.st_dev,current.st_ino,current.st_size,current.st_mtime_ns) != retained or
+                        digest(path) != entry['sha256']):
+                    raise ValueError('frozen bundle changed before install')
             run(command, check=True, timeout=600, env=dict(os.environ, DEBIAN_FRONTEND='noninteractive'))
             if inventory(run, retired) != selected['afterInventory']:
                 raise ValueError('actual installed package inventory differs from approved result')
