@@ -1,9 +1,11 @@
 ﻿param([Parameter(Mandatory=$true)][string]$ScratchId,
       [Parameter(Mandatory=$true)][string]$AfterLinuxBootId,
-      [string]$Volume = 'C:')
+      [Parameter(Mandatory=$true)][string]$Volume)
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Current guest is not Windows' }
 if ($Volume -notmatch '^[A-Za-z]:$') { throw 'Invalid volume' }
+$RootDisk = Join-Path $Volume 'wootc\disks\root.disk'
+if (-not (Test-Path -LiteralPath $RootDisk -PathType Leaf)) { throw 'Actual root.disk absent on queried volume' }
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;

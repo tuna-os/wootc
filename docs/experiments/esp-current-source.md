@@ -45,10 +45,13 @@ new deployment and a later boot through its refreshed chain. It must not edit
 For bootc, pin both OCI digests and use a QA reference for this run only. For classic,
 pin the published package bundles and record the measured source facts.
 
+Stage the Windows helper with CRLF and its UTF-8 BOM before execution. The checked-in source uses LF.
+
 After the later Linux boot, run `capture-windows.ps1` through the real QGA transport for Windows. It checks Windows_NT, reads the VM UUID and queries the actual
-NTFS serial with FSCTL_GET_NTFS_VOLUME_DATA. Pass the scratch ID and the last
-observed Linux boot ID. The transport must execute this after the return to
-Windows; a record from an earlier Windows boot cannot satisfy this gate.
+NTFS serial with FSCTL_GET_NTFS_VOLUME_DATA. Pass the scratch ID, the last observed Linux boot ID and the actual root.disk volume. The volume argument is mandatory. The helper checks that root.disk exists there before it queries the NTFS serial. The transport must execute this after the return to Windows; a record from an earlier Windows boot cannot satisfy this gate.
+
+The scratch ID and prior Linux boot ID are caller inputs. Their echo does not prove execution order. The helper compares facts from each capture. It returns observationsMatch, with chronologyVerified and firmwareAcceptance false.
+The orchestrator must record the execution order of actual QGA calls and reject a cached Windows response. That code remains open.
 
 ```sh
 python3 tests/e2e/esp-chain/accept.py plan.json old.json new.json reboot.json windows.json

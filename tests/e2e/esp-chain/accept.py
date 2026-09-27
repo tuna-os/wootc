@@ -59,8 +59,8 @@ def validate(plan, old, new, reboot, windows):
     require(windows['scratchId'] == plan['scratchId'] and windows['os'] == 'Windows_NT', 'actual Windows return absent')
     require(windows['hostUuid'] == first['hostUuid'], 'Windows returned on another host volume')
     require(windows['afterLinuxBootId'] == ids[-1], 'Windows return is stale or out of order')
-    return {'accepted': True, 'scratchId': plan['scratchId'], 'deploymentKind': kind,
-            'scope': 'three observed Secure Boot Linux boots and subsequent Windows return; no hardware power-cut claim'}
+    return {'observationsMatch': True, 'firmwareAcceptance': False, 'chronologyVerified': False, 'scratchId': plan['scratchId'], 'deploymentKind': kind,
+            'scope': 'capture facts match; echoed correlation fields do not prove transport chronology or firmware acceptance'}
 
 
 if __name__ == '__main__':

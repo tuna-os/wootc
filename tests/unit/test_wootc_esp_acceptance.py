@@ -35,7 +35,10 @@ class AcceptanceTests(unittest.TestCase):
         self.args = [plan, *captures, windows]
 
     def test_complete_observation_contract(self):
-        self.assertTrue(accept(*self.args)['accepted'])
+        result = accept(*self.args)
+        self.assertTrue(result['observationsMatch'])
+        self.assertFalse(result['firmwareAcceptance'])
+        self.assertFalse(result['chronologyVerified'])
 
     def test_underlying_observations_required(self):
         mutations = [

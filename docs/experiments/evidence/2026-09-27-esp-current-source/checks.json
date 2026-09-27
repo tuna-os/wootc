@@ -14,5 +14,7 @@
   "hostedImageBuild": false,
   "firmwareAcceptance": false,
   "classicOsBootAcceptance": false,
-  "shellPassed": 38
+  "shellPassed": 38,
+  "chronologyVerified": false,
+  "windowsVolumeMandatory": true
 }

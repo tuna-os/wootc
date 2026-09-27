@@ -17,9 +17,9 @@
   ],
   "firmwareAcceptance": false,
   "classicOsBootAcceptance": false,
-  "scope": "Combined current-main source plus executable capture/assertion/owned-overlay helpers. Native package/signature/transaction checkpoints retain their original scoped proofs. No classic OS producer or hosted orchestrator execution is claimed.",
+  "scope": "Combined current-main source plus executable capture/assertion/owned-overlay helpers. Native package/signature/transaction checkpoints retain their original scoped proofs. No classic OS producer or hosted orchestrator execution is claimed. The helper only matches capture facts; echoed Linux boot/scratch inputs cannot prove transport chronology. Actual QGA ordering remains an orchestrator gate. Windows volume is mandatory with actual root.disk presence and NTFS serial.",
   "sourceHashes": {
-    "docs/experiments/esp-current-source.md": "14a1febf2321a6dd3b4ebd8c7a9eb73aa11dcc1a8b45860b8606d2a893dcab2b",
+    "docs/experiments/esp-current-source.md": "719eaefc36cb4b317e3a0908993a9493dde949a6f357312bafc53a63fe145e44",
     "packaging/build-sbverify.sh": "45f5bc8bacfcc0b986ce89695efb71c7d74ee7e17e67f0050fc702d59f29d16a",
     "packaging/sbpehash.c": "e0fb0b6d41b8f7fad71c9d014a84b1a9494a5693b03fe8841051853812a8f143",
     "payload/deployer/deploy.sh": "6327f7b7fab197fafd9b109b5037b835ce7c2c7f355ad384bbcf4d4f52ccad85",
@@ -35,8 +35,8 @@
     "payload/migration/wootc-shim-trust": "ce55f2c7a287ffb36325449e9fbe555b656d4e5ec03de0cec24eac6fe2011a5d",
     "platform/dracut/99wootc-boot/module-setup.sh": "7a6a8e8c649855e82b63d1214ff533a69bf50c3d7629bf04a08db1c484f35cb2",
     "tests/audit-esp-current-source.py": "2a4a7229f6efe1289abca42124e737359ad017691de1de786438665748aeaddf",
-    "tests/e2e/esp-chain/accept.py": "02efa04bd27b3d56c1686bbb10ad2ebff39c3b2b5ca1d952700839802680d077",
-    "tests/e2e/esp-chain/capture-windows.ps1": "8db37315a10dc4ae6b33f27077c9aaff4629fb4c224059bb3558737fd3445c68",
+    "tests/e2e/esp-chain/accept.py": "35fac5d68413248dad0da4f5e92bdbb8d9f2fedbfd5bfa1ca3730d7f6da3f744",
+    "tests/e2e/esp-chain/capture-windows.ps1": "36be2798a1a037bde0aad52f33e9984bbb2064666bc4b54ee4c4f8c4cbbb11c0",
     "tests/e2e/esp-chain/capture.py": "58d976e8ec436aa1dbe39bd8753631398adcee6bfd2500a2cf5135897e33fe5c",
     "tests/e2e/esp-chain/scratch.py": "f13bbbc0738b269ca0d83a619ccda93cf3b0047f2aa5be37e802b08480647caf",
     "tests/migration/test-bridge.sh": "ddd671dbf7f7d2e98d219455bd1f81e2a68fe2a91bfdac936494046667f3527f",
@@ -46,16 +46,16 @@
     "tests/unit/test_wootc_chain_staging.py": "bf378c3d9dc5147fa3152e2b4762a0983d4256fd09f8bfd363142f4ce583d8e2",
     "tests/unit/test_wootc_chain_verify.py": "2a65f52562b763da45c61dcc7d89d167681a091e95f5acfcce47e74e7eb36287",
     "tests/unit/test_wootc_classic_source.py": "d754a1212b2bd46ba47bc584b1b268ce98b1826ee9b45307718e6bd4dff9d4a5",
-    "tests/unit/test_wootc_esp_acceptance.py": "a5308a0b0cde06e03443ea375219f5798f07e3c72d54c48596781fff22bd90b3",
+    "tests/unit/test_wootc_esp_acceptance.py": "def398d159e766e1518ef0c3f5265776b878878f9c25a54f20cd3798a42e0974",
     "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
     "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
     "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
     "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"
   },
   "resultHashes": {
-    "unit.log": "366269e6bb504d70a7d4f42d87e7c016e34e991d0bf02b7eef7581ab673e36bc",
+    "unit.log": "e03a17b8c10cf6496b507b321322ff3a940ce237e9480cc4b2e565d893579535",
     "root-versioned-source-signature.json": "38b9d37479de4f49327695a2eb53ecd24bdfb8627c3006ab1df419f0efec651c",
-    "checks.json": "7a637b88824b4df3ba2186bb8461deb777aedf7daaa63da12021ce5790c18651",
+    "checks.json": "7583ab7b66f5e454bc2edd4e16d3b7a0dd947e24460c3071623749c79f0330b2",
     "shell.log": "07182dbd45bd5780b3fa47772a00675efb171212adf0d19fcb586d0e43fb4567",
     "scratch-result.json": "ee5ab6d177a0791f224ec0c6729604e9e554b7cb8db0883528a3529b957b931d"
   },
@@ -70,5 +70,6 @@
     "classic_assets": "docs/experiments/evidence/2026-09-27-classic-providers/provenance.json",
     "versioned_assets": "docs/experiments/evidence/2026-09-27-classic-versioned-rpm/provenance.json"
   },
-  "originalMainBase": "119bbc0"
+  "originalMainBase": "119bbc0",
+  "followupTo": "4b37a273f1761ffbc73e301b74b5167b46df7248"
 }
