@@ -1,0 +1,8 @@
+{"step":"storage","pct":0}
+{"step":"network","pct":0}
+{"step":"pulling","pct":0}
+{"step":"installing","pct":0}
+{"step":"personalizing","pct":0}
+{"step":"verifying","pct":0}
+{"type":"result","schemaVersion":1,"status":"success","runId":"proof_20260926","installId":"install_proof_20260926","image":"ghcr.io/tuna-os/yellowfin@sha256:ed95623a4943a75b5ea61edb914de5a9b6033c4fb2ddb9de60fa14d88861520d","diskId":"f97c68d6-3f7e-4639-8e3c-33d9744121d7","filesystemVerified":true,"efiVerified":true,"accountOutcome":"created","username":"wootctest"}
+STATUS=SUCCESS

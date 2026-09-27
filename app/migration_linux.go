@@ -424,7 +424,11 @@ func setMigrationProfile(profile string) error {
 }
 
 func resolvedWindowsProfile(u *user.User) (path, profile string, err error) {
-	root := "/run/wootc/host/Users"
+	return resolvedWindowsProfileIn(u, "/run/wootc/host/Users")
+}
+
+// Keep the production mount fixed while testing profile selection on real files.
+func resolvedWindowsProfileIn(u *user.User, root string) (path, profile string, err error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return "", "", fmt.Errorf("Windows profiles are unavailable: %w", err)

@@ -15,6 +15,11 @@ import (
 var assets embed.FS
 
 func main() {
+	if err := initializeStateTrust(); err != nil {
+		reportStateTrustFailure(err)
+		os.Exit(1)
+	}
+
 	// Headless subcommands (install/status/uninstall) run the production
 	// pipeline without a webview — used by E2E and unattended installs.
 	if isHeadlessInvocation(os.Args) {

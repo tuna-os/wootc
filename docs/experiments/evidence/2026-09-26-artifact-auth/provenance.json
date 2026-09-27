@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-26",
+  "fixture": "Corral/KubeVirt winbase-399, Windows 11 Pro, PowerShell 5.1",
+  "scope": "Signature verification, metadata transport, and downloadDeployerTo with disposable files and localhost TLS; no boot performed",
+  "binaries": {
+    "verifier": "5df10f33b3d40ccff9632f17898f067fd0fc25f838b64a2a6dc9b0f9b3001b87",
+    "pipeline": "d4829352b07efa81cf372f47a2ee1be9f82e88c21dd0a121cce3820331ed9f8d"
+  },
+  "source_note": "Verifier binary from 4a1473b; pipeline binary includes subsequent downloadDeployerTo injection, optional-cache removal and their executable tests. Later canonical relative manifest path parsing is covered by the platform-neutral Go suite.",
+  "mutation": "Bypassing ed25519.Verify causes replacement-key, missing-signature, truncated-signature, edited-manifest and foreign-domain tests to fail."
+}

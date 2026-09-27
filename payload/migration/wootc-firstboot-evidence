@@ -12,9 +12,7 @@ set -euo pipefail
 HOST="${WOOTC_FIRSTBOOT_HOST:-/run/initramfs/wootc-host}"
 
 INSTALL_DIR="$HOST/wootc/install"
-EVIDENCE_TMP="$INSTALL_DIR/installed-linux-boot.json.tmp"
 EVIDENCE_FINAL="$INSTALL_DIR/installed-linux-boot.json"
-STATE_TMP="$HOST/wootc/state.json.tmp"
 STATE_FINAL="$HOST/wootc/state.json"
 
 log() {
@@ -27,7 +25,6 @@ log() {
 on_error() {
     local rc="$1" line="$2" command="$3"
     log "ERROR: first-boot state write failed at line $line (exit $rc): $command"
-    rm -f "$STATE_TMP" "$EVIDENCE_TMP" 2>/dev/null || true
     exit "$rc"
 }
 
@@ -45,17 +42,19 @@ mkdir -p "$INSTALL_DIR"
 NOW=$(date -u +%FT%TZ 2>/dev/null || date)
 KERNEL_VER="$(uname -r 2>/dev/null || echo "unknown")"
 
-# Prepare both records before publishing either one. The lifecycle state is
-# published first; the evidence marker is last so a failed state write leaves
-# the service eligible to retry on the next boot.
-cat <<JSONEOF > "$STATE_TMP"
+# Update the lifecycle state before the evidence marker. The unit is gated on
+# the marker's absence; writing it last lets the service retry after a failed
+# state update on the next boot. The helper preserves the Windows ACL and
+# atomically replaces each record on the NTFS volume.
+wootc-ntfs-state-write "$STATE_FINAL" "$STATE_FINAL" <<JSONEOF
 {
   "state": "healthy",
   "updatedAt": "$NOW",
   "updatedBy": "wootc-firstboot"
 }
 JSONEOF
-cat <<JSONEOF > "$EVIDENCE_TMP"
+
+wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" <<JSONEOF
 {
   "state": "healthy",
   "kernel": "$KERNEL_VER",
@@ -63,11 +62,5 @@ cat <<JSONEOF > "$EVIDENCE_TMP"
   "updatedBy": "wootc-firstboot"
 }
 JSONEOF
-sync "$STATE_TMP" 2>/dev/null || sync || true
-sync "$EVIDENCE_TMP" 2>/dev/null || sync || true
-mv -f "$STATE_TMP" "$STATE_FINAL"
-sync "$STATE_FINAL" 2>/dev/null || sync || true
-mv -f "$EVIDENCE_TMP" "$EVIDENCE_FINAL"
-sync "$EVIDENCE_FINAL" 2>/dev/null || sync || true
 
 log "Phase-2 first-boot health reported: state.json -> healthy ($KERNEL_VER)"

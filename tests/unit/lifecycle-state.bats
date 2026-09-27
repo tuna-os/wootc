@@ -12,6 +12,32 @@ setup() {
     STATE_GO="$REPO_ROOT/app/state.go"
 }
 
+make_firstboot_fakes() {
+    local tmp="$1"
+    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
+    cat > "$tmp/bin/mountpoint" <<'SH'
+#!/bin/sh
+[ "${FIRSTBOOT_MOUNT_PRESENT:-0}" = 1 ]
+SH
+    cat > "$tmp/bin/wootc-ntfs-state-write" <<'SH'
+#!/bin/bash
+set -e
+template="$1"
+target="$2"
+printf '%s\n' "$target" >> "$FIRSTBOOT_HELPER_CALLS"
+if [ ! -f "$template" ]; then
+    echo "missing descriptor template: $template" >&2
+    exit 2
+fi
+if [[ ${FIRSTBOOT_FAIL_STATE_WRITE:-0} == 1 && "$target" == */wootc/state.json ]]; then
+    echo "injected state write failure" >&2
+    exit 72
+fi
+cat > "$target"
+SH
+    chmod +x "$tmp/bin/mountpoint" "$tmp/bin/wootc-ntfs-state-write"
+}
+
 @test "deploy.sh is syntactically valid" {
     run bash -n "$DEPLOY"
     [ "$status" -eq 0 ]
@@ -45,20 +71,12 @@ setup() {
     echo "$output" | grep -q 'write_ntfs_state "failed"'
 }
 
-@test "deploy.sh writes state files atomically (temp file, sync, rename, sync)" {
-    # write_ntfs_state must use temp file, rename, and sync
-    run grep -A35 'write_ntfs_state()' "$DEPLOY"
-    [ "$status" -eq 0 ]
-    echo "$output" | grep -q '\.tmp'
-    echo "$output" | grep -q 'mv -f'
-    echo "$output" | grep -q 'sync'
-
-    # write_deployer_started must use temp file, rename, and sync
-    run grep -A35 'write_deployer_started()' "$DEPLOY"
-    [ "$status" -eq 0 ]
-    echo "$output" | grep -q '\.tmp'
-    echo "$output" | grep -q 'mv -f'
-    echo "$output" | grep -q 'sync'
+@test "deployer metadata uses the descriptor-preserving atomic writer" {
+    for function in write_ntfs_state write_deployer_started; do
+        run sed -n "/^${function}()/,/^}/p" "$DEPLOY"
+        [ "$status" -eq 0 ]
+        echo "$output" | grep -q 'wootc-ntfs-state-write /mnt/ntfs/wootc/state.json'
+    done
 }
 
 @test "wootc-firstboot-evidence exists and writes state.json = healthy atomically" {
@@ -67,8 +85,7 @@ setup() {
     grep -q 'installed-linux-boot.json' "$FIRSTBOOT_SCRIPT"
     grep -q '"state": "healthy"' "$FIRSTBOOT_SCRIPT"
     grep -q 'state.json' "$FIRSTBOOT_SCRIPT"
-    grep -q 'mv -f' "$FIRSTBOOT_SCRIPT"
-    grep -q 'sync' "$FIRSTBOOT_SCRIPT"
+    [ "$(grep -c '^wootc-ntfs-state-write ' "$FIRSTBOOT_SCRIPT")" -eq 2 ]
 }
 
 @test "wootc-firstboot-evidence.service is ordered after host-bind" {
@@ -80,76 +97,51 @@ setup() {
 
 @test "firstboot health writer publishes readable state and evidence" {
     tmp=$(mktemp -d)
-    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
-    cat > "$tmp/bin/mountpoint" <<'SH'
-#!/bin/sh
-[ "${FIRSTBOOT_MOUNT_PRESENT:-0}" = 1 ]
-SH
-    chmod +x "$tmp/bin/mountpoint"
+    make_firstboot_fakes "$tmp"
+    printf '{"state":"deployed"}\n' > "$tmp/host/wootc/state.json"
 
     run env FIRSTBOOT_MOUNT_PRESENT=1 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
         PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
     [ "$status" -eq 0 ]
     python3 -c 'import json,sys; state=json.load(open(sys.argv[1])); evidence=json.load(open(sys.argv[2])); assert state["state"] == "healthy" and state["updatedBy"] == "wootc-firstboot"; assert evidence["state"] == "healthy" and evidence["updatedBy"] == "wootc-firstboot"' \
         "$tmp/host/wootc/state.json" "$tmp/host/wootc/install/installed-linux-boot.json"
+    [ "$(sed -n '1p' "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
+    [ "$(sed -n '2p' "$tmp/helper-calls")" = "$tmp/host/wootc/install/installed-linux-boot.json" ]
     rm -rf "$tmp"
 }
 
 @test "firstboot health writer fails when the private Windows mount is absent" {
     tmp=$(mktemp -d)
-    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
-    cat > "$tmp/bin/mountpoint" <<'SH'
-#!/bin/sh
-exit 1
-SH
-    chmod +x "$tmp/bin/mountpoint"
+    make_firstboot_fakes "$tmp"
 
     run env FIRSTBOOT_MOUNT_PRESENT=0 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
         PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
     [ "$status" -ne 0 ]
     [[ "$output" == *"is not mounted"* ]]
     [ ! -f "$tmp/host/wootc/state.json" ]
     [ ! -f "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ ! -e "$tmp/helper-calls" ]
     rm -rf "$tmp"
 }
 
-@test "firstboot does not publish its retry marker when the state rename fails" {
+@test "firstboot does not publish its retry marker when the state write fails" {
     tmp=$(mktemp -d)
-    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
-    cat > "$tmp/bin/mountpoint" <<'SH'
-#!/bin/sh
-exit 0
-SH
-    cat > "$tmp/bin/mv" <<'SH'
-#!/bin/bash
-for arg in "$@"; do
-    if [ "$arg" = "$FIRSTBOOT_FAIL_MV_DEST" ]; then
-        exit 72
-    fi
-done
-exec /usr/bin/mv "$@"
-SH
-    chmod +x "$tmp/bin/mountpoint" "$tmp/bin/mv"
+    make_firstboot_fakes "$tmp"
+    printf '{"state":"deployed"}\n' > "$tmp/host/wootc/state.json"
 
     run env WOOTC_FIRSTBOOT_HOST="$tmp/host" \
-        FIRSTBOOT_FAIL_MV_DEST="$tmp/host/wootc/state.json" \
+        FIRSTBOOT_MOUNT_PRESENT=1 FIRSTBOOT_FAIL_STATE_WRITE=1 \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
         PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
     [ "$status" -ne 0 ]
     [[ "$output" == *"first-boot state write failed"* ]]
-    [ ! -e "$tmp/host/wootc/state.json" ]
+    [ "$(cat "$tmp/host/wootc/state.json")" = '{"state":"deployed"}' ]
     [ ! -e "$tmp/host/wootc/install/installed-linux-boot.json" ]
-    [ ! -e "$tmp/host/wootc/state.json.tmp" ]
-    [ ! -e "$tmp/host/wootc/install/installed-linux-boot.json.tmp" ]
+    [ "$(wc -l < "$tmp/helper-calls")" -eq 1 ]
+    [ "$(cat "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
     rm -rf "$tmp"
-}
-
-@test "firstboot state is published before its retry-suppressing evidence marker" {
-    state_line=$(grep -n 'mv -f "$STATE_TMP" "$STATE_FINAL"' "$FIRSTBOOT_SCRIPT" | cut -d: -f1)
-    evidence_line=$(grep -n 'mv -f "$EVIDENCE_TMP" "$EVIDENCE_FINAL"' "$FIRSTBOOT_SCRIPT" | cut -d: -f1)
-    [ -n "$state_line" ]
-    [ -n "$evidence_line" ]
-    [ "$state_line" -lt "$evidence_line" ]
-    grep -q 'on_error' "$FIRSTBOOT_SCRIPT"
 }
 
 @test "first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh" {

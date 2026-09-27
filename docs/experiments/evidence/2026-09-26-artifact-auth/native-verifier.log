@@ -1,0 +1,9 @@
+=== RUN   TestStagedManifestRequiresEmbeddedKeySignature
+--- PASS: TestStagedManifestRequiresEmbeddedKeySignature (0.06s)
+=== RUN   TestArtifactTransportRejectsDowngradeAndAmbientProxy
+--- PASS: TestArtifactTransportRejectsDowngradeAndAmbientProxy (0.02s)
+=== RUN   TestDownloadedManifestAuthentication
+--- PASS: TestDownloadedManifestAuthentication (0.02s)
+=== RUN   TestRuntimeMirrorCannotRedirectBootArtifacts
+--- PASS: TestRuntimeMirrorCannotRedirectBootArtifacts (0.00s)
+PASS

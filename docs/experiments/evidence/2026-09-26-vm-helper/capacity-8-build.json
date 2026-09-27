@@ -1,0 +1,18 @@
+{
+  "baseSourceCommit": "fdd7fc972cab7eda282dbf06b1d35a2de9a9fc39",
+  "patch": "capacity-8-experiment.patch",
+  "targetCapacityBytes": 34359738368,
+  "scratchCapacityBytes": 8589934592,
+  "helperRAMBytes": 2147483648,
+  "desktopRAMBytes": 3221225472,
+  "diskId": "1d59b644-fd6d-4566-8fc9-151562c0399b",
+  "scope": "Linux KVM; exact experimental image only; no Windows support claim",
+  "artifacts": {
+    "builder-vmlinuz": "1f4cee6c1a6fc184650cff5b0f8d996b1079d4b47ebdfe6daa1d267a4f86359b",
+    "builder-initramfs.img": "f9875692b30c8fe7d3946271699b6875e8a0804590ee4e7854d89a90483edecf",
+    "builder-protocol.json": "4045967bf24e2b7e4cc81ece5e1ca104d6006dc7837910266bc4208e165fe337"
+  },
+  "desktopProcessExit": 0,
+  "writableHomeAndVarAvailableBytes": 25468235776,
+  "desktopScope": "manual authenticated GNOME and terminal at3GiB RAM; no browser or memory-pressure claim"
+}

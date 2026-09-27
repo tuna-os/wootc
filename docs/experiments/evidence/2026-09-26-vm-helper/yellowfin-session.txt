@@ -1,0 +1,7 @@
+Sep 26 18:47:15 localhost gnome-shell[1483]: Settings schema 'org.gnome.shell' is not installed
+Sep 26 18:47:17 localhost gnome-shell[1964]: Settings schema 'org.gnome.shell' is not installed
+Sep 26 18:47:18 localhost gnome-shell[2345]: Settings schema 'org.gnome.shell' is not installed
+Sep 26 18:47:21 localhost gnome-shell[2522]: Settings schema 'org.gnome.shell' is not installed
+Sep 26 18:47:23 localhost gnome-shell[2640]: Settings schema 'org.gnome.shell' is not installed
+Sep 26 18:47:24 localhost gnome-shell[2764]: Settings schema 'org.gnome.shell' is not installed
+Sep 26 18:47:24 localhost gdm[1163]: Gdm: GdmLocalDisplayFactory: maximum number of display failures reached. Giving up.

@@ -1,0 +1,8 @@
+{"step":"storage","pct":0}
+{"step":"network","pct":0}
+{"step":"pulling","pct":0}
+{"step":"installing","pct":0}
+{"step":"personalizing","pct":0}
+{"step":"verifying","pct":0}
+{"type":"result","schemaVersion":1,"status":"success","runId":"capacity_20260926","installId":"install_capacity_20260926","image":"ttl.sh/2e6295b0-50ea-42b2-838a-57df8a1022be@sha256:4562f4f0fde8cc0ba49e7ce627be2ba35d803c9aa768e79220a1a58c3b0d148b","diskId":"3b6b7eba-ac83-4cf9-8ca2-34255e8d96bc","filesystemVerified":true,"efiVerified":true,"accountOutcome":"created","username":"wootctest"}
+STATUS=SUCCESS

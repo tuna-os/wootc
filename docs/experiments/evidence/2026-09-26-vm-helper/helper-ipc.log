@@ -1,0 +1,7 @@
+{"step":"storage","pct":0}
+{"step":"network","pct":0}
+{"step":"pulling","pct":0}
+{"step":"installing","pct":0}
+{"step":"verifying","pct":0}
+{"type":"result","schemaVersion":1,"status":"success","runId":"proof_20260926","installId":"install_proof_20260926","image":"ghcr.io/projectbluefin/bluefin@sha256:d3dd014e5ae0a46c0ca50e498ec20f18e6331e855e8d7fc3a70f52b4758e158b","diskId":"f2a75719-c7a8-4e7d-998f-5550ca0539f8","filesystemVerified":true,"efiVerified":true,"accountOutcome":"image-default"}
+STATUS=SUCCESS

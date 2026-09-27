@@ -123,6 +123,12 @@ Resize-Partition -DriveLetter C -Size $target
 $np = New-Partition -DiskNumber $c.DiskNumber -UseMaximumSize -AssignDriveLetter
 Format-Volume -Partition $np -FileSystem NTFS -NewFileSystemLabel 'wootc-data' -Confirm:$false | Out-Null
 $np = Get-Partition -DiskNumber $c.DiskNumber -PartitionNumber $np.PartitionNumber
+# This is the new, dedicated volume only. Prevent DELETE_CHILD on its root
+# from bypassing the protected ACL on the installer directory below it.
+$volumeRoot = "$($np.DriveLetter):" + [IO.Path]::DirectorySeparatorChar
+$acl = New-Object System.Security.AccessControl.DirectorySecurity
+$acl.SetSecurityDescriptorSddlForm('O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)')
+Set-Acl -LiteralPath $volumeRoot -AclObject $acl
 Write-Output $np.DriveLetter`, sizeGB)
 
 	out, err := runPowerShellOutput(script)
