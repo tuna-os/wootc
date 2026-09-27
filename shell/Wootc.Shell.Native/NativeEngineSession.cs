@@ -66,17 +66,18 @@ internal sealed class NativeEngineSession : IEngineSession
             }
         }
         catch (Exception error) { failure = error; }
-        finally { receiveFailure = failure; foreach (var (id, completion) in pending) if (pending.TryRemove(id, out _)) completion.TrySetException(failure); }
+        finally { Volatile.Write(ref receiveFailure, failure); foreach (var (id, completion) in pending) if (pending.TryRemove(id, out _)) completion.TrySetException(failure); }
     }
 
     internal async Task<T> CallAsync<T>(string method, CancellationToken token)
     {
-        if (disconnected || receiveFailure is not null || engine.HasExited) throw new EndOfStreamException("The authenticated engine disconnected");
+        if (disconnected || Volatile.Read(ref receiveFailure) is not null || engine.HasExited) throw new EndOfStreamException("The authenticated engine disconnected");
         long id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!pending.TryAdd(id, completion)) throw new InvalidOperationException("Duplicate engine request identity");
         try
         {
+            if (Volatile.Read(ref receiveFailure) is not null) throw new EndOfStreamException("The authenticated engine disconnected");
             byte[] request = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { jsonrpc = "2.0", id, method }) + "\n");
             await writes.WaitAsync(token);
             try { await pipe.WriteAsync(request, token); await pipe.FlushAsync(token); }

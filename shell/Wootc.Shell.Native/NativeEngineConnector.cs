@@ -23,19 +23,12 @@ public sealed class NativeEngineConnector : IEngineConnector
         var source = WindowsPeer.Observe(sourceProcess);
         if (!string.Equals(Path.GetFullPath(source.ImagePath), Path.Combine(package.Directory, "Wootc.Shell.exe"), StringComparison.OrdinalIgnoreCase))
             return new(ConnectionOutcome.Incompatible, Reason: "The shell is outside this protected preview package");
-        var start = new ProcessStartInfo(package.EnginePath) { UseShellExecute = true, Verb = "runas", WorkingDirectory = package.Directory };
-        start.ArgumentList.Add("--native-serve"); start.ArgumentList.Add("--session"); start.ArgumentList.Add(request.SessionId);
-        start.ArgumentList.Add("--source-pid"); start.ArgumentList.Add(sourceProcess.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Process? engine;
-        try
-        {
-            // ShellExecute may await interactive UAC. Do not abandon an
-            // unresolved launch on cancellation: retain and close any returned
-            // engine before allowing another permission request.
-            engine = await Task.Run(() => Process.Start(start));
-        }
-        catch (Win32Exception error) when (error.NativeErrorCode == 1223)
-        { return new(ConnectionOutcome.PermissionDeclined, Reason: "Administrator permission was declined. You can retry."); }
+        var start = RunasLaunch.Create(package.EnginePath, request.SessionId, sourceProcess.Id);
+        // Do not abandon a pending interactive consent request. Any returned
+        // process remains our responsibility through disconnect completion.
+        var launched = await RunasLaunch.StartAsync(start, Process.Start);
+        if (launched.Declined) return new(ConnectionOutcome.PermissionDeclined, Reason: "Administrator permission was declined. You can retry.");
+        Process? engine = launched.Process;
         if (engine is null) return new(ConnectionOutcome.Unavailable, Reason: "Windows did not return the launched engine process");
         _ = engine.Handle;
         NamedPipeClientStream? pipe = null;

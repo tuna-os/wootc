@@ -56,6 +56,9 @@ jobs:
       - name: Restore and publish the native preview
         working-directory: shell
         run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} --output ../out/winui-preview
+      - name: Test actual Windows adapter identities and private package controls
+        working-directory: shell
+        run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
       - name: Observe the actual native startup window with UI Automation
         working-directory: shell
         shell: pwsh
@@ -91,6 +94,7 @@ jobs:
             out/winui-source-diagnostics/
             out/winui-startup-events.json
             shell/Wootc.Shell.UiTests/TestResults/*.trx
+            shell/Wootc.Shell.NativeTests/TestResults/*.trx
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: always()
