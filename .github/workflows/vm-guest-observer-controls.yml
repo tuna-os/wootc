@@ -52,7 +52,7 @@ jobs:
           & git rev-parse HEAD | Tee-Object -FilePath $receipt -Append
           & go version | Tee-Object -FilePath $receipt -Append
           Get-CimInstance Win32_OperatingSystem | Select-Object Version,BuildNumber | Out-String | Tee-Object -FilePath $receipt -Append
-          foreach ($file in @('app/vm_guest_pipe_windows.go','app/vm_guest_pipe_windows_test.go','app/vm_guest_protocol.go','app/vm_guest_protocol_test.go','payload/vm-observer/boot_probe.py','tests/e2e/phase3_ancestry.py','app/vm_qmp.go','app/vm_display.go','app/native_peer_windows.go')) {
+          foreach ($file in @('app/vm_guest_pipe_windows.go','app/vm_guest_pipe_windows_test.go','app/vm_guest_protocol.go','app/vm_guest_protocol_test.go','app/vm_guest_ancestry.go','app/vm_guest_ancestry_test.go','payload/vm-observer/boot_probe.py','tests/e2e/phase3_ancestry.py','app/vm_qmp.go','app/vm_display.go','app/native_peer_windows.go')) {
             Write-Output "SOURCE $file SHA256 $((Get-FileHash -LiteralPath $file).Hash)" | Tee-Object -FilePath $receipt -Append
           }
           $ErrorActionPreference='Continue'
