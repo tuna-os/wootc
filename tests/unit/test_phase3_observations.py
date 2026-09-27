@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Run the actual native proof acceptance consumer with controlled QGA results."""
 import os
+import base64
+import json
 import re
 from pathlib import Path
 import subprocess
@@ -9,7 +11,38 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 BOOT = '12345678-1234-1234-1234-123456789abc'
-PROOF = f'SCHEMA=1\nUNAME=Linux\nCMDLINE=root=UUID=native ro\nTARGET=/dev/sdb\nBOOT_ID={BOOT}\n'
+def encode(value):
+    return base64.b64encode(json.dumps(value).encode()).decode()
+
+
+def mount(target, source='/dev/sdb3', major='8:19', fstype='ext4', options='rw'):
+    return dict(target=target, source=source, **{'maj:min':major}, fstype=fstype, options=options)
+
+
+def node(name, major, kind, children=None):
+    row=dict(name=name, kname=name, type=kind, **{'maj:min':major})
+    if children:
+        row['children']=children
+    return row
+
+
+BLOCKS={'blockdevices':[node('/dev/sdb','8:16','disk',[node('/dev/sdb3','8:19','part')])]}
+MOUNTS={'filesystems':[mount('/'),mount('/var')]}
+LOOPS={'loopdevices':[]}
+
+
+def native(blocks=BLOCKS, mounts=MOUNTS, loops=LOOPS):
+    return (f'SCHEMA=1\nUNAME=Linux\nCMDLINE=root=UUID=native ro\nTARGET=/dev/sdb\nBOOT_ID={BOOT}\n'
+            +f'BLOCKS={encode(blocks)}\nMOUNTS={encode(mounts)}\nLOOPS={encode(loops)}\n')
+
+
+def userdata(source='/dev/sdb3', major='8:19', target='/var', seed='wootc-e2e-userdata current-run\n', proof=None):
+    graph=''.join(line+'\n' for line in (proof or native()).splitlines() if line.startswith(('BLOCKS=','MOUNTS=','LOOPS=')))
+    return (f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\n'+graph+f'EXPORT_SCHEMA=1\nEXPORT_BOOT_ID={BOOT}\n'
+            +f'SRC={source}\nDATA_MAJ_MIN={major}\nDATA_MOUNT={target}\n'+seed)
+
+
+PROOF=native()
 
 
 class Phase3Tests(unittest.TestCase):
@@ -28,10 +61,11 @@ qga_call() {
  printf '%s' "$DATA"; return "$DATA_RC"
 }
 '''
-        env = dict(PROOF=PROOF, PROOF_RC='0', DATA=f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\nSRC=/dev/sdb3\nwootc-e2e-userdata current-run\n',
+        env = dict(PROOF=PROOF, PROOF_RC='0', DATA=userdata(),
                    DATA_RC='0', SCRIPT_DIR=str(ROOT/'tests/e2e'))
-        return subprocess.run(['bash', '-c', prefix+body], text=True, capture_output=True,
-                              timeout=4, env={**os.environ, **env, **overrides})
+        with tempfile.TemporaryDirectory() as tmp:
+            return subprocess.run(['bash', '-c', prefix+body], text=True, capture_output=True,
+                                  timeout=4, env={**os.environ, **env, **overrides,'ARTIFACT_DIR':tmp})
 
     def test_successful_native_and_current_data_pass(self):
         r = self.consumer()
@@ -85,7 +119,7 @@ qga_call() {
         for data in ['SRC=/dev/sdb3\nwootc-e2e-userdata old-run\n',
                      'SRC=/dev/sdb3\nwootc-e2e-userdata current-run-extra\n',
                      'SRC=/dev/sdb3\nprefix wootc-e2e-userdata current-run\n']:
-            r = self.consumer(DATA=f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\n'+data)
+            r = self.consumer(DATA=userdata(seed=data.split('\n',1)[1]))
             self.assertNotEqual(r.returncode, 0)
             self.assertNotIn('PRODUCT-PASS native-user-data', r.stdout)
 
@@ -109,7 +143,7 @@ qga_call() {
             self.assertNotIn('PRODUCT-PASS native-user-data', r.stdout)
 
     def test_original_windows_seed_crlf_is_valid_without_content_trimming(self):
-        data=f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\nSRC=/dev/sdb3\nwootc-e2e-userdata current-run\r\n'
+        data=userdata(seed='wootc-e2e-userdata current-run\r\n')
         self.assertEqual(self.consumer(DATA=data).returncode, 0)
         self.assertNotEqual(self.consumer(DATA=data.replace('current-run\r', 'current-run \r')).returncode, 0)
 
@@ -126,15 +160,111 @@ cat() {
  esac
 }
 '''
-        for failed in ['none','uname','cmdline','target','boot']:
+        prefix+='''lsblk() { printf '%s' "$BLOCK_JSON"; [ "$FAIL_READ" != blocks ]; }
+findmnt() { printf '%s' "$MOUNT_JSON"; [ "$FAIL_READ" != mounts ]; }
+losetup() { printf '%s' "$LOOP_JSON"; [ "$FAIL_READ" != loops ]; }
+'''
+        for failed in ['none','uname','cmdline','target','boot','blocks','mounts','loops']:
             r=subprocess.run(['/bin/sh','-c',prefix+query],capture_output=True,text=True,
-                             env={**os.environ,'FAIL_READ':failed,'BOOT':BOOT},timeout=2)
+                             env={**os.environ,'FAIL_READ':failed,'BOOT':BOOT,'BLOCK_JSON':json.dumps(BLOCKS),
+                                  'MOUNT_JSON':json.dumps(MOUNTS),'LOOP_JSON':json.dumps(LOOPS)},timeout=2)
             if failed=='none':
                 self.assertEqual(r.returncode,0,r.stderr)
                 self.assertEqual(r.stdout,PROOF)
             else:
                 self.assertNotEqual(r.returncode,0)
                 self.assertEqual(r.stdout,'')
+
+    def test_wrong_physical_root_cannot_publish_native_boot(self):
+        graph={'blockdevices':BLOCKS['blockdevices']+[node('/dev/sda','8:0','disk',[node('/dev/sda3','8:3','part')])]}
+        mounts={'filesystems':[mount('/', '/dev/sda3','8:3'),mount('/var')]}
+        r=self.consumer(PROOF=native(graph,mounts))
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('PRODUCT-FAIL',r.stdout)
+        self.assertNotIn('PRODUCT-PASS',r.stdout)
+
+    def test_measured_loop_root_and_loop_data_refuse(self):
+        graph={'blockdevices':BLOCKS['blockdevices']+[node('/dev/loop0','7:0','loop')]}
+        for path in ['/','/var']:
+            mounts={'filesystems':[mount('/'),mount('/var')]}
+            mounts['filesystems'][0 if path=='/' else 1]=mount(path,'/dev/loop0','7:0','btrfs')
+            r=self.consumer(PROOF=native(graph,mounts),DATA=userdata('/dev/loop0','7:0',proof=native(graph,mounts)))
+            self.assertNotEqual(r.returncode,0)
+            self.assertIn('PRODUCT-FAIL',r.stdout)
+            self.assertNotIn('PRODUCT-PASS native-user-data',r.stdout)
+            if path=='/':
+                self.assertNotIn('PRODUCT-PASS native-boot',r.stdout)
+
+    def test_mount_and_block_source_major_disagreement_is_unknown(self):
+        mounts={'filesystems':[mount('/',major='8:3'),mount('/var')]}
+        r=self.consumer(PROOF=native(mounts=mounts))
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('INFRA',r.stdout)
+
+    def test_exported_mount_and_boot_must_match_current_observations(self):
+        for data in [userdata(major='8:3'),userdata(target='/unobserved'),userdata(source='/dev/sda3'),
+                     userdata().replace('EXPORT_BOOT_ID='+BOOT,'EXPORT_BOOT_ID=abcdefab-1234-1234-1234-123456789abc')]:
+            r=self.consumer(DATA=data)
+            self.assertNotEqual(r.returncode,0)
+            self.assertIn('INFRA',r.stdout)
+            self.assertNotIn('PRODUCT-PASS native-user-data',r.stdout)
+
+    def test_btrfs_subvolume_and_dm_native_ancestry(self):
+        mounts={'filesystems':[mount('/',source='/dev/sdb3[/root]',fstype='btrfs'),
+                              mount('/var',source='/dev/sdb3[/var]',fstype='btrfs')]}
+        r=self.consumer(PROOF=native(mounts=mounts),DATA=userdata(source='/dev/sdb3[/var]',proof=native(mounts=mounts)))
+        self.assertEqual(r.returncode,0,r.stderr)
+        crypt=node('/dev/mapper/native','253:0','crypt');crypt['kname']='/dev/dm-0'
+        graph={'blockdevices':[node('/dev/sdb','8:16','disk',[node('/dev/sdb3','8:19','part',[crypt])])]}
+        mounts={'filesystems':[mount('/','/dev/mapper/native','253:0'),mount('/var','/dev/mapper/native','253:0')]}
+        r=self.consumer(PROOF=native(graph,mounts),DATA=userdata('/dev/mapper/native','253:0',proof=native(graph,mounts)))
+        self.assertEqual(r.returncode,0,r.stderr)
+
+    def test_dm_with_multiple_physical_disks_refuses(self):
+        crypt=node('/dev/dm-0','253:0','crypt')
+        graph={'blockdevices':[node('/dev/sdb','8:16','disk',[node('/dev/sdb3','8:19','part',[crypt])]),
+                               node('/dev/sda','8:0','disk',[node('/dev/sda3','8:3','part',[crypt])])]}
+        mounts={'filesystems':[mount('/','/dev/dm-0','253:0'),mount('/var','/dev/dm-0','253:0')]}
+        r=self.consumer(PROOF=native(graph,mounts))
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('PRODUCT-FAIL',r.stdout)
+
+    def projection(self, backing='/sysroot/native.cfs', options='ro,lowerdir=/run/cfs::/sysroot/objects'):
+        graph={'blockdevices':BLOCKS['blockdevices']+[node('/dev/loop0','7:0','loop'),
+               node('/dev/sda','8:0','disk',[node('/dev/sda3','8:3','part')])]}
+        mounts={'filesystems':[mount('/','composefs','0:51','overlay',options),mount('/var'),mount('/sysroot'),
+                               mount('/run/cfs','/dev/loop0','7:0','erofs','ro'),mount('/mnt/windows','/dev/sda3','8:3')]}
+        loops={'loopdevices':[{'name':'/dev/loop0','maj:min':'7:0','back-file':backing}]}
+        return native(graph,mounts,loops)
+
+    def test_composefs_requires_actual_projection_backing_on_target(self):
+        for options in ['ro,lowerdir=/run/cfs::/sysroot/objects',
+                        'ro,lowerdir+=/run/cfs,datadir+=/sysroot/objects']:
+            r=self.consumer(PROOF=self.projection(options=options))
+            self.assertEqual(r.returncode,0,r.stderr)
+        r=self.consumer(PROOF=self.projection(backing='/mnt/windows/native.cfs'))
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('PRODUCT-FAIL',r.stdout)
+        self.assertNotIn('PRODUCT-PASS',r.stdout)
+
+    def test_arbitrary_sysroot_or_missing_projection_cannot_establish_root(self):
+        for options in ['ro','ro,lowerdir=/missing/path','ro,lowerdir=/mnt/windows/foreign']:
+            r=self.consumer(PROOF=self.projection(options=options))
+            self.assertNotEqual(r.returncode,0)
+            self.assertNotIn('PRODUCT-PASS',r.stdout)
+
+    def test_deleted_missing_or_unbound_projected_image_is_unknown(self):
+        for backing in ['/sysroot/native.cfs (deleted)','relative.cfs','/unobserved/native.cfs']:
+            r=self.consumer(PROOF=self.projection(backing=backing))
+            self.assertNotEqual(r.returncode,0)
+            self.assertIn('INFRA',r.stdout)
+
+    def test_malformed_ambiguous_or_duplicate_json_graph_refuses(self):
+        for encoded in ['not-base64',encode({'blockdevices':[]}),
+                        base64.b64encode(b'{"blockdevices":[],"blockdevices":[]}').decode()]:
+            r=self.consumer(PROOF=PROOF.replace('BLOCKS='+encode(BLOCKS),'BLOCKS='+encoded))
+            self.assertNotEqual(r.returncode,0)
+            self.assertIn('INFRA',r.stdout)
 
 
 if __name__ == '__main__':

@@ -43,7 +43,7 @@ setup() {
 
 @test "Phase-3 native persistence check reads the file from the native disk" {
     grep -q 'Verifying seeded user data persisted onto the native disk' "$E2E"
-    grep -Fq 'python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_BOOT_ID" "$RUN_ID"' "$E2E"
+    grep -Fq 'python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_PROOF_FILE" "$RUN_ID" "$P3_TARGET" "$P3_NATIVE_BOOT_ID"' "$E2E"
     # The confined guest agent cannot read user homes (run 20260723T0647):
     # the check must consume the boot-time /run export first.
     grep -q '/run/wootc-e2e-native-userdata' "$E2E"
