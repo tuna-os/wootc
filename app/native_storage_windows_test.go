@@ -270,7 +270,77 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	data, err := json.MarshalIndent(map[string]any{"schemaVersion": 1, "scope": "actual protected system module manifests only; no module execution or state mutation", "modules": inventory}, "", "  ")
+	windowsDirectory, err := windows.GetWindowsDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gac := map[string][]manifest{}
+	for _, name := range []string{"Microsoft.Management.Infrastructure.CimCmdlets", "Microsoft.Management.Infrastructure"} {
+		gac[name] = []manifest{}
+		for _, base := range []string{filepath.Join(windowsDirectory, "Microsoft.NET", "assembly"), filepath.Join(windowsDirectory, "assembly")} {
+			for _, architecture := range []string{"GAC_MSIL", "GAC_64", "GAC_32"} {
+				root := filepath.Join(base, architecture, name)
+				if _, err := os.Lstat(root); os.IsNotExist(err) {
+					continue
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if err := auditNativePackagePath(root); err != nil {
+					t.Fatal(err)
+				}
+				count := 0
+				err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+					if walkErr != nil {
+						return walkErr
+					}
+					count++
+					if count > 64 {
+						return fmt.Errorf("CIM GAC inventory exceeds bound")
+					}
+					if err := inspectStateObject(path, false); err != nil {
+						return err
+					}
+					if entry.IsDir() || !strings.EqualFold(entry.Name(), name+".dll") {
+						return nil
+					}
+					file, err := os.Open(path)
+					if err != nil {
+						return err
+					}
+					info, err := file.Stat()
+					if err != nil || !info.Mode().IsRegular() || info.Size() > 32*1024*1024 {
+						file.Close()
+						return fmt.Errorf("CIM GAC assembly exceeds bound")
+					}
+					hash := sha256.New()
+					copied, err := io.Copy(hash, io.LimitReader(file, 32*1024*1024+1))
+					closeErr := file.Close()
+					if err != nil {
+						return err
+					}
+					if closeErr != nil {
+						return closeErr
+					}
+					if copied != info.Size() {
+						return fmt.Errorf("CIM GAC assembly changed")
+					}
+					relative, err := filepath.Rel(windowsDirectory, path)
+					if err != nil {
+						return err
+					}
+					gac[name] = append(gac[name], manifest{Path: relative, Size: copied, SHA256: hex.EncodeToString(hash.Sum(nil))})
+					return nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if len(gac[name]) == 0 {
+			t.Fatal("actual protected CIM GAC assembly not observed")
+		}
+	}
+	data, err := json.MarshalIndent(map[string]any{"schemaVersion": 1, "scope": "actual protected system module manifests and named GAC metadata only; no module execution or state mutation", "modules": inventory, "gac": gac}, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
