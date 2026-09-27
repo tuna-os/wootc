@@ -102,12 +102,12 @@ public sealed class TransportTests
     }
 
     [Theory]
-    [InlineData("{}")]
-    [InlineData("{\"running\":false}")]
-    [InlineData("{\"running\":false,\"done\":false,\"existing\":false,\"existing\":true}")]
-    public async Task ActualFramedMissingOrAmbiguousStatusCannotSelectFreshRoute(string result)
+    [InlineData("{}", "decode")]
+    [InlineData("{\"running\":false}", "decode")]
+    [InlineData("{\"running\":false,\"done\":false,\"existing\":false,\"existing\":true}", "response")]
+    public async Task ActualFramedMissingOrAmbiguousStatusCannotSelectFreshRoute(string result, string failureStage)
     {
-        const string expectedPrimary = "PrimaryRpc:rpc-status-decode; Failure:protocol";
+        string expectedPrimary = $"PrimaryRpc:rpc-status-{failureStage}; Failure:protocol";
         string name = "wootc-native-response-" + Guid.NewGuid().ToString("N");
         using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
@@ -132,7 +132,7 @@ public sealed class TransportTests
             await server.WriteAsync(Encoding.UTF8.GetBytes($"{{\"jsonrpc\":\"2.0\",\"id\":{id},\"result\":{result}}}\n"), deadline.Token);
             await server.FlushAsync(deadline.Token);
             await Assert.ThrowsAsync<InvalidDataException>(() => startup);
-            Assert.Contains(observations, value => value.StartsWith("rpc-status-decode; Failure:protocol", StringComparison.Ordinal));
+            Assert.Contains(observations, value => value.StartsWith($"rpc-status-{failureStage}; Failure:protocol", StringComparison.Ordinal));
             // No StartupSnapshot exists, so default false fields cannot route to Assessment.
         }
         finally
