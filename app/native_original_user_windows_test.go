@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -303,5 +304,143 @@ func TestNativeOriginalUserActualKnownFolderCollector(t *testing.T) {
 	user.close()
 	if err := user.collectKnownFolders(sink); err == nil || calls != 1 {
 		t.Fatal("closed capture reached persistence")
+	}
+}
+
+func TestNativeOriginalUserActualOneShotInstallConsent(t *testing.T) {
+	peer, err := observeNativeProcessPeer(uint32(os.Getpid()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.close()
+	user, err := captureNativeOriginalUser(peer, peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer user.close()
+	session := "0123456789abcdef0123456789abcdef"
+	config := InstallConfig{ImageRef: "public-component-fixture", Password: "public synthetic fixture password", SessionConsent: map[string]bool{"fixture": true}}
+	actions := 0
+	prepare := func() *nativeInstallAuthorization {
+		authority, err := prepareNativeInstallAuthorization(user, session, "wootc", config, func(InstallConfig) error { return nil }, func() error { return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		return authority
+	}
+	encode := func(authority *nativeInstallAuthorization) []byte {
+		data, err := json.Marshal(nativeInstallConfirmation{Kind: "confirm-install", ProtocolVersion: 1, Session: session, BrandID: "wootc", IntentID: authority.intent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	action := func(actual InstallConfig) error {
+		actions++
+		if actual.ImageRef != config.ImageRef || actual.Password != config.Password || !actual.SessionConsent["fixture"] {
+			t.Fatal("immutable prepared config changed")
+		}
+		return nil
+	}
+	t.Run("actual-capture-immutable-config", func(t *testing.T) {
+		authority := prepare()
+		data := encode(authority)
+		config.SessionConsent["fixture"] = false
+		if err := authority.confirm(data, action); err != nil {
+			t.Fatal(err)
+		}
+		config.SessionConsent["fixture"] = true
+		if err := authority.confirm(data, action); err == nil || actions != 1 {
+			t.Fatal("successful intent replayed")
+		}
+	})
+	for _, name := range []string{"wrong-session", "wrong-brand", "wrong-intent", "assessment-purpose", "unknown-config", "duplicate", "case-variant", "case-semantic-duplicate", "case-semantic-duplicate-reversed", "trailing", "missing", "malformed", "oversized"} {
+		t.Run(name, func(t *testing.T) {
+			authority := prepare()
+			correct := encode(authority)
+			data := append([]byte(nil), correct...)
+			switch name {
+			case "wrong-session":
+				data = bytes.Replace(data, []byte(session), []byte("ffffffffffffffffffffffffffffffff"), 1)
+			case "wrong-brand":
+				data = bytes.Replace(data, []byte(`"wootc"`), []byte(`"foreign"`), 1)
+			case "wrong-intent":
+				data = bytes.Replace(data, []byte(authority.intent), []byte("ffffffffffffffffffffffffffffffff"), 1)
+			case "assessment-purpose":
+				data = bytes.Replace(data, []byte("confirm-install"), []byte("assessment"), 1)
+			case "unknown-config":
+				data = append(append([]byte(nil), data[:len(data)-1]...), []byte(`,"password":"public synthetic replacement"}`)...)
+			case "duplicate":
+				data = append(append([]byte(nil), data[:len(data)-1]...), []byte(`,"intentId":"ffffffffffffffffffffffffffffffff"}`)...)
+			case "case-variant":
+				data = bytes.Replace(data, []byte(`"intentId"`), []byte(`"IntentId"`), 1)
+			case "case-semantic-duplicate":
+				data = bytes.Replace(data, []byte(`"kind":"confirm-install"`), []byte(`"kind":"wrong-purpose","Kind":"confirm-install"`), 1)
+			case "case-semantic-duplicate-reversed":
+				data = bytes.Replace(data, []byte(`"kind":"confirm-install"`), []byte(`"Kind":"wrong-purpose","kind":"confirm-install"`), 1)
+			case "trailing":
+				data = append(data, []byte(`{}`)...)
+			case "missing":
+				data = []byte(`{}`)
+			case "malformed":
+				data = []byte(`{"kind":`)
+			case "oversized":
+				data = bytes.Repeat([]byte(" "), 4097)
+			}
+			before := actions
+			if authority.confirm(data, action) == nil || actions != before {
+				t.Fatal("invalid confirmation invoked operation")
+			}
+			if authority.confirm(correct, action) == nil || actions != before {
+				t.Fatal("invalid attempt retained reusable intent")
+			}
+		})
+	}
+	t.Run("changed-observation", func(t *testing.T) {
+		authority := prepare()
+		data := encode(authority)
+		authority.revalidate = func() error { return fmt.Errorf("public synthetic volume swap") }
+		before := actions
+		if authority.confirm(data, action) == nil || actions != before {
+			t.Fatal("changed observation invoked operation")
+		}
+	})
+	t.Run("changed-token", func(t *testing.T) {
+		authority := prepare()
+		data := encode(authority)
+		stats := user.statistics
+		user.statistics.ModifiedID.LowPart++
+		defer func() { user.statistics = stats }()
+		before := actions
+		if authority.confirm(data, action) == nil || actions != before {
+			t.Fatal("changed original token invoked operation")
+		}
+	})
+	t.Run("operation-failure-consumed", func(t *testing.T) {
+		authority := prepare()
+		data := encode(authority)
+		calls := 0
+		fail := func(InstallConfig) error { calls++; return fmt.Errorf("public synthetic operation refusal") }
+		if authority.confirm(data, fail) == nil || authority.confirm(data, fail) == nil || calls != 1 {
+			t.Fatal("failed operation retained reusable intent")
+		}
+	})
+	t.Run("reentrant-refuses", func(t *testing.T) {
+		authority := prepare()
+		data := encode(authority)
+		if authority.confirm(data, func(InstallConfig) error {
+			if authority.confirm(data, action) == nil {
+				t.Fatal("reentrant attempt accepted")
+			}
+			return nil
+		}) != nil {
+			t.Fatal("outer confirmed action refused")
+		}
+	})
+	if _, err := prepareNativeInstallAuthorization(user, session, "wootc", config, nil, func() error { return nil }); err == nil {
+		t.Fatal("absent configuration validator granted intent")
+	}
+	if _, err := prepareNativeInstallAuthorization(user, session, "wootc", config, func(InstallConfig) error { return nil }, nil); err == nil {
+		t.Fatal("absent observation validator granted intent")
 	}
 }
