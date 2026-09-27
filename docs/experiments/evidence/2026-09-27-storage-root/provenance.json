@@ -1,0 +1,15 @@
+{
+  "source": "/tmp/wootc-protected-acceptance/tests/e2e/windows-storage-root.ps1",
+  "sourceSha256": "5e66c107ffcc8729914c643096666176c5d3caae020f36f54aae914efcdd3ac2",
+  "stagedSha256": "90d01d78de99e48a706e6453be5d84b15dd1af57ccbcfb6313c153c9d9a48ab3",
+  "invocationSha256": "9c2ee63d7413aba864721e2c20161f7c54dca3d06906341ea1299b87845f2d6b",
+  "scope": "PowerShell5.1 parser and mocked Get-PSDrive/Test-Path only; private TEMP source; no actual disk/protector mutations",
+  "guestExitCode": 0,
+  "powershellVersion": "5.1.26100.9444",
+  "files": {
+    "wootc-storage-query-native-invocation.ps1": "9c2ee63d7413aba864721e2c20161f7c54dca3d06906341ea1299b87845f2d6b",
+    "wootc-storage-query-native.raw.log": "1c101285aa25ebd6070b301d77640a61a88fb5e250e1ba35a239775e6901de65",
+    "wootc-storage-query-native.raw.stderr": "018966bf53cb60e3be45739d0b615e36ec0cd64fb2dc331e24320ce44f76ddff",
+    "wootc-storage-query-native.normalized.log": "e290b399956fb6206061e89a82bb76aef1eb3272a91957c314da8106857cc2ab"
+  }
+}
