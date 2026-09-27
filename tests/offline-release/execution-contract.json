@@ -12,6 +12,7 @@
     "sharedDeadlineSeconds": 600,
     "metadataBytesPerObject": 1048576,
     "metadataNodes": 64,
+    "aggregateRetainedRawMetadataBytes": 2097152,
     "maximumDepth": 8,
     "maximumDeclaredCompressedBytes": 12884901888
   },

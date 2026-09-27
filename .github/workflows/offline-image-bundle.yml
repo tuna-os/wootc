@@ -7,6 +7,9 @@ on:
       - payload/deployer/deploy.sh
       - payload/deployer/module-setup.sh
       - payload/json-check/**
+      - tests/offline-release/**
+      - tests/unit/test_offline_release_plan.py
+      - .github/workflows/offline-release-plan.yml
       - tests/offline-image-native.py
       - tests/unit/test_offline_image_bundle.py
       - .github/workflows/offline-image-bundle.yml
@@ -25,6 +28,7 @@ jobs:
       - name: Validate producer and consumer byte contracts
         run: |
           python3 -m unittest discover -s tests/unit -p test_offline_image_bundle.py
+          python3 -m unittest discover -s tests/unit -p test_offline_release_plan.py
           python3 tests/offline-image-native.py --producer > "$RUNNER_TEMP/offline-oci-native.json"
           python3 tests/offline-image-native.py --docker --producer > "$RUNNER_TEMP/offline-docker-native.json"
       - uses: actions/upload-artifact@v7

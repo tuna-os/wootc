@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Resolve metadata only. This does not acquire layers or authenticate a publisher."""
-import argparse, hashlib, json, re, subprocess, time
+import argparse, base64, hashlib, json, re, subprocess, time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 INDEX={'application/vnd.oci.image.index.v1+json','application/vnd.docker.distribution.manifest.list.v2+json'}
@@ -33,15 +33,19 @@ def select(catalogue,identity):
     return ref
 
 def resolve(fetch,root_digest):
-    metadata={}; leaves=[]
+    metadata={}; leaves=[]; observed_bytes=0; nodes=0
     def walk(digest,depth,expected=None):
-        if depth>8 or len(metadata)>=64: raise ValueError('metadata graph bound')
+        nonlocal observed_bytes,nodes
+        nodes+=1
+        if depth>8 or nodes>64: raise ValueError('metadata graph bound')
         raw=fetch(digest)
         if 'sha256:'+sha(raw)!=digest: raise ValueError('registry bytes differ from pin')
+        observed_bytes+=len(raw)
+        if observed_bytes>2*1048576: raise ValueError('aggregate retained metadata exceeds 2 MiB')
         value=parse(raw); kind=value.get('mediaType')
         if type(value.get('schemaVersion')) is not int or value['schemaVersion']!=2: raise ValueError('unknown schema')
         if expected and (len(raw)!=expected['size'] or kind!=expected['mediaType']): raise ValueError('parent descriptor mismatch')
-        metadata[digest]={'size':len(raw),'mediaType':kind,'sha256':sha(raw)}
+        metadata[digest]={'size':len(raw),'mediaType':kind,'sha256':sha(raw),'rawBase64':base64.b64encode(raw).decode('ascii')}
         if kind in INDEX:
             children=value.get('manifests')
             if not isinstance(children,list) or not 0<len(children)<=64: raise ValueError('invalid index')
@@ -49,7 +53,7 @@ def resolve(fetch,root_digest):
             for child in children:
                 descriptor(child,1048576)
                 platform=child.get('platform')
-                if platform=={'os':'linux','architecture':'amd64'} or (isinstance(platform,dict) and platform.get('os')=='linux' and platform.get('architecture')=='amd64' and not platform.get('variant')) or (platform is None and child['mediaType'] in INDEX): candidates.append(child)
+                if (isinstance(platform,dict) and platform.get('os')=='linux' and platform.get('architecture')=='amd64' and ('variant' not in platform or (type(platform['variant']) is str and platform['variant']==''))) or (platform is None and child['mediaType'] in INDEX): candidates.append(child)
             if not candidates: raise ValueError('selected platform absent')
             for child in candidates: walk(child['digest'],depth+1,child)
         elif kind in MANIFEST:
