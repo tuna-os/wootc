@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import runpy
 import shutil
+import selectors
 import stat
 import struct
 import subprocess
@@ -265,11 +266,39 @@ def run_reported(seed,workspace,emit,operation=None,observe_boot=boot_id):
         raise
 
 
+def serial_emit(value, serial_path='/dev/ttyS0', seconds=3):
+    """One bounded publication on the current TTY generation; never retry bytes.
+
+    Package/service changes may invalidate an already-open terminal descriptor.
+    Opening for each record avoids retaining that descriptor across mutation.
+    Any current open/write failure still refuses publication and acceptance.
+    """
+    if not isinstance(value,dict) or type(seconds) not in (int,float) or not 0<seconds<=3:
+        raise ValueError('bounded serial publication required')
+    data=(PREFIX+json.dumps(value,sort_keys=True,allow_nan=False)+'\n').encode('utf-8')
+    if len(data)>65536:raise ValueError('serial record exceeds bound')
+    deadline=time.monotonic()+seconds
+    descriptor=os.open(serial_path,os.O_WRONLY|os.O_NONBLOCK|os.O_NOCTTY)
+    try:
+        if not stat.S_ISCHR(os.fstat(descriptor).st_mode) or not os.isatty(descriptor):
+            raise ValueError('serial publication requires current TTY')
+        with selectors.DefaultSelector() as ready:
+            ready.register(descriptor,selectors.EVENT_WRITE)
+            offset=0
+            while offset<len(data):
+                remaining=deadline-time.monotonic()
+                if remaining<=0 or not ready.select(remaining):
+                    raise TimeoutError('serial publication deadline expired')
+                try:count=os.write(descriptor,data[offset:])
+                except BlockingIOError:continue
+                if count<=0:raise OSError('serial publication made no progress')
+                offset+=count
+    finally:os.close(descriptor)
+
+
 if __name__ == '__main__':
     import argparse
     parser=argparse.ArgumentParser();parser.add_argument('seed');parser.add_argument('workspace');args=parser.parse_args()
     # Only this guest proof helper writes typed success records. Cloud-init logs
     # and general serial text never count as package execution evidence.
-    with open('/dev/ttyS0','a',buffering=1) as serial:
-        def emit(value): serial.write(PREFIX+json.dumps(value,sort_keys=True)+'\n')
-        run_reported(args.seed,args.workspace,emit)
+    run_reported(args.seed,args.workspace,serial_emit)
