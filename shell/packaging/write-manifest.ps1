@@ -1,3 +1,4 @@
+#Requires -Version 7.2
 param(
     [Parameter(Mandatory = $true)][string]$PackageDirectory,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$BuildId,

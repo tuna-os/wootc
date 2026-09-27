@@ -76,7 +76,7 @@ jobs:
           $env:WOOTC_NATIVE_BUILD_ID = '${{ github.sha }}'
           $env:WOOTC_NATIVE_PREVIEW_DIAGNOSTICS = '1'
           $env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'
-          dotnet test Wootc.Shell.UiTests --configuration Release --logger "trx;LogFileName=native-ui.trx"
+          dotnet test Wootc.Shell.UiTests --configuration Release --filter FullyQualifiedName~StartupWindowTests --logger "trx;LogFileName=native-ui.trx"
       - name: Retain own preview startup event diagnostics
         if: failure()
         shell: pwsh
@@ -133,3 +133,42 @@ jobs:
           New-Item -ItemType Directory -Force frontend/dist | Out-Null
           Set-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'
           go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
+
+  preview-packaging:
+    name: Branded preview package (${{ matrix.brand }})
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [wootc, tunaos, aurora, bazzite, bluefin]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: shell/global.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+      - name: Publish the selected preview brand and exact engine
+        shell: pwsh
+        run: |
+          dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} -p:NativeBrandId=${{ matrix.brand }} --output out/branded-preview
+          if ($LASTEXITCODE -ne 0) { throw 'Branded native publish refused' }
+          New-Item -ItemType Directory -Force app/frontend/dist | Out-Null
+          Set-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
+          Push-Location app
+          try { go build -ldflags "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
+          if ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }
+      - name: Compile, install, observe and remove only the preview package
+        shell: pwsh
+        run: ./shell/packaging/test-installed-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: winui-preview-package-${{ matrix.brand }}
+          path: |
+            out/preview-installer/
+            out/branded-preview/native-package.json
+            shell/Wootc.Shell.UiTests/TestResults/*.trx
+          if-no-files-found: error

@@ -52,5 +52,5 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
   if DirExists(ExpandConstant('{app}')) then
-    Result := 'This preview destination already exists. Preserve its files and choose a fresh preview destination.';
+    Result := 'This preview destination already exists. Preserve its files before installing a new preview.';
 end;
