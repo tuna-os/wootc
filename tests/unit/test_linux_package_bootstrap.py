@@ -47,7 +47,7 @@ class BootstrapTests(unittest.TestCase):
     def run_producer(self,boot=lambda:BOOT):
         return MODULE['run'](self.seed,self.workspace,self.events.append,boot,
                             lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},
-                            advance_wait=lambda *args:None)
+                            advance_wait=lambda *args:None,agent_prepare=lambda *args:{'unitPrepared':True,'bootId':BOOT,'agentResponding':False})
 
     def test_actual_producer_reports_complete_same_boot_sequence(self):
         result=self.run_producer()
@@ -122,7 +122,7 @@ class BootstrapTests(unittest.TestCase):
             return MODULE['wait_advance'](workspace,common,observe_boot,.02)
         with self.assertRaises(TimeoutError):
             MODULE['run'](self.seed,self.workspace,self.events.append,lambda:BOOT,
-                          lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},advance_wait=waiter)
+                          lambda path:self.consumer,lambda *args:{'seedSha256':'c'*64},advance_wait=waiter,agent_prepare=lambda *args:{'unitPrepared':True,'bootId':BOOT,'agentResponding':False})
         self.assertEqual(self.operations,['old'])
         self.assertEqual([event['stage'] for event in self.events],['baseline-observed','old-installed'])
         self.assertFalse((self.workspace/'result.json').exists())
