@@ -71,6 +71,15 @@ try {
         Assert-Test ([IO.File]::ReadAllText($identityPath) -eq $expected) 'Failed serial changed durable identity'
         Assert-Test (Test-Path -LiteralPath $complete) 'Failed serial reset completion marker'
     }
+    # A noisy helper must not turn -notmatch into an array filter or choose
+    # one of several UUIDs. The production capture collapses all output first.
+    $script:serial = @('AABBCCDD11223344', '1122334455667788')
+    $failed = $false
+    try { Write-WootcInstallationIdentity @argsForIdentity } catch { $failed = $true }
+    Assert-Test $failed 'Multiple UUID outputs were accepted'
+    Assert-Test ([IO.File]::ReadAllText($identityPath) -eq $expected) 'Multiple UUID outputs changed durable identity'
+    Assert-Test (Test-Path -LiteralPath $complete) 'Multiple UUID outputs reset completion marker'
+    Write-Output 'PASS multiple UUID outputs refused without changing installation state'
     $script:serial = 'AABBCCDD11223344'
     $argsForIdentity.EspPartitionGuid = [Guid]::Empty.ToString()
     $failed = $false
