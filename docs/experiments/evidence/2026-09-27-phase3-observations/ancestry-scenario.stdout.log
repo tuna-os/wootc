@@ -1,0 +1,45 @@
+1..44
+ok 1 the arm script vaults a Linux user matching the Windows profile name
+ok 2 user data is seeded before the deployer barrier is released
+ok 3 Phase-2 bridge check is a live QGA content read against RUN_ID
+ok 4 Phase-3 native persistence check reads the file from the native disk
+ok 5 vault user requests only the wheel group
+ok 6 passthrough is wanted by multi-user, after /var is mounted
+ok 7 Phase-3 reboot never rides the QGA channel
+ok 8 mount-user-dirs reports a bind verdict and flags a missing home
+ok 9 fisherman pins user homes into the stateroot var
+ok 10 emergency-shell diagnosis distinguishes attach from mount failure
+ok 11 E2E invokes go-native by absolute path under QGA's minimal PATH
+ok 12 go-native supplies sbin paths for GUI and QGA service environments
+ok 13 --phase3 provisions its dedicated blank target and handles none found
+ok 14 Phase-3 QGA uses the request-gated systemd boundary
+ok 15 Phase-3 dispatcher rechecks blank target before destructive gate
+ok 16 Phase-3 dispatcher runs NTFS shrink verification before migration
+ok 17 migrate --dual-boot on loopback describes the graduate stages and touches nothing
+ok 18 migrate --dual-boot with shrink fixture shows available space and safe defaults
+ok 19 migrate --dual-boot with dirty NTFS fixture shows the dirty-volume diagnostic
+ok 20 migrate --dual-boot with no-space NTFS fixture shows the nospace diagnostic
+ok 21 plan when already native says nothing to graduate
+ok 22 check reports loopback + counts converted folders, never touches disk
+ok 23 check verifies NTFS shrinkability when layout is discoverable
+ok 24 check warns on dirty NTFS but does not hard-block
+ok 25 migrate --reclaim REFUSES while still on loopback
+ok 26 migrate --reclaim REFUSES when no folders are verified native
+ok 27 migrate --execute REFUSES without WOOTC_GN_ALLOW_DESTRUCTIVE=1
+ok 28 migrate with no mode REFUSES
+ok 29 migrate --dual-boot (no --execute) is a dry run that touches no disk
+ok 30 Phase-3 plan uses recorded registry origin, not deployer-local derived tag
+ok 31 Phase-3 native install supplies the deployer-selected filesystem
+ok 32 Phase-3 home migration selects a partition, never the whole target disk
+ok 33 Phase-3 schedules and positively verifies the native boot
+ok 34 migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched
+ok 35 migrate REFUSES when the Windows disk cannot be located
+ok 36 status --json on loopback: canGraduate true, canReclaim false, touches nothing
+ok 37 status --json with shrink fixture reports ntfsShrinkable gate and safeGib
+ok 38 status --json native + converted folders: canReclaim true, folders listed
+ok 39 status --json native but NO converted folders: canReclaim false (data-safety gate)
+ok 40 migrate --to-disk REFUSES to install onto the Windows disk # skip no loop device
+ok 41 Phase-3 install uses fisherman podman-run mode with the origin image
+ok 42 Phase-3 post-install /etc writes target the deployment etc, not sysroot etc
+ok 43 Phase-3 recipe mirrors the running account into the native install
+ok 44 Phase-3 installs the /run userdata probe for the confined guest agent
