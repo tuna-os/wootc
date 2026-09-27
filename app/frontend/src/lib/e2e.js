@@ -72,6 +72,51 @@ function driveInstall(directive, state) {
   }
 }
 
+async function drivePrepareVM(directive, state) {
+  if (window.__e2ePrepareVMRequested || state.screen !== 'launchpad') return;
+  await reportState(state, directive);
+
+  // Selecting a catalog card or applying a custom image re-renders the
+  // launchpad. Do that first, then look up fresh input elements so the
+  // remaining values are written into the controls the user can see.
+  if (directive.image) {
+    const currentRef = state.selected?.imageRef || '';
+    const card = [...document.querySelectorAll('.image-card')]
+      .find((candidate) => candidate.__imgRef === directive.image);
+    const imageInput = fieldByLabel('Custom supported OCI image');
+    if (card && currentRef !== directive.image) {
+      card.click();
+    } else if (!card && imageInput && currentRef !== directive.image) {
+      imageInput.value = directive.image;
+      if (imageInput.oninput) imageInput.oninput();
+    }
+  }
+
+  if (directive.image && state.selected?.imageRef === directive.image) {
+    await reportState(state, directive);
+  }
+
+  const username = fieldByLabel('Linux Username');
+  const passwords = document.querySelectorAll('input[type=password]');
+  if (!username || passwords.length < 2) return;
+
+  username.value = directive.username || '';
+  if (username.oninput) username.oninput();
+  for (const password of passwords) {
+    password.value = directive.password || '';
+    if (password.oninput) password.oninput();
+  }
+
+  if (directive.image && state.selected?.imageRef !== directive.image) return;
+  await reportState(state, directive);
+  const button = document.getElementById('vm-prepare-btn');
+  if (!button || button.disabled) return;
+
+  window.__e2ePrepareVMRequested = true;
+  button.click();
+  window.__e2ePrepareVMDriven = true;
+}
+
 async function reportState(state, directive) {
   // The harness reads imageMismatch to fail FAST when the directive's image
   // cannot be selected (see the integrity gate in driveInstall) — the
@@ -91,6 +136,17 @@ async function reportState(state, directive) {
     selectedRef: state.selected?.imageRef || '',
     imageMismatch: !!(wantRef && state.screen === 'launchpad' &&
       !window.__e2eInstallDriven && state.selected?.imageRef !== wantRef),
+    vmPrepareDriven: !!window.__e2ePrepareVMDriven,
+    freshVmAvailable: !!state.freshVmCapability?.available,
+    freshVmReason: state.freshVmCapability?.reason || '',
+    vmPrepareButtonVisible: !!document.getElementById('vm-prepare-btn'),
+    vmPrepareButtonDisabled: document.getElementById('vm-prepare-btn')?.disabled ?? null,
+    vmRuntimeButtonVisible: [...document.querySelectorAll('button')]
+      .some((button) => button.textContent.includes('Set up Linux in a window')),
+    vmImageMismatch: !!(window.__e2eWantVMImage && state.screen === 'launchpad' &&
+      !window.__e2ePrepareVMDriven && state.selected?.imageRef !== window.__e2eWantVMImage),
+    vmReady: !!state.vmReady,
+    vmProgressStage: state.vmProgress?.stage || '',
   }));
 }
 
@@ -108,7 +164,7 @@ export function startE2EDrive(state) {
         const directive = JSON.parse(raw);
         if (directive.schemaVersion !== 1 || typeof directive.runId !== 'string' ||
             !directive.runId || !/^[0-9a-f]{32}$/.test(directive.directiveId) ||
-            !['install', 'reboot'].includes(directive.action)) throw new Error('Invalid drive identity');
+            !['install', 'reboot', 'prepare-vm'].includes(directive.action)) throw new Error('Invalid drive identity');
         if (window.__e2eRunId && window.__e2eRunId !== directive.runId) throw new Error('Changed drive run');
         window.__e2eRunId = directive.runId;
         if (directive.action === 'install') {
@@ -120,6 +176,14 @@ export function startE2EDrive(state) {
         if (directive.action === 'install') {
           window.__e2eWantImage = directive.image || '';
           driveInstall(directive, state);
+        }
+        if (directive.action === 'prepare-vm') {
+          if (window.__e2ePrepareVMDirectiveId && window.__e2ePrepareVMDirectiveId !== directive.directiveId) {
+            throw new Error('Changed VM preparation directive');
+          }
+          window.__e2ePrepareVMDirectiveId = directive.directiveId;
+          window.__e2eWantVMImage = directive.image || '';
+          await drivePrepareVM(directive, state);
         }
         if (directive.action === 'reboot' && state.screen === 'done' && window.__e2eInstallDriven &&
             window.__e2eInstallDirectiveId === directive.directiveId && !window.__e2eRebootDriven) {

@@ -587,6 +587,36 @@ test('VM-first account flow uses only implemented choices and supports clean res
 });
 
 
+test('E2E drive observes the VM-first button and prepares through the real launchpad form', async ({ page }) => {
+  const password = 'temporary-vm-e2e-password';
+  const image = IMAGES[1].imageRef;
+  await boot(page, {
+    mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    freshVm: { available: true, probeStatus: 'passed' },
+    driveDirective: JSON.stringify({
+      action: 'prepare-vm', image,
+      username: 'alice', password,
+    }),
+  });
+
+  await expect(page.getByRole('heading', { name: 'Linux is starting' })).toBeVisible();
+  const calls = await page.evaluate(() => window.__wootcVMCalls);
+  expect(calls.map(call => call[0])).toEqual(['prepare']);
+  expect(calls[0][1]).toEqual({ imageRef: image, username: 'alice', password });
+  await expect(page.locator('body')).not.toContainText(password);
+
+  await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.some(report =>
+    report.screen === 'launchpad' && report.freshVmAvailable &&
+    report.vmPrepareButtonVisible && !report.vmPrepareButtonDisabled &&
+    !report.vmImageMismatch
+  ))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.some(report =>
+    report.screen === 'vmpreview' && report.freshVmAvailable && report.vmReady &&
+    report.vmProgressStage === 'started'
+  ))).toBe(true);
+});
+
+
 test('signed runtime setup returns to account setup without starting an install', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true } });
   await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
