@@ -9,6 +9,7 @@ import { el, btn, warningBanner } from '../lib/ui.js';
 
 export function renderControlPanel() {
   const wrap = el('div');
+  wrap.dataset.wootcScreen = 'control';
   wrap.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
   const screen = el('div', 'screen');
   screen.innerHTML = `
@@ -56,16 +57,24 @@ export function renderControlPanel() {
     bootCard.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--accent);border-radius:8px;padding:14px 16px;margin-top:10px;display:flex;align-items:center;gap:12px';
     bootCard.innerHTML = `${brandMark('bootcard-logo')}
       <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:13px">${u.deployed ? `${distroName()} boot verified` : `${distroName()} is ready for its first boot`}</div>
+        <div class="boot-evidence-heading" style="font-weight:600;font-size:13px">${u.deployed ? `${distroName()} boot verified` : `${distroName()} is ready for its first boot`}</div>
         <div style="font-size:11.5px;color:var(--text-muted)">Restart to boot into it once. Windows stays your default — from Linux, the boot menu lists Windows too.</div>
       </div>`;
     if (u.bootEvidence) {
       const evidence = u.bootEvidence;
       const summary = el('div');
       summary.className = 'boot-evidence-summary';
-      summary.style.cssText = 'font-size:11.5px;color:var(--text-muted);margin-top:8px';
-      summary.textContent = `Linux ${evidence.kernel} · ${evidence.sourceImageRef} · ` +
-        `${evidence.bridge.boundFolders} folders connected for ${evidence.bridge.matchedUsers} users`;
+      summary.style.cssText = 'font-size:11.5px;color:var(--text-muted);margin-top:8px;overflow-wrap:anywhere';
+      const fact = (field, value) => {
+        const span = el('span');
+        span.dataset.bootEvidence = field;
+        span.textContent = String(value);
+        return span;
+      };
+      summary.append('Linux ', fact('kernel', evidence.kernel), ' · ',
+        fact('source-image', evidence.sourceImageRef), ' · ',
+        fact('bound-folders', evidence.bridge.boundFolders), ' folders connected for ',
+        fact('matched-users', evidence.bridge.matchedUsers), ' users');
       bootCard.querySelector('div').appendChild(summary);
     }
     const bootBtn = btn(`Restart into ${distroName()} →`, 'btn btn-primary', async () => {

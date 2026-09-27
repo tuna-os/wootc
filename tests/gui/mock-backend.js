@@ -10,6 +10,8 @@ window.__wootcInstallEmitters = [];
 function makeApp(mock) {
   const P = (v) => Promise.resolve(v);
   return {
+    E2EDriveDirective: () => P(mock.driveDirective ? JSON.stringify(mock.driveDirective) : ''),
+    E2EDriveReport: (report) => { window.__e2eLatestReport = JSON.parse(report); return P(); },
     GetReleaseNotice: () => new Promise((resolve, reject) => setTimeout(() => {
       if (mock.releaseNoticeFailure) reject(new Error('offline'));
       else resolve(mock.releaseNotice || { version: '', url: '' });

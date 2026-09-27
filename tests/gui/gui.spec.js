@@ -519,3 +519,56 @@ test('release notice rejects a non-release link', async ({ page }) => {
   await expect(page.locator('#release-notice')).toBeEmpty();
   await expect(page.locator('#release-notice img')).toHaveCount(0);
 });
+
+const UI_BOOT_FACTS = { kernel: '6.12.1', sourceImageRef: '<img src=x onerror=window.proofInjected=true>',
+  boundFolders: 3, matchedUsers: 1 };
+async function bootProofPanel(page) {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, diskPath: 'F:\\wootc\\disks\\root.disk', deployed: true,
+      bootEvidence: { kernel: UI_BOOT_FACTS.kernel, sourceImageRef: UI_BOOT_FACTS.sourceImageRef,
+        bridge: { boundFolders: 3, matchedUsers: 1 } } } });
+  await expect(page.locator('.boot-evidence-summary')).toBeVisible();
+}
+async function requestBootProof(page, expected = UI_BOOT_FACTS, nonce = 'fresh-ui-nonce') {
+  await page.evaluate(({ expected, nonce }) => {
+    window.__WOOTC_MOCK.driveDirective = { action: 'verify-installed-boot', runId: 'current-run', nonce, expected };
+  }, { expected, nonce });
+  await expect.poll(() => page.evaluate(() => window.__e2eLatestReport?.installedBootVerification?.nonce)).toBe(nonce);
+  return page.evaluate(() => window.__e2eLatestReport.installedBootVerification);
+}
+
+test('first-boot UI receipt observes visible literal DOM and a fresh directive', async ({ page }) => {
+  await bootProofPanel(page);
+  let receipt = await requestBootProof(page);
+  expect(receipt.passed).toBe(true);
+  expect(receipt.observed).toMatchObject({ kernel: '6.12.1', sourceImageRef: UI_BOOT_FACTS.sourceImageRef,
+    boundFolders: '3', matchedUsers: '1',
+    summary: `Linux 6.12.1 · ${UI_BOOT_FACTS.sourceImageRef} · 3 folders connected for 1 users` });
+  expect(await page.evaluate(() => window.proofInjected)).toBeUndefined();
+  receipt = await requestBootProof(page, UI_BOOT_FACTS, 'second-current-nonce');
+  expect(receipt.nonce).toBe('second-current-nonce');
+  expect(receipt.passed).toBe(true);
+});
+
+for (const defect of ['wrong-kernel', 'hidden-summary', 'removed-summary', 'wrong-screen', 'wrong-bridge']) {
+  test(`first-boot UI receipt rejects ${defect} despite a correct backend model`, async ({ page }) => {
+    await bootProofPanel(page);
+    await page.evaluate(defect => {
+      if (defect === 'wrong-kernel') document.querySelector('[data-boot-evidence="kernel"]').textContent = 'stale-kernel';
+      if (defect === 'wrong-bridge') document.querySelector('[data-boot-evidence="bound-folders"]').textContent = '0';
+      if (defect === 'hidden-summary') document.querySelector('.boot-evidence-summary').style.display = 'none';
+      if (defect === 'removed-summary') document.querySelector('.boot-evidence-summary').remove();
+      if (defect === 'wrong-screen') document.querySelector('[data-wootc-screen="control"]').dataset.wootcScreen = 'installer';
+    }, defect);
+    const receipt = await requestBootProof(page);
+    expect(receipt.passed).toBe(false);
+    expect(receipt.errors.length).toBeGreaterThan(0);
+  });
+}
+
+test('first-boot UI receipt rejects independently observed facts that differ', async ({ page }) => {
+  await bootProofPanel(page);
+  const receipt = await requestBootProof(page, { ...UI_BOOT_FACTS, sourceImageRef: 'wrong-image' });
+  expect(receipt.passed).toBe(false);
+  expect(receipt.errors).toContain('Rendered sourceImageRef differs from this boot');
+});

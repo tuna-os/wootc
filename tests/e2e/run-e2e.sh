@@ -905,6 +905,71 @@ gui_wait_interactive_session() {
     return 1
 }
 
+# Observe actual Wails-rendered DOM after the installed Linux boot returns.
+# Expected facts come from the live Linux observer, never from a UI model.
+verify_installed_boot_gui() {
+    local directive receipt deadline launch_file
+    directive="$ARTIFACT_DIR/control-panel-ui-directive.json"
+    receipt="$ARTIFACT_DIR/control-panel-ui-state.json"
+    launch_file="$ARTIFACT_DIR/launch-control-panel-proof.ps1"
+    qga_windows_probe || { fail "Control-panel UI proof requires positive Windows identity"; return 1; }
+    jq -e --arg run "$RUN_ID" --arg nonce "$RUN_ID-ui-$RANDOM-$RANDOM" '
+      .current as $c | {action:"verify-installed-boot",runId:$run,nonce:$nonce,
+        expected:{kernel:$c.kernel,sourceImageRef:$c.sourceImageRef,
+          boundFolders:$c.bridge.boundFolders,matchedUsers:$c.bridge.matchedUsers}} |
+      select((.expected.kernel|type)=="string" and (.expected.kernel|length)>0 and
+        (.expected.sourceImageRef|type)=="string" and (.expected.sourceImageRef|length)>0 and
+        (.expected.boundFolders|type)=="number" and (.expected.matchedUsers|type)=="number")
+    ' "$FIRSTBOOT_RECORD_FILE" > "$directive" || { fail "Independent first-boot UI facts unavailable"; return 1; }
+    gui_prepare_account || return 1
+    if [ "$GUI_ACCOUNT_RESTART" = true ]; then
+        qga_powershell 'shutdown.exe /r /t 5 /f' >/dev/null || return 1
+        qga_wait_reboot "Windows UI fixture account repair" || return 1
+        qga_wait_windows 120 || return 1
+    fi
+    gui_wait_interactive_session || return 1
+    # PS5.1 consumes only BOM/CRLF fixture scripts. Stage after Windows identity.
+    printf '\xEF\xBB\xBF' > "$launch_file"
+    sed 's/$/\r/' "$SCRIPT_DIR/launch-control-panel-proof.ps1" >> "$launch_file"
+    $DOCKER cp "$launch_file" "$CONTAINER_NAME:/tmp/control-proof.ps1" || return 1
+    qga_call write /tmp/control-proof.ps1 'C:\OEM\launch-control-panel-proof.ps1' || return 1
+    qga_powershell '& C:\OEM\launch-control-panel-proof.ps1' > "$ARTIFACT_DIR/control-panel-ui-launch.log" 2>&1 || {
+        fail "Actual Windows control-panel launch failed (see launch evidence)"; return 1;
+    }
+    deadline=$(deadline_in 90)
+    while ! past_deadline "$deadline"; do
+        if qga_read 'C:\wootc\e2e-drive-state.json' > "$receipt" 2>/dev/null; then break; fi
+        sleep 3
+    done
+    # Remove the ONCE trigger before sending any directive and prove one UI.
+    # shellcheck disable=SC2016
+    qga_powershell '$ErrorActionPreference="Stop"
+schtasks.exe /Delete /TN wootc-control-proof /F | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "control-panel task trigger removal failed" }
+Start-Sleep -Seconds 4
+if (@(Get-Process wootc -ErrorAction SilentlyContinue).Count -ne 1) { throw "control-panel UI process count is not one" }
+' >> "$ARTIFACT_DIR/control-panel-ui-launch.log" 2>&1 || return 1
+    $DOCKER cp "$directive" "$CONTAINER_NAME:/tmp/control-proof-directive.json" || return 1
+    qga_call write /tmp/control-proof-directive.json 'C:\wootc\e2e-drive.json' || return 1
+    deadline=$(deadline_in 120)
+    while ! past_deadline "$deadline"; do
+        if qga_read 'C:\wootc\e2e-drive-state.json' > "$receipt" 2>/dev/null &&
+            python3 "$SCRIPT_DIR/verify-control-panel-receipt.py" "$directive" "$receipt" 2> "$ARTIFACT_DIR/control-panel-ui-check.stderr"; then
+            # Fresh framebuffer is accompanying evidence, never the verdict.
+            $DOCKER exec "$CONTAINER_NAME" rm -f /tmp/snap.ppm /tmp/wootc-screen.png || return 1
+            $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/control-proof-screenshot.py" || return 1
+            timeout 30 $DOCKER exec "$CONTAINER_NAME" python3 /tmp/control-proof-screenshot.py || return 1
+            $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" "$ARTIFACT_DIR/control-panel-ui.png" || return 1
+            $DOCKER cp "$CONTAINER_NAME:/tmp/snap.ppm" "$ARTIFACT_DIR/control-panel-ui.ppm" || return 1
+            pass "Actual Windows control panel renders this boot's kernel, source image and bridge counts"
+            return 0
+        fi
+        sleep 3
+    done
+    fail "Windows control panel did not render this boot's observed facts with a current-run receipt"
+    return 1
+}
+
 # Which drive holds the guest's \wootc tree. NOT always C:.
 #
 # On the BitLocker axis setup-wootc.ps1 carves an unencrypted volume and sets
@@ -4678,6 +4743,9 @@ else
         capture_lifecycle_failure healthy
         fail "wootc.exe status did not report healthy after Phase-2 first boot (got: '$_state_raw')"
     fi
+
+    step "Verifying the real Windows control-panel first-boot summary..."
+    verify_installed_boot_gui || { capture_vm_diagnostics; exit 1; }
 
     if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
         # A visible copy is only useful if it survives stopping and starting
