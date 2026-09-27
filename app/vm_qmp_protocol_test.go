@@ -70,3 +70,13 @@ func TestQMPDuplicateOrMalformedJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestQMPShutdownNeedsLiteralTypedFields(t *testing.T) {
+	for _, data := range []string{`{"Guest":true,"reason":"guest-shutdown"}`, `{"guest":true,"Reason":"guest-shutdown"}`, `{"guest":"true","reason":"guest-shutdown"}`, `{"guest":true,"reason":"guest-shutdown","reason":"host-qmp-quit"}`} {
+		q := &qmpClient{pending: map[string]chan qmpResult{}, done: make(chan struct{}), greeting: make(chan error, 1)}
+		q.read(strings.NewReader(`{"QMP":{"version":{},"capabilities":[]}}` + "\n" + `{"event":"SHUTDOWN","data":` + data + "}\n"))
+		if q.clean() {
+			t.Fatal("malformed shutdown became clean guest stop", data)
+		}
+	}
+}
