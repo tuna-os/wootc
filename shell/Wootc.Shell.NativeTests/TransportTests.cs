@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Text;
+using System.Text.Json;
 using System.Security.Principal;
 using Wootc.Shell.Native;
 using Wootc.Shell.Core;
@@ -97,6 +99,39 @@ public sealed class TransportTests
     {
         public Task<StartupSnapshot> ReadStartupAsync(CancellationToken token) => Task.FromResult(new StartupSnapshot(new InstallStatus(), null));
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"running\":false}")]
+    [InlineData("{\"running\":false,\"done\":false,\"existing\":false,\"existing\":true}")]
+    public async Task ActualFramedMissingOrAmbiguousStatusCannotSelectFreshRoute(string result)
+    {
+        string name = "wootc-native-response-" + Guid.NewGuid().ToString("N");
+        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var accepting = server.WaitForConnectionAsync(deadline.Token);
+        await client.ConnectAsync(deadline.Token); await accepting;
+        using var owned = Process.Start(new ProcessStartInfo("cmd.exe", "/c pause") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, CreateNoWindow = true })!;
+        var session = new NativeEngineSession(client, owned);
+        try
+        {
+            var startup = session.ReadStartupAsync(deadline.Token);
+            using var request = JsonDocument.Parse(await NativeEngineSession.ReadLineAsync(server, 4096, deadline.Token));
+            Assert.Equal("GetStatus", request.RootElement.GetProperty("method").GetString());
+            long id = request.RootElement.GetProperty("id").GetInt64();
+            await server.WriteAsync(Encoding.UTF8.GetBytes($"{{\"jsonrpc\":\"2.0\",\"id\":{id},\"result\":{result}}}\n"), deadline.Token);
+            await server.FlushAsync(deadline.Token);
+            await Assert.ThrowsAsync<InvalidDataException>(() => startup);
+            // No StartupSnapshot exists, so default false fields cannot route to Assessment.
+        }
+        finally
+        {
+            owned.StandardInput.Close();
+            await owned.WaitForExitAsync(deadline.Token);
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
