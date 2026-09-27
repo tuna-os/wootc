@@ -64,12 +64,12 @@ remains open; this run did not reach the deployer or Linux. Historical native
 passes below do not establish a current full-cycle pass for that revision.
 
 The full-install native follow-up [run 36290894695](https://github.com/tuna-os/wootc/actions/runs/36290894695)
-passed on `b90e46b` (2026-09-27, #423). The installed Linux firstboot unit
-exited successfully and persisted `healthy`; after the return boot,
-`wootc.exe status` independently reported `healthy` on Windows.
+passed on `b90e46b` (2026-09-27, #423). The firstboot service in Linux
+succeeded and wrote `healthy`. After Windows returned,
+`wootc.exe status` also reported `healthy`.
 This was the scripted native cycle with BitLocker off. It does not resolve
-the GUI failure in #399, prove editable BitLocker Documents, or establish
-Phase 1 inside Windows.
+the GUI failure in #399. Editing Documents with BitLocker and Phase 1
+inside Windows still need evidence.
 
 ## Build/test matrix
 
