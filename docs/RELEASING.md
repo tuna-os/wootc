@@ -1,28 +1,27 @@
 # Releasing wootc — the green-gated ladder
 
-wootc writes Linux onto a stranger's only computer. The release rule follows
-directly from the North Star (*a nervous Windows user must not lose data*):
-**the app only ever offers scenarios the E2E matrix has actually proven
-green.** Everything else is hidden until it is proven. Features unlock as the
-matrix greens; the channel graduates when whole tiers are green.
+wootc writes Linux onto a stranger's only computer. Its North Star is that a nervous Windows user must not lose data.
+**The app offers only scenarios with green evidence in the E2E matrix.**
+It hides other scenarios until they pass. Each matrix cell opens its feature after it passes.
+A whole tier must pass before its channel can advance.
 
 ## The single source of truth
 
 The [build/test matrix](status.md#buildtest-matrix) is authoritative. A
-combination is *green* only when the hosted E2E (`e2e-matrix.yml` /
-`e2e-gui.yml`) has passed it end-to-end — Windows seed → deploy → Phase-2
-bridge → Phase-3 native disk → seeded file on the native disk.
+combination earns *green* only after hosted E2E (`e2e-matrix.yml` /
+`e2e-gui.yml`) passes the full cycle.
+The cycle is Windows seed → deploy → Phase-2 bridge → Phase-3 native disk → seeded file on the native disk.
 
 Two places consume that status, and they must agree:
 
 - **`app/data/images.json`** — each image carries `"status": "green" |
-  "experimental"`. Only `green` images are offered in alpha.
+  "experimental"`. Alpha offers only `green` images.
 - **`app/app.go` `GetSupportPolicy()`** — per-channel gate for the *scenario*
   axes (BitLocker/FDE, custom OCI refs, encryption). The frontend reads it to
   gate the UI; `StartInstall` enforces it as the authoritative backstop.
 
-When a matrix cell goes green, flip its `status` (and/or the relevant policy
-flag) in the same PR that records the green run — never ahead of it.
+When a matrix cell passes, update its `status` and the applicable policy flag.
+Include those changes in the PR that records the run that passed. Never open a gate before its evidence.
 
 ## Channels
 
@@ -40,19 +39,17 @@ Windows is a good outcome; a walked-into-red user with a broken boot is not.
 
 ## Alpha (now)
 
-- **Image:** `ghcr.io/projectbluefin/bluefin:lts` — the one combination green
-  end-to-end, including a full GUI-driven run.
+- **Image:** `ghcr.io/projectbluefin/bluefin:lts`. This combination passed the full cycle, including a run through the GUI.
 - **Encryption:** off only. `tpm2-luks` (Phase-2 regen, [#33](https://github.com/tuna-os/wootc/issues/33))
-  and BitLocker FDE ([#34](https://github.com/tuna-os/wootc/issues/34)) are
-  gated off; the app detects BitLocker and tells the user plainly that it is
-  coming soon rather than proceeding into a known failure.
-- **Root filesystem:** ext4 (sealed default). btrfs is blocked
+  and BitLocker FDE ([#34](https://github.com/tuna-os/wootc/issues/34)) remain unavailable in alpha.
+  The app detects BitLocker and tells the user about that limit. It refuses to continue into a known failure.
+- **Root filesystem:** ext4 (sealed default). The app refuses btrfs
   ([#35](https://github.com/tuna-os/wootc/issues/35)).
 - **No custom OCI refs** — only the offered, tested image.
 
 ## The unlock path to beta
 
-Each of these flips a gate the moment its matrix row is green:
+Each item opens a gate when its matrix row passes:
 
 - [x] yellowfin / bonito / marlin / flounder full three-phase → `status: green`
 - [x] composefs-native (dakota) Phase-2/3
@@ -62,9 +59,9 @@ Each of these flips a gate the moment its matrix row is green:
 - [ ] btrfs sealed Phase-2 (#35) → offer btrfs
 - [x] custom OCI refs (once the deploy path is family-agnostic green) → `CustomImageAllowed: true`
 
-When the **whole matrix** is green, the default channel becomes `beta`
-(catalog all-green, custom refs on), and the axis gates open as their issues
-close.
+When the **whole matrix** passes, `beta` becomes the default channel.
+The catalog then offers all images and lets users select custom references.
+The gates for each axis open as their issues close.
 
 ## Native shell release gates
 
@@ -95,21 +92,23 @@ That final boot does not prove a Windows return after graduation.
 
 Automatic pre-releases use the successful GUI run on main and build its exact
 source SHA. Their proof covers the stages selected by that run.
-The `skip_e2e` input can waive the gate for an emergency dispatch; the release
-notes state that the gate was waived.
+The `skip_e2e` input can waive the gate for an emergency dispatch.
+The release notes disclose that waiver.
 
 ```
 git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
 # → tests → E2E gate (real Windows VM, bluefin:lts, GUI-driven) → build + publish
 ```
 
-Every release ships the **full artifact set**, not just one exe
-(`release.yml`): one installer per brand directory — `wootc.exe` plus
-`TunaOS-Installer.exe`, `Bluefin-Installer.exe`, `Bazzite-Installer.exe`,
-`Aurora-Installer.exe` (Wails, Go + web UI; no runtime deps) — the shared
-boot artifacts (`deployer-vmlinuz`, `deployer-initramfs.img`, `shimx64.efi`,
-`grubx64.efi`, `mmx64.efi`, plus `wubildr.efi` when its build succeeds), and
-a `SHA256SUMS` covering all of them. `skip_e2e` exists for emergencies and
+Every release ships the **full artifact set** from `release.yml`.
+It includes one installer per brand directory: `wootc.exe`,
+`TunaOS-Installer.exe`, `Bluefin-Installer.exe`, `Bazzite-Installer.exe`, and
+`Aurora-Installer.exe`. These use Wails with Go and a web UI, with no runtime dependencies.
+
+The shared boot artifacts are `deployer-vmlinuz`, `deployer-initramfs.img`,
+`shimx64.efi`, `grubx64.efi`, and `mmx64.efi`.
+The set also includes `wubildr.efi` when its build succeeds.
+`SHA256SUMS` lists hashes for all these files. `skip_e2e` exists for emergencies and
 documents itself in the release notes.
 
 ## Fresh-machine verification (v1.0 criterion 4)
@@ -187,32 +186,28 @@ Use the field verifier and attach screenshots for the published files.
 is the other direction: which lever to pull for a bad build, and what each
 one reaches. The short version, because the instinct is usually wrong:
 
-- Marking the bad release a **pre-release** moves `latest` back to the last
-  good full release — that fixes the download links and every unstamped
-  build, and leaves pinned exes able to finish verifying.
-- **Deleting** the release is the only thing that reaches an exe already on
-  a user's disk, and it also 404s any published winget manifest. Reserve it
-  for a build that is dangerous, not merely broken.
-- The nightly keeps cutting `auto-v*` from `main`, so nothing is contained
-  until the offending commit is reverted or `e2e-gui.yml` is paused.
-- winget submission is one-directional; withdrawing a version means a PR
-  against `microsoft/winget-pkgs`.
+- Mark the bad release as a **pre-release** to move `latest` back to the last good full release.
+  This repairs download links and unstamped builds. Pinned exes can still verify their files.
+- **Delete** the release to reach an exe already on a user's disk.
+  This also makes published winget manifests return 404. Use this action for a dangerous build.
+- The nightly continues to publish `auto-v*` from `main`.
+  Revert the faulty commit or pause `e2e-gui.yml` to stop further releases.
+- Submit a PR against `microsoft/winget-pkgs` to withdraw a winget version.
 
 ## User instructions (shipped in the release notes)
 
 1. Download `wootc.exe`. It is not code-signed yet (alpha) — SmartScreen will
    warn; *More info → Run anyway*.
-2. Requirements the app checks for you: Windows 10/11 64-bit, UEFI + Secure
-   Boot, TPM 2.0, **BitLocker off** (alpha), and at least 35 GB free on `C:`
-   (20 GB for Linux plus the 15 GB headroom the launchpad reserves for
-   Windows).
+2. The app checks for Windows 10/11 64-bit, UEFI + Secure Boot, TPM 2.0, and **BitLocker off** (alpha).
+   It also needs at least 35 GB free on `C:`.
+   This reserves 20 GB for Linux and 15 GB for Windows.
 3. Run it, pick Bluefin, set a username + password, and click Install.
    Install creates the Linux disk file and changes the boot setup before you
    click **Reboot Now**. Save your work before you restart.
 4. The one-time deployer boot prepares Linux. Windows normally returns after
    that boot. Open Manage and choose **Restart into Bluefin** to start Linux.
 
-Uninstall attempts to remove the installed files and boot setup. An incomplete
+Uninstall tries to remove the installed files and boot setup. An incomplete
 cleanup can leave files or boot state behind. In Manage, **Also delete my Linux
 data** is a separate choice. Review that choice before you confirm removal.
 
@@ -220,4 +215,4 @@ data** is a separate choice. Review that choice before you confirm removal.
 
 Every new release embeds a per-build verification key and ships `SHA256SUMS.sig`.
 See [artifact authentication](artifact-authentication.md) for custody, rotation,
-offline bundles, and the separate Windows code-signing gate.
+offline bundles, and the separate gate for Windows signatures.

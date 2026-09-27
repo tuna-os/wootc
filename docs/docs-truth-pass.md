@@ -145,3 +145,10 @@ Linux data removal is a separate choice in Manage.
 Three checks in `tests/unit/docs-truth.bats` pin these corrections to current source.
 The release instructions no longer promise a fixed first-boot time.
 RC timing, package screenshots, hardware recovery, and signature acceptance remain open.
+
+## Release guide English pass — 2026-09-27, against `5354e42`
+
+The release guide now has no findings under the shared English checker.
+Its gates, artifact names, channel limits, and requirements remain the same.
+All 24 checks in `tests/unit/docs-truth.bats` pass.
+The count for the repository falls from 1671 to 1635. The budget follows that count.
