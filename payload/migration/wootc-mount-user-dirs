@@ -268,7 +268,7 @@ bind_profile() {
             else
                 copy_helper=$(command -v wootc-copy-windows-documents 2>/dev/null || true)
             fi
-            if [[ -n "$copy_helper" ]] && "$copy_helper" "$src" "$home" "$luser"; then
+            if [[ -n "$copy_helper" ]] && "$copy_helper" "$src" "$home" "$luser" "$winprofile"; then
                 copied=$((copied + 1))
                 continue
             fi

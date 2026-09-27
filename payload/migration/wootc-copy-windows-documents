@@ -8,7 +8,7 @@ set -Eeuo pipefail
 say() { printf '[wootc-files-copy] %s\n' "$*"; }
 refuse() { say "WARNING: $*" >&2; exit 1; }
 
-[[ $# -eq 3 ]] || refuse "usage: wootc-copy-windows-documents <source> <home> <linux-user>"
+[[ $# -eq 3 || $# -eq 4 ]] || refuse "usage: wootc-copy-windows-documents <source> <home> <linux-user> [windows-profile]"
 source_dir=$1
 home=$2
 user=$3
@@ -20,8 +20,12 @@ gid=$(id -g "$user" 2>/dev/null) || refuse "Linux user has no primary group: $us
 home_uid=$(stat -c '%u' -- "$home") || refuse "cannot read home ownership: $home"
 [[ "$home_uid" == "$uid" ]] || refuse "home is not owned by $user: $home"
 
+source_dir=$(realpath -e -- "$source_dir") || refuse "cannot resolve the Windows source"
+profile_dir=$(realpath -e -- "${4:-$source_dir}") || refuse "cannot resolve the Windows profile"
+volume_uuid=$(findmnt -n -o UUID -T "$source_dir" 2>/dev/null || true)
+profile_key=$(printf '%s\0%s' "$volume_uuid" "$profile_dir" | sha256sum | cut -d ' ' -f1)
 state_dir="$home/.local/state/wootc"
-state_file="$state_dir/bitlocker-documents-import-v1"
+state_file="$state_dir/bitlocker-documents-import-v2-$profile_key"
 for state_path in "$home/.local" "$home/.local/state" "$state_dir"; do
     [[ ! -L "$state_path" ]] || refuse "migration state path is a symlink: $state_path"
     if [[ ! -e "$state_path" ]]; then
@@ -42,8 +46,8 @@ fi
 write_complete_state() {
     local final_destination="$1" temp
     temp=$(mktemp -- "$state_dir/.bitlocker-documents-import.XXXXXXXX") || return 1
-    printf 'version=1\nstate=complete\ndestination=%s\nsource=%s\ncompleted_at=%s\n' \
-        "$final_destination" "$source_dir" "$(date -u +%FT%TZ)" > "$temp" || { rm -f -- "$temp"; return 1; }
+    printf 'version=2\nstate=complete\nprofile_key=%s\ndestination=%s\nsource=%s\ncompleted_at=%s\n' \
+        "$profile_key" "$final_destination" "$source_dir" "$(date -u +%FT%TZ)" > "$temp" || { rm -f -- "$temp"; return 1; }
     chown "$uid:$gid" -- "$temp" || { rm -f -- "$temp"; return 1; }
     chmod 0600 -- "$temp" || { rm -f -- "$temp"; return 1; }
     sync -f "$temp" 2>/dev/null || sync
@@ -97,7 +101,7 @@ while [[ -e "$destination" || -L "$destination" ]]; do
     if [[ -d "$destination" && ! -L "$destination" \
         && -f "$destination/.wootc-import-complete" \
         && ! -L "$destination/.wootc-import-complete" ]] \
-        && grep -qx 'version=1' "$destination/.wootc-import-complete"; then
+        && grep -qx "profile_key=$profile_key" "$destination/.wootc-import-complete"; then
         write_complete_state "$destination" \
             || say "WARNING: the copy exists, but its separate no-refresh marker could not be written"
         say "an earlier complete copy is already present; preserving Linux edits"
@@ -152,8 +156,8 @@ automatically, and wootc will not overwrite your Linux edits.
 NOTICE
 printf '\nSymbolic links and special files not copied: %s\n' "$skipped_items" \
     >> "$stage/ABOUT-WINDOWS-COPY.txt"
-printf 'version=1\nsource=%s\ncompleted_at=%s\n' \
-    "$source_dir" "$(date -u +%FT%TZ)" > "$stage/.wootc-import-complete"
+printf 'version=2\nprofile_key=%s\nsource=%s\ncompleted_at=%s\n' \
+    "$profile_key" "$source_dir" "$(date -u +%FT%TZ)" > "$stage/.wootc-import-complete"
 
 # These are now native user files, not read-only NTFS files. Keep them private
 # to their owner, including nested directories, and ensure the copy is durable

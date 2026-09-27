@@ -4416,7 +4416,7 @@ else
          echo "seed@host: $(find /run/wootc/host -maxdepth 7 -type f -name "wootc-e2e-userdata.txt" -exec cat {} + 2>/dev/null || echo ABSENT)"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
          echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
-         echo "linux-copy: $(cat '/home/wootc/Documents/From Windows/.wootc-import-complete' 2>/dev/null || echo ABSENT)"; \
+         echo "linux-copy: $(cat "/home/wootc/Documents/From Windows/.wootc-import-complete" 2>/dev/null || echo ABSENT)"; \
          echo "unit:      enabled=$(systemctl is-enabled wootc-host-bind 2>&1) active=$(systemctl is-active wootc-host-bind 2>&1)"; \
          systemctl status wootc-host-bind --no-pager 2>&1 | tail -4; \
          echo "ntfs-src:  $(findmnt -n /run/initramfs/wootc-host 2>/dev/null || echo ABSENT)"; \
@@ -4632,6 +4632,13 @@ else
         # one-shot Phase-2 entry, boot the same root.disk again, and read back
         # the ordinary user's edit before returning to Windows a second time.
         step "Rebooting the installed BitLocker environment to prove the saved copy persists..."
+        # Shutdown removes the temporary bridge key. Refresh it from Windows
+        # for this deliberate second migration check; never print its value.
+        # shellcheck disable=SC2016
+        if ! qga_powershell '$ErrorActionPreference="Stop"; $kp=Get-BitLockerVolume -MountPoint "C:" | Select-Object -ExpandProperty KeyProtector | Where-Object { $_.KeyProtectorType -eq "RecoveryPassword" } | Select-Object -First 1; if (-not $kp -or ($kp.RecoveryPassword -replace "-", "") -notmatch "^[0-9]{48}$") { throw "No valid recovery password for persistence fixture" }; $path='"'$(guest_wootc_root)\wootc\install\bitlocker-key.txt'"'; Set-Content -LiteralPath $path -Value $kp.RecoveryPassword -Encoding ASCII; & icacls.exe $path /inheritance:r /grant:r "*S-1-5-18:F" "*S-1-5-32-544:F" | Out-Null; if ($LASTEXITCODE -ne 0) { Remove-Item -LiteralPath $path -Force; throw "Could not protect persistence fixture key" }' >/dev/null; then
+            fail "Could not refresh the protected recovery key for the second BitLocker boot"
+            exit 1
+        fi
         qga_powershell "bcdedit --% /set {fwbootmgr} bootsequence $PHASE2_GUID /addfirst" >/dev/null
         if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | grep -qiF "$PHASE2_GUID"; then
             fail "Could not re-arm Phase 2 for the BitLocker Documents persistence check"

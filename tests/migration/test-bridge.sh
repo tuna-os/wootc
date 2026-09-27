@@ -311,9 +311,20 @@ printf 'later windows change\n' >> "$BL_DOCS/Projects/notes.txt"
 bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/bob bob >/dev/null
 check 'runuser -u bob -- grep -q "linux edit" "/home/bob/Documents/From Windows/Projects/notes.txt" && ! runuser -u bob -- grep -q "later windows change" "/home/bob/Documents/From Windows/Projects/notes.txt"' \
     "#427: retry preserves Linux edits and does not silently refresh from Windows"
+# A second Windows profile mapped to the same Linux user needs its own copy.
+OTHER_DOCS=/tmp/bitlocker-fixture/Users/other/Documents
+mkdir -p "$OTHER_DOCS"
+printf 'second profile bytes\n' > "$OTHER_DOCS/other.txt"
+bash /scripts/wootc-copy-windows-documents "$OTHER_DOCS" /home/bob bob >/dev/null
+check '[ "$(cat "/home/bob/Documents/From Windows (2)/other.txt")" = "second profile bytes" ]' \
+    "#427: a different Windows profile is not suppressed by the first import marker"
+rm -f /home/bob/.local/state/wootc/bitlocker-documents-import-v2-*
+bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/bob bob >/dev/null
+check '[ ! -e "/home/bob/Documents/From Windows (3)" ] && grep -q "linux edit" "$COPY_DIR/Projects/notes.txt"' \
+    "#427: recovery selects the matching profile copy and preserves edits"
 rm -rf -- "$COPY_DIR"
 bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/bob bob >/dev/null
-check '[ ! -e "$COPY_DIR" ] && grep -qx "state=complete" /home/bob/.local/state/wootc/bitlocker-documents-import-v1' \
+check '[ ! -e "$COPY_DIR" ] && grep -qx "state=complete" /home/bob/.local/state/wootc/bitlocker-documents-import-v2-*' \
     "#427: deleting the Linux copy is respected across a later boot instead of silently restoring it"
 
 useradd -m -u 1003 carol
