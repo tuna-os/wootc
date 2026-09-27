@@ -255,3 +255,53 @@ func (out *nativeOriginalTestOutput) Write(p []byte) (int, error) {
 	out.data = append(out.data, p...)
 	return len(p), nil
 }
+
+func TestNativeOriginalUserActualKnownFolderCollector(t *testing.T) {
+	peer, err := observeNativeProcessPeer(uint32(os.Getpid()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.close()
+	user, err := captureNativeOriginalUser(peer, peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer user.close()
+	t.Setenv("USERNAME", "untrusted-elevated-account")
+	t.Setenv("USERPROFILE", `Z:\untrusted-environment-profile`)
+	calls := 0
+	sink := func(value *KnownFolders) error {
+		calls++
+		if value.User != filepath.Base(user.profile) || len(value.Folders) != 6 || value.CloudOnly != nil {
+			t.Fatal("native collector used environment or guessed content counts")
+		}
+		for name, path := range value.Folders {
+			if path != user.folders[name] {
+				t.Fatal("native collector lost captured folder")
+			}
+		}
+		return nil
+	}
+	if err := user.collectKnownFolders(sink); err != nil || calls != 1 {
+		t.Fatalf("actual collector refused: %v", err)
+	}
+	if err := user.collectKnownFolders(func(*KnownFolders) error { return fmt.Errorf("public synthetic persistence failure") }); err == nil {
+		t.Fatal("native collector swallowed persistence failure")
+	}
+	old := user.folders["Documents"]
+	user.folders["Documents"] = `Z:\untrusted-folder`
+	if err := user.collectKnownFolders(sink); err == nil || calls != 1 {
+		t.Fatal("changed folder reached persistence")
+	}
+	user.folders["Documents"] = old
+	oldStats := user.statistics
+	user.statistics.ModifiedID.LowPart++
+	if err := user.collectKnownFolders(sink); err == nil || calls != 1 {
+		t.Fatal("changed token reached persistence")
+	}
+	user.statistics = oldStats
+	user.close()
+	if err := user.collectKnownFolders(sink); err == nil || calls != 1 {
+		t.Fatal("closed capture reached persistence")
+	}
+}

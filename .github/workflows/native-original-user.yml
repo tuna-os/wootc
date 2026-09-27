@@ -6,6 +6,8 @@ on:
     paths:
       - 'app/native_peer_windows.go'
       - 'app/native_original_user_windows*.go'
+      - 'app/native_knownfolders_windows.go'
+      - 'app/knownfolders*.go'
       - 'app/go.mod'
       - 'app/go.sum'
       - 'tests/native_original_user_controls.py'
