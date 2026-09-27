@@ -123,3 +123,116 @@ def install_owned_bundle(deployment, bundle, expected):
                 raise ValueError('rollback refuses changed observer directory')
             item.rmdir()
         raise
+
+
+# Unit/activation publication is one owned transaction, separate from the
+# earlier module-only control. Target-native labeling runs inside this context.
+from contextlib import contextmanager
+
+UNIT_NAME = 'wootc-observer.service'
+UNIT_PATH = 'etc/systemd/system/' + UNIT_NAME
+ENABLE_PATH = 'etc/systemd/system/multi-user.target.wants/' + UNIT_NAME
+
+
+@contextmanager
+def observer_transaction(deployment, bundle, expected):
+    deployment, bundle = Path(deployment), Path(bundle)
+    directory(deployment)
+    directory(bundle)
+    names = FILES | {UNIT_NAME}
+    if type(expected) is not dict or set(expected) != names:
+        raise ValueError('authenticated observer/unit catalogue unavailable')
+    sources = {}
+    for name in sorted(names):
+        value = read_owned(bundle / name)
+        if type(expected[name]) is not str or hashlib.sha256(value).hexdigest() != expected[name]:
+            raise ValueError('observer/unit authenticated source mismatch')
+        sources[name] = value
+    targets = {name: deployment / (UNIT_PATH if name == UNIT_NAME else NAMESPACE + '/' + name) for name in names}
+    enabled = deployment / ENABLE_PATH
+    if any(os.path.lexists(path) for path in [*targets.values(), enabled]):
+        raise ValueError('observer/unit activation collision')
+    made_dirs, made_files, completed = [], [], False
+    def ensure(path):
+        planned = []
+        cursor = path
+        while not os.path.lexists(cursor):
+            planned.append(cursor)
+            cursor = cursor.parent
+        directory(cursor)
+        for item in reversed(planned):
+            item.mkdir(mode=0o755)
+            facts = item.lstat()
+            made_dirs.append((item, facts.st_dev, facts.st_ino))
+            directory(item)
+    def sync_dir(path):
+        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    def current():
+        for name, path in targets.items():
+            facts = path.lstat()
+            recorded = next(row for row in made_files if row[0] == path)
+            if (facts.st_dev, facts.st_ino) != recorded[1:3] or hashlib.sha256(read_owned(path)).hexdigest() != expected[name]:
+                raise ValueError('installed observer/unit identity changed')
+    def enable():
+        nonlocal completed
+        if completed:
+            raise ValueError('observer activation must not repeat')
+        current()
+        ensure(enabled.parent)
+        enabled.symlink_to('../' + UNIT_NAME)
+        facts = enabled.lstat()
+        made_files.append((enabled, facts.st_dev, facts.st_ino, 'link'))
+        if not stat.S_ISLNK(facts.st_mode) or facts.st_uid != 0 or os.readlink(enabled) != '../' + UNIT_NAME:
+            raise ValueError('owned observer activation link readback differs')
+        sync_dir(enabled.parent)
+        current()
+        completed = True
+    try:
+        for name in sorted(names):
+            dest = targets[name]
+            ensure(dest.parent)
+            fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o644)
+            try:
+                facts = os.fstat(fd)
+                made_files.append((dest, facts.st_dev, facts.st_ino, 'file'))
+                os.fchmod(fd, 0o644)
+                value = memoryview(sources[name])
+                while value:
+                    count = os.write(fd, value)
+                    if count <= 0:
+                        raise OSError('observer/unit write made no progress')
+                    value = value[count:]
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            if read_owned(dest) != sources[name]:
+                raise ValueError('observer/unit installed bytes differ')
+            sync_dir(dest.parent)
+        current()
+        yield {'hashes': dict(expected), 'enable': enable}
+        if not completed:
+            raise ValueError('observer installation lacks verified activation')
+        current()
+        facts = enabled.lstat()
+        recorded = next(row for row in made_files if row[0] == enabled)
+        if (facts.st_dev, facts.st_ino) != recorded[1:3] or not stat.S_ISLNK(facts.st_mode) or facts.st_uid != 0 or os.readlink(enabled) != '../' + UNIT_NAME:
+            raise ValueError('observer activation changed before commit')
+    except BaseException:
+        for item, dev, ino, kind in reversed(made_files):
+            if os.path.lexists(item):
+                facts = item.lstat()
+                right_type = stat.S_ISLNK(facts.st_mode) if kind == 'link' else stat.S_ISREG(facts.st_mode)
+                if (facts.st_dev, facts.st_ino) != (dev, ino) or not right_type:
+                    raise ValueError('rollback refuses foreign observer/unit inode')
+                item.unlink()
+                sync_dir(item.parent)
+        for item, dev, ino in reversed(made_dirs):
+            facts = item.lstat()
+            if (facts.st_dev, facts.st_ino) != (dev, ino) or not stat.S_ISDIR(facts.st_mode):
+                raise ValueError('rollback refuses changed observer/unit directory')
+            item.rmdir()
+        raise
