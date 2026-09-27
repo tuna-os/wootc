@@ -30,4 +30,10 @@ jobs:
           global-json-file: shell/global.json
       - name: Run startup, route and refusal counterexamples
         working-directory: shell
-        run: dotnet run --project Wootc.Shell.Tests --configuration Release
+        run: dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: winui-core-${{ matrix.os }}
+          path: shell/Wootc.Shell.Tests/TestResults/*.trx
+          if-no-files-found: error
