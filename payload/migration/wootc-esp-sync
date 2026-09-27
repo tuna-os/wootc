@@ -13,7 +13,7 @@
 #
 # Kernel discovery understands BLS and classic /boot layouts, but the current
 # signed-chain controller requires a measured loop root and either complete
-# bootupd sources or Debian package-bound classic /boot/efi sources. Other
+# bootupd sources or package-bound Debian, Ubuntu and RPM classic sources. Other
 # classic package providers remain open under #333; unsupported identities
 # refuse before any ESP write.
 #

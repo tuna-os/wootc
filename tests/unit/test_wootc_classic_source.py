@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import hashlib
 from pathlib import Path
 import sys
 import tempfile
@@ -42,11 +43,24 @@ class ClassicSourceTests(unittest.TestCase):
 
     def command(self,*args):
         if args[0]=='blkid':return 'ABCD-1234'
-        if args[1]=='--search':return self.paths[args[2]]+': '+args[2]
+        if args[0]=='rpm':
+            package='grub2-efi-x64' if args[-1].endswith('grubx64.efi') else 'shim-x64'
+            if '%{NAME}' in args[3]:return package+'\t0:1.0-1\tx86_64\t8\n'
+            expected=hashlib.sha256(Path(args[-1]).read_bytes()).hexdigest()
+            if getattr(self,'rpm_bad_digest',False):expected='0'*64
+            state='1' if getattr(self,'rpm_replaced_file',False) else '0'
+            return args[-1]+'\t'+expected+'\t'+state+'\t100700\n'
+
+        if args[1]=='--search':
+            owner=self.paths[args[2]]
+            if getattr(self,'mutate_owner_after_capture',False) and self.queries>=3:owner='foreign-package'
+            return owner+': '+args[2]
         if args[1]=='--show':
             self.queries+=1
             version='2.0' if self.change_package and self.queries>3 else self.version
-            return args[-1]+'\t'+version+'\t'+self.status+'\tamd64\n'
+            name=args[-1]
+            if getattr(self,'mutate_binary_after_capture',False) and self.queries>3:name='foreign-package'
+            return name+'\t'+version+'\t'+self.status+'\tamd64\n'
         raise AssertionError(args)
 
     def freeze(self):
@@ -58,6 +72,54 @@ class ClassicSourceTests(unittest.TestCase):
         self.assertEqual(set(result),{'debian'});self.assertEqual(metadata['os'],{'ID':'debian','VERSION_ID':'13'})
         self.assertEqual(len(metadata['packages']),3);self.assertTrue(metadata['version'].startswith('classic-sha256:'))
         self.assertNotIn('imageRef',metadata);self.assertNotIn('imageDigest',metadata)
+
+    def ubuntu_layout(self):
+        self.release.write_text('ID=ubuntu\nVERSION_ID="24.04"\n')
+        (self.fat/'EFI/debian').rename(self.fat/'EFI/ubuntu')
+        shim=self.install/'usr/lib/shim/shimx64.efi.signed'
+        shim.rename(self.install/'usr/lib/shim/shimx64.efi.signed.latest')
+        shim.symlink_to(str(shim)+'.latest')
+        self.paths.pop(str(shim));self.paths[str(shim)+'.latest']='shim-signed'
+        mm=self.install/'usr/lib/shim/mmx64.efi.signed'
+        mm.rename(self.install/'usr/lib/shim/mmx64.efi')
+        self.paths.pop(str(mm));self.paths[str(mm).removesuffix('.signed')]='shim-signed'
+    def test_ubuntu_package_layout_binds_mokmanager_to_shim_signed(self):
+        self.ubuntu_layout()
+        result=self.freeze();metadata=json.loads((self.root/'snapshot/EFI.json').read_text())
+        self.assertEqual(set(result),{'ubuntu'});self.assertEqual(len(metadata['packages']),2)
+        self.assertEqual(metadata['os']['ID'],'ubuntu')
+
+    def test_selected_ubuntu_alternative_changed_during_capture_refuses(self):
+        from unittest.mock import patch
+        self.ubuntu_layout()
+        link=self.install/'usr/lib/shim/shimx64.efi.signed'
+        previous=link.with_name('shimx64.efi.signed.previous')
+        previous.write_bytes(link.read_bytes())
+        original=source.write_bytes
+        def flip(path,data,**kwargs):
+            original(path,data,**kwargs)
+            if path.name=='shimx64.efi':
+                link.unlink();link.symlink_to(previous)
+        with patch.object(source,'write_bytes',flip),self.assertRaisesRegex(ValueError,'selection changed'):
+            self.freeze()
+
+    def rpm_layout(self):
+        self.release.write_text('ID=almalinux\nVERSION_ID="10"\n')
+        (self.fat/'EFI/debian').rename(self.fat/'EFI/almalinux')
+
+    def test_rpm_classic_source_uses_installed_digest_and_file_state(self):
+        self.rpm_layout();result=self.freeze()
+        metadata=json.loads((self.root/'snapshot/EFI.json').read_text())
+        self.assertEqual(set(result),{'almalinux'});self.assertEqual(metadata['packageManager'],'rpm')
+        self.assertEqual(set(metadata['packages']),{'shim-x64','grub2-efi-x64'})
+
+    def test_rpm_package_digest_mismatch_refuses(self):
+        self.rpm_layout();self.rpm_bad_digest=True
+        with self.assertRaisesRegex(ValueError,'differs from installed'):self.freeze()
+
+    def test_rpm_replaced_file_state_refuses(self):
+        self.rpm_layout();self.rpm_replaced_file=True
+        with self.assertRaisesRegex(ValueError,'not installed normally'):self.freeze()
 
     def test_missing_mokmanager_is_not_a_complete_bundle(self):
         (self.fat/'EFI/debian/mmx64.efi').unlink()
@@ -74,6 +136,21 @@ class ClassicSourceTests(unittest.TestCase):
     def test_half_configured_package_refuses(self):
         self.status='half-configured'
         with self.assertRaisesRegex(ValueError,'not installed'):self.freeze()
+
+    def test_package_owner_changed_after_capture_refuses(self):
+        self.mutate_owner_after_capture=True
+        with self.assertRaisesRegex(ValueError,'package changed while freezing'):self.freeze()
+
+    def test_binary_package_identity_changed_after_capture_refuses(self):
+        self.mutate_binary_after_capture=True
+        with self.assertRaisesRegex(ValueError,'package changed while freezing'):self.freeze()
+
+    def test_source_directory_on_measured_loop_root_is_supported(self):
+        self.observation['rootFsUuid']='ABCD-1234'
+        self.mountinfo.write_text('\n'.join(row for row in self.mountinfo.read_text().splitlines() if not row.startswith('2 '))+'\n')
+        part=self.sys/'devices/loop0/loop0p3';part.mkdir();(part/'partition').write_text('3')
+        (self.sys/'dev/block/7:3').symlink_to(part)
+        self.assertEqual(set(self.freeze()),{'debian'})
 
     def test_upgrade_during_freeze_refuses(self):
         self.change_package=True
