@@ -42,13 +42,14 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $receipt=Join-Path $env:RUNNER_TEMP 'vm-guest-pipe-controls.log'
-          & git rev-parse HEAD
-          & go version
-          Get-CimInstance Win32_OperatingSystem | Select-Object Version,BuildNumber
+          Write-Output "RUN $env:GITHUB_RUN_ID ATTEMPT $env:GITHUB_RUN_ATTEMPT SOURCE $env:GITHUB_SHA REF $env:GITHUB_REF" | Tee-Object -FilePath $receipt
+          & git rev-parse HEAD | Tee-Object -FilePath $receipt -Append
+          & go version | Tee-Object -FilePath $receipt -Append
+          Get-CimInstance Win32_OperatingSystem | Select-Object Version,BuildNumber | Out-String | Tee-Object -FilePath $receipt -Append
           foreach ($file in @('app/vm_guest_pipe_windows.go','app/vm_guest_pipe_windows_test.go','app/vm_guest_protocol.go','app/vm_guest_protocol_test.go','payload/vm-observer/boot_probe.py','tests/e2e/phase3_ancestry.py','app/vm_qmp.go','app/vm_display.go','app/native_peer_windows.go')) {
-            Write-Output "SOURCE $file SHA256 $((Get-FileHash -LiteralPath $file).Hash)"
+            Write-Output "SOURCE $file SHA256 $((Get-FileHash -LiteralPath $file).Hash)" | Tee-Object -FilePath $receipt -Append
           }
-          & go test -C app . -run '^TestVMGuest' -count=1 -v 2>&1 | Tee-Object -FilePath $receipt
+          & go test -C app . -run '^TestVMGuest' -count=1 -v 2>&1 | Tee-Object -FilePath $receipt -Append
           if ($LASTEXITCODE -ne 0) { throw 'Actual Windows pipe controls failed' }
           if (Select-String -LiteralPath $receipt -Pattern '^\s*--- SKIP:' -Quiet) { throw 'Windows source controls skipped' }
       - uses: actions/upload-artifact@v7

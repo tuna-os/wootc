@@ -46,7 +46,7 @@ Bounds:
   fresh child process group cancelled before reap; no reused-PID kill.
   Retained capture budget remains the separate reviewed QMP8files/32MiB.
 
-Next transport source (NOT implemented or enabled):
+Transport draft source (NOT enabled or runtime-qualified):
   QMP retains sole engine stdin/stdout ownership.
   Windows QEMU dedicated chardev pipe + virtserialport
   org.wootc.observation.1; cryptographic ephemeral pipe/session name.
@@ -56,6 +56,7 @@ Next transport source (NOT implemented or enabled):
   before/after every exchange; requestId fresh and reply bound exactly.
   No TCP listener, arbitrary QMP, guest exec or file-write API.
   Cancellation closes channel and invalidates observations.
+  Host parser checks reply shape; independent graph acceptance is still owed.
   Same disk after a clean stop/restart still needs a new observed boot ID.
   Fixed authenticated personalization must stage interpreter/service and
   reviewed ancestry bytes; availability must be positively checked.
