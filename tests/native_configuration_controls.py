@@ -29,7 +29,8 @@ try:
         event = json.loads(line)
         if event.get("Action") in ("pass", "fail", "skip") and event.get("Test"):
             receipt["tests"].append({"name": event["Test"], "outcome": event["Action"]})
-    required = {"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly", "TestNativeConfigurationStorageIgnoresInheritedModuleShadow", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters", "TestNativeConfigurationActualTrustedModuleManifestInventory"}
+    required = {"TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly", "TestNativeConfigurationStorageIgnoresInheritedModuleShadow",
+        "TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters", "TestNativeConfigurationActualTrustedModuleManifestInventory"}
     passed = {test["name"] for test in receipt["tests"] if test["outcome"] == "pass"}
     receipt["accepted"] = completed.returncode == 0 and required <= passed and all(test["outcome"] == "pass" for test in receipt["tests"])
 finally:

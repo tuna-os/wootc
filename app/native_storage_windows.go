@@ -65,6 +65,18 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	if err != nil {
 		return nil, err
 	}
+	windowsDirectory, err := windows.GetWindowsDirectory()
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(filepath.Clean(systemDirectory), filepath.Join(windowsDirectory, "System32")) {
+		return nil, fmt.Errorf("Windows system directory binding refused")
+	}
+	// The protected Storage manifest resolves this assembly through windir.
+	// Bind both environment spellings to the kernel-observed Windows directory.
+	if err := auditNativePackagePath(filepath.Join(systemDirectory, "Microsoft.Windows.Storage.Core.dll")); err != nil {
+		return nil, err
+	}
 	shellDirectory := filepath.Join(systemDirectory, "WindowsPowerShell", "v1.0")
 	shellPath := filepath.Join(shellDirectory, "powershell.exe")
 	// Apply the existing protected-path policy, including all ancestors;
@@ -85,11 +97,11 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	environment := make([]string, 0, len(os.Environ())+2)
 	for _, variable := range os.Environ() {
 		key, _, _ := strings.Cut(variable, "=")
-		if !strings.EqualFold(key, "PSModulePath") && !strings.EqualFold(key, "PSModuleAnalysisCachePath") && !strings.EqualFold(key, "PATH") {
+		if !strings.EqualFold(key, "PSModulePath") && !strings.EqualFold(key, "PSModuleAnalysisCachePath") && !strings.EqualFold(key, "PATH") && !strings.EqualFold(key, "windir") && !strings.EqualFold(key, "SystemRoot") {
 			environment = append(environment, variable)
 		}
 	}
-	command.Env = append(environment, "PSModulePath="+filepath.Join(shellDirectory, "Modules"), "PSModuleAnalysisCachePath=NUL", "PATH="+systemDirectory)
+	command.Env = append(environment, "PSModulePath="+filepath.Join(shellDirectory, "Modules"), "PSModuleAnalysisCachePath=NUL", "PATH="+systemDirectory, "windir="+windowsDirectory, "SystemRoot="+windowsDirectory)
 	command.Dir = shellDirectory
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	command.WaitDelay = time.Second

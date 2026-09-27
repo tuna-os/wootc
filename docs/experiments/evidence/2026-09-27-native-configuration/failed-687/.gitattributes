@@ -1,0 +1,4 @@
+*.raw -text
+*.json -text
+*.psd1 -text
+*.zip -text

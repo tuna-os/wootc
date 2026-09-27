@@ -34,18 +34,32 @@ foreach ($volume in $volumes) {
 $stage = 'serialize'
 Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Depth 3
 } catch {
-    $exception = $_.Exception.GetBaseException()
-    $type = 'other'
-    switch ($exception.GetType().FullName) {
-        'System.Management.Automation.CommandNotFoundException' { $type = 'command-not-found' }
-        'System.Management.Automation.RuntimeException' { $type = 'runtime' }
-        'System.Management.Automation.ParameterBindingException' { $type = 'parameter-binding' }
-        'System.Management.Automation.ActionPreferenceStopException' { $type = 'action-preference' }
-        'System.UnauthorizedAccessException' { $type = 'access' }
-        'System.Runtime.InteropServices.COMException' { $type = 'com' }
-    }
-    $hresult = [int]$exception.HResult
+    $exception = $_.Exception
     $category = [int]$_.CategoryInfo.Category
-    [Console]::Error.WriteLine("native-storage-failure stage=$stage type=$type hresult=$hresult category=$category")
+    # Inspect only typed exceptions. Never print messages, paths, IDs or objects.
+    for ($depth = 0; $depth -lt 4 -and $null -ne $exception; $depth++) {
+        $type = 'other'
+        switch ($exception.GetType().FullName) {
+            'System.Management.Automation.CommandNotFoundException' { $type = 'command-not-found' }
+            'System.Management.Automation.RuntimeException' { $type = 'runtime' }
+            'System.Management.Automation.ParameterBindingException' { $type = 'parameter-binding' }
+            'System.Management.Automation.ActionPreferenceStopException' { $type = 'action-preference' }
+            'System.UnauthorizedAccessException' { $type = 'access' }
+            'System.Runtime.InteropServices.COMException' { $type = 'com' }
+            'System.IO.FileNotFoundException' { $type = 'file-not-found' }
+            'System.IO.FileLoadException' { $type = 'file-load' }
+            'System.TypeLoadException' { $type = 'type-load' }
+            'System.InvalidOperationException' { $type = 'invalid-operation' }
+            'System.Management.Automation.PSInvalidOperationException' { $type = 'ps-invalid-operation' }
+        }
+        $hresult = [int]$exception.HResult
+        [Console]::Error.WriteLine("native-storage-failure stage=$stage depth=$depth type=$type hresult=$hresult category=$category")
+        $next = $exception.InnerException
+        if ($null -eq $next -and $exception -is [System.Management.Automation.ActionPreferenceStopException]) {
+            $next = $exception.ErrorRecord.Exception
+        }
+        if ([object]::ReferenceEquals($exception, $next)) { break }
+        $exception = $next
+    }
     exit 1
 }

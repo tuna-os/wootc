@@ -119,6 +119,19 @@ func TestNativeConfigurationStorageIgnoresInheritedModuleShadow(t *testing.T) {
 	}
 }
 
+func TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory(t *testing.T) {
+	root := t.TempDir()
+	// Case-insensitive replacement must remove both inherited spellings before
+	// the trusted manifest resolves its required native assembly.
+	t.Setenv("windir", root)
+	t.Setenv("SystemRoot", root)
+	rows, err := queryNativeStorage(context.Background())
+	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatalf("kernel-bound Windows query did not execute: %v", err)
+	}
+}
+
 func retainNativeStorageQueryFailure(t *testing.T, err error) {
 	t.Helper()
 	var failure *nativeStorageObservationFailure
