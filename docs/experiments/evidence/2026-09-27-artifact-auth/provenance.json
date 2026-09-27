@@ -1,0 +1,11 @@
+{
+  "sourceSha": "ac211264f38d91047c2e15ac65ff3ba6578bbca2",
+  "binarySha256": "5d325b98cef3a0a33f79c351904730100eddd76e370680c8891733c7b4336592",
+  "buildCommand": "GOOS=windows GOARCH=amd64 go test -c -o /tmp/wootc-artifact-auth-resume.test.exe .",
+  "buildWorkingDirectory": "app",
+  "guest": "winbase-399",
+  "execution": "QGA guest-exec, PowerShell, SYSTEM",
+  "testsPassed": 7,
+  "guestExitCode": 0,
+  "scope": "Native Windows tests with temporary signed fixtures and local TLS servers; not a complete installation or GUI test."
+}
