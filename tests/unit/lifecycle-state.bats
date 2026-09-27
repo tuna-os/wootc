@@ -186,7 +186,7 @@ PYFAKE
 @test "first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh" {
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence' "$MODULE_SETUP"
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence.service' "$MODULE_SETUP"
-    grep -q 'inst /usr/lib/wootc/migration/wootc-collect-firstboot.py' "$MODULE_SETUP"
+    grep -q 'inst_simple /usr/lib/wootc/migration/wootc-collect-firstboot.py' "$MODULE_SETUP"
     grep -q 'var/usrlocal/bin/wootc-collect-firstboot.py' "$DEPLOY"
     grep -q 'wootc-firstboot-evidence.service' "$DEPLOY"
     grep -q 'etc/systemd/system/multi-user.target.wants/wootc-firstboot-evidence.service' "$DEPLOY"

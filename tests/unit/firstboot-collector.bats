@@ -24,3 +24,25 @@
     [ "$(cat "$tmp/host/wootc/state.json")" = '{"state":"deployed"}' ]
     [ ! -e "$tmp/host/wootc/install/installed-linux-boot.complete" ]
 }
+
+@test "collector is staged as data and excluded from dracut's executable dependency pass" {
+    local root="$BATS_TEST_DIRNAME/../.."
+    local initdir="$BATS_TEST_TMPDIR/initramfs"
+    local collector_source="$root/payload/migration/wootc-collect-firstboot.py"
+    inst_simple() { install -D -m755 "$collector_source" "$initdir/$1"; }
+    # Run the real staging stanza. A reverted inst or missing chmod leaves
+    # no payload or an executable Python script, and the test must go red.
+    local stanza
+    stanza=$(sed -n '/^    inst_simple .*wootc-collect-firstboot.py/,/^    chmod .*wootc-collect-firstboot.py/p' "$root/payload/deployer/module-setup.sh")
+    [ -n "$stanza" ]
+    eval "$stanza"
+    local staged="$initdir/usr/lib/wootc/migration/wootc-collect-firstboot.py"
+    cmp "$collector_source" "$staged"
+    [ "$(stat -c %a "$staged")" = 644 ]
+    # This is dracut's real lazy-pass selection. inst_simple alone is not
+    # enough: any executable payload is still scanned for its shebang.
+    run find "$initdir" -type f \( -perm /0111 -or -name '*.so*' \) -not -name '*.ko*' -print
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    grep -q 'first-boot collector payload missing from initramfs' "$root/payload/deployer/Containerfile"
+}

@@ -163,7 +163,11 @@ install() {
     inst /usr/lib/wootc/migration/wootc-e2e-phase3.service
     inst /usr/lib/wootc/migration/wootc-e2e-phase3.path
     inst /usr/lib/wootc/migration/wootc-firstboot-evidence
-    inst /usr/lib/wootc/migration/wootc-collect-firstboot.py
+    # Payload for the installed OS, not an initramfs executable. inst resolves
+    # shebangs; the final lazy pass also scans executable files. The Fedora
+    # dnf5 builder has no Python, and deploy.sh restores mode755 in the target.
+    inst_simple /usr/lib/wootc/migration/wootc-collect-firstboot.py
+    chmod 0644 "$initdir/usr/lib/wootc/migration/wootc-collect-firstboot.py"
     inst /usr/lib/wootc/migration/wootc-firstboot-evidence.service
     # Program migrator plugins and schemas (docs/plugin-architecture.md).
     if [[ -d /usr/lib/wootc/migration/plugins.d ]]; then
