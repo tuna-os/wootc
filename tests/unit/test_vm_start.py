@@ -172,6 +172,17 @@ exit 0
             result = self.shell('port_free "$TEST_PORT"', deadline=3, TEST_PORT=str(port))
             self.assertEqual(result.returncode, 1)
 
+    def test_actual_numeric_port_alias_refuses_before_compose(self):
+        with socket.socket() as allocator:
+            allocator.bind(('127.0.0.1', 0))
+            port = allocator.getsockname()[1]
+        result = self.shell('pick_free_ports', WOOTC_E2E_NOVNC_PORT=str(port),
+                            WOOTC_E2E_RDP_PORT='0' + str(port))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('invalid noncanonical host port', result.stderr)
+        self.assertFalse(self.calls.exists())
+        self.assertEqual(self.sentinel.read_bytes(), b'unrelated network ownership')
+
     def test_duplicate_free_overrides_are_reselected_to_distinct_ports(self):
         result = self.shell("""
 port_free() { return 0; }

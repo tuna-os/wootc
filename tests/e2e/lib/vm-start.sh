@@ -30,7 +30,7 @@ wootc_vm_compose_up() {
 }
 port_free() {
     local rc=0
-    case "$1" in ''|*[!0-9]*) return 2;; esac
+    case "$1" in ''|0*|*[!0-9]*) return 2;; esac
     [ "$1" -ge 1 ] && [ "$1" -le 65535 ] || return 2
     timeout 2 python3 - "$1" <<'PYPORT' >/dev/null 2>&1 || rc=$?
 import errno
@@ -56,6 +56,10 @@ pick_free_ports() {
                 "WOOTC_E2E_CDP_PORT:9222"; do
         var="${pair%%:*}"; base="${pair##*:}"
         p="${!var:-$base}"
+        case "$p" in ''|0*|*[!0-9]*) infra_fail "Infrastructure: invalid noncanonical host port for $var"; return 2;; esac
+        if ! [ "$p" -ge 1 ] || ! [ "$p" -le 65535 ]; then
+            infra_fail "Infrastructure: invalid host port range for $var"; return 2
+        fi
         if ! port_free "$p" || [[ "$reserved" == *":$p:"* ]]; then
             local alt found=false
             for alt in $(seq $((base + 10000)) $((base + 10050))); do
