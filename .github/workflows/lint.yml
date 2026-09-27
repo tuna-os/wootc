@@ -39,6 +39,8 @@ jobs:
             tests/e2e/run-e2e.sh \
             tests/e2e/steps.sh \
             tests/e2e/phase-ledger.sh \
+            tests/e2e/lib/results.sh \
+            tests/e2e/lib/result-runner.sh \
             payload/steps.sh
 
       - name: ShellCheck migration scripts
