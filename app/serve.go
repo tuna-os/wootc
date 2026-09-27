@@ -34,6 +34,7 @@ var ProtocolMethods = []string{
 	"GetSupportPolicy",
 	"GetSystemInfo",
 	"GetBranding",
+	"GetReleaseNotice",
 	"GetImages",
 	"GetSessionCandidates",
 	"StartInstall",
@@ -198,6 +199,9 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 
 	case "GetSystemInfo":
 		return s.app.GetSystemInfo(), nil
+
+	case "GetReleaseNotice":
+		return s.app.GetReleaseNotice(), nil
 
 	case "GetBranding":
 		return s.app.GetBranding(), nil

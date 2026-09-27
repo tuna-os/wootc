@@ -135,3 +135,5 @@ export function BootIntoLinux():Promise<void>;
 export function GetRecoveryVerdict():Promise<Record<string, any>>;
 export function TryAgain():Promise<void>;
 export function RepairBoot():Promise<void>;
+
+export function GetReleaseNotice(): Promise<{version: string; url: string}>;

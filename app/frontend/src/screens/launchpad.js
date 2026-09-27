@@ -1,5 +1,5 @@
 import { StartInstall, CreateDataPartition, DefragDrive } from '../../wailsjs/go/main/App';
-import { Quit } from '../../wailsjs/runtime/runtime';
+import { BrowserOpenURL, Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { installVerb, distroName, productName } from '../lib/branding.js';
@@ -21,6 +21,10 @@ export function renderLaunchpad() {
     <div class="screen-subtitle">${state.brand?.tagline || `Try Linux alongside Windows — no repartitioning, nothing deleted, and fully undoable. Pick a look, set a password, and ${productName()} does the rest.`}</div>
   `;
   screen.appendChild(hdr);
+  const notice = el('div');
+  notice.id = 'release-notice';
+  screen.appendChild(notice);
+  showReleaseNotice(state.releaseNotice, notice);
 
   // Honesty on relaunch: if the last attempt failed, say so — the old
   // behavior greeted a failed install with silence (or, when root.disk
@@ -545,4 +549,18 @@ function renderBitlockerChooser() {
   wrap.appendChild(box);
   if (!state.config.bitlockerMode) state.config.bitlockerMode = existing.length ? 'use:' + existing[0].letter : 'create';
   return wrap;
+}
+
+// Update only the notice so a late network reply cannot reset form focus.
+export function showReleaseNotice(notice, target = document.getElementById('release-notice')) {
+  if (!target || !notice?.version || typeof notice.version !== 'string' || notice.version.length > 100) return;
+  let url;
+  try { url = new URL(notice.url); } catch { return; }
+  if (url.protocol !== 'https:' || url.host !== 'github.com' || url.username || url.password
+      || url.search || url.hash || !/^\/[^/]+\/[^/]+\/releases\/tag\/[^/]+$/.test(url.pathname)) return;
+  target.replaceChildren();
+  const text = el('span');
+  text.textContent = `A newer ${productName()} is available (${notice.version}). `;
+  target.appendChild(text);
+  target.appendChild(btn('View release', 'btn btn-ghost', () => BrowserOpenURL(url.href)));
 }

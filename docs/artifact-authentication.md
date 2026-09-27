@@ -57,3 +57,15 @@ go run ./tools/signmanifest sign "$key_dir/seed" /path/to/SHA256SUMS /path/to/SH
 go run ./tools/signmanifest verify "$key_dir/public.hex" /path/to/SHA256SUMS /path/to/SHA256SUMS.sig
 rm -f "$key_dir/seed"
 ```
+
+## New release notice
+
+The launchpad can show a newer release after it appears. The check has a
+three-second limit. It makes one anonymous request for up to 20 recent releases
+from the repository compiled into the installer. A failed request leaves the UI
+usable. A build without a valid release tag does not make the request.
+
+The notice compares semantic versions. Stable builds show only stable releases.
+Beta builds can show beta, RC, or stable releases; alpha builds can show all three
+and newer alpha releases. Drafts and invalid tags are ignored. The notice opens
+the release page. It does not change the pinned artifact source or install an update.
