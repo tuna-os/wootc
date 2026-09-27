@@ -198,7 +198,7 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 			if entry.IsDir() {
 				return nil
 			}
-			if !strings.EqualFold(entry.Name(), name+".psd1") {
+			if !strings.EqualFold(entry.Name(), name+".psd1") && !(name == "Storage" && strings.EqualFold(entry.Name(), "StorageScripts.psm1")) {
 				return nil
 			}
 			data, err := readBoundedStatusRecord(path)

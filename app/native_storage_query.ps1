@@ -36,12 +36,35 @@ Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Dep
 } catch {
     $exception = $_.Exception
     $category = [int]$_.CategoryInfo.Category
+    $loader = 'unclassified'
+    # Only fixed recognized loader identifiers cross the boundary.
+    $errorId = ([string]$_.FullyQualifiedErrorId).Split(',')[0]
+    switch ($errorId) {
+        'Modules_InvalidManifest' { $loader = 'invalid-manifest' }
+        'Modules_ModuleNotFound' { $loader = 'module-not-found' }
+        'Modules_ImportModuleError' { $loader = 'module-import' }
+        'Modules_CannotLoadNestedModule' { $loader = 'nested-module' }
+        'ErrorsUpdatingTypes' { $loader = 'type-update' }
+        'FormatXmlUpdateException' { $loader = 'format-update' }
+        'TypesXmlUpdateException' { $loader = 'type-xml-update' }
+        'CommandNotFoundException' { $loader = 'command-not-found' }
+        'Modules_InvalidRootModule' { $loader = 'invalid-root-module' }
+        'Modules_InvalidRequiredAssembly' { $loader = 'invalid-required-assembly' }
+    }
     # Inspect only typed exceptions. Never print messages, paths, IDs or objects.
     for ($depth = 0; $depth -lt 4 -and $null -ne $exception; $depth++) {
         $type = 'other'
         switch ($exception.GetType().FullName) {
             'System.Management.Automation.CommandNotFoundException' { $type = 'command-not-found' }
             'System.Management.Automation.RuntimeException' { $type = 'runtime' }
+            'System.Management.Automation.ParentContainsErrorRecordException' { $type = 'parent-error-record' }
+            'System.Management.Automation.CmdletInvocationException' { $type = 'cmdlet-invocation' }
+            'System.Management.Automation.PSArgumentException' { $type = 'ps-argument' }
+            'System.Management.Automation.PSSnapInException' { $type = 'ps-snapin' }
+            'System.Management.Automation.PSNotSupportedException' { $type = 'ps-not-supported' }
+            'System.Management.Automation.PSInvalidCastException' { $type = 'ps-invalid-cast' }
+            'System.Management.Automation.TypesXmlUpdateException' { $type = 'types-xml-update' }
+            'System.Management.Automation.FormatXmlUpdateException' { $type = 'format-xml-update' }
             'System.Management.Automation.ParameterBindingException' { $type = 'parameter-binding' }
             'System.Management.Automation.ActionPreferenceStopException' { $type = 'action-preference' }
             'System.UnauthorizedAccessException' { $type = 'access' }
@@ -53,7 +76,7 @@ Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Dep
             'System.Management.Automation.PSInvalidOperationException' { $type = 'ps-invalid-operation' }
         }
         $hresult = [int]$exception.HResult
-        [Console]::Error.WriteLine("native-storage-failure stage=$stage depth=$depth type=$type hresult=$hresult category=$category")
+        [Console]::Error.WriteLine("native-storage-failure stage=$stage depth=$depth type=$type hresult=$hresult category=$category loader=$loader")
         $next = $exception.InnerException
         if ($null -eq $next -and $exception -is [System.Management.Automation.ActionPreferenceStopException]) {
             $next = $exception.ErrorRecord.Exception
