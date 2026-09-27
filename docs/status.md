@@ -84,7 +84,7 @@ passed on `b90e46b` (2026-09-27, #423). The firstboot service in Linux
 succeeded and wrote `healthy`. After Windows returned,
 `wootc.exe status` also reported `healthy`.
 This was the scripted native cycle with BitLocker off. It does not resolve
-the GUI failure in #399. Editing Documents with BitLocker and Phase 1
+the GUI failure in #399. An edit of Documents with BitLocker and Phase 1
 inside Windows still need evidence.
 
 ## Build/test matrix

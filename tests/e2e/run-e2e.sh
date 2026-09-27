@@ -41,6 +41,8 @@ source "$SCRIPT_DIR/steps.sh"
 source "$SCRIPT_DIR/phase-ledger.sh"
 # shellcheck source=tests/e2e/lib/diagnostics.sh
 source "$SCRIPT_DIR/lib/diagnostics.sh"
+# shellcheck source=tests/e2e/lib/fixture-bitlocker.sh
+source "$SCRIPT_DIR/lib/fixture-bitlocker.sh"
 # shellcheck source=tests/e2e/lib/results.sh
 source "$SCRIPT_DIR/lib/results.sh"
 # shellcheck source=tests/e2e/lib/result-runner.sh
@@ -832,41 +834,6 @@ qga_wait_windows() {
 
 qga_powershell() {
     qga_call powershell "$1" || return $?
-}
-
-# A recovery password can exist while C: is still converting. Do not boot the
-# Linux BitLocker consumer until Windows reports the supported fixture state.
-bitlocker_wait_fixture_ready() {
-    local timeout_s="${1:-1800}" deadline remaining call_timeout result pause
-    deadline=$(deadline_in "$timeout_s")
-    while ! past_deadline "$deadline"; do
-        remaining=$((deadline - $(date +%s)))
-        [ "$remaining" -gt 0 ] || break
-        call_timeout=$remaining
-        [ "$call_timeout" -le 10 ] || call_timeout=10
-        # shellcheck disable=SC2016 # Literal PowerShell variables.
-        if result=$(WOOTC_QGA_CALL_TIMEOUT="$call_timeout" qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-readiness.ps1"; Get-WootcFixtureBitLockerReadiness' 2>/dev/null); then
-            result=$(printf '%s' "$result" | tr -d '\r')
-            if [[ "$result" =~ ^bitlocker-fixture\ status=(FullyDecrypted|FullyEncrypted|EncryptionInProgress|DecryptionInProgress|EncryptionPaused|DecryptionPaused)\ percentage=(100|[0-9]{1,2})\ protection=(On|Off|Unknown)\ ready=(True|False)$ ]]; then
-                info "$result"
-                if [[ "$result" == 'bitlocker-fixture status=FullyEncrypted percentage=100 protection=On ready=True' ]] && ! past_deadline "$deadline"; then
-                    pass "BitLocker fixture C: fully encrypted, 100%, protection on"
-                    return 0
-                fi
-            else
-                info "BitLocker fixture observation malformed; readiness not established"
-            fi
-        else
-            info "BitLocker fixture observation unavailable; readiness not established"
-        fi
-        remaining=$((deadline - $(date +%s)))
-        [ "$remaining" -gt 0 ] || break
-        pause=$remaining
-        [ "$pause" -le 5 ] || pause=5
-        sleep "$pause"
-    done
-    fail "BitLocker fixture C: not positively ready within $timeout_s s; installed Linux boot was not scheduled"
-    return 1
 }
 
 qga_read() {
@@ -1666,6 +1633,10 @@ done
 for readiness_payload in "$OEM_DIR/fixture-bitlocker-readiness.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-readiness.ps1"; do
     printf '\xEF\xBB\xBF' > "$readiness_payload"
     sed 's/$/\r/' "$SCRIPT_DIR/fixture-bitlocker-readiness.ps1" >> "$readiness_payload"
+done
+for protection_payload in "$OEM_DIR/fixture-bitlocker-protection.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-protection.ps1"; do
+    printf '\xEF\xBB\xBF' > "$protection_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/fixture-bitlocker-protection.ps1" >> "$protection_payload"
 done
 for cli_payload in "$OEM_DIR/stage-status-cli.ps1" "$SCRIPT_DIR/wootc-files/stage-status-cli.ps1"; do
     printf '\xEF\xBB\xBF' > "$cli_payload"
@@ -3998,7 +3969,7 @@ fi
 # external QGA call and polling sleep consumes this same wall-clock budget.
 if [[ "$E2E_BITLOCKER" == "on" ]]; then
     step "Waiting for BitLocker fixture C: encryption completion before installed Linux..."
-    bitlocker_wait_fixture_ready 1800 || exit 1
+    bitlocker_prepare_fixture 1800 || exit 1
 fi
 
 wootc_phase_boundary

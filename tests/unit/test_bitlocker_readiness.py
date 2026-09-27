@@ -5,7 +5,7 @@ import unittest
 
 RUNNER = pathlib.Path(__file__).parents[1] / 'e2e/run-e2e.sh'
 SOURCE = RUNNER.read_text()
-FUNCTION = SOURCE[SOURCE.index('bitlocker_wait_fixture_ready() {'):SOURCE.index('\nqga_read() {')]
+FUNCTION = (RUNNER.parent / 'lib/fixture-bitlocker.sh').read_text()
 
 
 class ReadinessWait(unittest.TestCase):
@@ -59,7 +59,7 @@ qga_powershell() {
 
     def test_guard_precedes_first_schedule(self):
         self.assertIn('if [[ "$E2E_BITLOCKER" == "on" ]]; then\n    step "Waiting for BitLocker fixture', SOURCE)
-        self.assertLess(SOURCE.index('bitlocker_wait_fixture_ready 1800 || exit 1'), SOURCE.index('step "Scheduling one-shot Phase 2 Linux boot..."'))
+        self.assertLess(SOURCE.index('bitlocker_prepare_fixture 1800 || exit 1'), SOURCE.index('step "Scheduling one-shot Phase 2 Linux boot..."'))
 
 
 if __name__ == '__main__':
