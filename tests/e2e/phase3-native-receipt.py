@@ -17,6 +17,8 @@ def parse(raw):
         raise ValueError('Invalid schema or identity')
     if not re.fullmatch(r'/dev/[a-zA-Z0-9_-]+', fields['TARGET']):
         raise ValueError('Invalid target')
+    if not fields['CMDLINE'].strip():
+        raise ValueError('Missing current command line')
     if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', fields['BOOT_ID']):
         raise ValueError('Invalid boot identity')
     return fields

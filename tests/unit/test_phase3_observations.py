@@ -61,6 +61,16 @@ qga_call() {
             self.assertIn('INFRA', r.stdout)
             self.assertNotIn('PRODUCT-PASS', r.stdout)
 
+    def test_removed_userdata_status_guard_counterexample(self):
+        source = (ROOT/'tests/e2e/run-e2e.sh').read_text()
+        source = source.replace('if ! P3_USERDATA=$(', 'if P3_USERDATA=$(', 1)
+        source = source.replace('infra_fail "Phase 3 native user-data observation command failed"\n        exit 1', ':', 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp)/'mutant.sh'; p.write_text(source)
+            r = self.consumer(p, DATA_RC='7')
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn('PRODUCT-PASS native-user-data', r.stdout)
+
     def test_successful_wrong_native_facts_are_product_failures(self):
         for proof in [PROOF.replace('UNAME=Linux', 'UNAME=Windows_NT'),
                       PROOF.replace('TARGET=/dev/sdb', 'TARGET=/dev/sdc'),
