@@ -167,8 +167,8 @@ public sealed class StartupWindowTests
             Find("ConnectEngine").AsButton().Invoke();
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             while (!Find("ConnectionStatus").Name.StartsWith("Unavailable", StringComparison.Ordinal)) await Task.Delay(100, deadline.Token);
-            Assert.Equal("", Find("StartupRoute").Name);
-            Assert.Equal("", Find("StartupObservations").Name);
+            Assert.Equal("Startup status has not been read", Find("StartupRoute").Name);
+            Assert.Equal("No authenticated startup observations", Find("StartupObservations").Name);
             Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
             window.Close();
             using var closing = new CancellationTokenSource(TimeSpan.FromSeconds(10));

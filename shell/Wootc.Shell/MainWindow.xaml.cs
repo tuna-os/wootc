@@ -56,9 +56,9 @@ public sealed partial class MainWindow : Window
             StartupRoute.Manage => "Manage the existing installation",
             StartupRoute.Recovery => "Review the previous installation attempt",
             _ => throw new InvalidDataException("Unsupported startup route")
-        } : "";
+        } : "Startup status has not been read";
         var observed = controller.Snapshot;
-        StartupObservations.Text = observed is null ? "" :
+        StartupObservations.Text = observed is null ? "No authenticated startup observations" :
             $"Running: {observed.Status.Running}; Existing: {observed.Status.Existing}; Lifecycle: {observed.LastRun?.State ?? ""}; Recovery: {observed.Recovery?.Verdict ?? ""}";
     }
 }

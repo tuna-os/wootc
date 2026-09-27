@@ -6,8 +6,8 @@
     <TextBlock Text="Review your computer before installing Linux." TextWrapping="Wrap" />
     <TextBlock Text="This preview can read startup status through the authenticated engine. It cannot install Linux or change storage." TextWrapping="Wrap" AutomationProperties.AutomationId="PreviewStatus" />
     <TextBlock x:Name="ConnectionStatus" Text="Offline" AutomationProperties.AutomationId="ConnectionStatus" TextWrapping="Wrap" />
-    <TextBlock x:Name="StartupRouteText" AutomationProperties.AutomationId="StartupRoute" TextWrapping="Wrap" />
-    <TextBlock x:Name="StartupObservations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
+    <TextBlock x:Name="StartupRouteText" Text="Startup status has not been read" AutomationProperties.AutomationId="StartupRoute" TextWrapping="Wrap" />
+    <TextBlock x:Name="StartupObservations" Text="No authenticated startup observations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
     <Button x:Name="ConnectButton" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
     <Button x:Name="DisconnectButton" Content="Disconnect engine" Click="Disconnect_Click" IsEnabled="False" AutomationProperties.AutomationId="DisconnectEngine" />
   </StackPanel></Grid>
