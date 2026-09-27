@@ -91,3 +91,32 @@ func partitionReceiptPowerShell(receipt StoragePartitionReceipt) (string, error)
 	encoded := base64.StdEncoding.EncodeToString(data)
 	return "$receipt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + encoded + "')) | ConvertFrom-Json\n", nil
 }
+
+// Completion remains the final authority while earlier receipt cleanup runs.
+// The read callback applies the platform's protected-file audit in production.
+func finalizeStoragePartitionRemoval(path string, receipt StoragePartitionReceipt, read func(string) (StoragePartitionReceipt, error), remove func(string) error) error {
+	complete, err := read(path + ".complete")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		deleted, err := read(path + ".deleted")
+		if err != nil {
+			return err
+		}
+		if deleted != receipt {
+			return fmt.Errorf("deletion receipt does not match completed identity")
+		}
+		if err := persistNewStoragePartitionReceipt(path+".complete", receipt); err != nil {
+			return err
+		}
+	} else if complete != receipt {
+		return fmt.Errorf("completion receipt does not match creation identity")
+	}
+	for _, suffix := range []string{".removal", ".deleted", ""} {
+		if err := remove(path + suffix); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return remove(path + ".complete")
+}

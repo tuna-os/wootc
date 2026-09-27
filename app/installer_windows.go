@@ -351,6 +351,14 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		if err != nil {
 			return err
 		}
+		if err := verifyPartitionRemovalMarker(partitionReceipt, ".complete"); err == nil {
+			if present {
+				return fmt.Errorf("completed removal identity unexpectedly exists again; preserving partition")
+			}
+			return clearCompletedStoragePartitionRemoval(partitionReceipt)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
 		if !present {
 			if err := verifyPartitionRemovalMarker(partitionReceipt, ".deleted"); err != nil {
 				return fmt.Errorf("partition absent without recorded prior deletion observation: %w", err)
@@ -359,7 +367,7 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 			if err := removePartitionAndExtendC("", partitionReceipt); err != nil {
 				return err
 			}
-			return clearCompletedStoragePartitionRemoval()
+			return clearCompletedStoragePartitionRemoval(partitionReceipt)
 		}
 		if info.Found && info.StorageDrive != boundDrive {
 			return fmt.Errorf("partition receipt identifies a different installation than the selected uninstall")
@@ -457,7 +465,7 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		return fmt.Errorf("uninstall cleanup incomplete:\n- %s", strings.Join(errs, "\n- "))
 	}
 	if opts.RemovePartition {
-		return clearCompletedStoragePartitionRemoval()
+		return clearCompletedStoragePartitionRemoval(partitionReceipt)
 	}
 	return nil
 }

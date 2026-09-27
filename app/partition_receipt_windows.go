@@ -67,6 +67,14 @@ func readStoragePartitionReceipt() (StoragePartitionReceipt, error) {
 	if err != nil {
 		return StoragePartitionReceipt{}, err
 	}
+	receipt, err := readPartitionReceiptFile(path)
+	if os.IsNotExist(err) {
+		return readPartitionReceiptFile(path + ".complete")
+	}
+	return receipt, err
+}
+
+func readPartitionReceiptFile(path string) (StoragePartitionReceipt, error) {
 	if err := inspectStateObject(path, false); err != nil {
 		return StoragePartitionReceipt{}, err
 	}
@@ -214,18 +222,12 @@ func cleanupCompanionInstallerFiles() error {
 	return nil
 }
 
-func clearCompletedStoragePartitionRemoval() error {
+func clearCompletedStoragePartitionRemoval(receipt StoragePartitionReceipt) error {
 	path, err := storagePartitionReceiptPath(false)
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(path + ".deleted"); err != nil {
-		return err
-	}
-	if err := os.Remove(path + ".removal"); err != nil {
-		return err
-	}
-	return os.Remove(path)
+	return finalizeStoragePartitionRemoval(path, receipt, readPartitionReceiptFile, os.Remove)
 }
 
 func fillDedicatedPartitionInfo(info *UninstallInfo, drive string) {

@@ -73,3 +73,47 @@ func TestPartitionReceiptDoesNotFollowExistingSymlink(t *testing.T) {
 		t.Fatal("foreign target modified")
 	}
 }
+
+func TestPartitionReceiptCompletionCleanupRetries(t *testing.T) {
+	for _, failSuffix := range []string{".removal", ".deleted", "", ".complete"} {
+		t.Run("failure-at-"+failSuffix, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "creation.json")
+			receipt := testPartitionReceipt()
+			for _, suffix := range []string{"", ".removal", ".deleted"} {
+				if err := persistNewStoragePartitionReceipt(path+suffix, receipt); err != nil {
+					t.Fatal(err)
+				}
+			}
+			read := func(path string) (StoragePartitionReceipt, error) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return StoragePartitionReceipt{}, err
+				}
+				return decodeStoragePartitionReceipt(data)
+			}
+			failed := false
+			remove := func(candidate string) error {
+				if !failed && candidate == path+failSuffix {
+					failed = true
+					return os.ErrPermission
+				}
+				return os.Remove(candidate)
+			}
+			if err := finalizeStoragePartitionRemoval(path, receipt, read, remove); err == nil {
+				t.Fatal("cleanup failure was hidden")
+			}
+			authority, err := read(path + ".complete")
+			if err != nil || authority != receipt {
+				t.Fatalf("verified completion lost: %v", err)
+			}
+			if err := finalizeStoragePartitionRemoval(path, receipt, read, os.Remove); err != nil {
+				t.Fatalf("safe cleanup retry: %v", err)
+			}
+			for _, suffix := range []string{"", ".removal", ".deleted", ".complete"} {
+				if _, err := os.Lstat(path + suffix); !os.IsNotExist(err) {
+					t.Fatalf("receipt remains: %s %v", suffix, err)
+				}
+			}
+		})
+	}
+}
