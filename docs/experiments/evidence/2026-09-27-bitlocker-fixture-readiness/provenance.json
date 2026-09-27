@@ -37,5 +37,7 @@
   "sourceCommit": "defcc76386207576a634f4ed1d2cf8d907ddcec7",
   "nativeExitCode": 0,
   "doesNotProve": "Actual BitLocker conversion completion or hosted full-cycle acceptance",
-  "nativeLogSha256": "cb6a52a38ba95deaa91d2abb62e2ed7c2bc349fa9cfadae7505320b48e9b3565"
+  "originalCapturedLogSha256": "cb6a52a38ba95deaa91d2abb62e2ed7c2bc349fa9cfadae7505320b48e9b3565",
+  "retainedLogSha256": "078e5cde236eec72a0f84de6b614e166406c8100fb64aa9b57c0781b415684cc",
+  "retainedLogEncoding": "UTF-8; Git normalizes CRLF to LF"
 }
