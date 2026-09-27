@@ -1,0 +1,79 @@
+{
+  "reviewedBase": "08f1af167a3315b676363cc65b2c38b6415818c5",
+  "scope": "native real Authenticode and process-cut proof; firmware variables and current-boot observation are explicit public fixtures, not hardware acceptance",
+  "verifierBuilder": "docker.io/library/ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3",
+  "sbsigntools": {
+    "url": "https://git.kernel.org/pub/scm/linux/kernel/git/jejb/sbsigntools.git",
+    "commit": "db731f0c4dd75e112e2abdfbe9443065742e58c3",
+    "ccanCommit": "b1f28e17227f2320d07fe052a8a48942fe17caa5"
+  },
+  "image": "ghcr.io/tuna-os/yellowfin@sha256:ed95623a4943a75b5ea61edb914de5a9b6033c4fb2ddb9de60fa14d88861520d",
+  "imageKernelPath": "/usr/lib/modules/6.12.0-250.el10.x86_64/vmlinuz",
+  "rpmSources": [
+    {
+      "url": "https://kitten.repo.almalinux.org/10-kitten/BaseOS/x86_64/os/Packages/grub2-efi-x64-2.12-55.el10.alma.1.x86_64.rpm",
+      "sha256": "7ce610d3f89170f4ba3be033afac9109bc17e9b49559db61bb7f99b49ef52813"
+    },
+    {
+      "url": "https://kitten.repo.almalinux.org/10-kitten/BaseOS/x86_64/os/Packages/shim-x64-15.8-5.el10.alma.1.x86_64.rpm",
+      "sha256": "805f7f4bf23bd06bfba23d413834f26cee7e1731b168d608be29a691fc77bdf3"
+    }
+  ],
+  "assetHashes": {
+    "almalinux-old-trio/grubx64.efi": "3bd7b0783a7fdbc972aea42aea73a9997266cd19305df9895eaa70ace828295f",
+    "almalinux-old-trio/mmx64.efi": "131d46438c761c722630bc37b3238299473cce36580ef5aa196c67af84fa758a",
+    "almalinux-old-trio/shimx64.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a",
+    "almalinux-new-trio/grubx64.efi": "9065143af150a85e2354b153c0ab39cdb0dcf843ef5ac27c256c53be14275c70",
+    "almalinux-new-trio/mmx64.efi": "37946aa246a1256e7f540279530d2ca3d341f9cf627970bb6c6764871f25c7fd",
+    "almalinux-new-trio/shimx64.efi": "ce4d765fc7d7b4ddc18f0946a6d37fd5f1aef6c18c631bc30ae26d4bdd7a085a",
+    "verifier-script-closure/COPYING": "7f424707cdb69df658b7b66ea1f9c9ab3ea0a0988999ecba3dad10a811db654f",
+    "verifier-script-closure/SHA256SUMS": "5a41bc4839d3e915cd2a835a701b0d38578cced7177ffdc7e1774acad38b520b",
+    "verifier-script-closure/ld-linux-x86-64.so.2": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+    "verifier-script-closure/ldd.txt": "11cc2af38a08de1a85982c1ad26304abf877318e2ba4f98c8247b16468769d58",
+    "verifier-script-closure/libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+    "verifier-script-closure/libcrypto.so.3": "6a66c3ba6b3749aacc9497973fff00f6ba61c703ba7015d0d7ab3fd9510974b6",
+    "verifier-script-closure/sbpehash": "6c16744c9c10995598cc9c0d1a6f6186b59ec4a19a3754b769a24faf1f882a87",
+    "verifier-script-closure/sbverify": "e345c0797b7b1f2b655cacfcc0d5d8f3ac1095140e2019726cf6ffb8da61df17",
+    "verifier-script-closure/source-revisions.txt": "a86dd2a7870af034e8f3686ec6777cb57bd535c32ddd12096cb5ee5ad4fe05e6"
+  },
+  "kernelSha256": "7106bfff0e20407bf5c37dc4a102b554af206c68a12e55e6a246c7637417af81",
+  "sourceHashes": {
+    "packaging/build-sbverify.sh": "45f5bc8bacfcc0b986ce89695efb71c7d74ee7e17e67f0050fc702d59f29d16a",
+    "packaging/sbpehash.c": "e0fb0b6d41b8f7fad71c9d014a84b1a9494a5693b03fe8841051853812a8f143",
+    "payload/deployer/Containerfile": "a165aac7cd6c0476ceba58643b633e3823862c19038c92b60069aa5396ddaa02",
+    "payload/deployer/deploy.sh": "6327f7b7fab197fafd9b109b5037b835ce7c2c7f355ad384bbcf4d4f52ccad85",
+    "payload/deployer/module-setup.sh": "7561dd4cbb33defe777c4e6335b12b13cc3e0ce0a58e2b990085200fa7d32b5f",
+    "payload/migration/lib/wootc_boot_identity.py": "313c640fc407cca9c225b304b2e0df43e7cd4d14cf84146e0bff1010b2537fac",
+    "payload/migration/lib/wootc_chain_source.py": "3ea5d8d50cef961220d116f73e18b90b91877e39036bdba771fc32618961aad9",
+    "payload/migration/lib/wootc_chain_verify.py": "6be73dd966a7dad09d04fa7c9496503875a2e8d822284bd2ce88e5a05293e917",
+    "payload/migration/lib/wootc_esp_transaction.py": "d5b70b4364f7405cd69d31146864008277854c9387bd728045af610a250f85a8",
+    "payload/migration/lib/wootc_pe.py": "0c5e8e4aa8947f7bc0210ecb25eb56879aaf73dcdad8f261012812fe6832d371",
+    "payload/migration/wootc-esp-control": "b2ae86d14d12f8f2540c9e6753d48afb2b783e9bf36cd994a67ce16a58212f20",
+    "payload/migration/wootc-esp-own": "65bcc868edb5672556e6994e252a685d927157f3ab02d454a8cba7f88b8115fc",
+    "payload/migration/wootc-esp-sync": "fd5b6726e670c6c93082ab3a75c784ae0aecdcd2084f1e4f3dc35fce93b89cfb",
+    "payload/migration/wootc-esp-sync.service": "4aa34a748d7163c962952c82fd2fa1a2a342e3f9daee956e943b06059ada34fb",
+    "payload/migration/wootc-shim-trust": "ce55f2c7a287ffb36325449e9fbe555b656d4e5ec03de0cec24eac6fe2011a5d",
+    "tests/probe-esp-chain-real.py": "e00ce20994d3fe3b91f7dfdb683d9bf25286f67e858ef1dfc3efdb803aaa9bad",
+    "tests/unit/esp-chain-refresh.bats": "f22b30b02bb86c59cbfc6ee773efd23535a6b9f6abe45ed32850b876b2d0b820",
+    "tests/unit/north-star-landing.bats": "b2c10dcb3399ebf6c0df0d24d296d182486d5c6da5f5b89053a11209c367f186",
+    "tests/unit/test_esp_chain_refresh.py": "5a8ff013aadfb587f82dea40b7ce3d5d1d8923b1c6f656d8d8ff7098db66db79",
+    "tests/unit/test_shim_trust.py": "9d88ff1ee1850a275b4bcda9fafd0fc939060fc57b19e06815c977e024f37ed1",
+    "tests/unit/test_wootc_boot_identity.py": "7951983ed84e19cd196ff8b70bfde90ec3a7e26c63fd45814cc7f812b103a1ef",
+    "tests/unit/test_wootc_chain_source.py": "485cfe80d2edd9d80392f1a4f392d33e086332ed77a0efcb94d532da006ae933",
+    "tests/unit/test_wootc_chain_staging.py": "bf378c3d9dc5147fa3152e2b4762a0983d4256fd09f8bfd363142f4ce583d8e2",
+    "tests/unit/test_wootc_chain_verify.py": "2a65f52562b763da45c61dcc7d89d167681a091e95f5acfcce47e74e7eb36287",
+    "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
+    "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
+    "tests/unit/test_wootc_esp_transaction.py": "9b536d97188a63393743a563f6fa0df310728fa16c88a49e8b5f9afa58a847d9",
+    "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"
+  },
+  "bootIdentityOrigin": {
+    "commit": "63a0d7ce654addf821ccfd0f99e4678ccbac5972",
+    "collectorSha256": "afbb6575595decec72762546eb7209d21a618b9144358e4f9966efb201950da7"
+  },
+  "resultHashes": {
+    "native-result.json": "40805ec2e41b74bb082b53d16ed7054ec5c5817c65645cca73514c93bef0a019",
+    "real-signature-controls.json": "9290e0ac8e3cf99b13d66c031c4def5acb826130517c1aa90860097d8faecc67",
+    "mutation-controls.log": "175d04a554e98a5a10ae3b05d3bd7ee528f3b36606517d899c1b3c991e9a41ee"
+  }
+}
