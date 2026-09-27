@@ -63,7 +63,7 @@ bitlocker_prepare_fixture() {
     remaining=$((deadline - $(date +%s)))
     [ "$remaining" -gt 0 ] || return 1
     # One actual tree, never the guest_wootc_root fallback to C:.
-    root=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_powershell 'Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Where-Object { Test-Path ($_.Name + ":\wootc\install") } | Select-Object -ExpandProperty Name' 2>/dev/null | tr -d '[:space:]') || return 1
+    root=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_current_storage_root 2>/dev/null) || { infra_fail "Actual BitLocker fixture storage root was not established"; return 1; }
     case "$root" in [A-Za-z]) root="${root}:" ;; *) infra_fail "BitLocker fixture storage root unavailable or ambiguous"; return 1 ;; esac
     remaining=$((deadline - $(date +%s)))
     [ "$remaining" -gt 0 ] || return 1

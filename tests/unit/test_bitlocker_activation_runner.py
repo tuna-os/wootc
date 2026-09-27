@@ -83,6 +83,7 @@ class ActivationRunnerTests(unittest.TestCase):
             (p / 'receipt').write_text('bitlocker-fixture-metadata ' + json.dumps(BEFORE) + '\n' + json.dumps(FINAL) + '\n')
             body = r'''set -euo pipefail
 SCRIPT_DIR="$1/tests/e2e"; ARTIFACT_DIR="$2"; RUN_ID=current-run; case_name="$3"
+source "$SCRIPT_DIR/lib/diagnostics.sh"
 source "$SCRIPT_DIR/lib/fixture-bitlocker.sh"
 date() { cat "$ARTIFACT_DIR/now"; }
 deadline_in() { echo $(( $(date) + $1 )); }
@@ -103,6 +104,8 @@ qga_powershell() {
      echo 'bitlocker-fixture status=FullyEncrypted percentage=100 protection=Off ready=False'
    else echo 'bitlocker-fixture status=FullyEncrypted percentage=100 protection=On ready=True'; fi
  elif [[ "$1" == *Get-PSDrive* ]]; then
+   # Model C: staging plus F: actual disk from the real issued predicate.
+   [[ "$1" == *'-PathType Leaf'* && "$1" == *'wootc\disks\root.disk'* ]] || { echo CF; return; }
    if [ "$case_name" = ambiguous-root ]; then echo CF; else echo F; fi
  elif [[ "$1" == *Initialize-WootcFixtureBitLockerProtection* ]]; then
    printf '%s\n' called >> "$ARTIFACT_DIR/activated"
