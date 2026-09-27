@@ -1,4 +1,5 @@
 """Guest-only NoCloud package proof; no host-package or VM launcher entry point."""
+import base64
 import fcntl
 import hashlib
 import json
@@ -237,6 +238,28 @@ def run_reported(seed,workspace,emit,operation=None,observe_boot=boot_id):
                  'challenge':manifest.get('challenge'),'vmUuid':manifest.get('vmUuid'),'bootId':observe_boot(),
                  'failureType':type(error).__name__,'failure':str(error)[:1024]}
         if isinstance(error,RootIdentityRefusal):failure['rootIdentityFacts']=error.root_identity_facts
+        if isinstance(error,subprocess.CalledProcessError):
+            stdout=error.stdout or b'';stderr=error.stderr or b''
+            if isinstance(stdout,str):stdout=stdout.encode()
+            if isinstance(stderr,str):stderr=stderr.encode()
+            if len(stdout)+len(stderr)>262144:raise ValueError('failure output exceeds command bound') from error
+            failure['failure']='package command returned nonzero'
+            failure['commandFailure']={'returnCode':error.returncode,
+                'operation':getattr(error,'wootc_operation','subprocess'),
+                'phase':getattr(error,'wootc_phase','unknown'),
+                'stdout':stdout[:512].decode('utf-8',errors='replace'),
+                'stderr':stderr[:1024].decode('utf-8',errors='replace'),
+                'stdoutBytes':len(stdout),'stderrBytes':len(stderr),
+                'stdoutTruncated':len(stdout)>512,'stderrTruncated':len(stderr)>1024,
+                'files':{}}
+            for name,data in [('stdout',stdout),('stderr',stderr)]:
+                failure['commandFailure']['files'][name]={'size':len(data),'sha256':hashlib.sha256(data).hexdigest()}
+                # Complete failure-only bytes survive an absent/replaced QGA.
+                # Final failure refs authorize reconstruction, never success.
+                for index,offset in enumerate(range(0,len(data),8192)):
+                    emit({key:failure[key] for key in ('schemaVersion','scratchId','challenge','vmUuid','bootId')} |
+                         {'stage':'command-output','stream':name,'index':index,
+                          'data':base64.b64encode(data[offset:offset+8192]).decode('ascii')})
         if len(json.dumps(failure))>16384:raise ValueError('guest failure record exceeds bound') from error
         emit(failure)
         raise

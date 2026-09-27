@@ -141,7 +141,7 @@ def unchanged(expected):
 def retain(folder,artifacts):
     """Bounded proof-only export; archives, overlay, firmware and seed are excluded."""
     allowed={'execution.json','host.json','acquisition.json','ownership.json','accepted.json',
-             'pid.json','process-reap.json','guest-failure.json','tool-closure.json','old-phase-readback.json','old-phase-advance.json','serial.log','process.stdout','process.stderr'}
+             'command-failure.stdout','command-failure.stderr','pid.json','process-reap.json','guest-failure.json','tool-closure.json','old-phase-readback.json','old-phase-advance.json','serial.log','process.stdout','process.stderr'}
     total=0
     for parent in (folder,folder/'inputs',folder/'guest'):
         if not parent.is_dir():continue
@@ -150,11 +150,12 @@ def retain(folder,artifacts):
             if not path.exists() or path.is_symlink():continue
             info=path.stat()
             if not stat.S_ISREG(info.st_mode):continue
-            with path.open('rb') as stream:data=stream.read(262145)
-            truncated=len(data)>262144;data=data[:262144];total+=len(data)
+            limit=1048576 if name=='serial.log' else 262144
+            with path.open('rb') as stream:data=stream.read(limit+1)
+            truncated=len(data)>limit;data=data[:limit];total+=len(data)
             if total>4*1024**2:raise ValueError('retention quota exceeded')
             (artifacts/(parent.name+'-'+name)).write_bytes(data)
-            if truncated:(artifacts/(parent.name+'-'+name+'.truncated')).write_text('bounded at 262144 bytes\n')
+            if truncated:(artifacts/(parent.name+'-'+name+'.truncated')).write_text('bounded at '+str(limit)+' bytes\n')
 
 
 def execute(folder,env=None,load=runpy.run_path,measure_closure=None,namespace_check=None):

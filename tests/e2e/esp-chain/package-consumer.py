@@ -31,7 +31,8 @@ def execute(command, check=True, timeout=30, capture_output=False, env=None):
                     if sum(len(value) for value in output.values()) > 262144:
                         raise ValueError('package command output exceeds bound')
             result = child.wait(timeout=max(0, deadline-time.monotonic()))
-        if check and result: raise subprocess.CalledProcessError(result, command)
+        if check and result:
+            raise subprocess.CalledProcessError(result, command, output=bytes(output[child.stdout]), stderr=bytes(output[child.stderr]))
         if not capture_output:
             sys.stdout.buffer.write(output[child.stdout]); sys.stderr.buffer.write(output[child.stderr])
         return subprocess.CompletedProcess(command, result, bytes(output[child.stdout]), bytes(output[child.stderr]))
@@ -163,6 +164,13 @@ def validate_simulation(output, selected):
 
 
 def consume(folder=Path('/var/lib/wootc/qa-upgrade'), phase='new', run=execute, before_install=None):
+    original_run=run
+    def run(command, **kwargs):
+        try:return original_run(command, **kwargs)
+        except subprocess.CalledProcessError as error:
+            error.wootc_phase=phase
+            error.wootc_operation='apt-simulate' if '--simulate' in command else ('apt-install' if command[0]=='/usr/bin/apt-get' and 'install' in command else 'package-query')
+            raise
     folder = Path(folder)
     policy = checked_policy(folder, phase)
     selected = policy['phases'][phase]

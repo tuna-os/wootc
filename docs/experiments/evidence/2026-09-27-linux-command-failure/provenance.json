@@ -1,0 +1,41 @@
+{
+  "classicOsBootAcceptance": false,
+  "commandFailureControls": 6,
+  "firmwareAcceptance": false,
+  "fullOutputScope": "Failure-only typed serial chunks reconstructed into fixed host files against exact size/SHA256, including unavailable QGA. No success authority.",
+  "historicalFailure": {
+    "actualAptOutputRetained": false,
+    "baselineInventoryCount": 322,
+    "baselineInventorySha256": "74fbf9cf16061ecb58322c36629093bcd87fde623c84f9ffb0ba24bf07aff014",
+    "baselineProduced": true,
+    "guestBaselineObservedHostFlag": false,
+    "oldPhaseObserved": false,
+    "packageInstallationAccepted": false,
+    "processReturnCode": 0,
+    "runId": 36336755778,
+    "runtimeExecuted": true,
+    "sourceCommit": "c49e938743ed3fcbc5da8da60e71d136e9d278bc",
+    "waitCompleted": true
+  },
+  "maximumBinaryFailureArtifactRetentionVerified": true,
+  "nativeControls": 115,
+  "packageInstallationAccepted": false,
+  "proofHashes": {
+    "docs/experiments/evidence/2026-09-27-linux-command-failure/controls.log": "5a7863766f8bf2f9ec3ac1c2adca3c43f8c48bb2649d3e80dacf3c50f7bed4de",
+    "docs/experiments/evidence/2026-09-27-linux-command-failure/failed-artifacts.json": "6eaca5209181de6328354b9b0a6373e96d861e6f1cf0d643f08c4d5ab9a19aee",
+    "docs/experiments/evidence/2026-09-27-linux-command-failure/failed-execute.raw.log": "8fd5caa3993ecf29ca18dff7b8fde729ed369b8c76ffd21670b295a0faa2697b",
+    "docs/experiments/evidence/2026-09-27-linux-command-failure/failed-guest-proof.zip": "b48af9750d8ac8ca9dddc1ae2bb6aa3787322914631b585bbf101200d002ba97",
+    "docs/experiments/evidence/2026-09-27-linux-command-failure/mutants-red.log": "eca4c2206c460e71d55d856f176d0ab6af13389b946a3ffe25ba6057077faf35"
+  },
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "serialRetentionBytes": 1048576,
+  "sourceHashes": {
+    "tests/e2e/esp-chain/package-consumer.py": "4a635996f26cb7c14690422154076bbb3fee896d86cf3cfdafbcef20189b6fc0",
+    "tests/e2e/package-runtime/bootstrap.py": "1f23b7349dd2baa1118207118d88dba14d10df186d4ef31f98712449e31961c1",
+    "tests/e2e/package-runtime/hosted-execute.py": "4ac24053af9028b2fd709bac3681b603d5178ab042412f71a8269b091ec84cb4",
+    "tests/e2e/package-runtime/launch.py": "53b15d3f3639a54e17f2eaf8ae70642ec55f8f4b5f1adbd89b2bf3e29246d820",
+    "tests/unit/test_linux_package_command_failure.py": "b7c7ec113d34e400b8e32f887aa0764f2c7838bfa7d4962160b3528afc79fe3e",
+    "tests/unit/test_linux_package_hosted.py": "70f34c6c4d20de3cfc54cf0c98df34267ce2835ac3eccad74962e49126f9c2b6"
+  }
+}
