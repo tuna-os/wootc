@@ -1,0 +1,122 @@
+[
+  {
+    "package": "grub-common",
+    "version": "2.12-9",
+    "url": "https://snapshot.debian.org/mr/binary/grub-common/2.12-9/binfiles",
+    "metadataSha256": "317dc6b760d6f3c2759c13b9c23a29f898946209ff7099c9b462b839dc692e12",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "c202696bba8d30c3bd28d5ae061a60d1a5e70ba8"
+      }
+    ]
+  },
+  {
+    "package": "grub2-common",
+    "version": "2.12-9",
+    "url": "https://snapshot.debian.org/mr/binary/grub2-common/2.12-9/binfiles",
+    "metadataSha256": "c583d4fa237a1f4d8eacfe59026b90712164d97a8dc0b0d5c8a26343a6549719",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "3e418756bfc20d7f37c4931345558ae83e71a2a6"
+      }
+    ]
+  },
+  {
+    "package": "grub-efi-amd64-bin",
+    "version": "2.12-9",
+    "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-bin/2.12-9/binfiles",
+    "metadataSha256": "147c59034b659d6b839bd8d35ac33fb843d4aaa1caeb7b52c20a300da459c50f",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "043c5df94d134f26e6779b5ab94c9500f5053be9"
+      }
+    ]
+  },
+  {
+    "package": "grub-efi-amd64-unsigned",
+    "version": "2.12-9",
+    "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-unsigned/2.12-9/binfiles",
+    "metadataSha256": "ab8d47ddc7e249dec22ab786096aee76156f4e825b4effc2467650a84379e10c",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "121ca01c13c21247b57ed0fdcbdb53b35b545b3d"
+      }
+    ]
+  },
+  {
+    "package": "grub-pc-bin",
+    "version": "2.12-9",
+    "url": "https://snapshot.debian.org/mr/binary/grub-pc-bin/2.12-9/binfiles",
+    "metadataSha256": "6dd49fb395aa6145173df24bb53734721fac7817b83863a50853da58f7d18d45",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "4f0c642734b3701f1b945781c9d53a9d4bce7935"
+      }
+    ]
+  },
+  {
+    "package": "grub-common",
+    "version": "2.12-9+deb13u2",
+    "url": "https://snapshot.debian.org/mr/binary/grub-common/2.12-9%2Bdeb13u2/binfiles",
+    "metadataSha256": "8bec3f281769caf3b4d4fd3d3884dbc2b9c29c6d02b1904f508a5f9243c064ef",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "3d139313b09a5f75d960c0f4900f1733cc85a26a"
+      }
+    ]
+  },
+  {
+    "package": "grub2-common",
+    "version": "2.12-9+deb13u2",
+    "url": "https://snapshot.debian.org/mr/binary/grub2-common/2.12-9%2Bdeb13u2/binfiles",
+    "metadataSha256": "d5306a7bc9b56667381bbe5af7b69fdbdc78469861da1468adc2cd107032fe22",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "50a7c656cd383e00201ee91298393646efcbd71e"
+      }
+    ]
+  },
+  {
+    "package": "grub-efi-amd64-bin",
+    "version": "2.12-9+deb13u2",
+    "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-bin/2.12-9%2Bdeb13u2/binfiles",
+    "metadataSha256": "ddc6299f24ce7eb82c662d014af25925001da3e87c65d63b23037564a5a43f00",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "17acf7ae2e7211b70318dc9c386a540e281194d3"
+      }
+    ]
+  },
+  {
+    "package": "grub-efi-amd64-unsigned",
+    "version": "2.12-9+deb13u2",
+    "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-unsigned/2.12-9%2Bdeb13u2/binfiles",
+    "metadataSha256": "a8f67bab940746281c90e39f1e3f2c70a68f45e040b5590d3937fba9e914d5fa",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "dafea21cb7a1664af52e5228cd40b647b79f2342"
+      }
+    ]
+  },
+  {
+    "package": "grub-pc-bin",
+    "version": "2.12-9+deb13u2",
+    "url": "https://snapshot.debian.org/mr/binary/grub-pc-bin/2.12-9%2Bdeb13u2/binfiles",
+    "metadataSha256": "715532d81deb6291100a283692f8fd7f8d1ccbb0cfb579de5c36a2db5a6a8988",
+    "files": [
+      {
+        "architecture": "amd64",
+        "hash": "0ef71b84d160b42293ceec9f328de0e7c758fddb"
+      }
+    ]
+  }
+]

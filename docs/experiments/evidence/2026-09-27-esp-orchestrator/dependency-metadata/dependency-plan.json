@@ -1,0 +1,269 @@
+{
+  "classicOsBootAcceptance": false,
+  "dependencyClosureComplete": false,
+  "firmwareAcceptance": false,
+  "packagesAcquired": false,
+  "remaining": [
+    "SHA256 pins from authenticated repository metadata for every future package acquisition",
+    "complete transitive Depends/Pre-Depends resolution against exact cloud package inventory",
+    "normal package solver dry-run and target readback; no force-depends",
+    "qualified KVM host and coherent pristine Windows TPM/NVRAM baseline"
+  ],
+  "retainedPackageControl": [
+    {
+      "controlFields": "Package: grub-efi-amd64-signed\nVersion: 1+2.12+9\nArchitecture: amd64\nDepends: grub-common (= 2.12-9)\nRecommends: shim-signed\n",
+      "path": "/dev/shm/wootc-333-classic-audit/grub-efi-amd64-signed_1+2.12+9_amd64.deb",
+      "sha256": "2854085908185cc3ed4f611d31f927bce572d3e3394a1a173771e994e85ef81e"
+    },
+    {
+      "controlFields": "Package: grub-efi-amd64-signed\nVersion: 1+2.12+9+deb13u2\nArchitecture: amd64\nDepends: grub-common (= 2.12-9+deb13u2)\nRecommends: shim-signed\n",
+      "path": "/dev/shm/wootc-333-classic-audit/grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+      "sha256": "da8bb31308a3682a7d9343fc42bf7f603ad85bb5483eeb3ece23e2f1be2e9bbd"
+    },
+    {
+      "controlFields": "Package: shim-signed\nVersion: 1.51~1+deb13u1+16.1-2~deb13u1\nArchitecture: amd64\nDepends: debconf (>= 0.5) | debconf-2.0, mokutil, shim-signed-common (>= 1.51~1+deb13u1), grub-efi-amd64-bin | systemd-boot, shim-helpers-amd64-signed (>= 1+15.8+1), grub2-common (>= 2.06-6) | systemd-boot\n",
+      "path": "/dev/shm/wootc-333-classic-audit/shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+      "sha256": "3c802fa303c0e6bf126adee74028d1042e3120360d159c2c05181dc9b2f61005"
+    },
+    {
+      "controlFields": "Package: shim-helpers-amd64-signed\nVersion: 1+16.1+2~deb13u1\nArchitecture: amd64\nDepends: shim-unsigned (>= 16.1-2~deb13u1)\nConflicts: shim (<< 15+1533136590.3beb971-3~)\nBreaks: shim-signed (<< 1.29)\n",
+      "path": "/dev/shm/wootc-333-classic-audit/shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+      "sha256": "7e950d75d5a40ecc0a99f727452ce35780b47a04d9a2cc3b1ff7c2bb316c033e"
+    }
+  ],
+  "schemaVersion": 1,
+  "scope": "official snapshot metadata and retained public package control readback only; no new package, cloud or VM acquisition",
+  "snapshotBinaryMetadata": [
+    {
+      "fileInfoMetadataSha256": "de5dadb9d42b191e67e036a259139492a8394bb255c6c08c9639983e160ae8f7",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/c202696bba8d30c3bd28d5ae061a60d1a5e70ba8/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "c202696bba8d30c3bd28d5ae061a60d1a5e70ba8"
+        }
+      ],
+      "metadataSha256": "317dc6b760d6f3c2759c13b9c23a29f898946209ff7099c9b462b839dc692e12",
+      "package": "grub-common",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20250703T204807Z",
+          "name": "grub-common_2.12-9_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 2898928
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-common/2.12-9/binfiles",
+      "version": "2.12-9"
+    },
+    {
+      "fileInfoMetadataSha256": "2be4a6683236f47baf9bf18ad868cb49a15b7a78b3db85dc63e3f34a42553b6f",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/3e418756bfc20d7f37c4931345558ae83e71a2a6/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "3e418756bfc20d7f37c4931345558ae83e71a2a6"
+        }
+      ],
+      "metadataSha256": "c583d4fa237a1f4d8eacfe59026b90712164d97a8dc0b0d5c8a26343a6549719",
+      "package": "grub2-common",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20250703T204807Z",
+          "name": "grub2-common_2.12-9_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 642612
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub2-common/2.12-9/binfiles",
+      "version": "2.12-9"
+    },
+    {
+      "fileInfoMetadataSha256": "586a8830bb005ddc5ec50def17c32a5dfe405b627fcda7b05fc15a10220416c1",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/043c5df94d134f26e6779b5ab94c9500f5053be9/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "043c5df94d134f26e6779b5ab94c9500f5053be9"
+        }
+      ],
+      "metadataSha256": "147c59034b659d6b839bd8d35ac33fb843d4aaa1caeb7b52c20a300da459c50f",
+      "package": "grub-efi-amd64-bin",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20250703T204807Z",
+          "name": "grub-efi-amd64-bin_2.12-9_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 1053676
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-bin/2.12-9/binfiles",
+      "version": "2.12-9"
+    },
+    {
+      "fileInfoMetadataSha256": "70df2fa3a3094210ba361ed1442bd43bb878659ecf334b9d87ad317cacaf4e66",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/121ca01c13c21247b57ed0fdcbdb53b35b545b3d/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "121ca01c13c21247b57ed0fdcbdb53b35b545b3d"
+        }
+      ],
+      "metadataSha256": "ab8d47ddc7e249dec22ab786096aee76156f4e825b4effc2467650a84379e10c",
+      "package": "grub-efi-amd64-unsigned",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20250703T204807Z",
+          "name": "grub-efi-amd64-unsigned_2.12-9_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 1361264
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-unsigned/2.12-9/binfiles",
+      "version": "2.12-9"
+    },
+    {
+      "fileInfoMetadataSha256": "55b9ed431876d3b3b31a7ed9cf5d0c58baba31fc407188a214149fa95fa0d22b",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/4f0c642734b3701f1b945781c9d53a9d4bce7935/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "4f0c642734b3701f1b945781c9d53a9d4bce7935"
+        }
+      ],
+      "metadataSha256": "6dd49fb395aa6145173df24bb53734721fac7817b83863a50853da58f7d18d45",
+      "package": "grub-pc-bin",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20250703T204807Z",
+          "name": "grub-pc-bin_2.12-9_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 1021096
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-pc-bin/2.12-9/binfiles",
+      "version": "2.12-9"
+    },
+    {
+      "fileInfoMetadataSha256": "26fb556a1c20ac27f85ffa5325ddde6a26f15f6fbe803e195f04f6d59a64b20a",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/3d139313b09a5f75d960c0f4900f1733cc85a26a/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "3d139313b09a5f75d960c0f4900f1733cc85a26a"
+        }
+      ],
+      "metadataSha256": "8bec3f281769caf3b4d4fd3d3884dbc2b9c29c6d02b1904f508a5f9243c064ef",
+      "package": "grub-common",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20260504T084255Z",
+          "name": "grub-common_2.12-9+deb13u2_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 2899204
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-common/2.12-9%2Bdeb13u2/binfiles",
+      "version": "2.12-9+deb13u2"
+    },
+    {
+      "fileInfoMetadataSha256": "1de95dac58afadee47847f049abcbf4bdb8c452c78e1e39889e790cc58d4fbc0",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/50a7c656cd383e00201ee91298393646efcbd71e/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "50a7c656cd383e00201ee91298393646efcbd71e"
+        }
+      ],
+      "metadataSha256": "d5306a7bc9b56667381bbe5af7b69fdbdc78469861da1468adc2cd107032fe22",
+      "package": "grub2-common",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20260504T084255Z",
+          "name": "grub2-common_2.12-9+deb13u2_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 641340
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub2-common/2.12-9%2Bdeb13u2/binfiles",
+      "version": "2.12-9+deb13u2"
+    },
+    {
+      "fileInfoMetadataSha256": "ad5c68b6c46928f10542e4654332173e48245854cc1c4fd559ea2e77044ee487",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/17acf7ae2e7211b70318dc9c386a540e281194d3/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "17acf7ae2e7211b70318dc9c386a540e281194d3"
+        }
+      ],
+      "metadataSha256": "ddc6299f24ce7eb82c662d014af25925001da3e87c65d63b23037564a5a43f00",
+      "package": "grub-efi-amd64-bin",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20260504T084255Z",
+          "name": "grub-efi-amd64-bin_2.12-9+deb13u2_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 1053352
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-bin/2.12-9%2Bdeb13u2/binfiles",
+      "version": "2.12-9+deb13u2"
+    },
+    {
+      "fileInfoMetadataSha256": "adf9cac42fa71f9229f4da42320c588264331642cecf6bc4d5b31f526d899843",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/dafea21cb7a1664af52e5228cd40b647b79f2342/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "dafea21cb7a1664af52e5228cd40b647b79f2342"
+        }
+      ],
+      "metadataSha256": "a8f67bab940746281c90e39f1e3f2c70a68f45e040b5590d3937fba9e914d5fa",
+      "package": "grub-efi-amd64-unsigned",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20260504T084255Z",
+          "name": "grub-efi-amd64-unsigned_2.12-9+deb13u2_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 1361532
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-efi-amd64-unsigned/2.12-9%2Bdeb13u2/binfiles",
+      "version": "2.12-9+deb13u2"
+    },
+    {
+      "fileInfoMetadataSha256": "c3247973822436bd826435f5bd4fd932669f425b4e66bfde4ca8fd31cc1fdbc4",
+      "fileInfoUrl": "https://snapshot.debian.org/mr/file/0ef71b84d160b42293ceec9f328de0e7c758fddb/info",
+      "files": [
+        {
+          "architecture": "amd64",
+          "hash": "0ef71b84d160b42293ceec9f328de0e7c758fddb"
+        }
+      ],
+      "metadataSha256": "715532d81deb6291100a283692f8fd7f8d1ccbb0cfb579de5c36a2db5a6a8988",
+      "package": "grub-pc-bin",
+      "snapshotObjects": [
+        {
+          "archive_name": "debian",
+          "first_seen": "20260504T084255Z",
+          "name": "grub-pc-bin_2.12-9+deb13u2_amd64.deb",
+          "path": "/pool/main/g/grub2",
+          "size": 1021068
+        }
+      ],
+      "url": "https://snapshot.debian.org/mr/binary/grub-pc-bin/2.12-9%2Bdeb13u2/binfiles",
+      "version": "2.12-9+deb13u2"
+    }
+  ],
+  "snapshotHashRole": "40-digit snapshot identifiers are SHA1 object locators, not production SHA256 authorization pins"
+}
