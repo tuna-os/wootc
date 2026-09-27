@@ -52,6 +52,7 @@ type ArmedState struct {
 
 // RecoveryVerdict is persisted at C:\wootc\install\recovery-verdict.json.
 type RecoveryVerdict struct {
+	PhaseID     string   `json:"phaseId,omitempty"`
 	Verdict     string   `json:"verdict"`
 	Phase       string   `json:"phase,omitempty"`
 	Title       string   `json:"title"`
@@ -139,21 +140,24 @@ func hashFile(path string) (string, error) {
 // calm, non-technical words matching the deployer's splash screen.
 func friendlySplashMessageForPhase(phase string) (string, string) {
 	switch phase {
-	case "ntfs-mounted", "scratch-setup":
-		return "Preparing your disk", "Setup stopped while preparing the disk workspace."
-	case "network-wait":
-		return "Waiting for a network connection", "Setup stopped while waiting for a network connection."
-	case "bundle-ingest":
-		return "Loading your downloaded system", "Setup stopped while loading the downloaded system image."
-	case "registry-preflight":
-		return "Connecting to the software library", "Setup stopped while connecting to the software registry."
-	case "fisherman":
-		return "Downloading and installing your Linux system", "Setup stopped while downloading and installing the system."
-	case "verification":
-		return "Checking your installation", "Setup stopped while verifying the installed system."
-	case "reboot":
-		return "Starting your new Linux system", "Setup stopped before restarting into the new system."
+	case StepDeployerNtfsMounted, StepDeployerScratchSetup:
+		return displayStepLabel(phase), "Setup stopped while preparing the disk workspace."
+	case StepDeployerNetworkWait:
+		return displayStepLabel(phase), "Setup stopped while waiting for a network connection."
+	case StepDeployerBundleIngest:
+		return displayStepLabel(phase), "Setup stopped while loading the downloaded system image."
+	case StepDeployerRegistryPreflight:
+		return displayStepLabel(phase), "Setup stopped while connecting to the software registry."
+	case StepDeployerFisherman:
+		return displayStepLabel(phase), "Setup stopped while downloading and installing the system."
+	case StepDeployerVerification:
+		return displayStepLabel(phase), "Setup stopped while verifying the installed system."
+	case StepDeployerReboot:
+		return displayStepLabel(phase), "Setup stopped before restarting into the new system."
 	default:
+		if observedStepID(phase) != "" {
+			return displayStepLabel(phase), "Setup could not finish this time."
+		}
 		return "Setting up Linux", "Setup could not finish this time."
 	}
 }
@@ -194,6 +198,10 @@ func readLastLogLines(logDir string, n int) []string {
 // the recovery verdict based on armed state, marker files, and lifecycle state.
 func EvaluateRecovery(armed ArmedState, startedExists bool, ls LifecycleState, logDir string) RecoveryVerdict {
 	now := time.Now().UTC().Format(time.RFC3339)
+	phaseID := observedStepID(ls.PhaseID)
+	if phaseID == "" {
+		phaseID = observedStepID(ls.Phase)
+	}
 
 	// Decision 1: armed.json present, deployer-started absent -> one-shot never booted Linux
 	if !startedExists && ls.State != StateDeployed && ls.State != StateHealthy {
@@ -216,6 +224,7 @@ func EvaluateRecovery(armed ArmedState, startedExists bool, ls LifecycleState, l
 		return RecoveryVerdict{
 			Verdict:     VerdictInterrupted,
 			Phase:       StateDeploying,
+			PhaseID:     phaseID,
 			Title:       "Installation was interrupted unexpectedly",
 			Message:     "The setup process was interrupted before it could finish (for example, by a power loss or unexpected restart).",
 			Details:     "The deployer started but did not reach cleanup. Your Windows installation and all files remain completely safe and untouched.",
@@ -229,11 +238,16 @@ func EvaluateRecovery(armed ArmedState, startedExists bool, ls LifecycleState, l
 
 	// Decision 3: deployer-started present, state=failed -> failed cleanly with phase
 	if ls.State == StateFailed {
-		title, msg := friendlySplashMessageForPhase(ls.Phase)
+		phase := ls.Phase
+		if phaseID != "" {
+			phase = phaseID
+		}
+		title, msg := friendlySplashMessageForPhase(phase)
 		logTail := readLastLogLines(logDir, 30)
 		return RecoveryVerdict{
 			Verdict:     VerdictFailed,
 			Phase:       ls.Phase,
+			PhaseID:     phaseID,
 			Title:       title,
 			Message:     msg,
 			Details:     ls.Error,
@@ -251,6 +265,7 @@ func EvaluateRecovery(armed ArmedState, startedExists bool, ls LifecycleState, l
 		return RecoveryVerdict{
 			Verdict:     VerdictDeployed,
 			Phase:       StateDeployed,
+			PhaseID:     phaseID,
 			Title:       "Linux setup completed",
 			Message:     "Phase-2 Linux system is staged and ready to boot.",
 			Details:     "The installer finished successfully. Phase-2 boot is pending.",
@@ -267,6 +282,7 @@ func EvaluateRecovery(armed ArmedState, startedExists bool, ls LifecycleState, l
 		return RecoveryVerdict{
 			Verdict:     VerdictHealthy,
 			Phase:       StateHealthy,
+			PhaseID:     phaseID,
 			Title:       "Linux installation complete",
 			Message:     "Phase-2 userspace reached and healthy.",
 			Untouched:   false,

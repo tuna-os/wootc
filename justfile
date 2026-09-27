@@ -21,6 +21,13 @@ RDP_PORT := env_var_or_default("WOOTC_E2E_RDP_PORT", "3389")
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+# Regenerate the checked-in installer, deployer and harness phase vocabulary.
+steps:
+    python3 packaging/generate-steps.py
+
+steps-check:
+    python3 packaging/generate-steps.py --check
+
 # Fast red-green loop: bats unit suites + cross-platform go test. No container.
 test:
     bash tests/run.sh fast

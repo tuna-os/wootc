@@ -731,43 +731,35 @@ func (a *App) runInstall(ctx context.Context, cfg InstallConfig) error {
 	return runPipeline(ctx, cfg, a.emit)
 }
 
-// runPipeline executes the install steps, reporting progress through emit.
-// It is shared between the GUI (Wails events) and headless mode (stdout),
-// so E2E can exercise the exact production pipeline without a display.
-func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
-	// Direct root.disk + vault to the chosen (possibly unencrypted) volume.
-	if err := prepareInstallState(cfg.StorageDrive); err != nil {
-		return err
-	}
-	// GUI routing is advisory. Enforce data preservation for every backend
-	// caller before changing power settings, files, or firmware boot entries.
-	if err := requireNewInstallRootDisk(); err != nil {
-		return err
-	}
-	steps := []struct {
-		name    string
-		percent float64
-		fn      func() error
-	}{
-		{"Checking your PC", 2, func() error { return checkSystem() }},
-		{"Preparing Windows", 5, func() error { return disableFastStartup() }},
-		{"Setting things up", 8, func() error { return createDirectories() }},
+type installPipelineStep struct {
+	name    string
+	percent float64
+	fn      func() error
+}
+
+// Build the real ordered pipeline without executing its operations.
+func installPipelineSteps(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) []installPipelineStep {
+	return []installPipelineStep{
+		{StepInstallerCheckingYourPC, 2, func() error { return checkSystem() }},
+		{StepInstallerPreparingWindows, 5, func() error { return disableFastStartup() }},
+		{StepInstallerSettingThingsUp, 8, func() error { return createDirectories() }},
 		// Resolve where the user's files ACTUALLY live while Windows is still
 		// running and can read its own registry (#64). Best-effort: on a machine
 		// with no redirection nothing is lost if this fails, and the Phase-2
 		// bridge falls back to the literal profile layout.
-		{"Finding your files", 9, func() error { recordKnownFolders(); return nil }},
-		{"Making room for Linux", 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
-		{"Downloading Linux", 50, func() error {
+		{StepInstallerFindingYourFiles, 9, func() error { recordKnownFolders(); return nil }},
+		{StepInstallerMakingRoomForLinux, 15, func() error { return createRootDisk(cfg.DiskSizeGB) }},
+		{StepInstallerDownloadingLinux, 50, func() error {
 			return downloadDeployer(ctx, func(p float64) {
 				emit(ProgressEvent{
-					Step:    "Downloading Linux",
-					Message: fmt.Sprintf("Downloading Linux… %.0f%%", p*35),
+					Step:    StepInstallerDownloadingLinux,
+					PhaseID: StepInstallerDownloadingLinux,
+					Message: fmt.Sprintf("%s… %.0f%%", displayStepLabel(StepInstallerDownloadingLinux), p*35),
 					Percent: 15 + p*35,
 				})
 			})
 		}},
-		{"Downloading your Linux system", 54, func() error {
+		{StepInstallerDownloadingYourLinuxSystem, 54, func() error {
 			// Offline-first (docs/branding-and-distribution.md §3): pull the
 			// selected image to C:\wootc\bundle\oci while the user's working
 			// Windows network still exists — the deployer initramfs has no
@@ -792,20 +784,20 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return stageImageBundle(ctx, cfg.ImageRef, func(done, total int64) {
 				pct := 50.0
-				msg := "Downloading your Linux system…"
+				msg := displayStepLabel(StepInstallerDownloadingYourLinuxSystem) + "…"
 				if total > 0 {
 					pct = 50 + 4*float64(done)/float64(total)
-					msg = fmt.Sprintf("Downloading your Linux system… %.1f of %.1f GB",
+					msg = fmt.Sprintf("%s… %.1f of %.1f GB", displayStepLabel(StepInstallerDownloadingYourLinuxSystem),
 						float64(done)/1e9, float64(total)/1e9)
 				}
-				emit(ProgressEvent{Step: "Downloading your Linux system", Message: msg, Percent: pct})
+				emit(ProgressEvent{Step: StepInstallerDownloadingYourLinuxSystem, PhaseID: StepInstallerDownloadingYourLinuxSystem, Message: msg, Percent: pct})
 			})
 		}},
-		{"Preparing the startup menu", 55, func() error { return writeGrubConfig(cfg) }},
-		{"Getting Linux prepared", 65, func() error { return setupESP(cfg) }},
-		{"Making Linux bootable on your machine", 80, func() error { return configureBCD(cfg) }},
-		{"Saving your settings", 85, func() error { return writeVault(cfg) }},
-		{"Saving your BitLocker recovery key", 87, func() error {
+		{StepInstallerPreparingTheStartupMenu, 55, func() error { return writeGrubConfig(cfg) }},
+		{StepInstallerGettingLinuxPrepared, 65, func() error { return setupESP(cfg) }},
+		{StepInstallerMakingLinuxBootableOnYourMachine, 80, func() error { return configureBCD(cfg) }},
+		{StepInstallerSavingYourSettings, 85, func() error { return writeVault(cfg) }},
+		{StepInstallerSavingYourBitLockerRecoveryKey, 87, func() error {
 			// When C: is BitLocker-protected, capture the numerical recovery
 			// password so Phase 2 (Linux) can unlock C: and the User Data
 			// Bridge can find the user profiles that live there (#61).
@@ -820,7 +812,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Looking at your installed apps", 82, func() error {
+		{StepInstallerLookingAtYourInstalledApps, 82, func() error {
 			// Registry-based program inventory (§4.3): enumerate HKLM/HKCU
 			// uninstall keys before Windows goes away, so the migration
 			// dashboard can show the complete picture — not just apps with
@@ -830,7 +822,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Checking your signed-in apps", 90, func() error {
+		{StepInstallerCheckingYourSignedInApps, 90, func() error {
 			candidates, err := collectSessions()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[wootc] session collection skipped: %v\n", err)
@@ -855,7 +847,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Looking for your cloud drives", 88, func() error {
+		{StepInstallerLookingForYourCloudDrives, 88, func() error {
 			// Cloud-storage detection (#66): OneDrive, Google Drive and
 			// Dropbox. Google Drive lives at a virtual drive letter (G:)
 			// produced by DriveFS at runtime — from Linux, reading the
@@ -865,7 +857,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			recordCloudDrives()
 			return nil
 		}},
-		{"Collecting your look and Wi-Fi", 92, func() error {
+		{StepInstallerCollectingYourLookAndWiFi, 92, func() error {
 			// Wi-Fi profiles (§4.6) migrate UNCONDITIONALLY: recreated as
 			// NetworkManager connections on first boot, so the user is online
 			// without re-typing a single password — the friendliest thing a
@@ -888,7 +880,7 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 			return nil
 		}},
-		{"Finishing up", 96, func() error {
+		{StepInstallerFinishingUp, 96, func() error {
 			// Discoverability: an Add/Remove Programs entry so "how do I
 			// remove this?" has the answer Windows users actually look for
 			// (best-effort, removed again by uninstall).
@@ -898,6 +890,23 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			return nil
 		}},
 	}
+
+}
+
+// runPipeline executes the install steps, reporting progress through emit.
+// It is shared between the GUI (Wails events) and headless mode (stdout),
+// so E2E can exercise the exact production pipeline without a display.
+func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
+	// Direct root.disk + vault to the chosen (possibly unencrypted) volume.
+	if err := prepareInstallState(cfg.StorageDrive); err != nil {
+		return err
+	}
+	// GUI routing is advisory. Enforce data preservation for every backend
+	// caller before changing power settings, files, or firmware boot entries.
+	if err := requireNewInstallRootDisk(); err != nil {
+		return err
+	}
+	steps := installPipelineSteps(ctx, cfg, emit)
 
 	fault := cfg.FaultInject
 	if fault == "" {
@@ -921,34 +930,34 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			return ctx.Err()
 		default:
 		}
-		emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
+		emit(installStepProgress(s.name, s.percent))
 
 		if fault != "" {
 			switch {
-			case fault == "root-disk" && s.name == "Making room for Linux":
+			case fault == "root-disk" && s.name == StepInstallerMakingRoomForLinux:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during root disk creation")
-				return fmt.Errorf("%s: fault-injection: simulated failure during root disk creation", s.name)
-			case (fault == "image-pull" || fault == "image-download") && (s.name == "Downloading Linux" || s.name == "Downloading your Linux system"):
+				return fmt.Errorf("%s: fault-injection: simulated failure during root disk creation", displayStepLabel(s.name))
+			case (fault == "image-pull" || fault == "image-download") && (s.name == StepInstallerDownloadingLinux || s.name == StepInstallerDownloadingYourLinuxSystem):
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during image download")
-				return fmt.Errorf("%s: fault-injection: simulated failure during image download", s.name)
-			case (fault == "efi-staging" || fault == "efi") && s.name == "Getting Linux prepared":
+				return fmt.Errorf("%s: fault-injection: simulated failure during image download", displayStepLabel(s.name))
+			case (fault == "efi-staging" || fault == "efi") && s.name == StepInstallerGettingLinuxPrepared:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during EFI staging")
-				return fmt.Errorf("%s: fault-injection: simulated failure during EFI staging", s.name)
-			case (fault == "bcd-arming" || fault == "bcd") && s.name == "Making Linux bootable on your machine":
+				return fmt.Errorf("%s: fault-injection: simulated failure during EFI staging", displayStepLabel(s.name))
+			case (fault == "bcd-arming" || fault == "bcd") && s.name == StepInstallerMakingLinuxBootableOnYourMachine:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during BCD arming")
-				return fmt.Errorf("%s: fault-injection: simulated failure during BCD arming", s.name)
+				return fmt.Errorf("%s: fault-injection: simulated failure during BCD arming", displayStepLabel(s.name))
 			}
 		}
 
@@ -957,9 +966,9 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 				disarmOneShot()
 			}
 			writeState(StateFailed, s.name, err.Error())
-			return fmt.Errorf("%s: %w", s.name, err)
+			return fmt.Errorf("%s: %w", displayStepLabel(s.name), err)
 		}
-		if s.name == "Making Linux bootable on your machine" {
+		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
 			armed = true
 		}
 	}
@@ -1057,10 +1066,10 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 		name    string
 		percent float64
 	}{
-		{"Checking your PC", 5}, {"Making room for Linux", 15},
-		{"Downloading Linux", 50}, {"Getting Linux prepared", 65},
-		{"Making Linux bootable on your machine", 80}, {"Looking at your installed apps", 85},
-		{"Collecting your look and Wi-Fi", 90},
+		{StepInstallerCheckingYourPC, 5}, {StepInstallerMakingRoomForLinux, 15},
+		{StepInstallerDownloadingLinux, 50}, {StepInstallerGettingLinuxPrepared, 65},
+		{StepInstallerMakingLinuxBootableOnYourMachine, 80}, {StepInstallerLookingAtYourInstalledApps, 85},
+		{StepInstallerCollectingYourLookAndWiFi, 90},
 	}
 	for _, s := range steps {
 		select {
@@ -1069,7 +1078,7 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 			return
 		case <-time.After(300 * time.Millisecond):
 		}
-		a.emit(ProgressEvent{Step: s.name, Message: s.name + "…", Percent: s.percent})
+		a.emit(installStepProgress(s.name, s.percent))
 	}
 	a.mutateStatus(func(s *InstallStatus) {
 		s.Running = false

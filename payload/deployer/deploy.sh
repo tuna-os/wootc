@@ -20,6 +20,9 @@
 
 set -Eeuo pipefail
 
+# shellcheck source=payload/steps.sh
+source "${WOOTC_STEPS_FILE:-/usr/libexec/wootc-steps.sh}"
+
 # Set once the Windows NTFS volume is mounted. Keep this log append-only so a
 # failed reboot or a later deployment attempt cannot erase the evidence from
 # the preceding one.
@@ -75,21 +78,11 @@ err() {
 phase() {
     echo "$*" > /run/wootc-phase 2>/dev/null || true
     log "phase: $*"
-    # Translate each internal phase into calm, non-technical reassurance on
-    # the full-screen splash (North Star: a nervous Windows user must never
-    # see console/kernel output and must feel that good things are happening).
-    # These are named stages, not estimates of work completed.
-    case "$1" in
-        ntfs-mounted)       splash_set "Preparing your disk..." ;;
-        scratch-setup)      splash_set "Preparing your disk..." ;;
-        network-wait)       splash_set "Waiting for a network connection - plug in a network cable if this takes a while..." ;;
-        bundle-ingest)      splash_set "Loading your downloaded system - no internet needed..." ;;
-        registry-preflight) splash_set "Connecting to the software library..." ;;
-        fisherman)          splash_set "Installing your Linux system..." ;;
-        verification)       splash_set "Checking your Linux system..." ;;
-        reboot)             splash_set "Preparing to restart..." ;;
-        *) : ;;
-    esac
+    local label owner
+    owner=$(wootc_step_owner "$1") || return 1
+    [[ "$owner" == deployer ]] || return 1
+    label=$(wootc_step_label "$1") || return 1
+    splash_set "$label"
 }
 
 # ── Stage display ──────────────────────────────────────────────────────────
@@ -2757,6 +2750,8 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-ntfs-state-write"
 
     # Phase-2 first-boot evidence and health marker (§2, §3): updates state.json to healthy.
+    install -D -m644 /usr/libexec/wootc-steps.sh \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/steps.sh"
     install -m755 /usr/lib/wootc/migration/wootc-firstboot-evidence \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-firstboot-evidence"
     install -m644 /usr/lib/wootc/migration/wootc-firstboot-evidence.service \

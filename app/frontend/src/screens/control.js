@@ -1,9 +1,13 @@
+import { installStepLabel } from './progress.js';
 import { BootInVM, UninstallWith, BootIntoLinux } from '../../wailsjs/go/main/App';
 import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { distroName, brandMark } from '../lib/branding.js';
 import { el, btn, warningBanner } from '../lib/ui.js';
+
+const escapePhaseLabel = value => String(value).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // ── Screen 4: Control Panel ───────────────────────────────────────────────────
 
@@ -21,7 +25,7 @@ export function renderControlPanel() {
   // "relaunch after failure" gap). Say it plainly, with the honest scope.
   if (state.lastRun?.state === 'failed') {
     screen.appendChild(warningBanner(
-      `<b>Your last install attempt didn't finish</b> (stopped at "${state.lastRun.phase || 'an early step'}"). ` +
+      `<b>Your last install attempt didn't finish</b> (stopped at "${escapePhaseLabel(installStepLabel(state.lastRun.phaseId || state.lastRun.phase) || 'an early step')}"). ` +
       'Nothing outside the installation folder was changed and no Linux boot is armed. ' +
       'Choose Reinstall below to try again, or Uninstall to clean everything up.'
     ));

@@ -158,3 +158,7 @@ export function RepairBoot() {
 export function GetReleaseNotice() {
   return window['go']['main']['App']['GetReleaseNotice']();
 }
+
+export function GetInstallSteps() {
+  return window['go']['main']['App']['GetInstallSteps']();
+}

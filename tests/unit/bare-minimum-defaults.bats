@@ -18,13 +18,26 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
         "$REPO_ROOT/app/frontend/src/screens/launchpad.js"
 }
 
-@test "Wi-Fi collection runs outside the WindowsLook gate" {
-    # Wi-Fi migrates unconditionally — being online on first boot without
-    # re-typing passwords must not hinge on a desktop-look preference.
-    # Extract the collect step and require collectWifi BEFORE the look gate.
-    body="$(awk '/Collecting your look and Wi-Fi/,/^\t\t\}\},$/' "$REPO_ROOT/app/app.go")"
+wifi_precedes_look_gate() {
+    local body="$1" wifi_line gate_line
     wifi_line="$(printf '%s\n' "$body" | grep -n 'collectWifi()' | head -1 | cut -d: -f1)"
     gate_line="$(printf '%s\n' "$body" | grep -n 'if cfg.WindowsLook' | head -1 | cut -d: -f1)"
-    [ -n "$wifi_line" ] && [ -n "$gate_line" ]
+    [ -n "$wifi_line" ] && [ -n "$gate_line" ] || return 1
     [ "$wifi_line" -lt "$gate_line" ]
+}
+
+@test "Wi-Fi collection runs outside the WindowsLook gate" {
+    # Wi-Fi migrates unconditionally: call presence alone is insufficient.
+    body="$(awk '/^[[:space:]]*\{StepInstallerCollectingYourLookAndWiFi,/,/^\t\t\}\},$/' "$REPO_ROOT/app/app.go")"
+    wifi_precedes_look_gate "$body"
+}
+
+@test "Wi-Fi ordering assertion rejects collection moved inside the look gate" {
+    body="$(awk '/^[[:space:]]*\{StepInstallerCollectingYourLookAndWiFi,/,/^\t\t\}\},$/' "$REPO_ROOT/app/app.go")"
+    # Keep the call present but move it after the gate in a disposable copy.
+    mutated="$(printf '%s\n' "$body" | sed '/if err := collectWifi()/d; /if cfg.WindowsLook {/a\                if err := collectWifi(); err != nil {' )"
+    run wifi_precedes_look_gate "$mutated"
+    [ "$status" -ne 0 ]
+    run wifi_precedes_look_gate ""
+    [ "$status" -ne 0 ]
 }

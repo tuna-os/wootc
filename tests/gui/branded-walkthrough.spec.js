@@ -10,6 +10,7 @@
 // must wear its own name, mark and look on every screen.
 
 import { test, expect } from '@playwright/test';
+import { INSTALLER_STEP_DEFINITIONS } from './step-catalogue-gen.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -63,7 +64,8 @@ function brandImages(brand) {
 }
 
 async function boot(page, mock) {
-  await page.addInitScript((m) => { window.__WOOTC_MOCK = m; }, mock);
+  await page.addInitScript((m) => { window.__WOOTC_MOCK = m; },
+    { ...mock, stepCatalogue: mock.stepCatalogue ?? INSTALLER_STEP_DEFINITIONS });
   await page.addInitScript({ content: mockSrc });
   await page.goto('/');
 }

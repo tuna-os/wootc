@@ -10,6 +10,7 @@ window.__wootcInstallEmitters = [];
 function makeApp(mock) {
   const P = (v) => Promise.resolve(v);
   return {
+    GetInstallSteps: () => P(mock.stepCatalogue || []),
     GetReleaseNotice: () => new Promise((resolve, reject) => setTimeout(() => {
       if (mock.releaseNoticeFailure) reject(new Error('offline'));
       else resolve(mock.releaseNotice || { version: '', url: '' });
