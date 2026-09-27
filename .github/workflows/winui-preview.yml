@@ -5,6 +5,7 @@ on:
     paths:
       - 'shell/**'
       - 'app/serve*'
+      - 'app/native_peer*'
       - 'app/tools/gendto/**'
       - '.github/workflows/winui-preview.yml'
   workflow_dispatch:
@@ -49,8 +50,33 @@ jobs:
       - name: Restore and publish the native preview
         working-directory: shell
         run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 --output ../out/winui-preview
+      - name: Observe the actual native startup window with UI Automation
+        working-directory: shell
+        shell: pwsh
+        run: |
+          $env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'
+          dotnet test Wootc.Shell.UiTests --configuration Release --logger "trx;LogFileName=native-ui.trx"
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: winui-preview-unpackaged
-          path: out/winui-preview/
+          path: |
+            out/winui-preview/
+            shell/Wootc.Shell.UiTests/TestResults/*.trx
           if-no-files-found: error
+
+  native-peer:
+    name: Native Windows process identity observations
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+      - name: Observe actual process tokens and retained handles
+        working-directory: app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force frontend/dist | Out-Null
+          Set-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'
+          go test -count=1 -v -run '^TestNativePeerObservation' .
