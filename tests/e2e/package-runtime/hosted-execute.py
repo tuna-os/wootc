@@ -141,7 +141,7 @@ def unchanged(expected):
 def retain(folder,artifacts):
     """Bounded proof-only export; archives, overlay, firmware and seed are excluded."""
     allowed={'execution.json','host.json','acquisition.json','ownership.json','accepted.json',
-             'pid.json','tool-closure.json','old-phase-readback.json','old-phase-advance.json','serial.log','process.stdout','process.stderr'}
+             'pid.json','process-reap.json','guest-failure.json','tool-closure.json','old-phase-readback.json','old-phase-advance.json','serial.log','process.stdout','process.stderr'}
     total=0
     for parent in (folder,folder/'inputs',folder/'guest'):
         if not parent.is_dir():continue
