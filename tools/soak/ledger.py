@@ -159,7 +159,7 @@ def summarize(rows, config, issues, today):
         return {'started': False, 'valid': False, 'streak': 0, 'reason': reason or 'Start is in the future'}
     relevant = [r for r in rows if r['event'] == 'schedule' and r['date'] >= start]
     by_day = {}
-    for row in sorted(relevant, key=lambda r: (r['date'], r['runId'], r['runAttempt'])):
+    for row in sorted(relevant, key=lambda r: (r['date'], r.get('startedAt', ''), r['runId'], r['runAttempt'])):
         by_day.setdefault(row['date'], []).append(row)
     streak, identity, invalid = 0, None, False
     day = start_day
@@ -231,7 +231,7 @@ def collect(api, old, config, today):
                 if run['run_attempt'] != attempt or run['id'] != listed['id']:
                     raise ValueError('GitHub attempt identity mismatch')
                 row = {'runId': run['id'], 'runAttempt': attempt, 'date': utc_date(run['run_started_at']),
-                       'sourceSha': run['head_sha'], 'event': run['event'], 'verdict': run['conclusion'],
+                       'startedAt': run['run_started_at'], 'sourceSha': run['head_sha'], 'event': run['event'], 'verdict': run['conclusion'],
                        'runUrl': run['html_url'], 'eligible': False, 'reason': 'Native semantic proof missing',
                        'autoReleaseTag': None}
                 if run['head_branch'] != 'main' or run.get('head_repository', {}).get('full_name') != api.repo:
@@ -291,7 +291,7 @@ def collect(api, old, config, today):
                    has_run_link(release.get('body'), row['runUrl'])]
         if len(matches) == 1:
             row['autoReleaseTag'] = matches[0]['tag_name']
-    return sorted(rows.values(), key=lambda r: (r['date'], r['runId'], r['runAttempt'])), issues
+    return sorted(rows.values(), key=lambda r: (r['date'], r.get('startedAt', ''), r['runId'], r['runAttempt'])), issues
 
 
 def render(rows, summary):

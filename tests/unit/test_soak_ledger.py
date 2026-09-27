@@ -112,6 +112,13 @@ class SoakTests(unittest.TestCase):
         self.assertTrue(result['valid'])
         self.assertEqual(result['streak'], 2)
 
+    def test_rerun_of_older_id_is_ordered_by_actual_start(self):
+        rows = [row('2026-09-20', 1),
+                row('2026-09-21', 10, startedAt='2026-09-21T07:00:00Z'),
+                row('2026-09-21', 2, runAttempt=2, startedAt='2026-09-21T09:00:00Z',
+                    verdict='failure', eligible=False, diagnosisIssue=123)]
+        self.assertEqual(soak.summarize(rows, config(), issues(), dt.date(2026, 9, 22))['streak'], 0)
+
     def test_current_day_and_prestart_rows_do_not_count(self):
         rows = [row('2026-09-19'), row('2026-09-20', 2), row('2026-09-21', 3)]
         self.assertEqual(soak.summarize(rows, config(), issues(), dt.date(2026, 9, 21))['streak'], 1)
