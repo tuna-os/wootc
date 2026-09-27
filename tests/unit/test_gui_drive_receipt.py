@@ -79,6 +79,43 @@ class GuiDriveReceiptTests(unittest.TestCase):
             self.assertNotEqual(result.returncode,0)
             self.assertIn('AssertionError',result.stderr)
 
+    def test_actual_producer_action_schemas_and_strict_host_refusals(self):
+        result = subprocess.run(['node', str(ROOT / 'tests/unit/gui-drive-producer-controls.cjs'),
+                                 str(ROOT / 'app/frontend/src/lib/e2e.js')], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        proof = json.loads(result.stdout)
+        self.assertEqual(proof['receiptActionControls'], 3)
+        install = proof['installReceipt']
+        reboot = proof['rebootReceipt']
+        prepare = proof['prepareReceipt']
+        self.assertEqual(set(install), module.FIELDS)
+        self.assertEqual(set(reboot), module.FIELDS)
+        self.assertEqual(len(set(prepare) - module.FIELDS), 9)
+        self.assertEqual(prepare['action'], 'prepare-vm')
+        module.validate(json.dumps(install), 'current', DIRECTIVE, IMAGE)
+        for value in (reboot, prepare):
+            with self.assertRaises(ValueError):
+                module.validate(json.dumps(value), 'current', DIRECTIVE, IMAGE)
+        for changes in ({'vmReady': False}, {'action': 'prepare-vm'}):
+            with self.assertRaises(ValueError):
+                module.validate(json.dumps(dict(install, **changes)), 'current', DIRECTIVE, IMAGE)
+        for field in module.FIELDS:
+            missing = dict(install)
+            del missing[field]
+            with self.subTest(missing=field), self.assertRaises(ValueError):
+                module.validate(json.dumps(missing), 'current', DIRECTIVE, IMAGE)
+        # Removing the producer's action guard reintroduces the actual c9 failure.
+        source = (ROOT / 'app/frontend/src/lib/e2e.js').read_text()
+        guard = "if (directive.action === 'prepare-vm') Object.assign(report, {"
+        self.assertIn(guard, source)
+        with tempfile.TemporaryDirectory() as tmp:
+            mutant = Path(tmp) / 'unconditional-report.js'
+            mutant.write_text(source.replace(guard, 'Object.assign(report, {', 1))
+            result = subprocess.run(['node', str(ROOT / 'tests/unit/gui-drive-producer-controls.cjs'),
+                                     str(mutant)], text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('AssertionError', result.stderr)
+
     def test_actual_cli_accepts_current_consistent_install(self):
         result = subprocess.run(['python3', str(PARSER), RUN, DIRECTIVE, IMAGE],
                                 input=self.receipt(), text=True, capture_output=True)

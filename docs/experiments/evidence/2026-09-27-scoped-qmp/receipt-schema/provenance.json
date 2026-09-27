@@ -1,0 +1,21 @@
+{
+  "originalSource": "c9b60777cfac4f721a25994b05c78a796ab63e2f",
+  "runId": 36329610437,
+  "jobId": 108648907878,
+  "scope": "actual frontend module with DOM spies;strict unchanged install host validator;no real GUI or VM acceptance",
+  "vmPreparationFieldCount": 9,
+  "checks": "11 PASS;install/reboot exact twelve fields;prepare-vm nine extra fields;wrong/missing fields refused;removed action guard red",
+  "sourceHashes": {
+    "app/frontend/src/lib/e2e.js": "79d5a1e2d6f6ff3674f7961202ead5f58e8950e1c9bca2595c178af41897ba3b",
+    "tests/unit/gui-drive-producer-controls.cjs": "c93c2f11981d08e1c03211093fe60c88b6049387ee98ed96721c8b11e0459da1",
+    "tests/unit/test_gui_drive_receipt.py": "36c87879ba6a46b18c1842201cbd0d8608b7b2e6a17d1389ac5e68191efb42d4",
+    "tests/e2e/gui-drive-receipt.py": "b791144db47510eca70685c4c605af27e0d314f164e8993eb64f4eb012f8a337"
+  },
+  "evidenceHashes": {
+    "wootc-495-c9-fast-failure.raw.log": "ca33984d448790a5ed085b55e3f0b38d2bf1190135c8dfcd09ef60bcc7846792",
+    "wootc-495-c9-fast-provenance.json": "adf2794adb8235a7464b6a4d9c890c44698b5e9a1a301b9f6e589e7613d71457",
+    "wootc-495-c9-local-drive.raw.log": "75d6e8c072b009d83e639f13a2b59fd27965a6fffd3e67837712aa365cb471e6",
+    "wootc-495-c9-drive-control.json": "049f4e894d0729f249592c8796281d205151c16c1a8332f23fe085939cc679db",
+    "wootc-495-action-receipt-controls.raw.log": "bf7d8b9b6cc3df82c41969aa874c8891ae5bb032effd96afb44aba2d4acd01ce"
+  }
+}
