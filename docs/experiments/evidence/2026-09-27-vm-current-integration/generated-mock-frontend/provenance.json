@@ -1,0 +1,20 @@
+{
+  "scope": "Actual rendered browser frontend with injected mock engine; no Windows or Linux guest acceptance",
+  "hashes": {
+    "docs/screenshots/01-launchpad.png": "3e9029c8eacd3ec2c693db5a162d30159dcee6c6dafbbb39c2bdf886e8244761",
+    "docs/screenshots/02-validation.png": "0f855b0817cab69a9cb7c3c83c3d42220466d8e30c74b4deb1478b677c9a3e9d",
+    "docs/screenshots/03-progress.png": "515d334b39ee9f39b1c43e37f363d045ef50f436f24c45ac34d94abb49e21d58",
+    "docs/screenshots/04-done.png": "f9bc9b3ffce131e37a20540d181133e386b7794d8331b2deff446beee0c4dfc6",
+    "docs/screenshots/05-control-panel.png": "5aa025518c15f369d15d70dac4af8a6f569f4f711a8aadad2baceacf02adc538",
+    "docs/screenshots/06-migration-dashboard.png": "56552dc838fd3fdc03bd4e0f12e0d1569d57c087df5417ef16d1b486bba5c33b",
+    "docs/screenshots/07-branded-bazzite.png": "54be93c103f9447be5d49b97add2111154a301df442ba100bf76cf1a44bbe7bb",
+    "docs/screenshots/07-branded.png": "340a7868c28ea5516400f17587cfc84930c025e4e481d17e7f062aab7c434d52",
+    "docs/screenshots/08-bitlocker.png": "783fc3c73834a6fd57f7dc60b848cd2c3d8b0d7b7b1765abc916b5cdabc8c36b",
+    "docs/screenshots/09-vm-mode.png": "3140d2e3b42828fb7a5e32764b4da425ef23c133f42254e1df687e53b2c3c70c",
+    "docs/screenshots/10-luks-encryption.png": "b4686e238adb5b6fc8a6882dff30fc033c8a9f8bc749d7404a0415b5994824e2",
+    "docs/screenshots/11-defrag-preflight.png": "21f26a04d74f16970bb68fd75f87c9a8ff4b2716eb429dc00777a7a5dc4be404",
+    "docs/screenshots/12-vm-unavailable.png": "b5e159bbd520240d151c35d473c639681cb7eeb73fed58da8698c95c617dcb5e",
+    "docs/screenshots/14-bare-minimum-form.png": "ca848ed4a9e7909fefe3c83e69cd9cae70314f8ab857965220cffd0d7be39398",
+    "docs/screenshots/15-vm-first-launchpad.png": "8653ce84f5f3d4701326ab401e9c661ec1298d4fad2c3161f3f36000aeebbc94"
+  }
+}

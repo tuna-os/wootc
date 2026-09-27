@@ -1,0 +1,4 @@
+=== RUN   TestMissingCapabilityReturnMustRefuse
+--- PASS: TestMissingCapabilityReturnMustRefuse (0.00s)
+PASS
+ok  	command-line-arguments	0.010s

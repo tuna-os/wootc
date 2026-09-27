@@ -1,0 +1,46 @@
+name: Managed VM QMP component controls
+
+on:
+  pull_request:
+    paths:
+      - 'app/vm_qmp*.go'
+      - 'app/vm_display*.go'
+      - 'app/vm_process*.go'
+      - '.github/workflows/vm-qmp-controls.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install native component dependency
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86
+      - name: Build actual frontend for engine embed
+        working-directory: app/frontend
+        run: npm ci && npm run build
+      - name: Require native paused QEMU and source controls
+        env:
+          WOOTC_REQUIRE_NATIVE_QMP: '1'
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/vm-qmp-controls"
+          go test -C app . -run 'Test(QMP|VMDisplay|ManagedVMShutdownContract)' \
+            -count=1 -race -v | tee "$RUNNER_TEMP/vm-qmp-controls/controls.log"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: vm-qmp-component-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vm-qmp-controls/controls.log
+          if-no-files-found: error
+          retention-days: 30

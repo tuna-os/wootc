@@ -561,3 +561,119 @@ test('last-run phase display uses its backend label safely', async ({ page }) =>
   await expect(page.locator('body')).toContainText(label);
   expect(await page.evaluate(() => window.phaseInjected)).toBeUndefined();
 });
+
+test('VM-first account flow uses only implemented choices and supports clean restart', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: true, probeStatus: 'passed' }, vm: { available: true } });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const password = page.locator('input[type=password]');
+  await password.nth(0).fill('temporary-test-password');
+  await password.nth(1).fill('different');
+  await expect(page.locator('#vm-prepare-btn')).toBeDisabled();
+  await password.nth(1).fill('temporary-test-password');
+  await expect(page.locator('#vm-prepare-btn')).toHaveClass(/btn-primary/);
+  await expect(page.locator('#plan-note')).toContainText('apply only to installation with a reboot');
+  await page.locator('#vm-prepare-btn').click();
+  await expect(page.getByRole('heading', { name: 'Linux is starting' })).toBeVisible();
+  const calls = await page.evaluate(() => window.__wootcVMCalls);
+  expect(calls[0][0]).toBe('prepare');
+  expect(calls[0][1].username).toBe('alice');
+  expect(calls[0][1].password).toBe('temporary-test-password');
+  expect(Object.keys(calls[0][1]).sort()).toEqual(['imageRef', 'password', 'username']);
+  await expect(page.locator('body')).not.toContainText('temporary-test-password');
+  await page.getByRole('button', { name: 'Shut down Linux', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Start Linux again' })).toBeVisible();
+  await page.getByRole('button', { name: 'Start Linux again' }).click();
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['prepare', 'stop', 'boot']);
+});
+
+test('VM-first action shows the next required account detail', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    freshVm: { available: true, probeStatus: 'passed' } });
+
+  const vmButton = page.locator('#vm-prepare-btn');
+  const vmHint = page.locator('#vm-prepare-hint');
+  await expect(vmButton).toBeInViewport();
+  await expect(vmButton).toBeDisabled();
+  await expect(vmButton).toHaveText(/Start .* in a window/);
+  await expect(vmButton).toHaveAttribute('aria-describedby', 'vm-prepare-hint');
+  await expect(vmHint).toHaveAttribute('role', 'status');
+  await expect(vmHint).toHaveAttribute('aria-live', 'polite');
+  await expect(vmHint).toHaveText('Enter a valid Linux username below');
+
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  await expect(vmHint).toHaveText('Set your Linux password below');
+  await shot(page, '15-vm-first-launchpad');
+  const password = page.locator('input[type=password]');
+  await password.nth(0).fill('temporary-guidance-password');
+  await expect(vmHint).toHaveText('Passwords do not match');
+  await password.nth(1).fill('temporary-guidance-password');
+  await expect(vmButton).toBeEnabled();
+  await expect(vmButton).toHaveText(/Start .* in a window/);
+  await expect(vmHint).toBeEmpty();
+});
+
+
+test('E2E drive observes the VM-first button and prepares through the real launchpad form', async ({ page }) => {
+  const password = 'temporary-vm-e2e-password';
+  const image = IMAGES[1].imageRef;
+  await boot(page, {
+    mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    freshVm: { available: true, probeStatus: 'passed' },
+    driveDirective: JSON.stringify({
+      schemaVersion: 1, runId: 'vm-source-control', directiveId: 'a'.repeat(32),
+      action: 'prepare-vm', image,
+      username: 'alice', password,
+    }),
+  });
+
+  await expect(page.getByRole('heading', { name: 'Linux is starting' })).toBeVisible();
+  const calls = await page.evaluate(() => window.__wootcVMCalls);
+  expect(calls.map(call => call[0])).toEqual(['prepare']);
+  expect(calls[0][1]).toEqual({ imageRef: image, username: 'alice', password });
+  await expect(page.locator('body')).not.toContainText(password);
+
+  await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.some(report =>
+    report.screen === 'launchpad' && report.freshVmAvailable &&
+    report.vmPrepareButtonVisible && !report.vmPrepareButtonDisabled &&
+    !report.vmImageMismatch
+  ))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.some(report =>
+    report.schemaVersion === 1 && report.runId === 'vm-source-control' &&
+    report.directiveId === 'a'.repeat(32) && report.action === 'prepare-vm' && report.vmPrepareDriven &&
+    report.screen === 'vmpreview' && report.freshVmAvailable && report.vmReady &&
+    report.vmProgressStage === 'started'
+  ))).toBe(true);
+});
+
+
+test('signed runtime setup returns to account setup without starting an install', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true } });
+  await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
+  await expect(page.locator('#vm-prepare-btn')).toBeVisible();
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
+});
+
+test('a release without the runtime gives an explicit error without installing Linux', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true }, runtimeError: 'This release does not include the Linux window runtime yet. <img src=x onerror=alert(1)>' });
+  await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
+  await expect(page.locator('body')).toContainText('This release does not include the Linux window runtime yet.');
+  await expect(page.locator('body')).toContainText('<img src=x onerror=alert(1)>');
+  await expect(page.locator('img[src=x]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+});
+
+
+for (const missing of ['schemaVersion', 'runId', 'directiveId']) {
+  test(`VM preparation drive refuses a directive missing ${missing}`, async ({ page }) => {
+    const directive = { schemaVersion: 1, runId: 'vm-refusal-control', directiveId: 'b'.repeat(32),
+      action: 'prepare-vm', image: IMAGES[1].imageRef, username: 'alice', password: 'disposable-control-password' };
+    delete directive[missing];
+    await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+      freshVm: { available: true, probeStatus: 'passed' }, driveDirective: JSON.stringify(directive) });
+    await expect.poll(() => page.evaluate(() => window.__wootcE2EDirectiveReads)).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => window.__wootcVMCalls)).toEqual([]);
+    expect(await page.evaluate(() => window.__wootcE2EReports)).toEqual([]);
+    await expect(page.locator('#vm-prepare-btn')).toBeVisible();
+  });
+}
