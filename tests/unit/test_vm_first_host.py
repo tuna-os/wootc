@@ -43,6 +43,9 @@ class Qualification(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(r['prerequisitesPassed'])
         self.assertEqual(r['runId'], '123/2')
+        self.assertEqual(r['outerCpuProposed'], 'host,+vmx')
+        self.assertIsNone(r['outerCpuExpandedObserved'])
+        self.assertFalse(r['windowsWhpxQualified'])
         self.assertFalse(r['guestExecutionQualified'])
         self.assertFalse(r['desktopQualified'])
 

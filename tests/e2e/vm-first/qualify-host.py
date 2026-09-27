@@ -113,7 +113,8 @@ def main(argv=None):
     receipt = {'schemaVersion': 1, 'runId': args.run_id, 'sourceSha': os.environ.get('GITHUB_SHA'),
                'capturedAtUnix': time.time(), 'scope': 'host-prerequisites-only',
                'guestExecutionQualified': False, 'desktopQualified': False,
-               'outerCpuProposed': args.outer_cpu, 'observations': None, 'refusals': []}
+               'outerCpuProposed': args.outer_cpu, 'outerCpuExpandedObserved': None,
+               'windowsWhpxQualified': False, 'observations': None, 'refusals': []}
     try:
         receipt['observations'] = collect(args.storage_path)
         receipt['refusals'] = assess(receipt['observations'], args.outer_cpu)

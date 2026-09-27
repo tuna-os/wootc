@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Actual qualification consumer controls
         run: python3 tests/unit/test_vm_first_host.py
   qualify:
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Read-only host qualification
         env:
           OUTER_CPU: ${{ inputs.outer_cpu }}
@@ -44,7 +44,7 @@ jobs:
             --receipt "$RECEIPT_DIR/host-prerequisites.json"
       - name: Retain qualification receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vm-first-host-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/vm-first-qualification/host-prerequisites.json
