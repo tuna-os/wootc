@@ -16,7 +16,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// This adapter is not enabled by the current VM argv or personalization.
+// The managed route enables a persistent instance only after authenticated
+// installation hashes are retained. This one-shot helper remains a component
+// control boundary; successful managed requests keep their channel open.
 // expected must be retained from the engine-owned QEMU process at launch;
 // neither a guest nor a public RPC can supply it.
 func vmGuestPipeName(sessionID string) (string, error) {
@@ -59,45 +61,9 @@ func exchangeVMGuestPipe(ctx context.Context, expected *nativeProcessPeer, reque
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	if expected == nil {
-		return result, fmt.Errorf("owned QEMU process observation required")
-	}
-	if err := expected.checkAlive(); err != nil {
-		return result, err
-	}
-	name, err := vmGuestPipeName(request.SessionID)
+	connection, err := openVMGuestPipe(ctx, expected, request.SessionID)
 	if err != nil {
 		return result, err
-	}
-	path, err := windows.UTF16PtrFromString(name)
-	if err != nil {
-		return result, err
-	}
-	var pipe windows.Handle
-	for {
-		if err := expected.checkAlive(); err != nil {
-			return result, err
-		}
-		if err := ctx.Err(); err != nil {
-			return result, err
-		}
-		pipe, err = windows.CreateFile(path, windows.GENERIC_READ|windows.GENERIC_WRITE, 0, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OVERLAPPED, 0)
-		if err == nil {
-			break
-		}
-		if !errors.Is(err, windows.ERROR_FILE_NOT_FOUND) && !errors.Is(err, windows.ERROR_PIPE_BUSY) {
-			return result, err
-		}
-		select {
-		case <-ctx.Done():
-			return result, ctx.Err()
-		case <-time.After(20 * time.Millisecond):
-		}
-	}
-	connection := os.NewFile(uintptr(pipe), name)
-	if connection == nil {
-		windows.CloseHandle(pipe)
-		return result, fmt.Errorf("owned guest pipe unavailable")
 	}
 	defer connection.Close()
 	stopCancellation := context.AfterFunc(ctx, func() { _ = connection.Close() })
@@ -106,7 +72,7 @@ func exchangeVMGuestPipe(ctx context.Context, expected *nativeProcessPeer, reque
 	if err = connection.SetDeadline(deadline); err != nil {
 		return result, fmt.Errorf("guest pipe requires bounded IO: %w", err)
 	}
-	if err = verifyVMGuestPipeServer(pipe, expected); err != nil {
+	if err = verifyVMGuestPipeServer(windows.Handle(connection.Fd()), expected); err != nil {
 		return result, err
 	}
 	payload, err := json.Marshal(request)
@@ -119,13 +85,57 @@ func exchangeVMGuestPipe(ctx context.Context, expected *nativeProcessPeer, reque
 		return result, err
 	}
 
-	if err = verifyVMGuestPipeServer(pipe, expected); err != nil {
+	if err = verifyVMGuestPipeServer(windows.Handle(connection.Fd()), expected); err != nil {
 		return result, err
 	}
 	if err = ctx.Err(); err != nil {
 		return result, err
 	}
 	return decodeVMGuestObservation(raw, request)
+}
+
+func openVMGuestPipe(ctx context.Context, expected *nativeProcessPeer, sessionID string) (*os.File, error) {
+	if expected == nil {
+		return nil, fmt.Errorf("owned QEMU process observation required")
+	}
+	if err := expected.checkAlive(); err != nil {
+		return nil, err
+	}
+	name, err := vmGuestPipeName(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	path, err := windows.UTF16PtrFromString(name)
+	if err != nil {
+		return nil, err
+	}
+	var pipe windows.Handle
+	for {
+		if err := expected.checkAlive(); err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		pipe, err = windows.CreateFile(path, windows.GENERIC_READ|windows.GENERIC_WRITE, 0, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OVERLAPPED, 0)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, windows.ERROR_FILE_NOT_FOUND) && !errors.Is(err, windows.ERROR_PIPE_BUSY) {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	connection := os.NewFile(uintptr(pipe), name)
+	if connection == nil {
+		windows.CloseHandle(pipe)
+		return nil, fmt.Errorf("owned guest pipe unavailable")
+	}
+	return connection, nil
 }
 
 // Internal bounded IO primitive; production callers supply only typed probes.

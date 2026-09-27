@@ -36,6 +36,10 @@ func TestVMGuestPipeChild(t *testing.T) {
 	if err = windows.ConnectNamedPipe(handle, nil); err != nil && err != windows.ERROR_PIPE_CONNECTED {
 		t.Fatal(err)
 	}
+	if strings.HasPrefix(os.Getenv("WOOTC_VM_PIPE_MODE"), "persistent") {
+		vmGuestPersistentPipeChild(t, handle, os.Getenv("WOOTC_VM_PIPE_MODE"))
+		return
+	}
 	if os.Getenv("WOOTC_VM_PIPE_MODE") == "death" {
 		return
 	}

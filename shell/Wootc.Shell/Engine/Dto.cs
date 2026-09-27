@@ -873,6 +873,49 @@ public class VMState
 }
 
 /// <summary>
+/// VMGuestSessionObservation reports current observations only. The service and
+/// independent Go ancestry decoder cannot establish an editor save or desktop.
+/// </summary>
+public class VMGuestSessionObservation
+{
+    [JsonPropertyName("runId")]
+    public string RunId { get; set; } = string.Empty;
+
+    [JsonPropertyName("installId")]
+    public string InstallId { get; set; } = string.Empty;
+
+    [JsonPropertyName("diskId")]
+    public string DiskId { get; set; } = string.Empty;
+
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("requestId")]
+    public string RequestId { get; set; } = string.Empty;
+
+    [JsonPropertyName("bootId")]
+    public string BootId { get; set; } = string.Empty;
+
+    [JsonPropertyName("kernelRelease")]
+    public string KernelRelease { get; set; } = string.Empty;
+
+    [JsonPropertyName("ordinarySession")]
+    public Dictionary<string, string>? OrdinarySession { get; set; }
+
+    [JsonPropertyName("rootTarget")]
+    public string RootTarget { get; set; } = string.Empty;
+
+    [JsonPropertyName("rootMeasurements")]
+    public Dictionary<string, string>? RootMeasurements { get; set; }
+
+    [JsonPropertyName("desktopQualified")]
+    public bool DesktopQualified { get; set; }
+
+    [JsonPropertyName("editorQualified")]
+    public bool EditorQualified { get; set; }
+}
+
+/// <summary>
 /// VMInstallConfig contains only the choices implemented by the VM preparation
 /// path. Do not reuse native-install encryption/migration flags as implied promises.
 /// </summary>

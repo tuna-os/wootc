@@ -145,3 +145,19 @@ export interface StepDefinition {
 }
 
 export function GetInstallSteps():Promise<StepDefinition[]>;
+
+export interface VMGuestSessionObservation {
+  runId: string;
+  installId: string;
+  diskId: string;
+  sessionId: string;
+  requestId: string;
+  bootId: string;
+  kernelRelease: string;
+  ordinarySession: Record<string, string>;
+  rootTarget: string;
+  rootMeasurements: Record<string, string>;
+  desktopQualified: boolean;
+  editorQualified: boolean;
+}
+export function ObserveVMGuestSession():Promise<VMGuestSessionObservation>;

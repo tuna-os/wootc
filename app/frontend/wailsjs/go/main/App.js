@@ -169,3 +169,5 @@ export function ForceStopVM() { return window['go']['main']['App']['ForceStopVM'
 export function PrepareVM(config) { return window['go']['main']['App']['PrepareVM'](config); }
 
 export function InstallVMRuntime() { return window['go']['main']['App']['InstallVMRuntime'](); }
+
+export function ObserveVMGuestSession() { return window['go']['main']['App']['ObserveVMGuestSession'](); }

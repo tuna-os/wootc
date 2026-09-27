@@ -23,6 +23,8 @@ type vmSession struct {
 	output            *os.File
 	sessionID         string
 	operationGate     chan struct{}
+	guest             vmGuestTransport
+	guestRequests     int
 	displayDirectives map[string]bool
 }
 
@@ -31,8 +33,12 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 	if err != nil {
 		return nil, err
 	}
+	enabled, err := configureVMGuestChannel(cmd, state, sessionID)
+	if err != nil {
+		return nil, err
+	}
 	session := &vmSession{sessionID: sessionID, operationGate: make(chan struct{}, 1), displayDirectives: map[string]bool{}, state: state, statePath: statePath, cmd: cmd, release: release, done: make(chan struct{})}
-	// No guest semantic channel exists: never inherit a desktop claim from disk.
+	// Current guest observations cannot inherit a desktop claim from disk.
 	session.state.DesktopReady = false
 	session.state.Phase = vmStarting
 	session.state.PID = 0
@@ -64,6 +70,9 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 	childOutput.Close()
 	session.job, err = own(cmd)
 	if err == nil {
+		session.guest, err = ownVMGuestObserver(cmd, enabled)
+	}
+	if err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		session.qmp, err = connectQMP(ctx, input, output)
 		cancel()
@@ -73,6 +82,9 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		output.Close()
+		if session.guest != nil {
+			_ = session.guest.close()
+		}
 		if session.job != nil {
 			session.job.Close()
 		}
@@ -89,6 +101,9 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 		session.qmp.input.Close()
 		output.Close()
 		session.job.Close()
+		if session.guest != nil {
+			_ = session.guest.close()
+		}
 		return nil, err
 	}
 	go session.wait()
@@ -97,6 +112,9 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 
 func (s *vmSession) wait() {
 	waitErr := s.cmd.Wait()
+	if s.guest != nil {
+		_ = s.guest.close()
+	}
 	_ = s.job.Close() // Close descendant handles before draining QMP EOF.
 	// The parent closed its copy of the child's write handle immediately after
 	// Start. Drain the actual EOF before deciding whether SHUTDOWN was observed.
