@@ -55,7 +55,8 @@ for provider,vendor in [('ubuntu','ubuntu'),('rpm','almalinux')]:
                          '--dbpath','/root/.rpmdb','--root',str(rpm_root)]
             def package_command(*args):
                 if args[0]!='rpm':return command(*args)
-                translated=list(args[1:]);translated[-1]='/boot/efi/EFI/almalinux/'+Path(translated[-1]).name
+                translated=list(args[1:])
+                if args[1]=='-qf':translated[-1]='/boot/efi/EFI/almalinux/'+Path(translated[-1]).name
                 output=subprocess.check_output(rpm_command+translated,text=True,timeout=30)
                 return output.replace('/boot/efi',str(fixture.fat))
             fixture.command=package_command

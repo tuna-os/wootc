@@ -161,18 +161,30 @@ def freeze_classic_sources(destination, observation, esp, host,
                     'classic signed package is not installed')
             expected=digest(canonical)
         else:
-            canonical=path
-            facts=query('rpm','-qf','--qf','%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n',str(path)).strip().split('\t')
+            format_info='%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n'
+            facts_raw=query('rpm','-q','--qf',format_info,package)
+            facts=facts_raw.strip().split('\t')
             require(len(facts)==4 and facts[0]==package and facts[1] and facts[2]=='x86_64' and facts[3]=='8',
                     'classic RPM owner/architecture/digest algorithm differs')
-            rows=query('rpm','-qf','--qf','[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILESTATES}\t%{FILEMODES:octal}\n]',str(path)).splitlines()
-            entries=[row.split('\t') for row in rows if row.split('\t')[0]==str(path)]
+            rows=query('rpm','-q','--qf','[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILESTATES}\t%{FILEMODES:octal}\n]',package).splitlines()
+            version=facts[1].removeprefix('0:')
+            require('/' not in version and version not in ('.','..'), 'invalid classic RPM version path')
+            family='grub2' if name=='grubx64.efi' else 'shim'
+            versioned=Path(prefix)/'usr/lib/efi'/family/version/'EFI'/vendor/name
+            entries=[row.split('\t') for row in rows if row.split('\t')[0] in (str(path),str(versioned))]
             require(len(entries)==1 and len(entries[0])==4 and entries[0][2]=='0',
-                    'classic RPM payload is missing or not installed normally')
-            entry=entries[0]
+                    'classic RPM payload is missing, ambiguous or not installed normally')
+            entry=entries[0];canonical=Path(entry[0])
+            if canonical!=path:
+                canonical,canonical_mount=classic_mount(canonical,mounts)
+                require(canonical_mount['device']==observation['rootDevice'], 'canonical RPM payload outside classic root')
+                canonical_paths[Path(entry[0])]=canonical
+            require(query('rpm','-qf','--qf',format_info,str(canonical))==facts_raw,
+                    'canonical RPM payload owner differs')
             require(len(entry[1])==64 and all(c in '0123456789abcdef' for c in entry[1]) and
                     int(entry[3],8)&0o170000==0o100000, 'invalid classic RPM file digest/type')
             expected=entry[1]
+            require(digest(canonical)==expected, 'canonical RPM payload differs from installed package')
         package_fact={'version':facts[1],'architecture':facts[3] if manager=='dpkg' else facts[2]}
         require(package not in packages or packages[package]==package_fact,
                 'classic package changed between component queries')

@@ -44,13 +44,23 @@ class ClassicSourceTests(unittest.TestCase):
     def command(self,*args):
         if args[0]=='blkid':return 'ABCD-1234'
         if args[0]=='rpm':
-            package='grub2-efi-x64' if args[-1].endswith('grubx64.efi') else 'shim-x64'
-            if '%{NAME}' in args[3]:return package+'\t0:1.0-1\tx86_64\t8\n'
-            expected=hashlib.sha256(Path(args[-1]).read_bytes()).hexdigest()
-            if getattr(self,'rpm_bad_digest',False):expected='0'*64
-            state='1' if getattr(self,'rpm_replaced_file',False) else '0'
-            return args[-1]+'\t'+expected+'\t'+state+'\t100700\n'
-
+            package=args[-1] if args[1]=='-q' else ('grub2-efi-x64' if args[-1].endswith('grubx64.efi') else 'shim-x64')
+            if '%{NAME}' in args[3]:
+                if args[1]=='-qf' and getattr(self,'rpm_wrong_owner',False):package='foreign-package'
+                version='0:2.0-1' if getattr(self,'rpm_wrong_evr',False) else '0:1.0-1'
+                return package+'\t'+version+'\tx86_64\t8\n'
+            names=['grubx64.efi'] if package=='grub2-efi-x64' else ['shimx64.efi','mmx64.efi']
+            rows=[]
+            for name in names:
+                path=self.fat/'EFI/almalinux'/name
+                if getattr(self,'rpm_versioned_paths',False):
+                    family='grub2' if name=='grubx64.efi' else 'shim'
+                    path=self.install/'usr/lib/efi'/family/'1.0-1/EFI/almalinux'/name
+                expected=hashlib.sha256(path.read_bytes()).hexdigest()
+                if getattr(self,'rpm_bad_digest',False):expected='0'*64
+                state='1' if getattr(self,'rpm_replaced_file',False) else '0'
+                rows.append(str(path)+'\t'+expected+'\t'+state+'\t100700\n')
+            return ''.join(rows)
         if args[1]=='--search':
             owner=self.paths[args[2]]
             if getattr(self,'mutate_owner_after_capture',False) and self.queries>=3:owner='foreign-package'
@@ -112,6 +122,32 @@ class ClassicSourceTests(unittest.TestCase):
         metadata=json.loads((self.root/'snapshot/EFI.json').read_text())
         self.assertEqual(set(result),{'almalinux'});self.assertEqual(metadata['packageManager'],'rpm')
         self.assertEqual(set(metadata['packages']),{'shim-x64','grub2-efi-x64'})
+
+    def versioned_rpm_layout(self):
+        self.rpm_layout();self.rpm_versioned_paths=True
+        for name in source.FILES:
+            family='grub2' if name=='grubx64.efi' else 'shim'
+            canonical=self.install/'usr/lib/efi'/family/'1.0-1/EFI/almalinux'/name
+            canonical.parent.mkdir(parents=True,exist_ok=True)
+            canonical.write_bytes((self.fat/'EFI/almalinux'/name).read_bytes())
+
+    def test_versioned_rpm_payload_binds_unowned_classic_fat_copy(self):
+        self.versioned_rpm_layout()
+        self.assertEqual(set(self.freeze()),{'almalinux'})
+
+    def test_versioned_rpm_canonical_owner_refuses_foreign_package(self):
+        self.versioned_rpm_layout();self.rpm_wrong_owner=True
+        with self.assertRaisesRegex(ValueError,'owner differs'):self.freeze()
+
+    def test_versioned_rpm_payload_must_match_exact_installed_evr(self):
+        self.versioned_rpm_layout();self.rpm_wrong_evr=True
+        with self.assertRaisesRegex(ValueError,'missing, ambiguous'):self.freeze()
+
+    def test_versioned_rpm_payload_on_foreign_mount_refuses(self):
+        self.versioned_rpm_layout()
+        with self.mountinfo.open('a') as stream:
+            stream.write(f'5 1 8:4 / {self.install}/usr rw - ext4 /dev/vda4 rw\n')
+        with self.assertRaisesRegex(ValueError,'outside classic root'):self.freeze()
 
     def test_rpm_package_digest_mismatch_refuses(self):
         self.rpm_layout();self.rpm_bad_digest=True
