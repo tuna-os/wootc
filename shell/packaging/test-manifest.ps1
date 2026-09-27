@@ -38,8 +38,9 @@ try {
     $wrongBrand=New-PublicPackage -Name 'wrong-brand'
     [IO.File]::WriteAllText((Join-Path $wrongBrand 'Branding/brand.json'),'{}')
     Assert-Refused -Directory $wrongBrand
+    $rootTarget=New-PublicPackage -Name 'root-target'
     $link=Join-Path $testRoot 'root-link'
-    New-Item -ItemType Junction -Path $link -Target $positive | Out-Null
+    New-Item -ItemType Junction -Path $link -Target $rootTarget | Out-Null
     try { Assert-Refused -Directory $link } finally { Remove-Item -LiteralPath $link -Force }
     $child=New-PublicPackage -Name 'child-link'
     $childLink=Join-Path $child 'foreign-link'
