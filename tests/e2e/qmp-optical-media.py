@@ -130,12 +130,17 @@ def observe(qmp, allowed):
     return result
 
 
-def detach(qmp, allowed):
+def owned_paths(allowed):
     if not allowed or len(allowed) > 8 or len(set(allowed)) != len(allowed):
         raise Refusal('Missing or ambiguous owned-media allowlist')
     for path in allowed:
         if not re.fullmatch(r'/[A-Za-z0-9_./-]+\.iso', path) or '..' in path.split('/'):
             raise Refusal('Invalid owned optical-media path')
+    return set(allowed)
+
+
+def detach(qmp, allowed):
+    allowed = owned_paths(allowed)
     before = observe(qmp, set(allowed))
     removed = []
     for row in before:
@@ -152,16 +157,29 @@ def detach(qmp, allowed):
     return {'schema': 1, 'before': before, 'removed': removed, 'after': after, 'empty': True}
 
 
+def check_empty(qmp, allowed):
+    allowed = owned_paths(allowed)
+    before = observe(qmp, set(allowed))
+    if any(row['medium'] is not None for row in before):
+        raise Refusal('Optical medium is currently inserted')
+    after = observe(qmp, set(allowed))
+    if before != after or any(row['medium'] is not None for row in after):
+        raise Refusal('Current empty optical identity changed')
+    return {'schema': 1, 'operation': 'check-empty', 'before': before,
+            'removed': [], 'after': after, 'empty': True}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--socket', required=True)
     parser.add_argument('--timeout', type=float, default=15)
     parser.add_argument('--allow', action='append', required=True)
+    parser.add_argument('--check-empty', action='store_true')
     args = parser.parse_args()
     qmp = None
     try:
         qmp = QMP(args.socket, args.timeout)
-        receipt = detach(qmp, args.allow)
+        receipt = check_empty(qmp, args.allow) if args.check_empty else detach(qmp, args.allow)
     except (Refusal, OSError, ValueError, TypeError, RecursionError):
         print('Optical-media observation or removal refused', file=sys.stderr)
         return 1
