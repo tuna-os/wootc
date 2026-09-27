@@ -390,7 +390,23 @@ func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState
 	if err != nil {
 		return err
 	}
+	sourceHashes, err := observerBuilderSources(metadata)
+	if err != nil {
+		return err
+	}
+	if _, err = log.Seek(0, 0); err != nil {
+		return err
+	}
+	installed := *state
+	installed.DiskID = receipt.DiskID
+	sourceHashes, err = verifyVMObserverReceipt(log, installed, sourceHashes)
+	if err != nil {
+		return err
+	}
 	state.DiskID = receipt.DiskID
+	state.ObserverServiceSHA256 = sourceHashes["boot_probe.py"]
+	state.ObserverAncestrySHA256 = sourceHashes["wootc_ancestry.py"]
+	state.ObserverUnitSHA256 = sourceHashes["wootc-observer.service"]
 	return nil
 }
 

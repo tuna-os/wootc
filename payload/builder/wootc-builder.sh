@@ -140,7 +140,8 @@ create_account() {  # mounted ostree root; same target-chroot contract as fisher
         # used by real account creation still exists. No wire request invokes it.
         (cd /usr/lib/wootc-observer && timeout 3 sha256sum -c closure.sha256) >/dev/null || failed 'authenticated observer source closure differs'
         . /usr/lib/wootc-observer/outer_install.sh
-        observer_install_owned "$deployment" "$part" || failed 'protected target observer installation refused'
+        OBS_INSTALL_RECEIPT=$(observer_install_owned "$deployment" "$part") || failed 'protected target observer installation refused'
+        emit "$OBS_INSTALL_RECEIPT" || failed 'private observer receipt publication failed'
     fi
     umount "$deployment/dev" "$deployment/var"
     ACCOUNT_OUTCOME=created

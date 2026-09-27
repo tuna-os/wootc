@@ -25,23 +25,26 @@ const (
 // VMState records the persistent installed system, not just a process. Ready
 // means provisioning verified the disk; DesktopReady needs separate guest proof.
 type VMState struct {
-	SchemaVersion         int    `json:"schemaVersion"`
-	InstallID             string `json:"installId"`
-	RunID                 string `json:"runId"`
-	Image                 string `json:"image"`
-	Username              string `json:"username,omitempty"`
-	AccountOutcome        string `json:"accountOutcome,omitempty"`
-	DiskID                string `json:"diskId"`
-	DiskPath              string `json:"diskPath"`
-	StorageProfile        string `json:"storageProfile,omitempty"`
-	TargetCapacityBytes   uint64 `json:"targetCapacityBytes,omitempty"`
-	ScratchCapacityBytes  uint64 `json:"scratchCapacityBytes,omitempty"`
-	RuntimeManifestSHA256 string `json:"runtimeManifestSHA256,omitempty"`
-	Phase                 string `json:"phase"`
-	DesktopReady          bool   `json:"desktopReady"`
-	PID                   int    `json:"pid"`
-	Error                 string `json:"error,omitempty"`
-	UpdatedAt             string `json:"updatedAt"`
+	SchemaVersion          int    `json:"schemaVersion"`
+	InstallID              string `json:"installId"`
+	RunID                  string `json:"runId"`
+	Image                  string `json:"image"`
+	Username               string `json:"username,omitempty"`
+	AccountOutcome         string `json:"accountOutcome,omitempty"`
+	DiskID                 string `json:"diskId"`
+	DiskPath               string `json:"diskPath"`
+	StorageProfile         string `json:"storageProfile,omitempty"`
+	TargetCapacityBytes    uint64 `json:"targetCapacityBytes,omitempty"`
+	ScratchCapacityBytes   uint64 `json:"scratchCapacityBytes,omitempty"`
+	RuntimeManifestSHA256  string `json:"runtimeManifestSHA256,omitempty"`
+	Phase                  string `json:"phase"`
+	ObserverServiceSHA256  string `json:"observerServiceSha256,omitempty"`
+	ObserverAncestrySHA256 string `json:"observerAncestrySha256,omitempty"`
+	ObserverUnitSHA256     string `json:"observerUnitSha256,omitempty"`
+	DesktopReady           bool   `json:"desktopReady"`
+	PID                    int    `json:"pid"`
+	Error                  string `json:"error,omitempty"`
+	UpdatedAt              string `json:"updatedAt"`
 }
 
 func readVMState(path string) (VMState, error) {

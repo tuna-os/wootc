@@ -1,0 +1,46 @@
+{
+  "scope": "Source installation-channel composition; offline observations/syscalls controlled. No target mount/chroot/image/build/service/SELinux or guest/editor execution.",
+  "baseBeforeChanges": "30e8063",
+  "producer": "Actual installer_entry.install with controlled offline facts and transaction, then actual shell emit definition into a private file; Go verifier consumes exact emitted bytes.",
+  "metadata": "Actual fixed bundle staging CLI generates authenticated-runtime metadata hashes from deployed bytes; caller compares same three hashes before retaining VMState. Runtime sealing/real initrd build not executed.",
+  "installationOnly": true,
+  "guestBootAccepted": false,
+  "desktopQualified": false,
+  "editorQualified": false,
+  "pythonControls": 82,
+  "goControls": "go test ./...; focused TestObserver",
+  "sourceHashes": {
+    "app/vm_builder_result.go": "da03a918e7c15df93b8faf0d47912dc6508c2edb1b6782bc6a9ad688714e2f4a",
+    "app/vm_lifecycle.go": "0a18dcdeabdb4523246563d7f33904ba8aac6c28024e3a453f3363bd593d5853",
+    "app/vm_observer_install.go": "a754ee86ae7f2320826e758464fc1c55361a9bff1be9f543411c809646642ccc",
+    "app/vm_observer_install_test.go": "42be63626b082d37180a11559b03586e51dd4928daa274cc4bc2c468f7be76d6",
+    "app/vm_observer_receipt.go": "eb262600d7edb740788fea8aeba775214b4ae65b6fc903b7ccd11ae80579868d",
+    "app/vm_observer_receipt_test.go": "24739d0bd102e7afabf65c1da4531d8ef6ca9b7dfd303e5c020aad034f1d9cf8",
+    "app/vm_qmp.go": "1a434e11459306dafc415eac323e98f4c3f5d8a2b1ee94bfb9568dcdfe12e66f",
+    "app/vm_windows.go": "7f8750b180761677d90f0bcf7f554124ea54d96dffee7ebd9b705ce4eed9faa9",
+    "payload/builder/build-builder.sh": "4bd49184a2c9018c59f2c198619ddfb247566099dd24115184cd7770968bc278",
+    "payload/builder/wootc-builder.sh": "2a5784354e3bc02bfb93d386ef4735ea03fc3ebc409ff56d7c2b0ebbe5451d57",
+    "payload/vm-observer/boot_probe.py": "cd2efd909c7f0e96a1d1ea3a4dd18f0631ee0edd4231f5a7c90b9b29f9bdd196",
+    "payload/vm-observer/installer_entry.py": "0e0e1812f24cbd8f400a8f976990c43c333f32a5c6513354d3856a56f2839f6a",
+    "payload/vm-observer/outer_install.sh": "3b01caef813214afdf5b5c0c07bc552993121fd7e82a46b5a24a98dd578b43c6",
+    "payload/vm-observer/stage_bundle.py": "db8a11a18c624aa86facbd2b34eb67ca8b27c0d01d3e750ff780553aee3f1de4",
+    "payload/vm-observer/wootc-observer.service": "481c94f9fa5baf862641be2759db704fbee5ea4cc57b5dc0c98df89397500bd1",
+    "shell/Wootc.Shell/Engine/Dto.cs": "b495f3996a107646fedd637f96bd1ecd5064a6e329468fa7c759dbd4ed8575d1",
+    "tests/e2e/phase3_ancestry.py": "2bdcd2cd4d041ec77a6816a53829b90f4f8ded330bd308ee2711c048b12c84ef",
+    "tests/unit/test_vm_observer_stage_bundle.py": "dce8fe2f1a35805d3dafd284b4ec768129e90bc428edf1adba5d43e8ff6020bd",
+    "tests/unit/vm_observer_receipt_fixture.py": "0dc5a4ea8c219a053614247d045047f24283f1b99de6afed0e7788c6182548a5"
+  },
+  "removedGuard": {
+    "scope": "Isolated worktree copy; main source untouched",
+    "change": "Remove installed-vs-authenticated source hash equality in actual consumer",
+    "mutantSourceSha256": "a852704f2ad9971dbc6bd6f3f5b10884de7c42da207ed912e9cfde42b7dcb223",
+    "actualCounterexample": "Actual controlled producer/current private-channel receipt accepted despite foreign expected authenticated service source; focused test red."
+  },
+  "evidenceHashes": {
+    "mutant.raw.log": "4b6672f1a04b5a61c08e613b1bd1197951ced77ec41e7d0a5f0d5e8618925409",
+    "producer.raw.json": "9345fd0778982f7fe11aa4f4d01003c30171e452f95e9913c2107d043b84acfa",
+    "python.raw.log": "ab841c5282fdf05838d4c6ea841932f7c78e899eed6b1f24a76facf3e832cc73",
+    "go.raw.log": "cf2a5f90bde81d034f9097f26f02d8c02668712ccb45d7fe77839b8b6c4bb24c",
+    "all-go.raw.log": "007c7b51fb35df4d349cc12750d483f184dc10c82bfac271e48151597984ee10"
+  }
+}

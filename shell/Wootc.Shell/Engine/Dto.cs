@@ -850,6 +850,15 @@ public class VMState
     [JsonPropertyName("phase")]
     public string Phase { get; set; } = string.Empty;
 
+    [JsonPropertyName("observerServiceSha256")]
+    public string? ObserverServiceSha256 { get; set; }
+
+    [JsonPropertyName("observerAncestrySha256")]
+    public string? ObserverAncestrySha256 { get; set; }
+
+    [JsonPropertyName("observerUnitSha256")]
+    public string? ObserverUnitSha256 { get; set; }
+
     [JsonPropertyName("desktopReady")]
     public bool DesktopReady { get; set; }
 

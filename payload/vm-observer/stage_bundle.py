@@ -50,6 +50,17 @@ def stage(destination):
         destination.rmdir()
         raise
 
+def protocol_metadata(template,hashes):
+    value=json.loads(Path(template).read_text())
+    observer=value['observerInstall']
+    observer['sourceHashes']={name:hashes[name] for name in ('boot_probe.py','wootc_ancestry.py','wootc-observer.service')}
+    return json.dumps(value,sort_keys=True,indent=2)+'\n'
+
+
 if __name__=='__main__':
-    if len(sys.argv)!=2:raise SystemExit('fixed destination argument required')
-    print(json.dumps(stage(sys.argv[1]),sort_keys=True))
+    if len(sys.argv)!=4:raise SystemExit('fixed destination, template and metadata output required')
+    hashes=stage(sys.argv[1])
+    # Output is part of the subsequently sealed runtime artifact closure.
+    with Path(sys.argv[3]).open('x') as output:
+        output.write(protocol_metadata(sys.argv[2],hashes));output.flush();os.fsync(output.fileno())
+    print(json.dumps(hashes,sort_keys=True))

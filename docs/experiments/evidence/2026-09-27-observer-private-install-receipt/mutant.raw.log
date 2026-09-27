@@ -1,0 +1,5 @@
+--- FAIL: TestObserverActualInstallerPrivateEmissionAndHostReceipt (0.25s)
+    vm_observer_receipt_test.go:71: foreign authenticated source accepted
+FAIL
+FAIL	wootc	0.257s
+FAIL

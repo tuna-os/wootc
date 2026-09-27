@@ -11,58 +11,79 @@ import (
 
 // The authenticated helper metadata must advertise this exact installer route.
 // This capability concerns offline installation, never guest/desktop acceptance.
-func observerBuilderKernelArgs(metadata []byte, state *VMState) (string, error) {
-	if len(metadata) == 0 || len(metadata) > 64<<10 || state == nil {
-		return "", fmt.Errorf("observer helper metadata unavailable")
+func observerBuilderSources(metadata []byte) (map[string]string, error) {
+	if len(metadata) == 0 || len(metadata) > 64<<10 {
+		return nil, fmt.Errorf("observer helper metadata unavailable")
 	}
 	duplicate := json.NewDecoder(bytes.NewReader(metadata))
 	if err := qmpJSONValue(duplicate, 0); err != nil {
-		return "", fmt.Errorf("invalid observer helper metadata: %w", err)
+		return nil, fmt.Errorf("invalid observer helper metadata: %w", err)
 	}
 	if _, err := duplicate.Token(); err != io.EOF {
-		return "", fmt.Errorf("trailing observer helper metadata")
+		return nil, fmt.Errorf("trailing observer helper metadata")
 	}
 	if _, err := parseVMStorageMinimums(metadata); err != nil {
-		return "", err
+		return nil, err
 	}
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(metadata, &envelope); err != nil {
-		return "", err
+		return nil, err
 	}
 	for key := range envelope {
 		if strings.EqualFold(key, "observerInstall") && key != "observerInstall" {
-			return "", fmt.Errorf("observer capability key must use exact spelling")
+			return nil, fmt.Errorf("observer capability key must use exact spelling")
 		}
 	}
 	observer := envelope["observerInstall"]
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(observer, &fields); err != nil {
-		return "", fmt.Errorf("invalid observer capability: %w", err)
+		return nil, fmt.Errorf("invalid observer capability: %w", err)
 	}
-	allowed := map[string]bool{"mode": true, "accountModes": true, "sourceClosure": true, "targetPythonIsolated": true, "installationOnly": true}
+	allowed := map[string]bool{"mode": true, "accountModes": true, "sourceClosure": true, "targetPythonIsolated": true, "installationOnly": true, "sourceHashes": true}
 	if len(fields) != len(allowed) {
-		return "", fmt.Errorf("observer capability fields differ")
+		return nil, fmt.Errorf("observer capability fields differ")
 	}
 	for key := range fields {
 		if !allowed[key] {
-			return "", fmt.Errorf("unknown observer capability field %q", key)
+			return nil, fmt.Errorf("unknown observer capability field %q", key)
 		}
 	}
 
 	var capability struct {
-		Mode                 string   `json:"mode"`
-		AccountModes         []string `json:"accountModes"`
-		SourceClosure        string   `json:"sourceClosure"`
-		TargetPythonIsolated bool     `json:"targetPythonIsolated"`
-		InstallationOnly     bool     `json:"installationOnly"`
+		Mode                 string            `json:"mode"`
+		AccountModes         []string          `json:"accountModes"`
+		SourceClosure        string            `json:"sourceClosure"`
+		TargetPythonIsolated bool              `json:"targetPythonIsolated"`
+		InstallationOnly     bool              `json:"installationOnly"`
+		SourceHashes         map[string]string `json:"sourceHashes"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(observer))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&capability); err != nil {
-		return "", fmt.Errorf("observer installation capability absent or invalid: %w", err)
+		return nil, fmt.Errorf("observer installation capability absent or invalid: %w", err)
 	}
 	if capability.Mode != "boot-session-v1" || len(capability.AccountModes) != 1 || capability.AccountModes[0] != "create" || capability.SourceClosure != "/usr/lib/wootc-observer/closure.sha256" || !capability.TargetPythonIsolated || !capability.InstallationOnly {
-		return "", fmt.Errorf("unsupported observer installation capability")
+		return nil, fmt.Errorf("unsupported observer installation capability")
+	}
+
+	if len(capability.SourceHashes) != 3 {
+		return nil, fmt.Errorf("observer source closure absent")
+	}
+	digest := regexp.MustCompile(`^[a-f0-9]{64}$`)
+	for _, name := range []string{"boot_probe.py", "wootc_ancestry.py", "wootc-observer.service"} {
+		if !digest.MatchString(capability.SourceHashes[name]) {
+			return nil, fmt.Errorf("observer source hash absent or invalid")
+		}
+	}
+	return capability.SourceHashes, nil
+}
+
+func observerBuilderKernelArgs(metadata []byte, state *VMState) (string, error) {
+	if state == nil {
+		return "", fmt.Errorf("observer installation identity unavailable")
+	}
+	if _, err := observerBuilderSources(metadata); err != nil {
+		return "", err
 	}
 	id := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$`)
 	image := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[a-f0-9]{64}$`)
