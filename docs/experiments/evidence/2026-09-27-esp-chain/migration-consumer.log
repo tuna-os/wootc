@@ -1,0 +1,15 @@
+[PASS] ESP consumer: refused preparation reports failure
+[PASS] ESP consumer: refused preparation writes no artifacts
+[PASS] ESP consumer: malformed controller output reports failure
+[PASS] ESP consumer: malformed output writes no artifacts
+[PASS] ESP consumer: stale kernel refreshed from actual BLS entry
+[PASS] ESP consumer: GRUB config carries actual loop args
+[PASS] ESP consumer: preparation precedes delegated writes
+[PASS] ESP consumer: foreign systemd neighbor preserved without loader mutation
+[PASS] ESP consumer: classic kernel discovery through controlled adapter
+[PASS] Actual ESP controller: measured root identity refusal
+[PASS] Actual ESP controller: refusal preserves all boot artifacts
+RESULT: 69 passed, 0 failed
+RESULT: 6 passed, 0 failed
+RESULT: 6 passed, 0 failed
+RESULT: 12 passed, 0 failed

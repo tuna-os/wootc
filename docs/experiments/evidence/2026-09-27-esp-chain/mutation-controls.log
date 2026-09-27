@@ -1,0 +1,32 @@
+mixed-trust mutant exit 1
+F
+======================================================================
+FAIL: test_key_rotation_requires_both_shims_accept_both_companions (test_wootc_chain_verify.PolicyTests.test_key_rotation_requires_both_shims_accept_both_companions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-esp-chain-transaction/tests/unit/test_wootc_chain_verify.py", line 73, in test_key_rotation_requires_both_shims_accept_both_companions
+    with self.assertRaisesRegex(ValueError,'opposite shim'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.018s
+
+FAILED (failures=1)
+
+kernel approval binding mutant exit 1
+F
+======================================================================
+FAIL: test_source_swap_after_control_approval_refuses_before_esp_write (test_wootc_esp_control.ControlTests.test_source_swap_after_control_approval_refuses_before_esp_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-esp-chain-transaction/tests/unit/test_wootc_esp_control.py", line 55, in test_source_swap_after_control_approval_refuses_before_esp_write
+    with patch.object(control.Transaction,'write_artifact',swap),                 self.assertRaisesRegex(ValueError,'authenticated preflight hash'):
+                                                                                  ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.046s
+
+FAILED (failures=1)
+
