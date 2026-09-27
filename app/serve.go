@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -54,6 +55,7 @@ var ProtocolMethods = []string{
 	"GetVMCapability",
 	"GetFreshVMCapability",
 	"GetVMState",
+	"ObserveVMGuestSession",
 	"TryInVMFresh",
 	"PrepareVM",
 	"InstallVMRuntime",
@@ -373,6 +375,15 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return s.app.GetFreshVMCapability(), nil
 	case "GetVMState":
 		return s.app.GetVMState(), nil
+	case "ObserveVMGuestSession":
+		if raw := strings.TrimSpace(string(req.Params)); raw != "" && raw != "null" && raw != "[]" {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "guest observation accepts no caller parameters"}
+		}
+		observed, err := s.app.observeVMGuestSession(ctx)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return observed, nil
 	case "InstallVMRuntime":
 		if err := s.app.InstallVMRuntime(); err != nil {
 			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}

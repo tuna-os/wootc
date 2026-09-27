@@ -112,16 +112,12 @@ func (s *vmSession) observeGuest(ctx context.Context) (VMGuestSessionObservation
 	return VMGuestSessionObservation{RunID: req.RunID, InstallID: req.InstallID, DiskID: req.DiskID, SessionID: req.SessionID, RequestID: req.RequestID, BootID: observed.BootID, KernelRelease: observed.KernelRelease, OrdinarySession: observed.OrdinarySession, RootTarget: observed.Root.Target, RootMeasurements: observed.Root.Measurements}, nil
 }
 
-func (a *App) ObserveVMGuestSession() (VMGuestSessionObservation, error) {
+func (a *App) observeVMGuestSession(ctx context.Context) (VMGuestSessionObservation, error) {
 	a.vmMu.Lock()
 	session := a.vmSession
 	a.vmMu.Unlock()
 	if session == nil {
 		return VMGuestSessionObservation{}, fmt.Errorf("no engine-owned VM session")
-	}
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	out, err := session.observeGuest(ctx)
 	if err != nil {
@@ -134,4 +130,12 @@ func (a *App) ObserveVMGuestSession() (VMGuestSessionObservation, error) {
 		return VMGuestSessionObservation{}, fmt.Errorf("engine-owned VM session changed")
 	}
 	return out, nil
+}
+
+func (a *App) ObserveVMGuestSession() (VMGuestSessionObservation, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.observeVMGuestSession(ctx)
 }

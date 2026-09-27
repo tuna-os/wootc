@@ -136,3 +136,25 @@ func TestVMGuestRouteBudgetsAndAbsence(t *testing.T) {
 		t.Fatal("absent engine-owned session accepted")
 	}
 }
+
+func TestVMGuestRouteActualRPCDispatch(t *testing.T) {
+	s, f := routeFixture(t)
+	server := &Server{app: &App{vmSession: s}}
+	result, err := server.dispatch(context.Background(), jsonrpcRequest{Method: "ObserveVMGuestSession", Params: json.RawMessage("[]")})
+	if err != nil || result == nil || f.calls != 1 {
+		t.Fatalf("actual read-only dispatch %v %v", result, err)
+	}
+	for _, raw := range []string{`{"command":"exec"}`, `["foreign-run"]`, `{"serviceSha256":"foreign"}`} {
+		if _, err = server.dispatch(context.Background(), jsonrpcRequest{Method: "ObserveVMGuestSession", Params: json.RawMessage(raw)}); err == nil || err.Code != errCodeInvalidParams || f.calls != 1 {
+			t.Fatal("caller parameters reached observer")
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err = server.dispatch(ctx, jsonrpcRequest{Method: "ObserveVMGuestSession"}); err == nil || f.calls != 1 {
+		t.Fatal("request context cancellation ignored")
+	}
+	if s.state.DesktopReady {
+		t.Fatal("dispatch changed desktop qualification")
+	}
+}
