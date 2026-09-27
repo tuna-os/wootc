@@ -1,0 +1,14 @@
+{
+  "scope": "Actual helper decoder source controls; no target installation or VM acceptance",
+  "beforeSource": "61837c1",
+  "before": "Wrong top ObserverInstall and nested Mode armed observer. Case-colliding duplicates already refused by shared QMP scanner.",
+  "after": "Exact nested key catalogue and top semantic alias refusal; unrelated protocol fields retained.",
+  "sourceHashes": {
+    "app/vm_observer_install.go": "da69b5af2d231b22abe16532b5662a7c709d749afeaa28fcda01e5e6512789b4",
+    "app/vm_observer_install_test.go": "6b178b11daf478781d477b8703eecaec577da102100db757dca6da6d3def1688"
+  },
+  "evidenceHashes": {
+    "before.raw.log": "b1e172c871bd47f1cb6cdc91d6cf2d7cf2cdd16c78b321d563c9d758ca2b591f",
+    "after.raw.log": "078d667c5086837a216a5efcaad87f8eff4e6e618e2be9d2f22844f8be7a1a6f"
+  }
+}

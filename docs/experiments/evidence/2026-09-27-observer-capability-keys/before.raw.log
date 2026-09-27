@@ -1,0 +1,8 @@
+--- FAIL: TestObserverCapabilityCaseAliasesRefuse (0.00s)
+    --- FAIL: TestObserverCapabilityCaseAliasesRefuse/wrongTopCase (0.00s)
+        vm_observer_install_test.go:60: case alias armed observer
+    --- FAIL: TestObserverCapabilityCaseAliasesRefuse/wrongNestedCase (0.00s)
+        vm_observer_install_test.go:60: case alias armed observer
+FAIL
+FAIL	wootc	0.008s
+FAIL

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
 )
 
 // The authenticated helper metadata must advertise this exact installer route.
@@ -24,12 +25,30 @@ func observerBuilderKernelArgs(metadata []byte, state *VMState) (string, error) 
 	if _, err := parseVMStorageMinimums(metadata); err != nil {
 		return "", err
 	}
-	var envelope struct {
-		Observer json.RawMessage `json:"observerInstall"`
-	}
+	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(metadata, &envelope); err != nil {
 		return "", err
 	}
+	for key := range envelope {
+		if strings.EqualFold(key, "observerInstall") && key != "observerInstall" {
+			return "", fmt.Errorf("observer capability key must use exact spelling")
+		}
+	}
+	observer := envelope["observerInstall"]
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(observer, &fields); err != nil {
+		return "", fmt.Errorf("invalid observer capability: %w", err)
+	}
+	allowed := map[string]bool{"mode": true, "accountModes": true, "sourceClosure": true, "targetPythonIsolated": true, "installationOnly": true}
+	if len(fields) != len(allowed) {
+		return "", fmt.Errorf("observer capability fields differ")
+	}
+	for key := range fields {
+		if !allowed[key] {
+			return "", fmt.Errorf("unknown observer capability field %q", key)
+		}
+	}
+
 	var capability struct {
 		Mode                 string   `json:"mode"`
 		AccountModes         []string `json:"accountModes"`
@@ -37,7 +56,7 @@ func observerBuilderKernelArgs(metadata []byte, state *VMState) (string, error) 
 		TargetPythonIsolated bool     `json:"targetPythonIsolated"`
 		InstallationOnly     bool     `json:"installationOnly"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(envelope.Observer))
+	decoder := json.NewDecoder(bytes.NewReader(observer))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&capability); err != nil {
 		return "", fmt.Errorf("observer installation capability absent or invalid: %w", err)
