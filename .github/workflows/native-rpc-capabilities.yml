@@ -27,6 +27,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $originalTemp=$env:TEMP
+          $originalTmp=$env:TMP
           $common=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
           $directory=Join-Path $common "wootc-assessment-controls-$([guid]::NewGuid().ToString('N'))"
           if (Test-Path -LiteralPath $directory) { throw 'Refusing existing control directory' }
@@ -35,6 +36,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Private control ACL failed' }
           try {
             $env:TEMP=$directory
+            $env:TMP=$directory
             foreach ($source in @('app/serve.go','app/serve_assessment_test.go')) {
               Write-Output "SOURCE $source SHA256 $((Get-FileHash -LiteralPath $source).Hash)"
             }
@@ -51,5 +53,6 @@ jobs:
             } finally { Pop-Location }
           } finally {
             $env:TEMP=$originalTemp
+            $env:TMP=$originalTmp
             Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop
           }
