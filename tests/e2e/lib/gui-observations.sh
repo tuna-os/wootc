@@ -53,3 +53,32 @@ gui_wait_handover() {
     infra_fail "GUI handover could not be observed within the deadline (last observation: ${WOOTC_GUI_HANDOVER_OBSERVATION:-unknown})"
     return 1
 }
+
+gui_write_reboot_directive() {
+    local observed remaining
+    WOOTC_GUI_OBSERVATION_DEADLINE=$(( $(date +%s) + 60 ))
+    # shellcheck disable=SC2016
+    observed=$(wootc_gui_observation_call powershell '$env:OS' 2>/dev/null) || {
+        infra_fail "GUI reboot directive requires positive Windows identity"; return 1;
+    }
+    observed=$(printf '%s' "$observed" | tr -d '\r\n')
+    [ "$observed" = Windows_NT ] || {
+        infra_fail "GUI reboot directive requires positive Windows identity"; return 1;
+    }
+    remaining=$((WOOTC_GUI_OBSERVATION_DEADLINE - $(date +%s)))
+    [ "$remaining" -gt 0 ] || { infra_fail "GUI reboot directive deadline expired before write"; return 1; }
+    # One write only; a failed or timed-out side effect is never replayed.
+    # shellcheck disable=SC2016
+    observed=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" "${WOOTC_GUI_OBSERVATION_CALL:?Configure GUI observations first}" powershell '
+$ErrorActionPreference = "Stop"
+$directive = "{`"action`":`"reboot`"}"
+Set-Content -LiteralPath C:\wootc\e2e-drive.json -Value $directive -Encoding ascii
+$readback = Get-Content -LiteralPath C:\wootc\e2e-drive.json -Raw
+if ($readback.Trim() -ne $directive) { throw "GUI reboot directive readback mismatch" }
+Write-Output "gui-reboot-directive-written"
+' 2>/dev/null) || { infra_fail "GUI reboot directive write/readback failed; handover refused"; return 1; }
+    observed=$(printf '%s' "$observed" | tr -d '\r\n')
+    [ "$observed" = gui-reboot-directive-written ] || {
+        infra_fail "GUI reboot directive acknowledgment is unknown; handover refused"; return 1;
+    }
+}

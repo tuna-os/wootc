@@ -2826,9 +2826,7 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
 
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
-    qga_powershell '@"
-{"action":"reboot"}
-"@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii' >/dev/null
+    gui_write_reboot_directive || { capture_vm_diagnostics; exit 1; }
     info "Reboot directive written through the guest command"
 
     # A failed Windows probe is unknown identity, and ping loss is only a

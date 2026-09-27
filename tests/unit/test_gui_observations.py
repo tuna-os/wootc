@@ -17,7 +17,9 @@ infra_fail() {{ echo "INFRA $*"; }}
 qga_call() {{
  printf '%s\\n' "$*" >> "$CALLS"
  case "$1" in
- powershell) printf '%s' "$WINDOWS"; return "$WINDOWS_RC" ;;
+ powershell)
+ if [[ "$2" == *Set-Content* ]]; then printf '%s' "$WRITE_REPLY"; return "$WRITE_RC"; fi
+ printf '%s' "$WINDOWS"; return "$WINDOWS_RC" ;;
  exec) printf '%s' "$LINUX"; return "$LINUX_RC" ;;
  ping) return "$PING_RC" ;;
  esac
@@ -28,7 +30,7 @@ wootc_gui_observations_configure qga_call
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / 'calls'
             calls.touch()
-            defaults = dict(WINDOWS='', WINDOWS_RC='1', LINUX='', LINUX_RC='1', PING_RC='0')
+            defaults = dict(WINDOWS='', WINDOWS_RC='1', LINUX='', LINUX_RC='1', PING_RC='0', WRITE_REPLY='gui-reboot-directive-written', WRITE_RC='0')
             result = subprocess.run(['bash', '-c', prefix+body], capture_output=True, text=True,
                                     timeout=4, env={**os.environ, **defaults, **env, 'CALLS':str(calls)})
             return result, calls.read_text()
@@ -133,6 +135,34 @@ gui_wait_handover 1
         linux, _ = self.run_shell(body,LINUX='Linux',LINUX_RC='0')
         self.assertEqual(linux.returncode,0,linux.stderr)
         self.assertIn('Positive Linux identity',linux.stdout)
+
+    def test_directive_write_requires_windows_success_and_exact_readback_ack(self):
+        for reply,status in [('gui-reboot-directive-written','0'),('gui-reboot-directive-written','7'),('','0'),('gui-reboot-directive-written\nnoise','0')]:
+            result,calls=self.run_shell('gui_write_reboot_directive; echo WRITTEN',WINDOWS='Windows_NT',WINDOWS_RC='0',WRITE_REPLY=reply,WRITE_RC=status)
+            self.assertEqual('WRITTEN' in result.stdout,status=='0' and reply=='gui-reboot-directive-written')
+            self.assertIn('$ErrorActionPreference = "Stop"',calls)
+            self.assertIn('Get-Content -LiteralPath',calls)
+            self.assertIn('readback.Trim()',calls)
+        result,calls=self.run_shell('gui_write_reboot_directive; echo WRITTEN',WINDOWS='Windows_NT',WINDOWS_RC='7')
+        self.assertNotEqual(result.returncode,0)
+        self.assertNotIn('Set-Content',calls)
+
+    def test_actual_directive_consumer_stops_before_handover_on_failed_write(self):
+        source=(ROOT/'tests/e2e/run-e2e.sh').read_text()
+        tail=source.split('    gui_write_reboot_directive ||',1)[1]
+        tail='gui_write_reboot_directive ||'+tail.split('\n}\n\nif [ "$GUI_INSTALL" = true ]; then',1)[0]
+        body='info() { echo "$*"; }; step() { :; }; capture_vm_diagnostics() { echo DIAGNOSTICS; };'+tail.replace('gui_wait_handover 180','gui_wait_handover 1')
+        result,calls=self.run_shell(body,WINDOWS='Windows_NT',WINDOWS_RC='0',WRITE_RC='7')
+        self.assertNotEqual(result.returncode,0)
+        self.assertNotIn('Reboot directive written',result.stdout)
+        self.assertIn('DIAGNOSTICS',result.stdout)
+        self.assertEqual(calls.count('powershell'),2)
+        self.assertNotIn('ping',calls)
+        # Removing the real caller refusal would proceed to the handover gate.
+        mutant=body.replace('gui_write_reboot_directive || { capture_vm_diagnostics; exit 1; }','gui_write_reboot_directive || true',1)
+        broken,broken_calls=self.run_shell(mutant,WINDOWS='Windows_NT',WINDOWS_RC='0',WRITE_RC='7')
+        self.assertIn('Reboot directive written',broken.stdout)
+        self.assertGreater(broken_calls.count('powershell'),2)
 
     def test_actual_runner_does_not_claim_reboot_from_unknown_windows(self):
         source = (ROOT/'tests/e2e/run-e2e.sh').read_text()
