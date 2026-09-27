@@ -1,6 +1,9 @@
-param([string]$HelperPath = (Join-Path $PSScriptRoot 'fixture-bitlocker-protection.ps1'))
+param([string]$HelperPath = (Join-Path $PSScriptRoot 'fixture-bitlocker-protection.ps1'), [string]$KeyHelperPath = (Join-Path $PSScriptRoot 'fixture-bitlocker-key.ps1'))
 $ErrorActionPreference = 'Stop'
-. $HelperPath
+. ([scriptblock]::Create([IO.File]::ReadAllText($KeyHelperPath)))
+. ([scriptblock]::Create([IO.File]::ReadAllText($HelperPath)))
+# Policy-only core controls; production boundary receipt is exercised separately.
+function Write-WootcFixtureBeforeReceipt { param($KeyPath,$Metadata) }
 $script:publicKey = '111111-111111-111111-111111-111111-111111-111111-111111'
 function New-MockProtector { param($Type,$Id)
     [pscustomobject]@{KeyProtectorType=$Type;KeyProtectorId=$Id;RecoveryPassword=$script:publicKey}
@@ -21,7 +24,7 @@ function Get-BitLockerVolume { param($MountPoint,$ErrorAction)
     $script:volume
 }
 function Get-Tpm { param($ErrorAction) $script:tpmState }
-function Export-WootcFixtureBitLockerKey { param($Destination,[switch]$EnsureProtector)
+function Export-WootcFixtureBitLockerKeyCore { param($Destination,[switch]$EnsureProtector)
     if ($Destination -ne 'synthetic-private-key.txt') { throw 'Wrong private export destination' }
     $script:exportCalls++
     if ($script:exportError) { throw 'Mock secret-bearing export error' }
@@ -61,7 +64,7 @@ foreach ($initial in @('both','recoveryOnly','tpmOnly','none','nullProtectors','
         'nullProtectors' {$script:volume.KeyProtector=$null}
         'alreadyOn' {$script:volume.ProtectionStatus='On'}
     }
-    $output = @(Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath 'synthetic-private-key.txt')
+    $output = @(Initialize-WootcFixtureBitLockerProtectionCore -RecoveryKeyPath 'synthetic-private-key.txt')
     if ($output -match [regex]::Escape($script:publicKey)) { throw 'Secret escaped activation output' }
     if ($output.Count -ne 2 -or $output[0] -notlike 'bitlocker-fixture-metadata *') { throw 'Missing before-mutation metadata' }
     $before = $output[0].Substring('bitlocker-fixture-metadata '.Length) | ConvertFrom-Json
@@ -108,7 +111,7 @@ foreach ($case in @('missing','duplicate','wrongMount','wrongType','locked','dec
         'finalTpmUnavailable' {$script:finalTpmUnavailable=$true}
     }
     $failed=$false
-    try { Initialize-WootcFixtureBitLockerProtection -RecoveryKeyPath 'synthetic-private-key.txt' | Out-Null } catch {
+    try { Initialize-WootcFixtureBitLockerProtectionCore -RecoveryKeyPath 'synthetic-private-key.txt' | Out-Null } catch {
         $failed=$true
         if ($_.Exception.Message -ne 'BitLocker fixture protection activation failed; refusing to schedule installed Linux') { throw 'Secret-bearing exception escaped' }
     }

@@ -1,7 +1,7 @@
 # Native PowerShell 5.1 tests. Mock BitLocker cmdlets; only disposable files change.
 param([string]$HelperPath = (Join-Path $PSScriptRoot 'fixture-bitlocker-key.ps1'))
 $ErrorActionPreference = 'Stop'
-. $HelperPath
+. ([scriptblock]::Create([IO.File]::ReadAllText($HelperPath)))
 $dir = Join-Path $env:TEMP ('wootc-fixture-key-test-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $dir | Out-Null
 & icacls.exe $dir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
@@ -40,7 +40,7 @@ try {
     $transcriptPath = Join-Path $dir 'synthetic-transcript.txt'
     Start-Transcript -LiteralPath $transcriptPath -Force | Out-Null
     try {
-        $exportOutput = @(Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector *>&1)
+        $exportOutput = @(Export-WootcFixtureBitLockerKeyCore -Destination $path -EnsureProtector *>&1)
     } finally { Stop-Transcript | Out-Null }
     if ($exportOutput.Count -ne 0) { throw 'Recovery material escaped an output stream' }
     if ((Get-Content -LiteralPath $transcriptPath -Raw) -match [regex]::Escape($script:password)) {
@@ -61,26 +61,26 @@ try {
         if ($keyByte -gt 127) { throw 'Recovery export must not contain a BOM or non-ASCII bytes' }
     }
     Write-Output 'PASS exported key is 55 canonical ASCII characters with seven separators and CRLF, no BOM'
-    Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector
+    Export-WootcFixtureBitLockerKeyCore -Destination $path -EnsureProtector
     if ($script:adds -ne 1) { throw 'Existing protector was duplicated' }
     Write-Output 'PASS existing protector reused'
     $script:protector=$null; $script:failAdd=$true
-    Assert-Failure { Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector } $path
+    Assert-Failure { Export-WootcFixtureBitLockerKeyCore -Destination $path -EnsureProtector } $path
     Write-Output 'PASS creation failure stops and removes stale key'
     $script:failAdd=$false
-    Assert-Failure { Export-WootcFixtureBitLockerKey -Destination $path } $path
+    Assert-Failure { Export-WootcFixtureBitLockerKeyCore -Destination $path } $path
     if ($script:adds -ne 2) { throw 'Refresh created a protector' }
     Write-Output 'PASS refresh refuses missing protector'
     $script:protector=[pscustomobject]@{KeyProtectorType='RecoveryPassword'; RecoveryPassword='invalid'}
-    Assert-Failure { Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector } $path
+    Assert-Failure { Export-WootcFixtureBitLockerKeyCore -Destination $path -EnsureProtector } $path
     Write-Output 'PASS malformed password refused'
     $script:status='FullyDecrypted'
-    Assert-Failure { Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector } $path
+    Assert-Failure { Export-WootcFixtureBitLockerKeyCore -Destination $path -EnsureProtector } $path
     Write-Output 'PASS plaintext fixture refused'
     $script:status='EncryptionInProgress'
     $script:protector=[pscustomobject]@{KeyProtectorType='RecoveryPassword'; RecoveryPassword=$script:password}
     function icacls.exe { $global:LASTEXITCODE=5 }
-    Assert-Failure { Export-WootcFixtureBitLockerKey -Destination $path } $path
+    Assert-Failure { Export-WootcFixtureBitLockerKeyCore -Destination $path } $path
     Remove-Item Function:\icacls.exe
     Write-Output 'PASS permission failure stops and removes key'
     # Execute the old output-only behavior under a native transcript using the
@@ -93,7 +93,7 @@ try {
     $script:protector=$null; $script:failAdd=$false
     $mutantTranscript = Join-Path $dir 'synthetic-old-behavior.txt'
     Start-Transcript -LiteralPath $mutantTranscript -Force | Out-Null
-    try { Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector 3>$null } finally { Stop-Transcript | Out-Null }
+    try { Export-WootcFixtureBitLockerKeyCore -Destination $path -EnsureProtector 3>$null } finally { Stop-Transcript | Out-Null }
     if ((Get-Content -LiteralPath $mutantTranscript -Raw) -notmatch [regex]::Escape($script:password)) {
         throw 'Old output-only behavior did not expose the synthetic warning in the transcript'
     }
