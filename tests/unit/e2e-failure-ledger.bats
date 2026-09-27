@@ -24,13 +24,15 @@ setup() {
     E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
     LEDGER="$BATS_TEST_TMPDIR/ledger"
     : > "$LEDGER"
-    # Source fail() alone; running the script would start a VM.
-    RED=""; NC=""
+    # Source the actual runner adapter; it starts no VM.
+    RED=""; GREEN=""; NC=""
     WOOTC_FAILURE_LEDGER="$LEDGER"
-    fail() {
-        echo -e "${RED}[FAIL]${NC} $*" >&2
-        printf '%s\n' "$*" >> "$WOOTC_FAILURE_LEDGER" 2>/dev/null || true
-    }
+    WOOTC_RESULT_LEDGER="$BATS_TEST_TMPDIR/results.jsonl"
+    RUN_ID=test-run
+    source "$REPO_ROOT/tests/e2e/lib/results.sh"
+    source "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
+    wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" full-cycle
+
 }
 
 @test "run-e2e.sh is syntactically valid" {

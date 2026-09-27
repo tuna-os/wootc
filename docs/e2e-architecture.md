@@ -196,3 +196,25 @@ Design notes:
   kernel loaded from inside root.disk) remains a fallback if kernel-sync
   proves insufficient; it would restore SPEC §1.2's no-sync property at the
   cost of a one-time MokManager enrollment.
+
+## Result boundary (#383)
+
+The runner uses `tests/e2e/lib/results.sh` and `result-runner.sh` for results.
+The backend, `results.py`, appends records to `results.jsonl` with the run ID.
+It separates `product`, `infrastructure`, and `runner` failures. A fault in the
+channel cannot prove a fault in the product. The old human log remains available.
+An empty log does not prove success.
+
+A terminal pass needs every required assertion for the selected scenario.
+Missing, corrupt, foreign, or unwritable evidence blocks the pass. The API writes
+`.passed` only after it commits the terminal result. The trap for `ERR` records each abort.
+An exit without that commit cannot report success. The collector keeps the JSONL
+file with other small evidence when it prunes old runs.
+
+Direct tests call these modules and the actual entry point before any VM command.
+Full VM validation remains due. This is the first boundary in #383; transport,
+host lifecycle, and retention still need separate modules.
+
+The snapshot prime uses an infrastructure scenario. It needs Windows identity,
+compressed snapshot bytes, and the answer key. Its terminal job result can pass
+while the product verdict stays unknown; it never publishes a GUI pass marker.

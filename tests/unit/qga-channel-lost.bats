@@ -21,16 +21,20 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     ABS_E2E="$REPO_ROOT/$E2E"
     # Source just the helpers — running the script would start a VM.
-    eval "$(sed -n '/^pass()/,/^info()/p' "$ABS_E2E")"
+    source "$REPO_ROOT/tests/e2e/lib/results.sh"
+    source "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
     eval "$(sed -n '/^note_flake()/,/^}/p' "$ABS_E2E")"
     eval "$(sed -n '/^WOOTC_QGA_RECONNECT_ATTEMPTS=/,/^}/p' "$ABS_E2E")"
     eval "$(sed -n '/^qga_channel_lost()/,/^}/p' "$ABS_E2E")"
 
     STORAGE_DIR="$BATS_TEST_TMPDIR/storage"; mkdir -p "$STORAGE_DIR"
     WOOTC_FAILURE_LEDGER="$BATS_TEST_TMPDIR/ledger"; : > "$WOOTC_FAILURE_LEDGER"
+    WOOTC_RESULT_LEDGER="$BATS_TEST_TMPDIR/results.jsonl"
+    RUN_ID=qga-test
+    wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" full-cycle
     CONTAINER_NAME="stub-ctr"
     STUB_LOG="$BATS_TEST_TMPDIR/stub.log"; : > "$STUB_LOG"
-    export STORAGE_DIR WOOTC_FAILURE_LEDGER STUB_LOG
+    export STORAGE_DIR WOOTC_FAILURE_LEDGER WOOTC_RESULT_LEDGER RUN_ID STUB_LOG
     # A stand-in for podman/docker: records what it was asked to run and takes
     # the reconnect exit code from the environment.
     DOCKER="$BATS_TEST_TMPDIR/docker"
@@ -87,7 +91,8 @@ STUB
     {
         echo 'set -Eeuo pipefail'
         sed -n "/^RED='/,/^NC='/p" "$ABS_E2E"
-        sed -n '/^pass()/,/^info()/p' "$ABS_E2E"
+        printf 'source %q\n' "$REPO_ROOT/tests/e2e/lib/results.sh"
+        printf 'source %q\n' "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
         sed -n '/^WOOTC_QGA_RECONNECT_ATTEMPTS=/,/^}/p' "$ABS_E2E"
         # Bare, NOT `|| true`: set -e is suspended inside a tested call, which
         # is exactly the leniency this test exists to deny itself.
