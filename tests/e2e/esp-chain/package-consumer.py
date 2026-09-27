@@ -104,6 +104,61 @@ def checked_policy(folder, phase):
     return policy
 
 
+def validate_simulation(output, selected):
+    """Bind every apt mutation observation to the complete approved inventory delta."""
+    before, after = selected['beforeInventory'], selected['afterInventory']
+    expected_installs = {name: identity for name, identity in after.items()
+                         if before.get(name) != identity}
+    expected_removals = set(before) - set(after)
+    if expected_removals != set(selected['allowedRemovals']):
+        raise ValueError('approved removal set differs from inventory transition')
+    pinned = {entry['package']: {'version': entry['version'], 'architecture': entry['architecture']}
+              for entry in selected['packages']}
+    if any(pinned.get(name) != identity for name, identity in expected_installs.items()):
+        raise ValueError('approved transition is not bound to the frozen bundle')
+    installs, removals, configurations = {}, set(), {}
+    for line in output.splitlines():
+        # Human summaries are not mutation evidence. Reserved mutation words must
+        # parse completely; a truncated observation cannot become a summary.
+        kind = line.lstrip().split(maxsplit=1)[0] if line.strip() else ''
+        if kind not in ('Inst', 'Conf', 'Remv'):
+            continue
+        if kind == 'Remv':
+            match = re.fullmatch(r'Remv ([a-z0-9][a-z0-9+.-]*)(?::(amd64|all))? \[([^]\s]+)\]', line)
+            if not match:
+                raise ValueError('unknown apt removal observation')
+            name, qualifier, version = match.groups()
+            identity = before.get(name)
+            if (name in removals or identity is None or identity['version'] != version or
+                    (qualifier is not None and qualifier != identity['architecture'])):
+                raise ValueError('duplicate or mismatched apt removal observation')
+            removals.add(name)
+            continue
+        match = re.fullmatch(
+            r'(?:Inst|Conf) ([a-z0-9][a-z0-9+.-]*)(?::(amd64|all))?'
+            r'(?: \[([^]\s]+)\])? \(([^()\s]+) [^()\n]*\[(amd64|all)\]\)(?: \[\])?', line)
+        if not match:
+            raise ValueError('unknown apt install or configuration observation')
+        name, qualifier, previous, version, architecture = match.groups()
+        identity = {'version': version, 'architecture': architecture}
+        observed = installs if kind == 'Inst' else configurations
+        if (name in observed or expected_installs.get(name) != identity or
+                (qualifier is not None and qualifier != architecture) or
+                (previous is not None and (kind != 'Inst' or before.get(name, {}).get('version') != previous))):
+            raise ValueError('duplicate or unapproved apt mutation observation')
+        observed[name] = identity
+    if installs != expected_installs or removals != expected_removals:
+        raise ValueError('apt simulation does not observe the complete approved transition')
+    if any(installs.get(name) != identity for name, identity in configurations.items()):
+        raise ValueError('apt configuration lacks its approved installation')
+    simulated = dict(before)
+    for name in removals:
+        del simulated[name]
+    simulated.update(installs)
+    if simulated != after:
+        raise ValueError('apt simulation result differs from approved inventory')
+
+
 def consume(folder=Path('/var/lib/wootc/qa-upgrade'), phase='new', run=execute, before_install=None):
     folder = Path(folder)
     policy = checked_policy(folder, phase)
@@ -142,21 +197,11 @@ def consume(folder=Path('/var/lib/wootc/qa-upgrade'), phase='new', run=execute, 
             command = ['/usr/bin/apt-get', '-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-',
                        '-o', 'Dir::State::lists='+str(empty_lists), '--no-download',
                        '--no-install-recommends', '--allow-downgrades', '--yes', 'install']+changes
-            result = run(command[:1]+['--simulate']+command[1:], check=True, timeout=60, capture_output=True)
+            result = run(command[:1]+['--simulate']+command[1:], check=True, timeout=60, capture_output=True,
+                         env=dict(os.environ, LC_ALL='C'))
             if len(result.stdout) > 262144:
                 raise ValueError('apt simulation exceeds bound')
-            removals = set(); installs = {}
-            for line in result.stdout.decode().splitlines():
-                if line.startswith('Remv '): removals.add(line.split()[1].split(':', 1)[0])
-                elif line.startswith('Inst '):
-                    match = re.match(r'^Inst (\S+)(?: \[[^]]+\])? \(([^ ]+)', line)
-                    if not match: raise ValueError('unknown apt install observation')
-                    name, version = match.groups(); name = name.split(':', 1)[0]
-                    if name in installs: raise ValueError('duplicate apt install observation')
-                    installs[name] = version
-            approved = {entry['package']: entry['version'] for entry in selected['packages']}
-            if removals != set(selected['allowedRemovals']) or any(approved.get(name) != version for name, version in installs.items()):
-                raise ValueError('apt selected unapproved package changes or removals')
+            validate_simulation(result.stdout.decode(), selected)
             if inventory(run, retired) != selected['beforeInventory']:
                 raise ValueError('dpkg inventory changed across offline preflight')
             if checked_policy(folder, phase) != policy:

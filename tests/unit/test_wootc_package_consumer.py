@@ -35,6 +35,7 @@ class PackageConsumerTests(unittest.TestCase):
         self.state = copy.deepcopy(self.before); self.calls = []; self.applied = False
         self.status_failure = False; self.status_partial = False; self.unapproved_remove = False
         self.mutate_during_deb = False; self.bad_post_status = False
+        self.simulation_output = None
 
     def save_policy(self):
         path = self.folder/'packages.json'; path.write_text(json.dumps(self.policy))
@@ -58,7 +59,8 @@ class PackageConsumerTests(unittest.TestCase):
                 self.archive.write_bytes(b'mutated source after frozen snapshot')
             return result
         if '--simulate' in argv:
-            output = b'Inst fixture-package [1] (2 Local [amd64])\n'
+            output = (b'Inst fixture-package [1] (2 Local [amd64])\n'
+                      if self.simulation_output is None else self.simulation_output)
             if self.unapproved_remove: output += b'Remv foreign-work [1]\n'
             return SimpleNamespace(stdout=output)
         self.applied = True
@@ -129,6 +131,69 @@ class PackageConsumerTests(unittest.TestCase):
 
     def test_unapproved_removal_refuses(self):
         self.unapproved_remove = True; self.assert_preflight_refuses()
+
+    def test_empty_simulation_refuses_before_callback_or_installer(self):
+        self.simulation_output = b'Reading package lists...\n'
+        callbacks = []
+        with self.assertRaisesRegex(ValueError, 'complete approved transition'):
+            self.consume(lambda: callbacks.append(True))
+        self.assertEqual(callbacks, [])
+        self.assertFalse(self.applied)
+
+    def test_partial_simulation_refuses_actual_two_archive_transition(self):
+        build = self.folder/'second'; (build/'DEBIAN').mkdir(parents=True)
+        (build/'DEBIAN/control').write_text('Package: fixture-second\nVersion: 2\nArchitecture: all\nMaintainer: Fixture <fixture@example.invalid>\nDescription: Partial simulation fixture\n')
+        archive = self.folder/'fixture-second_2_all.deb'
+        subprocess.run(['/usr/bin/dpkg-deb', '--build', '--root-owner-group', str(build), str(archive)], check=True, capture_output=True)
+        self.before['fixture-second'] = {'version':'1','architecture':'all'}
+        self.after['fixture-second'] = {'version':'2','architecture':'all'}
+        self.state = copy.deepcopy(self.before)
+        self.policy['phases']['old']['packages'].append({'name':archive.name,'package':'fixture-second','version':'2','architecture':'all','sha256':hashlib.sha256(archive.read_bytes()).hexdigest()})
+        self.save_policy()
+        callbacks = []
+        with self.assertRaisesRegex(ValueError, 'complete approved transition'):
+            self.consume(lambda: callbacks.append(True))
+        self.assertEqual(callbacks, [])
+        self.assertFalse(self.applied)
+        self.assertEqual(sum(argv[0]=='/usr/bin/dpkg-deb' for argv,_ in self.calls), 2)
+
+    def test_duplicate_malformed_or_wrong_identity_mutations_refuse(self):
+        valid = b'Inst fixture-package [1] (2 Local [amd64])\n'
+        for observation in (valid+valid, b'Inst\n', b'Inst fixture-package [1] (2 Local [all])\n',
+                            b'Inst fixture-package:all [1] (2 Local [amd64])\n',
+                            b'Inst fixture-package [foreign] (2 Local [amd64])\n',
+                            valid+b'Remv\n', valid+b' Inst fixture-package [1] (2 Local [amd64])\n', valid+b'Conf fixture-package (foreign Local [amd64])\n',
+                            valid+b'Conf fixture-package (2 Local [amd64])\n'*2):
+            with self.subTest(observation=observation):
+                self.simulation_output = observation
+                callbacks = []
+                with self.assertRaises(ValueError): self.consume(lambda: callbacks.append(True))
+                self.assertEqual(callbacks, [])
+                self.assertFalse(self.applied)
+
+    def test_exact_removal_observation_is_required_and_unique(self):
+        self.before['initramfs-tools'] = {'version':'1','architecture':'all'}
+        self.state = copy.deepcopy(self.before)
+        self.policy['phases']['old']['allowedRemovals'] = ['initramfs-tools']
+        self.save_policy()
+        valid = b'Inst fixture-package [1] (2 Local [amd64])\n'
+        for removal in (b'', b'Remv initramfs-tools [foreign]\n',
+                        b'Remv initramfs-tools [1]\n'*2,
+                        b'Remv initramfs-tools:amd64 [1]\n'):
+            with self.subTest(removal=removal):
+                self.simulation_output = valid+removal
+                callbacks = []
+                with self.assertRaises(ValueError): self.consume(lambda: callbacks.append(True))
+                self.assertEqual(callbacks, [])
+                self.assertFalse(self.applied)
+        self.simulation_output = valid+b'Remv initramfs-tools [1]\n'
+        self.consume()
+        self.assertTrue(self.applied)
+
+    def test_complete_configuration_observation_is_accepted(self):
+        self.simulation_output = b'Inst fixture-package [1] (2 Local [amd64]) []\nConf fixture-package (2 Local [amd64])\n'
+        self.consume()
+        self.assertTrue(self.applied)
 
     def test_unchanged_version_dependency_archive_is_checked_but_not_reinstalled(self):
         build = self.folder/'other'; (build/'DEBIAN').mkdir(parents=True)
