@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "buildId": "68e6f4520bbd57bd24854cc92d96561bcae92a61",
+  "brandId": "aurora",
+  "toolSha256": "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f",
+  "toolSigner": "CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL",
+  "toolVersion": "7.1.0",
+  "peFileVersion": "0.0.0.0",
+  "installerSha256": "77BA187B0D7DB754DF91F66547B4A822A44C594FDA99989DBC96D76340DB123F",
+  "manifestSha256": "4E44E1BAA480BB99D1B67B34FBB8ABF6F6C45EC005AD688D04B2BDF8FA571303",
+  "beforeStartup": {},
+  "afterStartup": {},
+  "afterUninstall": {},
+  "existingDestinationRefused": true,
+  "foreignFilesPreserved": true,
+  "actualInstalledStartupRpc": true,
+  "uninstallerRemovalObserved": true,
+  "uninstallerRemovalMilliseconds": 564,
+  "interactiveUacProved": false,
+  "offlineRuntimeProved": false,
+  "minimumOsProved": false
+}
