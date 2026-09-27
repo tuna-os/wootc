@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -187,45 +186,20 @@ Resize-Partition -DriveLetter C -Size $supported.SizeMax`, drive, drive, drive, 
 //   - allocate with SetLength (sparse on NTFS, instant), and
 //   - extend the Valid Data Length with `fsutil file setvaliddata` —
 //     without it the Linux ntfs3 driver EIOs on every loop0 write past VDL.
+func requireNewInstallRootDisk() error {
+	return requireNewRootDiskPath(filepath.Join(wootcDir(), "disks", "root.disk"))
+}
+
 func createRootDisk(sizeGB int) error {
+	if sizeGB <= 0 || int64(sizeGB) > (int64(1<<63-1)/(1024*1024*1024)) {
+		return fmt.Errorf("root.disk size is invalid")
+	}
 	path := filepath.Join(wootcDir(), "disks", "root.disk")
 	sizeBytes := int64(sizeGB) * 1024 * 1024 * 1024
-	if st, err := os.Stat(path); err == nil && st.Size() == sizeBytes {
-		return nil // already exists at the right size
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create disks dir: %w", err)
-	}
-	_ = os.Remove(path)
-
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("create root.disk: %w", err)
-	}
-	if err := f.Truncate(sizeBytes); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("allocate root.disk (%d GB): %w", sizeGB, err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close root.disk: %w", err)
-	}
-
-	// setvaliddata needs SeManageVolumePrivilege — held by elevated admins.
-	if out, err := runCmd("fsutil", "file", "setvaliddata", path,
-		fmt.Sprintf("%d", sizeBytes)); err != nil {
-		return fmt.Errorf("fsutil setvaliddata (VDL extension): %w: %s", err, strings.TrimSpace(out))
-	}
-
-	// Two distinct failures, reported separately. Folding them into one branch
-	// dereferenced a nil st whenever Stat itself failed — so the path that runs
-	// ONLY when disk creation has already gone wrong panicked instead of saying
-	// what went wrong (#191).
-	st, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("root.disk verification failed: cannot stat %s: %w", path, err)
-	}
-	if st.Size() != sizeBytes {
-		return fmt.Errorf("root.disk verification failed: got %d bytes, want %d", st.Size(), sizeBytes)
-	}
-	return nil
+	return allocateNewRootDiskFile(path, sizeBytes, func(path string) error {
+		if out, err := runCmd("fsutil", "file", "setvaliddata", path, fmt.Sprintf("%d", sizeBytes)); err != nil {
+			return fmt.Errorf("fsutil setvaliddata (VDL extension): %w: %s", err, strings.TrimSpace(out))
+		}
+		return nil
+	})
 }

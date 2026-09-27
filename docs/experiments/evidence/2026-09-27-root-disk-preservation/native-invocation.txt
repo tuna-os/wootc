@@ -1,0 +1,35 @@
+$ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
+if ($env:OS -ne 'Windows_NT') { throw 'Expected Windows fixture' }
+$temporaryName=[Guid]::NewGuid().ToString('N')
+$temporaryDir=Join-Path $env:TEMP "wootc-root-disk-safe-$temporaryName"
+if (Test-Path -LiteralPath $temporaryDir) { throw 'Refusing existing directory' }
+[IO.Directory]::CreateDirectory($temporaryDir) | Out-Null
+& icacls $temporaryDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Failed private temporary ACL' }
+try {
+ $binaryPath=Join-Path $temporaryDir 'esp-cleanup.test.exe'
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-root-disk-safe-b4e2a072715d41069c8fb7a2c16fb06b.test.exe' -OutFile $binaryPath
+ if ((Get-FileHash -LiteralPath $binaryPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '56dbc5e361ad0db0dcd27812fbe14871c2aec8647eca2975fcb42c30c9730d32') { throw 'Binary checksum mismatch' }
+ $archivePath=Join-Path $temporaryDir 'sources.zip'
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-root-disk-safe-b4e2a072715d41069c8fb7a2c16fb06b.zip' -OutFile $archivePath
+ if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '47cddf0897cad60ae2cd1f67e3369a91830f6e82d55dd8a4a6898bf345c9d829') { throw 'Archive checksum mismatch' }
+ Expand-Archive -LiteralPath $archivePath -DestinationPath $temporaryDir
+ Write-Output 'BINARY_SHA256 56dbc5e361ad0db0dcd27812fbe14871c2aec8647eca2975fcb42c30c9730d32'
+ if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/root_disk_creation.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '543ddad94e87c7206ce34c07143b0ee2c81b98a9b37eb715716c064653bce681') { throw 'Source checksum mismatch' }
+ Write-Output 'SOURCE app/root_disk_creation.go SHA256 543ddad94e87c7206ce34c07143b0ee2c81b98a9b37eb715716c064653bce681'
+ if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/root_disk_creation_test.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '37a12373425fb23261ee40e83ad10cbf7a9d495fa83e2feb95b4d1b461f106b5') { throw 'Source checksum mismatch' }
+ Write-Output 'SOURCE app/root_disk_creation_test.go SHA256 37a12373425fb23261ee40e83ad10cbf7a9d495fa83e2feb95b4d1b461f106b5'
+ if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/disk_windows.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a3163912bba2a103a459742c1c8fe8d28ad9128e7f1ec58dc0b7df5022e04442') { throw 'Source checksum mismatch' }
+ Write-Output 'SOURCE app/disk_windows.go SHA256 a3163912bba2a103a459742c1c8fe8d28ad9128e7f1ec58dc0b7df5022e04442'
+ if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/app.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'e651b937fc458481a15171c7187c3ed2f2f313e4f791714d79413348d5751714') { throw 'Source checksum mismatch' }
+ Write-Output 'SOURCE app/app.go SHA256 e651b937fc458481a15171c7187c3ed2f2f313e4f791714d79413348d5751714'
+ if ((Get-FileHash -LiteralPath (Join-Path $temporaryDir 'app/installer_other.go') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '54be30e9f8a92aecbf2ff3f888bf5eba5427c1bea308f32b5b9b047c42cf0f4a') { throw 'Source checksum mismatch' }
+ Write-Output 'SOURCE app/installer_other.go SHA256 54be30e9f8a92aecbf2ff3f888bf5eba5427c1bea308f32b5b9b047c42cf0f4a'
+ $priorTemp=$env:TEMP
+ $priorTmp=$env:TMP
+ $env:TEMP=$temporaryDir
+ $env:TMP=$temporaryDir
+ & $binaryPath '-test.v' '-test.run' '^TestRootDiskCreation'
+ if ($LASTEXITCODE -ne 0) { throw "Native Go tests exited $LASTEXITCODE" }
+} finally { if ($priorTemp) { $env:TEMP=$priorTemp }; if ($priorTmp) { $env:TMP=$priorTmp }; Remove-Item -LiteralPath $temporaryDir -Recurse -Force }
