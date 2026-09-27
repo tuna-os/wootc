@@ -8,6 +8,7 @@ ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boo
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+Environment=PATH=/var/usrlocal/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/var/usrlocal/bin/wootc-firstboot-evidence
 
 [Install]

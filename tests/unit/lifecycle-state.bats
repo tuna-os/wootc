@@ -95,6 +95,11 @@ SH
     grep -q 'ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json' "$FIRSTBOOT_SERVICE"
 }
 
+@test "firstboot service PATH includes the staged NTFS state writer" {
+    grep -q '^Environment=PATH=/var/usrlocal/bin:' "$FIRSTBOOT_SERVICE"
+    grep -q '^ExecStart=/var/usrlocal/bin/wootc-firstboot-evidence$' "$FIRSTBOOT_SERVICE"
+}
+
 @test "firstboot health writer publishes readable state and evidence" {
     tmp=$(mktemp -d)
     make_firstboot_fakes "$tmp"
