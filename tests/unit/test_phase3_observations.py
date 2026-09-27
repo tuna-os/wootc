@@ -3,6 +3,7 @@
 import os
 import base64
 import json
+import importlib.util
 import re
 from pathlib import Path
 import subprocess
@@ -65,7 +66,7 @@ qga_call() {
                    DATA_RC='0', SCRIPT_DIR=str(ROOT/'tests/e2e'))
         with tempfile.TemporaryDirectory() as tmp:
             return subprocess.run(['bash', '-c', prefix+body], text=True, capture_output=True,
-                                  timeout=4, env={**os.environ, **env, **overrides,'ARTIFACT_DIR':tmp})
+                                  timeout=4, env={**os.environ, **env,'ARTIFACT_DIR':tmp, **overrides})
 
     def test_successful_native_and_current_data_pass(self):
         r = self.consumer()
@@ -265,6 +266,72 @@ losetup() { printf '%s' "$LOOP_JSON"; [ "$FAIL_READ" != loops ]; }
             r=self.consumer(PROOF=PROOF.replace('BLOCKS='+encode(BLOCKS),'BLOCKS='+encoded))
             self.assertNotEqual(r.returncode,0)
             self.assertIn('INFRA',r.stdout)
+
+    def producer(self):
+        path=ROOT/'tests/unit/test_native_userdata_export.py'
+        spec=importlib.util.spec_from_file_location('native_export_controls',path)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        provider=module.NativeExportTests();provider.setUp()
+        self.addCleanup(provider.tearDown)
+        provider.boot.write_text(BOOT+'\n')
+        provider.environment['EXPORT_TEST_ROW']='/dev/sdb3 8:19 /var'
+        provider.seed.write_bytes(b'wootc-e2e-userdata current-run\r\n')
+        return provider
+
+    def test_actual_producer_bytes_feed_current_observer(self):
+        provider=self.producer()
+        for payload in [b'wootc-e2e-userdata current-run\r\n',b'wootc-e2e-userdata current-run']:
+            provider.seed.write_bytes(payload)
+            produced=provider.run_probe()
+            self.assertEqual(produced.returncode,0,produced.stderr)
+            prefix=userdata().split('EXPORT_SCHEMA=',1)[0]
+            r=self.consumer(DATA=prefix+provider.out.read_bytes().decode())
+            self.assertEqual(r.returncode,0,r.stderr)
+            self.assertIn('PRODUCT-PASS native-user-data',r.stdout)
+
+    def test_successful_but_stale_actual_export_cannot_combine_with_current_boot(self):
+        provider=self.producer();provider.boot.write_text('abcdefab-1234-1234-1234-123456789abc\n')
+        self.assertEqual(provider.run_probe().returncode,0)
+        prefix=userdata().split('EXPORT_SCHEMA=',1)[0]
+        r=self.consumer(DATA=prefix+provider.out.read_bytes().decode())
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('INFRA',r.stdout)
+        self.assertNotIn('PRODUCT-PASS native-user-data',r.stdout)
+
+    def test_actual_partial_producer_never_supplies_usable_receipt(self):
+        provider=self.producer();provider.out.write_bytes(b'stale prior receipt')
+        provider.environment['EXPORT_TEST_MODE']='partial'
+        self.assertNotEqual(provider.run_probe().returncode,0)
+        self.assertFalse(provider.out.exists())
+        r=self.consumer(DATA=userdata().split('EXPORT_SCHEMA=',1)[0])
+        self.assertNotEqual(r.returncode,0)
+        self.assertNotIn('PRODUCT-PASS native-user-data',r.stdout)
+
+    def test_failed_host_evidence_write_prevents_native_boot_assertion(self):
+        r=self.consumer(ARTIFACT_DIR='/dev/null')
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('INFRA',r.stdout)
+        self.assertNotIn('PRODUCT-PASS',r.stdout)
+
+    def test_actual_native_boot_boundary_clears_previous_phase_in_caller(self):
+        source=(ROOT/'tests/e2e/run-e2e.sh').read_text()
+        anchor='    wootc_phase_boundary\n    step "Rebooting Phase 2 into the one-shot Phase 3 native install..."'
+        start=source.index(anchor)
+        end=source.index('    # A failed guest command',start)
+        prefix=f'''set -Eeuo pipefail
+source '{ROOT/'tests/e2e/phase-ledger.sh'}'
+WOOTC_CURRENT_PHASE_ID=firstboot-evidence; WOOTC_PHASE_CARRY=torn
+step() {{ :; }}
+owned_runtime() {{ [ -z "$WOOTC_CURRENT_PHASE_ID" ] && [ -z "$WOOTC_PHASE_CARRY" ]; echo RESET; }}
+DOCKER=owned_runtime; CONTAINER_NAME=owned
+qga_probe() {{ return 1; }}
+qga_wait() {{ echo LIVENESS; }}
+'''
+        r=subprocess.run(['bash','-c',prefix+source[start:end]+'\necho "PHASE=$WOOTC_CURRENT_PHASE_ID"'],
+                         capture_output=True,text=True,timeout=2)
+        self.assertEqual(r.returncode,0,r.stderr)
+        self.assertIn('RESET',r.stdout)
+        self.assertTrue(r.stdout.rstrip().endswith('PHASE='))
 
 
 if __name__ == '__main__':

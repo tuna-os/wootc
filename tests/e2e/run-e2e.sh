@@ -3902,6 +3902,7 @@ demo_linux_userdata
 
 # ── Step 10: boot the result, not merely its installer ─────────────────────
 if [ "${RUN_PHASE3:-false}" = true ]; then
+    wootc_phase_boundary
     step "Rebooting Phase 2 into the one-shot Phase 3 native install..."
     # NEVER send this reboot through QGA. Any attempt the dying Phase 2
     # fails to consume stays queued in the virtio-serial channel until the
