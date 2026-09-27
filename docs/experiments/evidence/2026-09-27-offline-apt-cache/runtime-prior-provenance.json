@@ -17,18 +17,7 @@
   "hostPrefixNativeControls": 98,
   "independentPhaseReadbackContract": "old installation pauses until fresh QGA readback is approved; separately pinned advance rechecks exact digest before new installation; final new state receives independent fresh QGA readback",
   "mainBase": "347f696ef855866e2230dc4e761a1caf11609657",
-  "nativeControls": 115,
-  "offlineCacheCorrection": {
-    "changedSources": [
-      "tests/e2e/esp-chain/package-consumer.py"
-    ],
-    "checkpoint": "45d4a54",
-    "correctedRuntimeExecuted": false,
-    "currentConsumerControls": 31,
-    "currentRuntimeControls": 115,
-    "historicalProvenance": "docs/experiments/evidence/2026-09-27-offline-apt-cache/runtime-prior-provenance.json",
-    "originalPartiallyChangedGuestPreserved": true
-  },
+  "nativeControls": 52,
   "packageInstallationAccepted": false,
   "partialSerialContract": "only newline-complete records enter production comparator; incomplete live final record waits inside shared deadline",
   "priorSourceCheckpoint": "d96107a",
@@ -91,7 +80,7 @@
     "docs/experiments/evidence/2026-09-27-linux-package-runtime/native-archive-readback.json": "5cff551ab14ff3a74c0425213ded43f5fd9a76e81a309a9fc108015aeb051958",
     "docs/experiments/evidence/2026-09-27-linux-package-runtime/native-controls.log": "3ed53379e9cd7d60a3156835f54fffb8ab995a0fadca04837599fba13e08d798",
     "tests/audit-linux-package-runtime.py": "6cbc1042a5b1ac600d91faa82b3e48e7e26f25646ed5132813694f897f7f3873",
-    "tests/e2e/esp-chain/package-consumer.py": "2eaeffa0ff26a30efd58c45bac5d501a124384e5fd0b8f3b116de27461c00bd8",
+    "tests/e2e/esp-chain/package-consumer.py": "4a635996f26cb7c14690422154076bbb3fee896d86cf3cfdafbcef20189b6fc0",
     "tests/e2e/esp-chain/package-policy.py": "ea605a34fdae13b89ad4b976ac2d7619bc29e46d529b3c563c736b5d2d109439",
     "tests/e2e/package-runtime/acquire.py": "fb191f3d0d3f57f8e3989b2e40757b67438ffaed3381b55a8d4a9463eb2fa156",
     "tests/e2e/package-runtime/advance.py": "6226424e5e6596a0733512a90ba2d18de8953289f27832a5819e24f0eba46709",
