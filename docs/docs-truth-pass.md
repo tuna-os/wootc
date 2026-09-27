@@ -151,4 +151,4 @@ RC timing, package screenshots, hardware recovery, and signature acceptance rema
 The release guide now has no findings under the shared English checker.
 Its gates, artifact names, channel limits, and requirements remain the same.
 All 24 checks in `tests/unit/docs-truth.bats` pass.
-The whole repository count falls from 1671 to 1635. The budget follows that count.
+The count for the repository falls from 1671 to 1635. The budget follows that count.
