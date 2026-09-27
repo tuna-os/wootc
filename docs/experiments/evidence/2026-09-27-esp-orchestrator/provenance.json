@@ -1,24 +1,74 @@
 {
   "classicOsBootAcceptance": false,
   "firmwareAcceptance": false,
+  "firmwareSourceContract": {
+    "codePath": "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+    "codeSha256": "1dbb7f9b7e7285b950929bbbc1494c186bfb061cde60cf531ff9756ef87dab7a",
+    "installedPackageVerification": "dpkg -V ovmf qemu-system-x86: exit0, no findings",
+    "package": "ovmf",
+    "packageReadmeSha256": "b514afecdbf33632fbb0a017424926b91b8cd0640aa4e1011b996510c469e45d",
+    "qemuPackageVersion": "1:8.2.2+ds-0ubuntu1.18",
+    "qemuSha256": "8a35ccba41582fc6c38b9df85fc9e35fa1d42f414d2d7d8090ee9b2f5e7c0854",
+    "scope": "actual package bytes and documentation bind the selected SMM-required build; no runtime SMM/protected-write acceptance",
+    "version": "2024.02-2ubuntu0.9"
+  },
+  "firmwareStoreBindingVerified": false,
   "gatesRemaining": [
-    "QEMU launcher and firmware-store binding source review",
+    "launcher/source/firmware-code contract review",
     "real libguestfs classic baseline production",
-    "actual PowerShell runtime and Windows BCD arm",
-    "first classic OS loop boot",
+    "actual PowerShell runtime and observed unencrypted host/system volumes",
+    "first classic OS loop boot and complete actual store-to-runtime policy binding",
     "signed upgrade and reboot with actual BootCurrent",
     "fresh Windows return after last Linux boot",
-    "hardware power-cut acceptance"
+    "hardware power-cut acceptance",
+    "TPM-protected baseline support"
   ],
   "integratedSourceCheckpoint": "e7fd1d13760f8f13fdc9f5b737f56db7b2bb067d",
+  "launcherExecuted": false,
   "mainBase": "f982b553e489613b0c139139ea46c204547da620",
   "nativeTests": {
     "acceptanceFixtureControls": 7,
+    "launcherFileProcessSocketControls": 14,
     "producerPreflightFreezeControls": 9,
-    "qgaSocketControls": 11,
-    "total": 119
+    "qgaSocketControls": 13,
+    "total": 135
+  },
+  "pinnedPrimarySources": {
+    "firmware-volume-edk2-stable202402.h": {
+      "bytes": 7837,
+      "sha256": "4f6b750ea84214a8e5a046ad6d6f8f83eff06ac2cbf3452462b42d751e5eb58c",
+      "url": "https://raw.githubusercontent.com/tianocore/edk2/edk2-stable202402/MdePkg/Include/Pi/PiFirmwareVolume.h"
+    },
+    "ovmf-smm-readme.txt": {
+      "bytes": 18897,
+      "sha256": "e5d063ee3db862dd6341f4af021f656a238be2e15b11e3b01710935280f0760d",
+      "url": "https://raw.githubusercontent.com/tianocore/edk2/edk2-stable202402/OvmfPkg/README"
+    },
+    "qemu-pflash-v8.2.2.c": {
+      "bytes": 34415,
+      "sha256": "9abf157af0d1f397d080308e64a26369280d1d9b340a9172c91364c517eaed2d",
+      "url": "https://raw.githubusercontent.com/qemu/qemu/v8.2.2/hw/block/pflash_cfi01.c"
+    },
+    "variable-format-edk2-stable202402.h": {
+      "bytes": 7116,
+      "sha256": "60a21e743d711faa3c753313b3b3080972bf7e51cd4dc4ccafa28072911a951d",
+      "url": "https://raw.githubusercontent.com/tianocore/edk2/edk2-stable202402/MdeModulePkg/Include/Guid/VariableFormat.h"
+    }
   },
   "producerExecuted": false,
+  "publicFirmwareStoreParserProbe": {
+    "allActiveVariablesMatchUpstream": 30,
+    "dbSha256": "5e51098ff9c7d47c2bdc35da85779174a1014d7148bcc5b3cd854b65c0bd2872",
+    "dbxSha256": "d836244baac8f97ffb004a319fd5ab8a573625d73d465ed9f4f9d4b8b0c26180",
+    "firmwareAcceptance": false,
+    "package": "ovmf",
+    "path": "/usr/share/OVMF/OVMF_VARS_4M.ms.fd",
+    "scope": "actual read-only public NV-store parsing, independently compared with pinned upstream parser; no firmware execution",
+    "storeSha256": "ece331afc5daf97ebb45099f3414a0894e45e3508a672c1aa0452406119bbdaf",
+    "upstreamVersion": "virt-firmware25.10",
+    "upstreamWheelSha256": "dd4cc56e5278ad9c151ec8f73b897bab55c055befe0502aeec7526b27c18097e",
+    "version": "2024.02-2ubuntu0.9"
+  },
   "publicShimPolicyProbe": {
     "exactEmbeddedPolicyAccepted": true,
     "scope": "read-only public PE policy parsing; existing immutable signature proof is separate",
@@ -26,9 +76,9 @@
     "unplannedPolicyRefused": true
   },
   "schemaVersion": 1,
-  "scope": "Native Unix-socket transport and private byte-copy controls use explicit OS/signature fixtures; no image creation or VM launch",
+  "scope": "Native Unix-socket protocol, exclusive byte-copy and real host-process/socket controls use explicit OS/signature/firmware-code fixtures; public NV-store parser proof is separate. No image creation or QEMU/VM launch.",
   "sourceHashes": {
-    "docs/experiments/esp-chain-orchestrator.md": "5b64a84d8d168cfe2e10178a0c8dc6cf1a64783cd4ad8f4f7bf9a1d16b0e4134",
+    "docs/experiments/esp-chain-orchestrator.md": "3a12958264e902efabfe2e401d049308f006d74d36d8a1d19792298ec926c8c2",
     "payload/migration/lib/wootc_boot_identity.py": "895042a2b5c7cd22bfb5c60596e1fd486db3343f0594cd208fbc7ba6374bd83c",
     "payload/migration/lib/wootc_chain_source.py": "c48df7dac5991ac194a351e5b9662a0ecc93e1577f4f645be72e060664f44fee",
     "payload/migration/lib/wootc_chain_verify.py": "6be73dd966a7dad09d04fa7c9496503875a2e8d822284bd2ce88e5a05293e917",
@@ -45,25 +95,28 @@
     "platform/dracut/99wootc-boot/wootc-attach.service": "16a3cc88aeb16b18c224f7a2239b608f8d9e1c67f789a3fcd9bf47b9b9d8af31",
     "platform/dracut/99wootc-boot/wootc-stage-shutdown.sh": "779bd6155fa1b36a0a339bd7b2e2de0ba2704b451c47d3d68dc6cbcde9b41e8b",
     "platform/dracut/99wootc-boot/wootc-umount-host.sh": "4081b5b8898d680779e6221d111bbd7e35ea27acc7174363563872ab21600385",
-    "tests/audit-esp-orchestrator.py": "b7ab187dc2d1235f93f7793b3caf01ede7401588ee5ce472774295255a0479d9",
-    "tests/e2e/esp-chain/accept.py": "9e147884ad8819c5bb1e7664281bde416eebe3adf207f10d2b239bae7f92636f",
+    "tests/audit-esp-orchestrator.py": "9f1abf5f2834e6389e61fb8696690e89fd6f7012d3cc71fa06225df9dcbeb773",
+    "tests/e2e/esp-chain/accept.py": "e0e2eca3f494515ce7ab548528343b726222e39faf260d12eb87d4221091ed30",
     "tests/e2e/esp-chain/arm-classic.ps1": "3de475291dbaa043285353dc3c675bb2cfd09fd2a470af394c10aff24a5b0e7a",
-    "tests/e2e/esp-chain/capture-windows.ps1": "fdc7781b979eaf475f44f9bb2b30ec47622ae47d3c9c3e56af3b78896703e277",
+    "tests/e2e/esp-chain/capture-windows.ps1": "3c079a90507989659587e07f9c437b4edd7b8ac0e8a4070c3a8845513f103e27",
     "tests/e2e/esp-chain/capture.py": "e5d68cd4b4e328928087f99fbca87e81284e2ed1584b4a197ac3f7a76db5b510",
-    "tests/e2e/esp-chain/orchestrate.py": "cbcb83c7cc134eba7bd594bb8c876c6539241c080d0295df15d76c5be64b0d5b",
-    "tests/e2e/esp-chain/produce-classic.py": "e7f7a29b231b5f9451808482e765b6c9009860fb5d20ea52d9b34cfc9c610eb8",
+    "tests/e2e/esp-chain/launch.py": "228b70875562c40b8ce6a9b60f12fdca05f823799589d8ff28564915f07ed754",
+    "tests/e2e/esp-chain/orchestrate.py": "ec0ff75e1571ca5398a18483e23ff7e409e769fdcfe1e2d9ccaf6b0de63ab549",
+    "tests/e2e/esp-chain/produce-classic.py": "e29a32a40da979bd671134f94dcca082eadaca7ec3fa3e05493bda8c5ae1b5e5",
     "tests/e2e/esp-chain/scratch.py": "f13bbbc0738b269ca0d83a619ccda93cf3b0047f2aa5be37e802b08480647caf",
     "tests/e2e/esp-chain/stage-classic-source.py": "d4e5fec5be127071db3fcc2da9118522fca69e3a175de52bd05c6d9fe12d5d67",
     "tests/e2e/esp-chain/upgrade-classic.py": "9fb736985a2ecb85a522b54411afaf063ab9bb7a1ec66126feb23175ed4ce465",
+    "tests/probe-esp-firmware-store.py": "eac70b200c447a6e30acd5f77409d9bb90dadad7dd65cc14d7592804b00a8d12",
     "tests/unit/test_wootc_boot_identity.py": "69ad0031b82e7eebd7132c78f58d87ba4e3f1f9c779c4f0918dd8ae221105afa",
     "tests/unit/test_wootc_chain_source.py": "485cfe80d2edd9d80392f1a4f392d33e086332ed77a0efcb94d532da006ae933",
     "tests/unit/test_wootc_chain_staging.py": "bf378c3d9dc5147fa3152e2b4762a0983d4256fd09f8bfd363142f4ce583d8e2",
     "tests/unit/test_wootc_chain_verify.py": "2a65f52562b763da45c61dcc7d89d167681a091e95f5acfcce47e74e7eb36287",
     "tests/unit/test_wootc_classic_producer.py": "6b013de4e76f19cf1d7e9f43c7265e618bba23a3b1ce8f0e6c633d59ba179530",
     "tests/unit/test_wootc_classic_source.py": "d754a1212b2bd46ba47bc584b1b268ce98b1826ee9b45307718e6bd4dff9d4a5",
-    "tests/unit/test_wootc_esp_acceptance.py": "76ac80e81ff264141c33a7579de8195c0186f4fca1306be052c97f3e861a8b54",
+    "tests/unit/test_wootc_esp_acceptance.py": "743b1ac5a01af14394af25a475daf7d310a456669b48683f86d788c70fb1d12d",
     "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
-    "tests/unit/test_wootc_esp_orchestrator.py": "a3f38bbccf25ee59cd8974fc3ff073ce4e3ec0037bd5ed915a9099d44ccb3eae",
+    "tests/unit/test_wootc_esp_launcher.py": "07e662910ef398c992662fc9bff16cb465cbc6172f9a73db64c9bdc9c3c86546",
+    "tests/unit/test_wootc_esp_orchestrator.py": "6a10eb8ead7c0c1d4e7ad7177ef9c57023fc0331185752dc73b43fb8b877cf8e",
     "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
     "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
     "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"

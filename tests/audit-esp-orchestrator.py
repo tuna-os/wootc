@@ -10,7 +10,7 @@ record = json.loads((root/'docs/experiments/evidence/2026-09-27-esp-orchestrator
 for name, expected in record['sourceHashes'].items():
     if hashlib.sha256((root/name).read_bytes()).hexdigest() != expected:
         raise SystemExit('source differs: '+name)
-if record['firmwareAcceptance'] or record['classicOsBootAcceptance'] or record['producerExecuted']:
+if any(record.get(gate, False) for gate in ('firmwareAcceptance', 'classicOsBootAcceptance', 'producerExecuted', 'launcherExecuted', 'windowsHelpersExecuted', 'firmwareStoreBindingVerified')):
     raise SystemExit('checkpoint claims an unexecuted gate')
 print(json.dumps({'sourcesMatch': len(record['sourceHashes']), 'nativeTests': record['nativeTests'],
-                  'producerExecuted': False, 'firmwareAcceptance': False, 'classicOsBootAcceptance': False}, sort_keys=True))
+                  'producerExecuted': False, 'launcherExecuted': False, 'firmwareStoreBindingVerified': False, 'firmwareAcceptance': False, 'classicOsBootAcceptance': False}, sort_keys=True))

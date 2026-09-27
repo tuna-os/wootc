@@ -32,6 +32,14 @@ public static class WootcQaNtfs {
 '@
 $VmUuid = (Get-CimInstance Win32_ComputerSystemProduct).UUID.ToLowerInvariant()
 $HostUuid = [WootcQaNtfs]::Serial($Volume)
-[ordered]@{ schemaVersion = 1; scratchId = $ScratchId; vmUuid = $VmUuid;
+$Bitlocker = [ordered]@{}
+foreach ($Role in @('host', 'system')) {
+  $MountPoint = if ($Role -eq 'host') { $Volume } else { $env:SystemDrive }
+  $State = Get-BitLockerVolume -MountPoint $MountPoint
+  if (@($State).Count -ne 1) { throw 'Ambiguous BitLocker volume status' }
+  $Bitlocker[$Role] = [ordered]@{ volumeStatus = $State.VolumeStatus.ToString();
+    protectionStatus = $State.ProtectionStatus.ToString(); encryptionPercentage = [int]$State.EncryptionPercentage }
+}
+[ordered]@{ bitlocker = $Bitlocker; schemaVersion = 1; scratchId = $ScratchId; vmUuid = $VmUuid;
   transportNonce = $TransportNonce; os = $env:OS; hostUuid = $HostUuid; afterLinuxBootId = $AfterLinuxBootId;
   capturedAt = [DateTime]::UtcNow.ToString('o') } | ConvertTo-Json -Compress

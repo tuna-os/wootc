@@ -19,8 +19,11 @@ python3 tests/e2e/esp-chain/produce-classic.py PRIVATE_PARENT CONFIG.json --exec
 
 The test needs a QEMU process with the new scratch UUID, disk, and private
 QGA socket. The code checks all three against the real process.
-The QEMU start code and its firmware store are still owed. Do not start a
-VM from this note. No test disk was made for this source check.
+
+The QEMU start code has not run. It keeps a fixed copy of the firmware
+store and gives QEMU a separate copy to write. The first guest must match
+the pinned firmware hashes before an upgrade. Do not start a VM from this
+note. No test disk was made for this source check.
 
 ```bash
 # After the test VM and firmware store pass review:
@@ -38,3 +41,27 @@ The plan keeps the exact old and new bytes and the new shim hash.
 A new policy must be an exact policy in that signed source shim.
 The other trust variables must stay fixed. The first boot must match the
 pinned firmware files. No firmware policy change was made here.
+
+The launcher needs a JSON file with the keys below. Each of the three
+files has a path and a SHA256 hash. It checks the bytes of db and dbx in
+the real NV store against the guest export. This does not prove Secure
+Boot. The fresh guest check must prove that state.
+
+```json
+{"qemu":{"path":"/usr/bin/qemu-system-x86_64","sha256":"REVIEWED_HASH"},
+ "firmwareCode":{"path":"PINNED_CODE","sha256":"REVIEWED_HASH"},
+ "firmwareStore":{"path":"PINNED_VARS","sha256":"REVIEWED_HASH"},
+ "memoryMiB":8192,"cpus":4,"tpmMode":"none-unencrypted-qa"}
+```
+
+```bash
+# Read only; no VM start:
+python3 tests/e2e/esp-chain/launch.py SCRATCH LAUNCH.json
+# Do not use --execute until the source and scratch inputs pass review.
+```
+
+Windows must have encryption off on system and host volumes.
+The real Windows command must confirm that state before BCD arm and after
+return. There is no TPM in this test. These Windows commands have
+not run. The local process tests use a small C program. They do not start
+QEMU or prove a boot.

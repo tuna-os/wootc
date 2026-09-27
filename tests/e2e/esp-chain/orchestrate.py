@@ -14,39 +14,77 @@ import time
 
 ROOT = Path(__file__).resolve().parents[3]
 GuestAgent = runpy.run_path(str(ROOT/'tests/e2e/qga.py'))['GuestAgent']
-validate = runpy.run_path(str(Path(__file__).with_name('accept.py')))['validate']
+acceptance = runpy.run_path(str(Path(__file__).with_name('accept.py')))
+validate, validate_firmware = (acceptance[n] for n in ('validate', 'validate_firmware'))
 
 
-def check_vm(folder, record):
-    folder = Path(folder).resolve(strict=True)
+def check_vm(folder, record, executable_policy=None):
+    folder = Path(folder)
+    if folder.is_symlink(): raise ValueError('scratch VM directory symlink')
+    folder = folder.resolve(strict=True)
     info = folder.stat()
     if info.st_uid != os.getuid() or info.st_mode & 0o077:
         raise ValueError('scratch VM directory is not private and owned')
-    if Path(record['overlay']).resolve(strict=True).parent != folder:
+    overlay_info = Path(record['overlay']).lstat()
+    if not stat.S_ISREG(overlay_info.st_mode) or overlay_info.st_uid != os.getuid() or overlay_info.st_mode & 0o077:
+        raise ValueError('overlay is not private and owned')
+    if Path(record['overlay']).is_symlink() or Path(record['overlay']).resolve(strict=True).parent != folder:
         raise ValueError('overlay escapes scratch identity')
     pid_file = folder/'qemu.pid'
-    if pid_file.is_symlink():
-        raise ValueError('QEMU pid file symlink')
+    info = pid_file.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise ValueError('QEMU pid file is not private and owned')
     pid = int(pid_file.read_text().strip())
     process = Path('/proc')/str(pid)
     if process.stat().st_uid != os.getuid():
         raise ValueError('QEMU process owner differs')
     args = process.joinpath('cmdline').read_bytes().decode().rstrip('\0').split('\0')
-    if Path(args[0]).name != 'qemu-system-x86_64' or args.count('-uuid') != 1:
+    if process.joinpath('exe').resolve(strict=True).name != 'qemu-system-x86_64' or args.count('-uuid') != 1:
         raise ValueError('not one owned QEMU process')
-    if args[args.index('-uuid')+1].lower() != record['vmUuid'].lower():
-        raise ValueError('QEMU UUID differs from scratch identity')
-    drives = [args[i+1] for i, arg in enumerate(args[:-1]) if arg == '-drive']
-    if not any('file='+record['overlay'] in value.split(',') for value in drives):
-        raise ValueError('QEMU does not use this scratch overlay')
-    socket = folder/'qga.sock'
-    info = socket.lstat()
+    launch_path = folder/'launch.json'
+    info = launch_path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise ValueError('launch record is not private and owned')
+    if hashlib.sha256(launch_path.read_bytes()).hexdigest() != record['launchSha256']:
+        raise ValueError('launch record differs from scratch pin')
+    launch = json.loads(launch_path.read_text())
+    if executable_policy is None:
+        policies = runpy.run_path(str(Path(__file__).with_name('launch.py')))
+        policies['trusted_qemu'](launch['qemuPath'])
+        policies['trusted_firmware']({'sha256': launch['firmwareCodeSha256']})
+        if not launch['firmwareSourceVerified']:
+            raise ValueError('QEMU firmware source is a fixture')
+        if not launch['executableTrustVerified']:
+            raise ValueError('QEMU executable trust is a fixture')
+    else:
+        executable_policy(launch['qemuPath'])
+    if launch['argv'] != args or launch['vmUuid'] != record['vmUuid'] or launch['scratchId'] != record['scratchId'] or launch['overlay'] != record['overlay'] or launch['planSha256'] != record['planSha256']:
+        raise ValueError('actual QEMU arguments differ from frozen launch identity')
+    if str(pid) != str(launch['pid']) or process.joinpath('stat').read_text().rsplit(')', 1)[1].split()[19] != launch['startTicks']:
+        raise ValueError('QEMU PID was reused')
+    with process.joinpath('exe').open('rb') as stream:
+        executable_hash = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if executable_hash != launch['qemuSha256'] or launch['executableSha256'] != executable_hash:
+        raise ValueError('actual QEMU executable differs')
+    for name, key in [('firmware-code.fd', 'firmwareCodeSha256'), ('firmware-baseline.fd', 'firmwareBaselineSha256')]:
+        path = folder/name; info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o277:
+            raise ValueError('firmware source is not private and immutable')
+        if hashlib.sha256(path.read_bytes()).hexdigest() != launch[key]:
+            raise ValueError('immutable firmware source changed')
+    handles = {os.readlink(p) for p in process.joinpath('fd').iterdir()}
+    if not {record['overlay'], str(folder/'firmware-code.fd'), str(folder/'firmware-active.fd')} <= handles:
+        raise ValueError('QEMU did not open the exact scratch disk and firmware files')
+    socket_path = folder/'qga.sock'; info = socket_path.lstat()
     if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
         raise ValueError('QGA socket is not owned by this scratch identity')
-    devices = [args[i+1] for i, arg in enumerate(args[:-1]) if arg == '-chardev']
-    if not any('path='+str(socket) in value.split(',') for value in devices):
-        raise ValueError('QGA socket is not attached to this QEMU')
-    return socket
+    sockets = [line.split() for line in process.joinpath('net/unix').read_text().splitlines()[1:]]
+    inodes = {fields[6] for fields in sockets if len(fields) == 8 and fields[7] == str(socket_path)}
+    if len(inodes) != 1 or not {'socket:['+inode+']' for inode in inodes} <= handles:
+        raise ValueError('QGA socket is not held by the actual QEMU process')
+    if process.joinpath('stat').read_text().rsplit(')', 1)[1].split()[19] != launch['startTicks']:
+        raise ValueError('QEMU process changed during identity check')
+    return socket_path
 
 
 def remaining(deadline):
@@ -260,6 +298,9 @@ class Transport:
         windows = self.capture('windows', plan, {'observation': {'bootId': 'bootstrap'}})
         if windows['hostUuid'] != plan['identity']['hostUuid']:
             raise ValueError('actual Windows root.disk volume differs from producer')
+        for role in ('host', 'system'):
+            if windows.get('bitlocker', {}).get(role) != {'volumeStatus': 'FullyDecrypted', 'protectionStatus': 'Off', 'encryptionPercentage': 0}:
+                raise ValueError('classic scratch requires observed unencrypted Windows volumes')
         nonce = secrets.token_hex(32)
         command = "& '"+plan['windowsVolume']+"\\wootc\\qa\\arm-classic.ps1' -VmUuid '"+self.record['vmUuid']+"' -EspPartitionGuid '"+plan['identity']['bootCurrent']['espPartitionGuid']+"' -LoaderPath '"+plan['identity']['bootCurrent']['loaderPath']+"' -TransportNonce '"+nonce+"'"
         output = self.execute('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', base64.b64encode(command.encode('utf-16le')).decode()], 'actual-windows-bcd-arm')
@@ -291,11 +332,16 @@ class Transport:
 def run(transport, plan, bootstrap=False):
     if plan['scratchId'] != transport.record['scratchId'] or plan['vmUuid'].lower() != transport.record['vmUuid'].lower():
         raise ValueError('plan belongs to another scratch VM')
+    if transport.helper_policy is expected_helpers:
+        raw_plan = (transport.folder/'plan.json').read_bytes()
+        if hashlib.sha256(raw_plan).hexdigest() != transport.record['planSha256'] or json.loads(raw_plan) != plan:
+            raise ValueError('orchestrator plan differs from frozen producer plan')
     if transport.helper_policy is expected_helpers and plan['identity']['deploymentKind'] == 'classic':
         source_pins = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for directory in (ROOT/'payload/migration', ROOT/'platform/dracut/99wootc-boot', Path(__file__).parent) for p in directory.rglob('*') if p.is_file() and p.suffix != '.pyc' and '__pycache__' not in p.parts}
         if plan.get('producerSourceHashes') != source_pins:
             raise ValueError('producer source provenance differs from complete pinned implementation')
     old = transport.bootstrap_classic(plan) if bootstrap else transport.capture('linux', plan)
+    validate_firmware(old, plan, True)  # Measured baseline must match before source mutation.
     measured = old['observation']['bootCurrent']
     pinned = plan['identity']['bootCurrent']
     if measured['espPartitionGuid'].lower() != pinned['espPartitionGuid'].lower() or measured['loaderPath'].lower() != pinned['loaderPath'].lower():
@@ -329,7 +375,7 @@ def run(transport, plan, bootstrap=False):
     if actual[-1:] != ['windows'] or len([e for e in actual if e == 'linux']) < 3:
         raise ValueError('actual execution chronology missing')
     production = transport.identity_check is check_vm and transport.helper_policy is expected_helpers
-    result.update(chronologyVerified=True, firmwareAcceptance=production,
+    result.update(firmwareStoreBindingVerified=production, chronologyVerified=True, firmwareAcceptance=production,
                   classicOsBootAcceptance=production and kind == 'classic', transportRunId=transport.run_id)
     result['scope'] = 'actual no-cut QGA/software run; no hardware power-cut claim' if production else 'QGA protocol order with injected fixture identity/OS/policy; no firmware or OS claim'
     # This proves the no-cut software run only. No hardware power-cut claim.
