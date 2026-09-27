@@ -1,8 +1,8 @@
 # Getting started — downloading and opening wootc
 
 This page walks you from "I found wootc" to the installer's first screen,
-including the two Windows warnings you **will** see on the way. They look
-alarming; here is exactly what they are and why they appear.
+including Windows prompts that you **may** see on the way.
+Their appearance and available choices depend on your Windows settings.
 
 ## 1. Download
 
@@ -20,27 +20,25 @@ Windows, which is the right choice on a Wi-Fi-only laptop.
 Command-line folks can use winget once the package clears Microsoft's
 one-time review: `winget install TunaOS.wootc`.
 
-Want to check your download? Every release ships a `SHA256SUMS` file;
-compare with PowerShell's `Get-FileHash .\wootc.exe` — the app performs the
-same verification on every boot artifact it downloads for itself.
+To check your download, compare the release's `SHA256SUMS` entry with
+PowerShell's `Get-FileHash .\wootc.exe` result.
+A matching checksum confirms the file matches that manifest. It does not identify the publisher.
+The app checks hashes and a signed manifest for its boot artifacts.
 
 Your browser may say something like *"wootc.exe isn't commonly downloaded"*
-and hide the file behind a menu. That message means exactly what it says —
-not many people have downloaded this exact file yet — and nothing more.
-Choose **Keep** (in Edge: `…` → *Keep* → *Keep anyway*).
+and hide the file behind a menu. SmartScreen checks file and publisher reputation.
+A warning can reflect an unknown or negative reputation.
+If you trust the source and want to continue, choose **Keep** in Edge: `…` → *Keep* → *Keep anyway*.
 
 ## 2. The blue "Windows protected your PC" screen
 
-When you first open `wootc.exe`, Windows SmartScreen shows a full-screen
-blue warning: **"Windows protected your PC — Microsoft Defender SmartScreen
-prevented an unrecognized app from starting."**
+When you open `wootc.exe`, SmartScreen can show **Windows protected your PC**.
+The current release pipeline does not sign the Windows executable.
+A signature identifies a publisher; it does not guarantee that SmartScreen will accept a new file.
+[Microsoft describes the checks for file and publisher reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 
-This appears because wootc is not yet *code-signed* — signing certificates
-are how big publishers pre-register software with Microsoft, and wootc is an
-open-source project that hasn't bought one. The warning is about
-*recognition*, not about anything found in the file.
-
-To continue: click **More info**, then **Run anyway**.
+If you trust the source and Windows offers the choice, click **More info**, then **Run anyway**.
+Windows policy can prevent continuation.
 
 If you want to verify the download first (a good habit): the Releases page
 lists a SHA-256 checksum for each file. In PowerShell,
@@ -51,10 +49,9 @@ lists a SHA-256 checksum for each file. In PowerShell,
 Next, Windows asks: *"Do you want to allow this app from an unknown
 publisher to make changes to your device?"*
 
-wootc needs administrator rights for exactly the work it exists to do —
-create a disk file, add the one-time boot entry, and read the system
-information it shows you. "Unknown publisher" is the same unsigned-app
-recognition issue as above. Choose **Yes**.
+wootc needs administrator rights to create the Linux disk file and change the boot setup.
+It also reads the system information that it shows you.
+The current unsigned executable has no verified publisher identity. Choose **Yes** if you want to allow those changes.
 
 ## 4. You're in
 
@@ -63,9 +60,10 @@ most important thing before asking you for anything:
 
 > Bring Windows to Linux — keep everything.
 
-Everything wootc does before the first reboot lives in one folder
-(`C:\wootc`) plus a one-time startup entry, and the installer explains each
-step as it happens. If you ever change your mind, **Settings → Apps →
-TunaOS (wootc) → Uninstall** puts things back — see the
-[user guide](user-guide.md#9-uninstall--put-everything-back) for exactly
-what that does.
+The **Install** button starts changes before you restart.
+The app creates the Linux disk file, copies boot files to the EFI system partition, and changes Windows startup settings.
+The installer describes each step as it happens.
+
+To uninstall, use **Settings → Apps → TunaOS (wootc) → Uninstall**.
+Cleanup can fail and leave files or boot state behind. Linux data removal is a separate choice in Manage.
+See the [user guide](user-guide.md#9-uninstall--put-everything-back) for the cleanup actions and data choices.
