@@ -43,12 +43,13 @@ check("restorePriorPowerState" in installer_code, "uninstallWith restores power 
 with open(DISK_WIN, "r", encoding="utf-8") as f:
     disk_code = f.read()
 
-check("wootc-data" in disk_code, "dedicatedVolumeInfo checks for exact 'wootc-data' label")
-check("c12a7328-f81f-11d2-ba4b-00a0c93ec93b" in disk_code, "dedicatedVolumeInfo refuses EFI system partition GUID")
-check("System" in disk_code, "dedicatedVolumeInfo refuses System partition type")
-check("DiskNumber" in disk_code, "dedicatedVolumeInfo verifies partition is on same disk as C:")
-check("Refusing to remove drive C:" in disk_code or "refusing to remove partition on drive C:" in disk_code, "removePartitionAndExtendC refuses to remove C:")
-check("Refusing to remove EFI system partition" in disk_code, "removePartitionAndExtendC refuses to remove EFI partition")
+with open(os.path.join(REPO_ROOT, "app", "partition-policy.ps1"), encoding="utf-8") as f:
+    policy_code = f.read()
+check("readStoragePartitionReceipt" in disk_code, "assessment requires protected persistent creation receipt")
+check("Get-WootcPartitionRemovalBinding" in policy_code, "actual removal uses full identity and contents binding")
+check("Remove-Partition -InputObject $binding.Partition" in policy_code, "removal consumes verified object rather than drive letter")
+check("partition-removal-and-extension-verified" in disk_code, "backend requires positively observed deletion and extension")
+check("markStoragePartitionRemoval" in installer_code, "explicit removal intent survives partial uninstall")
 
 # 3. Check headless.go for headlessUninstall
 with open(HEADLESS_GO, "r", encoding="utf-8") as f:
