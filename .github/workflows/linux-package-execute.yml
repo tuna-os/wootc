@@ -1,0 +1,78 @@
+name: Disposable Linux package installation proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact reviewed 40-hex source commit (must match selected ref)
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - tests/e2e/package-runtime/hosted-execute.py
+      - tests/unit/test_linux_package_hosted.py
+      - .github/workflows/linux-package-execute.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-package-execute-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s tests/unit -p 'test_linux_package_*.py'
+  execute:
+    if: github.event_name == 'workflow_dispatch'
+    needs: controls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      REVIEWED_SHA: ${{ inputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require reviewed exact source on an exclusive fresh hosted runner
+        run: |
+          OWNED_STAGE="$RUNNER_TEMP/linux-package-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          echo "OWNED_STAGE=$OWNED_STAGE" >> "$GITHUB_ENV"
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$GITHUB_SHA" = "$REVIEWED_SHA"
+          test "$(git rev-parse HEAD)" = "$REVIEWED_SHA"
+          test ! -e "$OWNED_STAGE"
+          python3 - <<'PY'
+          from pathlib import Path
+          for path in Path('/proc').glob('[0-9]*/comm'):
+              try: name=path.read_text().strip()
+              except FileNotFoundError: continue
+              if name.startswith(('qemu','swtpm')): raise SystemExit('existing VM process: refuse reclaim')
+          PY
+      - name: Reclaim only preinstalled toolchains before any owned VM
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/boost /usr/local/lib/node_modules /usr/share/swift
+          sudo apt-get clean
+          df -h "$RUNNER_TEMP"
+      - name: Install host tools without guest package injection
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf genisoimage
+          sudo chmod 0666 /dev/kvm
+      - name: Verify source pins and execute one owned disposable probe
+        run: |
+          python3 tests/audit-linux-package-runtime.py .
+          timeout --signal=TERM --kill-after=10s 3600s \
+            python3 tests/e2e/package-runtime/hosted-execute.py "$OWNED_STAGE"
+      - name: Retain bounded success or failure proof
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-package-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.OWNED_STAGE }}/artifacts/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,31 @@
+{
+  "actualHostedClosureMeasured": false,
+  "bounds": {
+    "acquisitionBytes": 455664032,
+    "acquisitionStageQuotaBytes": 1073741824,
+    "artifactDays": 14,
+    "hostCPUs": 4,
+    "hostFreeGiB": 64,
+    "hostMemAvailableGiB": 11,
+    "kvmAPI": 12,
+    "overallSeconds": 3600,
+    "proofFileBytes": 262144,
+    "retentionTotalBytes": 4194304,
+    "vmSeconds": 1200
+  },
+  "classicOsBootAcceptance": false,
+  "firmwareAcceptance": false,
+  "hostedExecutionDispatched": false,
+  "nativeControls": 60,
+  "packageInstallationAccepted": false,
+  "parentReviewedSource": "84dcb71",
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "scope": "source route and fixtures only; no hosted qualification, seed, VM, or guest package installation",
+  "sourceHashes": {
+    ".github/workflows/linux-package-execute.yml": "8acfe1d4aa5d1ff559ee3b1d6fd30fd45fe9ae6a65eab8f5c905244abb0d0a89",
+    "docs/experiments/evidence/2026-09-27-linux-package-hosted-route/controls.log": "188b385a036cfc9bd942e35021a2d15130b4286f25b31ecc1652085a9cb9239b",
+    "tests/e2e/package-runtime/hosted-execute.py": "4993cd1e009fea6747abaaf6771dc84119d7cf6f60a7964ab3946426cebba8c8",
+    "tests/unit/test_linux_package_hosted.py": "27984bebe50ddd8a032e2c2c163df3902c409f374009bc56471407218bca7135"
+  }
+}
