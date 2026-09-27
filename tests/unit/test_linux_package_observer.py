@@ -57,6 +57,15 @@ class ObserverTests(unittest.TestCase):
         self.assertIsNone(self.observe(self.child,1))
         self.assertEqual(self.calls,['old']);self.assertEqual(len(self.acks),1)
 
+    def test_old_readback_cannot_start_ack_after_shared_deadline(self):
+        original=self.readback
+        def slow(*args):
+            value=original(*args);time.sleep(.03);return value
+        self.observe=LAUNCH['make_observer'](self.folder,self.plan,slow,self.acknowledge)
+        (self.folder/'serial.log').write_text(self.text(2))
+        with self.assertRaises(TimeoutError):self.observe(self.child,.01)
+        self.assertEqual(self.acks,[])
+
     def test_partial_fourth_live_line_waits_then_actual_completion_accepts(self):
         self.old_observed()
         final=SERIAL['PREFIX']+json.dumps(self.records[3])

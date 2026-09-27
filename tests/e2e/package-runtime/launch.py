@@ -158,10 +158,12 @@ def make_observer(folder,record,readback,acknowledge):
             owned_qga_socket(child,folder)
             record['readbackChallenge']=os.urandom(32).hex()
             deadline=time.monotonic()+remaining
-            current=readback(folder,record,max(.01,deadline-time.monotonic()),'old')
+            current=readback(folder,record,remaining,'old')
             COMPARE(text,record,current,through='old')
             approved=hashlib.sha256(json.dumps(current,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-            ack=acknowledge(folder,record,approved,max(.01,deadline-time.monotonic()))
+            left=deadline-time.monotonic()
+            if left<=0:raise TimeoutError('old readback exhausted shared observer deadline')
+            ack=acknowledge(folder,record,approved,left)
             expected={name:current['result'][name] for name in ('scratchId','challenge','bootId','seedSha256')}
             expected.update(validatedPhase='old',readbackChallenge=record['readbackChallenge'],approvedReadbackSha256=approved)
             if ack!=expected:raise ValueError('old phase acknowledgement differs from independent approval')
