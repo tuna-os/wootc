@@ -1,0 +1,9 @@
+test_actual_blocked_reader_bounds_writer (test_linux_package_serial_lifecycle.SerialLifecycleTests.test_actual_blocked_reader_bounds_writer) ... ok
+test_current_hung_up_tty_refuses_without_retry (test_linux_package_serial_lifecycle.SerialLifecycleTests.test_current_hung_up_tty_refuses_without_retry) ... ok
+test_native_hangup_invalidates_retained_descriptor_fresh_publication_succeeds (test_linux_package_serial_lifecycle.SerialLifecycleTests.test_native_hangup_invalidates_retained_descriptor_fresh_publication_succeeds) ... ok
+test_non_tty_and_oversize_refuse (test_linux_package_serial_lifecycle.SerialLifecycleTests.test_non_tty_and_oversize_refuse) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.104s
+
+OK

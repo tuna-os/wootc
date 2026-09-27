@@ -1,0 +1,46 @@
+{
+  "scope": "TTY publication component source correction; no corrected guest execution or package acceptance",
+  "originalRun": "36339827190",
+  "sourceCommit": "2e5f2d2bcfd54fd73dcf63b62408c4cdb793a15a",
+  "artifactId": 10938529561,
+  "archiveSha256": "00cb5df22e73f721a47b229e6caa48af307f6801a0208a629937aaf9c9a71161",
+  "selectedOriginalHashes": {
+    "guest-process-reap.json": "e741b997f510b1f8f9de9b6580d84c08ebfaf56e50a29159a9041c21370d17b9",
+    "guest-serial.log": "4044ca310904ec29fddb01a9bcba8a99e5062c4a6fa57fb16960999aef14c199",
+    "guest-ownership.json": "77daa66d9357aa2e11cdc3012ab22d07e65cf0e2a8d840cfff14a19230794203"
+  },
+  "actualOwnedProcessReap": {
+    "ownedProcessIdentity": {
+      "cmdlineSha256": "d768c2c634a4ac15f4061f4265d6e34296587c41a1213ffb1e83da66336fbaf2",
+      "pid": 4192,
+      "startTime": "23211"
+    },
+    "returnCode": 0,
+    "schemaVersion": 1,
+    "waitCompleted": true
+  },
+  "observedFailure": "Old-installed publication write and failure publication returned EIO errno5; complete observation absent.",
+  "causalScope": "Actual old production main AST with only private device path substituted fails after native private PTY hangup. This proves descriptor-generation mechanism, not which actual guest actor invalidated its tty.",
+  "sourceRecordBytesFromOriginalBoundPolicy": {
+    "baseline-observed": 22858,
+    "old-installed": 23273,
+    "new-installed": 23321,
+    "complete": 23316
+  },
+  "recordSizeScope": "Baseline actually published; later sizes reconstructed from source format and bound approved inventories, not later published observations.",
+  "sourceHashes": {
+    "tests/e2e/package-runtime/bootstrap.py": "4e81866c41f15f0393b9b68c0996ae477ec397120b59fc2256578a8b0f3b6286",
+    "tests/unit/test_linux_package_serial_lifecycle.py": "493e62dc96326108ae32424c7c1f32f3b4d2608b0a2fe34ce190cbe4bcca52a8"
+  },
+  "controls": 4,
+  "allPackageControls": 119,
+  "correctedRuntimeExecuted": false,
+  "packageInstallationAccepted": false,
+  "evidenceHashes": {
+    "mutant.raw.log": "fb2ac5309c12e8cf2d74eae0b18ccee77279c077eb48eee3b524ca842bb63353",
+    "all.raw.log": "fc08779059337abdbb6973b5ca17b82480b2d843c44b0da323caa0bd8cc9d3f8",
+    "before.raw.log": "0864f7ef2b75000339a8f13440e468cd42ff85bec3c57d64e0e67f11f885139c",
+    "runtime-prior-provenance.json": "4d5f283a2dd5e0e4b039c7d57f1423c744e138e393c146bab67b2c59891c3e96",
+    "controls.raw.log": "a91c9496c8fcb8a65b1f55cff56547d78113c52677bc5a3a397e28087b0e70e4"
+  }
+}
