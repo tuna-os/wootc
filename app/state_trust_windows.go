@@ -42,9 +42,12 @@ func validateStateDescriptor(sd *windows.SECURITY_DESCRIPTOR, volumeRoot bool) e
 	if acl == nil {
 		return fmt.Errorf("missing DACL permits unrestricted access")
 	}
-	mask := uint32(windows.GENERIC_ALL | windows.GENERIC_WRITE | windows.WRITE_DAC | windows.WRITE_OWNER | windows.DELETE | 0x40 /* FILE_DELETE_CHILD */)
+	mask := uint32(windows.GENERIC_ALL | windows.GENERIC_WRITE | windows.WRITE_DAC | windows.WRITE_OWNER | 0x40 /* FILE_DELETE_CHILD */)
 	if !volumeRoot {
-		mask |= windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA | windows.FILE_WRITE_ATTRIBUTES
+		// DELETE on a literal drive root does not confer DELETE_CHILD on
+		// its protected state directory. Fresh NTFS grants this root right
+		// to Authenticated Users. State objects must still forbid DELETE.
+		mask |= windows.DELETE | windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA | windows.FILE_WRITE_ATTRIBUTES
 	}
 	for i := uint32(0); i < uint32(acl.AceCount); i++ {
 		var ace *windows.ACCESS_ALLOWED_ACE
