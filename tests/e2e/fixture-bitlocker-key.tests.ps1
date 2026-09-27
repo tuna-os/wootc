@@ -6,7 +6,8 @@ $dir = Join-Path $env:TEMP ('wootc-fixture-key-test-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $dir | Out-Null
 & icacls.exe $dir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Could not protect disposable test directory' }
-$script:password = ((@('123456') * 8) -join '-')
+# Public synthetic recovery password; each block is a valid multiple of 11.
+$script:password = ((@('111111') * 8) -join '-')
 $script:protector = $null
 $script:adds = 0
 $script:failAdd = $false
@@ -36,6 +37,18 @@ try {
     Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector
     if ($script:adds -ne 1 -or -not (Test-Path $path)) { throw 'Missing protector was not created and saved' }
     Write-Output 'PASS missing protector created and private key verified'
+    $keyBytes = [IO.File]::ReadAllBytes($path)
+    if ($keyBytes.Length -ne 57 -or $keyBytes[55] -ne 13 -or $keyBytes[56] -ne 10) {
+        throw 'Recovery export must be 55 ASCII characters followed by CRLF'
+    }
+    $keyText = [Text.Encoding]::ASCII.GetString($keyBytes, 0, 55)
+    if ($keyText -cne $script:password -or $keyText -notmatch '^[0-9]{6}(-[0-9]{6}){7}$') {
+        throw 'Recovery export altered the canonical grouped password'
+    }
+    foreach ($keyByte in $keyBytes) {
+        if ($keyByte -gt 127) { throw 'Recovery export must not contain a BOM or non-ASCII bytes' }
+    }
+    Write-Output 'PASS exported key is 55 canonical ASCII characters with seven separators and CRLF, no BOM'
     Export-WootcFixtureBitLockerKey -Destination $path -EnsureProtector
     if ($script:adds -ne 1) { throw 'Existing protector was duplicated' }
     Write-Output 'PASS existing protector reused'
