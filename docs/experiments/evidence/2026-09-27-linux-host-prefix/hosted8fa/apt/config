@@ -1,0 +1,16 @@
+Dir::Etc "/run/wootc-package-host-36331691668-1/apt/etc";
+Dir::Etc::main "main.conf";
+Dir::Etc::parts "parts";
+Dir::Etc::sourcelist "ubuntu.sources";
+Dir::Etc::sourceparts "-";
+Dir::Etc::trusted "empty.gpg";
+Dir::Etc::trustedparts "-";
+Dir::State::lists "/run/wootc-package-host-36331691668-1/apt/lists";
+Dir::Cache "/run/wootc-package-host-36331691668-1/apt/cache";
+APT::Architecture "amd64";
+APT::Architectures:: "amd64";
+APT::Get::AllowUnauthenticated "false";
+Acquire::AllowInsecureRepositories "false";
+Acquire::AllowDowngradeToInsecureRepositories "false";
+Acquire::Check-Valid-Until "true";
+Acquire::Languages "none";

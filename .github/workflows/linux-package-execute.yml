@@ -9,8 +9,8 @@ on:
         type: string
   pull_request:
     paths:
-      - tests/e2e/package-runtime/hosted-execute.py
-      - tests/unit/test_linux_package_hosted.py
+      - tests/e2e/package-runtime/**
+      - tests/unit/test_linux_package_*.py
       - .github/workflows/linux-package-execute.yml
 
 permissions:
@@ -23,10 +23,34 @@ concurrency:
 jobs:
   controls:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      - name: Install native ELF fixture tools without starting a guest
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf genisoimage binutils
+      - name: Authenticate private host resources and verify isolated closure without a guest
+        run: |
+          HOST_DATA_PREFIX="/run/wootc-package-host-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-data.py "$HOST_DATA_PREFIX"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-namespace.py "$HOST_DATA_PREFIX" --probe
       - run: python3 -m unittest discover -s tests/unit -p 'test_linux_package_*.py'
+      - name: Retain bounded host authentication and namespace proof
+        if: always()
+        run: |
+          HOST_DATA_PREFIX="/run/wootc-package-host-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-data-proof.py "$HOST_DATA_PREFIX" "$RUNNER_TEMP/host-data-proof"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: host-data-proof-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/host-data-proof/
+          if-no-files-found: warn
+          retention-days: 14
   execute:
     if: github.event_name == 'workflow_dispatch'
     needs: controls
@@ -63,11 +87,31 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf genisoimage
           sudo chmod 0666 /dev/kvm
+      - name: Authenticate new protected host data prefix
+        run: |
+          HOST_DATA_PREFIX="/run/wootc-package-host-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          echo "WOOTC_HOST_DATA_PREFIX=$HOST_DATA_PREFIX" >> "$GITHUB_ENV"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-data.py "$HOST_DATA_PREFIX"
       - name: Verify source pins and execute one owned disposable probe
         run: |
           python3 tests/audit-linux-package-runtime.py .
           timeout --signal=TERM --kill-after=10s 3600s \
-            python3 tests/e2e/package-runtime/hosted-execute.py "$OWNED_STAGE"
+            sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP,WOOTC_HOST_DATA_PREFIX \
+            /usr/bin/python3 tests/e2e/package-runtime/host-namespace.py "$WOOTC_HOST_DATA_PREFIX" --execute "$OWNED_STAGE"
+      - name: Retain bounded host authentication and namespace proof
+        if: always()
+        run: |
+          HOST_DATA_PREFIX="/run/wootc-package-host-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-data-proof.py "$HOST_DATA_PREFIX" "$RUNNER_TEMP/host-data-proof"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: host-data-proof-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/host-data-proof/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Retain bounded success or failure proof
         if: always()
         uses: actions/upload-artifact@v7
