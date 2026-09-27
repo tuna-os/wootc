@@ -44,7 +44,7 @@ func installedLinuxEvidence(drive string) (*LinuxBootEvidence, error) {
 		return nil, fmt.Errorf("host drive is absent")
 	}
 	root := strings.ToUpper(drive) + `:\wootc`
-	if err := ensureTrustedStateDirectory(root); err != nil {
+	if err := auditTrustedStateDirectory(root); err != nil {
 		return nil, err
 	}
 	state, ok := readStateFrom(filepath.Join(root, "state.json"))
