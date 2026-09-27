@@ -351,6 +351,13 @@ export function renderLaunchpad() {
   if (state.freshVmCapability?.available && state.selected) {
     const vmBtn = btn(`Start ${distroName()} in a window`, 'btn btn-primary', () => tryInVM());
     vmBtn.id = 'vm-prepare-btn'; footer.appendChild(vmBtn);
+    const vmHint = el('div');
+    vmHint.id = 'vm-prepare-hint';
+    vmHint.setAttribute('role', 'status');
+    vmHint.setAttribute('aria-live', 'polite');
+    vmHint.style.cssText = 'font-size:12px;line-height:1.3;color:var(--text-dim);margin-right:auto;max-width:200px';
+    vmBtn.setAttribute('aria-describedby', vmHint.id);
+    footer.insertBefore(vmHint, footer.firstChild);
   }
   if (state.freshVmCapability?.runtimeNeeded) {
     footer.appendChild(btn('Set up Linux in a window', 'btn btn-primary', () => installVMRuntime()));
@@ -403,8 +410,10 @@ function refreshInstallValidity() {
     else if (!c.password) vmReason = 'Set your Linux password below';
     else if (c.password !== c.passwordConfirm) vmReason = 'Passwords do not match';
     vmBtn.disabled = vmReason !== '';
-    vmBtn.textContent = vmReason || `Start ${distroName()} in a window`;
+    vmBtn.textContent = `Start ${distroName()} in a window`;
     vmBtn.title = vmReason;
+    const vmHint = document.getElementById('vm-prepare-hint');
+    if (vmHint) vmHint.textContent = vmReason;
   }
   let reason = '';
   // Preflight safety gates (#63) come FIRST: these are conditions under which
