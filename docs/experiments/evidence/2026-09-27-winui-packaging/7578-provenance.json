@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "7578f884ae63efa1eecc2e207a8fe8cfc2372394",
+  "testedMerge": "f92717b458fe1e3ecc82d6f6627443f161828dfb",
+  "nativeBuildId": "f92717b458fe1e3ecc82d6f6627443f161828dfb",
+  "runId": 36320372237,
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "brand": "wootc",
+      "jobId": 108622926908,
+      "conclusion": "failure",
+      "rawLog": "7578-wootc.raw.log",
+      "rawSha256": "9f630398b49726f9fa5a1a2ccf6d88c83b565237a1014c8e25671f5e31939d6e",
+      "installedUiPassed": 1,
+      "installedUiSkipped": 0,
+      "failure": "nonempty-owned-destination-at-final-cleanup",
+      "remainingEntryIdentityObserved": false
+    },
+    {
+      "brand": "tunaos",
+      "jobId": 108622926964,
+      "conclusion": "failure",
+      "rawLog": "7578-tunaos.raw.log",
+      "rawSha256": "b72ab69644b4331a1ecdb81b8c3bdf93e5f23178fbf4551e81bbeac6b8b801f0",
+      "installedUiPassed": 1,
+      "installedUiSkipped": 0,
+      "failure": "nonempty-owned-destination-at-final-cleanup",
+      "remainingEntryIdentityObserved": false
+    },
+    {
+      "brand": "aurora",
+      "jobId": 108622926881,
+      "conclusion": "failure",
+      "rawLog": "7578-aurora.raw.log",
+      "rawSha256": "6aaaddca07f089ce59b4906a10ceefd82737021297b96afc5012246d280d3592",
+      "installedUiPassed": 1,
+      "installedUiSkipped": 0,
+      "failure": "nonempty-owned-destination-at-final-cleanup",
+      "remainingEntryIdentityObserved": false
+    },
+    {
+      "brand": "bazzite",
+      "jobId": 108622926886,
+      "conclusion": "failure",
+      "rawLog": "7578-bazzite.raw.log",
+      "rawSha256": "bf35bdc877f39cf27bba98c5af107cb07187ac4ead4b851e5a37efdf270541b8",
+      "installedUiPassed": 1,
+      "installedUiSkipped": 0,
+      "failure": "nonempty-owned-destination-at-final-cleanup",
+      "remainingEntryIdentityObserved": false
+    },
+    {
+      "brand": "bluefin",
+      "jobId": 108622926945,
+      "conclusion": "failure",
+      "rawLog": "7578-bluefin.raw.log",
+      "rawSha256": "bdc8b1366c74c85035bfc4fc8a97b68d7937bec2a049ad483b91d27250ba2655",
+      "installedUiPassed": 1,
+      "installedUiSkipped": 0,
+      "failure": "nonempty-owned-destination-at-final-cleanup",
+      "remainingEntryIdentityObserved": false
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "shell/packaging/test-installed-preview.ps1",
+      "sha256": "f0abce7fb2d64ebf4af25eb24db5be964463b707f6fcadb5bf71013ab0c8795e"
+    },
+    {
+      "path": "shell/packaging/preview.iss",
+      "sha256": "3254fdec293c55217a5a5d83afe402104ca556b9d5dee40d945b69a7e356bddf"
+    },
+    {
+      "path": "shell/packaging/write-manifest.ps1",
+      "sha256": "529972b2476dd83bbbe91a9905c3650071b212c13599825e2a05ebb9a8845f74"
+    },
+    {
+      "path": "shell/packaging/test-manifest.ps1",
+      "sha256": "602716dd5ec38d7ba6ec21dd09a6532940be0e5b1196c0cb7cf65081cd0f5f5c"
+    },
+    {
+      "path": "shell/packaging/inno-tool.json",
+      "sha256": "8a7636f4205fa0d496a00d1bc4f3beb02c8e05b291a3775cb6ef50460843c441"
+    },
+    {
+      "path": "shell/Wootc.Shell.UiTests/InstalledPreviewTests.cs",
+      "sha256": "3683d54c045ea7351c8e9a6d0ee74abd8da42ea7d296c5f88735dc96a794a4dc"
+    },
+    {
+      "path": ".github/workflows/winui-preview.yml",
+      "sha256": "2febc90ee61cf4a97b1d57213180aa5e10aa7bdf5efd9be902d0bbcf12aa939e"
+    }
+  ],
+  "scope": {
+    "allBrandAcceptance": false,
+    "nativePreviewXamlJobPassed": true,
+    "interactiveUacProved": false,
+    "minimumOsRuntimeProved": false,
+    "offlineRuntimeProved": false
+  },
+  "priorFailure": {
+    "head": "533e1f53e50744b55481f5d9f0b1a906549ff4fb",
+    "runId": 36319853308,
+    "brand": "bluefin",
+    "failure": "recursive-test-cleanup-missing-bundle",
+    "supersededForCleanupDiagnosisOnly": true
+  }
+}

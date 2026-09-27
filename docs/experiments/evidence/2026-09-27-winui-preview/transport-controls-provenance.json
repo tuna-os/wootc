@@ -1,0 +1,365 @@
+{
+  "sourceCommit": "eaa347cb220cfc68b4a3fa9c9e856d22ac2a33fb",
+  "run": {
+    "conclusion": "success",
+    "headSha": "eaa347cb220cfc68b4a3fa9c9e856d22ac2a33fb",
+    "jobs": [
+      {
+        "completedAt": "2026-09-27T10:00:40Z",
+        "conclusion": "success",
+        "databaseId": 108596950345,
+        "name": "Native Windows process identity observations",
+        "startedAt": "2026-09-27T09:59:36Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-27T09:59:38Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-27T09:59:37Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T09:59:44Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-09-27T09:59:38Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:00:05Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-go@v7",
+            "number": 3,
+            "startedAt": "2026-09-27T09:59:44Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:00:35Z",
+            "conclusion": "success",
+            "name": "Observe actual process tokens and retained handles",
+            "number": 4,
+            "startedAt": "2026-09-27T10:00:05Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:00:36Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-go@v7",
+            "number": 7,
+            "startedAt": "2026-09-27T10:00:35Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:00:38Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 8,
+            "startedAt": "2026-09-27T10:00:36Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:00:38Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 9,
+            "startedAt": "2026-09-27T10:00:38Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/tuna-os/wootc/actions/runs/36311061729/job/108596950345"
+      },
+      {
+        "completedAt": "2026-09-27T10:01:11Z",
+        "conclusion": "success",
+        "databaseId": 108596950487,
+        "name": "Core startup contract (ubuntu-latest)",
+        "startedAt": "2026-09-27T10:00:50Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-27T10:00:52Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-27T10:00:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:00:53Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-09-27T10:00:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:00:53Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-09-27T10:00:53Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:01:08Z",
+            "conclusion": "success",
+            "name": "Run startup, route and refusal counterexamples",
+            "number": 4,
+            "startedAt": "2026-09-27T10:00:53Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:01:09Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@v7",
+            "number": 5,
+            "startedAt": "2026-09-27T10:01:08Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:01:09Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 9,
+            "startedAt": "2026-09-27T10:01:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:01:09Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 10,
+            "startedAt": "2026-09-27T10:01:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:01:09Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-09-27T10:01:09Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/tuna-os/wootc/actions/runs/36311061729/job/108596950487"
+      },
+      {
+        "completedAt": "2026-09-27T10:03:45Z",
+        "conclusion": "success",
+        "databaseId": 108596950500,
+        "name": "Native preview XAML and packaging build",
+        "startedAt": "2026-09-27T10:01:58Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-27T10:02:01Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-27T10:01:59Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:09Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-09-27T10:02:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:13Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-09-27T10:02:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:16Z",
+            "conclusion": "success",
+            "name": "Restore and publish the native preview",
+            "number": 4,
+            "startedAt": "2026-09-27T10:02:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:30Z",
+            "conclusion": "success",
+            "name": "Observe the actual native startup window with UI Automation",
+            "number": 5,
+            "startedAt": "2026-09-27T10:03:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:30Z",
+            "conclusion": "skipped",
+            "name": "Retain own preview startup event diagnostics",
+            "number": 6,
+            "startedAt": "2026-09-27T10:03:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:31Z",
+            "conclusion": "success",
+            "name": "Retain generated XAML loader and metadata diagnostics",
+            "number": 7,
+            "startedAt": "2026-09-27T10:03:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:32Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@v7",
+            "number": 8,
+            "startedAt": "2026-09-27T10:03:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:41Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@v7",
+            "number": 9,
+            "startedAt": "2026-09-27T10:03:32Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:41Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 17,
+            "startedAt": "2026-09-27T10:03:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:43Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 18,
+            "startedAt": "2026-09-27T10:03:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:03:44Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 19,
+            "startedAt": "2026-09-27T10:03:43Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/tuna-os/wootc/actions/runs/36311061729/job/108596950500"
+      },
+      {
+        "completedAt": "2026-09-27T10:02:51Z",
+        "conclusion": "success",
+        "databaseId": 108596950513,
+        "name": "Core startup contract (windows-latest)",
+        "startedAt": "2026-09-27T10:02:15Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-27T10:02:17Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-27T10:02:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:22Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-09-27T10:02:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:25Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-09-27T10:02:22Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:46Z",
+            "conclusion": "success",
+            "name": "Run startup, route and refusal counterexamples",
+            "number": 4,
+            "startedAt": "2026-09-27T10:02:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:47Z",
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@v7",
+            "number": 5,
+            "startedAt": "2026-09-27T10:02:46Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:47Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 9,
+            "startedAt": "2026-09-27T10:02:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:49Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 10,
+            "startedAt": "2026-09-27T10:02:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-27T10:02:49Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-09-27T10:02:49Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/tuna-os/wootc/actions/runs/36311061729/job/108596950513"
+      }
+    ],
+    "url": "https://github.com/tuna-os/wootc/actions/runs/36311061729"
+  },
+  "sourceSha256": {
+    "app/native_handshake.go": "82e71f9d6dc023c7f2d1c2fc353eb6888761183a1499c9db9d167dc97ae4a1cd",
+    "app/native_handshake_test.go": "04899a78f566053c852937d29ebfb85dce205015e2ceb43d08e0228ac24ad319",
+    "app/native_peer_windows.go": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+    "app/native_peer_windows_test.go": "5f36b6d5d1866b7bf7f75011eda707da7bdb301a1db55bdb45c348051b7d1c90",
+    "app/native_pipe_windows.go": "12f5ab20320e88a725b389962759d13d82abcbe041fcc59f71c9974bd04349ad",
+    "app/native_pipe_windows_test.go": "ec1701881448282fe11595dc3b6bece1f567833ed01dbc42192343f6e45376f8",
+    "app/native_package_windows.go": "bafc0f75f63aaa841ecccdc217ff83144a2a597e9302c30314ff78e9622c7403",
+    "app/native_package_windows_test.go": "b3fc185e6022bbd4af2b02d2986ad9b441ef4eda026298c42266045fcfed6cf7",
+    "app/native_serve_windows.go": "fa50eca7a4a9c0f0ac82bb8e4ff72aac3c60e9199fad80f53016032f2122ac11",
+    "app/native_serve_windows_test.go": "2819c5232089664fee28c7d229fd5e77c7fd3003c7b506510265764ab07602fe",
+    "app/main.go": "ba40ffc24a457648a582d51a77be45a2db9503dc0e54491ae2aa958a523440d3",
+    ".github/workflows/winui-preview.yml": "fe1ab6dae17b003cd2562bf36d70fa130445243a8d3cb28ac8fc1dea5a796c4d"
+  },
+  "rawLogSha256": "920a7add5317abb70b4488fc6623198c0f19adf6040650444cfe16262cc654f6",
+  "normalizedLogSha256": "920a7add5317abb70b4488fc6623198c0f19adf6040650444cfe16262cc654f6",
+  "observed": [
+    "Actual native kernel client process/token SID/session binding and retained source handle",
+    "First-instance exclusivity; absent-client bounded connect cancellation",
+    "Actual overlapped OS pipe read deadline and close releasing pending read",
+    "Fresh protected package valid manifest accepted; changed managed assembly, unrecorded dependency, unsafe path, wrong build, writable assembly refused",
+    "Strict bounded handshake framing/session-build-brand mutation controls",
+    "Invalid native serve arguments refused before application startup"
+  ],
+  "notProved": [
+    "Successful engine RPC session through C# adapter",
+    "Interactive UAC decline/retry",
+    "Alternative-admin original-user collector bridge",
+    "Native installation journey",
+    "Windows10 minimum supported OS runtime"
+  ]
+}

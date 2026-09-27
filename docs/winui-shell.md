@@ -211,6 +211,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetBranding` | — | `Branding` |
 | `GetReleaseNotice` | — | `ReleaseNotice` (optional newer release) |
 | `GetImages` | — | `[]Image` |
+| `GetInstallSteps` | — | `[]StepDefinition` |
 | `GetSessionCandidates` | — | as today |
 | `StartInstall` | `InstallConfig` | `null` or error |
 | `CancelInstall` | — | `null` |
@@ -222,6 +223,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `UninstallWith` | `UninstallOptions` | `null` |
 | `BootIntoLinux` | — | `null` |
 | `GetLastRun` | — | `LifecycleState` |
+| `GetRecoveryVerdict` | — | `RecoveryVerdict` |
 | `E2EDriveDirective` | — | `string` |
 | `E2EDriveReport` | `string` | `null` |
 | `Shutdown` | — | `null` (engine exits 0) |
