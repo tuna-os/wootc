@@ -19,7 +19,8 @@
   "evidenceHashes": {
     "wootc-partial-host-controls.raw.log": "806750497381f4f13c6c70259e36d78145ca8a9ad268024969dbf9ac2e670255",
     "wootc-partial-host-actual-linux.json": "c963065b60c216be05ec6cb8df56289aa18b9c0bff1c1f9886bb40fc0d81eb2d",
-    "wootc-partial-host-old-counter.raw.log": "1a8781114a3789e5bb6a58290414661aa6b629b5992ad04184f774868ad2d794"
+    "wootc-partial-host-old-counter.raw.log": "1a8781114a3789e5bb6a58290414661aa6b629b5992ad04184f774868ad2d794",
+    "original-hosted-prerequisites.json": "adda1561d40521c5c360b8d4092cd5db1cdcb1c76b99cac554d4867fe571e34e"
   },
   "checks": "16 PASS; actual /dev/kvm open EACCES in full publication collector retains independent Linux facts; original-source counter RED; actual current Linux collector refuses missing KVM/nesting/capacity",
   "restoration": "All failing-read/open injections use scoped unittest mock contexts; actual proc/sys/fs reads only; no chmod/sudo/VM_CREATE or host configuration mutation",

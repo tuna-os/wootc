@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "runId": "36331073326/1",
+  "sourceSha": "29aad3942e83a1374acff7af2723e881d9d02d85",
+  "capturedAtUnix": 1790524307.7969527,
+  "scope": "host-prerequisites-only",
+  "guestExecutionQualified": false,
+  "desktopQualified": false,
+  "outerCpuProposed": "host,+vmx",
+  "outerCpuExpandedObserved": null,
+  "windowsWhpxQualified": false,
+  "observations": null,
+  "refusals": [
+    "host-observation-failed"
+  ],
+  "observationError": "PermissionError: [Errno 13] Permission denied: '/dev/kvm'",
+  "prerequisitesPassed": false
+}
