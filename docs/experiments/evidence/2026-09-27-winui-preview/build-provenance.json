@@ -1,0 +1,82 @@
+{
+  "sourceCommit": "d9e5bdce30e8e58a022895459928498377e5aa8f",
+  "runUrl": "https://github.com/tuna-os/wootc/actions/runs/36307814731",
+  "nativeBuildJobId": 108587774381,
+  "conclusion": "success",
+  "sdk": "8.0.425",
+  "windowsAppSDK": "2.5.1",
+  "compileTarget": "net8.0-windows10.0.19041.0",
+  "minimumDeclaredOS": "10.0.17763.0",
+  "scope": "Hosted Windows restore, XAML compilation and unpackaged self-contained publish. Core startup xUnit controls passed Linux and Windows. No observed GUI, authenticated transport, interactive UAC or Windows 10 floor proof in this run.",
+  "sourceHashes": {
+    "shell/global.json": "0a15550b7b496f0eb8ea6e405da955cf264bf519fb0fb60dd8a7e25967bbca5d",
+    "shell/Wootc.Shell/Wootc.Shell.csproj": "5821f04cd1acddc679d95f2a0fc4b3fd33f4be776a94e78750aa5606616f2df7",
+    "shell/Wootc.Shell/app.manifest": "287d30eb3815fe5c4984e270efeef3c37f2118a8a19c741b2687e9b43ee6bb4f",
+    ".github/workflows/winui-preview.yml": "8a1e2e1398afc564da313afadd1347c17911627ef7b65c2b797790709c3eca72"
+  },
+  "rawBuildLogSHA256": "61227495711037bc9f7b0295a565cdcea883ef49404554e5860e5afe0c7a24cf",
+  "selectedBuildLogSHA256": "8e6ba345fce49b64c8df0a07dc6eeffecd48e7f121b57fc2ed6f9ae382ad9682",
+  "githubArtifacts": [
+    {
+      "id": 10928062156,
+      "node_id": "MDg6QXJ0aWZhY3QxMDkyODA2MjE1Ng==",
+      "name": "winui-core-windows-latest",
+      "size_in_bytes": 2734,
+      "url": "https://api.github.com/repos/tuna-os/wootc/actions/artifacts/10928062156",
+      "archive_download_url": "https://api.github.com/repos/tuna-os/wootc/actions/artifacts/10928062156/zip",
+      "expired": false,
+      "digest": "sha256:dd70d195f5e382d170521188c0033c34ac61c055092baf1675b1165896c34ec1",
+      "created_at": "2026-09-27T08:57:53Z",
+      "updated_at": "2026-09-27T08:57:53Z",
+      "expires_at": "2026-12-26T08:57:07Z",
+      "workflow_run": {
+        "id": 36307814731,
+        "repository_id": 1299471854,
+        "head_repository_id": 1299471854,
+        "head_branch": "fix/winui-phase-b-gap",
+        "head_sha": "d9e5bdce30e8e58a022895459928498377e5aa8f"
+      }
+    },
+    {
+      "id": 10927673826,
+      "node_id": "MDg6QXJ0aWZhY3QxMDkyNzY3MzgyNg==",
+      "name": "winui-core-ubuntu-latest",
+      "size_in_bytes": 2695,
+      "url": "https://api.github.com/repos/tuna-os/wootc/actions/artifacts/10927673826",
+      "archive_download_url": "https://api.github.com/repos/tuna-os/wootc/actions/artifacts/10927673826/zip",
+      "expired": false,
+      "digest": "sha256:3604e32b6e6a07fc0c543aa9fb2f763744e16a195ce33c821f8110e5fdafb38d",
+      "created_at": "2026-09-27T08:57:29Z",
+      "updated_at": "2026-09-27T08:57:29Z",
+      "expires_at": "2026-12-26T08:57:07Z",
+      "workflow_run": {
+        "id": 36307814731,
+        "repository_id": 1299471854,
+        "head_repository_id": 1299471854,
+        "head_branch": "fix/winui-phase-b-gap",
+        "head_sha": "d9e5bdce30e8e58a022895459928498377e5aa8f"
+      }
+    },
+    {
+      "id": 10927198757,
+      "node_id": "MDg6QXJ0aWZhY3QxMDkyNzE5ODc1Nw==",
+      "name": "winui-preview-unpackaged",
+      "size_in_bytes": 91960224,
+      "url": "https://api.github.com/repos/tuna-os/wootc/actions/artifacts/10927198757",
+      "archive_download_url": "https://api.github.com/repos/tuna-os/wootc/actions/artifacts/10927198757/zip",
+      "expired": false,
+      "digest": "sha256:1b637e6b6ed5411663ade0bdbc5680f91aa3fd8d9675e914737f05d6d07cae2d",
+      "created_at": "2026-09-27T08:58:16Z",
+      "updated_at": "2026-09-27T08:58:16Z",
+      "expires_at": "2026-12-26T08:57:07Z",
+      "workflow_run": {
+        "id": 36307814731,
+        "repository_id": 1299471854,
+        "head_repository_id": 1299471854,
+        "head_branch": "fix/winui-phase-b-gap",
+        "head_sha": "d9e5bdce30e8e58a022895459928498377e5aa8f"
+      }
+    }
+  ],
+  "artifactBinding": "GitHub service metadata/digest retained without downloading large archives; artifact bytes not independently rehashed locally."
+}
