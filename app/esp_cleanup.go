@@ -135,10 +135,13 @@ func espCleanupClaims(root string) (map[string]bool, string, bool, error) {
 	if err != nil {
 		return nil, "", false, err
 	}
-	// Legacy writers also stage config/kernel files without recording them.
-	// Retain only their explicit historical filenames, including mixed installs.
+	// A modern manifest is authoritative for shared binaries and loader entries.
+	// Legacy writers did not record the exact product kernel names or marked
+	// config files; those bounded exceptions remain attributable per file.
 	for rel := range legacy {
-		owned[rel] = true
+		if !exists || legacyUnrecordedProductFile(rel) {
+			owned[rel] = true
+		}
 	}
 	delete(owned, normalizeESPPath(espOwnershipManifest))
 	return owned, manifest, exists, nil
@@ -238,4 +241,13 @@ func hasESPOwnedFiles(root string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func legacyUnrecordedProductFile(rel string) bool {
+	switch rel {
+	case "efi/wootc/deployer-vmlinuz", "efi/wootc/deployer-initramfs.img", "efi/wootc/phase2-vmlinuz", "efi/wootc/phase2-initramfs.img", "efi/wootc/wubildr.efi",
+		"efi/fedora/grub.cfg", "efi/redhat/grub.cfg", "efi/wootc/grub.cfg", "loader/loader.conf":
+		return true
+	}
+	return false
 }

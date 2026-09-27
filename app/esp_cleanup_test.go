@@ -205,3 +205,27 @@ func TestESPCleanupRechecksCompletePlanBeforeRemovingManifest(t *testing.T) {
 		t.Fatal("retry plan lost despite remaining file")
 	}
 }
+
+func TestESPCleanupModernManifestDoesNotClaimConventionalNeighbours(t *testing.T) {
+	root := t.TempDir()
+	configs := []string{"EFI/fedora/grub.cfg", "loader/loader.conf"}
+	for _, rel := range configs {
+		writeFile(t, filepath.Join(root, filepath.FromSlash(rel)), "# wootc owned config")
+	}
+	foreign := []string{"EFI/fedora/shimx64.efi", "EFI/fedora/grubx64.efi", "EFI/fedora/mmx64.efi", "EFI/systemd/shimx64.efi", "EFI/systemd/grubx64.efi", "EFI/systemd/systemd-bootx64.efi", "loader/entries/wootc-deployer.conf", "loader/entries/wootc.conf"}
+	for _, rel := range foreign {
+		writeFile(t, filepath.Join(root, filepath.FromSlash(rel)), "foreign conventional neighbour "+rel)
+	}
+	if err := recordESPOwnership(root, configs); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanupESPOwnedFiles(root); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range foreign {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if err != nil || string(data) != "foreign conventional neighbour "+rel {
+			t.Fatalf("manifest inferred ownership of unclaimed neighbour: %s", rel)
+		}
+	}
+}
