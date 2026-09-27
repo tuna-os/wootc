@@ -17,3 +17,7 @@ An earlier broad unittest discovery attempt ran 147 cases and hit one
 import error from existing script test_uninstall_partial.py calling sys.exit(0).
 Its 20 assertions passed. That command is not a final aggregate gate.
 No full image build, hosted EFI boot or actual power-cut acceptance in this probe.
+Migration consumer repair: cached Fedora45 container, 69+6+6+12 (93) passed, zero failed; process exit 0.
+Actual shell routing uses an explicit controlled adapter; measured-root refusal
+uses the actual installed controller. Neither proves firmware acceptance.
+Compact audit: python3 tests/audit-esp-chain-provenance.py REPOSITORY --assets PUBLIC_ASSET_DIRECTORY.
