@@ -266,26 +266,9 @@ WOOTC_E2E_HEARTBEAT_STALE_SAMPLES="${WOOTC_E2E_HEARTBEAT_STALE_SAMPLES:-3}"
 WOOTC_E2E_FISHERMAN_GONE_SAMPLES="${WOOTC_E2E_FISHERMAN_GONE_SAMPLES:-10}"
 
 WOOTC_E2E_KEEP_RUNS="${WOOTC_E2E_KEEP_RUNS:-3}"
-prune_old_artifacts() {
-    local base="$STORAGE_DIR/artifacts" keep="$WOOTC_E2E_KEEP_RUNS"
-    [ -d "$base" ] || return 0
-    local evidence="$base/.evidence"
-    mkdir -p "$evidence"
-    # Newest first; skip the ones we keep, prune the tail. ls -t is the point
-    # here (mtime ordering) — a glob can't sort by time, and run dirs are
-    # timestamp-named ASCII so the SC2010 filename caveat doesn't apply.
-    # shellcheck disable=SC2010
-    ls -1dt "$base"/*/ 2>/dev/null | grep -v '/.evidence/$' | tail -n "+$((keep + 1))" | while read -r d; do
-        local name; name=$(basename "$d")
-        mkdir -p "$evidence/$name"
-        # Text-sized evidence only: serial + logs under 50 MiB.
-        find "$d" -maxdepth 1 -type f \( -name '*.log' -o -name 'qemu.pty' -o -name '*.txt' -o -name '*.json' -o -name '*.jsonl' \) \
-            -size -50M -exec cp {} "$evidence/$name/" \; 2>/dev/null || true
-        rm -rf "$d"
-    done
-    return 0
-}
-prune_old_artifacts
+# shellcheck source=tests/e2e/lib/retention.sh
+source "$SCRIPT_DIR/lib/retention.sh"
+prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS" || { infra_fail "Artifact retention failed; old evidence was retained"; exit 1; }
 run_state() {
     local stage="$1" tmp="$RUN_STATE_FILE.tmp"
     {
@@ -311,70 +294,8 @@ uname -a > "$ARTIFACT_DIR/host-uname.txt" 2>&1 || true
 free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
 df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
 
-host_preflight() {
-    # Recalibrated after the pre-deployer snapshot was disabled (1c6d713).
-    #
-    # 65 GiB was the bare minimum for ONE run, so a run could pass preflight and
-    # die mid-deploy, leaving nothing for the next run — runners ratcheted
-    # toward full. That was raised to 120, but 120 assumed the snapshot's FULL
-    # byte copy of data.qcow2 (reflink is unavailable here, so it doubled an
-    # 18-28 GiB file). With the snapshot off, a run's resident footprint is
-    # ~45 GiB: data.qcow2 + windows.*.iso (7.4) + custom.iso (7.3) + artifacts.
-    #
-    # 90 GiB is still roughly two runs' worth on a persistent host, and it fits
-    # a GitHub hosted runner, which offers ~114 GiB after its cleanup step and
-    # was being rejected by the 120 figure. Override for unusual hosts.
-    local mem_available_kib disk_available_kib
-    local required_free_gib="${WOOTC_E2E_MIN_FREE_GIB:-90}"
-    mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
-    disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
-
-    command -v podman >/dev/null || { infra_fail "podman is required"; return 1; }
-    command -v python3 >/dev/null || { infra_fail "python3 is required for QGA"; return 1; }
-    [ -r /dev/kvm ] && [ -w /dev/kvm ] || { infra_fail "/dev/kvm is not accessible"; return 1; }
-    [ -c /dev/net/tun ] || { infra_fail "/dev/net/tun is unavailable"; return 1; }
-    # Memory: a point-in-time MemAvailable sample on a host running sibling
-    # instances is transient — a neighbor's build spike or install phase can
-    # eat gigabytes for a few minutes. Wait for the dip to pass (10 min)
-    # before declaring the host too small. The requirement scales with the
-    # configured VM size when dockur's own clamp is disabled (RAM_CHECK=N);
-    # otherwise 6 GiB suffices to start a clamp-protected 4 GiB minimum VM.
-    local need_mem_mib=6144
-    if [ "${WOOTC_E2E_RAM_CHECK:-Y}" = "N" ]; then
-        need_mem_mib=$(( $(printf '%s' "${WOOTC_E2E_RAM_SIZE:-8G}" | tr -dc '0-9') * 1024 + 256 ))
-    fi
-    local mem_deadline; mem_deadline=$(deadline_in 600)
-    while [ $(( ${mem_available_kib:-0} / 1024 )) -lt "$need_mem_mib" ]; do
-        if past_deadline "$mem_deadline"; then
-            infra_fail "Only $((mem_available_kib / 1024)) MiB host RAM available after 10 min; need ${need_mem_mib} MiB before starting Windows"
-            return 1
-        fi
-        info "Waiting for host memory: $((mem_available_kib / 1024)) MiB available, want ${need_mem_mib} MiB..."
-        sleep 15
-        mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
-    done
-    # These situational adjustments apply only when the caller did NOT set an
-    # explicit floor: WOOTC_E2E_MIN_FREE_GIB=45 from the matrix was silently
-    # RAISED back to 75 by the iso branch (a leftover windows.*.iso in the
-    # instance dir), failing a slot with plenty of room for its case.
-    if [ -z "${WOOTC_E2E_MIN_FREE_GIB:-}" ]; then
-        # Fresh installation needs room for the installer, pulls, and
-        # expanding qcow2. Fresh-run peak drops ~10 GiB when the Windows ISO
-        # is already cached (no re-download, custom.iso rebuild reuses the
-        # cached extraction).
-        if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
-            required_free_gib=75
-        fi
-        # A reuse run already has those and needs only its allocated-extent
-        # safety snapshot plus diagnostics.
-        [ "$SKIP_INSTALL" = false ] || required_free_gib=55
-    fi
-    if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
-        infra_fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
-        return 1
-    fi
-    pass "Host preflight: $((mem_available_kib / 1024)) MiB RAM available, $((disk_available_kib / 1024 / 1024)) GiB disk free, KVM/TUN ready"
-}
+# shellcheck source=tests/e2e/lib/host-runtime.sh
+source "$SCRIPT_DIR/lib/host-runtime.sh"
 # Reclaim this run's own disposable leftovers BEFORE measuring free disk: a
 # fresh run deletes data.qcow2/custom.iso anyway, but preflight used to run
 # first and count them against the budget — after one failed case a slot
@@ -386,7 +307,7 @@ if [ "$SKIP_INSTALL" = false ]; then
     rm -f "$STORAGE_DIR/data.qcow2" "$STORAGE_DIR/custom.iso"
 fi
 
-host_preflight || exit 1
+host_preflight "$STORAGE_DIR" "$SKIP_INSTALL" || exit 1
 # Keep the pristine Windows installer separate from Dockur's mutable working
 # directory.  Dockur can generate derived ISO images while preparing an answer
 # file, so it must receive a copy rather than the only cached source image.
@@ -399,21 +320,6 @@ WINDOWS_ISO_CACHE="${WOOTC_WINDOWS_ISO:-$ISO_CACHE_DIR/windows-${WIN_VERSION}.is
 # On a fresh runner the first run cannot do that — the media does not exist yet
 # when the answer file is written — so caching it is what makes the second run
 # able to. Cheap, and it also spares a multi-GB re-download.
-cache_downloaded_iso() {
-    [ -n "${ISO_CACHE_DIR:-}" ] || return 0
-    [ -f "$WINDOWS_ISO_CACHE" ] && return 0
-    local src
-    src=$(ls -1 "$STORAGE_DIR"/windows.*.iso 2>/dev/null | head -1 || true)
-    [ -n "$src" ] || return 0
-    mkdir -p "$ISO_CACHE_DIR" || return 0
-    if cp --reflink=auto --sparse=auto "$src" "$WINDOWS_ISO_CACHE.part" 2>/dev/null; then
-        mv -f "$WINDOWS_ISO_CACHE.part" "$WINDOWS_ISO_CACHE"
-        info "Cached the downloaded Windows ISO for future runs: $WINDOWS_ISO_CACHE"
-    else
-        rm -f "$WINDOWS_ISO_CACHE.part"
-    fi
-    return 0
-}
 
 QGA_CACHE_DIR="$SCRIPT_DIR/qga-cache"
 QGA_MSI="${WOOTC_QGA_MSI:-$QGA_CACHE_DIR/qemu-ga-x86_64.msi}"
@@ -429,7 +335,7 @@ cleanup() {
     # Whatever happened, keep the installer media: the next run on this host can
     # then read its image names before Setup starts (#58) and skips a multi-GB
     # re-download. Never let this affect the run's outcome.
-    cache_downloaded_iso 2>/dev/null || true
+    cache_downloaded_iso "$ISO_CACHE_DIR" "$WINDOWS_ISO_CACHE" "$STORAGE_DIR" 2>/dev/null || true
     if [ "$VIDEO_STARTED" = true ]; then
         WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" stop "$VIDEO_DIR" || true
     fi
@@ -448,15 +354,7 @@ cleanup() {
     if [ "$result" -ne 0 ] && [ "${WOOTC_E2E_KEEP_ALIVE:-0}" != "1" ]; then
         keep=false
     fi
-    if [ "$keep" = false ]; then
-        info "Cleaning up..."
-        $DOCKER exec "$CONTAINER_NAME" pkill -9 -f 'process=windows' 2>/dev/null || true
-        podman compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || \
-            docker compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || true
-        podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
-    else
-        info "Container kept (--keep): $CONTAINER_NAME"
-    fi
+    host_stop_vm "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR/compose.yml" "$keep"
     exit "$result"
 }
 trap cleanup EXIT
@@ -557,219 +455,9 @@ else
 fi
 $COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.yml" 2>&1 || true
 
-# ── QEMU Guest Agent control plane ───────────────────────────────────────────
-# qga.py is copied into Dockur after QEMU starts. Keeping the client in the
-# container lets it reach the private Unix socket without exposing a port.
-# Every QGA call is bounded. Without this, a hung `podman exec` (guest agent
-# wedged, container unresponsive, socket never answering) blocks the calling
-# wait loop FOREVER — and because the loop body never returns, its deadline is
-# never evaluated. Observed: two runners sat "alive" for 20+ minutes with their
-# progress line frozen at "Waiting for QGA (5m of 45m)" while pgrep showed the
-# script running. A wall-clock deadline cannot help a loop that never iterates,
-# so the bound has to be here, on the blocking call itself.
-
-# qga_call — single attempt, no automatic retry. Use for side-effecting
-# commands (powershell, write, freeze) where a timeout (124) or guest exit
-# code must never replay the operation. Idempotent probes/reads should use
-# qga_call_retry instead (#40).
-qga_call() {
-    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT:-60}"
-    local rc=0
-    # `else rc=$?` is load-bearing (#39). Assigning rc AFTER the `fi`
-    # captures the exit status of the IF STATEMENT, not of the command —
-    # and an `if` whose condition failed with no else branch is itself
-    # status 0. So the old form returned SUCCESS once every retry had
-    # failed:
-    #     f(){ for i in 1 2; do if false; then return 0; fi; rc=$?; done; return $rc; }
-    #     f; echo $?   # -> 0
-    # That made qga_probe/qga_wait able to print "[PASS] QGA available"
-    # with no agent answering, and let failed PowerShell/file-write/exec
-    # requests look successful — the project's dominant failure class,
-    # status taken from a proxy instead of the real observable.
-    if timeout "$timeout_s" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"; then
-        return 0
-    else
-        rc=$?
-    fi
-    return $rc
-}
-
-# qga_call_retry — idempotent operations only (ping, info, read, thaw).
-# Retries on transport errors (exit 42 from qga.py) and timeouts (124),
-# but NEVER replays a returned guest exit code (#40).
-WOOTC_QGA_TRANSPORT_EXIT=42
-qga_call_retry() {
-    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT:-60}"
-    local tries=3 rc=0 try
-    if [ "$timeout_s" -le 5 ]; then tries=1; fi
-    for try in $(seq 1 $tries); do
-        if timeout "$timeout_s" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"; then
-            return 0
-        else
-            rc=$?
-        fi
-        # Only retry transport errors (QGA never received the request) and
-        # timeouts (ambiguous). Never retry a guest exit code — doing so
-        # would replay side-effecting commands like shutdown, reboot, or
-        # BCD mutation (#40).
-        if [ "$rc" -ne "$WOOTC_QGA_TRANSPORT_EXIT" ] && [ "$rc" -ne 124 ]; then
-            return $rc
-        fi
-        sleep 1
-    done
-    return $rc
-}
-
-qga_probe() {
-    WOOTC_QGA_CALL_TIMEOUT=5 qga_call_retry ping >/dev/null 2>&1 || return 1
-}
-
-# ── the QGA-channel-loss failure class (#220) ────────────────────────────────
-# A deaf virtio-serial channel and a stalled installer produce the SAME
-# observable — the drive-state file stops changing — and opposite verdicts.
-# guest-ping is the discriminator, and these two helpers are what the harness
-# does with the answer.
-#
-# qga_reconnect_cycle runs ONE bounded recovery attempt. The socket takes a
-# single client at a time, so a client our `timeout` wrapper killed on 124 can
-# still own it, with its unread reply queued behind — the next connection then
-# reads that reply as the answer to a question it never asked (agent-lessons
-# §20: a retried command is a second command). Reaping the stale clients and
-# reopening with a drained, 0xFF-delimited sync is the whole recovery.
-#
-# It is one cycle and not a loop on purpose. If a few clean reopens cannot get
-# a ping back, the channel is gone, and grinding away at it just re-buys the
-# 30-minute false verdict this exists to delete.
-WOOTC_QGA_RECONNECT_ATTEMPTS="${WOOTC_QGA_RECONNECT_ATTEMPTS:-3}"
-WOOTC_QGA_RECONNECT_SETTLE_S="${WOOTC_QGA_RECONNECT_SETTLE_S:-3}"
-qga_reconnect_cycle() {
-    local out rc=0
-    warn "  QGA channel is not answering — ONE bounded reconnect cycle before any verdict"
-    # Clients that outlived their `timeout` may still hold the single-client
-    # socket. Reaping them is a prerequisite for the reopen, not an extra.
-    $DOCKER exec "$CONTAINER_NAME" pkill -f '/tmp/qga.py' >/dev/null 2>&1 || true
-    sleep 1
-    out=$(timeout 60 $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py reconnect \
-        --attempts "$WOOTC_QGA_RECONNECT_ATTEMPTS" \
-        --settle "$WOOTC_QGA_RECONNECT_SETTLE_S" 2>&1) || rc=$?
-    # An `x && y` tail would be the last status of this block under `set -e`,
-    # and an empty $out would abort the whole run from inside the recovery path.
-    if [ -n "$out" ]; then
-        printf '%s\n' "$out" | sed 's/^/    reconnect: /'
-    fi
-    if [ "$rc" -eq 0 ]; then
-        pass "  QGA channel RECOVERED — the stall was the channel, and it is back"
-        return 0
-    fi
-    return 1
-}
-
-# qga_channel_lost writes the verdict for a channel that did not come back.
-# The WORDING is the deliverable, not decoration: run 32556250889 led with
-# "install stalled at Finding your files" and appended the dead-ping caveat
-# underneath, so the run read as a product red for a failure the harness had
-# no evidence about. Once the channel is deaf the harness knows nothing about
-# the install and must say exactly that. The ledger line NAMES the class, so
-# the re-dispatch decision needs no human to read the log.
-qga_channel_lost() {
-    local where="$1"
-    infra_fail "CLASSIFICATION: qga-channel-lost — the QGA channel died during $where"
-    infra_fail "  QGA does NOT answer ping, and one bounded reconnect cycle did not bring the channel back."
-    infra_fail "  This run has NO verdict on the product: the install may have finished, stalled or failed,"
-    infra_fail "  and with the channel deaf the harness cannot tell — so it does not guess."
-    note_flake "qga-channel-lost"
-}
-
-qga_wait() {
-    local label="$1" timeout="$2" elapsed=0
-    step "Waiting for QGA: $label..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if qga_probe; then
-            pass "QGA available: $label"
-            return 0
-        fi
-        sleep 10
-        elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA ($label)... ($(( elapsed / 60 ))m)"
-    done
-    infra_fail "QGA did not become available for $label within $((timeout / 60)) minutes"
-    return 1
-}
-
-qga_wait_down() {
-    local label="$1" timeout="${2:-120}" elapsed=0
-    info "Waiting for Windows QGA to go away before $label..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if ! qga_windows_probe; then
-            return 0
-        fi
-        sleep 5
-        elapsed=$((elapsed + 5))
-    done
-    infra_fail "Windows QGA did not go away before $label"
-    return 1
-}
-
-qga_wait_reboot() {
-    local label="$1"
-    qga_wait_down "$label" 120
-    qga_wait "$label" 600
-}
-
-# QGA is present in both the Windows guest and our deployer initramfs.  A
-# successful ping alone therefore does not prove that it is safe to launch a
-# Windows PowerShell payload.  Probe the Windows executable explicitly.
-qga_windows_probe() {
-    local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' 2>/dev/null | tr -d '\r\n' || true)
-    if [[ "$os" =~ Windows_NT ]]; then
-        # A phase observed in the Linux guest cannot describe a Windows action.
-        wootc_phase_boundary
-        return 0
-    fi
-    return 1
-}
-
-# The mirror of qga_windows_probe, and the missing half of the pair. Every
-# transition in this script is "one OS leaves, another arrives", and guest-ping
-# cannot tell those two apart: it answers for whichever agent is up. So the
-# only way to say "the guest is STILL the one I was talking to" is to ask the
-# guest what it is, positively. Run 30710282779 is what the negative form
-# costs — see p2_reboot_observe().
-qga_linux_probe() {
-    local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | tr -d '\r\n' || true)
-    [[ "$os" == *Linux* ]]
-}
-
-# Classify what the guest is doing after a Phase-2 reboot request, from
-# observables only. Echoes exactly one of:
-#
-#   down     no agent answers — Phase 2 has left and the return is underway
-#   windows  the answering agent IS Windows — the return already completed
-#   linux    a LINUX agent still answers — the reboot request did nothing
-#   unknown  an agent answers but has not identified itself as either yet
-#
-# This function never resets anything. `linux` is the ONLY one of the four that
-# a QEMU system_reset is a correct answer to; every other value means the reset
-# would land on a Windows that is booting or already back, i.e. a hard power
-# cut to the exact thing this step exists to verify.
-#
-# Both knobs are env overrides rather than arguments so the only call site stays
-# argument-free: a budget passed positionally by tests but never by the script
-# is indistinguishable from a bug (SC2120), and the tests are the one caller
-# that needs to shrink it.
-p2_reboot_observe() {
-    local budget="${WOOTC_E2E_P2_REBOOT_TRIES:-9}" poll="${WOOTC_E2E_P2_REBOOT_POLL_S:-5}" i
-    for i in $(seq 1 "$budget"); do
-        if [ "$poll" -gt 0 ]; then sleep "$poll"; fi
-        qga_probe || { echo down; return 0; }
-        if qga_windows_probe; then echo windows; return 0; fi
-    done
-    if qga_linux_probe; then echo linux; else echo unknown; fi
-}
+# shellcheck source=tests/e2e/lib/qga-transport.sh
+source "$SCRIPT_DIR/lib/qga-transport.sh"
+wootc_qga_configure "$DOCKER" "$CONTAINER_NAME" /tmp/qga.py
 
 qga_wait_windows() {
     local timeout="$1" elapsed=0 idle_hits=0 cpu
@@ -817,7 +505,7 @@ qga_wait_windows() {
                             fail "  (could not read the ISO's image list — install wimlib-utils + p7zip to have it named here)"
                         fi
                     fi
-                    cache_downloaded_iso
+                    cache_downloaded_iso "$ISO_CACHE_DIR" "$WINDOWS_ISO_CACHE" "$STORAGE_DIR"
                     capture_vm_diagnostics
                     return 1
                 fi
@@ -828,14 +516,6 @@ qga_wait_windows() {
     done
     fail "Windows QGA did not become available within $((timeout / 60)) minutes"
     return 1
-}
-
-qga_powershell() {
-    qga_call powershell "$1" || return $?
-}
-
-qga_read() {
-    qga_call_retry read "$1" || return $?
 }
 
 # Cached Windows accounts age in real time. Run 36240171646's timelapse shows
@@ -940,8 +620,7 @@ guest_wootc_root() {
 # success or restart the VM: the explicit serial/persistent-log markers below
 # remain the only completion evidence.
 qga_deployer_heartbeat() {
-    timeout "$WOOTC_E2E_HEARTBEAT_TIMEOUT_S" $DOCKER exec "$CONTAINER_NAME" \
-        python3 /tmp/qga.py exec /bin/sh -c '
+    WOOTC_QGA_CALL_TIMEOUT="$WOOTC_E2E_HEARTBEAT_TIMEOUT_S" qga_call exec /bin/sh -c '
 pid=""
 for comm_file in /proc/[0-9]*/comm; do
     IFS= read -r comm < "$comm_file" || continue
@@ -1916,7 +1595,7 @@ heal_image_name_from_downloaded_iso() {
     info "  image: $derived"
     WIN_IMAGE_NAME="$derived"
     inject_image_name "$RENDERED_ANSWER" "$WIN_IMAGE_NAME"
-    cache_downloaded_iso
+    cache_downloaded_iso "$ISO_CACHE_DIR" "$WINDOWS_ISO_CACHE" "$STORAGE_DIR"
     # Dockur re-reads /custom.xml at start; the downloaded ISO stays in
     # /storage, so this costs a restart and not another multi-GB download.
     $DOCKER restart "$CONTAINER_NAME" >/dev/null 2>&1 || \

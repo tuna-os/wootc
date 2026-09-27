@@ -254,8 +254,8 @@ setup() {
     #    qga-channel-lost only when QGA does NOT answer (a stall with a live
     #    channel is the installer's fault), serial-feed-lost only when dracut
     #    output proves the deployer's userspace was alive on the dead feed.
-    grep -q 'note_flake "qga-channel-lost"' "$E2E"
-    grep -B3 'note_flake "qga-channel-lost"' "$E2E" | grep -q 'QGA does NOT answer ping'
+    grep -q 'note_flake "qga-channel-lost"' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh"
+    grep -B3 'note_flake "qga-channel-lost"' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh" | grep -q 'QGA does NOT answer ping'
     grep -q 'note_flake "serial-feed-lost"' "$E2E"
     grep -B2 'note_flake "serial-feed-lost"' "$E2E" | grep -q "grep -aq 'dracut-initqueue'"
     # 3. The reusable workflow surfaces the verdict as an output...
