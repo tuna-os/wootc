@@ -1,0 +1,62 @@
+[
+  {
+    "role": "shimx64",
+    "anchor": "shim-anchor-1.pem",
+    "exit": 0,
+    "output": "Signature verification OK\nwarning: data remaining[920344 vs 1049288]: gaps between PE/COFF sections?\n"
+  },
+  {
+    "role": "grubx64",
+    "anchor": "vendor-0.pem",
+    "exit": 1,
+    "output": "Signature verification failed\n"
+  },
+  {
+    "role": "grubx64",
+    "anchor": "vendor-1.pem",
+    "exit": 1,
+    "output": "Signature verification failed\n"
+  },
+  {
+    "role": "grubx64",
+    "anchor": "vendor-2.pem",
+    "exit": 0,
+    "output": "Signature verification OK\n"
+  },
+  {
+    "role": "mmx64",
+    "anchor": "vendor-0.pem",
+    "exit": 1,
+    "output": "Signature verification failed\nwarning: data remaining[759472 vs 878368]: gaps between PE/COFF sections?\n"
+  },
+  {
+    "role": "mmx64",
+    "anchor": "vendor-1.pem",
+    "exit": 1,
+    "output": "Signature verification failed\nwarning: data remaining[759472 vs 878368]: gaps between PE/COFF sections?\n"
+  },
+  {
+    "role": "mmx64",
+    "anchor": "vendor-2.pem",
+    "exit": 0,
+    "output": "Signature verification OK\nwarning: data remaining[759472 vs 878368]: gaps between PE/COFF sections?\n"
+  },
+  {
+    "role": "tampered-shim",
+    "anchor": "shim-anchor-1.pem",
+    "exit": 1,
+    "output": "Signature verification failed\nwarning: data remaining[920344 vs 1049288]: gaps between PE/COFF sections?\nHash doesn't match image\n got:       c84e8605b1b2f69d7f09dbc09aebffba0fa4beb1a50f87f60b08876be05cd884\n expecting: 2a08f8d1be9d8a4ee0208b891e060565b4b4eb83631203e16cdfa91c2cfdb0bd\nImage fails hash check\n"
+  },
+  {
+    "role": "wrong-anchor",
+    "anchor": "vendor-0.pem",
+    "exit": 1,
+    "output": "Signature verification failed\nwarning: data remaining[920344 vs 1049288]: gaps between PE/COFF sections?\n"
+  },
+  {
+    "role": "certificate-only-forged-issuer",
+    "anchor": "public-test.pem",
+    "exit": 1,
+    "output": "Invalid PE header magic\nCan't open image /dev/shm/wootc-333-audit/unsigned-but-named-ca.efi\n"
+  }
+]

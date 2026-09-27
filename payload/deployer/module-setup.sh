@@ -12,6 +12,28 @@ depends() {
     return 0
 }
 
+# The verifier is installed-image data, rather than initramfs executable code.
+stage_signed_chain_payloads() {
+    local verifier_dir="$1" helper_dir="$2" file
+    for file in sbverify sbpehash ld-linux-x86-64.so.2 libcrypto.so.3 libc.so.6; do
+        [[ -f "$verifier_dir/$file" ]] || return 1
+    done
+    for file in wootc_pe.py wootc_chain_verify.py wootc_chain_source.py wootc_boot_identity.py wootc_esp_transaction.py; do
+        [[ -f "$helper_dir/$file" ]] || return 1
+    done
+    while IFS= read -r file; do
+        inst_simple "$file" "/usr/lib/wootc/sbverify/${file##*/}" || return 1
+        # dracut supplies initdir. Read-only modes also exclude the ELF files
+        # from its final lazy dependency resolver for initramfs executables.
+        # shellcheck disable=SC2154
+        chmod 0644 "$initdir/usr/lib/wootc/sbverify/${file##*/}" || return 1
+    done < <(find "$verifier_dir" -maxdepth 1 -type f)
+    while IFS= read -r file; do
+        inst_simple "$file" "/usr/lib/wootc/migration/lib/${file##*/}" || return 1
+        chmod 0644 "$initdir/usr/lib/wootc/migration/lib/${file##*/}" || return 1
+    done < <(find "$helper_dir" -maxdepth 1 -type f -name '*.py')
+}
+
 install() {
     # dracut generates /init itself; run the deployer once networking is online.
     inst /usr/bin/wootc-deploy
@@ -129,10 +151,16 @@ install() {
     inst /usr/lib/wootc/migration/wootc-import-browser
     inst /usr/lib/wootc/migration/wootc-convert-dir
     inst /usr/lib/wootc/migration/org.tunaos.wootc.policy
+    inst /usr/lib/wootc/migration/wootc-esp-own || return 1
     inst /usr/lib/wootc/migration/wootc-esp-sync
     inst /usr/lib/wootc/migration/wootc-esp-sync.service
     inst /usr/lib/wootc/migration/wootc-esp-sync.path
-    inst /usr/lib/wootc/migration/wootc-shim-trust
+    inst_simple /usr/lib/wootc/migration/wootc-shim-trust || return 1
+    chmod 0644 "$initdir/usr/lib/wootc/migration/wootc-shim-trust" || return 1
+    inst_simple /usr/lib/wootc/migration/wootc-esp-control || return 1
+    chmod 0644 "$initdir/usr/lib/wootc/migration/wootc-esp-control" || return 1
+    stage_signed_chain_payloads /usr/lib/wootc/sbverify /usr/lib/wootc/migration/lib || return 1
+
     inst /usr/lib/wootc/migration/wootc-apply-look
     inst /usr/lib/wootc/migration/wootc-apply-look.desktop
     inst /usr/lib/wootc/migration/wootc-detect-apps

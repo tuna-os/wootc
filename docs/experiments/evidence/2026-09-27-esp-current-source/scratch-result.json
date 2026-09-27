@@ -1,0 +1,7 @@
+{
+  "scope": "actual small qemu-img CLI only; empty 1MiB image, no OS/firmware",
+  "exclusiveOverlay": true,
+  "baselineUnchanged": true,
+  "format": "qcow2",
+  "command": "scratch.provision private root, SHA256-bound qcow2 baseline; actual qemu-img check/create and info; source run from tests/e2e/esp-chain/scratch.py"
+}

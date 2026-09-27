@@ -2724,15 +2724,34 @@ QGAEOF
         log "  Staged Wi-Fi profiles for first-boot import"
     fi
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
-    # after OS updates (variant-agnostic — BLS and classic layouts).
+    # after bootc updates of the installed loop-root deployment.
+    # Keep the verifier's loader and libraries together on every target ABI.
+    mkdir -p "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify"
+    install -m644 /usr/lib/wootc/sbverify/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/"
+    chmod 755 "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2" \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbverify" \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbpehash"
+    install -m644 /usr/lib/wootc/migration/lib/*.py "$DEPLOY_ROOT/var/usrlocal/lib/wootc/"
+    chroot "$DEPLOY_ROOT" /usr/bin/python3 -c \
+        'import sys; sys.path.insert(0, "/var/usrlocal/lib/wootc"); import wootc_boot_identity, wootc_esp_transaction, wootc_chain_source' || {
+        err "  [FAIL] signed-chain Python helpers cannot run in installed image"
+        exit 1
+    }
+    chroot "$DEPLOY_ROOT" /var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2 \
+        --library-path /var/usrlocal/lib/wootc/sbverify \
+        /var/usrlocal/lib/wootc/sbverify/sbverify --version || {
+        err "  [FAIL] signed-chain verifier closure cannot run in installed image"
+        exit 1
+    }
+
+    install -m755 /usr/lib/wootc/migration/wootc-esp-control \
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-control"
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-sync"
     install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
-    # Signed-chain refresh (#333): grades a candidate shim against the
-    # firmware's trust store and the installed SBAT generation before it is
-    # allowed onto the ESP. Without this helper wootc-esp-sync leaves the
-    # signed chain alone, which is the pre-#333 behaviour.
+    # Diagnostic CLI shares the same complete-trio signature/policy verifier.
+    # The mandatory controller refuses refresh if that closure cannot run.
     mig_opt 755 wootc-shim-trust "$DEPLOY_ROOT/var/usrlocal/bin/wootc-shim-trust"
     if [[ -f /usr/lib/wootc/migration/wootc-esp-sync.path ]]; then
         install -m644 /usr/lib/wootc/migration/wootc-esp-sync.path \
@@ -2856,6 +2875,24 @@ QGAEOF
     else
         mkdir -p /mnt/esp
         if mount -t vfat "$ESP_DEV" /mnt/esp 2>/dev/null; then
+            # shellcheck source=payload/migration/wootc-esp-own
+            source /usr/lib/wootc/migration/wootc-esp-own
+            # Refuse foreign contents BEFORE deleting/copying any ESP payload.
+            for owned_path in EFI/wootc/deployer-vmlinuz EFI/wootc/deployer-initramfs.img \
+                EFI/wootc/phase2-vmlinuz EFI/wootc/phase2-initramfs.img \
+                EFI/fedora/grub.cfg EFI/wootc/grub.cfg loader/entries/wootc.conf \
+                EFI/fedora/shimx64.efi EFI/fedora/grubx64.efi EFI/fedora/mmx64.efi; do
+                esp_assert_owned_or_absent /mnt/esp "$owned_path" || {
+                    err "  [FAIL] ESP path belongs to another owner: $owned_path"
+                    exit 1
+                }
+            done
+            if [[ "$COMPOSEFS" == 1 && "$BOOTLOADER" == systemd ]]; then
+                esp_assert_owned_or_absent /mnt/esp EFI/redhat/grub.cfg || exit 1
+            fi
+            for owned_path in EFI/wootc/phase2-vmlinuz EFI/wootc/phase2-initramfs.img; do
+                esp_claim_before_write /mnt/esp "$owned_path" || exit 1
+            done
             mkdir -p /mnt/esp/EFI/wootc
             # The deployer kernel+initramfs (~153M) are dead weight on the
             # ESP after deployment, and a 256M ESP cannot hold both them and
@@ -2993,6 +3030,7 @@ SMODSH
                 fi
                 # Keep root=UUID + composefs=<hash>; drop unresolved \$vars + quiet.
                 cfs_opts=$(printf '%s' "$cfs_opts" | tr ' ' '\n' | grep -v '\$' | grep -vE '^(quiet|rhgb)$' | tr '\n' ' ' || true)
+                esp_claim_before_write /mnt/esp loader/entries/wootc.conf || exit 1
                 mkdir -p /mnt/esp/loader/entries
                 cat > /mnt/esp/loader/entries/wootc.conf <<BLSEOF
 title ${DISTRO_NAME}
@@ -3009,6 +3047,7 @@ BLSEOF
                 # The Phase-2 initrd is the patched UKI initrd (cpio prepend).
                 PHASE2_LINUX="/EFI/wootc/deployer-vmlinuz ${cfs_opts} loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID} ${PHASE2_CONSOLE_FULL} ${PHASE2_KARGS}"
                 for _gd in /mnt/esp/EFI/fedora /mnt/esp/EFI/redhat /mnt/esp/EFI/wootc; do
+                    esp_claim_before_write /mnt/esp "${_gd#/mnt/esp/}/grub.cfg" || exit 1
                     mkdir -p "$_gd"
                     # "Windows" must be on this menu by name: the dual-boot
                     # contract ("you're always one reboot away from Windows")
@@ -3077,6 +3116,7 @@ GRUBCFGEOF
 
                     ROOT_OPTIONS=$(grep '^options ' "${BLS_DIR:-$DEPLOY_ROOT/boot/loader/entries}"/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
                     ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ' || true)
+                    esp_claim_before_write /mnt/esp loader/entries/wootc.conf || exit 1
                     mkdir -p /mnt/esp/loader/entries
                     cat > /mnt/esp/loader/entries/wootc.conf <<BLSEOF
 title ${DISTRO_NAME}
@@ -3172,6 +3212,9 @@ BLSEOF
                 # grubx64.efi from that same dir. Overwrite both with the
                 # target-signed pair (deployment is done — this ESP now boots
                 # Phase-2, not the deployer).
+                for owned_path in EFI/fedora/shimx64.efi EFI/fedora/grubx64.efi EFI/fedora/mmx64.efi; do
+                    esp_claim_before_write /mnt/esp "$owned_path" || exit 1
+                done
                 cp "$TARGET_SHIM" /mnt/esp/EFI/fedora/shimx64.efi
                 cp "$TARGET_GRUB" /mnt/esp/EFI/fedora/grubx64.efi
                 TARGET_MM="$DEPLOY_ROOT/usr/lib/bootupd/updates/EFI/$TARGET_VENDOR/mmx64.efi"
@@ -3231,6 +3274,7 @@ menuentry "Windows" {
 GRUBEOF
 )
                 for gd in "$TARGET_VENDOR" fedora wootc; do
+                    esp_claim_before_write /mnt/esp "EFI/$gd/grub.cfg" || exit 1
                     mkdir -p "/mnt/esp/EFI/$gd"
                     printf '%s\n' "$PHASE2_GRUB_CFG" > "/mnt/esp/EFI/$gd/grub.cfg"
                 done
@@ -3259,6 +3303,9 @@ GRUBEOF
             fi
             fi
             fi   # close CFS_HANDLED guard (generic ostree/BLS staging path)
+            install -D -m644 /mnt/esp/EFI/wootc/wootc-owned.txt \
+                "$DEPLOY_ROOT/etc/wootc/esp-manifest"
+            sync -f "$DEPLOY_ROOT/etc/wootc/esp-manifest"
             umount /mnt/esp 2>/dev/null || err "  [WARN] could not unmount /mnt/esp (busy?) — continuing"
         else
             err "  [WARN] Could not mount ESP ${ESP_DEV}; Phase-2 boot will fail"
