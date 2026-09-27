@@ -136,6 +136,11 @@ def operate(args):
                     output.flush()
                     os.fsync(output.fileno())
                 os.link(temporary, marker)
+                directory = os.open(marker.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
             finally:
                 if os.path.exists(temporary):
                     os.unlink(temporary)
