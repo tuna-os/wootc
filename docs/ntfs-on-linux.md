@@ -139,6 +139,37 @@ E2E-verified).
   asserted by a test that fails when the claim is false — the harness's
   founding lesson (`docs/agent-lessons.md`).
 
+## Linux access to the Windows volume
+
+When Linux runs from `root.disk`, it mounts the Windows volume at
+`/run/initramfs`. Only root can access this path.
+The system also publishes `/run/wootc/host` for Linux users. They can read this
+view but cannot write to it.
+
+A mask hides the `wootc` directory in this view. This hides installer state
+and recovery keys. The service sets the mask and read-only flag before it
+publishes the view. If setup fails, it does not publish the view.
+
+Root services use the private path to write lifecycle records and remove keys.
+The bridge adds selected Windows folders to each Linux user's home.
+Each home has mode `0700`, so another user cannot read or write those files.
+The NTFS mount sets `umask=000` for `ntfs3`, `ntfs-3g`, and the legacy `ntfs`
+driver.
+
+The installer rejects redirects to the volume root, state files, or another
+disk. The file manager shows the Windows path as read-only.
+This view still lets a Linux user read other Windows files. It does not copy
+Windows read rules for each user. The `wootc-import` command for an external
+disk does not use this view. Do not use it to hide installer data on that disk.
+
+Run `tests/integration/linux-state-boundary.sh DRIVER FIXTURE.vhd` to test the
+mount and folder functions. The script copies a disposable Windows VHD before
+it mounts the copy. The VHD must contain `wootc/state.json`, `wootc/install`,
+and `Users/fixture/Documents`.
+The tests check writes by the selected user, a second account, hidden keys,
+writes by root, and clean unmount. Each test must fail if the script drops its
+protection.
+
 ## Residual risk, stated plainly
 
 The youngest component we rely on is kernel `ntfs3` in read-write mode

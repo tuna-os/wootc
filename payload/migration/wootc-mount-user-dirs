@@ -20,14 +20,15 @@
 # are the only signal available, so exact matching still governs.
 
 set -Eeuo pipefail
+HOST="${WOOTC_HOST:-/run/wootc/host}"
 
 log() { printf '[wootc-passthrough] %s\n' "$*"; }
 warn() { printf '[wootc-passthrough] WARNING: %s\n' "$*" >&2; }
 
 FOLDERS=(Documents Pictures Downloads Music Videos Desktop)
 
-if ! mountpoint -q /run/wootc/host; then
-    log "ERROR: /run/wootc/host is not mounted (wootc-host-bind.service did not run first)"
+if ! mountpoint -q "$HOST"; then
+    log "ERROR: $HOST is not mounted (wootc-host-bind.service did not run first)"
     exit 1
 fi
 
@@ -46,7 +47,7 @@ BITLOCKER_PROFILES=""
 find_bitlocker_profiles() {
     # Only proceed if the host mount itself has no Users/ (the BitLocker
     # signature). If Users exists, this is not the encrypted-C: path.
-    [[ -d /run/wootc/host/Users ]] && return 0
+    [[ -d $HOST/Users ]] && return 0
 
     # cryptsetup with bitlk support is required.
     command -v cryptsetup >/dev/null 2>&1 || { log "cryptsetup not available — cannot unlock BitLocker volumes"; return 0; }
@@ -54,8 +55,8 @@ find_bitlocker_profiles() {
 
     # Find the recovery key file on the host mount.
     local key_file="" candidate
-    for candidate in /run/wootc/host/wootc/install/bitlocker-key.txt \
-                     /run/wootc/host/*/wootc/install/bitlocker-key.txt; do
+    for candidate in "$HOST"/wootc/install/bitlocker-key.txt \
+                     "$HOST"/*/wootc/install/bitlocker-key.txt; do
         [[ -f "$candidate" ]] && { key_file="$candidate"; break; }
     done
     if [[ -z "$key_file" ]]; then
@@ -147,7 +148,7 @@ matched=0
 # leaves them in <wootc>/known-folders.json. Read that when present; otherwise
 # fall back to the literal layout, which is exactly the pre-#64 behaviour.
 KNOWN_FOLDERS=""
-for candidate in /run/wootc/host/wootc/known-folders.json /run/wootc/host/*/wootc/known-folders.json; do
+for candidate in "$HOST"/wootc/known-folders.json "$HOST"/*/wootc/known-folders.json; do
     [[ -f "$candidate" ]] && { KNOWN_FOLDERS="$candidate"; break; }
 done
 [[ -n "$KNOWN_FOLDERS" ]] && log "known-folder manifest: $KNOWN_FOLDERS"
@@ -158,7 +159,7 @@ done
 win_to_host() {
     local p="${1//\\//}"
     p="${p#[A-Za-z]:}"
-    printf '/run/wootc/host%s' "$p"
+    printf '%s%s' "$HOST" "$p"
 }
 
 # resolved_folder <windows-user> <Folder> — host path to bind, or empty.
@@ -185,6 +186,24 @@ print(d.get("folders", {}).get(os.environ["WOOTC_FOLDER"], ""))' 2>/dev/null || 
     return 0
 }
 
+# A selected folder must not re-export the private installer tree or the
+# entire Windows volume through a redirected path or symlink.
+safe_folder_source() {
+    local resolved root
+    resolved=$(realpath -e -- "$1") || return 1
+    root=$(realpath -e -- "$HOST") || return 1
+    case "${resolved,,}" in
+        "${root,,}"|"${root,,}/wootc"|"${root,,}/wootc/"*|"${root,,}/"*/wootc|"${root,,}/"*/wootc/*) return 1 ;;
+    esac
+    [[ "$resolved" == "$root/"* ]] && return 0
+    # The only alternate source is the volume this service unlocked itself.
+    if [[ -n "${BITLOCKER_PROFILES:-}" ]]; then
+        root=$(realpath -e -- "$BITLOCKER_PROFILES") || return 1
+        [[ "$resolved" == "$root/"* ]] && return 0
+    fi
+    return 1
+}
+
 # Bind one Windows profile into one Linux home. Shared by the exact-name path
 # and the single-user fallback so the two can never diverge.
 bind_profile() {
@@ -193,6 +212,10 @@ bind_profile() {
         log "files: skipped for $luser (turned off in the migration chooser)"
         return 0
     fi
+    # Windows folders can have mode0777 through NTFS. The Linux home is the
+    # account boundary, including against a second local unprivileged user.
+    [[ $(stat -Lc %u -- "$home") == "$(id -u "$luser")" ]] || return 1
+    chmod 0700 -- "$home"
     for folder in "${FOLDERS[@]}"; do
         if command -v wootc-selection >/dev/null 2>&1; then
             local_item_rc=0
@@ -213,8 +236,17 @@ bind_profile() {
         fi
         dst="$home/$folder"
         [[ -d "$src" ]] || continue
+        if ! safe_folder_source "$src"; then
+            warn "refusing protected or invalid folder source: $src"
+            continue
+        fi
         # Converted to native storage (wootc-convert-dir) — stop bridging.
         [[ -e "$home/.config/wootc/converted-$folder" ]] && continue
+        # Do not follow a user-created Documents symlink into another path.
+        if [[ -L "$dst" ]]; then
+            warn "refusing symlink folder destination: $dst"
+            continue
+        fi
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"
@@ -235,7 +267,7 @@ bind_profile() {
 # user-places.xbel instead, so KDE gets its own entry below or the bookmark
 # simply does not exist on half the catalog.
 add_host_bookmark() {
-    local home="$1" uri="file:///run/wootc/host Windows drive" gen bm
+    local home="$1" uri="file:///run/wootc/host Windows drive (read-only)" gen bm
     for gen in gtk-3.0 gtk-4.0; do
         bm="$home/.config/$gen/bookmarks"
         mkdir -p "${bm%/*}" 2>/dev/null || true
@@ -265,7 +297,7 @@ add_host_bookmark_kde() {
     # makes the WHOLE places file unparseable — losing every place the user
     # has. KDE falls back to the folder icon; that is a fine trade.
     local entry=' <bookmark href="file:///run/wootc/host">
-  <title>Windows drive</title>
+  <title>Windows drive (read-only)</title>
   <info>
    <metadata owner="http://www.kde.org">
     <ID>wootc-windows-drive</ID>
@@ -295,7 +327,7 @@ find_bitlocker_profiles
 shopt -s nullglob
 real_profiles=()
 _profile_roots=()
-[[ -d /run/wootc/host/Users ]] && _profile_roots+=("/run/wootc/host")
+[[ -d $HOST/Users ]] && _profile_roots+=("$HOST")
 [[ -n "$BITLOCKER_PROFILES" ]] && _profile_roots+=("$BITLOCKER_PROFILES")
 for _root in "${_profile_roots[@]}"; do
   for winprofile in "${_root}"/Users/*/ "${_root}"/*/Users/*/; do
@@ -378,7 +410,7 @@ fi
 # nothing on the physical disk to bridge, and a mount is the only route
 # to content.
 CLOUD_DRIVES=""
-for candidate in /run/wootc/host/wootc/cloud-drives.json /run/wootc/host/*/wootc/cloud-drives.json; do
+for candidate in "$HOST"/wootc/cloud-drives.json "$HOST"/*/wootc/cloud-drives.json; do
     [[ -f "$candidate" ]] && { CLOUD_DRIVES="$candidate"; break; }
 done
 if [[ -n "$CLOUD_DRIVES" ]]; then

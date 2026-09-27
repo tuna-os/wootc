@@ -119,6 +119,7 @@ install() {
 
     # User Data Bridge (native passthrough) unit files, injected into the
     # installed system during verification the same way as 99wootc-boot.
+    inst /usr/lib/wootc/migration/wootc-host-view
     inst /usr/lib/wootc/migration/wootc-host-bind.service
     inst /usr/lib/wootc/migration/wootc-passthrough.service
     inst /usr/lib/wootc/migration/wootc-mount-user-dirs

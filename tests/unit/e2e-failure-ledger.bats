@@ -75,6 +75,13 @@ setup() {
     grep -q 'fail "User data NOT visible in Phase 2' "$E2E"
 }
 
+@test "Phase-2 health failures preserve the firstboot unit result before reboot" {
+    grep -q 'FIRSTBOOT_DIAG=' "$E2E"
+    grep -q 'systemctl status --no-pager --full wootc-firstboot-evidence.service' "$E2E"
+    grep -q 'journalctl -b -u wootc-firstboot-evidence.service' "$E2E"
+    grep -q 'cat /run/initramfs/wootc-host/wootc/state.json' "$E2E"
+}
+
 @test "a recovered ntfs3 mount error does not fail the run" {
     # The passthrough tries ntfs3 and falls back to fuse-ntfs-3g. On EL10, whose
     # kernel has no ntfs3, a HEALTHY boot logs a mount failure and then mounts.

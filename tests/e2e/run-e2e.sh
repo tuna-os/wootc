@@ -4444,6 +4444,27 @@ else
     exit 1
 fi
 
+# Capture the actual unit result and both lifecycle files while Linux is still
+# running. The Windows status check after the reboot remains the acceptance
+# gate; this diagnostic tells us why a missing healthy state stayed deployed.
+FIRSTBOOT_DIAG=$(qga_call exec /bin/sh -c '
+    systemctl show wootc-firstboot-evidence.service \
+        -p LoadState -p ActiveState -p SubState -p Result -p ExecMainCode -p ExecMainStatus 2>&1 || true
+    echo "--- unit status ---"
+    systemctl status --no-pager --full wootc-firstboot-evidence.service 2>&1 || true
+    echo "--- unit journal ---"
+    journalctl -b -u wootc-firstboot-evidence.service --no-pager -n 40 2>&1 || true
+    echo "--- lifecycle state ---"
+    cat /run/initramfs/wootc-host/wootc/state.json 2>&1 || true
+    echo "--- firstboot marker ---"
+    cat /run/initramfs/wootc-host/wootc/install/installed-linux-boot.json 2>&1 || true' 2>/dev/null || true)
+if [ -n "$FIRSTBOOT_DIAG" ]; then
+    info "Phase-2 firstboot unit and persisted-state diagnostics:"
+    printf '%s\n' "$FIRSTBOOT_DIAG"
+else
+    info "Phase-2 firstboot diagnostics unavailable through QGA"
+fi
+
 # The data assertions above proved the bridge; now put it on camera while
 # Phase 2 is still up (video-only, best-effort).
 demo_linux_userdata

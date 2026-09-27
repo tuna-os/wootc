@@ -12,6 +12,32 @@ setup() {
     STATE_GO="$REPO_ROOT/app/state.go"
 }
 
+make_firstboot_fakes() {
+    local tmp="$1"
+    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
+    cat > "$tmp/bin/mountpoint" <<'SH'
+#!/bin/sh
+[ "${FIRSTBOOT_MOUNT_PRESENT:-0}" = 1 ]
+SH
+    cat > "$tmp/bin/wootc-ntfs-state-write" <<'SH'
+#!/bin/bash
+set -e
+template="$1"
+target="$2"
+printf '%s\n' "$target" >> "$FIRSTBOOT_HELPER_CALLS"
+if [ ! -f "$template" ]; then
+    echo "missing descriptor template: $template" >&2
+    exit 2
+fi
+if [[ ${FIRSTBOOT_FAIL_STATE_WRITE:-0} == 1 && "$target" == */wootc/state.json ]]; then
+    echo "injected state write failure" >&2
+    exit 72
+fi
+cat > "$target"
+SH
+    chmod +x "$tmp/bin/mountpoint" "$tmp/bin/wootc-ntfs-state-write"
+}
+
 @test "deploy.sh is syntactically valid" {
     run bash -n "$DEPLOY"
     [ "$status" -eq 0 ]
@@ -66,7 +92,61 @@ setup() {
     [ -f "$FIRSTBOOT_SERVICE" ]
     grep -q 'After=.*wootc-host-bind.service' "$FIRSTBOOT_SERVICE"
     grep -q 'Requires=wootc-host-bind.service' "$FIRSTBOOT_SERVICE"
-    grep -q 'ConditionPathExists=!/run/wootc/host/wootc/install/installed-linux-boot.json' "$FIRSTBOOT_SERVICE"
+    grep -q 'ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json' "$FIRSTBOOT_SERVICE"
+}
+
+@test "firstboot service PATH includes the staged NTFS state writer" {
+    grep -q '^Environment=PATH=/var/usrlocal/bin:' "$FIRSTBOOT_SERVICE"
+    grep -q '^ExecStart=/var/usrlocal/bin/wootc-firstboot-evidence$' "$FIRSTBOOT_SERVICE"
+}
+
+@test "firstboot health writer publishes readable state and evidence" {
+    tmp=$(mktemp -d)
+    make_firstboot_fakes "$tmp"
+    printf '{"state":"deployed"}\n' > "$tmp/host/wootc/state.json"
+
+    run env FIRSTBOOT_MOUNT_PRESENT=1 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -eq 0 ]
+    python3 -c 'import json,sys; state=json.load(open(sys.argv[1])); evidence=json.load(open(sys.argv[2])); assert state["state"] == "healthy" and state["updatedBy"] == "wootc-firstboot"; assert evidence["state"] == "healthy" and evidence["updatedBy"] == "wootc-firstboot"' \
+        "$tmp/host/wootc/state.json" "$tmp/host/wootc/install/installed-linux-boot.json"
+    [ "$(sed -n '1p' "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
+    [ "$(sed -n '2p' "$tmp/helper-calls")" = "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    rm -rf "$tmp"
+}
+
+@test "firstboot health writer fails when the private Windows mount is absent" {
+    tmp=$(mktemp -d)
+    make_firstboot_fakes "$tmp"
+
+    run env FIRSTBOOT_MOUNT_PRESENT=0 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not mounted"* ]]
+    [ ! -f "$tmp/host/wootc/state.json" ]
+    [ ! -f "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ ! -e "$tmp/helper-calls" ]
+    rm -rf "$tmp"
+}
+
+@test "firstboot does not publish its retry marker when the state write fails" {
+    tmp=$(mktemp -d)
+    make_firstboot_fakes "$tmp"
+    printf '{"state":"deployed"}\n' > "$tmp/host/wootc/state.json"
+
+    run env WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_MOUNT_PRESENT=1 FIRSTBOOT_FAIL_STATE_WRITE=1 \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"first-boot state write failed"* ]]
+    [ "$(cat "$tmp/host/wootc/state.json")" = '{"state":"deployed"}' ]
+    [ ! -e "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ "$(wc -l < "$tmp/helper-calls")" -eq 1 ]
+    [ "$(cat "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
+    rm -rf "$tmp"
 }
 
 @test "first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh" {

@@ -12,9 +12,8 @@ RemainAfterExit=yes
 # nor be created at boot — mount exited 32 ("mount point does not exist")
 # while the NTFS source itself was healthy (run 20260723T0320, unit status
 # captured live). /run is tmpfs everywhere; create the dir each boot.
-ExecStartPre=/usr/bin/mkdir -p /run/wootc/host
-ExecStart=/usr/bin/mount --bind /run/initramfs/wootc-host /run/wootc/host
-ExecStop=/usr/bin/umount /run/wootc/host
+ExecStart=/usr/bin/bash /etc/wootc/host-view start
+ExecStop=/usr/bin/bash /etc/wootc/host-view stop
 
 [Install]
 WantedBy=local-fs.target

@@ -5,6 +5,7 @@
 # cleanly afterward without "target is busy" from nested bind mounts.
 
 set -Eeuo pipefail
+HOST="${WOOTC_HOST:-/run/wootc/host}"
 
 FOLDERS=(Documents Pictures Downloads Music Videos Desktop)
 
@@ -31,8 +32,8 @@ done
 # key must not outlive the migration either. The volume is now locked, so
 # shred the key file from the storage drive (tuna-os/wootc#279).
 for key_file in \
-    /run/wootc/host/wootc/install/bitlocker-key.txt \
-    /run/wootc/host/*/wootc/install/bitlocker-key.txt; do
+    "$HOST"/wootc/install/bitlocker-key.txt \
+    "$HOST"/*/wootc/install/bitlocker-key.txt; do
     if [[ -f "$key_file" ]]; then
         shred -u "$key_file" 2>/dev/null || rm -f "$key_file"
         echo "[wootc] shredded BitLocker recovery key $key_file" >&2
