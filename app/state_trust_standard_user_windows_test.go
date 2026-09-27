@@ -79,6 +79,11 @@ func TestNativeStateStandardUserAndAlternateVolume(t *testing.T) {
 	if !users {
 		t.Fatal("fixture token lacks enabled Users group")
 	}
+	// Read the real system volume root using the production inspector; never
+	// create or alter the machine's actual C:\wootc tree in this fixture.
+	if err := inspectStateObject(filepath.VolumeName(fixture)+`\`, true); err != nil {
+		t.Fatalf("actual system volume root: %v", err)
+	}
 	for _, tc := range []struct {
 		name, root, writable string
 		prepare              func(string) error
