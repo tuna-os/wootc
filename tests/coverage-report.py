@@ -71,6 +71,15 @@ def patch_lines(base):
 
 
 def generate(directory, config, base=None):
+    if config['version'] != 1 or not config['modules']:
+        raise ValueError('unsupported or empty coverage configuration')
+    for field in ('name', 'directory', 'module'):
+        values = [module[field] for module in config['modules']]
+        if len(values) != len(set(values)):
+            raise ValueError(f'duplicate configured coverage {field}')
+    expected = {module['name'] + '.out' for module in config['modules']}
+    if {path.name for path in directory.glob('*.out')} != expected:
+        raise ValueError('missing or unconfigured module profile')
     measured = []
     all_blocks = []
     for module in config['modules']:
@@ -84,7 +93,7 @@ def generate(directory, config, base=None):
     total = sum(item['statements'] for item in measured)
     covered = sum(item['covered'] for item in measured)
     threshold = config['minimumStatementPercent']
-    if not 0 <= threshold <= 100:
+    if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold <= 100:
         raise ValueError('invalid project coverage threshold')
     patch = None
     changed = patch_lines(base)
@@ -105,7 +114,7 @@ def generate(directory, config, base=None):
     passed = covered * 100 >= threshold * total
     return {'schemaVersion': 1, 'sourceSha': subprocess.check_output(
         ['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
-        'os': sys.platform, 'scope': 'Go statements compiled by the current OS in all three fast-tier modules',
+        'os': sys.platform, 'scope': 'Go statements compiled by the current OS in all configured fast-tier modules',
         'modules': measured, 'statements': total, 'covered': covered,
         'percent': 100 * covered / total, 'minimumStatementPercent': threshold,
         'thresholdPassed': passed, 'patch': patch}

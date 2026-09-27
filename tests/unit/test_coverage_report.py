@@ -47,6 +47,14 @@ class CoverageGate(unittest.TestCase):
         (self.directory / 'fisherman-core.out').unlink()
         self.assertNotEqual(self.cli().returncode, 0)
 
+    def test_measured_module_cannot_be_omitted_from_denominator(self):
+        self.config['modules'].pop()
+        with self.assertRaisesRegex(ValueError, 'unconfigured'):
+            reporter.generate(self.directory, self.config)
+        self.config['modules'].append(dict(self.config['modules'][0]))
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            reporter.generate(self.directory, self.config)
+
     def test_gate_weights_statements_instead_of_averaging_packages(self):
         module = self.config['modules'][0]
         (self.directory / (module['name'] + '.out')).write_text(
