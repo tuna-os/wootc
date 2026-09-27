@@ -46,5 +46,22 @@ async function settle() { await new Promise(resolve => setImmediate(resolve)); }
  directive = {...identity, action: 'reboot'}; scheduled(); await settle();
  assert.equal(reboots, 1); assert.equal(reports.at(-1).action, 'reboot');
  scheduled(); await settle(); assert.equal(reboots, 1);
- console.log(JSON.stringify({controls: 6, scope: 'actual frontend module with DOM and bridge spies', installReceipt: reports[1]}));
+ // A click that throws never reports installDriven and is not replayed.
+ const failedReports = []; let failedScheduled, failedClicks = 0;
+ const failedContext = {...context, window: {},
+  document: {...context.document, getElementById(id) {
+    return id === 'install-btn' ? {disabled: false, click() { failedClicks++; throw Error('public click failure'); }} : null;
+  }},
+  E2EDriveDirective: async () => JSON.stringify({...identity, action: 'install', image, username: 'wootc', hostname: 'test', password: 'public-test'}),
+  E2EDriveReport: async raw => failedReports.push(JSON.parse(raw)),
+  setTimeout(callback) { failedScheduled = callback; },
+ };
+ vm.runInNewContext(source, failedContext);
+ const failedState = {screen: 'launchpad', selected: {imageRef: image}, progress: {step: 'armed'}};
+ failedContext.startE2EDrive(failedState); await settle();
+ assert.equal(failedClicks, 1); assert.equal(failedReports.length, 0);
+ failedState.screen = 'done'; failedScheduled(); await settle();
+ assert.equal(failedClicks, 1); assert.equal(failedReports.length, 1);
+ assert.equal(failedReports[0].installDriven, false);
+ console.log(JSON.stringify({controls: 7, thrownClickReceipt: failedReports[0], scope: 'actual frontend module with DOM and bridge spies', installReceipt: reports[1]}));
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -51,11 +52,23 @@ class GuiDriveReceiptTests(unittest.TestCase):
                                  str(ROOT / 'app/frontend/src/lib/e2e.js')], text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         proof = json.loads(result.stdout)
-        self.assertEqual(proof['controls'], 6)
+        self.assertEqual(proof['controls'], 7)
         raw = json.dumps(proof['installReceipt'])
         receipt = json.loads(module.validate(raw, 'current', DIRECTIVE, IMAGE))
         self.assertEqual(receipt['screen'], 'done')
         self.assertTrue(receipt['installDriven'])
+        with self.assertRaises(ValueError):
+            module.validate(json.dumps(proof['thrownClickReceipt']), 'current', DIRECTIVE, IMAGE)
+        # The actual old flag ordering turns that thrown click into 'driven'.
+        source=(ROOT / 'app/frontend/src/lib/e2e.js').read_text()
+        fixed='installButton.click();\n    window.__e2eInstallDriven = true;'
+        self.assertIn(fixed,source)
+        with tempfile.TemporaryDirectory() as tmp:
+            mutant=Path(tmp)/'old-click.js'
+            mutant.write_text(source.replace(fixed,'window.__e2eInstallDriven = true;\n    installButton.click();',1))
+            result=subprocess.run(['node', str(ROOT/'tests/unit/gui-drive-producer-controls.cjs'), str(mutant)],text=True,capture_output=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('AssertionError',result.stderr)
 
     def test_actual_cli_accepts_current_consistent_install(self):
         result = subprocess.run(['python3', str(PARSER), RUN, DIRECTIVE, IMAGE],

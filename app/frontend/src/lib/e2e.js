@@ -16,7 +16,7 @@ function fieldByLabel(...labels) {
 }
 
 function driveInstall(directive, state) {
-  if (window.__e2eInstallDriven || state.screen !== 'launchpad') return;
+  if (window.__e2eInstallRequested || state.screen !== 'launchpad') return;
 
   const imageInput = fieldByLabel('Custom supported OCI image');
   const username = fieldByLabel('Linux Username');
@@ -64,8 +64,11 @@ function driveInstall(directive, state) {
 
   const installButton = document.getElementById('install-btn');
   if (installButton && !installButton.disabled) {
-    window.__e2eInstallDriven = true;
+    // Do not replay a click whose handler may have partially run. A thrown
+    // click also cannot become a successful drive observation on the next poll.
+    window.__e2eInstallRequested = true;
     installButton.click();
+    window.__e2eInstallDriven = true;
   }
 }
 
