@@ -1,6 +1,6 @@
 {
   "baseHead": "0d507fd7bcbf839aa97c850a0a66aaa192f8c5eb",
-  "modifiedSources": true,
+  "modifiedSources": false,
   "sourceFiles": [
     {
       "source": "tests/e2e/fixture-bitlocker-key.ps1",
@@ -130,8 +130,8 @@
       "bytes": 4663
     },
     "prior-ancestor-mask-native/provenance.json": {
-      "sha256": "c21240a9a2ea5972a9951914da2d84834ff86dba080902e508a5b483d18ec8ed",
-      "bytes": 8309
+      "sha256": "2f7cc974cca28c164c1d9863a167d8dce481f32341d89f91a097439e7373e05d",
+      "bytes": 9041
     },
     "prior-ancestor-mask-native/native-invocation.ps1": {
       "sha256": "ec99eb18a25483b62e05fee90a11eb7f561cefc1ba771bdfbe8d5b858074d434",
