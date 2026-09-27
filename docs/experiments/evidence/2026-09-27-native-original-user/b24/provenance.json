@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "head": "b24d635e6e7cc604e72414c6e22413e762ef9108",
+  "run": 36337115106,
+  "job": 108669965864,
+  "testedHead": "b24d635e6e7cc604e72414c6e22413e762ef9108",
+  "artifact": {
+    "id": 10937542398,
+    "size": 2380,
+    "digest": "181e6652636c273ffd6592f549922a8951c98881b317657a28cedac542c19b7d",
+    "apiDigestAndSizeVerified": true
+  },
+  "rawReceiptScopeCorrection": "original raw receipt retains conservative no-interactive-capture scope from earlier controls; actual source-bound TestNativeOriginalUserActualInteractiveCapture passed",
+  "scope": "actual same-user elevated retained interactive capture primitive, token/profile/knownfolder/statistics and owned restricted-token child criterion; no unelevated original-caller/UAC/alternative-admin/authenticated operation transport or installation proof",
+  "outcomes": [
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-source",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-engine",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/alternative-admin",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserCannotReplaceObservedTokenWithPeerFields",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualTokenProfileAndBindingReadOnly",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualInteractiveCapture",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualRestrictedInteractiveCriterion",
+      "outcome": "pass"
+    }
+  ],
+  "files": {
+    "query/stdout.raw": "54209ccad5da44719fa642b72c9f359abf762a65785cf0869b6c47dc98709153",
+    "query/receipt.json": "8a9acd6825f7fe5881f950187b2a204c680f645bdd44bfa529bf5eca33e5e28a",
+    "query/stderr.raw": "18a8590315993e3bd11e87f38ebd23cf798435394bb45ff46dfc56a49c5b9751",
+    "query/artifact.zip": "181e6652636c273ffd6592f549922a8951c98881b317657a28cedac542c19b7d"
+  }
+}

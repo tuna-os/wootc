@@ -42,6 +42,29 @@ it can destroy user work even when no external path changes.
 | Browser profile import: `payload/migration/wootc-import-browser` | Selection flags and source profile; Chromium files copied only if missing | Firefox uses fixed `windows-import.wootc` destination and updates profile list; Windows originals remain | **Open #234**: repeat Firefox rsync/cp can overwrite edits in a prior import, and raw profiles.ini relative path needs traversal/no-reparse validation. The Chromium existence check/copy is not exclusive creation. Seeded happy-path import does not prove collision safety. |
 | Office dictionary/templates/fonts import: `payload/migration/wootc-office-bridge` | Existing source; dictionary words deduplicated; templates/fonts use no-clobber copy | Appends dictionary; recursive ownership changes and outcome record | **Open #234**: no-clobber command success is not proof a file arrived; symlink destinations, partial write recovery and actual ownership before recursive chown still need refusal controls. |
 
+## Dependency review: selected Windows data before partitioning
+
+On 2026-09-27, review of wootc `a1b4974` and its pinned fisherman
+`e2b316600fc68ba397730b39d1eb205dc1f1f240` found another open path.
+This review does not clear the other inventory rows.
+
+| Operation and source | Current gates | Reversal or failure behavior | Proof and remaining gap |
+|---|---|---|---|
+| Copy explicitly selected Windows data before partitioning: fisherman `fisherman/cmd/fisherman/main.go`, `fisherman/internal/slurp/data.go` | Non-manual installation with a supplied slurp configuration; source mounted read-only; byte budget reserves 2 GiB on `/run` | Extraction errors become a non-fatal “Data migration skipped” message. Budget exhaustion can return partial or empty results without an error. The caller then continues toward partitioning. | **Open #234/#237**: source review found no complete-copy gate before the destructive boundary. The stream also skips unreadable files, copy failures, hidden/system names, and files over 500 MB. A reproduced test on the exact pinned source returned a zero budget and `Found=false`; it did not execute partitioning. Required proof: incomplete requested migration stops the actual caller before partition or format, with owned source data unchanged. |
+
+The source test's scratch directory differs from the hard-coded `/run`
+capacity observation. A fixed budget can make the test repeatable. It does not
+prove that all selected files arrived.
+
+A repair must check each selected file.
+It must report each explicit exclusion. It must stop destructive work if the
+copy is incomplete. Tests must observe that the actual caller stopped.
+A file count or a warning message cannot prove this.
+
+A complete copy in RAM can be lost after shutdown. Before partition or format,
+the caller must verify a durable copy on storage outside the target. That copy
+and its receipt must survive interrupted writes and failed imports.
+
 ## Field-report corpus
 
 On 2026-09-27, `gh issue list --state all --label field-report --limit 100`
