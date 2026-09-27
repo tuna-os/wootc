@@ -1,0 +1,29 @@
+SOURCE tests/e2e/fixture-bitlocker-key.ps1 RAW_SHA256 83436fa6150bba76997faad61661bc1a752ec23ea6a86cef0a5580289be9a227 STAGED_SHA256 5d7b0755d9900f1caa2a427047516acf348affb14269c491e2011adb523ebb1e
+SOURCE tests/e2e/fixture-bitlocker-key.tests.ps1 RAW_SHA256 f7ea5c2745c433294f4d7351a457c6af60f0d5c210fe8ad27cb9941f9f6a0661 STAGED_SHA256 15a37ce1282efca5c27e15baa155a8c6ef09d6a33fd9347bd8c0bfa1b74c1ed6
+SOURCE tests/e2e/fixture-bitlocker-readiness.ps1 RAW_SHA256 0d9277fed917331851c069bd96242b5debeb35d902a5fedbf167083cc44d4d84 STAGED_SHA256 18d4464058344c57a108bc96abc7551e76b6129ea1134bfaf2a78ce30b1b1824
+SOURCE tests/e2e/fixture-bitlocker-readiness.tests.ps1 RAW_SHA256 7cfe867828f94cbdeb64b8c9604a67b052853677f08a5b1890bbb5fe1e601833 STAGED_SHA256 a9d08110c60b57fe214391e72d2d1dbb98664821b528d76eaf808688a187ecab
+SOURCE tests/lint-ps1.ps1 RAW_SHA256 6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf STAGED_SHA256 f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8
+SOURCE tests/e2e/fixture-bitlocker-protection.ps1 RAW_SHA256 c7c993df43318987a958c329bff78fd61272eae5656da3c0ae99abc9814d160a STAGED_SHA256 2aeba2151bf645f85e61588327cad8a7120ba2ff38564f03c560a39fbff35c4f
+SOURCE tests/e2e/fixture-bitlocker-protection.tests.ps1 RAW_SHA256 9f2ec2c9c8aae8466f04175c95ddc35ca662c3e0b8f49081b4f559f93be2109f STAGED_SHA256 c6863aa93e8040232ee6603c0e065356ebe1176b3f1c1301cdf6a58a2d7b9304
+  ok C:\WINDOWS\TEMP\wootc-fixture-readiness-audit-2b96f8b813024233bf8912b0160049af\wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-0.ps1
+  ok C:\WINDOWS\TEMP\wootc-fixture-readiness-audit-2b96f8b813024233bf8912b0160049af\wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-1.ps1
+  ok C:\WINDOWS\TEMP\wootc-fixture-readiness-audit-2b96f8b813024233bf8912b0160049af\wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-2.ps1
+  ok C:\WINDOWS\TEMP\wootc-fixture-readiness-audit-2b96f8b813024233bf8912b0160049af\wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-3.ps1
+  ok C:\WINDOWS\TEMP\wootc-fixture-readiness-audit-2b96f8b813024233bf8912b0160049af\wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-5.ps1
+  ok C:\WINDOWS\TEMP\wootc-fixture-readiness-audit-2b96f8b813024233bf8912b0160049af\wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-6.ps1
+PowerShell lint passed
+PASS synthetic recovery material suppressed from success/warning/information streams and transcript
+PASS missing protector created and private key verified
+PASS exported key is 55 canonical ASCII characters with seven separators and CRLF, no BOM
+PASS existing protector reused
+PASS creation failure stops and removes stale key
+PASS refresh refuses missing protector
+PASS malformed password refused
+PASS plaintext fixture refused
+PASS permission failure stops and removes key
+PASS actual old-behavior mutant exposes synthetic warning through native transcript
+PASS all 54 conversion/protection/percentage combinations; only fully encrypted 100 protection on passes
+PASS missing duplicate malformed and failed observations refuse readiness
+PASS six enrollment/activation paths including no existing protectors and already-on no mutation
+PASS 30 state/identity/TPM/export/enrollment/activation refusal controls; no secrets emitted
+PASS native protected fixture privacy and provisional activation mocks
