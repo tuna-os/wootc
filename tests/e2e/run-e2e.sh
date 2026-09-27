@@ -2479,9 +2479,28 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
     fi
 
     step "Driving the REAL install through the live form (drive directive)..."
-    qga_powershell "@'
-{\"action\":\"install\",\"image\":\"$IMAGE_REF\",\"username\":\"wootc\",\"password\":\"wootc-e2e-pass\",\"hostname\":\"wootc-test\"}
-'@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii" >/dev/null
+    local drive_directive_id drive_payload drive_ack
+    drive_directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
+    drive_payload=$(python3 - "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" <<'PYDRIVE'
+import base64, json, sys
+value = dict(schemaVersion=1, runId=sys.argv[1], directiveId=sys.argv[2],
+             action='install', image=sys.argv[3], username='wootc',
+             password='wootc-e2e-pass', hostname='wootc-test')
+print(base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode())
+PYDRIVE
+    ) || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    if ! drive_ack=$(qga_powershell "\$ErrorActionPreference='Stop'
+\$wanted=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$drive_payload'))
+Set-Content -LiteralPath C:\wootc\e2e-drive.json -Value \$wanted -Encoding UTF8
+\$actual=Get-Content -LiteralPath C:\wootc\e2e-drive.json -Raw
+if (\$actual.TrimEnd([char]13,[char]10) -cne \$wanted) { throw 'Directive readback changed' }
+Write-Output 'gui-install-directive-written'" 2>/dev/null); then
+        infra_fail "GUI install directive write is unknown; install observation refused"
+        return 1
+    fi
+    [ "$(printf '%s' "$drive_ack" | tr -d '\r\n')" = gui-install-directive-written ] || {
+        infra_fail "GUI install directive has no typed readback"; return 1;
+    }
 
     # The app reports every 2s. Wait first for the form to be driven (proves
     # the bridge + validation), then for the real pipeline to reach done.
@@ -2512,7 +2531,12 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # the app had died, never recovering when reads resumed).
         drive_state=""
         for _try in 1 2 3; do
-            drive_state=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null || true)
+            local drive_raw=""
+            # Failed reads with plausible stdout and stale/malformed reports
+            # remain unknown. Only the current directive's typed receipt counts.
+            if drive_raw=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null); then
+                drive_state=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>/dev/null) || drive_state=""
+            fi
             [ -n "$drive_state" ] && break
             sleep 2
         done
@@ -2541,12 +2565,12 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
                         wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
                         info "  app-crash check #${dead_app_checks}: wootc.exe process is '${wootc_alive}'"
                         if [ "$dead_app_checks" -ge "$WOOTC_DRIVE_APP_DEAD_THRESHOLD" ]; then
-                            fail "wootc.exe GUI has STOPPED responding — the drive state was being written but is now unreadable for ${dead_app_checks} consecutive samples (~$((dead_app_checks * 12))s)"
+                            infra_fail "Current GUI report is unavailable for ${dead_app_checks} consecutive samples; completion cannot be observed"
                             if [ "$wootc_alive" = "dead" ]; then
-                                fail "  wootc.exe process is DEAD — the app crashed mid-install"
+                                info "  Process query returned dead; current report remains unavailable"
                             else
-                                fail "  wootc.exe process is still running but stopped writing e2e-drive-state.json"
-                                fail "  the app may be hung on a blocking operation or its JS bridge has disconnected"
+                                info "  wootc.exe process observation: $wootc_alive"
+                                info "  No current run-bound report; product hang is not established"
                             fi
                             fail "  last screen reached: ${last_screen:-<none>}"
                             capture_vm_diagnostics
@@ -2585,7 +2609,7 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # Narrate progress: a 30-minute silent wait that ends in one verdict is
         # undiagnosable, whereas the screen sequence shows where it stopped.
         local screen
-        screen=$(printf '%s' "$drive_state" | sed -n 's/.*"screen":"\([^"]*\)".*/\1/p' | head -1)
+        screen=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["screen"])')
         if [ -n "$screen" ] && [ "$screen" != "$last_screen" ]; then
             info "  GUI screen: ${last_screen:-<start>} -> $screen"
             last_screen="$screen"
@@ -2598,16 +2622,16 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # one (run 32581422435: "bazzite" installed bluefin-lts and every
         # image-agnostic assertion passed). A persisting mismatch will never
         # resolve on its own, so fail now with the two refs side by side.
-        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"imageMismatch":true'; then
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["imageMismatch"] is True else 1)'; then
             local _sel
-            _sel=$(printf '%s' "$drive_state" | sed -n 's/.*"selectedRef":"\([^"]*\)".*/\1/p' | head -1)
+            _sel=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["selectedRef"])')
             fail "Drive mode cannot select the requested image: wanted $IMAGE_REF, form has '${_sel:-<none>}'"
             fail "  The image is likely gated out of the offered catalog — the drive loop refuses to install the default in its place."
             capture_vm_diagnostics
             exit 1
         fi
 
-        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"installDriven":true'; then
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["installDriven"] is True else 1)'; then
             driven=true
             pass "GUI form filled and Install clicked through the live bridge"
         fi
@@ -2618,11 +2642,11 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # it refuses to install: "BitLocker encryption isn't supported in the
         # alpha yet". Waiting out a deadline to rediscover a refusal the app
         # states up front is pure waste — surface the app's own words and stop.
-        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"installBtnDisabled":true'; then
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["installBtnDisabled"] is True else 1)'; then
             blocked_reads=$((blocked_reads + 1))
             if [ "$blocked_reads" -ge 6 ]; then
                 local hint
-                hint=$(printf '%s' "$drive_state" | sed -n 's/.*"hint":"\([^"]*\)".*/\1/p' | head -1)
+                hint=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hint"])')
                 fail "the GUI REFUSES this configuration — Install is disabled, so no install can be driven"
                 fail "  the app says: ${hint:-<no hint given>}"
                 fail "  this is the product declining, not a harness failure: fix the case or the product, not the timeout"
@@ -2632,13 +2656,13 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         else
             blocked_reads=0
         fi
-        if printf '%s' "$drive_state" | grep -q '"screen":"done"'; then
+        if [ "$screen" = "done" ]; then
             product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
             # Let the done screen actually appear in a capture, then hold it.
             sleep 4; freeze_frame
             break
         fi
-        if printf '%s' "$drive_state" | grep -q '"error":"'; then
+        if printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["error"] is not None else 1)'; then
             fail "GUI install pipeline surfaced an error:"
             printf '%s\n' "$drive_state" | head -3
             # ESP state at failure time, from a FRESH PowerShell (a reused
@@ -2664,7 +2688,7 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         fi
         sleep 10
     done
-    printf '%s' "$drive_state" | grep -q '"screen":"done"' || {
+    [ "${screen:-}" = "done" ] && [ -n "$drive_state" ] || {
         # WHICH failure this is depends on the channel, so ask BEFORE writing a
         # verdict. This used to lead with "did not reach the done screen in 30m"
         # and append the dead-ping caveat underneath — a product red on top of
@@ -2681,11 +2705,11 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
             capture_vm_diagnostics
             exit 1
         fi
-        fail "GUI-driven install did not reach the done screen in 30m"
+        infra_fail "GUI-driven completion was not observed within 30m"
         fail "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
         fail "  last readable state: ${last_good:-<never read one>}"
         fail "  unreadable reads: $total_empty of ~180"
-        fail "  QGA answers ping — so this is the installer, not the channel"
+        info "  QGA ping answers; this does not establish GUI identity or progress"
         capture_vm_diagnostics
         exit 1
     }
@@ -2708,9 +2732,18 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
 
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
-    qga_powershell '@"
-{"action":"reboot"}
-"@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii' >/dev/null
+    local reboot_payload
+    reboot_payload=$(python3 - "$RUN_ID" "$drive_directive_id" <<'PYREBOOT'
+import base64, json, sys
+value = dict(schemaVersion=1, runId=sys.argv[1], directiveId=sys.argv[2], action='reboot')
+print(base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode())
+PYREBOOT
+    ) || { infra_fail "Could not encode this run's reboot directive"; return 1; }
+    qga_powershell "\$ErrorActionPreference='Stop'
+\$value=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$reboot_payload'))
+Set-Content -LiteralPath C:\wootc\e2e-drive.json -Value \$value -Encoding UTF8" >/dev/null || {
+        infra_fail "GUI reboot directive write failed"; return 1;
+    }
     pass "Reboot directive issued — deployer takes over"
 
     # Verify the reboot ACTUALLY took effect before handing control to the

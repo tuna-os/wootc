@@ -69,12 +69,16 @@ function driveInstall(directive, state) {
   }
 }
 
-async function reportState(state) {
+async function reportState(state, directive) {
   // The harness reads imageMismatch to fail FAST when the directive's image
   // cannot be selected (see the integrity gate in driveInstall) — the
   // alternative is a silent install of the default image.
   const wantRef = window.__e2eWantImage || '';
   await E2EDriveReport(JSON.stringify({
+    schemaVersion: 1,
+    runId: directive.runId,
+    directiveId: directive.directiveId,
+    action: directive.action,
     screen: state.screen,
     installDriven: !!window.__e2eInstallDriven,
     installBtnDisabled: (document.getElementById('install-btn') || {}).disabled ?? null,
@@ -99,16 +103,28 @@ export function startE2EDrive(state) {
     try {
       if (raw) {
         const directive = JSON.parse(raw);
+        if (directive.schemaVersion !== 1 || typeof directive.runId !== 'string' ||
+            !directive.runId || !/^[0-9a-f]{32}$/.test(directive.directiveId) ||
+            !['install', 'reboot'].includes(directive.action)) throw new Error('Invalid drive identity');
+        if (window.__e2eRunId && window.__e2eRunId !== directive.runId) throw new Error('Changed drive run');
+        window.__e2eRunId = directive.runId;
+        if (directive.action === 'install') {
+          if (window.__e2eInstallDirectiveId && window.__e2eInstallDirectiveId !== directive.directiveId) {
+            throw new Error('Changed install directive');
+          }
+          window.__e2eInstallDirectiveId = directive.directiveId;
+        }
         if (directive.action === 'install') {
           window.__e2eWantImage = directive.image || '';
           driveInstall(directive, state);
         }
-        if (directive.action === 'reboot' && state.screen === 'done' && !window.__e2eRebootDriven) {
+        if (directive.action === 'reboot' && state.screen === 'done' && window.__e2eInstallDriven &&
+            window.__e2eInstallDirectiveId === directive.directiveId && !window.__e2eRebootDriven) {
           window.__e2eRebootDriven = true;
           Reboot();
         }
+        await reportState(state, directive);
       }
-      await reportState(state);
     } catch {
       // Drive mode is diagnostic and must never break the application.
     }
