@@ -1,0 +1,96 @@
+=== RUN   TestNativeAuditRefusesPartialTreeAndPreservesBytes
+--- PASS: TestNativeAuditRefusesPartialTreeAndPreservesBytes (0.00s)
+=== RUN   TestNativeAssessmentReadyAfterPreparation
+--- PASS: TestNativeAssessmentReadyAfterPreparation (0.00s)
+=== RUN   TestNativeAssessmentBlockedAndFailedSelectionNeverReady
+=== RUN   TestNativeAssessmentBlockedAndFailedSelectionNeverReady/refused
+=== RUN   TestNativeAssessmentBlockedAndFailedSelectionNeverReady/blocked
+--- PASS: TestNativeAssessmentBlockedAndFailedSelectionNeverReady (0.00s)
+    --- PASS: TestNativeAssessmentBlockedAndFailedSelectionNeverReady/refused (0.00s)
+    --- PASS: TestNativeAssessmentBlockedAndFailedSelectionNeverReady/blocked (0.00s)
+=== RUN   TestNativeAssessmentDriftRefusesAllStartupReads
+--- PASS: TestNativeAssessmentDriftRefusesAllStartupReads (0.00s)
+=== RUN   TestAssessmentRPCObservedCancellationAndShutdown
+--- PASS: TestAssessmentRPCObservedCancellationAndShutdown (0.00s)
+=== RUN   TestAssessmentRPCRejectsOtherMethodsBeforeParameterAndBackendWork
+--- PASS: TestAssessmentRPCRejectsOtherMethodsBeforeParameterAndBackendWork (0.00s)
+=== RUN   TestServeShutdownWaitsForArmedWorkerCleanup
+=== RUN   TestServeShutdownWaitsForArmedWorkerCleanup/eof
+=== RUN   TestServeShutdownWaitsForArmedWorkerCleanup/shutdown
+--- PASS: TestServeShutdownWaitsForArmedWorkerCleanup (0.10s)
+    --- PASS: TestServeShutdownWaitsForArmedWorkerCleanup/eof (0.05s)
+    --- PASS: TestServeShutdownWaitsForArmedWorkerCleanup/shutdown (0.05s)
+=== RUN   TestServeDisconnectUnblocksInFlightProgressWrite
+--- PASS: TestServeDisconnectUnblocksInFlightProgressWrite (0.09s)
+=== RUN   TestServeStartupReadContracts
+=== RUN   TestServeStartupReadContracts/GetLastRun
+=== RUN   TestServeStartupReadContracts/GetRecoveryVerdict
+=== RUN   TestServeStartupReadContracts/GetInstallSteps
+--- PASS: TestServeStartupReadContracts (0.00s)
+    --- PASS: TestServeStartupReadContracts/GetLastRun (0.00s)
+    --- PASS: TestServeStartupReadContracts/GetRecoveryVerdict (0.00s)
+    --- PASS: TestServeStartupReadContracts/GetInstallSteps (0.00s)
+=== RUN   TestServeAllMethodsRoundTrip
+=== RUN   TestServeAllMethodsRoundTrip/GetSupportPolicy
+=== RUN   TestServeAllMethodsRoundTrip/GetSystemInfo
+=== RUN   TestServeAllMethodsRoundTrip/GetBranding
+=== RUN   TestServeAllMethodsRoundTrip/GetImages
+=== RUN   TestServeAllMethodsRoundTrip/GetSessionCandidates
+=== RUN   TestServeAllMethodsRoundTrip/GetStatus
+=== RUN   TestServeAllMethodsRoundTrip/CancelInstall
+=== RUN   TestServeAllMethodsRoundTrip/ExistingInstallFound
+=== RUN   TestServeAllMethodsRoundTrip/GetUninstallInfo
+=== RUN   TestServeAllMethodsRoundTrip/GetLastRun
+=== RUN   TestServeAllMethodsRoundTrip/E2EDriveDirective
+=== RUN   TestServeAllMethodsRoundTrip/E2EDriveReport
+=== RUN   TestServeAllMethodsRoundTrip/DefragDrive
+=== RUN   TestServeAllMethodsRoundTrip/UninstallWith
+=== RUN   TestServeAllMethodsRoundTrip/Reboot
+=== RUN   TestServeAllMethodsRoundTrip/BootIntoLinux
+=== RUN   TestServeAllMethodsRoundTrip/StartInstall
+--- PASS: TestServeAllMethodsRoundTrip (0.01s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetSupportPolicy (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetSystemInfo (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetBranding (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetImages (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetSessionCandidates (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetStatus (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/CancelInstall (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/ExistingInstallFound (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetUninstallInfo (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/GetLastRun (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/E2EDriveDirective (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/E2EDriveReport (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/DefragDrive (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/UninstallWith (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/Reboot (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/BootIntoLinux (0.00s)
+    --- PASS: TestServeAllMethodsRoundTrip/StartInstall (0.00s)
+=== RUN   TestStatusDiscoverySelectsInstallationPastPayload
+--- PASS: TestStatusDiscoverySelectsInstallationPastPayload (0.00s)
+=== RUN   TestStatusDiscoveryRejectsCompetingInstallations
+--- PASS: TestStatusDiscoveryRejectsCompetingInstallations (0.00s)
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537
+--- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts (0.01s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537 (0.00s)
+=== RUN   TestStatusDiscoveryAbsentDoesNotCreateFiles
+--- PASS: TestStatusDiscoveryAbsentDoesNotCreateFiles (0.00s)
+=== RUN   TestStatusConcurrentAccess
+--- PASS: TestStatusConcurrentAccess (0.00s)
+=== RUN   TestStatusRecordsRefuseAmbiguousLifecycleInsteadOfFreshRoute
+--- PASS: TestStatusRecordsRefuseAmbiguousLifecycleInsteadOfFreshRoute (0.00s)
+=== RUN   TestStatusRecordsRecoveryMissingIsDistinctFromMalformed
+--- PASS: TestStatusRecordsRecoveryMissingIsDistinctFromMalformed (0.01s)
+PASS
+ok  	wootc	0.250s
