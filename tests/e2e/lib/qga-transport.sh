@@ -145,9 +145,14 @@ qga_wait_reboot() {
 }
 
 
+# GUI session callers invoke this callback by its configured name and pass the
+# remaining deadline; direct callers use the default five-second budget.
+# shellcheck disable=SC2120
 qga_windows_probe() {
-    local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' 2>/dev/null) || return 1
+    local os probe_timeout="${1-5}"
+    wootc_qga_valid_timeout "$probe_timeout" || return 2
+    [ "$probe_timeout" -le 5 ] || probe_timeout=5
+    os=$(WOOTC_QGA_CALL_TIMEOUT="$probe_timeout" qga_powershell '$env:OS' 2>/dev/null) || return 1
     os=$(printf '%s' "$os" | tr -d '\r\n')
     if [[ "$os" == Windows_NT ]]; then
         # A phase observed in the Linux guest cannot describe a Windows action.

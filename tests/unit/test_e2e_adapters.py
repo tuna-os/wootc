@@ -252,6 +252,21 @@ cache_downloaded_iso '{cache}' '{target}' '{storage}'
         self.assertFalse(Path(str(target) + '.part').exists())
         self.assertEqual(original.read_bytes(), b'controlled ISO bytes')
 
+    def test_windows_identity_probe_validates_and_caps_caller_budget(self):
+        body = """
+wootc_phase_boundary() { :; }
+qga_powershell() { printf '%s' "$WOOTC_QGA_CALL_TIMEOUT" > "$COUNT"; printf Windows_NT; }
+qga_windows_probe "$PROBE_BUDGET"
+"""
+        for budget in ['', '0', '-1', 'bad']:
+            result = self.shell(body, PROBE_BUDGET=budget)
+            self.assertEqual(result.returncode, 2)
+            self.assertFalse((self.directory / 'count').exists())
+        for budget, expected in [('1', 1), ('20', 5)]:
+            result = self.shell(body, PROBE_BUDGET=budget)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.count(), expected)
+
     def test_actual_return_observer_refuses_failed_linux_token(self):
         for guest_status, expected in [('0', 'linux'), ('7', 'unknown')]:
             result = self.shell("""
