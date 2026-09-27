@@ -1,0 +1,49 @@
+--- FAIL: TestVMGuestExactSemanticKeyNames (0.03s)
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-schemaVersion (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-runId (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-installId (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-diskId (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-sessionId (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-requestId (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-username (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-action (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-serviceSha256 (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-ancestrySha256 (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-status (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-bootId (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-kernelRelease (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-ordinarySession (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-desktopQualified (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/reply-editorQualified (0.00s)
+        vm_guest_exact_keys_test.go:11: wrong-case reply accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/root-target (0.00s)
+        vm_guest_exact_keys_test.go:16: wrong-case root accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/root-diskId (0.00s)
+        vm_guest_exact_keys_test.go:16: wrong-case root accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/root-currentRootVerified (0.00s)
+        vm_guest_exact_keys_test.go:16: wrong-case root accepted
+    --- FAIL: TestVMGuestExactSemanticKeyNames/root-measurements (0.00s)
+        vm_guest_exact_keys_test.go:16: wrong-case root accepted
+--- FAIL: TestVMGuestExplicitScopeBooleans (0.00s)
+    --- FAIL: TestVMGuestExplicitScopeBooleans/desktopQualified (0.00s)
+        vm_guest_exact_keys_test.go:22: null scope silently accepted as false
+    --- FAIL: TestVMGuestExplicitScopeBooleans/editorQualified (0.00s)
+        vm_guest_exact_keys_test.go:22: null scope silently accepted as false
+FAIL
+FAIL	wootc	0.042s
+FAIL

@@ -1,0 +1,25 @@
+{
+  "sourceCommit": "5374e3a",
+  "beforeSource": "35b8906d719db60d90c00f93351ec6f90165dff0",
+  "mainIntegrated": "1da5e196492410aabb4674a8a17777e6f20b9ac7",
+  "sourceHashes": {
+    "app/vm_guest_protocol.go": "99468ceb0afe2efb75d16757abc3b524ad0736047bd1c330b64d061ea7f1c2b3",
+    "app/vm_guest_exact_keys_test.go": "978f6e1aff7341fe1ad9b20f42eee30847dbb941d5c6b698190eb527a86190f3",
+    ".github/workflows/vm-guest-observer-controls.yml": "202b1ca924faedcfaac7b4630aa8ffefd68aba8fb44f627469ecaa9e73ee4e01"
+  },
+  "evidenceHashes": {
+    "before.raw.log": "47ce94079375fff80af8be55c32af9f0d50b5e5e8cba39ecadd3c4c0c1706c41",
+    "before-decoder.go": "0f2670f9840e802129bd1818acd88411f53c3b2c1d3f8e02581a0190bc35362f",
+    ".gitattributes": "6cd8e39fbf23c397809d1bbf0026a2cc2b284b5ac1a10b66748814a047cbbd3e",
+    "go.raw.log": "352818b610038120647076e19e0f9486d52484b8f785624e6b49e7cb91b6f246",
+    "race.raw.log": "1a2e9a2be2c8dc9f267f25da99f721b6f5cbb1443702d25127d11546ac49b93f",
+    "crosscompile.json": "f4131820ac58c874f8014c643578671deb5604a280d7b11035242d7ff8967c2a"
+  },
+  "actualBeforeAcceptedCases": 22,
+  "singleWrongCaseAcceptedCases": 20,
+  "nullScopeAcceptedCases": 2,
+  "alreadyRefusedBefore": "Duplicate semantic case aliases and a wrong-case top Root field were already refused; no new-before acceptance claim for them.",
+  "correction": "Exact17 reply fields, exact4 root fields, explicit JSON false for scope flags. No image, guest, desktop or editor qualification.",
+  "windowsNativeExecuted": false,
+  "crosscompileExecuted": true
+}
