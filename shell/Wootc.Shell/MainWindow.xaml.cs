@@ -48,6 +48,7 @@ public sealed partial class MainWindow : Window
         ConnectButton.IsEnabled = controller.CanRequestPermission;
         ConnectButton.Content = controller.Connection == ConnectionState.PermissionDeclined ? "Retry administrator permission" : "Read startup status";
         DisconnectButton.IsEnabled = controller.Connection is ConnectionState.Ready or ConnectionState.DisconnectPending;
+        DisconnectButton.Content = controller.Connection == ConnectionState.DisconnectPending ? "Retry disconnect" : "Disconnect engine";
         StartupRouteText.Text = controller.Connection == ConnectionState.Ready ? controller.Route switch
         {
             StartupRoute.Assessment => "Review your computer before installation",

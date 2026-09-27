@@ -11,6 +11,7 @@ internal sealed class NativeEngineSession : IEngineSession
 {
     private readonly Stream pipe;
     private readonly Process engine;
+    private readonly TimeSpan disconnectTimeout;
     private readonly SemaphoreSlim writes = new(1, 1);
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> pending = new();
     private readonly CancellationTokenSource readerStop = new();
@@ -19,10 +20,13 @@ internal sealed class NativeEngineSession : IEngineSession
     private volatile bool disconnected;
     private Exception? receiveFailure;
 
-    public NativeEngineSession(Stream pipe, Process engine)
+    public NativeEngineSession(Stream pipe, Process engine) : this(pipe, engine, TimeSpan.FromSeconds(30)) { }
+
+    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout)
     {
         this.pipe = pipe;
         this.engine = engine;
+        this.disconnectTimeout = disconnectTimeout;
         reader = ReceiveAsync();
     }
 
@@ -112,7 +116,7 @@ internal sealed class NativeEngineSession : IEngineSession
         await reader;
         // Preserve the retained process and session authority if cleanup is
         // pending. The controller blocks retries; a later Dispose retries wait.
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var deadline = new CancellationTokenSource(disconnectTimeout);
         try { await engine.WaitForExitAsync(deadline.Token); }
         catch (OperationCanceledException) { throw new IOException("Engine cleanup is still pending; do not reboot"); }
         engine.Dispose();

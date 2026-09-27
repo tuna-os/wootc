@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Principal;
 using Wootc.Shell.Native;
+using Wootc.Shell.Core;
+using Wootc.Shell.Engine;
 using Xunit;
 
 namespace Wootc.Shell.NativeTests;
@@ -47,6 +49,54 @@ public sealed class TransportTests
         _ = other.Handle;
         try { Assert.Throws<InvalidDataException>(() => WindowsPeer.VerifyPipeServer(client.SafePipeHandle, other, observed, observed.ImagePath)); }
         finally { other.StandardInput.Close(); if (!other.WaitForExit(2000)) { other.Kill(); other.WaitForExit(2000); } }
+    }
+
+    [Fact]
+    public async Task ObservedOwnedProcessExitAllowsPendingCleanupAndNewSession()
+    {
+        using var owned = Process.Start(new ProcessStartInfo("cmd.exe", "/c pause") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, CreateNoWindow = true })!;
+        _ = owned.Handle;
+        var connector = new CleanupConnector(new NativeEngineSession(Stream.Null, owned, TimeSpan.FromMilliseconds(100)));
+        var controller = new StartupController(new Branding { ProductName = "Public fixture", Name = "Public fixture" }, connector);
+        try
+        {
+            await controller.RequestPermissionAsync();
+            Assert.Equal(ConnectionState.DisconnectPending, controller.Connection);
+            Assert.False(controller.CanRequestPermission);
+            Assert.False(owned.HasExited);
+            await controller.RequestPermissionAsync();
+            Assert.Equal(1, connector.Calls);
+            Assert.Equal(ConnectionState.DisconnectPending, controller.Connection);
+            owned.StandardInput.Close();
+            using var exitDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await owned.WaitForExitAsync(exitDeadline.Token);
+            // Disposal succeeds only after the retained process has been observed exiting.
+            await controller.DisposeAsync();
+            Assert.Equal(ConnectionState.Offline, controller.Connection);
+            Assert.True(controller.CanRequestPermission);
+            await controller.RequestPermissionAsync();
+            Assert.Equal(2, connector.Calls);
+            Assert.Equal(ConnectionState.Ready, controller.Connection);
+            await controller.DisposeAsync();
+        }
+        finally
+        {
+            // This is only our test-owned cmd.exe handle, never an installer PID scan.
+            try { if (!owned.HasExited) { owned.StandardInput.Close(); if (!owned.WaitForExit(2000)) { owned.Kill(); owned.WaitForExit(2000); } } }
+            catch (InvalidOperationException) { } // Native session already disposed its retained handle after exit.
+        }
+    }
+
+    private sealed class CleanupConnector(IEngineSession first) : IEngineConnector
+    {
+        public int Calls { get; private set; }
+        public Task<ConnectionAttempt> ConnectAsync(ConnectRequest request, CancellationToken token) =>
+            Task.FromResult(new ConnectionAttempt(ConnectionOutcome.Connected, ++Calls == 1 ? first : new FreshSession()));
+    }
+    private sealed class FreshSession : IEngineSession
+    {
+        public Task<StartupSnapshot> ReadStartupAsync(CancellationToken token) => Task.FromResult(new StartupSnapshot(new InstallStatus(), null));
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     [Fact]

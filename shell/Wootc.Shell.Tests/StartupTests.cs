@@ -114,6 +114,11 @@ public sealed class StartupTests
         session.AllowCleanup = true;
         await controller.DisposeAsync();
         Assert.Equal(ConnectionState.Offline, controller.Connection);
+        Assert.True(controller.CanRequestPermission);
+        connector.Result = new(ConnectionOutcome.Connected, new FakeSession(new(new(), null)));
+        await controller.RequestPermissionAsync();
+        Assert.Equal(ConnectionState.Ready, controller.Connection);
+        Assert.Equal(2, connector.Requests.Count);
     }
 
     private sealed class FaultingDisconnectSession : IEngineSession
