@@ -1,79 +1,68 @@
 #!/usr/bin/env bash
-# make-bundle.sh — pre-stage a bootc image so the migration needs no network
-# after the initial download (#177).
-#
-# WHY THIS SHAPE
-# The deployer's slowest, most failure-prone step is pulling a multi-gigabyte
-# OCI image from inside a stripped initramfs. It is also the step most likely
-# to strand a user: a flaky mirror mid-migration is the worst possible moment
-# to lose the network.
-#
-# fisherman already knows how to install from a local store — its recipe takes
-# `additionalImageStores`, and bootc.go bind-mounts each path read-only into
-# the bootc container, so podman resolves the image from there instead of
-# reaching out. This script just produces such a store. No new deployer
-# mechanism, no fisherman change, and nothing to keep in sync.
-#
-# A containers-storage tree is used rather than an `oci:` directory layout
-# precisely because that is what additionalImageStores consumes; an OCI layout
-# would need an extra conversion inside the initramfs, which is where we have
-# the least room to be clever.
-#
-# Usage:
-#   payload/bundle/make-bundle.sh ghcr.io/tuna-os/yellowfin:gnome [outdir]
-#
-# Output (outdir defaults to ./out/bundle):
-#   <outdir>/store/        the read-only image store
-#   <outdir>/bundle.json   what is inside, for the installer and for humans
-#
-# Ship <outdir> next to wootc.exe. The installer stages it to
-# C:\wootc\bundle\, and deploy.sh picks it up automatically — see
-# "offline image bundle" in payload/deployer/deploy.sh.
-
+# Produce a portable plain-file linux/amd64 OCI bundle for offline deployment.
+# Prerequisites: skopeo, jq, and wootc-json-check. Build the latter with:
+# go build -o /usr/local/bin/wootc-json-check payload/json-check/main.go
 set -Eeuo pipefail
-
-IMAGE="${1:-}"
-OUT="${2:-$(cd "$(dirname "$0")" && pwd)/out/bundle}"
-
-if [[ -z "$IMAGE" ]]; then
-    echo "usage: $0 <image-ref> [outdir]" >&2
-    echo "example: $0 ghcr.io/tuna-os/yellowfin:gnome" >&2
-    exit 2
+IMAGE=${1:?usage: make-bundle.sh image-ref exclusive-output-directory}
+OUT=${2:?usage: make-bundle.sh image-ref exclusive-output-directory}
+command -v skopeo >/dev/null
+command -v wootc-json-check >/dev/null
+[[ ! -e "$OUT" ]] || { echo 'output already exists; refuse mixed bundle' >&2; exit 1; }
+mkdir -p "$(dirname "$OUT")"
+mkdir -m 700 "$OUT"
+# Preserve source root bytes before platform selection. Raw inspect writes
+# exactly the received manifest bytes (skopeo inspect.go raw-output path).
+source "$(dirname "$0")/../deployer/offline-bundle.sh"
+REGISTRY_IMAGE=${IMAGE#docker://}
+ROOT_RAW="$OUT/source.raw"
+(set -o pipefail; timeout 120 skopeo inspect --raw "docker://$REGISTRY_IMAGE" | head -c 1048577 > "$ROOT_RAW")
+wootc_bundle_json "$ROOT_RAW" 1048576
+SOURCE_DIGEST="sha256:$(sha256sum "$ROOT_RAW" | cut -d ' ' -f1)"
+if [[ "$REGISTRY_IMAGE" == *@* ]]; then
+    [[ ${REGISTRY_IMAGE##*@} == "$SOURCE_DIGEST" ]] || { echo 'source root digest differs from selection' >&2; exit 1; }
 fi
-
-log() { printf '[make-bundle] %s\n' "$*" >&2; }
-
-command -v podman >/dev/null || { echo "podman is required" >&2; exit 1; }
-
-STORE="$OUT/store"
-mkdir -p "$STORE"
-
-# --root makes this a self-contained store rather than polluting (or depending
-# on) the caller's. --storage-driver vfs is deliberate: overlay stores embed
-# absolute paths and expect matching kernel/driver support at read time, and
-# this tree is going to be read from a completely different machine inside an
-# initramfs. vfs is bigger on disk but portable, which is the whole point.
-log "pulling ${IMAGE} into a portable store (vfs) — this is the big download"
-podman --root "$STORE" --storage-driver vfs pull "$IMAGE"
-
-# Resolve the digest so the bundle records exactly what it holds. A tag can be
-# re-pointed upstream; a user installing offline months later should be able to
-# tell precisely what they are about to boot.
-DIGEST="$(podman --root "$STORE" --storage-driver vfs image inspect \
-    --format '{{.Digest}}' "$IMAGE" 2>/dev/null || echo "")"
-SIZE_BYTES="$(du -sb "$STORE" | cut -f1)"
-
-cat > "$OUT/bundle.json" <<EOF
-{
-  "image": "${IMAGE}",
-  "digest": "${DIGEST}",
-  "storageDriver": "vfs",
-  "storeBytes": ${SIZE_BYTES},
-  "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+timeout 1800 skopeo --override-os linux --override-arch amd64 copy --preserve-digests \
+    "docker://$REGISTRY_IMAGE" "oci:$OUT/oci:wootc"
+DIGEST=$(jq -er '.manifests | select(length == 1) | .[0].digest' "$OUT/oci/index.json")
+cp "$ROOT_RAW" "$OUT/oci/blobs/sha256/${SOURCE_DIGEST#sha256:}"
+rm "$ROOT_RAW"
+REPOSITORY=${REGISTRY_IMAGE%@*}
+[[ ${REPOSITORY##*/} != *:* ]] || REPOSITORY=${REPOSITORY%:*}
+FETCH_COUNT=0
+FETCH_STARTED=$SECONDS
+fetch_selected_metadata() {
+    local digest=$1 depth=$2 path media rows child bytes child_media remaining
+    FETCH_COUNT=$((FETCH_COUNT+1))
+    [[ "$depth" -le 8 && "$FETCH_COUNT" -le 64 ]] || return 1
+    remaining=$((600-(SECONDS-FETCH_STARTED)))
+    [[ "$remaining" -gt 0 ]] || return 1
+    [[ "$remaining" -le 120 ]] || remaining=120
+    [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || return 1
+    path="$OUT/oci/blobs/sha256/${digest#sha256:}"
+    if [[ ! -f "$path" ]]; then
+        (set -o pipefail; timeout "$remaining" skopeo inspect --raw "docker://$REPOSITORY@$digest" | head -c 1048577 > "$path") || return 1
+    fi
+    wootc_bundle_json "$path" 1048576 || return 1
+    wootc_bundle_blob "$OUT/oci" "$digest" "$(stat -c %s "$path")" || return 1
+    media=$(jq -r '.mediaType' "$path") || return 1
+    case "$media" in
+        application/vnd.oci.image.index.v1+json|application/vnd.docker.distribution.manifest.list.v2+json)
+            jq -e '(.manifests | type) == "array" and (.manifests | length) <= 64' "$path" >/dev/null || return 1
+            rows=$(jq -r '.manifests[] | select((.platform.os == "linux" and .platform.architecture == "amd64" and (.platform.variant // "") == "") or (.platform == null and (.mediaType == "application/vnd.oci.image.index.v1+json" or .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json"))) | [.digest,.size,.mediaType] | @tsv' "$path") || return 1
+            [[ -n "$rows" ]] || return 1
+            while IFS=$'\t' read -r child bytes child_media; do
+                fetch_selected_metadata "$child" "$((depth+1))" || return 1
+                wootc_bundle_blob "$OUT/oci" "$child" "$bytes" || return 1
+                [[ $(jq -r .mediaType "$OUT/oci/blobs/sha256/${child#sha256:}") == "$child_media" ]] || return 1
+            done <<< "$rows"
+            ;;
+    esac
 }
-EOF
-
-log "bundle ready: $OUT ($(numfmt --to=iec "$SIZE_BYTES" 2>/dev/null || echo "$SIZE_BYTES bytes"))"
-log "image:  ${IMAGE}"
-log "digest: ${DIGEST:-<unknown>}"
-cat "$OUT/bundle.json" >&2
+fetch_selected_metadata "$SOURCE_DIGEST" 0
+SIZE_BYTES=$(du -sb "$OUT/oci" | cut -f1)
+jq -n --arg image "$IMAGE" --arg digest "$DIGEST" --arg sourceDigest "$SOURCE_DIGEST" --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson bytes "$SIZE_BYTES" '{image:$image,digest:$digest,sourceDigest:$sourceDigest,storeBytes:$bytes,createdAt:$created,format:"oci"}' > "$OUT/bundle.json"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/../deployer/offline-bundle.sh"
+wootc_bundle_validate "$OUT" "$IMAGE" >/dev/null
+printf 'Verified OCI bundle: %s (%s)\n' "$IMAGE" "$DIGEST"

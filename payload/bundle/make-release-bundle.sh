@@ -2,15 +2,14 @@
 # make-release-bundle.sh — assemble everything wootc needs to run without
 # reaching the network, laid out exactly as it must land on the target machine.
 #
-# The app looks for these at fixed paths under C:\wootc (see qemuDir() and
-# bundleDir() in app/), so this script's real job is producing that layout —
-# the installer then copies the tree across verbatim.
+# This assembles portable OCI files and optional Windows QEMU components.
+# The Windows installer must stage them onto the selected target volume.
 #
 #   <out>/qemu/qemu-system-x86_64.exe   Try-in-VM + Boot-in-VM   (SPEC 6.1/6.2)
 #   <out>/qemu/edk2-x86_64-code.fd      UEFI firmware for those VMs
 #   <out>/qemu/builder-vmlinuz          Alpine builder kernel    (Try-in-VM)
 #   <out>/qemu/builder-initramfs.img    Alpine builder initramfs
-#   <out>/bundle/store/                 pre-staged bootc image   (#177)
+#   <out>/bundle/oci/                 pre-staged bootc image   (#177)
 #   <out>/bundle/bundle.json            what that store holds
 #
 # WHY THE PIECES ARE SEPARATE
@@ -119,9 +118,13 @@ if [[ -f "$OUT/qemu/builder-vmlinuz" && -f "$OUT/qemu/qemu-system-x86_64.exe" ]]
 else
     log "  [no ] Try in VM — needs QEMU + builder artifacts"
 fi
-[[ -d "$OUT/bundle/store" ]] \
-    && log "  [yes] Offline install — the installer will pin itself to the bundled image" \
-    || log "  [no ] Offline install — no image staged"
+# shellcheck disable=SC1091
+source "$HERE/../deployer/offline-bundle.sh"
+if [[ -n "$IMAGE" ]] && wootc_bundle_validate "$OUT/bundle" "$IMAGE" >/dev/null; then
+    log "  [yes] Offline install — verified OCI image bytes staged"
+else
+    log "  [no ] Offline install — no verified image staged"
+fi
 log "----------------------------------------------------------------"
-log "Ship this tree beside wootc.exe; it lands at C:\\wootc\\ on the target."
+log "Output tree prepared at $OUT; target staging must preserve the verified OCI files."
 du -sh "$OUT" 2>/dev/null | sed 's/^/[release-bundle] total: /' >&2 || true
