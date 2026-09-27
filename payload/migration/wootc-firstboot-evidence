@@ -9,28 +9,52 @@
 
 set -euo pipefail
 
-HOST="/run/initramfs/wootc-host"
+HOST="${WOOTC_FIRSTBOOT_HOST:-/run/initramfs/wootc-host}"
+
+INSTALL_DIR="$HOST/wootc/install"
+EVIDENCE_TMP="$INSTALL_DIR/installed-linux-boot.json.tmp"
+EVIDENCE_FINAL="$INSTALL_DIR/installed-linux-boot.json"
+STATE_TMP="$HOST/wootc/state.json.tmp"
+STATE_FINAL="$HOST/wootc/state.json"
 
 log() {
-    printf '[wootc-firstboot] %s\n' "$*"
-    printf '<27>[wootc-firstboot] %s\n' "$*" > /dev/kmsg 2>/dev/null || true
+    local message="[wootc-firstboot] $*"
+    printf '%s\n' "$message"
+    printf '%s\n' "$message" > /dev/console 2>/dev/null || true
+    printf '<27>%s\n' "$message" > /dev/kmsg 2>/dev/null || true
 }
+
+on_error() {
+    local rc="$1" line="$2" command="$3"
+    log "ERROR: first-boot state write failed at line $line (exit $rc): $command"
+    rm -f "$STATE_TMP" "$EVIDENCE_TMP" 2>/dev/null || true
+    exit "$rc"
+}
+
+# The ERR trap supplies failed_command and failed_line before on_error runs.
+# shellcheck disable=SC2154
+trap 'rc=$?; failed_command=$BASH_COMMAND; failed_line=$LINENO; trap - ERR; on_error "$rc" "$failed_line" "$failed_command"' ERR
 
 if ! mountpoint -q "$HOST"; then
     log "ERROR: $HOST is not mounted (wootc-host-bind.service did not run first)"
-    exit 0
+    exit 1
 fi
 
-INSTALL_DIR="$HOST/wootc/install"
-mkdir -p "$INSTALL_DIR" 2>/dev/null || true
+mkdir -p "$INSTALL_DIR"
 
 NOW=$(date -u +%FT%TZ 2>/dev/null || date)
 KERNEL_VER="$(uname -r 2>/dev/null || echo "unknown")"
 
-# 1. Persist installed-linux-boot.json (first-boot evidence)
-EVIDENCE_TMP="$INSTALL_DIR/installed-linux-boot.json.tmp"
-EVIDENCE_FINAL="$INSTALL_DIR/installed-linux-boot.json"
-
+# Prepare both records before publishing either one. The lifecycle state is
+# published first; the evidence marker is last so a failed state write leaves
+# the service eligible to retry on the next boot.
+cat <<JSONEOF > "$STATE_TMP"
+{
+  "state": "healthy",
+  "updatedAt": "$NOW",
+  "updatedBy": "wootc-firstboot"
+}
+JSONEOF
 cat <<JSONEOF > "$EVIDENCE_TMP"
 {
   "state": "healthy",
@@ -39,23 +63,11 @@ cat <<JSONEOF > "$EVIDENCE_TMP"
   "updatedBy": "wootc-firstboot"
 }
 JSONEOF
-sync "$EVIDENCE_TMP" 2>/dev/null || sync || true
-mv -f "$EVIDENCE_TMP" "$EVIDENCE_FINAL" 2>/dev/null || true
-sync "$EVIDENCE_FINAL" 2>/dev/null || sync || true
-
-# 2. Persist state.json = healthy atomically
-STATE_TMP="$HOST/wootc/state.json.tmp"
-STATE_FINAL="$HOST/wootc/state.json"
-
-cat <<JSONEOF > "$STATE_TMP"
-{
-  "state": "healthy",
-  "updatedAt": "$NOW",
-  "updatedBy": "wootc-firstboot"
-}
-JSONEOF
 sync "$STATE_TMP" 2>/dev/null || sync || true
-mv -f "$STATE_TMP" "$STATE_FINAL" 2>/dev/null || true
+sync "$EVIDENCE_TMP" 2>/dev/null || sync || true
+mv -f "$STATE_TMP" "$STATE_FINAL"
 sync "$STATE_FINAL" 2>/dev/null || sync || true
+mv -f "$EVIDENCE_TMP" "$EVIDENCE_FINAL"
+sync "$EVIDENCE_FINAL" 2>/dev/null || sync || true
 
 log "Phase-2 first-boot health reported: state.json -> healthy ($KERNEL_VER)"

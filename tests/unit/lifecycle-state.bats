@@ -78,6 +78,80 @@ setup() {
     grep -q 'ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json' "$FIRSTBOOT_SERVICE"
 }
 
+@test "firstboot health writer publishes readable state and evidence" {
+    tmp=$(mktemp -d)
+    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
+    cat > "$tmp/bin/mountpoint" <<'SH'
+#!/bin/sh
+[ "${FIRSTBOOT_MOUNT_PRESENT:-0}" = 1 ]
+SH
+    chmod +x "$tmp/bin/mountpoint"
+
+    run env FIRSTBOOT_MOUNT_PRESENT=1 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -eq 0 ]
+    python3 -c 'import json,sys; state=json.load(open(sys.argv[1])); evidence=json.load(open(sys.argv[2])); assert state["state"] == "healthy" and state["updatedBy"] == "wootc-firstboot"; assert evidence["state"] == "healthy" and evidence["updatedBy"] == "wootc-firstboot"' \
+        "$tmp/host/wootc/state.json" "$tmp/host/wootc/install/installed-linux-boot.json"
+    rm -rf "$tmp"
+}
+
+@test "firstboot health writer fails when the private Windows mount is absent" {
+    tmp=$(mktemp -d)
+    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
+    cat > "$tmp/bin/mountpoint" <<'SH'
+#!/bin/sh
+exit 1
+SH
+    chmod +x "$tmp/bin/mountpoint"
+
+    run env FIRSTBOOT_MOUNT_PRESENT=0 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not mounted"* ]]
+    [ ! -f "$tmp/host/wootc/state.json" ]
+    [ ! -f "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    rm -rf "$tmp"
+}
+
+@test "firstboot does not publish its retry marker when the state rename fails" {
+    tmp=$(mktemp -d)
+    mkdir -p "$tmp/bin" "$tmp/host/wootc/install"
+    cat > "$tmp/bin/mountpoint" <<'SH'
+#!/bin/sh
+exit 0
+SH
+    cat > "$tmp/bin/mv" <<'SH'
+#!/bin/bash
+for arg in "$@"; do
+    if [ "$arg" = "$FIRSTBOOT_FAIL_MV_DEST" ]; then
+        exit 72
+    fi
+done
+exec /usr/bin/mv "$@"
+SH
+    chmod +x "$tmp/bin/mountpoint" "$tmp/bin/mv"
+
+    run env WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_FAIL_MV_DEST="$tmp/host/wootc/state.json" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"first-boot state write failed"* ]]
+    [ ! -e "$tmp/host/wootc/state.json" ]
+    [ ! -e "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ ! -e "$tmp/host/wootc/state.json.tmp" ]
+    [ ! -e "$tmp/host/wootc/install/installed-linux-boot.json.tmp" ]
+    rm -rf "$tmp"
+}
+
+@test "firstboot state is published before its retry-suppressing evidence marker" {
+    state_line=$(grep -n 'mv -f "$STATE_TMP" "$STATE_FINAL"' "$FIRSTBOOT_SCRIPT" | cut -d: -f1)
+    evidence_line=$(grep -n 'mv -f "$EVIDENCE_TMP" "$EVIDENCE_FINAL"' "$FIRSTBOOT_SCRIPT" | cut -d: -f1)
+    [ -n "$state_line" ]
+    [ -n "$evidence_line" ]
+    [ "$state_line" -lt "$evidence_line" ]
+    grep -q 'on_error' "$FIRSTBOOT_SCRIPT"
+}
+
 @test "first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh" {
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence' "$MODULE_SETUP"
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence.service' "$MODULE_SETUP"

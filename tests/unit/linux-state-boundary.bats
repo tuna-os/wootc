@@ -11,6 +11,7 @@ setup() {
 #!/bin/bash
 printf 'mount %s\n' "$*" >> "$CALLS"
 if [[ "$*" == *'remount,bind,ro'* && ${FAIL_RO:-} == 1 ]]; then exit 1; fi
+if [[ "$*" == *'ntfs3'* && ${FAIL_NTFS3:-} == 1 ]]; then exit 1; fi
 # Simulate the host bind contents for the mask-selection path.
 if [[ "$1" == --bind && "$2" == */wootc-host ]]; then mkdir -p "$3/${STATE_NAME:-wootc}"; fi
 SH
@@ -38,8 +39,58 @@ teardown() { chmod -R u+rwx "$T"; rm -rf "$T"; }
 }
 @test "privileged lifecycle and folder writers use the private mount" {
     grep -q 'Environment=WOOTC_HOST=/run/initramfs/wootc-host' "$ROOT/payload/migration/wootc-passthrough.service"
-    grep -q 'HOST="/run/initramfs/wootc-host"' "$ROOT/payload/migration/wootc-firstboot-evidence"
+    grep -q 'HOST="${WOOTC_FIRSTBOOT_HOST:-/run/initramfs/wootc-host}"' "$ROOT/payload/migration/wootc-firstboot-evidence"
     grep -q 'chmod 0700 /run/initramfs' "$ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh"
+}
+
+@test "FUSE NTFS fallback keeps private writes available to root services" {
+    cat > "$T/bin/ntfs-3g" <<'SH'
+#!/bin/bash
+printf 'ntfs-3g %s\n' "$*" >> "$CALLS"
+SH
+    chmod +x "$T/bin/ntfs-3g"
+    run env FAIL_NTFS3=1 bash -c '
+        source <(sed -n "/^mount_host() {/,/^}/p" "$1")
+        say() { :; }
+        HOST_DEV=/dev/windows; HOST_MNT=/run/initramfs/wootc-host; NTFS_DRIVER=""
+        mount_host
+        printf "%s\n" "$NTFS_DRIVER"
+    ' bash "$ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh"
+    [ "$status" -eq 0 ]
+    [ "$output" = "fuse-ntfs-3g" ]
+    grep -q 'ntfs-3g -o rw,umask=000 /dev/windows /run/initramfs/wootc-host' "$CALLS"
+}
+
+@test "legacy kernel NTFS fallback keeps private writes available to root services" {
+    cat > "$T/bin/ntfs-3g" <<'SH'
+#!/bin/bash
+exit 1
+SH
+    cat > "$T/bin/lowntfs-3g" <<'SH'
+#!/bin/bash
+exit 1
+SH
+    cat > "$T/bin/mount.ntfs-3g" <<'SH'
+#!/bin/bash
+exit 1
+SH
+    chmod +x "$T/bin/ntfs-3g" "$T/bin/lowntfs-3g" "$T/bin/mount.ntfs-3g"
+    cat > "$T/bin/mount" <<'SH'
+#!/bin/bash
+printf 'mount %s\n' "$*" >> "$CALLS"
+if [[ "$*" == *'ntfs3'* ]]; then exit 1; fi
+SH
+    chmod +x "$T/bin/mount"
+    run bash -c '
+        source <(sed -n "/^mount_host() {/,/^}/p" "$1")
+        say() { :; }
+        HOST_DEV=/dev/windows; HOST_MNT=/run/initramfs/wootc-host; NTFS_DRIVER=""
+        mount_host
+        printf "%s\n" "$NTFS_DRIVER"
+    ' bash "$ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh"
+    [ "$status" -eq 0 ]
+    [ "$output" = "kernel-ntfs" ]
+    grep -q 'mount -t ntfs -o rw,umask=000 /dev/windows /run/initramfs/wootc-host' "$CALLS"
 }
 @test "folder redirects cannot export installer state or the whole volume" {
     mkdir -p "$T/host/wootc/install" "$T/host/Users/fixture/Documents"

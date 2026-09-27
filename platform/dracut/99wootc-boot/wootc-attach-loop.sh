@@ -174,11 +174,11 @@ mount_host() {
     for drv in ntfs-3g lowntfs-3g mount.ntfs-3g; do
         command -v "$drv" >/dev/null 2>&1 || continue
         # Prefix argv[0] with '@' so systemd initrd switch-root does NOT SIGKILL the FUSE daemon!
-        if ( exec -a "@$drv" "$drv" -o rw "$HOST_DEV" "$HOST_MNT" 2>/dev/null ); then
+        if ( exec -a "@$drv" "$drv" -o rw,umask=000 "$HOST_DEV" "$HOST_MNT" 2>/dev/null ); then
             NTFS_DRIVER="fuse-$drv"; return 0
         fi
     done
-    if err_out=$(mount -t ntfs -o rw "$HOST_DEV" "$HOST_MNT" 2>&1); then
+    if err_out=$(mount -t ntfs -o rw,umask=000 "$HOST_DEV" "$HOST_MNT" 2>&1); then
         NTFS_DRIVER="kernel-ntfs"; return 0
     fi
     return 1
