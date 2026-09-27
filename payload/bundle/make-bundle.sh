@@ -21,13 +21,13 @@ SOURCE_DIGEST="sha256:$(sha256sum "$ROOT_RAW" | cut -d ' ' -f1)"
 if [[ "$REGISTRY_IMAGE" == *@* ]]; then
     [[ ${REGISTRY_IMAGE##*@} == "$SOURCE_DIGEST" ]] || { echo 'source root digest differs from selection' >&2; exit 1; }
 fi
+REPOSITORY=${REGISTRY_IMAGE%@*}
+[[ ${REPOSITORY##*/} != *:* ]] || REPOSITORY=${REPOSITORY%:*}
 timeout 1800 skopeo --override-os linux --override-arch amd64 copy --preserve-digests \
-    "docker://$REGISTRY_IMAGE" "oci:$OUT/oci:wootc"
+    "docker://$REPOSITORY@$SOURCE_DIGEST" "oci:$OUT/oci:wootc"
 DIGEST=$(jq -er '.manifests | select(length == 1) | .[0].digest' "$OUT/oci/index.json")
 cp "$ROOT_RAW" "$OUT/oci/blobs/sha256/${SOURCE_DIGEST#sha256:}"
 rm "$ROOT_RAW"
-REPOSITORY=${REGISTRY_IMAGE%@*}
-[[ ${REPOSITORY##*/} != *:* ]] || REPOSITORY=${REPOSITORY%:*}
 FETCH_COUNT=0
 FETCH_STARTED=$SECONDS
 fetch_selected_metadata() {

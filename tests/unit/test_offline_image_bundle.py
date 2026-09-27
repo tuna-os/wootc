@@ -84,6 +84,51 @@ class BundleTests(unittest.TestCase):
                     entry=dict(ref,mediaType='application/vnd.oci.image.index.v1+json')
                 (self.bundle/'bundle.json').write_text(json.dumps({'image':'example.test/os:tag','digest':self.manifest['digest'],'sourceDigest':ref['digest']}))
                 self.assertNotEqual(self.run_helper(prefix=':').returncode,0)
+    def test_actual_deploy_branch_stops_after_uncertain_tag_and_keeps_ref(self):
+        source=(ROOT/'payload/deployer/deploy.sh').read_text()
+        start=source.index('WOOTC_OFFLINE=0\nBUNDLE_OCI=')
+        finish=source.index('# ── Wait for a network',start)
+        body=source[start:finish].replace('/mnt/ntfs/wootc/bundle',str(self.bundle)).replace('/usr/libexec/wootc-offline-bundle.sh',str(HELPER))
+        inspected=json.dumps([{'Id':self.config['digest'],'Digest':self.manifest['digest']}])
+        # Actual caller and actual helper. Only Podman operations are injected;
+        # a failed tag simulates partial publication and leaves an owned marker.
+        prefix="""set -euo pipefail
+wootc-json-check() { "$CHECKER" "$@"; }
+timeout() { shift; "$@"; }
+phase() { :; }; log() { :; }; err() { printf '%s\\n' "$*"; }
+IMAGE=example.test/os:tag
+podman() {
+ case "$1" in
+ pull) printf '%064d\\n' 1 ;;
+ tag) touch "$TAGGED"; [[ "$MODE" != tagfail ]] ;;
+ image)
+  if [[ "$3" == "$IMAGE" ]]; then
+   case "$MODE" in
+    readfail) return 7 ;;
+    malformed) printf '%s' '{bad' ;;
+    wrong) printf '%s' '[{"Id":"wrong","Digest":"wrong"}]' ;;
+    *) printf '%s' "$IDENTITY" ;;
+   esac
+  else printf '%s' "$IDENTITY"; fi ;;
+ *) echo FORBIDDEN_REMOVE; return 1 ;;
+ esac
+}
+"""
+        import os
+        for mode in ('tagfail','readfail','malformed','wrong','valid'):
+            tag=self.folder/'tagged';tag.unlink(missing_ok=True)
+            result=subprocess.run(['bash','-c',prefix+body+'echo LATER_LOCAL_IMAGE_PROBE; echo "$WOOTC_OFFLINE"'],env=dict(os.environ,CHECKER=str(self.checker),TAGGED=str(tag),MODE=mode,IDENTITY=inspected),capture_output=True,text=True)
+            self.assertTrue(tag.exists(),'test must reach tag attempt')
+            self.assertNotIn('FORBIDDEN_REMOVE',result.stdout)
+            if mode=='valid':
+                self.assertEqual(result.returncode,0,result.stderr);self.assertIn('LATER_LOCAL_IMAGE_PROBE',result.stdout);self.assertTrue(result.stdout.endswith('1\n'))
+            else:
+                self.assertEqual(result.returncode,1,result.stderr);self.assertNotIn('LATER_LOCAL_IMAGE_PROBE',result.stdout);self.assertIn('refusing deployment',result.stdout)
+        # The unchanged pre-tag bad bundle path remains a network fallback.
+        (self.blobs/self.layer['digest'][7:]).unlink()
+        tag=self.folder/'tagged';tag.unlink(missing_ok=True)
+        result=subprocess.run(['bash','-c',prefix+body+'echo LATER_LOCAL_IMAGE_PROBE; echo "$WOOTC_OFFLINE"'],env=dict(os.environ,CHECKER=str(self.checker),TAGGED=str(tag),MODE='valid',IDENTITY=inspected),capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr);self.assertFalse(tag.exists());self.assertTrue(result.stdout.endswith('0\n'))
     def test_imported_wrong_identity_cannot_tag(self):
         prefix='''timeout() { shift; "$@"; }; podman() { if [[ $1 == pull ]]; then printf '%064d\\n' 1; elif [[ $1 == image ]]; then echo '[{"Id":"sha256:wrong","Digest":"sha256:wrong"}]'; else echo TAGGED; fi; }'''
         result=self.run_helper('wootc_bundle_ingest',prefix);self.assertNotEqual(result.returncode,0);self.assertNotIn('TAGGED',result.stdout)

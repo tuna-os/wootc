@@ -727,8 +727,12 @@ if [[ -f "$BUNDLE_OCI/index.json" ]]; then
             WOOTC_OFFLINE=1
             log "  [PASS] bundle bytes and imported image verified for ${IMAGE}"
         else
-            # Best-effort by design: a broken bundle must degrade to the
-            # network path, not strand the machine.
+            _bundle_result=$?
+            if [[ "$_bundle_result" == 2 ]]; then
+                err "  [FAIL] selected image tag identity could not be verified; refusing deployment"
+                exit 1
+            fi
+            # A bundle rejected before tag publication can use the network.
             log "  [WARN] bundle ingest failed — falling back to the network"
         fi
     elif [[ -n "$_bundle_ref" ]]; then

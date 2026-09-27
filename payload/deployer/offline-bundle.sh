@@ -111,8 +111,10 @@ wootc_bundle_ingest() {
     printf '%s' "$inspected" | wootc-json-check 1048576 || return 1
     jq -e --arg digest "$digest" --arg config "$config" 'length == 1 and .[0].Digest == $digest and (.[0].Id | sub("^sha256:"; "")) == ($config | sub("^sha256:"; ""))' <<< "$inspected" >/dev/null || return 1
     [[ $(wootc_bundle_validate "$bundle" "$selected") == "$identity" ]] || return 1
-    timeout 60 podman tag "$imported" "$selected" || return 1
-    inspected=$(wootc_bundle_capture 1048576 timeout 60 podman image inspect "$selected") || return 1
-    printf '%s' "$inspected" | wootc-json-check 1048576 || return 1
-    jq -e --arg digest "$digest" --arg config "$config" 'length == 1 and .[0].Digest == $digest and (.[0].Id | sub("^sha256:"; "")) == ($config | sub("^sha256:"; ""))' <<< "$inspected" >/dev/null
+    # After tag publication is attempted, local reference identity is unknown
+    # until its successful exact readback. The caller must stop on status2.
+    timeout 60 podman tag "$imported" "$selected" || return 2
+    inspected=$(wootc_bundle_capture 1048576 timeout 60 podman image inspect "$selected") || return 2
+    printf '%s' "$inspected" | wootc-json-check 1048576 || return 2
+    jq -e --arg digest "$digest" --arg config "$config" 'length == 1 and .[0].Digest == $digest and (.[0].Id | sub("^sha256:"; "")) == ($config | sub("^sha256:"; ""))' <<< "$inspected" >/dev/null || return 2
 }

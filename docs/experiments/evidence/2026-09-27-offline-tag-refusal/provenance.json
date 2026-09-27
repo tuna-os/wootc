@@ -1,0 +1,25 @@
+{
+  "callerRefusalScope": "Extracted actual deployment branch plus actual byte validator; injected tag/readback failures must stop before later local-image marker, no ref deletion. Copied caller-guard removal is RED.",
+  "firmwareAcceptance": false,
+  "nativeControls": 10,
+  "parentCheckpoint": "9d0640001bfaebd66831547b5dda7fc0a18a7ca8",
+  "producerAcquisitionBinding": "Copy pinned to sourceDigest retained by preceding raw inspect; mutable tag is not queried again for copy. Actual skopeo producer execution remains pending hosted tooling.",
+  "proofHashes": {
+    "docs/experiments/evidence/2026-09-27-offline-tag-refusal/controls.log": "0168acdeb5d684b41a6fc61f311d83e366ff729a3956ea18f6c6ba441ee4e035",
+    "docs/experiments/evidence/2026-09-27-offline-tag-refusal/native-docker.json": "bd3c92707f6832e44ee17a2e90cd0dc5815ee91a803c4107d00d6dd6b1259b01",
+    "docs/experiments/evidence/2026-09-27-offline-tag-refusal/native-oci.json": "30c491d79ec363bdfb751810f4bed9745da413d56ca0a150d010a6e1ac0d0ab6",
+    "docs/experiments/evidence/2026-09-27-offline-tag-refusal/removed-caller-guard-red.log": "33d28cdfbe462c9f7c16d84c071b446396d13c4937e5118b5dd03d2c02ff301c"
+  },
+  "publisherAuthentication": false,
+  "realNativeScope": "Real isolated Podman OCI/Docker import and tag; injected selected-ref readback failure returns status2, independent direct readback proves owned tag remains intact. No selected OS boot or registry proof.",
+  "schemaVersion": 1,
+  "selectedOsBootAcceptance": false,
+  "sourceHashes": {
+    "payload/bundle/make-bundle.sh": "a227cf518444fd4d2e6440d80b85755ab48af0dcef40e7bc8ac230e1c99f4adb",
+    "payload/deployer/deploy.sh": "f02ef663481e5d747dcae26350e7caab9c59b884e3dc333855cf426eefd74a66",
+    "payload/deployer/offline-bundle.sh": "6ee8e8b5bb4aaf4906235da9f2c411b741841df366b637d72b1afff292337c48",
+    "tests/offline-image-native.py": "f897e60ca300754046f62860615b97b4a14ca3772b82e4b6dc0e833e185a19b7",
+    "tests/unit/test_offline_image_bundle.py": "66b1cdef98baaee54614d3b491c95f8e389622f6b1c3c7abaec5171f7971b59f"
+  },
+  "vmExecuted": false
+}
