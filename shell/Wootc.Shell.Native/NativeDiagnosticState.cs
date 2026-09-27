@@ -34,6 +34,7 @@ internal sealed class NativeDiagnosticState
         "rpc-status-request" or "rpc-status-response" or "rpc-status-decode" or "rpc-status-complete" or
         "rpc-lifecycle-request" or "rpc-lifecycle-response" or "rpc-lifecycle-decode" or "rpc-lifecycle-complete" or
         "rpc-recovery-request" or "rpc-recovery-response" or "rpc-recovery-decode" or "rpc-recovery-complete" or
+        "rpc-configuration-request" or "rpc-configuration-response" or "rpc-configuration-decode" or "rpc-configuration-complete" or
         "rpc-other-request" or "rpc-other-response" or "rpc-other-decode" or "rpc-other-complete" => stage,
         _ => "unknown"
     };

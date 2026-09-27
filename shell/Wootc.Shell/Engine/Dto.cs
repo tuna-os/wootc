@@ -12,6 +12,139 @@ using System.Text.Json.Serialization;
 namespace Wootc.Shell.Engine;
 
 /// <summary>
+/// NativeConfigurationSnapshot is a versioned read-only observation. Catalogue
+/// metadata and bundle presence do not verify image contents or grant consent.
+/// </summary>
+public class NativeConfigurationSnapshot
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("brandId")]
+    public string BrandId { get; set; } = string.Empty;
+
+    [JsonPropertyName("rootBinding")]
+    public string RootBinding { get; set; } = string.Empty;
+
+    [JsonPropertyName("rootScope")]
+    public string RootScope { get; set; } = string.Empty;
+
+    [JsonPropertyName("catalogueSource")]
+    public string CatalogueSource { get; set; } = string.Empty;
+
+    [JsonPropertyName("catalogueMetadataSha256")]
+    public string CatalogueMetadataSha256 { get; set; } = string.Empty;
+
+    [JsonPropertyName("policySource")]
+    public string PolicySource { get; set; } = string.Empty;
+
+    [JsonPropertyName("policy")]
+    public SupportPolicy Policy { get; set; }
+
+    [JsonPropertyName("branding")]
+    public Branding Branding { get; set; }
+
+    [JsonPropertyName("images")]
+    public List<NativeConfigurationImage> Images { get; set; } = new();
+
+    [JsonPropertyName("defaults")]
+    public NativeConfigurationDefaults Defaults { get; set; }
+
+    [JsonPropertyName("steps")]
+    public List<StepDefinition> Steps { get; set; } = new();
+
+    [JsonPropertyName("bundle")]
+    public NativeConfigurationBundle Bundle { get; set; }
+
+    [JsonPropertyName("storageStatus")]
+    public string StorageStatus { get; set; } = string.Empty;
+
+    [JsonPropertyName("storage")]
+    public List<NativeConfigurationStorage> Storage { get; set; } = new();
+
+    [JsonPropertyName("originalUserCaptured")]
+    public bool OriginalUserCaptured { get; set; }
+
+    [JsonPropertyName("installAuthorized")]
+    public bool InstallAuthorized { get; set; }
+}
+
+public class NativeConfigurationImage
+{
+    [JsonPropertyName("image")]
+    public Image Image { get; set; }
+
+    [JsonPropertyName("admitted")]
+    public bool Admitted { get; set; }
+
+    [JsonPropertyName("admissionBlockedReason")]
+    public string AdmissionBlockedReason { get; set; } = string.Empty;
+
+    [JsonPropertyName("requiresMokEnrollment")]
+    public bool RequiresMokEnrollment { get; set; }
+
+    [JsonPropertyName("contentVerified")]
+    public bool ContentVerified { get; set; }
+}
+
+public class NativeConfigurationDefaults
+{
+    [JsonPropertyName("diskSizeGB")]
+    public int DiskSizeGB { get; set; }
+
+    [JsonPropertyName("encryption")]
+    public string Encryption { get; set; } = string.Empty;
+
+    [JsonPropertyName("bootloader")]
+    public string Bootloader { get; set; } = string.Empty;
+
+    [JsonPropertyName("composeFs")]
+    public bool ComposeFs { get; set; }
+
+    [JsonPropertyName("windowsLook")]
+    public bool WindowsLook { get; set; }
+}
+
+public class NativeConfigurationBundle
+{
+    [JsonPropertyName("state")]
+    public string State { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("digest")]
+    public string Digest { get; set; } = string.Empty;
+
+    [JsonPropertyName("contentVerified")]
+    public bool ContentVerified { get; set; }
+}
+
+public class NativeConfigurationStorage
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("driveLetter")]
+    public string DriveLetter { get; set; } = string.Empty;
+
+    [JsonPropertyName("diskGuid")]
+    public string DiskGuid { get; set; } = string.Empty;
+
+    [JsonPropertyName("partitionGuid")]
+    public string PartitionGuid { get; set; } = string.Empty;
+
+    [JsonPropertyName("ntfsSerial")]
+    public string NtfsSerial { get; set; } = string.Empty;
+
+    [JsonPropertyName("freeBytes")]
+    public long FreeBytes { get; set; }
+
+    [JsonPropertyName("maximumRootDiskSizeGB")]
+    public int MaximumRootDiskSizeGB { get; set; }
+}
+
+/// <summary>
 /// SupportPolicy is what the current release channel allows. The frontend
 /// reads it to gate the UI to green-only scenarios (docs/RELEASING.md); the
 /// backend enforces the same rules in StartInstall (defense in depth).

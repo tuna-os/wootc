@@ -12,6 +12,8 @@ on:
       - 'app/native_serve*'
       - 'app/native_readiness*'
       - 'app/native_audit*'
+      - 'app/native_configuration*'
+      - 'app/native_storage*'
       - 'app/main.go'
       - 'app/status_location*'
       - 'app/tools/gendto/**'

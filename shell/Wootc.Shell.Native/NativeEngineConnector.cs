@@ -79,7 +79,7 @@ public sealed class NativeEngineConnector : IEngineConnector
             await NativeProtocol.ReadStartupAsync(pipe, hello, phase => { stage = phase; Observe(stage, engine: engine); }, deadline.Token);
             WindowsPeer.VerifyPipeServer(pipe.SafePipeHandle, engine, source, package.EnginePath);
             Observe("authenticated", engine: engine);
-            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine)));
+            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine), package.Manifest.BrandId));
         }
         catch (Exception error)
         {

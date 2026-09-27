@@ -50,8 +50,32 @@ public sealed class InstalledPreviewTests
             await Expect("StartupRoute", "Review your computer before installation");
             await Expect("StartupObservations", "Running: False; Existing: False; Lifecycle: ; Recovery: ");
             Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
+            Find("ReadConfiguration").AsButton().Invoke();
+            using (var configurationDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+            {
+                while (!Find("ConfigurationObservation").Name.Contains("installation authorization: unavailable"))
+                {
+                    if (configurationDeadline.IsCancellationRequested) throw new InvalidOperationException($"Actual configuration RPC/view unavailable; {Find("StartupObservations").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}");
+                    await Task.Delay(100);
+                }
+            }
+            Assert.False(Find("InstallLinux").IsEnabled);
+            Assert.Contains("Choose",Find("InstallBlockedReason").Name);
+            var images=Find("ImageChoice").AsComboBox();
+            images.Expand();
+            Assert.NotEmpty(images.Items);
+            images.Select(0);
+            Assert.Contains("content verified: False",Find("ImageFacts").Name);
+            Find("LinuxUsername").AsTextBox().Text="fixture_user";
+            Find("LinuxPassword").Focus();
+            FlaUI.Core.Input.Keyboard.Type("public component fixture password");
+            Find("LinuxPasswordConfirmation").Focus();
+            FlaUI.Core.Input.Keyboard.Type("public component fixture password");
+            Assert.False(Find("InstallLinux").IsEnabled);
+            Assert.Equal("TPM auto-unlock",Find("LinuxEncryption").AsComboBox().SelectedItem.Text);
             Find("DisconnectEngine").AsButton().Invoke();
             await Expect("ConnectionStatus", "Offline");
+            Assert.False(Find("ReadConfiguration").IsEnabled);
             window.Close();
             using var closeDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await process.WaitForExitAsync(closeDeadline.Token);

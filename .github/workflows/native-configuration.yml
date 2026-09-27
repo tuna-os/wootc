@@ -1,0 +1,59 @@
+name: Native configuration observations
+on:
+  pull_request:
+    paths: ['app/native_configuration*','app/native_storage*','app/serve.go','app/status_location_windows.go','app/app.go','app/catalog.go','app/native_serve_windows.go','app/go.mod','app/go.sum','tests/native_configuration_controls.py','.github/workflows/native-configuration.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Actual Windows configuration and storage controls
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: {go-version-file: app/go.mod, cache: false}
+      - name: Observe actual system storage and private refusal fixtures
+        shell: powershell
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          $ErrorActionPreference='Stop'
+          $oldTemp=$env:TEMP
+          $oldTmp=$env:TMP
+          $base=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
+          $directory=Join-Path $base "wootc-configuration-$([guid]::NewGuid().ToString('N'))"
+          if (Test-Path -LiteralPath $directory) { throw 'Refusing existing fixture' }
+          [IO.Directory]::CreateDirectory($directory) | Out-Null
+          & icacls.exe $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' *> $null
+          if ($LASTEXITCODE -ne 0) { throw 'Private fixture ACL failed' }
+          try {
+            $env:TEMP=$directory
+            $env:TMP=$directory
+            & git rev-parse HEAD
+            foreach ($source in @('app/native_configuration.go','app/native_configuration_windows.go','app/native_storage_windows.go','app/native_storage_query.ps1','app/native_storage_windows_test.go','app/native_configuration_rpc_test.go')) {
+              Write-Output "SOURCE $source SHA256 $((Get-FileHash -LiteralPath $source).Hash)"
+            }
+            $assets=Join-Path 'app/frontend' 'dist'
+            if (Test-Path -LiteralPath $assets) { throw 'Refusing prebuilt assets' }
+            [IO.Directory]::CreateDirectory($assets) | Out-Null
+            [IO.File]::WriteAllText((Join-Path $assets 'index.html'),'<title>Unit-test embed placeholder</title>')
+            $priorPreference=$ErrorActionPreference
+            $ErrorActionPreference='Continue'
+            try {
+              & python tests/native_configuration_controls.py
+              $code=$LASTEXITCODE
+            } finally { $ErrorActionPreference=$priorPreference }
+            if ($code -ne 0) { throw 'Configuration runtime controls failed' }
+          } finally {
+            $env:TEMP=$oldTemp
+            $env:TMP=$oldTmp
+            Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop
+          }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-configuration-runtime
+          path: out/native-configuration/
+          if-no-files-found: error

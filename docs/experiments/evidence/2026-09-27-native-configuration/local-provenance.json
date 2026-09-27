@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "scope": "Linux focused Go controls, actual removed-guard counterexamples, Windows crosscompile only; CLR/Win32/UI runtime pending",
+  "base": "a1fd5f7dcea3d4ac8c67a588d5f41c4277609822",
+  "sources": {
+    ".github/workflows/native-configuration.yml": "51a789585373fa97058a9fd8d82635248a9189c643e6d6687eafdeb8bdf94794",
+    "app/native_configuration.go": "f5d5553d0014a34587fd42f1dff17a3fc749165f02e29ccf0bfb7b769db31410",
+    "app/native_configuration_rpc_test.go": "d73a44e39687bf75b286efee2ab144ee146245dda5e3361b579c2907bdcae390",
+    "app/native_configuration_test.go": "d78b449a8f78e71c053795f63a2d8e0c6a09035a43ddd572e87b98251bbae1f9",
+    "app/native_configuration_windows.go": "9c786837473fd9508e073cb06e01a43ab02f1a8142ec85a7e7e32aed84d695fe",
+    "app/native_storage_query.ps1": "2f44eb7af8c9738f2ad6d534a5f3c27cbd62b35fe4767269de915ac59b61362f",
+    "app/native_storage_windows.go": "23a1b95206d9f9b42ca546124d41e211954fda57dbb11cd20dfe774218aee5cf",
+    "app/native_storage_windows_test.go": "9f51800562fbdde9aedb878d97a5691adbe87fd07445342750f649079721ebfb",
+    "shell/Wootc.Shell.Core/ConfigurationProjection.cs": "64a48d4dadbe26446917c17b23aafc859a93740091178860b24bc30c42ff2021",
+    "shell/Wootc.Shell.Core/ConsumerConfiguration.cs": "c02e601dc25d621d62e3f54008cd25c3943895f58b21b73d2b8f0ce5bec04373",
+    "shell/Wootc.Shell.Native/NativeConfigurationProtocol.cs": "c55f5296ab1db31e3d420a6e3ba85c470d9a1fb77cc5b70c509398da3ad50689",
+    "shell/Wootc.Shell.NativeTests/ConfigurationProtocolTests.cs": "c6eaaf8fd1a7a7c33901054cf57569272fe1fb28940ce439378d6153775782ba",
+    "shell/Wootc.Shell.Tests/ConsumerConfigurationTests.cs": "0599a4615edd65f502503d7e06f0456c898e9929559fdf857c695d7bab810b71",
+    "tests/native_configuration_controls.py": "85a411d3d0e46ebda7e648d715e1fb953e454775fdc9a8f567e50da1264a7671",
+    ".github/workflows/winui-preview.yml": "e37e27105a6aa45da306873fc85bf4a3eb409c1220ac7ea0573beabeb220ca55",
+    "app/app.go": "e875462452962f3002bde10eb0cf0fbab85b919a2d9f6ae4baaeb3fd74100768",
+    "app/catalog.go": "01fe9e35ba1d5d61e10654d74dcefb0b9cc82b5e45159e97af87cc177ba33de3",
+    "app/native_serve_windows.go": "69f68977feefc800a0c312feeae364fac934eaafd03c248cf3833ac696089b80",
+    "app/serve.go": "4b5688f252437016fed5b1e2a1539dd0ae0de18e2724d3327eaa256eec47e92b",
+    "app/status_location_windows.go": "2b1423003714daa301c45eb107797862bf3278339f3cccdd8b09a7c5fa9ffa87",
+    "app/tools/gendto/main.go": "bb60cd04e233e1505de2033c0f49b4b8ac0c60051bc6043e933f36cc5109f30b",
+    "docs/winui-shell.md": "9d962b778e674b52cf01ba0f06464afa9d0232e86dcb3b314291d485fea75c17",
+    "shell/Wootc.Shell.Core/StartupController.cs": "31156fa0834d090358c25eae6d999eb9ebb3253423b41caaf02e6835a75abc4f",
+    "shell/Wootc.Shell.Native/NativeDiagnosticState.cs": "a487364812b344fa90ca325bf98fd792702cc14b15d7096d078592a684f31b3e",
+    "shell/Wootc.Shell.Native/NativeEngineConnector.cs": "04c67355e90f779ceb5e8cebb9d85d9798fb8d1c857e4e8e4d1070033c50ad07",
+    "shell/Wootc.Shell.Native/NativeEngineSession.cs": "c990932339e9ba334889622bd11b587ed204c989487e982c2431eacf616af9a6",
+    "shell/Wootc.Shell.UiTests/InstalledPreviewTests.cs": "61eb9eb4e067dc8b83001a74d838da4fbe0147144cb59ef730b7090e1adde09b",
+    "shell/Wootc.Shell/Engine/Dto.cs": "5d606d9e1bbde42ffaa2be27fb7be16a49824f55f5716f4f1cabe655ef276c8c",
+    "shell/Wootc.Shell/MainWindow.xaml": "489a3e70eca01ff47cf3e5810406bd7a1cfbf3e1fd7534ac6e7905350626ca69",
+    "shell/Wootc.Shell/MainWindow.xaml.cs": "4740ae156f7b8a7f2ff1c4d80b32ca5996e367d822ea0b5387fea827c152af79"
+  },
+  "evidence": {
+    "presence-mutant.log": "ecd6550fab8a7ac8f168bf79ab92fee4f22142c6af05520deb5708dce2da7c0a",
+    "rpc-go.log": "19d6b1437e11681dd9d9c784098149126908f3e763273c6fe65d53704187931c",
+    "admission-mutant.log": "6627324c9261095f14b41bd3f59dfae19675455a1831acde4a25972c3ec8129a",
+    "restored.log": "f04635c12e52a2b3e71347cdc46b679ff61d8dcd18e04dfbebae39721bf093a4",
+    "mutants.json": "e46d15db53680adb02c22bf70b459b5ecb25bfcce8bf4a88624bf630f4ada2e8"
+  },
+  "crosscompile": {
+    "executed": false,
+    "sha256": "9c12345e2bb2a8c65b1a60b858a742c0c48ec5383b97aeb243936deba7b984cc"
+  },
+  "installationAuthorized": false,
+  "fullJourneyProven": false
+}

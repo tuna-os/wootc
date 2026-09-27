@@ -16,6 +16,11 @@ import (
 
 // DTOStructs defines the ordered list of Go structs to export to C#.
 var DTOStructs = []string{
+	"NativeConfigurationSnapshot",
+	"NativeConfigurationImage",
+	"NativeConfigurationDefaults",
+	"NativeConfigurationBundle",
+	"NativeConfigurationStorage",
 	"SupportPolicy",
 	"SystemInfo",
 	"DataPartition",

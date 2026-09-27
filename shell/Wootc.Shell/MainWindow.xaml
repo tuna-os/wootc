@@ -1,5 +1,5 @@
 <Window x:Class="Wootc.Shell.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Grid Padding="32"><StackPanel Spacing="18" MaxWidth="640" HorizontalAlignment="Left">
+  <ScrollViewer><Grid Padding="32"><StackPanel Spacing="18" MaxWidth="640" HorizontalAlignment="Left">
     <TextBlock x:Name="ProductName" AutomationProperties.AutomationId="ProductName" FontSize="28" FontWeight="SemiBold" />
     <TextBlock x:Name="DistributionName" AutomationProperties.AutomationId="DistributionName" />
     <TextBlock Text="Native installer preview" FontSize="20" FontWeight="SemiBold" />
@@ -10,5 +10,26 @@
     <TextBlock x:Name="StartupObservations" Text="No authenticated startup observations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
     <Button x:Name="ConnectButton" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
     <Button x:Name="DisconnectButton" Content="Disconnect engine" Click="Disconnect_Click" IsEnabled="False" AutomationProperties.AutomationId="DisconnectEngine" />
-  </StackPanel></Grid>
+  <Button x:Name="ConfigurationButton" Content="Read Linux configuration" Click="Configuration_Click" IsEnabled="False" AutomationProperties.AutomationId="ReadConfiguration" />
+    <StackPanel x:Name="ConfigurationPanel" Visibility="Collapsed" Spacing="12">
+      <TextBlock Text="Linux configuration" FontSize="20" />
+      <TextBlock x:Name="ConfigurationObservation" AutomationProperties.AutomationId="ConfigurationObservation" TextWrapping="Wrap" />
+      <ComboBox x:Name="ImageChoice" Header="Linux image" DisplayMemberPath="Name" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="ImageChoice" />
+      <TextBlock x:Name="ImageFacts" TextWrapping="Wrap" AutomationProperties.AutomationId="ImageFacts" />
+      <ComboBox x:Name="StorageChoice" Header="Storage volume" DisplayMemberPath="DriveLetter" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="StorageChoice" />
+      <TextBlock x:Name="StorageFacts" TextWrapping="Wrap" AutomationProperties.AutomationId="StorageFacts" />
+      <TextBox x:Name="LinuxUsername" Header="Linux Username" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxUsername" />
+      <PasswordBox x:Name="LinuxPassword" Header="Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPassword" />
+      <PasswordBox x:Name="LinuxPasswordConfirmation" Header="Confirm Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPasswordConfirmation" />
+      <TextBox x:Name="LinuxHostname" Header="Computer name" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxHostname" />
+      <NumberBox x:Name="LinuxDiskSize" Header="Linux disk size (GB)" Minimum="20" Maximum="2048" ValueChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxDiskSize" />
+      <ComboBox x:Name="LinuxEncryption" Header="Linux encryption" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxEncryption">
+        <ComboBoxItem Content="TPM auto-unlock" Tag="tpm2-luks" /><ComboBoxItem Content="Passphrase" Tag="luks-passphrase" /><ComboBoxItem Content="No encryption" Tag="none" />
+      </ComboBox>
+      <PasswordBox x:Name="LinuxLuksPassphrase" Header="LUKS Passphrase" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxLuksPassphrase" />
+      <CheckBox x:Name="LinuxWindowsLook" Content="Use a familiar Windows appearance" Checked="ConfigurationChanged" Unchecked="ConfigurationChanged" AutomationProperties.AutomationId="LinuxWindowsLook" />
+      <TextBlock x:Name="InstallBlockedReason" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallBlockedReason" />
+      <Button Content="Install Linux" IsEnabled="False" AutomationProperties.AutomationId="InstallLinux" />
+    </StackPanel>
+  </StackPanel></Grid></ScrollViewer>
 </Window>

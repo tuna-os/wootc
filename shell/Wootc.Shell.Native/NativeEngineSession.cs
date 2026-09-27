@@ -7,9 +7,10 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
-internal sealed class NativeEngineSession : IEngineSession
+internal sealed class NativeEngineSession : IConfigurationEngineSession
 {
     private readonly Stream pipe;
+    private readonly string? expectedBrand;
     private readonly Process engine;
     private readonly TimeSpan disconnectTimeout;
     private readonly SemaphoreSlim writes = new(1, 1);
@@ -21,11 +22,12 @@ internal sealed class NativeEngineSession : IEngineSession
     private Exception? receiveFailure;
     private readonly Action<string, Exception?>? observe;
 
-    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe) { }
+    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null, string? expectedBrand = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe, expectedBrand) { }
 
-    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null)
+    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null, string? expectedBrand = null)
     {
         this.pipe = pipe;
+        this.expectedBrand = expectedBrand;
         this.engine = engine;
         this.disconnectTimeout = disconnectTimeout;
         this.observe = observe;
@@ -81,7 +83,7 @@ internal sealed class NativeEngineSession : IEngineSession
     internal static string RpcStage(string method) => method switch
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
-        "GetRecoveryVerdict" => "rpc-recovery", _ => "rpc-other"
+        "GetRecoveryVerdict" => "rpc-recovery", "GetNativeConfiguration" => "rpc-configuration", _ => "rpc-other"
     };
 
     internal async Task<T> CallAsync<T>(string method, CancellationToken token)
@@ -104,7 +106,8 @@ internal sealed class NativeEngineSession : IEngineSession
             var result = await completion.Task.WaitAsync(token);
             stage = RpcStage(method) + "-decode";
             observe?.Invoke(stage, null);
-            var decoded = NativeProtocol.DecodeStartup<T>(method, result);
+            var decoded = method == "GetNativeConfiguration" && typeof(T) == typeof(NativeConfigurationSnapshot)
+                ? (T)(object)NativeConfigurationProtocol.Decode(result, expectedBrand ?? throw new InvalidDataException("Authenticated configuration brand is unavailable")) : NativeProtocol.DecodeStartup<T>(method, result);
             observe?.Invoke(RpcStage(method) + "-complete", null);
             return decoded;
         }
@@ -120,6 +123,13 @@ internal sealed class NativeEngineSession : IEngineSession
         var lifecycle = await CallAsync<LifecycleState>("GetLastRun", deadline.Token);
         var recovery = await CallAsync<RecoveryVerdict>("GetRecoveryVerdict", deadline.Token);
         return new(status, recovery, lifecycle);
+    }
+
+    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        return await CallAsync<NativeConfigurationSnapshot>("GetNativeConfiguration", deadline.Token);
     }
 
     public async ValueTask DisposeAsync()

@@ -132,7 +132,9 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 		app.setStatus(InstallStatus{Existing: found})
 		return nil
 	}, func() error {
-		dispatcher = NewAssessmentServer(app, syncWriter)
+		dispatcher = newConfigurationAssessmentServer(app, syncWriter, func(readCtx context.Context) (NativeConfigurationSnapshot, error) {
+			return observeWindowsNativeConfiguration(readCtx, selectedRoot, selectedFound)
+		})
 		dispatcher.strictStartup = true
 		dispatcher.startupValidate = func(readCtx context.Context) error {
 			_, root, currentFound, err := selectWindowsStatusState(readCtx, true)

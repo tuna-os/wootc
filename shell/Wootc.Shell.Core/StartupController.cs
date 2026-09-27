@@ -20,6 +20,11 @@ public interface IEngineSession : IAsyncDisposable
     Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken);
 }
 
+public interface IConfigurationEngineSession : IEngineSession
+{
+    Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken);
+}
+
 public sealed class StartupController : IAsyncDisposable
 {
     private readonly IEngineConnector connector;
@@ -101,6 +106,18 @@ public sealed class StartupController : IAsyncDisposable
             {
                 Problem = $"The engine has not completed disconnect: {cleanupError.Message}";
             }
+        }
+        finally { connectionGate.Release(); }
+    }
+
+    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken = default)
+    {
+        await connectionGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (Connection != ConnectionState.Ready || session is not IConfigurationEngineSession reader)
+                throw new InvalidOperationException("Authenticated configuration session is unavailable");
+            return await reader.ReadConfigurationAsync(cancellationToken);
         }
         finally { connectionGate.Release(); }
     }

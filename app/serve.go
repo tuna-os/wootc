@@ -37,6 +37,7 @@ var ProtocolMethods = []string{
 	"GetReleaseNotice",
 	"GetImages",
 	"GetInstallSteps",
+	"GetNativeConfiguration",
 	"GetSessionCandidates",
 	"StartInstall",
 	"CancelInstall",
@@ -181,13 +182,14 @@ func unmarshalStringParam(raw json.RawMessage, target *string) error {
 // ── JSON-RPC 2.0 Server ─────────────────────────────────────────────────────
 
 type Server struct {
-	strictStartup   bool
-	startupValidate func(context.Context) error
-	assessmentOnly  bool
-	app             *App
-	writer          *synchronizedWriter
-	mu              sync.Mutex
-	shutdown        bool
+	strictStartup     bool
+	startupValidate   func(context.Context) error
+	assessmentOnly    bool
+	configurationRead func(context.Context) (NativeConfigurationSnapshot, error)
+	app               *App
+	writer            *synchronizedWriter
+	mu                sync.Mutex
+	shutdown          bool
 }
 
 func NewServer(app *App, writer *synchronizedWriter) *Server {
@@ -207,15 +209,44 @@ func NewAssessmentServer(app *App, writer *synchronizedWriter) *Server {
 	return server
 }
 
+// Only the authenticated native transport may supply this read-only callback.
+// The original assessment constructor remains limited to three startup reads.
+func newConfigurationAssessmentServer(app *App, writer *synchronizedWriter, read func(context.Context) (NativeConfigurationSnapshot, error)) *Server {
+	server := NewAssessmentServer(app, writer)
+	server.configurationRead = read
+	return server
+}
+
 func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrpcError) {
 	if s.assessmentOnly {
 		switch req.Method {
 		case "GetStatus", "GetLastRun", "GetRecoveryVerdict":
+		case "GetNativeConfiguration":
+			if s.configurationRead == nil {
+				return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
+			}
 		default:
 			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
 		}
 	}
 	switch req.Method {
+	case "GetNativeConfiguration":
+		if s.configurationRead == nil {
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in this session"}
+		}
+		if len(req.Params) != 0 && string(req.Params) != "null" {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "configuration observation accepts no parameters"}
+		}
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		snapshot, err := s.configurationRead(ctx)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native configuration observation refused"}
+		}
+		return snapshot, nil
 	case "GetSupportPolicy":
 		return s.app.GetSupportPolicy(), nil
 
