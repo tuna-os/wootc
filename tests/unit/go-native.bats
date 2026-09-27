@@ -333,7 +333,8 @@ NTFSINFO
     run grep -nE '^[^#]*"Graduate complete\. Reboot' "$GN"
     [ "$status" -ne 0 ]
     grep -Fq 'Phase 3 native system booted from the graduated install (non-loopback)' "$E2E_RUNNER"
-    grep -Fq '/etc/wootc/native-target' "$E2E_RUNNER"
+    grep -Fq '"$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot native' "$E2E_RUNNER"
+    grep -Fq '/etc/wootc/native-target' "$REPO_ROOT/tests/e2e/phase3-snapshot.sh"
 }
 
 @test "migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched" {

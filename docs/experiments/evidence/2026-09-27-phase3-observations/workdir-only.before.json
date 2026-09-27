@@ -1,0 +1,12 @@
+{
+  "sourceCommit": "9b2b7fc7d3dc452d5f8d1407c6dfbc4e4073a5d7",
+  "nativeReceipt": "SCHEMA=1\nUNAME=Linux\nCMDLINE=root=UUID=native ro\nTARGET=/dev/sdb\nBOOT_ID=12345678-1234-1234-1234-123456789abc\nBLOCKS=eyJibG9ja2RldmljZXMiOiBbeyJuYW1lIjogIi9kZXYvc2RiIiwgImtuYW1lIjogIi9kZXYvc2RiIiwgInR5cGUiOiAiZGlzayIsICJtYWo6bWluIjogIjg6MTYiLCAiY2hpbGRyZW4iOiBbeyJuYW1lIjogIi9kZXYvc2RiMyIsICJrbmFtZSI6ICIvZGV2L3NkYjMiLCAidHlwZSI6ICJwYXJ0IiwgIm1hajptaW4iOiAiODoxOSJ9XX1dfQ==\nMOUNTS=eyJmaWxlc3lzdGVtcyI6IFt7InRhcmdldCI6ICIvIiwgInNvdXJjZSI6ICJvdmVybGF5IiwgIm1hajptaW4iOiAiMDo1NSIsICJmc3R5cGUiOiAib3ZlcmxheSIsICJvcHRpb25zIjogInJ3LHdvcmtkaXI9L3Zhci93b3JrIn0sIHsidGFyZ2V0IjogIi92YXIiLCAic291cmNlIjogIi9kZXYvc2RiMyIsICJtYWo6bWluIjogIjg6MTkiLCAiZnN0eXBlIjogImV4dDQiLCAib3B0aW9ucyI6ICJydyJ9XX0=\nLOOPS=eyJsb29wZGV2aWNlcyI6IFtdfQ==\n",
+  "userdataReceipt": "SCHEMA=1\nUNAME=Linux\nBOOT_ID=12345678-1234-1234-1234-123456789abc\nBLOCKS=eyJibG9ja2RldmljZXMiOiBbeyJuYW1lIjogIi9kZXYvc2RiIiwgImtuYW1lIjogIi9kZXYvc2RiIiwgInR5cGUiOiAiZGlzayIsICJtYWo6bWluIjogIjg6MTYiLCAiY2hpbGRyZW4iOiBbeyJuYW1lIjogIi9kZXYvc2RiMyIsICJrbmFtZSI6ICIvZGV2L3NkYjMiLCAidHlwZSI6ICJwYXJ0IiwgIm1hajptaW4iOiAiODoxOSJ9XX1dfQ==\nMOUNTS=eyJmaWxlc3lzdGVtcyI6IFt7InRhcmdldCI6ICIvIiwgInNvdXJjZSI6ICIvZGV2L3NkYjMiLCAibWFqOm1pbiI6ICI4OjE5IiwgImZzdHlwZSI6ICJleHQ0IiwgIm9wdGlvbnMiOiAicncifSwgeyJ0YXJnZXQiOiAiL3ZhciIsICJzb3VyY2UiOiAiL2Rldi9zZGIzIiwgIm1hajptaW4iOiAiODoxOSIsICJmc3R5cGUiOiAiZXh0NCIsICJvcHRpb25zIjogInJ3In1dfQ==\nLOOPS=eyJsb29wZGV2aWNlcyI6IFtdfQ==\nEXPORT_SCHEMA=1\nEXPORT_BOOT_ID=12345678-1234-1234-1234-123456789abc\nSRC=/dev/sdb3\nDATA_MAJ_MIN=8:19\nDATA_MOUNT=/var\nwootc-e2e-userdata current-run\n",
+  "exitCode": 0,
+  "wronglyAccepted": [
+    "native-boot",
+    "native-user-data"
+  ],
+  "rawSha256": "5c3c0251f1fafed170d0fa680a17a9ad1fa36983c3a0125ee461e84df42c2956",
+  "scope": "Actual current consumer accepts workdir alone as root projection; synthetic controlled utility receipts, no VM."
+}

@@ -46,7 +46,8 @@ setup() {
     grep -Fq 'python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_PROOF_FILE" "$RUN_ID" "$P3_TARGET" "$P3_NATIVE_BOOT_ID"' "$E2E"
     # The confined guest agent cannot read user homes (run 20260723T0647):
     # the check must consume the boot-time /run export first.
-    grep -q '/run/wootc-e2e-native-userdata' "$E2E"
+    grep -Fq '"$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot userdata' "$E2E"
+    grep -q '/run/wootc-e2e-native-userdata' "$REPO_ROOT/tests/e2e/phase3-snapshot.sh"
     # And a failed persistence check is FATAL, not advisory.
     grep -A4 'did NOT persist onto the native disk' "$E2E" | grep -q 'exit 1'
 }

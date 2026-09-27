@@ -3920,13 +3920,12 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     for _ in $(seq 1 24); do qga_probe || break; sleep 5; done
     qga_wait "Phase 3 native system" 600
     # A failed guest command cannot establish facts even with plausible stdout.
+    if ! P3_SNAPSHOT_SCRIPT=$(cat "$SCRIPT_DIR/phase3-snapshot.sh"); then
+        infra_fail "Could not read Phase 3 observation script"
+        exit 1
+    fi
     if ! P3_NATIVE_PROOF=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
-        'set -eu; os=$(uname -s); boot_id=$(cat /proc/sys/kernel/random/boot_id); cmdline=$(cat /proc/cmdline); target=$(cat /etc/wootc/native-target)
-         blocks=$(lsblk --json --paths --output NAME,KNAME,TYPE,MAJ:MIN,PKNAME); mounts=$(findmnt --json --output TARGET,SOURCE,FSTYPE,MAJ:MIN,OPTIONS); loops=$(losetup --json --output NAME,MAJ:MIN,BACK-FILE)
-         blocks64=$(printf "%s" "$blocks" | base64 -w0); mounts64=$(printf "%s" "$mounts" | base64 -w0); loops64=$(printf "%s" "$loops" | base64 -w0)
-         after=$(cat /proc/sys/kernel/random/boot_id); [ "$boot_id" = "$after" ]
-         printf "SCHEMA=1\nUNAME=%s\nCMDLINE=%s\nTARGET=%s\nBOOT_ID=%s\nBLOCKS=%s\nMOUNTS=%s\nLOOPS=%s\n" "$os" "$cmdline" "$target" "$boot_id" "$blocks64" "$mounts64" "$loops64"' \
-        2>/dev/null); then
+        "$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot native 2>/dev/null); then
         infra_fail "Phase 3 native boot observation command failed"
         exit 1
     fi
@@ -3934,11 +3933,11 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     P3_PROOF_STATUS=0
     P3_NATIVE_BOOT_ID=$(printf '%s' "$P3_NATIVE_PROOF" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" "$P3_TARGET") \
         || P3_PROOF_STATUS=$?
-    if [ "$P3_PROOF_STATUS" -eq 2 ]; then
-        infra_fail "Phase 3 native boot observation protocol is invalid"
+    if [ "$P3_PROOF_STATUS" -eq 3 ]; then
+        product_fail "Phase 3 native boot observations do not match the graduated target"
         exit 1
     elif [ "$P3_PROOF_STATUS" -ne 0 ]; then
-        product_fail "Phase 3 native boot observations do not match the graduated target"
+        infra_fail "Phase 3 native boot observations are unavailable or invalid"
         exit 1
     fi
     P3_NATIVE_PROOF_FILE="$ARTIFACT_DIR/phase3-native-observation.log"
@@ -3961,26 +3960,15 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # graduation result travels the same way). Direct read kept as fallback
     # for unconfined-agent images.
     if ! P3_USERDATA=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
-        'set -eu; os=$(uname -s); boot_id=$(cat /proc/sys/kernel/random/boot_id)
-         blocks=$(lsblk --json --paths --output NAME,KNAME,TYPE,MAJ:MIN,PKNAME); mounts=$(findmnt --json --output TARGET,SOURCE,FSTYPE,MAJ:MIN,OPTIONS); loops=$(losetup --json --output NAME,MAJ:MIN,BACK-FILE)
-         blocks64=$(printf "%s" "$blocks" | base64 -w0); mounts64=$(printf "%s" "$mounts" | base64 -w0); loops64=$(printf "%s" "$loops" | base64 -w0)
-         printf "SCHEMA=1\nUNAME=%s\nBOOT_ID=%s\nBLOCKS=%s\nMOUNTS=%s\nLOOPS=%s\n" "$os" "$boot_id" "$blocks64" "$mounts64" "$loops64"
-         if [ -r /run/wootc-e2e-native-userdata ]; then cat /run/wootc-e2e-native-userdata; else
-         f=""; for candidate in /home/wootc/Documents/wootc-e2e-userdata.txt /var/home/wootc/Documents/wootc-e2e-userdata.txt; do
-             if [ -r "$candidate" ]; then f="$candidate"; break; fi; done
-         [ -n "$f" ]; row=$(findmnt --noheadings --raw --output SOURCE,MAJ:MIN,TARGET --target "$f")
-         case "$row" in *\\*) exit 1;; esac; set -- $row; [ "$#" -eq 3 ]
-         printf "EXPORT_SCHEMA=1\nEXPORT_BOOT_ID=%s\nSRC=%s\nDATA_MAJ_MIN=%s\nDATA_MOUNT=%s\n" "$boot_id" "$1" "$2" "$3"; cat "$f"; fi
-         after=$(cat /proc/sys/kernel/random/boot_id); [ "$boot_id" = "$after" ]' \
-        2>/dev/null); then
+        "$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot userdata 2>/dev/null); then
         infra_fail "Phase 3 native user-data observation command failed"
         exit 1
     fi
     P3_USERDATA_STATUS=0
     printf '%s' "$P3_USERDATA" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_PROOF_FILE" "$RUN_ID" "$P3_TARGET" "$P3_NATIVE_BOOT_ID" \
         || P3_USERDATA_STATUS=$?
-    if [ "$P3_USERDATA_STATUS" -eq 2 ]; then
-        infra_fail "Phase 3 user-data identity does not match the observed native boot"
+    if [ "$P3_USERDATA_STATUS" -ne 0 ] && [ "$P3_USERDATA_STATUS" -ne 3 ]; then
+        infra_fail "Phase 3 user-data identity or ancestry is unavailable or invalid"
         exit 1
     elif [ "$P3_USERDATA_STATUS" -eq 0 ]; then
         product_pass native-user-data "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"

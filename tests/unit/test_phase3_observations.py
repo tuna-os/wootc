@@ -32,13 +32,25 @@ MOUNTS={'filesystems':[mount('/'),mount('/var')]}
 LOOPS={'loopdevices':[]}
 
 
-def native(blocks=BLOCKS, mounts=MOUNTS, loops=LOOPS):
+def native(blocks=BLOCKS, mounts=MOUNTS, loops=LOOPS, paths=None, btrfs=None):
+    if paths is None:
+        paths={}
+        for row in mounts['filesystems']:
+            if row['target']=='/' and row['fstype']=='overlay':
+                for option in row['options'].split(','):
+                    key,sep,value=option.partition('=')
+                    if sep and key.rstrip('+') in {'lowerdir','datadir','upperdir','workdir'}:
+                        paths.update({path:path for path in value.split(':') if path})
+        paths.update({row['back-file']:row['back-file'] for row in loops['loopdevices']})
+    path_text='\n'.join(path+'\t'+resolved for path,resolved in sorted(paths.items()))
+    btrfs_text='\n'.join(fsid+'\t'+valid+'\t'+','.join(members) for fsid,(valid,members) in (btrfs or {}).items())
+    extra='PATHS='+base64.b64encode(path_text.encode()).decode()+'\nBTRFS='+base64.b64encode(btrfs_text.encode()).decode()+'\n'
     return (f'SCHEMA=1\nUNAME=Linux\nCMDLINE=root=UUID=native ro\nTARGET=/dev/sdb\nBOOT_ID={BOOT}\n'
-            +f'BLOCKS={encode(blocks)}\nMOUNTS={encode(mounts)}\nLOOPS={encode(loops)}\n')
+            +f'BLOCKS={encode(blocks)}\nMOUNTS={encode(mounts)}\nLOOPS={encode(loops)}\n'+extra)
 
 
 def userdata(source='/dev/sdb3', major='8:19', target='/var', seed='wootc-e2e-userdata current-run\n', proof=None):
-    graph=''.join(line+'\n' for line in (proof or native()).splitlines() if line.startswith(('BLOCKS=','MOUNTS=','LOOPS=')))
+    graph=''.join(line+'\n' for line in (proof or native()).splitlines() if line.startswith(('BLOCKS=','MOUNTS=','LOOPS=','PATHS=','BTRFS=')))
     return (f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\n'+graph+f'EXPORT_SCHEMA=1\nEXPORT_BOOT_ID={BOOT}\n'
             +f'SRC={source}\nDATA_MAJ_MIN={major}\nDATA_MOUNT={target}\n'+seed)
 
@@ -58,7 +70,7 @@ infra_fail() { echo "INFRA $*"; }
 product_fail() { echo "PRODUCT-FAIL $*"; }
 product_pass() { echo "PRODUCT-PASS $*"; }
 qga_call() {
- if [[ "$*" == */etc/wootc/native-target* ]]; then printf '%s' "$PROOF"; return "$PROOF_RC"; fi
+ if [[ "${!#}" == native ]]; then printf '%s' "$PROOF"; return "$PROOF_RC"; fi
  printf '%s' "$DATA"; return "$DATA_RC"
 }
 '''
@@ -149,8 +161,7 @@ qga_call() {
         self.assertNotEqual(self.consumer(DATA=data.replace('current-run\r', 'current-run \r')).returncode, 0)
 
     def test_actual_guest_boot_query_stops_on_each_failed_read(self):
-        source=(ROOT/'tests/e2e/run-e2e.sh').read_text().split('if ! P3_NATIVE_PROOF=$(',1)[1]
-        query=re.search(r"qga_call exec /bin/sh -c \\\n        '([\s\S]+?)' \\\n",source).group(1)
+        query=(ROOT/'tests/e2e/phase3-snapshot.sh').read_text()
         prefix='''uname() { printf Linux; [ "$FAIL_READ" != uname ]; }
 cat() {
  case "$1" in
@@ -162,11 +173,13 @@ cat() {
 }
 '''
         prefix+='''lsblk() { printf '%s' "$BLOCK_JSON"; [ "$FAIL_READ" != blocks ]; }
-findmnt() { printf '%s' "$MOUNT_JSON"; [ "$FAIL_READ" != mounts ]; }
-losetup() { printf '%s' "$LOOP_JSON"; [ "$FAIL_READ" != loops ]; }
+findmnt() { if [ "$1" = --json ]; then printf '%s' "$MOUNT_JSON"; else printf rw; fi; [ "$FAIL_READ" != mounts ]; }
+losetup() { if [ "$1" = --json ]; then printf '%s' "$LOOP_JSON"; fi; [ "$FAIL_READ" != loops ]; }
 '''
         for failed in ['none','uname','cmdline','target','boot','blocks','mounts','loops']:
-            r=subprocess.run(['/bin/sh','-c',prefix+query],capture_output=True,text=True,
+            with tempfile.TemporaryDirectory() as tmp:
+                script=query.replace('/sys/fs/btrfs',tmp+'/btrfs')
+                r=subprocess.run(['/bin/sh','-c',prefix+script,'phase3-snapshot','native'],capture_output=True,text=True,
                              env={**os.environ,'FAIL_READ':failed,'BOOT':BOOT,'BLOCK_JSON':json.dumps(BLOCKS),
                                   'MOUNT_JSON':json.dumps(MOUNTS),'LOOP_JSON':json.dumps(LOOPS)},timeout=2)
             if failed=='none':
@@ -188,7 +201,7 @@ losetup() { printf '%s' "$LOOP_JSON"; [ "$FAIL_READ" != loops ]; }
         graph={'blockdevices':BLOCKS['blockdevices']+[node('/dev/loop0','7:0','loop')]}
         for path in ['/','/var']:
             mounts={'filesystems':[mount('/'),mount('/var')]}
-            mounts['filesystems'][0 if path=='/' else 1]=mount(path,'/dev/loop0','7:0','btrfs')
+            mounts['filesystems'][0 if path=='/' else 1]=mount(path,'/dev/loop0','7:0','ext4')
             r=self.consumer(PROOF=native(graph,mounts),DATA=userdata('/dev/loop0','7:0',proof=native(graph,mounts)))
             self.assertNotEqual(r.returncode,0)
             self.assertIn('PRODUCT-FAIL',r.stdout)
@@ -211,9 +224,13 @@ losetup() { printf '%s' "$LOOP_JSON"; [ "$FAIL_READ" != loops ]; }
             self.assertNotIn('PRODUCT-PASS native-user-data',r.stdout)
 
     def test_btrfs_subvolume_and_dm_native_ancestry(self):
-        mounts={'filesystems':[mount('/',source='/dev/sdb3[/root]',fstype='btrfs'),
-                              mount('/var',source='/dev/sdb3[/var]',fstype='btrfs')]}
-        r=self.consumer(PROOF=native(mounts=mounts),DATA=userdata(source='/dev/sdb3[/var]',proof=native(mounts=mounts)))
+        fsid='abcdefab-1234-1234-1234-123456789abc'
+        graph=json.loads(json.dumps(BLOCKS));graph['blockdevices'][0]['children'][0]['uuid']=fsid
+        mounts={'filesystems':[mount('/',source='/dev/sdb3[/root]',major='0:31',fstype='btrfs'),
+                              mount('/var',source='/dev/sdb3[/var]',major='0:32',fstype='btrfs')]}
+        for row in mounts['filesystems']: row['uuid']=fsid
+        proof=native(graph,mounts,btrfs={fsid:('1',['8:19'])})
+        r=self.consumer(PROOF=proof,DATA=userdata(source='/dev/sdb3[/var]',major='0:32',proof=proof))
         self.assertEqual(r.returncode,0,r.stderr)
         crypt=node('/dev/mapper/native','253:0','crypt');crypt['kname']='/dev/dm-0'
         graph={'blockdevices':[node('/dev/sdb','8:16','disk',[node('/dev/sdb3','8:19','part',[crypt])])]}
@@ -332,6 +349,158 @@ qga_wait() {{ echo LIVENESS; }}
         self.assertEqual(r.returncode,0,r.stderr)
         self.assertIn('RESET',r.stdout)
         self.assertTrue(r.stdout.rstrip().endswith('PHASE='))
+
+    def test_overlay_requires_complete_unique_active_content_layers(self):
+        invalid=['ro,lowerdir++=/run/cfs','ro,lowerdir=/run/cfs,upperdir+=/var/upper,workdir=/var/work','rw,workdir=/var/work','ro,datadir=/sysroot/objects','ro,lowerdir=',
+                 'ro,lowerdir=/run/cfs,lowerdir+=/sysroot/objects',
+                 'ro,lowerdir=/run/cfs,upperdir=/var/upper',
+                 'ro,lowerdir=/run/cfs,workdir=/var/work',
+                 'ro,lowerdir=::/sysroot/objects','ro,lowerdir=/run/cfs::',
+                 r'ro,lowerdir=/sysroot/escaped\040path']
+        for options in invalid:
+            r=self.consumer(PROOF=self.projection(options=options))
+            self.assertNotEqual(r.returncode,0)
+            self.assertIn('INFRA',r.stdout)
+            self.assertNotIn('PRODUCT-PASS',r.stdout)
+
+    def test_measured_symlink_backing_must_resolve_on_target(self):
+        proof=self.projection()
+        fields=dict(line.split('=',1) for line in proof.splitlines())
+        paths=base64.b64decode(fields['PATHS']).decode().replace('/sysroot/native.cfs\t/sysroot/native.cfs',
+                                                               '/sysroot/native.cfs\t/mnt/windows/native.cfs')
+        changed=proof.replace('PATHS='+fields['PATHS'],'PATHS='+base64.b64encode(paths.encode()).decode())
+        r=self.consumer(PROOF=changed)
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('PRODUCT-FAIL',r.stdout)
+        unknown=proof.replace('PATHS='+fields['PATHS'],'PATHS='+base64.b64encode(paths.replace('/mnt/windows/native.cfs','-').encode()).decode())
+        r=self.consumer(PROOF=unknown)
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('INFRA',r.stdout)
+
+    def btrfs(self, members=('8:19',), valid='1'):
+        fsid='abcdefab-1234-1234-1234-123456789abc'
+        graph=json.loads(json.dumps(BLOCKS));graph['blockdevices'][0]['children'][0]['uuid']=fsid
+        graph['blockdevices'].append(node('/dev/sda','8:0','disk',[node('/dev/sda3','8:3','part')]))
+        graph['blockdevices'][1]['children'][0]['uuid']=fsid
+        mounts={'filesystems':[mount('/',source='/dev/sdb3[/root]',major='0:31',fstype='btrfs'),
+                              mount('/var',source='/dev/sdb3[/var]',major='0:32',fstype='btrfs')]}
+        for row in mounts['filesystems']: row['uuid']=fsid
+        return native(graph,mounts,btrfs={fsid:(valid,list(members))})
+
+    def test_btrfs_all_current_members_must_be_measured_on_target(self):
+        for members,valid in [(('8:19','8:3'),'1'),(('8:19',),'0'),(('8:19','8:99'),'1'),(('8:19','8:19'),'1')]:
+            proof=self.btrfs(members,valid)
+            r=self.consumer(PROOF=proof,DATA=userdata('/dev/sdb3[/var]','0:32',proof=proof))
+            self.assertNotEqual(r.returncode,0)
+            self.assertNotIn('PRODUCT-PASS',r.stdout)
+        proof=self.btrfs()
+        r=self.consumer(PROOF=proof,DATA=userdata('/dev/sdb3[/var]','0:32',proof=proof))
+        self.assertEqual(r.returncode,0,r.stderr)
+
+    def test_actual_snapshot_resolves_owned_symlink_and_refuses_failed_plausible_readlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp);local=base/'native';foreign=base/'windows';local.mkdir();foreign.mkdir()
+            lower=local/'lower';lower.mkdir();alias=local/'alias';alias.symlink_to(lower)
+            graph={'blockdevices':BLOCKS['blockdevices']+[node('/dev/sda','8:0','disk',[node('/dev/sda3','8:3','part')])]}
+            options='ro,lowerdir='+str(alias)
+            mounts={'filesystems':[mount('/','overlay','0:51','overlay',options),mount('/var'),
+                                   mount(str(local)),mount(str(foreign),'/dev/sda3','8:3')]}
+            script=(ROOT/'tests/e2e/phase3-snapshot.sh').read_text().replace('/sys/fs/btrfs',tmp+'/no-btrfs')
+            prefix='''uname() { printf Linux; }
+cat() { case "$1" in /proc/sys/kernel/random/boot_id) printf '%s' "$BOOT";; /proc/cmdline) printf 'root=UUID=native ro';; /etc/wootc/native-target) printf /dev/sdb;; *) return 1;; esac; }
+lsblk() { printf '%s' "$BLOCK_JSON"; }
+findmnt() { if [ "$1" = --json ]; then printf '%s' "$MOUNT_JSON"; else printf '%s' "$ROOT_OPTIONS"; fi; }
+losetup() { if [ "$1" = --json ]; then printf '%s' "$LOOP_JSON"; fi; }
+'''
+            environment={**os.environ,'BOOT':BOOT,'BLOCK_JSON':json.dumps(graph),'MOUNT_JSON':json.dumps(mounts),
+                         'LOOP_JSON':json.dumps(LOOPS),'ROOT_OPTIONS':options}
+            def snapshot(extra=''):
+                return subprocess.run(['/bin/sh','-c',prefix+extra+script,'snapshot','native'],
+                                      capture_output=True,text=True,env=environment,timeout=3)
+            good=snapshot();self.assertEqual(good.returncode,0,good.stderr)
+            self.assertEqual(self.consumer(PROOF=good.stdout,DATA=userdata(proof=good.stdout)).returncode,0)
+            alias.unlink();alias.symlink_to(foreign)
+            wrong=snapshot();self.assertEqual(wrong.returncode,0,wrong.stderr)
+            refused=self.consumer(PROOF=wrong.stdout)
+            self.assertNotEqual(refused.returncode,0)
+            self.assertIn('PRODUCT-FAIL',refused.stdout)
+            failed=snapshot('readlink() { printf "%s" "'+str(lower)+'"; return 7; }\n')
+            self.assertEqual(failed.returncode,0,failed.stderr)
+            refused=self.consumer(PROOF=failed.stdout)
+            self.assertNotEqual(refused.returncode,0)
+            self.assertIn('INFRA',refused.stdout)
+
+
+    def test_actual_snapshot_reads_all_btrfs_members_and_refuses_failed_metadata(self):
+        fsid='abcdefab-1234-1234-1234-123456789abc'
+        proof=self.btrfs()
+        values=dict(line.split('=',1) for line in proof.splitlines())
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp)/'btrfs'/fsid
+            def member(number,name,major):
+                info=base/'devinfo'/str(number); info.mkdir(parents=True)
+                for key,value in [('missing','0'),('in_fs_metadata','1'),('replace_target','0')]:
+                    (info/key).write_text(value)
+                device=base/'devices'/name;device.mkdir(parents=True);(device/'dev').write_text(major)
+            member(1,'sdb3','8:19')
+            query=(ROOT/'tests/e2e/phase3-snapshot.sh').read_text().replace('/sys/fs/btrfs',tmp+'/btrfs')
+            prefix='''uname() { printf Linux; }
+cat() { case "$1" in
+ /proc/sys/kernel/random/boot_id) printf '%s' "$BOOT";;
+ /proc/cmdline) printf 'root=UUID=native ro';;
+ /etc/wootc/native-target) printf /dev/sdb;;
+ */missing) if [ "$FAIL_META" = yes ]; then printf 0; return 7; fi; /bin/cat "$1";;
+ *) /bin/cat "$1";; esac; }
+lsblk() { printf '%s' "$BLOCK_JSON"; }
+findmnt() { if [ "$1" = --json ]; then printf '%s' "$MOUNT_JSON"; else printf rw; fi; }
+losetup() { if [ "$1" = --json ]; then printf '%s' "$LOOP_JSON"; fi; }
+'''
+            env={**os.environ,'BOOT':BOOT,'BLOCK_JSON':base64.b64decode(values['BLOCKS']).decode(),
+                 'MOUNT_JSON':base64.b64decode(values['MOUNTS']).decode(),'LOOP_JSON':json.dumps(LOOPS),'FAIL_META':'no'}
+            def snapshot(fail='no'):
+                return subprocess.run(['/bin/sh','-c',prefix+query,'snapshot','native'],capture_output=True,
+                                      text=True,env={**env,'FAIL_META':fail},timeout=3)
+            good=snapshot();self.assertEqual(good.returncode,0,good.stderr)
+            data=userdata('/dev/sdb3[/var]','0:32',proof=good.stdout)
+            self.assertEqual(self.consumer(PROOF=good.stdout,DATA=data).returncode,0)
+            failed=snapshot('yes');self.assertNotEqual(failed.returncode,0)
+            self.assertEqual(failed.stdout,'')
+            (base/'devinfo'/'1'/'missing').write_text('1')
+            missing=snapshot();self.assertEqual(missing.returncode,0,missing.stderr)
+            refused=self.consumer(PROOF=missing.stdout);self.assertIn('INFRA',refused.stdout)
+            self.assertNotIn('PRODUCT-PASS',refused.stdout)
+            (base/'devinfo'/'1'/'missing').write_text('0')
+            member(2,'sda3','8:3')
+            foreign=snapshot();self.assertEqual(foreign.returncode,0,foreign.stderr)
+            refused=self.consumer(PROOF=foreign.stdout);self.assertIn('PRODUCT-FAIL',refused.stdout)
+            self.assertNotIn('PRODUCT-PASS',refused.stdout)
+
+    def test_parser_process_failure_remains_infrastructure_unknown(self):
+        source=(ROOT/'tests/e2e/run-e2e.sh').read_text()
+        with tempfile.TemporaryDirectory() as tmp:
+            altered=Path(tmp)/'runner.sh'
+            altered.write_text(source.replace('    # A failed guest command cannot establish facts even with plausible stdout.',
+                                              '    # A failed guest command cannot establish facts even with plausible stdout.\npython3() { return 7; }'))
+            result=self.consumer(module=altered)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('INFRA',result.stdout)
+        self.assertNotIn('PRODUCT-',result.stdout)
+
+    def test_metadata_bounds_and_cyclic_block_graph_refuse(self):
+        graphs=[]
+        deep=node('/dev/sdb3','8:19','part')
+        for index in range(66):
+            deep=node('/dev/dm'+str(index),'253:'+str(index),'dm',[deep])
+        graphs.append({'blockdevices':[node('/dev/sdb','8:16','disk',[deep])]})
+        cycle=node('/dev/sdb3','8:19','part',[node('/dev/sdb','8:16','disk')])
+        graphs.append({'blockdevices':[node('/dev/sdb','8:16','disk',[cycle])]})
+        graphs.append({'blockdevices':[node('/dev/sdb','8:16','disk')]+
+                       [node('/dev/x'+str(index),'250:'+str(index),'disk') for index in range(1025)]})
+        for graph in graphs:
+            result=self.consumer(PROOF=native(blocks=graph))
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('INFRA',result.stdout)
+            self.assertNotIn('PRODUCT-PASS',result.stdout)
 
 
 if __name__ == '__main__':
