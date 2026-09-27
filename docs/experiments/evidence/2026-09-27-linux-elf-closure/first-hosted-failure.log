@@ -1,0 +1,21 @@
+execute	Verify source pins and execute one owned disposable probe	﻿2026-09-27T15:12:15.9311134Z ##[group]Run python3 tests/audit-linux-package-runtime.py .
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9311649Z ^[[36;1mpython3 tests/audit-linux-package-runtime.py .^[[0m
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9312038Z ^[[36;1mtimeout --signal=TERM --kill-after=10s 3600s \^[[0m
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9312476Z ^[[36;1m  python3 tests/e2e/package-runtime/hosted-execute.py "$OWNED_STAGE"^[[0m
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9348312Z shell: /usr/bin/bash -e {0}
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9348726Z env:
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9349011Z   REVIEWED_SHA: 99f3987f235006e9b6f5893ff13c5234359a80b8
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9349584Z   OWNED_STAGE: /home/runner/work/_temp/linux-package-36328515853-1
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9350008Z ##[endgroup]
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:15.9658108Z {"acquiredFilesReadBack": 0, "actualPublicArchiveReadbacks": 30, "classicOsBootAcceptance": false, "firmwareAcceptance": false, "nativeControls": 52, "runtimeExecuted": false, "sourcesMatch": 31}
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2427151Z Traceback (most recent call last):
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2428349Z   File "/home/runner/work/wootc/wootc/tests/e2e/package-runtime/hosted-execute.py", line 127, in <module>
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2429486Z     execute(args.exclusive_stage)
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2430220Z   File "/home/runner/work/wootc/wootc/tests/e2e/package-runtime/hosted-execute.py", line 100, in execute
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2430719Z     record['hostClosure']=measure_closure();save()
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2431047Z                           ^^^^^^^^^^^^^^^^^
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2431552Z   File "/home/runner/work/wootc/wootc/tests/e2e/package-runtime/hosted-execute.py", line 49, in closure
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2432158Z     if not dependencies:raise ValueError('tool dependency closure absent')
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2432589Z                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2432958Z ValueError: tool dependency closure absent
+execute	Verify source pins and execute one owned disposable probe	2026-09-27T15:12:16.2567405Z ##[error]Process completed with exit code 1.

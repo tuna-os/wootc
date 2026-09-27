@@ -8,6 +8,7 @@ import runpy
 import signal
 import stat
 import subprocess
+import struct
 
 HERE=Path(__file__).resolve().parent
 ROOT=HERE.parents[2]
@@ -31,8 +32,73 @@ def protected(path):
     return path
 
 
-def closure(run=subprocess.run):
-    paths=set()
+def elf_needed(path):
+    """Read the actual x86-64 ELF program/dynamic/string tables, bounded and stable."""
+    path=Path(path)
+    before=path.stat()
+    if not stat.S_ISREG(before.st_mode) or not 64<=before.st_size<=64*1024**2:
+        raise ValueError('ELF source size/type unsupported')
+    with path.open('rb') as stream:data=stream.read(64*1024**2+1)
+    after=path.stat()
+    identity=lambda value:(value.st_dev,value.st_ino,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+    if identity(before)!=identity(after) or len(data)!=before.st_size:
+        raise ValueError('ELF source changed during readback')
+    header=struct.unpack_from('<16sHHIQQQIHHHHHH',data)
+    ident,kind,machine,version,_,phoff,_,_,ehsize,phsize,phnum,_,_,_=header
+    if (ident[:7]!=b'\x7fELF\x02\x01\x01' or kind not in (2,3) or machine!=62 or version!=1 or
+            ehsize!=64 or phsize!=56 or not 1<=phnum<=1024 or phoff<64 or phoff+phnum*56>len(data)):
+        raise ValueError('ELF header/program table unsupported')
+    rows=[struct.unpack_from('<IIQQQQQQ',data,phoff+index*56) for index in range(phnum)]
+    for row in rows:
+        if row[2]+row[5]>len(data):raise ValueError('ELF program file range truncated')
+        if row[0] in (1,2) and row[5]>row[6]:raise ValueError('ELF program memory range smaller than file')
+    dynamic=[row for row in rows if row[0]==2]
+    if len(dynamic)!=1:raise ValueError('one complete ELF dynamic table required')
+    row=dynamic[0];offset,size=row[2],row[5]
+    dynamic_mappings=[load[2]+row[3]-load[3] for load in rows if load[0]==1 and
+                      load[3]<=row[3] and row[3]+size<=load[3]+load[5]]
+    if dynamic_mappings!=[offset]:raise ValueError('ELF dynamic range is not uniquely bound to loaded bytes')
+    if not 16<=size<=262144 or size%16:raise ValueError('ELF dynamic table size malformed')
+    entries=[];terminated=False
+    for position in range(offset,offset+size,16):
+        tag,value=struct.unpack_from('<qQ',data,position)
+        if terminated:
+            if tag or value:raise ValueError('ELF nonzero entries after dynamic terminator')
+        elif tag==0:
+            if value:raise ValueError('ELF dynamic terminator malformed')
+            terminated=True
+        else:entries.append((tag,value))
+    if not terminated:raise ValueError('ELF dynamic terminator missing')
+    needed=[value for tag,value in entries if tag==1]
+    if len(set(needed))!=len(needed):raise ValueError('ELF duplicate needed string offsets')
+    strings=[value for tag,value in entries if tag==5];sizes=[value for tag,value in entries if tag==10]
+    if len(strings)!=1 or len(sizes)!=1 or not 1<=sizes[0]<=1024**2:
+        raise ValueError('ELF dynamic string table unsupported')
+    mappings=[row[2]+strings[0]-row[3] for row in rows if row[0]==1 and
+              row[3]<=strings[0] and strings[0]+sizes[0]<=row[3]+row[5]]
+    if len(mappings)!=1:raise ValueError('ELF dynamic string range is not file-backed uniquely')
+    start=mappings[0];names=[]
+    for value in needed:
+        if value>=sizes[0]:raise ValueError('ELF needed string offset outside table')
+        end=data.find(b'\0',start+value,start+sizes[0])
+        if end<0 or not 0<end-start-value<=4096:raise ValueError('ELF needed string malformed')
+        name=data[start+value:end].decode('ascii')
+        if any(character.isspace() for character in name):raise ValueError('ELF needed string whitespace')
+        names.append(name)
+    return {'sourceSha256':hashlib.sha256(data).hexdigest(),'elfType':kind,
+            'neededNames':names,'dynamicEntries':len(entries)+1,'hasInterpreter':any(row[0]==3 for row in rows)}
+
+
+def dependency_class(executable,facts,dependencies,modules):
+    if not dependencies and (facts['neededNames'] or executable not in modules or
+                             facts['elfType']!=3 or facts['hasInterpreter']):
+        raise ValueError(str(executable)+' [ldd-readback]: required dependency closure absent')
+
+
+def closure(run=subprocess.run,proof=None):
+    paths=set();observations=[]
+    def save():
+        if proof is not None:Path(proof).write_text(json.dumps(observations,sort_keys=True,indent=2)+'\n')
     env={'PATH':'/usr/bin:/bin','LANG':'C','LC_ALL':'C'}
     sources=['/usr/bin/qemu-system-x86_64','/usr/bin/qemu-img','/usr/bin/genisoimage']
     modules=sorted(Path('/usr/lib/x86_64-linux-gnu/qemu').glob('*.so'))
@@ -40,13 +106,20 @@ def closure(run=subprocess.run):
     sources.extend(str(path) for path in modules)
     for source in sources:
         executable=protected(source);paths.add(executable)
+        observation={'source':str(executable),'stage':'elf-readback'};observations.append(observation);save()
+        try:facts=elf_needed(executable)
+        except Exception as error:raise ValueError(str(executable)+' [elf-readback]: '+str(error)) from error
+        observation.update(facts,stage='ldd-readback');save()
         reply=run(['/usr/bin/ldd',str(executable)],check=True,capture_output=True,text=True,timeout=10,env=env)
         dependencies=set()
         for line in reply.stdout.splitlines():
-            if 'not found' in line:raise ValueError('host dynamic tool dependency missing')
+            if 'not found' in line:raise ValueError(str(executable)+' [ldd-readback]: dynamic dependency missing')
             candidates=re.findall(r'(?<!\S)(/[^\s]+)',line)
             for value in candidates:dependencies.add(protected(value))
-        if not dependencies:raise ValueError('tool dependency closure absent')
+        dependency_class(executable,facts,dependencies,{path.resolve() for path in modules})
+        if hashlib.sha256(executable.read_bytes()).hexdigest()!=facts['sourceSha256']:
+            raise ValueError(str(executable)+' [ldd-readback]: source changed after ELF inspection')
+        observation.update(stage='verified',dependencyPaths=sorted(str(path) for path in dependencies));save()
         paths.update(dependencies)
     for path in Path('/usr/share/qemu').rglob('*'):
         if path.is_file():paths.add(protected(path))
@@ -64,7 +137,7 @@ def unchanged(expected):
 def retain(folder,artifacts):
     """Bounded proof-only export; archives, overlay, firmware and seed are excluded."""
     allowed={'execution.json','host.json','acquisition.json','ownership.json','accepted.json',
-             'pid.json','old-phase-readback.json','old-phase-advance.json','serial.log','process.stdout','process.stderr'}
+             'pid.json','tool-closure.json','old-phase-readback.json','old-phase-advance.json','serial.log','process.stdout','process.stderr'}
     total=0
     for parent in (folder,folder/'inputs',folder/'guest'):
         if not parent.is_dir():continue
@@ -80,7 +153,7 @@ def retain(folder,artifacts):
             if truncated:(artifacts/(parent.name+'-'+name+'.truncated')).write_text('bounded at 262144 bytes\n')
 
 
-def execute(folder,env=None,load=runpy.run_path,measure_closure=closure):
+def execute(folder,env=None,load=runpy.run_path,measure_closure=None):
     hosted(os.environ if env is None else env)
     folder=Path(folder).absolute()
     if not re.fullmatch('[A-Za-z0-9_/.-]+',str(folder)):raise ValueError('unsafe owned stage path')
@@ -97,7 +170,7 @@ def execute(folder,env=None,load=runpy.run_path,measure_closure=closure):
     try:
         facts=load(str(HERE/'qualify.py'))['qualify'](folder,folder/'host.json')
         if not facts['qualified']:raise ValueError('actual qualified hosted resource/tool gate failed')
-        record['hostClosure']=measure_closure();save()
+        record['hostClosure']=(closure(proof=folder/'tool-closure.json') if measure_closure is None else measure_closure());save()
         load(str(HERE/'acquire.py'))['acquire'](folder/'inputs')
         unchanged(record['hostClosure'])
         load(str(HERE/'prepare.py'))['prepare'](folder/'inputs',folder/'guest')

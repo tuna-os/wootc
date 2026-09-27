@@ -28,7 +28,7 @@
   "schemaVersion": 1,
   "scope": "source controls, actual authorized public acquisition and native archive readback; no VM or guest installation",
   "sourceHashes": {
-    ".github/workflows/linux-package-runtime.yml": "fcb770b37360c6d42ace31ea112bfe43a4e5d805dfb9d1e7ab8f876bbcb26692",
+    ".github/workflows/linux-package-runtime.yml": "3a9f018fe0c8e2884615e8af96cfff7dacaee5585164520d65d345c42d163963",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/authenticated-dependencies/authenticated-dependency-plan.json": "ada5ba0f52a7c42620a5d0e5b8c2926c452022accd3877b5fe6a436ec3cb83a8",
     "docs/experiments/evidence/2026-09-27-linux-package-runtime/SHA512SUMS": "4833d6c69d4d8b02a5cfe2415d02fef5125ed98999b8a9f2937b01146921c4cf",
     "docs/experiments/evidence/2026-09-27-linux-package-runtime/acquisition-result.json": "b1dc9cf6f682284bd0c4cea327fe44da394c3d208a1a0fd0514837b2fecdc85f",

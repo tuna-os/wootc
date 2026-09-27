@@ -1,0 +1,29 @@
+{
+  "actualInstalledModulesRead": 37,
+  "actualZeroNeededModules": 5,
+  "artifactZipSha256": "127c1e54007dc176124cf03058d13ff6255e36a950ab5a163fbbaa7912125e14",
+  "classicOsBootAcceptance": false,
+  "exactHostedFailingModuleObserved": false,
+  "failedRun": 36328515853,
+  "failedSource": "99f3987f235006e9b6f5893ff13c5234359a80b8",
+  "firmwareAcceptance": false,
+  "lddSha256": "752803b8baa217b821bd4566c4fbdaec50c01cb32d2796ec056d22d190d4290f",
+  "nativeControls": 73,
+  "packageInstallationAccepted": false,
+  "readelfSha256": "64c58e15274bbbb5153f31078e455e9e77ee5f51489e709bba5bb788ce9df2b0",
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "scope": "exact original host parser failure plus native positive ELF classification; no rerun, no acquisition or VM in failed attempt",
+  "sourceHashes": {
+    ".github/workflows/linux-package-execute.yml": "03721be52b86483497e965c41f9ea9d9b8a13483dcbe543651d2e6f513a2abbc",
+    ".github/workflows/linux-package-runtime.yml": "3a9f018fe0c8e2884615e8af96cfff7dacaee5585164520d65d345c42d163963",
+    "docs/experiments/evidence/2026-09-27-linux-elf-closure/actual-module-readbacks.json": "a8c0e02dc945fb3bb811095e945aaca79531eab48da9bed5006d53789eaf3959",
+    "docs/experiments/evidence/2026-09-27-linux-elf-closure/controls.log": "a479a3ed630b0ca2893c351899185f9b0477928b9935518afb0a8d0099a40b24",
+    "docs/experiments/evidence/2026-09-27-linux-elf-closure/first-hosted-artifacts.json": "12268337968ae62ec97b493baf9e7fdaac0b849c7e98058b8f9bd16bedd51d49",
+    "docs/experiments/evidence/2026-09-27-linux-elf-closure/first-hosted-execution.json": "35fa7436a7e82cbf0348231233d72a1c101075110231588979624b8f4dba1ea4",
+    "docs/experiments/evidence/2026-09-27-linux-elf-closure/first-hosted-failure.log": "e5f39ca92de553f3c10d23e78286c07cde0f2ea7161c52dc7628acc9c1601200",
+    "docs/experiments/evidence/2026-09-27-linux-elf-closure/first-hosted-host.json": "5a581a2cd364e162d4d8aab455482e7702059a3c27157930531897d405ff4eec",
+    "tests/e2e/package-runtime/hosted-execute.py": "e431886b5e904a8060c9fa268e79d55915806d0d1525cd979af2b052c48ab859",
+    "tests/unit/test_linux_package_elf.py": "ceb15599bca66288fe3f57dc1fc962645ea6e8d960428c8f6eea2a727c5a1d0f"
+  }
+}
