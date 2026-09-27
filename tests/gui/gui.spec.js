@@ -77,8 +77,33 @@ test('installer — done screen', async ({ page }) => {
   await pw.nth(0).fill('hunter2');
   await pw.nth(1).fill('hunter2');
   await page.locator('#install-btn').click();
-  await expect(page.locator('.done-title')).toContainText('ready', { timeout: 5000 });
+  await expect(page.locator('.done-title')).toHaveText('TunaOS setup is ready', { timeout: 5000 });
+  await expect(page.locator('.done-body')).toContainText('begin the Linux installation');
+  await expect(page.locator('.done-hero')).toContainText('Linux has not finished installing yet');
+  await expect(page.locator('.done-hero')).toContainText('Windows Boot Manager');
+  await expect(page.locator('.done-hero')).toContainText('keep its recovery key available');
+  await expect(page.locator('.done-hero')).not.toContainText('5–15 minutes');
+  await expect(page.locator('.done-hero')).not.toContainText('anything at all');
+  await expect(page.locator('.done-hero')).not.toContainText("Your files aren't touched");
+  await expect(page.getByRole('button', { name: 'Reboot Now →' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reboot Later' })).toBeVisible();
   await shot(page, '04-done');
+});
+
+test('installer — session consent does not assert successful export', async ({ page }) => {
+  const steps = [{ step: 'done', message: 'Preparation complete.', percent: 100, done: true }];
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps,
+    sessionCandidates: [{ app: 'firefox', portable: true, recommend: 'copy', note: 'Public fixture candidate' }] });
+  await page.locator('details:has-text("Advanced") summary').click();
+  await page.locator('label').filter({ hasText: 'Public fixture candidate' }).locator('input[type=checkbox]').check();
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2'); await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.done-hero')).toContainText('App sign-in on Linux');
+  await expect(page.locator('.done-hero')).not.toContainText('Session keys staged');
+  await expect(page.locator('.done-hero')).not.toContainText('safely staged');
+  await expect(page.getByText('Save any open work first', { exact: false })).toBeInViewport();
 });
 
 test('control panel — partition-aware uninstall options', async ({ page }) => {
