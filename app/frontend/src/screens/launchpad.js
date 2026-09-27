@@ -404,7 +404,16 @@ function refreshInstallValidity() {
   if (!btn) return;
   const c = state.config;
   const vmBtn = document.getElementById('vm-prepare-btn');
-  if (vmBtn) vmBtn.disabled = !state.selected || !/^[a-z_][a-z0-9_-]{0,31}$/.test(c.username) || c.username === 'root' || !c.password || c.password !== c.passwordConfirm;
+  if (vmBtn) {
+    let vmReason = '';
+    if (!state.selected) vmReason = 'Choose a Linux version above';
+    else if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(c.username) || c.username === 'root') vmReason = 'Enter a valid Linux username below';
+    else if (!c.password) vmReason = 'Set your Linux password below';
+    else if (c.password !== c.passwordConfirm) vmReason = 'Passwords do not match';
+    vmBtn.disabled = vmReason !== '';
+    vmBtn.textContent = vmReason || `Start ${distroName()} in a window`;
+    vmBtn.title = vmReason;
+  }
   let reason = '';
   // Preflight safety gates (#63) come FIRST: these are conditions under which
   // starting at all risks the user's data or leaves the machine half-converted.
