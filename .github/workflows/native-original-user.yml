@@ -1,0 +1,41 @@
+name: Native original-user binding controls
+on:
+  push:
+    branches: ['fix/native-install-authorization']
+  pull_request:
+    paths:
+      - 'app/native_peer_windows.go'
+      - 'app/native_original_user_windows*.go'
+      - 'app/go.mod'
+      - 'app/go.sum'
+      - 'tests/native_original_user_controls.py'
+      - '.github/workflows/native-original-user.yml'
+permissions:
+  contents: read
+jobs:
+  actual-token-binding:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+      - name: Observe actual token/profile and refusal controls
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $proof = Join-Path $env:RUNNER_TEMP 'wootc-original-user-proof'
+          $ErrorActionPreference = 'Continue'
+          python tests/native_original_user_controls.py $proof
+          $result = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+          if ($result -ne 0) { throw 'Actual token controls refused' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-original-user-runtime
+          path: '${{ runner.temp }}/wootc-original-user-proof/'
+          if-no-files-found: error
+          retention-days: 14
