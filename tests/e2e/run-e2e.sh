@@ -43,6 +43,8 @@ source "$SCRIPT_DIR/phase-ledger.sh"
 source "$SCRIPT_DIR/lib/diagnostics.sh"
 # shellcheck source=tests/e2e/lib/fixture-bitlocker.sh
 source "$SCRIPT_DIR/lib/fixture-bitlocker.sh"
+# shellcheck source=tests/e2e/lib/fixture-optical-media.sh
+source "$SCRIPT_DIR/lib/fixture-optical-media.sh"
 # shellcheck source=tests/e2e/lib/results.sh
 source "$SCRIPT_DIR/lib/results.sh"
 # shellcheck source=tests/e2e/lib/result-runner.sh
@@ -3381,6 +3383,11 @@ Write-Output ("shutdown pending: " + (Get-WinEvent -LogName System -MaxEvents 20
     pass "Windows reboot confirmed — deployer handover in progress"
 }
 
+if [[ "$E2E_BITLOCKER" == on ]]; then
+    step "Observing and removing owned optical install media before deployer scheduling..."
+    fixture_detach_optical_media || { infra_fail "Optical removal or same Windows boot identity was not observed; deployer was not scheduled"; exit 1; }
+fi
+
 if [ "$GUI_INSTALL" = true ]; then
     gui_install_arm
 else
@@ -3974,6 +3981,7 @@ fi
 # external QGA call and polling sleep consumes this same wall-clock budget.
 if [[ "$E2E_BITLOCKER" == "on" ]]; then
     step "Waiting for BitLocker fixture C: encryption completion before installed Linux..."
+    fixture_verify_windows_boot_after_detach || { infra_fail "Windows boot after optical removal was not observed; TPM enrollment was not scheduled"; exit 1; }
     bitlocker_prepare_fixture 1800 || exit 1
 fi
 

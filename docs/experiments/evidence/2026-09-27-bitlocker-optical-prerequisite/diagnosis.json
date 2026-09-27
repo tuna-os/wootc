@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "failedRunId": 36319055814,
+  "sourceHead": "3d4b5601aa8cef901043ebe6737ca4c125bb43b7",
+  "artifactId": 10932746428,
+  "artifactDigest": "sha256:0c4255240db446315614f2fe5db784e4580b3bc650072cd598f87af51168999d",
+  "artifactSize": 315985638,
+  "selectiveRangeBytes": 151510,
+  "fullArtifactDownloaded": false,
+  "failureStage": "enroll-tpm",
+  "hresultSigned": -2144272336,
+  "hresultHex": "0x80310030",
+  "primarySymbol": "FVE_E_BOOTABLE_CDDVD",
+  "primarySource": "https://learn.microsoft.com/en-us/windows/win32/com/com-error-codes-6",
+  "actualQmpOpticalIdentityObserved": false,
+  "actualWindowsOpticalRemovalObserved": false,
+  "actualTPMEnrollmentSuccessObserved": false,
+  "protectionOnObserved": false,
+  "activationReplayed": false,
+  "frozenSourceChanged": false,
+  "publishedRawReceiptHashMatchesPreSanitization": false,
+  "canonicalReceiptValueHashVerified": true,
+  "rawReceiptRecordedHashReconstructedWithCRLF": true,
+  "safeProjectionFiles": [
+    {
+      "path": "verified-before-projection.json",
+      "sha256": "0bfa3a64df818b43d0d60d73476b3349a74c87da391534dc49d007ccd6f708fb"
+    },
+    {
+      "path": "optical-command-projection.json",
+      "sha256": "35a90cd02e4c061f096d5fb57ce81247b2b1dad0027032761fade0cbe48b1459"
+    },
+    {
+      "path": "activation-safe-failure-projection.json",
+      "sha256": "5c277ce53b3c7e66096af6a38b180208a5237fb5fbef31fdc830c8b0cef40077"
+    }
+  ]
+}

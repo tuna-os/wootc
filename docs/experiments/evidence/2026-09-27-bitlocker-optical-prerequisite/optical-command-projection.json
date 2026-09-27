@@ -1,0 +1,10 @@
+[
+  {
+    "id": "cdrom9",
+    "file": "/storage/win11x64.iso",
+    "media": "cdrom",
+    "readonly": "on",
+    "if": "none"
+  },
+  {}
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "schemaVersion": 1,
+    "scope": "activation",
+    "stage": "enroll-tpm",
+    "failureKind": "operation-error",
+    "nativeExitCode": null,
+    "category": 0,
+    "errors": [
+      {
+        "exceptionType": "System.Runtime.InteropServices.COMException",
+        "hresult": -2144272336,
+        "nativeCode": null
+      }
+    ]
+  }
+]

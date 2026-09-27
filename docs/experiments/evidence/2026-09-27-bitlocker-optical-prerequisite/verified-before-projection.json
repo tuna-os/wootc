@@ -1,0 +1,15 @@
+{
+  "runId": "1c2bf87409fc4233bfd904c06f20d4fa",
+  "volumeStatus": "FullyEncrypted",
+  "percentage": 100,
+  "protection": "Off",
+  "tpmPresent": true,
+  "tpmReady": true,
+  "protectorTypes": [
+    "RecoveryPassword"
+  ],
+  "canonicalHashVerifiedAfterRemovingArtifactTerminalLF": true,
+  "artifactRawBytesMatchPreSanitizationHash": false,
+  "sourceHead": "3d4b5601aa8cef901043ebe6737ca4c125bb43b7",
+  "observation": "before-only"
+}
