@@ -722,6 +722,74 @@ public class VMCapability
 
     [JsonPropertyName("bundled")]
     public bool Bundled { get; set; }
+
+    [JsonPropertyName("probeStatus")]
+    public string ProbeStatus { get; set; } = string.Empty;
+
+    [JsonPropertyName("runtimeNeeded")]
+    public bool RuntimeNeeded { get; set; }
+}
+
+/// <summary>
+/// VMState records the persistent installed system, not just a process. Ready
+/// means provisioning verified the disk; DesktopReady needs separate guest proof.
+/// </summary>
+public class VMState
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("installId")]
+    public string InstallId { get; set; } = string.Empty;
+
+    [JsonPropertyName("runId")]
+    public string RunId { get; set; } = string.Empty;
+
+    [JsonPropertyName("image")]
+    public string Image { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    [JsonPropertyName("accountOutcome")]
+    public string? AccountOutcome { get; set; }
+
+    [JsonPropertyName("diskId")]
+    public string DiskId { get; set; } = string.Empty;
+
+    [JsonPropertyName("diskPath")]
+    public string DiskPath { get; set; } = string.Empty;
+
+    [JsonPropertyName("phase")]
+    public string Phase { get; set; } = string.Empty;
+
+    [JsonPropertyName("desktopReady")]
+    public bool DesktopReady { get; set; }
+
+    [JsonPropertyName("pid")]
+    public int Pid { get; set; }
+
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    [JsonPropertyName("updatedAt")]
+    public string UpdatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// VMInstallConfig contains only the choices implemented by the VM preparation
+/// path. Do not reuse native-install encryption/migration flags as implied promises.
+/// </summary>
+public class VMInstallConfig
+{
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("password")]
+    public string Password { get; set; } = string.Empty;
 }
 
 /// <summary>
