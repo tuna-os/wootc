@@ -407,3 +407,29 @@ func TestNativeConfigurationActualCimDependencyCounter(t *testing.T) {
 		t.Fatalf("restored CIM dependency did not observe system storage: %v", err)
 	}
 }
+
+func TestNativeConfigurationActualImportWarningCounter(t *testing.T) {
+	original := nativeStorageQuery
+	defer func() { nativeStorageQuery = original }()
+	rows, err := queryNativeStorage(context.Background())
+	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatalf("correct warning isolation refused: %v", err)
+	}
+	warning := "$WarningPreference = 'SilentlyContinue'"
+	if strings.Count(original, warning) != 1 {
+		t.Fatal("actual warning boundary absent")
+	}
+	nativeStorageQuery = strings.Replace(original, warning, "$WarningPreference = 'Continue'", 1)
+	_, err = queryNativeStorage(context.Background())
+	var failure *nativeStorageObservationFailure
+	if !errors.As(err, &failure) || failure.ExitCode != 0 || !strings.HasPrefix(string(failure.Stdout), "WARNING:") {
+		t.Fatal("actual import warning did not cause whole-output shape refusal")
+	}
+	nativeStorageQuery = original
+	rows, err = queryNativeStorage(context.Background())
+	if err != nil || len(rows) == 0 {
+		retainNativeStorageQueryFailure(t, err)
+		t.Fatalf("restored warning isolation refused: %v", err)
+	}
+}

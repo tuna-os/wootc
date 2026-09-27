@@ -1,5 +1,7 @@
 $stage = 'load-cim-assemblies'
 try {
+$WarningPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
 $PSModuleAutoLoadingPreference = 'None'
 foreach ($assemblyName in @('Microsoft.Management.Infrastructure', 'Microsoft.Management.Infrastructure.CimCmdlets')) {
     $assemblyPath = "$env:windir\Microsoft.NET\assembly\GAC_MSIL\$assemblyName\v4.0_1.0.0.0__31bf3856ad364e35\$assemblyName.dll"
@@ -16,8 +18,6 @@ Import-Module -Name "$PSHOME\Modules\Storage\Storage.psd1" -ErrorAction Stop
 $stage = 'import-bitlocker'
 Import-Module -Name "$PSHOME\Modules\BitLocker\BitLocker.psd1" -ErrorAction Stop
 $ErrorActionPreference = 'Stop'
-$WarningPreference = 'SilentlyContinue'
-$ProgressPreference = 'SilentlyContinue'
 $rows = @()
 $stage = 'read-volumes'
 $volumes = @(Storage\Get-Volume -ErrorAction Stop | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter -and $_.FileSystem -eq 'NTFS' })
