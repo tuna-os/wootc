@@ -333,7 +333,8 @@ NTFSINFO
     run grep -nE '^[^#]*"Graduate complete\. Reboot' "$GN"
     [ "$status" -ne 0 ]
     grep -Fq 'Phase 3 native system booted from the graduated install (non-loopback)' "$E2E_RUNNER"
-    grep -Fq '/etc/wootc/native-target' "$E2E_RUNNER"
+    grep -Fq '"$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot native' "$E2E_RUNNER"
+    grep -Fq '/etc/wootc/native-target' "$REPO_ROOT/tests/e2e/phase3-snapshot.sh"
 }
 
 @test "migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched" {
@@ -471,5 +472,10 @@ NTFSINFO
     grep -q '/run/wootc-e2e-native-userdata' "$GN"
     grep -q 'multi-user.target.wants/wootc-e2e-native-probe.service' "$GN"
     # And it stays E2E-only: inside the dispatcher-gated block.
-    grep -B40 'wootc-e2e-native-probe.service' "$GN" | grep -q 'wootc-e2e-phase3-dispatch'
+    local block
+    block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }
+        active { print }
+        active && /^    fi$/ { exit }' "$GN")
+    [[ "$block" == *'e2e-native-probe.sh'* ]]
+    [[ "$block" == *'multi-user.target.wants/wootc-e2e-native-probe.service'* ]]
 }
