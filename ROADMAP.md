@@ -1,6 +1,6 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-09-26 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-09-27 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -82,12 +82,41 @@ Beta means the support policy stops saying "alpha" because the evidence exists.
 
 ### v0.9.0-rc — "Ship-shaped" *(tracking: milestone issue M4)*
 - **Code signing** (EV cert / Azure Trusted Signing): kills the SmartScreen wall — the single biggest first-impression fix, and a spend decision that needs the maintainer.
-- **WinUI 3 shell replaces Wails (Epic #340, decided 2026-09-02)**: the entire installer UI — the surface every one of the four 1.0 criteria is written about — is being rebuilt. Phase A merged (Go engine now speaks JSON-RPC over stdio via `wootc.exe serve`); Phases B–E (#343–#346) carry the shell, screens, release cutover, and Wails removal. Evidence gathered on the outgoing Wails UI (matrix cells, field reports) needs an explicit carryover or re-verification rule before it counts toward the WinUI build — see #357.
+- **WinUI 3 shell replaces Wails (#340)**: phases B–D must pass their native gates before the RC default changes. Phase E follows a clean native release. The [native shell sequence](#native-shell-sequence-and-evidence-357) defines which earlier evidence can carry forward.
 - **VM-first (#178)**: Required first experience. Prepare and run the persistent Linux image inside Windows before native boot. [ADR 0004](docs/adr/0004-restore-vm-first-product.md) replaces the #318 deferral; current releases do not yet meet this gate.
 - **Migration adapters (#203)**: Discovery and manifests exist. The [extension plan](docs/specs/migration-extensions.md) adds truthful results, transactions, compatibility, and scoped execution before broad support.
 - **Libertix-derived boot-chain hardening (#308)**: [Libertix](https://github.com/ekimiateam/libertix) solves the same install-Linux-from-Windows problem with the opposite disk model (real partition vs our `root.disk`), so its geometry code is irrelevant but its around-the-reboot designs carry over — specified in `docs/borrowed-from-libertix.md` as six trackable items: Secure Boot CA preflight (#322), recovery guard (#331), first-boot evidence cross-checked from Windows (#332), ESP signed-chain refresh (#333), one step catalogue diffed in CI (#334), pinned + signed artifacts (#335).
 - Docs complete and truthful end-to-end; walkthrough imagery regenerated from the shipping build.
 - Soak begins: consecutive green nightlies counting toward the 1.0 gate, release-blocking regressions only.
+
+### Native shell sequence and evidence (#357)
+
+The WinUI cutover is inside the road to 1.0. Earlier Wails releases can ship
+before phase D. They do not start the 1.0 soak. The existing beta release is
+history, not proof of the future native product.
+
+| Phase | Place on the ladder | Gate |
+|---|---|---|
+| A (#342, #348) | Existing engine seam | Preserve the protocol; prove safe disconnect and transport handles |
+| B (#343) | RC preparation, preview only | Native projects, authenticated peers, brand packages, clean offline startup |
+| C (#344) | RC preparation, preview only | Consumer and VM journey, accessible controls, native UI tests and full cycles |
+| D (#345) | RC default change | B and C pass; release uses the native shell and keeps one legacy release |
+| E (#346) | After that clean native release, before 1.0 | Remove legacy code only after native gates and the docs audit pass |
+
+**Carry only evidence for unchanged engine code and contracts. Re-earn native UI,
+transport, identity, setup, accessibility, and whole-journey proof on WinUI.**
+This applies to M2 field reports and M3 matrix rows as well as RC release tests.
+Keep earlier reports for diagnosis and component proof; they cannot certify a
+replacement UI. Re-run affected hardware journeys, branded walks, and matrix
+cells on the native artifact before a new support claim.
+
+The 1.0 soak starts after phase D and all RC prerequisites pass, with a recorded
+start date. Only native-shell GUI nightlies on main can qualify. Each row must
+name the shell, source SHA, artifact identity, verdict, and proof run. No Wails
+row counts toward the native streak. A shell or transport change needs new
+proof; do not inherit a streak across it. The ledger in #235 must apply this
+rule before #239 can cite 30 days. The ledger does not exist yet. It has no
+eligible streak. See [the release gates](docs/RELEASING.md#native-shell-release-gates).
 
 ### Scope decisions
 
