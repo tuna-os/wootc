@@ -38,7 +38,7 @@ try {
  $volume=$partitions[0] | Get-Volume
  if ($volume.FileSystem -cne 'NTFS' -or $volume.FileSystemLabel -cne "WOOTC_ACL_$($id.Substring(0,8))") { throw 'Fresh owned NTFS identity mismatch' }
  $password=[Guid]::NewGuid().ToString('N')+'aA1!'
- $account=New-LocalUser -Name $name -Password (ConvertTo-SecureString $password -AsPlainText -Force) -Description "Disposable wootc ACL proof $id"
+ $account=New-LocalUser -Name $name -Password (ConvertTo-SecureString $password -AsPlainText -Force) -Description "wootc ACL $($id.Substring(0,16))"
  $accountSid=$account.SID.Value
  Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $account
  $env:WOOTC_ACL_USER=$name; $env:WOOTC_ACL_PASSWORD=$password; $env:WOOTC_ACL_SID=$accountSid
@@ -61,7 +61,7 @@ try {
  try {
   if (Test-Path -LiteralPath $vhd) {
    $image=Get-DiskImage -ImagePath $vhd
-   if ($image.Attached) { Dismount-DiskImage -ImagePath $vhd }
+   if ($image.Attached) { Dismount-DiskImage -ImagePath $vhd | Out-Null }
    if ((Get-DiskImage -ImagePath $vhd).Attached) { throw 'Owned virtual disk detach not observed' }
   }
   $diskReleased=$true
@@ -77,5 +77,5 @@ try {
   } catch { $cleanupErrors.Add('Owned private fixture cleanup failed') }
  }
  if ($cleanupErrors.Count -gt 0) { throw ($cleanupErrors -join '; ') }
+ Write-Output 'PASS native ACL fixture cleanup observed'
 }
-Write-Output 'PASS native ACL fixture cleanup observed'
