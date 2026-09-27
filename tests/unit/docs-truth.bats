@@ -318,3 +318,25 @@ setup() {
     ! grep -q 'no runtime depend' docs/RELEASING.md
     ! grep -q 'There is nothing to "install"' docs/getting-started.md
 }
+
+@test "roadmap separates native preview work from complete consumer proof" {
+    grep -q 'JSON-RPC' app/serve.go
+    grep -q 'Phase B (#343) has a draft native preview and hosted component proof' ROADMAP.md
+    grep -q 'Phase C (#344) still needs the complete native consumer and VM journey' ROADMAP.md
+    ! grep -q 'Phases B.*not yet started' ROADMAP.md
+}
+
+@test "roadmap separates restoration requirement from current partial cleanup" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'Evidence must prove that uninstall restores the machine' ROADMAP.md
+    grep -q 'Uninstall tries cleanup; complete restoration still needs proof' ROADMAP.md
+    ! grep -q 'uninstall that restores machine state' ROADMAP.md
+}
+
+@test "roadmap requires a SmartScreen observation beyond a valid signature" {
+    grep -q 'Windows policy can prevent continuation' docs/getting-started.md
+    grep -q 'A valid signature alone does not guarantee' ROADMAP.md
+    grep -q 'fresh-machine SmartScreen behavior (#230)' ROADMAP.md
+    grep -q 'Signed binaries must pass the SmartScreen gate on a fresh machine' ROADMAP.md
+    ! grep -q 'kills the SmartScreen wall' ROADMAP.md
+}
