@@ -136,6 +136,7 @@ sel_on() {
 }
 
 bound=0
+copied=0
 matched=0
 
 # Known-folder redirection (#64). Windows 11's OOBE pushes "OneDrive Backup",
@@ -158,8 +159,16 @@ done
 # /run/wootc/host IS that volume, whatever letter Windows called it.
 win_to_host() {
     local p="${1//\\//}"
-    p="${p#[A-Za-z]:}"
-    printf '%s%s' "$HOST" "$p"
+    local drive=""
+    if [[ "$p" =~ ^([A-Za-z]): ]]; then
+        drive="${BASH_REMATCH[1]}"
+        p="${p:2}"
+    fi
+    if [[ "${drive^^}" == C && -n "$BITLOCKER_PROFILES" ]]; then
+        printf '%s%s' "$BITLOCKER_PROFILES" "$p"
+    else
+        printf '%s%s' "$HOST" "$p"
+    fi
 }
 
 # resolved_folder <windows-user> <Folder> — host path to bind, or empty.
@@ -247,6 +256,25 @@ bind_profile() {
             warn "refusing symlink folder destination: $dst"
             continue
         fi
+
+        # BitLocker C: is intentionally mounted read-only. Copy Documents into
+        # the user's persistent Linux home once so it can be edited without
+        # ever writing through to the encrypted Windows source. Other known
+        # folders keep their existing read-only passthrough behavior.
+        if [[ "$folder" == Documents && -n "$BITLOCKER_PROFILES" && "$src" == "$BITLOCKER_PROFILES"/* ]]; then
+            copy_helper=""
+            if [[ -x /var/usrlocal/bin/wootc-copy-windows-documents ]]; then
+                copy_helper=/var/usrlocal/bin/wootc-copy-windows-documents
+            else
+                copy_helper=$(command -v wootc-copy-windows-documents 2>/dev/null || true)
+            fi
+            if [[ -n "$copy_helper" ]] && "$copy_helper" "$src" "$home" "$luser"; then
+                copied=$((copied + 1))
+                continue
+            fi
+            warn "Documents copy was not completed for $luser; keeping the original read-only"
+        fi
+
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"
@@ -394,7 +422,7 @@ fi
 shopt -u nullglob
 # Always leave a verdict in the journal: "Finished" alone cannot distinguish
 # a bridged home from a run where every profile was silently skipped.
-log "summary: $bound folder binds across $matched matching user(s)"
+log "summary: $bound folder binds and $copied persistent copies across $matched matching user(s)"
 
 # Steam category (best-effort — never fail the mount service over it).
 if command -v wootc-steam-bridge >/dev/null && sel_on "${SUDO_USER:-root}" games; then

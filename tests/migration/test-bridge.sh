@@ -281,6 +281,53 @@ exec(open('/scripts/wootc-user-gui').read().split('def build_gui')[0], ug.__dict
 ug.AccountEngine.save_identity({'username':'alice','password':'topsecret123'}, path='/tmp/account.json')"
 check '! grep -q topsecret123 /tmp/account.json' "user GUI: password never written to the account file"
 
+# ── #427: BitLocker Documents become a safe, persistent Linux copy ─────────
+useradd -m -u 1002 bob
+BL_DOCS=/tmp/bitlocker-fixture/Users/bob/Documents
+mkdir -p "$BL_DOCS/Projects"
+printf 'original windows bytes\n' > "$BL_DOCS/Projects/notes.txt"
+ln -s /etc/shadow "$BL_DOCS/windows-link"
+mkfifo "$BL_DOCS/windows-pipe"
+
+COPY_OUT=$(bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/bob bob 2>&1)
+echo "$COPY_OUT" | sed 's/^/    /'
+COPY_DIR='/home/bob/Documents/From Windows'
+check '[ "$(cat "$COPY_DIR/Projects/notes.txt")" = "original windows bytes" ]' \
+    "#427: Documents are copied into visible Linux storage"
+check '[ -f "$COPY_DIR/ABOUT-WINDOWS-COPY.txt" ] && [ -f "$COPY_DIR/.wootc-import-complete" ]' \
+    "#427: copy explains that edits stay on Linux and records completion"
+check 'grep -q "Symbolic links and special files not copied: 2" "$COPY_DIR/ABOUT-WINDOWS-COPY.txt"' \
+    "#427: the visible copy report names omitted links and special files"
+check '[ "$(stat -c %u "$COPY_DIR")" = "$(id -u bob)" ] && [ -w "$COPY_DIR/Projects/notes.txt" ]' \
+    "#427: imported files are owned and writable by the ordinary Linux user"
+check '[ ! -e "$COPY_DIR/windows-link" ] && [ ! -e "$COPY_DIR/windows-pipe" ]' \
+    "#427: Windows links and special files are not imported"
+runuser -u bob -- sh -c 'printf "linux edit\n" >> "/home/bob/Documents/From Windows/Projects/notes.txt"'
+check 'runuser -u bob -- grep -q "linux edit" "/home/bob/Documents/From Windows/Projects/notes.txt"' \
+    "#427: ordinary user can reopen and read their saved edit"
+check '[ "$(cat "$BL_DOCS/Projects/notes.txt")" = "original windows bytes" ]' \
+    "#427: editing the Linux copy leaves the Windows source unchanged"
+printf 'later windows change\n' >> "$BL_DOCS/Projects/notes.txt"
+bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/bob bob >/dev/null
+check 'runuser -u bob -- grep -q "linux edit" "/home/bob/Documents/From Windows/Projects/notes.txt" && ! runuser -u bob -- grep -q "later windows change" "/home/bob/Documents/From Windows/Projects/notes.txt"' \
+    "#427: retry preserves Linux edits and does not silently refresh from Windows"
+rm -rf -- "$COPY_DIR"
+bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/bob bob >/dev/null
+check '[ ! -e "$COPY_DIR" ] && grep -qx "state=complete" /home/bob/.local/state/wootc/bitlocker-documents-import-v1' \
+    "#427: deleting the Linux copy is respected across a later boot instead of silently restoring it"
+
+useradd -m -u 1003 carol
+mkdir -p /home/carol/Documents
+chown carol:carol /home/carol/Documents
+chmod 0500 /home/carol/Documents
+if bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/carol carol >/tmp/wootc-copy-disabled.log 2>&1; then
+    bad "#427: copy refuses a Linux destination that is not writable"
+else
+    ok "#427: copy refuses a Linux destination that is not writable"
+fi
+check '[ ! -e "/home/carol/Documents/From Windows" ] && grep -q "^original windows bytes$" "$BL_DOCS/Projects/notes.txt" && grep -q "^later windows change$" "$BL_DOCS/Projects/notes.txt"' \
+    "#427: failed copy leaves Windows source and destination unchanged"
+
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
 INNER
