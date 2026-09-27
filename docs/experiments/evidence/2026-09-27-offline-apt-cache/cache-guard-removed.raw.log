@@ -7,14 +7,15 @@ Traceback (most recent call last):
   File "tests/unit/test_wootc_package_consumer.py", line 112, in test_native_apt_calls_private_recorder_with_verified_absolute_cache
     MODULE['consume'](self.folder,'old',real_apt)
     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<isolated-cache-guard-removed>", line 240, in consume
+  File "<isolated-cache-guard-removed>", line 247, in consume
   File "<isolated-cache-guard-removed>", line 180, in run
   File "tests/unit/test_wootc_package_consumer.py", line 108, in real_apt
     result=MODULE['execute'](argv, **kwargs)
   File "<isolated-cache-guard-removed>", line 35, in execute
-subprocess.CalledProcessError: Command '['/usr/bin/apt-get', '-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-', '-o', 'Dir::State::lists=/tmp/tmpvgsa61ff/offline-bundle-a8lnt817/lists', '--no-download', '--no-install-recommends', '--allow-downgrades', '--yes', 'install', '/tmp/tmpvgsa61ff/offline-bundle-a8lnt817/archives/fixture-package_2_amd64.deb']' returned non-zero exit status 100.
+subprocess.CalledProcessError: Command '['/usr/bin/apt-get', '-o', 'Dir::Etc::sourcelist=/dev/null', '-o', 'Dir::Etc::sourceparts=-', '-o', 'Dir::State::lists=/tmp/tmpjj_fnq_r/offline-bundle-e_ns7o_h/lists', '--no-download', '--no-install-recommends', '--allow-downgrades', '--yes', 'install', '/tmp/tmpjj_fnq_r/offline-bundle-e_ns7o_h/archives/fixture-package_2_amd64.deb']' returned non-zero exit status 100.
 
 ----------------------------------------------------------------------
-Ran 1 test in 0.421s
+Ran 1 test in 0.455s
 
 FAILED (errors=1)
+mutantSha256=ac742367f159b3afd9c07a10b2fe6090ff4dd59ff13ca14d9e66075f5e3fc64e

@@ -8,7 +8,7 @@
     "runtimeTests": 115
   },
   "evidenceSha256": {
-    "cache-guard-removed.raw.log": "0b9f2c47eea108c68a57942bf4d82f992d47f48e11b197714733a5f3ee668c27",
+    "cache-guard-removed.raw.log": "3c748791e7a9e627307bec77e08bec16a6ce6af24f596637bddc98057bdb48b9",
     "consumer-controls.raw.log": "67f83072884131173c9cb0cb16e50bf0a5d38c2c838deadf842b0cc525ce1650",
     "guest-command-failure.stderr": "e6b8bc2574e4e7066ba19d926acff008ee5c876afac73426e64591493f20b69f",
     "guest-command-failure.stdout": "a44624f3bc0e4d7e025e82fe25b7bd480b9fa1b6ffa9b8285f4c7e1f1655277a",
