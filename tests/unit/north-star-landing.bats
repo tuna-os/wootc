@@ -48,7 +48,7 @@ WELCOME="payload/migration/wootc-welcome"
     [ -n "$refs" ]
     missing=""
     for f in $refs; do
-        grep -qE "^\s*inst /usr/lib/wootc/migration/${f}$" payload/deployer/module-setup.sh \
+        grep -qE "^\s*inst(_simple)? /usr/lib/wootc/migration/${f}$" payload/deployer/module-setup.sh \
             || missing="$missing $f"
     done
     if [ -n "$missing" ]; then

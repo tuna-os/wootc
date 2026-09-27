@@ -15,7 +15,7 @@ import (
 var assets embed.FS
 
 func main() {
-	if err := initializeStateTrust(); err != nil {
+	if err := initializeStateTrustForInvocation(os.Args); err != nil {
 		reportStateTrustFailure(err)
 		os.Exit(1)
 	}

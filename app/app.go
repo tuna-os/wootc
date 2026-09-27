@@ -691,10 +691,11 @@ type UninstallInfo struct {
 	// state.json) exists — the "user deleted the folder by hand" case, which
 	// previously had NO GUI path to clean up the boot entry.
 	Orphaned bool `json:"orphaned"`
-	// Deployed: the deployer has completed at least once (its staged journal
-	// exists, or the lifecycle state says deployed/healthy) — so this PC has
-	// a bootable TunaOS and the control panel can offer to restart into it.
-	Deployed bool `json:"deployed"`
+	// Deployed is true only when the installed boot record matches this
+	// installation, the staged loader and the current ESP and host volume.
+	Deployed     bool               `json:"deployed"`
+	BootPending  bool               `json:"bootPending"`
+	BootEvidence *LinuxBootEvidence `json:"bootEvidence,omitempty"`
 }
 
 // BootIntoLinux arms ONE more one-shot boot of the existing wootc entry and

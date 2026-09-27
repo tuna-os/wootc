@@ -1,0 +1,79 @@
+{
+  "sourceCommit": "026af9e7f77b0d0dea2074946382981be3d4c9ea",
+  "sourceFiles": [
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.ps1",
+      "rawSha256": "83436fa6150bba76997faad61661bc1a752ec23ea6a86cef0a5580289be9a227",
+      "stagedSha256": "5d7b0755d9900f1caa2a427047516acf348affb14269c491e2011adb523ebb1e",
+      "name": "wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-0.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.tests.ps1",
+      "rawSha256": "f7ea5c2745c433294f4d7351a457c6af60f0d5c210fe8ad27cb9941f9f6a0661",
+      "stagedSha256": "15a37ce1282efca5c27e15baa155a8c6ef09d6a33fd9347bd8c0bfa1b74c1ed6",
+      "name": "wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-1.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-readiness.ps1",
+      "rawSha256": "0d9277fed917331851c069bd96242b5debeb35d902a5fedbf167083cc44d4d84",
+      "stagedSha256": "18d4464058344c57a108bc96abc7551e76b6129ea1134bfaf2a78ce30b1b1824",
+      "name": "wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-2.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-readiness.tests.ps1",
+      "rawSha256": "7cfe867828f94cbdeb64b8c9604a67b052853677f08a5b1890bbb5fe1e601833",
+      "stagedSha256": "a9d08110c60b57fe214391e72d2d1dbb98664821b528d76eaf808688a187ecab",
+      "name": "wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-3.ps1"
+    },
+    {
+      "source": "tests/lint-ps1.ps1",
+      "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8",
+      "name": "wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-4.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.ps1",
+      "rawSha256": "c7c993df43318987a958c329bff78fd61272eae5656da3c0ae99abc9814d160a",
+      "stagedSha256": "2aeba2151bf645f85e61588327cad8a7120ba2ff38564f03c560a39fbff35c4f",
+      "name": "wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-5.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.tests.ps1",
+      "rawSha256": "9f2ec2c9c8aae8466f04175c95ddc35ca662c3e0b8f49081b4f559f93be2109f",
+      "stagedSha256": "c6863aa93e8040232ee6603c0e065356ebe1176b3f1c1301cdf6a58a2d7b9304",
+      "name": "wootc-fixture-readiness-audit-0ebbddc797c048a18b4f02a347f64378-6.ps1"
+    }
+  ],
+  "scope": "Native Windows PowerShell 5.1 parser/lint, mocked BitLocker lifecycle, private temporary file ACL and ASCII export, actual transcript counterexample. No real BitLocker volume/protector/partition/boot mutations. Read-only installed Microsoft module source/hash inspection only. No actual recovery password was read or retained.",
+  "nativeExitCode": 0,
+  "fixture": "winbase-399",
+  "nativeExecutable": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "checks": {
+    "activationPositivePaths": 6,
+    "activationRefusalControls": 30,
+    "readinessCombinations": 54,
+    "privacy": "Fixed helper suppresses synthetic warning/information/success output and native transcript; executed old output-only mutant exposes synthetic warning in native transcript.",
+    "remaining": "Actual TPM enrollment, ProtectionOn transition, BitLocker decrypt through installed Linux, and complete hosted E2E remain unproved until a fresh run."
+  },
+  "filesSHA256": {
+    "native.raw.log": "48a08e15628bffc5b78e729097eac1a726fb6e2d72336ebb56ac2cc6c686dab5",
+    "native.raw.stderr": "bb83673429e2df81531b77b62087acbe15a04e58aaaec5dfe4becbec39d5a83a",
+    "invocation.ps1": "b4bcfe08461fa6480255d515ee782264ce63a0cd29541543da16a9af432e1456",
+    "module-inspection.raw.log": "2d503d793d7bb38afd1b81e6eef167e403ac13abb4ad7f08116ebcda97d6cd40",
+    "module-inspection.ps1": "c5f84b00d3db97aa0787dedad596ac1fb67f724880ae4668ab546ef2f4ee1905",
+    "native.log": "a55f97e0dad57122de5a9724d86840fa1616552e33789446d88872b10a6db8ad"
+  },
+  "qgaHelperSHA256": "c838e6484b9c0d667659b5e974d286c9e8fae2de2e0250e00b0c4a08815ccf72",
+  "installedMicrosoftModule": {
+    "path": "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules\\BitLocker\\BitLocker.psm1",
+    "sha256": "FDBAB85ED698FE2FB6364BE3CCB7335099C11F04407259A979E263AA87B3D210",
+    "warningLine": 1322,
+    "resumeEnableKeyProtectorsLine": 866
+  },
+  "primaryReferences": [
+    "https://learn.microsoft.com/en-us/windows/win32/secprov/enablekeyprotectors-win32-encryptablevolume",
+    "https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/operations-guide"
+  ],
+  "failedRun": "36302354483 at frozen63a0d7c observed full encryption with protection Off; no protector/TPM metadata survives, so exact cause is unproved. OEM path does not call app Suspend-BitLocker. Future activation emits whitelisted before-state metadata.",
+  "rawStderr": "Contains only the public synthetic fixture emitted by the deliberately broken mutant; not an actual recovery secret."
+}

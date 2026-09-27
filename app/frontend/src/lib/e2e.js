@@ -1,3 +1,4 @@
+import { verifyInstalledBootUI } from './installed-boot-ui-proof.js';
 import { E2EDriveDirective, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
 
 // Wails' WebView cannot expose CDP, so GUI E2E drives the real form through
@@ -76,6 +77,7 @@ async function reportState(state) {
   const wantRef = window.__e2eWantImage || '';
   await E2EDriveReport(JSON.stringify({
     screen: state.screen,
+    installedBootVerification: window.__e2eInstalledBootVerification || null,
     installDriven: !!window.__e2eInstallDriven,
     installBtnDisabled: (document.getElementById('install-btn') || {}).disabled ?? null,
     hint: (document.getElementById('install-hint') || {}).textContent || '',
@@ -99,6 +101,9 @@ export function startE2EDrive(state) {
     try {
       if (raw) {
         const directive = JSON.parse(raw);
+        if (directive.action === 'verify-installed-boot') {
+          window.__e2eInstalledBootVerification = verifyInstalledBootUI(directive);
+        }
         if (directive.action === 'install') {
           window.__e2eWantImage = directive.image || '';
           driveInstall(directive, state);

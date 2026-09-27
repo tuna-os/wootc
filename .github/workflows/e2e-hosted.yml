@@ -46,6 +46,8 @@ on:
       # C:\OEM). The walkthrough timelapse from a GUI-driven run is the one
       # the README publishes.
       gui_install: { type: boolean, default: false }
+      # Ordinary-user editor acceptance, separate from the Windows installer GUI.
+      gui_documents: { type: boolean, default: false }
       # After a non-phase3 run returns to Windows: run the documented
       # uninstaller and hold it to its claims (boot entries gone, ESP clean,
       # root.disk preserved, Windows reboots cleanly). Adds a Windows reboot.
@@ -251,6 +253,7 @@ jobs:
           WOOTC_E2E_FILESYSTEM: ${{ inputs.filesystem }}
           # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
           # Drive mode gate for the app's E2E bindings (inert otherwise).
+          WOOTC_E2E_GUI_DOCUMENTS: ${{ inputs.gui_documents && '1' || '0' }}
           WOOTC_E2E_DRIVE: ${{ inputs.gui_install && '1' || '' }}
           # Passed as a $-var, not interpolated into the run: block, so a
           # value containing "/`/$() in this attacker-influenceable

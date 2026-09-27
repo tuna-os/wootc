@@ -162,9 +162,14 @@ exit 0
         writer.write_text('#!/usr/bin/env python3\nimport pathlib,sys\npathlib.Path(sys.argv[2]).write_text(sys.stdin.read())\n')
         for fake in fakebin.iterdir():
             fake.chmod(0o755)
+        collector = self.root / 'catalogue-collector.py'
+        collector.write_text('import json\nprint(json.dumps({"state":"healthy"}))\n')
+        publisher = self.root / 'catalogue-publisher.py'
+        publisher.write_text('import json,pathlib,sys\nrecord=json.loads(pathlib.Path(sys.argv[2]).read_text())\nassert record["phaseId"] == "firstboot-evidence"\n')
         import os,json
         env = {**os.environ, 'WOOTC_STEPS_FILE': str(self.root / 'payload/steps.sh'),
-               'WOOTC_FIRSTBOOT_HOST': str(host), 'PATH': str(fakebin) + ':' + os.environ['PATH']}
+               'WOOTC_FIRSTBOOT_HOST': str(host), 'WOOTC_FIRSTBOOT_COLLECTOR': str(collector),
+               'WOOTC_FIRSTBOOT_PUBLISHER': str(publisher), 'PATH': str(fakebin) + ':' + os.environ['PATH']}
         result = subprocess.run(['bash', str(ROOT / 'payload/migration/wootc-firstboot-evidence')],
                                 env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

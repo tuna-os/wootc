@@ -121,10 +121,20 @@ func headlessInstall(args []string) int {
 }
 
 func headlessStatus() int {
-	s, ok := readState()
+	s, ok, discoveryErr := readStatusState()
+	if discoveryErr != nil {
+		fmt.Fprintf(os.Stderr, "status: %v\n", discoveryErr)
+		return 1
+	}
 	if !ok {
 		fmt.Println(`{"state":"absent"}`)
 		return 0
+	}
+	if s.State == StateHealthy {
+		if err := verifyReportedLinuxHealth(); err != nil {
+			fmt.Fprintf(os.Stderr, "status: installed Linux boot is unverified: %v\n", err)
+			return 1
+		}
 	}
 	data, err := marshalJSON(s)
 	if err != nil {

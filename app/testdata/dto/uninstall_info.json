@@ -6,5 +6,6 @@
   "onDedicatedVol": false,
   "reclaimGB": 40,
   "orphaned": false,
-  "deployed": true
+  "deployed": true,
+  "bootPending": false
 }

@@ -46,6 +46,95 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot 'state-trust.ps1')
 
+
+# Match blkid's NTFS UUID: FSCTL returns the complete 64-bit serial, whereas
+# GetVolumeInformation and Win32_LogicalDisk expose only its low 32 bits.
+function Get-WootcNtfsHostUuid([string]$StorageRoot) {
+    if ($StorageRoot -notmatch '^[A-Za-z]:$') { throw "Invalid NTFS storage drive $StorageRoot" }
+    if (-not ('WootcNtfsIdentity' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+public static class WootcNtfsIdentity {
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NtfsVolumeData {
+        public ulong VolumeSerialNumber;
+        public long NumberSectors, TotalClusters, FreeClusters, TotalReserved;
+        public uint BytesPerSector, BytesPerCluster, BytesPerFileRecordSegment, ClustersPerFileRecordSegment;
+        public long MftValidDataLength, MftStartLcn, Mft2StartLcn, MftZoneStart, MftZoneEnd;
+    }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFile(string path, uint access, uint share,
+        IntPtr security, uint creation, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DeviceIoControl(SafeFileHandle handle, uint code,
+        IntPtr input, uint inputSize, out NtfsVolumeData output, uint outputSize,
+        out uint returned, IntPtr overlapped);
+    public static string ReadSerial(string drive) {
+        using (SafeFileHandle handle = CreateFile(@"\\.\" + drive, 0x80000000, 3,
+            IntPtr.Zero, 3, 0, IntPtr.Zero)) {
+            if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+            NtfsVolumeData data;
+            uint returned;
+            uint size = (uint)Marshal.SizeOf(typeof(NtfsVolumeData));
+            if (!DeviceIoControl(handle, 0x00090064, IntPtr.Zero, 0, out data, size,
+                out returned, IntPtr.Zero)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            if (returned < size || data.VolumeSerialNumber == 0)
+                throw new InvalidOperationException("Missing complete NTFS volume identity");
+            return data.VolumeSerialNumber.ToString("X16");
+        }
+    }
+}
+'@
+    }
+    return [WootcNtfsIdentity]::ReadSerial($StorageRoot)
+}
+
+function Write-WootcInstallationIdentity {
+    param([string]$InstallDirectory, [string]$StorageRoot,
+          [string]$EspPartitionGuid, [string]$LoaderPath, [string]$ImageRef)
+    Assert-WootcStateTree -Path $InstallDirectory
+    $espIdentity = [Guid]::Parse($EspPartitionGuid)
+    if ($espIdentity -eq [Guid]::Empty) { throw 'Missing staged ESP partition GUID' }
+    if ([string]::IsNullOrWhiteSpace($ImageRef)) { throw 'Missing installation image reference' }
+    if ($LoaderPath -notmatch '^\\EFI\\[^\r\n]+\.efi$') { throw 'Missing actual BCD EFI loader path' }
+    $hostUuid = (Get-WootcNtfsHostUuid -StorageRoot $StorageRoot | Out-String).Trim()
+    if ($hostUuid -notmatch '^[0-9A-Fa-f]{16}$' -or $hostUuid -eq '0000000000000000') {
+        throw 'Missing full NTFS volume serial'
+    }
+    $identity = @{
+        schemaVersion = 1
+        installationId = [Guid]::NewGuid().ToString('N')
+        armedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        imageRef = $ImageRef
+        espPartitionGuid = $espIdentity.ToString('D')
+        loaderPath = $LoaderPath
+        rootDiskPath = '/wootc/disks/root.disk'
+        hostUuid = $hostUuid.ToUpperInvariant()
+    }
+    $identityPath = Join-Path $InstallDirectory 'installation.json'
+    $temporaryName = [Guid]::NewGuid().ToString('N')
+    $temporaryPath = Join-Path $InstallDirectory "$temporaryName.installation.tmp"
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes(($identity | ConvertTo-Json -Depth 4))
+        $stream = [IO.File]::Open($temporaryPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
+        if ([IO.File]::Exists($identityPath)) {
+            [IO.File]::Replace($temporaryPath, $identityPath, [NullString]::Value)
+        } else {
+            [IO.File]::Move($temporaryPath, $identityPath)
+        }
+        # Keep the previous boot record for diagnosis. Its installationId will
+        # not match this new attempt. Only the completion gate is reset.
+        $completionPath = Join-Path $InstallDirectory 'installed-linux-boot.complete'
+        if (Test-Path -LiteralPath $completionPath) { Remove-Item -LiteralPath $completionPath -Force }
+    } finally {
+        if ([IO.File]::Exists($temporaryPath)) { [IO.File]::Delete($temporaryPath) }
+    }
+}
+
 # ── Single-instance guard ───────────────────────────────────────────────────
 # On a FRESH install two launchers race: Windows autologon fires the OEM
 # handoff at first logon AND the harness dispatches it over QGA. Both run
@@ -360,41 +449,13 @@ $vaultJson = @"
 Set-Content -Force -Path "$installDir\vault.json" -Value $vaultJson -Encoding ASCII
 $WootcKargs += " wootc.vault=/wootc/install/vault.json"
 
-# ── BitLocker recovery key (SPEC §3.5, #61) ──────────────────────────────────
-# When C: is BitLocker-protected, capture the numerical recovery password
-# so Phase 2 can unlock C: and the User Data Bridge can find the real user
-# profiles that live there (they are on C:, not on the unencrypted data
-# volume where root.disk sits). The deployer shreds this file alongside
-# vault.json; the bridge reads it to unlock C: with cryptsetup bitlkOpen.
+# This script prepares a dedicated E2E VM, including a recovery protector
+# when Device Encryption has encrypted C: without creating one. Fail before
+# arming BCD if the bridge cannot receive a private, validated recovery key.
 if ($blState -ne 'off') {
-    Write-Host "[wootc] C: is BitLocker-protected — capturing recovery key for the User Data Bridge (#61)"
-    try {
-        $kp = Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue |
-              Select-Object -ExpandProperty KeyProtector -ErrorAction SilentlyContinue |
-              Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } |
-              Select-Object -First 1
-        if ($kp -and $kp.RecoveryPassword) {
-            $rawKey = $kp.RecoveryPassword -replace '-', ''
-            if ($rawKey.Length -eq 48) {
-                Set-Content -Force -Path "$installDir\bitlocker-key.txt" -Value $kp.RecoveryPassword -Encoding ASCII
-                Write-Host "[wootc] BitLocker recovery key stored at $installDir\bitlocker-key.txt"
-            } else {
-                Write-Host "[wootc] WARNING: recovery password is $($rawKey.Length) chars (expected 48) — bridge will not unlock C:"
-            }
-        } else {
-            # Fallback: manage-bde -protectors -get C:
-            $mbRaw = & manage-bde -protectors -get C: 2>$null | Out-String
-            if ($mbRaw -match 'Password:\s*\r?\n\s*([0-9-]+)') {
-                $mbKey = $matches[1]
-                Set-Content -Force -Path "$installDir\bitlocker-key.txt" -Value $mbKey -Encoding ASCII
-                Write-Host "[wootc] BitLocker recovery key stored (via manage-bde fallback) at $installDir\bitlocker-key.txt"
-            } else {
-                Write-Host "[wootc] WARNING: could not extract BitLocker recovery key — bridge will not unlock C:"
-            }
-        }
-    } catch {
-        Write-Host "[wootc] WARNING: BitLocker recovery key capture failed: $_"
-    }
+    . (Join-Path $PSScriptRoot 'fixture-bitlocker-key.ps1')
+    Export-WootcFixtureBitLockerKey -Destination "$installDir\bitlocker-key.txt" -EnsureProtector
+    Write-Host '[wootc] BitLocker fixture recovery key prepared and protected'
 }
 
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────
@@ -670,12 +731,11 @@ if (Test-Path $exeCopy) {
     try { $exeHash = (Get-FileHash -Path $exeCopy -Algorithm SHA256).Hash.ToLower() } catch { }
 }
 
-$espGuid = ""
-try {
-    $espGuid = (Get-Partition -DiskNumber $sysDisk -ErrorAction SilentlyContinue |
-        Where-Object { $_.GptType -eq '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' } |
-        Select-Object -First 1).Guid
-} catch { }
+# Use the partition whose files were actually staged above, not a second
+# disk lookup that could identify another ESP.
+$espGuid = [string]$espPart.Guid
+Write-WootcInstallationIdentity -InstallDirectory $installDir -StorageRoot $storageRoot `
+    -EspPartitionGuid $espGuid -LoaderPath '\EFI\fedora\shimx64.efi' -ImageRef $ImageRef
 
 $armedObj = @{
     bcdGuid          = $newGuid

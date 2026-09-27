@@ -1,0 +1,27 @@
+SOURCE_SHA eaf2cd26af65345af4e643546ea08394b7c445b8
+BINARY_SHA256 5c7552cd9b0f082fc21eb431dc15ab16af048c98dfa3ab3f54d8ebbfe611d81a
+=== RUN   TestStatusDiscoverySelectsInstallationPastPayload
+--- PASS: TestStatusDiscoverySelectsInstallationPastPayload (0.03s)
+=== RUN   TestStatusDiscoveryRejectsCompetingInstallations
+--- PASS: TestStatusDiscoveryRejectsCompetingInstallations (0.01s)
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19
+=== RUN   TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537
+--- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts (0.05s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-1 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-2 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-4 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-76 (0.02s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-19 (0.00s)
+    --- PASS: TestStatusDiscoveryRefusesUnsafeAndMalformedAttempts/bytes-65537 (0.02s)
+=== RUN   TestStatusDiscoveryAbsentDoesNotCreateFiles
+--- PASS: TestStatusDiscoveryAbsentDoesNotCreateFiles (0.00s)
+=== RUN   TestStatusAuditRejectsUnsafeTreeWithoutRepair
+--- PASS: TestStatusAuditRejectsUnsafeTreeWithoutRepair (0.02s)
+=== RUN   TestStatusAuditRejectsReparseTree
+--- PASS: TestStatusAuditRejectsReparseTree (0.00s)
+PASS

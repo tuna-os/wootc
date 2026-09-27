@@ -650,12 +650,128 @@ public class UninstallInfo
     public bool Orphaned { get; set; }
 
     /// <summary>
-    /// Deployed: the deployer has completed at least once (its staged journal
-    /// exists, or the lifecycle state says deployed/healthy) — so this PC has
-    /// a bootable TunaOS and the control panel can offer to restart into it.
+    /// Deployed is true only when the installed boot record matches this
+    /// installation, the staged loader and the current ESP and host volume.
     /// </summary>
     [JsonPropertyName("deployed")]
     public bool Deployed { get; set; }
+
+    [JsonPropertyName("bootPending")]
+    public bool BootPending { get; set; }
+
+    [JsonPropertyName("bootEvidence")]
+    public LinuxBootEvidence? BootEvidence { get; set; }
+}
+
+/// <summary>
+/// LinuxBootEvidence records observed Linux boot identity, not deployer progress.
+/// </summary>
+public class LinuxBootEvidence
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("installationId")]
+    public string InstallationId { get; set; } = string.Empty;
+
+    [JsonPropertyName("state")]
+    public string State { get; set; } = string.Empty;
+
+    [JsonPropertyName("kernel")]
+    public string Kernel { get; set; } = string.Empty;
+
+    [JsonPropertyName("image")]
+    public string Image { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageDigest")]
+    public string ImageDigest { get; set; } = string.Empty;
+
+    [JsonPropertyName("sourceImageRef")]
+    public string SourceImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("bootCurrent")]
+    public LinuxBootCurrent BootCurrent { get; set; }
+
+    [JsonPropertyName("rootDisk")]
+    public LinuxRootDisk RootDisk { get; set; }
+
+    [JsonPropertyName("bridge")]
+    public LinuxBridgeEvidence Bridge { get; set; }
+
+    [JsonPropertyName("secureBoot")]
+    public bool SecureBoot { get; set; }
+
+    [JsonPropertyName("failedUnits")]
+    public List<string> FailedUnits { get; set; } = new();
+
+    [JsonPropertyName("writtenAt")]
+    public string WrittenAt { get; set; } = string.Empty;
+
+    [JsonPropertyName("updatedBy")]
+    public string UpdatedBy { get; set; } = string.Empty;
+}
+
+public class LinuxBootCurrent
+{
+    [JsonPropertyName("bootNumber")]
+    public string BootNumber { get; set; } = string.Empty;
+
+    [JsonPropertyName("espPartitionGuid")]
+    public string EspPartitionGuid { get; set; } = string.Empty;
+
+    [JsonPropertyName("loaderPath")]
+    public string LoaderPath { get; set; } = string.Empty;
+}
+
+public class LinuxRootDisk
+{
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    [JsonPropertyName("hostUuid")]
+    public string HostUuid { get; set; } = string.Empty;
+}
+
+public class LinuxBridgeEvidence
+{
+    [JsonPropertyName("boundFolders")]
+    public int BoundFolders { get; set; }
+
+    [JsonPropertyName("matchedUsers")]
+    public int MatchedUsers { get; set; }
+
+    [JsonPropertyName("bitlockerUnlocked")]
+    public bool BitlockerUnlocked { get; set; }
+
+    [JsonPropertyName("bindings")]
+    public List<LinuxBridgeBinding> Bindings { get; set; } = new();
+
+    [JsonPropertyName("matchedProfiles")]
+    public List<LinuxMatchedProfile> MatchedProfiles { get; set; } = new();
+}
+
+public class LinuxBridgeBinding
+{
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    [JsonPropertyName("target")]
+    public string Target { get; set; } = string.Empty;
+
+    [JsonPropertyName("user")]
+    public string User { get; set; } = string.Empty;
+}
+
+public class LinuxMatchedProfile
+{
+    [JsonPropertyName("windowsProfile")]
+    public string WindowsProfile { get; set; } = string.Empty;
+
+    [JsonPropertyName("linuxUser")]
+    public string LinuxUser { get; set; } = string.Empty;
+
+    [JsonPropertyName("profileRoot")]
+    public string ProfileRoot { get; set; } = string.Empty;
 }
 
 /// <summary>

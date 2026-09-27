@@ -82,21 +82,41 @@ find_bitlocker_profiles() {
     fi
     log "found BitLocker-encrypted volume: ${bl_vol}"
 
-    # The numerical recovery password is 48 digits grouped as 8 blocks of 6.
-    # Read it from the key file, stripping whitespace and hyphens.
-    local recovery_key
-    recovery_key=$(tr -d '[:space:]-' < "$key_file" 2>/dev/null || true)
-    if [[ -z "$recovery_key" || "${#recovery_key}" -lt 48 ]]; then
-        warn "BitLocker recovery key file is empty or too short (${#recovery_key} chars, need at least 48)"
+    # cryptsetup recognizes recovery protectors only in Windows's canonical
+    # 55-character form. Removing the seven hyphens turns it into an unrelated
+    # 48-character passphrase which can never unlock that recovery protector.
+    local recovery_key group value
+    local -a key_lines=() key_groups=()
+    mapfile -t key_lines < "$key_file"
+    if [[ ${#key_lines[@]} != 1 ]]; then
+        warn "BitLocker recovery password format invalid (expected one line); refusing unlock"
         return 0
     fi
+    recovery_key="${key_lines[0]%$'\r'}"
+    if [[ ! "$recovery_key" =~ ^[0-9]{6}(-[0-9]{6}){7}$ ]]; then
+        warn "BitLocker recovery password format invalid (expected eight hyphen-separated groups); refusing unlock"
+        return 0
+    fi
+    IFS=- read -r -a key_groups <<< "$recovery_key"
+    for group in "${key_groups[@]}"; do
+        value=$((10#$group))
+        if (( value % 11 != 0 || value / 11 > 65535 )); then
+            warn "BitLocker recovery password format invalid (group checksum or range); refusing unlock"
+            return 0
+        fi
+    done
 
     # Unlock and mount the BitLocker volume.
     local mapper="wootc-bitlk-$$"
     local mnt="/run/wootc/bitlk-tmp"
     mkdir -p "$mnt"
-    if ! printf '%s' "$recovery_key" | cryptsetup bitlkOpen "$bl_vol" "$mapper" --key-file=- 2>/dev/null; then
-        warn "cryptsetup bitlkOpen failed for ${bl_vol} — recovery key may be stale or volume is not BitLocker"
+    local unlock_rc=0
+    printf '%s' "$recovery_key" | cryptsetup bitlkOpen "$bl_vol" "$mapper" --key-file=- 2>/dev/null || unlock_rc=$?
+    unset recovery_key key_lines key_groups
+    if (( unlock_rc != 0 )); then
+        # Exit status is public; the recovery password and tool input are not.
+        # Do not label a validated key stale without decryptor evidence.
+        warn "cryptsetup bitlkOpen failed for ${bl_vol} (exit $unlock_rc; password format validated)"
         rmdir "$mnt" 2>/dev/null || true
         return 0
     fi
@@ -136,6 +156,7 @@ sel_on() {
 }
 
 bound=0
+copied=0
 matched=0
 
 # Known-folder redirection (#64). Windows 11's OOBE pushes "OneDrive Backup",
@@ -158,8 +179,16 @@ done
 # /run/wootc/host IS that volume, whatever letter Windows called it.
 win_to_host() {
     local p="${1//\\//}"
-    p="${p#[A-Za-z]:}"
-    printf '%s%s' "$HOST" "$p"
+    local drive=""
+    if [[ "$p" =~ ^([A-Za-z]): ]]; then
+        drive="${BASH_REMATCH[1]}"
+        p="${p:2}"
+    fi
+    if [[ "${drive^^}" == C && -n "$BITLOCKER_PROFILES" ]]; then
+        printf '%s%s' "$BITLOCKER_PROFILES" "$p"
+    else
+        printf '%s%s' "$HOST" "$p"
+    fi
 }
 
 # resolved_folder <windows-user> <Folder> — host path to bind, or empty.
@@ -247,6 +276,25 @@ bind_profile() {
             warn "refusing symlink folder destination: $dst"
             continue
         fi
+
+        # BitLocker C: is intentionally mounted read-only. Copy Documents into
+        # the user's persistent Linux home once so it can be edited without
+        # ever writing through to the encrypted Windows source. Other known
+        # folders keep their existing read-only passthrough behavior.
+        if [[ "$folder" == Documents && -n "$BITLOCKER_PROFILES" && "$src" == "$BITLOCKER_PROFILES"/* ]]; then
+            copy_helper=""
+            if [[ -x /var/usrlocal/bin/wootc-copy-windows-documents ]]; then
+                copy_helper=/var/usrlocal/bin/wootc-copy-windows-documents
+            else
+                copy_helper=$(command -v wootc-copy-windows-documents 2>/dev/null || true)
+            fi
+            if [[ -n "$copy_helper" ]] && "$copy_helper" "$src" "$home" "$luser" "$winprofile"; then
+                copied=$((copied + 1))
+                continue
+            fi
+            warn "Documents copy was not completed for $luser; keeping the original read-only"
+        fi
+
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"
@@ -394,7 +442,7 @@ fi
 shopt -u nullglob
 # Always leave a verdict in the journal: "Finished" alone cannot distinguish
 # a bridged home from a run where every profile was silently skipped.
-log "summary: $bound folder binds across $matched matching user(s)"
+log "summary: $bound folder binds and $copied persistent copies across $matched matching user(s)"
 
 # Steam category (best-effort — never fail the mount service over it).
 if command -v wootc-steam-bridge >/dev/null && sel_on "${SUDO_USER:-root}" games; then
