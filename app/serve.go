@@ -188,10 +188,11 @@ func unmarshalStringParam(raw json.RawMessage, target *string) error {
 // ── JSON-RPC 2.0 Server ─────────────────────────────────────────────────────
 
 type Server struct {
-	app      *App
-	writer   *synchronizedWriter
-	mu       sync.Mutex
-	shutdown bool
+	assessmentOnly bool
+	app            *App
+	writer         *synchronizedWriter
+	mu             sync.Mutex
+	shutdown       bool
 }
 
 func NewServer(app *App, writer *synchronizedWriter) *Server {
@@ -201,7 +202,24 @@ func NewServer(app *App, writer *synchronizedWriter) *Server {
 	}
 }
 
+// NewAssessmentServer permits only the observed startup contract. The trusted
+// transport chooses this capability; no request or client field can upgrade it.
+// Native preview integration must choose this constructor; legacy Serve keeps
+// its separately authorized NewServer capability.
+func NewAssessmentServer(app *App, writer *synchronizedWriter) *Server {
+	server := NewServer(app, writer)
+	server.assessmentOnly = true
+	return server
+}
+
 func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrpcError) {
+	if s.assessmentOnly {
+		switch req.Method {
+		case "GetStatus", "GetLastRun", "GetRecoveryVerdict":
+		default:
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
+		}
+	}
 	switch req.Method {
 	case "GetSupportPolicy":
 		return s.app.GetSupportPolicy(), nil

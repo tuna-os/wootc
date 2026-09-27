@@ -1,0 +1,6 @@
+=== RUN   TestAssessmentRPCObservedCancellationAndShutdown
+    serve_assessment_test.go:45: mutating request not refused before action: <nil>; observed cancellations=1
+--- FAIL: TestAssessmentRPCObservedCancellationAndShutdown (0.00s)
+FAIL
+FAIL	wootc	0.008s
+FAIL

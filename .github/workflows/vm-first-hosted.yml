@@ -1,0 +1,52 @@
+name: VM-first host prerequisites (no VM)
+
+on:
+  workflow_dispatch:
+    inputs:
+      outer_cpu:
+        description: 'Proposed exact outer QEMU CPU argument (host,+vmx or host,+svm)'
+        required: true
+        default: 'host,+vmx'
+        type: string
+  pull_request:
+    paths:
+      - 'tests/e2e/vm-first/**'
+      - 'tests/unit/test_vm_first_host.py'
+      - '.github/workflows/vm-first-hosted.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Actual qualification consumer controls
+        run: python3 tests/unit/test_vm_first_host.py
+  qualify:
+    if: github.event_name == 'workflow_dispatch'
+    needs: controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Read-only host qualification
+        env:
+          OUTER_CPU: ${{ inputs.outer_cpu }}
+          RECEIPT_DIR: ${{ runner.temp }}/vm-first-qualification
+        run: |
+          mkdir -m 700 "$RECEIPT_DIR"
+          timeout 30s python3 tests/e2e/vm-first/qualify-host.py \
+            --storage-path "$RUNNER_TEMP" --outer-cpu "$OUTER_CPU" \
+            --run-id "$GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT" \
+            --receipt "$RECEIPT_DIR/host-prerequisites.json"
+      - name: Retain qualification receipt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vm-first-host-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vm-first-qualification/host-prerequisites.json
+          if-no-files-found: error
+          retention-days: 30
