@@ -45,6 +45,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/steps.sh"
 # shellcheck source=tests/e2e/phase-ledger.sh
 source "$SCRIPT_DIR/phase-ledger.sh"
+# shellcheck source=tests/e2e/lib/diagnostics.sh
+source "$SCRIPT_DIR/lib/diagnostics.sh"
 # IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
 # blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
 # the image (this silently produced wootc.image=--skip-install once the deployer
@@ -489,17 +491,17 @@ capture_vm_diagnostics() {
         # failure name itself in the CI console (el10-gnome-win10pro 20260724:
         # setup threw after root.disk, but the reason sat only in the artifact).
         info "QGA C:\\OEM\\wootc-e2e.log:"
-        qga_read 'C:\OEM\wootc-e2e.log' > "$ARTIFACT_DIR/oem-wootc-e2e.log" 2>&1 || true
+        qga_safe_log 'C:\OEM\wootc-e2e.log' > "$ARTIFACT_DIR/oem-wootc-e2e.log" 2>&1 || true
         tail -n 40 "$ARTIFACT_DIR/oem-wootc-e2e.log" 2>/dev/null | sed 's/^/  | /' || true
         info "QGA C:\\OEM\\e2e-setup-failed.txt:"
-        qga_read 'C:\OEM\e2e-setup-failed.txt' > "$ARTIFACT_DIR/oem-setup-failed.txt" 2>&1 || true
+        qga_safe_log 'C:\OEM\e2e-setup-failed.txt' > "$ARTIFACT_DIR/oem-setup-failed.txt" 2>&1 || true
         sed 's/^/  ! /' "$ARTIFACT_DIR/oem-setup-failed.txt" 2>/dev/null || true
-        # Cached value only — never probe from the diagnostics path. This runs
-        # on the failure path, often with QGA already dead, and a probe there
-        # would burn qga_call_retry's full retry budget (3 x 60s) twice before
-        # falling back to the same C: it starts with.
-        qga_read "${WOOTC_GUEST_ROOT:-C:}\wootc\logs\deployer.log" > "$ARTIFACT_DIR/deployer.log" 2>&1 || true
-        qga_read "${WOOTC_GUEST_ROOT:-C:}\wootc\logs\live-journal.log" > "$ARTIFACT_DIR/deployer-live-journal.log" 2>&1 || true
+        # Discover the current drive in this caller, including a post-deployer
+        # failure before the normal Phase-2 path has populated its cache.
+        if collect_windows_diagnostic_metadata; then
+            qga_safe_log "$WOOTC_GUEST_ROOT\wootc\logs\deployer.log" > "$ARTIFACT_DIR/deployer.log" || true
+            qga_safe_log "$WOOTC_GUEST_ROOT\wootc\logs\live-journal.log" > "$ARTIFACT_DIR/deployer-live-journal.log" || true
+        fi
     fi
     $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/screenshot.py" 2>/dev/null || true
     $DOCKER exec "$CONTAINER_NAME" python3 /tmp/screenshot.py 2>/dev/null || true
@@ -3405,7 +3407,7 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
         BARRIER_REACHED=true
         break
     fi
-    OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
+    OEM_FAILURE=$(qga_safe_log 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
     if [ -n "$OEM_FAILURE" ]; then
         if [ -n "$FAULT_INJECT" ]; then
             info "Observed expected fault injection failure during Phase 1 ($FAULT_INJECT)"
@@ -3528,7 +3530,7 @@ fi
 
 while ! past_deadline "$DEPLOY_DEADLINE"; do
     snapshot_serial || true
-    OEM_FAILURE=$(qga_read 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
+    OEM_FAILURE=$(qga_safe_log 'C:\OEM\e2e-setup-failed.txt' 2>/dev/null || true)
     if [ -n "$OEM_FAILURE" ]; then
         fail "Windows OEM setup failed (read through QGA):"
         echo "$OEM_FAILURE" >&2
@@ -3545,7 +3547,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
     # a deployer hung after "ostree deployment:", the box rebooted into Windows,
     # and the harness spent another 76 minutes "Deploying..." before timing out.
     if [ "$DEPLOYER_STARTED" = true ] && qga_windows_probe; then
-        DEPLOYER_LOG=$(qga_read "$(guest_wootc_root)\wootc\logs\deployer.log" 2>/dev/null || true)
+        DEPLOYER_LOG=$(qga_safe_log "$(guest_wootc_root)\wootc\logs\deployer.log" 2>/dev/null || true)
         if echo "$DEPLOYER_LOG" | grep -q 'VERIFICATION_SUMMARY'; then
             echo "$DEPLOYER_LOG" | grep 'VERIFICATION_SUMMARY' | tail -1 \
                 | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
@@ -3851,7 +3853,7 @@ done
 # with no fail line, right after the deploy passed. The GUI-driven path
 # has no C:\OEM\wootc-e2e.log at all (it never runs setup-wootc.ps1), so
 # it died here on every take that got this far (7b, 8).
-OEM_LOG=$(qga_read 'C:\OEM\wootc-e2e.log' 2>/dev/null | tr -d '\r' || true)
+OEM_LOG=$(qga_safe_log 'C:\OEM\wootc-e2e.log' 2>/dev/null | tr -d '\r' || true)
 BL_SEEN=$(printf '%s' "$OEM_LOG" | { grep -aoE 'C: BitLocker state: [a-z]+' || true; } | tail -1 | awk '{print $NF}')
 BL_ROOT=$(printf '%s' "$OEM_LOG" | { grep -aoE 'WOOTC_STORAGE_ROOT=[A-Za-z]:' || true; } | tail -1 | cut -d= -f2)
 info "BitLocker axis=${WOOTC_E2E_BITLOCKER:-off} observed C: state=${BL_SEEN:-unknown} storage=${BL_ROOT:-unknown}"
