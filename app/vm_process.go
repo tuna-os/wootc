@@ -32,6 +32,8 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 		return nil, err
 	}
 	session := &vmSession{sessionID: sessionID, operationGate: make(chan struct{}, 1), displayDirectives: map[string]bool{}, state: state, statePath: statePath, cmd: cmd, release: release, done: make(chan struct{})}
+	// No guest semantic channel exists: never inherit a desktop claim from disk.
+	session.state.DesktopReady = false
 	session.state.Phase = vmStarting
 	session.state.PID = 0
 	session.state.Error = ""

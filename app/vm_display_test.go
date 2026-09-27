@@ -416,3 +416,18 @@ func TestVMDisplayActualRetainedByteBudget(t *testing.T) {
 		t.Fatal("prior evidence deleted or changed")
 	}
 }
+
+func TestVMDisplayNeverInheritsDesktopClaim(t *testing.T) {
+	root := t.TempDir()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestVMDisplayChild$")
+	cmd.Env = append(os.Environ(), "WOOTC_DISPLAY_CHILD=normal")
+	state := VMState{RunID: "run", InstallID: "install", DiskID: "gpt", DiskPath: filepath.Join(root, "root.disk"), Phase: vmReady, DesktopReady: true}
+	s, err := startManagedVM(cmd, filepath.Join(root, "state.json"), state, func() {}, func(*exec.Cmd) (io.Closer, error) { return noopVMJob{}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.force()
+	if s.snapshot().DesktopReady {
+		t.Fatal("incoming state became live desktop proof without guest semantics")
+	}
+}
