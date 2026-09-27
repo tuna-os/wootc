@@ -620,6 +620,9 @@ public class UninstallInfo
     [JsonPropertyName("diskSizeGB")]
     public double DiskSizeGB { get; set; }
 
+    [JsonPropertyName("partitionRemovalReason")]
+    public string? PartitionRemovalReason { get; set; }
+
     /// <summary>
     /// wootc-created data partition
     /// </summary>

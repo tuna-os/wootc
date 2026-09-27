@@ -1,0 +1,32 @@
+$ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
+if ($env:OS -ne 'Windows_NT') { throw 'Expected Windows fixture' }
+$temporaryName=[Guid]::NewGuid().ToString('N')
+$temporaryDir=Join-Path $env:TEMP "wootc-partition-safe-$temporaryName"
+if (Test-Path -LiteralPath $temporaryDir) { throw 'Refusing existing directory' }
+[IO.Directory]::CreateDirectory($temporaryDir) | Out-Null
+& icacls $temporaryDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Failed private temporary ACL' }
+try {
+ $binaryPath=Join-Path $temporaryDir 'esp-cleanup.test.exe'
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-d67801e7fafb4ff9acde56be6da4bb42.test.exe' -OutFile $binaryPath
+ if ((Get-FileHash -LiteralPath $binaryPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '70c3cd8b093902642430dcb4c79554c413ddce2cbf6bcecfb4f25be1d39709f4') { throw 'Binary checksum mismatch' }
+ $archivePath=Join-Path $temporaryDir 'sources.zip'
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-partition-safe-d67801e7fafb4ff9acde56be6da4bb42.zip' -OutFile $archivePath
+ if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '812dcc1b215cfd1cabd55bcdd9566d21cdca2d6ca1d21f63ee06de31c4d7db88') { throw 'Archive checksum mismatch' }
+ Expand-Archive -LiteralPath $archivePath -DestinationPath $temporaryDir
+ Write-Output 'BINARY_SHA256 70c3cd8b093902642430dcb4c79554c413ddce2cbf6bcecfb4f25be1d39709f4'
+ $manifestPath=Join-Path $temporaryDir 'source-manifest.json'
+ $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+ foreach ($entry in $manifest) {
+  $sourcePath=Join-Path $temporaryDir $entry.path
+  if ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) { throw 'Source checksum mismatch' }
+  Write-Output "SOURCE $($entry.path) SHA256 $($entry.sha256)"
+ }
+ $priorTemp=$env:TEMP
+ $priorTmp=$env:TMP
+ $env:TEMP=$temporaryDir
+ $env:TMP=$temporaryDir
+ & $binaryPath '-test.v' '-test.run' '^TestPartitionReceipt'
+ if ($LASTEXITCODE -ne 0) { throw "Native Go tests exited $LASTEXITCODE" }
+} finally { if ($priorTemp) { $env:TEMP=$priorTemp }; if ($priorTmp) { $env:TMP=$priorTmp }; Remove-Item -LiteralPath $temporaryDir -Recurse -Force }
