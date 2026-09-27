@@ -83,7 +83,7 @@ setup() {
     # Preflight used to count the run's own stale data.qcow2 against the
     # budget — one failed case then poisoned every later case on that slot
     # (run 20260723T1054: the whole queue burned in 2s intervals).
-    grep -B4 'host_preflight || exit 1' "$E2E" | grep -q 'rm -f "\$STORAGE_DIR/data.qcow2" "\$STORAGE_DIR/custom.iso"'
+    grep -B4 'host_preflight .* || exit 1' "$E2E" | grep -q 'rm -f "\$STORAGE_DIR/data.qcow2" "\$STORAGE_DIR/custom.iso"'
     # And the fresh-path clean uses the instance dir, not a literal storage/.
     run grep -nE '^[^#]*rm -rf storage/data.qcow2' "$E2E"
     [ "$status" -ne 0 ]
@@ -117,7 +117,7 @@ setup() {
     # failed guest is force-downed unless WOOTC_E2E_KEEP_ALIVE=1.
     grep -q 'WOOTC_E2E_KEEP_ALIVE' "$E2E"
     grep -q 'result" -ne 0 \] && \[ "${WOOTC_E2E_KEEP_ALIVE:-0}" != "1" \]' "$E2E"
-    grep -q "pkill -9 -f 'process=windows'" "$E2E"
+    grep -q "pkill -9 -f 'process=windows'" "$REPO_ROOT/tests/e2e/lib/host-runtime.sh"
 }
 
 @test "setup-wootc.ps1 is single-instance (mutex) — no fresh-install OEM race" {

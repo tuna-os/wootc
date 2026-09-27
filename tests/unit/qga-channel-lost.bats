@@ -16,6 +16,7 @@
 
 E2E=tests/e2e/run-e2e.sh
 QGA=tests/e2e/qga.py
+TRANSPORT=tests/e2e/lib/qga-transport.sh
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -24,8 +25,7 @@ setup() {
     source "$REPO_ROOT/tests/e2e/lib/results.sh"
     source "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
     eval "$(sed -n '/^note_flake()/,/^}/p' "$ABS_E2E")"
-    eval "$(sed -n '/^WOOTC_QGA_RECONNECT_ATTEMPTS=/,/^}/p' "$ABS_E2E")"
-    eval "$(sed -n '/^qga_channel_lost()/,/^}/p' "$ABS_E2E")"
+    source "$REPO_ROOT/$TRANSPORT"
 
     STORAGE_DIR="$BATS_TEST_TMPDIR/storage"; mkdir -p "$STORAGE_DIR"
     WOOTC_FAILURE_LEDGER="$BATS_TEST_TMPDIR/ledger"; : > "$WOOTC_FAILURE_LEDGER"
@@ -49,11 +49,11 @@ esac
 exit 0
 STUB
     chmod +x "$DOCKER"
+    wootc_qga_configure "$DOCKER" "$CONTAINER_NAME" /tmp/qga.py
     export DOCKER CONTAINER_NAME
 }
 
 @test "the reconnect cycle reports a channel that came back" {
-    eval "$(sed -n '/^qga_reconnect_cycle()/,/^}/p' "$ABS_E2E")"
     STUB_RECONNECT_RC=0 STUB_RECONNECT_OUT="attempt 1/3: channel answered guest-ping"
     export STUB_RECONNECT_RC STUB_RECONNECT_OUT
     run qga_reconnect_cycle
@@ -70,7 +70,6 @@ STUB
 }
 
 @test "the reconnect cycle claims nothing when the channel stays deaf" {
-    eval "$(sed -n '/^qga_reconnect_cycle()/,/^}/p' "$ABS_E2E")"
     STUB_RECONNECT_RC=42
     STUB_RECONNECT_OUT="attempt 3/3: timed out"
     export STUB_RECONNECT_RC STUB_RECONNECT_OUT
@@ -93,7 +92,8 @@ STUB
         sed -n "/^RED='/,/^NC='/p" "$ABS_E2E"
         printf 'source %q\n' "$REPO_ROOT/tests/e2e/lib/results.sh"
         printf 'source %q\n' "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
-        sed -n '/^WOOTC_QGA_RECONNECT_ATTEMPTS=/,/^}/p' "$ABS_E2E"
+        printf 'source %q\n' "$REPO_ROOT/$TRANSPORT"
+        echo 'wootc_qga_configure "$DOCKER" "$CONTAINER_NAME" /tmp/qga.py'
         # Bare, NOT `|| true`: set -e is suspended inside a tested call, which
         # is exactly the leniency this test exists to deny itself.
         echo 'qga_reconnect_cycle'
@@ -151,19 +151,19 @@ STUB
     # The QGA socket takes ONE client at a time, so a client killed by the
     # `timeout` wrapper can still own it with its reply queued behind — the
     # poisoning caveat from agent-lessons §20. Reaping is part of the reopen.
-    run bash -c "sed -n '/^qga_reconnect_cycle()/,/^}/p' $E2E"
+    run bash -c "source $TRANSPORT; declare -f qga_reconnect_cycle"
     [ "$status" -eq 0 ]
     [[ "$output" == *"pkill"* ]]
-    [[ "$output" == *"qga.py reconnect"* ]]
+    [[ "$output" == *WOOTC_QGA_CLIENT*reconnect* ]]
     # Bounded: an attempt budget and a settle delay, both overridable.
     [[ "$output" == *'--attempts'* ]]
     [[ "$output" == *'--settle'* ]]
-    grep -q 'WOOTC_QGA_RECONNECT_ATTEMPTS' "$E2E"
-    grep -q 'WOOTC_QGA_RECONNECT_SETTLE_S' "$E2E"
+    grep -q 'WOOTC_QGA_RECONNECT_ATTEMPTS' "$TRANSPORT"
+    grep -q 'WOOTC_QGA_RECONNECT_SETTLE_S' "$TRANSPORT"
 }
 
 @test "the verdict names the class and claims nothing about the product" {
-    run bash -c "sed -n '/^qga_channel_lost()/,/^}/p' $E2E"
+    run bash -c "source $TRANSPORT; declare -f qga_channel_lost"
     [ "$status" -eq 0 ]
     # The ledger line NAMES the class, so re-dispatch needs no human to read
     # the log — fail() is what appends to WOOTC_FAILURE_LEDGER.
