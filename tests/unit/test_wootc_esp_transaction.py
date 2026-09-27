@@ -67,6 +67,17 @@ class TransactionTests(unittest.TestCase):
             tx.write_artifact(source,'EFI/fedora/foreign.cfg',self.receipt)
         self.assertFalse((self.state/'pending.json').exists())
 
+    def test_classic_package_stamp_cannot_describe_another_signed_bundle(self):
+        facts={'schemaVersion':1,'sourceKind':'classic','components':{name:t.digest(self.source/name) for name in FILES}}
+        stamp=hashlib.sha256(json.dumps(facts,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        facts.update(version='classic-sha256:'+stamp,timestamp='2026-09-27T00:00:00Z')
+        (self.source.parent.parent/'EFI.json').write_text(json.dumps(facts))
+        (self.source/'grubx64.efi').write_bytes(b'another hypothetically signed GRUB')
+        with self.transaction() as tx,self.assertRaisesRegex(ValueError,'classic source stamp'):
+            tx.refresh(self.source,self.receipt,None,None,fixture_verify)
+        self.assert_old();self.assertFalse((self.state/'pending.json').exists())
+        self.assertFalse((self.esp/'EFI/wootc/archive').exists())
+
     def test_complete_same_source_trio_and_hash_bound_receipt(self):
         with self.transaction() as tx:
             self.assertTrue(tx.refresh(self.source,self.receipt,None,None,fixture_verify))

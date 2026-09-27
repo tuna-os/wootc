@@ -161,8 +161,15 @@ def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
             'private host is not one NTFS mount')
     observed_host = run('blkid', '-s', 'UUID', '-o', 'value', private[0]['source']).strip().upper()
     require(observed_host == host_uuid, 'mounted NTFS UUID differs from cmdline')
-    roots = [row for row in mounts if row['target'] == '/sysroot']
-    require(len(roots) == 1, 'missing installed sysroot mount')
+    try:
+        status = json.loads(run('bootc', 'status', '--json'))
+    except FileNotFoundError:
+        status = None
+    except (subprocess.SubprocessError, json.JSONDecodeError) as error:
+        raise ValueError('cannot measure installed bootc deployment') from error
+    root_target = '/sysroot' if status is not None else '/'
+    roots = [row for row in mounts if row['target'] == root_target]
+    require(len(roots) == 1, 'missing installed root mount')
     backings = loop_backings(sysroot / 'dev/block' / roots[0]['device'])
     require(backings == [str(host) + disk_path], 'installed root is not this root.disk')
     require((host / disk_path.lstrip('/')).is_file(), 'actual root.disk absent')
@@ -180,16 +187,20 @@ def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
     require(match and match[1] not in ('.', '..'), 'current EFI boot is not a vendor shim')
     boot_id = read(proc / 'sys/kernel/random/boot_id').decode().strip()
     require(str(uuid.UUID(boot_id)) == boot_id, 'invalid actual kernel boot ID')
-    try:
-        status = json.loads(run('bootc', 'status', '--json'))
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
-        raise ValueError('no measured bootc deployment; classic refresh is unsupported') from error
+    observed = {'bootId': boot_id, 'bootCurrent': boot, 'secureBoot': secure,
+                'hostEspUuid': observed_esp_uuid, 'loaderVendor': match[1],
+                'rootKind': 'loop', 'rootDiskPath': disk_path, 'hostUuid': observed_host}
+    if status is None:
+        root_uuid = run('blkid', '-s', 'UUID', '-o', 'value', roots[0]['source']).strip()
+        require(root_uuid and roots[0]['type'] not in ('overlay', 'tmpfs'),
+                'missing classic root filesystem identity')
+        observed.update(deploymentKind='classic', rootDevice=roots[0]['device'],
+                        rootFsUuid=root_uuid, rootFsType=roots[0]['type'])
+        return observed
     booted = status['status']['booted']
     image = booted['image']['image']['image']
     image_digest = booted['image']['imageDigest']
     require(isinstance(image, str) and image and
             re.fullmatch('sha256:[0-9a-f]{64}', image_digest), 'missing actual booted deployment identity')
-    return {'bootId': boot_id, 'bootCurrent': boot, 'secureBoot': secure,
-            'hostEspUuid': observed_esp_uuid, 'loaderVendor': match[1],
-            'rootKind': 'loop', 'rootDiskPath': disk_path, 'hostUuid': observed_host,
-            'imageRef': image, 'imageDigest': image_digest}
+    observed.update(deploymentKind='bootc', imageRef=image, imageDigest=image_digest)
+    return observed

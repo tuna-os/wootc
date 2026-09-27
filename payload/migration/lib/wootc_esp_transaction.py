@@ -269,20 +269,26 @@ class Transaction:
             for name in FILES:
                 write_bytes(current / name, targets[name].read_bytes(), exclusive=True)
                 write_bytes(candidate / name, (source / name).read_bytes(), exclusive=True)
-            # Freeze the bootupd provenance and all three components together.
+            # Freeze the source provenance and all three components together.
             metadata = source.parent.parent / 'EFI.json'
             if not metadata.is_file():
-                raise ValueError('candidate bundle has no bootupd EFI.json')
+                raise ValueError('candidate bundle has no source EFI.json')
             metadata_data = metadata.read_bytes()
             if len(metadata_data) > 65536:
-                raise ValueError('oversized bootupd EFI.json')
+                raise ValueError('oversized source EFI.json')
             metadata_json = json.loads(metadata_data)
             if not metadata_json.get('version') or not metadata_json.get('timestamp'):
-                raise ValueError('incomplete bootupd EFI.json')
+                raise ValueError('incomplete source EFI.json')
             write_bytes(stage / 'EFI.json', metadata_data, exclusive=True)
             sync_directory(current); sync_directory(candidate); sync_directory(stage)
             proof = verify(current, candidate, efivars, closure)
             new_hashes = {name: digest(candidate / name) for name in FILES}
+            if metadata_json.get('sourceKind') == 'classic':
+                facts={key:value for key,value in metadata_json.items() if key not in ('version','timestamp')}
+                stamp=hashlib.sha256(json.dumps(facts,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+                if (metadata_json.get('components') != new_hashes or
+                        metadata_json.get('version') != 'classic-sha256:'+stamp):
+                    raise ValueError('classic source stamp differs from frozen signed bundle')
             if (proof.get('verified') is not True or proof.get('current') != old_hashes
                     or proof.get('candidate') != new_hashes):
                 raise ValueError('verifier evidence differs from frozen bundle')

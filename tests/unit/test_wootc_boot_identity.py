@@ -61,13 +61,26 @@ class BootIdentityTests(unittest.TestCase):
         self.assertEqual(record['loaderVendor'],'fedora');self.assertEqual(record['bootCurrent']['espPartitionGuid'],GUID)
         self.assertEqual(record['hostEspUuid'],'1234-5678');self.assertEqual(record['imageDigest'],'sha256:'+'a'*64)
 
-    def test_classic_deployment_without_bootc_identity_refuses_honestly(self):
+    def test_classic_deployment_requires_observed_current_root(self):
         original=self.command
         def missing(*args):
             if args==('bootc','status','--json'):raise FileNotFoundError('bootc unavailable')
             return original(*args)
         self.command=missing
-        with self.assertRaisesRegex(ValueError,'classic refresh is unsupported'):self.observe()
+        with self.assertRaisesRegex(ValueError,'missing installed root mount'):self.observe()
+
+    def test_classic_observes_current_root_and_never_invents_image_identity(self):
+        original=self.command
+        def classic(*args):
+            if args==('bootc','status','--json'):raise FileNotFoundError('bootc unavailable')
+            return original(*args)
+        self.command=classic
+        path=self.proc/'self/mountinfo'
+        path.write_text(path.read_text().replace(' / /sysroot ', ' / / '))
+        record=self.observe()
+        self.assertEqual(record['deploymentKind'],'classic')
+        self.assertEqual(record['rootDevice'],'7:3')
+        self.assertNotIn('imageRef',record);self.assertNotIn('imageDigest',record)
 
     def test_native_boot_with_old_config_and_healthy_record_cannot_refresh(self):
         (self.root/'host-esp.conf').write_text('HOST_ESP_UUID=1234-5678')

@@ -12,9 +12,10 @@
 # cross-compatible; same-name kernel/initramfs publication is not pair-atomic.
 #
 # Kernel discovery understands BLS and classic /boot layouts, but the current
-# signed-chain controller requires an observed bootc loop-root deployment and
-# complete bootupd sources. Classic /boot/efi sources remain open under #333;
-# unsupported deployment identity refuses before any ESP write.
+# signed-chain controller requires a measured loop root and either complete
+# bootupd sources or Debian package-bound classic /boot/efi sources. Other
+# classic package providers remain open under #333; unsupported identities
+# refuse before any ESP write.
 #
 # The SIGNED CHAIN goes stale the same way, and worse (#333). shim, GRUB and
 # MokManager are staged once by the Windows installer and then never touched,
