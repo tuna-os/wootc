@@ -193,3 +193,22 @@ Its milestone requirements, headings, links, tables and earlier issue references
 The default shared scan does not include ROADMAP.md. Its count and budget stay at 1627.
 A direct scan of the roadmap falls from 68 findings to zero.
 RC, hardware, complete native journeys, signatures and the 30-day soak still need proof.
+
+## README claims and English pass — 2026-09-27, against `7a87f04`
+
+The README promised the complete Linux-inside-Windows journey, but current desktop evidence does not prove it.
+It now separates that product goal from the native install path.
+The old text also limited preparation to disk and boot setup and promised complete cleanup.
+It now describes startup settings, partial cleanup and separate data removal.
+
+The release description promised a Windows return after each normal tagged run.
+That workflow selects native graduation and ends in Linux. The manual waiver also exists.
+The caption and release text now describe that evidence boundary.
+The blanket exclusion of secrets conflicted with imports of complete Firefox profiles.
+The README now discloses saved passwords in that profile, the WebView2 dependency and signed manifest checks.
+
+Six new docs-truth checks reject the previous README claims.
+The revised README has no findings under the shared English checker.
+The total falls from 1627 to 1589; the budget follows that count.
+Headings, existing link targets, tables, executable names, commands and license terms remain.
+The native journey, real hardware, signatures, full restoration and the soak still need proof.
