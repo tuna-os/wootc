@@ -1,0 +1,14 @@
+2026-09-27T14:14:33.4757411Z ERROR: test_owned_descendant_cannot_hold_status_pipe_past_deadline (__main__.PackageConsumerTests.test_owned_descendant_cannot_hold_status_pipe_past_deadline)
+2026-09-27T14:14:33.4758714Z ----------------------------------------------------------------------
+2026-09-27T14:14:33.4759123Z Traceback (most recent call last):
+2026-09-27T14:14:33.4759937Z   File "/home/runner/work/wootc/wootc/tests/unit/test_wootc_package_consumer.py", line 322, in test_owned_descendant_cannot_hold_status_pipe_past_deadline
+2026-09-27T14:14:33.4760864Z     if not status.exists() or status.read_text().split(') ')[1].startswith('Z'): break
+2026-09-27T14:14:33.4761548Z                               ^^^^^^^^^^^^^^^^^^
+2026-09-27T14:14:33.4761963Z   File "/usr/lib/python3.12/pathlib.py", line 1029, in read_text
+2026-09-27T14:14:33.4763031Z          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T14:14:33.4763426Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T14:14:33.4763928Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T14:14:33.4764484Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T14:14:33.4764918Z FileNotFoundError: [Errno 2] No such file or directory: '/proc/21290/stat'
+2026-09-27T14:14:33.4765239Z 
+2026-09-27T14:14:33.4765707Z ----------------------------------------------------------------------

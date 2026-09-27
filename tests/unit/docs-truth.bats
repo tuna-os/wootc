@@ -430,3 +430,30 @@ setup() {
     ! grep -q 'installs nothing' runbooks/rollback-a-bad-release.md
     ! grep -q 'upload the matching regenerated' runbooks/rollback-a-bad-release.md
 }
+
+@test "manual hardware guide discloses actual preparation outside the state folder" {
+    grep -q 'Resize-Partition -DriveLetter C' app/disk_windows.go
+    grep -q 'New-Partition -DiskNumber' app/disk_windows.go
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'boot files on the ESP' docs/manual-testing.md
+    grep -q 'may resize Windows' docs/manual-testing.md
+    ! grep -q 'no repartitioning' <(tr '\n' ' ' < docs/manual-testing.md)
+    ! grep -q 'Nothing before the reboot leaves more than' docs/manual-testing.md
+}
+
+@test "manual hardware guide separates requested return and cleanup from restoration" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'reboot -ff' payload/deployer/deploy.sh
+    grep -q 'a reboot request does not prove a Windows return' docs/manual-testing.md
+    grep -q 'Uninstall tries cleanup; it can leave files or boot state behind' docs/manual-testing.md
+    ! grep -q 'Uninstall puts everything back' docs/manual-testing.md
+    ! grep -q 'after 30 seconds' docs/manual-testing.md
+}
+
+@test "manual hardware guide qualifies the legacy path instead of claiming VM-first or WinUI proof" {
+    [ -f docs/adr/0004-restore-vm-first-product.md ]
+    [ -f docs/winui-shell.md ]
+    grep -q 'legacy Wails path for native installation' docs/manual-testing.md
+    grep -q 'prove a Linux desktop inside Windows or the WinUI journey' docs/manual-testing.md
+}

@@ -318,10 +318,15 @@ class PackageConsumerTests(unittest.TestCase):
         pid = int(pidfile.read_text())
         status = Path('/proc')/str(pid)/'stat'
         # A dead child may await init's reaping; it must no longer execute.
+        state = None
         for _ in range(100):
-            if not status.exists() or status.read_text().split(') ')[1].startswith('Z'): break
+            try:
+                state = status.read_text().split(') ')[1]
+            except FileNotFoundError:
+                state = None
+            if state is None or state.startswith('Z'): break
             time.sleep(.005)
-        self.assertTrue(not status.exists() or status.read_text().split(') ')[1].startswith('Z'))
+        self.assertTrue(state is None or state.startswith('Z'))
 
 
 if __name__ == '__main__': unittest.main()

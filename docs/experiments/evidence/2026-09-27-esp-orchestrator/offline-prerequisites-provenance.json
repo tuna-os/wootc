@@ -10,6 +10,7 @@
   "hostedFocusedJob": "classic-offline in .github/workflows/ci-tests.yml",
   "mainBase": "132f0bd1b112f66e8d51610c08ecc4e9a62412d7",
   "preservedIntegrationCheckpoint": "0ed8d7d",
+  "procObservationRepairCheckpoint": "b518f08",
   "producerIntegrated": false,
   "qualifiedHost": false,
   "retainedBeforeCheckpoint": "6148730",
@@ -47,7 +48,7 @@
     "tests/audit-classic-offline.py": "7cf5d45a4d1f2a77910189762fb6ed0e6346c60f943c045ba188bcc7e74075ec",
     "tests/e2e/esp-chain/package-consumer.py": "764b08b7987a356633dfde64bba1ac8d6c3a86005970a9a52f329b7caf71348d",
     "tests/e2e/esp-chain/package-policy.py": "ea605a34fdae13b89ad4b976ac2d7619bc29e46d529b3c563c736b5d2d109439",
-    "tests/unit/test_wootc_package_consumer.py": "ace31b5c8482b43c2817d2800acee429a308ab74d07d1f85550020299c5de8b0"
+    "tests/unit/test_wootc_package_consumer.py": "c0c0b200eeef2bd362d3023d7706daffd9c7566b1fa8b692f55308b979d5cc7a"
   },
   "windowsBaselineQualified": false
 }
