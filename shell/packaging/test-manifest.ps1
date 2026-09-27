@@ -41,7 +41,24 @@ try {
     $rootTarget=New-PublicPackage -Name 'root-target'
     $link=Join-Path $testRoot 'root-link'
     New-Item -ItemType Junction -Path $link -Target $rootTarget | Out-Null
-    try { Assert-Refused -Directory $link } finally { Remove-Item -LiteralPath $link -Force }
+    try {
+        Assert-Refused -Directory $link
+        $originalWriter=[IO.File]::ReadAllBytes($writer)
+        $writerText=[IO.File]::ReadAllText($writer)
+        $guard='if ((Get-Item -LiteralPath $root -Force -ErrorAction Stop).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw ''Reparse point at preview package root'' }'
+        if (-not $writerText.Contains($guard)) { throw 'Root guard mutant could not bind actual source' }
+        try {
+            [IO.File]::WriteAllText($writer,$writerText.Replace($guard,''),[Text.UTF8Encoding]::new($false))
+            & $writer -PackageDirectory $link -BuildId $buildId -BrandId wootc
+            if (-not (Test-Path -LiteralPath (Join-Path $rootTarget 'native-package.json'))) { throw 'Root guard removal did not reproduce the unsafe acceptance' }
+        } finally {
+            [IO.File]::WriteAllBytes($writer,$originalWriter)
+            if ([Convert]::ToBase64String([IO.File]::ReadAllBytes($writer)) -cne [Convert]::ToBase64String($originalWriter)) { throw 'Actual writer bytes were not restored' }
+        }
+        Remove-Item -LiteralPath (Join-Path $rootTarget 'native-package.json') -Force
+        Assert-Refused -Directory $link
+        Write-Output 'PASS actual root-reparse mutant accepts unsafe path; exact source restored and refuses it'
+    } finally { Remove-Item -LiteralPath $link -Force }
     $child=New-PublicPackage -Name 'child-link'
     $childLink=Join-Path $child 'foreign-link'
     New-Item -ItemType Junction -Path $childLink -Target $positive | Out-Null
