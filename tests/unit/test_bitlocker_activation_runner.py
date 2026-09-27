@@ -91,6 +91,11 @@ past_deadline() { [ "$(date)" -ge "$1" ]; }
 sleep() { echo $(( $(date) + $1 )) > "$ARTIFACT_DIR/now"; }
 info() { :; }; pass() { :; }; fail() { :; }; infra_fail() { :; }
 qga_windows_probe() { [ "$case_name" != wrong-identity ]; }
+fixture_verify_windows_boot_after_detach() {
+ [ "$1" -eq 120 ] && [ "$(cat "$ARTIFACT_DIR/reads")" -eq 2 ] || return 1
+ printf '%s\n' observed >> "$ARTIFACT_DIR/optical-current-reads"
+ case "$case_name" in reinserted-optical|optical-query-failure|optical-wrong-boot|optical-deadline) return 1 ;; esac
+}
 qga_powershell() {
  remaining=$((120-$(date)))
  [ "$WOOTC_QGA_CALL_TIMEOUT" -le "$remaining" ] || return 90
@@ -127,18 +132,19 @@ echo SCHEDULED
         self.assertIn('SCHEDULED', result.stdout)
         self.assertEqual(files['activated'].splitlines(), ['called'])
         self.assertEqual(files['reads'].strip(), '3')
+        self.assertEqual(files['optical-current-reads'].splitlines(), ['observed'])
         self.assertIn("-RecoveryKeyPath 'F:\\wootc\\install\\bitlocker-key.txt'", files['calls'])
         self.assertEqual(files['bitlocker-activation-run-id.txt'].strip(), 'current-run')
 
     def test_counterexamples_never_schedule_or_replay_activation(self):
         for case in ['wrong-identity', 'ambiguous-root', 'conversion-late', 'activation-timeout',
-                     'activation-failure', 'missing-receipt', 'final-off']:
+                     'activation-failure', 'missing-receipt', 'final-off', 'reinserted-optical', 'optical-query-failure', 'optical-wrong-boot', 'optical-deadline']:
             result, files = self.run_case(case)
             with self.subTest(case=case):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn('SCHEDULED', result.stdout)
                 self.assertLessEqual(len(files.get('activated', '').splitlines()), 1)
-                if case in ['wrong-identity', 'ambiguous-root', 'conversion-late']:
+                if case in ['wrong-identity', 'ambiguous-root', 'conversion-late', 'reinserted-optical', 'optical-query-failure', 'optical-wrong-boot', 'optical-deadline']:
                     self.assertNotIn('activated', files)
 
 

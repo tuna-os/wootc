@@ -17,12 +17,19 @@ def unique(pairs):
     return result
 
 
-def validate(raw, allowed):
+def validate(raw, allowed, mode="detach", prior=None):
     if not 0 < len(raw) <= 65536 or not allowed:
         raise ValueError('Unbounded optical observation')
     value = json.loads(raw, object_pairs_hook=unique)
-    if not isinstance(value, dict) or set(value) != {'schema', 'before', 'removed', 'after', 'empty'} or type(value['schema']) is not int or value['schema'] != 1 or value['empty'] is not True:
+    fields={'schema','before','removed','after','empty'}
+    if mode == 'check-empty':
+        fields.add('operation')
+    elif mode != 'detach':
+        raise ValueError('Unknown optical operation')
+    if not isinstance(value, dict) or set(value) != fields or type(value['schema']) is not int or value['schema'] != 1 or value['empty'] is not True:
         raise ValueError('Missing optical removal observation')
+    if mode == 'check-empty' and value['operation'] != 'check-empty':
+        raise ValueError('Unobserved read-only optical operation')
     identities = []
     inserted = set()
     for phase in ('before', 'after'):
@@ -42,13 +49,20 @@ def validate(raw, allowed):
             names.add(row['device'])
             paths.add(row['qdev'])
             if row['medium'] is not None:
-                if phase == 'after' or row['medium'] not in allowed:
+                if mode == 'check-empty' or phase == 'after' or row['medium'] not in allowed:
                     raise ValueError('Unknown or retained optical medium')
                 inserted.add(row['qdev'])
         identities.append(identity)
     removed = value['removed']
     if identities[0] != identities[1] or not isinstance(removed, list) or any(not isinstance(item, str) for item in removed) or len(set(removed)) != len(removed) or set(removed) != inserted:
         raise ValueError('Unobserved exact optical removal')
+    if mode == 'check-empty':
+        if prior is None:
+            raise ValueError('Missing previous optical identity')
+        old = validate(prior, allowed)
+        old_identities = {(row['device'],row['qdev'],row['type'],row['bootIndex']) for row in old['after']}
+        if identities[0] != old_identities:
+            raise ValueError('Optical identity changed since removal')
     return value
 
 
@@ -59,13 +73,19 @@ def main():
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--source', required=True)
     parser.add_argument('--context', required=True)
+    parser.add_argument('--mode', choices=('detach','check-empty'), default='detach')
+    parser.add_argument('--prior')
     args = parser.parse_args()
+    previous=None
+    if args.prior:
+        with open(args.prior,'rb') as stream:
+            previous=stream.read(65537)
     with open(args.receipt, 'rb') as stream:
-        value = validate(stream.read(65537), set(args.allow))
+        value = validate(stream.read(65537), set(args.allow), args.mode, previous)
     if not re.fullmatch('[A-Za-z0-9_-]{1,128}', args.run_id):
         raise ValueError('Invalid optical correlation')
     canonical = json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
-    context = {'schemaVersion': 1, 'runId': args.run_id, 'sourceSha256': hashlib.sha256(Path(args.source).read_bytes()).hexdigest(), 'canonicalObservationSha256': hashlib.sha256(canonical).hexdigest(), 'canonicalization': 'sorted-json-compact-utf8', 'observation': 'owned-optical-empty-readback'}
+    context = {'schemaVersion': 1, 'runId': args.run_id, 'sourceSha256': hashlib.sha256(Path(args.source).read_bytes()).hexdigest(), 'canonicalObservationSha256': hashlib.sha256(canonical).hexdigest(), 'canonicalization': 'sorted-json-compact-utf8', 'observation': 'owned-optical-empty-readback', 'operation': args.mode}
     descriptor = os.open(args.context, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, 'wb') as stream:
         stream.write(json.dumps(context, separators=(',', ':')).encode())

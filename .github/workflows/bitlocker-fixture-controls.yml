@@ -7,6 +7,13 @@ on:
       - 'tests/e2e/lib/fixture-bitlocker.sh'
       - 'tests/e2e/retain-bitlocker-before-receipt.py'
       - 'tests/unit/test_bitlocker*.py'
+      - 'tests/unit/test_fixture*.py'
+      - 'tests/unit/test_optical_media_control.py'
+      - 'tests/e2e/qmp-optical-media.py'
+      - 'tests/e2e/lib/fixture-optical-media.sh'
+      - 'tests/e2e/verify-*observation.py'
+      - 'tests/e2e/verify-optical-detach-receipt.py'
+      - 'tests/e2e/windows-boot-observation.ps1'
       - 'tests/lint-ps1.ps1'
       - '.github/workflows/bitlocker-fixture-controls.yml'
   push:
@@ -16,6 +23,13 @@ on:
       - 'tests/e2e/lib/fixture-bitlocker.sh'
       - 'tests/e2e/retain-bitlocker-before-receipt.py'
       - 'tests/unit/test_bitlocker*.py'
+      - 'tests/unit/test_fixture*.py'
+      - 'tests/unit/test_optical_media_control.py'
+      - 'tests/e2e/qmp-optical-media.py'
+      - 'tests/e2e/lib/fixture-optical-media.sh'
+      - 'tests/e2e/verify-*observation.py'
+      - 'tests/e2e/verify-optical-detach-receipt.py'
+      - 'tests/e2e/windows-boot-observation.ps1'
       - 'tests/lint-ps1.ps1'
       - '.github/workflows/bitlocker-fixture-controls.yml'
   workflow_dispatch:
@@ -25,11 +39,26 @@ permissions:
 
 jobs:
   retention-controls:
-    name: Private before receipt controls
+    name: Private before receipt and optical controls
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install QEMU for paused disposable optical controls
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86
       - run: python3 -m unittest discover -s tests/unit -p 'test_bitlocker*py'
+      - run: python3 -m unittest discover -s tests/unit -p 'test_fixture*py'
+      - name: Require actual paused QEMU controls without skips
+        run: |
+          command -v qemu-system-x86_64
+          qemu-system-x86_64 --version
+          sha256sum tests/e2e/qmp-optical-media.py
+          python3 - <<'PY'
+          import unittest
+          suite = unittest.defaultTestLoader.discover('tests/unit', pattern='test_optical_media_control.py')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if result.skipped or result.testsRun != 12 or not result.wasSuccessful():
+              raise SystemExit('Optical controls require all 12 actual tests and zero skips')
+          PY
 
   native-mocks:
     name: Native PS5.1 fixture controls

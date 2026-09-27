@@ -68,6 +68,9 @@ bitlocker_prepare_fixture() {
     case "$root" in [A-Za-z]) root="${root}:" ;; *) infra_fail "BitLocker fixture storage root unavailable or ambiguous"; return 1 ;; esac
     remaining=$((deadline - $(date +%s)))
     [ "$remaining" -gt 0 ] || return 1
+    fixture_verify_windows_boot_after_detach "$deadline" || { infra_fail "Fresh empty optical media and current Windows boot were not observed; activation was not scheduled"; return 1; }
+    remaining=$((deadline - $(date +%s)))
+    [ "$remaining" -gt 0 ] || return 1
     activation="$ARTIFACT_DIR/bitlocker-activation.txt"
     printf '%s\n' "$RUN_ID" > "$ARTIFACT_DIR/bitlocker-activation-run-id.txt" || return 1
     receipt_run_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1

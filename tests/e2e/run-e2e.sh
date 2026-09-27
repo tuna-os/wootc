@@ -3981,7 +3981,6 @@ fi
 # external QGA call and polling sleep consumes this same wall-clock budget.
 if [[ "$E2E_BITLOCKER" == "on" ]]; then
     step "Waiting for BitLocker fixture C: encryption completion before installed Linux..."
-    fixture_verify_windows_boot_after_detach || { infra_fail "Windows boot after optical removal was not observed; TPM enrollment was not scheduled"; exit 1; }
     bitlocker_prepare_fixture 1800 || exit 1
 fi
 
