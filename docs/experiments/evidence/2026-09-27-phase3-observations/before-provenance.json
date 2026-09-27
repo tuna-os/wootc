@@ -1,0 +1,32 @@
+{
+  "sourceCommit": "123ac7e696bbcdb0527881cac4eda9080f979eda",
+  "sourceSha256": "9b2caf05f788a8e7d2e84587e357588b2299014beacc8d90f5e3d34896b8070d",
+  "consumerSha256": "4df6b98caf7b7abda3a49f8a5ac703904d14f4889cae11e937723e4b90259dd8",
+  "scope": "Actual extracted production Phase3 proof consumer with mocked QGA stdout/status; no VM or guest mutation. Both failed-command counterexamples incorrectly pass before repair.",
+  "observations": [
+    {
+      "case": "failed-native",
+      "nativeStatus": 7,
+      "userdataStatus": 0,
+      "exitCode": 0,
+      "wronglyAccepted": [
+        "native-boot",
+        "native-user-data"
+      ],
+      "log": "failed-native.before.raw.log",
+      "sha256": "aebc3097f21358048048c4aebd1e8394971ca1844396f08a63f6f932aef4dcee"
+    },
+    {
+      "case": "failed-userdata",
+      "nativeStatus": 0,
+      "userdataStatus": 7,
+      "exitCode": 0,
+      "wronglyAccepted": [
+        "native-boot",
+        "native-user-data"
+      ],
+      "log": "failed-userdata.before.raw.log",
+      "sha256": "aebc3097f21358048048c4aebd1e8394971ca1844396f08a63f6f932aef4dcee"
+    }
+  ]
+}
