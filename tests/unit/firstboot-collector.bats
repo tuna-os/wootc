@@ -15,7 +15,8 @@
     run "$tmp/bin/mountpoint"
     [ "$status" -eq 0 ]
     printf 'raise ValueError("invalid BootCurrent")\n' > "$tmp/collector.py"
-    run env WOOTC_FIRSTBOOT_HOST="$tmp/host" WOOTC_FIRSTBOOT_COLLECTOR="$tmp/collector.py" \
+    run env WOOTC_STEPS_FILE="$BATS_TEST_DIRNAME/../../payload/steps.sh" \
+        WOOTC_FIRSTBOOT_HOST="$tmp/host" WOOTC_FIRSTBOOT_COLLECTOR="$tmp/collector.py" \
         FIRSTBOOT_CALLS="$tmp/calls" PATH="$tmp/bin:$PATH" \
         bash "$BATS_TEST_DIRNAME/../../payload/migration/wootc-firstboot-evidence"
     [ "$status" -ne 0 ]

@@ -165,7 +165,11 @@ observe_with() {
     t=$(return_block | grep -E "WOOTC_QGA_CALL_TIMEOUT=[0-9]+ qga_call exec .*systemctl reboot" \
         | grep -oE 'WOOTC_QGA_CALL_TIMEOUT=[0-9]+' | grep -oE '[0-9]+$')
     [ -n "$t" ]
-    [ "$t" -le 5 ]
+    # Persistence acceptance performs a second Linux return. Every request,
+    # including that later boot, must leave time for the observation.
+    while IFS= read -r timeout_seconds; do
+        [ "$timeout_seconds" -le 5 ]
+    done <<< "$t"
 }
 
 @test "the Windows return is still asserted with the OS discriminator afterwards" {
