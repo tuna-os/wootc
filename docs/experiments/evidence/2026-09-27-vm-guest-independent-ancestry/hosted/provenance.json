@@ -1,0 +1,71 @@
+{
+  "runId": "36334083338",
+  "runAttempt": 1,
+  "head": "fc61667",
+  "testedMerge": "0cbd597ea86aab499610bd7b11dcaf48b16c2536",
+  "conclusion": "success",
+  "skips": 0,
+  "scope": "Actual Windows source-bound IPC and packaged graph consumer controls only; no guest or target image invocation.",
+  "sources": {
+    "app/vm_guest_pipe_windows.go": {
+      "gitSha256": "bf696d191dd79ac17dc1d0d54859d8aa617da9b9a93baf5f20b97dfb16e340a7",
+      "windowsCheckoutSha256": "f32cd4a3019d8404466ae4c90e6ebd0a56e2da0ae3ef14bf092b7acc06251635",
+      "checkoutMatches": true
+    },
+    "app/vm_guest_pipe_windows_test.go": {
+      "gitSha256": "6c66a526e0b63dd9b0f9d732877d7c5dca3ba7fe1ff2584bcc51ffd6adfff3f3",
+      "windowsCheckoutSha256": "4fb80cf76006fd62ce39ac8e78441a8afc1d1d28b18b13e5d84b8eae9bc2e852",
+      "checkoutMatches": true
+    },
+    "app/vm_guest_protocol.go": {
+      "gitSha256": "0f2670f9840e802129bd1818acd88411f53c3b2c1d3f8e02581a0190bc35362f",
+      "windowsCheckoutSha256": "5fcbc75a3e56b7fcf24bbbb7b4b682b2b81f905a46469726bdc31bb7a1025933",
+      "checkoutMatches": true
+    },
+    "app/vm_guest_protocol_test.go": {
+      "gitSha256": "bdb088e5e27fb5fe51315f8fbf46c3cb94abcc51b887f39541f8893fe03ba202",
+      "windowsCheckoutSha256": "a3bbab89eea195cfc68e9234d45a5e962490503d67f31a77fb7a0627b0fcd19d",
+      "checkoutMatches": true
+    },
+    "app/vm_guest_ancestry.go": {
+      "gitSha256": "2cdd4f8cf704f386e1901db77a326fdccd79895a4e6647fb7c22f657c04bbd6d",
+      "windowsCheckoutSha256": "cd6def4b3042a6bd56970f58ed5eaff38bfdd8e1f319e3239c150f05e094db27",
+      "checkoutMatches": true
+    },
+    "app/vm_guest_ancestry_test.go": {
+      "gitSha256": "dc69855c3dddb5b31efa30c94690945ea7303b2c2d1911ef5c5572b4cf8973e0",
+      "windowsCheckoutSha256": "011216288b16b512752688fdfc77aeb3b9673f7a37aa86dbf579b2046b9031f9",
+      "checkoutMatches": true
+    },
+    "payload/vm-observer/boot_probe.py": {
+      "gitSha256": "94e93f1c2ae154818b9ad61b15f244eb9c997ff76ac4781b1c9792bcef67cf2a",
+      "windowsCheckoutSha256": "ec2cab57dfece41a69a00743e9caa1a54e6bfbda880ca6751cfdd33d57c966d8",
+      "checkoutMatches": true
+    },
+    "tests/e2e/phase3_ancestry.py": {
+      "gitSha256": "2bdcd2cd4d041ec77a6816a53829b90f4f8ded330bd308ee2711c048b12c84ef",
+      "windowsCheckoutSha256": "dfb1086111c8eafbd18afe2aed3f37d14a1ef3e48a4016acdd032de5cf009afe",
+      "checkoutMatches": true
+    },
+    "app/vm_qmp.go": {
+      "gitSha256": "1a434e11459306dafc415eac323e98f4c3f5d8a2b1ee94bfb9568dcdfe12e66f",
+      "windowsCheckoutSha256": "1d277f153508a18c832ca29ee8f508885b89e825816941ac33fa047ad309ec8a",
+      "checkoutMatches": true
+    },
+    "app/vm_display.go": {
+      "gitSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+      "windowsCheckoutSha256": "9a03412abe0b45276c17e57783c07bcfa18026779e9c72ab09c1abbd2e354b0d",
+      "checkoutMatches": true
+    },
+    "app/native_peer_windows.go": {
+      "gitSha256": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+      "windowsCheckoutSha256": "3c7bd546475b838f45911059e176647bb58cc19de06e9ea2578ff8359e40ee8a",
+      "checkoutMatches": true
+    }
+  },
+  "logs": {
+    "vm-guest-pipe-controls.log": "6740bf27db86ffcc14a6d11596ed042d0ab92418c7ac83e56efde7a03c08b993",
+    "run.json": "2caab84a0a4a248f76e8f2d6696177a9c2bb14d6a7f9e794360cd59c54c52dc4",
+    "hosted.raw.log": "fe9f21290b7faf2ce84d1b64b4a88527c9014a1261ec71edced1262f32f55ffd"
+  }
+}
