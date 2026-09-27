@@ -1,10 +1,11 @@
 ﻿param([Parameter(Mandatory=$true)][string]$ScratchId,
       [Parameter(Mandatory=$true)][string]$AfterLinuxBootId,
+      [Parameter(Mandatory=$true)][string]$TransportNonce,
       [Parameter(Mandatory=$true)][string]$Volume)
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Current guest is not Windows' }
 if ($Volume -notmatch '^[A-Za-z]:$') { throw 'Invalid volume' }
-$RootDisk = Join-Path $Volume 'wootc\disks\root.disk'
+$RootDisk = "$Volume\wootc\disks\root.disk"
 if (-not (Test-Path -LiteralPath $RootDisk -PathType Leaf)) { throw 'Actual root.disk absent on queried volume' }
 Add-Type -TypeDefinition @'
 using System;
@@ -32,5 +33,5 @@ public static class WootcQaNtfs {
 $VmUuid = (Get-CimInstance Win32_ComputerSystemProduct).UUID.ToLowerInvariant()
 $HostUuid = [WootcQaNtfs]::Serial($Volume)
 [ordered]@{ schemaVersion = 1; scratchId = $ScratchId; vmUuid = $VmUuid;
-  os = $env:OS; hostUuid = $HostUuid; afterLinuxBootId = $AfterLinuxBootId;
+  transportNonce = $TransportNonce; os = $env:OS; hostUuid = $HostUuid; afterLinuxBootId = $AfterLinuxBootId;
   capturedAt = [DateTime]::UtcNow.ToString('o') } | ConvertTo-Json -Compress

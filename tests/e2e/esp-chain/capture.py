@@ -1,8 +1,11 @@
 #!/usr/bin/python3
 """Run inside the installed guest; inspect fresh sources and actual firmware trust."""
 import argparse
+import base64
 import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -12,6 +15,7 @@ sys.path.insert(0, '/var/usrlocal/lib/wootc')
 from wootc_boot_identity import observe_installed_boot
 from wootc_chain_source import freeze_sources, freeze_classic_sources
 from wootc_chain_verify import FILES, verify_transition, GLOBAL, DB_GUID, SHIM_GUID
+from wootc_pe import sbat_policy
 from wootc_esp_transaction import ownership, read_json, digest, find_owned_path, relative_path
 
 
@@ -22,6 +26,11 @@ def capture(args):
     def trust_hashes():
         return {n: digest(efivars/(n+'-'+g)) if (efivars/(n+'-'+g)).exists() else None for n, g in trust_files}
     trust = trust_hashes()
+    sbat_raw = (efivars/('SbatLevelRT-'+SHIM_GUID)).read_bytes()
+    if hashlib.sha256(sbat_raw).hexdigest() != trust['SbatLevelRT']:
+        raise ValueError('SBAT policy changed before capture')
+    sbat_payload = sbat_raw[4:]
+    policy = sbat_policy(sbat_payload[:-1] if sbat_payload.endswith(b'\0') else sbat_payload)
     before = observe_installed_boot(esp, host, args.uuid)
     receipt = read_json(Path(args.receipt))
     ownership(esp, Path(args.manifest), receipt, before['hostEspUuid'])
@@ -82,8 +91,8 @@ def capture(args):
                                 text=True, capture_output=True, timeout=20).stdout.strip()
         if failed:
             raise ValueError('failed installed systemd units')
-        return {'schemaVersion': 1, 'vmUuid': Path('/sys/class/dmi/id/product_uuid').read_text().strip().lower(), 'observation': after, 'trioHashes': hashes, 'sourceHashes': {n: digest(candidate/n) for n in FILES},
-                'archiveHashes': archive, 'upgradeSignatureProof': upgrade_signature, 'firmwareTrustHashes': trust, 'receipt': receipt, 'sourceFacts': source,
+        return {'schemaVersion': 1, 'transportNonce': args.transport_nonce, 'vmUuid': Path('/sys/class/dmi/id/product_uuid').read_text().strip().lower(), 'observation': after, 'trioHashes': hashes, 'sourceHashes': {n: digest(candidate/n) for n in FILES},
+                'archiveHashes': archive, 'upgradeSignatureProof': upgrade_signature, 'firmwareTrustHashes': trust, 'firmwareSbatPolicy': policy, 'firmwareSbatVariableBase64': base64.b64encode(sbat_raw).decode(), 'receipt': receipt, 'sourceFacts': source,
                 'foreignFiles': foreign, 'signatureProof': signature, 'failedUnits': [], 'pendingJournal': False}
 
 
@@ -97,7 +106,25 @@ if __name__ == '__main__':
     parser.add_argument('--state', default='/var/lib/wootc/esp-transactions')
     parser.add_argument('--verifier', default='/var/usrlocal/lib/wootc/sbverify')
     parser.add_argument('--old-hashes')
+    parser.add_argument('--transport-nonce', required=True)
+    parser.add_argument('--mount-esp', action='store_true')
+    args = parser.parse_args()
+    mounted = False
     try:
-        print(json.dumps(capture(parser.parse_args()), sort_keys=True))
+        if args.mount_esp:
+            if args.esp != '/run/wootc-qa-esp' or not re.fullmatch('[A-Za-z0-9-]+', args.uuid):
+                raise ValueError('unsupported QA inspection mount identity')
+            directory = Path(args.esp)
+            directory.mkdir(mode=0o700, exist_ok=True)
+            if directory.is_symlink() or directory.stat().st_uid != 0:
+                raise ValueError('foreign QA mountpoint')
+            if subprocess.run(['mountpoint', '-q', args.esp], timeout=10).returncode == 0:
+                raise ValueError('QA inspection mount is already occupied')
+            subprocess.run(['mount', '-t', 'vfat', '-o', 'ro', '/dev/disk/by-uuid/'+args.uuid, args.esp], check=True, timeout=30)
+            mounted = True
+        print(json.dumps(capture(args), sort_keys=True))
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         parser.exit(1, 'capture refused: '+str(error)+'\n')
+    finally:
+        if mounted:
+            subprocess.run(['umount', args.esp], check=True, timeout=30)
