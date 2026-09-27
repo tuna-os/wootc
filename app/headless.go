@@ -121,7 +121,11 @@ func headlessInstall(args []string) int {
 }
 
 func headlessStatus() int {
-	s, ok := readState()
+	s, ok, discoveryErr := readStatusState()
+	if discoveryErr != nil {
+		fmt.Fprintf(os.Stderr, "status: %v\n", discoveryErr)
+		return 1
+	}
 	if !ok {
 		fmt.Println(`{"state":"absent"}`)
 		return 0
