@@ -19,14 +19,16 @@ internal sealed class NativeEngineSession : IEngineSession
     private long nextId;
     private volatile bool disconnected;
     private Exception? receiveFailure;
+    private readonly Action<string, Exception?>? observe;
 
-    public NativeEngineSession(Stream pipe, Process engine) : this(pipe, engine, TimeSpan.FromSeconds(30)) { }
+    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe) { }
 
-    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout)
+    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null)
     {
         this.pipe = pipe;
         this.engine = engine;
         this.disconnectTimeout = disconnectTimeout;
+        this.observe = observe;
         reader = ReceiveAsync();
     }
 
@@ -76,22 +78,37 @@ internal sealed class NativeEngineSession : IEngineSession
         finally { Volatile.Write(ref receiveFailure, failure); foreach (var (id, completion) in pending) if (pending.TryRemove(id, out _)) completion.TrySetException(failure); }
     }
 
+    internal static string RpcStage(string method) => method switch
+    {
+        "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
+        "GetRecoveryVerdict" => "rpc-recovery", _ => "rpc-other"
+    };
+
     internal async Task<T> CallAsync<T>(string method, CancellationToken token)
     {
-        if (disconnected || Volatile.Read(ref receiveFailure) is not null || engine.HasExited) throw new EndOfStreamException("The authenticated engine disconnected");
         long id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!pending.TryAdd(id, completion)) throw new InvalidOperationException("Duplicate engine request identity");
+        string stage = RpcStage(method) + "-request";
         try
         {
+            observe?.Invoke(stage, null);
+            if (disconnected || engine.HasExited) throw new EndOfStreamException("The authenticated engine disconnected");
             if (Volatile.Read(ref receiveFailure) is not null) throw new EndOfStreamException("The authenticated engine disconnected");
             byte[] request = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { jsonrpc = "2.0", id, method }) + "\n");
             await writes.WaitAsync(token);
             try { await pipe.WriteAsync(request, token); await pipe.FlushAsync(token); }
             finally { writes.Release(); }
+            stage = RpcStage(method) + "-response";
+            observe?.Invoke(stage, null);
             var result = await completion.Task.WaitAsync(token);
-            return NativeProtocol.DecodeStartup<T>(method, result);
+            stage = RpcStage(method) + "-decode";
+            observe?.Invoke(stage, null);
+            var decoded = NativeProtocol.DecodeStartup<T>(method, result);
+            observe?.Invoke(RpcStage(method) + "-complete", null);
+            return decoded;
         }
+        catch (Exception error) { observe?.Invoke(stage, error); throw; }
         finally { pending.TryRemove(id, out _); }
     }
 
@@ -117,8 +134,10 @@ internal sealed class NativeEngineSession : IEngineSession
         // Preserve the retained process and session authority if cleanup is
         // pending. The controller blocks retries; a later Dispose retries wait.
         using var deadline = new CancellationTokenSource(disconnectTimeout);
+        observe?.Invoke("session-cleanup-wait", null);
         try { await engine.WaitForExitAsync(deadline.Token); }
-        catch (OperationCanceledException) { throw new IOException("Engine cleanup is still pending; do not reboot"); }
+        catch (OperationCanceledException error) { observe?.Invoke("session-cleanup-pending", error); throw new IOException("Engine cleanup is still pending; do not reboot"); }
+        observe?.Invoke("session-cleanup-exited", null);
         engine.Dispose();
     }
 }

@@ -114,7 +114,8 @@ public sealed class TransportTests
         var accepting = server.WaitForConnectionAsync(deadline.Token);
         await client.ConnectAsync(deadline.Token); await accepting;
         using var owned = Process.Start(new ProcessStartInfo("cmd.exe", "/c pause") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, CreateNoWindow = true })!;
-        var session = new NativeEngineSession(client, owned);
+        var observations = new List<string>();
+        var session = new NativeEngineSession(client, owned, (stage, error) => observations.Add($"{stage}; {NativeEngineConnector.DescribeFailure(error)}"));
         try
         {
             var startup = session.ReadStartupAsync(deadline.Token);
@@ -124,6 +125,7 @@ public sealed class TransportTests
             await server.WriteAsync(Encoding.UTF8.GetBytes($"{{\"jsonrpc\":\"2.0\",\"id\":{id},\"result\":{result}}}\n"), deadline.Token);
             await server.FlushAsync(deadline.Token);
             await Assert.ThrowsAsync<InvalidDataException>(() => startup);
+            Assert.Contains(observations, value => value.StartsWith("rpc-status-decode; Failure:protocol", StringComparison.Ordinal));
             // No StartupSnapshot exists, so default false fields cannot route to Assessment.
         }
         finally
@@ -131,6 +133,40 @@ public sealed class TransportTests
             owned.StandardInput.Close();
             await owned.WaitForExitAsync(deadline.Token);
             await session.DisposeAsync();
+            Assert.Contains(observations, value => value.StartsWith("session-cleanup-exited; Failure:none", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public async Task ActualPipeReplyDeadlineRetainsMethodAndCleanupExitObservations()
+    {
+        string name = "wootc-native-deadline-" + Guid.NewGuid().ToString("N");
+        using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
+        using var fixtureDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var accepting = server.WaitForConnectionAsync(fixtureDeadline.Token);
+        await client.ConnectAsync(fixtureDeadline.Token); await accepting;
+        using var owned = Process.Start(new ProcessStartInfo("cmd.exe", "/c pause") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, CreateNoWindow = true })!;
+        var observations = new List<string>();
+        var session = new NativeEngineSession(client, owned, (stage, error) => observations.Add($"{stage}; {NativeEngineConnector.DescribeFailure(error)}"));
+        try
+        {
+            using var requestDeadline = new CancellationTokenSource();
+            var requestTask = session.CallAsync<InstallStatus>("GetStatus", requestDeadline.Token);
+            using var request = JsonDocument.Parse(await NativeEngineSession.ReadLineAsync(server, 4096, fixtureDeadline.Token));
+            Assert.Equal("GetStatus", request.RootElement.GetProperty("method").GetString());
+            // The real request crossed the pipe. No response is supplied.
+            requestDeadline.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => requestTask);
+            Assert.Contains(observations, value => value.StartsWith("rpc-status-response; Failure:deadline", StringComparison.Ordinal));
+            Assert.DoesNotContain(observations, value => value.StartsWith("rpc-status-complete", StringComparison.Ordinal));
+        }
+        finally
+        {
+            owned.StandardInput.Close();
+            await owned.WaitForExitAsync(fixtureDeadline.Token);
+            await session.DisposeAsync();
+            Assert.Contains(observations, value => value.StartsWith("session-cleanup-exited; Failure:none", StringComparison.Ordinal));
         }
     }
 

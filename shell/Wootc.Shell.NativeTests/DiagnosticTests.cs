@@ -6,6 +6,14 @@ namespace Wootc.Shell.NativeTests;
 
 public sealed class DiagnosticTests
 {
+    [Theory]
+    [InlineData("GetStatus", "rpc-status")]
+    [InlineData("GetLastRun", "rpc-lifecycle")]
+    [InlineData("GetRecoveryVerdict", "rpc-recovery")]
+    [InlineData("111111-111111-111111-111111-111111-111111-111111-111111", "rpc-other")]
+    public void RpcStageOnlyProjectsKnownStartupMethods(string method, string expected) =>
+        Assert.Equal(expected, NativeEngineSession.RpcStage(method));
+
     [Fact]
     public void FailureProjectionRetainsNumericClassAndExcludesExceptionMessages()
     {
