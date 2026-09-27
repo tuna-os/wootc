@@ -26,6 +26,16 @@
     "typed-drive-controls.log": "cf24b3887dfd86f5d5b0b08902370321269ffb205aebc998c531f80088e08c0b",
     "removed-guard-mutant.log": "e56510372206b0c7cae12d2288a4aebe3dca9beedbd469d7483764990f50c5d9",
     "full-frontend-controls.log": "03cfc7ab0999c83b4fc6316a1af8982ca4b29e30eb67ab28a08c35438de1ecaa",
-    "removed-guard-mutant.json": "c5af4b0b52b6ed8903fd43d1d65d193021bc35f63376642e4427877ae2518ce1"
+    "removed-guard-mutant.json": "c5af4b0b52b6ed8903fd43d1d65d193021bc35f63376642e4427877ae2518ce1",
+    "integrated-go-controls.log": "261d5a926edbadecfc9471f5793e390489bc1bf3ed1780b14f4e647fbaa04de3",
+    "integrated-prose.log": "9233fe5e6202ff272151a3f6374c2e9477434220cd2c52a701f060c16ad13f80"
+  },
+  "sharedEnglishFindings": 1512,
+  "englishBudget": 1512,
+  "generatedMockFrames": 15,
+  "codeScopeMatches": {
+    "vmFiles": "each byte-identical to reviewed418 or422",
+    "runtimeInstaller": "byte-identical419",
+    "runtimeDoc": "one plain-English noun-cluster correction; technical claims unchanged"
   }
 }

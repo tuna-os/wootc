@@ -74,7 +74,7 @@ The extractor rejects links, extra or missing files, duplicate paths, difference
 in path case, Windows device names, alternate streams and paths outside the bundle.
 It writes to a private temporary directory and publishes through one rename.
 It refuses to change an existing runtime. Cancellation or a failed check removes temporary files.
-A process crash can leave private temporary files; it cannot publish a partial runtime.
+A process crash can leave private files in a temporary directory; it cannot publish a partial runtime.
 
 The real archive passed this installer on Linux and native Windows.
 Each run authenticated and installed 3,284 files, including the two manifest files.
