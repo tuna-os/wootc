@@ -1,0 +1,27 @@
+{
+  "sourceCommit": "b273443f6408d9aa5b567997b66b4470bb0a9e72",
+  "sourcePath": "tests/e2e/run-e2e.sh",
+  "sourceSHA256": "ee8d98a420844cd24ac43a262f6149817f0fa32cdb597a22ed346208b3a72c8c",
+  "actualCondition": "printf '%s' \"$drive_state\" | grep -q '\"screen\":\"done\"'",
+  "scope": "Actual extracted Bash done condition executed with three public synthetic reports; no app/guest acceptance or Windows writes",
+  "cases": [
+    {
+      "case": "stale-unbound-done",
+      "publicSyntheticInput": "{\"screen\":\"done\",\"installDriven\":true}",
+      "actualDoneConsumerExitCode": 0,
+      "acceptedByCurrentDoneGate": true
+    },
+    {
+      "case": "contradictory-done-error",
+      "publicSyntheticInput": "{\"screen\":\"done\",\"installDriven\":false,\"error\":\"operation failed\"}",
+      "actualDoneConsumerExitCode": 0,
+      "acceptedByCurrentDoneGate": true
+    },
+    {
+      "case": "duplicate-screen",
+      "publicSyntheticInput": "{\"screen\":\"error\",\"screen\":\"done\"}",
+      "actualDoneConsumerExitCode": 0,
+      "acceptedByCurrentDoneGate": true
+    }
+  ]
+}

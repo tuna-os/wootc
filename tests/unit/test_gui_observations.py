@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Actual GUI handover observation callbacks; no guest or VM fixture."""
 import json
+import base64
 import os
 from pathlib import Path
 import subprocess
@@ -31,7 +32,7 @@ wootc_gui_observations_configure qga_call wootc_phase_boundary
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / 'calls'
             calls.touch()
-            defaults = dict(WINDOWS='', WINDOWS_RC='1', LINUX='', LINUX_RC='1', PING_RC='0', WRITE_REPLY='gui-reboot-directive-written', WRITE_RC='0')
+            defaults = dict(WINDOWS='', WINDOWS_RC='1', LINUX='', LINUX_RC='1', PING_RC='0', WRITE_REPLY='gui-reboot-directive-written', WRITE_RC='0', reboot_payload='')
             result = subprocess.run(['bash', '-c', prefix+body], capture_output=True, text=True,
                                     timeout=4, env={**os.environ, **defaults, **env, 'CALLS':str(calls)})
             return result, calls.read_text()
@@ -162,8 +163,9 @@ gui_wait_handover 1
 
     def test_actual_directive_consumer_stops_before_handover_on_failed_write(self):
         source=(ROOT/'tests/e2e/run-e2e.sh').read_text()
-        tail=source.split('    gui_write_reboot_directive ||',1)[1]
-        tail='gui_write_reboot_directive ||'+tail.split('\n}\n\nif [ "$GUI_INSTALL" = true ]; then',1)[0]
+        call=next(line.strip() for line in source.splitlines() if line.strip().startswith('gui_write_reboot_directive ') and 'capture_vm_diagnostics' in line)
+        tail=source.split('    '+call,1)[1]
+        tail=call+tail.split('\n}\n\nif [ "$GUI_INSTALL" = true ]; then',1)[0]
         body='info() { echo "$*"; }; step() { :; }; capture_vm_diagnostics() { echo DIAGNOSTICS; };'+tail.replace('gui_wait_handover 180','gui_wait_handover 1')
         result,calls=self.run_shell(body,WINDOWS='Windows_NT',WINDOWS_RC='0',WRITE_RC='7')
         self.assertNotEqual(result.returncode,0)
@@ -172,10 +174,30 @@ gui_wait_handover 1
         self.assertEqual(calls.count('powershell'),2)
         self.assertNotIn('ping',calls)
         # Removing the real caller refusal would proceed to the handover gate.
-        mutant=body.replace('gui_write_reboot_directive || { capture_vm_diagnostics; exit 1; }','gui_write_reboot_directive || true',1)
+        mutant=body.replace(call,call.split(' ||',1)[0]+' || true',1)
         broken,broken_calls=self.run_shell(mutant,WINDOWS='Windows_NT',WINDOWS_RC='0',WRITE_RC='7')
         self.assertIn('Reboot directive written',broken.stdout)
         self.assertGreater(broken_calls.count('powershell'),2)
+
+    def test_bound_reboot_payload_reaches_actual_script_and_preserves_write_guard(self):
+        value = dict(schemaVersion=1, runId='current', directiveId='1234567890abcdef1234567890abcdef', action='reboot')
+        payload = base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode()
+        for status in ['0', '7']:
+            result,calls=self.run_shell('gui_write_reboot_directive "$reboot_payload"; echo WRITTEN',
+                WINDOWS='Windows_NT', WINDOWS_RC='0', WRITE_RC=status, reboot_payload=payload)
+            self.assertEqual('WRITTEN' in result.stdout,status=='0')
+            self.assertIn("$encoded='"+payload+"'",calls)
+            self.assertIn('FromBase64String($encoded)',calls)
+            self.assertNotIn('$directive = "{`"action`":`"reboot`"}"',calls)
+            self.assertIn('Get-Content -LiteralPath',calls)
+            self.assertEqual(calls.count('Set-Content'),1)
+
+    def test_invalid_encoded_reboot_refuses_before_any_guest_call(self):
+        for payload in ["bad'; Write-Host injected", 'A'*4097, 'YWJj===', 'YW Jj']:
+            result,calls=self.run_shell('gui_write_reboot_directive "$reboot_payload"; echo WRITTEN',reboot_payload=payload)
+            self.assertNotEqual(result.returncode,0)
+            self.assertNotIn('WRITTEN',result.stdout)
+            self.assertEqual(calls,'')
 
     def test_actual_runner_does_not_claim_reboot_from_unknown_windows(self):
         source = (ROOT/'tests/e2e/run-e2e.sh').read_text()

@@ -173,18 +173,40 @@ STUB
     [[ "$output" == *"NO verdict on the product"* ]]
 }
 
-@test "the 30-minute timeout leads with the channel, not with the product" {
-    # The old order printed "did not reach the done screen in 30m" first and
-    # appended "the verdict above may be a lost channel" underneath. The
-    # discriminator has to come FIRST because it decides which verdict is even
-    # available.
-    run bash -c "grep -A12 'GUI-driven install did not reach the done screen' $E2E"
+@test "the GUI timeout never treats live ping as a product verdict" {
+    # Execute the actual terminal consumer, with channel replies controlled.
+    # No VM is started and no guest write or recovery is attempted.
+    run python3 - "$E2E" <<'PYTIMEOUT'
+from pathlib import Path
+import subprocess, sys
+source = Path(sys.argv[1]).read_text()
+start = source.index('    [ "${screen:-}" = "done" ] &&')
+body = source[start:source.index('    # The arm must be observable', start)]
+prefix = """
+qga_probe() { return "$PING_RC"; }
+qga_reconnect_cycle() { return "$RECONNECT_RC"; }
+qga_channel_lost() { echo 'INFRA channel-lost'; }
+infra_fail() { echo "INFRA $*"; }
+fail() { echo "PRODUCT $*"; }
+info() { echo "INFO $*"; }
+capture_vm_diagnostics() { echo DIAGNOSTICS; }
+drive_state= screen= driven=false last_screen= last_good= total_empty=0
+"""
+def execute(ping, reconnect, code=body):
+    return subprocess.run(['bash', '-c', prefix+code], env={'PATH':'/usr/bin:/bin', 'PING_RC':str(ping), 'RECONNECT_RC':str(reconnect)}, capture_output=True, text=True)
+for ping, reconnect in [(0,0), (1,0), (1,1)]:
+    result=execute(ping,reconnect)
+    assert result.returncode==1, result.stderr
+    assert 'INFRA' in result.stdout and 'PRODUCT' not in result.stdout, result.stdout
+    assert 'DIAGNOSTICS' in result.stdout
+    assert ('channel-lost' in result.stdout)==(ping==1 and reconnect==1)
+# A product classification restored at the actual callsite goes red.
+mutant=body.replace('infra_fail "GUI-driven completion', 'fail "GUI-driven completion', 1)
+assert mutant!=body
+assert 'PRODUCT' in execute(0,0,mutant).stdout
+print('actual timeout consumer refuses a product verdict from ping alone')
+PYTIMEOUT
     [ "$status" -eq 0 ]
-    # A live channel is still a real product red, and writes no flake verdict.
-    [[ "$output" == *"QGA answers ping"* ]]
-    [[ "$output" != *"note_flake"* ]]
-    # The channel-lost arm is gated on BOTH a dead ping and a failed reconnect.
-    grep -q 'if ! qga_probe && ! qga_reconnect_cycle; then' "$E2E"
 }
 
 @test "a channel that comes back is not a failure" {

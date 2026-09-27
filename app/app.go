@@ -645,6 +645,9 @@ func (a *App) E2EDriveDirective() string {
 	if err != nil {
 		return ""
 	}
+	if _, err := e2eUniqueObject(b); err != nil {
+		return ""
+	}
 	return string(b)
 }
 
@@ -653,7 +656,7 @@ func (a *App) E2EDriveReport(state string) {
 	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
 		return
 	}
-	_ = os.WriteFile(e2eDrivePath("e2e-drive-state.json"), []byte(state), 0o644)
+	writeE2EDriveReport(state)
 }
 
 // ── Existing install detection ────────────────────────────────────────────────
