@@ -154,7 +154,7 @@ public sealed class StartupWindowTests
                 File.WriteAllText(lifecyclePath, state);
                 bool malformedRecovery = state == validFailed;
                 if (malformedRecovery) { Directory.CreateDirectory(Path.GetDirectoryName(recoveryPath)!); File.WriteAllText(recoveryPath, "{}"); }
-                try { await ObserveUnavailableWithoutRoute(Path.Combine(root, "Wootc.Shell.exe")); }
+                try { await ObserveUnavailableWithoutRoute(Path.Combine(root, "Wootc.Shell.exe"), malformedRecovery ? "PrimaryRpc:rpc-recovery-response; Failure:protocol" : "PrimaryStartup:startup-selection; Failure:io"); }
                 finally
                 {
                     Assert.Equal(markerHash, SHA256.HashData(File.ReadAllBytes(marker)));
@@ -175,7 +175,7 @@ public sealed class StartupWindowTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
-    private static async Task ObserveUnavailableWithoutRoute(string executable)
+    private static async Task ObserveUnavailableWithoutRoute(string executable, string primaryFailure)
     {
         using var automation = new UIA3Automation();
         using var process = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(executable)! })!;
@@ -189,6 +189,10 @@ public sealed class StartupWindowTests
             Find("ConnectEngine").AsButton().Invoke();
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             while (!Find("ConnectionStatus").Name.StartsWith("Unavailable", StringComparison.Ordinal)) await Task.Delay(100, deadline.Token);
+            string diagnostic = Find("ConnectionStatus").Properties.HelpText.Value;
+            Assert.Contains(primaryFailure, diagnostic);
+            Assert.Contains("Engine:exited:", diagnostic);
+            Assert.Contains(primaryFailure.StartsWith("PrimaryStartup", StringComparison.Ordinal) ? "Stage:cleanup-exited" : "Stage:session-cleanup-exited", diagnostic);
             Assert.Equal("Startup status has not been read", Find("StartupRoute").Name);
             Assert.Equal("No authenticated startup observations", Find("StartupObservations").Name);
             Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
