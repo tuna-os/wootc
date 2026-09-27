@@ -168,7 +168,7 @@ observe_with() {
     # Persistence acceptance performs a second Linux return. Every request,
     # including that later boot, must leave time for the observation.
     while IFS= read -r timeout_seconds; do
-        [ "$timeout_seconds" -le 5 ]
+        [ "$timeout_seconds" -le 5 ] || return 1
     done <<< "$t"
 }
 
