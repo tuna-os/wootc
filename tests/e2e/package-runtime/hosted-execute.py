@@ -157,7 +157,7 @@ def retain(folder,artifacts):
             if truncated:(artifacts/(parent.name+'-'+name+'.truncated')).write_text('bounded at 262144 bytes\n')
 
 
-def execute(folder,env=None,load=runpy.run_path,measure_closure=None):
+def execute(folder,env=None,load=runpy.run_path,measure_closure=None,namespace_check=None):
     hosted(os.environ if env is None else env)
     folder=Path(folder).absolute()
     if not re.fullmatch('[A-Za-z0-9_/.-]+',str(folder)):raise ValueError('unsafe owned stage path')
@@ -172,6 +172,10 @@ def execute(folder,env=None,load=runpy.run_path,measure_closure=None):
     def save():(folder/'execution.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
     save()
     try:
+        if namespace_check is None:
+            namespace_check=runpy.run_path(str(HERE/'host-namespace.py'))['require_bound']
+        prefix=os.environ.get('WOOTC_HOST_DATA_PREFIX','')
+        record['hostNamespace']=namespace_check(prefix);save()
         facts=load(str(HERE/'qualify.py'))['qualify'](folder,folder/'host.json')
         if not facts['qualified']:raise ValueError('actual qualified hosted resource/tool gate failed')
         record['hostClosure']=(closure(proof=folder/'tool-closure.json') if measure_closure is None else measure_closure());save()

@@ -30,7 +30,7 @@ class HostedTests(unittest.TestCase):
         key={'qualify':'qualify','acquire':'acquire','prepare':'prepare','launch':'launch'}[phase]
         return {key:action,'readback':None,'acknowledge':None}
 
-    def execute(self):return MODULE['execute'](self.folder,ENV,self.load,lambda:{})
+    def execute(self):return MODULE['execute'](self.folder,ENV,self.load,lambda:{},namespace_check=lambda *_:{'fixtureNamespace':True})
 
     def test_actual_root_tool_is_protected_but_private_tmp_is_refused(self):
         self.assertTrue(MODULE['protected']('/usr/bin/true').is_file())

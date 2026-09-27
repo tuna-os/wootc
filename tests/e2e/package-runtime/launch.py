@@ -42,6 +42,10 @@ def checked(folder):
     record=json.loads((folder/'ownership.json').read_text())
     if record['stage']!=str(folder) or record['runtimeExecuted'] is not False:
         raise ValueError('scratch identity differs or was already executed')
+    prefix=Path(record['hostDataPrefix'])
+    runpy.run_path(str(Path(__file__).with_name('host-namespace.py')))['require_bound'](prefix)
+    if sha(prefix/'host-data.json')!=record['hostDataSourceSha256'] or record['qemuDataPath']!=str(prefix/'usr/share/qemu'):
+        raise ValueError('recorded host data source contract differs')
     for name,expected in {'base.qcow2':record['baseSha256'],'seed.iso':record['seedSha256'],
                           **record['firmwareSourceHashes'],**record['hostHelperHashes']}.items():
         path=folder/name;meta=path.lstat()
@@ -126,7 +130,7 @@ def protected_qemu():
 
 def command(folder,record):
     qemu=protected_qemu()
-    return [qemu,'-name','wootc-package-'+record['scratchId'],'-uuid',record['vmUuid'],
+    return [qemu,'-L',record['qemuDataPath'],'-name','wootc-package-'+record['scratchId'],'-uuid',record['vmUuid'],
             '-machine','q35,accel=kvm','-m','2048','-smp','2','-display','none','-monitor','none',
             '-nic','none','-serial','file:'+str(folder/'serial.log'),
             '-drive','if=pflash,format=raw,readonly=on,file='+str(folder/'code.fd'),

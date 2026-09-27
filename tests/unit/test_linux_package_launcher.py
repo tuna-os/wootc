@@ -18,6 +18,22 @@ class LauncherTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.folder=Path(self.temp.name)
         self.command=['/usr/bin/python3','-c','import time;time.sleep(10)']
 
+    def test_actual_checked_requires_live_namespace_before_source_or_qemu_reads(self):
+        record={'stage':str(self.folder),'runtimeExecuted':False,'hostDataPrefix':'/run/fixture'}
+        (self.folder/'ownership.json').write_text(json.dumps(record))
+        calls=[]
+        def bound(prefix):
+            calls.append(prefix);raise ValueError('actual namespace binding absent')
+        original=runpy.run_path
+        def module(path):
+            if str(path).endswith('host-namespace.py'):return {'require_bound':bound,'checked':lambda *_:{}}
+            return original(path)
+        with patch.object(runpy,'run_path',module):
+            with self.assertRaisesRegex(ValueError,'actual namespace binding absent'):
+                MODULE['checked'](self.folder)
+        self.assertEqual(calls,[Path('/run/fixture')])
+        self.assertFalse((self.folder/'pid.json').exists())
+
     def test_actual_owned_spawn_reports_start_after_identity_before_observation(self):
         events=[]
         def started(identity):
@@ -112,11 +128,13 @@ class LauncherTests(unittest.TestCase):
             child.terminate();child.wait(timeout=2);foreign.terminate();foreign.wait(timeout=2)
 
     def test_command_has_only_owned_disks_no_network_or_shared_host_path(self):
-        record={'scratchId':'a'*32,'vmUuid':'12345678-1234-1234-1234-123456789abc'}
+        record={'scratchId':'a'*32,'vmUuid':'12345678-1234-1234-1234-123456789abc',
+                'qemuDataPath':'/run/wootc-package-host-1-1/usr/share/qemu'}
         # No guest executable is needed for this declarative argument control.
         with patch.dict(MODULE['command'].__globals__,{'protected_qemu':lambda:'/usr/bin/qemu-system-x86_64'}):
             command=MODULE['command'](self.folder,record)
         self.assertEqual(command[command.index('-nic')+1],'none')
+        self.assertEqual(command[command.index('-L')+1],record['qemuDataPath'])
         self.assertNotIn('-netdev',command);self.assertNotIn('-virtfs',command);self.assertNotIn('-fsdev',command)
         self.assertEqual(sum(value.startswith('if=') for value in command),4)
         self.assertIn('virtio-blk-pci,drive=root,serial=WOOTC-PKG-'+record['scratchId'],command)
