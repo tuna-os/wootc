@@ -212,3 +212,25 @@ The revised README has no findings under the shared English checker.
 The total falls from 1627 to 1589; the budget follows that count.
 Headings, existing link targets, tables, executable names, commands and license terms remain.
 The native journey, real hardware, signatures, full restoration and the soak still need proof.
+
+## E2E architecture truth and English pass — 2026-09-27, against `8e696f3`
+
+The page called its whole description validated, although its diagrams recorded the Kanpur design from July.
+It now separates those historical diagrams from current modules and dated acceptance evidence.
+The complete VM journey and WinUI journey still need proof.
+
+The page said transport, host lifecycle and retention still needed separate modules.
+Main now has sourceable adapters for those operations and VM startup.
+The page now identifies their actual source files and preserves the open GUI and scenario boundaries in #383.
+Controlled checks do not replace fresh VM acceptance.
+
+The page also claimed an atomic menu handoff on the ESP.
+The deployer writes a separate `grub.cfg` for each of three directories.
+The page now discloses partial boot state after interruption and keeps transactional recovery as a separate gate.
+The argument for the kernel requests QGA; it does not prove an active service.
+Four new docs-truth checks reject the old claims.
+
+The architecture page falls from 28 English findings to zero.
+Its headings, tables and diagrams remain; earlier dated records remain.
+The shared count falls from 1589 to 1561, and the budget follows that count.
+RC, hardware, firmware, signatures, restoration and the soak still need proof.
