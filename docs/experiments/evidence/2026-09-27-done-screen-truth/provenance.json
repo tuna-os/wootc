@@ -29,5 +29,11 @@
   "notProved": [
     "Actual Windows install, reboot or recovery",
     "Native WinUI journey"
-  ]
+  ],
+  "counterfactual": {
+    "replacedSourceCommit": "119bbc0cb7961c04ed0aeb242d18bc5ec2ff1620",
+    "replacedFile": "app/frontend/src/screens/done.js",
+    "logSha256": "778360e41f41bd795908ad431124a4b021ad7668d94a18169080c916256e0c8a",
+    "observed": "Both actual done-screen and consent DOM tests failed on previous built done.js; current source restored byte-for-byte and frontend rebuilt; retained screenshots not overwritten"
+  }
 }
