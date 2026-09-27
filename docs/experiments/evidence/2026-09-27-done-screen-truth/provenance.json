@@ -1,0 +1,33 @@
+{
+  "sourceCommit": "08aac72afc032d24b51a7e8cd7bcb30f7a73988b",
+  "command": "playwright test --config done-truth.config.js --grep 'installer \u2014 done screen|done celebrates the brand|session consent does not assert'",
+  "sourceSha256": {
+    "app/frontend/src/screens/done.js": "fc258629ef204944c732281d91b532bef5919a66e596ebbbb7ba6b1ebb72a7b1",
+    "tests/gui/gui.spec.js": "b3ac6c1cc5d74dfc8c10850ce200f9f9f8b3e075b16ab99221a85abb08ca8dfc",
+    "tests/gui/branded-walkthrough.spec.js": "0bcb911e0b97299467098ba9f3d0a69f0aab990ca84315b79d46318f02e0e72a",
+    "tests/gui/done-truth.config.js": "5bb00e876150e61943e30382363cad1ee1a17e0f79545938564cf3d7959d4ba7"
+  },
+  "logSha256": "269b53b4023df439fa03198316c12533a277d432076068131ff3cb409da8271e",
+  "earlierRepeatFailure": {
+    "logSha256": "747df92f05018a6279b4bfdb2784e3e7f9b065e5160369a79553211e4c8c7027",
+    "causeObserved": "Bluefin page.goto waiting for load exceeded test timeout before any done-screen assertion; same source repeat passed all seven"
+  },
+  "screenshots": {
+    "docs/screenshots/04-done.png": "d519860a8b5ab50fd9b3f8efb4f5ebc68de986a7a247b7e7da673a88373622f0",
+    "docs/screenshots/brands/aurora/03-done.png": "c6de01a5fd003633f882b87a433ce938e1ecf41cde9532734ed81307e1d819cc",
+    "docs/screenshots/brands/bazzite/03-done.png": "82f0caf6c15fcd8154cb52d4e75ab18dadea3b2356a445befabe14969988e361",
+    "docs/screenshots/brands/bluefin/03-done.png": "7f95c767c1420f7a75f913826c2050911f6567bfce380749e436bb6c057edfcf",
+    "docs/screenshots/brands/tunaos/03-done.png": "791b1923cbf8ee988213bef6021b0b48c025b799ec983a36879da013f678f103",
+    "docs/screenshots/brands/wootc/03-done.png": "e40952d9cd0f3b30f2ffa5a7e7f54efde19d9e44bd813d88430729f7ecfbd67e"
+  },
+  "observed": [
+    "Seven actual Chromium GUI tests passed against built frontend and mocked Wails backend",
+    "Prepared rather than installed wording and conditional recovery guidance",
+    "Saved-work warning and reboot buttons in viewport across five brands",
+    "Consent-only fixture does not assert exported session keys"
+  ],
+  "notProved": [
+    "Actual Windows install, reboot or recovery",
+    "Native WinUI journey"
+  ]
+}
