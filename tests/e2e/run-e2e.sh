@@ -1948,6 +1948,10 @@ PYEOF
         ;;
     *) fail "WOOTC_E2E_BITLOCKER must be on|off (got: $E2E_BITLOCKER)"; exit 1 ;;
 esac
+if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ] && [ "$E2E_BITLOCKER" != on ]; then
+    fail "GUI Documents proof requires the real BitLocker on fixture"
+    exit 1
+fi
 export WOOTC_E2E_BITLOCKER="$E2E_BITLOCKER"
 printf '[INFO] BitLocker axis: %s (C: %s)\n' "$E2E_BITLOCKER" \
     "$([ "$E2E_BITLOCKER" = on ] && echo 'auto-encrypted → root.disk needs an unencrypted volume' || echo 'plaintext')" >&2
@@ -4435,19 +4439,33 @@ if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
     # Exercise the destination as the ordinary desktop user, then read it
     # back in a fresh process. The source lives on encrypted C: and must remain
     # unchanged while the Linux copy accepts edits.
-    EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
-    step "Editing the imported Windows Documents copy as Linux user wootc..."
-    EDIT_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/sh -c \
-        "printf '%s\\n' '$EDIT_MARKER' >> '$USERDATA_PATH' && cat '$USERDATA_PATH'" \
-        2>/dev/null || true)
-    REOPEN_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" \
-        2>/dev/null || true)
-    if printf '%s' "$EDIT_OUTPUT" | grep -Fq "$EDIT_MARKER" \
-        && printf '%s' "$REOPEN_OUTPUT" | grep -Fq "$EDIT_MARKER"; then
-        pass "BitLocker Documents: ordinary Linux user saved and reopened an edit"
+    if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+        EDIT_MARKER="wootc-e2e-gui-edit-$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"
+        step "Editing Documents through the ordinary user's GNOME editor..."
+        if ! python3 "$SCRIPT_DIR/gui-document-proof.py" edit --runtime "$DOCKER" \
+            --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
+            --output "$ARTIFACT_DIR/gui-documents/first-boot" \
+            > "$ARTIFACT_DIR/gui-documents-first.json"; then
+            fail "GUI Documents: editor open, edit, save, close, and reopen proof failed"
+            exit 1
+        fi
+        GUI_EDIT_SHA=$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-first.json")
+        pass "GUI Documents: ordinary user saved, closed, and reopened the imported file"
     else
-        fail "BitLocker Documents: ordinary Linux user could not save and reopen an edit"
-        info "  write/read output: ${REOPEN_OUTPUT:-<empty>}"
+        EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
+        step "Editing the imported Windows Documents copy as Linux user wootc..."
+        EDIT_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/sh -c \
+            "printf '%s\\n' '$EDIT_MARKER' >> '$USERDATA_PATH' && cat '$USERDATA_PATH'" \
+            2>/dev/null || true)
+        REOPEN_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" \
+            2>/dev/null || true)
+        if printf '%s' "$EDIT_OUTPUT" | grep -Fq "$EDIT_MARKER" \
+            && printf '%s' "$REOPEN_OUTPUT" | grep -Fq "$EDIT_MARKER"; then
+            pass "BitLocker Documents: ordinary Linux user saved and reopened an edit"
+        else
+            fail "BitLocker Documents: ordinary Linux user could not save and reopen an edit"
+            info "  write/read output: ${REOPEN_OUTPUT:-<empty>}"
+        fi
     fi
     ORIGINAL_DOC=$(qga_call exec /bin/sh -c \
         'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
@@ -4663,6 +4681,20 @@ else
             fail "BitLocker Documents: saved Linux edit did not survive the environment restart"
             info "  second-boot readback: ${PERSISTED_EDIT:-<empty>}"
             exit 1
+        fi
+        if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+            if ! python3 "$SCRIPT_DIR/gui-document-proof.py" reopen --runtime "$DOCKER" \
+                --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
+                --output "$ARTIFACT_DIR/gui-documents/second-boot" \
+                > "$ARTIFACT_DIR/gui-documents-second.json"; then
+                fail "GUI Documents: editor could not reopen saved bytes after the environment restart"
+                exit 1
+            fi
+            if [ "$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-second.json")" != "$GUI_EDIT_SHA" ]; then
+                fail "GUI Documents: saved bytes changed across the environment restart"
+                exit 1
+            fi
+            pass "GUI Documents: real editor reopened the same saved bytes after restart"
         fi
         SECOND_SOURCE=$(qga_call exec /bin/sh -c \
             'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
