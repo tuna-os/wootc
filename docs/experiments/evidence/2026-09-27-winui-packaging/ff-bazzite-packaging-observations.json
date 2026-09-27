@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "buildId": "d25baf8e6061fe10e22800dbfda829a867d542e8",
+  "brandId": "bazzite",
+  "toolSha256": "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f",
+  "toolSigner": "CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL",
+  "toolVersion": "7.1.0",
+  "peFileVersion": "0.0.0.0",
+  "installerSha256": "E813C04C6F3D4EF29F75781097C5BCAB81628073396C7300C7B00657AE41C87C",
+  "manifestSha256": "FACC640817A759C8ABDC287960051C4D931297CDB562EC48B76DBB42654957FC",
+  "beforeStartup": {},
+  "afterStartup": {},
+  "afterUninstall": {},
+  "existingDestinationRefused": true,
+  "foreignFilesPreserved": true,
+  "actualInstalledStartupRpc": true,
+  "uninstallerRemovalObserved": true,
+  "uninstallerRemovalMilliseconds": 567,
+  "interactiveUacProved": false,
+  "offlineRuntimeProved": false,
+  "minimumOsProved": false
+}

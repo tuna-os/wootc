@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "buildId": "9ab2148d5316e4661fd5f0f6c895e7fe077d689d",
+  "brandId": "wootc",
+  "observation": "after-public-fixtures",
+  "entries": [
+    {
+      "path": "unins000.exe",
+      "directory": false,
+      "reparse": false,
+      "sha256": "39A4D2B7F4BDC1FF402681DCFAB4252592428CAF3EDABEFB9DFF1FA4F75CA53D"
+    }
+  ]
+}

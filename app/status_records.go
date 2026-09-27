@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 // Persisted observations cannot use JSON's last-key-wins or case-insensitive
@@ -93,4 +96,39 @@ func readBoundedStatusRecord(path string) ([]byte, error) {
 		return nil, fmt.Errorf("status record exceeds size limit")
 	}
 	return data, nil
+}
+
+func readNativeStartupLifecycle(root string) (LifecycleState, error) {
+	state, err := loadStatusState(filepath.Join(root, "state.json"))
+	if os.IsNotExist(err) && !hasInstallAttempt(root) {
+		return LifecycleState{}, nil
+	}
+	return state, err
+}
+
+func readNativeStartupRecovery(root string) (RecoveryVerdict, error) {
+	data, err := readBoundedStatusRecord(filepath.Join(root, "install", "recovery-verdict.json"))
+	if os.IsNotExist(err) {
+		return RecoveryVerdict{}, nil
+	}
+	if err != nil {
+		return RecoveryVerdict{}, err
+	}
+	var verdict RecoveryVerdict
+	fields := map[string]string{"phaseId": "string", "verdict": "string", "phase": "string", "title": "string", "message": "string", "details": "string", "logTail": "strings", "untouched": "bool", "canTryAgain": "bool", "canRemove": "bool", "canRepairBoot": "bool", "timestamp": "string"}
+	if err := decodeStrictStatusRecord(data, &verdict, fields, []string{"verdict", "title", "message", "untouched", "canTryAgain", "canRemove", "canRepairBoot", "timestamp"}); err != nil {
+		return RecoveryVerdict{}, err
+	}
+	switch verdict.Verdict {
+	case VerdictNeverBooted, VerdictInterrupted, VerdictFailed, VerdictDeployed, VerdictHealthy:
+	default:
+		return RecoveryVerdict{}, fmt.Errorf("unsupported recovery verdict")
+	}
+	if strings.TrimSpace(verdict.Title) == "" {
+		return RecoveryVerdict{}, fmt.Errorf("missing recovery title")
+	}
+	if _, err := time.Parse(time.RFC3339, verdict.Timestamp); err != nil {
+		return RecoveryVerdict{}, fmt.Errorf("invalid recovery timestamp: %w", err)
+	}
+	return verdict, nil
 }
