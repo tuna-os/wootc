@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using FlaUI.Core;
 using FlaUI.UIA3;
 using Xunit;
@@ -15,6 +16,45 @@ public sealed class StartupWindowTests
         Assert.True(File.Exists(executable), "Published preview executable does not exist");
         string resourceIndex = Path.ChangeExtension(executable, ".pri");
         Assert.True(File.Exists(resourceIndex), "Published application resource index does not exist");
+        byte[] originalIndexHash = SHA256.HashData(File.ReadAllBytes(resourceIndex));
+        await ObserveVisiblePreview(executable);
+
+        // Reproduce the missing-resource failure in the same published bundle.
+        // This runs after the visible-window checks and always restores exact bytes.
+        string retainedIndex = resourceIndex + ".native-test-retained";
+        Assert.False(File.Exists(retainedIndex));
+        File.Move(resourceIndex, retainedIndex);
+        try
+        {
+            using var missingResource = Process.Start(new ProcessStartInfo(executable)
+            {
+                UseShellExecute = false,
+                WorkingDirectory = Path.GetDirectoryName(executable)!,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
+            }) ?? throw new InvalidOperationException("Missing-resource control did not start");
+            var errorOutput = missingResource.StandardError.ReadToEndAsync();
+            var standardOutput = missingResource.StandardOutput.ReadToEndAsync();
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await missingResource.WaitForExitAsync(deadline.Token);
+                Assert.NotEqual(0, missingResource.ExitCode);
+                Assert.Contains("Cannot locate resource from 'ms-appx:///MainWindow.xaml'", await errorOutput);
+                await standardOutput;
+            }
+            finally
+            {
+                if (!missingResource.HasExited) { missingResource.Kill(); missingResource.WaitForExit(5000); }
+            }
+        }
+        finally { File.Move(retainedIndex, resourceIndex); }
+        Assert.Equal(originalIndexHash, SHA256.HashData(File.ReadAllBytes(resourceIndex)));
+        await ObserveVisiblePreview(executable);
+    }
+
+    private static async Task ObserveVisiblePreview(string executable)
+    {
         using var automation = new UIA3Automation();
         using var process = Process.Start(new ProcessStartInfo(executable)
         {
@@ -51,36 +91,6 @@ public sealed class StartupWindowTests
                 if (!process.WaitForExit(5000)) { process.Kill(); process.WaitForExit(5000); }
             }
         }
-
-        // Reproduce the missing-resource failure in the same published bundle.
-        // This runs after the visible-window checks and always restores exact bytes.
-        string retainedIndex = resourceIndex + ".native-test-retained";
-        Assert.False(File.Exists(retainedIndex));
-        File.Move(resourceIndex, retainedIndex);
-        try
-        {
-            using var missingResource = Process.Start(new ProcessStartInfo(executable)
-            {
-                UseShellExecute = false,
-                WorkingDirectory = Path.GetDirectoryName(executable)!,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true
-            }) ?? throw new InvalidOperationException("Missing-resource control did not start");
-            var errorOutput = missingResource.StandardError.ReadToEndAsync();
-            var standardOutput = missingResource.StandardOutput.ReadToEndAsync();
-            try
-            {
-                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                await missingResource.WaitForExitAsync(deadline.Token);
-                Assert.NotEqual(0, missingResource.ExitCode);
-                Assert.Contains("Cannot locate resource from 'ms-appx:///MainWindow.xaml'", await errorOutput);
-                await standardOutput;
-            }
-            finally
-            {
-                if (!missingResource.HasExited) { missingResource.Kill(); missingResource.WaitForExit(5000); }
-            }
-        }
-        finally { File.Move(retainedIndex, resourceIndex); }
     }
 }
+
