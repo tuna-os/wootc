@@ -276,3 +276,45 @@ setup() {
     grep -q 'is a separate choice' docs/RELEASING.md
     ! grep -q 'Uninstalling is always' docs/RELEASING.md
 }
+
+@test "getting started discloses preparation beyond a folder and boot entry" {
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'Install.*button starts changes before you restart' docs/getting-started.md
+    grep -q 'copies boot files to the EFI system partition' docs/getting-started.md
+    grep -q 'changes Windows startup settings' docs/getting-started.md
+    ! grep -q 'Everything wootc does before the first reboot lives in one folder' docs/getting-started.md
+}
+
+@test "getting started qualifies cleanup and exposes its data choice" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'Cleanup can fail and leave files or boot state behind' docs/getting-started.md
+    grep -q 'Linux data removal is a separate choice in Manage' docs/getting-started.md
+    ! grep -q 'Uninstall.*puts things back' <(tr '\n' ' ' < docs/getting-started.md)
+}
+
+@test "getting started qualifies reputation prompts instead of promising bypass" {
+    grep -q 'Windows policy can prevent continuation' docs/getting-started.md
+    grep -q 'unknown or negative reputation' docs/getting-started.md
+    grep -q 'learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation' docs/getting-started.md
+    ! grep -q 'warnings you.*will' docs/getting-started.md
+    ! grep -q 'pre-register software with Microsoft' docs/getting-started.md
+    ! grep -q 'and nothing more' docs/getting-started.md
+}
+
+@test "getting started distinguishes checksums from publisher identity" {
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'It does not identify the publisher' docs/getting-started.md
+    grep -q 'checks hashes and a signed manifest for its boot artifacts' docs/getting-started.md
+    ! grep -q 'same verification on every boot artifact' docs/getting-started.md
+}
+
+@test "startup guides disclose the Windows WebView2 runtime dependency" {
+    grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
+    grep -q 'EdgeUpdate.*Clients' tests/e2e/run-e2e.sh
+    grep -q 'interface needs the WebView2 runtime' docs/RELEASING.md
+    grep -q 'interface needs the WebView2 runtime' docs/getting-started.md
+    ! grep -q 'no runtime depend' docs/RELEASING.md
+    ! grep -q 'There is nothing to "install"' docs/getting-started.md
+}
