@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "b4d4083cdeeba25c950bf4cdbca3f50a754c1949",
+  "candidateBranch": "trial/bitlocker-diagnostic-acceptance",
+  "workflow": "e2e-nightly.yml",
+  "inputs": {
+    "image": "ghcr.io/tuna-os/yellowfin:gnome",
+    "win_version": "11",
+    "bitlocker": "on",
+    "gui_documents": true,
+    "use_base_image": false,
+    "phase3": false,
+    "bootloader": ""
+  },
+  "dispatched": false,
+  "prerequisites": [
+    "exact candidate CI reviewed",
+    "source and private durable before receipt controls reviewed",
+    "parent explicitly authorizes dispatch"
+  ],
+  "preservedFailedRun": 36311550808,
+  "preservedFailedSource": "b4d4083",
+  "receiptReadPolicy": "one known caller-correlated path after failure; no enumeration or activation replay",
+  "claims": {
+    "realProtectionOn": false,
+    "fullAcceptance": false
+  }
+}

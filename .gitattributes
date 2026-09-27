@@ -1,0 +1,2 @@
+docs/experiments/evidence/2026-09-27-correlated-bitlocker-receipt/*.raw.log -text -diff
+docs/experiments/evidence/2026-09-27-correlated-bitlocker-receipt/*.raw.stderr -text -diff
