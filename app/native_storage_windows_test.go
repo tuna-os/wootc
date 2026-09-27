@@ -169,6 +169,9 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 		t.Fatal("private hosted diagnostic destination required")
 	}
 	destination := filepath.Join(base, "trusted-system-modules")
+	if err := os.MkdirAll(base, 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Mkdir(destination, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -197,6 +200,35 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 				return fmt.Errorf("module inventory exceeds bound")
 			}
 			if entry.IsDir() {
+				return nil
+			}
+			if name == "CimCmdlets" && strings.HasSuffix(strings.ToLower(entry.Name()), ".dll") {
+				file, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+				info, err := file.Stat()
+				if err != nil || !info.Mode().IsRegular() || info.Size() > 32*1024*1024 {
+					file.Close()
+					return fmt.Errorf("CIM assembly exceeds diagnostic bound")
+				}
+				hash := sha256.New()
+				count, err := io.Copy(hash, io.LimitReader(file, 32*1024*1024+1))
+				closeErr := file.Close()
+				if err != nil {
+					return err
+				}
+				if closeErr != nil {
+					return closeErr
+				}
+				if count != info.Size() {
+					return fmt.Errorf("CIM assembly observation changed")
+				}
+				relative, err := filepath.Rel(module, path)
+				if err != nil {
+					return err
+				}
+				inventory[name] = append(inventory[name], manifest{Path: relative, Size: count, SHA256: hex.EncodeToString(hash.Sum(nil))})
 				return nil
 			}
 			if !strings.EqualFold(entry.Name(), name+".psd1") && !(name == "Storage" && strings.EqualFold(entry.Name(), "StorageScripts.psm1")) {
