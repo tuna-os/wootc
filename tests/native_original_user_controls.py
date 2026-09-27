@@ -25,7 +25,7 @@ try:
         event = json.loads(line)
         if event.get("Test") and event.get("Action") in ("pass", "fail", "skip"):
             receipt["tests"].append({"name": event["Test"], "outcome": event["Action"]})
-    required = {"TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator", "TestNativeOriginalUserCannotReplaceObservedTokenWithPeerFields", "TestNativeOriginalUserActualTokenProfileAndBindingReadOnly", "TestNativeOriginalUserActualNoninteractiveTokenRefuses"}
+    required = {"TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator", "TestNativeOriginalUserCannotReplaceObservedTokenWithPeerFields", "TestNativeOriginalUserActualTokenProfileAndBindingReadOnly", "TestNativeOriginalUserActualInteractiveCapture", "TestNativeOriginalUserActualRestrictedInteractiveCriterion"}
     passed = {test["name"] for test in receipt["tests"] if test["outcome"] == "pass"}
     receipt["accepted"] = completed.returncode == 0 and required <= passed and all(t["outcome"] == "pass" for t in receipt["tests"])
 finally:

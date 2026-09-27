@@ -3,11 +3,21 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"golang.org/x/sys/windows"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
+	"unsafe"
 )
 
 func TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator(t *testing.T) {
@@ -94,32 +104,154 @@ func TestNativeOriginalUserActualTokenProfileAndBindingReadOnly(t *testing.T) {
 	}
 }
 
-func TestNativeOriginalUserActualNoninteractiveTokenRefuses(t *testing.T) {
+func TestNativeOriginalUserActualInteractiveCapture(t *testing.T) {
 	peer, err := observeNativeProcessPeer(uint32(os.Getpid()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer peer.close()
-	token, err := windows.OpenCurrentProcessToken()
+	user, err := captureNativeOriginalUser(peer, peer)
 	if err != nil {
+		t.Fatal(err)
+	}
+	defer user.close()
+	if user.sid != peer.userSID || user.session != peer.sessionID || !filepath.IsAbs(user.profile) || len(user.folders) != 6 {
+		t.Fatal("actual interactive capture incomplete")
+	}
+	if err := user.revalidateToken(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeOriginalUserActualRestrictedInteractiveCriterion(t *testing.T) {
+	const flag = "WOOTC_ORIGINAL_RESTRICTED_CHILD"
+	if nonce := os.Getenv(flag); nonce != "" {
+		if len(nonce) != 32 || strings.Trim(nonce, "0123456789abcdef") != "" {
+			t.Fatal("invalid private child correlation")
+		}
+		pid, err := strconv.ParseUint(os.Getenv("WOOTC_ORIGINAL_PARENT_PID"), 10, 32)
+		if err != nil || int(pid) != os.Getppid() {
+			t.Fatal("private child parent differs")
+		}
+		source, err := observeNativeProcessPeer(uint32(os.Getpid()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer source.close()
+		engine, err := observeNativeProcessPeer(uint32(pid))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer engine.close()
+		var token windows.Token
+		if err := windows.OpenProcessToken(source.handle, windows.TOKEN_QUERY, &token); err != nil {
+			t.Fatal(err)
+		}
+		defer token.Close()
+		groups, err := token.GetTokenGroups()
+		if err != nil {
+			t.Fatal(err)
+		}
+		restricted := false
+		for _, group := range groups.AllGroups() {
+			if group.Sid.IsWellKnown(windows.WinInteractiveSid) {
+				restricted = group.Attributes&windows.SE_GROUP_ENABLED == 0 && group.Attributes&windows.SE_GROUP_USE_FOR_DENY_ONLY != 0
+			}
+		}
+		if !restricted || source.sessionID == 0 || source.sessionID != engine.sessionID || source.userSID != engine.userSID || !engine.elevated {
+			t.Fatal("actual restricted token context not observed")
+		}
+		user, err := captureNativeOriginalUser(source, engine)
+		if err == nil {
+			user.close()
+			t.Fatal("restricted interactive SID authorized capture")
+		}
+		if err.Error() != "original user interactive logon required" {
+			t.Fatal("actual restricted-group criterion not reached")
+		}
+		record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "nonce": nonce, "pid": os.Getpid(), "parentPID": pid, "restrictedInteractive": true, "refused": true})
+		fmt.Println("owned-restricted-token-receipt=" + string(record))
+		return
+	}
+	var token windows.Token
+	if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_QUERY|windows.TOKEN_DUPLICATE|windows.TOKEN_ASSIGN_PRIMARY, &token); err != nil {
 		t.Fatal(err)
 	}
 	defer token.Close()
-	groups, err := token.GetTokenGroups()
+	sid, err := windows.CreateWellKnownSid(windows.WinInteractiveSid)
 	if err != nil {
 		t.Fatal(err)
 	}
-	interactive := false
-	for _, g := range groups.AllGroups() {
-		if g.Sid.IsWellKnown(windows.WinInteractiveSid) && g.Attributes&windows.SE_GROUP_ENABLED != 0 && g.Attributes&windows.SE_GROUP_USE_FOR_DENY_ONLY == 0 {
-			interactive = true
+	disabled := windows.SIDAndAttributes{Sid: sid}
+	var restricted windows.Token
+	proc := windows.NewLazySystemDLL("advapi32.dll").NewProc("CreateRestrictedToken")
+	result, _, callErr := proc.Call(uintptr(token), 0, 1, uintptr(unsafe.Pointer(&disabled)), 0, 0, 0, 0, uintptr(unsafe.Pointer(&restricted)))
+	if result == 0 {
+		t.Fatal(callErr)
+	}
+	defer restricted.Close()
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		t.Fatal(err)
+	}
+	nonce := hex.EncodeToString(random[:])
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, executable, "-test.run=^TestNativeOriginalUserActualRestrictedInteractiveCriterion$", "-test.count=1", "-test.v")
+	for _, v := range os.Environ() {
+		k, _, _ := strings.Cut(v, "=")
+		if !strings.EqualFold(k, flag) && !strings.EqualFold(k, "WOOTC_ORIGINAL_PARENT_PID") {
+			command.Env = append(command.Env, v)
 		}
 	}
-	if interactive && peer.sessionID != 0 {
-		t.Fatal("hosted refusal control requires an actual noninteractive token; inconclusive")
+	command.Env = append(command.Env, flag+"="+nonce, "WOOTC_ORIGINAL_PARENT_PID="+strconv.Itoa(os.Getpid()))
+	command.SysProcAttr = &syscall.SysProcAttr{Token: syscall.Token(restricted), HideWindow: true}
+	command.WaitDelay = time.Second
+	output := &nativeOriginalTestOutput{}
+	command.Stdout = output
+	command.Stderr = output
+	if err := command.Run(); err != nil {
+		t.Fatalf("owned restricted child refused: %v; %s", err, output.data)
 	}
-	if user, err := captureNativeOriginalUser(peer, peer); err == nil {
-		user.close()
-		t.Fatal("noninteractive token accepted as original user")
+	if command.ProcessState == nil || !command.ProcessState.Exited() || command.ProcessState.ExitCode() != 0 {
+		t.Fatal("owned child exit not observed")
 	}
+	receiptCount := 0
+	for _, line := range strings.Split(string(output.data), "\n") {
+		if !strings.HasPrefix(line, "owned-restricted-token-receipt=") {
+			continue
+		}
+		var record struct {
+			SchemaVersion         int
+			Nonce                 string
+			PID                   int
+			ParentPID             uint32
+			RestrictedInteractive bool
+			Refused               bool
+		}
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "owned-restricted-token-receipt=")), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record.SchemaVersion != 1 || record.Nonce != nonce || record.PID != command.Process.Pid || record.ParentPID != uint32(os.Getpid()) || !record.RestrictedInteractive || !record.Refused {
+			t.Fatal("owned child receipt differs")
+		}
+		receiptCount++
+	}
+	if receiptCount != 1 {
+		t.Fatal("one correlated actual child observation required")
+	}
+}
+
+type nativeOriginalTestOutput struct{ data []byte }
+
+func (out *nativeOriginalTestOutput) Write(p []byte) (int, error) {
+	if len(out.data)+len(p) > 4096 {
+		return 0, fmt.Errorf("owned child output exceeds bound")
+	}
+	out.data = append(out.data, p...)
+	return len(p), nil
 }
