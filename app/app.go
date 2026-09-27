@@ -202,12 +202,6 @@ func suggestHostname(raw string) string {
 // DedicatedVolumeLabel is the required filesystem label for a wootc-created partition (#197, #225).
 const DedicatedVolumeLabel = "wootc-data"
 
-// isDedicatedVolume reports whether a volume with the given non-system items count
-// and filesystem label belongs to wootc and is safe to remove.
-func isDedicatedVolume(itemsCount int, label string) bool {
-	return itemsCount == 0 && strings.EqualFold(strings.TrimSpace(label), DedicatedVolumeLabel)
-}
-
 // DataPartition is a candidate unencrypted volume for root.disk.
 type DataPartition struct {
 	Letter    string  `json:"letter"`
@@ -685,13 +679,14 @@ func (a *App) Uninstall() error {
 // the right options (SPEC §5): where root.disk lives and whether that
 // volume was created by wootc (and is therefore safe to remove entirely).
 type UninstallInfo struct {
-	Found          bool    `json:"found"`
-	StorageDrive   string  `json:"storageDrive"` // where root.disk lives
-	DiskPath       string  `json:"diskPath"`     // full path to root.disk
-	DiskSizeGB     float64 `json:"diskSizeGB"`
-	OnDedicatedVol bool    `json:"onDedicatedVol"`        // wootc-created data partition
-	ReclaimGB      float64 `json:"reclaimGB"`             // space freed if the volume is removed
-	VolumeLabel    string  `json:"volumeLabel,omitempty"` // verified volume label (e.g. "wootc-data")
+	Found                  bool    `json:"found"`
+	StorageDrive           string  `json:"storageDrive"` // where root.disk lives
+	DiskPath               string  `json:"diskPath"`     // full path to root.disk
+	DiskSizeGB             float64 `json:"diskSizeGB"`
+	PartitionRemovalReason string  `json:"partitionRemovalReason,omitempty"`
+	OnDedicatedVol         bool    `json:"onDedicatedVol"`        // wootc-created data partition
+	ReclaimGB              float64 `json:"reclaimGB"`             // space freed if the volume is removed
+	VolumeLabel            string  `json:"volumeLabel,omitempty"` // verified volume label (e.g. "wootc-data")
 	// Orphaned: no root.disk anywhere, but leftover boot arming (bcd-guid /
 	// state.json) exists — the "user deleted the folder by hand" case, which
 	// previously had NO GUI path to clean up the boot entry.

@@ -197,7 +197,7 @@ func getUninstallInfo() UninstallInfo {
 				Deployed:     deployHasCompleted(d),
 			}
 			if d != "C" {
-				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
+				fillDedicatedPartitionInfo(&info, d)
 				if info.OnDedicatedVol {
 					info.VolumeLabel = DedicatedVolumeLabel
 				}
@@ -218,7 +218,7 @@ func getUninstallInfo() UninstallInfo {
 				Deployed:     deployHasCompleted(d),
 			}
 			if d != "C" {
-				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
+				fillDedicatedPartitionInfo(&info, d)
 				if info.OnDedicatedVol {
 					info.VolumeLabel = DedicatedVolumeLabel
 				}
@@ -229,14 +229,10 @@ func getUninstallInfo() UninstallInfo {
 
 	// 3. Check for a dedicated wootc-data volume even if \wootc was hand-deleted.
 	for _, dp := range listDataPartitions() {
-		if isDed, reclaim := dedicatedVolumeInfo(dp.Letter); isDed {
-			return UninstallInfo{
-				Found:          true,
-				StorageDrive:   dp.Letter,
-				Orphaned:       true,
-				OnDedicatedVol: true,
-				ReclaimGB:      reclaim,
-			}
+		if strings.EqualFold(dp.Label, DedicatedVolumeLabel) {
+			info := UninstallInfo{Found: true, StorageDrive: dp.Letter, Orphaned: true, VolumeLabel: dp.Label}
+			fillDedicatedPartitionInfo(&info, dp.Letter)
+			return info
 		}
 	}
 
@@ -344,6 +340,41 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	if info.Found && info.StorageDrive != "" {
 		drive = info.StorageDrive
 	}
+	var partitionReceipt StoragePartitionReceipt
+	if opts.RemovePartition {
+		var err error
+		partitionReceipt, err = readStoragePartitionReceipt()
+		if err != nil {
+			return fmt.Errorf("partition removal refused; creation ownership is missing or unsafe: %w", err)
+		}
+		boundDrive, present, err := createdPartitionLocation(partitionReceipt)
+		if err != nil {
+			return err
+		}
+		if !present {
+			if err := verifyPartitionRemovalMarker(partitionReceipt, ".deleted"); err != nil {
+				return fmt.Errorf("partition absent without recorded prior deletion observation: %w", err)
+			}
+			// Retry only the pending extension. Never clean a replacement installation.
+			if err := removePartitionAndExtendC("", partitionReceipt); err != nil {
+				return err
+			}
+			return clearCompletedStoragePartitionRemoval()
+		}
+		if info.Found && info.StorageDrive != boundDrive {
+			return fmt.Errorf("partition receipt identifies a different installation than the selected uninstall")
+		}
+		drive = boundDrive
+		if _, err := assessCreatedPartition(drive, partitionReceipt); err != nil {
+			return err
+		}
+		if err := verifyCompanionInstallerContents(); err != nil {
+			return err
+		}
+		if err := markStoragePartitionRemoval(partitionReceipt); err != nil {
+			return fmt.Errorf("record explicit partition removal: %w", err)
+		}
+	}
 	setStorageDrive(drive)
 
 	var errs []string
@@ -371,6 +402,16 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		targetDrives = append(targetDrives, "C")
 	}
 	for _, d := range targetDrives {
+		if opts.RemovePartition {
+			// Target files stay intact until the partition's final contents audit.
+			// Companion cleanup removes exact files and empty directories only.
+			if d == "C" {
+				if err := cleanupCompanionInstallerFiles(); err != nil {
+					errs = append(errs, err.Error())
+				}
+			}
+			continue
+		}
 		wDir := d + `:\wootc`
 		if _, err := os.Stat(wDir); err != nil {
 			continue
@@ -400,8 +441,8 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	}
 
 	// 4. Optionally remove a wootc-created data partition and extend C:.
-	if opts.RemovePartition && info.Found && info.OnDedicatedVol && drive != "C" {
-		if err := removePartitionAndExtendC(drive); err != nil {
+	if opts.RemovePartition {
+		if err := removePartitionAndExtendC(drive, partitionReceipt); err != nil {
 			errs = append(errs, fmt.Sprintf("removing data partition %s: %v", drive, err))
 		}
 	}
@@ -414,6 +455,9 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	if len(errs) > 0 {
 		return fmt.Errorf("uninstall cleanup incomplete:\n- %s", strings.Join(errs, "\n- "))
+	}
+	if opts.RemovePartition {
+		return clearCompletedStoragePartitionRemoval()
 	}
 	return nil
 }
@@ -448,12 +492,6 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 			if _, err := os.Stat(wDir); err == nil {
 				errs = append(errs, fmt.Sprintf("%s was not fully removed", wDir))
 			}
-		}
-	}
-
-	if opts.RemovePartition && storageDrive != "C" {
-		if isDed, _ := dedicatedVolumeInfo(storageDrive); isDed {
-			errs = append(errs, fmt.Sprintf("dedicated volume %s: was not removed", storageDrive))
 		}
 	}
 

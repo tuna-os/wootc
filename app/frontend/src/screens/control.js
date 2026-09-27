@@ -86,6 +86,12 @@ export function renderControlPanel() {
     opts.appendChild(checkbox('removePartition', `Give the ${Math.round(u.reclaimGB)} GB back to Windows`,
       `Removes the ${label} drive (${u.storageDrive}:) and extends C: into the freed space.`, false));
   }
+  if (u.partitionRemovalReason) {
+    const reason = el('p');
+    reason.style.cssText = 'font-size:12px;color:var(--text-muted)';
+    reason.textContent = u.partitionRemovalReason;
+    opts.appendChild(reason);
+  }
   screen.appendChild(opts);
 
   wrap.appendChild(screen);
