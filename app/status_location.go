@@ -12,10 +12,14 @@ import (
 // Status must not create a state directory or rewrite its permissions. Other
 // entrypoints retain the installation boundary; status audits before reading.
 func initializeStateTrustForInvocation(args []string) error {
+	return initializeStateTrustForInvocationWith(args, initializeStateTrust)
+}
+
+func initializeStateTrustForInvocationWith(args []string, initialize func() error) error {
 	if len(args) > 1 && args[1] == "status" {
 		return nil
 	}
-	return initializeStateTrust()
+	return initialize()
 }
 
 // A payload-only C: directory is not an installation. Conversely, surviving
