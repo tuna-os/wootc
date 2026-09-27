@@ -9,12 +9,17 @@ wootc_qga_configure() {
     WOOTC_QGA_CONTAINER="$2"
     WOOTC_QGA_CLIENT="$3"
 }
+wootc_qga_valid_timeout() {
+    case "$1" in ''|*[!0-9]*) return 2 ;; esac
+    [ "$1" -gt 0 ] || return 2
+}
 WOOTC_QGA_TRANSPORT_EXIT=42
 WOOTC_QGA_RECONNECT_ATTEMPTS="${WOOTC_QGA_RECONNECT_ATTEMPTS:-3}"
 WOOTC_QGA_RECONNECT_SETTLE_S="${WOOTC_QGA_RECONNECT_SETTLE_S:-3}"
 
 qga_call() {
-    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT:-60}"
+    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT-60}"
+    wootc_qga_valid_timeout "$timeout_s" || return 2
     local rc=0
     # `else rc=$?` is load-bearing (#39). Assigning rc AFTER the `fi`
     # captures the exit status of the IF STATEMENT, not of the command —
@@ -37,7 +42,8 @@ qga_call() {
 
 
 qga_call_retry() {
-    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT:-60}"
+    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT-60}"
+    wootc_qga_valid_timeout "$timeout_s" || return 2
     local tries=3 rc=0 try
     if [ "$timeout_s" -le 5 ]; then tries=1; fi
     # shellcheck disable=SC2034
@@ -70,7 +76,7 @@ qga_reconnect_cycle() {
     warn "  QGA channel is not answering — ONE bounded reconnect cycle before any verdict"
     # Clients that outlived their `timeout` may still hold the single-client
     # socket. Reaping them is a prerequisite for the reopen, not an extra.
-    "${WOOTC_QGA_RUNTIME:?Configure QGA first}" exec "${WOOTC_QGA_CONTAINER:?Configure QGA first}" pkill -f "$WOOTC_QGA_CLIENT" >/dev/null 2>&1 || true
+    timeout 5 "${WOOTC_QGA_RUNTIME:?Configure QGA first}" exec "${WOOTC_QGA_CONTAINER:?Configure QGA first}" pkill -f "$WOOTC_QGA_CLIENT" >/dev/null 2>&1 || true
     sleep 1
     out=$(timeout 60 "${WOOTC_QGA_RUNTIME:?Configure QGA first}" exec "${WOOTC_QGA_CONTAINER:?Configure QGA first}" python3 "${WOOTC_QGA_CLIENT:?Configure QGA first}" reconnect \
         --attempts "$WOOTC_QGA_RECONNECT_ATTEMPTS" \
@@ -141,8 +147,9 @@ qga_wait_reboot() {
 
 qga_windows_probe() {
     local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' 2>/dev/null | tr -d '\r\n' || true)
-    if [[ "$os" =~ Windows_NT ]]; then
+    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' 2>/dev/null) || return 1
+    os=$(printf '%s' "$os" | tr -d '\r\n')
+    if [[ "$os" == Windows_NT ]]; then
         # A phase observed in the Linux guest cannot describe a Windows action.
         wootc_phase_boundary
         return 0
@@ -153,8 +160,9 @@ qga_windows_probe() {
 
 qga_linux_probe() {
     local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | tr -d '\r\n' || true)
-    [[ "$os" == *Linux* ]]
+    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'uname -s' 2>/dev/null) || return 1
+    os=$(printf '%s' "$os" | tr -d '\r\n')
+    [[ "$os" == Linux ]]
 }
 
 

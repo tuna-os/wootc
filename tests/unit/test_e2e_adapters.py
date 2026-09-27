@@ -31,9 +31,9 @@ exit "${LATER_RC:-0}"
     def tearDown(self):
         self.temp.cleanup()
 
-    def shell(self, body, **environment):
+    def shell(self, body, module=None, **environment):
         script = f'''set -Eeuo pipefail
-source '{LIB}/qga-transport.sh'
+source '{module or LIB / 'qga-transport.sh'}'
 wootc_qga_configure '{self.runtime}' dedicated-vm /private/client.py
 ''' + body
         return subprocess.run(['bash', '-c', script], capture_output=True, text=True,
@@ -77,10 +77,43 @@ source '{LIB}/retention.sh'
         self.assertEqual(result.returncode, 42)
         self.assertEqual(self.count(), 1)
 
+    def test_zero_negative_or_malformed_budget_refuses_before_runtime(self):
+        for operation in ['qga_call', 'qga_call_retry']:
+            for budget in ['', '0', '-1', 'bad', '1.5']:
+                result = self.shell(f'{operation} ping', WOOTC_QGA_CALL_TIMEOUT=budget)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse((self.directory / 'calls').exists())
+
     def test_actual_blocking_transport_is_bounded_without_replay(self):
         result = self.shell('WOOTC_QGA_CALL_TIMEOUT=1 qga_call powershell mutate', BLOCK='1')
         self.assertEqual(result.returncode, 124)
         self.assertEqual(self.count(), 1)
+
+    def test_actual_blocking_reap_cannot_prevent_one_reconnect_cycle(self):
+        self.runtime.write_text('''#!/bin/bash
+printf '%s\\n' "$*" >> "$CALLS"
+case "$*" in
+ *pkill*) sleep 20 ;;
+ *reconnect*) printf 'mock channel answered\\n' ;;
+esac
+''')
+        result = self.shell('''warn() { :; }; pass() { printf '%s\\n' "$*"; }
+qga_reconnect_cycle
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('RECOVERED', result.stdout)
+        lines = (self.directory / 'calls').read_text().splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertIn('pkill', lines[0])
+        self.assertIn('reconnect', lines[1])
+        # Removing the actual reap bound must make this same operation hang.
+        mutant = self.directory / 'unbounded-reap.sh'
+        source = (LIB / 'qga-transport.sh').read_text()
+        bounded = 'timeout 5 "${WOOTC_QGA_RUNTIME:?Configure QGA first}" exec'
+        self.assertIn(bounded, source)
+        mutant.write_text(source.replace(bounded, '"${WOOTC_QGA_RUNTIME:?Configure QGA first}" exec', 1))
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.shell('warn() { :; }; pass() { :; }; qga_reconnect_cycle', module=mutant)
 
     def test_ping_is_not_identity_and_windows_clears_phase_in_actual_caller(self):
         result = self.shell(f'''source '{ROOT}/tests/e2e/steps.sh'
@@ -97,6 +130,18 @@ qga_call() {{ printf '%s' Linux; }}
 qga_linux_probe
 ''')
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_identity_refuses_failed_command_and_ambiguous_output(self):
+        for probe, call, token in [('qga_windows_probe', 'qga_powershell', 'Windows_NT'),
+                                    ('qga_linux_probe', 'qga_call', 'Linux')]:
+            for output, status, expected in [(token + '\r\n', 0, 0), (token, 7, 1),
+                                              ('not-' + token, 0, 1), (token + '\nextra', 0, 1),
+                                              (token + ' ', 0, 1), ('', 0, 1)]:
+                result = self.shell(f'''wootc_phase_boundary() {{ :; }}
+{call}() {{ printf '%s' "$OBSERVATION"; return "$GUEST_STATUS"; }}
+{probe}
+''', OBSERVATION=output, GUEST_STATUS=str(status))
+                self.assertEqual(result.returncode, expected, (probe, output, status, result.stderr))
 
     def test_actual_channel_loss_records_infrastructure_not_product_pass(self):
         ledger = self.directory / 'results.jsonl'
@@ -206,6 +251,19 @@ cache_downloaded_iso '{cache}' '{target}' '{storage}'
         self.assertFalse(target.exists())
         self.assertFalse(Path(str(target) + '.part').exists())
         self.assertEqual(original.read_bytes(), b'controlled ISO bytes')
+
+    def test_actual_return_observer_refuses_failed_linux_token(self):
+        for guest_status, expected in [('0', 'linux'), ('7', 'unknown')]:
+            result = self.shell("""
+qga_probe() { return 0; }
+qga_windows_probe() { return 1; }
+qga_call() { printf 'Linux\\r\\n'; return "$GUEST_STATUS"; }
+WOOTC_E2E_P2_REBOOT_TRIES=1
+WOOTC_E2E_P2_REBOOT_POLL_S=0
+p2_reboot_observe
+""", GUEST_STATUS=guest_status)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), expected)
 
     def test_actual_entrypoint_retention_failure_stops_before_runtime(self):
         tree = self.directory / 'repo/tests/e2e'
