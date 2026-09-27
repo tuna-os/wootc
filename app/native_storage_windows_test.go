@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sys/windows"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -201,12 +202,25 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 			if !strings.EqualFold(entry.Name(), name+".psd1") && !(name == "Storage" && strings.EqualFold(entry.Name(), "StorageScripts.psm1")) {
 				return nil
 			}
-			data, err := readBoundedStatusRecord(path)
+			file, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			if len(data) > 64*1024 {
-				return fmt.Errorf("manifest exceeds bound")
+			info, err := file.Stat()
+			if err != nil || !info.Mode().IsRegular() || info.Size() > 1024*1024 {
+				file.Close()
+				return fmt.Errorf("trusted module source exceeds diagnostic bound")
+			}
+			data, err := io.ReadAll(io.LimitReader(file, 1024*1024+1))
+			closeErr := file.Close()
+			if err != nil {
+				return err
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+			if len(data) > 1024*1024 {
+				return fmt.Errorf("trusted module source exceeds diagnostic bound")
 			}
 			relative, err := filepath.Rel(module, path)
 			if err != nil {

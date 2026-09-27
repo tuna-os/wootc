@@ -37,6 +37,23 @@ Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Dep
     $exception = $_.Exception
     $category = [int]$_.CategoryInfo.Category
     $loader = 'unclassified'
+    $dependency = 'unclassified'
+    switch ([string]$_.CategoryInfo.TargetName) {
+        'New-Object' { $dependency = 'new-object' }
+        'Import-LocalizedData' { $dependency = 'import-localized-data' }
+        'Get-CimInstance' { $dependency = 'get-cim-instance' }
+        'Add-Type' { $dependency = 'add-type' }
+        'ConvertFrom-StringData' { $dependency = 'convert-from-string-data' }
+        'Add-Member' { $dependency = 'add-member' }
+        'Update-TypeData' { $dependency = 'update-type-data' }
+        'Get-ChildItem' { $dependency = 'get-child-item' }
+        'Join-Path' { $dependency = 'join-path' }
+        'Split-Path' { $dependency = 'split-path' }
+        'Test-Path' { $dependency = 'test-path' }
+        'Select-Object' { $dependency = 'select-object' }
+        'Where-Object' { $dependency = 'where-object' }
+        'ForEach-Object' { $dependency = 'foreach-object' }
+    }
     # Only fixed recognized loader identifiers cross the boundary.
     $errorId = ([string]$_.FullyQualifiedErrorId).Split(',')[0]
     switch ($errorId) {
@@ -76,7 +93,7 @@ Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Dep
             'System.Management.Automation.PSInvalidOperationException' { $type = 'ps-invalid-operation' }
         }
         $hresult = [int]$exception.HResult
-        [Console]::Error.WriteLine("native-storage-failure stage=$stage depth=$depth type=$type hresult=$hresult category=$category loader=$loader")
+        [Console]::Error.WriteLine("native-storage-failure stage=$stage depth=$depth type=$type hresult=$hresult category=$category loader=$loader dependency=$dependency")
         $next = $exception.InnerException
         if ($null -eq $next -and $exception -is [System.Management.Automation.ActionPreferenceStopException]) {
             $next = $exception.ErrorRecord.Exception
