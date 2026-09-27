@@ -16,6 +16,20 @@ if (Test-Path -LiteralPath $private) { throw 'Existing packaging scratch' }
 $destination=Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) "wootc Native Preview/$BrandId-$unique"
 if (Test-Path -LiteralPath $destination) { throw 'Existing preview destination' }
 $verifiedUninstall=$false
+function Write-CleanupInventory {
+    param([string]$Observation)
+    $entries=@()
+    if ([IO.Directory]::Exists($destination)) {
+        foreach ($entry in @(Get-ChildItem -LiteralPath $destination -Recurse -Force -ErrorAction Stop | Sort-Object FullName)) {
+            if ($entries.Count -ge 4096) { throw 'Cleanup inventory exceeds its bound' }
+            $reparse=($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+            $digest=$null
+            if (-not $entry.PSIsContainer -and -not $reparse) { $digest=(Get-FileHash -LiteralPath $entry.FullName).Hash }
+            $entries += [ordered]@{path=[IO.Path]::GetRelativePath($destination,$entry.FullName);directory=[bool]$entry.PSIsContainer;reparse=$reparse;sha256=$digest}
+        }
+    }
+    [ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;observation=$Observation;entries=$entries} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output "cleanup-$Observation.json") -Encoding utf8
+}
 function Remove-ObservedEmptyDirectory {
     param([string]$Path)
     if (-not [IO.Directory]::Exists($Path)) { return }
@@ -107,11 +121,13 @@ try {
     # After the preservation assertions, dispose only the exact public fixtures
     # and empty directories. An absent child cannot break recursive enumeration.
     if ($verifiedUninstall) {
+        Write-CleanupInventory -Observation before
         foreach ($path in @($foreignRoot,$foreignBundle)) {
             if (-not [IO.File]::Exists($path) -or (Get-FileHash -LiteralPath $path).Hash -cne $foreignHash) { throw 'Public foreign fixture disappeared before its explicit disposal' }
             [IO.File]::Delete($path)
         }
         Remove-ObservedEmptyDirectory -Path $bundle
+        Write-CleanupInventory -Observation after-public-fixtures
         Remove-ObservedEmptyDirectory -Path $destination
     } elseif ([IO.Directory]::Exists($destination)) { [IO.Directory]::Delete($destination,$true) }
     if ([IO.Directory]::Exists($private)) { [IO.Directory]::Delete($private,$true) }
