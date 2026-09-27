@@ -322,7 +322,7 @@ class PackageConsumerTests(unittest.TestCase):
         for _ in range(100):
             try:
                 state = status.read_text().split(') ')[1]
-            except FileNotFoundError:
+            except (FileNotFoundError, ProcessLookupError):
                 state = None
             if state is None or state.startswith('Z'): break
             time.sleep(.005)

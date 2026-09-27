@@ -1,0 +1,6 @@
+=== RUN   TestVMDisplayNeverInheritsDesktopClaim
+    vm_display_test.go:431: incoming state became live desktop proof without guest semantics
+--- FAIL: TestVMDisplayNeverInheritsDesktopClaim (0.02s)
+FAIL
+FAIL	wootc	0.021s
+FAIL

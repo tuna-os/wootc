@@ -122,7 +122,7 @@ async function reportState(state, directive) {
   // cannot be selected (see the integrity gate in driveInstall) — the
   // alternative is a silent install of the default image.
   const wantRef = window.__e2eWantImage || '';
-  await E2EDriveReport(JSON.stringify({
+  const report = {
     schemaVersion: 1,
     runId: directive.runId,
     directiveId: directive.directiveId,
@@ -136,6 +136,8 @@ async function reportState(state, directive) {
     selectedRef: state.selected?.imageRef || '',
     imageMismatch: !!(wantRef && state.screen === 'launchpad' &&
       !window.__e2eInstallDriven && state.selected?.imageRef !== wantRef),
+  };
+  if (directive.action === 'prepare-vm') Object.assign(report, {
     vmPrepareDriven: !!window.__e2ePrepareVMDriven,
     freshVmAvailable: !!state.freshVmCapability?.available,
     freshVmReason: state.freshVmCapability?.reason || '',
@@ -147,7 +149,8 @@ async function reportState(state, directive) {
       !window.__e2ePrepareVMDriven && state.selected?.imageRef !== window.__e2eWantVMImage),
     vmReady: !!state.vmReady,
     vmProgressStage: state.vmProgress?.stage || '',
-  }));
+  });
+  await E2EDriveReport(JSON.stringify(report));
 }
 
 export function startE2EDrive(state) {

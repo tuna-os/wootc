@@ -1,0 +1,62 @@
+{
+  "capturedAt": "2026-09-27T15:24:30.324544+00:00",
+  "sourceCommit": "4cbdf3867f739d6a33585784fb7330184f80a2e2",
+  "GoSourceEquivalent": "b6c4c6f02c31beaa248daaaefd456e04625fb429",
+  "sourceBase": "8e1c93e",
+  "integratedMain": "347f696ef855866e2230dc4e761a1caf11609657",
+  "codeHashes": {
+    "app/vm_qmp.go": "1a434e11459306dafc415eac323e98f4c3f5d8a2b1ee94bfb9568dcdfe12e66f",
+    "app/vm_process.go": "e250903b5aab55e02533ca9e8c3cdea23bc1ce2f8a2cb874b6826f9af639ebde",
+    "app/vm_display.go": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "app/vm_display_test.go": "9bfe710c1dbac1163ed043f771ef8ad8a4652e21d254801cb7ec53c18e1e5b5a",
+    "app/vm_qmp_protocol_test.go": "40b3d2cfff5f524a76403aeccda11b0a13067b056302400f6305397336539bc1",
+    "app/vm_qmp_native_test.go": "370789730e36a215eb9e13dbc4b6d1614d4d0899ebb2dad8c9bfd133b32dac74",
+    ".github/workflows/vm-qmp-controls.yml": "d2f6e587b175d219f30b411b3e24b8fd5c6c137ba88481fd7e3ae5a359b92aaf",
+    "docs/experiments/vm-scoped-qmp-2026-09-27.md": "ac4451021b67ef21c05ecb40dde792d51af7db4f6c8cf4dc534a673be0b88852"
+  },
+  "evidenceHashes": {
+    "prose.log": "9233fe5e6202ff272151a3f6374c2e9477434220cd2c52a701f060c16ad13f80",
+    "old-missing-return.raw.log": "ba8d036bd7a83a6e4f69cd7d5f4c93e7524abcd63936d79a61f9fe898ab52520",
+    "inherited-desktop-after.raw.log": "c5ad051b6ef0db183817f647ef6efb104e74ddb6e73eec80e887cb18562463c0",
+    "session-correlation-mutant.log": "0671031a7a4638ce85e54ea898105b63d7f4cff2633073c4ac92a1a355da7929",
+    "capture-budget-before-qmp-mutant.log": "36e53c29d37e751ce4b006cd6837252f31c59f87017a0d6042522e1e1d213d21",
+    "guard-mutations.json": "d6bbc8da0d989b84eb77f4ce2869e43cda4f8753ed8364220a4684b4e670d240",
+    "running-observation-mutant.log": "59c6d3bb43789ca25aac3efa6abb10bb752ecf717627bb42a4794c0ce3febfa9",
+    "inherited-desktop-before.raw.log": "1562ee3ddb345a34993ed60b43ac5de9c6e0c6d5c6aeb1906f7ee77fbbcc004d",
+    "full-go-b6.raw.log": "efe4f0895914c6fbdcc8f76db21f16a9ff3fd1af3200f924c5f1e5ea2e5f1523",
+    "actionlint.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "missing-return-counter-test.go": "06e16ee2bbb09efe8b84e7fd4d520b25bcf788f446539466639372ce6a734b0f",
+    "full-go21dd.raw.log": "af5b07d56923028346f45f7e3e532236e378063c3bf66a913bedb31a7c72db51",
+    "initial-race-fixture-deadline.raw.log": "0d18d11cd1912de9ebdf64d98d97ff08632db8143803c70de1ec907bbdc2fe1a",
+    "engine-owner-after-response-mutant.log": "2e930c947fdcb6f400ae366e28723693399108a298fa5d941ffd7893a0812137",
+    "old-counter-provenance.json": "cd93768524c26f647660f348bbc0adee26776bf68543f2f20b12c2662183b225",
+    "missing-return-mutant.log": "928cb8e5370d39cda5f0ce10f306a2cce87642856b1b8cc70be50ef2ec7f3ab5",
+    "race21dd.raw.log": "4a23a0923aac20c1b821b4a5e06daf563919912861037f652fd14c59f2a40309",
+    "current-missing-return.raw.log": "c1a381016d08ca30577e5f9235206fa14cc7950a087aa12b53f39f22d34ed137",
+    "race-b6.raw.log": "a7d65073b80a3f32e30747b1d59461ce7e9f2dcef05460388ba66673a01bba3e",
+    "actual-retained-bytes-mutant.log": "d03da5af1e3fd48c70921a69fed880786c06e759e0a98783ee23286362a04c9c",
+    "capture-pixels-mutant.log": "6f78096696b9e385b261357fed281d60c6985ccf9f38726895a2f3172913e1d8"
+  },
+  "native": {
+    "binary": "/usr/bin/qemu-system-x86_64",
+    "binarySha256": "8a35ccba41582fc6c38b9df85fc9e35fa1d42f414d2d7d8090ee9b2f5e7c0854",
+    "version": "QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)",
+    "scope": "paused TCG -S;128MiB;no disk/network/guest installation;protocol only"
+  },
+  "checks": {
+    "focusedRace": "PASS;native required;zero skips",
+    "fullGo": "PASS",
+    "guardRemovals": 7,
+    "sourceChecks": {
+      "actionlint": 0,
+      "prose": 0
+    },
+    "EnglishBudget": 1512
+  },
+  "historicalProofs": {
+    "21dd": "immutable typed QMP/display/retention source;seven guardmutants bound to unchanged qmp/display bytes",
+    "b6": "adds DesktopReady false initialization and actual before/after child control",
+    "initialRaceFailure": "mock race binary one-second exit hook met one-second fixture deadline;fixture adjusted to three seconds,production unchanged"
+  },
+  "scope": "internal engine operations only;test RPC adapter and guest semantic channel remain owed;no Windows/WHPX or desktop acceptance inferred;no full VM dispatch or preserved fixture change"
+}

@@ -1,0 +1,4 @@
+=== RUN   TestVMDisplayNeverInheritsDesktopClaim
+--- PASS: TestVMDisplayNeverInheritsDesktopClaim (0.02s)
+PASS
+ok  	wootc	0.029s

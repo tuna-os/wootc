@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "b87cd1fa395d751624b509a4b7528aa99b71912a",
+  "baseMain": "d39cc4a48adf5b55bf0a22ea7e498a8ff150810e",
+  "sourceHashes": {
+    "app/serve.go": "ae36c8c9352486f1a902ba908512a9ddd6c09ab1b7cb9d8b298ff16fb8e03065",
+    "app/serve_assessment_test.go": "dd2fe165bf038a56fe2534c7f11fe486b1ef620df8d2e30b6cb2ceec41747da7",
+    ".github/workflows/native-rpc-capabilities.yml": "40a103a2c7596949539151736d8b9078f6815eb16f6beedbe80d5ed5c1148ca3"
+  },
+  "evidenceHashes": {
+    "removed-guard-mutant.raw.log": "d1c5b64f86e327233905b3bbe4946fbf30d96fc61a338078b0a4d02884e4b8d2",
+    "controls.raw.log": "1e93a3ec0b63449c692694cc15400e34a314f12a505b8d7fd827fc1fe0a9252d",
+    "assessment-and-legacy.raw.log": "cc4f8f43c0323aa93f2b0f39467f00b89b134704b2d0febe4d67542954b37d05"
+  },
+  "scope": "Assessment capability factory in shared actual dispatcher. Native preview entrypoint has not yet integrated this constructor. Legacy NewServer/Serve retain authorized behavior.",
+  "observed": "Actual CancelInstall backend cancellation counter/private marker and Server shutdown remain untouched by malicious assessment requests; same backend/action paths positively mutate through legacy constructor. Exhaustive Linux method refusals happen before parameters/backend. Guard-removal mutant observes actual cancellation=1 and fails; exact source restored and combined legacy/assessment controls pass.",
+  "localEmbedAsset": "Owned ignored unit-test placeholder only; no frontend/UI build or runtime claim.",
+  "nativeWindowsObserved": false,
+  "fullAcceptanceDispatched": false
+}
