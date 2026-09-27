@@ -1,4 +1,4 @@
-*.raw -text
-*.json -text
-*.psd1 -text
-*.zip -text
+*.raw -text whitespace=cr-at-eol
+*.json -text whitespace=cr-at-eol
+*.psd1 -text whitespace=cr-at-eol
+*.zip -text whitespace=cr-at-eol
