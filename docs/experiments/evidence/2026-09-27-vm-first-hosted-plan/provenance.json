@@ -1,0 +1,16 @@
+{
+  "scope": "read-only source/resource plan; no VM dispatch or preserved fixture mutation",
+  "capturedAt": "2026-09-27T14:08:37.775280+00:00",
+  "planBase": "09f2698",
+  "preservedWorktree": "/tmp/wootc-capacity-trial",
+  "preservedWorkingFiles": {
+    "app/frontend/src/screens/launchpad.js": "b16d678c14e602b45cebde4dda68dd4b2f383fadcd2014e6203f372ce25d47d9",
+    "app/vm_storage_selection.go": "94d4deca39f11e307a77b10dddc2e0f0b6822475488863db0e3159f46971ab39",
+    "app/vm_storage_selection_test.go": "013a3c7220bd8706400de0452be9ac175b075219e8a0f529bffb4db1faa6f108"
+  },
+  "imageHead": {
+    "status": 200,
+    "digest": "sha256:4562f4f0fde8cc0ba49e7ce627be2ba35d803c9aa768e79220a1a58c3b0d148b",
+    "scope": "HEAD only; no pull, no editor/desktop proof"
+  }
+}
