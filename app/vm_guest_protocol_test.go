@@ -18,8 +18,8 @@ func guestProbeFixture() (vmGuestProbeRequest, map[string]any) {
 	response["desktopQualified"] = false
 	response["editorQualified"] = false
 	response["ordinarySession"] = map[string]string{"Id": "2", "User": "1000", "Name": "wootc", "Active": "yes", "Remote": "no", "Type": "wayland", "Class": "user", "State": "active", "Leader": "1234", "LeaderStartTicks": "5678"}
-	blocks := base64.StdEncoding.EncodeToString([]byte(`{"blockdevices":[{"name":"/dev/vdb","type":"disk"}]}`))
-	mounts := base64.StdEncoding.EncodeToString([]byte(`{"filesystems":[{"target":"/","source":"/dev/vdb3"}]}`))
+	blocks := base64.StdEncoding.EncodeToString([]byte(`{"blockdevices":[{"name":"/dev/vdb","kname":"/dev/vdb","type":"disk","maj:min":"8:16","ptuuid":"12345678-1234-1234-1234-123456789abc","children":[{"name":"/dev/vdb3","kname":"/dev/vdb3","type":"part","maj:min":"8:19"}]}]}`))
+	mounts := base64.StdEncoding.EncodeToString([]byte(`{"filesystems":[{"target":"/","source":"/dev/vdb3","maj:min":"8:19","fstype":"ext4","options":"rw"}]}`))
 	loops := base64.StdEncoding.EncodeToString([]byte(`{"loopdevices":[]}`))
 	response["root"] = map[string]any{"target": "/dev/vdb", "diskId": req.DiskID, "currentRootVerified": true, "measurements": map[string]string{"BLOCKS": blocks, "MOUNTS": mounts, "LOOPS": loops, "PATHS": "", "BTRFS": ""}}
 	return req, response
