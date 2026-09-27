@@ -11,20 +11,27 @@ import (
 )
 
 type vmSession struct {
-	mu        sync.Mutex
-	state     VMState
-	statePath string
-	cmd       *exec.Cmd
-	qmp       *qmpClient
-	job       io.Closer
-	done      chan struct{}
-	release   func()
-	forced    bool
-	output    *os.File
+	mu                sync.Mutex
+	state             VMState
+	statePath         string
+	cmd               *exec.Cmd
+	qmp               *qmpClient
+	job               io.Closer
+	done              chan struct{}
+	release           func()
+	forced            bool
+	output            *os.File
+	sessionID         string
+	operationGate     chan struct{}
+	displayDirectives map[string]bool
 }
 
 func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func(), own func(*exec.Cmd) (io.Closer, error)) (*vmSession, error) {
-	session := &vmSession{state: state, statePath: statePath, cmd: cmd, release: release, done: make(chan struct{})}
+	sessionID, err := freshVMSessionID()
+	if err != nil {
+		return nil, err
+	}
+	session := &vmSession{sessionID: sessionID, operationGate: make(chan struct{}, 1), displayDirectives: map[string]bool{}, state: state, statePath: statePath, cmd: cmd, release: release, done: make(chan struct{})}
 	session.state.Phase = vmStarting
 	session.state.PID = 0
 	session.state.Error = ""
@@ -119,6 +126,15 @@ func (s *vmSession) wait() {
 func (s *vmSession) snapshot() VMState { s.mu.Lock(); defer s.mu.Unlock(); return s.state }
 
 func (s *vmSession) stop(ctx context.Context) error {
+	if err := s.acquireOperation(ctx); err != nil {
+		return err
+	}
+	locked := true
+	defer func() {
+		if locked {
+			s.releaseOperation()
+		}
+	}()
 	select {
 	case <-s.done:
 		if state := s.snapshot(); state.Phase != vmStopped {
@@ -145,6 +161,9 @@ func (s *vmSession) stop(ctx context.Context) error {
 	if err = s.qmp.command(ctx, "system_powerdown"); err != nil {
 		return fmt.Errorf("request clean guest shutdown: %w", err)
 	}
+	s.releaseOperation()
+	locked = false
+	// A force stop must remain available while the guest has not shut down.
 	select {
 	case <-s.done:
 		state := s.snapshot()
@@ -158,6 +177,12 @@ func (s *vmSession) stop(ctx context.Context) error {
 }
 
 func (s *vmSession) force() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := s.acquireOperation(ctx); err != nil {
+		return err
+	}
+	defer s.releaseOperation()
 	select {
 	case <-s.done:
 		return nil
