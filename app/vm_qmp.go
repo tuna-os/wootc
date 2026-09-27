@@ -152,6 +152,11 @@ func (q *qmpClient) read(output io.Reader) {
 				break
 			}
 			if name == "SHUTDOWN" {
+				dataFields, shapeErr := decodeQMPObject(fields["data"])
+				if shapeErr != nil || len(dataFields) != 2 || dataFields["guest"] == nil || dataFields["reason"] == nil {
+					readErr = fmt.Errorf("invalid QMP shutdown field shape")
+					break
+				}
 				var data struct {
 					Guest  *bool  `json:"guest"`
 					Reason string `json:"reason"`

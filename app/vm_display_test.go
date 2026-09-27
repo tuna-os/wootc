@@ -257,6 +257,29 @@ func TestVMDisplayEngineOwnerAndChangedSession(t *testing.T) {
 	if out, err := a.observeVMDisplay(context.Background(), req); err != nil || out.DesktopQualified {
 		t.Fatal("engine route failed or qualified desktop", err)
 	}
+	slow, slowReq, spy := displaySession(t, "slow")
+	a.vmMu.Lock()
+	a.vmSession = slow
+	a.vmMu.Unlock()
+	result := make(chan error, 1)
+	go func() { _, err := a.observeVMDisplay(context.Background(), slowReq); result <- err }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		data, _ := os.ReadFile(spy)
+		if strings.Contains(string(data), "query-status") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("current status query never issued")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	a.vmMu.Lock()
+	a.vmSession = nil
+	a.vmMu.Unlock()
+	if err := <-result; err == nil {
+		t.Fatal("changed engine owner accepted stale session response")
+	}
 }
 
 func TestVMDisplayForceRemainsAvailableDuringShutdownWait(t *testing.T) {
@@ -330,7 +353,8 @@ func TestVMDisplayCaptureRetentionExhaustion(t *testing.T) {
 		}
 	}
 	// A new launch nonce must not reset the retained byte/count inventory.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// The race-instrumented child spends one second in its exit hook.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err = s.stop(ctx); err != nil {
 		t.Fatal(err)
