@@ -37,6 +37,12 @@ class PrepareTests(unittest.TestCase):
             MODULE['prepare'](inputs,self.root/'scratch',lambda *args,**kwargs:calls.append(args))
         self.assertEqual(calls,[]);self.assertFalse((self.root/'scratch').exists())
 
+    def test_qemu_option_separator_in_scratch_path_refuses_before_write(self):
+        inputs=self.root/'inputs';inputs.mkdir()
+        with self.assertRaisesRegex(ValueError,'QEMU arguments'):
+            MODULE['prepare'](inputs,self.root/'unsafe,drive')
+        self.assertFalse((self.root/'unsafe,drive').exists())
+
     def test_changed_dependency_source_refuses_before_any_producer_write(self):
         inputs=self.root/'inputs';inputs.mkdir()
         (inputs/'acquisition.json').write_text(json.dumps({'complete':True,'runtimeExecuted':False,'sourcePlanSha256':'0'*64}))

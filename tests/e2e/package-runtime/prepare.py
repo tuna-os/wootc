@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import runpy
 import shutil
@@ -48,7 +49,9 @@ def checked_inputs(inputs):
 
 
 def prepare(inputs,scratch,run=subprocess.run):
-    inputs,scratch=Path(inputs),Path(scratch)
+    inputs,scratch=Path(inputs).resolve(strict=True),Path(scratch).absolute()
+    if not re.fullmatch('[A-Za-z0-9_/.-]+',str(scratch)):
+        raise ValueError('scratch path cannot be encoded in QEMU arguments')
     acquisition,source,wanted,observed=checked_inputs(inputs)
     scratch.mkdir(mode=0o700,parents=False,exist_ok=False)
     seed=scratch/'seed';seed.mkdir(mode=0o700)

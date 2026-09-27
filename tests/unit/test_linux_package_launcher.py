@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[2]
 MODULE=runpy.run_path(str(ROOT/'tests/e2e/package-runtime/launch.py'))
@@ -77,7 +78,9 @@ class LauncherTests(unittest.TestCase):
 
     def test_command_has_only_owned_disks_no_network_or_shared_host_path(self):
         record={'scratchId':'a'*32,'vmUuid':'12345678-1234-1234-1234-123456789abc'}
-        command=MODULE['command'](self.folder,record)
+        # No guest executable is needed for this declarative argument control.
+        with patch.dict(MODULE['command'].__globals__,{'protected_qemu':lambda:'/usr/bin/qemu-system-x86_64'}):
+            command=MODULE['command'](self.folder,record)
         self.assertEqual(command[command.index('-nic')+1],'none')
         self.assertNotIn('-netdev',command);self.assertNotIn('-virtfs',command);self.assertNotIn('-fsdev',command)
         self.assertEqual(sum(value.startswith('if=') for value in command),4)

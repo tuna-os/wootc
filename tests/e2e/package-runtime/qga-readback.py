@@ -12,9 +12,11 @@ def read(socket,challenge,seconds):
         status,out,err=agent.exec('/usr/bin/python3',[
             '/run/wootc-package-seed/readback.py','/run/wootc-package-seed',
             '/var/lib/wootc/package-proof',challenge],exec_timeout=seconds)
-        if status!=0:raise ValueError('actual guest readback exit status failed')
+        if type(status) is not int or status!=0:raise ValueError('actual guest readback exit status failed')
         if len(out)>131072 or len(err)>65536:raise ValueError('QGA readback output exceeds bound')
-        return json.loads(out)
+        result=json.loads(out)
+        if not isinstance(result,dict):raise ValueError('QGA readback is not a typed object')
+        return result
     finally:agent.close()
 
 

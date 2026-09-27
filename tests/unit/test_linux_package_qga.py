@@ -67,6 +67,10 @@ class QgaTests(unittest.TestCase):
         self.status=1
         with self.assertRaisesRegex(ValueError,'exit status failed'):self.execute()
 
+    def test_boolean_guest_status_is_not_success(self):
+        self.status=False
+        with self.assertRaisesRegex(ValueError,'exit status failed'):self.execute()
+
     def test_malformed_successful_stdout_refuses(self):
         self.output=b'{"truncated":'
         with self.assertRaises(ValueError):self.execute()

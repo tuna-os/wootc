@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import shutil
 import signal
@@ -34,6 +35,8 @@ def qualify(folder):
 
 def checked(folder):
     folder=Path(folder).resolve(strict=True);info=folder.stat()
+    if not re.fullmatch('[A-Za-z0-9_/.-]+',str(folder)):
+        raise ValueError('unsafe scratch path for QEMU argument encoding')
     if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.getuid() or info.st_mode&0o077:
         raise ValueError('scratch directory is not private and owned')
     record=json.loads((folder/'ownership.json').read_text())
@@ -114,10 +117,15 @@ def owned_qga_socket(child,folder):
         raise ValueError('QGA socket is not held by exact owned guest process')
 
 
-def command(folder,record):
+def protected_qemu():
     qemu=Path('/usr/bin/qemu-system-x86_64');info=qemu.stat()
     if info.st_uid!=0 or info.st_mode&0o022:raise ValueError('QEMU executable is not protected installed source')
-    return [str(qemu),'-name','wootc-package-'+record['scratchId'],'-uuid',record['vmUuid'],
+    return str(qemu)
+
+
+def command(folder,record):
+    qemu=protected_qemu()
+    return [qemu,'-name','wootc-package-'+record['scratchId'],'-uuid',record['vmUuid'],
             '-machine','q35,accel=kvm','-m','2048','-smp','2','-display','none','-monitor','none',
             '-nic','none','-serial','file:'+str(folder/'serial.log'),
             '-drive','if=pflash,format=raw,readonly=on,file='+str(folder/'code.fd'),
@@ -143,7 +151,9 @@ def launch(folder,readback):
             if path.exists() and path.stat().st_size>limit:raise ValueError('owned runtime quota exceeded')
         if shutil.disk_usage(folder).free<2*1024**3:raise ValueError('actual host reserve exhausted')
         if not serial.exists():return None
-        text=serial.read_text(errors='strict')
+        with serial.open('rb') as stream:raw=stream.read(262145)
+        if len(raw)>262144:raise ValueError('serial read exceeds quota')
+        text=raw.decode('utf-8',errors='strict')
         # A partial boot is neither a success nor a reason to replay installation.
         if len([line for line in text.splitlines() if line.startswith('WOOTC_PACKAGE_RUNTIME_V1 ')])<4:return None
         COMPARE(text,record)
