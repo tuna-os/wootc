@@ -1,0 +1,5 @@
+ok  	wootc	9.589s
+ok  	wootc/internal/artifactauth	0.063s
+ok  	wootc/internal/runtimebundle	0.175s
+ok  	wootc/tools/gendto	0.020s
+ok  	wootc/tools/signmanifest	0.022s

@@ -1,0 +1,6 @@
+=== RUN   TestVMDisplayIdentityAndReplayRefuseBeforeGuest
+    vm_display_test.go:164: session accepted
+--- FAIL: TestVMDisplayIdentityAndReplayRefuseBeforeGuest (0.03s)
+FAIL
+FAIL	wootc	0.044s
+FAIL

@@ -1,0 +1,18 @@
+{
+  "counterexample": "actual old/current connectQMP with successful-looking matching ID but missing return",
+  "baselineSource": "8e1c93e",
+  "runs": [
+    {
+      "name": "before",
+      "exit": 1,
+      "sourceSha256": "fb4d2f441cf8d560d9f1aaa074b3e0e4c0a3f38f262f9bcdb8b8021af6400ff7",
+      "logSha256": "ba8d036bd7a83a6e4f69cd7d5f4c93e7524abcd63936d79a61f9fe898ab52520"
+    },
+    {
+      "name": "after",
+      "exit": 0,
+      "sourceSha256": "5f1fc719954924b10d2c9941545a7f538caf2d0c77ca5acac4aae5b4671fed04",
+      "logSha256": "33756c0ae90328dc725bbb39ef64b7c18cdf2a08b98b00e0183b5763c25034e5"
+    }
+  ]
+}

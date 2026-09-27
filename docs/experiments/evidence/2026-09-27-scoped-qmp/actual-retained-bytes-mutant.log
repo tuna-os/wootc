@@ -1,0 +1,6 @@
+=== RUN   TestVMDisplayActualRetainedByteBudget
+    vm_display_test.go:403: actual file bytes not measured 1 0 <nil>
+--- FAIL: TestVMDisplayActualRetainedByteBudget (0.02s)
+FAIL
+FAIL	wootc	0.028s
+FAIL
