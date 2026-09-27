@@ -179,8 +179,21 @@ def download_chunk(response,remaining):
     # actual socket deadline so a slow peer cannot multiply a stale timeout.
     seconds=min(30,remaining())
     if seconds<=0:raise TimeoutError('host prefix absolute deadline expired before download read')
+    if response.isclosed():return b''
     response.fp.raw._sock.settimeout(seconds)
     return response.read1(65536)
+
+
+def download_body(response,output,pin,remaining):
+    total=0;digest=hashlib.sha256()
+    while True:
+        chunk=download_chunk(response,remaining)
+        if not chunk:break
+        total+=len(chunk)
+        if total>int(pin['Size']):raise ValueError('package download exceeds authenticated size')
+        output.write(chunk);digest.update(chunk)
+    if total!=int(pin['Size']) or digest.hexdigest()!=pin['SHA256']:
+        raise ValueError('authenticated archive bytes differ')
 
 
 def produce(prefix,run=subprocess.run):
@@ -274,18 +287,11 @@ def produce(prefix,run=subprocess.run):
         objects={};directories={};downloads=prefix/'downloads';downloads.mkdir(mode=0o700)
         for package in PACKAGES:
             pin=pins[package];archive=downloads/(package+'.deb');partial=downloads/(package+'.partial')
-            url='https://archive.ubuntu.com/ubuntu/'+pin['Filename'];total=0;digest=hashlib.sha256()
+            url='https://archive.ubuntu.com/ubuntu/'+pin['Filename']
             with urllib.request.urlopen(url,timeout=min(30,budget())) as response,partial.open('xb') as output:
                 if response.geturl()!=url:raise ValueError('official package locator unexpectedly redirected')
-                while True:
-                    budget()
-                    chunk=download_chunk(response,budget)
-                    if not chunk:break
-                    total+=len(chunk)
-                    if total>int(pin['Size']):raise ValueError('package download exceeds authenticated size')
-                    output.write(chunk);digest.update(chunk)
+                download_body(response,output,pin,budget)
                 output.flush();os.fsync(output.fileno())
-            if total!=int(pin['Size']) or digest.hexdigest()!=pin['SHA256']:raise ValueError('authenticated archive bytes differ')
             partial.replace(archive);archive.chmod(0o444)
             native=command(['/usr/bin/dpkg-deb','--show','--showformat=${Package} ${Version} ${Architecture}',str(archive)]).stdout
             if native!=pin['Package']+' '+pin['Version']+' '+pin['Architecture']:raise ValueError('archive identity differs')

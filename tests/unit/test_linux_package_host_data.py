@@ -4,6 +4,7 @@ import io
 import json
 import subprocess
 import socket
+import http.client
 import time
 from unittest.mock import patch
 from pathlib import Path
@@ -28,6 +29,7 @@ class HostDataTests(unittest.TestCase):
         stream=receiver.makefile('rb');self.addCleanup(stream.close)
         class Response:
             fp=stream
+            def isclosed(self):return False
             def read1(self,size):return self.fp.read1(size)
         start=time.monotonic()
         with self.assertRaises(TimeoutError):DATA['download_chunk'](Response(),lambda:.05)
@@ -37,6 +39,43 @@ class HostDataTests(unittest.TestCase):
         class Response:
             def read1(self,*_):raise AssertionError('spent deadline reached download read')
         with self.assertRaises(TimeoutError):DATA['download_chunk'](Response(),lambda:0)
+
+    def http_response(self,payload,declared):
+        client,server=socket.socketpair()
+        self.addCleanup(client.close);self.addCleanup(server.close)
+        server.sendall(('HTTP/1.1 200 OK\r\nContent-Length: '+str(declared)+'\r\n\r\n').encode()+payload)
+        server.shutdown(socket.SHUT_WR)
+        response=http.client.HTTPResponse(client);response.begin();self.addCleanup(response.close)
+        return response
+
+    def test_actual_http_content_length_final_read_closes_fp_then_eof_is_safe(self):
+        response=self.http_response(b'exact public fixture',20)
+        output=io.BytesIO()
+        DATA['download_body'](response,output,{'Size':'20','SHA256':hashlib.sha256(b'exact public fixture').hexdigest()},lambda:1)
+        self.assertEqual(output.getvalue(),b'exact public fixture')
+        self.assertIsNone(response.fp)
+        self.assertEqual(DATA['download_chunk'](response,lambda:1),b'')
+
+    def test_actual_http_truncation_remains_observable_for_exact_size_refusal(self):
+        response=self.http_response(b'short',20)
+        output=io.BytesIO()
+        with self.assertRaisesRegex(ValueError,'authenticated archive bytes differ'):
+            DATA['download_body'](response,output,{'Size':'20','SHA256':hashlib.sha256(b'short').hexdigest()},lambda:1)
+        self.assertEqual(output.getvalue(),b'short')
+
+    def test_actual_http_complete_wrong_hash_still_refuses_publication(self):
+        response=self.http_response(b'exact public fixture',20)
+        with self.assertRaisesRegex(ValueError,'authenticated archive bytes differ'):
+            DATA['download_body'](response,io.BytesIO(),{'Size':'20','SHA256':'0'*64},lambda:1)
+
+    def test_actual_http_delayed_body_read_is_bounded_by_remaining_deadline(self):
+        client,server=socket.socketpair()
+        self.addCleanup(client.close);self.addCleanup(server.close)
+        server.sendall(b'HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\n')
+        response=http.client.HTTPResponse(client);response.begin();self.addCleanup(response.close)
+        start=time.monotonic()
+        with self.assertRaises(TimeoutError):DATA['download_chunk'](response,lambda:.05)
+        self.assertLess(time.monotonic()-start,1)
 
     def test_actual_extraction_child_uses_remaining_deadline(self):
         start=time.monotonic()
