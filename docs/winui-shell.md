@@ -237,6 +237,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetVMCapability` | — | `VMCapability` | Signed runtime and persistent disk availability. |
 | `GetFreshVMCapability` | — | `VMCapability` | Signed runtime and helper availability. |
 | `GetVMState` | — | `VMState` | Durable disk lifecycle; desktop readiness requires independent evidence. |
+| `ObserveVMGuestSession` | — | `VMGuestSessionObservation` | Current boot, user, and disk data. Desktop and editor checks are false. |
 | `TryInVMFresh` | image string | — | Legacy call refuses preparation without account details. |
 | `InstallVMRuntime` | — | — | Acquire the signed runtime for this release; no native fallback or existing-runtime replacement. |
 | `PrepareVM` | `VMInstallConfig` | — | Prepare a persistent system with its Linux account, then launch its VM. |

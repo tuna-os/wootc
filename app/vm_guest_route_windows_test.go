@@ -160,3 +160,55 @@ func TestVMGuestWindowsConfigureOwnedArgs(t *testing.T) {
 		t.Fatal("unlaunched process accepted")
 	}
 }
+
+func TestVMGuestWindowsPersistentConcurrentDeadline(t *testing.T) {
+	req, reply := guestProbeFixture()
+	nonce, err := freshVMSessionID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.SessionID = nonce
+	reply["sessionId"] = nonce
+	peer, cleanup := vmGuestWindowsFixture(t, req, reply, "blocked-read")
+	defer cleanup()
+	process, err := os.FindProcess(int(peer.pid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, err := ownVMGuestObserver(&exec.Cmd{Path: peer.imagePath, Process: process}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := route.(*nativeVMGuestTransport)
+	defer native.close()
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	finished := make(chan error, 1)
+	go func() { _, err := native.observe(ctx, req); finished <- err }()
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for native.mu.TryLock() {
+		native.mu.Unlock()
+		if time.Now().After(deadline) {
+			t.Fatal("first actual call did not acquire owned gate")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	second, cancelSecond := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancelSecond()
+	started := time.Now()
+	req.RequestID = strings.Repeat("e", 32)
+	if _, err = native.observe(second, req); err == nil || time.Since(started) > 200*time.Millisecond {
+		t.Fatalf("original concurrent deadline not honored %v", err)
+	}
+	select {
+	case err := <-finished:
+		if err == nil {
+			t.Fatal("blocked first call accepted")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("blocked first call exceeded bound")
+	}
+	if !native.closed || native.connection != nil {
+		t.Fatal("timed-out channel retained")
+	}
+}

@@ -66,7 +66,13 @@ func (t *nativeVMGuestTransport) observe(ctx context.Context, req vmGuestProbeRe
 	if err = ctx.Err(); err != nil {
 		return result, err
 	}
-	t.mu.Lock()
+	for !t.mu.TryLock() {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 	defer t.mu.Unlock()
 	if err = ctx.Err(); err != nil {
 		return result, err
