@@ -1,5 +1,6 @@
 """Owned Linux-only package proof; VM execution requires measured qualified host."""
 import fcntl
+import base64
 import hashlib
 import json
 import os
@@ -13,6 +14,7 @@ import subprocess
 import time
 
 ROOT=Path(__file__).resolve().parents[3]
+BOOTSTRAP=runpy.run_path(str(Path(__file__).with_name('bootstrap.py')))
 COMPARE=runpy.run_path(str(Path(__file__).with_name('serial-proof.py')))['validate']
 
 
@@ -44,6 +46,8 @@ def checked(folder):
         raise ValueError('scratch identity differs or was already executed')
     prefix=Path(record['hostDataPrefix'])
     runpy.run_path(str(Path(__file__).with_name('host-namespace.py')))['require_bound'](prefix)
+    if record.get('diskSerial')!=BOOTSTRAP['disk_serial'](record['scratchId'],record['challenge']):
+        raise ValueError('scratch disk serial binding differs')
     if sha(prefix/'host-data.json')!=record['hostDataSourceSha256'] or record['qemuDataPath']!=str(prefix/'usr/share/qemu'):
         raise ValueError('recorded host data source contract differs')
     for name,expected in {'base.qcow2':record['baseSha256'],'seed.iso':record['seedSha256'],
@@ -101,7 +105,11 @@ def run_owned(command,folder,observe,seconds=1200,on_started=None):
             if result is not None:return result
             time.sleep(min(.1,max(0,deadline-time.monotonic())))
     finally:
-        if identity is not None:stop_owned(child,identity)
+        if identity is not None:
+            code=stop_owned(child,identity)
+            receipt={'schemaVersion':1,'ownedProcessIdentity':identity,'waitCompleted':True,'returnCode':code}
+            with (folder/'process-reap.json').open('x') as output:
+                json.dump(receipt,output,sort_keys=True);output.write('\n');output.flush();os.fsync(output.fileno())
         elif child.poll() is not None:child.wait()
         else:
             # Popen owns this child even when initial /proc observation fails.
@@ -129,6 +137,8 @@ def protected_qemu():
 
 
 def command(folder,record):
+    if record.get('diskSerial')!=BOOTSTRAP['disk_serial'](record['scratchId'],record['challenge']):
+        raise ValueError('command disk serial binding differs')
     qemu=protected_qemu()
     return [qemu,'-L',record['qemuDataPath'],'-name','wootc-package-'+record['scratchId'],'-uuid',record['vmUuid'],
             '-machine','q35,accel=kvm','-m','2048','-smp','2','-display','none','-monitor','none',
@@ -136,27 +146,68 @@ def command(folder,record):
             '-drive','if=pflash,format=raw,readonly=on,file='+str(folder/'code.fd'),
             '-drive','if=pflash,format=raw,file='+str(folder/'vars.fd'),
             '-drive','if=none,id=root,format=qcow2,file='+str(folder/'overlay.qcow2'),
-            '-device','virtio-blk-pci,drive=root,serial=WOOTC-PKG-'+record['scratchId'],
+            '-device','virtio-blk-pci,drive=root,serial='+record['diskSerial'],
             '-drive','if=ide,media=cdrom,readonly=on,format=raw,file='+str(folder/'seed.iso'),
             '-device','virtio-serial-pci','-chardev','socket,id=qga,path='+str(folder/'qga.sock')+',server=on,wait=off',
             '-device','virtserialport,chardev=qga,name=org.qemu.guest_agent.0']
 
 
+def retain_command_output(folder,records,failure):
+    facts=failure.get('commandFailure')
+    chunks=[value for value in records if value.get('stage')=='command-output']
+    if facts is None:
+        if chunks:raise ValueError('unbound command output chunks')
+        return
+    files=facts.get('files')
+    if not isinstance(files,dict) or set(files)!= {'stdout','stderr'}:raise ValueError('complete command output refs required')
+    total=0;complete={}
+    for name in ('stdout','stderr'):
+        ref=files[name]
+        if type(ref.get('size')) is not int or not 0<=ref['size']<=262144 or not re.fullmatch('[0-9a-f]{64}',ref.get('sha256','')):raise ValueError('invalid command output ref')
+        data=bytearray();selected=[value for value in chunks if value.get('stream')==name]
+        for index,value in enumerate(selected):
+            if (type(value.get('index')) is not int or value['index']!=index or
+                any(value.get(key)!=failure.get(key) for key in ('schemaVersion','scratchId','challenge','vmUuid','bootId')) or
+                not isinstance(value.get('data'),str) or len(value['data'])>10924):raise ValueError('command output chunk identity differs')
+            block=base64.b64decode(value['data'],validate=True)
+            if not 0<len(block)<=8192:raise ValueError('command output chunk exceeds bound')
+            data.extend(block)
+            if len(data)>ref['size']:raise ValueError('command output bytes exceed reference')
+        total+=len(data)
+        if total>262144 or len(data)!=ref['size'] or hashlib.sha256(data).hexdigest()!=ref['sha256']:raise ValueError('complete command output hash differs')
+        complete[name]=data
+    if any(value.get('stream') not in files for value in chunks):raise ValueError('unknown command output stream')
+    for name,data in complete.items():(Path(folder)/('command-failure.'+name)).write_bytes(data)
+
+
 def make_observer(folder,record,readback,acknowledge,on_baseline=None):
     folder=Path(folder);serial=folder/'serial.log';state={'oldVerified':False}
     def observe(child,remaining):
-        for path,limit in ((serial,262144),(folder/'overlay.qcow2',record['actualVirtualBytes']+512*1024**2),
+        for path,limit in ((serial,1048576),(folder/'overlay.qcow2',record['actualVirtualBytes']+512*1024**2),
                            (folder/'process.stdout',262144),(folder/'process.stderr',262144)):
             if path.exists() and path.stat().st_size>limit:raise ValueError('owned runtime quota exceeded')
         if shutil.disk_usage(folder).free<2*1024**3:raise ValueError('actual host reserve exhausted')
         if not serial.exists():return None
-        with serial.open('rb') as stream:raw=stream.read(262145)
-        if len(raw)>262144:raise ValueError('serial read exceeds quota')
+        with serial.open('rb') as stream:raw=stream.read(1048577)
+        if len(raw)>1048576:raise ValueError('serial read exceeds quota')
         # The live writer may be halfway through its final line. Only a complete
         # newline-terminated record can become an observation.
         raw=raw[:raw.rfind(b'\n')+1]
         text=raw.decode('utf-8',errors='strict')
         lines=[line for line in text.splitlines() if line.startswith('WOOTC_PACKAGE_RUNTIME_V1 ')]
+        parsed=[json.loads(line.split(' ',1)[1]) for line in lines]
+        for value in parsed:
+            if value.get('stage')=='failed':
+                if (type(value.get('schemaVersion')) is not int or value.get('schemaVersion')!=1 or
+                        value.get('vmUuid')!=record.get('vmUuid') or
+                        not re.fullmatch('[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',value.get('bootId','')) or
+                        value.get('scratchId')!=record['scratchId'] or
+                        value.get('challenge')!=record['challenge']):
+                    raise ValueError('guest failure identity differs')
+                retain_command_output(folder,parsed,value)
+                (folder/'guest-failure.json').write_text(json.dumps(value,sort_keys=True)+'\n')
+                raise ValueError('guest producer refused: '+str(value.get('failure','unknown'))[:1024])
+        if any(value.get('stage')=='command-output' for value in parsed):return None
         if not state['oldVerified']:
             if len(lines)<2:return None
             COMPARE(text,record,through='old')

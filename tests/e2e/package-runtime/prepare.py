@@ -10,6 +10,7 @@ import subprocess
 import uuid
 
 ROOT=Path(__file__).resolve().parents[3]
+BOOTSTRAP=runpy.run_path(str(Path(__file__).with_name('bootstrap.py')))
 POLICY=runpy.run_path(str(ROOT/'tests/e2e/esp-chain/package-policy.py'))
 
 
@@ -70,7 +71,8 @@ def prepare(inputs,scratch,run=subprocess.run):
     before=policy['phases']['old']['beforeInventory']
     baseline_sha=hashlib.sha256((json.dumps(before,sort_keys=True,separators=(',',':'))+'\n').encode()).hexdigest()
     manifest={'schemaVersion':1,'scratchId':scratch_id,'vmUuid':vm_uuid,'challenge':challenge,
-              'helperHashes':hashes,'baselineSha256':baseline_sha}
+              'helperHashes':hashes,'baselineSha256':baseline_sha,
+              'diskSerial':BOOTSTRAP['disk_serial'](scratch_id,challenge)}
     (seed/'manifest.json').write_text(json.dumps(manifest,sort_keys=True)+'\n')
     command='set -eu; mkdir -p /run/wootc-package-seed; mount -t iso9660 -o ro /dev/disk/by-label/CIDATA /run/wootc-package-seed; exec /usr/bin/python3 /run/wootc-package-seed/bootstrap.py /run/wootc-package-seed /var/lib/wootc/package-proof'
     (seed/'user-data').write_text('#cloud-config\npackage_update: false\npackage_upgrade: false\npackages: []\nresize_rootfs: false\ngrowpart:\n  mode: off\nssh_pwauth: false\nruncmd:\n  - '+json.dumps(['/bin/sh','-c',command])+'\n')
