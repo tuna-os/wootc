@@ -100,6 +100,16 @@ func TestVMGuestMeasuredProjectionAndMembers(t *testing.T) {
 	if e := verifyVMGuestRoot(r, req.DiskID); e != nil {
 		t.Fatal(e)
 	}
+	// Membership on the selected disk still requires every measured member UUID.
+	var bg map[string]any
+	json.Unmarshal([]byte(btrfsBlocks), &bg)
+	bd := bg["blockdevices"].([]any)[0].(map[string]any)
+	bd["children"] = append(bd["children"].([]any), map[string]any{"name": "/dev/vdb4", "kname": "/dev/vdb4", "type": "part", "maj:min": "8:20", "uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"})
+	bb, _ := json.Marshal(bg)
+	contradictory := rootFor(string(bb), btrfsMounts, `{"loopdevices":[]}`, "", fsid+"\t1\t8:19,8:20")
+	if e := verifyVMGuestRoot(contradictory, req.DiskID); e == nil {
+		t.Fatal("contradictory measured Btrfs member UUID accepted")
+	}
 	for _, members := range []string{fsid + "\t0\t8:19", fsid + "\t1\t8:19,8:19", fsid + "\t1\t8:19,8:3", fsid + "\t1\t8:3"} {
 		r := rootFor(btrfsBlocks, btrfsMounts, `{"loopdevices":[]}`, "", members)
 		if e := verifyVMGuestRoot(r, req.DiskID); e == nil {

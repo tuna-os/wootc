@@ -300,6 +300,9 @@ func (g *vmGuestGraph) mount(row vmGuestMount, projected bool, seen map[string]b
 				return nil, fmt.Errorf("ambiguous Btrfs membership")
 			}
 			unique[m] = true
+			if g.nodes[m].UUID != row.UUID {
+				return nil, fmt.Errorf("Btrfs member filesystem identity disagrees")
+			}
 			a, e := g.disk(m, false, seen)
 			if e != nil {
 				return nil, e
