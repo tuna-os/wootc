@@ -176,12 +176,15 @@ def summarize(rows, config, issues, today):
                         invalid = True
                 elif not row.get('eligible'):
                     streak, identity = 0, None
+                else:
+                    current = (row['shellTreeSha256'], row['transportTreeSha256'])
+                    if identity is not None and identity != current:
+                        streak = 0
+                    identity = current
             # A retry may supply the day's final green, but never erase a red.
             final = attempts[-1]
             if final.get('eligible') and final['verdict'] == 'success':
-                current = (final['shellTreeSha256'], final['transportTreeSha256'])
-                streak = streak + 1 if identity == current else 1
-                identity = current
+                streak += 1
         day += dt.timedelta(days=1)
     return {'started': True, 'valid': not invalid, 'streak': 0 if invalid else streak,
             'reason': 'Unexplained red since start' if invalid else '', 'startDate': start,

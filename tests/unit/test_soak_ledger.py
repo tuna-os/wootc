@@ -95,6 +95,11 @@ class SoakTests(unittest.TestCase):
             with self.subTest(rows=changed):
                 self.assertLessEqual(soak.summarize(changed, config(), issues(), dt.date(2026, 9, 23))['streak'], 1)
 
+    def test_same_day_identity_change_and_return_cannot_hide_reset(self):
+        rows = [row('2026-09-20'), row('2026-09-21', 2, shellTreeSha256='c' * 64),
+                row('2026-09-21', 3)]
+        self.assertEqual(soak.summarize(rows, config(), issues(), dt.date(2026, 9, 22))['streak'], 1)
+
     def test_unexplained_red_cannot_be_erased_by_retry(self):
         red = row('2026-09-20', verdict='failure', eligible=False)
         retry = row('2026-09-20', runAttempt=2)
