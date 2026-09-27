@@ -59,7 +59,7 @@ func TestGoTypeToCSharp(t *testing.T) {
 		{"int64", StructField{GoType: "int64"}, "long", ""},
 		{"float64", StructField{GoType: "float64"}, "double", ""},
 		{"bool", StructField{GoType: "bool"}, "bool", ""},
-		{"named struct required", StructField{GoType: "SystemInfo"}, "SystemInfo", ""},
+		{"named struct required", StructField{GoType: "SystemInfo"}, "SystemInfo", " = new();"},
 		{"named struct omitempty", StructField{GoType: "SystemInfo", Omitempty: true}, "SystemInfo?", ""},
 	}
 	for _, c := range cases {

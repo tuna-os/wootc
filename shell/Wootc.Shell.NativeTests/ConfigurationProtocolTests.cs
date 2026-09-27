@@ -15,7 +15,7 @@ public sealed class ConfigurationProtocolTests
         Policy=new() { Channel="alpha", Reason="Observed policy" }, Branding=new() { ProductName="wootc", Name="Fixture", Catalog=new() },
         Defaults=new() { DiskSizeGB=40, Encryption="tpm2-luks", Bootloader="auto" },
         Bundle=new() { State="absent" }, StorageStatus="not-observed", Steps=new(), Storage=new(),
-        Images=new() { new() { Admitted=true, Image=new() { Id="fixture",Name="Observed image",ImageRef="ghcr.io/tuna-os/fixture:latest",Status="green" } } }
+        Images=new() { new() { Admitted=true, Image=new() { Id="fixture",Name="Observed image",ImageRef="ghcr.io/tuna-os/fixture:latest",Status="green",MokEnroll="" } } }
     };
 
     [Fact]
@@ -32,6 +32,30 @@ public sealed class ConfigurationProtocolTests
     {
         var snapshot=Observed(); snapshot.BrandId="foreign";
         Assert.Throws<InvalidDataException>(()=>NativeConfigurationProtocol.Decode(JsonSerializer.SerializeToElement(snapshot),"wootc"));
+    }
+
+    [Fact]
+    public void OmittedOptionalMokHasEmptySemanticWithoutAcceptingNull()
+    {
+        var node=JsonNode.Parse(JsonSerializer.Serialize(Observed()))!.AsObject();
+        node["images"]![0]!["image"]!.AsObject().Remove("mokEnroll");
+        using var omitted=JsonDocument.Parse(node.ToJsonString());
+        var result=NativeConfigurationProtocol.Decode(omitted.RootElement,"wootc");
+        Assert.Equal("",Wootc.Shell.Core.ConfigurationProjection.ToCatalogue(result).Images[0].MokEnrollment);
+        node["images"]![0]!["image"]!["mokEnroll"]=null;
+        using var malformed=JsonDocument.Parse(node.ToJsonString());
+        Assert.Throws<InvalidDataException>(()=>NativeConfigurationProtocol.Decode(malformed.RootElement,"wootc"));
+    }
+
+    [Fact]
+    public void GeneratedRequiredValueObjectsAreInitializedButMissingWireFieldsStillRefuse()
+    {
+        var defaults=new NativeConfigurationSnapshot();
+        Assert.NotNull(defaults.Policy); Assert.NotNull(defaults.Branding);
+        Assert.NotNull(defaults.Defaults); Assert.NotNull(defaults.Bundle);
+        Assert.NotNull(new NativeConfigurationImage().Image);
+        using var missing=JsonDocument.Parse("{}");
+        Assert.Throws<InvalidDataException>(()=>NativeConfigurationProtocol.Decode(missing.RootElement,"wootc"));
     }
 
     [Theory]

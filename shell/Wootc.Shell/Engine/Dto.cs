@@ -39,22 +39,22 @@ public class NativeConfigurationSnapshot
     public string PolicySource { get; set; } = string.Empty;
 
     [JsonPropertyName("policy")]
-    public SupportPolicy Policy { get; set; }
+    public SupportPolicy Policy { get; set; } = new();
 
     [JsonPropertyName("branding")]
-    public Branding Branding { get; set; }
+    public Branding Branding { get; set; } = new();
 
     [JsonPropertyName("images")]
     public List<NativeConfigurationImage> Images { get; set; } = new();
 
     [JsonPropertyName("defaults")]
-    public NativeConfigurationDefaults Defaults { get; set; }
+    public NativeConfigurationDefaults Defaults { get; set; } = new();
 
     [JsonPropertyName("steps")]
     public List<StepDefinition> Steps { get; set; } = new();
 
     [JsonPropertyName("bundle")]
-    public NativeConfigurationBundle Bundle { get; set; }
+    public NativeConfigurationBundle Bundle { get; set; } = new();
 
     [JsonPropertyName("storageStatus")]
     public string StorageStatus { get; set; } = string.Empty;
@@ -72,7 +72,7 @@ public class NativeConfigurationSnapshot
 public class NativeConfigurationImage
 {
     [JsonPropertyName("image")]
-    public Image Image { get; set; }
+    public Image Image { get; set; } = new();
 
     [JsonPropertyName("admitted")]
     public bool Admitted { get; set; }

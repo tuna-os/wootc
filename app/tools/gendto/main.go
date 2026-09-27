@@ -136,7 +136,7 @@ func goTypeToCSharp(f StructField) (string, string) {
 			if f.Omitempty {
 				return f.GoType + "?", ""
 			}
-			return f.GoType, ""
+			return f.GoType, " = new();"
 		}
 	}
 }
