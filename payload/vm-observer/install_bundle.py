@@ -191,6 +191,12 @@ def observer_transaction(deployment, bundle, expected):
         sync_dir(enabled.parent)
         current()
         completed = True
+    def objects():
+        return [{'path': '/' + str(path.relative_to(deployment)), 'device': dev,
+                 'inode': ino, 'kind': 'directory'} for path, dev, ino in made_dirs] + [
+            {'path': '/' + str(path.relative_to(deployment)), 'device': dev,
+             'inode': ino, 'kind': 'link' if kind == 'link' else 'file'}
+            for path, dev, ino, kind in made_files]
     try:
         for name in sorted(names):
             dest = targets[name]
@@ -213,7 +219,7 @@ def observer_transaction(deployment, bundle, expected):
                 raise ValueError('observer/unit installed bytes differ')
             sync_dir(dest.parent)
         current()
-        yield {'hashes': dict(expected), 'enable': enable}
+        yield {'hashes': dict(expected), 'enable': enable, 'objects': objects}
         if not completed:
             raise ValueError('observer installation lacks verified activation')
         current()

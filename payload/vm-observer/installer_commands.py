@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 FILES = {'/var/usrlocal/lib/wootc/observer/boot_probe.py', '/var/usrlocal/lib/wootc/observer/wootc_ancestry.py', '/etc/systemd/system/wootc-observer.service'}
+LABEL_PATHS = FILES | {'/var', '/var/usrlocal', '/var/usrlocal/lib', '/var/usrlocal/lib/wootc', '/var/usrlocal/lib/wootc/observer', '/etc', '/etc/systemd', '/etc/systemd/system', '/etc/systemd/system/multi-user.target.wants', '/etc/systemd/system/multi-user.target.wants/wootc-observer.service'}
 OUTPUT = 'TARGET,SOURCE,FSTYPE,OPTIONS,MAJ:MIN'
 
 
@@ -22,7 +23,7 @@ def executor(owned_runner, protected_tools, deadline):
         name = names.get(argv[0])
         valid = False
         if name == 'matchpathcon':
-            valid = len(argv) == 3 and argv[1] == '-n' and argv[2] in FILES
+            valid = len(argv) == 3 and argv[1] == '-n' and argv[2] in LABEL_PATHS
         elif name == 'setfiles':
             valid = len(argv) == 6 and argv[1] == '-F' and re.fullmatch(r'/etc/selinux/[A-Za-z0-9_-]{1,64}/contexts/files/file_contexts', argv[2]) and set(argv[3:]) == FILES
         elif name == 'findmnt':
