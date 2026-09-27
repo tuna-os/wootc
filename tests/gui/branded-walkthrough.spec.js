@@ -138,7 +138,11 @@ for (const id of fs.readdirSync(BRANDS_DIR).filter(f =>
       await fillForm(page);
       await page.locator('#install-btn').click();
       await expect(page.locator('.done-title'))
-        .toContainText(`${brand.name} is ready`, { timeout: 5000 });
+        .toContainText(`${brand.name} setup is ready`, { timeout: 5000 });
+      await expect(page.getByText('Save any open work first', { exact: false })).toBeInViewport();
+      await expect(page.getByRole('button', { name: 'Reboot Now →' })).toBeInViewport();
+      await expect(page.locator('.done-hero')).toContainText('Linux has not finished installing yet');
+      await expect(page.locator('.done-hero')).not.toContainText('5–15 minutes');
       await shot(page, id, '03-done');
     });
 

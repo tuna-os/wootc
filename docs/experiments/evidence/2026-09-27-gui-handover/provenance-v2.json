@@ -1,0 +1,50 @@
+{
+  "sourceCommit": "f91352f049b6be215e7682d518caf219c83ccd8b",
+  "scope": "Superseding controlled GUI directive and handover proof after mainb273443 integration; no VM/desktop/product acceptance. Prior immutable evidence retained.",
+  "sourceSha256": {
+    "tests/e2e/run-e2e.sh": "0a5d4c3e3652a4725963d7cfd8983553324065e2e7773420d09fb5a8015fbb0e",
+    "tests/e2e/lib/gui-observations.sh": "d32fdcd0c9ee89a67a98b72c836c2c41dcde8ee4216509ab3755499ad359b694",
+    "tests/e2e/lib/qga-transport.sh": "8bdd4f395dbb96f280a2e06d647ae25c24a59b7b3b4a6c0a315f6be2f6c1a796",
+    "tests/e2e/lib/gui-session.sh": "a97428d154e3d4a4f0c361653cafc71fa149162d33d8da4ec902f5fe5b65191b",
+    "tests/unit/test_gui_observations.py": "cfdb30f92a4ef0be8b3d932e60efa5ede42f954f98eb4133584e2882eef0e4c0"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_observations.py"
+      ],
+      "startedAt": "2026-09-27T11:44:50.220695+00:00",
+      "completedAt": "2026-09-27T11:44:59.943447+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_session.py"
+      ],
+      "startedAt": "2026-09-27T11:44:59.943773+00:00",
+      "completedAt": "2026-09-27T11:45:03.540049+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "bats",
+        "tests/unit/multi-instance.bats",
+        "tests/unit/qga-channel-lost.bats",
+        "tests/unit/phase2-windows-return.bats"
+      ],
+      "startedAt": "2026-09-27T11:45:03.540293+00:00",
+      "completedAt": "2026-09-27T11:45:31.339507+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "handover-v2.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "handover-v2.stderr.log": "ef607d260339638cf16725e06f7c38eec4f616f8630efb1c3421ffa5eaf25f08",
+    "session-v2.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "session-v2.stderr.log": "3c84bf65e2e29ca3356dcefcca631ac93e34c8e42d95d8b77a23a4c078cba82e",
+    "consumers-v2.stdout.log": "09c4ed3a26a87eb20247dc1109acbecf25bbd339315093a3d21d30aa9974c0f9",
+    "consumers-v2.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

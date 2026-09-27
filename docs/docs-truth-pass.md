@@ -100,3 +100,137 @@ can reach that fallback — `defaultBranding()` sets a tagline and every
 reader once, via a doc that quoted it. Removing it is a frontend change and
 was out of scope for a docs pass; `docs-truth.bats` now pins the doc to the
 real `brand.json` tagline instead, so the two cannot drift again.
+
+## Focused guide pass — 2026-09-27, against `85a032f`
+
+This pass compares the user guide with current source and retained VM evidence.
+It is not a walk through an RC build on real hardware.
+
+Four incorrect claims now have checks in `tests/unit/docs-truth.bats`:
+
+- The guide said the deployer restarts into the new desktop.
+  Windows normally returns first. The Manage screen offers an explicit Linux boot choice.
+- The guide excluded all passwords from profile imports.
+  The Firefox helper copies a complete profile, including saved passwords.
+- Windows removal appeared as an available final step in the guide.
+  The helper prints a plan. The helper has no consumer execution for that plan.
+- Exact restoration of Windows after uninstall appeared in the guide.
+  Cleanup can fail. The guide now describes its intended actions and reported errors.
+
+The guide also states the limits of VM-first use, native graduation, and hardware evidence.
+Its OS requirements stay the same. Earlier section anchors still resolve.
+The revised text has no English findings under the shared checker.
+RC timing, fresh package screenshots, hardware recovery, and signature acceptance remain open.
+
+## Focused release gate pass — 2026-09-27, against `79fbb1e`
+
+The release guide said that a tag proves migration to Linux and back.
+The tagged workflow selects GUI install and native graduation with `phase3: true`.
+It ends in graduated Linux. It checks the seeded file there.
+It does not prove a Windows return after graduation.
+
+The guide now states those observations, the automatic channel's selected stages,
+and the emergency waiver. A check in `tests/unit/docs-truth.bats` pins the claim
+to the tagged workflow and the runner's native boot check.
+The RC walk, signature checks, and hardware acceptance remain open.
+
+## Focused release instructions pass — 2026-09-27, against `fa50144`
+
+The release guide still had three incorrect user instructions after the guide pass.
+Install creates the Linux disk and changes boot setup before the restart button.
+The one-time deployer boot normally returns to Windows. Manage offers the Linux boot choice.
+Uninstall attempts cleanup and can leave files or boot state behind.
+Linux data removal is a separate choice in Manage.
+
+Three checks in `tests/unit/docs-truth.bats` pin these corrections to current source.
+The release instructions no longer promise a fixed first-boot time.
+RC timing, package screenshots, hardware recovery, and signature acceptance remain open.
+
+## Release guide English pass — 2026-09-27, against `5354e42`
+
+The release guide now has no findings under the shared English checker.
+Its gates, artifact names, channel limits, and requirements remain the same.
+All 24 checks in `tests/unit/docs-truth.bats` pass.
+The count for the repository falls from 1671 to 1635. The budget follows that count.
+
+## Focused first-screen guide pass — 2026-09-27, against `5354e42`
+
+The first-screen guide still limited all preparation to a folder and a boot entry.
+Install also writes boot files to the EFI system partition and changes Windows startup settings.
+The guide promised restoration after uninstall. Cleanup can fail, and Linux data removal is a separate choice.
+
+The guide also guaranteed warnings and explained them only as a lack of downloads or a signature.
+Microsoft documents checks for file and publisher reputation, including negative reputation and policy limits.
+The guide now links that source and qualifies the prompts and continuation choices.
+A checksum match and publisher identity are separate facts. The app also checks a signature on the boot manifest.
+
+Four new docs-truth cases pin the corrections. The fresh-machine RC screenshots remain open.
+
+## Runtime dependency follow-up — 2026-09-27, against `119bbc0`
+
+The release guide said that the Wails installers have no runtime dependencies.
+The first-screen guide said there is nothing to install.
+The current Wails interface needs WebView2. The GUI path in E2E checks for that runtime and installs it if absent.
+Both guides now disclose that dependency. A fifth check pins it to the actual bootstrap command and registry check.
+
+## Roadmap claims and English pass — 2026-09-27, against `323b7ba`
+
+The roadmap still said phases B–E had not started. A draft native preview now
+has hosted component proof. Complete native consumer and VM journeys remain unproved.
+It also listed console flash as an active defect; maintainers closed issue #179.
+These status corrections do not certify the replacement shell.
+
+The history implied that current uninstall restores the machine. Cleanup can fail.
+Restoration remains a 1.0 requirement that needs evidence.
+The RC list also treated a signature as a guarantee against SmartScreen.
+The roadmap now needs a separate fresh-machine observation, as the startup guide does.
+The goal of a first launch through that gate remains unchanged.
+
+Three new docs-truth checks reject the previous roadmap claims.
+The roadmap has no findings under the shared English checker.
+Its milestone requirements, headings, links, tables and earlier issue references remain.
+
+The default shared scan does not include ROADMAP.md. Its count and budget stay at 1627.
+A direct scan of the roadmap falls from 68 findings to zero.
+RC, hardware, complete native journeys, signatures and the 30-day soak still need proof.
+
+## README claims and English pass — 2026-09-27, against `7a87f04`
+
+The README promised the complete Linux-inside-Windows journey, but current desktop evidence does not prove it.
+It now separates that product goal from the native install path.
+The old text also limited preparation to disk and boot setup and promised complete cleanup.
+It now describes startup settings, partial cleanup and separate data removal.
+
+The release description promised a Windows return after each normal tagged run.
+That workflow selects native graduation and ends in Linux. The manual waiver also exists.
+The caption and release text now describe that evidence boundary.
+The blanket exclusion of secrets conflicted with imports of complete Firefox profiles.
+The README now discloses saved passwords in that profile, the WebView2 dependency and signed manifest checks.
+
+Six new docs-truth checks reject the previous README claims.
+The revised README has no findings under the shared English checker.
+The total falls from 1627 to 1589; the budget follows that count.
+Headings, existing link targets, tables, executable names, commands and license terms remain.
+The native journey, real hardware, signatures, full restoration and the soak still need proof.
+
+## E2E architecture truth and English pass — 2026-09-27, against `8e696f3`
+
+The page called its whole description validated, although its diagrams recorded the Kanpur design from July.
+It now separates those historical diagrams from current modules and dated acceptance evidence.
+The complete VM journey and WinUI journey still need proof.
+
+The page said transport, host lifecycle and retention still needed separate modules.
+Main now has sourceable adapters for those operations and VM startup.
+The page now identifies their actual source files and preserves the open GUI and scenario boundaries in #383.
+Controlled checks do not replace fresh VM acceptance.
+
+The page also claimed an atomic menu handoff on the ESP.
+The deployer writes a separate `grub.cfg` for each of three directories.
+The page now discloses partial boot state after interruption and keeps transactional recovery as a separate gate.
+The argument for the kernel requests QGA; it does not prove an active service.
+Four new docs-truth checks reject the old claims.
+
+The architecture page falls from 28 English findings to zero.
+Its headings, tables and diagrams remain; earlier dated records remain.
+The shared count falls from 1589 to 1561, and the budget follows that count.
+RC, hardware, firmware, signatures, restoration and the soak still need proof.

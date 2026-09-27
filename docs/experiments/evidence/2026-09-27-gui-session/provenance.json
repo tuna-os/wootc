@@ -1,0 +1,40 @@
+{
+  "scope": "Linux controlled GUI-session orchestration with mocked guest replies and actual bounded owned runtime calls; no Windows desktop, guest registry/service/account mutations or hosted acceptance; native query proof recorded separately",
+  "sourceCommit": "0c997e373b8cee97cc803e3a9425344b9b68449f",
+  "hostOS": "Linux",
+  "sourceSha256": {
+    "tests/e2e/run-e2e.sh": "ee8d98a420844cd24ac43a262f6149817f0fa32cdb597a22ed346208b3a72c8c",
+    "tests/e2e/lib/gui-session.sh": "a97428d154e3d4a4f0c361653cafc71fa149162d33d8da4ec902f5fe5b65191b",
+    "tests/e2e/lib/qga-transport.sh": "4bf01877b020d7578fd510397facd6c5fe1e0520d85a9a95edcff3b04d039ae5",
+    "tests/e2e/gui-servicing-receipt.py": "0e3832e600f773b943626f2fa8a98708d4197ee8da8bb2be569b92c8bd1ddd7f",
+    "tests/unit/test_gui_session.py": "a1c934e4960209fb4e7f96a2fa68bf63c0f9d060ba9fcb26c69ea5d6cbb703a5",
+    "tests/unit/test_e2e_adapters.py": "125e32c4b1359f6750340180a96922e41bfb15172e154524f09b240c28d02885"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_session.py"
+      ],
+      "startedAt": "2026-09-27T11:22:42.279656+00:00",
+      "completedAt": "2026-09-27T11:22:45.902749+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_e2e_adapters.py"
+      ],
+      "startedAt": "2026-09-27T11:22:45.903051+00:00",
+      "completedAt": "2026-09-27T11:23:05.686247+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "gui-session.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gui-session.stderr.log": "9a5cc54d9a80381216bf045b76c73c125a00d1d082f7a41d274b71a26adee8bd",
+    "qga-transport.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qga-transport.stderr.log": "fbe62d04ca40116f020c76cad08ee2bfb581c26ffc46abb6287142cb08b8c354"
+  },
+  "querySha256": "99b263c42ddbbe0d14994f7c9fb7eaacbb09781cdb505088fd2963a494b184ac"
+}

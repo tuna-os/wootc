@@ -210,3 +210,209 @@ setup() {
         done
     done
 }
+
+@test "guide describes the explicit Windows-side Linux boot choice" {
+    grep -q 'BootIntoLinux' app/frontend/src/screens/control.js
+    grep -q 'Restart into' app/frontend/src/screens/control.js
+    grep -q 'Windows normally returns after that one-time boot' docs/user-guide.md
+    grep -q 'choose it to schedule a Linux boot' docs/user-guide.md
+    ! grep -q 'reboots into your new desktop' docs/user-guide.md
+}
+
+@test "guide discloses Firefox profile passwords instead of blanket secret exclusion" {
+    grep -q 'Firefox passwords came across with the profile' payload/migration/wootc-import-browser
+    grep -q 'Firefox imports a complete profile, which can include saved passwords' docs/user-guide.md
+    ! grep -q 'never silently copies passwords' docs/user-guide.md
+}
+
+@test "guide describes Windows removal as a plan without a consumer execution path" {
+    grep -q 'graduate_plan || reclaim_plan' payload/migration/wootc-go-native
+    grep -q 'die "in-place (shrink Windows) graduate runs from the graduate-deployer' payload/migration/wootc-go-native
+    grep -q 'The app cannot execute those plans for normal use' docs/user-guide.md
+    ! grep -q 'This deletes the Windows partition and grows' docs/user-guide.md
+}
+
+@test "guide qualifies uninstall restoration and preserves old section anchors" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'An incomplete cleanup can leave files or boot state behind' docs/user-guide.md
+    ! grep -q 'your Windows install is back exactly as it' docs/user-guide.md
+    for anchor in 2-install-linux-phase-1 3-first-boot-into-linux-phase-2 8-go-linux-only-phase-3 9-uninstall--put-everything-back 10-troubleshooting; do
+        grep -q "id=\"$anchor\"" docs/user-guide.md
+    done
+}
+
+@test "release guide matches the tagged native graduation gate and its waiver" {
+    local gate
+    gate=$(sed -n '/^  e2e-gate:/,/^  publish:/p' .github/workflows/release.yml)
+    printf '%s\n' "$gate" | grep -q 'gui_install: true'
+    printf '%s\n' "$gate" | grep -q 'phase3: true'
+    printf '%s\n' "$gate" | grep -q "bitlocker: 'off'"
+    grep -q 'Phase 3 native system booted from the graduated install (non-loopback)' tests/e2e/run-e2e.sh
+    grep -q 'It ends in graduated Linux' docs/RELEASING.md
+    grep -q 'Windows return after graduation' docs/RELEASING.md
+    grep -q 'stages selected by that run' docs/RELEASING.md
+    grep -q 'skip_e2e.*can waive the gate' docs/RELEASING.md
+    ! grep -q 'has migrated to Linux and back on a hosted runner' docs/RELEASING.md
+}
+
+@test "release user instructions disclose Install writes before reboot" {
+    grep -q 'createRootDisk(cfg.DiskSizeGB)' app/app.go
+    grep -q 'configureBCD(cfg)' app/app.go
+    grep -q 'Install creates the Linux disk file and changes the boot setup before you' docs/RELEASING.md
+    ! grep -q 'Nothing on.*your PC changes until' <(tr '\n' ' ' < docs/RELEASING.md)
+}
+
+@test "release user instructions describe Windows return and explicit Linux boot" {
+    grep -q 'BootIntoLinux' app/frontend/src/screens/control.js
+    grep -q 'Windows normally returns after' docs/RELEASING.md
+    grep -q 'Restart into Bluefin' docs/RELEASING.md
+    ! grep -q "When it finishes you're in Linux" docs/RELEASING.md
+}
+
+@test "release user instructions qualify cleanup and disclose the data choice" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'cleanup can leave files or boot state behind' docs/RELEASING.md
+    grep -q 'is a separate choice' docs/RELEASING.md
+    ! grep -q 'Uninstalling is always' docs/RELEASING.md
+}
+
+@test "getting started discloses preparation beyond a folder and boot entry" {
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'Install.*button starts changes before you restart' docs/getting-started.md
+    grep -q 'copies boot files to the EFI system partition' docs/getting-started.md
+    grep -q 'changes Windows startup settings' docs/getting-started.md
+    ! grep -q 'Everything wootc does before the first reboot lives in one folder' docs/getting-started.md
+}
+
+@test "getting started qualifies cleanup and exposes its data choice" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'Cleanup can fail and leave files or boot state behind' docs/getting-started.md
+    grep -q 'Linux data removal is a separate choice in Manage' docs/getting-started.md
+    ! grep -q 'Uninstall.*puts things back' <(tr '\n' ' ' < docs/getting-started.md)
+}
+
+@test "getting started qualifies reputation prompts instead of promising bypass" {
+    grep -q 'Windows policy can prevent continuation' docs/getting-started.md
+    grep -q 'unknown or negative reputation' docs/getting-started.md
+    grep -q 'learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation' docs/getting-started.md
+    ! grep -q 'warnings you.*will' docs/getting-started.md
+    ! grep -q 'pre-register software with Microsoft' docs/getting-started.md
+    ! grep -q 'and nothing more' docs/getting-started.md
+}
+
+@test "getting started distinguishes checksums from publisher identity" {
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'It does not identify the publisher' docs/getting-started.md
+    grep -q 'checks hashes and a signed manifest for its boot artifacts' docs/getting-started.md
+    ! grep -q 'same verification on every boot artifact' docs/getting-started.md
+}
+
+@test "startup guides disclose the Windows WebView2 runtime dependency" {
+    grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
+    grep -q 'EdgeUpdate.*Clients' tests/e2e/run-e2e.sh
+    grep -q 'interface needs the WebView2 runtime' docs/RELEASING.md
+    grep -q 'interface needs the WebView2 runtime' docs/getting-started.md
+    ! grep -q 'no runtime depend' docs/RELEASING.md
+    ! grep -q 'There is nothing to "install"' docs/getting-started.md
+}
+
+@test "roadmap separates native preview work from complete consumer proof" {
+    grep -q 'JSON-RPC' app/serve.go
+    grep -q 'Phase B (#343) has a draft native preview and hosted component proof' ROADMAP.md
+    grep -q 'Phase C (#344) still needs the complete native consumer and VM journey' ROADMAP.md
+    ! grep -q 'Phases B.*not yet started' ROADMAP.md
+}
+
+@test "roadmap separates restoration requirement from current partial cleanup" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'Evidence must prove that uninstall restores the machine' ROADMAP.md
+    grep -q 'Uninstall tries cleanup; complete restoration still needs proof' ROADMAP.md
+    ! grep -q 'uninstall that restores machine state' ROADMAP.md
+}
+
+@test "roadmap requires a SmartScreen observation beyond a valid signature" {
+    grep -q 'Windows policy can prevent continuation' docs/getting-started.md
+    grep -q 'A valid signature alone does not guarantee' ROADMAP.md
+    grep -q 'fresh-machine SmartScreen behavior (#230)' ROADMAP.md
+    grep -q 'Signed binaries must pass the SmartScreen gate on a fresh machine' ROADMAP.md
+    ! grep -q 'kills the SmartScreen wall' ROADMAP.md
+}
+
+@test "README qualifies the VM goal against current desktop evidence" {
+    grep -q 'No complete Windows-hosted target desktop proof yet' docs/status.md
+    grep -q 'Current releases do not yet provide the complete Linux-inside-Windows journey' README.md
+    grep -q 'VM-first goal' README.md
+    ! grep -q 'Try before you reboot.*boot the result' <(tr '\n' ' ' < README.md)
+}
+
+@test "README exposes preparation settings and normal Windows return" {
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'changes Windows startup settings' README.md
+    grep -q 'Windows normally returns after deployment' README.md
+    grep -q 'Manage offers an explicit Linux boot choice' README.md
+    ! grep -q 'Nothing else on the machine is touched' README.md
+}
+
+@test "README separates cleanup from restoration and Linux data removal" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'Uninstall tries cleanup; it can leave files or boot state behind' README.md
+    grep -q 'Linux data removal is a separate choice' README.md
+    ! grep -q 'uninstall and leave no trace' README.md
+    ! grep -q 'uninstalling is deleting a folder' README.md
+}
+
+@test "README matches release graduation and its manual waiver" {
+    grep -q 'phase3: true' .github/workflows/release.yml
+    grep -q 'Emergency: publish WITHOUT the E2E gate' .github/workflows/release.yml
+    grep -q 'does not prove a Windows return after graduation' README.md
+    grep -q 'manual emergency waiver remains' README.md
+    ! grep -q 'returns to Windows cleanly' README.md
+}
+
+@test "README qualifies browser secrets instead of a blanket exclusion" {
+    grep -q 'Firefox passwords came across with the profile' payload/migration/wootc-import-browser
+    grep -q 'A complete Firefox profile can include saved passwords' README.md
+    ! grep -q 'passwords, keys, and tokens stay' README.md
+}
+
+@test "README discloses runtime and distinguishes hashes from signed manifests" {
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
+    grep -q 'checks hashes, and verifies a signed manifest' README.md
+    grep -q 'Wails interface needs the WebView2 runtime' README.md
+    grep -q 'Policy can prevent continuation' README.md
+}
+
+@test "E2E architecture separates historical native diagrams from current acceptance" {
+    grep -q 'They do not prove Linux inside Windows or the WinUI journey' docs/e2e-architecture.md
+    grep -q 'status.md#buildtest-matrix' docs/e2e-architecture.md
+    ! grep -q 'Everything here was validated live' docs/e2e-architecture.md
+}
+
+@test "E2E architecture follows the actual sourced runner boundaries" {
+    for module in qga-transport host-runtime retention vm-start; do
+        grep -q "source .*lib/$module.sh" tests/e2e/run-e2e.sh
+        grep -q "$module.sh" docs/e2e-architecture.md
+    done
+    grep -q 'Neither probe accepts a token when its command fails' docs/e2e-architecture.md
+    ! grep -q 'transport,.*still need separate modules' docs/e2e-architecture.md
+}
+
+@test "E2E architecture does not claim an atomic deployer menu handoff" {
+    grep -q 'for gd in "$TARGET_VENDOR" fedora wootc' payload/deployer/deploy.sh
+    grep -Fq '> "/mnt/esp/EFI/$gd/grub.cfg"' payload/deployer/deploy.sh
+    grep -q 'this is not an atomic handoff' docs/e2e-architecture.md
+    grep -q 'An interrupted update can leave partial boot state' docs/e2e-architecture.md
+    ! grep -q 'atomically with a successful deployment' docs/e2e-architecture.md
+}
+
+@test "E2E architecture distinguishes a QGA service request from a working channel" {
+    grep -Fq 'MGMT_KARG="systemd.wants=qemu-guest-agent.service"' payload/deployer/deploy.sh
+    grep -q 'That request alone does not prove the service exists or runs' docs/e2e-architecture.md
+    ! grep -q 'deployed system is given a control channel' docs/e2e-architecture.md
+}

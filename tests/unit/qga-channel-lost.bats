@@ -16,21 +16,25 @@
 
 E2E=tests/e2e/run-e2e.sh
 QGA=tests/e2e/qga.py
+TRANSPORT=tests/e2e/lib/qga-transport.sh
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     ABS_E2E="$REPO_ROOT/$E2E"
     # Source just the helpers — running the script would start a VM.
-    eval "$(sed -n '/^pass()/,/^info()/p' "$ABS_E2E")"
+    source "$REPO_ROOT/tests/e2e/lib/results.sh"
+    source "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
     eval "$(sed -n '/^note_flake()/,/^}/p' "$ABS_E2E")"
-    eval "$(sed -n '/^WOOTC_QGA_RECONNECT_ATTEMPTS=/,/^}/p' "$ABS_E2E")"
-    eval "$(sed -n '/^qga_channel_lost()/,/^}/p' "$ABS_E2E")"
+    source "$REPO_ROOT/$TRANSPORT"
 
     STORAGE_DIR="$BATS_TEST_TMPDIR/storage"; mkdir -p "$STORAGE_DIR"
     WOOTC_FAILURE_LEDGER="$BATS_TEST_TMPDIR/ledger"; : > "$WOOTC_FAILURE_LEDGER"
+    WOOTC_RESULT_LEDGER="$BATS_TEST_TMPDIR/results.jsonl"
+    RUN_ID=qga-test
+    wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" full-cycle
     CONTAINER_NAME="stub-ctr"
     STUB_LOG="$BATS_TEST_TMPDIR/stub.log"; : > "$STUB_LOG"
-    export STORAGE_DIR WOOTC_FAILURE_LEDGER STUB_LOG
+    export STORAGE_DIR WOOTC_FAILURE_LEDGER WOOTC_RESULT_LEDGER RUN_ID STUB_LOG
     # A stand-in for podman/docker: records what it was asked to run and takes
     # the reconnect exit code from the environment.
     DOCKER="$BATS_TEST_TMPDIR/docker"
@@ -45,11 +49,11 @@ esac
 exit 0
 STUB
     chmod +x "$DOCKER"
+    wootc_qga_configure "$DOCKER" "$CONTAINER_NAME" /tmp/qga.py
     export DOCKER CONTAINER_NAME
 }
 
 @test "the reconnect cycle reports a channel that came back" {
-    eval "$(sed -n '/^qga_reconnect_cycle()/,/^}/p' "$ABS_E2E")"
     STUB_RECONNECT_RC=0 STUB_RECONNECT_OUT="attempt 1/3: channel answered guest-ping"
     export STUB_RECONNECT_RC STUB_RECONNECT_OUT
     run qga_reconnect_cycle
@@ -66,7 +70,6 @@ STUB
 }
 
 @test "the reconnect cycle claims nothing when the channel stays deaf" {
-    eval "$(sed -n '/^qga_reconnect_cycle()/,/^}/p' "$ABS_E2E")"
     STUB_RECONNECT_RC=42
     STUB_RECONNECT_OUT="attempt 3/3: timed out"
     export STUB_RECONNECT_RC STUB_RECONNECT_OUT
@@ -87,8 +90,10 @@ STUB
     {
         echo 'set -Eeuo pipefail'
         sed -n "/^RED='/,/^NC='/p" "$ABS_E2E"
-        sed -n '/^pass()/,/^info()/p' "$ABS_E2E"
-        sed -n '/^WOOTC_QGA_RECONNECT_ATTEMPTS=/,/^}/p' "$ABS_E2E"
+        printf 'source %q\n' "$REPO_ROOT/tests/e2e/lib/results.sh"
+        printf 'source %q\n' "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
+        printf 'source %q\n' "$REPO_ROOT/$TRANSPORT"
+        echo 'wootc_qga_configure "$DOCKER" "$CONTAINER_NAME" /tmp/qga.py'
         # Bare, NOT `|| true`: set -e is suspended inside a tested call, which
         # is exactly the leniency this test exists to deny itself.
         echo 'qga_reconnect_cycle'
@@ -146,19 +151,19 @@ STUB
     # The QGA socket takes ONE client at a time, so a client killed by the
     # `timeout` wrapper can still own it with its reply queued behind — the
     # poisoning caveat from agent-lessons §20. Reaping is part of the reopen.
-    run bash -c "sed -n '/^qga_reconnect_cycle()/,/^}/p' $E2E"
+    run bash -c "source $TRANSPORT; declare -f qga_reconnect_cycle"
     [ "$status" -eq 0 ]
     [[ "$output" == *"pkill"* ]]
-    [[ "$output" == *"qga.py reconnect"* ]]
+    [[ "$output" == *WOOTC_QGA_CLIENT*reconnect* ]]
     # Bounded: an attempt budget and a settle delay, both overridable.
     [[ "$output" == *'--attempts'* ]]
     [[ "$output" == *'--settle'* ]]
-    grep -q 'WOOTC_QGA_RECONNECT_ATTEMPTS' "$E2E"
-    grep -q 'WOOTC_QGA_RECONNECT_SETTLE_S' "$E2E"
+    grep -q 'WOOTC_QGA_RECONNECT_ATTEMPTS' "$TRANSPORT"
+    grep -q 'WOOTC_QGA_RECONNECT_SETTLE_S' "$TRANSPORT"
 }
 
 @test "the verdict names the class and claims nothing about the product" {
-    run bash -c "sed -n '/^qga_channel_lost()/,/^}/p' $E2E"
+    run bash -c "source $TRANSPORT; declare -f qga_channel_lost"
     [ "$status" -eq 0 ]
     # The ledger line NAMES the class, so re-dispatch needs no human to read
     # the log — fail() is what appends to WOOTC_FAILURE_LEDGER.
@@ -168,18 +173,40 @@ STUB
     [[ "$output" == *"NO verdict on the product"* ]]
 }
 
-@test "the 30-minute timeout leads with the channel, not with the product" {
-    # The old order printed "did not reach the done screen in 30m" first and
-    # appended "the verdict above may be a lost channel" underneath. The
-    # discriminator has to come FIRST because it decides which verdict is even
-    # available.
-    run bash -c "grep -A12 'GUI-driven install did not reach the done screen' $E2E"
+@test "the GUI timeout never treats live ping as a product verdict" {
+    # Execute the actual terminal consumer, with channel replies controlled.
+    # No VM is started and no guest write or recovery is attempted.
+    run python3 - "$E2E" <<'PYTIMEOUT'
+from pathlib import Path
+import subprocess, sys
+source = Path(sys.argv[1]).read_text()
+start = source.index('    [ "${screen:-}" = "done" ] &&')
+body = source[start:source.index('    # The arm must be observable', start)]
+prefix = """
+qga_probe() { return "$PING_RC"; }
+qga_reconnect_cycle() { return "$RECONNECT_RC"; }
+qga_channel_lost() { echo 'INFRA channel-lost'; }
+infra_fail() { echo "INFRA $*"; }
+fail() { echo "PRODUCT $*"; }
+info() { echo "INFO $*"; }
+capture_vm_diagnostics() { echo DIAGNOSTICS; }
+drive_state= screen= driven=false last_screen= last_good= total_empty=0
+"""
+def execute(ping, reconnect, code=body):
+    return subprocess.run(['bash', '-c', prefix+code], env={'PATH':'/usr/bin:/bin', 'PING_RC':str(ping), 'RECONNECT_RC':str(reconnect)}, capture_output=True, text=True)
+for ping, reconnect in [(0,0), (1,0), (1,1)]:
+    result=execute(ping,reconnect)
+    assert result.returncode==1, result.stderr
+    assert 'INFRA' in result.stdout and 'PRODUCT' not in result.stdout, result.stdout
+    assert 'DIAGNOSTICS' in result.stdout
+    assert ('channel-lost' in result.stdout)==(ping==1 and reconnect==1)
+# A product classification restored at the actual callsite goes red.
+mutant=body.replace('infra_fail "GUI-driven completion', 'fail "GUI-driven completion', 1)
+assert mutant!=body
+assert 'PRODUCT' in execute(0,0,mutant).stdout
+print('actual timeout consumer refuses a product verdict from ping alone')
+PYTIMEOUT
     [ "$status" -eq 0 ]
-    # A live channel is still a real product red, and writes no flake verdict.
-    [[ "$output" == *"QGA answers ping"* ]]
-    [[ "$output" != *"note_flake"* ]]
-    # The channel-lost arm is gated on BOTH a dead ping and a failed reconnect.
-    grep -q 'if ! qga_probe && ! qga_reconnect_cycle; then' "$E2E"
 }
 
 @test "a channel that comes back is not a failure" {

@@ -24,13 +24,15 @@ setup() {
     E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
     LEDGER="$BATS_TEST_TMPDIR/ledger"
     : > "$LEDGER"
-    # Source fail() alone; running the script would start a VM.
-    RED=""; NC=""
+    # Source the actual runner adapter; it starts no VM.
+    RED=""; GREEN=""; NC=""
     WOOTC_FAILURE_LEDGER="$LEDGER"
-    fail() {
-        echo -e "${RED}[FAIL]${NC} $*" >&2
-        printf '%s\n' "$*" >> "$WOOTC_FAILURE_LEDGER" 2>/dev/null || true
-    }
+    WOOTC_RESULT_LEDGER="$BATS_TEST_TMPDIR/results.jsonl"
+    RUN_ID=test-run
+    source "$REPO_ROOT/tests/e2e/lib/results.sh"
+    source "$REPO_ROOT/tests/e2e/lib/result-runner.sh"
+    wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" full-cycle
+
 }
 
 @test "run-e2e.sh is syntactically valid" {
@@ -226,7 +228,9 @@ setup() {
     # 2. ...reports the mismatch so the harness can see it...
     grep -q 'imageMismatch' app/frontend/src/lib/e2e.js
     # ...and the harness fails FAST with both refs instead of timing out.
-    grep -q '"imageMismatch":true' tests/e2e/run-e2e.sh
+    # The scenario consumes a validated field; text in hint/error cannot
+    # impersonate it. The actual consumer/parser countercontrols execute below.
+    grep -q 'json.load(sys.stdin)\["imageMismatch"\] is True' tests/e2e/run-e2e.sh
     grep -q 'Drive mode cannot select the requested image' tests/e2e/run-e2e.sh
     # 3. Drive mode un-gates experimental images (the harness exists to test
     # images BEFORE they are green), so the requested card is selectable.
@@ -252,8 +256,8 @@ setup() {
     #    qga-channel-lost only when QGA does NOT answer (a stall with a live
     #    channel is the installer's fault), serial-feed-lost only when dracut
     #    output proves the deployer's userspace was alive on the dead feed.
-    grep -q 'note_flake "qga-channel-lost"' "$E2E"
-    grep -B3 'note_flake "qga-channel-lost"' "$E2E" | grep -q 'QGA does NOT answer ping'
+    grep -q 'note_flake "qga-channel-lost"' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh"
+    grep -B3 'note_flake "qga-channel-lost"' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh" | grep -q 'QGA does NOT answer ping'
     grep -q 'note_flake "serial-feed-lost"' "$E2E"
     grep -B2 'note_flake "serial-feed-lost"' "$E2E" | grep -q "grep -aq 'dracut-initqueue'"
     # 3. The reusable workflow surfaces the verdict as an output...

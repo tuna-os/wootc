@@ -20,6 +20,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
+    PRIME="$REPO_ROOT/tests/e2e/lib/snapshot-prime.sh"
     PRIME_WF="$REPO_ROOT/.github/workflows/e2e-snapshot.yml"
     HOSTED_WF="$REPO_ROOT/.github/workflows/e2e-hosted.yml"
 }
@@ -44,29 +45,29 @@ setup() {
 
 @test "prime captures via a CLEAN shutdown, never a live fsfreeze" {
     # Clean shutdown clears the NTFS dirty bit; fsfreeze/thaw sets it.
-    grep -q 'Stop-Computer -Force' "$E2E"
+    grep -q 'Stop-Computer -Force' "$PRIME"
     # The prime block must not reach for the freeze path.
-    run bash -c "sed -n '/WOOTC_E2E_SNAPSHOT_OUT:-/,/^fi\$/p' '$E2E' | grep -c 'qga_call freeze'"
+    run grep -c 'qga_call freeze' "$PRIME"
     [ "$output" -eq 0 ]
 }
 
 @test "prime waits for the guest to power off before converting" {
     # qga_windows_probe going away == QEMU is exiting; converting a qcow2 QEMU
     # still holds open yields a corrupt image.
-    grep -q 'qga_windows_probe || break' "$E2E"
+    grep -q 'qga_windows_probe || break' "$PRIME"
 }
 
 @test "prime brings the container down before qemu-img convert" {
     local down_line convert_line
-    down_line=$(grep -n 'compose.yml down' "$E2E" | tail -1 | cut -d: -f1)
-    convert_line=$(grep -n 'qemu-img convert -c' "$E2E" | head -1 | cut -d: -f1)
+    down_line=$(grep -n 'compose.yml down' "$PRIME" | tail -1 | cut -d: -f1)
+    convert_line=$(grep -n 'qemu-img convert -c' "$PRIME" | head -1 | cut -d: -f1)
     [ -n "$down_line" ] && [ -n "$convert_line" ]
     [ "$down_line" -lt "$convert_line" ]
 }
 
 @test "prime produces a compressed, standalone qcow2" {
     # -c compresses; convert (not cp) flattens any backing chain into one image.
-    grep -q 'qemu-img convert -c -O qcow2' "$E2E"
+    grep -q 'qemu-img convert -c -O qcow2' "$PRIME"
 }
 
 @test "prime refuses to combine with --skip-install" {
@@ -76,9 +77,9 @@ setup() {
 }
 
 @test "prime writes the correctness key AND dockur's install markers" {
-    grep -q 'snapshot.key' "$E2E"
-    grep -q '\.wootc-autounattend\.sha256' "$E2E"
-    grep -q 'STORAGE_DIR"/windows\.\*' "$E2E"
+    grep -q 'snapshot.key' "$PRIME"
+    grep -q '\.wootc-autounattend\.sha256' "$PRIME"
+    grep -q 'STORAGE_DIR"/windows\.\*' "$PRIME"
 }
 
 # ── restore side ─────────────────────────────────────────────────────────────
@@ -90,8 +91,10 @@ setup() {
     local canon
     canon='sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum'
     # ANSWER_SHA derivation and the restore/prime key derivation must match.
-    run grep -c "$canon" "$E2E"
-    [ "$output" -ge 3 ]   # ANSWER_SHA (x2 paths) + restore + prime
+    run grep -h "$canon" "$E2E" "$PRIME"
+    local matches
+    matches=$(printf '%s\n' "$output" | wc -l)
+    [ "$matches" -ge 3 ]   # ANSWER_SHA (x2 paths) + restore + prime
 }
 
 @test "a key MISMATCH falls back to a full install, never fails the run" {

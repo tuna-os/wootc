@@ -36,9 +36,13 @@ jobs:
           shellcheck --severity=warning \
             payload/deployer/*.sh \
             platform/dracut/99wootc-boot/*.sh \
-            tests/e2e/run-e2e.sh \
+            tests/e2e/run-e2e.sh tests/e2e/lib/diagnostics.sh \
             tests/e2e/steps.sh \
             tests/e2e/phase-ledger.sh \
+            tests/e2e/lib/results.sh \
+            tests/e2e/lib/qga-transport.sh tests/e2e/lib/host-runtime.sh tests/e2e/lib/retention.sh tests/e2e/lib/vm-start.sh tests/e2e/lib/gui-session.sh tests/e2e/lib/gui-observations.sh \
+            tests/e2e/lib/result-runner.sh \
+            tests/e2e/lib/snapshot-prime.sh \
             payload/steps.sh
 
       - name: ShellCheck migration scripts

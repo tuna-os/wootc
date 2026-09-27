@@ -1,0 +1,51 @@
+{
+  "sourceCommit": "0c997e373b8cee97cc803e3a9425344b9b68449f",
+  "sourceQuerySHA256": "99b263c42ddbbe0d14994f7c9fb7eaacbb09781cdb505088fd2963a494b184ac",
+  "stagedQuerySHA256": "67b3bf24f05cd47ac98eabdbe06567582ae5f736f43fd7817e835c42f50100d2",
+  "containingModuleSHA256": "a97428d154e3d4a4f0c361653cafc71fa149162d33d8da4ec902f5fe5b65191b",
+  "invocationSHA256": "9afb2c719662abfb32f21e7a0641bb969e4f314d98ecba4b7d356fd40394fdea",
+  "scope": "Native parser and mocked Test-Path execution of runner query after explicitly recorded leading-LF removal and BOM/CRLF staging; no registry/service/account operations; process-local OS restored; fresh protected TEMP removed",
+  "fileSha256": {
+    "native.stdout.log": "e43d5a11a17b94fe391fdfe7dbe277cd4db5be6c3bdc1056fccbc86e6a9c01f7",
+    "native.stderr.log": "2ce70d6c8c9ad6726c794690c8b14a2b83673648cac88edf4ff1acc50ec46348",
+    "native-invocation.ps1": "9afb2c719662abfb32f21e7a0641bb969e4f314d98ecba4b7d356fd40394fdea"
+  },
+  "hostParserChecks": [
+    {
+      "case": "clean",
+      "exitCode": 0,
+      "stdout": "clean",
+      "stderr": ""
+    },
+    {
+      "case": "servicing",
+      "exitCode": 0,
+      "stdout": "pending:servicing",
+      "stderr": ""
+    },
+    {
+      "case": "update",
+      "exitCode": 0,
+      "stdout": "pending:windows-update",
+      "stderr": ""
+    },
+    {
+      "case": "both",
+      "exitCode": 0,
+      "stdout": "pending:servicing,windows-update",
+      "stderr": ""
+    },
+    {
+      "case": "wrong-os",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "Invalid or missing Windows servicing observation"
+    }
+  ],
+  "hostParserSHA256": "0e3832e600f773b943626f2fa8a98708d4197ee8da8bb2be569b92c8bd1ddd7f",
+  "nativeExitCode": 0,
+  "nativePowerShellVersion": "5.1.26100.9444",
+  "runnerLiteralSHA256": "27cfe9ff3433f9b0cd8b79b24e46dfc86407535f825cc6b0acde457576ff0530",
+  "runnerLiteralBytes": 434,
+  "nativeQueryNormalization": "Remove exactly the leading LF from the runner literal, then prepend UTF-8 BOM and convert LF to CRLF for native PowerShell5.1. Native sourceQuerySHA256 describes the 433-byte normalized source, not the 434-byte runner literal."
+}

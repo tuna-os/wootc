@@ -1,0 +1,42 @@
+[WebServer] (node:3011124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 7 tests using 1 worker
+
+(node:3011137) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 branded-walkthrough.spec.js:133:5 › walkthrough: aurora › done celebrates the brand (4.7s)
+  ✓  2 branded-walkthrough.spec.js:133:5 › walkthrough: bazzite › done celebrates the brand (3.5s)
+  ✘  3 branded-walkthrough.spec.js:133:5 › walkthrough: bluefin › done celebrates the brand (1.1m)
+(node:3011633) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 branded-walkthrough.spec.js:133:5 › walkthrough: tunaos › done celebrates the brand (4.9s)
+  ✓  5 branded-walkthrough.spec.js:133:5 › walkthrough: wootc › done celebrates the brand (5.8s)
+  ✓  6 gui.spec.js:72:1 › installer — done screen (2.3s)
+  ✓  7 gui.spec.js:93:1 › installer — session consent does not assert successful export (1.5s)
+
+
+  1) branded-walkthrough.spec.js:133:5 › walkthrough: bluefin › done celebrates the brand ──────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: Test timeout of 30000ms exceeded.
+    Call log:
+      - navigating to "http://127.0.0.1:5664/", waiting until "load"
+
+
+      68 |     { ...mock, stepCatalogue: mock.stepCatalogue ?? INSTALLER_STEP_DEFINITIONS });
+      69 |   await page.addInitScript({ content: mockSrc });
+    > 70 |   await page.goto('/');
+         |              ^
+      71 | }
+      72 |
+      73 | const shot = (page, id, name) =>
+        at boot (/tmp/wootc-done-screen-truth/tests/gui/branded-walkthrough.spec.js:70:14)
+        at /tmp/wootc-done-screen-truth/tests/gui/branded-walkthrough.spec.js:136:7
+
+    Error Context: .results/branded-walkthrough-walkth-31ab3-n-done-celebrates-the-brand/error-context.md
+
+  1 failed
+    branded-walkthrough.spec.js:133:5 › walkthrough: bluefin › done celebrates the brand ───────────
+  6 passed (2.2m)

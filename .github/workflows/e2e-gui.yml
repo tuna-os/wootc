@@ -170,7 +170,7 @@ jobs:
               '<title>wootc — walkthrough gallery</title>' \
               '<style>:root{color-scheme:dark}body{max-width:960px;margin:2rem auto;padding:0 1rem;background:#0d1117;color:#e6edf3;font:16px/1.6 system-ui,sans-serif}h1{font-size:1.5rem}a.card{display:inline-block;width:288px;margin:.5rem;text-decoration:none;color:#e6edf3}a.card img{width:100%;border-radius:8px;background:#000}a.card span{display:block;margin-top:.3rem;text-align:center;color:#7dd3fc}</style>' \
               '<h1>wootc — end-to-end walkthroughs</h1>' \
-              '<p>Every video is a real, green acceptance run: Windows 11 → installer GUI → native Linux from <code>root.disk</code> → back to Windows. Only passing runs are ever published.</p>'
+              '<p>Every video is a real, green acceptance run: Windows 11 → installer GUI → native Linux from <code>root.disk</code>. The selected stages determine whether it ends in Windows or graduated native Linux. Only passing runs are ever published.</p>'
             for d in pages/e2e/*/; do
               s=$(basename "$d")
               [ -f "$d/preview.webp" ] || continue

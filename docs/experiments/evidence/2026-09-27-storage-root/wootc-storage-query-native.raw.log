@@ -1,0 +1,13 @@
+PASS C-staging-F-disk
+PASS C-only
+QUERY REFUSAL: Actual storage root is unavailable or ambiguous
+PASS both-disks
+QUERY REFUSAL: Actual storage root is unavailable or ambiguous
+PASS absent-disk
+QUERY REFUSAL: Actual storage root is unavailable or ambiguous
+PASS directory-disk
+QUERY REFUSAL: Storage discovery requires Windows identity
+PASS wrong-OS
+Source SHA256: 5e66c107ffcc8729914c643096666176c5d3caae020f36f54aae914efcdd3ac2
+Staged SHA256: 90d01d78de99e48a706e6453be5d84b15dd1af57ccbcfb6313c153c9d9a48ab3
+PowerShell: 5.1.26100.9444

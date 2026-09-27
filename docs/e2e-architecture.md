@@ -1,9 +1,10 @@
 # wootc E2E Architecture — Phase 2 Boot Chain
 
-How the E2E test drives a real Windows 11 VM (TPM + Secure Boot) through the
-full wootc flow: OEM install → deployer boot → fisherman deployment →
-return to Windows. Everything here was validated live on the Kanpur KVM
-host, 2026-07-15/16.
+This page describes the native-cycle harness: Windows preparation, deployer boot,
+Linux deployment and a Windows return. The diagrams record the Kanpur design from
+2026-07-15/16. They do not prove Linux inside Windows or the WinUI journey.
+Use [current status](status.md#buildtest-matrix) for dated run evidence.
+The module descriptions below match the source as of 2026-09-27.
 
 ## The big picture
 
@@ -37,21 +38,26 @@ Two control planes, one per OS:
 | Windows | QGA (`guest-exec` PowerShell as SYSTEM, `guest-file-read`) | bidirectional |
 | Deployer / Phase-2 Linux | QGA (`guest-exec` `/bin/sh`, `guest-file-read`) + serial console | bidirectional (QGA) · read-only (serial) |
 
-Both guests run the QEMU Guest Agent on the same virtio-serial port:
-`deploy-hook.sh` starts `qemu-ga` inside the deployer initramfs, and the
-deployed system is given a control channel via the `qemu-guest-agent`
-kernel argument (`MGMT_KARG` in `deploy.sh`). The runner uses that channel
-for live inspection of the Phase-2 system and drives the Phase-3 graduate
-through it. The deployer's *first* run still has no interactive input and
-keeps its design rules: every failure must **reboot back to Windows** on
-its own, and every diagnostic must be **pushed out** (serial kmsg markers +
-journal persisted to NTFS) rather than pulled interactively.
+Both guests use the same virtio-serial port for QGA.
+`deploy-hook.sh` starts `qemu-ga` in the deployer initramfs.
+`MGMT_KARG` in `deploy.sh` requests `qemu-guest-agent.service` in the installed system.
+That request alone does not prove the service exists or runs.
+The runner inspects Phase 2 and controls Phase 3 through QGA.
 
-**Liveness vs identity.** `guest-ping` proves only that *some* guest agent
-is answering — it cannot tell Windows apart from the deployer/Phase-2
-Linux. Every OS transition therefore asserts identity positively before
-action: `$env:OS` must match `Windows_NT` (`qga_windows_probe`) or
-`uname -s` must say Linux (`qga_linux_probe`) in `tests/e2e/run-e2e.sh`.
+The first deployer run needs no interactive input.
+Its design calls for a Windows return on failure and persistent diagnostics:
+records on the serial console and a journal on NTFS.
+
+**Liveness vs identity.** `guest-ping` proves that an agent answers.
+It does not identify the OS.
+
+Actions need a successful command with a positive OS result.
+`qga_windows_probe` checks `$env:OS` for `Windows_NT`.
+`qga_linux_probe` checks `uname -s` for Linux.
+`tests/e2e/lib/qga-transport.sh` defines these probes; `run-e2e.sh` uses them.
+Neither probe accepts a token when its command fails.
+
+Legacy GUI observers still need review under #383.
 
 ## Secure Boot chain (validated)
 
@@ -75,15 +81,16 @@ Hard-won constraints baked into this design:
 
 - **grub.cfg must live at `/EFI/fedora/grub.cfg`** — the signed GRUB's
   embedded prefix. A cfg in `\EFI\wootc\` is never read.
-- **No external GRUB modules.** Under Secure Boot, GRUB refuses unsigned
-  `.mod` files. `fat`, `part_gpt`, `search`, `linux`, `loopback` are
-  embedded; **`ntfs` is not** — so GRUB can read the FAT32 ESP but never the
-  NTFS volume. Deployer kernel + initramfs therefore live **on the ESP**
-  (256 MB, holds the ~148 MB pair).
-- **The kernel must be signed** (shim verifies it). The stock Fedora
-  deployer kernel passes; an unsigned custom kernel would not.
-- `$root` defaults to the device GRUB loaded from (the ESP) — no
-  `set root=(hd0,gptN)` guessing.
+- **No external GRUB modules.** Secure Boot blocks unsigned `.mod` files.
+  This Fedora GRUB contains `fat`, `part_gpt`, `search`, `linux` and `loopback`.
+  It has no embedded `ntfs` module, so this chain reads the FAT32 ESP.
+  The deployer kernel and initramfs live **on the ESP**.
+  The historical 256 MB ESP held the about 148 MB pair.
+- **The kernel needs a trusted signature**; shim verifies it.
+  The historical run used the Fedora kernel for the deployer.
+  This check rejects an unsigned custom kernel.
+- `$root` defaults to the ESP from which GRUB loaded.
+  Do not guess a disk number with `set root=(hd0,gptN)`.
 - The BCD entry is the one `setup-wootc.ps1` created (GUID in
   `C:\wootc\install\bcd-guid.txt`), repointed from unsigned `wubildr.efi`
   to the shim. The runner re-arms this same GUID for the Phase-2 boot.
@@ -113,13 +120,13 @@ flowchart TD
 ```
 
 Why the scratch loop exists: the initramfs root is **ramfs** — a multi-GB
-image pull there exhausts RAM (8 G VM). fisherman does its heavy I/O under
-`/var/fisherman-tmp` (podman `--root`, OCI cache, bootc `/var/tmp` bind), and
-overlay needs a real POSIX filesystem, so the deployer backs that path with
-an ext4 loop file on the Windows partition and deletes it afterwards.
+image pull there exhausts RAM (8 G VM). fisherman uses `/var/fisherman-tmp` for heavy I/O:
+podman `--root`, the OCI cache and the bootc `/var/tmp` bind.
+Overlay needs a POSIX filesystem.
+The deployer uses an ext4 loop file on the Windows partition, then deletes that file.
 
-Initramfs contents that podman/fisherman hard-require (all missing from the
-original build, each found by a failed run):
+The initramfs in the original build lacked tools and files that podman and fisherman need.
+Failed runs found each omission:
 
 | Requirement | Failure it caused |
 |---|---|
@@ -152,13 +159,12 @@ sequenceDiagram
 
 Operational invariants (violations cost a debug cycle each):
 
-- **Never hard-kill the VM while the deployer has NTFS mounted rw** — the
-  dirty bit sticks across normal Windows boots and blocks every later rw
-  mount. Recovery: `Repair-Volume -DriveLetter C -OfflineScanAndFix` +
+- **Never hard-kill the VM while the deployer has NTFS mounted rw**.
+  A dirty bit can persist after a Windows boot and block a later rw mount. Recovery: `Repair-Volume -DriveLetter C -OfflineScanAndFix` +
   reboot (autochk), verify with `fsutil dirty query C:`.
-- **`reboot -f` is `systemctl reboot -f`** and hangs once dracut enters
-  emergency mode (the gpt-auto root-device timeout fires ~45 s in, long
-  before any deployer step finishes). Only `reboot -ff` / sysrq is safe.
+- **`reboot -f` invokes `systemctl reboot -f`** and can hang in dracut's emergency mode.
+  In the historical run, the timeout for gpt-auto occurred at about 45 seconds.
+  The deployer uses `reboot -ff` or sysrq for a forced reboot.
 - **stdout of a sourced initqueue hook does not reach the serial console**
   reliably — only `/dev/kmsg` writes and stderr do.
 - The hook is **sourced under `set -e`**: capture exit codes as
@@ -166,10 +172,10 @@ Operational invariants (violations cost a debug cycle each):
 
 ## Phase-2 Linux boot (ESP kernel-sync + loop-attach)
 
-The signed GRUB cannot read NTFS (`ntfs.mod` is unsigned and not embedded),
-so the installed kernel inside root.disk is unreachable from GRUB. The
-implemented resolution is **ESP kernel-sync** with a systemd-native
-**loop-attach** initramfs hook:
+The Fedora GRUB in this chain has no embedded NTFS module.
+Secure Boot blocks its unsigned external `ntfs.mod`.
+GRUB therefore cannot read the installed kernel inside root.disk.
+**ESP kernel-sync** supplies the kernel, and a **loop-attach** hook exposes the root:
 
 ```mermaid
 flowchart TD
@@ -182,17 +188,48 @@ flowchart TD
 
 Design notes:
 
-- **No root= hijack.** The BLS entry keeps its normal `root=UUID=<target>`;
-  the hook merely makes that UUID exist by attaching the loop with
-  partition scanning. systemd's fstab-generator, `sysroot.mount`, and
+- **No root= hijack.** The BLS entry keeps `root=UUID=<target>`.
+  The hook attaches the loop and exposes its partitions and UUIDs.
+  systemd's fstab-generator, `sysroot.mount`, and
   ostree-prepare-root all run their standard paths.
-- **ostree layout throughout.** bootc roots have no top-level `/etc`; all
-  staging operates on the deployment dir, and the initramfs regen targets
-  the live `/boot/ostree/<dir>/initramfs.img` for the deployment's kernel.
-- The deployer's ESP-sync overwrites `EFI/fedora/grub.cfg` with the Phase-2
-  entry as its final act, so the ESP flips from "boot the deployer" to
-  "boot the installed system" atomically with a successful deployment.
-- The MOK-enrollment alternative (custom signed GRUB with ntfs+loopback,
-  kernel loaded from inside root.disk) remains a fallback if kernel-sync
-  proves insufficient; it would restore SPEC §1.2's no-sync property at the
-  cost of a one-time MokManager enrollment.
+- **ostree layout throughout.** bootc roots have no top-level `/etc`.
+  Preparation uses the deployment directory.
+  Initramfs generation targets `/boot/ostree/<dir>/initramfs.img` for that deployment's kernel.
+- During verification, the deployer writes the Phase-2 menu to the target vendor,
+  Fedora and wootc directories on the ESP.
+  It writes each `grub.cfg` separately; this is not an atomic handoff.
+  An interrupted update can leave partial boot state. Transactional recovery remains a separate gate.
+- A custom signed GRUB with ntfs+loopback is an alternative design.
+  It could read the kernel inside root.disk after MOK enrollment.
+  That design would need separate proof and a one-time MokManager enrollment.
+  It aims to restore the no-sync property in SPEC §1.2.
+
+## Result boundary (#383)
+
+The runner uses `tests/e2e/lib/results.sh` and `result-runner.sh` for results.
+The backend, `results.py`, appends records to `results.jsonl` with the run ID.
+It separates `product`, `infrastructure`, and `runner` failures. A fault in the
+channel cannot prove a fault in the product. The old human log remains available.
+An empty log does not prove success.
+
+A terminal pass needs every required assertion for the selected scenario.
+Missing, corrupt, foreign, or unwritable evidence blocks the pass. The API writes
+`.passed` only after it commits the terminal result. The trap for `ERR` records each abort.
+An exit without that commit cannot report success. The collector keeps the JSONL
+file with other small evidence when it prunes old runs.
+
+Direct tests call these modules and the actual entry point before any VM command.
+
+The current modules also separate QGA transport, host preflight, retention and VM startup.
+`qga-transport.sh` takes the runtime, container and guest client explicitly.
+`host-runtime.sh` handles host checks.
+`vm-start.sh` bounds startup calls and samples the current state of QEMU.
+`retention.sh` copies and byte-checks small evidence before deletion.
+A failed copy keeps the source and stops the run with an infrastructure result.
+
+Controlled tests cover these modules. Fresh VM acceptance for these changes remains due.
+GUI session and scenario policy still need separate boundaries under #383.
+
+The snapshot prime uses an infrastructure scenario. It needs Windows identity,
+compressed snapshot bytes, and the answer key. Its terminal job result can pass
+while the product verdict stays unknown; it never publishes a GUI pass marker.

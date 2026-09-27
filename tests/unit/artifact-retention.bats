@@ -18,8 +18,9 @@ setup() {
     E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
     STORAGE_DIR="$BATS_TEST_TMPDIR/storage"
     mkdir -p "$STORAGE_DIR/artifacts"
-    # Source just the retention function.
-    eval "$(sed -n '/^WOOTC_E2E_KEEP_RUNS=/,/^}/p' "$E2E")"
+    source "$REPO_ROOT/tests/e2e/lib/retention.sh"
+    HOST_MODULE="$REPO_ROOT/tests/e2e/lib/host-runtime.sh"
+    WOOTC_E2E_KEEP_RUNS=3
 }
 
 # Build a fake run dir with a big blob and small evidence.
@@ -28,6 +29,7 @@ mkrun() {
     mkdir -p "$d/video"
     echo "serial data for $1" > "$d/qemu.pty"
     echo "log data for $1"    > "$d/e2e.log"
+    echo "result data for $1" > "$d/results.jsonl"
     head -c 1048576 /dev/zero > "$d/video/big.mp4"
     touch -d "$2" "$d"
 }
@@ -40,7 +42,7 @@ mkrun() {
 @test "keeps the N newest runs and prunes the rest" {
     mkrun old1 "2026-07-01" ; mkrun old2 "2026-07-02" ; mkrun old3 "2026-07-03"
     mkrun new1 "2026-07-10" ; mkrun new2 "2026-07-11" ; mkrun new3 "2026-07-12"
-    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts
+    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     [ -d "$STORAGE_DIR/artifacts/new1" ]
     [ -d "$STORAGE_DIR/artifacts/new2" ]
     [ -d "$STORAGE_DIR/artifacts/new3" ]
@@ -54,16 +56,78 @@ mkrun() {
     # failed — that has already cost real debugging time this project.
     mkrun old1 "2026-07-01"
     mkrun new1 "2026-07-10" ; mkrun new2 "2026-07-11" ; mkrun new3 "2026-07-12"
-    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts
+    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     [ -f "$STORAGE_DIR/artifacts/.evidence/old1/qemu.pty" ]
     [ -f "$STORAGE_DIR/artifacts/.evidence/old1/e2e.log" ]
     grep -q "serial data for old1" "$STORAGE_DIR/artifacts/.evidence/old1/qemu.pty"
+    grep -q "result data for old1" "$STORAGE_DIR/artifacts/.evidence/old1/results.jsonl"
+}
+
+@test "a failed evidence copy retains the complete source run" {
+    mkrun old1 "2026-07-01"; mkrun new1 "2026-07-10"
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    printf '#!/bin/sh\nexit 9\n' > "$BATS_TEST_TMPDIR/bin/cp"
+    chmod +x "$BATS_TEST_TMPDIR/bin/cp"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash -c 'source "$1"; prune_old_artifacts "$2" 1' retention \
+        "$REPO_ROOT/tests/e2e/lib/retention.sh" "$STORAGE_DIR"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"source retained"* ]]
+    [ -f "$STORAGE_DIR/artifacts/old1/e2e.log" ]
+    [ -f "$STORAGE_DIR/artifacts/old1/video/big.mp4" ]
+}
+
+@test "a successful exit without copied bytes cannot authorize deletion" {
+    mkrun old1 "2026-07-01"; mkrun new1 "2026-07-10"
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    printf '#!/bin/sh\nexit 0\n' > "$BATS_TEST_TMPDIR/bin/cp"
+    chmod +x "$BATS_TEST_TMPDIR/bin/cp"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash -c 'source "$1"; prune_old_artifacts "$2" 1' retention \
+        "$REPO_ROOT/tests/e2e/lib/retention.sh" "$STORAGE_DIR"
+    [ "$status" -ne 0 ]
+    [ -f "$STORAGE_DIR/artifacts/old1/e2e.log" ]
+}
+
+@test "failed run and evidence enumeration cannot delete old runs" {
+    mkrun old1 "2026-07-01"; mkrun new1 "2026-07-10"
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    local enumerator
+    for enumerator in ls find; do
+        printf '#!/bin/sh\nexit 7\n' > "$BATS_TEST_TMPDIR/bin/$enumerator"
+        chmod +x "$BATS_TEST_TMPDIR/bin/$enumerator"
+        run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash -c 'source "$1"; prune_old_artifacts "$2" 1' retention \
+            "$REPO_ROOT/tests/e2e/lib/retention.sh" "$STORAGE_DIR"
+        [ "$status" -ne 0 ]
+        [ -f "$STORAGE_DIR/artifacts/old1/e2e.log" ]
+        [ -f "$STORAGE_DIR/artifacts/old1/video/big.mp4" ]
+        rm "$BATS_TEST_TMPDIR/bin/$enumerator"
+    done
+}
+
+@test "actual source deletion follows a verified complete text archive" {
+    mkrun old1 "2026-07-01"; mkrun new1 "2026-07-10"
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    cat > "$BATS_TEST_TMPDIR/bin/rm" <<'SH'
+#!/bin/bash
+if [ "${*: -1}" = "$STORAGE_DIR/artifacts/old1/" ]; then
+    for name in qemu.pty e2e.log results.jsonl; do
+        cmp "$STORAGE_DIR/artifacts/old1/$name" "$STORAGE_DIR/artifacts/.evidence/old1/$name" || exit 19
+    done
+    printf 'archive verified before delete\n' > "$STORAGE_DIR/deletion-order"
+fi
+exec /bin/rm "$@"
+SH
+    chmod +x "$BATS_TEST_TMPDIR/bin/rm"
+    run env STORAGE_DIR="$STORAGE_DIR" PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash -c \
+        'source "$1"; prune_old_artifacts "$2" 1' retention "$REPO_ROOT/tests/e2e/lib/retention.sh" "$STORAGE_DIR"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$STORAGE_DIR/deletion-order")" = 'archive verified before delete' ]
+    [ ! -d "$STORAGE_DIR/artifacts/old1" ]
 }
 
 @test "the bulk (video) is NOT preserved — that is the point" {
     mkrun old1 "2026-07-01"
     mkrun new1 "2026-07-10" ; mkrun new2 "2026-07-11" ; mkrun new3 "2026-07-12"
-    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts
+    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     [ ! -e "$STORAGE_DIR/artifacts/.evidence/old1/big.mp4" ]
     [ ! -d "$STORAGE_DIR/artifacts/old1/video" ]
 }
@@ -73,36 +137,36 @@ mkrun() {
     # preserved serial log on the third run.
     mkrun old1 "2026-07-01"
     mkrun new1 "2026-07-10" ; mkrun new2 "2026-07-11" ; mkrun new3 "2026-07-12"
-    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts
+    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     touch -d "2026-06-01" "$STORAGE_DIR/artifacts/.evidence"
-    WOOTC_E2E_KEEP_RUNS=1 prune_old_artifacts
+    WOOTC_E2E_KEEP_RUNS=1 prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     [ -d "$STORAGE_DIR/artifacts/.evidence" ]
     [ -f "$STORAGE_DIR/artifacts/.evidence/old1/qemu.pty" ]
 }
 
 @test "an empty or missing artifacts dir is a clean no-op" {
     rm -rf "$STORAGE_DIR/artifacts"
-    run prune_old_artifacts
+    run prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     [ "$status" -eq 0 ]
     mkdir -p "$STORAGE_DIR/artifacts"
-    run prune_old_artifacts
+    run prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     [ "$status" -eq 0 ]
 }
 
 @test "fewer runs than the keep count prunes nothing" {
     mkrun only1 "2026-07-10"
-    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts
+    WOOTC_E2E_KEEP_RUNS=3 prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS"
     [ -d "$STORAGE_DIR/artifacts/only1" ]
 }
 
 @test "retention runs on startup so a run cannot be blocked by its predecessors" {
     # Pruning only at exit would not help: the preflight that fails runs first.
     local prune_line preflight_line
-    prune_line=$(grep -n '^prune_old_artifacts$' "$E2E" | head -1 | cut -d: -f1)
+    prune_line=$(grep -n '^prune_old_artifacts ' "$E2E" | head -1 | cut -d: -f1)
     # Match the actual preflight `fail` call, not the comment above the prune
     # function that quotes the same message — the first version of this test
     # matched its own documentation and reported a bug that did not exist.
-    preflight_line=$(grep -n 'fail "Only .*GiB free under' "$E2E" | head -1 | cut -d: -f1)
+    preflight_line=$(grep -n '^host_preflight ' "$E2E" | head -1 | cut -d: -f1)
     [ -n "$prune_line" ]
     [ -n "$preflight_line" ]
     [ "$prune_line" -lt "$preflight_line" ]
@@ -117,26 +181,26 @@ mkrun() {
     # footprint is ~45 GiB, and 120 wrongly REJECTED a GitHub hosted runner
     # (~114 GiB after its cleanup step) — a preflight so strict it excluded the
     # most reliable infrastructure available.
-    grep -q 'WOOTC_E2E_MIN_FREE_GIB:-90' "$E2E"
-    run grep -n 'required_free_gib=65' "$E2E"
+    grep -q 'WOOTC_E2E_MIN_FREE_GIB:-90' "$HOST_MODULE"
+    run grep -n 'required_free_gib=65' "$HOST_MODULE"
     [ "$status" -ne 0 ]
 }
 
 @test "a hosted runner's ~114 GiB clears the requirement" {
     # Regression guard on the specific number that blocked run 29674970326.
     local base
-    base=$(grep -oE 'WOOTC_E2E_MIN_FREE_GIB:-[0-9]+' "$E2E" | grep -oE '[0-9]+$')
+    base=$(grep -oE 'WOOTC_E2E_MIN_FREE_GIB:-[0-9]+' "$HOST_MODULE" | grep -oE '[0-9]+$')
     [ -n "$base" ]
     [ "$base" -le 114 ]
 }
 
 @test "the requirement is overridable for unusual hosts" {
-    grep -q 'WOOTC_E2E_MIN_FREE_GIB' "$E2E"
+    grep -q 'WOOTC_E2E_MIN_FREE_GIB' "$HOST_MODULE"
 }
 
 @test "the cached-ISO and reuse paths keep proportional headroom" {
-    grep -q 'required_free_gib=75' "$E2E"
-    grep -q 'required_free_gib=55' "$E2E"
+    grep -q 'required_free_gib=75' "$HOST_MODULE"
+    grep -q 'required_free_gib=55' "$HOST_MODULE"
 }
 
 @test "the keep count is overridable" {

@@ -40,7 +40,12 @@ setup() {
     E2E="${E2E:-$REPO_ROOT/tests/e2e/run-e2e.sh}"
 }
 
-extract_fn() { sed -n "/^$1() {$/,/^}$/p" "$E2E"; }
+extract_fn() {
+    case "$1" in
+        qga_wait_windows) sed -n "/^$1() {$/,/^}$/p" "$E2E" ;;
+        *) bash -c 'source "$1"; declare -f "$2"' adapter "$REPO_ROOT/tests/e2e/lib/qga-transport.sh" "$1" ;;
+    esac
+}
 
 # The Phase-2 → Windows return block, verbatim.
 return_block() {
@@ -54,10 +59,10 @@ observe_with() {
         set -uo pipefail
         WOOTC_E2E_P2_REBOOT_POLL_S=0
         WOOTC_E2E_P2_REBOOT_TRIES=4
+        source "$REPO_ROOT/tests/e2e/lib/qga-transport.sh"
         qga_probe() { $1; }
         qga_windows_probe() { $2; }
         qga_linux_probe() { $3; }
-        $(extract_fn p2_reboot_observe)
         p2_reboot_observe
     "
 }
@@ -122,10 +127,10 @@ observe_with() {
         WOOTC_E2E_P2_REBOOT_TRIES=9
         C=$BATS_TEST_TMPDIR/calls
         : > \"\$C\"
+        source "$REPO_ROOT/tests/e2e/lib/qga-transport.sh"
         qga_probe() { echo p >> \"\$C\"; return 0; }
         qga_windows_probe() { return 0; }
         qga_linux_probe() { return 1; }
-        $(extract_fn p2_reboot_observe)
         p2_reboot_observe >/dev/null
         wc -l < \"\$C\"
     "
