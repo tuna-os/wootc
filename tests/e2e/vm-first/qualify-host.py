@@ -56,23 +56,49 @@ def kvm_observation(path='/dev/kvm'):
 
 
 def collect(storage):
-    rows = cpu_rows(Path('/proc/cpuinfo').read_text())
-    vendors = {r['vendor'] for r in rows}
-    module = 'kvm_intel' if vendors == {'GenuineIntel'} else 'kvm_amd' if vendors == {'AuthenticAMD'} else None
-    nested = Path('/sys/module/' + module + '/parameters/nested').read_text().strip() if module else None
-    resolved = Path(storage).resolve(strict=True)
-    if not resolved.is_dir():
-        raise ValueError('storage observation path is not a directory')
-    fs = os.statvfs(resolved)
-    return {'cpus': rows, 'nested': nested, 'memory': memory(Path('/proc/meminfo').read_text()),
-            'storage': {'path': str(resolved), 'availableBytes': fs.f_bavail * fs.f_frsize},
-            'kvm': kvm_observation()}
+    observed = {key: None for key in ('cpus', 'nested', 'memory', 'storage', 'kvm')}
+    errors = {}
+
+    def measure(key, operation):
+        try:
+            observed[key] = operation()
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            errors[key] = {'type': type(error).__name__, 'errno': getattr(error, 'errno', None),
+                           'message': str(error)}
+
+    measure('cpus', lambda: cpu_rows(Path('/proc/cpuinfo').read_text()))
+    measure('memory', lambda: memory(Path('/proc/meminfo').read_text()))
+
+    def storage_observation():
+        resolved = Path(storage).resolve(strict=True)
+        if not resolved.is_dir():
+            raise ValueError('storage observation path is not a directory')
+        fs = os.statvfs(resolved)
+        return {'path': str(resolved), 'availableBytes': fs.f_bavail * fs.f_frsize}
+
+    def nesting():
+        if observed['cpus'] is None:
+            raise ValueError('CPU vendor was not observed')
+        vendors = {row['vendor'] for row in observed['cpus']}
+        module = 'kvm_intel' if vendors == {'GenuineIntel'} else 'kvm_amd' if vendors == {'AuthenticAMD'} else None
+        if module is None:
+            raise ValueError('CPU vendor does not identify a nesting module')
+        return Path('/sys/module/' + module + '/parameters/nested').read_text().strip()
+
+    measure('storage', storage_observation)
+    measure('nested', nesting)
+    measure('kvm', kvm_observation)
+    observed['observationErrors'] = errors
+    return observed
 
 
 def assess(observed, cpu_model, minimum_host_bytes=84 * GIB):
     """Strict prerequisites only; positive receipt is never guest execution proof."""
     reasons = []
-    rows = observed['cpus']
+    for key in ('cpus', 'nested', 'memory', 'storage', 'kvm'):
+        if observed.get(key) is None:
+            reasons.append(key + '-observation-failed')
+    rows = observed.get('cpus') or []
     vendors = {r['vendor'] for r in rows}
     if vendors == {'GenuineIntel'}:
         extension, required = 'vmx', {'vmx', 'ept'}
@@ -94,11 +120,11 @@ def assess(observed, cpu_model, minimum_host_bytes=84 * GIB):
         reasons.append('outer-cpu-extension-not-explicitly-preserved')
     if observed['nested'] not in {'Y', 'y', '1'}:
         reasons.append('host-nesting-not-enabled')
-    if observed['kvm']['apiVersion'] != 12 or observed['kvm']['userMemory'] < 1:
+    if observed.get('kvm') is not None and (observed['kvm']['apiVersion'] != 12 or observed['kvm']['userMemory'] < 1):
         reasons.append('kvm-unusable')
-    if observed['memory']['MemTotal'] < 16_000_000_000 or observed['memory']['MemAvailable'] < int(9.5 * GIB):
+    if observed.get('memory') is not None and (observed['memory']['MemTotal'] < 16_000_000_000 or observed['memory']['MemAvailable'] < int(9.5 * GIB)):
         reasons.append('host-memory-capacity')
-    if observed['storage']['availableBytes'] < minimum_host_bytes:
+    if observed.get('storage') is not None and observed['storage']['availableBytes'] < minimum_host_bytes:
         reasons.append('host-storage-capacity')
     return reasons
 

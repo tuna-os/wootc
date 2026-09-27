@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Actual consumer counterexamples; no VM creation or host configuration changes."""
 import copy
+import errno
+import os
 import importlib.util
 import io
 import json
@@ -84,6 +86,57 @@ class Qualification(unittest.TestCase):
         rc, r = self.consume(error=PermissionError('KVM access refused'))
         self.assertEqual(rc, 1)
         self.assertEqual(r['refusals'], ['host-observation-failed'])
+
+    def test_actual_kvm_eacces_retains_independent_linux_observations(self):
+        actual_open = os.open
+        calls = []
+        def refuse_kvm(path, flags, *args, **kwargs):
+            calls.append(str(path))
+            if str(path) == '/dev/kvm':
+                raise PermissionError(errno.EACCES, 'controlled ordinary KVM access refusal', path)
+            return actual_open(path, flags, *args, **kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'receipt.json'
+            with mock.patch.object(host.os, 'open', side_effect=refuse_kvm), mock.patch('sys.stdout', new=io.StringIO()):
+                rc = host.main(['--storage-path', tmp, '--outer-cpu', 'host,+vmx',
+                                '--receipt', str(path), '--run-id', 'actual-linux/1'])
+            receipt = json.loads(path.read_text())
+            observed = receipt['observations']
+            self.assertEqual(rc, 1)
+            self.assertIn('/dev/kvm', calls)
+            self.assertIsNone(observed['kvm'])
+            self.assertEqual(observed['observationErrors']['kvm']['errno'], errno.EACCES)
+            self.assertTrue(observed['cpus'])
+            self.assertEqual(observed['memory']['MemTotal'], host.memory(Path('/proc/meminfo').read_text())['MemTotal'])
+            self.assertGreater(observed['memory']['MemAvailable'], 0)
+            self.assertLessEqual(observed['memory']['MemAvailable'], observed['memory']['MemTotal'])
+            self.assertEqual(observed['storage']['path'], str(Path(tmp).resolve()))
+            self.assertGreater(observed['storage']['availableBytes'], 0)
+            self.assertIn('kvm-observation-failed', receipt['refusals'])
+            self.assertFalse(receipt['prerequisitesPassed'])
+            self.assertFalse(receipt['guestExecutionQualified'])
+
+    def test_each_failed_measurement_preserves_other_actual_collectors(self):
+        for failed in ('cpus', 'memory', 'storage', 'nested', 'kvm'):
+            def read(path):
+                category = 'cpus' if str(path) == '/proc/cpuinfo' else 'memory' if str(path) == '/proc/meminfo' else 'nested'
+                if category == failed:
+                    raise PermissionError(errno.EACCES, 'controlled read refusal')
+                return {'cpus': '\n\n'.join(['vendor_id : GenuineIntel\nflags : vmx ept'] * 4),
+                        'memory': 'MemTotal: 16777216 kB\nMemAvailable: 12582912 kB\n', 'nested': 'Y\n'}[category]
+            with tempfile.TemporaryDirectory() as tmp:
+                storage = str(Path(tmp) / 'absent') if failed == 'storage' else tmp
+                with mock.patch.object(Path, 'read_text', read), mock.patch.object(host, 'kvm_observation',
+                        return_value=ready()['kvm'], side_effect=PermissionError(errno.EACCES, 'controlled KVM refusal') if failed == 'kvm' else None):
+                    observed = host.collect(storage)
+                self.assertIsNone(observed[failed])
+                self.assertIn(failed, observed['observationErrors'])
+                unaffected = set(('cpus', 'memory', 'storage', 'nested', 'kvm')) - {failed}
+                if failed == 'cpus':
+                    unaffected.remove('nested')
+                for key in unaffected:
+                    self.assertIsNotNone(observed[key], (failed, key))
+                self.assertIn(failed + '-observation-failed', host.assess(observed, 'host,+vmx'))
 
     def test_capacity_independently_refuses(self):
         for section, field, value, reason in [
