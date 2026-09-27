@@ -1,0 +1,35 @@
+{
+  "sourceCommit": "9aa6195d07336c735215edade7f29d7968be9546",
+  "scope": "Documentation and portable actual manifest cache controls; no release changed or incident containment performed",
+  "checks": {
+    "actualManifestControls": 3,
+    "docsTruth": 43,
+    "actualOldRunbookCountercontrol": "failed as required",
+    "runbookExplicitEnglishFindings": 0,
+    "sharedEnglishFindings": 1518,
+    "sharedBudget": 1518,
+    "newExclusions": false,
+    "allRunbookHeadingsPreserved": true
+  },
+  "sourceHashes": {
+    "runbooks/rollback-a-bad-release.md": "050d71dc9d001015b3f9e5b7b8ccfa57e3f78dd31bfef5b7dc93dfaeb7fedd88",
+    "docs/RELEASING.md": "7c8dfe8b77a311bc0c30fd53ba4d857bcfe5fffcc5dd5a588cb8caf9bb1677bc",
+    "app/artifact_manifest.go": "875d2d6d9ff586747ae49c3b6e99bf1f05cdcb5589cbc252c03e12d735eccece",
+    "app/artifact_manifest_test.go": "faaac1d70fe8c44f1ca63f5825cc453c016b09c2c4882513febfbf8523098aba",
+    "app/app.go": "387ab151c2f7b7957ab8dadc00178cc01c13c36428c14287744d665f319a46c3",
+    ".github/workflows/release.yml": "f55cbe41cce8b8a326782a5a1ba908ab724cc402940d6c880dd9403501842295",
+    ".github/workflows/winget-publish.yml": "cf4731e3a6f7bfc893a8a5b0e5d2615279b13070010013ab3ddbc4d7d276dc91",
+    "tests/unit/docs-truth.bats": "df120db0786cdfab96d937302439bce6032e90015ffac3da25a6f6a491b3d941"
+  },
+  "references": [
+    "https://docs.github.com/en/rest/releases/releases",
+    "https://cli.github.com/manual/gh_release_edit",
+    "https://github.com/microsoft/winget-pkgs/blob/master/doc/README.md"
+  ],
+  "limitations": [
+    "No production revocation mechanism added",
+    "No actual release, workflow or winget metadata changed",
+    "Existing signed caches can remain usable",
+    "Runbooks are outside existing default shared English scan; explicitly checked at zero"
+  ]
+}

@@ -125,3 +125,48 @@ func TestArtifactMetadataSizeBound(t *testing.T) {
 		t.Fatalf("rejected exact bound: %v", err)
 	}
 }
+
+// A release withdrawal affects fresh network fetches, not signed local inputs.
+// This is the operational boundary documented by the release rollback runbook.
+func TestReleaseWithdrawalDoesNotRevokeCachedSignedManifest(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; http.NotFound(w, r) }))
+	defer server.Close()
+	oldClient, oldBase, oldTag, oldKey := artifactClient, releasesBaseURL, releaseTag, artifactPublicKey
+	t.Cleanup(func() {
+		artifactClient, releasesBaseURL, releaseTag, artifactPublicKey = oldClient, oldBase, oldTag, oldKey
+	})
+	artifactClient, releasesBaseURL, releaseTag, artifactPublicKey = server.Client(), server.URL+"/", "v1.2.3", hex.EncodeToString(public)
+	directory := t.TempDir()
+	manifest := []byte(strings.Repeat("a", 64) + "  deployer-vmlinuz\n")
+	path := filepath.Join(directory, "SHA256SUMS")
+	if err := os.WriteFile(path, manifest, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path+".sig", artifactauth.Sign(private, manifest), 0600); err != nil {
+		t.Fatal(err)
+	}
+	sums, err := fetchArtifactChecksums(context.Background(), directory)
+	if err != nil || sums["deployer-vmlinuz"] != strings.Repeat("a", 64) {
+		t.Fatalf("valid cached manifest was revoked: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("cached signature caused %d network requests", calls)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path + ".sig"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fetchArtifactChecksums(context.Background(), directory); err == nil {
+		t.Fatal("fresh fetch accepted withdrawn release")
+	}
+	if calls != 1 {
+		t.Fatalf("fresh manifest fetch made %d requests; want one refused request", calls)
+	}
+}

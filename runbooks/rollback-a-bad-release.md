@@ -1,116 +1,95 @@
 # Runbook — rolling back a bad wootc release
 
-Use this when a published release must stop reaching users: a broken or
-dangerous installer, boot artifacts that fail to boot on real firmware, a
-shim that no longer chains to a CA the user's machine holds, or any build
-that puts a stranger's only computer at risk.
-
-Cutting a release is documented in [docs/RELEASING.md](../docs/RELEASING.md).
-This is the other direction.
+Use this procedure for a published installer or boot chain that can harm users or fail to boot.
+See [the release guide](../docs/RELEASING.md) for the normal release gate.
+Record the bad tag, source SHA, artifact hashes, and the intended good tag before any change.
+This procedure does not recall copies that users already hold.
 
 ## What a wootc release is, before you touch anything
 
-A release is not one file. Every release carries the full artifact set:
-one `*.exe` per blessed brand, the shared boot artifacts
-(`deployer-vmlinuz`, `deployer-initramfs.img`, `shimx64.efi`, `grubx64.efi`,
-`mmx64.efi`, and `wubildr.efi` when its build succeeded), and a `SHA256SUMS`
-covering all of them.
-
-Three consumers point at those assets, and each reacts differently to a
-rollback:
+A release contains the branded installers and shared boot assets.
+For the current code, `SHA256SUMS` lists the asset hashes and `SHA256SUMS.sig` authenticates that exact manifest.
+Each installer embeds the public key for its release.
+`artifact-public-key.hex` lets reviewers check the signature; a downloaded key cannot replace the installer's embedded key.
+Check the bad tag's source: older installers can have a different verification contract.
 
 | Consumer | Where it points | What a rollback reaches |
 |---|---|---|
-| An exe already on a user's disk | `releases/download/<its own tag>/` — pinned at build time (`-X main.releaseTag=`, `app/deployer_url.go`) | Only changes to **that tag's** assets. The exe never learns about a newer or older release. |
-| A developer build, or anything unstamped | `releases/latest/download/` | Whichever release is currently marked latest. |
-| The download links in `README.md` and `docs/getting-started.md` | `releases/latest` | Whichever release is currently marked latest. |
-| winget (`TunaOS.wootc`) | the manifest's `InstallerUrl`, a fixed `releases/download/<tag>/wootc.exe` | Nothing in this repository. See "winget" below. |
+| An exe already on a user's disk | `releases/download/<its own tag>/`, from `-X main.releaseTag=` | Changes to that tag's remote assets, when it needs a network fetch. Valid local inputs can still work. |
+| A developer build, or anything unstamped | `releases/latest/download/` | The latest eligible release, when it needs a network fetch. Local inputs can still work. |
+| Download links in README and the startup guide | `releases/latest` | The latest eligible full release. |
+| winget (`TunaOS.wootc`) | A fixed `releases/download/<tag>/wootc.exe` | Changes to that URL or to the manifest in Microsoft's repository. |
 
-The pinning is deliberate — an installer and its boot chain ship and are
-E2E-gated together — but it is also the reason a rollback has a smaller
-blast radius than people expect. **Un-publishing a release does not recall
-the exes already downloaded from it.** Only editing that tag's assets does.
+The current engine verifies a local manifest and signature before it considers a network fetch.
+It can reuse cached boot files whose hashes match that authenticated manifest.
+The local cache and offline bundle can remain usable after you remove the remote assets.
+A local manifest that is invalid fails without a network fallback.
 
-The installer's boot-artifact verification is fail-closed: a missing
-`SHA256SUMS`, a missing entry, or a hash mismatch aborts the install with
-`cannot verify boot artifacts` and nothing is written. That is the property
-every step below either preserves or deliberately uses.
+A failed verification stops the boot-asset download stage.
+It does not prove that the installer made no changes: directory and disk preparation occur before that stage.
+Preserve the user's state and use the repair or uninstall procedure for that exact build.
 
 ## Step 0 — decide what you are containing
 
-Answer before pulling a lever, because the answer picks the lever:
+Answer these questions in the incident record:
 
-1. **Is the bad build reachable by new users?** (Is it marked latest? Is it
-   in winget?)
-2. **Is the bad build dangerous to someone who already has the exe** — data
-   loss, an unbootable machine — or merely broken (fails, leaves Windows
-   intact)?
-3. **Is the fault in the exe, or in the boot artifacts it downloads?**
+1. Can new users reach the bad build through `latest`, Releases, or winget?
+2. Can it lose data or prevent a boot, or does it fail with Windows intact?
+3. Is the defect in the installer, its remote boot assets, or cached inputs?
+4. Is a full release available that passed its tests, with compatible assets and a valid signature?
 
-A wootc install that refuses to proceed is an acceptable outcome; a wootc
-install that proceeds into a broken boot is not. Prefer levers that make the
-bad path refuse.
+Choose a lever for each affected consumer. Do not treat a metadata change as a recall.
 
 ## Step 1 — stop new users landing on it (always do this)
 
-Marking the bad release as a pre-release moves GitHub's `latest` back to the
-previous full release, which fixes the README/getting-started download links
-and every unstamped build, while leaving the assets downloadable so exes
-pinned to that tag still verify and install rather than dying mid-run:
+A prerelease cannot be the latest full release.
+Mark the bad release as a prerelease:
 
 ```sh
 gh release edit <bad-tag> --repo tuna-os/wootc --prerelease
 ```
 
-Then confirm — do not assume — which release `latest` now resolves to, and
-pin it explicitly if it is not the one you want:
+Observe the result and explicitly select the full release that passed its tests:
 
 ```sh
 gh api repos/tuna-os/wootc/releases/latest --jq '.tag_name, .prerelease'
 gh release edit <last-good-tag> --repo tuna-os/wootc --latest
+gh api repos/tuna-os/wootc/releases/latest --jq '.tag_name, .prerelease'
 ```
 
-This is the default lever. It is reversible in one command.
+If no full release passed its tests, `latest` cannot provide a good fallback.
+Keep the bad build out of `latest` and remove download recommendations until a replacement passes its gates.
+Pinned copies and caches do not follow this metadata change.
+See [GitHub's release API](https://docs.github.com/en/rest/releases/releases) and [CLI command](https://cli.github.com/manual/gh_release_edit).
 
 ## Step 2 — stop the pipeline re-publishing the same commit
 
-The auto channel republishes on its own. `e2e-gui.yml` runs on a schedule
-(`cron: '0 7 * * *'`), and a green run triggers `release.yml`'s
-`workflow_run` channel, which cuts `auto-vYYYYMMDD-<sha>` from the exact SHA
-the nightly proved. If the bad code is on `main`, a new pre-release carrying
-it appears every night and sits at the top of the Releases page.
+`e2e-gui.yml` runs at `cron: '0 7 * * *'`.
+A successful scheduled GUI run triggers the auto channel in `release.yml`.
+It publishes `auto-vYYYYMMDD-<sha>` from the tested SHA as a prerelease.
+These releases do not take `latest`, but users can find them on the Releases page.
 
-So containment is not complete until one of these is true:
+Revert the faulty code on `main`, then test that tree.
+If that cannot happen at once, disable the GUI workflow while the correction proceeds:
 
-- the offending commit is reverted on `main` (preferred — the nightly then
-  proves the reverted tree), or
-- the schedule is paused: disable `E2E GUI-driven (publish timelapse)` for
-  the duration (`gh workflow disable e2e-gui.yml --repo tuna-os/wootc`), and
-  re-enable it the moment the revert lands.
+```sh
+gh workflow disable e2e-gui.yml --repo tuna-os/wootc
+gh api repos/tuna-os/wootc/actions/workflows/e2e-gui.yml --jq .state
+```
 
-Auto releases are pre-releases, so they never take `latest` from you — but
-they are still the newest thing a user browsing Releases sees.
+Inspect active runs and release jobs that have not finished. A disabled schedule does not cancel a release job already in progress.
+Record any cancellation against its exact run ID; preserve its evidence.
+Track and verify the return to service after the correction:
+
+```sh
+gh workflow enable e2e-gui.yml --repo tuna-os/wootc
+gh api repos/tuna-os/wootc/actions/workflows/e2e-gui.yml --jq .state
+```
 
 ## Step 3 — only if the build is dangerous: withdraw the assets
 
-Deleting assets (or the whole release) is the only action that reaches an
-exe already on a user's disk. It is also the most destructive one, so read
-both consequences first:
-
-- Every exe pinned to that tag fails at
-  `cannot verify boot artifacts: SHA256SUMS manifest unavailable` and
-  installs nothing. For a dangerous build this is the point.
-- If that tag's `wootc.exe` is referenced by a published winget manifest,
-  the manifest's `InstallerUrl` starts returning 404 and
-  `winget install TunaOS.wootc` breaks outright. winget does **not** fall
-  back to the previous version.
-
-If the fault is in the boot artifacts and *not* in the exe, there is a
-narrower option: replace that tag's boot artifacts with the known-good ones
-**and** upload the matching regenerated `SHA256SUMS`, so pinned exes fetch a
-chain that verifies. Never replace artifacts without republishing
-`SHA256SUMS` in the same edit — a half-updated tag is a fail-closed abort
-for every user on it.
+Preserve private copies of the release metadata, assets, hashes, and gate evidence before removal.
+For a dangerous build, withdraw the remote inputs that an uncached installer needs:
 
 ```sh
 # withdraw one asset
@@ -119,60 +98,67 @@ gh release delete-asset <bad-tag> <asset> --repo tuna-os/wootc --yes
 gh release delete <bad-tag> --repo tuna-os/wootc --yes
 ```
 
-Keep the git tag either way: deleting it rewrites what
-`auto-*`/`v*` history means and buys nothing.
+Keep the Git tag and source history.
+Verify the HTTP response for each affected URL after the change.
+A current installer with no cache refuses unavailable or invalid signed metadata.
+A valid local manifest, signature, and matching boot files can still let it proceed.
+Do not report asset removal as a stop for every downloaded copy.
+
+A winget URL for a removed `wootc.exe` returns an error; it does not redirect to an earlier version.
+Plan the winget response before that removal.
+
+Do not replace boot assets under an old tag with a different release's files and signature.
+The embedded key, manifest, asset hashes, installer compatibility, and VM proof must all agree.
+The current release workflow creates a key for each release and removes its private seed after use.
+A key that you generate now cannot sign a replacement that the old installer accepts.
+If the original key is unavailable, publish a new release through its gates.
+
+Checksums alone do not authenticate the files.
+Copies of the old files in a valid cache do not follow even an authorized replacement.
 
 ## Step 4 — winget
 
-`winget-publish.yml` is one-directional. It submits `TunaOS.wootc` to
-`microsoft/winget-pkgs` for full releases and has no path to withdraw one.
-A published bad version therefore keeps installing until a human acts, and
-that action lives in Microsoft's repository, not this one:
+`winget-publish.yml` submits manifests; it has no withdrawal action.
+Inspect the exact published version in `microsoft/winget-pkgs` and its `InstallerUrl`.
+Check the existing submission run for an actual PR and its merge status.
+Without `WINGET_TOKEN`, the workflow only renders manifests and exits successfully.
 
-- **Preferred:** publish a superseding full release. `release.yml` dispatches
-  `winget-publish.yml` for it automatically, and winget users move forward.
-- **If the bad version must be pulled:** open a version-removal PR against
-  `microsoft/winget-pkgs` for the exact version, and expect moderation
-  latency measured in days, not minutes.
-- Submission needs the `WINGET_TOKEN` secret. Without it the workflow prints
-  the manifests and exits green — so a green winget run is not proof that
-  anything was submitted. Check the run log before assuming a version is
-  live.
+Publish a new full release that passed its tests to move normal installs forward.
+If the bad version must disappear, submit a PR that removes that exact version's manifests from Microsoft's repository.
+An open PR is not proof that the package source has changed.
 
-Branded installers are deliberately not submitted to winget, so a rollback
-only ever concerns `TunaOS.wootc`.
+After its merge, refresh the winget source on a clean machine and observe the offered version and resolved URL.
+Check explicit requests for the bad version too.
+Do not promise a fixed moderation delay.
+See [the official repository guidance](https://github.com/microsoft/winget-pkgs/blob/master/doc/README.md).
+
+Only the generic `TunaOS.wootc` manifest is part of this workflow; brands need their own distribution review.
 
 ## Step 5 — forward-fix
 
-Rolling back buys time; it is not the fix. Cut the replacement through the
-normal gate — tag, tests, real-Windows-VM E2E, publish. `skip_e2e` exists for
-the case where the gate itself is what is broken; it stamps its own warning
-into the release notes, and using it means the replacement is unproven
-against a real VM. Say so in the incident notes if you use it.
+Publish the replacement through the normal tests and a fresh gate in a Windows VM.
+Use the replacement's exact installer, signature, boot files, and source SHA.
+`skip_e2e` bypasses the VM gate and adds a warning to the release notes.
+If you use that bypass, record the unproven runtime behavior in the incident.
+A release does not automatically update copies on users' disks.
 
 ## Verification checklist
 
-Do not close the incident until every line is checked, by observation:
+Keep each result with its timestamp, source, tag, and artifact identity:
 
-- [ ] `gh api repos/tuna-os/wootc/releases/latest --jq .tag_name` prints the
-      intended good tag.
-- [ ] `https://github.com/tuna-os/wootc/releases/latest/download/SHA256SUMS`
-      downloads, and lists the shared boot artifacts.
-- [ ] The bad tag's release page shows the state you intended (pre-release,
-      or assets withdrawn) — check the page, not the command's exit code.
-- [ ] `main` no longer contains the offending commit, **or** `e2e-gui.yml`
-      is disabled and an issue tracks re-enabling it.
-- [ ] If winget carried the bad version: the removal or supersede PR is
-      open, linked from the incident.
-- [ ] A dated note in the incident record says which lever was pulled and
-      what it did not reach — specifically, that exes pinned to the bad tag
-      are unaffected unless step 3 was used.
+- [ ] The latest-release API returns the intended tag for a full release, or records that no eligible fallback exists.
+- [ ] The intended good tag's `SHA256SUMS` and `SHA256SUMS.sig` download and verify against its trusted key.
+- [ ] Required boot files and branded installers match the authenticated hashes and their recorded gate evidence.
+- [ ] The bad tag has the intended metadata and asset availability; verify actual URLs, not only command status.
+- [ ] The faulty code is absent from `main`, or the workflow is disabled with a tracked return-to-service action.
+- [ ] Active GUI and release runs cannot republish the faulty source; retain exact run observations.
+- [ ] Any winget removal or replacement has merged, and a fresh source query shows the intended version and URL.
+- [ ] The incident records limits for pinned installers, caches, offline bundles, and users who already installed.
 
 ## What this rollback cannot do
 
-wootc has no callback, no update ping, and no telemetry. There is no way to
-learn how many users hold an exe from the bad tag, and no way to tell them.
-The pinned-artifact design means their installer will keep behaving exactly
-as it did the day they downloaded it. Withdrawing that tag's assets (step 3)
-is the only mechanism that changes their outcome, and it changes it to
-"refuses to install", never to "installs the good build".
+The installer has no release-revocation callback.
+You cannot notify, recall, or upgrade a copy on a user's disk through the release page.
+Asset removal can stop a new network fetch. Valid local inputs can still work, and an installation remains in place.
+Give affected users the version-specific repair instructions and a tested replacement.
+Do not present a signature or checksum as proof that the release is safe to boot.

@@ -1,0 +1,60 @@
+{
+  "sourceCommit": "9c8cece51b6711d042d2d4a28fb6379f12fc9e30",
+  "integratedMain": "4ea4d46e443ee3450b62275450c59394eaebc019",
+  "sources": {
+    "tests/e2e/run-e2e.sh": "b6ab63f2920357ad90bc162cbe01bf8540ace120e260fe173d13c3ff21105b7c",
+    "tests/e2e/phase3-native-receipt.py": "20946f5c0f8b79439c145ec36bea23f21795cf0f0e3846d5c83d5543068c80a6",
+    "tests/unit/test_phase3_observations.py": "14e1aba105cda332577d76a6997b550c78631b40f11068774ec197dc8915f81d",
+    "tests/unit/userdata-persistence.bats": "009ecb08acf660939fcb3696b1172e0d0cfe819e5357a07cee90ee38a63a0836"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_phase3_observations.py"
+      ],
+      "exitCode": 0,
+      "stdout": "phase3-controls.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "phase3-controls.stderr.log",
+      "stderrSha256": "b2636eec87d77d7c793b37c799afa37cbacf188d0f42233c6dfd1b388b1e1694"
+    },
+    {
+      "argv": [
+        "bats",
+        "tests/unit/userdata-persistence.bats",
+        "tests/unit/go-native.bats"
+      ],
+      "exitCode": 0,
+      "stdout": "phase3-scenario-bats.stdout.log",
+      "stdoutSha256": "d41161c8463b9fc6b3a9004cb95853ee5d4dd47522e554275f165b31eee4acf8",
+      "stderr": "phase3-scenario-bats.stderr.log",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "bash",
+        "-n",
+        "tests/e2e/run-e2e.sh"
+      ],
+      "exitCode": 0,
+      "stdout": "syntax.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "syntax.stderr.log",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "shellcheck",
+        "--severity=warning",
+        "tests/e2e/run-e2e.sh"
+      ],
+      "exitCode": 0,
+      "stdout": "lint.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "lint.stderr.log",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "Actual extracted Phase3 acceptance consumer and exact POSIX boot-query literal executed with mocked QGA/read commands; no VM, reset, disk, producer or app mutation. Before failed-command counterexamples remain immutable. Current successful native and userdata observations bind the same canonical bootId and Linux identity. This does not prove a reset/migration through a before/after boot gate or current root ancestry beyond the existing target/nonloopback contract. One destructive native migration Bats case skips because no loop device exists."
+}

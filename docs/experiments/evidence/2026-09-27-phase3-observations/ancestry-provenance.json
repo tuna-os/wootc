@@ -1,0 +1,127 @@
+{
+  "sourceCommit": "080210937ca53663f17ece4826ab792ae4351c1d",
+  "capturedAt": "2026-09-27T13:17:31.844771+00:00",
+  "sourceSHA256": {
+    "tests/e2e/run-e2e.sh": "2e4bc866ec22d5efe6cad8e451924cde678f1bd59453a45a9dcf623d9c668c56",
+    "tests/e2e/phase3-snapshot.sh": "af37de4d56e047503fdcf1f4a7aced09cc3ec7a8a76f23fe28ceb13509959722",
+    "tests/e2e/phase3-native-receipt.py": "ce099761a6866e051cd3e2ff3ec57918633b5729ba571311fc393e7dfa83fcbd",
+    "tests/e2e/phase3_ancestry.py": "2bdcd2cd4d041ec77a6816a53829b90f4f8ded330bd308ee2711c048b12c84ef",
+    "payload/migration/wootc-go-native": "1df88aff7ceb9a0561aecc49e914bfd7952c6bfb66263eda1bad6e06ae9b53c9",
+    "tests/unit/test_phase3_observations.py": "f7f454bd72ae8d1920a18438bd93dbe1a67246e53a8118699d8c254a5b9efbe0",
+    "tests/unit/test_native_userdata_export.py": "5f8d327f805b49b4ae67ef64785adf90bb5a2eb5696140cb4bd8efeb5932a80c",
+    "tests/unit/go-native.bats": "a908e5057df853b81168afa018c0f1e5509fe9961c5aa94634d7774af195efc2",
+    "tests/unit/userdata-persistence.bats": "c4421cfa6b01b36e0e30aaf3678459be823527029ed33b48fb582f4fefc8c70d",
+    ".github/workflows/lint.yml": "2cd8eb336dd9d8b86416423c11addfae8050b358c89babb4983f59b3afe09989"
+  },
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/unit",
+        "-p",
+        "test_phase3_observations.py"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "ancestry-observer.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "ancestry-observer.stderr.log",
+        "sha256": "1c0eeb2246a5d8171c568b4a1402173a7adb99b8bb9e0f28e25b2857b5a7a76d"
+      }
+    },
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/unit",
+        "-p",
+        "test_native_userdata_export.py"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "export-producer.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "export-producer.stderr.log",
+        "sha256": "593e70d99d01eb1f98e01a1307630345edc58413831e0f31612e68ab12773a4e"
+      }
+    },
+    {
+      "command": [
+        "bats",
+        "tests/unit/userdata-persistence.bats",
+        "tests/unit/go-native.bats"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "ancestry-scenario.stdout.log",
+        "sha256": "d41161c8463b9fc6b3a9004cb95853ee5d4dd47522e554275f165b31eee4acf8"
+      },
+      "stderr": {
+        "file": "ancestry-scenario.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "shellcheck",
+        "--severity=warning",
+        "tests/e2e/run-e2e.sh",
+        "tests/e2e/phase3-snapshot.sh"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "ancestry-shellcheck.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "ancestry-shellcheck.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "bash",
+        "-n",
+        "tests/e2e/run-e2e.sh"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "ancestry-shell-syntax.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "ancestry-shell-syntax.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "sh",
+        "-n",
+        "tests/e2e/phase3-snapshot.sh"
+      ],
+      "exitCode": 0,
+      "stdout": {
+        "file": "ancestry-posix-syntax.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "file": "ancestry-posix-syntax.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "scope": "33 actual runner/collector/graph controls, 12 actual extracted producer controls and 44 Bats cases (one explicit no-loop-device skip). Current root and seed ancestry require successful same-boot current mount/block/path/filesystem-member observations. Source controls include complete overlay layers, measured symlink resolution, all Btrfs members, failed plausible status, stale exports, metadata bounds/cycles and exact producer bytes. Mock graph commands and owned temporary ABI files do not prove an actual target image boot, graduation/reset before-after transition or physical persistence. Frozen failed fixtures are untouched. Historical counterexamples and earlier component proofs retained unchanged.",
+  "btrfsABIReference": "https://kernel.googlesource.com/pub/scm/linux/kernel/git/kdave/btrfs-progs/+/refs/tags/v6.15/Documentation/ch-sysfs.rst"
+}
