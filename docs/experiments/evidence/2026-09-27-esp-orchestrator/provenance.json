@@ -15,8 +15,8 @@
   "nativeTests": {
     "acceptanceFixtureControls": 7,
     "producerPreflightFreezeControls": 9,
-    "qgaSocketControls": 10,
-    "total": 118
+    "qgaSocketControls": 11,
+    "total": 119
   },
   "producerExecuted": false,
   "publicShimPolicyProbe": {
@@ -63,7 +63,7 @@
     "tests/unit/test_wootc_classic_source.py": "d754a1212b2bd46ba47bc584b1b268ce98b1826ee9b45307718e6bd4dff9d4a5",
     "tests/unit/test_wootc_esp_acceptance.py": "76ac80e81ff264141c33a7579de8195c0186f4fca1306be052c97f3e861a8b54",
     "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
-    "tests/unit/test_wootc_esp_orchestrator.py": "b0f6e6282e6004416a3b91f928cc87a7bfdd2642785ef3ae1bc4ab18e5291733",
+    "tests/unit/test_wootc_esp_orchestrator.py": "a3f38bbccf25ee59cd8974fc3ff073ce4e3ec0037bd5ed915a9099d44ccb3eae",
     "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
     "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
     "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"

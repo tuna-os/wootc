@@ -33,24 +33,48 @@ class AgentFixture:
         self.byte_drip = False
         self.executions = 0
         self.output = b''
+        self.errors = []
+        self.connection = None
         self.stop = threading.Event()
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.server.bind(str(path)); self.server.listen(); self.server.settimeout(.1)
         self.thread = threading.Thread(target=self.serve, daemon=True); self.thread.start()
 
     def close(self):
-        self.stop.set(); self.thread.join(2); self.server.close()
+        self.stop.set()
+        if self.connection is not None:
+            try: self.connection.shutdown(socket.SHUT_RDWR)
+            except OSError: pass
+        self.server.close(); self.thread.join(2)
+        if self.thread.is_alive():
+            raise AssertionError('owned fixture server did not stop')
+        if self.errors:
+            raise AssertionError('unexpected fixture server error: '+repr(self.errors))
 
     def serve(self):
+        try:
+            self.serve_requests()
+        except (ConnectionResetError, BrokenPipeError):
+            pass  # Expected when a deadline-bound client closes its socket.
+        except BaseException as error:
+            self.errors.append(error)
+
+    def serve_requests(self):
         while not self.stop.is_set():
             try:
                 connection, _ = self.server.accept()
             except socket.timeout:
                 continue
-            with connection:
-                stream = connection.makefile('rwb')
+            except OSError:
+                if self.stop.is_set(): return
+                raise
+            self.connection = connection
+            with connection, connection.makefile('rwb') as stream:
                 while True:
-                    line = stream.readline()
+                    try:
+                        line = stream.readline()
+                    except (ConnectionResetError, BrokenPipeError):
+                        break
                     if not line:
                         break
                     request = json.loads(line.lstrip(b'\xff'))
@@ -125,7 +149,18 @@ class OrchestratorTests(unittest.TestCase):
         self.transport = Transport(self.folder, self.record, identity_check=lambda *_: self.folder/'qga.sock', helper_policy=lambda kind, plan: plan['helperHashesLinux' if kind == 'linux' else 'helperHashesWindows'])
 
     def tearDown(self):
-        self.transport.close(); self.agent.close(); self.temporary.cleanup()
+        self.transport.close()
+        try: self.agent.close()
+        finally: self.temporary.cleanup()
+
+    def test_unexpected_server_thread_error_fails_control(self):
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.connect(str(self.folder/'qga.sock'))
+            client.sendall(b'{"execute":"unplanned-command"}\n')
+        self.agent.thread.join(1)
+        with self.assertRaisesRegex(AssertionError, 'unexpected fixture server error'):
+            self.agent.close()
+        self.agent.errors.clear()
 
     def test_actual_qga_client_execution_order_with_fixture_os(self):
         result = run(self.transport, self.plan)
