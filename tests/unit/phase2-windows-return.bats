@@ -172,6 +172,28 @@ observe_with() {
     done <<< "$t"
 }
 
+@test "each actual Linux return rejects an oversized reboot request" {
+    # Run the preceding check against separate mutations of both requests.
+    # A scalar first-match check would miss the later persistence return.
+    local altered="$BATS_TEST_TMPDIR/unbounded-runner.sh"
+    local request_index
+    for request_index in 0 1; do
+        python3 - "$E2E" "$altered" "$request_index" <<'PYTHON'
+from pathlib import Path
+import re
+import sys
+source = Path(sys.argv[1]).read_text()
+positions = [m.start() for m in re.finditer(r'WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec [^\n]*systemctl reboot', source)]
+assert len(positions) == 2
+index = positions[int(sys.argv[3])]
+Path(sys.argv[2]).write_text(source[:index] + source[index:].replace('WOOTC_QGA_CALL_TIMEOUT=5', 'WOOTC_QGA_CALL_TIMEOUT=10', 1))
+PYTHON
+        run env E2E="$altered" bats --filter '^the reboot request is bounded' "$BATS_TEST_FILENAME"
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"not ok"* ]]
+    done
+}
+
 @test "the Windows return is still asserted with the OS discriminator afterwards" {
     # Skipping the reset must not become "assume it worked".
     return_block | grep -q 'qga_wait_windows 600'
