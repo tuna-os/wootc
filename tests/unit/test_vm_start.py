@@ -157,10 +157,20 @@ exit 0
                     client = socket.create_connection(('127.0.0.1', port), timeout=1)
                     clients.append(client)
                 result = self.shell('port_free "$TEST_PORT"', deadline=3, TEST_PORT=str(port))
-                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.returncode, 1)
             finally:
                 for client in clients:
                     client.close()
+
+    def test_actual_bound_socket_without_listener_is_not_free(self):
+        with socket.socket() as owner:
+            owner.bind(('127.0.0.1', 0))
+            port = owner.getsockname()[1]
+            with socket.socket() as second:
+                with self.assertRaises(OSError):
+                    second.bind(('0.0.0.0', port))
+            result = self.shell('port_free "$TEST_PORT"', deadline=3, TEST_PORT=str(port))
+            self.assertEqual(result.returncode, 1)
 
     def test_duplicate_free_overrides_are_reselected_to_distinct_ports(self):
         result = self.shell("""

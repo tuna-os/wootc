@@ -32,11 +32,21 @@ port_free() {
     local rc=0
     case "$1" in ''|*[!0-9]*) return 2;; esac
     [ "$1" -ge 1 ] && [ "$1" -le 65535 ] || return 2
-    timeout 1 bash -c 'exec 3<>"/dev/tcp/127.0.0.1/$1"' _ "$1" >/dev/null 2>&1 || rc=$?
+    timeout 2 python3 - "$1" <<'PYPORT' >/dev/null 2>&1 || rc=$?
+import errno
+import socket
+import sys
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+    try:
+        # Compose publishes on every IPv4 interface. No SO_REUSEADDR:
+        # a merely bound socket is ownership, even without listen().
+        probe.bind(('0.0.0.0', int(sys.argv[1])))
+    except OSError as error:
+        sys.exit(1 if error.errno == errno.EADDRINUSE else 2)
+PYPORT
     case "$rc" in
-        0) return 1 ;; # a listening socket owns the port
-        1) return 0 ;; # connect refused
-        *) return 2 ;; # timeout or other unknown observation is not free
+        0|1) return "$rc" ;;
+        *) return 2 ;; # timeout or unknown bind error is not availability
     esac
 }
 pick_free_ports() {
