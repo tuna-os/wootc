@@ -15,7 +15,7 @@
     chmod +x "$BATS_TEST_TMPDIR/bin/"*
     run "$BATS_TEST_TMPDIR/bin/mountpoint"
     [ "$status" -eq 0 ]
-    run env WOOTC_FIRSTBOOT_HOST="$BATS_TEST_TMPDIR/host" \
+    run env WOOTC_STEPS_FILE="$BATS_TEST_DIRNAME/../../payload/steps.sh" WOOTC_FIRSTBOOT_HOST="$BATS_TEST_TMPDIR/host" \
         WOOTC_FIRSTBOOT_COLLECTOR="$BATS_TEST_TMPDIR/collector.py" PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash "$BATS_TEST_TMPDIR/firstboot"
     [ "$status" -ne 0 ]
     [[ "$output" == *"descriptor refusal"* ]]

@@ -1,285 +1,213 @@
 # wootc User Guide
 
-**Switch from Windows to Linux without losing your data — and change your mind
-any time until you're sure.**
+wootc can install Linux in a disk file beside Windows.
+The current installer prepares a native Linux boot after a restart.
+The intended Phase 1 will run Linux inside Windows first.
+That complete VM journey remains under development.
 
-wootc installs a real, modern Linux desktop *from inside Windows*. There's no
-repartitioning of your Windows drive, no USB stick to make, and no point of no
-return until **you** decide there is one. Your Linux system lives in a single
-file next to Windows; both boot from the same disk. If anything goes wrong, your
-next reboot is still Windows.
+Windows remains the default boot choice during the native install path.
+The installer changes boot entries, boot files, and Windows power settings.
+Some storage choices also change partitions. Read the proposed plan before you continue.
 
-> This guide is written for people who have never touched a partition editor.
-> If a step ever feels scary, that's a bug in our wording — nothing wootc does
-> is permanent until the very last, clearly-labelled step.
-
----
+This guide describes the current installer. See [current status](status.md) for the evidence and limits.
 
 ## Contents
 
 1. [Is my PC ready?](#1-is-my-pc-ready)
-2. [Install Linux (Phase 1)](#2-install-linux-phase-1)
-3. [First boot into Linux (Phase 2)](#3-first-boot-into-linux-phase-2)
+2. [Install Linux](#2-install-linux)
+3. [First boot into Linux](#3-first-boot-into-linux)
 4. [Bring your stuff over](#4-bring-your-stuff-over)
 5. [Try it first, commit later](#5-try-it-first-commit-later)
 6. [Import from another disk or a backup](#6-import-from-another-disk-or-a-backup)
 7. [Encryption & BitLocker](#7-encryption--bitlocker)
-8. [Go Linux-only (Phase 3)](#8-go-linux-only-phase-3)
-9. [Uninstall — put everything back](#9-uninstall--put-everything-back)
-10. [Troubleshooting](#10-troubleshooting)
-
----
+8. [Go Linux-only](#8-go-linux-only)
+9. [Uninstall](#9-uninstall)
+10. [Problems and recovery](#10-problems-and-recovery)
 
 ## 1. Is my PC ready?
 
-wootc runs a quick check when it starts and tells you in plain language if
-anything needs attention. Under the hood it wants:
+The app checks your PC at startup. Its current requirements include:
 
-- **Windows 10 or 11**, 64-bit, UEFI (nearly all PCs since ~2015).
-- **At least 35 GB of free space** on `C:` — 20 GB for Linux plus the 15 GB
-  the app keeps back so Windows still has room. More is better; you choose the
-  size.
-- **Secure Boot** on is fine — wootc stages a boot loader signed by Microsoft,
-  and checks *before* it changes anything that your PC's firmware trusts the
-  certificate it was signed with. If it does not, wootc says so and stops
-  rather than leaving you at a startup error
-  ([#322](https://github.com/tuna-os/wootc/issues/322)).
-- **BitLocker off**, for now. wootc never asks you to decrypt your drive, but
-  the encrypted-drive path is not proven green yet, so the alpha stops before
-  installing on a BitLocker-protected PC and says so
-  ([#34](https://github.com/tuna-os/wootc/issues/34), see
-  [§7](#7-encryption--bitlocker)).
+- **Windows 10 or 11**, 64-bit, with UEFI firmware.
+- **At least 35 GB of free space** on `C:` for the minimum plan.
+  Linux needs 20 GB. The app reserves another 15 GB for Windows.
+  You can choose a larger Linux disk if enough space is available.
+- **Secure Boot can remain on.** The installer checks whether your firmware trusts its Microsoft-signed loader before it changes boot configuration.
+  It stops if it cannot confirm that trust.
+- **BitLocker off for the alpha install path.** The released alpha refuses an encrypted Windows drive.
+  You can wait for support; the installer does not decrypt Windows for you.
+  See [§7](#7-encryption--bitlocker) for the experimental design.
 
-You don't need to disable Secure Boot, make a bootable USB, or shrink partitions
-yourself. wootc handles all of it.
+You do not need a bootable USB for this path.
 
----
+<a id="2-install-linux-phase-1"></a>
 
-## 2. Install Linux (Phase 1)
+## 2. Install Linux
 
-Download and run **wootc.exe**. You'll see the Launchpad:
+Download the installer for your distribution and run it.
+The generic app is `wootc.exe`. The Launchpad shows the plan:
 
 ![Launchpad](screenshots/01-launchpad.png)
 
-1. **Pick a desktop.** Choose from the catalog — GNOME, KDE Plasma, Niri, or
-   XFCE, on an Enterprise Linux, Fedora, Arch, or Debian base. Not sure? The
-   first card is pre-selected for you — in the alpha that is Bluefin LTS, the
-   combination proven end-to-end (see [RELEASING](RELEASING.md#alpha-now)).
-2. **Set a password.** That's the whole form: your username and computer name
-   are mirrored from this PC, the disk is sized from your free space, and
-   TPM-backed encryption is picked for you. The form states the plan under the
-   password field, and everything is adjustable under **Advanced** — identity,
-   disk size, encryption ([§7](#7-encryption--bitlocker)), and the look toggle.
-3. **"Make it feel like Windows" is on by default** — wallpaper, accent color,
-   keyboard layout, taskbar pins, and desktop shortcuts come across on first
-   login, and your saved Wi-Fi networks become NetworkManager connections.
-   Untick it under Advanced to keep the desktop's own look. Supported on the
-   Wayland desktops (GNOME, KDE Plasma, niri); other settings still migrate.
-4. Click **Install**. wootc creates your Linux disk file, stages a signed boot
-   entry, and arms a **one-time** boot into the installer. **Nothing else on
-   your PC changes.**
+1. **Pick a desktop.** The catalog has GNOME, KDE Plasma, Niri, and XFCE entries across several Linux bases.
+   The alpha offers only its supported subset, with Bluefin LTS as the default.
+   See the [release policy](RELEASING.md#alpha-now).
+2. **Set a password.** The app proposes your username, computer name, disk size, and encryption choice.
+   Review them under **Advanced**. You can also change the Windows look option there.
+3. **“Make it feel like Windows” defaults to on.** Review this option.
+   On supported Wayland desktops, the helpers transfer your wallpaper, accent, keyboard layout, and shortcuts.
+   Saved Wi-Fi networks use a separate path.
+4. Click **Install**. The app creates the Linux disk file and stages boot files.
+   It also configures a one-time boot into the deployer and disables Fast Startup and hibernation.
 
 ![Install progress](screenshots/03-progress.png)
 
-When it finishes, reboot when you're ready. That's the *only* moment Linux takes
-over — and it's a one-shot: if the install were to fail, your PC boots straight
-back to Windows.
+Restart when you are ready. The one-time boot starts the deployer.
+Windows remains the default after that entry expires.
+A failed install can need recovery or cleanup. A one-time entry does not guarantee every failure returns safely.
 
----
+<a id="3-first-boot-into-linux-phase-2"></a>
 
-## 3. First boot into Linux (Phase 2)
+## 3. First boot into Linux
 
-On the next reboot, wootc's deployer runs once — it unpacks your chosen Linux
-image onto your disk file and reboots into your new desktop. This first run
-takes a few minutes; after that, Linux boots like any normal OS.
+The deployer installs the chosen image into the disk file.
+Windows normally returns after that one-time boot.
+Open the app again. When the Manage screen offers **Restart into &lt;distro&gt; →**, choose it to schedule a Linux boot.
 
-Your Linux system boots directly from the disk file on your Windows drive. The
-OS itself is a standard, image-based (bootc) system that updates itself
-atomically — the same image whether it lives in a file today or on its own
-partition later.
+Linux then boots directly from the disk file on the Windows drive.
+Its bootc image provides the installed system and update mechanism.
+The boot files on the Windows ESP also need their own update checks.
 
-**Windows is still there.** You can boot back into it any time from your PC's
-boot menu; wootc doesn't remove it (until you ask it to — [§8](#8-go-linux-only-phase-3)).
-
----
+The boot menu includes Windows. Native installation does not remove Windows.
+On the KVM E2E rig, tests passed for some native cycles. See [current status](status.md) for their limits.
 
 ## 4. Bring your stuff over
 
-Open the **Bring Over From Windows** dashboard. wootc migrates honestly — it moves
-what it safely can and clearly says what needs a fresh sign-in. It follows three
-consent tiers:
+Open **Bring Over From Windows** to review migration categories.
+Some preferences can transfer automatically. Other imports need your choice.
+Review each category's source, destination, and limits before you import it.
 
-| Tier | What happens | Examples |
-|---|---|---|
-| **Applied automatically** | Non-secret preferences with an obvious Linux equal | wallpaper, accent, keyboard layout, timezone, hostname |
-| **Offered with preview** | Useful data you can inspect first | files, browser data, Steam libraries, Wi-Fi, apps |
-| **Never copied silently** | Secrets & identity material | passwords, private keys, tokens, enterprise Wi-Fi creds |
+The helpers cover these categories:
 
-What it brings over:
+- **Files:** Documents, Desktop, Pictures, Downloads, Music, and Videos.
+  A folder can initially share its Windows contents. Conversion makes a separate Linux copy.
+- **Browsers:** Firefox imports a complete profile, which can include saved passwords.
+  Chrome and Edge import bookmarks and history. Their Windows password stores need a separate sign-in path.
+- **Steam:** a library bridge can use games in place, without another download.
+- **Office:** the helper copies your selected styles, dictionaries, and preferences for LibreOffice.
+- **Apps:** the dashboard lists apps from Windows and suggests alternatives for Linux.
+- **WSL:** selected dotfiles and package lists can help rebuild your Linux tools.
+- **Wi-Fi:** the helper creates NetworkManager connections from saved networks.
+  Enterprise networks can need a fresh sign-in.
+- **Windows look:** the helpers transfer your selected preferences and shortcuts on supported desktops.
 
-- **Files** — Documents, Desktop, Pictures, Downloads, Music, Videos.
-- **Browsers** — Firefox moves *everything* (bookmarks, history, logins, open
-  tabs). Chrome/Edge move bookmarks and history; sign in once and sync restores
-  the rest.
-- **Steam** — your installed games are reused in place; no re-download.
-- **MS Office → LibreOffice** — styles, custom dictionary, and settings.
-- **Apps** — detects your Windows apps and installs the Linux equivalents.
-- **WSL** — copies your WSL dotfiles (public keys only) and turns your installed
-  packages into a Homebrew `Brewfile` (`brew bundle` rebuilds your toolchain).
-- **Wi-Fi** — your saved networks become NetworkManager connections so you're
-  online on first boot. Enterprise/802.1X networks are detected but need a fresh
-  sign-in.
-- **Windows-Style Mode** (on unless you turned it off under Advanced) —
-  wallpaper, accent, keyboard, and your taskbar/desktop shortcuts.
-
-On a BitLocker-protected Windows drive, the original stays read-only.
-When your installer supports BitLocker migration, wootc copies Documents once
-to **Documents → From Windows** on the Linux disk. You can edit this copy.
-Changes stay with Linux and do not sync back to Windows.
-If Linux has insufficient free space, wootc skips the copy.
-The Windows folder stays read-only: you can open files but cannot save changes there.
-wootc does not copy later Windows changes over your Linux edits.
-[#427](https://github.com/tuna-os/wootc/issues/427) tracks the required evidence for this copy.
-
-**Secrets stay put.** wootc never silently copies passwords, private SSH/GPG
-keys, tokens, or credential stores — you sign in again where it matters.
-
----
+A category's presence does not prove every account or application will transfer.
+Check your files and application state on Linux before you remove any source data.
+Keep your own backup. Do not assume a repeat import will preserve your later edits.
 
 ## 5. Try it first, commit later
 
 The intended Phase 1 runs Linux inside Windows before native boot.
 Current standard releases do not yet provide that complete journey.
 The existing VM option needs a prepared Linux disk, QEMU, firmware, and an accelerator.
-The current main install path still uses the deployer after a reboot.
+The main install path still uses the deployer after a reboot.
 
 Do not treat “Boot in VM” as proof that no earlier reboot is necessary.
 [ADR 0004](adr/0004-restore-vm-first-product.md) tracks the required VM-first path.
 It must preserve your installed system and work when you later choose native boot.
 
----
-
 ## 6. Import from another disk or a backup
 
-Already on Linux and want to pull data from a Windows install on a **different**
-drive — a second internal disk, an external/USB drive, or a backup? Open
-**Bring Your Windows Over** on the Linux side:
+On Linux, **Bring Your Windows Over** can import from another Windows drive.
+The source can be a second internal disk, a USB drive, or a backup.
 
-1. **Scan** — wootc lists the Windows drives it finds.
-2. **Unlock** — BitLocker-encrypted drives are unlocked **read-only** with your
-   password or 48-digit recovery key. The source drive is never modified or
-   decrypted in place.
-3. **Pick the user** whose files to bring over.
-4. **Choose what to import** — the same categories as the dashboard above.
+1. **Scan** for Windows drives.
+2. **Unlock** an encrypted source with your password or 48-digit recovery key.
+   This import path mounts the source read-only. It does not decrypt the drive in place.
+3. **Pick the user** whose files you want.
+4. **Choose the categories** to import and review their destinations.
 
----
+This separate import path does not open the alpha's encrypted-PC install gate.
 
 ## 7. Encryption & BitLocker
 
-> **Not yet available in the alpha.** The design below is built and the code
-> ships, but the BitLocker path has not been proven green end-to-end
-> ([#34](https://github.com/tuna-os/wootc/issues/34)), so every channel that
-> ships today refuses to install on a BitLocker-protected PC rather than walk
-> you into an unproven path: *"BitLocker encryption isn't supported in the
-> alpha yet — it's coming soon. For now, wootc needs drive encryption turned
-> off."* Turn BitLocker off, or wait for the gate to open. What follows is
-> what happens once it does.
+**Not yet available in the alpha:** installation on an encrypted Windows drive.
 
-**Your Windows BitLocker is safe.** wootc never forces you to decrypt your
-Windows drive. If C: is BitLocker-protected, wootc offers to put Linux on an
-unencrypted partition (creating one by safely shrinking, or reusing an existing
-one) — **C: stays encrypted the whole time.**
+The alpha refuses to install on a BitLocker-protected Windows drive. **Editable Documents: not proven green yet.**
+Experimental code and VM results do not change that release policy.
+The editable Documents candidate still needs its own complete acceptance run.
+See [current status](status.md) and [issue #34](https://github.com/tuna-os/wootc/issues/34).
 
-**Encrypting Linux** is a separate choice for your Linux disk:
+The experimental storage plan can put Linux on an unencrypted volume while Windows retains BitLocker.
+It can use another volume or propose a new partition.
+A partition change needs a separate safety review; it does not have the same scope as a disk-file install.
 
-- **TPM auto-unlock** (recommended) — LUKS encryption that unlocks automatically
-  via your PC's TPM chip. No prompt at boot.
-- **Passphrase** — asks for a password every boot.
-- **None** — fastest; anyone with the PC can read the Linux disk.
+Linux disk encryption is a separate choice:
 
-**The one-time blue screen (Bazzite and friends).** Some distributions ship
-their own tuned kernel, and under Secure Boot your PC needs one-time
-permission to trust it. For those images (the installer tells you on the
-final screen), the first start shows a blue **"MOK management"** screen:
-choose **Enroll MOK** → **Continue** → **Yes**, and type the password
-**`universalblue`** (the same one the distribution's own documentation
-uses). That's it — the screen never appears again, and Secure Boot stays
-fully on.
+- **TPM auto-unlock:** LUKS uses your PC's TPM to unlock the Linux disk at boot.
+- **Passphrase:** you enter a password at boot.
+- **None:** anyone with access to the disk can read its contents.
 
----
+**One-time MOK enrollment.** Some distributions, such as Bazzite, use their own kernel key.
+The installer's final screen tells you if the chosen image needs enrollment.
+The blue **MOK management** screen asks for that key's approval:
+**Enroll MOK** → **Continue** → **Yes**.
+Use the distribution's documented enrollment password, `universalblue`, for supported images from Universal Blue.
+Secure Boot remains on. A later key change can need another enrollment.
 
-## 8. Go Linux-only (Phase 3)
+<a id="8-go-linux-only-phase-3"></a>
 
-When you're confident, you can graduate Linux onto its own native partition and
-reclaim the space Windows was using. This is the one genuinely irreversible
-step, and wootc treats it that way:
+## 8. Go Linux-only
 
-- **Stage 5 — Graduate to native (reversible).** wootc puts a real Linux
-  partition on your disk and moves your system onto it. Windows and your
-  original setup stay put until you take the final step, so you can still roll
-  back.
-- **Stage 6 — Remove Windows (irreversible).** Only offered once **everything
-  you use is already on Linux**. This deletes the Windows partition and grows
-  Linux to fill the disk.
+Native graduation and Windows removal are different operations.
+The current execution path can graduate Linux onto a separate disk that the harness verifies as blank in the test harness.
+It retains Windows and the original `root.disk`.
+This proof does not establish an install onto free space on the same disk.
 
-wootc refuses stage 6 until your data is verified native and a rollback snapshot
-exists — you can't accidentally delete something that hadn't moved yet.
+The helper also prints plans for an in-place move and Windows removal.
+The app cannot execute those plans for normal use.
+Do not treat a plan, a converted-folder marker, or a snapshot check as proof that all your data has moved.
+The required safety and recovery gates remain open on the [roadmap](../ROADMAP.md).
 
-> Prefer to keep both? Just don't take stage 6. Dual-boot Windows + Linux is a
-> perfectly good place to stop.
+Keep both systems until you have verified your work and a separate backup.
 
----
+<a id="9-uninstall--put-everything-back"></a>
 
-## 9. Uninstall — put everything back
+## 9. Uninstall
 
-Changed your mind? wootc is fully reversible up until Phase 3 stage 6.
+Open **Settings → Apps → Installed apps** and choose **TunaOS (wootc)**.
+You can also run `wootc.exe` again as Administrator and choose **Uninstall** on the Manage screen.
 
-**Where to find it:** open **Settings → Apps → Installed apps** (or Control
-Panel → Programs) and uninstall **TunaOS (wootc)** — or simply run
-`wootc.exe` again as Administrator, which opens the Manage screen with an
-**Uninstall** button.
+The uninstaller tries to:
 
-What it does:
+- Remove wootc's boot entries and owned files from the boot partition.
+- Remove installer files.
+- Restore the recorded Fast Startup and hibernation settings.
 
-- Removes the wootc boot entry from Windows.
-- Removes the Linux bootloader files from the boot partition.
-- Deletes wootc's installer files.
-- **Keeps your Linux disk file (`root.disk`) by default**, so your Linux data
-  survives in case you come back. Tick *"Also delete my Linux data"* in the
-  uninstaller to remove it too — that is the only step that deletes anything
-  of yours.
-- If Linux was on a dedicated partition, can reclaim it and give the space
-  back to Windows.
-- Restores the Windows power settings (Fast Startup / hibernation) that
-  setup turned off.
+It keeps `root.disk` by default.
+Select **Also delete my Linux data** only if you want to remove that disk file and its contents.
+A dedicated volume needs additional ownership and content checks before the app offers to return its space to Windows.
+If ownership or contents remain uncertain, the app preserves the partition and gives a reason.
 
-With the Linux data box ticked, your Windows install is back exactly as it
-was.
+An incomplete cleanup can leave files or boot state behind.
+Read any reported errors before you retry.
+Uninstall does not undo work that you made on a graduated native disk.
 
----
+<a id="10-troubleshooting"></a>
 
-## 10. Troubleshooting
+## 10. Problems and recovery
 
-- **"Boot Windows once and shut down fully."** Windows Fast Startup or
-  hibernation left the drive in a locked state. Boot Windows, choose
-  *Shut down* (not restart), and try again.
-- **Stuck on the boot menu.** Pick "Windows Boot Manager" to get back to
-  Windows; nothing is lost.
-- **A migration says "sign in again."** That's by design — wootc never copies
-  passwords or tokens. Sign in once and cloud sync brings the rest.
-- **My PC has no TPM / old firmware.** Choose GRUB2 + passphrase (or no)
-  encryption in Advanced options.
-- **Windows wants to "scan and fix" the drive after I used Linux.** Linux
-  hands the drive back cleanly on every normal shutdown, but a power cut or
-  forced power-off while Linux is running can leave Windows wanting a check.
-  Let it run — it's Windows being careful, and your files are fine.
+- **“Boot Windows once and shut down fully.”** Fast Startup or hibernation can leave the drive locked.
+  Boot Windows and use a full shutdown before you retry.
+- **Stuck at the boot menu:** choose **Windows Boot Manager**.
+  If Windows does not start, use the recovery instructions for that failure.
+- **An import asks you to sign in:** authenticate again in the destination app.
+  Browser profile transfer and account credentials have different limits.
+- **No TPM:** review the passphrase and unencrypted choices under **Advanced**.
+  An encryption choice does not remove the UEFI requirement.
+- **Windows asks to scan a drive:** a power cut or forced shutdown can leave it unclean.
+  Complete the Windows check and inspect its result. Do not assume every file survived a failed shutdown.
 
----
-
-*wootc is early, actively-developed software. The full
-Windows → deployer → native Linux → back-to-Windows loop is verified
-end-to-end on the KVM E2E rig — a real Windows 11 VM with UEFI, Secure Boot
-and TPM 2.0. Real-hardware evidence is the next gate on the ladder
-([ROADMAP](../ROADMAP.md), v0.2.0-alpha), not something already banked. See
-[docs/SPEC.md](SPEC.md) for the design, [docs/status.md](status.md) for what
-each claim rests on, and [docs/milestones.md](milestones.md) for the ladder.*
+wootc remains early software. The tests cover some scenarios for native installation in VMs.
+It does not establish complete VM-first use or real-hardware acceptance.
+See the [status](status.md), [verification ladder](milestones.md), and [roadmap](../ROADMAP.md).

@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+# shellcheck source=payload/steps.sh
+source "${WOOTC_STEPS_FILE:-/var/usrlocal/lib/wootc/steps.sh}"
+
 HOST="${WOOTC_FIRSTBOOT_HOST:-/run/initramfs/wootc-host}"
 
 INSTALL_DIR="$HOST/wootc/install"
@@ -37,6 +40,10 @@ if ! mountpoint -q "$HOST"; then
     exit 1
 fi
 
+[[ $(wootc_step_owner firstboot-evidence) == firstboot ]]
+log "phase: firstboot-evidence"
+log "$(wootc_step_label firstboot-evidence)"
+
 mkdir -p "$INSTALL_DIR"
 
 # Collect every required fact before publishing anything. The collector refuses
@@ -45,6 +52,26 @@ COLLECTOR="${WOOTC_FIRSTBOOT_COLLECTOR:-/var/usrlocal/bin/wootc-collect-firstboo
 EVIDENCE_TEMP=$(mktemp)
 trap 'rm -f "$EVIDENCE_TEMP"' EXIT
 python3 "$COLLECTOR" --host "$HOST" > "$EVIDENCE_TEMP"
+# The catalogue phase describes this observed collection/publication. Add it to
+# the verified record; the lifecycle state retains its separate vocabulary.
+python3 - "$EVIDENCE_TEMP" <<'PYTHON'
+import json
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+with path.open('rb') as stream:
+    data = stream.read(65537)
+if len(data) > 65536:
+    raise ValueError('first-boot evidence exceeds 64 KiB')
+record = json.loads(data)
+if not isinstance(record, dict):
+    raise ValueError('first-boot evidence must be an object')
+record['phaseId'] = 'firstboot-evidence'
+data = (json.dumps(record, indent=2) + '\n').encode()
+if len(data) > 65536:
+    raise ValueError('first-boot evidence exceeds 64 KiB after phase annotation')
+path.write_bytes(data)
+PYTHON
 
 # Publish evidence before healthy. Only the final completion marker suppresses
 # retries, so a failed descriptor-preserving state write is retried next boot.

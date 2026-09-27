@@ -41,6 +41,10 @@ trap 'wootc_report_abort "$?" "$BASH_COMMAND"' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=tests/e2e/steps.sh
+source "$SCRIPT_DIR/steps.sh"
+# shellcheck source=tests/e2e/phase-ledger.sh
+source "$SCRIPT_DIR/phase-ledger.sh"
 # IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
 # blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
 # the image (this silently produced wootc.image=--skip-install once the deployer
@@ -138,6 +142,9 @@ fail() {
     # \b mangle just as silently.
     printf '%b[FAIL]%b %s\n' "$RED" "$NC" "$*" >&2
     printf '%s\n' "$*" >> "$WOOTC_FAILURE_LEDGER" 2>/dev/null || true
+    if [ -n "${WOOTC_PHASE_LEDGER:-}" ] && [ -n "${WOOTC_CURRENT_PHASE_ID:-}" ]; then
+        wootc_phase_record failed "$WOOTC_CURRENT_PHASE_ID" "$*" || return 1
+    fi
 }
 info() { printf '%b[INFO]%b %s\n' "$YELLOW" "$NC" "$*"; }
 
@@ -228,6 +235,8 @@ RUN_ID="${WOOTC_E2E_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${HOSTNAME:-unknown}-$$}"
 RUN_STARTED_AT="$(date -u +%FT%TZ)"
 RUN_STATE_FILE="$STORAGE_DIR/run-e2e.current"
 ARTIFACT_DIR="$STORAGE_DIR/artifacts/$RUN_ID"
+WOOTC_PHASE_LEDGER="$ARTIFACT_DIR/phase-ledger.jsonl"
+WOOTC_CURRENT_PHASE_ID=""
 VIDEO_DIR="$ARTIFACT_DIR/video"
 VIDEO_STARTED=false
 mkdir -p "$ARTIFACT_DIR"
@@ -725,7 +734,12 @@ qga_wait_reboot() {
 qga_windows_probe() {
     local os
     os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' 2>/dev/null | tr -d '\r\n' || true)
-    [[ "$os" =~ Windows_NT ]]
+    if [[ "$os" =~ Windows_NT ]]; then
+        # A phase observed in the Linux guest cannot describe a Windows action.
+        wootc_phase_boundary
+        return 0
+    fi
+    return 1
 }
 
 # The mirror of qga_windows_probe, and the missing half of the pair. Every
@@ -3694,10 +3708,12 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
     fi
 
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
-    [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
+    if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
 
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
-        NEW_OUTPUT=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
+        wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
+            fail "Could not read serial output and persist its observed phase vocabulary"; exit 1;
+        }
 
         # Per-run telemetry timeline: every [wootc]/fisherman marker with a
         # wall-clock timestamp, including phase transitions and heartbeats
@@ -4025,6 +4041,7 @@ if [[ "$E2E_BITLOCKER" == "on" ]]; then
     bitlocker_wait_fixture_ready 1800 || exit 1
 fi
 
+wootc_phase_boundary
 step "Scheduling one-shot Phase 2 Linux boot..."
 # Re-extend NTFS ValidDataLength (VDL) on root.disk before Phase 2 boots.
 # fuse-ntfs-3g resets VDL to the highest byte it actually wrote during the
@@ -4189,9 +4206,11 @@ PHASE2_BYTE0=$LAST_BYTE
 while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
-    [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
+    if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
-        NEW_OUTPUT=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
+        wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
+            fail "Could not read serial output and persist its observed phase vocabulary"; exit 1;
+        }
         # MokManager surfaces MID-WAIT (see the mok_sequence block above):
         # drive it the moment its marker shows in fresh serial. Each driven
         # sequence ends in a reboot, so the enrolled boot gets a fresh full
@@ -4420,7 +4439,7 @@ PASSTHROUGH_MARKERS=""
 while ! past_deadline "$PASSTHROUGH_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
-    [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ] && LAST_BYTE=0
+    if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         PASSTHROUGH_MARKERS+=$(tail -c "+$((LAST_BYTE + 1))" "$PTY")
         PASSTHROUGH_MARKERS+=$'\n'
@@ -4627,6 +4646,9 @@ FIRSTBOOT_DIAG=$(qga_call exec /bin/sh -c '
     echo "--- firstboot marker ---"
     cat /run/initramfs/wootc-host/wootc/install/installed-linux-boot.json 2>&1 || true' 2>/dev/null || true)
 if [ -n "$FIRSTBOOT_DIAG" ]; then
+    # QGA journal is a separate source; never join it to a torn serial line.
+    wootc_phase_boundary
+    wootc_phase_observe_output "$FIRSTBOOT_DIAG"$'\n' || { fail "Could not persist observed firstboot phase"; exit 1; }
     info "Phase-2 firstboot unit and persisted-state diagnostics:"
     printf '%s\n' "$FIRSTBOOT_DIAG"
 else

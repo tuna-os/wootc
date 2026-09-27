@@ -1,3 +1,4 @@
+import { StepInstallerMakingLinuxBootableOnYourMachine, StepInstallerSavingYourBitLockerRecoveryKey } from '../lib/steps_gen.js';
 import { CancelInstall } from '../../wailsjs/go/main/App';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
@@ -6,33 +7,25 @@ import { el, btn } from '../lib/ui.js';
 
 // ── Screen 2: Progress ────────────────────────────────────────────────────────
 
-// The canonical ordered step list. The Go backend emits these exact strings on
-// install:progress, so main.js's event wiring imports it to mark earlier steps
-// complete, and the step list below renders it.
-// The step list the user watches. It must be EXACTLY the pipeline's step
-// names from app.go, in order: a step whose name does not match never lights
-// up, and stays grey for the whole install — which reads as a step that did
-// not happen. payload/steps.tsv is the catalogue and app/steps_test.go fails
-// when these drift (#334).
-export const INSTALL_STEPS = [
-  'Checking your PC',
-  'Preparing Windows',
-  'Setting things up',
-  'Finding your files',
-  'Making room for Linux',
-  'Downloading Linux',
-  'Downloading your Linux system',
-  'Preparing the startup menu',
-  'Getting Linux prepared',
-  'Making Linux bootable on your machine',
-  'Saving your settings',
-  'Saving your BitLocker recovery key',
-  'Looking at your installed apps',
-  'Checking your signed-in apps',
-  'Looking for your cloud drives',
-  'Collecting your look and Wi-Fi',
-  'Finishing up',
-];
+// Labels arrive from the generated Go catalogue through the Wails backend.
+// IDs remain stable when a label changes; progress matching never uses labels.
+export const INSTALL_STEPS = [];
+const stepLabels = new Map();
+export function installStepLabel(id) { return stepLabels.get(id) || id; }
+export function setInstallSteps(steps) {
+  if (!Array.isArray(steps) || !steps.length) throw new Error('Installer step catalogue is unavailable');
+  const seen = new Set();
+  for (const step of steps) {
+    if (!step || step.owner !== 'installer' || typeof step.id !== 'string' || !step.id ||
+        typeof step.label !== 'string' || !step.label || seen.has(step.id)) {
+      throw new Error('Installer step catalogue is invalid');
+    }
+    seen.add(step.id);
+  }
+  INSTALL_STEPS.splice(0, INSTALL_STEPS.length, ...steps.map(step => step.id));
+  stepLabels.clear();
+  for (const step of steps) stepLabels.set(step.id, step.label);
+}
 
 export function renderProgressScreen() {
   const wrap = el('div');
@@ -63,14 +56,14 @@ function renderProgressInner() {
   const pw = el('div', 'progress-wrap');
 
   const stepLabel = el('div', 'progress-step');
-  stepLabel.textContent = state.progress.step || 'Starting…';
+  stepLabel.textContent = stepLabels.get(state.progress.step) || state.progress.step || 'Starting…';
 
   const msgLabel = el('div', 'progress-msg');
   msgLabel.textContent = state.progress.message || '';
 
   // Disclosure, not surprise: the BitLocker key step stores a copy on disk,
   // and the audit found that never said anywhere on screen.
-  const bitlockerNote = /BitLocker/i.test(state.progress.step || '')
+  const bitlockerNote = state.progress.step === StepInstallerSavingYourBitLockerRecoveryKey
     ? `A copy of your recovery key is stored at C:\\wootc\\install so Linux can reach your files. Uninstalling ${productName()} removes it.`
     : '';
 
@@ -89,7 +82,9 @@ function renderProgressInner() {
     if (done) item.classList.add('done');
     else if (active && !hasErr) item.classList.add('active');
     else if (hasErr) item.classList.add('error');
-    item.innerHTML = `<span class="step-dot"></span>${s}`;
+    item.dataset.phaseId = s;
+    item.appendChild(el('span', 'step-dot'));
+    item.appendChild(document.createTextNode(stepLabels.get(s)));
     stepList.appendChild(item);
   });
 
@@ -99,7 +94,7 @@ function renderProgressInner() {
   // read "nothing outside the installation folder was changed" while the machine
   // was armed. Say what is actually true at each point. (On failure or
   // cancel past that step, the backend removes the entry again.)
-  const bcdStep = 'Making Linux bootable on your machine';
+  const bcdStep = StepInstallerMakingLinuxBootableOnYourMachine;
   const pastArm = state.progress.completedSteps.includes(bcdStep) ||
     (state.progress.step === bcdStep && !state.progress.error);
 

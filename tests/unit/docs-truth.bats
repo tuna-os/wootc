@@ -210,3 +210,47 @@ setup() {
         done
     done
 }
+
+@test "guide describes the explicit Windows-side Linux boot choice" {
+    grep -q 'BootIntoLinux' app/frontend/src/screens/control.js
+    grep -q 'Restart into' app/frontend/src/screens/control.js
+    grep -q 'Windows normally returns after that one-time boot' docs/user-guide.md
+    grep -q 'choose it to schedule a Linux boot' docs/user-guide.md
+    ! grep -q 'reboots into your new desktop' docs/user-guide.md
+}
+
+@test "guide discloses Firefox profile passwords instead of blanket secret exclusion" {
+    grep -q 'Firefox passwords came across with the profile' payload/migration/wootc-import-browser
+    grep -q 'Firefox imports a complete profile, which can include saved passwords' docs/user-guide.md
+    ! grep -q 'never silently copies passwords' docs/user-guide.md
+}
+
+@test "guide describes Windows removal as a plan without a consumer execution path" {
+    grep -q 'graduate_plan || reclaim_plan' payload/migration/wootc-go-native
+    grep -q 'die "in-place (shrink Windows) graduate runs from the graduate-deployer' payload/migration/wootc-go-native
+    grep -q 'The app cannot execute those plans for normal use' docs/user-guide.md
+    ! grep -q 'This deletes the Windows partition and grows' docs/user-guide.md
+}
+
+@test "guide qualifies uninstall restoration and preserves old section anchors" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'An incomplete cleanup can leave files or boot state behind' docs/user-guide.md
+    ! grep -q 'your Windows install is back exactly as it' docs/user-guide.md
+    for anchor in 2-install-linux-phase-1 3-first-boot-into-linux-phase-2 8-go-linux-only-phase-3 9-uninstall--put-everything-back 10-troubleshooting; do
+        grep -q "id=\"$anchor\"" docs/user-guide.md
+    done
+}
+
+@test "release guide matches the tagged native graduation gate and its waiver" {
+    local gate
+    gate=$(sed -n '/^  e2e-gate:/,/^  publish:/p' .github/workflows/release.yml)
+    printf '%s\n' "$gate" | grep -q 'gui_install: true'
+    printf '%s\n' "$gate" | grep -q 'phase3: true'
+    printf '%s\n' "$gate" | grep -q "bitlocker: 'off'"
+    grep -q 'Phase 3 native system booted from the graduated install (non-loopback)' tests/e2e/run-e2e.sh
+    grep -q 'It ends in graduated Linux' docs/RELEASING.md
+    grep -q 'Windows return after graduation' docs/RELEASING.md
+    grep -q 'stages selected by that run' docs/RELEASING.md
+    grep -q 'skip_e2e.*can waive the gate' docs/RELEASING.md
+    ! grep -q 'has migrated to Linux and back on a hosted runner' docs/RELEASING.md
+}

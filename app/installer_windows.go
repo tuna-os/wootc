@@ -202,7 +202,7 @@ func getUninstallInfo() UninstallInfo {
 				info.BootPending = info.BootPending && !info.Deployed
 			}
 			if d != "C" {
-				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
+				fillDedicatedPartitionInfo(&info, d)
 				if info.OnDedicatedVol {
 					info.VolumeLabel = DedicatedVolumeLabel
 				}
@@ -223,7 +223,7 @@ func getUninstallInfo() UninstallInfo {
 			}
 
 			if d != "C" {
-				info.OnDedicatedVol, info.ReclaimGB = dedicatedVolumeInfo(d)
+				fillDedicatedPartitionInfo(&info, d)
 				if info.OnDedicatedVol {
 					info.VolumeLabel = DedicatedVolumeLabel
 				}
@@ -234,14 +234,10 @@ func getUninstallInfo() UninstallInfo {
 
 	// 3. Check for a dedicated wootc-data volume even if \wootc was hand-deleted.
 	for _, dp := range listDataPartitions() {
-		if isDed, reclaim := dedicatedVolumeInfo(dp.Letter); isDed {
-			return UninstallInfo{
-				Found:          true,
-				StorageDrive:   dp.Letter,
-				Orphaned:       true,
-				OnDedicatedVol: true,
-				ReclaimGB:      reclaim,
-			}
+		if strings.EqualFold(dp.Label, DedicatedVolumeLabel) {
+			info := UninstallInfo{Found: true, StorageDrive: dp.Letter, Orphaned: true, VolumeLabel: dp.Label}
+			fillDedicatedPartitionInfo(&info, dp.Letter)
+			return info
 		}
 	}
 
@@ -277,21 +273,9 @@ func hasWootcESPArtifacts() bool {
 	if err != nil {
 		return false
 	}
-	if _, err := os.Stat(filepath.Join(espPath, "EFI", "wootc")); err == nil {
-		return true
-	}
-	if ownsFedoraNamespace(espPath) {
-		return true
-	}
-	redhatGrub := filepath.Join(espPath, "EFI", "redhat", "grub.cfg")
-	if data, err := os.ReadFile(redhatGrub); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		return true
-	}
-	loaderConf := filepath.Join(espPath, "loader", "loader.conf")
-	if data, err := os.ReadFile(loaderConf); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		return true
-	}
-	return false
+	owned, err := hasESPOwnedFiles(espPath)
+	// An unreadable or unsafe ownership record is unresolved cleanup evidence.
+	return owned || err != nil
 }
 
 // hasUninstallRegistryEntry reports whether the Add/Remove Programs key exists.
@@ -301,36 +285,13 @@ func hasUninstallRegistryEntry() bool {
 	return err == nil && strings.TrimSpace(out) == "EXISTS"
 }
 
-// cleanupESP removes all wootc-staged files and directories from the ESP.
+// cleanupESP deletes only attributable regular files, preserving neighbours.
 func cleanupESP() error {
 	espPath, err := findESP()
 	if err != nil {
-		return nil
+		return fmt.Errorf("locate EFI boot partition for cleanup: %w", err)
 	}
-
-	// 1. Remove EFI\wootc (our own namespace)
-	_ = os.RemoveAll(filepath.Join(espPath, "EFI", "wootc"))
-
-	// 2. Remove EFI\fedora if staged by wootc (verified via "# wootc" ownership marker)
-	if ownsFedoraNamespace(espPath) {
-		_ = os.RemoveAll(filepath.Join(espPath, "EFI", "fedora"))
-	}
-
-	// 3. Remove EFI\redhat if staged by wootc
-	redhatGrub := filepath.Join(espPath, "EFI", "redhat", "grub.cfg")
-	if data, err := os.ReadFile(redhatGrub); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		_ = os.RemoveAll(filepath.Join(espPath, "EFI", "redhat"))
-	}
-
-	// 4. Remove systemd-boot loader configuration if staged by wootc
-	loaderConf := filepath.Join(espPath, "loader", "loader.conf")
-	if data, err := os.ReadFile(loaderConf); err == nil && strings.Contains(string(data), wootcGrubOwnership) {
-		_ = os.Remove(filepath.Join(espPath, "loader", "entries", "wootc-deployer.conf"))
-		_ = os.Remove(loaderConf)
-		_ = os.RemoveAll(filepath.Join(espPath, "EFI", "systemd"))
-	}
-
-	return nil
+	return cleanupESPOwnedFiles(espPath)
 }
 
 // deployHasCompleted requires an observed installed Linux boot whose identity
@@ -382,6 +343,49 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	if info.Found && info.StorageDrive != "" {
 		drive = info.StorageDrive
 	}
+	var partitionReceipt StoragePartitionReceipt
+	if opts.RemovePartition {
+		var err error
+		partitionReceipt, err = readStoragePartitionReceipt()
+		if err != nil {
+			return fmt.Errorf("partition removal refused; creation ownership is missing or unsafe: %w", err)
+		}
+		boundDrive, present, err := createdPartitionLocation(partitionReceipt)
+		if err != nil {
+			return err
+		}
+		if err := verifyPartitionRemovalMarker(partitionReceipt, ".complete"); err == nil {
+			if present {
+				return fmt.Errorf("completed removal identity unexpectedly exists again; preserving partition")
+			}
+			return clearCompletedStoragePartitionRemoval(partitionReceipt)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		if !present {
+			if err := verifyPartitionRemovalMarker(partitionReceipt, ".deleted"); err != nil {
+				return fmt.Errorf("partition absent without recorded prior deletion observation: %w", err)
+			}
+			// Retry only the pending extension. Never clean a replacement installation.
+			if err := removePartitionAndExtendC("", partitionReceipt); err != nil {
+				return err
+			}
+			return clearCompletedStoragePartitionRemoval(partitionReceipt)
+		}
+		if info.Found && info.StorageDrive != boundDrive {
+			return fmt.Errorf("partition receipt identifies a different installation than the selected uninstall")
+		}
+		drive = boundDrive
+		if _, err := assessCreatedPartition(drive, partitionReceipt); err != nil {
+			return err
+		}
+		if err := verifyCompanionInstallerContents(); err != nil {
+			return err
+		}
+		if err := markStoragePartitionRemoval(partitionReceipt); err != nil {
+			return fmt.Errorf("record explicit partition removal: %w", err)
+		}
+	}
 	setStorageDrive(drive)
 
 	var errs []string
@@ -409,6 +413,16 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		targetDrives = append(targetDrives, "C")
 	}
 	for _, d := range targetDrives {
+		if opts.RemovePartition {
+			// Target files stay intact until the partition's final contents audit.
+			// Companion cleanup removes exact files and empty directories only.
+			if d == "C" {
+				if err := cleanupCompanionInstallerFiles(); err != nil {
+					errs = append(errs, err.Error())
+				}
+			}
+			continue
+		}
 		wDir := d + `:\wootc`
 		if _, err := os.Stat(wDir); err != nil {
 			continue
@@ -438,8 +452,8 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	}
 
 	// 4. Optionally remove a wootc-created data partition and extend C:.
-	if opts.RemovePartition && info.Found && info.OnDedicatedVol && drive != "C" {
-		if err := removePartitionAndExtendC(drive); err != nil {
+	if opts.RemovePartition {
+		if err := removePartitionAndExtendC(drive, partitionReceipt); err != nil {
 			errs = append(errs, fmt.Sprintf("removing data partition %s: %v", drive, err))
 		}
 	}
@@ -452,6 +466,9 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	if len(errs) > 0 {
 		return fmt.Errorf("uninstall cleanup incomplete:\n- %s", strings.Join(errs, "\n- "))
+	}
+	if opts.RemovePartition {
+		return clearCompletedStoragePartitionRemoval(partitionReceipt)
 	}
 	return nil
 }
@@ -486,12 +503,6 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 			if _, err := os.Stat(wDir); err == nil {
 				errs = append(errs, fmt.Sprintf("%s was not fully removed", wDir))
 			}
-		}
-	}
-
-	if opts.RemovePartition && storageDrive != "C" {
-		if isDed, _ := dedicatedVolumeInfo(storageDrive); isDed {
-			errs = append(errs, fmt.Sprintf("dedicated volume %s: was not removed", storageDrive))
 		}
 	}
 

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -56,47 +57,12 @@ func listDataPartitions() []DataPartition {
 // It verifies ownership and ensures system/EFI volumes or arbitrary drives
 // are never identified as wootc-created data partitions.
 func dedicatedVolumeInfo(d string) (bool, float64) {
-	if strings.EqualFold(d, "C") {
-		return false, 0
-	}
-	// A wootc-created volume is labeled "wootc-data", formatted as NTFS on the
-	// same physical disk as C:, is NOT an EFI System Partition or SYSTEM volume,
-	// and contains nothing but the wootc dir (ignoring system folders).
-	script := fmt.Sprintf(`
-$v = Get-Volume -DriveLetter %s -ErrorAction SilentlyContinue
-if (-not $v -or $v.FileSystemLabel -ne 'wootc-data' -or $v.FileSystemType -ne 'NTFS') {
-    Write-Output 'NO'
-    exit 0
-}
-$p = Get-Partition -DriveLetter %s -ErrorAction SilentlyContinue
-if (-not $p -or $p.GptType -eq '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' -or $p.Type -eq 'System') {
-    Write-Output 'NO'
-    exit 0
-}
-$cP = Get-Partition -DriveLetter C -ErrorAction SilentlyContinue
-if ($cP -and $p.DiskNumber -ne $cP.DiskNumber) {
-    Write-Output 'NO'
-    exit 0
-}
-$items = @(Get-ChildItem '%s:\' -Force -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -notin @('$RECYCLE.BIN', 'System Volume Information', 'wootc')
-})
-if ($items.Count -gt 0) {
-    Write-Output 'NO'
-    exit 0
-}
-'{0}|{1}' -f 'YES', [math]::Round($v.Size/1GB, 1)
-`, d, d, d)
-	out, err := runPowerShellOutput(script)
+	receipt, err := readStoragePartitionReceipt()
 	if err != nil {
 		return false, 0
 	}
-	f := strings.Split(strings.TrimSpace(out), "|")
-	if len(f) != 2 || f[0] != "YES" {
-		return false, 0
-	}
-	sizeGB, _ := strconv.ParseFloat(f[1], 64)
-	return true, sizeGB
+	size, err := assessCreatedPartition(strings.ToUpper(d), receipt)
+	return err == nil, size
 }
 
 // CreateDataPartition shrinks C: and creates a new unencrypted NTFS
@@ -110,9 +76,42 @@ func (a *App) CreateDataPartition(sizeGB int) (DataPartition, error) {
 	if sizeGB < 20 {
 		sizeGB = 20
 	}
-	script := fmt.Sprintf(`
+	receiptPath, err := storagePartitionReceiptPath(true)
+	if err != nil {
+		return DataPartition{}, fmt.Errorf("prepare partition ownership receipt: %w", err)
+	}
+	if _, err := os.Lstat(receiptPath); err == nil {
+		return DataPartition{}, fmt.Errorf("an existing partition creation receipt must be resolved before creating another partition")
+	} else if !os.IsNotExist(err) {
+		return DataPartition{}, err
+	}
+	// Reserve before touching storage. Any interrupted creation remains blocked
+	// for explicit inspection; absence of a receipt never authorizes deletion.
+	pendingPath := receiptPath + ".pending"
+	pending, err := os.OpenFile(pendingPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return DataPartition{}, fmt.Errorf("partition creation is already pending or its authority cannot be reserved: %w", err)
+	}
+	if _, err := pending.WriteString("creation-pending\n"); err != nil {
+		_ = pending.Close()
+		return DataPartition{}, err
+	}
+	if err := pending.Sync(); err != nil {
+		_ = pending.Close()
+		return DataPartition{}, err
+	}
+	if err := pending.Close(); err != nil {
+		return DataPartition{}, err
+	}
+	script := partitionPolicyScript + fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
-$c = Get-Partition -DriveLetter C
+$sources = @(Get-Partition -DriveLetter C -ErrorAction Stop)
+if ($sources.Count -ne 1 -or $sources[0].IsBoot -ne $true) { throw 'Windows source partition is missing or ambiguous' }
+$c = $sources[0]
+$originalSourceGuid = Convert-WootcPartitionGuid $c.Guid
+$disks = @(Get-Disk -Number $c.DiskNumber -ErrorAction Stop)
+if ($disks.Count -ne 1 -or $disks[0].PartitionStyle -ne 'GPT') { throw 'Windows source GPT disk is missing or ambiguous' }
+$originalDiskGuid = Convert-WootcPartitionGuid $disks[0].Guid
 $bl = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction SilentlyContinue
 if ($bl -and $bl.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint 'C:' -RebootCount 1 | Out-Null }
 $supported = Get-PartitionSupportedSize -DriveLetter C
@@ -121,55 +120,86 @@ $target = $supported.SizeMax - $shrinkBytes
 if ($target -lt $supported.SizeMin) { throw 'Not enough free space on C: to shrink by the requested amount' }
 Resize-Partition -DriveLetter C -Size $target
 $np = New-Partition -DiskNumber $c.DiskNumber -UseMaximumSize -AssignDriveLetter
+$createdGuid = Convert-WootcPartitionGuid $np.Guid
 Format-Volume -Partition $np -FileSystem NTFS -NewFileSystemLabel 'wootc-data' -Confirm:$false | Out-Null
 $np = Get-Partition -DiskNumber $c.DiskNumber -PartitionNumber $np.PartitionNumber
+if ((Convert-WootcPartitionGuid $np.Guid) -ne $createdGuid) { throw 'Created partition identity changed during formatting' }
+if ((Convert-WootcPartitionGuid $c.Guid) -ne $originalSourceGuid) { throw 'Original Windows source identity changed' }
 # This is the new, dedicated volume only. Prevent DELETE_CHILD on its root
 # from bypassing the protected ACL on the installer directory below it.
 $volumeRoot = "$($np.DriveLetter):" + [IO.Path]::DirectorySeparatorChar
 $acl = New-Object System.Security.AccessControl.DirectorySecurity
 $acl.SetSecurityDescriptorSddlForm('O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)')
 Set-Acl -LiteralPath $volumeRoot -AclObject $acl
-Write-Output $np.DriveLetter`, sizeGB)
+$receipt = New-WootcPartitionCreationReceipt -CreatedPartition $np -SourcePartition $c -SourceDiskGuid $originalDiskGuid
+[pscustomobject]@{letter=[string]$np.DriveLetter;receipt=$receipt} | ConvertTo-Json -Compress`, sizeGB)
 
 	out, err := runPowerShellOutput(script)
 	if err != nil {
 		return DataPartition{}, fmt.Errorf("create data partition: %w (output: %s)", err, strings.TrimSpace(out))
 	}
-	letter := strings.TrimSpace(out)
-	if len(letter) != 1 {
-		return DataPartition{}, fmt.Errorf("unexpected drive letter from partition creation: %q", out)
+	var result struct {
+		Letter  string                  `json:"letter"`
+		Receipt StoragePartitionReceipt `json:"receipt"`
 	}
-	return DataPartition{Letter: letter, Label: "wootc-data", FreeGB: float64(sizeGB), Encrypted: false}, nil
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &result); err != nil {
+		return DataPartition{}, fmt.Errorf("created partition ownership was not returned; pending receipt retained: %w", err)
+	}
+	if len(result.Letter) != 1 || result.Letter[0] < 'A' || result.Letter[0] > 'Z' || result.Letter == "C" {
+		return DataPartition{}, fmt.Errorf("created partition lacks a valid dedicated drive letter")
+	}
+	if err := persistNewStoragePartitionReceipt(receiptPath, result.Receipt); err != nil {
+		return DataPartition{}, fmt.Errorf("partition created but ownership persistence failed; partition preserved: %w", err)
+	}
+	if err := os.Remove(pendingPath); err != nil {
+		return DataPartition{}, fmt.Errorf("creation receipt saved but pending marker cleanup failed: %w", err)
+	}
+	return DataPartition{Letter: result.Letter, Label: "wootc-data", FreeGB: float64(result.Receipt.SizeBytes) / (1024 * 1024 * 1024), Encrypted: false}, nil
 }
 
 // removePartitionAndExtendC deletes the wootc data partition and grows C:
 // into the freed space (SPEC §5.2). Only called when the volume is
 // confirmed wootc-created and holds no other data.
-func removePartitionAndExtendC(drive string) error {
-	if strings.EqualFold(drive, "C") {
-		return fmt.Errorf("refusing to remove partition on drive C:")
+func removePartitionAndExtendC(drive string, receipt StoragePartitionReceipt) error {
+	if err := verifyStoragePartitionRemoval(receipt); err != nil {
+		return fmt.Errorf("explicit removal receipt required: %w", err)
 	}
-	script := fmt.Sprintf(`
-$ErrorActionPreference = 'Stop'
-$v = Get-Volume -DriveLetter %s -ErrorAction Stop
-if ($v.FileSystemLabel -ne 'wootc-data') {
-    throw "Refusing to remove volume %s: label is '$($v.FileSystemLabel)', expected 'wootc-data'"
-}
-$p = Get-Partition -DriveLetter %s -ErrorAction Stop
-if ($p.GptType -eq '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' -or $p.Type -eq 'System') {
-    throw 'Refusing to remove EFI system partition'
-}
-$cP = Get-Partition -DriveLetter C -ErrorAction Stop
-if ($p.DiskNumber -ne $cP.DiskNumber) {
-    throw 'Refusing to remove partition on a different disk than C:'
-}
-Remove-Partition -DriveLetter %s -Confirm:$false
-$supported = Get-PartitionSupportedSize -DriveLetter C
-Resize-Partition -DriveLetter C -Size $supported.SizeMax`, drive, drive, drive, drive)
-	out, err := runPowerShellOutput(script)
+	declaration, err := partitionReceiptPowerShell(receipt)
+	if err != nil {
+		return err
+	}
+	if drive != "" && (len(drive) != 1 || drive[0] < 'A' || drive[0] > 'Z' || drive == "C") {
+		return fmt.Errorf("invalid partition removal drive")
+	}
+	// A request/intent is not proof of deletion. Persist a second receipt only
+	// after the actual helper has positively observed the bound GUID disappear.
+	if err := verifyPartitionRemovalMarker(receipt, ".deleted"); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("deletion receipt is unsafe or mismatched: %w", err)
+		}
+		out, removalErr := runPowerShellOutput(partitionPolicyScript + "\n" + declaration + "Remove-WootcCreatedPartition -Drive '" + drive + "' -Receipt $receipt -ExplicitRemoval -DeferExtension")
+		if removalErr != nil {
+			return fmt.Errorf("partition deletion not verified: %w (output: %s)", removalErr, strings.TrimSpace(out))
+		}
+		if strings.TrimSpace(out) != "partition-removal-observed" {
+			return fmt.Errorf("partition deletion was not positively observed")
+		}
+		path, err := storagePartitionReceiptPath(false)
+		if err != nil {
+			return err
+		}
+		if err := persistNewStoragePartitionReceipt(path+".deleted", receipt); err != nil {
+			return fmt.Errorf("partition deleted but durable deletion observation could not be retained: %w", err)
+		}
+	}
+	out, err := runPowerShellOutput(partitionPolicyScript + "\n" + declaration + "Remove-WootcCreatedPartition -Drive '' -Receipt $receipt -ExplicitRemoval -AllowExtensionRetry")
 	if err != nil {
 		return fmt.Errorf("%w (output: %s)", err, strings.TrimSpace(out))
 	}
+	if strings.TrimSpace(out) != "partition-removal-and-extension-verified" {
+		return fmt.Errorf("partition deletion and Windows extension were not positively observed")
+	}
+
 	return nil
 }
 
@@ -187,45 +217,20 @@ Resize-Partition -DriveLetter C -Size $supported.SizeMax`, drive, drive, drive, 
 //   - allocate with SetLength (sparse on NTFS, instant), and
 //   - extend the Valid Data Length with `fsutil file setvaliddata` —
 //     without it the Linux ntfs3 driver EIOs on every loop0 write past VDL.
+func requireNewInstallRootDisk() error {
+	return requireNewRootDiskPath(filepath.Join(wootcDir(), "disks", "root.disk"))
+}
+
 func createRootDisk(sizeGB int) error {
+	if sizeGB <= 0 || int64(sizeGB) > (int64(1<<63-1)/(1024*1024*1024)) {
+		return fmt.Errorf("root.disk size is invalid")
+	}
 	path := filepath.Join(wootcDir(), "disks", "root.disk")
 	sizeBytes := int64(sizeGB) * 1024 * 1024 * 1024
-	if st, err := os.Stat(path); err == nil && st.Size() == sizeBytes {
-		return nil // already exists at the right size
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create disks dir: %w", err)
-	}
-	_ = os.Remove(path)
-
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("create root.disk: %w", err)
-	}
-	if err := f.Truncate(sizeBytes); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("allocate root.disk (%d GB): %w", sizeGB, err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close root.disk: %w", err)
-	}
-
-	// setvaliddata needs SeManageVolumePrivilege — held by elevated admins.
-	if out, err := runCmd("fsutil", "file", "setvaliddata", path,
-		fmt.Sprintf("%d", sizeBytes)); err != nil {
-		return fmt.Errorf("fsutil setvaliddata (VDL extension): %w: %s", err, strings.TrimSpace(out))
-	}
-
-	// Two distinct failures, reported separately. Folding them into one branch
-	// dereferenced a nil st whenever Stat itself failed — so the path that runs
-	// ONLY when disk creation has already gone wrong panicked instead of saying
-	// what went wrong (#191).
-	st, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("root.disk verification failed: cannot stat %s: %w", path, err)
-	}
-	if st.Size() != sizeBytes {
-		return fmt.Errorf("root.disk verification failed: got %d bytes, want %d", st.Size(), sizeBytes)
-	}
-	return nil
+	return allocateNewRootDiskFile(path, sizeBytes, func(path string) error {
+		if out, err := runCmd("fsutil", "file", "setvaliddata", path, fmt.Sprintf("%d", sizeBytes)); err != nil {
+			return fmt.Errorf("fsutil setvaliddata (VDL extension): %w: %s", err, strings.TrimSpace(out))
+		}
+		return nil
+	})
 }

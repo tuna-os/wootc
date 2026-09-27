@@ -15,6 +15,7 @@ depends() {
 install() {
     # dracut generates /init itself; run the deployer once networking is online.
     inst /usr/bin/wootc-deploy
+    inst_simple /usr/libexec/wootc-steps.sh
     # dracut defines moddir before invoking module install hooks.
     # shellcheck disable=SC2154
     inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh

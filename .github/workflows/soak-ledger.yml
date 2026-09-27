@@ -1,0 +1,67 @@
+name: Native soak ledger
+on:
+  workflow_run:
+    workflows: ['E2E GUI-driven (publish timelapse)']
+    types: [completed]
+  schedule:
+    - cron: '25 9 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-soak-ledger
+  cancel-in-progress: false
+jobs:
+  record:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      issues: read
+      contents: write
+    steps:
+      # Always execute trusted main code, never the completed run's checkout.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+      - name: Read retained attempts
+        run: |
+          mkdir -p /tmp/soak-old
+          if git ls-remote --exit-code --heads origin soak-ledger >/dev/null; then
+            git fetch --depth=1 origin soak-ledger
+            git show FETCH_HEAD:attempts.json > /tmp/soak-old/attempts.json
+          else
+            printf '[]\n' > /tmp/soak-old/attempts.json
+          fi
+      - name: Verify and summarize GitHub evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WOOTC_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 tools/soak/ledger.py --repo "$WOOTC_REPOSITORY" \
+            --config tools/soak/config.json --state /tmp/soak-old/attempts.json --output /tmp/soak-new
+          cp tools/soak/config.json /tmp/soak-new/config.json
+          git rev-parse HEAD > /tmp/soak-new/collector-source.txt
+          cat /tmp/soak-new/soak.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish append-only attempt history
+        env:
+          WOOTC_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          if git ls-remote --exit-code --heads origin soak-ledger >/dev/null; then
+            git fetch --depth=1 origin soak-ledger
+            git worktree add /tmp/soak-publish FETCH_HEAD
+          else
+            git worktree add --detach /tmp/soak-publish HEAD
+            git -C /tmp/soak-publish checkout --orphan soak-ledger
+            git -C /tmp/soak-publish rm -rf .
+          fi
+          cp /tmp/soak-new/* /tmp/soak-publish/
+          git -C /tmp/soak-publish add attempts.json summary.json soak.md config.json collector-source.txt prerequisites.json
+          if ! git -C /tmp/soak-publish diff --cached --quiet; then
+            git -C /tmp/soak-publish commit -m 'Record native GUI soak attempts'
+            git -C /tmp/soak-publish push origin HEAD:soak-ledger
+          fi

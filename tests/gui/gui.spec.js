@@ -5,6 +5,7 @@
 // checks.
 
 import { test, expect } from '@playwright/test';
+import { INSTALLER_STEP_DEFINITIONS } from './step-catalogue-gen.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -16,7 +17,8 @@ const mockSrc = fs.readFileSync(path.join(dir, 'mock-backend.js'), 'utf8');
 
 // Load the app with a given mock config injected before any script runs.
 async function boot(page, mock) {
-  await page.addInitScript((m) => { window.__WOOTC_MOCK = m; }, mock);
+  await page.addInitScript((m) => { window.__WOOTC_MOCK = m; },
+    { ...mock, stepCatalogue: mock.stepCatalogue ?? INSTALLER_STEP_DEFINITIONS });
   await page.addInitScript({ content: mockSrc });
   await page.goto('/');
 }
@@ -571,4 +573,40 @@ test('first-boot UI receipt rejects independently observed facts that differ', a
   const receipt = await requestBootProof(page, { ...UI_BOOT_FACTS, sourceImageRef: 'wrong-image' });
   expect(receipt.passed).toBe(false);
   expect(receipt.errors).toContain('Rendered sourceImageRef differs from this boot');
+});
+
+test('progress uses backend labels while phase IDs remain stable', async ({ page }) => {
+  const id = INSTALLER_STEP_DEFINITIONS[0].id;
+  const label = '<img src=x onerror=window.stepInjected=true> A changed backend label';
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    stepCatalogue: INSTALLER_STEP_DEFINITIONS.map(step => step.id === id ? { ...step, label } : step),
+    installSteps: [{ step: 'a legacy label that must not select the step', phaseId: id, message: label, percent: 2 }],
+    stepDelay: 10000 });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2'); await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.step-item.active')).toHaveText(label);
+  await expect(page.locator('.step-item.active')).toHaveAttribute('data-phase-id', id);
+  await expect(page.locator('.step-item.active img')).toHaveCount(0);
+  expect(await page.evaluate(() => window.stepInjected)).toBeUndefined();
+});
+
+for (const stepCatalogue of [[], [{ id: 'duplicate', owner: 'installer', label: 'one' },
+                                { id: 'duplicate', owner: 'installer', label: 'two' }]]) {
+  test(`invalid backend catalogue cannot silently use a handwritten fallback (${stepCatalogue.length})`, async ({ page }) => {
+    await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, stepCatalogue });
+    await expect(page.locator('#app')).toContainText('could not load its step catalogue');
+    await expect(page.locator('#install-btn')).toHaveCount(0);
+  });
+}
+
+test('last-run phase display uses its backend label safely', async ({ page }) => {
+  const id = INSTALLER_STEP_DEFINITIONS[0].id;
+  const label = '<img src=x onerror=window.phaseInjected=true> Changed recovery label';
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    stepCatalogue: INSTALLER_STEP_DEFINITIONS.map(step => step.id === id ? { ...step, label } : step),
+    lastRun: { state: 'failed', phaseId: id, phase: 'legacy diagnostic' } });
+  await expect(page.locator('body')).toContainText(label);
+  expect(await page.evaluate(() => window.phaseInjected)).toBeUndefined();
 });

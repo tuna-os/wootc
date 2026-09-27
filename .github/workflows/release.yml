@@ -62,7 +62,7 @@ jobs:
       - uses: ./.github/actions/podman-runtime
       - run: bash tests/migration/test-bridge.sh
 
-  # ── 2. the gate: a real Windows VM migrates to Linux and back ─────────────
+  # ── 2. the gate: GUI native install and graduation from Windows ───────────
   e2e-gate:
     name: E2E gate (real Windows VM)
     needs: tests
@@ -306,17 +306,18 @@ jobs:
             if [ "${{ steps.chan.outputs.channel }}" = "auto" ]; then
               echo "Automated pre-release, cut from the exact commit the nightly"
               echo "GUI-driven E2E just proved: a real Windows 11 VM installed this"
-              echo "build through the GUI, booted natively into Linux from"
-              echo "\`root.disk\`, and returned to Windows cleanly."
+              echo "build through the GUI and booted natively into Linux."
+              echo "See the gate run for its selected stages and final OS."
               echo
               echo "Gate run: ${{ github.event.workflow_run.html_url }}"
             elif [ "${{ inputs.skip_e2e }}" = "true" ]; then
               echo "> ⚠️ **Published WITHOUT the E2E gate** (\`skip_e2e\`). Not verified"
               echo "> against a real Windows VM."
             else
-              echo "Gated on a full end-to-end run: a real Windows 11 VM installed"
-              echo "this build, booted natively into Linux from \`root.disk\`, and"
-              echo "returned to Windows cleanly."
+              echo "Gated on GUI native installation and graduation: a real"
+              echo "Windows 11 VM installed this build, booted Linux from"
+              echo "\`root.disk\`, then booted the graduated native disk."
+              echo "Gate run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             fi
             echo
             echo "One installer per distribution — every exe is the same engine"

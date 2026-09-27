@@ -26,6 +26,17 @@ home=$(getent passwd "$name" | cut -d: -f6)
 dst="$home/$folder"
 staging="$home/.wootc-convert-$folder.partial"
 
+# An existing native folder can contain work from an earlier conversion or
+# files hidden beneath the bind mount. Never merge/nest the staging copy into
+# it and then claim the Windows folder was converted.
+if ! mountpoint -q "$dst" 2>/dev/null && [[ -e "$dst" || -L "$dst" ]]; then
+    [[ -d "$dst" && ! -L "$dst" ]] || { log "ERROR: destination is not a native directory"; exit 2; }
+    [[ -z "$(find "$dst" -mindepth 1 -maxdepth 1 -print -quit)" ]] || {
+        log "ERROR: $dst already contains Linux files; preserving your work"
+        exit 2
+    }
+fi
+
 # Resolve the real Windows source path. The default below assumes the
 # Linux username matches the Windows profile name, but the single-user
 # fallback in wootc-mount-user-dirs may have bridged a profile with a
@@ -81,9 +92,14 @@ echo "PROGRESS 100"
 if mountpoint -q "$dst"; then
     umount "$dst"
 fi
-# $dst is now the (empty) mountpoint directory on the native filesystem.
-rmdir "$dst" 2>/dev/null || true
-mv "$staging" "$dst"
+# The mountpoint may expose pre-existing native files after unmount. A failed
+# removal must stop the conversion, retaining both those files and staging.
+if [[ -e "$dst" || -L "$dst" ]]; then
+    [[ -d "$dst" && ! -L "$dst" ]] || { log "ERROR: unsafe destination after unmount"; exit 2; }
+    rmdir -- "$dst" || { log "ERROR: native destination is not empty; conversion stopped"; exit 2; }
+fi
+# -T forbids nesting if another directory appears after the empty check.
+mv -T -- "$staging" "$dst"
 chown -R "$name:" "$dst"
 
 # 3. Record the conversion so wootc-mount-user-dirs stops bridging it.

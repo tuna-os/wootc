@@ -67,6 +67,7 @@ type InstallConfig struct {
 
 // ProgressEvent is emitted during install for the frontend progress bar.
 type ProgressEvent struct {
+	PhaseID string  `json:"phaseId,omitempty"`
 	Step    string  `json:"step"`
 	Message string  `json:"message"`
 	Percent float64 `json:"percent"`

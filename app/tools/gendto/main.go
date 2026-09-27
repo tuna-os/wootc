@@ -24,6 +24,8 @@ var DTOStructs = []string{
 	"Image",
 	"InstallConfig",
 	"ProgressEvent",
+	"StepDefinition",
+	"RecoveryVerdict",
 	"InstallStatus",
 	"UninstallInfo",
 	"LinuxBootEvidence",
@@ -42,17 +44,17 @@ var DTOStructs = []string{
 }
 
 type StructField struct {
-	Name        string
-	GoType      string
-	JSONName    string
-	Omitempty   bool
-	DocComment  string
-	IsPointer   bool
-	IsSlice     bool
-	IsMap       bool
-	MapKeyType  string
-	MapValType  string
-	ElemType    string
+	Name       string
+	GoType     string
+	JSONName   string
+	Omitempty  bool
+	DocComment string
+	IsPointer  bool
+	IsSlice    bool
+	IsMap      bool
+	MapKeyType string
+	MapValType string
+	ElemType   string
 }
 
 type StructDef struct {
@@ -67,25 +69,25 @@ func toPascalCase(s string) string {
 	}
 	// Common acronym overrides
 	acronyms := map[string]string{
-		"id":         "Id",
-		"osVersion":  "OsVersion",
-		"freeDiskGB": "FreeDiskGB",
-		"totalDiskGB": "TotalDiskGB",
-		"bitLockerOn": "BitLockerOn",
+		"id":             "Id",
+		"osVersion":      "OsVersion",
+		"freeDiskGB":     "FreeDiskGB",
+		"totalDiskGB":    "TotalDiskGB",
+		"bitLockerOn":    "BitLockerOn",
 		"bitLockerState": "BitLockerState",
-		"isUefi":     "IsUefi",
-		"ramGB":      "RamGB",
-		"is64Bit":    "Is64Bit",
-		"diskSizeGB": "DiskSizeGB",
-		"reclaimGB":  "ReclaimGB",
-		"freeGB":     "FreeGB",
-		"composeFs":  "ComposeFs",
-		"mokEnroll":  "MokEnroll",
-		"logoDataUri": "LogoDataUri",
-		"fontDataUri": "FontDataUri",
-		"themeCss":   "ThemeCss",
-		"qemuPath":   "QemuPath",
-		"whpx":       "Whpx",
+		"isUefi":         "IsUefi",
+		"ramGB":          "RamGB",
+		"is64Bit":        "Is64Bit",
+		"diskSizeGB":     "DiskSizeGB",
+		"reclaimGB":      "ReclaimGB",
+		"freeGB":         "FreeGB",
+		"composeFs":      "ComposeFs",
+		"mokEnroll":      "MokEnroll",
+		"logoDataUri":    "LogoDataUri",
+		"fontDataUri":    "FontDataUri",
+		"themeCss":       "ThemeCss",
+		"qemuPath":       "QemuPath",
+		"whpx":           "Whpx",
 	}
 	if v, ok := acronyms[s]; ok {
 		return v
@@ -240,17 +242,17 @@ func parsePackageStructs(appDir string) (map[string]StructDef, error) {
 
 						for _, name := range field.Names {
 							def.Fields = append(def.Fields, StructField{
-								Name:        name.Name,
-								GoType:      goType,
-								JSONName:    jsonName,
-								Omitempty:   omitempty,
-								DocComment:  fieldDoc,
-								IsPointer:   isPtr,
-								IsSlice:     isSlice,
-								IsMap:       isMap,
-								MapKeyType:  kType,
-								MapValType:  vType,
-								ElemType:    eType,
+								Name:       name.Name,
+								GoType:     goType,
+								JSONName:   jsonName,
+								Omitempty:  omitempty,
+								DocComment: fieldDoc,
+								IsPointer:  isPtr,
+								IsSlice:    isSlice,
+								IsMap:      isMap,
+								MapKeyType: kType,
+								MapValType: vType,
+								ElemType:   eType,
 							})
 						}
 					}

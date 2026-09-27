@@ -1,0 +1,51 @@
+BINARY_SHA256 66b145ebd63be33cc28b0226c797700aed3628c8f02954d6ae2d8f76d976f380
+SOURCE app/esp_cleanup.go SHA256 7b600abe4afed7ab329b2e6177d27d3457ac37484aab3f29c39651eeb5140990
+SOURCE app/esp_cleanup_test.go SHA256 06723520948ec5bfc4618ad9cb7c1642bf3c82ffd6d2a419b171f07fa478e99a
+SOURCE app/esp_ownership.go SHA256 8c76409519216e77add404649020f977b4e19d0b23fa82028386b1268c3d4937
+SOURCE app/installer_windows.go SHA256 68aba6d8aca3fe7a3d857e661847fb87853debd41debc2380076ebad3c0a4a40
+=== RUN   TestESPCleanupPreservesForeignNeighbours
+=== RUN   TestESPCleanupPreservesForeignNeighbours/manifest
+=== RUN   TestESPCleanupPreservesForeignNeighbours/legacy
+--- PASS: TestESPCleanupPreservesForeignNeighbours (0.10s)
+    --- PASS: TestESPCleanupPreservesForeignNeighbours/manifest (0.06s)
+    --- PASS: TestESPCleanupPreservesForeignNeighbours/legacy (0.04s)
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/../outside
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/EFI/wootc/../../Microsoft/Boot/bootmgfw.efi
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects//EFI/wootc/owned
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/C:\EFI\wootc\owned
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/\\server\EFI\wootc\owned
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/EFI//wootc/owned
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/EFI/wootc/file.
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/EFI/wootc/file:stream
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/EFI/Microsoft/Boot/bootmgfw.efi
+=== RUN   TestESPCleanupInvalidManifestHasNoSideEffects/efi/wootc/owned_
+--- PASS: TestESPCleanupInvalidManifestHasNoSideEffects (0.10s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/../outside (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/EFI/wootc/../../Microsoft/Boot/bootmgfw.efi (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects//EFI/wootc/owned (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/C:\EFI\wootc\owned (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/\\server\EFI\wootc\owned (0.02s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/EFI//wootc/owned (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/EFI/wootc/file. (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/EFI/wootc/file:stream (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/EFI/Microsoft/Boot/bootmgfw.efi (0.01s)
+    --- PASS: TestESPCleanupInvalidManifestHasNoSideEffects/efi/wootc/owned_ (0.01s)
+=== RUN   TestESPCleanupRejectsDirectoryClaims
+--- PASS: TestESPCleanupRejectsDirectoryClaims (0.01s)
+=== RUN   TestESPCleanupRetainsManifestOnFailureAndRetries
+--- PASS: TestESPCleanupRetainsManifestOnFailureAndRetries (0.03s)
+=== RUN   TestESPCleanupDoesNotTrustRemovalReturnCode
+--- PASS: TestESPCleanupDoesNotTrustRemovalReturnCode (0.02s)
+=== RUN   TestESPCleanupRejectsSymlinks
+--- PASS: TestESPCleanupRejectsSymlinks (0.01s)
+=== RUN   TestESPCleanupResolvesManifestCaseAndLeavesForeignOnlyStatus
+--- PASS: TestESPCleanupResolvesManifestCaseAndLeavesForeignOnlyStatus (0.02s)
+=== RUN   TestESPCleanupRejectsAmbiguousCase
+    esp_cleanup_test.go:176: filesystem is case-insensitive
+--- SKIP: TestESPCleanupRejectsAmbiguousCase (0.01s)
+=== RUN   TestESPCleanupRechecksCompletePlanBeforeRemovingManifest
+--- PASS: TestESPCleanupRechecksCompletePlanBeforeRemovingManifest (0.02s)
+=== RUN   TestESPCleanupModernManifestDoesNotClaimConventionalNeighbours
+--- PASS: TestESPCleanupModernManifestDoesNotClaimConventionalNeighbours (0.06s)
+PASS
