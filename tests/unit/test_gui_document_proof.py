@@ -2,7 +2,6 @@
 """Exercise the GUI acceptance gate with observable failures, not string guards."""
 import hashlib
 import importlib.util
-import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -169,9 +168,14 @@ class TransportTests(unittest.TestCase):
     def test_positive_linux_identity_is_required(self):
         transport = module.Transport('runtime', 'fixture', 'document', SEED, Path('/tmp'))
         transport.command = lambda args, seconds=45: ''
-        transport.qga = lambda *args: 'Windows_NT' if '/usr/bin/uname' in args else ''
+        calls = []
+        def qga(*args):
+            calls.append(args)
+            return 'Windows_NT' if '/usr/bin/uname' in args else ''
+        transport.qga = qga
         with self.assertRaisesRegex(RuntimeError, 'positive Linux'):
             transport.stage()
+        self.assertEqual(calls, [('exec', '/usr/bin/uname', '-s')])
 
 
 if __name__ == '__main__':

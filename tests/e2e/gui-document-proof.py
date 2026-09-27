@@ -127,14 +127,14 @@ class Transport:
         return self.command([self.runtime, "exec", self.container, "python3", "/tmp/qga.py", *args])
 
     def stage(self):
+        identity = self.qga("exec", "/usr/bin/uname", "-s").strip()
+        if identity != "Linux":
+            raise RuntimeError("GUI editor gate requires positive Linux identity")
         source = Path(__file__).with_name("gui-document-guest.py")
         local = "/tmp/wootc-e2e-gui-document.py"
         self.command([self.runtime, "cp", str(source), f"{self.container}:{local}"])
         self.qga("write", local, self.guest)
         self.qga("exec", "/bin/chmod", "0644", self.guest)
-        identity = self.qga("exec", "/usr/bin/uname", "-s").strip()
-        if identity != "Linux":
-            raise RuntimeError("GUI editor gate requires positive Linux identity")
 
     def observe(self, action):
         args = ["/usr/bin/python3", self.guest, action, "--path", self.path, "--seed", self.seed]
