@@ -15,6 +15,23 @@ public sealed class DiagnosticTests
         Assert.Equal(expected, NativeEngineSession.RpcStage(method));
 
     [Fact]
+    public void LatestCleanupProjectionRetainsOnlyBoundedWhitelistedPrimaryFailure()
+    {
+        const string publicSecret = "111111-111111-111111-111111-111111-111111-111111-111111";
+        var state = new NativeDiagnosticState();
+        state.Project("rpc-status-response", new OperationCanceledException(publicSecret), null);
+        string latest = state.Project("session-cleanup-exited", null, null);
+        Assert.Contains("PrimaryRpc:rpc-status-response; Failure:deadline", latest);
+        Assert.DoesNotContain(publicSecret, latest);
+        for (int index = 0; index < 100; index++)
+            latest = state.Project(publicSecret, new Exception(publicSecret), null);
+        Assert.Contains("Stage:unknown", latest);
+        Assert.Contains("PrimaryRpc:rpc-status-response; Failure:deadline", latest);
+        Assert.DoesNotContain(publicSecret, latest);
+        Assert.InRange(latest.Length, 1, 299);
+    }
+
+    [Fact]
     public void FailureProjectionRetainsNumericClassAndExcludesExceptionMessages()
     {
         const string publicSecret = "111111-111111-111111-111111-111111-111111-111111-111111";

@@ -107,6 +107,7 @@ public sealed class TransportTests
     [InlineData("{\"running\":false,\"done\":false,\"existing\":false,\"existing\":true}")]
     public async Task ActualFramedMissingOrAmbiguousStatusCannotSelectFreshRoute(string result)
     {
+        const string expectedPrimary = "PrimaryRpc:rpc-status-decode; Failure:protocol";
         string name = "wootc-native-response-" + Guid.NewGuid().ToString("N");
         using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
@@ -115,7 +116,13 @@ public sealed class TransportTests
         await client.ConnectAsync(deadline.Token); await accepting;
         using var owned = Process.Start(new ProcessStartInfo("cmd.exe", "/c pause") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, CreateNoWindow = true })!;
         var observations = new List<string>();
-        var session = new NativeEngineSession(client, owned, (stage, error) => observations.Add($"{stage}; {NativeEngineConnector.DescribeFailure(error)}"));
+        var projector = new NativeDiagnosticState();
+        string latest = "";
+        var session = new NativeEngineSession(client, owned, (stage, error) =>
+        {
+            observations.Add($"{stage}; {NativeEngineConnector.DescribeFailure(error)}");
+            latest = projector.Project(stage, error, owned); // Same single latest consumer as UI HelpText.
+        });
         try
         {
             var startup = session.ReadStartupAsync(deadline.Token);
@@ -132,14 +139,19 @@ public sealed class TransportTests
         {
             owned.StandardInput.Close();
             await owned.WaitForExitAsync(deadline.Token);
+            int exitCode = owned.ExitCode;
             await session.DisposeAsync();
             Assert.Contains(observations, value => value.StartsWith("session-cleanup-exited; Failure:none", StringComparison.Ordinal));
+            Assert.Contains("Stage:session-cleanup-exited", latest);
+            Assert.Contains($"Engine:exited:{exitCode}", latest);
+            Assert.Contains(expectedPrimary, latest);
         }
     }
 
     [Fact]
     public async Task ActualPipeReplyDeadlineRetainsMethodAndCleanupExitObservations()
     {
+        const string expectedPrimary = "PrimaryRpc:rpc-status-response; Failure:deadline";
         string name = "wootc-native-deadline-" + Guid.NewGuid().ToString("N");
         using var server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         using var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
@@ -148,7 +160,13 @@ public sealed class TransportTests
         await client.ConnectAsync(fixtureDeadline.Token); await accepting;
         using var owned = Process.Start(new ProcessStartInfo("cmd.exe", "/c pause") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, CreateNoWindow = true })!;
         var observations = new List<string>();
-        var session = new NativeEngineSession(client, owned, (stage, error) => observations.Add($"{stage}; {NativeEngineConnector.DescribeFailure(error)}"));
+        var projector = new NativeDiagnosticState();
+        string latest = "";
+        var session = new NativeEngineSession(client, owned, (stage, error) =>
+        {
+            observations.Add($"{stage}; {NativeEngineConnector.DescribeFailure(error)}");
+            latest = projector.Project(stage, error, owned); // Same single latest consumer as UI HelpText.
+        });
         try
         {
             using var requestDeadline = new CancellationTokenSource();
@@ -165,8 +183,12 @@ public sealed class TransportTests
         {
             owned.StandardInput.Close();
             await owned.WaitForExitAsync(fixtureDeadline.Token);
+            int exitCode = owned.ExitCode;
             await session.DisposeAsync();
             Assert.Contains(observations, value => value.StartsWith("session-cleanup-exited; Failure:none", StringComparison.Ordinal));
+            Assert.Contains("Stage:session-cleanup-exited", latest);
+            Assert.Contains($"Engine:exited:{exitCode}", latest);
+            Assert.Contains(expectedPrimary, latest);
         }
     }
 

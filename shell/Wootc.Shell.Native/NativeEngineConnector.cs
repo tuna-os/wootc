@@ -13,6 +13,7 @@ public sealed class NativeEngineConnector : IEngineConnector
 {
     private readonly string directory;
     private readonly Action<string>? observe;
+    private NativeDiagnosticState diagnostic = new();
     public NativeEngineConnector(string directory, Action<string>? observe = null) { this.directory = directory; this.observe = observe; }
     internal static string DescribeFailure(Exception? error)
     {
@@ -21,13 +22,13 @@ public sealed class NativeEngineConnector : IEngineConnector
     }
     private void Observe(string stage, Exception? error = null, Process? engine = null)
     {
-        string process = engine is null ? "not-launched" : engine.HasExited ? $"exited:{engine.ExitCode}" : "retained-running";
-        observe?.Invoke($"Stage:{stage}; {DescribeFailure(error)}; Engine:{process}");
+        observe?.Invoke(diagnostic.Project(stage, error, engine));
     }
 
     public async Task<ConnectionAttempt> ConnectAsync(ConnectRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        diagnostic = new();
         if (!ProtectedPackage.LowerHex(request.SessionId, 32)) return new(ConnectionOutcome.Incompatible, Reason: "Invalid native session identity");
         Observe("package");
         var package = ProtectedPackage.Read(directory);
