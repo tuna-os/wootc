@@ -64,18 +64,20 @@ remains open; this run did not reach the deployer or Linux.
 
 The later [GUI run 36265248670](https://github.com/tuna-os/wootc/actions/runs/36265248670)
 passed on `7e13b976651893e3079959c76e8314a83652a39e` (2026-09-26).
-It restored Windows 11 with BitLocker off, repaired fixture password expiry,
-observed an interactive session, and clicked Install through the real Wails GUI.
-The deployer completed; installed Bluefin `lts` booted; graduation to a verified
-blank disk completed; the graduated system booted from a non-loop root and
-retained this run's seeded Windows Documents file. The failure ledger was empty
-and the passing timelapse was published. The retained
-[provenance and pass marker](experiments/evidence/2026-09-26-gui-native-cycle/provenance.json)
-bind that evidence to its source and artifact. This was a branch dispatch, not one of
-#399's three required scheduled passes on main. It does not prove the
-Windows-hosted VM journey, a GUI editor save, the new installed-boot record,
-or the WinUI shell. It also ended in graduated Linux, so it does not prove a
-Windows return after graduation. Later candidates still need their own gates.
+It restored Windows 11 with BitLocker off and repaired password expiry in the fixture.
+It observed an interactive session and clicked Install through the real Wails GUI.
+The deployer completed, then installed Bluefin `lts` booted.
+The run graduated Linux to a blank disk that the harness had verified.
+The graduated system booted from a non-loop root and retained this run's file from Windows Documents.
+
+The failure ledger was empty and the publish job uploaded the timelapse.
+The retained [provenance and pass marker](experiments/evidence/2026-09-26-gui-native-cycle/provenance.json)
+bind that evidence to its source and artifact.
+This was a branch dispatch; #399 requires three passes on the main schedule.
+It ended in graduated Linux, so it does not prove a Windows return after graduation.
+
+It does not prove the Windows-hosted VM journey, a GUI editor save, the new installed-boot record, or the WinUI shell.
+Later candidates still need their own gates.
 
 ## Build/test matrix
 
