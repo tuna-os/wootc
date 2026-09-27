@@ -2,6 +2,7 @@
 """Exercise stale and contradictory reports against the actual host parser."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import unittest
@@ -24,6 +25,27 @@ class GuiDriveReceiptTests(unittest.TestCase):
                      error=None, selectedRef=IMAGE, imageMismatch=False)
         value.update(changes)
         return json.dumps(value, separators=(',', ':'))
+
+    def test_actual_runner_read_gate_refuses_failed_or_stale_replies(self):
+        source = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        start = source.index("            if drive_raw=$(qga_read 'C:")
+        end = source.index('            fi', start) + len('            fi')
+        body = source[start:end]
+        def run(reply, status, code=body):
+            script = '\n'.join(['qga_read() { printf '%s' "$CASE_REPLY"; return "$CASE_STATUS"; }',
+                'drive_state=""', code, 'printf '%s' "$drive_state"'])
+            env = dict(os.environ, CASE_REPLY=reply, CASE_STATUS=str(status),
+                       SCRIPT_DIR=str(PARSER.parent), RUN_ID=RUN, drive_directive_id=DIRECTIVE, IMAGE_REF=IMAGE)
+            result = subprocess.run(['bash', '-c', script], env=env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return result.stdout
+        self.assertEqual(json.loads(run(self.receipt(), 0))['screen'], 'done')
+        self.assertEqual(run(self.receipt(), 1), '')
+        self.assertEqual(run(self.receipt(runId='stale'), 0), '')
+        self.assertEqual(run('{"screen":"done"}', 0), '')
+        condition = body.splitlines()[0]
+        mutation = body.replace(condition, condition.replace('if drive_raw=', 'drive_raw=').replace('; then', ' || true; if true; then'), 1)
+        self.assertEqual(json.loads(run(self.receipt(), 1, mutation))['screen'], 'done')
 
     def test_actual_frontend_produces_bound_install_and_refuses_changed_identity(self):
         result = subprocess.run(['node', str(ROOT / 'tests/unit/gui-drive-producer-controls.cjs'),
