@@ -1,0 +1,91 @@
+{
+  "validatedSourceCommit": "6be62ac2e8c31794dc4435d7804fea2fe9fae02c",
+  "fixture": "winbase-399",
+  "scope": "Actual embedded partition policy against mocked Storage cmdlets; actual disposable private-TEMP companion file deletion and receipt persistence. No real partition, BitLocker, ESP, BCD, boot, or installer-tree mutation.",
+  "logs": [
+    {
+      "name": "policy",
+      "guestExitCode": 0,
+      "rawSha256": "80d3d7fc852c06dfb345374bd976a328e5c4c863c2243e44f6f4be43d7e703b3",
+      "normalizedSha256": "bdaccb8bbe256e3993d4faa7df6dcb78a09d28b4dbcf0327cbd66f872faeb39d",
+      "normalization": "CRLF to LF only",
+      "invocationSha256": "ce4f520b521b940c4e709ccff74ef40e9999c20950edd58618157d55a0d90413"
+    },
+    {
+      "name": "receipt",
+      "guestExitCode": 0,
+      "rawSha256": "412000eb7685d13dc595f1b311d4f01c48e8b7497cfa79a414db9391f0e517e6",
+      "normalizedSha256": "918450e84f0a7ba899cb6225be604962239c2dc3c1d6898e6dc328c9bd1ac2a1",
+      "normalization": "CRLF to LF only",
+      "invocationSha256": "2cfd43c77fb2e7ade1a242b21360ad06282ba8c2d5ed0bdcd7f5efa6287a0e29"
+    }
+  ],
+  "powerShellSources": [
+    {
+      "source": "app/partition-policy.ps1",
+      "rawSha256": "f64658c0debd1c923712899c92307aebc0fa22ba0f3bdaacd73509d2ea5dea8c",
+      "stagedSha256": "491e6aaa31c3f5de4893b6ea1f18de257f0e3e7e2a2908cc9bb83fa198c4c078",
+      "name": "wootc-partition-policy-audit-61a937727971410f8ff07868f02aef30-0.ps1"
+    },
+    {
+      "source": "app/partition-policy.tests.ps1",
+      "rawSha256": "f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529",
+      "stagedSha256": "cbe4d3520ec898b1141b509a1aaece92abcf0ae0ed6a65ef0fb79275b42ce95c",
+      "name": "wootc-partition-policy-audit-61a937727971410f8ff07868f02aef30-1.ps1"
+    },
+    {
+      "source": "tests/lint-ps1.ps1",
+      "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8",
+      "name": "wootc-partition-policy-audit-61a937727971410f8ff07868f02aef30-2.ps1"
+    }
+  ],
+  "goSources": [
+    {
+      "path": "app/partition_receipt.go",
+      "sha256": "ef00cbc4d82eee5505f2b4889243f379eafd64d37059fa30b1a894e308038eda"
+    },
+    {
+      "path": "app/partition_receipt_test.go",
+      "sha256": "8879cbcb7878a006adf08612e5a5655f7b27fd6914c41b3c5d56ece92ee63e6c"
+    },
+    {
+      "path": "app/partition_receipt_windows.go",
+      "sha256": "388edbfa82f30ff47cd4bc8a4d76a33dd96ef2eb1ab007e61bf2f2ad888dc428"
+    },
+    {
+      "path": "app/partition-policy.ps1",
+      "sha256": "f64658c0debd1c923712899c92307aebc0fa22ba0f3bdaacd73509d2ea5dea8c"
+    },
+    {
+      "path": "app/partition-policy.tests.ps1",
+      "sha256": "f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529"
+    },
+    {
+      "path": "app/disk_windows.go",
+      "sha256": "ac20a59174fd0708353817dda26ba6c98af8d36352298ed4de131e58a836cc25"
+    },
+    {
+      "path": "app/app.go",
+      "sha256": "edfeacc2361c1a99d4aadb178fd31fabb56c158e08038ee4c6d94aba04a03bb9"
+    },
+    {
+      "path": "app/installer_windows.go",
+      "sha256": "c69a4fcefea36c5d15285af37f16482ce39571a1d55874254b0db8a96aac97fa"
+    }
+  ],
+  "binarySha256": "8c890dbffdb785f5014dbcddd3267566fffccdbe56d0d250c2f881b0c35f5720",
+  "sourcesArchiveSha256": "4fef897e199c98f615d88bbd17463a4992fd300664868665feced9615d0e8d56",
+  "positiveWindowsIdentity": "Windows_NT checked in both invocations",
+  "primarySources": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-partition",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-disk"
+  ],
+  "limitations": [
+    "Real partition removal and Windows extension are not tested here.",
+    "Creation uses existing shrink/UseMaximumSize behavior; exact extent selection and creation failure rollback remain open.",
+    "Unknown descendants, dynamic installer caches, system metadata and inaccessible enumeration refuse removal. Legacy installations without receipts are preserved.",
+    "BCD ownership and error propagation, power restoration and recovery task cleanup remain separate open audit work.",
+    "A lost deletion observation before durable .deleted persistence refuses automatic extension retry."
+  ]
+}

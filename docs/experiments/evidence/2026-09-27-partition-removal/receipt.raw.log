@@ -1,0 +1,32 @@
+BINARY_SHA256 8c890dbffdb785f5014dbcddd3267566fffccdbe56d0d250c2f881b0c35f5720
+SOURCE app/partition_receipt.go SHA256 ef00cbc4d82eee5505f2b4889243f379eafd64d37059fa30b1a894e308038eda
+SOURCE app/partition_receipt_test.go SHA256 8879cbcb7878a006adf08612e5a5655f7b27fd6914c41b3c5d56ece92ee63e6c
+SOURCE app/partition_receipt_windows.go SHA256 388edbfa82f30ff47cd4bc8a4d76a33dd96ef2eb1ab007e61bf2f2ad888dc428
+SOURCE app/partition-policy.ps1 SHA256 f64658c0debd1c923712899c92307aebc0fa22ba0f3bdaacd73509d2ea5dea8c
+SOURCE app/partition-policy.tests.ps1 SHA256 f22838384c52fbe83ad2b52b7ad1b721afc6d658f51ddc4c14bc5e74d88c4529
+SOURCE app/disk_windows.go SHA256 ac20a59174fd0708353817dda26ba6c98af8d36352298ed4de131e58a836cc25
+SOURCE app/app.go SHA256 edfeacc2361c1a99d4aadb178fd31fabb56c158e08038ee4c6d94aba04a03bb9
+SOURCE app/installer_windows.go SHA256 c69a4fcefea36c5d15285af37f16482ce39571a1d55874254b0db8a96aac97fa
+=== RUN   TestPartitionReceiptRequiresStableIdentity
+=== RUN   TestPartitionReceiptRequiresStableIdentity/size
+=== RUN   TestPartitionReceiptRequiresStableIdentity/timestamp
+=== RUN   TestPartitionReceiptRequiresStableIdentity/invalid_GUID
+=== RUN   TestPartitionReceiptRequiresStableIdentity/zero_GUID
+=== RUN   TestPartitionReceiptRequiresStableIdentity/Windows_target
+=== RUN   TestPartitionReceiptRequiresStableIdentity/different_disk
+=== RUN   TestPartitionReceiptRequiresStableIdentity/schema
+--- PASS: TestPartitionReceiptRequiresStableIdentity (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/size (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/timestamp (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/invalid_GUID (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/zero_GUID (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/Windows_target (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/different_disk (0.00s)
+    --- PASS: TestPartitionReceiptRequiresStableIdentity/schema (0.00s)
+=== RUN   TestPartitionReceiptRejectsMalformedRecords
+--- PASS: TestPartitionReceiptRejectsMalformedRecords (0.00s)
+=== RUN   TestPartitionReceiptPreservesExistingAuthority
+--- PASS: TestPartitionReceiptPreservesExistingAuthority (0.02s)
+=== RUN   TestPartitionReceiptDoesNotFollowExistingSymlink
+--- PASS: TestPartitionReceiptDoesNotFollowExistingSymlink (0.01s)
+PASS
