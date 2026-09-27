@@ -56,14 +56,14 @@ def exact_source_subtree(source, row):
         raise ValueError('retained source mount identity unavailable')
     source = Path(source)
     target = Path(row['target'])
-    if not target.is_absolute() or '..' in target.parts or '\\' in row['target'] or not re.fullmatch(r'[0-9]+:[0-9]+', row['maj:min']):
+    if not target.is_absolute() or str(target) != row['target'] or '..' in target.parts or '\\' in row['target'] or not re.fullmatch(r'[0-9]+:[0-9]+', row['maj:min']):
         raise ValueError('source mount identity malformed')
     relative = source.relative_to(target)
     match = re.fullmatch(r'([^\[\]\\\s]+)(?:\[(/[^\[\]\\\s]*)\])?', row['source'])
     if not match:
         raise ValueError('source subtree observation unsupported')
     root = Path(match[2] or '/')
-    if '..' in root.parts or '.' in root.parts:
+    if (match[2] is not None and str(root) != match[2]) or '..' in root.parts or '.' in root.parts:
         raise ValueError('source subtree is not canonical')
     return match[1] + '[' + str(root / relative) + ']'
 

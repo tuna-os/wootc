@@ -19,14 +19,25 @@ def protected_read(path):
     facts = path.lstat()
     if not stat.S_ISREG(facts.st_mode) or facts.st_size > MAX:
         raise ValueError('policy dependency is not a bounded regular file')
-    with path.open('rb') as stream:
-        value = stream.read(MAX + 1)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        opened = os.fstat(fd)
+        if (facts.st_dev, facts.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ValueError('policy inode changed before read')
+        value = bytearray()
+        while len(value) <= MAX:
+            part = os.read(fd, min(4096, MAX + 1 - len(value)))
+            if not part:
+                break
+            value.extend(part)
+    finally:
+        os.close(fd)
     if len(value) > MAX:
         raise ValueError('policy dependency grew beyond bound')
     after = path.lstat()
     if (facts.st_dev, facts.st_ino, facts.st_mtime_ns, facts.st_size) != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_size):
         raise ValueError('policy changed during observation')
-    return value
+    return bytes(value)
 
 
 def read_optional(path):

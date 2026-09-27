@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
+import tempfile
 import unittest
 from unittest import mock
 
@@ -27,6 +28,22 @@ class PolicyControls(unittest.TestCase):
     def test_actual_unprotected_namespace_refuses(self):
         # /tmp is actually writable by ordinary users; no metadata mocks here.
         with self.assertRaises(ValueError):policy.validate_persistence('/tmp',['options rw'])
+    def test_actual_opened_inode_must_match_retained_policy(self):
+        with tempfile.TemporaryDirectory(prefix='wootc-policy-inode-') as tmp:
+            root=Path(tmp);root.chmod(0o755)
+            path=root/'policy';foreign=root/'foreign'
+            for file in [path,foreign]:file.write_bytes(b'known policy');file.chmod(0o644)
+            actual=Path.lstat
+            def facts(file):
+                stat=actual(file);values={key:getattr(stat,key) for key in dir(stat) if key.startswith('st_')};values['st_uid']=0
+                if str(file)=='/tmp':values['st_mode']=0o40755
+                return SimpleNamespace(**values)
+            with mock.patch.object(Path,'lstat',facts):
+                self.assertEqual(policy.protected_read(path),b'known policy')
+                actual_open=policy.os.open
+                with mock.patch.object(policy.os,'open',side_effect=lambda p,f:actual_open(foreign,f)):
+                    with self.assertRaisesRegex(ValueError,'inode changed'):policy.protected_read(path)
+
     def test_real_link_dependency_refuses(self):
         with self.assertRaises(ValueError):policy.protected_read('/proc/self/exe')
 
