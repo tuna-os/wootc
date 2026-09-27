@@ -89,7 +89,8 @@ def execute(folder,env=None,load=runpy.run_path,measure_closure=closure):
     record={'schemaVersion':1,'sourceCommit':(os.environ if env is None else env).get('GITHUB_SHA'),
             'runId':(os.environ if env is None else env)['GITHUB_RUN_ID'],
             'runAttempt':(os.environ if env is None else env)['GITHUB_RUN_ATTEMPT'],
-            'runtimeExecuted':False,'packageInstallationAccepted':False,
+            'executionRequested':False,'processStarted':False,'runtimeExecuted':False,
+            'guestBaselineObserved':False,'packageInstallationAccepted':False,
             'firmwareAcceptance':False,'classicOsBootAcceptance':False}
     def save():(folder/'execution.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
     save()
@@ -102,9 +103,15 @@ def execute(folder,env=None,load=runpy.run_path,measure_closure=closure):
         load(str(HERE/'prepare.py'))['prepare'](folder/'inputs',folder/'guest')
         unchanged(record['hostClosure'])
         launcher=load(str(HERE/'launch.py'))
-        record['runtimeExecuted']=True;save()
-        result=launcher['launch'](folder/'guest',launcher['readback'],launcher['acknowledge'])
-        if result.get('packageInstallationAccepted') is not True:raise ValueError('actual package proof absent')
+        record['executionRequested']=True;save()
+        def started(identity):
+            record.update(processStarted=True,runtimeExecuted=True,ownedProcessIdentity=identity);save()
+        def baseline():
+            record['guestBaselineObserved']=True;save()
+        result=launcher['launch'](folder/'guest',launcher['readback'],launcher['acknowledge'],
+                                 on_started=started,on_baseline=baseline)
+        if (not record['processStarted'] or not record['guestBaselineObserved'] or
+                result.get('packageInstallationAccepted') is not True):raise ValueError('actual package proof absent')
         record['packageInstallationAccepted']=True;save()
         return record
     except BaseException as error:

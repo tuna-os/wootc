@@ -49,7 +49,7 @@ jobs:
           from pathlib import Path
           for path in Path('/proc').glob('[0-9]*/comm'):
               try: name=path.read_text().strip()
-              except FileNotFoundError: continue
+              except (FileNotFoundError,ProcessLookupError): continue
               if name.startswith(('qemu','swtpm')): raise SystemExit('existing VM process: refuse reclaim')
           PY
       - name: Reclaim only preinstalled toolchains before any owned VM

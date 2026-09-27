@@ -17,14 +17,16 @@ class HostedTests(unittest.TestCase):
 
     def load(self,name):
         phase=Path(name).stem
-        def action(*args):
+        def action(*args,**kwargs):
             self.calls.append(phase)
             if self.fail==phase:raise InterruptedError('owned cancellation fixture')
             if phase=='qualify':
                 value={'qualified':self.qualified};Path(args[1]).write_text(json.dumps(value));return value
             if phase in ('acquire','prepare'):
                 args[0 if phase=='acquire' else 1].mkdir();return {}
-            if phase=='launch':return {'packageInstallationAccepted':True}
+            if phase=='launch':
+                kwargs['on_started']({'fixtureOwnedIdentity':True});kwargs['on_baseline']()
+                return {'packageInstallationAccepted':True}
         key={'qualify':'qualify','acquire':'acquire','prepare':'prepare','launch':'launch'}[phase]
         return {key:action,'readback':None,'acknowledge':None}
 
@@ -55,6 +57,14 @@ class HostedTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.execute()
         self.assertEqual(self.calls,['qualify'])
         self.assertTrue((self.folder/'artifacts'/'owned-execution.json').exists())
+
+    def test_failed_launcher_never_claims_process_or_guest_execution(self):
+        self.fail='launch'
+        with self.assertRaises(InterruptedError):self.execute()
+        record=json.loads((self.folder/'execution.json').read_text())
+        self.assertTrue(record['executionRequested'])
+        for field in ('runtimeExecuted','processStarted','guestBaselineObserved','packageInstallationAccepted'):
+            self.assertFalse(record[field])
 
     def test_existing_owned_stage_is_never_reused_or_removed(self):
         self.folder.mkdir();(self.folder/'foreign').write_text('preserve')

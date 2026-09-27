@@ -16,16 +16,19 @@
   "classicOsBootAcceptance": false,
   "firmwareAcceptance": false,
   "hostedExecutionDispatched": false,
-  "nativeControls": 60,
+  "nativeControls": 65,
   "packageInstallationAccepted": false,
   "parentReviewedSource": "84dcb71",
   "runtimeExecuted": false,
   "schemaVersion": 1,
   "scope": "source route and fixtures only; no hosted qualification, seed, VM, or guest package installation",
   "sourceHashes": {
-    ".github/workflows/linux-package-execute.yml": "8acfe1d4aa5d1ff559ee3b1d6fd30fd45fe9ae6a65eab8f5c905244abb0d0a89",
-    "docs/experiments/evidence/2026-09-27-linux-package-hosted-route/controls.log": "188b385a036cfc9bd942e35021a2d15130b4286f25b31ecc1652085a9cb9239b",
-    "tests/e2e/package-runtime/hosted-execute.py": "4993cd1e009fea6747abaaf6771dc84119d7cf6f60a7964ab3946426cebba8c8",
-    "tests/unit/test_linux_package_hosted.py": "27984bebe50ddd8a032e2c2c163df3902c409f374009bc56471407218bca7135"
-  }
+    ".github/workflows/linux-package-execute.yml": "6ff5e81b64b9559d7275e39a4a1f45fd2fee857b6c1f8e1c5ed11c5ea7d2c24e",
+    "docs/experiments/evidence/2026-09-27-linux-package-hosted-route/controls.log": "8ac5eec53367aaa4191587ced5a73837afdebfa436d91e4dcee5e5e989634323",
+    "tests/e2e/package-runtime/hosted-execute.py": "ffad47b8d064394b039df9759ad9d4389b88db3feafe90e30c5e0e47314366a5",
+    "tests/e2e/package-runtime/launch.py": "857f053fb3c92b071f09acb113fa0a235ceb9ccbb998e0901bca90b1d48f7bfb",
+    "tests/unit/test_linux_package_hosted.py": "486fd37629cd8fd27be26761937c5dc021474407b692254213a8e0d8dfd40ced",
+    "tests/unit/test_linux_package_launcher.py": "c1e544e1d3278930389041b923661027a940a9f561ad1e99e40037bee6da9784"
+  },
+  "truthfulPhaseContract": "executionRequested is intent; processStarted/runtimeExecuted require Popen and positively observed owned identity; guestBaselineObserved requires validated sameboot typed guest baseline; package acceptance requires independent old/new QGA observations"
 }
