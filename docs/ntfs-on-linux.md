@@ -141,29 +141,34 @@ E2E-verified).
 
 ## Linux access to the Windows volume
 
-During boot from `root.disk`, the writable host mount stays under
-`/run/initramfs`, which has mode `0700`.
-The public `/run/wootc/host` view is read-only. An empty private mount hides
-`wootc` installer directories, including state files and recovery keys.
-The service prepares the masks and read-only flag before it publishes the
-view. Failure stops the service before publication.
+When Linux runs from `root.disk`, it mounts the Windows volume at
+`/run/initramfs`. Only root can access this path.
+The system also publishes `/run/wootc/host` for Linux users. They can read this
+view but cannot write to it.
 
-Root services use the private path for lifecycle records and key cleanup.
-Selected user folders bind from that path into a Linux home with mode `0700`.
-The kernel NTFS driver uses `umask=000`, matching the FUSE driver access needed
-for these selected folder writes. Redirects to the volume root or installer
-state are refused. The file-manager bookmark says “Windows drive (read-only)”.
-This protects installer state and keys. The public view can still read other
-Windows files; it does not implement Windows per-user read permissions.
-The separate `wootc-import` path for external disks does not yet use this
-private view. Do not assume that it hides installer data on an imported disk.
+A mask hides the `wootc` directory in this view. This hides installer state
+and recovery keys. The service sets the mask and read-only flag before it
+publishes the view. If setup fails, it does not publish the view.
 
-`tests/integration/linux-state-boundary.sh DRIVER FIXTURE.vhd` exercises the
-actual mount and folder-binding functions in a private mount namespace. It
-copies a disposable Windows VHD before use. The fixture must contain
-`wootc/state.json`, `wootc/install`, and `Users/fixture/Documents`.
-Tests cover selected-folder writes, a second account, hidden keys, root writes,
-and clean unmount. Removing each protection must expose its matching failure.
+Root services use the private path to write lifecycle records and remove keys.
+The bridge adds selected Windows folders to each Linux user's home.
+Each home has mode `0700`, so another user cannot read or write those files.
+The NTFS mount sets `umask=000` for `ntfs3`, `ntfs-3g`, and the legacy `ntfs`
+driver.
+
+The installer rejects redirects to the volume root, state files, or another
+disk. The file manager shows the Windows path as read-only.
+This view still lets a Linux user read other Windows files. It does not copy
+Windows read rules for each user. The `wootc-import` command for an external
+disk does not use this view. Do not use it to hide installer data on that disk.
+
+Run `tests/integration/linux-state-boundary.sh DRIVER FIXTURE.vhd` to test the
+mount and folder functions. The script copies a disposable Windows VHD before
+it mounts the copy. The VHD must contain `wootc/state.json`, `wootc/install`,
+and `Users/fixture/Documents`.
+The tests check writes by the selected user, a second account, hidden keys,
+writes by root, and clean unmount. Each test must fail if the script drops its
+protection.
 
 ## Residual risk, stated plainly
 
