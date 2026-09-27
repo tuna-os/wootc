@@ -10,6 +10,7 @@
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Platforms>x64</Platforms>
+    <NativeBrandId Condition="'$(NativeBrandId)' == ''">wootc</NativeBrandId>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
@@ -17,7 +18,7 @@
     <ProjectReference Include="../Wootc.Shell.Core/Wootc.Shell.Core.csproj" />
     <ProjectReference Include="../Wootc.Shell.Native/Wootc.Shell.Native.csproj" />
     <Compile Remove="Engine/Dto.cs" />
-    <Content Include="../../app/branding/wootc/brand.json" Link="Branding/brand.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../app/branding/$(NativeBrandId)/brand.json" Link="Branding/brand.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <!-- Unpackaged MRT Core currently generates the app PRI without publishing it.
        Keep the generated resource index beside the executable, not only SDK PRIs. -->
