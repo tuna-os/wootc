@@ -172,3 +172,24 @@ The release guide said that the Wails installers have no runtime dependencies.
 The first-screen guide said there is nothing to install.
 The current Wails interface needs WebView2. The GUI path in E2E checks for that runtime and installs it if absent.
 Both guides now disclose that dependency. A fifth check pins it to the actual bootstrap command and registry check.
+
+## Roadmap claims and English pass — 2026-09-27, against `323b7ba`
+
+The roadmap still said phases B–E had not started. A draft native preview now
+has hosted component proof. Complete native consumer and VM journeys remain unproved.
+It also listed console flash as an active defect; maintainers closed issue #179.
+These status corrections do not certify the replacement shell.
+
+The history implied that current uninstall restores the machine. Cleanup can fail.
+Restoration remains a 1.0 requirement that needs evidence.
+The RC list also treated a signature as a guarantee against SmartScreen.
+The roadmap now needs a separate fresh-machine observation, as the startup guide does.
+The goal of a first launch through that gate remains unchanged.
+
+Three new docs-truth checks reject the previous roadmap claims.
+The roadmap has no findings under the shared English checker.
+Its milestone requirements, headings, links, tables and earlier issue references remain.
+
+The default shared scan does not include ROADMAP.md. Its count and budget stay at 1627.
+A direct scan of the roadmap falls from 68 findings to zero.
+RC, hardware, complete native journeys, signatures and the 30-day soak still need proof.
