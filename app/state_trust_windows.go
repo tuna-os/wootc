@@ -27,7 +27,11 @@ func trustedStateSID(sid *windows.SID) bool {
 // Allow ordinary users to read, never mutate. Denies do not cancel an allow:
 // this conservative subset avoids emulating AccessCheck for every possible
 // token. Unknown ACE forms fail closed.
-func validateStateDescriptor(sd *windows.SECURITY_DESCRIPTOR, volumeRoot bool) error {
+func validateStateDescriptor(sd *windows.SECURITY_DESCRIPTOR, allowSiblingCreation bool) error {
+	return validateStateDescriptorAt(sd, allowSiblingCreation, false)
+}
+
+func validateStateDescriptorAt(sd *windows.SECURITY_DESCRIPTOR, allowSiblingCreation, literalVolumeRoot bool) error {
 	owner, _, err := sd.Owner()
 	if err != nil {
 		return err
@@ -43,11 +47,14 @@ func validateStateDescriptor(sd *windows.SECURITY_DESCRIPTOR, volumeRoot bool) e
 		return fmt.Errorf("missing DACL permits unrestricted access")
 	}
 	mask := uint32(windows.GENERIC_ALL | windows.GENERIC_WRITE | windows.WRITE_DAC | windows.WRITE_OWNER | 0x40 /* FILE_DELETE_CHILD */)
-	if !volumeRoot {
+	if !literalVolumeRoot {
+		mask |= windows.DELETE
+	}
+	if !allowSiblingCreation {
 		// DELETE on a literal drive root does not confer DELETE_CHILD on
 		// its protected state directory. Fresh NTFS grants this root right
 		// to Authenticated Users. State objects must still forbid DELETE.
-		mask |= windows.DELETE | windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA | windows.FILE_WRITE_ATTRIBUTES
+		mask |= windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA | windows.FILE_WRITE_ATTRIBUTES
 	}
 	for i := uint32(0); i < uint32(acl.AceCount); i++ {
 		var ace *windows.ACCESS_ALLOWED_ACE
@@ -55,7 +62,7 @@ func validateStateDescriptor(sd *windows.SECURITY_DESCRIPTOR, volumeRoot bool) e
 			return err
 		}
 		inheritOnly := ace.Header.AceFlags&windows.INHERIT_ONLY_ACE != 0
-		if volumeRoot && inheritOnly {
+		if allowSiblingCreation && inheritOnly {
 			continue // the new state root gets a protected, explicit DACL
 		}
 		switch ace.Header.AceType {
@@ -103,7 +110,9 @@ func inspectStateObject(path string, volumeRoot bool) error {
 	if err != nil {
 		return err
 	}
-	return validateStateDescriptor(sd, volumeRoot)
+	volume := filepath.VolumeName(path)
+	literalVolumeRoot := volumeRoot && len(volume) == 2 && volume[1] == ':' && filepath.Clean(path) == volume+`\`
+	return validateStateDescriptorAt(sd, volumeRoot, literalVolumeRoot)
 }
 
 func ensureTrustedStateDirectory(root string) error {
