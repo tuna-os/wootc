@@ -81,6 +81,49 @@ def editor_processes():
     return result
 
 
+def ancestors(pid):
+    result = []
+    for _ in range(32):
+        if pid <= 1:
+            break
+        item = process(pid)
+        result.append(item)
+        status = Path(f"/proc/{pid}/status").read_text()
+        pid = int(next(line.split()[1] for line in status.splitlines() if line.startswith("PPid:")))
+    return result
+
+
+def flatpak_app(pid):
+    info = configparser.ConfigParser()
+    info.read(f"/proc/{pid}/root/.flatpak-info")
+    return info.get("Application", "name", fallback="")
+
+
+def editor_identity(peer_pid, uid):
+    peer = process(peer_pid)
+    if peer["uid"] != uid:
+        return None
+    if Path(peer["exe"]).name == "gnome-text-editor":
+        return peer
+    if Path(peer["exe"]).name != "xdg-dbus-proxy":
+        return None
+    # Flatpak accessibility connections belong to its D-Bus proxy. Require
+    # the real editor in the same specific sandbox wrapper, never merely a
+    # shared systemd/session ancestor or an application name in the tree.
+    wrappers = {p["pid"] for p in ancestors(peer_pid) if Path(p["exe"]).name in ("flatpak", "bwrap")}
+    matches = []
+    for candidate in editor_processes():
+        if candidate["uid"] != uid or flatpak_app(candidate["pid"]) != "org.gnome.TextEditor":
+            continue
+        shared = wrappers.intersection(p["pid"] for p in ancestors(candidate["pid"]))
+        if shared:
+            matches.append({**candidate, "accessibilityPeer": peer,
+                            "flatpakApp": "org.gnome.TextEditor", "sharedWrapperPids": sorted(shared)})
+    if len(matches) != 1:
+        return None
+    return matches[0]
+
+
 def tooling():
     apps = run(user_command(["flatpak", "list", "--app", "--columns=application"])) if shutil.which("flatpak") else ""
     try:
@@ -182,10 +225,10 @@ class Accessibility:
             app = self.call("atspi_accessible_get_child_at_index", root, index)
             pid = self.call("atspi_accessible_get_process_id", app)
             try:
-                p = process(pid)
+                p = editor_identity(pid, uid)
             except (OSError, ProcessLookupError):
                 continue
-            if p["uid"] != uid or Path(p["exe"]).name != "gnome-text-editor":
+            if not p:
                 continue
             queue = [(app, [])]
             visited = 0
