@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "scope": "source review and existing pinned-source extraction test failure; no partition/format execution",
+  "wootcCommit": "a1b497449594fd3a62e743cfbf725108950f8171",
+  "fishermanCommit": "e2b316600fc68ba397730b39d1eb205dc1f1f240",
+  "sourceSha256": {
+    "fisherman/internal/slurp/data.go": "9976cb38e629e50f7c35e9e0f8f2c1d684796c31bef91c426a1fef66a1ae5ed6",
+    "fisherman/internal/slurp/extract_test.go": "af063b24f1cf9797ec39a626be7c236545df37fb17742faccf6be34db468020f",
+    "fisherman/cmd/fisherman/main.go": "2b854333faa3cde06d9ad115441db29f8775e81cc0a4768052f9e54a70e41640"
+  },
+  "baselineLogSha256": "cb7358807835d98025ac8c6b6ce39f8b92a9a4257f4cda03b8225a17baafa70f",
+  "observed": "Extraction fixture reported zero scratch budget and Found=false",
+  "callerSourceFinding": "Explicit migration error is non-fatal; partial extraction can return nil error before partitioning",
+  "actualDestructiveCallerCounterExecuted": false,
+  "issue234Complete": false
+}
