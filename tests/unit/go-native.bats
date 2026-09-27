@@ -471,5 +471,10 @@ NTFSINFO
     grep -q '/run/wootc-e2e-native-userdata' "$GN"
     grep -q 'multi-user.target.wants/wootc-e2e-native-probe.service' "$GN"
     # And it stays E2E-only: inside the dispatcher-gated block.
-    grep -B40 'wootc-e2e-native-probe.service' "$GN" | grep -q 'wootc-e2e-phase3-dispatch'
+    local block
+    block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }
+        active { print }
+        active && /^    fi$/ { exit }' "$GN")
+    [[ "$block" == *'e2e-native-probe.sh'* ]]
+    [[ "$block" == *'multi-user.target.wants/wootc-e2e-native-probe.service'* ]]
 }
