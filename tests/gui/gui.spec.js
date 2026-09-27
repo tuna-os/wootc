@@ -492,6 +492,25 @@ test('VM-first account flow uses only implemented choices and supports clean res
   expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['prepare', 'stop', 'boot']);
 });
 
+test('VM-first action explains the next required account detail', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    freshVm: { available: true, probeStatus: 'passed' } });
+
+  const vmButton = page.locator('#vm-prepare-btn');
+  await expect(vmButton).toBeInViewport();
+  await expect(vmButton).toBeDisabled();
+  await expect(vmButton).toHaveText('Enter a valid Linux username below');
+
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  await expect(vmButton).toHaveText('Set your Linux password below');
+  const password = page.locator('input[type=password]');
+  await password.nth(0).fill('temporary-guidance-password');
+  await expect(vmButton).toHaveText('Passwords do not match');
+  await password.nth(1).fill('temporary-guidance-password');
+  await expect(vmButton).toBeEnabled();
+  await expect(vmButton).toHaveText(/Start .* in a window/);
+});
+
 
 test('E2E drive observes the VM-first button and prepares through the real launchpad form', async ({ page }) => {
   const password = 'temporary-vm-e2e-password';
