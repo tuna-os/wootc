@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "cc38dd83207c6b2f7c583c7027829bc59af1eba8",
+  "base": "09f26981dc5f159111d7240d19894147b166b0eb",
+  "sourceHashes": {
+    "docs/manual-testing.md": "b09e926832d79328091940111902ffb21c126a1083efaf0c38f5a1c4310aec43",
+    "docs/docs-truth-pass.md": "aff0e19f3f301dc9a969a206877e5fbfa4822721bff60d9acea20d8265da3b77",
+    "tests/unit/docs-truth.bats": "284f5bee31c925e871a07d794a681225aa1e95a77a46f738f0ceb4588e0dfb97",
+    ".ste-budget": "c0a0973095905ebe6991e8fdc1c7538df3cad393dd94f997f0e87254d6c2f4cc",
+    "app/disk_windows.go": "ac20a59174fd0708353817dda26ba6c98af8d36352298ed4de131e58a836cc25",
+    "app/app.go": "387ab151c2f7b7957ab8dadc00178cc01c13c36428c14287744d665f319a46c3",
+    "app/installer_windows.go": "8a6082b44e66594e2b3a20baa8a7283b0c56098d0a4572c31b7c79ad79cd8306",
+    "payload/deployer/deploy.sh": "a3e6b55404eef80b2af6c07f7eaebef161c03b2d14b696cef8404fa99828bdb0"
+  },
+  "evidenceHashes": {
+    "wootc-manual-native-shared-ste.log": "9233fe5e6202ff272151a3f6374c2e9477434220cd2c52a701f060c16ad13f80",
+    "before-counterexample.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "wootc-manual-testing-ste-after.log": "3412cfabb113da9ef4df115f38d290c8fbf8834a85260038e212881a599d7327",
+    "wootc-manual-native-docs-truth.log": "018e56874e78f0250f64180bf13c4e7b3f19008fa0e3c4ec9f860491efabe1bd",
+    "before-manual-testing.raw.log": "5569848d1c38c0c87104be9664a1e97831df213c58b60847f296c215361fc166",
+    "wootc-manual-native-truth-record-ste.log": "6f4c7b5b9eddfeb83556a1098b9272a28b6c376919c39fdecbb5feb940e901ba",
+    "before-counterexample.stdout.log": "7783c77ccf876a1397d81837f6c4a396f4f0ea59b05d52083f8a4dc9bf606370",
+    "wootc-manual-testing-ste-before.log": "e3876e52e10a06ab376b9adea514c397157ffdd5f0347addf0a638e571dadfd6"
+  },
+  "controls": {
+    "docsTruthPassed": 46,
+    "oldGuideNewGuardsFailed": 3,
+    "manualProseBefore": 51,
+    "manualProseAfter": 45,
+    "sharedBefore": 1518,
+    "sharedAfter": 1512,
+    "noNewExclusions": true,
+    "codeTablesHeadingsParticipantProtocolBytesUnchanged": true
+  },
+  "scope": "Static source/doc truth and prose corrections only. No hardware/VM/WinUI/usability/uninstall/Windows-return acceptance inferred."
+}
