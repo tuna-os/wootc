@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "integratedHead": "368682023e99547745fbd30aa6c2f33eb4b0f291",
+  "sourceFiles": {
+    "app/state_trust_windows.go": "87730bd3f6d1579fe443e4ae3399415153a64dcb3aa229d0efb1d60b5c11c104",
+    "app/state_trust_windows_test.go": "0bddff6898f1f8b8e51b9cf10e5a4caa5fbd4effc4bdd9a25b6051190f296c37",
+    "app/state_trust_standard_user_windows_test.go": "4d38318bd8bf887f3f2cd5828cf94ab9c15ea9b9d34d2f9affd2f5e1f1660bd1",
+    "tests/e2e/state-trust-standard-user.ps1": "dd988415ac211568a84ccb5f2f02f695c53e3fa787f221b472a1c78380fab59f"
+  },
+  "sourceBytesUnchangedAfterMainIntegration": true,
+  "buildCommand": "GOOS=windows GOARCH=amd64 go -C app test -c -o /tmp/wootc-state-standard-user-final.test.exe .",
+  "goVersion": "go version go1.27.1 linux/amd64",
+  "binary": {
+    "name": "wootc-acl-732e1305ecb7451aafdf8a516d909b43-binary.exe",
+    "rawSha256": "a6717acab93f0de99d6ab81b29bc1714c438e5ef3f412ec7fa71a937c71d2ea1",
+    "stagedSha256": "a6717acab93f0de99d6ab81b29bc1714c438e5ef3f412ec7fa71a937c71d2ea1",
+    "size": 15355904
+  },
+  "driver": {
+    "name": "wootc-acl-4fe6fb4390cf4e2a8d775c827a985bed-driver.ps1",
+    "rawSha256": "dd988415ac211568a84ccb5f2f02f695c53e3fa787f221b472a1c78380fab59f",
+    "stagedSha256": "94852531fbe188f399818aa407ba757ab617deebc9ee723356f0c14ea15997ea",
+    "size": 6063
+  },
+  "finalActualGuestExitCode": 0,
+  "finalStdErrBytes": 0,
+  "finalNativeSkippedTests": 0,
+  "fixtureCleanupObserved": true,
+  "countermutantActualGuestExitCode": 1,
+  "countermutantSource": "27ebee564e16161279dd4e93167deb7a8344f683",
+  "countermutantProductionLogicSameAsFinalExceptComments": true,
+  "countermutantScope": "Actual descriptor validation bypass; Windows executable compiled successfully and ran. Both planted-state controls and existing writable-state/ordinary-ancestor controls failed. Initial failed compilation is excluded from proof.",
+  "historicalPlanWarning": "Temporary historical generator plans inherited old implementation/test hashes and runtimeExecuted=false. Those fields are not current-source or runtime evidence. Current source hashes and observed outcomes are recorded here.",
+  "outcomes": [
+    {
+      "checkpoint": "initial",
+      "result": "Driver rejected account description over 48 characters before native tests; original fixture cleanup separately observed."
+    },
+    {
+      "checkpoint": "v2",
+      "result": "Token setup failed before filesystem cases; exact suboperation not instrumented."
+    },
+    {
+      "checkpoint": "v3",
+      "result": "Five system-fixture denials passed; production policy refused default fresh NTFS root."
+    },
+    {
+      "checkpoint": "v4",
+      "result": "Driver failed unsigned cast of generic access mask before native tests; signed mask projection corrected."
+    },
+    {
+      "checkpoint": "v5",
+      "result": "Default NTFS direct Authenticated Users ACE 0x1301bf intersects forbidden mask only at DELETE; all cleanup observed."
+    },
+    {
+      "checkpoint": "606f867",
+      "result": "Never executed: first exemption also applied to ordinary ancestor due shared boolean. Review rejected scope; strict descriptor wrapper and literal drive-root detection corrected it."
+    },
+    {
+      "checkpoint": "v7",
+      "result": "Both actual fixture volumes passed six mutation denials, planted-tree refusal without repair, inherited-file checks and admin rerun; all selected legacy checks passed."
+    },
+    {
+      "checkpoint": "countermutant",
+      "result": "Actual executable returned 1 and rejected the deliberate validation bypass; cleanup passed."
+    },
+    {
+      "checkpoint": "final",
+      "result": "Actual C volume root read-only check plus both disposable fixtures and selected original checks passed with zero skips and cleanup."
+    },
+    {
+      "checkpoint": "corrected-narrow",
+      "result": "Actual current-source driver selects only native ACL, descriptor/tree/drive and literal-root tests. Positive0, bypass counter1, cleanup observed for both; lifecycle record read-only before/after identical absent."
+    }
+  ],
+  "scope": "Corrected ACL-only runs: disposable real nonadmin account, unique public C fixture and fresh 96MiB sparse NTFS VHD; actual C volume root read-only. No lifecycle tests selected. Earlier broad-selector side effect remains separately recorded. No BCD/BitLocker/existing disks or ProgramData mutation, full installer/signature/E2E acceptance not claimed.",
+  "retainedEvidence": [
+    {
+      "path": "native-initial.stdout.log",
+      "sha256": "4e28febc386ab82a78c63faa49577ce07716be723b35b15cabb892f0a7de6a73",
+      "size": 438
+    },
+    {
+      "path": "native-initial.stderr.log",
+      "sha256": "d9556999c84bd302907a0b0bc89f22c0677eb58796f030995a4a1d5fa6a0fd32",
+      "size": 1024
+    },
+    {
+      "path": "native-v2.stdout.log",
+      "sha256": "a20415a648c300d430b049151e2ce513e3c99ec992de2ea9f41a126e51d8f9ac",
+      "size": 523
+    },
+    {
+      "path": "native-v2.stderr.log",
+      "sha256": "247eabd74feeff40264f7185a881e87638b433dac2a7c3e09c2db38278d7a269",
+      "size": 791
+    },
+    {
+      "path": "native-v3.stdout.log",
+      "sha256": "8925299074472eb29dde997d7d830cc38ddea9d842e01f8fe192a84781405928",
+      "size": 1872
+    },
+    {
+      "path": "native-v3.stderr.log",
+      "sha256": "d578d93071afb64f30371716613e425e1eeba5c8b9a4ab3cd36f8acd841c4b31",
+      "size": 791
+    },
+    {
+      "path": "native-v4.stdout.log",
+      "sha256": "20da6701ec982e086061fbcb3b211fd35498b56982412c5c551b4c6a5b8f4d1b",
+      "size": 173
+    },
+    {
+      "path": "native-v4.stderr.log",
+      "sha256": "d3a7ff142adea816c22bcc6944a54235bccd6d5679f8db2c2fcb678f90b7e9f0",
+      "size": 918
+    },
+    {
+      "path": "native-v5.stdout.log",
+      "sha256": "21f7c23ae24a98d49ccb4893709baaa11fb118634d782ba407de2539af52d712",
+      "size": 3192
+    },
+    {
+      "path": "native-v5.stderr.log",
+      "sha256": "c7530107d92356782b0c6669d7c3e0351627aaa3e8f2b4ae05be2996773b20c6",
+      "size": 791
+    },
+    {
+      "path": "native-v7.stdout.log",
+      "sha256": "f4bf6026ce95b37c3972186491688353f0ade752e890e6793037b76d7b3ff0c3",
+      "size": 7735
+    },
+    {
+      "path": "native-v7.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "native-countermutant.stdout.log",
+      "sha256": "4d5e1a4f5f42d9560dc9033e1cd51fa46f9acc9f13fb8a668b620ff1531b469c",
+      "size": 5762
+    },
+    {
+      "path": "native-countermutant.stderr.log",
+      "sha256": "44de7a5c451003404a6102c63fb064a64251ff9f15729f8b2625c0cd2434d3eb",
+      "size": 791
+    },
+    {
+      "path": "native-final.stdout.log",
+      "sha256": "00ffe43186021b03d83a525b37b498b9076fa1fcab733cf3a1a9dedd7051756c",
+      "size": 7735
+    },
+    {
+      "path": "native-final.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "wootc-state-standard-user-countermutant-build.json",
+      "sha256": "004e05bac4833529570c86ae002993be694567992db52b14c727295631ce4bae",
+      "size": 524
+    },
+    {
+      "path": "wootc-state-standard-user-native-final-invocation.ps1",
+      "sha256": "fece99894f930456338f934843d8440db564387b711107e309b9affde568ce71",
+      "size": 1237
+    },
+    {
+      "path": "wootc-state-standard-user-native-countermutant-invocation.ps1",
+      "sha256": "2437b7b2daea397fc947640da22b97d13a92a6d0012aaed6752ccc2482ef5f62",
+      "size": 1244
+    },
+    {
+      "path": "wootc-state-acl-disposable-cleanup.json",
+      "sha256": "bc50f45b406ce65d6dbfaed6cc1874c8e63f90e7f227ac55cc4525ef07997c9a",
+      "size": 1416
+    },
+    {
+      "path": "qga-native-client.py",
+      "sha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+      "size": 1424
+    },
+    {
+      "path": "wootc-state-acl-first-cleanup.stdout.log",
+      "size": 61,
+      "sha256": "22142c394b8793261385de472eaccb974a0791c620472d252fb18f2043c850b5"
+    },
+    {
+      "path": "wootc-state-acl-first-cleanup.stderr.log",
+      "size": 840,
+      "sha256": "018966bf53cb60e3be45739d0b615e36ec0cd64fb2dc331e24320ce44f76ddff"
+    },
+    {
+      "path": "wootc-state-standard-user-native-narrow.stdout.log",
+      "size": 7507,
+      "sha256": "88f169d4e0b23a0aa0da659385c150d96ae4c2f546cedcd27ad6592fed758eed"
+    },
+    {
+      "path": "wootc-state-standard-user-native-narrow.stderr.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "wootc-state-standard-user-native-countermutant-narrow.stdout.log",
+      "size": 5534,
+      "sha256": "1705df7b7f51e00e9564e419a21e509552bc3c2e98875abec127634cdbf2fea2"
+    },
+    {
+      "path": "wootc-state-standard-user-native-countermutant-narrow.stderr.log",
+      "size": 791,
+      "sha256": "5155fbcfd0416342e91a091a4b5cc2450b67c24ab14c4fba23b266e1e896c84f"
+    },
+    {
+      "path": "wootc-state-standard-user-native-narrow-invocation.ps1",
+      "size": 1237,
+      "sha256": "443bacb44cc970a6732f0faf05a4dd1d1f6ce2b452921cd2e9ae22bd922938e6"
+    },
+    {
+      "path": "wootc-state-standard-user-native-countermutant-narrow-invocation.ps1",
+      "size": 1244,
+      "sha256": "a87c8f775130469642793f4e817496855dc23db4e491110851d54eec24a1fb25"
+    },
+    {
+      "path": "wootc-acl-current-state-before-narrow.stdout.log",
+      "size": 127,
+      "sha256": "df29df65301267272082915f63748d90c0d43a0b530ade00d40c0a0d545f2424"
+    },
+    {
+      "path": "wootc-acl-current-state-before-narrow.stderr.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "wootc-acl-current-state-after-narrow.stdout.log",
+      "size": 127,
+      "sha256": "df29df65301267272082915f63748d90c0d43a0b530ade00d40c0a0d545f2424"
+    },
+    {
+      "path": "wootc-acl-current-state-after-narrow.stderr.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "wootc-acl-current-state-readonly.ps1",
+      "size": 578,
+      "sha256": "12c0c6abc4fbd50eeef8c09bb4553db8e2244e842f5a5580e4ab5c33a2845ca6"
+    },
+    {
+      "path": "wootc-state-acl-ste.log",
+      "size": 1441,
+      "sha256": "78a14f9bb910164119e996c243103996acedc29bd512b50e323a38581dc91a68"
+    }
+  ],
+  "historicalExecutedSource": "2daa8d4432cc8802fa8d7a798ad4863957c93282",
+  "executedSource": "6336612d263d5f4453b8ce62b748c7a8d139751c",
+  "binaryBuiltAt": "2daa8d4432cc8802fa8d7a798ad4863957c93282",
+  "binaryGoSourceUnchangedAfterDriverNarrowing": true,
+  "narrowActualGuestExitCode": 0,
+  "narrowCountermutantActualGuestExitCode": 1,
+  "narrowLifecycleRecordBeforeAfterIdentical": true,
+  "fixtureScopeCorrection": "Earlier v7, countermutant and final runs used broad TestState.*. That also executed TestStateRoundTrip, TestStateRoundTripFailureFields and TestStateTransitions, which write and remove C:\\wootc\\state.json. No before-image measurement exists; whether prior lifecycle data was lost is unknown. Current read-only observations show the file absent before and after corrected ACL-only positive/negative runs. No state restoration was guessed. Earlier no-production-state-mutation claim is withdrawn."
+}
