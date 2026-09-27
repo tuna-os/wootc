@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run the actual native proof acceptance consumer with controlled QGA results."""
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -23,11 +24,11 @@ infra_fail() { echo "INFRA $*"; }
 product_fail() { echo "PRODUCT-FAIL $*"; }
 product_pass() { echo "PRODUCT-PASS $*"; }
 qga_call() {
- if [[ "$*" == *UNAME=* ]]; then printf '%s' "$PROOF"; return "$PROOF_RC"; fi
+ if [[ "$*" == */etc/wootc/native-target* ]]; then printf '%s' "$PROOF"; return "$PROOF_RC"; fi
  printf '%s' "$DATA"; return "$DATA_RC"
 }
 '''
-        env = dict(PROOF=PROOF, PROOF_RC='0', DATA='SRC=/dev/sdb3\nwootc-e2e-userdata current-run\n',
+        env = dict(PROOF=PROOF, PROOF_RC='0', DATA=f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\nSRC=/dev/sdb3\nwootc-e2e-userdata current-run\n',
                    DATA_RC='0', SCRIPT_DIR=str(ROOT/'tests/e2e'))
         return subprocess.run(['bash', '-c', prefix+body], text=True, capture_output=True,
                               timeout=4, env={**os.environ, **env, **overrides})
@@ -74,7 +75,7 @@ qga_call() {
         for data in ['SRC=/dev/sdb3\nwootc-e2e-userdata old-run\n',
                      'SRC=/dev/sdb3\nwootc-e2e-userdata current-run-extra\n',
                      'SRC=/dev/sdb3\nprefix wootc-e2e-userdata current-run\n']:
-            r = self.consumer(DATA=data)
+            r = self.consumer(DATA=f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\n'+data)
             self.assertNotEqual(r.returncode, 0)
             self.assertNotIn('PRODUCT-PASS native-user-data', r.stdout)
 
@@ -87,6 +88,43 @@ qga_call() {
             r = self.consumer(p, PROOF_RC='7')
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn('PRODUCT-PASS native-boot', r.stdout)
+
+    def test_userdata_requires_same_successful_linux_boot(self):
+        for data in [f'SCHEMA=1\nUNAME=Linux\nBOOT_ID=abcdefab-1234-1234-1234-123456789abc\nSRC=/dev/sdb3\nwootc-e2e-userdata current-run\n',
+                     f'SCHEMA=1\nUNAME=Windows_NT\nBOOT_ID={BOOT}\nSRC=/dev/sdb3\nwootc-e2e-userdata current-run\n',
+                     'SRC=/dev/sdb3\nwootc-e2e-userdata current-run\n']:
+            r = self.consumer(DATA=data)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('INFRA', r.stdout)
+            self.assertNotIn('PRODUCT-PASS native-user-data', r.stdout)
+
+    def test_original_windows_seed_crlf_is_valid_without_content_trimming(self):
+        data=f'SCHEMA=1\nUNAME=Linux\nBOOT_ID={BOOT}\nSRC=/dev/sdb3\nwootc-e2e-userdata current-run\r\n'
+        self.assertEqual(self.consumer(DATA=data).returncode, 0)
+        self.assertNotEqual(self.consumer(DATA=data.replace('current-run\r', 'current-run \r')).returncode, 0)
+
+    def test_actual_guest_boot_query_stops_on_each_failed_read(self):
+        source=(ROOT/'tests/e2e/run-e2e.sh').read_text().split('if ! P3_NATIVE_PROOF=$(',1)[1]
+        query=re.search(r"qga_call exec /bin/sh -c \\\n        '([\s\S]+?)' \\\n",source).group(1)
+        prefix='''uname() { printf Linux; [ "$FAIL_READ" != uname ]; }
+cat() {
+ case "$1" in
+ /proc/cmdline) printf 'root=UUID=native ro'; [ "$FAIL_READ" != cmdline ] ;;
+ /etc/wootc/native-target) printf /dev/sdb; [ "$FAIL_READ" != target ] ;;
+ /proc/sys/kernel/random/boot_id) printf '%s' "$BOOT"; [ "$FAIL_READ" != boot ] ;;
+ *) return 1 ;;
+ esac
+}
+'''
+        for failed in ['none','uname','cmdline','target','boot']:
+            r=subprocess.run(['/bin/sh','-c',prefix+query],capture_output=True,text=True,
+                             env={**os.environ,'FAIL_READ':failed,'BOOT':BOOT},timeout=2)
+            if failed=='none':
+                self.assertEqual(r.returncode,0,r.stderr)
+                self.assertEqual(r.stdout,PROOF)
+            else:
+                self.assertNotEqual(r.returncode,0)
+                self.assertEqual(r.stdout,'')
 
 
 if __name__ == '__main__':

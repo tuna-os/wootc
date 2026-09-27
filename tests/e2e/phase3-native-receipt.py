@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Validate current successful Phase3 observations; exit 2 means invalid protocol."""
-import json
 import re
 import sys
 
@@ -32,6 +31,15 @@ def verify(fields, target):
 
 if __name__ == '__main__':
     try:
+        if len(sys.argv) == 4 and sys.argv[1] == '--userdata':
+            lines = sys.stdin.read().splitlines()
+            if len(lines) < 3 or lines[0] != 'SCHEMA=1' or lines[1] != 'UNAME=Linux' or lines[2] != 'BOOT_ID='+sys.argv[2]:
+                raise ValueError('User data identity is not the observed native boot')
+            if len(lines) != 5 or not lines[3].startswith('SRC=') or not lines[3][4:] or lines[4] != 'wootc-e2e-userdata '+sys.argv[3]:
+                print('Current native seed content is absent or differs', file=sys.stderr)
+                sys.exit(1)
+            print(lines[3])
+            sys.exit(0)
         if len(sys.argv) != 2 or not re.fullmatch(r'/dev/[a-zA-Z0-9_-]+', sys.argv[1]):
             raise ValueError('Invalid expected target')
         facts = parse(sys.stdin.read())
@@ -41,4 +49,4 @@ if __name__ == '__main__':
     if not verify(facts, sys.argv[1]):
         print('Phase 3 native observations disagree with expected native boot', file=sys.stderr)
         sys.exit(1)
-    print(json.dumps(facts, sort_keys=True))
+    print(facts['BOOT_ID'])

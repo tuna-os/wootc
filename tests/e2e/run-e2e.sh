@@ -3945,7 +3945,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
     printf '%s\n' "$P3_NATIVE_PROOF"
     P3_PROOF_STATUS=0
-    printf '%s' "$P3_NATIVE_PROOF" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" "$P3_TARGET" \
+    P3_NATIVE_BOOT_ID=$(printf '%s' "$P3_NATIVE_PROOF" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" "$P3_TARGET") \
         || P3_PROOF_STATUS=$?
     if [ "$P3_PROOF_STATUS" -eq 2 ]; then
         infra_fail "Phase 3 native boot observation protocol is invalid"
@@ -3969,7 +3969,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # graduation result travels the same way). Direct read kept as fallback
     # for unconfined-agent images.
     if ! P3_USERDATA=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
-        'set -eu; if [ -r /run/wootc-e2e-native-userdata ]; then cat /run/wootc-e2e-native-userdata; else
+        'set -eu; os=$(uname -s); boot_id=$(cat /proc/sys/kernel/random/boot_id); printf "SCHEMA=1\nUNAME=%s\nBOOT_ID=%s\n" "$os" "$boot_id"; if [ -r /run/wootc-e2e-native-userdata ]; then cat /run/wootc-e2e-native-userdata; else
          f=""; for candidate in /home/wootc/Documents/wootc-e2e-userdata.txt /var/home/wootc/Documents/wootc-e2e-userdata.txt; do
              if [ -r "$candidate" ]; then f="$candidate"; break; fi; done
          [ -n "$f" ]; mount=$(df -P "$f" | awk "NR==2{print \$6}"); src=$(findmnt -no SOURCE "$mount");
@@ -3978,7 +3978,13 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         infra_fail "Phase 3 native user-data observation command failed"
         exit 1
     fi
-    if printf '%s\n' "$P3_USERDATA" | grep -Fxq "wootc-e2e-userdata $RUN_ID"; then
+    P3_USERDATA_STATUS=0
+    printf '%s' "$P3_USERDATA" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_BOOT_ID" "$RUN_ID" \
+        || P3_USERDATA_STATUS=$?
+    if [ "$P3_USERDATA_STATUS" -eq 2 ]; then
+        infra_fail "Phase 3 user-data identity does not match the observed native boot"
+        exit 1
+    elif [ "$P3_USERDATA_STATUS" -eq 0 ]; then
         product_pass native-user-data "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"
     else
         product_fail "Seeded user data did NOT persist onto the native disk (wanted RUN_ID $RUN_ID)"
