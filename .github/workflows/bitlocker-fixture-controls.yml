@@ -49,7 +49,18 @@ jobs:
             & ./tests/lint-ps1.ps1 -Files @($sources | ForEach-Object { Join-Path $directory $_ })
             if ($LASTEXITCODE -ne 0) { throw 'Native parser/lint failed' }
             . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $directory 'fixture-bitlocker-key.ps1'))))
-            Assert-WootcFixtureReceiptDirectory -Directory $directory
+            try { Assert-WootcFixtureReceiptDirectory -Directory $directory } catch {
+              $ancestor=[IO.DirectoryInfo]::new($directory)
+              while ($null -ne $ancestor) {
+                $acl=$ancestor.GetAccessControl()
+                $rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object {
+                  [pscustomobject]@{sid=$_.IdentityReference.Value;rights=[long]$_.FileSystemRights;type=[string]$_.AccessControlType;propagation=[int]$_.PropagationFlags}
+                })
+                [pscustomobject]@{path=$ancestor.FullName;owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value;rules=$rules} | ConvertTo-Json -Compress -Depth 4 | Write-Output
+                $ancestor=$ancestor.Parent
+              }
+              throw 'Hosted private receipt ancestry refused'
+            }
             & (Join-Path $directory 'fixture-bitlocker-key.tests.ps1')
             & (Join-Path $directory 'fixture-bitlocker-protection.tests.ps1')
             & (Join-Path $directory 'fixture-bitlocker-diagnostics.tests.ps1')
