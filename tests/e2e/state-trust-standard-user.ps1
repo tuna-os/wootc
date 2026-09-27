@@ -12,7 +12,6 @@ $private=Join-Path $env:TEMP "wootc-acl-private-$id"
 $public=Join-Path ([Environment]::GetFolderPath('CommonDocuments')) "wootc-acl-public-$id"
 $vhd=Join-Path $private 'owned-test.vhd'
 $accountSid=$null
-$attached=$false
 foreach ($path in @($private,$public)) { if (Test-Path -LiteralPath $path) { throw 'Existing native ACL fixture path' } }
 [IO.Directory]::CreateDirectory($private) | Out-Null
 & icacls.exe $private /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' *> $null
@@ -33,7 +32,6 @@ try {
  if ($LASTEXITCODE -ne 0) { throw 'Owned virtual disk command failed' }
  $image=Get-DiskImage -ImagePath $vhd -ErrorAction Stop
  if (-not $image.Attached) { throw 'Owned virtual disk is not attached' }
- $attached=$true
  $disk=$image | Get-Disk
  $partitions=@($disk | Get-Partition | Where-Object DriveLetter)
  if ($partitions.Count -ne 1 -or $partitions[0].DriveLetter -cne $letter[0]) { throw 'Owned disk has wrong observed partition/letter' }
@@ -48,20 +46,36 @@ try {
  Write-Output "NATIVE_ACL_INPUT Windows=$($PSVersionTable.PSVersion) BinarySha256=$BinarySha256 FileSystem=$($volume.FileSystem) FreshOwnedVolume=true"
  & $binary '-test.v' '-test.run' '^TestNativeStateStandardUserAndAlternateVolume$' '-test.timeout' '60s'
  if ($LASTEXITCODE -ne 0) { throw "Actual native ACL controls failed with exit $LASTEXITCODE" }
-} finally {
+ } finally {
+ $cleanupErrors=[Collections.Generic.List[string]]::new()
  foreach ($key in @('WOOTC_ACL_USER','WOOTC_ACL_PASSWORD','WOOTC_ACL_SID','WOOTC_ACL_FIXTURE','WOOTC_ACL_ALTERNATE')) { [Environment]::SetEnvironmentVariable($key,$null,'Process') }
- if ($accountSid) {
-  $account=Get-LocalUser -Name $name
-  if ($account.SID.Value -cne $accountSid) { throw 'Disposable account identity changed' }
-  Remove-LocalUser -SID $account.SID
-  if (Get-LocalUser -SID $account.SID -ErrorAction SilentlyContinue) { throw 'Disposable account removal not observed' }
+ try {
+  if ($accountSid) {
+   $account=Get-LocalUser -Name $name
+   if ($account.SID.Value -cne $accountSid) { throw 'Disposable account identity changed' }
+   Remove-LocalUser -SID $account.SID
+   if (Get-LocalUser -SID $account.SID -ErrorAction SilentlyContinue) { throw 'Disposable account removal not observed' }
+  }
+ } catch { $cleanupErrors.Add('Disposable account cleanup failed') }
+ $diskReleased=$false
+ try {
+  if (Test-Path -LiteralPath $vhd) {
+   $image=Get-DiskImage -ImagePath $vhd
+   if ($image.Attached) { Dismount-DiskImage -ImagePath $vhd }
+   if ((Get-DiskImage -ImagePath $vhd).Attached) { throw 'Owned virtual disk detach not observed' }
+  }
+  $diskReleased=$true
+ } catch { $cleanupErrors.Add('Owned virtual disk detach failed; backing file retained') }
+ try {
+  if (Test-Path -LiteralPath $public) { Remove-Item -LiteralPath $public -Recurse -Force }
+  if (Test-Path -LiteralPath $public) { throw 'Owned public fixture remains' }
+ } catch { $cleanupErrors.Add('Owned public fixture cleanup failed') }
+ if ($diskReleased) {
+  try {
+   if (Test-Path -LiteralPath $private) { Remove-Item -LiteralPath $private -Recurse -Force }
+   if (Test-Path -LiteralPath $private) { throw 'Owned private fixture remains' }
+  } catch { $cleanupErrors.Add('Owned private fixture cleanup failed') }
  }
- if (Test-Path -LiteralPath $vhd) {
-  $image=Get-DiskImage -ImagePath $vhd
-  if ($image.Attached) { Dismount-DiskImage -ImagePath $vhd }
-  if ((Get-DiskImage -ImagePath $vhd).Attached) { throw 'Owned virtual disk detach not observed' }
- }
- foreach ($path in @($public,$private)) { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force } }
- if ((Test-Path -LiteralPath $public) -or (Test-Path -LiteralPath $private)) { throw 'Owned native ACL fixture cleanup not observed' }
+ if ($cleanupErrors.Count -gt 0) { throw ($cleanupErrors -join '; ') }
 }
 Write-Output 'PASS native ACL fixture cleanup observed'
