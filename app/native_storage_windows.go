@@ -123,7 +123,7 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	}
 	var raw []json.RawMessage
 	if err := json.Unmarshal(output.Bytes(), &raw); err != nil || raw == nil || len(raw) > 26 {
-		return nil, fmt.Errorf("storage observation shape refused")
+		return nil, &nativeStorageObservationFailure{ExitCode: storageQueryExitCode(command), Stdout: append([]byte(nil), output.Bytes()...), Stderr: append([]byte(nil), stderr.Bytes()...)}
 	}
 	rows := make([]nativeStorageRow, 0, len(raw))
 	seen := map[string]bool{}
