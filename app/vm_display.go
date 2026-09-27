@@ -195,6 +195,13 @@ func (s *vmSession) observeDisplay(ctx context.Context, req vmDisplayRequest) (v
 	if err = s.displayIdentity(req); err != nil {
 		return out, err
 	}
+	if req.Action == "capture" {
+		if _, count, bytes, err := s.captureInventory(); err != nil {
+			return out, err
+		} else if count >= vmCaptureCountLimit || bytes >= vmCaptureBytesLimit {
+			return out, fmt.Errorf("retained capture budget exhausted")
+		}
+	}
 	if s.displayDirectives[req.DirectiveID] {
 		return out, fmt.Errorf("display directive replay")
 	}
@@ -234,15 +241,12 @@ func (s *vmSession) observeDisplay(ctx context.Context, req vmDisplayRequest) (v
 	return out, nil
 }
 func (s *vmSession) captureDisplay(ctx context.Context) (string, string, int, int, error) {
-	root := filepath.Dir(s.statePath)
-	resolved, resolveErr := filepath.EvalSymlinks(root)
-	absolute, absErr := filepath.Abs(root)
-	if resolveErr != nil || absErr != nil || filepath.Clean(resolved) != filepath.Clean(absolute) {
-		return "", "", 0, 0, fmt.Errorf("capture parent must be canonical")
+	root, count, retained, err := s.captureInventory()
+	if err != nil {
+		return "", "", 0, 0, err
 	}
-	info, err := os.Lstat(root)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return "", "", 0, 0, fmt.Errorf("invalid capture parent")
+	if count >= vmCaptureCountLimit || retained >= vmCaptureBytesLimit {
+		return "", "", 0, 0, fmt.Errorf("retained capture budget exhausted")
 	}
 	dir, err := os.MkdirTemp(root, ".capture-"+s.sessionID+"-")
 	if err != nil {
@@ -270,8 +274,8 @@ func (s *vmSession) captureDisplay(ctx context.Context) (string, string, int, in
 	if err != nil || len(ack) != 0 {
 		return "", "", 0, 0, fmt.Errorf("invalid screendump acknowledgment")
 	}
-	info, err = os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > 64<<20 {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > vmCaptureBytesLimit || retained+info.Size() > vmCaptureBytesLimit {
 		return "", "", 0, 0, fmt.Errorf("invalid capture file")
 	}
 	f, err = os.Open(path)
@@ -324,4 +328,69 @@ func (a *App) observeVMDisplay(ctx context.Context, req vmDisplayRequest) (vmDis
 		return vmDisplayObservation{}, fmt.Errorf("engine VM session changed")
 	}
 	return out, nil
+}
+
+const vmCaptureCountLimit = 8
+const vmCaptureBytesLimit int64 = 32 << 20
+
+func (s *vmSession) captureInventory() (string, int, int64, error) {
+	parent := filepath.Dir(s.statePath)
+	resolved, err := filepath.EvalSymlinks(parent)
+	absolute, absErr := filepath.Abs(parent)
+	if err != nil || absErr != nil || filepath.Clean(resolved) != filepath.Clean(absolute) {
+		return "", 0, 0, fmt.Errorf("capture parent must be canonical")
+	}
+	root := filepath.Join(parent, "captures")
+	if err = os.Mkdir(root, 0700); err != nil && !os.IsExist(err) {
+		return "", 0, 0, err
+	}
+	info, err := os.Lstat(root)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return "", 0, 0, fmt.Errorf("invalid capture namespace")
+	}
+	f, err := os.Open(root)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	defer f.Close()
+	names, err := f.Readdirnames(vmCaptureCountLimit + 1)
+	if err != nil && err != io.EOF {
+		return "", 0, 0, err
+	}
+	if len(names) > vmCaptureCountLimit {
+		return "", 0, 0, fmt.Errorf("retained capture count exceeded")
+	}
+	var retained int64
+	for _, name := range names {
+		parts := strings.Split(name, "-")
+		if len(parts) != 3 || parts[0] != ".capture" || !validDisplayDirective(parts[1]) || len(parts[2]) > 10 {
+			return "", 0, 0, fmt.Errorf("unknown capture directory")
+		}
+		if _, err = strconv.ParseUint(parts[2], 10, 32); err != nil {
+			return "", 0, 0, fmt.Errorf("unknown capture suffix")
+		}
+		dir := filepath.Join(root, name)
+		info, err = os.Lstat(dir)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return "", 0, 0, fmt.Errorf("invalid retained capture directory")
+		}
+		directory, openErr := os.Open(dir)
+		if openErr != nil {
+			return "", 0, 0, openErr
+		}
+		files, err := directory.Readdirnames(2)
+		directory.Close()
+		if (err != nil && err != io.EOF) || len(files) != 1 || files[0] != "frame.ppm" {
+			return "", 0, 0, fmt.Errorf("unknown retained capture files")
+		}
+		info, err = os.Lstat(filepath.Join(dir, "frame.ppm"))
+		if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > vmCaptureBytesLimit {
+			return "", 0, 0, fmt.Errorf("invalid retained capture file")
+		}
+		retained += info.Size()
+		if retained > vmCaptureBytesLimit {
+			return "", 0, 0, fmt.Errorf("retained capture bytes exceeded")
+		}
+	}
+	return root, len(names), retained, nil
 }

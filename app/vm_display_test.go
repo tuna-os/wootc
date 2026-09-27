@@ -293,3 +293,102 @@ func TestVMDisplayForceRemainsAvailableDuringShutdownWait(t *testing.T) {
 		t.Fatal("forced stop lost recovery state")
 	}
 }
+
+func TestVMDisplayCaptureRetentionExhaustion(t *testing.T) {
+	s, req, spy := displaySession(t, "normal")
+	req.Action = "capture"
+	retained := map[string][]byte{}
+	for i := 0; i < vmCaptureCountLimit; i++ {
+		req.DirectiveID = fmt.Sprintf("%032x", 100+i)
+		out, err := s.observeDisplay(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(out.CapturePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		retained[out.CapturePath] = data
+	}
+	root, count, bytes, err := s.captureInventory()
+	if err != nil || count != 8 || bytes > vmCaptureBytesLimit {
+		t.Fatal("retained files unbounded", root, count, bytes, err)
+	}
+	before, _ := os.ReadFile(spy)
+	req.DirectiveID = strings.Repeat("d", 32)
+	if _, err = s.observeDisplay(context.Background(), req); err == nil {
+		t.Fatal("exhausted capture count accepted")
+	}
+	after, _ := os.ReadFile(spy)
+	if string(after) != string(before) {
+		t.Fatal("exhausted budget reached QMP")
+	}
+	for path, data := range retained {
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != string(data) {
+			t.Fatal("prior proof changed")
+		}
+	}
+	// A new launch nonce must not reset the retained byte/count inventory.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err = s.stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^TestVMDisplayChild$")
+	cmd.Env = append(os.Environ(), "WOOTC_DISPLAY_CHILD=normal", "WOOTC_DISPLAY_SPY="+spy)
+	next, err := startManagedVM(cmd, s.statePath, s.snapshot(), func() {}, func(*exec.Cmd) (io.Closer, error) { return noopVMJob{}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer next.force()
+	if next.sessionID == s.sessionID {
+		t.Fatal("reused launch nonce")
+	}
+	req.SessionID = next.sessionID
+	before, _ = os.ReadFile(spy)
+	if _, err = next.observeDisplay(context.Background(), req); err == nil {
+		t.Fatal("restart reset capture budget")
+	}
+	after, _ = os.ReadFile(spy)
+	if string(after) != string(before) {
+		t.Fatal("restart exhaustion reached QMP")
+	}
+}
+func TestVMDisplayActualRetainedByteBudget(t *testing.T) {
+	s, req, spy := displaySession(t, "normal")
+	root, _, _, err := s.captureInventory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, ".capture-"+s.sessionID+"-1")
+	if err = os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "frame.ppm")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Truncate(vmCaptureBytesLimit); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	_, count, bytes, err := s.captureInventory()
+	if err != nil || count != 1 || bytes != vmCaptureBytesLimit {
+		t.Fatal("actual file bytes not measured", count, bytes, err)
+	}
+	before, _ := os.ReadFile(spy)
+	req.Action = "capture"
+	if _, err = s.observeDisplay(context.Background(), req); err == nil {
+		t.Fatal("exhausted byte budget accepted")
+	}
+	after, _ := os.ReadFile(spy)
+	if string(before) != string(after) {
+		t.Fatal("byte exhaustion reached QMP")
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Size() != vmCaptureBytesLimit {
+		t.Fatal("prior evidence deleted or changed")
+	}
+}
