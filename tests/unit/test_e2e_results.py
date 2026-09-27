@@ -235,6 +235,30 @@ exit 0
         self.assertEqual(self.rows()[-1]['verdict'], 'inconclusive')
         self.assertFalse(self.marker.exists())
 
+    def test_actual_preflight_abort_stamps_state_and_removed_trap_is_detected(self):
+        for remove_state_writer in [False, True]:
+            tree = self.dir / ('mutated' if remove_state_writer else 'normal') / 'tests/e2e'
+            tree.mkdir(parents=True)
+            source = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+            if remove_state_writer:
+                source = source.replace('run_state "exited (status $rc) during: ${WOOTC_LAST_STEP:-startup}";', ':;')
+            (tree / 'run-e2e.sh').write_text(source)
+            for name in ['steps.sh', 'phase-ledger.sh']:
+                shutil.copyfile(ROOT / 'tests/e2e' / name, tree / name)
+            shutil.copytree(ROOT / 'tests/e2e/lib', tree / 'lib', ignore=shutil.ignore_patterns('__pycache__'))
+            (tree / 'wootc-files').mkdir()
+            (tree / 'wootc-files/wootc.exe').write_bytes(b'disposable preflight fixture')
+            result = subprocess.run(['bash', str(tree / 'run-e2e.sh')], env={**os.environ,
+                'TMPDIR': str(self.dir), 'WOOTC_E2E_RUN_ID': 'preflight-run',
+                'WOOTC_E2E_MIN_FREE_GIB': '999999'}, capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            state = (tree / 'storage/run-e2e.current').read_text()
+            self.assertEqual('stage=exited (status ' in state, not remove_state_writer)
+            if remove_state_writer:
+                self.assertIn('stage=started', state)
+            evidence = tree / 'storage/artifacts/preflight-run/results.jsonl'
+            self.assertEqual(json.loads(evidence.read_text().splitlines()[-1])['verdict'], 'inconclusive')
+
     def test_actual_entrypoint_missing_cli_fails_before_any_vm_command(self):
         tree = self.dir / 'repo/tests/e2e'
         tree.mkdir(parents=True)
