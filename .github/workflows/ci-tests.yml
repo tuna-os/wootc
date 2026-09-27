@@ -52,6 +52,22 @@ jobs:
           path: ${{ runner.temp }}/go-coverage
           if-no-files-found: error
 
+  classic-offline:
+    name: classic offline package prerequisites
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require native simulation tools
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+          /usr/bin/dpkg-deb --version
+          /usr/bin/apt-get --version
+      - name: Execute consumer controls and exact source audit
+        run: |
+          python3 -m unittest discover -s tests/unit -p test_wootc_package_consumer.py
+          python3 tests/audit-classic-offline.py .
+
   integration:
     name: migration integration (container)
     runs-on: ubuntu-latest
