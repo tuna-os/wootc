@@ -25,7 +25,8 @@ qga_call() {{
  esac
 }}
 source '{module}'
-wootc_gui_observations_configure qga_call
+wootc_phase_boundary() {{ :; }}
+wootc_gui_observations_configure qga_call wootc_phase_boundary
 '''
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / 'calls'
@@ -77,6 +78,17 @@ wootc_gui_observations_configure qga_call
         self.assertNotIn('exec', calls)
         self.assertNotIn('ping', calls)
 
+    def test_positive_windows_clears_phase_in_actual_caller_context(self):
+        result,_=self.run_shell(f'''source '{ROOT}/tests/e2e/steps.sh'
+source '{ROOT}/tests/e2e/phase-ledger.sh'
+WOOTC_CURRENT_PHASE_ID=fisherman
+WOOTC_PHASE_CARRY=stale
+WOOTC_GUI_OBSERVATION_DEADLINE=$(( $(date +%s) + 5 ))
+gui_handover_sample
+[ -z "$WOOTC_CURRENT_PHASE_ID$WOOTC_PHASE_CARRY" ]
+''',WINDOWS='Windows_NT',WINDOWS_RC='0')
+        self.assertEqual(result.returncode,0,result.stderr)
+
     def test_invalid_budget_refuses_before_guest_calls(self):
         for budget in ['0', '-1', 'unknown']:
             result, calls = self.run_shell('gui_wait_handover '+budget+'; echo PROVEN')
@@ -92,7 +104,8 @@ wootc_gui_observations_configure qga_call
 source '{ROOT}/tests/e2e/lib/qga-transport.sh'
 source '{MODULE}'
 wootc_qga_configure '{runtime}' owned /owned/qga.py
-wootc_gui_observations_configure qga_call
+wootc_phase_boundary() {{ :; }}
+wootc_gui_observations_configure qga_call wootc_phase_boundary
 infra_fail() {{ echo "$*"; }}
 gui_wait_handover 1
 echo PROVEN

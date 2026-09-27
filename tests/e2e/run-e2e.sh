@@ -2269,7 +2269,7 @@ reset_oem_attempt
 # which boots the deployer — the rest of the run verifies as normal.
 # shellcheck source=tests/e2e/lib/gui-observations.sh
 source "$SCRIPT_DIR/lib/gui-observations.sh"
-wootc_gui_observations_configure qga_call || exit 1
+wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
 
 gui_install_arm() {
     # Seed while Windows is alive — the OEM path seeds inside

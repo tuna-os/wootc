@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Source-only GUI transition observations; no product verdict follows ping loss.
 wootc_gui_observations_configure() {
-    [ "$#" -eq 1 ] && declare -F "$1" >/dev/null || return 2
+    [ "$#" -eq 2 ] && declare -F "$1" >/dev/null && declare -F "$2" >/dev/null || return 2
     WOOTC_GUI_OBSERVATION_CALL="$1"
+    WOOTC_GUI_OBSERVATION_BOUNDARY="$2"
 }
 wootc_gui_observation_call() {
     local remaining=$((WOOTC_GUI_OBSERVATION_DEADLINE - $(date +%s)))
@@ -18,6 +19,7 @@ gui_handover_sample() {
     if observed=$(wootc_gui_observation_call powershell '$env:OS' 2>/dev/null); then
         observed=$(printf '%s' "$observed" | tr -d '\r\n')
         if [ "$observed" = Windows_NT ]; then
+            "${WOOTC_GUI_OBSERVATION_BOUNDARY:?Configure GUI observations first}"
             WOOTC_GUI_HANDOVER_OBSERVATION=windows
             return 0
         fi
@@ -65,6 +67,7 @@ gui_write_reboot_directive() {
     [ "$observed" = Windows_NT ] || {
         infra_fail "GUI reboot directive requires positive Windows identity"; return 1;
     }
+    "${WOOTC_GUI_OBSERVATION_BOUNDARY:?Configure GUI observations first}"
     remaining=$((WOOTC_GUI_OBSERVATION_DEADLINE - $(date +%s)))
     [ "$remaining" -gt 0 ] || { infra_fail "GUI reboot directive deadline expired before write"; return 1; }
     # One write only; a failed or timed-out side effect is never replayed.
