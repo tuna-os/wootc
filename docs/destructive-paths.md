@@ -2,7 +2,7 @@
 
 Reviewed source: `0ccddb8eef43da13336e341f6ffdb1381df4684d`, 2026-09-27.
 This inventory supports [#234](https://github.com/tuna-os/wootc/issues/234).
-It does not establish zero known data-loss classes or satisfy the final RC
+Known risks remain. This inventory does not satisfy the final RC
 verification in [#237](https://github.com/tuna-os/wootc/issues/237).
 
 Each row separates a source gate from its observed proof. A label, directory
@@ -38,15 +38,15 @@ On 2026-09-27, `gh issue list --state all --label field-report --limit 100`
 returned no issues. This is a label-query result, not evidence that no user
 data was lost. A complete corpus review must also inspect issue bodies,
 unlabelled reports, and the RC hardware reports before #234 can close.
-No report has been reclassified as harmless from its title or a green test.
+The review does not classify a report as harmless from its title or a green test.
 
 ## Remaining verification
 
 This is the first reviewed source inventory, not an exhaustive clearance.
-Registry/task registration, ACL changes, BitLocker protector handling,
-per-importer collision rules, all OEM script equivalents and failure after
-each external write still need individual rows with actual positive and
-negative evidence. Existing issues cited above retain these gaps; draft
-repairs cannot turn a row green until their reviewed source is merged and
-their required acceptance scope is observed. Signing, hardware uninstall,
-offline, native shell and soak requirements remain independent gates.
+The review still needs rows for registry/task registration, ACL changes,
+BitLocker protectors, importer collisions, and OEM script equivalents.
+Each external write also needs proof of recovery after failure.
+The cited issues retain these gaps. Reviewers must merge each repair and
+observe its required acceptance before they can mark a row green.
+Code signatures, hardware uninstall, offline, native shell and soak each
+remain separate gates.
