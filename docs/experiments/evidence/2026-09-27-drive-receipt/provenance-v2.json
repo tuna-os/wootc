@@ -1,0 +1,93 @@
+{
+  "sourceCommit": "288644a1508c8d3207eb4812edd8fdc50e8a38be",
+  "scope": "Combined current-run receipt and positive-observation component proof; production frontend built, portable Go package passed. DOM/bridge spies and native8 mocked write/readback cases are components, not real browser/Windows GUI/full scenario acceptance. Prior source proof retained.",
+  "acceptanceExecuted": false,
+  "sourceSha256": {
+    "app/app.go": "387ab151c2f7b7957ab8dadc00178cc01c13c36428c14287744d665f319a46c3",
+    "app/e2e_drive_receipt.go": "5da3832a63151ed7751ba7f3fc7351e57941a2d6167d48e1fcedc5270c4dd28c",
+    "app/e2e_drive_receipt_test.go": "da0734428b6adafd4f387159e3913bc9dfaf6f0abe8da24fe00631b06dee85ea",
+    "app/bridge_contract_test.go": "ab4f7932bb5bec139fc28fa51cd3c0cc58a83a4249b550cf17ff3e59dcafcdea",
+    "app/frontend/src/lib/e2e.js": "0c9b3df45b2b5013f35c626b6157a890fc93de87fee69a4d99ef3b4833e962a2",
+    "app/frontend/package-lock.json": "a5e6b3c6b9935ed7d3a72b4d608fb949e155f65836ed422bc38dd3b8f14a753d",
+    "tests/e2e/run-e2e.sh": "aa170cc3ad222fdd63182493eac652e5aa167b5c4a6cb4dc495c927207d7d492",
+    "tests/e2e/gui-drive-receipt.py": "b791144db47510eca70685c4c605af27e0d314f164e8993eb64f4eb012f8a337",
+    "tests/e2e/lib/gui-observations.sh": "ef73d99358015d94f84d249f4905d6361c079ed8ca4161c893cdca56c067611f",
+    "tests/unit/test_gui_drive_receipt.py": "463a0f105e768bd8c981ec9412cd844767709dfe06b384b3aa2dfb3c92633b9e",
+    "tests/unit/test_gui_observations.py": "e084196cd8f239723795b6e44de0e131929f6a2296b97063c284212bcb4d9add",
+    "tests/unit/gui-drive-producer-controls.cjs": "aef308ce20ad10dab75f50e85c5a05551b18fea9d12be67dc8a75e5bfc18d964"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_drive_receipt.py"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-27T12:05:54.821233+00:00",
+      "completedAt": "2026-09-27T12:05:55.341500+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_observations.py"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-27T12:05:55.341521+00:00",
+      "completedAt": "2026-09-27T12:06:05.203156+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_session.py"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-27T12:06:05.203175+00:00",
+      "completedAt": "2026-09-27T12:06:08.953184+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "cwd": "app",
+      "startedAt": "2026-09-27T12:06:08.953204+00:00",
+      "completedAt": "2026-09-27T12:06:15.447645+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "consumer-v2.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "consumer-v2.stderr.log": "cae09d81e5d88e7e29efdf12d001cc6b9894eed66051bd289a2cf54eb9f6938b",
+    "handover-v2.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "handover-v2.stderr.log": "8de13a4bf164629379819b0e87c34b14dc1b69467f66ca03860586064d96328c",
+    "session-v2.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "session-v2.stderr.log": "b384ec2e70f75759f73f11079ae1effe565abb1b6ef703b78ca620338397e9d6",
+    "go-v2.stdout.log": "6d8750d33ccba3761a347e3f95f19aa4bdff09e55a4fdee63b11933045699218",
+    "go-v2.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "frontendBuild": {
+    "argv": [
+      "npm",
+      "ci",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "&&",
+      "npm",
+      "run",
+      "build"
+    ],
+    "exitCode": 0,
+    "viteVersion": "8.3.1",
+    "bundleSha256": {
+      "app/frontend/dist/index.html": "5dc442a106463d3bb97cd1520eacb45f45f5d5288b506b30e32d4647e2ca113b",
+      "app/frontend/dist/assets/index-CEja8SdL.css": "069090154ed19adfd232e22186d78ebb82a5f2ab1d2a026de7ffef08d0e39918",
+      "app/frontend/dist/assets/index-DeS2Qqfh.js": "5f91f7f46131ab7db316b309dead8b43634e1c657b2e3f41eeb171e416fcd204"
+    }
+  }
+}
