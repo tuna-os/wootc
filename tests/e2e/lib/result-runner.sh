@@ -46,4 +46,9 @@ product_pass() {
     wootc_result_record "$WOOTC_RESULT_LEDGER" "$RUN_ID" assertion product "$assertion" "${WOOTC_CURRENT_PHASE_ID:-}" "$*" || return 1
     pass "$@"
 }
+infra_pass() {
+    local assertion="$1"; shift
+    wootc_result_record "$WOOTC_RESULT_LEDGER" "$RUN_ID" assertion infrastructure "$assertion" "" "$*" || return 1
+    pass "$@"
+}
 info() { printf '%b[INFO]%b %s\n' "$YELLOW" "$NC" "$*"; }

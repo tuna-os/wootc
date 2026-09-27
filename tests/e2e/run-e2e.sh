@@ -43,6 +43,8 @@ source "$SCRIPT_DIR/phase-ledger.sh"
 source "$SCRIPT_DIR/lib/results.sh"
 # shellcheck source=tests/e2e/lib/result-runner.sh
 source "$SCRIPT_DIR/lib/result-runner.sh"
+# shellcheck source=tests/e2e/lib/snapshot-prime.sh
+source "$SCRIPT_DIR/lib/snapshot-prime.sh"
 trap 'wootc_report_abort "$?" "$BASH_COMMAND"' ERR
 # IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
 # blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
@@ -120,8 +122,9 @@ WOOTC_RESULT_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-results.$$.jsonl"
 RESULT_SCENARIO=full-cycle
 if [ "${RUN_PHASE3:-false}" = true ]; then RESULT_SCENARIO=native-cycle; fi
 if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
+if [ -n "${WOOTC_E2E_SNAPSHOT_OUT:-}" ]; then RESULT_SCENARIO="snapshot-prime"; fi
 RESULT_REQUIRED=""
-if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ]; then RESULT_REQUIRED=gui-install; fi
+if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ]; then RESULT_REQUIRED=gui-install; fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
 trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
@@ -2710,40 +2713,8 @@ fi
 # The oras push happens in CI (e2e-snapshot.yml); this only produces the bundle.
 SNAPSHOT_OUT="${WOOTC_E2E_SNAPSHOT_OUT:-}"
 if [ -n "$SNAPSHOT_OUT" ]; then
-    [ "$SKIP_INSTALL" = false ] || { fail "WOOTC_E2E_SNAPSHOT_OUT needs a fresh install; do not combine with --skip-install"; exit 1; }
-    command -v qemu-img >/dev/null 2>&1 || { fail "WOOTC_E2E_SNAPSHOT_OUT requires qemu-img (install qemu-utils)"; exit 1; }
-    step "Priming Windows base image → $SNAPSHOT_OUT (clean shutdown, then compress)"
-    mkdir -p "$SNAPSHOT_OUT"
-
-    # Future snapshots must remain usable after the local password ages.
-    gui_prepare_account || { capture_vm_diagnostics; exit 1; }
-
-    # Clean guest shutdown so C:/NTFS is left with its dirty bit CLEAR.
-    qga_powershell 'Stop-Computer -Force' >/dev/null 2>&1 \
-        || qga_call exec /bin/sh -c 'shutdown /s /t 0' >/dev/null 2>&1 || true
-    info "Waiting for the guest to power off cleanly (QGA to go away)..."
-    prime_deadline=$(deadline_in 300)
-    while ! past_deadline "$prime_deadline"; do
-        qga_windows_probe || break   # QGA unreachable == guest powered off
-        sleep 5
-    done
-
-    # Drop the container so nothing holds data.qcow2 open, THEN convert.
-    $COMPOSE -f compose.yml down 2>/dev/null || $DOCKER stop "$CONTAINER_NAME" 2>/dev/null || true
-    [ -s "$STORAGE_DIR/data.qcow2" ] || { fail "prime: data.qcow2 missing/empty after install"; exit 1; }
-
-    step "Compressing base image (qemu-img convert -c → standalone qcow2)..."
-    qemu-img convert -c -O qcow2 "$STORAGE_DIR/data.qcow2" "$SNAPSHOT_OUT/data.qcow2" \
-        || { fail "prime: qemu-img convert failed"; exit 1; }
-    # dockur's installed-markers so a restore does not trigger a reinstall.
-    for f in "$STORAGE_DIR"/windows.*; do [ -e "$f" ] && cp "$f" "$SNAPSHOT_OUT/"; done
-    # The correctness key the restore side validates against (same formula as
-    # ANSWER_SHA), doubling as the answer-file stamp the reuse guard checks.
-    { sha256sum < "$RENDERED_ANSWER"; echo "$WIN_VERSION"; } | sha256sum | awk '{print $1}' \
-        > "$SNAPSHOT_OUT/snapshot.key"
-    cp "$SNAPSHOT_OUT/snapshot.key" "$SNAPSHOT_OUT/.wootc-autounattend.sha256"
-    ls -lh "$SNAPSHOT_OUT" >&2 || true
-    pass "Pristine Windows base image ready at $SNAPSHOT_OUT (key $(cat "$SNAPSHOT_OUT/snapshot.key"))"
+    [ "$SKIP_INSTALL" = false ] || { infra_fail "WOOTC_E2E_SNAPSHOT_OUT needs a fresh install; do not combine with --skip-install"; exit 1; }
+    prime_snapshot || exit 1
     exit 0
 fi
 

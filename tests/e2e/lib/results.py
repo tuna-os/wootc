@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 REQUIRED = {
+    'snapshot-prime': {'snapshot-windows-identity', 'snapshot-compressed', 'snapshot-key'},
     'full-cycle': {'deployed', 'linux-root', 'linux-proof', 'user-data', 'windows-return', 'healthy'},
     'native-cycle': {'deployed', 'linux-root', 'linux-proof', 'user-data', 'native-boot', 'native-user-data'},
     'recovery': {'recovery-interrupted', 'recovery-retry', 'recovery-uninstall', 'recovery-windows'},
@@ -103,7 +104,8 @@ def operate(args):
                    'phaseId': args.phase if args.domain == 'product' else '', 'message': args.message})
             return 0
         failures = [r for r in rows if r['kind'] == 'failure']
-        observed = {r['assertionId'] for r in rows if r['kind'] == 'assertion' and r['domain'] == 'product'}
+        observation_domain = 'infrastructure' if rows[0]['scenario'] == 'snapshot-prime' else 'product'
+        observed = {r['assertionId'] for r in rows if r['kind'] == 'assertion' and r['domain'] == observation_domain}
         missing = sorted(set(rows[0]['requiredAssertions']) - observed)
         # Human ledger remains an additional failure signal, never empty-file proof.
         human_failed = False
@@ -114,11 +116,13 @@ def operate(args):
                 human_failed = bool(legacy.read())
         passed = args.operation == 'finish' and not failures and not missing and not human_failed
         product_failed = any(r['domain'] == 'product' for r in failures)
+        if args.marker and rows[0]['scenario'] == 'snapshot-prime':
+            raise ValueError('Snapshot preparation cannot publish a product GUI marker')
         if passed and args.marker and os.path.lexists(args.marker):
             raise ValueError('Refusing an existing publish marker')
         terminal = append(stream, rows, args.run, {'kind': 'terminal',
             'verdict': 'passed' if passed else ('failed' if product_failed else 'inconclusive'),
-            'productVerdict': 'passed' if passed else ('failed' if product_failed else 'unknown'),
+            'productVerdict': 'passed' if passed and observation_domain == 'product' else ('failed' if product_failed else 'unknown'),
             'failureCount': len(failures), 'missingAssertions': missing,
             'humanFailureRecorded': human_failed, 'exitCode': 0 if passed else max(args.code, 1)})
         if passed and args.marker:
@@ -131,7 +135,7 @@ def operate(args):
                     output.write(f'{args.run} image={args.image}\n')
                     output.flush()
                     os.fsync(output.fileno())
-                os.replace(temporary, marker)
+                os.link(temporary, marker)
             finally:
                 if os.path.exists(temporary):
                     os.unlink(temporary)

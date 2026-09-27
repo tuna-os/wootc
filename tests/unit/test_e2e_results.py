@@ -1,4 +1,6 @@
 import json
+import importlib.util
+from unittest import mock
 import os
 from pathlib import Path
 import shutil
@@ -169,6 +171,64 @@ false
         self.assertEqual(self.marker.read_text(), 'old-run image=old:image\n')
         self.assertNotEqual(self.rows()[-1]['kind'], 'terminal')
 
+    def test_actual_prime_branch_passes_job_without_product_or_gui_claim(self):
+        for case in ['success', 'convert-failure', 'wrong-identity']:
+            fail_convert = case == 'convert-failure'
+            if self.ledger.exists():
+                self.ledger.unlink()
+            self.legacy.write_text('')
+            self.assertEqual(self.call('init', '--scenario', 'snapshot-prime').returncode, 0)
+            storage = self.dir / 'storage'
+            storage.mkdir(exist_ok=True)
+            (storage / 'data.qcow2').write_bytes(b'disposable mock qcow2')
+            answer = self.dir / 'answer.xml'
+            answer.write_text('disposable answer')
+            output = self.dir / ('snapshot-' + case)
+            body = f"""source "{ROOT}/tests/e2e/lib/snapshot-prime.sh"
+STORAGE_DIR="{storage}"; SNAPSHOT_OUT="{output}"; RENDERED_ANSWER="{answer}"
+WIN_VERSION=11; IMAGE_REF=test:image; CONTAINER_NAME=mock; COMPOSE=true; DOCKER=true
+identity_calls=0
+qga_windows_probe() {{ identity_calls=$((identity_calls+1)); [ "$identity_calls" -eq 1 ] && {'false' if case == 'wrong-identity' else 'true'}; }}
+gui_prepare_account() {{ [ "$identity_calls" -eq 1 ] && touch "{self.dir}/account-{case}"; }}
+qga_powershell() {{ :; }}
+qga_call() {{ :; }}
+deadline_in() {{ echo 1; }}
+past_deadline() {{ return 1; }}
+step() {{ :; }}
+capture_vm_diagnostics() {{ :; }}
+qemu-img() {{ {'return 1' if fail_convert else 'cp "${@: -2:1}" "${@: -1}"'}; }}
+trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
+prime_snapshot || exit 1
+exit 0
+"""
+            result = self.shell(body)
+            with self.subTest(case=case):
+                self.assertEqual(result.returncode == 0, case == 'success', result.stderr)
+                terminal = self.rows()[-1]
+                self.assertEqual(terminal['verdict'], 'passed' if case == 'success' else 'inconclusive')
+                self.assertEqual(terminal['productVerdict'], 'unknown')
+                self.assertFalse(self.marker.exists())
+                self.assertEqual((self.dir / ('account-' + case)).exists(), case != 'wrong-identity')
+                if case == 'wrong-identity':
+                    self.assertFalse((output / 'data.qcow2').exists())
+                self.assertTrue(all(r.get('domain') != 'product' for r in self.rows()))
+
+    def test_marker_race_cannot_overwrite_competing_proof(self):
+        self.assertions()
+        spec = importlib.util.spec_from_file_location('result_backend_race', BACKEND)
+        backend = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(backend)
+        link = backend.os.link
+        def racing_link(source, destination):
+            # The other writer wins AFTER the lexists check, at publication.
+            Path(destination).write_text('competing-run image=other\n')
+            link(source, destination)
+        argv = ['results.py', 'finish', str(self.ledger), self.run, '--legacy', str(self.legacy),
+                '--marker', str(self.marker), '--image', 'test:image']
+        with mock.patch.object(backend.os, 'link', side_effect=racing_link), mock.patch('sys.argv', argv):
+            self.assertEqual(backend.main(), 2)
+        self.assertEqual(self.marker.read_text(), 'competing-run image=other\n')
+
     def test_zero_exit_without_committed_completion_is_not_success(self):
         self.assertions()
         self.assertNotEqual(self.call('abort', '--code', '0').returncode, 0)
@@ -181,16 +241,22 @@ false
         for name in ['run-e2e.sh', 'steps.sh', 'phase-ledger.sh']:
             shutil.copyfile(ROOT / 'tests/e2e' / name, tree / name)
         shutil.copytree(ROOT / 'tests/e2e/lib', tree / 'lib', ignore=shutil.ignore_patterns('__pycache__'))
-        result = subprocess.run(['bash', str(tree / 'run-e2e.sh')], env={**os.environ, 'TMPDIR': str(self.dir),
-                                'WOOTC_E2E_RUN_ID': 'entrypoint-run'}, capture_output=True, text=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Required status CLI missing', result.stderr)
-        evidence = list(self.dir.glob('wootc-e2e-results.*.jsonl'))
-        self.assertEqual(len(evidence), 1)
-        records = [json.loads(line) for line in evidence[0].read_text().splitlines()]
-        self.assertTrue(all(r['runId'] == 'entrypoint-run' for r in records))
-        self.assertEqual(records[-1]['verdict'], 'inconclusive')
-        self.assertFalse((tree / 'storage').exists())
+        for scenario, extra in [('full-cycle', {}), ('snapshot-prime', {'WOOTC_E2E_SNAPSHOT_OUT': str(self.dir / 'prime')})]:
+            for existing in self.dir.glob('wootc-e2e-results.*.jsonl'):
+                existing.unlink()
+            result = subprocess.run(['bash', str(tree / 'run-e2e.sh')], env={**os.environ, 'TMPDIR': str(self.dir),
+                                    'WOOTC_E2E_RUN_ID': 'entrypoint-run', **extra}, capture_output=True, text=True)
+            with self.subTest(scenario=scenario):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Required status CLI missing', result.stderr)
+                evidence = list(self.dir.glob('wootc-e2e-results.*.jsonl'))
+                self.assertEqual(len(evidence), 1)
+                records = [json.loads(line) for line in evidence[0].read_text().splitlines()]
+                self.assertTrue(all(r['runId'] == 'entrypoint-run' for r in records))
+                self.assertEqual(records[0]['scenario'], scenario)
+                self.assertEqual(records[-1]['verdict'], 'inconclusive')
+                self.assertFalse((tree / 'storage').exists())
+
 
 
 if __name__ == '__main__':

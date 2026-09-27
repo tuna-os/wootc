@@ -214,3 +214,7 @@ file with other small evidence when it prunes old runs.
 Direct tests call these modules and the actual entry point before any VM command.
 Full VM validation remains due. This is the first boundary in #383; transport,
 host lifecycle, and retention still need separate modules.
+
+Snapshot priming uses an infrastructure scenario. It requires Windows identity,
+compressed snapshot bytes, and the answer key. Its terminal job result can pass
+while the product verdict stays unknown; it never publishes a GUI pass marker.
