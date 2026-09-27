@@ -100,7 +100,7 @@ function Write-WootcInstallationIdentity {
     if ($espIdentity -eq [Guid]::Empty) { throw 'Missing staged ESP partition GUID' }
     if ([string]::IsNullOrWhiteSpace($ImageRef)) { throw 'Missing installation image reference' }
     if ($LoaderPath -notmatch '^\\EFI\\[^\r\n]+\.efi$') { throw 'Missing actual BCD EFI loader path' }
-    $hostUuid = Get-WootcNtfsHostUuid -StorageRoot $StorageRoot
+    $hostUuid = (Get-WootcNtfsHostUuid -StorageRoot $StorageRoot | Out-String).Trim()
     if ($hostUuid -notmatch '^[0-9A-Fa-f]{16}$' -or $hostUuid -eq '0000000000000000') {
         throw 'Missing full NTFS volume serial'
     }
