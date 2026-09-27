@@ -65,7 +65,7 @@ three-second limit. It makes one anonymous request for up to 20 recent releases
 from the repository compiled into the installer. A failed request leaves the UI
 usable. A build without a valid release tag does not make the request.
 
-The notice compares semantic versions. Stable builds show only stable releases.
+It uses semantic versions. Stable builds show only stable releases.
 Beta builds can show beta, RC, or stable releases; alpha builds can show all three
-and newer alpha releases. Drafts and invalid tags are ignored. The notice opens
+and newer alpha releases. It skips drafts and invalid tags. The notice opens
 the release page. It does not change the pinned artifact source or install an update.
