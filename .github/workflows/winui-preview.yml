@@ -60,10 +60,10 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          $records = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue |
+          $records = @(Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue |
             Where-Object { $_.ProviderName -in @('Application Error','.NET Runtime','Windows Error Reporting') -and $_.Message -match 'Wootc[.]Shell' } |
-            Select-Object -First 8 TimeCreated, ProviderName, Id, Message
-          $records | ConvertTo-Json -Depth 3 | Set-Content -Encoding utf8 out/winui-startup-events.json
+            Select-Object -First 8 TimeCreated, ProviderName, Id, Message)
+          ConvertTo-Json -InputObject $records -Depth 3 | Set-Content -Encoding utf8 out/winui-startup-events.json
           Get-Content out/winui-startup-events.json
       - uses: actions/upload-artifact@v7
         if: always()
