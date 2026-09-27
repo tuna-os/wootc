@@ -53,13 +53,11 @@ public sealed class NativeEngineConnector : IEngineConnector
                 }
             }
             WindowsPeer.VerifyPipeServer(pipe.SafePipeHandle, engine, source, package.EnginePath);
-            var hello = new Handshake { Kind = "hello", ProtocolVersion = 1, Session = request.SessionId, BuildId = package.Manifest.BuildId, BrandId = package.Manifest.BrandId };
+            var hello = new NativeProtocol.Handshake { Kind = "hello", ProtocolVersion = 1, Session = request.SessionId, BuildId = package.Manifest.BuildId, BrandId = package.Manifest.BrandId };
             byte[] encoded = JsonSerializer.SerializeToUtf8Bytes(hello);
             await pipe.WriteAsync(encoded, deadline.Token); await pipe.WriteAsync(new byte[] { (byte)'\n' }, deadline.Token); await pipe.FlushAsync(deadline.Token);
             byte[] line = await NativeEngineSession.ReadLineAsync(pipe, 16384, deadline.Token);
-            var ready = JsonSerializer.Deserialize<Handshake>(line, new JsonSerializerOptions { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow });
-            if (ready is null || ready.Kind != "ready" || ready.ProtocolVersion != 1 || ready.Session != hello.Session || ready.BuildId != hello.BuildId || ready.BrandId != hello.BrandId)
-                throw new InvalidDataException("The engine acknowledgement differs from this session package");
+            NativeProtocol.ValidateReady(line, hello);
             WindowsPeer.VerifyPipeServer(pipe.SafePipeHandle, engine, source, package.EnginePath);
             return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine));
         }
@@ -76,14 +74,6 @@ public sealed class NativeEngineConnector : IEngineConnector
         }
     }
 
-    private sealed class Handshake
-    {
-        [JsonPropertyName("kind")] public string Kind { get; set; } = "";
-        [JsonPropertyName("protocolVersion")] public int ProtocolVersion { get; set; }
-        [JsonPropertyName("session")] public string Session { get; set; } = "";
-        [JsonPropertyName("buildId")] public string BuildId { get; set; } = "";
-        [JsonPropertyName("brandId")] public string BrandId { get; set; } = "";
-    }
     [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafePipeHandle CreateFile(string name, uint access, uint share, nint security, uint creation, uint flags, nint template);
 }

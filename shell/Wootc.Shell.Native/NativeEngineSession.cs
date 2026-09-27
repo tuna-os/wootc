@@ -47,7 +47,7 @@ internal sealed class NativeEngineSession : IEngineSession
         {
             while (!readerStop.IsCancellationRequested)
             {
-                using var message = JsonDocument.Parse(await ReadLineAsync(pipe, 1024 * 1024, readerStop.Token));
+                using var message = NativeProtocol.ParseObject(await ReadLineAsync(pipe, 1024 * 1024, readerStop.Token));
                 var root = message.RootElement;
                 if (!root.TryGetProperty("jsonrpc", out var version) || version.GetString() != "2.0") throw new InvalidDataException("Unsupported engine RPC frame");
                 if (!root.TryGetProperty("id", out var id))
@@ -58,6 +58,9 @@ internal sealed class NativeEngineSession : IEngineSession
                     continue;
                 }
                 if (!id.TryGetInt64(out long value)) throw new InvalidDataException("Invalid engine response identity");
+                bool hasError = root.TryGetProperty("error", out _);
+                bool hasResult = root.TryGetProperty("result", out _);
+                if (hasError == hasResult) throw new InvalidDataException("Ambiguous engine response outcome");
                 if (!pending.TryRemove(value, out var completion)) continue; // Canceled request's late response.
                 if (root.TryGetProperty("error", out var error))
                     completion.TrySetException(new InvalidDataException(error.TryGetProperty("message", out var text) ? text.GetString() ?? "Engine request failed" : "Engine request failed"));
@@ -83,7 +86,7 @@ internal sealed class NativeEngineSession : IEngineSession
             try { await pipe.WriteAsync(request, token); await pipe.FlushAsync(token); }
             finally { writes.Release(); }
             var result = await completion.Task.WaitAsync(token);
-            return result.Deserialize<T>() ?? throw new InvalidDataException("Engine result is missing");
+            return NativeProtocol.DecodeStartup<T>(method, result);
         }
         finally { pending.TryRemove(id, out _); }
     }
