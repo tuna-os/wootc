@@ -20,7 +20,7 @@ public sealed class InstalledPreviewTests
         string product = brand.RootElement.GetProperty("productName").GetString()!;
         string distribution = brand.RootElement.GetProperty("name").GetString()!;
         Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(executable)!, "native-package.json")));
-        Assert.True(executable.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+        Assert.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) + Path.DirectorySeparatorChar, executable, StringComparison.OrdinalIgnoreCase);
         using var automation = new UIA3Automation();
         using var process = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(executable)! })
             ?? throw new InvalidOperationException("Installed shell did not start");
