@@ -22,16 +22,16 @@ export function renderDoneScreen() {
   const hero = el('div', 'done-hero');
   hero.innerHTML = `
     <div class="done-icon">${doneMark()}</div>
-    <div class="done-title">${distroName()} is ready!</div>
+    <div class="done-title">${distroName()} setup is ready</div>
     <div class="done-body">
-      ${state.selected?.name || distroName()} ${state.selected?.desktopName || ''} has been configured.<br>
-      Click <strong>Reboot Now</strong> to start the setup. The first boot takes 5–15 minutes
-      while it downloads and installs ${distroName()}. After that, starting Linux is fast.
+      Preparation for ${state.selected?.name || distroName()} ${state.selected?.desktopName || ''} is complete.<br>
+      Click <strong>Reboot Now</strong> to begin the Linux installation. Keep your PC plugged in.
+      Installation time depends on your computer and any downloads it needs.
     </div>
     <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-muted);margin-top:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:9px 12px;text-align:left;max-width:460px">
-      <span>🛡️</span><span>This is a one-time setup boot. If anything at all goes wrong,
-      your PC simply starts Windows again as normal — Windows stays your default
-      until Linux has proven it works. Your files aren't touched either way.</span>
+      <span>🛡️</span><span>Linux has not finished installing yet. If startup fails, you may need
+      to select <strong>Windows Boot Manager</strong> from your PC's boot menu or use Windows recovery.
+      If BitLocker is enabled, keep its recovery key available before rebooting.</span>
     </div>
     ${state.selected?.mokEnroll ? `
     <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-muted);margin-top:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:9px 12px;text-align:left;max-width:460px">
@@ -53,11 +53,12 @@ export function renderDoneScreen() {
   // other apps do not get a save prompt. The audit flagged that nothing
   // warned about it; one quiet line above the buttons does.
   const saveNote = el('div');
-  saveNote.style.cssText = 'font-size:11.5px;color:var(--text-muted);text-align:center;margin-top:10px';
+  saveNote.style.cssText = 'font-size:11.5px;color:var(--text-muted);text-align:center;flex-basis:100%';
   saveNote.textContent = 'Save any open work first — the restart closes other apps without asking.';
-  screen.appendChild(saveNote);
 
   const footer = el('div', 'footer');
+  footer.style.flexWrap = 'wrap';
+  footer.appendChild(saveNote);
   footer.appendChild(btn('Reboot Later', 'btn btn-ghost', () => Quit()));
   footer.appendChild(btn('Reboot Now →', 'btn btn-primary', () => Reboot()));
   wrap.appendChild(footer);

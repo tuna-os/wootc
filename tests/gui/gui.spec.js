@@ -77,7 +77,16 @@ test('installer — done screen', async ({ page }) => {
   await pw.nth(0).fill('hunter2');
   await pw.nth(1).fill('hunter2');
   await page.locator('#install-btn').click();
-  await expect(page.locator('.done-title')).toContainText('ready', { timeout: 5000 });
+  await expect(page.locator('.done-title')).toHaveText('TunaOS setup is ready', { timeout: 5000 });
+  await expect(page.locator('.done-body')).toContainText('begin the Linux installation');
+  await expect(page.locator('.done-hero')).toContainText('Linux has not finished installing yet');
+  await expect(page.locator('.done-hero')).toContainText('Windows Boot Manager');
+  await expect(page.locator('.done-hero')).toContainText('keep its recovery key available');
+  await expect(page.locator('.done-hero')).not.toContainText('5–15 minutes');
+  await expect(page.locator('.done-hero')).not.toContainText('anything at all');
+  await expect(page.locator('.done-hero')).not.toContainText("Your files aren't touched");
+  await expect(page.getByRole('button', { name: 'Reboot Now →' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reboot Later' })).toBeVisible();
   await shot(page, '04-done');
 });
 
