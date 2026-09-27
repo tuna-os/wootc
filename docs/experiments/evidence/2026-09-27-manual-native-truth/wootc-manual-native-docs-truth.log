@@ -1,0 +1,47 @@
+1..46
+ok 1 E2E stages the GRUB configuration embedded by the application
+ok 2 docs point at the state file that actually exists
+ok 3 every C:\wootc path the docs name is one the code builds
+ok 4 the branded exe names the docs advertise are the ones brand.json builds
+ok 5 RELEASING does not claim a single published artifact
+ok 6 docs do not link to files that are not in the tree
+ok 7 no doc promises BitLocker works while the channel gate refuses it
+ok 8 the documented default channel is the one the code defaults to
+ok 9 the image the docs call the alpha default is the one that gets selected
+ok 10 the free-space figure is the one the launchpad enforces
+ok 11 the first screen the docs quote is the one the build renders
+ok 12 the uninstall entry the docs name is the one the installer registers
+ok 13 the migration dashboard is called what the app calls it
+ok 14 documented buttons and toggles exist in the frontend
+ok 15 no doc claims real-hardware verification before the ladder banks it
+ok 16 every branded walkthrough has its four screenshots on disk
+ok 17 guide describes the explicit Windows-side Linux boot choice
+ok 18 guide discloses Firefox profile passwords instead of blanket secret exclusion
+ok 19 guide describes Windows removal as a plan without a consumer execution path
+ok 20 guide qualifies uninstall restoration and preserves old section anchors
+ok 21 release guide matches the tagged native graduation gate and its waiver
+ok 22 release user instructions disclose Install writes before reboot
+ok 23 release user instructions describe Windows return and explicit Linux boot
+ok 24 release user instructions qualify cleanup and disclose the data choice
+ok 25 getting started discloses preparation beyond a folder and boot entry
+ok 26 getting started qualifies cleanup and exposes its data choice
+ok 27 getting started qualifies reputation prompts instead of promising bypass
+ok 28 getting started distinguishes checksums from publisher identity
+ok 29 startup guides disclose the Windows WebView2 runtime dependency
+ok 30 roadmap separates native preview work from complete consumer proof
+ok 31 roadmap separates restoration requirement from current partial cleanup
+ok 32 roadmap requires a SmartScreen observation beyond a valid signature
+ok 33 README qualifies the VM goal against current desktop evidence
+ok 34 README exposes preparation settings and normal Windows return
+ok 35 README separates cleanup from restoration and Linux data removal
+ok 36 README matches release graduation and its manual waiver
+ok 37 README qualifies browser secrets instead of a blanket exclusion
+ok 38 README discloses runtime and distinguishes hashes from signed manifests
+ok 39 E2E architecture separates historical native diagrams from current acceptance
+ok 40 E2E architecture follows the actual sourced runner boundaries
+ok 41 E2E architecture does not claim an atomic deployer menu handoff
+ok 42 E2E architecture distinguishes a QGA service request from a working channel
+ok 43 release rollback distinguishes remote withdrawal from signed local cache
+ok 44 manual hardware guide discloses actual preparation outside the state folder
+ok 45 manual hardware guide separates requested return and cleanup from restoration
+ok 46 manual hardware guide qualifies the legacy path instead of claiming VM-first or WinUI proof
