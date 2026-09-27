@@ -172,3 +172,43 @@ The release guide said that the Wails installers have no runtime dependencies.
 The first-screen guide said there is nothing to install.
 The current Wails interface needs WebView2. The GUI path in E2E checks for that runtime and installs it if absent.
 Both guides now disclose that dependency. A fifth check pins it to the actual bootstrap command and registry check.
+
+## Roadmap claims and English pass — 2026-09-27, against `323b7ba`
+
+The roadmap still said phases B–E had not started. A draft native preview now
+has hosted component proof. Complete native consumer and VM journeys remain unproved.
+It also listed console flash as an active defect; maintainers closed issue #179.
+These status corrections do not certify the replacement shell.
+
+The history implied that current uninstall restores the machine. Cleanup can fail.
+Restoration remains a 1.0 requirement that needs evidence.
+The RC list also treated a signature as a guarantee against SmartScreen.
+The roadmap now needs a separate fresh-machine observation, as the startup guide does.
+The goal of a first launch through that gate remains unchanged.
+
+Three new docs-truth checks reject the previous roadmap claims.
+The roadmap has no findings under the shared English checker.
+Its milestone requirements, headings, links, tables and earlier issue references remain.
+
+The default shared scan does not include ROADMAP.md. Its count and budget stay at 1627.
+A direct scan of the roadmap falls from 68 findings to zero.
+RC, hardware, complete native journeys, signatures and the 30-day soak still need proof.
+
+## README claims and English pass — 2026-09-27, against `7a87f04`
+
+The README promised the complete Linux-inside-Windows journey, but current desktop evidence does not prove it.
+It now separates that product goal from the native install path.
+The old text also limited preparation to disk and boot setup and promised complete cleanup.
+It now describes startup settings, partial cleanup and separate data removal.
+
+The release description promised a Windows return after each normal tagged run.
+That workflow selects native graduation and ends in Linux. The manual waiver also exists.
+The caption and release text now describe that evidence boundary.
+The blanket exclusion of secrets conflicted with imports of complete Firefox profiles.
+The README now discloses saved passwords in that profile, the WebView2 dependency and signed manifest checks.
+
+Six new docs-truth checks reject the previous README claims.
+The revised README has no findings under the shared English checker.
+The total falls from 1627 to 1589; the budget follows that count.
+Headings, existing link targets, tables, executable names, commands and license terms remain.
+The native journey, real hardware, signatures, full restoration and the soak still need proof.
