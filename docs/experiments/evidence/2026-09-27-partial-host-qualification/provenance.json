@@ -22,7 +22,8 @@
     "wootc-partial-host-old-counter.raw.log": "1a8781114a3789e5bb6a58290414661aa6b629b5992ad04184f774868ad2d794",
     "original-hosted-prerequisites.json": "adda1561d40521c5c360b8d4092cd5db1cdcb1c76b99cac554d4867fe571e34e"
   },
-  "checks": "16 PASS; actual /dev/kvm open EACCES in full publication collector retains independent Linux facts; original-source counter RED; actual current Linux collector refuses missing KVM/nesting/capacity",
+  "checks": "16 PASS; injected EACCES at real collector os.open boundary retains actual independent Linux facts through full publication; original-source counter RED; actual current Linux collector refuses missing KVM/nesting/capacity",
   "restoration": "All failing-read/open injections use scoped unittest mock contexts; actual proc/sys/fs reads only; no chmod/sudo/VM_CREATE or host configuration mutation",
-  "scope": "host prerequisite facts only; ordinary KVM runtime permission remains required; no guest/desktop acceptance"
+  "scope": "host prerequisite facts only; ordinary KVM runtime permission remains required; no guest/desktop acceptance",
+  "originalHostedFailure": "Run36331073326 recorded actual kernel PermissionError for /dev/kvm; this is distinct from the local injected EACCES control"
 }
