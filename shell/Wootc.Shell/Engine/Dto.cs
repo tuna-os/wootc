@@ -346,6 +346,18 @@ public class Branding
 }
 
 /// <summary>
+/// ReleaseNotice is advisory. It never selects or downloads boot artifacts.
+/// </summary>
+public class ReleaseNotice
+{
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Image is one bootable variant from the catalog.
 /// </summary>
 public class Image

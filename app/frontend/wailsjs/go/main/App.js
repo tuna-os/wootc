@@ -154,3 +154,7 @@ export function TryAgain() {
 export function RepairBoot() {
   return window['go']['main']['App']['RepairBoot']();
 }
+
+export function GetReleaseNotice() {
+  return window['go']['main']['App']['GetReleaseNotice']();
+}

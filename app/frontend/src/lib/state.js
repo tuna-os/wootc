@@ -10,6 +10,7 @@ export const state = {
   mode: 'installer',   // installer (Windows) | migration (installed Linux)
   images: [],
   sysinfo: null,
+  releaseNotice: null,
   brand: null,         // partner/enterprise branding (themeable)
   categories: [],      // migration dashboard rows
   apps: [],            // detected app migrations
