@@ -13,6 +13,7 @@ import subprocess
 import time
 
 ROOT=Path(__file__).resolve().parents[3]
+BOOTSTRAP=runpy.run_path(str(Path(__file__).with_name('bootstrap.py')))
 COMPARE=runpy.run_path(str(Path(__file__).with_name('serial-proof.py')))['validate']
 
 
@@ -44,6 +45,8 @@ def checked(folder):
         raise ValueError('scratch identity differs or was already executed')
     prefix=Path(record['hostDataPrefix'])
     runpy.run_path(str(Path(__file__).with_name('host-namespace.py')))['require_bound'](prefix)
+    if record.get('diskSerial')!=BOOTSTRAP['disk_serial'](record['scratchId'],record['challenge']):
+        raise ValueError('scratch disk serial binding differs')
     if sha(prefix/'host-data.json')!=record['hostDataSourceSha256'] or record['qemuDataPath']!=str(prefix/'usr/share/qemu'):
         raise ValueError('recorded host data source contract differs')
     for name,expected in {'base.qcow2':record['baseSha256'],'seed.iso':record['seedSha256'],
@@ -101,7 +104,11 @@ def run_owned(command,folder,observe,seconds=1200,on_started=None):
             if result is not None:return result
             time.sleep(min(.1,max(0,deadline-time.monotonic())))
     finally:
-        if identity is not None:stop_owned(child,identity)
+        if identity is not None:
+            code=stop_owned(child,identity)
+            receipt={'schemaVersion':1,'ownedProcessIdentity':identity,'waitCompleted':True,'returnCode':code}
+            with (folder/'process-reap.json').open('x') as output:
+                json.dump(receipt,output,sort_keys=True);output.write('\n');output.flush();os.fsync(output.fileno())
         elif child.poll() is not None:child.wait()
         else:
             # Popen owns this child even when initial /proc observation fails.
@@ -129,6 +136,8 @@ def protected_qemu():
 
 
 def command(folder,record):
+    if record.get('diskSerial')!=BOOTSTRAP['disk_serial'](record['scratchId'],record['challenge']):
+        raise ValueError('command disk serial binding differs')
     qemu=protected_qemu()
     return [qemu,'-L',record['qemuDataPath'],'-name','wootc-package-'+record['scratchId'],'-uuid',record['vmUuid'],
             '-machine','q35,accel=kvm','-m','2048','-smp','2','-display','none','-monitor','none',
@@ -136,7 +145,7 @@ def command(folder,record):
             '-drive','if=pflash,format=raw,readonly=on,file='+str(folder/'code.fd'),
             '-drive','if=pflash,format=raw,file='+str(folder/'vars.fd'),
             '-drive','if=none,id=root,format=qcow2,file='+str(folder/'overlay.qcow2'),
-            '-device','virtio-blk-pci,drive=root,serial=WOOTC-PKG-'+record['scratchId'],
+            '-device','virtio-blk-pci,drive=root,serial='+record['diskSerial'],
             '-drive','if=ide,media=cdrom,readonly=on,format=raw,file='+str(folder/'seed.iso'),
             '-device','virtio-serial-pci','-chardev','socket,id=qga,path='+str(folder/'qga.sock')+',server=on,wait=off',
             '-device','virtserialport,chardev=qga,name=org.qemu.guest_agent.0']
@@ -157,6 +166,17 @@ def make_observer(folder,record,readback,acknowledge,on_baseline=None):
         raw=raw[:raw.rfind(b'\n')+1]
         text=raw.decode('utf-8',errors='strict')
         lines=[line for line in text.splitlines() if line.startswith('WOOTC_PACKAGE_RUNTIME_V1 ')]
+        for line in lines:
+            value=json.loads(line.split(' ',1)[1])
+            if value.get('stage')=='failed':
+                if (type(value.get('schemaVersion')) is not int or value.get('schemaVersion')!=1 or
+                        value.get('vmUuid')!=record.get('vmUuid') or
+                        not re.fullmatch('[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',value.get('bootId','')) or
+                        value.get('scratchId')!=record['scratchId'] or
+                        value.get('challenge')!=record['challenge']):
+                    raise ValueError('guest failure identity differs')
+                (folder/'guest-failure.json').write_text(json.dumps(value,sort_keys=True)+'\n')
+                raise ValueError('guest producer refused: '+str(value.get('failure','unknown'))[:1024])
         if not state['oldVerified']:
             if len(lines)<2:return None
             COMPARE(text,record,through='old')
