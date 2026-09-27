@@ -93,6 +93,10 @@
       "sha256": "607c424f33a16a3169123db0dd6e9b0adfac036bda8dccee04b8bfe2076c4b6a",
       "bytes": 2554
     },
+    "hosted-native.raw.log": {
+      "sha256": "92778a3801de7773ae95595ce9e2d4cb8a7235362dc26f369cacbee37a6805d6",
+      "bytes": 40842
+    },
     "hostless-probe.ps1": {
       "sha256": "adcf7645d2ff3ad88ad79ff57f41d6e1251000be66c90b3d881751b8fb8cdb65",
       "bytes": 902
@@ -124,6 +128,14 @@
     "public-direct-transcript.txt": {
       "sha256": "d86478fc4d06ca8b0a29ab2351fc5ed0ddd11f4aca72cea34eba0026573bb2bb",
       "bytes": 19853
+    },
+    "hosted-native-api.json": {
+      "sha256": "e7274431d639658066d0a6809ec8f442a654558049605031844394af027d7a52",
+      "bytes": 1221
+    },
+    "hosted-native-provenance.json": {
+      "sha256": "c27a6fcce424ee4f9c0b2dbbc40bbdb3b35952948a725cd812971bfb571e99a0",
+      "bytes": 2627
     },
     "failed-direct.raw.log": {
       "sha256": "cf619661d1ae69f986cdf5d2fa535083fce51710d8b11f75111a1e4e928f6745",
@@ -182,5 +194,12 @@
     "gitDiffCheck": "pass"
   },
   "priorProof": "prior-ancestor-mask-native retains previous immutable helper proof; previous ancestor mask rejects harmless0x116 ACL as demonstrated by verbatim prior-production-body countercontrol in current tests.",
-  "receiptValidatorSourceCommit": "b4d4083"
+  "receiptValidatorSourceCommit": "b4d4083",
+  "hostedCheckpoint": {
+    "headSHA": "35a80c1a82ae470c3d89a53c36308aa1a13593a0",
+    "actualCheckoutMergeSHA": "7cc55a58f8085ac0d30481c589188a6f426d529c",
+    "runId": 36317555514,
+    "outcome": "success",
+    "scope": "Native mocked component controls only; no actual protector/volume mutations or acceptance claim"
+  }
 }
