@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "source": "0d0b32d89352ffc603c9fa9aa4e56fb730ac32ea",
+  "run": 36341689914,
+  "artifactId": 10939330747,
+  "artifactSize": 3905,
+  "artifactDigest": "992ceb412fea4e4f4e9cbaa79b411a0d8a7ca89bc7e96ec96688d2ae10d33d89",
+  "scope": "Actual Windows captured same-user/elevated interactive token and fatal folder collector plus private one-shot consent/case-alias/refusal/action-spy controls. No actual install-purpose transport, UAC, alternate admin or install worker.",
+  "files": {
+    "stdout.raw": "136a426a56160c90f0e71f8f7829b980ef4c9f98d39417302534de831bc6e802",
+    "receipt.json": "20c847f2241eac928b903fdc16a3c32821c49b8eb56890f36b7efc0e5832d92d",
+    ".gitattributes": "730a35ae3d558080083c3103d9ac8100c3f6561678092abe341701dfa331eb1d",
+    "stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "artifact.zip": "992ceb412fea4e4f4e9cbaa79b411a0d8a7ca89bc7e96ec96688d2ae10d33d89"
+  }
+}

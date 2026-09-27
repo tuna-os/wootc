@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "scope": "actual retained token/profile/binding reads and refusal controls; same-user elevated interactive capture and token-owned folder consumption; no unelevated caller/UAC/alternate-admin journey, operation authorization or installation proof",
+  "runId": "36341689914",
+  "runAttempt": "1",
+  "testedHead": "0d0b32d89352ffc603c9fa9aa4e56fb730ac32ea",
+  "checkoutSources": {
+    "app/native_peer_windows.go": "3c7bd546475b838f45911059e176647bb58cc19de06e9ea2578ff8359e40ee8a",
+    "app/native_original_user_windows.go": "73a4d1826dd54bf5bdadea706d7623dbc56311a998db100fd3e3eeaa4ac327d5",
+    "app/native_original_user_windows_test.go": "1e7c534bcbd4b883aa33be3095be29fe0563f443be972de077409e0e8250d300",
+    "app/native_knownfolders_windows.go": "602c77caed5fc9e17a7fc5c6efaab646889dd2a11260cc714110decf7adfb867",
+    "app/native_install_authorization_windows.go": "91e342a4ae7d9899ab923158e4405c8c95337b1de9113fe725440161e8392b2b",
+    "app/install_contract.go": "c423e56e035bdc168e843e7fd00c031225f9efa5adb6b92a0f3e824f741a126b",
+    "app/native_handshake.go": "51f455c8254fbed541da5cd3662373773c4e042027281e42bf094fcdc1ca0736",
+    "app/knownfolders_contract.go": "e4cddc35dc8bfdb6bbfe55d0cea0ab2fe83094976474e09c07343c7f26aa8780",
+    "app/knownfolders_windows.go": "b1ea1b8b1a73c8eef316d3be675e10198923c12c185649e6f4bdbede433d36b9",
+    "app/go.mod": "7e083365e3205c3e1d5d89809e6bf9f063c20aeb3337972a2816bf7a9a0fedf9",
+    "app/go.sum": "834942c1a88fc11b419d56899bdf78e57d15bf84b352b9a2226b303e80a34192",
+    "tests/native_original_user_controls.py": "e491fd4b082d714789a4e72a7259aa08832932542a08226f98e3eb62fd1f647c",
+    ".github/workflows/native-original-user.yml": "a15f00123d83501598ca6c7cf0a0dc9ff5b623660b2a858aadc4c9b7985f86ea"
+  },
+  "gitSources": {
+    "app/native_peer_windows.go": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+    "app/native_original_user_windows.go": "708690eef151e9e358e5b6a26a16c2f2f7f635f50ffcca7ebb8850542ffa19e1",
+    "app/native_original_user_windows_test.go": "30960e7cf4fc39448e00f71baac86e10c3b802bfe26b463223f361f2dd4c8e2a",
+    "app/native_knownfolders_windows.go": "efb4d898a56165010d45c44adc4ad341bbb83b5990bf5dd7a11cd4190ef9fffe",
+    "app/native_install_authorization_windows.go": "209e60ada127fe717002eda9bac15bb696e8af8d14f905e14558277c1efd686f",
+    "app/install_contract.go": "44783c3a67a2dc3df28be51a7dff63842b2115d9ffe7afe9f0815e31c119ec1c",
+    "app/native_handshake.go": "82e71f9d6dc023c7f2d1c2fc353eb6888761183a1499c9db9d167dc97ae4a1cd",
+    "app/knownfolders_contract.go": "214059dcf11e9c0f0657ff9d87b717f7ff02a3f7829549b362e940765241cd77",
+    "app/knownfolders_windows.go": "0e34b5cf3c71c8344d337e2482e8feeb96075c41bf6620c2b64e421fb3dfae89",
+    "app/go.mod": "bf8b0302409344410ce0c7aa8bc7af3396a2a06d44b873a444325ac22c7a4a94",
+    "app/go.sum": "1839c01cebca590e44eba9b25df774e94536238793e500e2ca8d694b83d644f2",
+    "tests/native_original_user_controls.py": "5048643f2007e741be8b5a553e69cc29836dfb5dd277dc5609c63ea921d2334a",
+    ".github/workflows/native-original-user.yml": "e92564bb91df5014b9d2bcf13eeee560b19890f500207586d31809bf13c231e4"
+  },
+  "tools": {
+    "go": "c2f0bc63168a96e854e6e5dd32493cc00a415ddcd4bf94580e302c103b23adfe",
+    "python": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a"
+  },
+  "accepted": true,
+  "tests": [
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-source",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-engine",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/alternative-admin",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserCannotReplaceObservedTokenWithPeerFields",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualTokenProfileAndBindingReadOnly",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualInteractiveCapture",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualRestrictedInteractiveCriterion",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualKnownFolderCollector",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/actual-capture-immutable-config",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/wrong-session",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/wrong-brand",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/wrong-intent",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/assessment-purpose",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/unknown-config",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/duplicate",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/case-variant",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/case-semantic-duplicate",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/case-semantic-duplicate-reversed",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/trailing",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/missing",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/malformed",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/oversized",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/changed-observation",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/changed-token",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/operation-failure-consumed",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent/reentrant-refuses",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualOneShotInstallConsent",
+      "outcome": "pass"
+    }
+  ],
+  "stdout.raw": "136a426a56160c90f0e71f8f7829b980ef4c9f98d39417302534de831bc6e802",
+  "stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "exitCode": 0
+}
