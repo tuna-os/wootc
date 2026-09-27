@@ -1,0 +1,5 @@
+--- FAIL: TestNativeAssessmentReadyAfterPreparation (0.00s)
+    native_readiness_test.go:28: preparation failed: native startup selection refused
+FAIL
+FAIL	wootc	0.021s
+FAIL

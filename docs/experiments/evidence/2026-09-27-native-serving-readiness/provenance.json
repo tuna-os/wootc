@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "059c3d391b6bcc74e1df9313b16c713488187c94",
+  "sources": {
+    ".github/workflows/winui-preview.yml": "b95e63bbd81a444c4894906698184a58ffa219dcbb13e414c3de36e049ee87be",
+    "app/native_audit.go": "0da509472810750d6b94881b01e99d69b37b10086f5f0e1b3220e444b6b874b3",
+    "app/native_audit_test.go": "2f3b5da55c1a0298da1bd3ac78d8824e98af83ebc042eadf4bdd8199be22b878",
+    "app/native_readiness.go": "4d39fb33514124d9a944a11d477a7839eeb58560a1fb14b0f6141ac88c3626c6",
+    "app/native_readiness_test.go": "bc8b39e50cc41726db0b9d7e3530ad25b093dc6488c4a35c19f8ed72d4e00577",
+    "app/native_serve_windows.go": "f26fc93a49c9ef3a0b1f889cc685b746377f082fb4c663fcfc1886b26fcbe86e",
+    "app/serve.go": "341b9808b0c9c0bfda252c2e9b148e1465c63f97ebeb13f8d2a134bb52252b1a",
+    "app/status_location_windows.go": "6f545c28c70686bda62cf2aa5965433edd69615d8079c6a5febe3e1bef669c2c",
+    "shell/Wootc.Shell.Native/NativeDiagnosticState.cs": "96aba1a79d31f07993e25919a1ef173e94e3d2152658a6faa0cc6c3fb6795533",
+    "shell/Wootc.Shell.Native/NativeEngineConnector.cs": "af02d6849bf353ac25e766221d7732771faa30aef04ee1701e172fc4e1f31efb",
+    "shell/Wootc.Shell.Native/NativeProtocol.cs": "ebb9ad4c92b042f81962eeca87be4f630506243a52edb34b54623a317d3d8e44",
+    "shell/Wootc.Shell.NativeTests/StartupProgressTests.cs": "a3c0b242db1865ac4530e94b1cb02e9f4eb98ebf27c6319d916ff4b8d41d5b8a",
+    "shell/Wootc.Shell.UiTests/StartupWindowTests.cs": "a77c203b7535129666a42450c77ba875a4968bd1221416e1e9829760a4082e1e"
+  },
+  "evidence": {
+    "go-controls.raw.log": "340ebffc0b49ebd1d9ccb8e9623a3c50bcc616b80c3148a5c155e60de5752c69",
+    "race-controls.raw.log": "9e598deeaef616c60ce0e1da6ade7ed84d854d13d52e65734b44b9840f7336c4",
+    "premature-ready-mutant.raw.log": "e51daba57ca2492a09a676784a31ab39a523f9c89dc454c673db80254db96fcd",
+    "mutant-restoration.json": "9a22b18b8223db3d6fb97f3fe4feafd3e8f77421324ebdab68c9080662efd268",
+    "actionlint.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "windows-crosscompile.raw.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "checks": {
+    "goControlsExit": 0,
+    "raceControlsExit": 0,
+    "windowsCrosscompileExit": 0,
+    "actionlintExit": 0,
+    "prematureReadyMutantExit": 1,
+    "mutantSourceRestored": true
+  },
+  "crosscompiledBinary": {
+    "path": "/tmp/wootc-readiness-unexecuted.test.exe",
+    "sha256": "3031a7713fb3a3c3c3ddd3ff63d5b2d869e48bc73487e0d7ead270926abcd16f",
+    "size": 15582720,
+    "executed": false,
+    "disposed": true
+  },
+  "scope": {
+    "localGoAndCompileOnly": true,
+    "hostedClrControlsObserved": false,
+    "hostedActualStartupRpcObserved": false,
+    "noInteractiveUacProof": true,
+    "noInstallationJourneyProof": true,
+    "previousCeFirstRpcFailureResolved": false,
+    "originalCeSourcePreserved": "ce6818fb465d1cf8e9ffff4113d5b46ca5059d18"
+  },
+  "testRepair": {
+    "interruptedWorkerFatalCounterexample": "Retained locally under /tmp/wootc-native-readiness-proof/interrupted-worker-fatal-*; excluded from passing proof. Worker now returns refusal and externally bounded rerun fails intended assertion."
+  }
+}

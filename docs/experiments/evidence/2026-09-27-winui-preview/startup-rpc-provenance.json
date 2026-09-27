@@ -1,0 +1,302 @@
+{
+  "workflowRunId": 36313591892,
+  "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892",
+  "workflowHeadSha": "1d7bd01bd44b80b2860d5263be558ae51722d672",
+  "actualCheckoutCommit": "579b989887c1d9e64faa0bb1903c272ab024526e",
+  "checkoutParents": [
+    "323b7baa0d092ca49b0895cd7a1753296301c784",
+    "1d7bd01bd44b80b2860d5263be558ae51722d672"
+  ],
+  "nativeBuildId": "579b989887c1d9e64faa0bb1903c272ab024526e",
+  "source": {
+    ".github/workflows/winui-preview.yml": {
+      "sha256": "cd845ec4c7d4c6849a752222cababafa54885938aef60af17a5ae8569eea044e",
+      "matchesHeadBytes": true
+    },
+    "shell/Directory.Build.props": {
+      "sha256": "f2b70ee7c746112d345d279d2b21c149e35124eeb7ea6f88b5fd0ab39810cdbf",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Core/StartupController.cs": {
+      "sha256": "f2787a15c71917194c3ddc10b35fa735eaa739a928333f9a1a71e4a4fad0645a",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj": {
+      "sha256": "be5d6bc40e9d2173564f22526639a80fb305bf12b734f0def4efbdcd02eed7bd",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/AssemblyInfo.cs": {
+      "sha256": "f9d52238e2583a3a64c23f72c5ebf0f53afd0d44875fdeed830e58f69695b0c9",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/NativeEngineConnector.cs": {
+      "sha256": "263341829d279c333ca9ac21a5d13cc8cb43016793b2dc2b935fa4a17925381d",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/NativeEngineSession.cs": {
+      "sha256": "cce71570de1a5cdda588780ced8a31f0c5a65151dd77cc9ff738b398b85da0c9",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/NativeProtocol.cs": {
+      "sha256": "dc785947d02ab24c394f0f9ab256be3f326cdf94c3797e53895495c0883ea7b5",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/ProtectedPackage.cs": {
+      "sha256": "926b1e3c1333ea3b59ca646c73162e8dc5c5a109f8edbaebe0dd6f1fb9f2b6f9",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/RunasLaunch.cs": {
+      "sha256": "e9618f0c062cf9545d1f458aa9c0a822710d7faf730fc19400ddad0d3e7a8b6e",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/WindowsPeer.cs": {
+      "sha256": "e628819e8b1c2dd00f4d85e4e715536694f8cd75065bf6f6f2a89970e76bf154",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Native/Wootc.Shell.Native.csproj": {
+      "sha256": "6fbc351c86217f6f1e691d423767d6433d0f070705af12e475612f23e046a324",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.NativeTests/PackageTests.cs": {
+      "sha256": "6c3439cc32cb29e23ef792690b713f73c8f08c975b8fc9ca8844dcee051a229c",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.NativeTests/ProtocolTests.cs": {
+      "sha256": "14cac32a4edbd2be6ac5a695c409f68f808f1e64f01429446aea0027fa211add",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.NativeTests/TransportTests.cs": {
+      "sha256": "97af35829be6c24523eef77422ffa45eace4a8a15fe0c14dcd60ef78770d67c6",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.NativeTests/Wootc.Shell.NativeTests.csproj": {
+      "sha256": "cee5722fff81a1069a974db992a034e944ee842b502d784694130a51dbeab566",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Tests/StartupTests.cs": {
+      "sha256": "8661e80c56278a8b9f905cf2a3b9154cbb2032edb99eab53b700e22e4a6b0330",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.Tests/Wootc.Shell.Tests.csproj": {
+      "sha256": "c993943a5c212db1accbdf94dbe44eee18f449491258629ae5f3b3159e82ca66",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.UiTests/StartupWindowTests.cs": {
+      "sha256": "4f232bf7482c23f993203b394425170441b353e7586fef068ad2d360a9b1201a",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell.UiTests/Wootc.Shell.UiTests.csproj": {
+      "sha256": "76dc1150815983bd6c52c1878e8dfcb69d5c16b1878a99ce294b6b53f03e798f",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell/App.xaml": {
+      "sha256": "2c1e7542b922ee42e8c08424823b1d078c9679805bc5c738292b17359757607a",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell/App.xaml.cs": {
+      "sha256": "1b288f760f5e077e3547846c3fad19ebaf6fbb9e4fb6f7b03d31088f406a58e6",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell/Engine/Dto.cs": {
+      "sha256": "cb7d2f3d7290f769a4fb76305296d03be88952d286f52d054b4f51f11f817c84",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell/MainWindow.xaml": {
+      "sha256": "ad255483074437670168b877d2bf5ceee2f2be2eee55429486273b74ffbcb8d8",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell/MainWindow.xaml.cs": {
+      "sha256": "b232d9732b0214a04e979e6f56a569945cbf7879452d4b1ec7732172e441868b",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell/Wootc.Shell.csproj": {
+      "sha256": "2d62336d901d178151433bf2b2384f2d01230b4f0c578add8f9fdf0548b80c46",
+      "matchesHeadBytes": true
+    },
+    "shell/Wootc.Shell/app.manifest": {
+      "sha256": "287d30eb3815fe5c4984e270efeef3c37f2118a8a19c741b2687e9b43ee6bb4f",
+      "matchesHeadBytes": true
+    },
+    "shell/global.json": {
+      "sha256": "0a15550b7b496f0eb8ea6e405da955cf264bf519fb0fb60dd8a7e25967bbca5d",
+      "matchesHeadBytes": true
+    },
+    "app/app.go": {
+      "sha256": "d8d1140064d19ccbcb2b2c745d2b6fbf196473071c735b8463f41f6b987204f2",
+      "matchesHeadBytes": true
+    },
+    "app/main.go": {
+      "sha256": "ba40ffc24a457648a582d51a77be45a2db9503dc0e54491ae2aa958a523440d3",
+      "matchesHeadBytes": true
+    },
+    "app/native_handshake.go": {
+      "sha256": "82e71f9d6dc023c7f2d1c2fc353eb6888761183a1499c9db9d167dc97ae4a1cd",
+      "matchesHeadBytes": true
+    },
+    "app/native_handshake_test.go": {
+      "sha256": "04899a78f566053c852937d29ebfb85dce205015e2ceb43d08e0228ac24ad319",
+      "matchesHeadBytes": true
+    },
+    "app/native_package_windows.go": {
+      "sha256": "9ab623d642a7c1fce79e58d52776c516da31c7f4555c54d59ca926fa0d32c60c",
+      "matchesHeadBytes": true
+    },
+    "app/native_package_windows_test.go": {
+      "sha256": "b3fc185e6022bbd4af2b02d2986ad9b441ef4eda026298c42266045fcfed6cf7",
+      "matchesHeadBytes": true
+    },
+    "app/native_peer_windows.go": {
+      "sha256": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+      "matchesHeadBytes": true
+    },
+    "app/native_peer_windows_test.go": {
+      "sha256": "5f36b6d5d1866b7bf7f75011eda707da7bdb301a1db55bdb45c348051b7d1c90",
+      "matchesHeadBytes": true
+    },
+    "app/native_pipe_windows.go": {
+      "sha256": "12f5ab20320e88a725b389962759d13d82abcbe041fcc59f71c9974bd04349ad",
+      "matchesHeadBytes": true
+    },
+    "app/native_pipe_windows_test.go": {
+      "sha256": "ec1701881448282fe11595dc3b6bece1f567833ed01dbc42192343f6e45376f8",
+      "matchesHeadBytes": true
+    },
+    "app/native_serve_other.go": {
+      "sha256": "b823d73738bb36de1dc5fa3fb97a80722ddb458a72e931eaf1a4864674fedf24",
+      "matchesHeadBytes": true
+    },
+    "app/native_serve_windows.go": {
+      "sha256": "5751317c9b228d7313c670e95f5f883379e307ee3831b71a0a1d7131cc10b217",
+      "matchesHeadBytes": true
+    },
+    "app/native_serve_windows_test.go": {
+      "sha256": "2819c5232089664fee28c7d229fd5e77c7fd3003c7b506510265764ab07602fe",
+      "matchesHeadBytes": true
+    },
+    "app/recovery.go": {
+      "sha256": "2844104341f496b97bdb8c0b47eb1c496e2a1b4551cde2adae71c50cee1993d4",
+      "matchesHeadBytes": true
+    },
+    "app/serve.go": {
+      "sha256": "fcdf7ecf021301f47b5ffed101303ca579530791e22f3f3d4974be6fe21addc9",
+      "matchesHeadBytes": true
+    },
+    "app/serve_startup_test.go": {
+      "sha256": "06353ce3914800536ac2e782bad355851d17ef3dc1fd61434d9df9cecc1c50cc",
+      "matchesHeadBytes": true
+    },
+    "app/state.go": {
+      "sha256": "9edfd2221ba106f6ed41fee4e6fc732f32403f1160b4fc735714042c5a3ac62f",
+      "matchesHeadBytes": true
+    },
+    "app/status_location.go": {
+      "sha256": "9fccb00d7eb88a02cb414db07140ca24df0ca1bc9073713c0259795489bd57d6",
+      "matchesHeadBytes": true
+    },
+    "app/status_location_other.go": {
+      "sha256": "c3ffe56e6585e8d4d714c09d19017ab07d8c98c204cb21a589526f5c797b0b24",
+      "matchesHeadBytes": true
+    },
+    "app/status_location_test.go": {
+      "sha256": "e1cb9191ae32ed55ac9103dcb25f8023836bd8c4108fc1dc82a7e9b48e0b99bd",
+      "matchesHeadBytes": true
+    },
+    "app/status_location_windows.go": {
+      "sha256": "2a799be7ee40725905fb86bde6a37c21b5a8d71be6333d7cf6e44017f9913116",
+      "matchesHeadBytes": true
+    },
+    "app/status_location_windows_test.go": {
+      "sha256": "a978a2655a0326d23b03625fe4c17f29de92459addaf22084b630f3dfce2ace4",
+      "matchesHeadBytes": true
+    },
+    "app/status_records.go": {
+      "sha256": "edbe981508c1c0fac9c0aab8529726e95e4dfb908dc7c36543768456d2944540",
+      "matchesHeadBytes": true
+    },
+    "app/status_records_test.go": {
+      "sha256": "b30b54330ff4ea938750b85407d869f6e4c00d4a4338f1dc10db8e015b884dc1",
+      "matchesHeadBytes": true
+    }
+  },
+  "jobs": [
+    {
+      "id": 108604010604,
+      "name": "Native preview XAML and packaging build",
+      "conclusion": "success",
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010604"
+    },
+    {
+      "id": 108604010759,
+      "name": "Core startup contract (ubuntu-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010759"
+    },
+    {
+      "id": 108604010782,
+      "name": "Core startup contract (windows-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010782"
+    },
+    {
+      "id": 108604010789,
+      "name": "Native Windows process identity observations",
+      "conclusion": "success",
+      "url": "https://github.com/tuna-os/wootc/actions/runs/36313591892/job/108604010789"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 10930605048,
+      "name": "winui-preview-unpackaged",
+      "digest": "sha256:827f70877b9f596836033ec478d88119b3c6fa12c205784dd16f6252aa21381f",
+      "sizeBytes": 98938015
+    },
+    {
+      "id": 10929956577,
+      "name": "winui-core-ubuntu-latest",
+      "digest": "sha256:e078ce1ddee92961854adc534eebb65a119dddcbd896d11c6b4748102b807068",
+      "sizeBytes": 2844
+    },
+    {
+      "id": 10929732925,
+      "name": "winui-preview-diagnostics",
+      "digest": "sha256:1c5cccb96a9ae115db922776ef87adc24f43fe02e95affc5d213fec4d8b9b171",
+      "sizeBytes": 15805
+    },
+    {
+      "id": 10929587619,
+      "name": "winui-core-windows-latest",
+      "digest": "sha256:75f9a0bb848a7089e339cca7631175ae60320f98662199956b781421c670894a",
+      "sizeBytes": 2868
+    }
+  ],
+  "retainedLogs": {
+    "native": {
+      "rawFile": "startup-rpc-native.raw.log",
+      "rawSha256": "be18286aec6a7fd38fdb1f03a14ad293a9a5a8c2981df4698e8b24abcd3931f7",
+      "normalizedFile": "startup-rpc-native.normalized.log",
+      "normalizedSha256": "4a72e52e12e4cae78fd81a93441f6bb41a388463a49b6ef27c03bff32ebdf55f"
+    },
+    "go": {
+      "rawFile": "startup-rpc-go.raw.log",
+      "rawSha256": "91639ad9912eb23cafdc080e5b929242d45f1718ea562a1d9cffbd72ce0bb9f7",
+      "normalizedFile": "startup-rpc-go.normalized.log",
+      "normalizedSha256": "0f8e191f143f701f2a21074ebfad6430525cca27a56558ccb6a0126877cd3705"
+    }
+  },
+  "diagnosticsArchiveSha256": "1c5cccb96a9ae115db922776ef87adc24f43fe02e95affc5d213fec4d8b9b171",
+  "startupStateObservationFile": "startup-rpc-state-observations.json",
+  "observed": [
+    "Actual CLR native adapter 18 tests passed, zero skipped; includes framed missing/partial/duplicate status and observed retained-process cleanup controls",
+    "Actual UI tests 2 passed: initial brand/missing-PRI/restored visible window and actual protected-package C# shell to Go startup RPC, distinct status/lifecycle/recovery route, explicit disconnect",
+    "Actual Go process, pipe, package, handshake, status and CLI refusal controls passed"
+  ],
+  "notProved": [
+    "Interactive UAC decline and retry",
+    "Alternative-admin original-user collector bridge",
+    "Native installation journey",
+    "Windows 10 minimum OS runtime"
+  ],
+  "startupStateObservationSha256": "02f1816188d3647188bf563a4781dd8c50c8a305decb63083518b0cf1421df4c",
+  "context": "Same-user elevated hosted Windows service token; no interactive consent observation. State file inventory before and after was empty; no install/storage RPC exposed in shell."
+}

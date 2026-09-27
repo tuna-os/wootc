@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="ec9ac59f-ac60-4031-b767-c9cab8959312" name="runneradmin@runnervm99s1a 2026-09-27 15:34:15" runUser="runnervm99s1a\runneradmin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-27T15:34:15.2613261+00:00" queuing="2026-09-27T15:34:15.2613262+00:00" start="2026-09-27T15:34:04.8348162+00:00" finish="2026-09-27T15:34:16.7515779+00:00" />
+  <TestSettings name="default" id="2c728e49-c9d4-415c-94dd-9dc2fe6fd9bf">
+    <Deployment runDeploymentRoot="runneradmin_runnervm99s1a_2026-09-27_15_34_15" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="7d2e6cf5-c48a-42cb-b8b9-4da5e1f3d87a" testId="2f95ed40-ff9f-7095-ed6a-7fa877ca86b7" testName="Wootc.Shell.UiTests.StartupWindowTests.ActualPreviewShowsLocalBrandBeforeEngineConnection" computerName="runnervm99s1a" duration="00:00:01.4469522" startTime="2026-09-27T15:34:15.2470467+00:00" endTime="2026-09-27T15:34:16.6804126+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7d2e6cf5-c48a-42cb-b8b9-4da5e1f3d87a" />
+    <UnitTestResult executionId="57b2c7ab-1622-4a65-9a2d-a06023200033" testId="f19ed369-b2c7-8847-1599-ae3dc5803b4b" testName="Wootc.Shell.UiTests.StartupWindowTests.ActualAuthenticatedGoStartupRpcSelectsFreshRouteAndDisconnects" computerName="runnervm99s1a" duration="00:00:09.7579730" startTime="2026-09-27T15:34:05.4634817+00:00" endTime="2026-09-27T15:34:15.2310154+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="57b2c7ab-1622-4a65-9a2d-a06023200033" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Wootc.Shell.UiTests.StartupWindowTests.ActualAuthenticatedGoStartupRpcSelectsFreshRouteAndDisconnects" storage="d:\a\wootc\wootc\shell\wootc.shell.uitests\bin\release\net8.0-windows10.0.19041.0\wootc.shell.uitests.dll" id="f19ed369-b2c7-8847-1599-ae3dc5803b4b">
+      <Execution id="57b2c7ab-1622-4a65-9a2d-a06023200033" />
+      <TestMethod codeBase="D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Wootc.Shell.UiTests.StartupWindowTests" name="ActualAuthenticatedGoStartupRpcSelectsFreshRouteAndDisconnects" />
+    </UnitTest>
+    <UnitTest name="Wootc.Shell.UiTests.StartupWindowTests.ActualPreviewShowsLocalBrandBeforeEngineConnection" storage="d:\a\wootc\wootc\shell\wootc.shell.uitests\bin\release\net8.0-windows10.0.19041.0\wootc.shell.uitests.dll" id="2f95ed40-ff9f-7095-ed6a-7fa877ca86b7">
+      <Execution id="7d2e6cf5-c48a-42cb-b8b9-4da5e1f3d87a" />
+      <TestMethod codeBase="D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Wootc.Shell.UiTests.StartupWindowTests" name="ActualPreviewShowsLocalBrandBeforeEngineConnection" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="2f95ed40-ff9f-7095-ed6a-7fa877ca86b7" executionId="7d2e6cf5-c48a-42cb-b8b9-4da5e1f3d87a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f19ed369-b2c7-8847-1599-ae3dc5803b4b" executionId="57b2c7ab-1622-4a65-9a2d-a06023200033" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="2" executed="2" passed="2" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.0+05679a7ab5 (64-bit .NET 8.0.31)&#xD;
+[xUnit.net 00:00:00.10]   Discovering: Wootc.Shell.UiTests&#xD;
+[xUnit.net 00:00:00.14]   Discovered:  Wootc.Shell.UiTests&#xD;
+[xUnit.net 00:00:00.17]   Starting:    Wootc.Shell.UiTests&#xD;
+[xUnit.net 00:00:11.41]   Finished:    Wootc.Shell.UiTests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>
