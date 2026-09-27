@@ -449,41 +449,13 @@ $vaultJson = @"
 Set-Content -Force -Path "$installDir\vault.json" -Value $vaultJson -Encoding ASCII
 $WootcKargs += " wootc.vault=/wootc/install/vault.json"
 
-# ── BitLocker recovery key (SPEC §3.5, #61) ──────────────────────────────────
-# When C: is BitLocker-protected, capture the numerical recovery password
-# so Phase 2 can unlock C: and the User Data Bridge can find the real user
-# profiles that live there (they are on C:, not on the unencrypted data
-# volume where root.disk sits). The deployer shreds this file alongside
-# vault.json; the bridge reads it to unlock C: with cryptsetup bitlkOpen.
+# This script prepares a dedicated E2E VM, including a recovery protector
+# when Device Encryption has encrypted C: without creating one. Fail before
+# arming BCD if the bridge cannot receive a private, validated recovery key.
 if ($blState -ne 'off') {
-    Write-Host "[wootc] C: is BitLocker-protected — capturing recovery key for the User Data Bridge (#61)"
-    try {
-        $kp = Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue |
-              Select-Object -ExpandProperty KeyProtector -ErrorAction SilentlyContinue |
-              Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } |
-              Select-Object -First 1
-        if ($kp -and $kp.RecoveryPassword) {
-            $rawKey = $kp.RecoveryPassword -replace '-', ''
-            if ($rawKey.Length -eq 48) {
-                Set-Content -Force -Path "$installDir\bitlocker-key.txt" -Value $kp.RecoveryPassword -Encoding ASCII
-                Write-Host "[wootc] BitLocker recovery key stored at $installDir\bitlocker-key.txt"
-            } else {
-                Write-Host "[wootc] WARNING: recovery password is $($rawKey.Length) chars (expected 48) — bridge will not unlock C:"
-            }
-        } else {
-            # Fallback: manage-bde -protectors -get C:
-            $mbRaw = & manage-bde -protectors -get C: 2>$null | Out-String
-            if ($mbRaw -match 'Password:\s*\r?\n\s*([0-9-]+)') {
-                $mbKey = $matches[1]
-                Set-Content -Force -Path "$installDir\bitlocker-key.txt" -Value $mbKey -Encoding ASCII
-                Write-Host "[wootc] BitLocker recovery key stored (via manage-bde fallback) at $installDir\bitlocker-key.txt"
-            } else {
-                Write-Host "[wootc] WARNING: could not extract BitLocker recovery key — bridge will not unlock C:"
-            }
-        }
-    } catch {
-        Write-Host "[wootc] WARNING: BitLocker recovery key capture failed: $_"
-    }
+    . (Join-Path $PSScriptRoot 'fixture-bitlocker-key.ps1')
+    Export-WootcFixtureBitLockerKey -Destination "$installDir\bitlocker-key.txt" -EnsureProtector
+    Write-Host '[wootc] BitLocker fixture recovery key prepared and protected'
 }
 
 # ── Step 4: Copy GRUB files ─────────────────────────────────────────────────

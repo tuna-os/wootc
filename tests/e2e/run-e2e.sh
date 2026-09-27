@@ -1555,6 +1555,10 @@ for state_payload in "$OEM_DIR/state-trust.ps1" "$SCRIPT_DIR/wootc-files/state-t
     printf '\xEF\xBB\xBF' > "$state_payload"
     sed 's/$/\r/' "$SCRIPT_DIR/state-trust.ps1" >> "$state_payload"
 done
+for key_payload in "$OEM_DIR/fixture-bitlocker-key.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-key.ps1"; do
+    printf '\xEF\xBB\xBF' > "$key_payload"
+    sed 's/$/\r/' "$SCRIPT_DIR/fixture-bitlocker-key.ps1" >> "$key_payload"
+done
 for cli_payload in "$OEM_DIR/stage-status-cli.ps1" "$SCRIPT_DIR/wootc-files/stage-status-cli.ps1"; do
     printf '\xEF\xBB\xBF' > "$cli_payload"
     sed 's/$/\r/' "$SCRIPT_DIR/stage-status-cli.ps1" >> "$cli_payload"

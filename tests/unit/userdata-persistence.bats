@@ -114,3 +114,20 @@ setup() {
     grep -q 'attached raw root.disk .\* as /dev/loop' "$E2E"
     grep -q 'ATTACHED but sysroot.mount failed' "$E2E"
 }
+
+@test "BitLocker fixture prepares a recovery protector before arming BCD" {
+    local capture arm
+    capture=$(grep -nm1 'Export-WootcFixtureBitLockerKey.*EnsureProtector' "$PS1" | cut -d: -f1)
+    arm=$(grep -nm1 'bcdedit /copy' "$PS1" | cut -d: -f1)
+    [ -n "$capture" ] && [ -n "$arm" ] && [ "$capture" -lt "$arm" ]
+    run grep -F 'bridge will not unlock C:' "$PS1"
+    [ "$status" -ne 0 ]
+}
+
+@test "fresh and restored fixtures receive the same private key helper" {
+    grep -Fq '"$OEM_DIR/fixture-bitlocker-key.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-key.ps1"' "$E2E"
+    grep -Fq '. "C:\OEM\fixture-bitlocker-key.ps1"; Export-WootcFixtureBitLockerKey' "$E2E"
+    # The second boot must reuse the existing protector, not create another.
+    run grep 'qga_powershell.*Export-WootcFixtureBitLockerKey.*EnsureProtector' "$E2E"
+    [ "$status" -ne 0 ]
+}
