@@ -322,6 +322,14 @@ func resolveVMImage(ctx context.Context, image string) (string, error) {
 }
 
 func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState, passwordHash string) (resultErr error) {
+	metadata, err := readLocalMetadata(filepath.Join(qemuDir(), "builder-protocol.json"), 64<<10)
+	if err != nil {
+		return err
+	}
+	kernelArgs, err := observerBuilderKernelArgs(metadata, state)
+	if err != nil {
+		return err
+	}
 	ctx, stopSpaceGuard := guardVMFreeSpace(ctx, vmWindowsReserveBytes, time.Second, func() (uint64, error) { return vmFreeBytes(wootcDir()) })
 	defer stopSpaceGuard()
 	accountPath, err := writeVMAccountInput(previewDir(), vmAccountInput{SchemaVersion: 1, RunID: state.RunID, InstallID: state.InstallID, Username: state.Username, PasswordHash: passwordHash})
@@ -338,7 +346,7 @@ func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState
 	a.emitVM(VMEvent{Stage: "pulling", Message: "Preparing your persistent Linux system. Windows will remain available."})
 	args := []string{"-accel", cap.Accelerator, "-display", "none", "-m", "3072", "-smp", "2", "-machine", "q35", "-cpu", "max",
 		"-kernel", builderKernel(), "-initrd", builderInitrd(),
-		"-append", "console=ttyS0 quiet wootc.image=" + state.Image + " wootc.run_id=" + state.RunID + " wootc.install_id=" + state.InstallID + " wootc.account_mode=create",
+		"-append", kernelArgs,
 		"-fw_cfg", "name=opt/wootc/install,file=" + qemuEscape(accountPath),
 		"-drive", vmDiskDrive(state.DiskPath) + ",serial=wootc-root",
 		"-drive", vmDiskDrive(filepath.Join(previewDir(), "scratch.disk")) + ",serial=wootc-scratch",

@@ -52,9 +52,12 @@ cp "$ROOT/boot/vmlinuz-virt" "$OUT/builder-vmlinuz"
 install -m755 "$HERE/wootc-builder-init" "$ROOT/init"
 install -m644 "$HERE/wootc-builder.sh" "$ROOT/lib/wootc-builder.sh"
 
+# Fixed source closure is part of the engine-authenticated initrd artifact.
+python3 -I -S -B "$HERE/../vm-observer/stage_bundle.py" "$ROOT/usr/lib/wootc-observer"
+
 # Pack the initramfs (newc cpio + gzip).
 log "packing initramfs…"
-( cd "$ROOT" && find . -print0 | cpio --null -o --format=newc 2>/dev/null | gzip -9 ) > "$OUT/builder-initramfs.img"
+( cd "$ROOT" && find . -print0 | cpio --null -o --format=newc --owner=0:0 2>/dev/null | gzip -9 ) > "$OUT/builder-initramfs.img"
 
 rm -rf "$ROOT"
 cp "$HERE/protocol.json" "$OUT/builder-protocol.json"

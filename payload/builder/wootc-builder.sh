@@ -38,7 +38,7 @@ failed() {
 }
 
 read_contract() {
-    IMAGE="" RUN_ID="" INSTALL_ID="" ACCOUNT_MODE=image-default
+    IMAGE="" RUN_ID="" INSTALL_ID="" ACCOUNT_MODE=image-default OBSERVER_MODE=disabled
     ACCOUNT_USER="" ACCOUNT_HASH="" ACCOUNT_OUTCOME=image-default
     for token in $(cat /proc/cmdline); do
         case "$token" in
@@ -46,9 +46,15 @@ read_contract() {
             wootc.run_id=*) RUN_ID=${token#*=} ;;
             wootc.install_id=*) INSTALL_ID=${token#*=} ;;
             wootc.account_mode=*) ACCOUNT_MODE=${token#*=} ;;
+            wootc.observer=*) OBSERVER_MODE=${token#*=} ;;
         esac
     done
     validate_contract
+    case "$OBSERVER_MODE" in
+        disabled) ;;
+        boot-session-v1) [ "$ACCOUNT_MODE" = create ] || failed 'observer requires a created ordinary account' ;;
+        *) failed 'unsupported observer installation mode' ;;
+    esac
 }
 
 validate_contract() {
@@ -128,6 +134,13 @@ create_account() {  # mounted ostree root; same target-chroot contract as fisher
     if [ -f "$deployment$contexts" ]; then
         chroot "$deployment" setfiles -F "$contexts" /etc/passwd /etc/shadow /etc/group /etc/gshadow \
             "/var/home/$ACCOUNT_USER" /etc/tmpfiles.d/wootc-user-home.conf || failed 'account security labels failed'
+    fi
+    if [ "${OBSERVER_MODE:-disabled}" = boot-session-v1 ]; then
+        # Fixed authenticated-initrd route, while the persistent stateroot bind
+        # used by real account creation still exists. No wire request invokes it.
+        (cd /usr/lib/wootc-observer && timeout 3 sha256sum -c closure.sha256) >/dev/null || failed 'authenticated observer source closure differs'
+        . /usr/lib/wootc-observer/outer_install.sh
+        observer_install_owned "$deployment" "$part" || failed 'protected target observer installation refused'
     fi
     umount "$deployment/dev" "$deployment/var"
     ACCOUNT_OUTCOME=created
@@ -270,7 +283,7 @@ builder_main() {
         -v /dev:/dev -v /sys:/sys -v /run/udev:/run/udev \
         -v /var/lib/containers:/var/lib/containers \
         -v /var/tmp:/var/tmp \
-        "$IMAGE" bootc install to-disk --generic-image "$TARGET" || failed 'bootc install failed'
+        "$IMAGE" bootc install to-disk --generic-image --target-imgref "$IMAGE" "$TARGET" || failed 'bootc install failed'
     stage personalizing
     personalize_disk
     stage verifying
