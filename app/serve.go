@@ -181,10 +181,11 @@ func unmarshalStringParam(raw json.RawMessage, target *string) error {
 // ── JSON-RPC 2.0 Server ─────────────────────────────────────────────────────
 
 type Server struct {
-	app      *App
-	writer   *synchronizedWriter
-	mu       sync.Mutex
-	shutdown bool
+	strictStartup bool
+	app           *App
+	writer        *synchronizedWriter
+	mu            sync.Mutex
+	shutdown      bool
 }
 
 func NewServer(app *App, writer *synchronizedWriter) *Server {
@@ -283,9 +284,29 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return nil, nil
 
 	case "GetLastRun":
+		if s.strictStartup {
+			if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+			}
+			state, err := readNativeStartupLifecycle(wootcDir())
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+			}
+			return state, nil
+		}
 		return s.app.GetLastRun(), nil
 
 	case "GetRecoveryVerdict":
+		if s.strictStartup {
+			if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+			}
+			verdict, err := readNativeStartupRecovery(wootcDir())
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+			}
+			return verdict, nil
+		}
 		return s.app.GetRecoveryVerdict(), nil
 
 	case "E2EDriveDirective":
@@ -314,11 +335,16 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 // responses and notifications to out. On shutdown it closes out when out is
 // an io.Closer, so a disconnected client cannot block installation cleanup.
 func Serve(ctx context.Context, app *App, in io.Reader, out io.Writer) error {
+	return serveRPC(ctx, app, in, out, false)
+}
+
+func serveRPC(ctx context.Context, app *App, in io.Reader, out io.Writer, strictStartup bool) error {
 	syncWriter := &synchronizedWriter{out: out}
 	emitter := newStdioEmitter(syncWriter)
 	app.SetEmitter(emitter)
 
 	srv := NewServer(app, syncWriter)
+	srv.strictStartup = strictStartup
 
 	scanner := bufio.NewScanner(in)
 	buf := make([]byte, 1024*1024)

@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -51,29 +49,13 @@ func discoverStatusState(roots []string, audit func(string) error) (LifecycleSta
 }
 
 func loadStatusState(path string) (LifecycleState, error) {
-	f, err := os.Open(path)
+	data, err := readBoundedStatusRecord(path)
 	if err != nil {
 		return LifecycleState{}, err
 	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return LifecycleState{}, err
-	}
-	if !st.Mode().IsRegular() || st.Size() > 64*1024 {
-		return LifecycleState{}, fmt.Errorf("lifecycle state is not a bounded regular file")
-	}
-	data, err := io.ReadAll(io.LimitReader(f, 64*1024+1))
-	if err != nil {
-		return LifecycleState{}, err
-	}
-	if len(data) > 64*1024 {
-		return LifecycleState{}, fmt.Errorf("lifecycle state exceeds size limit")
-	}
-	// Windows PowerShell 5.1 writes UTF-8 with a BOM.
-	data = []byte(strings.TrimPrefix(string(data), "\ufeff"))
 	var state LifecycleState
-	if err := json.Unmarshal(data, &state); err != nil {
+	fields := map[string]string{"phaseId": "string", "state": "string", "phase": "string", "error": "string", "updatedAt": "string", "updatedBy": "string"}
+	if err := decodeStrictStatusRecord(data, &state, fields, []string{"state", "updatedAt", "updatedBy"}); err != nil {
 		return LifecycleState{}, err
 	}
 	switch state.State {

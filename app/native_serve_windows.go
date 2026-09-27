@@ -146,5 +146,5 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 	initServeLogging()
 	app := NewApp()
 	app.startup(runCtx)
-	return Serve(runCtx, app, reader, connection)
+	return serveRPC(runCtx, app, reader, connection, true)
 }
