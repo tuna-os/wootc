@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "name": "app",
+      "directory": "app",
+      "module": "wootc"
+    },
+    {
+      "name": "fisherman-tui",
+      "directory": "fisherman/tui",
+      "module": "github.com/projectbluefin/fisherman/tui"
+    },
+    {
+      "name": "fisherman-core",
+      "directory": "fisherman/fisherman",
+      "module": "github.com/tuna-os/fisherman"
+    }
+  ],
+  "minimumStatementPercent": 45,
+  "patchTargetPercent": 70
+}

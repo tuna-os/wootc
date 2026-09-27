@@ -1,0 +1,23 @@
+BINARY_SHA256 56dbc5e361ad0db0dcd27812fbe14871c2aec8647eca2975fcb42c30c9730d32
+SOURCE app/root_disk_creation.go SHA256 543ddad94e87c7206ce34c07143b0ee2c81b98a9b37eb715716c064653bce681
+SOURCE app/root_disk_creation_test.go SHA256 37a12373425fb23261ee40e83ad10cbf7a9d495fa83e2feb95b4d1b461f106b5
+SOURCE app/disk_windows.go SHA256 a3163912bba2a103a459742c1c8fe8d28ad9128e7f1ec58dc0b7df5022e04442
+SOURCE app/app.go SHA256 e651b937fc458481a15171c7187c3ed2f2f313e4f791714d79413348d5751714
+SOURCE app/installer_other.go SHA256 54be30e9f8a92aecbf2ff3f888bf5eba5427c1bea308f32b5b9b047c42cf0f4a
+=== RUN   TestRootDiskCreationPreservesExistingData
+--- PASS: TestRootDiskCreationPreservesExistingData (0.01s)
+=== RUN   TestRootDiskCreationRefusesEqualSizeImage
+--- PASS: TestRootDiskCreationRefusesEqualSizeImage (0.01s)
+=== RUN   TestRootDiskCreationRefusesDirectoryAndSymlink
+--- PASS: TestRootDiskCreationRefusesDirectoryAndSymlink (0.01s)
+=== RUN   TestRootDiskCreationAllocatesNewFileOnly
+--- PASS: TestRootDiskCreationAllocatesNewFileOnly (0.00s)
+=== RUN   TestRootDiskCreationRetainsNewFileOnInitializationFailure
+--- PASS: TestRootDiskCreationRetainsNewFileOnInitializationFailure (0.00s)
+=== RUN   TestRootDiskCreationInvalidSizeHasNoSideEffects
+--- PASS: TestRootDiskCreationInvalidSizeHasNoSideEffects (0.00s)
+=== RUN   TestRootDiskCreationConcurrentCallsCannotReplaceWinner
+--- PASS: TestRootDiskCreationConcurrentCallsCannotReplaceWinner (0.01s)
+=== RUN   TestRootDiskCreationRejectsImageAppearingAfterPreflight
+--- PASS: TestRootDiskCreationRejectsImageAppearingAfterPreflight (0.00s)
+PASS

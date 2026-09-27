@@ -1,0 +1,43 @@
+{
+  "baseCommit": "298d100201824661e98036ee3e2d78cd441a1544",
+  "sourceFiles": [
+    {
+      "path": "app/root_disk_creation.go",
+      "sha256": "543ddad94e87c7206ce34c07143b0ee2c81b98a9b37eb715716c064653bce681"
+    },
+    {
+      "path": "app/root_disk_creation_test.go",
+      "sha256": "37a12373425fb23261ee40e83ad10cbf7a9d495fa83e2feb95b4d1b461f106b5"
+    },
+    {
+      "path": "app/disk_windows.go",
+      "sha256": "a3163912bba2a103a459742c1c8fe8d28ad9128e7f1ec58dc0b7df5022e04442"
+    },
+    {
+      "path": "app/app.go",
+      "sha256": "e651b937fc458481a15171c7187c3ed2f2f313e4f791714d79413348d5751714"
+    },
+    {
+      "path": "app/installer_other.go",
+      "sha256": "54be30e9f8a92aecbf2ff3f888bf5eba5427c1bea308f32b5b9b047c42cf0f4a"
+    }
+  ],
+  "binarySha256": "56dbc5e361ad0db0dcd27812fbe14871c2aec8647eca2975fcb42c30c9730d32",
+  "sourcesArchiveSha256": "47cddf0897cad60ae2cd1f67e3369a91830f6e82d55dd8a4a6898bf345c9d829",
+  "scope": "Mock initializer and disposable private TEMP root.disk files only; no actual fsutil, partitions, ESP, BitLocker, boot or GUI operations",
+  "validatedSourceCommit": "298d100201824661e98036ee3e2d78cd441a1544",
+  "nativeExitCode": 0,
+  "nativeTests": "^TestRootDiskCreation",
+  "nativeSummary": "Eight passed, zero skipped",
+  "logs": {
+    "rawSha256": "c1a404436d9011c8988c6115f16afb2b9f5e88c43e764b0241bccd0408cd8f12",
+    "normalizedSha256": "2591c5a400dc4f328e3b31d14cc8b1e5ffe6875006bfd087d61ad804a7a33b1d",
+    "normalization": "CRLF bytes replaced with LF only",
+    "invocationSha256": "716b6f5958a314d73f9cf1bff05b42a4ff6c831a7b775248951674fcbd6c9a02"
+  },
+  "verification": [
+    "Native Windows source archive, individual source files and binary SHA256 checked before test execution",
+    "Linux allocation/pipeline/headless/cancellation/ESP cleanup regression tests passed",
+    "Windows amd64 test binary cross-compilation passed"
+  ]
+}
