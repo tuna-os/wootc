@@ -45,12 +45,12 @@ jobs:
           & git rev-parse HEAD
           & go version
           Get-CimInstance Win32_OperatingSystem | Select-Object Version,BuildNumber
-          foreach ($file in @('app/vm_guest_pipe_windows.go','app/vm_guest_pipe_windows_test.go','app/vm_guest_protocol.go','app/vm_guest_protocol_test.go','payload/vm-observer/boot_probe.py','tests/e2e/phase3_ancestry.py')) {
+          foreach ($file in @('app/vm_guest_pipe_windows.go','app/vm_guest_pipe_windows_test.go','app/vm_guest_protocol.go','app/vm_guest_protocol_test.go','payload/vm-observer/boot_probe.py','tests/e2e/phase3_ancestry.py','app/vm_qmp.go','app/vm_display.go','app/native_peer_windows.go')) {
             Write-Output "SOURCE $file SHA256 $((Get-FileHash -LiteralPath $file).Hash)"
           }
           & go test -C app . -run '^TestVMGuest' -count=1 -v 2>&1 | Tee-Object -FilePath $receipt
           if ($LASTEXITCODE -ne 0) { throw 'Actual Windows pipe controls failed' }
-          if (Select-String -LiteralPath $receipt -Pattern '^--- SKIP:' -Quiet) { throw 'Windows source controls skipped' }
+          if (Select-String -LiteralPath $receipt -Pattern '^\s*--- SKIP:' -Quiet) { throw 'Windows source controls skipped' }
       - uses: actions/upload-artifact@v7
         if: always()
         with:
