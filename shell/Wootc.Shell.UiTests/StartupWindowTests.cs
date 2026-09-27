@@ -128,9 +128,57 @@ public sealed class StartupWindowTests
                 if (!process.HasExited) { process.CloseMainWindow(); if (!process.WaitForExit(5000)) { process.Kill(); process.WaitForExit(5000); } }
             }
             Assert.False(File.Exists(Path.Combine(stateRoot, "disks", "root.disk")));
+            string lifecyclePath = Path.Combine(stateRoot, "state.json");
+            string recoveryPath = Path.Combine(stateRoot, "install", "recovery-verdict.json");
+            Assert.False(File.Exists(lifecyclePath));
+            Assert.False(File.Exists(recoveryPath));
+            string validFailed = "{\"state\":\"failed\",\"updatedAt\":\"2026-09-27T05:00:00Z\",\"updatedBy\":\"public-native-test\"}";
+            foreach (string state in new[] {
+                "{\"state\":\"failed\",\"state\":\"healthy\",\"updatedAt\":\"2026-09-27T05:00:00Z\",\"updatedBy\":\"public-native-test\"}",
+                "{\"state\":\"healthy\",\"state\":\"failed\",\"updatedAt\":\"2026-09-27T05:00:00Z\",\"updatedBy\":\"public-native-test\"}", validFailed })
+            {
+                File.WriteAllText(lifecyclePath, state);
+                bool malformedRecovery = state == validFailed;
+                if (malformedRecovery) { Directory.CreateDirectory(Path.GetDirectoryName(recoveryPath)!); File.WriteAllText(recoveryPath, "{}"); }
+                try { await ObserveUnavailableWithoutRoute(Path.Combine(root, "Wootc.Shell.exe")); }
+                finally
+                {
+                    Assert.Equal(state, File.ReadAllText(lifecyclePath));
+                    File.Delete(lifecyclePath);
+                    if (malformedRecovery) { Assert.Equal("{}", File.ReadAllText(recoveryPath)); File.Delete(recoveryPath); }
+                }
+            }
             File.WriteAllBytes(observations, JsonSerializer.SerializeToUtf8Bytes(new { buildId, before, after = BeforeState(), scope = "Disposable hosted Windows; actual same-user elevated startup RPC; no interactive UAC or installation" }));
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    private static async Task ObserveUnavailableWithoutRoute(string executable)
+    {
+        using var automation = new UIA3Automation();
+        using var process = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(executable)! })!;
+        _ = process.Handle;
+        using var application = Application.Attach(process.Id);
+        try
+        {
+            var window = application.GetMainWindow(automation, TimeSpan.FromSeconds(30));
+            Assert.NotNull(window);
+            AutomationElement Find(string id) => window.FindFirstDescendant(cf => cf.ByAutomationId(id)) ?? throw new InvalidOperationException($"Preview element {id} is absent");
+            Find("ConnectEngine").AsButton().Invoke();
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            while (!Find("ConnectionStatus").Name.StartsWith("Unavailable", StringComparison.Ordinal)) await Task.Delay(100, deadline.Token);
+            Assert.Equal("", Find("StartupRoute").Name);
+            Assert.Equal("", Find("StartupObservations").Name);
+            Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
+            window.Close();
+            using var closing = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await process.WaitForExitAsync(closing.Token);
+            Assert.Equal(0, process.ExitCode);
+        }
+        finally
+        {
+            if (!process.HasExited) { process.CloseMainWindow(); if (!process.WaitForExit(5000)) { process.Kill(); process.WaitForExit(5000); } }
+        }
     }
 
     private static async Task ObserveVisiblePreview(string executable)
