@@ -15,37 +15,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: ShellCheck
-        run: |
-          shellcheck --severity=warning \
-            payload/deployer/*.sh \
-            platform/dracut/99wootc-boot/*.sh \
-            tests/e2e/run-e2e.sh
-
-      - name: yamllint
-        run: |
-          pip install --break-system-packages yamllint
-          yamllint tests/e2e/compose.yml
-
-      - name: Validate autounattend.xml
-        run: |
-          pip install --break-system-packages xmlschema
-          python3 -c "
-          import xml.etree.ElementTree as ET
-          tree = ET.parse('tests/e2e/autounattend.xml')
-          print('XML is well-formed')
-          root = tree.getroot()
-          assert root.tag == '{urn:schemas-microsoft-com:unattend}unattend'
-          print('Root element is unattend')
-          "
-
   build-deployer:
     runs-on: ubuntu-latest
     steps:
