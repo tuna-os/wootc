@@ -1,0 +1,51 @@
+name: Linux-only package runtime prerequisites
+
+on:
+  pull_request:
+    paths:
+      - tests/e2e/package-runtime/**
+      - tests/unit/test_linux_package_*.py
+      - .github/workflows/linux-package-runtime.yml
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Source controls or measured host qualification
+        type: choice
+        options: [source, qualify]
+        default: source
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-package-prerequisites-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Execute actual source controls without guest installation
+        run: |
+          python3 -m unittest discover -s tests/unit -p 'test_linux_package_*.py'
+          python3 -m unittest discover -s tests/unit -p test_wootc_package_consumer.py
+          python3 tests/audit-linux-package-runtime.py .
+  qualify:
+    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'qualify'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Measure eligibility without image acquisition or VM launch
+        env:
+          QUALIFICATION_OUT: ${{ runner.temp }}/linux-package-host.json
+        run: |
+          python3 tests/e2e/package-runtime/qualify.py "$RUNNER_TEMP" "$QUALIFICATION_OUT"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: linux-package-host-qualification
+          path: ${{ runner.temp }}/linux-package-host.json
+          if-no-files-found: error
