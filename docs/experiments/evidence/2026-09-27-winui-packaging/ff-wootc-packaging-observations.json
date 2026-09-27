@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "buildId": "d25baf8e6061fe10e22800dbfda829a867d542e8",
+  "brandId": "wootc",
+  "toolSha256": "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f",
+  "toolSigner": "CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL",
+  "toolVersion": "7.1.0",
+  "peFileVersion": "0.0.0.0",
+  "installerSha256": "47531D4E4977A8742678443FFF96C7A0B1B93FE096172464550C17151020181E",
+  "manifestSha256": "2E9DE2FEDF97BD01A8BEF20951AE725A30DD86C413274D665CC20E4BE4029063",
+  "beforeStartup": {},
+  "afterStartup": {},
+  "afterUninstall": {},
+  "existingDestinationRefused": true,
+  "foreignFilesPreserved": true,
+  "actualInstalledStartupRpc": true,
+  "uninstallerRemovalObserved": true,
+  "uninstallerRemovalMilliseconds": 579,
+  "interactiveUacProved": false,
+  "offlineRuntimeProved": false,
+  "minimumOsProved": false
+}
