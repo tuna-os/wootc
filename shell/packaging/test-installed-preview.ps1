@@ -15,6 +15,15 @@ if (Test-Path -LiteralPath $private) { throw 'Existing packaging scratch' }
 [IO.Directory]::CreateDirectory($private) | Out-Null
 $destination=Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) "wootc Native Preview/$BrandId-$unique"
 if (Test-Path -LiteralPath $destination) { throw 'Existing preview destination' }
+$verifiedUninstall=$false
+function Remove-ObservedEmptyDirectory {
+    param([string]$Path)
+    if (-not [IO.Directory]::Exists($Path)) { return }
+    try { [IO.Directory]::Delete($Path,$false) } catch [IO.DirectoryNotFoundException] {
+        if ([IO.Directory]::Exists($Path)) { throw }
+    }
+    if ([IO.Directory]::Exists($Path)) { throw 'Owned empty directory removal was not observed' }
+}
 function Invoke-OwnedNative {
     param([string]$Executable,[string[]]$Arguments,[int]$TimeoutSeconds=180,[switch]$AllowRefusal)
     $info=[Diagnostics.ProcessStartInfo]::new($Executable)
@@ -93,9 +102,21 @@ try {
     if (($afterStartup | ConvertTo-Json -Compress) -cne ($afterUninstall | ConvertTo-Json -Compress)) { throw 'Preview uninstall changed engine installation state' }
     $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'packaging-observations.json') -Encoding utf8
-    Write-Output "PASS actual $BrandId preview compile/install/brand/startup RPC/uninstall with foreign-file preservation"
+    $verifiedUninstall=$true
 } finally {
-    # This unique test-owned directory can retain only the public sentinels.
-    if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
-    Remove-Item -LiteralPath $private -Recurse -Force
+    # After the preservation assertions, dispose only the exact public fixtures
+    # and empty directories. An absent child cannot break recursive enumeration.
+    if ($verifiedUninstall) {
+        foreach ($path in @($foreignRoot,$foreignBundle)) {
+            if (-not [IO.File]::Exists($path) -or (Get-FileHash -LiteralPath $path).Hash -cne $foreignHash) { throw 'Public foreign fixture disappeared before its explicit disposal' }
+            [IO.File]::Delete($path)
+        }
+        Remove-ObservedEmptyDirectory -Path $bundle
+        Remove-ObservedEmptyDirectory -Path $destination
+    } elseif ([IO.Directory]::Exists($destination)) { [IO.Directory]::Delete($destination,$true) }
+    if ([IO.Directory]::Exists($private)) { [IO.Directory]::Delete($private,$true) }
 }
+
+if ([IO.Directory]::Exists($destination) -or [IO.Directory]::Exists($private)) { throw 'Owned preview test cleanup incomplete' }
+[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;ownedScratchRemovalObserved=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'packaging-cleanup.json') -Encoding utf8
+Write-Output "PASS actual $BrandId preview compile/install/brand/startup RPC/uninstall with foreign-file preservation and observed test cleanup"
