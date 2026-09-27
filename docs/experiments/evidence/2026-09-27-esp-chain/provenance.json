@@ -65,7 +65,9 @@
     "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
     "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
     "tests/unit/test_wootc_esp_transaction.py": "9b536d97188a63393743a563f6fa0df310728fa16c88a49e8b5f9afa58a847d9",
-    "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"
+    "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57",
+    "tests/migration/test-bridge.sh": "ddd671dbf7f7d2e98d219455bd1f81e2a68fe2a91bfdac936494046667f3527f",
+    "tests/audit-esp-chain-provenance.py": "c4695c8cd45a9550b37c097d08649349eb9de88fb2e21715a0b63dda40698741"
   },
   "bootIdentityOrigin": {
     "commit": "63a0d7ce654addf821ccfd0f99e4678ccbac5972",
@@ -74,6 +76,31 @@
   "resultHashes": {
     "native-result.json": "40805ec2e41b74bb082b53d16ed7054ec5c5817c65645cca73514c93bef0a019",
     "real-signature-controls.json": "9290e0ac8e3cf99b13d66c031c4def5acb826130517c1aa90860097d8faecc67",
-    "mutation-controls.log": "175d04a554e98a5a10ae3b05d3bd7ee528f3b36606517d899c1b3c991e9a41ee"
+    "mutation-controls.log": "175d04a554e98a5a10ae3b05d3bd7ee528f3b36606517d899c1b3c991e9a41ee",
+    "migration-consumer.log": "c08e88457b8e51b9e676ddd30b802e6399f872c6612bf6c4c86193fdf569996f"
+  },
+  "migrationContainer": {
+    "image": "quay.io/fedora/fedora@sha256:b9de06334e40174095c9556a3221a86fa976fb3ad4de626773db63c2ca4b002a",
+    "command": "WOOTC_TEST_IMAGE=quay.io/fedora/fedora:45 bash tests/migration/test-bridge.sh",
+    "results": [
+      {
+        "passed": 69,
+        "failed": 0
+      },
+      {
+        "passed": 6,
+        "failed": 0
+      },
+      {
+        "passed": 6,
+        "failed": 0
+      },
+      {
+        "passed": 12,
+        "failed": 0
+      }
+    ],
+    "scope": "controlled adapter proves actual shell file routing/refusal; actual controller separately proves measured-root refusal; no signature or firmware claim from adapter",
+    "exitCode": 0
   }
 }
