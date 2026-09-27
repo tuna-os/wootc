@@ -2,7 +2,7 @@
 # tests/run.sh — the wootc test entry point, two tiers:
 #
 #   fast   bats unit suites (payload gates/transforms) + `go test` for the
-#          cross-platform Go. No container, no VM, sub-second — this is the
+#          cross-platform Go. No container or VM — this is the
 #          red-green loop for TDD on new features and bug fixes.
 #   slow   containerized integration (test-bridge.sh): the User Data Bridge,
 #          browser/office/steam import, look mapping, WSL, go-native gates
@@ -32,7 +32,24 @@ export GOTMPDIR
 
 rc=0
 
+# CI records the actual Go profiles; local fast runs can opt in with this path.
+run_go_module() {
+    local directory="$1" name="$2"
+    if [ -n "${WOOTC_COVERAGE_DIR:-}" ]; then
+        mkdir -p "$WOOTC_COVERAGE_DIR"
+        rm -f "$WOOTC_COVERAGE_DIR/$name.out"
+        ( cd "$directory" && go test ./... -covermode=atomic -coverprofile="$WOOTC_COVERAGE_DIR/$name.out" )
+    else
+        ( cd "$directory" && go test ./... )
+    fi
+}
+
 run_fast() {
+    if [ -n "${WOOTC_COVERAGE_DIR:-}" ]; then
+        mkdir -p "$WOOTC_COVERAGE_DIR"
+        WOOTC_COVERAGE_DIR="$(cd "$WOOTC_COVERAGE_DIR" && pwd)"
+        rm -f "$WOOTC_COVERAGE_DIR/summary.json" "$WOOTC_COVERAGE_DIR/summary.md"
+    fi
     echo "══ fast tier ═════════════════════════════════════════════════════════"
     if command -v bats >/dev/null; then
         echo "── bats unit suites (tests/unit) ──"
@@ -97,11 +114,15 @@ run_fast() {
         fi
         # app/: only the non-windows-tagged code compiles here (status mutex,
         # embedded catalog). fisherman TUI and core are fully cross-platform.
-        ( cd app && go test ./... ) || rc=1
-        ( cd fisherman/tui && go test ./... ) || rc=1
-        ( cd fisherman/fisherman && go test ./... ) || rc=1
+        run_go_module app app || rc=1
+        run_go_module fisherman/tui fisherman-tui || rc=1
+        run_go_module fisherman/fisherman fisherman-core || rc=1
+        if [ -n "${WOOTC_COVERAGE_DIR:-}" ]; then
+            python3 tests/coverage-report.py "$WOOTC_COVERAGE_DIR" || rc=1
+        fi
     else
         echo "!! go not installed — skipping Go tests" >&2
+        [ -z "${WOOTC_COVERAGE_DIR:-}" ] || rc=1
     fi
 }
 
