@@ -11,11 +11,20 @@ qga_safe_log() {
     return "$result"
 }
 
+qga_current_storage_root() {
+    local query response
+    query=$(cat "$SCRIPT_DIR/windows-storage-root.ps1") || return 1
+    response=$(qga_powershell "$query") || return 1
+    printf '%s' "$response" | tr -d '[:space:]'
+}
+
 collect_windows_diagnostic_metadata() {
     qga_windows_probe || return 1
     local found
-    # All matching drives are returned. Ambiguity must not select an old tree.
-    found=$(qga_powershell 'Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Where-Object { Test-Path ($_.Name + ":\wootc\install") } | Select-Object -ExpandProperty Name' 2>/dev/null | tr -d '[:space:]') || return 1
+    if ! found=$(qga_current_storage_root 2>/dev/null); then
+        printf '%s\n' 'Actual wootc storage root unavailable or ambiguous' > "$ARTIFACT_DIR/storage-root.txt"
+        return 1
+    fi
     case "$found" in
         [A-Za-z]) WOOTC_GUEST_ROOT="${found}:" ;;
         *) printf '%s\n' 'Actual wootc storage root unavailable or ambiguous' > "$ARTIFACT_DIR/storage-root.txt"; return 1 ;;

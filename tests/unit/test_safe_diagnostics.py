@@ -79,7 +79,7 @@ qga_safe_log missing > '{directory}/stdout' 2> '{directory}/stderr' || true
             result = subprocess.run(['python3', str(ROOT / 'tests/e2e/safe-log.py'), '--tree', directory], capture_output=True)
             self.assertNotEqual(result.returncode, 0)
 
-    def shell(self, identity=True, drive='F'):
+    def shell(self, identity=True, drive='F', root_rc=0):
         with tempfile.TemporaryDirectory() as directory:
             p = Path(directory)
             raw = p / 'raw'
@@ -90,7 +90,7 @@ source "$SCRIPT_DIR/lib/diagnostics.sh"
 qga_windows_probe() {{ {'true' if identity else 'false'}; }}
 qga_powershell() {{
   printf '%s\\n' "$1" >> "$ARTIFACT_DIR/calls"
-  if [[ "$1" == *Get-PSDrive* ]]; then printf '%s\\n' '{drive}';
+  if [[ "$1" == *Get-PSDrive* ]]; then [[ "$1" == *'-PathType Leaf'* && "$1" == *'wootc\\disks\\root.disk'* ]] || {{ echo CF; return; }}; printf '%s\\n' '{drive}'; return {root_rc};
   else printf '%s\\n' '{{"protectionStatus":"Off","protectors":[{{"type":"RecoveryPassword","id":"synthetic-id"}}]}}'; fi
 }}
 qga_read() {{ printf '%s\\n' "$1" >> "$ARTIFACT_DIR/read-paths"; cat '{raw}'; }}
@@ -113,6 +113,53 @@ fi
         self.assertIn('KeyProtectorId', commands)
         self.assertEqual(json.loads(files['bitlocker-metadata.json'])['protectionStatus'], 'Off')
 
+    def test_actual_runner_root_consumer_uses_the_same_disk_query(self):
+        runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        start = runner.index('guest_wootc_root() {')
+        function = runner[start:runner.index('\n}\n', start) + 3]
+        body = f'''set -euo pipefail
+SCRIPT_DIR='{ROOT}/tests/e2e'
+source "$SCRIPT_DIR/lib/diagnostics.sh"
+WOOTC_GUEST_ROOT=''
+qga_powershell() {{
+ [[ "$1" == *'-PathType Leaf'* && "$1" == *'wootc\\disks\\root.disk'* ]] || {{ echo C; return; }}
+ echo F
+}}
+{function}
+[ "$(guest_wootc_root)" = 'F:' ]
+qga_powershell() {{ echo CF; }}
+if value=$(guest_wootc_root); then exit 17; fi
+[ -z "$value" ]
+qga_powershell() {{ echo F; return 42; }}
+if value=$(guest_wootc_root); then exit 18; fi
+[ -z "$value" ]
+qga_powershell() {{ :; }}
+if value=$(guest_wootc_root); then exit 19; fi
+[ -z "$value" ]
+'''
+        result = subprocess.run(['bash', '-c', body], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_actual_phase2_consumer_refuses_before_vdl_or_bcd_mutation(self):
+        runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        start = runner.index('_phase2_root=$(guest_wootc_root)')
+        end = runner.index('# PowerShell parses a bare', start)
+        body = runner[start:end]
+        for output, status in [('CF', 0), ('F', 42), ('', 0)]:
+            script = f'''set -euo pipefail
+SCRIPT_DIR='{ROOT}/tests/e2e'
+source "$SCRIPT_DIR/lib/diagnostics.sh"
+WOOTC_GUEST_ROOT=''
+qga_current_storage_root() {{ printf '%s' '{output}'; return {status}; }}
+infra_fail() {{ echo 'REFUSED'; }}
+fail() {{ echo 'REFUSED'; }}
+qga_powershell() {{ echo 'UNSAFE_MUTATION' >&2; }}
+''' + runner[runner.index('guest_wootc_root() {'):runner.index('\n}\n', runner.index('guest_wootc_root() {')) + 3] + '\n' + body
+            result = subprocess.run(['bash', '-c', script], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('REFUSED', result.stdout)
+            self.assertNotIn('UNSAFE_MUTATION', result.stderr)
+
     def test_wrong_identity_or_ambiguous_drives_cannot_use_cached_c(self):
         wrong = self.shell(identity=False)
         self.assertNotIn('calls', wrong)
@@ -121,6 +168,9 @@ fi
         self.assertNotIn('bitlocker-metadata.json', ambiguous)
         self.assertNotIn('read-paths', ambiguous)
         self.assertIn('ambiguous', ambiguous['storage-root.txt'])
+        failed = self.shell(root_rc=42)
+        self.assertNotIn('read-paths', failed)
+        self.assertIn('unavailable', failed['storage-root.txt'])
 
 
 if __name__ == '__main__':

@@ -925,12 +925,13 @@ WOOTC_GUEST_ROOT=""
 guest_wootc_root() {
     if [ -z "$WOOTC_GUEST_ROOT" ]; then
         local found
-        found=$(qga_powershell 'Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Where-Object { Test-Path ($_.Name + ":\wootc\install") } | Select-Object -First 1 -ExpandProperty Name' 2>/dev/null | tr -d '[:space:]')
+        found=$(qga_current_storage_root 2>/dev/null) || return 1
         case "$found" in
             [A-Za-z]) WOOTC_GUEST_ROOT="${found}:" ;;
+            *) return 1 ;;
         esac
     fi
-    printf '%s' "${WOOTC_GUEST_ROOT:-C:}"
+    printf '%s' "$WOOTC_GUEST_ROOT"
 }
 
 # Advisory guest-side progress sample for long quiet deploys. This deliberately
@@ -1220,7 +1221,7 @@ seed_user_data() {
     # the seed landed on the encrypted C: while the deployer mounted the empty
     # carved E:, so wootc-mount-user-dirs found no profile anywhere.)
     local drive out attempt
-    drive=$(qga_powershell 'Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Where-Object { Test-Path ($_.Name + ":\wootc\install") } | Select-Object -First 1 -ExpandProperty Name' 2>/dev/null | tr -d '[:space:]')
+    drive=$(qga_current_storage_root 2>/dev/null)
     case "$drive" in [A-Za-z]) drive="${drive}:" ;; *) drive="C:" ;; esac
     local guser; guser=$(guest_windows_user)
     local seed_dir="${drive}\\Users\\${guser}\\Documents"
@@ -2810,7 +2811,7 @@ gui_install_arm() {
     # Seed while Windows is alive — the OEM path seeds inside
     # snapshot_before_deployer, which the GUI path never reaches, and the
     # driver's final act reboots the machine.
-    seed_user_data || true
+    seed_user_data before-storage || true
 
     mark_phase phase1
     step "GUI-driven Phase 1: staging wootc.exe and launching the installer..."
@@ -3504,7 +3505,10 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
     # a deployer hung after "ostree deployment:", the box rebooted into Windows,
     # and the harness spent another 76 minutes "Deploying..." before timing out.
     if [ "$DEPLOYER_STARTED" = true ] && qga_windows_probe; then
-        DEPLOYER_LOG=$(qga_safe_log "$(guest_wootc_root)\wootc\logs\deployer.log" 2>/dev/null || true)
+        DEPLOYER_LOG=""
+        if _log_root=$(guest_wootc_root); then
+            DEPLOYER_LOG=$(qga_safe_log "${_log_root}\wootc\logs\deployer.log" 2>/dev/null || true)
+        fi
         if echo "$DEPLOYER_LOG" | grep -q 'VERIFICATION_SUMMARY'; then
             echo "$DEPLOYER_LOG" | grep 'VERIFICATION_SUMMARY' | tail -1 \
                 | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
@@ -3894,7 +3898,8 @@ step "Scheduling one-shot Phase 2 Linux boot..."
 # must not be trusted across a reboot that could re-letter volumes, and this is
 # exactly where a stale letter would do damage.
 WOOTC_GUEST_ROOT=""
-_disk_path="$(guest_wootc_root)\wootc\disks\root.disk"
+_phase2_root=$(guest_wootc_root) || { infra_fail "Cannot schedule Phase 2 without unique actual storage"; exit 1; }
+_disk_path="${_phase2_root}\wootc\disks\root.disk"
 # shellcheck disable=SC2016
 _disk_size=$(qga_powershell "(Get-Item '$_disk_path').Length" 2>/dev/null | tr -d '\r\n' || true)
 if [[ -n "$_disk_size" && "$_disk_size" =~ ^[0-9]+$ && "$_disk_size" -gt 0 ]]; then
@@ -3912,7 +3917,7 @@ fi
 # 20260723T2258, died here with the deploy fully verified). The -n check
 # below is the real gate and says why.
 PHASE2_GUID=$(qga_powershell \
-    '$guid = (Get-Content '"$(guest_wootc_root)"'\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid' \
+    '$guid = (Get-Content '"$_phase2_root"'\wootc\install\bcd-guid.txt -Raw).Trim(); if ($guid -notmatch "^\{[0-9a-fA-F-]+\}$") { throw "invalid wootc BCD GUID: $guid" }; Write-Output $guid' \
     2>/dev/null || true)
 PHASE2_GUID=$(printf '%s' "$PHASE2_GUID" | tr -d '\r\n')
 [ -n "$PHASE2_GUID" ] || { fail "Could not read wootc BCD GUID from Windows"; exit 1; }
