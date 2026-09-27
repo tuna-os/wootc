@@ -232,7 +232,7 @@ def agent_command(argv,deadline):
                     if not cleanup_attempted:
                         cleanup_attempted=True
                         cleanup_facts=lease.cleanup(child)
-                    if failure is not None:failure.agentCommandFacts=cleanup_facts
+                    if failure is not None and cleanup_facts is not None:failure.agentCommandFacts=cleanup_facts
                 finally:child.stdout.close();child.stderr.close()
             # Unknown cleanup retains the subreaper lease and original facts.
             # Never repeat a group signal after its leader may have been reaped.

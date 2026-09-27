@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 MODULE=runpy.run_path(str(Path(__file__).resolve().parents[2]/'tests/e2e/package-runtime/bootstrap.py'))
 
@@ -53,6 +54,32 @@ class AgentCommandTests(unittest.TestCase):
                 self.assertLess(time.monotonic()-started,2.5)
                 self.assertTrue(caught.exception.agentCommandFacts['empty'])
                 self.assert_gone(int(marker.read_text()))
+
+    def test_unknown_cleanup_after_leader_reap_retains_facts_without_retry(self):
+        lease=MODULE['AgentChildren']()
+        cleanup=lease.cleanup
+        facts={'empty':False,'stage':'controlled-failure-after-reap'}
+        def failed(child):
+            cleanup(child)
+            self.assertIsNotNone(child.returncode)
+            facts['leader']=child.pid
+            error=RuntimeError('controlled cleanup observation failure')
+            error.agentCommandFacts=facts
+            raise error
+        globals_=MODULE['agent_command'].__globals__
+        try:
+            with mock.patch.dict(globals_,AgentChildren=lambda:lease),mock.patch.object(lease,'cleanup',side_effect=failed) as attempts,mock.patch.object(lease,'release',wraps=lease.release) as restoration,mock.patch.object(os,'killpg',wraps=os.killpg) as signals:
+                with self.assertRaises(RuntimeError) as caught:self.command("print('completed')")
+                self.assertIs(caught.exception.agentCommandFacts,facts)
+                self.assertEqual(attempts.call_count,1)
+                self.assertEqual(signals.call_count,1)
+                restoration.assert_not_called()
+                self.assertTrue(lease.active)
+        finally:
+            # Test-only restoration after independently observing no children;
+            # production deliberately retains its unknown lifecycle lease.
+            self.assertEqual(lease.children(),[])
+            lease.release()
 
     def test_existing_child_refuses_before_command(self):
         child=subprocess.Popen(['/usr/bin/sleep','3'])
