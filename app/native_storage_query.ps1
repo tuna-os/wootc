@@ -1,4 +1,5 @@
 $stage = 'load-cim-assemblies'
+[Console]::Error.WriteLine("storage-phase|$stage")
 try {
 $WarningPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
@@ -10,30 +11,38 @@ foreach ($assemblyName in @('Microsoft.Management.Infrastructure', 'Microsoft.Ma
     if ($assembly.FullName -ne $expectedIdentity -or -not [string]::Equals($assembly.Location, $assemblyPath, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'CIM assembly binding refused' }
 }
 $stage = 'import-utility'
+[Console]::Error.WriteLine("storage-phase|$stage")
 Import-Module -Name "$PSHOME\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop
 $stage = 'import-cim'
+[Console]::Error.WriteLine("storage-phase|$stage")
 Import-Module -Name "$PSHOME\Modules\CimCmdlets\CimCmdlets.psd1" -ErrorAction Stop
 $stage = 'import-storage'
+[Console]::Error.WriteLine("storage-phase|$stage")
 Import-Module -Name "$PSHOME\Modules\Storage\Storage.psd1" -ErrorAction Stop
 $stage = 'import-bitlocker'
+[Console]::Error.WriteLine("storage-phase|$stage")
 Import-Module -Name "$PSHOME\Modules\BitLocker\BitLocker.psd1" -ErrorAction Stop
 $ErrorActionPreference = 'Stop'
 $rows = @()
 $stage = 'read-volumes'
+[Console]::Error.WriteLine("storage-phase|$stage")
 $volumes = @(Storage\Get-Volume -ErrorAction Stop | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter -and $_.FileSystem -eq 'NTFS' })
 foreach ($volume in $volumes) {
     $drive = [string]$volume.DriveLetter
     $stage = 'read-partition'
+    [Console]::Error.WriteLine("storage-phase|$stage")
     $parts = @(Storage\Get-Partition -DriveLetter $drive -ErrorAction Stop)
     if ($parts.Count -ne 1) { throw 'Storage partition observation refused' }
     $part = $parts[0]
     $stage = 'read-disk'
+    [Console]::Error.WriteLine("storage-phase|$stage")
     $disks = @(Storage\Get-Disk -Number $part.DiskNumber -ErrorAction Stop)
     if ($disks.Count -ne 1) { throw 'Storage disk observation refused' }
     $disk = $disks[0]
     if ($disk.PartitionStyle -ne 'GPT' -or $disk.IsOffline -or $disk.IsReadOnly -or $part.IsReadOnly -or $part.IsHidden -or $part.GptType -ne '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}') { continue }
     $mount = "$drive`:"
     $stage = 'read-protection'
+    [Console]::Error.WriteLine("storage-phase|$stage")
     $protection = @(BitLocker\Get-BitLockerVolume -MountPoint $mount -ErrorAction Stop)
     if ($protection.Count -ne 1) { throw 'Storage protection observation refused' }
     $state = $protection[0]
@@ -41,6 +50,7 @@ foreach ($volume in $volumes) {
     $rows += [pscustomobject]@{ driveLetter=$drive; diskGuid=[string]$disk.Guid; partitionGuid=[string]$part.Guid; volumeStatus=[string]$state.VolumeStatus; protectionStatus=[string]$state.ProtectionStatus; encryptionPercentage=[int]$state.EncryptionPercentage }
 }
 $stage = 'serialize'
+[Console]::Error.WriteLine("storage-phase|$stage")
 Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject @($rows) -Compress -Depth 3
 } catch {
     $exception = $_.Exception

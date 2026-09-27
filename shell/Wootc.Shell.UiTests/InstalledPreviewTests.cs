@@ -100,6 +100,7 @@ public sealed class InstalledPreviewTests
             Assert.False(disconnect.IsOffscreen);
             disconnect.Invoke();
             await Expect("ConnectionStatus", "Offline");
+            Assert.True(Find("DisconnectEngine").Properties.HelpText.Value == "ConfigurationReadPending:True", "Second configuration read completed before disconnect; overlap was not observed");
             Assert.False(Find("ReadConfiguration").IsEnabled);
             Assert.Null(window.FindFirstDescendant(cf=>cf.ByAutomationId("ConfigurationObservation")));
             window.Close();

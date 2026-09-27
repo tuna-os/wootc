@@ -43,8 +43,13 @@ func (b *boundedNativeOutput) Write(p []byte) (int, error) {
 }
 
 type nativeStorageObservationFailure struct {
-	ExitCode       int
-	Stdout, Stderr []byte
+	ExitCode                                        int
+	Stdout, Stderr                                  []byte
+	Phase, AuditStage, ContextState                 string
+	CommandAttempted, CommandStarted, WaitCompleted bool
+	CommandPID                                      int
+	DeadlineExceeded                                bool
+	AuditMilliseconds, CommandMilliseconds          int64
 }
 
 func (e *nativeStorageObservationFailure) Error() string {
@@ -59,48 +64,58 @@ func storageQueryExitCode(command *exec.Cmd) int {
 }
 
 func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
+	started := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	auditStage := "kernel-directories"
+	auditFailure := func() error {
+		return &nativeStorageObservationFailure{ExitCode: -1, Phase: "no-child-phase-observed", AuditStage: auditStage, ContextState: nativeStorageContextState(ctx), DeadlineExceeded: ctx.Err() == context.DeadlineExceeded, AuditMilliseconds: time.Since(started).Milliseconds()}
+	}
 	systemDirectory, err := windows.GetSystemDirectory()
 	if err != nil {
-		return nil, err
+		return nil, auditFailure()
 	}
 	windowsDirectory, err := windows.GetWindowsDirectory()
 	if err != nil {
-		return nil, err
+		return nil, auditFailure()
 	}
 	if !strings.EqualFold(filepath.Clean(systemDirectory), filepath.Join(windowsDirectory, "System32")) {
-		return nil, fmt.Errorf("Windows system directory binding refused")
+		return nil, auditFailure()
 	}
 	// The protected Storage manifest resolves this assembly through windir.
 	// Bind both environment spellings to the kernel-observed Windows directory.
+	auditStage = "storage-assembly"
 	if err := auditNativePackagePath(filepath.Join(systemDirectory, "Microsoft.Windows.Storage.Core.dll")); err != nil {
-		return nil, err
+		return nil, auditFailure()
 	}
 	shellDirectory := filepath.Join(systemDirectory, "WindowsPowerShell", "v1.0")
 	shellPath := filepath.Join(shellDirectory, "powershell.exe")
 	// The Windows PowerShell CIM manifest names strong-named GAC assemblies,
 	// not DLLs in PSHOME. Audit the observed .NET 4 system binding before load.
+	auditStage = "cim-assemblies"
 	for _, name := range []string{"Microsoft.Management.Infrastructure", "Microsoft.Management.Infrastructure.CimCmdlets"} {
 		assembly := filepath.Join(windowsDirectory, "Microsoft.NET", "assembly", "GAC_MSIL", name, "v4.0_1.0.0.0__31bf3856ad364e35", name+".dll")
 		if err := auditNativePackagePath(assembly); err != nil {
-			return nil, err
+			return nil, auditFailure()
 		}
 	}
-	// Apply the existing protected-path policy, including all ancestors;
-	// this is observation only and borrows no relaxed drive-root exception.
+	// Apply the current protected-path policy, including all ancestors.
+	// This observation does not repair ACLs or create state.
+	auditStage = "interpreter"
 	if err := auditNativePackagePath(shellPath); err != nil {
-		return nil, err
+		return nil, auditFailure()
 	}
 	for _, name := range []string{"Storage", "BitLocker", "Microsoft.PowerShell.Utility", "CimCmdlets"} {
+		auditStage = map[string]string{"Storage": "storage-module", "BitLocker": "bitlocker-module", "Microsoft.PowerShell.Utility": "utility-module", "CimCmdlets": "cim-module"}[name]
 		module := filepath.Join(shellDirectory, "Modules", name)
 		if err := auditNativePackagePath(module); err != nil {
-			return nil, err
+			return nil, auditFailure()
 		}
 		if err := auditNativeStatusTree(ctx, module, 512, func(path string) error { return inspectStateObject(path, false) }); err != nil {
-			return nil, err
+			return nil, auditFailure()
 		}
 	}
+	auditStage = "complete"
 	command := exec.CommandContext(ctx, shellPath, "-NoProfile", "-NonInteractive", "-Command", nativeStorageQuery)
 	environment := make([]string, 0, len(os.Environ())+2)
 	for _, variable := range os.Environ() {
@@ -117,13 +132,18 @@ func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
 	command.Stdout = output
 	stderr := &boundedNativeOutput{}
 	command.Stderr = stderr
+	auditMilliseconds := time.Since(started).Milliseconds()
+	commandStarted := time.Now()
+	failure := func() *nativeStorageObservationFailure {
+		return &nativeStorageObservationFailure{ExitCode: storageQueryExitCode(command), Stdout: append([]byte(nil), output.Bytes()...), Stderr: append([]byte(nil), stderr.Bytes()...), Phase: nativeStoragePhase(stderr.Bytes()), AuditStage: auditStage, ContextState: nativeStorageContextState(ctx), CommandAttempted: true, CommandStarted: command.Process != nil, WaitCompleted: command.ProcessState != nil, CommandPID: storageQueryPID(command), DeadlineExceeded: ctx.Err() == context.DeadlineExceeded, AuditMilliseconds: auditMilliseconds, CommandMilliseconds: time.Since(commandStarted).Milliseconds()}
+	}
 	// Only the fixed error class reaches the caller; no arbitrary stderr text.
 	if err := command.Run(); err != nil {
-		return nil, &nativeStorageObservationFailure{ExitCode: storageQueryExitCode(command), Stdout: append([]byte(nil), output.Bytes()...), Stderr: append([]byte(nil), stderr.Bytes()...)}
+		return nil, failure()
 	}
 	var raw []json.RawMessage
 	if err := json.Unmarshal(output.Bytes(), &raw); err != nil || raw == nil || len(raw) > 26 {
-		return nil, &nativeStorageObservationFailure{ExitCode: storageQueryExitCode(command), Stdout: append([]byte(nil), output.Bytes()...), Stderr: append([]byte(nil), stderr.Bytes()...)}
+		return nil, failure()
 	}
 	rows := make([]nativeStorageRow, 0, len(raw))
 	seen := map[string]bool{}
@@ -253,4 +273,36 @@ func observeNativeStorageWith(ctx context.Context, between func() error, query f
 		}
 	}
 	return results, nil
+}
+
+// Phase names originate in the fixed script; never promote arbitrary child text.
+func nativeStoragePhase(stderr []byte) string {
+	phase := "no-child-phase-observed"
+	allowed := map[string]bool{"load-cim-assemblies": true, "import-utility": true, "import-cim": true, "import-storage": true, "import-bitlocker": true, "read-volumes": true, "read-partition": true, "read-disk": true, "read-protection": true, "serialize": true}
+	for _, line := range strings.Split(string(stderr), "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSuffix(line, "\r"), "storage-phase|")
+		if ok && allowed[value] {
+			phase = value
+		}
+	}
+	return phase
+}
+
+func storageQueryPID(command *exec.Cmd) int {
+	if command.Process == nil {
+		return 0
+	}
+	return command.Process.Pid
+}
+func nativeStorageContextState(ctx context.Context) string {
+	switch ctx.Err() {
+	case nil:
+		return "active"
+	case context.Canceled:
+		return "canceled"
+	case context.DeadlineExceeded:
+		return "deadline"
+	default:
+		return "unavailable"
+	}
 }

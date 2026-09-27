@@ -153,7 +153,7 @@ func retainNativeStorageQueryFailure(t *testing.T, err error) {
 	if err := os.WriteFile(prefix+".stderr.raw", failure.Stderr, 0600); err != nil {
 		t.Fatal(err)
 	}
-	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "test": t.Name(), "exitCode": failure.ExitCode, "bounded": true, "scope": "fixed read-only source; diagnostic catch emits stage/type/numeric fields only"})
+	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "test": t.Name(), "exitCode": failure.ExitCode, "childPhase": failure.Phase, "auditStage": failure.AuditStage, "contextState": failure.ContextState, "commandAttempted": failure.CommandAttempted, "commandStarted": failure.CommandStarted, "commandPid": failure.CommandPID, "waitCompleted": failure.WaitCompleted, "deadlineExceeded": failure.DeadlineExceeded, "auditMilliseconds": failure.AuditMilliseconds, "commandMilliseconds": failure.CommandMilliseconds, "bounded": true, "scope": "fixed read-only source; diagnostic catch emits stage/type/numeric fields only"})
 	if err := os.WriteFile(prefix+".json", record, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -440,4 +440,13 @@ func nativeStorageQueryLineEnding(query string) string {
 		return "\r\n"
 	}
 	return "\n"
+}
+
+func TestNativeConfigurationStoragePhaseRejectsUnknownText(t *testing.T) {
+	if nativeStoragePhase([]byte("storage-phase|import-storage\r\nstorage-phase|public synthetic secret\n")) != "import-storage" {
+		t.Fatal("unknown child text replaced fixed phase")
+	}
+	if nativeStoragePhase([]byte("public synthetic secret")) != "no-child-phase-observed" {
+		t.Fatal("raw child text became phase")
+	}
 }

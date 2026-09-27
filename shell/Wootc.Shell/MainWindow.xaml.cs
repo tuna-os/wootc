@@ -41,6 +41,7 @@ public sealed partial class MainWindow : Window
     private async void Disconnect_Click(object sender, RoutedEventArgs args)
     {
         DisconnectButton.IsEnabled = false;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(DisconnectButton, $"ConfigurationReadPending:{configurationRead is not null}");
         InvalidateConfigurationRead();
         ConfigurationButton.IsEnabled = false;
         ConnectionStatus.Text = "Disconnecting engine";

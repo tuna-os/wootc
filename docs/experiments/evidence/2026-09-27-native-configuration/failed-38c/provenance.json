@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "head": "38c2fdd28b82d45095039a5d53a784b7772145f0",
+  "run": 36339660714,
+  "testedMerge": "9bc981f41078ce60ab9cd4c4cd51e31cefaf7e57",
+  "artifact": {
+    "id": 10937888582,
+    "size": 46698,
+    "digest": "1b9fb0ff84e22a5432e94fa1b8b17bc712e3e864eb97c9f275939825c982eac1",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "Only first actual system query fails at10.03 seconds, exit1 with empty stdout/stderr; others pass. This source does not record audit/command elapsed, child phase or context facts, so deadline and cold-start cause remain unproved. No deadline/warmup/skip fallback.",
+  "files": {
+    "query/artifact.zip": "1b9fb0ff84e22a5432e94fa1b8b17bc712e3e864eb97c9f275939825c982eac1",
+    "query/receipt.json": "174641729dac0650e952e042ab2bd5854df9400b46eb2fa6f87a7471f40d56ef",
+    "query/stderr.raw": "f9d5d3404e15bce41624e94c3bb0aca19246a1041ea7e905c8fce24b1ffbb6f0",
+    "query/stdout.raw": "db5c9275d292fdc6ab2a74a609fee9b9d6cb1c5bd8c0b78e57cf5bfaf1c36bda",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.json": "a51912c74878559b22afec2665ab1f178599e2c0519026df2831bd23d5c4849e",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee",
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902",
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+    "query/system-query/trusted-system-modules/inventory.json": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c"
+  }
+}
