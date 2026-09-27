@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -62,6 +63,14 @@ func decodeVMGuestObservation(raw []byte, expected vmGuestProbeRequest) (vmGuest
 	if err != nil || len(fields) != 17 {
 		return result, fmt.Errorf("guest observation field shape unavailable")
 	}
+	for _, key := range []string{"schemaVersion", "runId", "installId", "diskId", "sessionId", "requestId", "username", "action", "serviceSha256", "ancestrySha256", "status", "bootId", "kernelRelease", "ordinarySession", "root", "desktopQualified", "editorQualified"} {
+		if fields[key] == nil {
+			return result, fmt.Errorf("guest observation exact field unavailable: %s", key)
+		}
+	}
+	if !bytes.Equal(bytes.TrimSpace(fields["desktopQualified"]), []byte("false")) || !bytes.Equal(bytes.TrimSpace(fields["editorQualified"]), []byte("false")) {
+		return result, fmt.Errorf("guest observation requires explicit false scope")
+	}
 	if err = strictQMPDecode(raw, &result); err != nil {
 		return result, err
 	}
@@ -76,6 +85,11 @@ func decodeVMGuestObservation(raw []byte, expected vmGuestProbeRequest) (vmGuest
 	rootFields, e := decodeQMPObject(fields["root"])
 	if e != nil || len(rootFields) != 4 || !result.Root.CurrentRootVerified || result.Root.DiskID != expected.DiskID || !regexp.MustCompile(`^/dev/[A-Za-z0-9_./-]{1,128}$`).MatchString(result.Root.Target) {
 		return result, fmt.Errorf("selected current guest root not observed")
+	}
+	for _, key := range []string{"target", "diskId", "currentRootVerified", "measurements"} {
+		if rootFields[key] == nil {
+			return result, fmt.Errorf("guest root exact field unavailable: %s", key)
+		}
 	}
 	session := result.OrdinarySession
 	if len(session) != 10 || session["Name"] != expected.Username || session["Active"] != "yes" || session["Remote"] != "no" || session["Class"] != "user" || session["State"] != "active" || (session["Type"] != "wayland" && session["Type"] != "x11") || !vmGuestIdentity.MatchString(session["Id"]) || !vmGuestDecimal.MatchString(session["User"]) || !vmGuestDecimal.MatchString(session["Leader"]) || !vmGuestDecimal.MatchString(session["LeaderStartTicks"]) {
