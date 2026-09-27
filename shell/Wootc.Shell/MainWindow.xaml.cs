@@ -22,7 +22,8 @@ public sealed partial class MainWindow : Window
         Title = $"{brand.ProductName} — Preview";
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
-        controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory));
+        controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic)));
         Closed += async (_, _) => { await controller.DisposeAsync(); };
     }
     private async void Connect_Click(object sender, RoutedEventArgs args)

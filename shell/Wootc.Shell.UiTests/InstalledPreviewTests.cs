@@ -42,8 +42,8 @@ public sealed class InstalledPreviewTests
                 using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                 while (Find(id).Name != expected)
                 {
-                    if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected installed {id}={expected}; observed {Find(id).Name}; {Find("ConnectionStatus").Name}");
-                    await Task.Delay(100, deadline.Token);
+                    if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected installed {id}={expected}; observed {Find(id).Name}; {Find("ConnectionStatus").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}");
+                    await Task.Delay(100);
                 }
             }
             await Expect("ConnectionStatus", "Ready");

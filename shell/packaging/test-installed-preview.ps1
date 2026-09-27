@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory=$true)][string]$OutputDirectory
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'wait-uninstaller-removal.ps1')
 $package=[IO.Path]::GetFullPath($PackageDirectory)
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 [IO.Directory]::CreateDirectory($output) | Out-Null
@@ -65,6 +66,7 @@ function StateHashes {
 }
 try {
     & (Join-Path $PSScriptRoot 'test-manifest.ps1')
+    & (Join-Path $PSScriptRoot 'test-uninstaller-removal.ps1')
     & (Join-Path $PSScriptRoot 'write-manifest.ps1') -PackageDirectory $package -BuildId $BuildId -BrandId $BrandId
     $tool=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'inno-tool.json') -Raw | ConvertFrom-Json
     $download=Join-Path $private 'inno-pinned.exe'
@@ -109,12 +111,15 @@ try {
     foreach ($path in @($foreignRoot,$foreignBundle)) { [IO.File]::WriteAllText($path,'public foreign bytes') }
     $uninstallers=@(Get-ChildItem -LiteralPath $destination -File -Filter 'unins*.exe')
     if ($uninstallers.Count -ne 1) { throw 'Actual preview uninstaller absent/ambiguous' }
+    if (($uninstallers[0].Attributes -band ([IO.FileAttributes]::Directory -bor [IO.FileAttributes]::ReparsePoint)) -ne 0) { throw 'Actual preview uninstaller is nonregular' }
+    $uninstallerHash=(Get-FileHash -LiteralPath $uninstallers[0].FullName).Hash
     $null=Invoke-OwnedNative -Executable $uninstallers[0].FullName -Arguments @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART')
+    $uninstallerRemovalMs=Wait-ObservedUninstallerRemoval -Path $uninstallers[0].FullName -Sha256 $uninstallerHash
     foreach ($path in $owned) { if (Test-Path -LiteralPath $path) { throw 'Recorded preview artifact remains after uninstall' } }
     foreach ($path in @($foreignRoot,$foreignBundle)) { if ((Get-FileHash -LiteralPath $path).Hash -cne $foreignHash) { throw 'Preview uninstall changed foreign bytes' } }
     $afterUninstall=StateHashes
     if (($afterStartup | ConvertTo-Json -Compress) -cne ($afterUninstall | ConvertTo-Json -Compress)) { throw 'Preview uninstall changed engine installation state' }
-    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
+    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;uninstallerRemovalObserved=$true;uninstallerRemovalMilliseconds=$uninstallerRemovalMs;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'packaging-observations.json') -Encoding utf8
     $verifiedUninstall=$true
 } finally {
