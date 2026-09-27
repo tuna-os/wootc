@@ -90,6 +90,22 @@ test('installer — done screen', async ({ page }) => {
   await shot(page, '04-done');
 });
 
+test('installer — session consent does not assert successful export', async ({ page }) => {
+  const steps = [{ step: 'done', message: 'Preparation complete.', percent: 100, done: true }];
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps,
+    sessionCandidates: [{ app: 'firefox', portable: true, recommend: 'copy', note: 'Public fixture candidate' }] });
+  await page.locator('details:has-text("Advanced") summary').click();
+  await page.locator('label').filter({ hasText: 'Public fixture candidate' }).locator('input[type=checkbox]').check();
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2'); await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.done-hero')).toContainText('App sign-in on Linux');
+  await expect(page.locator('.done-hero')).not.toContainText('Session keys staged');
+  await expect(page.locator('.done-hero')).not.toContainText('safely staged');
+  await expect(page.getByText('Save any open work first', { exact: false })).toBeInViewport();
+});
+
 test('control panel — partition-aware uninstall options', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
     uninstall: { found: true, storageDrive: 'D', diskPath: 'D:\\wootc\\disks\\root.vhdx',

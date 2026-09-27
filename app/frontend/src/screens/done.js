@@ -35,15 +35,15 @@ export function renderDoneScreen() {
     </div>
     ${state.selected?.mokEnroll ? `
     <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-muted);margin-top:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:9px 12px;text-align:left;max-width:460px">
-      <span>🔑</span><span><strong>One extra one-time step for ${state.selected?.name || 'this system'}:</strong>
-      after setup, a blue "MOK management" screen appears once. That's your PC asking
+      <span>🔑</span><span><strong>Driver trust for ${state.selected?.name || 'this system'}:</strong>
+      after setup, your PC may show a blue "MOK management" screen asking
       permission to trust ${state.selected?.name || 'the'} drivers — choose
       <strong>Enroll MOK</strong> → <strong>Continue</strong> → <strong>Yes</strong>, and type the password
-      <strong>${state.selected.mokEnroll}</strong>. Totally normal, and it never appears again.</span>
+      <strong>${state.selected.mokEnroll}</strong>. Review the request before confirming enrollment.</span>
     </div>` : ''}
     ${Object.values(state.config.sessionConsent || {}).some(Boolean) ? `
     <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-muted);margin-top:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:9px 12px;text-align:left;max-width:460px">
-      <span>🔐</span><span><strong>Session keys staged:</strong> your opted-in session keys are safely staged. On Linux, you'll sign in once to connect your apps.</span>
+      <span>🔐</span><span><strong>App sign-in on Linux:</strong> apps you selected may still need you to sign in again.</span>
     </div>` : ''}
   `;
   screen.appendChild(hero);
