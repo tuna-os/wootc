@@ -32,7 +32,7 @@ class AcceptanceTests(unittest.TestCase):
             captures.append({'vmUuid': 'fixture-vm', 'observation': boot, 'trioHashes': hashes, 'sourceHashes': hashes,
                              'signatureProof': {'verified': True}, 'failedUnits': [], 'pendingJournal': False,
                              'receipt': {'ownedManifestSha256': 'fixture', 'preparedBootId': boot['bootId'], 'sourceEFI': {'version': 'old' if not index else 'new'}}, 'foreignFiles': {'EFI/Microsoft/a': 'kept'},
-                             'archiveHashes': old if index else None, 'firmwareTrustHashes': dict(dict.fromkeys(('SecureBoot', 'SetupMode', 'db', 'dbx', 'MokListXRT'), '3'*64), SbatLevelRT=hashlib.sha256(raw).hexdigest()), 'firmwareSbatVariableBase64': encoded, 'firmwareSbatPolicy': {'sbat': 1, 'grub': 1},
+                             'firmwareObservationSource': 'current-boot-efivars', 'archiveHashes': old if index else None, 'firmwareTrustHashes': dict(dict.fromkeys(('SecureBoot', 'SetupMode', 'db', 'dbx', 'MokListXRT'), '3'*64), SbatLevelRT=hashlib.sha256(raw).hexdigest()), 'firmwareSbatVariableBase64': encoded, 'firmwareSbatPolicy': {'sbat': 1, 'grub': 1},
                              'upgradeSignatureProof': {'verified': True, 'current': old, 'candidate': new} if index else None,
                              'sourceFacts': {'sourceKind': 'classic', 'version': 'old' if not index else 'new', 'timestamp': str(index)}})
         windows = {'vmUuid': 'fixture-vm', 'scratchId': plan['scratchId'], 'os': 'Windows_NT', 'hostUuid': identity['hostUuid'], 'afterLinuxBootId': '00000000-0000-0000-0000-000000000002'}
@@ -71,6 +71,13 @@ class AcceptanceTests(unittest.TestCase):
             args[2]['firmwareTrustHashes']['SbatLevelRT'] = hashlib.sha256(raw).hexdigest()
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 accept(*args)
+
+    def test_expected_policy_alone_cannot_satisfy_runtime_observation(self):
+        self.args[0]['initialFirmwarePolicy'] = {'mode': 'planned-old-shim-bootstrap', 'oldShimSha256': self.args[0]['oldHashes']['shimx64.efi'], 'expectedVariableBase64': self.args[0]['sbatTransition']['oldVariableBase64'], 'currentBootObserved': False}
+        self.assertTrue(accept(*self.args)['observationsMatch'])
+        self.args[1]['firmwareObservationSource'] = 'old-shim-embedded-policy'
+        with self.assertRaisesRegex(ValueError, 'current-boot firmware observation absent'):
+            accept(*self.args)
 
     def test_partial_component_upgrade_keeps_complete_trio(self):
         for data in self.args[:4]:

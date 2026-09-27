@@ -92,7 +92,7 @@ def capture(args):
         if failed:
             raise ValueError('failed installed systemd units')
         return {'schemaVersion': 1, 'transportNonce': args.transport_nonce, 'vmUuid': Path('/sys/class/dmi/id/product_uuid').read_text().strip().lower(), 'observation': after, 'trioHashes': hashes, 'sourceHashes': {n: digest(candidate/n) for n in FILES},
-                'archiveHashes': archive, 'upgradeSignatureProof': upgrade_signature, 'firmwareTrustHashes': trust, 'firmwareSbatPolicy': policy, 'firmwareSbatVariableBase64': base64.b64encode(sbat_raw).decode(), 'receipt': receipt, 'sourceFacts': source,
+                'archiveHashes': archive, 'upgradeSignatureProof': upgrade_signature, 'firmwareObservationSource': 'current-boot-efivars', 'firmwareTrustHashes': trust, 'firmwareSbatPolicy': policy, 'firmwareSbatVariableBase64': base64.b64encode(sbat_raw).decode(), 'receipt': receipt, 'sourceFacts': source,
                 'foreignFiles': foreign, 'signatureProof': signature, 'failedUnits': [], 'pendingJournal': False}
 
 

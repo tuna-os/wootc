@@ -1,4 +1,11 @@
 {
+  "assetPlan": "docs/experiments/evidence/2026-09-27-esp-orchestrator/classic-asset-plan.json",
+  "bootstrapPolicyContract": {
+    "expectedPolicyAloneAcceptance": false,
+    "expectedPolicySource": "pinned old shim embedded policy",
+    "firstLinuxGate": "fresh current-boot efivars, complete old source/trio/root binding and fresh receipt before upgrade",
+    "windowsRuntimeStatus": "unknown"
+  },
   "classicOsBootAcceptance": false,
   "firmwareAcceptance": false,
   "firmwareSourceContract": {
@@ -14,7 +21,8 @@
   },
   "firmwareStoreBindingVerified": false,
   "gatesRemaining": [
-    "launcher/source/firmware-code contract review",
+    "authoritative pristine pre-wootc Windows baseline with matching TPM/NVRAM exports and actual clone re-observation",
+    "complete pinned old/new classic package dependencies and eligible KVM host",
     "real libguestfs classic baseline production",
     "actual PowerShell runtime and observed unencrypted host/system volumes",
     "first classic OS loop boot and complete actual store-to-runtime policy binding",
@@ -24,15 +32,17 @@
     "TPM-protected baseline support"
   ],
   "integratedSourceCheckpoint": "e7fd1d13760f8f13fdc9f5b737f56db7b2bb067d",
+  "launcherCheckpoint": "7d4744a587863587c4cefd97ca1ddd272bd6790a",
   "launcherExecuted": false,
   "mainBase": "f982b553e489613b0c139139ea46c204547da620",
   "nativeTests": {
-    "acceptanceFixtureControls": 7,
+    "acceptanceFixtureControls": 8,
     "launcherFileProcessSocketControls": 14,
-    "producerPreflightFreezeControls": 9,
-    "qgaSocketControls": 13,
-    "total": 135
+    "producerPreflightFreezeControls": 15,
+    "qgaSocketControls": 15,
+    "total": 144
   },
+  "newDocumentSteFindings": 0,
   "pinnedPrimarySources": {
     "firmware-volume-edk2-stable202402.h": {
       "bytes": 7837,
@@ -56,6 +66,16 @@
     }
   },
   "producerExecuted": false,
+  "producerInputContract": {
+    "dynamicCapacityUsesActualVirtualSize": true,
+    "externalBackingAllowed": false,
+    "externalDataFileAllowed": false,
+    "frozenImageMetadataRechecked": true,
+    "scope": "native metadata fixtures and source controls only; no image creation or OS proof",
+    "selectedGuestNtfsAndEspCapacityCheckedBeforeWrites": true,
+    "sourceHashCheckedAcrossMetadataQuery": true,
+    "standaloneQcow2MetadataCheckedBeforeCopy": true
+  },
   "publicFirmwareStoreParserProbe": {
     "allActiveVariablesMatchUpstream": 30,
     "dbSha256": "5e51098ff9c7d47c2bdc35da85779174a1014d7148bcc5b3cd854b65c0bd2872",
@@ -78,7 +98,9 @@
   "schemaVersion": 1,
   "scope": "Native Unix-socket protocol, exclusive byte-copy and real host-process/socket controls use explicit OS/signature/firmware-code fixtures; public NV-store parser proof is separate. No image creation or QEMU/VM launch.",
   "sourceHashes": {
-    "docs/experiments/esp-chain-orchestrator.md": "3a12958264e902efabfe2e401d049308f006d74d36d8a1d19792298ec926c8c2",
+    "docs/experiments/esp-chain-orchestrator.md": "f26d5134926d052033b0ceac49dda6e344bb1e32bf1ac1b97172b18a3afa7201",
+    "docs/experiments/evidence/2026-09-27-esp-orchestrator/classic-asset-plan.json": "a5f92bf41771bb392a6282084660bbd3ea0662a81f39f3aad108ffd441262cdf",
+    "docs/experiments/evidence/2026-09-27-esp-orchestrator/windows-baseline-plan.json": "702fe3ec6c1ebca55ffc125a8b8d12f34fba4dc3457efd35ec1bb03e88e8c8f8",
     "payload/migration/lib/wootc_boot_identity.py": "895042a2b5c7cd22bfb5c60596e1fd486db3343f0594cd208fbc7ba6374bd83c",
     "payload/migration/lib/wootc_chain_source.py": "c48df7dac5991ac194a351e5b9662a0ecc93e1577f4f645be72e060664f44fee",
     "payload/migration/lib/wootc_chain_verify.py": "6be73dd966a7dad09d04fa7c9496503875a2e8d822284bd2ce88e5a05293e917",
@@ -96,13 +118,13 @@
     "platform/dracut/99wootc-boot/wootc-stage-shutdown.sh": "779bd6155fa1b36a0a339bd7b2e2de0ba2704b451c47d3d68dc6cbcde9b41e8b",
     "platform/dracut/99wootc-boot/wootc-umount-host.sh": "4081b5b8898d680779e6221d111bbd7e35ea27acc7174363563872ab21600385",
     "tests/audit-esp-orchestrator.py": "9f1abf5f2834e6389e61fb8696690e89fd6f7012d3cc71fa06225df9dcbeb773",
-    "tests/e2e/esp-chain/accept.py": "e0e2eca3f494515ce7ab548528343b726222e39faf260d12eb87d4221091ed30",
+    "tests/e2e/esp-chain/accept.py": "d17bc38e426ee6f18b5ef27a2a731b0cf34ce7835f39e205001e02b0ae51fc48",
     "tests/e2e/esp-chain/arm-classic.ps1": "3de475291dbaa043285353dc3c675bb2cfd09fd2a470af394c10aff24a5b0e7a",
     "tests/e2e/esp-chain/capture-windows.ps1": "3c079a90507989659587e07f9c437b4edd7b8ac0e8a4070c3a8845513f103e27",
-    "tests/e2e/esp-chain/capture.py": "e5d68cd4b4e328928087f99fbca87e81284e2ed1584b4a197ac3f7a76db5b510",
+    "tests/e2e/esp-chain/capture.py": "5aaf7e3e4130c1366219b43abbcc74c067193c6f700ceee971f05ab0ad410b61",
     "tests/e2e/esp-chain/launch.py": "228b70875562c40b8ce6a9b60f12fdca05f823799589d8ff28564915f07ed754",
-    "tests/e2e/esp-chain/orchestrate.py": "ec0ff75e1571ca5398a18483e23ff7e409e769fdcfe1e2d9ccaf6b0de63ab549",
-    "tests/e2e/esp-chain/produce-classic.py": "e29a32a40da979bd671134f94dcca082eadaca7ec3fa3e05493bda8c5ae1b5e5",
+    "tests/e2e/esp-chain/orchestrate.py": "6dc6c6c66d31a39bb46b6665edcd7432970d61e13f0eca850b6c852f63abc42a",
+    "tests/e2e/esp-chain/produce-classic.py": "f157ed0c77426f638e34849024c78a02fddec5c63b29ddb7c00a499f9cb637de",
     "tests/e2e/esp-chain/scratch.py": "f13bbbc0738b269ca0d83a619ccda93cf3b0047f2aa5be37e802b08480647caf",
     "tests/e2e/esp-chain/stage-classic-source.py": "d4e5fec5be127071db3fcc2da9118522fca69e3a175de52bd05c6d9fe12d5d67",
     "tests/e2e/esp-chain/upgrade-classic.py": "9fb736985a2ecb85a522b54411afaf063ab9bb7a1ec66126feb23175ed4ce465",
@@ -111,15 +133,17 @@
     "tests/unit/test_wootc_chain_source.py": "485cfe80d2edd9d80392f1a4f392d33e086332ed77a0efcb94d532da006ae933",
     "tests/unit/test_wootc_chain_staging.py": "bf378c3d9dc5147fa3152e2b4762a0983d4256fd09f8bfd363142f4ce583d8e2",
     "tests/unit/test_wootc_chain_verify.py": "2a65f52562b763da45c61dcc7d89d167681a091e95f5acfcce47e74e7eb36287",
-    "tests/unit/test_wootc_classic_producer.py": "6b013de4e76f19cf1d7e9f43c7265e618bba23a3b1ce8f0e6c633d59ba179530",
+    "tests/unit/test_wootc_classic_producer.py": "e2cc5cb9955f05c00ce2ba39eb2a144392df26611bfef838e892779bb0926c86",
     "tests/unit/test_wootc_classic_source.py": "d754a1212b2bd46ba47bc584b1b268ce98b1826ee9b45307718e6bd4dff9d4a5",
-    "tests/unit/test_wootc_esp_acceptance.py": "743b1ac5a01af14394af25a475daf7d310a456669b48683f86d788c70fb1d12d",
+    "tests/unit/test_wootc_esp_acceptance.py": "39fc61b90cf5c7e16765bda4fc365b25fbfea30a63cdb8e61bfec8157521b6a6",
     "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
     "tests/unit/test_wootc_esp_launcher.py": "07e662910ef398c992662fc9bff16cb465cbc6172f9a73db64c9bdc9c3c86546",
-    "tests/unit/test_wootc_esp_orchestrator.py": "6a10eb8ead7c0c1d4e7ad7177ef9c57023fc0331185752dc73b43fb8b877cf8e",
+    "tests/unit/test_wootc_esp_orchestrator.py": "c82685e542a7e5a3524481ab5ed5f8f8d7526157e40a2ead5d692003da537d73",
     "tests/unit/test_wootc_esp_ownership.py": "0d69693a2fb803518a532dd80c1e9cffe020002e91ae7799992b82efda120967",
     "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
     "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"
   },
+  "steFindings": 1589,
+  "windowsBaselineRecipe": "docs/experiments/evidence/2026-09-27-esp-orchestrator/windows-baseline-plan.json",
   "windowsHelpersExecuted": false
 }

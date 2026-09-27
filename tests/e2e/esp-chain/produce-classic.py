@@ -27,6 +27,25 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def initial_policy(config):
+    mode = config.get('firmwareObservationMode', 'captured-runtime')
+    if mode == 'captured-runtime':
+        return {'mode': mode, 'source': 'captured-baseline-runtime', 'currentBootObserved': False}
+    if mode != 'planned-old-shim-bootstrap':
+        raise ValueError('unknown initial firmware observation mode')
+    helper = runpy.run_path(str(Path(__file__).with_name('accept.py')))
+    encoded = config['expectedOldSbatVariableBase64']
+    raw, _ = helper['policy_variable'](encoded)
+    entry = config['oldTrio']['shimx64.efi']; shim = Path(entry['path']).read_bytes()
+    if hashlib.sha256(shim).hexdigest() != entry['sha256']:
+        raise ValueError('old shim changed before policy binding')
+    if raw[4:] not in helper['embedded_sbat_payloads'](shim):
+        raise ValueError('expected initial policy is not an exact old shim policy')
+    return {'mode': mode, 'source': 'old-shim-embedded-policy', 'oldShimSha256': entry['sha256'],
+            'expectedVariableBase64': encoded, 'runtimeStatusAtWindowsBootstrap': 'unknown',
+            'currentBootObserved': False, 'sourceSignaturesVerified': False}
+
+
 def checked_inputs(config):
     inputs = [config['windowsBaseline'], config['classicCloudImage']]
     inputs += config['oldPackages']+config['newPackages']+list(config['oldTrio'].values())+list(config['newTrio'].values())
@@ -55,7 +74,11 @@ def checked_inputs(config):
         if sha(closure/name) != expected:
             raise ValueError('verifier closure differs')
     variables = Path(config['firmwareVariables'])
-    required = [('SecureBoot', GLOBAL), ('SetupMode', GLOBAL), ('db', DB_GUID), ('dbx', DB_GUID), ('SbatLevelRT', SHIM_GUID)]
+    policy = initial_policy(config)
+    required = [('SecureBoot', GLOBAL), ('SetupMode', GLOBAL), ('db', DB_GUID), ('dbx', DB_GUID)]
+    if policy['mode'] == 'captured-runtime': required.append(('SbatLevelRT', SHIM_GUID))
+    elif 'SbatLevelRT-'+SHIM_GUID in config['firmwareVariableHashes'] or (variables/('SbatLevelRT-'+SHIM_GUID)).exists():
+        raise ValueError('planned bootstrap must not relabel a supplied SBAT runtime export')
     if any(n+'-'+g not in config['firmwareVariableHashes'] for n, g in required):
         raise ValueError('complete baseline firmware export required')
     if not config['firmwareVariableHashes']:
@@ -96,6 +119,48 @@ def freeze_inputs(parent, config):
     return frozen
 
 
+def image_contract(entry, run=subprocess.run):
+    """Observe standalone qcow2 metadata before copying any source bytes."""
+    path = Path(entry['path'])
+    if path.is_symlink() or sha(path) != entry['sha256']:
+        raise ValueError('image changed before metadata observation')
+    result = run(['qemu-img', 'info', '--output=json', '-f', 'qcow2', str(path)],
+                 check=True, timeout=30, capture_output=True)
+    if len(result.stdout) > 65536:
+        raise ValueError('image metadata exceeds bound')
+    info = json.loads(result.stdout)
+    if sha(path) != entry['sha256']:
+        raise ValueError('image changed during metadata observation')
+    size = info.get('virtual-size')
+    if info.get('format') != 'qcow2' or type(size) is not int or not 0 < size <= 1024**4:
+        raise ValueError('unsupported image format or virtual size')
+    if any(info.get(key) for key in ('backing-filename', 'full-backing-filename', 'data-file')):
+        raise ValueError('external image backing or data file refused')
+    specific = info.get('format-specific', {})
+    if not isinstance(specific, dict) or not isinstance(specific.get('data', {}), dict):
+        raise ValueError('malformed image format metadata')
+    if specific.get('data', {}).get('data-file'):
+        raise ValueError('external image data file refused')
+    return {'virtualBytes': size, 'sourceBytes': path.stat().st_size,
+            'sha256': entry['sha256']}
+
+
+def required_space(config, contracts, frozen_support_bytes=0):
+    entries = config['oldPackages']+config['newPackages']+list(config['oldTrio'].values())+list(config['newTrio'].values())
+    small = sum(Path(entry['path']).stat().st_size for entry in entries)
+    return max(config['minimumFreeBytes'],
+               sum(value['sourceBytes'] for value in contracts.values()) +
+               2*contracts['classicCloudImage']['virtualBytes'] + 12*1024**3 + small + frozen_support_bytes)
+
+
+def guest_free_bytes(guest):
+    values = guest.statvfs('/')
+    unit, available = values.get('frsize'), values.get('bavail')
+    if type(unit) is not int or type(available) is not int or unit <= 0 or available < 0:
+        raise ValueError('actual guest filesystem capacity is unknown')
+    return unit*available
+
+
 def mount_os(guest, root):
     points = guest.inspect_get_mountpoints(root)
     for mount, device in sorted(points.items(), key=lambda row: len(row[0])):
@@ -117,11 +182,21 @@ def produce(parent, config, run=subprocess.run):
             raise ValueError('producer dependency absent: '+executable)
     guestfs = importlib.import_module('guestfs')
     parent = Path(parent).resolve(strict=True)
-    if shutil.disk_usage(parent).free < config['minimumFreeBytes']:
+    contracts = {name: image_contract(config[name], run) for name in ('windowsBaseline', 'classicCloudImage')}
+    support = sum(p.stat().st_size for p in source_pins)
+    support += sum(p.stat().st_size for p in closure.rglob('*') if p.is_file())
+    support += sum((variables/name).stat().st_size for name in config['firmwareVariableHashes'])
+    space = required_space(config, contracts, support)
+    if shutil.disk_usage(parent).free < space:
         raise ValueError('insufficient private QA build space')
     original_config = copy.deepcopy(config)
     config = freeze_inputs(parent, config)
+    for name, expected in contracts.items():
+        if image_contract(config[name], run) != expected:
+            raise ValueError('frozen image metadata differs from admitted source')
     record = provision(parent, Path(config['windowsBaseline']['path']), config['windowsBaseline']['sha256'], run)
+    record['imageContracts'] = contracts
+    record['requiredFreeBytes'] = space
     Path(record['overlay']).chmod(0o600)
     folder = Path(record['overlay']).parent
     source_folder = folder/'source-closure'; source_folder.mkdir(mode=0o700)
@@ -132,6 +207,12 @@ def produce(parent, config, run=subprocess.run):
         if sha(frozen_variables/name) != expected or sha(variables/name) != expected:
             raise ValueError('firmware export changed while freezing')
     variables = frozen_variables
+    initial = initial_policy(config)
+    if initial['mode'] == 'planned-old-shim-bootstrap':
+        path = variables/('SbatLevelRT-'+SHIM_GUID)
+        with path.open('xb') as stream:
+            stream.write(base64.b64decode(initial['expectedVariableBase64'], validate=True)); stream.flush(); os.fsync(stream.fileno())
+        path.chmod(0o400)  # Prospective preflight policy, never a runtime observation.
     frozen_closure = folder/'verifier-closure'; shutil.copytree(closure, frozen_closure)
     closure_pins = json.loads((ROOT/'docs/experiments/evidence/2026-09-27-classic-versioned-rpm/provenance.json').read_text())['verifierClosureHashes']
     if any(sha(frozen_closure/n) != expected or sha(closure/n) != expected for n, expected in closure_pins.items()):
@@ -242,6 +323,8 @@ systemctl enable qemu-guest-agent.service wootc-host-bind.service wootc-esp-sync
     for name, entry in config['newTrio'].items():
         shutil.copyfile(entry['path'], new/name)
     proof = verify_transition(old, new, variables, closure)
+    if initial['mode'] == 'planned-old-shim-bootstrap':
+        initial['sourceSignaturesVerified'] = proof['verified'] is True
     baseline_policy = base64.b64encode((variables/('SbatLevelRT-'+SHIM_GUID)).read_bytes()).decode()
     transition = runpy.run_path(str(Path(__file__).with_name('accept.py')))['sbat_plan'](
         baseline_policy, config.get('expectedSbatVariableBase64', baseline_policy), new/'shimx64.efi')
@@ -269,6 +352,8 @@ systemctl enable qemu-guest-agent.service wootc-host-bind.service wootc-esp-sync
         windows.mount(volume, '/')
         if windows.exists('/wootc/disks/root.disk') or windows.exists('/wootc/install/installation.json'):
             raise ValueError('baseline is already armed or deployed; use pristine QA Windows')
+        if guest_free_bytes(windows) < disk.stat().st_size + 1024**3:
+            raise ValueError('selected NTFS volume lacks root.disk space and reserve')
         windows.mkdir_p('/wootc/disks'); windows.mkdir_p('/wootc/qa')
         windows_helpers = {}
         for script_name in ('capture-windows.ps1', 'arm-classic.ps1'):
@@ -283,6 +368,10 @@ systemctl enable qemu-guest-agent.service wootc-host-bind.service wootc-esp-sync
         esp = esps[0]; windows.mount(esp, '/')
         if not windows.is_file('/EFI/Microsoft/Boot/bootmgfw.efi'):
             raise ValueError('selected FAT is not Windows boot ESP')
+        esp_bytes = sum((old/name).stat().st_size for name in FILES)
+        esp_bytes += sum((folder/name).stat().st_size for name in ('vmlinuz', 'initrd'))
+        if guest_free_bytes(windows) < esp_bytes + 1024**2:
+            raise ValueError('actual Windows ESP lacks boot payload space and reserve')
         esp_uuid = windows.vfs_uuid(esp)
         device = windows.part_to_dev(esp); partition = windows.part_to_partnum(esp)
         esp_guid = windows.part_get_gpt_guid(device, partition).lower()
@@ -333,6 +422,7 @@ systemctl enable qemu-guest-agent.service wootc-host-bind.service wootc-esp-sync
     record.update(state='classic-offline-baseline-produced', hostUuid=host_uuid, hostEspUuid=esp_uuid,
                   espPartitionGuid=esp_guid, rootFsUuid=root_uuid, sourceVendor=vendor, retainedForeignEspHashes=foreign_before,
                   loaderPath='\\EFI\\'+loader+'\\shimx64.efi', oldHashes=old_hashes, signatureProof=proof,
+                  initialFirmwarePolicy=initial, signatureProofPolicySource=initial['source'],
                   firmwareAcceptance=False, classicOsBootAcceptance=False,
                   gatesRemaining=['actual Windows QA BCD arm', 'first installed classic loop boot', 'upgrade/Windows return'])
     if any(sha(p) != h for p, h in source_pins.items()):
@@ -345,6 +435,7 @@ systemctl enable qemu-guest-agent.service wootc-host-bind.service wootc-esp-sync
             'firmwareTrustHashes': {n: sha(variables/(n+'-'+g)) if (variables/(n+'-'+g)).exists() else None for n, g in [('SecureBoot', GLOBAL), ('SetupMode', GLOBAL), ('db', DB_GUID), ('dbx', DB_GUID), ('SbatLevelRT', SHIM_GUID), ('MokListXRT', SHIM_GUID)]},
             'sbatTransition': transition, 'oldHashes': old_hashes, 'newHashes': {n: sha(new/n) for n in FILES},
             'espMount': '/run/wootc-qa-esp', 'windowsVolume': config['windowsVolume'],
+            'initialFirmwarePolicy': initial, 'actualBaselineFirmwareVariableHashes': config['firmwareVariableHashes'],
             'helperHashesLinux': helpers_linux, 'producerSourceHashes': source_provenance,
             'helperHashesWindows': windows_helpers,
             'identity': {'hostUuid': host_uuid, 'hostEspUuid': esp_uuid, 'rootFsUuid': root_uuid,

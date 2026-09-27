@@ -11,6 +11,10 @@ It must also name the OS, verifier files, and a free space floor of 20 GiB.
 The code copies each input to a new private file before it uses the input.
 A source change makes the code stop.
 
+The image must not use an external disk or data file.
+The space check uses the real virtual size, source sizes, and a reserve.
+The 20 GiB floor alone does not prove enough space.
+
 ```bash
 python3 tests/e2e/esp-chain/produce-classic.py PRIVATE_PARENT CONFIG.json
 # This command writes a new test disk. It needs a separate source review.
@@ -42,6 +46,11 @@ A new policy must be an exact policy in that signed source shim.
 The other trust variables must stay fixed. The first boot must match the
 pinned firmware files. No firmware policy change was made here.
 
+At Windows boot, the SBAT runtime value may be unknown. The old shim can
+set the expected first policy, but that plan is not a runtime fact.
+The first Linux capture must read the current EFI variables and match the
+old source, EFI files, root, and fresh receipt before an upgrade.
+
 The launcher needs a JSON file with the keys below. Each of the three
 files has a path and a SHA256 hash. It checks the bytes of db and dbx in
 the real NV store against the guest export. This does not prove Secure
@@ -65,3 +74,9 @@ The real Windows command must confirm that state before BCD arm and after
 return. There is no TPM in this test. These Windows commands have
 not run. The local process tests use a small C program. They do not start
 QEMU or prove a boot.
+
+The asset plan is in
+`evidence/2026-09-27-esp-orchestrator/classic-asset-plan.json`.
+It lists the missing disk, package, host, and firmware inputs.
+The Windows baseline plan is in the same folder. It needs matching TPM
+state. This launcher cannot make that baseline. No saved VM is a substitute.

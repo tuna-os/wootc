@@ -21,6 +21,7 @@ def require(value, reason):
 
 
 def policy_variable(encoded):
+    require(isinstance(encoded, str) and bool(encoded), 'SBAT variable bytes absent')
     raw = base64.b64decode(encoded, validate=True)
     require(len(raw) > 4 and struct.unpack('<I', raw[:4])[0] in (6, 7), 'unsupported SBAT variable attributes')
     payload = raw[4:]
@@ -29,24 +30,36 @@ def policy_variable(encoded):
     return raw, sbat_policy(payload)
 
 
+def embedded_sbat_payloads(shim_bytes):
+    body = PE(shim_bytes).sections.get('.sbatlevel', b'')
+    require(len(body) >= 12, 'shim has no complete SBAT policies')
+    version, automatic, latest = struct.unpack('<III', body[:12])
+    require(version == 0 and 8 <= automatic < latest and 4+latest < len(body), 'unknown shim SBAT layout')
+    payloads = [body[4+automatic:4+latest], body[4+latest:]]
+    for payload in payloads:
+        require(payload.endswith(b'\0') and b'\0' not in payload[:-1], 'malformed embedded SBAT payload')
+        sbat_policy(payload[:-1])
+    return payloads
+
+
 def sbat_plan(old_variable, new_variable, new_shim):
     old_raw, old_policy = policy_variable(old_variable)
     new_raw, new_policy = policy_variable(new_variable)
     require(new_raw[:4] == old_raw[:4], 'SBAT variable attributes changed')
     if new_raw != old_raw:
-        body = PE(Path(new_shim).read_bytes()).sections.get('.sbatlevel', b'')
-        require(len(body) >= 12, 'candidate shim has no complete SBAT policies')
-        version, automatic, latest = struct.unpack('<III', body[:12])
-        require(version == 0 and 8 <= automatic < latest and 4+latest < len(body), 'unknown candidate SBAT layout')
-        payloads = [body[4+automatic:4+latest], body[4+latest:]]
-        # Exact bytes (including timestamp), not just a monotonic integer map.
-        require(new_raw[4:] in payloads, 'planned policy is not an exact embedded candidate shim policy')
+        require(new_raw[4:] in embedded_sbat_payloads(Path(new_shim).read_bytes()), 'planned policy is not an exact embedded candidate shim policy')
         require(all(new_policy.get(n, -1) >= g for n, g in old_policy.items()), 'planned policy removes baseline revocations')
     return {'oldVariableBase64': old_variable, 'newVariableBase64': new_variable,
             'newShimSha256': hashlib.sha256(Path(new_shim).read_bytes()).hexdigest()}
 
 
 def validate_firmware(capture, plan, is_old):
+    require(capture.get('firmwareObservationSource') == 'current-boot-efivars', 'actual current-boot firmware observation absent')
+    initial = plan.get('initialFirmwarePolicy', {})
+    require(initial.get('mode', 'captured-runtime') in ('captured-runtime', 'planned-old-shim-bootstrap'), 'unknown initial firmware policy mode')
+    if initial.get('mode') == 'planned-old-shim-bootstrap':
+        require(initial['oldShimSha256'] == plan['oldHashes']['shimx64.efi'], 'expected initial policy belongs to another old shim')
+        require(initial['expectedVariableBase64'] == plan['sbatTransition']['oldVariableBase64'], 'expected initial policy differs from transition')
     required = {'SecureBoot', 'SetupMode', 'db', 'dbx', 'MokListXRT', 'SbatLevelRT'}
     hashes = capture['firmwareTrustHashes']
     require(set(hashes) == required, 'incomplete firmware trust observations')
@@ -62,6 +75,20 @@ def validate_firmware(capture, plan, is_old):
     require(stable(hashes) == stable(plan['firmwareTrustHashes']), 'firmware trust changed')
     if is_old:
         require(hashes == plan['firmwareTrustHashes'], 'baseline trust differs from pinned firmware export')
+
+
+def validate_initial(plan, capture):
+    validate_firmware(capture, plan, True)
+    require(capture['vmUuid'].lower() == plan['vmUuid'].lower(), 'first Linux capture belongs to another VM')
+    boot = capture['observation']
+    require(boot['secureBoot'] is True and boot['rootKind'] == 'loop', 'first Linux Secure Boot/loop root absent')
+    for key, expected in plan['identity'].items():
+        require(boot[key] == expected, 'first Linux identity differs: '+key)
+    require(str(uuid.UUID(boot['bootId'])) == boot['bootId'], 'malformed first Linux boot ID')
+    require(capture['sourceHashes'] == capture['trioHashes'] == plan['oldHashes'], 'first Linux source or ESP differs from old pinned trio')
+    require(capture['signatureProof']['verified'] is True, 'first Linux signature/policy proof absent')
+    require(capture['failedUnits'] == [] and capture['pendingJournal'] is False, 'first Linux has failed units or pending recovery')
+    require(capture['receipt']['preparedBootId'] == boot['bootId'] and capture['receipt']['sourceEFI']['version'] == capture['sourceFacts']['version'], 'first Linux source receipt is stale')
 
 
 def validate(plan, old, new, reboot, windows):

@@ -15,7 +15,7 @@ import time
 ROOT = Path(__file__).resolve().parents[3]
 GuestAgent = runpy.run_path(str(ROOT/'tests/e2e/qga.py'))['GuestAgent']
 acceptance = runpy.run_path(str(Path(__file__).with_name('accept.py')))
-validate, validate_firmware = (acceptance[n] for n in ('validate', 'validate_firmware'))
+validate, validate_firmware, validate_initial = (acceptance[n] for n in ('validate', 'validate_firmware', 'validate_initial'))
 
 
 def check_vm(folder, record, executable_policy=None):
@@ -348,6 +348,7 @@ def run(transport, plan, bootstrap=False):
         raise ValueError('first actual BootCurrent differs from producer ESP/loader')
     # Pin the boot number from this fresh execution, never from a marker or fixture.
     plan['identity']['bootCurrent'] = measured
+    validate_initial(plan, old)  # Full measured old source/boot approval before upgrade.
     windows_hashes = plan['helperHashesWindows']
     if windows_hashes != transport.helper_policy('windows', plan):
         raise ValueError('Windows source closure is incomplete before upgrade')

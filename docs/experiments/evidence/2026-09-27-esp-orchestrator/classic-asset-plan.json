@@ -1,0 +1,259 @@
+{
+  "assetsReady": false,
+  "classicOsBootAcceptance": false,
+  "cloudCandidate": {
+    "actualVirtualSizeObserved": false,
+    "bootPackages": [
+      {
+        "name": "dracut-install",
+        "version": "106-6"
+      },
+      {
+        "name": "grub-cloud-amd64",
+        "version": "0.1.1"
+      },
+      {
+        "name": "grub-common",
+        "version": "2.12-9+deb13u2"
+      },
+      {
+        "name": "grub-efi-amd64-bin",
+        "version": "2.12-9+deb13u2"
+      },
+      {
+        "name": "grub-efi-amd64-signed",
+        "version": "1+2.12+9+deb13u2"
+      },
+      {
+        "name": "grub-efi-amd64-unsigned",
+        "version": "2.12-9+deb13u2"
+      },
+      {
+        "name": "grub-pc-bin",
+        "version": "2.12-9+deb13u2"
+      },
+      {
+        "name": "grub2-common",
+        "version": "2.12-9+deb13u2"
+      },
+      {
+        "name": "linux-image-6.12.107+deb13-amd64",
+        "version": "6.12.107-1"
+      },
+      {
+        "name": "linux-image-amd64",
+        "version": "6.12.107-1"
+      },
+      {
+        "name": "shim-helpers-amd64-signed",
+        "version": "1+16.1+2~deb13u1"
+      },
+      {
+        "name": "shim-signed:amd64",
+        "version": "1.51~1+deb13u1+16.1-2~deb13u1"
+      },
+      {
+        "name": "shim-signed-common",
+        "version": "1.51~1+deb13u1+16.1-2~deb13u1"
+      },
+      {
+        "name": "shim-unsigned:amd64",
+        "version": "16.1-2~deb13u1"
+      }
+    ],
+    "buildInfo": {
+      "arch": "amd64",
+      "build_id": "cloud-admin-team-master",
+      "release": "trixie",
+      "release_baseid": "13",
+      "release_id": "13",
+      "type": "official",
+      "vendor": "generic",
+      "version": "20260914-2601"
+    },
+    "checksumMetadata": {
+      "bytes": 8024,
+      "path": "/tmp/wootc-333-classic-asset-plan/SHA512SUMS",
+      "sha256": "4833d6c69d4d8b02a5cfe2415d02fef5125ed98999b8a9f2937b01146921c4cf"
+    },
+    "downloaded": false,
+    "metadata": {
+      "bytes": 50794,
+      "path": "/tmp/wootc-333-classic-asset-plan/debian-13-generic-amd64.json",
+      "sha256": "b9ee0bde0c8d0d2a487010a368a2c4b505555a7b4f86366abdd8bdc8d01e811a"
+    },
+    "publishedBytes": 433651712,
+    "publishedRawBytes": 3221225472,
+    "publishedSha512": "a733e7d49442a03e70d03e4eb5aaf3967f3efc69ef70952f9bb10fc1ee2c4876eb95956b5ad2d31350e5fada768feb651352535fb8cd1233f61998a5a7d2e93c",
+    "sha256": null,
+    "url": "https://cloud.debian.org/images/cloud/trixie/20260914-2601/debian-13-generic-amd64-20260914-2601.qcow2"
+  },
+  "dependencyPlan": {
+    "matchingPackagesNotYetPinned": [
+      "grub-common",
+      "grub2-common",
+      "grub-efi-amd64-bin",
+      "grub-efi-amd64-unsigned",
+      "grub-pc-bin"
+    ],
+    "newVersion": "2.12-9+deb13u2",
+    "oldVersion": "2.12-9",
+    "reason": "old signed package requires exact grub-common2.12-9; cloud manifest already has +deb13u2 across GRUB",
+    "rule": "complete normal dpkg dependency resolution/readback; no --force-depends"
+  },
+  "executionAuthorized": false,
+  "firmwareAcceptance": false,
+  "firstCase": {
+    "manager": "dpkg",
+    "provider": "debian",
+    "release": "trixie",
+    "scope": "first proposed case; Ubuntu/RPM/bootc firmware and classic OS cases remain independently unproved"
+  },
+  "initialPolicyPlan": {
+    "actualCurrentBootObserved": false,
+    "expectedOldSbatVariableBase64": "BgAAAHNiYXQsMSwyMDI1MDIxODAwCnNoaW0sNApncnViLDUKAA==",
+    "mode": "planned-old-shim-bootstrap",
+    "oldShimSha256": "e103c5d02657879f141b086ed703584d28bb9e2721b423333be085ee1b4d397b",
+    "source": "exact embedded old shim automatic policy",
+    "upgradeGate": "fresh current-boot efivars plus complete actual old loop/EFI/NTFS identity, old source/ESP hashes, signatures, fresh receipt and no failed units; expected policy alone refuses",
+    "windowsRuntimeStatus": "unknown"
+  },
+  "knownLauncherInputs": {
+    "cpus": 4,
+    "currentTpmMode": "none-unencrypted-qa",
+    "firmwareCode": {
+      "bytes": 3653632,
+      "path": "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+      "sha256": "1dbb7f9b7e7285b950929bbbc1494c186bfb061cde60cf531ff9756ef87dab7a"
+    },
+    "matchingOriginalTpmReady": false,
+    "memoryMiB": 8192,
+    "publicParserNvStore": {
+      "bytes": 540672,
+      "path": "/usr/share/OVMF/OVMF_VARS_4M.ms.fd",
+      "scope": "public parser proof; not verified as original matching Windows NVRAM",
+      "sha256": "ece331afc5daf97ebb45099f3414a0894e45e3508a672c1aa0452406119bbdaf"
+    },
+    "qemu": {
+      "bytes": 26415624,
+      "path": "/usr/bin/qemu-system-x86_64",
+      "sha256": "8a35ccba41582fc6c38b9df85fc9e35fa1d42f414d2d7d8090ee9b2f5e7c0854"
+    }
+  },
+  "knownProducerInputs": {
+    "newTrio": {
+      "grubx64.efi": {
+        "bytes": 2684352,
+        "path": "/dev/shm/wootc-333-classic-audit/debian-trio/grubx64.efi",
+        "sha256": "425ffb5b84e8738084815d9df4a33c0e5f64409c7aadeb3dd3bcf60357551c5a"
+      },
+      "mmx64.efi": {
+        "bytes": 873904,
+        "path": "/dev/shm/wootc-333-classic-audit/debian-trio/mmx64.efi",
+        "sha256": "30ea13138310f0819c1d875fcf3a6cdce8a1607cfd7578053a2df894a41630ae"
+      },
+      "shimx64.efi": {
+        "bytes": 1036152,
+        "path": "/dev/shm/wootc-333-classic-audit/debian-trio/shimx64.efi",
+        "sha256": "e103c5d02657879f141b086ed703584d28bb9e2721b423333be085ee1b4d397b"
+      }
+    },
+    "oldTrio": {
+      "grubx64.efi": {
+        "bytes": 2684352,
+        "path": "/dev/shm/wootc-333-classic-audit/debian13-previous-trio/grubx64.efi",
+        "sha256": "75ad88b7673a108be35a753602088a16f4c419352c4905974d8e8b860360ae6f"
+      },
+      "mmx64.efi": {
+        "bytes": 873904,
+        "path": "/dev/shm/wootc-333-classic-audit/debian13-previous-trio/mmx64.efi",
+        "sha256": "30ea13138310f0819c1d875fcf3a6cdce8a1607cfd7578053a2df894a41630ae"
+      },
+      "shimx64.efi": {
+        "bytes": 1036152,
+        "path": "/dev/shm/wootc-333-classic-audit/debian13-previous-trio/shimx64.efi",
+        "sha256": "e103c5d02657879f141b086ed703584d28bb9e2721b423333be085ee1b4d397b"
+      }
+    },
+    "signedPackagesAvailable": [
+      {
+        "bytes": 346976,
+        "path": "/dev/shm/wootc-333-classic-audit/shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+        "sha256": "3c802fa303c0e6bf126adee74028d1042e3120360d159c2c05181dc9b2f61005"
+      },
+      {
+        "bytes": 301476,
+        "path": "/dev/shm/wootc-333-classic-audit/shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+        "sha256": "7e950d75d5a40ecc0a99f727452ce35780b47a04d9a2cc3b1ff7c2bb316c033e"
+      },
+      {
+        "bytes": 1363472,
+        "path": "/dev/shm/wootc-333-classic-audit/grub-efi-amd64-signed_1+2.12+9_amd64.deb",
+        "sha256": "2854085908185cc3ed4f611d31f927bce572d3e3394a1a173771e994e85ef81e"
+      },
+      {
+        "bytes": 1363392,
+        "path": "/dev/shm/wootc-333-classic-audit/grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+        "sha256": "da8bb31308a3682a7d9343fc42bf7f603ad85bb5483eeb3ece23e2f1be2e9bbd"
+      }
+    ],
+    "verifierClosure": "/dev/shm/wootc-333-audit/verifier-script-closure",
+    "verifierClosurePins": "docs/experiments/evidence/2026-09-27-classic-versioned-rpm/provenance.json:verifierClosureHashes"
+  },
+  "launcherConfigReady": false,
+  "missingInputs": [
+    "authoritative pristine unarmed Windows qcow2 SHA256/size with no external backing/data-file",
+    "matching original NVRAM and TPM state/config closure",
+    "actual Windows_NT, system/host FullyDecrypted Off0 and actual volume/NTFS/ESP identity",
+    "actual baseline firmware exports; absent SBAT runtime stays unknown",
+    "complete downloaded cloud image after published SHA512 verification and local SHA256 pin",
+    "full coherent old/new GRUB dependency bundles",
+    "virt-customize/libguestfs appliance/Python module closure",
+    "qualified KVM host; no image/VM execution currently authorized"
+  ],
+  "nextSourceWork": [
+    "Windows OEM QGA-only pre-wootc baseline recipe; no retained fixture relabeling",
+    "review planned-policy vs actual-runtime contract and pre-copy backing/capacity gates",
+    "resolve/pin complete packages and qualified host before acquisition or execution",
+    "separate actual hosted Debian/Ubuntu/RPM/bootc cases before any firmware acceptance"
+  ],
+  "producerConfigReady": false,
+  "resources": {
+    "actualGuestSpaceObserved": false,
+    "cloudIllustrationBytesWithoutWindowsOrSmallAssets": 19761004544,
+    "currentHost": {
+      "cpus": 2,
+      "eligible": false,
+      "freeDiskBytes": 38390247424,
+      "guestfsPresent": false,
+      "kvmAccessible": false,
+      "virtCustomize": null
+    },
+    "freeBytesFormula": "max(20GiB,windowsQcow2.st_size+cloudQcow2.st_size+2*observedCloudVirtualSize+8GiBWindowsWrites+4GiBDependencyApplianceReserve+frozenPackageHelperFirmwareBytes)",
+    "guestSpaceChecksInSource": {
+      "esp": "complete trio/kernel/initrd plus1MiB",
+      "ntfs": "root.disk logical bytes plus1GiB",
+      "unknownCapacity": "refuse before guest write"
+    },
+    "qualifiedHostMinimum": {
+      "availableRamBytes": 11811160064,
+      "cpus": 4,
+      "diskPlanningBytes": 68719476736,
+      "kvmAccessible": true
+    },
+    "rawSizeIsOnlyPublishedExpectation": true,
+    "selectedNtfsFreeGate": "actual raw-root virtual size+1GiB reserve on actual selected NTFS volume"
+  },
+  "schemaVersion": 1,
+  "scope": "metadata/source planning only; no cloud image download, producer or QEMU/VM execution",
+  "sourceClosureGates": {
+    "actualImageMetadataObserved": false,
+    "actualReadOnlyQemuImgInfoBeforeCopy": true,
+    "exclusiveFrozenCopies": true,
+    "externalBackingAllowed": false,
+    "externalDataFileAllowed": false,
+    "implementedInSource": true,
+    "standaloneQcow2": true,
+    "twentyGiBFloorProvesCapacity": false
+  }
+}

@@ -172,6 +172,20 @@ class OrchestratorTests(unittest.TestCase):
         self.assertTrue(self.transport.ledger.is_file())
         self.assertEqual(len(list(self.folder.glob('*-result.json'))), 1)
 
+    def test_expected_policy_refuses_before_upgrade_without_actual_observation(self):
+        self.plan['initialFirmwarePolicy'] = {'mode': 'planned-old-shim-bootstrap', 'oldShimSha256': self.plan['oldHashes']['shimx64.efi'], 'expectedVariableBase64': self.plan['sbatTransition']['oldVariableBase64'], 'currentBootObserved': False}
+        self.args[1]['firmwareObservationSource'] = 'old-shim-embedded-policy'
+        with self.assertRaisesRegex(ValueError, 'current-boot firmware observation absent'):
+            run(self.transport, self.plan)
+        self.assertEqual(self.agent.executions, 1)
+        self.assertFalse(any(e.get('purpose') == 'real-classic-package-upgrade' for e in self.transport.events))
+
+    def test_wrong_initial_trio_refuses_before_upgrade(self):
+        self.args[1]['trioHashes'] = self.plan['newHashes']
+        with self.assertRaisesRegex(ValueError, 'old pinned trio'):
+            run(self.transport, self.plan)
+        self.assertEqual(self.agent.executions, 1)
+
     def test_wrong_baseline_trust_refuses_before_upgrade(self):
         self.args[1]['firmwareTrustHashes']['db'] = '9'*64
         with self.assertRaisesRegex(ValueError, 'firmware trust changed'):
