@@ -32,6 +32,47 @@ public sealed class DiagnosticTests
     }
 
     [Fact]
+    public async Task ActualEngineExitCleanupSurvivesDisposedProcessAndLateRpcFailure()
+    {
+        var state=new NativeDiagnosticState();
+        using var process=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.SystemDirectory,"cmd.exe"),"/c exit 0") {UseShellExecute=false,CreateNoWindow=true})!;
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await process.WaitForExitAsync(deadline.Token);
+        Assert.Equal(0,process.ExitCode);
+        string completed=state.Project("session-cleanup-exited",null,process);
+        Assert.Contains("Cleanup:engine-exited",completed);
+        process.Dispose();
+        string latest=state.Project("rpc-configuration-response",new OperationCanceledException("public synthetic message"),process);
+        Assert.Contains("Stage:rpc-configuration-response",latest);
+        Assert.Contains("Cleanup:engine-exited",latest);
+        Assert.Contains("Engine:exited:0",latest);
+        Assert.Contains("PrimaryRpc:rpc-configuration-response",latest);
+        Assert.DoesNotContain("public synthetic message",latest);
+        Assert.Contains("Cleanup:none",new NativeDiagnosticState().Project("session-cleanup-exited",null,null));
+    }
+
+    [Fact]
+    public void LateOldSessionAndQueuedDeliveryCannotReplaceNewConnectionDiagnostic()
+    {
+        var delivered = new List<NativeDiagnosticObservation>();
+        var connector = new NativeEngineConnector("unused protected package path", delivered.Add);
+        var old = connector.BeginObservation();
+        old("rpc-configuration-request", null, null);
+        var queuedOld = Assert.Single(delivered);
+        var current = connector.BeginObservation();
+        current("authenticated", null, null);
+        var latest = delivered.Last();
+        old("rpc-configuration-response", new OperationCanceledException(), null);
+        old("session-cleanup-exited", null, null);
+        Assert.Equal(2, delivered.Count);
+        Assert.False(queuedOld.IsCurrent());
+        Assert.True(latest.IsCurrent());
+        Assert.Contains("Stage:authenticated", latest.Projection);
+        Assert.Contains("PrimaryRpc:none", latest.Projection);
+        Assert.Contains("Cleanup:none", latest.Projection);
+    }
+
+    [Fact]
     public void FailureProjectionRetainsNumericClassAndExcludesExceptionMessages()
     {
         const string publicSecret = "111111-111111-111111-111111-111111-111111-111111-111111";

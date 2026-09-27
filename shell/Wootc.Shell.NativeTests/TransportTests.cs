@@ -246,7 +246,8 @@ public sealed class TransportTests
         {
             owned.StandardInput.Close();await owned.WaitForExitAsync(deadline.Token);
             await session.DisposeAsync();
-            Assert.Contains("Stage:session-cleanup-exited",latest);
+            Assert.Contains("Cleanup:engine-exited",latest);
+            Assert.Contains("Engine:exited:0",latest);
             Assert.Contains("PrimaryRpc:",latest);
             if(responseObserved && diagnosticExpected)Assert.Contains("StoragePhase:import-storage",latest);
             else if(responseObserved)Assert.DoesNotContain("StoragePhase:",latest);

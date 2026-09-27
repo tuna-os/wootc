@@ -106,6 +106,15 @@ public sealed class InstalledPreviewTests
             string beforeFocus=secondRead.Properties.HelpText.Value;
             secondRead.Focus();
             Assert.Equal(beforeFocus,secondRead.Properties.HelpText.Value);
+            using(var visibleDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                while(secondRead.IsOffscreen)
+                {
+                    if(visibleDeadline.IsCancellationRequested)throw new InvalidOperationException($"Focused configuration action remained offscreen; bounds={secondRead.BoundingRectangle}; focus={secondRead.Properties.HasKeyboardFocus.Value}");
+                    await Task.Delay(50);
+                }
+            }
+            Assert.True(secondRead.Properties.HasKeyboardFocus.Value);
             Assert.False(secondRead.IsOffscreen);
             using (var completionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             {

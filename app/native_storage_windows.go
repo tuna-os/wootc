@@ -34,13 +34,16 @@ type nativeStorageRow struct {
 	EncryptionPercentage int    `json:"encryptionPercentage"`
 }
 
-type boundedNativeOutput struct{ bytes.Buffer }
+type boundedNativeOutput struct{ buffer bytes.Buffer }
+
+func (b *boundedNativeOutput) Len() int      { return b.buffer.Len() }
+func (b *boundedNativeOutput) Bytes() []byte { return b.buffer.Bytes() }
 
 func (b *boundedNativeOutput) Write(p []byte) (int, error) {
 	if b.Len()+len(p) > 64*1024 {
 		return 0, fmt.Errorf("storage observation exceeds bound")
 	}
-	return b.Buffer.Write(p)
+	return b.buffer.Write(p)
 }
 
 type nativeStorageObservationFailure struct {

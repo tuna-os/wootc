@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ConfigurationButton.GotFocus += (_,_) => ConfigurationButton.StartBringIntoView(new BringIntoViewOptions { AnimationDesired=false });
         if (observeFixtureInput)
         {
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(LinuxPassword,"InputChangeSequence:0");
@@ -35,7 +36,7 @@ public sealed partial class MainWindow : Window
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
         controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
-            DispatcherQueue.TryEnqueue(() => { if (!closing) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic); })));
+            DispatcherQueue.TryEnqueue(() => { if (!closing && diagnostic.IsCurrent()) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic.Projection); })));
         Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); await controller.DisposeAsync(); };
     }
     private async void Connect_Click(object sender, RoutedEventArgs args)

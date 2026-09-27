@@ -16,7 +16,7 @@ output.mkdir(parents=True, exist_ok=True)
 original = source.read_bytes()
 needle = b'if (method == "GetNativeConfiguration") requestFlushed?.Invoke(id);'
 assert original.count(needle) == 1
-source_names = ["shell/Wootc.Shell.Native/NativeEngineSession.cs", "shell/Wootc.Shell.Native/NativeDiagnosticState.cs", "shell/Wootc.Shell.Native/StorageObservationFailure.cs", "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs", "shell/Wootc.Shell.NativeTests/TransportTests.cs", "shell/Wootc.Shell.Core/StartupController.cs", "shell/Wootc.Shell/MainWindow.xaml.cs", "shell/global.json", "tests/native_configuration_flush_controls.py", "tests/windows_owned_process.py", ".github/workflows/winui-preview.yml"]
+source_names = ["shell/Wootc.Shell.Native/NativeEngineSession.cs", "shell/Wootc.Shell.Native/NativeDiagnosticState.cs", "shell/Wootc.Shell.Native/NativeEngineConnector.cs", "shell/Wootc.Shell.Native/StorageObservationFailure.cs", "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs", "shell/Wootc.Shell.NativeTests/TransportTests.cs", "shell/Wootc.Shell.Core/StartupController.cs", "shell/Wootc.Shell/MainWindow.xaml.cs", "shell/global.json", "tests/native_configuration_flush_controls.py", "tests/windows_owned_process.py", ".github/workflows/winui-preview.yml"]
 sha = lambda data: hashlib.sha256(data).hexdigest()
 dotnet = str(pathlib.Path(shutil.which("dotnet")).resolve())
 git = str(pathlib.Path(shutil.which("git")).resolve())

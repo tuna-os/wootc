@@ -3,7 +3,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -73,6 +75,9 @@ func TestNativeConfigurationActualPreparedStorageSnapshots(t *testing.T) {
 	if base == "" {
 		t.Fatal("private proof directory required")
 	}
+	if err = os.MkdirAll(base, 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err = os.WriteFile(filepath.Join(base, t.Name()+".stderr.raw"), raw, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +113,9 @@ for ($sequence=1; $sequence -le 2; $sequence++) {
 			case "stderr-overflow":
 				nativeStorageQuery = good + "\n[Console]::Error.WriteLine([string]::new([char]'x',70000))"
 			case "held-stderr":
-				child := `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class PipeControl{[DllImport("kernel32.dll")]public static extern IntPtr GetStdHandle(int n);[DllImport("kernel32.dll")]public static extern bool SetHandleInformation(IntPtr h,uint mask,uint flags);}'
+				child := `[Console]::Error.WriteLine("held-fixture-before-add-type")
+Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class PipeControl{[DllImport("kernel32.dll")]public static extern IntPtr GetStdHandle(int n);[DllImport("kernel32.dll")]public static extern bool SetHandleInformation(IntPtr h,uint mask,uint flags);}'
+[Console]::Error.WriteLine("held-fixture-after-add-type")
 if (-not [PipeControl]::SetHandleInformation([PipeControl]::GetStdHandle(-11),1,0)) {throw 'Owned stdout inheritance refusal'}
 $code="[Console]::Error.WriteLine('owned-descendant-started'); [System.Threading.Thread]::Sleep(30000)"
 $encoded=[System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($code))
@@ -119,6 +126,7 @@ $info.UseShellExecute=$false
 $info.RedirectStandardOutput=$true
 $info.CreateNoWindow=$true
 $child=[System.Diagnostics.Process]::Start($info)
+[Console]::Error.WriteLine("held-fixture-child-start-returned")
 [System.Threading.Thread]::Sleep(1500)
 `
 				nativeStorageQuery = child + good
@@ -129,12 +137,14 @@ $child=[System.Diagnostics.Process]::Start($info)
 			defer cancel()
 			session, err := startNativeStorageSession(ctx)
 			if err != nil {
+				retainNativeStorageQueryFailure(t, err)
 				t.Fatal(err)
 			}
 			defer session.close(true)
 			_, err = session.query(ctx)
 			if change == "replayed-first" || change == "extra-output" || change == "blocked-second" || change == "parent-cancel" || change == "held-stderr" || change == "stderr-overflow" {
 				if err != nil {
+					retainNativeStorageQueryFailure(t, err)
 					t.Fatal("first synthetic observation unavailable", err)
 				}
 				if change == "parent-cancel" {
@@ -143,8 +153,10 @@ $child=[System.Diagnostics.Process]::Start($info)
 				_, err = session.query(ctx)
 			}
 			if err == nil {
+				retainNativeStorageQueryFailure(t, session.failure())
 				t.Fatal("invalid prepared helper observation accepted")
 			}
+			retainNativeStorageQueryFailure(t, err)
 			if !session.streamsJoined {
 				t.Fatal("stderr reader termination unknown")
 			}
@@ -154,10 +166,30 @@ $child=[System.Diagnostics.Process]::Start($info)
 			if change == "stderr-overflow" && session.stderrErr == nil {
 				t.Fatal("stderr overflow was not observed")
 			}
-			retainNativeStorageQueryFailure(t, err)
 			if !session.exited || !session.drained {
 				t.Fatal("refused owned helper not reaped")
 			}
 		})
+	}
+}
+
+// readerOnly deliberately removes strings.Reader/bytes.Reader WriterTo. Both
+// io.Copy dispatch paths must invoke the bounded writer, never Buffer.ReadFrom.
+type nativeStorageReaderOnly struct{ io.Reader }
+
+func TestNativeConfigurationBoundedOutputCopiesRefuseOverflow(t *testing.T) {
+	for _, writerTo := range []bool{false, true} {
+		var output boundedNativeOutput
+		if _, ok := any(&output).(io.ReaderFrom); ok {
+			t.Fatal("unbounded ReaderFrom exposed")
+		}
+		var input io.Reader = bytes.NewReader(bytes.Repeat([]byte("x"), 70000))
+		if !writerTo {
+			input = nativeStorageReaderOnly{input}
+		}
+		_, err := io.Copy(&output, input)
+		if err == nil || output.Len() > 64*1024 {
+			t.Fatal("io.Copy bypassed bounded output")
+		}
 	}
 }
