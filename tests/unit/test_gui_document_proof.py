@@ -2,9 +2,11 @@
 """Exercise the GUI acceptance gate with observable failures, not string guards."""
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1] / 'e2e' / 'gui-document-proof.py'
 spec = importlib.util.spec_from_file_location('gui_document_proof', SOURCE)
@@ -131,6 +133,45 @@ class GateTests(unittest.TestCase):
     def test_restart_cannot_pass_when_saved_edit_is_missing(self):
         with self.assertRaisesRegex(RuntimeError, 'restart-file-reopened'):
             self.exercise(FakeDesktop(), 'reopen')
+
+
+class TransportTests(unittest.TestCase):
+    def test_hmp_key_input_ends_in_newline_and_monitor_error_is_fatal(self):
+        class Monitor:
+            def __init__(self, response):
+                self.response, self.sent, self.reads = response, [], 0
+            def settimeout(self, seconds):
+                self.timeout = seconds
+            def connect(self, path):
+                self.path = path
+            def recv(self, count):
+                self.reads += 1
+                return b"(qemu)" if self.reads == 1 else self.response
+            def sendall(self, data):
+                self.sent.append(data)
+            def close(self):
+                pass
+        transport = module.Transport('runtime', 'fixture', 'document', SEED, Path('/tmp'))
+        for failed in (False, True):
+            monitor = Monitor(b'Error: unsupported command' if failed else b'(qemu)')
+            def command(args, seconds=45):
+                with patch('socket.socket', return_value=monitor), patch('time.sleep'), patch('sys.argv', ['hmp', args[6]]):
+                    exec(compile(args[5], 'hmp-proof', 'exec'), {})
+            transport.command = command
+            if failed:
+                with self.assertRaisesRegex(RuntimeError, 'unsupported'):
+                    transport.keys(['ctrl-s'])
+            else:
+                transport.keys(['ctrl-s'])
+            self.assertEqual(monitor.sent, [b'sendkey ctrl-s 40\n'])
+            self.assertEqual(monitor.path, '/run/shm/monitor.sock')
+
+    def test_positive_linux_identity_is_required(self):
+        transport = module.Transport('runtime', 'fixture', 'document', SEED, Path('/tmp'))
+        transport.command = lambda args, seconds=45: ''
+        transport.qga = lambda *args: 'Windows_NT' if '/usr/bin/uname' in args else ''
+        with self.assertRaisesRegex(RuntimeError, 'positive Linux'):
+            transport.stage()
 
 
 if __name__ == '__main__':
