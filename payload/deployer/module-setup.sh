@@ -162,6 +162,7 @@ install() {
     inst /usr/lib/wootc/migration/wootc-e2e-phase3.service
     inst /usr/lib/wootc/migration/wootc-e2e-phase3.path
     inst /usr/lib/wootc/migration/wootc-firstboot-evidence
+    inst /usr/lib/wootc/migration/wootc-collect-firstboot.py
     inst /usr/lib/wootc/migration/wootc-firstboot-evidence.service
     # Program migrator plugins and schemas (docs/plugin-architecture.md).
     if [[ -d /usr/lib/wootc/migration/plugins.d ]]; then

@@ -618,6 +618,23 @@ func configureBCD(cfg InstallConfig) error {
 		storageDrive = "C"
 	}
 
+	// Retain the expected installation identity after recovery removes armed.json.
+	// An unverifiable volume/ESP must not produce a boot-ready installation.
+	hostUUID, err := ntfsHostUUID(storageDrive)
+	if err != nil {
+		return fmt.Errorf("recording installation host volume: %w", err)
+	}
+	identity, err := newInstallationIdentity(cfg.ImageRef, espPartitionGuid, efiRelPath, hostUUID)
+	if err != nil {
+		return fmt.Errorf("recording installation identity: %w", err)
+	}
+	if err := marshalJSONToFile(filepath.Join(wootcDir(), "install", "installation.json"), identity); err != nil {
+		return fmt.Errorf("persisting installation identity: %w", err)
+	}
+	if err := os.Remove(filepath.Join(wootcDir(), "install", "installed-linux-boot.complete")); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("resetting first-boot completion: %w", err)
+	}
+
 	// 5. Persist armed.json atomically.
 	armed := ArmedState{
 		BcdGuid:          guid,
@@ -725,7 +742,6 @@ func deleteWootcBCDEntries() {
 	runCmd("bcdedit", "/deletevalue", "{fwbootmgr}", "bootsequence") //nolint:errcheck
 }
 
-
 // ── ESP discovery ─────────────────────────────────────────────────────────────
 
 func findESP() (string, error) {
@@ -827,4 +843,5 @@ Write-Output $letter
 	}
 	return letter + `:\`, nil
 }
+
 // ── Uninstall ─────────────────────────────────────────────────────────────────

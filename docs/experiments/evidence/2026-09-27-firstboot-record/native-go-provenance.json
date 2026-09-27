@@ -1,0 +1,12 @@
+{
+  "binarySha256": "35c89186e07e9b637411e9b7c01ea0905f8e7e54a072a8972470a5afc118c181",
+  "sourceBase": "ac211264f38d91047c2e15ac65ff3ba6578bbca2",
+  "sourceFiles": {
+    "app/boot_evidence.go": "ea8ea38dd6a8394c4e8ab7c6184af9fbb610c686fbe82a3f8b72ad2d54573236",
+    "app/boot_evidence_other.go": "e99073cbeada873d6e5a567fb8f31ad28362bcfd74b7c174633a71b05cd5003a",
+    "app/boot_evidence_test.go": "e7cc438a2f19598156cbe25ae1f367fbecc168cc874003987ce2cf0199be8e60",
+    "app/boot_evidence_windows.go": "13a69996c3c0dbb954ae9647840c9807bd3f115f5676da9f575739a933dd82ac",
+    "app/boot_evidence_windows_test.go": "aa23bc003006862a6046401f2039291c97d4450f01b675d5e1a5724da0971f74"
+  },
+  "build": "GOOS=windows GOARCH=amd64 go test -c -o /tmp/wootc-firstboot-record.test.exe ."
+}

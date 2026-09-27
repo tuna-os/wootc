@@ -38,6 +38,14 @@ func runRecoverStartup() error {
 		ls = LifecycleState{State: StateArmed}
 	}
 
+	// A lifecycle word cannot authorize cleanup of the recovery controls.
+	// Retain them until the installed boot is cross-checked from Windows.
+	if ls.State == StateHealthy {
+		if _, err := installedLinuxEvidence(armed.StorageDrive); err != nil {
+			ls.State = StateDeployed
+		}
+	}
+
 	verdict := EvaluateRecovery(armed, startedExists, ls, wootcDir())
 
 	switch verdict.Verdict {

@@ -4465,6 +4465,37 @@ else
     info "Phase-2 firstboot diagnostics unavailable through QGA"
 fi
 
+# Compare the persisted product record with facts collected from this running
+# installed Linux. Neither a lifecycle word nor a previous record proves this boot.
+FIRSTBOOT_RECORD_FILE="$ARTIFACT_DIR/installed-linux-boot-check.json"
+if qga_call exec /usr/bin/python3 -c '
+import importlib.util,json,pathlib
+host=pathlib.Path("/run/initramfs/wootc-host")
+helper=pathlib.Path("/var/usrlocal/bin/wootc-collect-firstboot.py")
+spec=importlib.util.spec_from_file_location("firstboot_observer",helper)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+current=module.collect(host)
+path=host/"wootc/install/installed-linux-boot.json"
+with path.open(encoding="utf-8-sig") as stream:
+    raw=stream.read(65537)
+if len(raw)>65536: raise ValueError("oversized firstboot record")
+persisted=json.loads(raw)
+for key in current:
+    if key != "writtenAt" and persisted.get(key) != current[key]:
+        raise ValueError("persisted firstboot record differs from current boot: "+key)
+state=json.loads((host/"wootc/state.json").read_text(encoding="utf-8-sig"))
+if state.get("state") != "healthy": raise ValueError("firstboot state is not healthy")
+if not (host/"wootc/install/installed-linux-boot.complete").is_file():
+    raise ValueError("firstboot publication did not complete")
+print(json.dumps({"persisted":persisted,"current":current},indent=2))
+' > "$FIRSTBOOT_RECORD_FILE" 2> "$ARTIFACT_DIR/installed-linux-boot-check.stderr"; then
+    pass "Installed Linux first-boot record matches this boot, disk, image, ESP and bridge"
+else
+    fail "Installed Linux first-boot record is absent, incomplete or differs from this boot"
+    cat "$ARTIFACT_DIR/installed-linux-boot-check.stderr"
+fi
+
 # The data assertions above proved the bridge; now put it on camera while
 # Phase 2 is still up (video-only, best-effort).
 demo_linux_userdata

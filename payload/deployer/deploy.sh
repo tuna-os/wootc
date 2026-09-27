@@ -2756,7 +2756,23 @@ QGAEOF
     install -m755 /usr/bin/wootc-ntfs-state-write \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-ntfs-state-write"
 
+    # Evidence is mandatory for Windows's installed verdict. Prove the target
+    # interpreter can load the stdlib collector, rather than stage a service
+    # which will inevitably fail only after the next reboot.
+    if ! timeout 30 chroot "$DEPLOY_ROOT" /usr/bin/python3 -c 'import argparse,datetime,json,pathlib,re,struct,subprocess,uuid'; then
+        err "  [FAIL] target image lacks Python 3 and the stdlib needed for first-boot evidence"
+        exit 1
+    fi
+
+    # Bind boot evidence to the actual image passed to fisherman. This can be
+    # a local NTFS-injected derivative; the selected registry source remains
+    # separate in host-esp.conf for Windows's installation-plan cross-check.
+    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+    printf '%s\n' "$IMAGE" > "$DEPLOY_ROOT/etc/wootc/installed-image-ref"
+
     # Phase-2 first-boot evidence and health marker (§2, §3): updates state.json to healthy.
+    install -m755 /usr/lib/wootc/migration/wootc-collect-firstboot.py \
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-collect-firstboot.py"
     install -m755 /usr/lib/wootc/migration/wootc-firstboot-evidence \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-firstboot-evidence"
     install -m644 /usr/lib/wootc/migration/wootc-firstboot-evidence.service \

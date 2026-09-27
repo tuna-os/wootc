@@ -126,6 +126,12 @@ func headlessStatus() int {
 		fmt.Println(`{"state":"absent"}`)
 		return 0
 	}
+	if s.State == StateHealthy {
+		if err := verifyReportedLinuxHealth(); err != nil {
+			fmt.Fprintf(os.Stderr, "status: installed Linux boot is unverified: %v\n", err)
+			return 1
+		}
+	}
 	data, err := marshalJSON(s)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "status: %v\n", err)

@@ -466,3 +466,24 @@ test('a deployed install offers Restart into TunaOS', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Restart into TunaOS/ })).toBeVisible();
   await expect(page.locator('body')).toContainText('Windows stays your default');
 });
+
+
+test('control panel — staged Linux offers first boot without a verified claim', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, diskPath: 'F:\\wootc\\disks\\root.disk', bootPending: true, deployed: false } });
+  await expect(page.getByText('TunaOS is ready for its first boot')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Restart into TunaOS →' })).toBeVisible();
+  await expect(page.getByText('TunaOS boot verified')).toHaveCount(0);
+});
+
+test('control panel — verified summary renders record text safely', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
+    uninstall: { found: true, diskPath: 'F:\\wootc\\disks\\root.disk', deployed: true,
+      bootEvidence: { kernel: '6.12.1', sourceImageRef: '<img src=x onerror=window.proofInjected=true>',
+        bridge: { boundFolders: 3, matchedUsers: 1 } } } });
+  await expect(page.getByText('TunaOS boot verified')).toBeVisible();
+  await expect(page.locator('.boot-evidence-summary')).toContainText('Linux 6.12.1');
+  await expect(page.locator('.boot-evidence-summary')).toContainText('3 folders connected for 1 users');
+  await expect(page.locator('.boot-evidence-summary img')).toHaveCount(0);
+  expect(await page.evaluate(() => window.proofInjected)).toBeUndefined();
+});

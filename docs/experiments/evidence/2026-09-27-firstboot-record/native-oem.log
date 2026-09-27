@@ -1,0 +1,6 @@
+SOURCE tests/e2e/setup-wootc.ps1 RAW_SHA256 297d6e7ba83cd7541fce1b1c384fe8968328b87b1eca9dd3e9e8630ba46cb90a STAGED_SHA256 014f8de35670b6374bb9f6693d4530c5f5ba4190ec7c3caa5c31aa51f2752990
+SOURCE tests/unit/oem-installation-identity.ps1 RAW_SHA256 e633ae6b8b928aa7f3b76698749eaf385c2307bd63b49d84d5d590b2abbc76dd STAGED_SHA256 44d02a3650a365e90c020aa51d041a7c36acfec687b0444f05165b5552228fb3
+PASS native FSCTL full NTFS serial: FCC20483C204447C
+PASS fresh identity, selected ESP/storage/image/loader and marker reset
+PASS absent/truncated host UUID and missing ESP fail before changing installation state
+PASS OEM native identity suite

@@ -1,0 +1,75 @@
+SOURCE_BASE_SHA=ac211264f38d91047c2e15ac65ff3ba6578bbca2; working Go source hashes retained in provenance
+BINARY_SHA256=35c89186e07e9b637411e9b7c01ea0905f8e7e54a072a8972470a5afc118c181
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_image_digest
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_service_result
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_loader
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/stale_timestamp
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/failed_service
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_folder_count
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_disk
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_bridge_result
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_user_count
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/old_installation
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_ESP
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_boot_number
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_host
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_source
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/missing_kernel
+=== RUN   TestLinuxBootEvidenceRejectsWrongInstallation/wrong_state
+--- PASS: TestLinuxBootEvidenceRejectsWrongInstallation (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_image_digest (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_service_result (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_loader (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/stale_timestamp (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/failed_service (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_folder_count (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_disk (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_bridge_result (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_user_count (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/old_installation (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_ESP (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_boot_number (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_host (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_source (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/missing_kernel (0.00s)
+    --- PASS: TestLinuxBootEvidenceRejectsWrongInstallation/wrong_state (0.00s)
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/secureBoot
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/failedUnits
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/kernel
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/imageDigest
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/installationId
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/boundFolders
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/matchedUsers
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bitlockerUnlocked
+=== RUN   TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bindings
+--- PASS: TestLinuxBootEvidenceRequiresMeasuredFields (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/secureBoot (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/failedUnits (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/kernel (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/imageDigest (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/installationId (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/boundFolders (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/matchedUsers (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bitlockerUnlocked (0.00s)
+    --- PASS: TestLinuxBootEvidenceRequiresMeasuredFields/bridge/bindings (0.00s)
+=== RUN   TestBootRecordRejectsTruncationAndOversize
+=== RUN   TestBootRecordRejectsTruncationAndOversize/trailing
+=== RUN   TestBootRecordRejectsTruncationAndOversize/valid
+=== RUN   TestBootRecordRejectsTruncationAndOversize/BOM
+=== RUN   TestBootRecordRejectsTruncationAndOversize/truncated
+=== RUN   TestBootRecordRejectsTruncationAndOversize/oversize
+--- PASS: TestBootRecordRejectsTruncationAndOversize (0.09s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/trailing (0.02s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/valid (0.02s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/BOM (0.02s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/truncated (0.01s)
+    --- PASS: TestBootRecordRejectsTruncationAndOversize/oversize (0.02s)
+=== RUN   TestInstallationIdentityIsFreshAndComplete
+--- PASS: TestInstallationIdentityIsFreshAndComplete (0.00s)
+=== RUN   TestNTFSHostUUIDMatchesNativeVolume
+--- PASS: TestNTFSHostUUIDMatchesNativeVolume (0.03s)
+PASS
