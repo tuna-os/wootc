@@ -1790,15 +1790,15 @@ while ! past_deadline "$RAM_WAIT_DEADLINE"; do
 done
 
 if ! compose_up_windows; then
-    fail "Could not start the Windows container (all recovery paths exhausted)"
-    fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
-    fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
-    fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
+    infra_fail "Could not start the Windows container (all recovery paths exhausted)"
+    infra_fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
+    infra_fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
+    infra_fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
 if ! wootc_vm_call container exists "$CONTAINER_NAME" 2>/dev/null; then
-    fail "compose reported success but $CONTAINER_NAME does not exist"
-    fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
+    infra_fail "compose reported success but $CONTAINER_NAME does not exist"
+    infra_fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
 info "Container $CONTAINER_NAME started"

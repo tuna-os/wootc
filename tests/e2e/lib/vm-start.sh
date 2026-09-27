@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Source-only host VM start adapter. No operation occurs until called.
-# Callbacks: warn, fail, step, pass. All runtime mutations target the configured
+# Callbacks: warn, infra_fail, step, pass. All runtime mutations target the configured
 # container; compose argv and files are supplied by the scenario.
 wootc_vm_configure() {
     [ "$#" -ge 5 ] && [ -n "$1" ] && [ -n "$2" ] && [ -n "$3" ] && [ -n "$4" ] && [ -n "$5" ] || return 2
@@ -18,11 +18,15 @@ wootc_vm_remove_owned() {
     case "$rc" in
         0) wootc_vm_call rm -f "$WOOTC_VM_CONTAINER" ;;
         1) return 0 ;;
-        *) fail "Infrastructure: could not determine owned container state ($rc)"; return "$rc" ;;
+        *) infra_fail "Infrastructure: could not determine owned container state ($rc)"; return "$rc" ;;
     esac
 }
 wootc_vm_compose_up() {
-    timeout 180 "${WOOTC_VM_COMPOSE[@]}" -f "${WOOTC_VM_COMPOSE_FILE:?Configure VM first}" up -d windows
+    timeout 180 "${WOOTC_VM_COMPOSE[@]}" -f "${WOOTC_VM_COMPOSE_FILE:?Configure VM first}" up -d windows || return $?
+    wootc_vm_call container exists "$WOOTC_VM_CONTAINER" >/dev/null 2>&1 || {
+        infra_fail "Infrastructure: compose reported success but the configured container does not exist"
+        return 1
+    }
 }
 port_free() {
     local rc=0
@@ -47,7 +51,7 @@ pick_free_ports() {
             for alt in $(seq $((base + 10000)) $((base + 10050))); do
                 port_free "$alt" && [[ "$reserved" != *":$alt:"* ]] && { p="$alt"; found=true; break; }
             done
-            if [ "$found" != true ]; then fail "Infrastructure: no free host port for $var"; return 1; fi
+            if [ "$found" != true ]; then infra_fail "Infrastructure: no free host port for $var"; return 1; fi
             warn "host port $base is in use — mapping $var=$p instead"
         fi
         reserved="$reserved$p:"
@@ -80,16 +84,16 @@ ensure_ssh_image() {
     wootc_vm_call image exists "$img" 2>/dev/null || rc=$?
     [ "$rc" -ne 0 ] || return 0
     if [ "$rc" -ne 1 ]; then
-        fail "Infrastructure: image inspection failed ($rc); no build or start attempted"
+        infra_fail "Infrastructure: image inspection failed ($rc); no build or start attempted"
         return "$rc"
     fi
     [[ -x "$WOOTC_VM_SCRIPT_DIR/build-ssh-image.sh" ]] || {
-        fail "e2e ssh image $img is missing and build-ssh-image.sh is not executable"
+        infra_fail "e2e ssh image $img is missing and build-ssh-image.sh is not executable"
         return 1
     }
     step "Building the e2e ssh image (absent on this host)..."
-    timeout 1800 bash "$WOOTC_VM_SCRIPT_DIR/build-ssh-image.sh" || { fail "build-ssh-image.sh failed"; return 1; }
-    wootc_vm_call image exists "$img" 2>/dev/null || { fail "build completed but $img still absent"; return 1; }
+    timeout 1800 bash "$WOOTC_VM_SCRIPT_DIR/build-ssh-image.sh" || { infra_fail "build-ssh-image.sh failed"; return 1; }
+    wootc_vm_call image exists "$img" 2>/dev/null || { infra_fail "build completed but $img still absent"; return 1; }
     pass "e2e ssh image built"
 }
 
@@ -109,7 +113,7 @@ compose_up_windows() {
     [ "$rc" -ne 124 ] && [ "$rc" -ne 137 ] || return "$rc"
     # A failed start does not authorize changing other host networks.
     if printf '%s' "$out" | grep -q "already exists but is a Tun interface"; then
-        fail "Infrastructure: conflicting host network state; inspect the configured container network and repair it before a new run. No global network state was changed."
+        infra_fail "Infrastructure: conflicting host network state; inspect the configured container network and repair it before a new run. No global network state was changed."
         return 1
     fi
     # (2) the e2e ssh image was pruned — rebuild it, then retry.

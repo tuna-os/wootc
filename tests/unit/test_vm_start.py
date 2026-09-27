@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 import subprocess
 import socket
@@ -38,6 +39,7 @@ exit "$COMPOSE_RC"
 source '{MODULE}'
 warn() {{ echo "$*" >&2; }}
 fail() {{ echo "$*" >&2; }}
+infra_fail() {{ fail "$@"; }}
 step() {{ :; }}
 pass() {{ :; }}
 wootc_vm_configure '{self.runtime}' owned-vm '{self.root}' '{self.root}/owned compose.yml' '{self.compose}' explicit-argument
@@ -79,6 +81,70 @@ wootc_vm_configure '{self.runtime}' owned-vm '{self.root}' '{self.root}/owned co
         result = self.shell('port_free() { return 0; }; compose_up_windows')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(f'explicit-argument -f {self.root}/owned compose.yml up -d windows', self.calls.read_text())
+
+    def test_actual_network_refusal_records_infrastructure_domain(self):
+        ledger = self.root / 'results.jsonl'
+        result = self.shell(f"""
+source '{MODULE.parent}/results.sh'
+source '{MODULE.parent}/result-runner.sh'
+RED= NC= GREEN= YELLOW= BLUE=
+RUN_ID=controlled-start
+WOOTC_FAILURE_LEDGER='{self.root}/failures.log'
+WOOTC_RESULT_LEDGER='{ledger}'
+wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" full-cycle
+port_free() {{ return 0; }}
+compose_up_windows
+""", COMPOSE_OUTPUT='podman0 already exists but is a Tun interface', COMPOSE_RC='1')
+        self.assertNotEqual(result.returncode, 0)
+        failures = [json.loads(line) for line in ledger.read_text().splitlines() if json.loads(line)['kind'] == 'failure']
+        self.assertTrue(failures)
+        self.assertTrue(all(row['domain'] == 'infrastructure' for row in failures))
+        self.assertEqual(self.sentinel.read_bytes(), b'unrelated network ownership')
+
+    def test_failed_or_noop_image_build_cannot_start_compose(self):
+        self.runtime.write_text("""#!/bin/bash
+printf '%s\\n' "$*" >> "$CALLS"
+if [ "$1" = image ]; then exit 1; fi
+exit 0
+""")
+        build = self.root / 'build-ssh-image.sh'
+        for status in ['7', '0']:
+            self.calls.unlink(missing_ok=True)
+            build.write_text('#!/bin/bash\nexit ' + status + '\n')
+            build.chmod(0o755)
+            result = self.shell('port_free() { return 0; }; compose_up_windows')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('up -d windows', self.calls.read_text())
+            self.assertIn('failed' if status == '7' else 'still absent', result.stderr)
+
+    def test_failed_image_inspection_cannot_trigger_build_or_start(self):
+        self.runtime.write_text('#!/bin/bash\nexit 124\n')
+        build = self.root / 'build-ssh-image.sh'
+        marker = self.root / 'unauthorized-build'
+        build.write_text(f'#!/bin/bash\ntouch "{marker}"\n')
+        build.chmod(0o755)
+        result = self.shell('port_free() { return 0; }; compose_up_windows')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('image inspection failed', result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertFalse(self.calls.exists())
+
+    def test_actual_compose_success_without_container_refuses(self):
+        marker = self.root / 'compose-finished'
+        self.runtime.write_text(f"""#!/bin/bash
+printf '%s\\n' "$*" >> "$CALLS"
+if [ "$1 $2" = 'container exists' ] && [ -f '{marker}' ]; then exit 1; fi
+exit 0
+""")
+        self.compose.write_text(f"""#!/bin/bash
+printf '%s\\n' "$*" >> "$CALLS"
+touch '{marker}'
+exit 0
+""")
+        result = self.shell('port_free() { return 0; }; compose_up_windows')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('compose reported success', result.stderr)
+        self.assertEqual(sum('up -d windows' in c for c in self.calls.read_text().splitlines()), 1)
 
     def test_actual_local_full_backlog_observation_is_bounded(self):
         with socket.socket() as listener:
