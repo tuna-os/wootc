@@ -41,6 +41,41 @@ def _ancestors(path):
             raise ValueError('unprotected interpreter ancestor')
 
 
+def mapped_files():
+    with Path('/proc/self/maps').open('rb') as stream:
+        raw = stream.read(128 * 1024 + 1)
+    if len(raw) > 128 * 1024:
+        raise ValueError('mapped dependency inventory exceeds bound')
+    result = {}
+    for line in raw.decode('ascii').splitlines():
+        fields = line.split(maxsplit=5)
+        if len(fields) < 5:
+            raise ValueError('malformed mapped dependency')
+        if len(fields) == 5:
+            if 'x' in fields[1]:
+                raise ValueError('unidentified executable mapping')
+            continue
+        name = fields[5]
+        if name.startswith('['):
+            if 'x' in fields[1] and name not in ('[vdso]', '[vsyscall]'):
+                raise ValueError('unknown executable kernel mapping')
+            continue
+        if not name.startswith('/usr/') or name.endswith(' (deleted)'):
+            raise ValueError('mapped dependency outside protected target usr')
+        _, file = protected_path(name)
+        facts = file.lstat()
+        dev = fields[3].split(':')
+        if len(dev) != 2 or (os.major(facts.st_dev), os.minor(facts.st_dev), facts.st_ino) != (int(dev[0],16), int(dev[1],16), int(fields[4])):
+            raise ValueError('mapped dependency inode identity mismatch')
+        identity = (facts.st_dev, facts.st_ino)
+        if file in result and result[file] != identity:
+            raise ValueError('mapped dependency identity changed')
+        result[file] = identity
+    if len(result) > 128:
+        raise ValueError('mapped dependency count exceeds bound')
+    return result
+
+
 def inspect_environment():
     if not sys.flags.isolated or not sys.flags.no_site or not sys.dont_write_bytecode:
         raise ValueError('target installer requires -I -S -B')
@@ -59,6 +94,8 @@ def inspect_environment():
         if not any(resolved.is_relative_to(root) for root in roots):
             raise ValueError('loaded dependency is outside target stdlib')
         files.add(resolved)
+    mappings = mapped_files()
+    files.update(mappings)
     if len(files) > 128:
         raise ValueError('stdlib dependency inventory exceeds bound')
     hashes, total = {}, 0
@@ -82,4 +119,7 @@ def inspect_environment():
         if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
             raise ValueError('interpreter dependency changed during measurement')
         hashes[str(file)] = digest.hexdigest()
-    return {'interpreter': str(executable), 'stdlibRoots': sorted(map(str, roots)), 'loadedDependencies': hashes}
+    if mappings != mapped_files():
+        raise ValueError('mapped dependencies changed during measurement')
+    return {'interpreter': str(executable), 'stdlibRoots': sorted(map(str, roots)), 'loadedDependencies': hashes,
+            'mappedDependencies': sorted(map(str, mappings))}
