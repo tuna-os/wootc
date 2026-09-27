@@ -112,5 +112,8 @@ func decodeVMGuestObservation(raw []byte, expected vmGuestProbeRequest) (vmGuest
 			}
 		}
 	}
+	if err := verifyVMGuestRoot(result.Root, expected.DiskID); err != nil {
+		return result, err
+	}
 	return result, nil
 }
