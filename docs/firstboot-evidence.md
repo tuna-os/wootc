@@ -55,8 +55,8 @@ paths, or profile mappings to ordinary Linux users.
 
 ## Evidence and remaining gate
 
-Five tests passed on Windows, with all their subcases. They cover record checks,
-new IDs and the full NTFS API. [Native output](experiments/evidence/2026-09-27-firstboot-record/native-go.log)
+Eleven tests passed on Windows, with all their subcases. They cover record checks,
+new IDs, the full NTFS API and the status audit. [Native output](experiments/evidence/2026-09-27-firstboot-record/native-go.log)
 and [source hashes](experiments/evidence/2026-09-27-firstboot-record/native-go-provenance.json) retain the result.
 OEM tests also passed on Windows. A mutation that kept the stale marker for completion failed.
 A mutation that skipped the check of the current ESP failed its Go test.

@@ -1,12 +1,13 @@
 {
-  "binarySha256": "35c89186e07e9b637411e9b7c01ea0905f8e7e54a072a8972470a5afc118c181",
-  "sourceBase": "ac211264f38d91047c2e15ac65ff3ba6578bbca2",
+  "sourceHead": "cb02711bca818a174a47ca370653011e4a04f0ad",
+  "binarySha256": "5c6507df051a34e2726b242253d12a1f4ca12f9d174c0fbde0a852859bdca32c",
   "sourceFiles": {
     "app/boot_evidence.go": "ea8ea38dd6a8394c4e8ab7c6184af9fbb610c686fbe82a3f8b72ad2d54573236",
     "app/boot_evidence_other.go": "e99073cbeada873d6e5a567fb8f31ad28362bcfd74b7c174633a71b05cd5003a",
     "app/boot_evidence_test.go": "e7cc438a2f19598156cbe25ae1f367fbecc168cc874003987ce2cf0199be8e60",
-    "app/boot_evidence_windows.go": "13a69996c3c0dbb954ae9647840c9807bd3f115f5676da9f575739a933dd82ac",
+    "app/boot_evidence_windows.go": "fc37d5abc466a37e77e66a1c40c2c6785474411d11ed983ef1f1eaf76b46128f",
     "app/boot_evidence_windows_test.go": "aa23bc003006862a6046401f2039291c97d4450f01b675d5e1a5724da0971f74"
   },
-  "build": "GOOS=windows GOARCH=amd64 go test -c -o /tmp/wootc-firstboot-record.test.exe ."
+  "build": "GOOS=windows GOARCH=amd64 go test -c -o /tmp/wootc-firstboot-integrated.test.exe .",
+  "scope": "Native validator and NTFS API, trusted status discovery/ACL/reparse tests; not a full installation."
 }

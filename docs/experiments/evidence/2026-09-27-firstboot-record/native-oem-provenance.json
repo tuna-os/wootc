@@ -1,14 +1,20 @@
-[
-  {
-    "source": "tests/e2e/setup-wootc.ps1",
-    "rawSha256": "297d6e7ba83cd7541fce1b1c384fe8968328b87b1eca9dd3e9e8630ba46cb90a",
-    "stagedSha256": "014f8de35670b6374bb9f6693d4530c5f5ba4190ec7c3caa5c31aa51f2752990",
-    "name": "wootc-oem-identity-b3022df2431645fb8830302dbc0f8406-0-fixed.ps1"
-  },
-  {
-    "source": "tests/unit/oem-installation-identity.ps1",
-    "rawSha256": "e633ae6b8b928aa7f3b76698749eaf385c2307bd63b49d84d5d590b2abbc76dd",
-    "stagedSha256": "44d02a3650a365e90c020aa51d041a7c36acfec687b0444f05165b5552228fb3",
-    "name": "wootc-oem-identity-b3022df2431645fb8830302dbc0f8406-1.ps1"
-  }
-]
+{
+  "sourceHead": "cb02711bca818a174a47ca370653011e4a04f0ad",
+  "sourceFiles": [
+    {
+      "source": "tests/e2e/setup-wootc.ps1",
+      "rawSha256": "da4610469339ab06636d90268b5a185fbd996444d3a8b0132903586af82f3287",
+      "stagedSha256": "b10d68fe66eecd49e4479dfce3fcd110f0d60caedccae3917148aad2f86f8b53",
+      "name": "wootc-firstboot-integrated-oem-8c1c0f698e3f478fbacb3535c0e3bb88-0.ps1"
+    },
+    {
+      "source": "tests/unit/oem-installation-identity.ps1",
+      "rawSha256": "e633ae6b8b928aa7f3b76698749eaf385c2307bd63b49d84d5d590b2abbc76dd",
+      "stagedSha256": "44d02a3650a365e90c020aa51d041a7c36acfec687b0444f05165b5552228fb3",
+      "name": "wootc-firstboot-integrated-oem-8c1c0f698e3f478fbacb3535c0e3bb88-1.ps1"
+    }
+  ],
+  "command": "Isolated function AST extraction; native FSCTL comparison and disposable installation identity fixture",
+  "fixturePod": "virt-launcher-winbase-399-mnzgc",
+  "fixtureDomain": "wootc-e2e_winbase-399"
+}
