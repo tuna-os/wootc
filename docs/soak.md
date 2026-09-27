@@ -9,14 +9,15 @@ of the collector. It does not change main. The first update imports 90 days;
 later updates keep every stored row. A release tag supplies no proof by itself.
 
 A maintainer must record a start date in [the config](../tools/soak/config.json)
-after phase D (#345), the listed RC dependencies, and every RC prerequisite in
+after phase D (#345), M4.1–M4.6 (#229–#234), the listed dependencies, and every RC prerequisite in
 #212 pass. The check excludes the soak checkbox in #212. A date before dependency
-closure fails. The config has no start date now. Wails releases and old VM passes
+closure fails. Closure must precede the start at UTC midnight. The config has no start date now. Wails releases and old VM passes
 cannot supply a native streak.
 
 Only GUI runs that finish on the schedule from this repository's main history
 can count. The collector keeps each red even after a green retry. A red needs
-a diagnosis issue whose body links the run. Record that issue under `diagnoses`
+a diagnosis issue whose body links the run. The check covers all stored reds,
+including those outside the import window. Record that issue under `diagnoses`
 with the key `runId:runAttempt`. An unexplained red invalidates the streak.
 
 Missing UTC days and ineligible runs reset it. A change to the shell or transport
@@ -45,7 +46,8 @@ UI Automation. The collector rejects browser receipts.
 
 Each required control must be visible and enabled. Its observed value must
 match the required value. A screenshot alone fails. The Linux summary must match
-a separate observation from Linux in that run. Missing or stale evidence fails.
+a separate observation from Linux in that try. Its capture time must fall inside
+the try and before the UI summary. The record must match the live Linux boot ID. Missing or stale evidence fails.
 Ambiguous or incorrect evidence also fails.
 
 [The verifier](../tools/soak/ledger.py) defines the receipt fields and control IDs.

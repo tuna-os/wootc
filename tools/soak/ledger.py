@@ -12,6 +12,8 @@ from pathlib import Path
 
 SHA = re.compile(r'^[0-9a-f]{40}$')
 HASH = re.compile(r'^[0-9a-f]{64}$')
+BOOT_ID = re.compile(r'^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$')
+PREREQUISITES = {211, 178, 203, *range(229, 235), 323}
 REQUIRED = {
     'install-confirmation': {'InstallConfirmation': ('name', 'Ready to install')},
     'installed-boot-summary': {'InstalledBootSource': ('value', None), 'InstalledBootKernel': ('value', None),
@@ -73,8 +75,15 @@ def verify_proof(data, run, artifact):
     if proof.get('processImageSha256') != identity['artifactSha256'] or proof.get('processName') != 'Wootc.Shell.exe':
         raise ValueError('native process and shipped artifact differ')
     facts = json.loads(files['installed-boot-observation.json'])
-    if facts.get('runId') != run['id'] or facts.get('sourceSha') != run['head_sha'] or facts.get('observer') != 'linux-qga' or facts.get('uname') != 'Linux':
+    if facts.get('runId') != run['id'] or facts.get('runAttempt') != run['run_attempt'] or facts.get('sourceSha') != run['head_sha'] or facts.get('observer') != 'linux-qga' or facts.get('uname') != 'Linux':
         raise ValueError('independent installed Linux observation missing')
+    began = dt.datetime.fromisoformat(run['run_started_at'].replace('Z', '+00:00'))
+    ended = dt.datetime.fromisoformat(run['updated_at'].replace('Z', '+00:00'))
+    fact_time = dt.datetime.fromisoformat(facts['capturedAt'].replace('Z', '+00:00'))
+    if not began <= fact_time <= ended:
+        raise ValueError('Stale installed Linux observation')
+    if not BOOT_ID.fullmatch(facts.get('bootId', '')) or facts['bootId'] != facts.get('liveBootId') or facts['bootId'] != proof.get('installedBootId'):
+        raise ValueError('Installed record does not match current Linux boot identity')
     boot_values = {'InstalledBootSource': facts.get('sourceImage'), 'InstalledBootKernel': facts.get('kernel'),
                    'InstalledBootBridge': facts.get('bridge')}
     observed = proof.get('observations', [])
@@ -92,6 +101,10 @@ def verify_proof(data, run, artifact):
         tree = json.loads(files[observation['uiaFile']])
         if tree.get('processImageSha256') != identity['artifactSha256'] or tree.get('runId') != run['id']:
             raise ValueError('UIA capture belongs to another process/run')
+        if tree.get('runAttempt') != run['run_attempt'] or tree.get('capturedAt') != observation['capturedAt']:
+            raise ValueError('Raw UIA capture attempt or timestamp differs')
+        if observation['journey'] == 'installed-boot-summary' and fact_time > timestamp:
+            raise ValueError('Linux facts postdate the rendered summary')
         controls = tree.get('controls', [])
         checks = observation.get('checks', [])
         required = REQUIRED[observation['journey']]
@@ -135,12 +148,12 @@ def prerequisites(config, issues):
     if config.get('phaseDIssue') != 345 or config.get('rcIssue') != 212:
         return False, 'phase D and RC authority must be recorded'
     ids = set(config.get('prerequisiteIssues', []))
-    if not {211, 178, 203, 229, 230, 323}.issubset(ids):
+    if not PREREQUISITES.issubset(ids):
         return False, 'missing RC prerequisite authorities'
     if any(issues.get(i, {}).get('state') != 'closed' for i in ids | {345}):
         return False, 'phase D or RC prerequisites remain open'
     start = config.get('startDate')
-    if start and any(not issues[i].get('closed_at') or utc_date(issues[i]['closed_at']) > start for i in ids | {345}):
+    if start and any(not issues[i].get('closed_at') or dt.datetime.fromisoformat(issues[i]['closed_at'].replace('Z', '+00:00')) > dt.datetime.combine(dt.date.fromisoformat(start), dt.time(), dt.timezone.utc) for i in ids | {345}):
         return False, 'Start predates prerequisite closure'
     rc = issues.get(212, {}).get('body', '')
     checklist = re.findall(r'^- \[([ xX])\] (.+)$', rc, re.M)
@@ -275,15 +288,17 @@ def collect(api, old, config, today):
                             verified.update(verify_product(api.api(f'repos/{api.repo}/actions/artifacts/{products[0]["id"]}/zip', True), run, products[0], verified))
                             row.update(verified)
                             row.update(eligible=True, reason='')
-                        except (ValueError, KeyError, zipfile.BadZipFile, json.JSONDecodeError) as error:
+                        except (ValueError, KeyError, TypeError, OverflowError, zipfile.BadZipFile, json.JSONDecodeError) as error:
                             row['reason'] = str(error)
                 rows[key] = row
-            diagnosis = config.get('diagnoses', {}).get(f'{key[0]}:{key[1]}')
-            row.pop('diagnosisIssue', None)
-            if diagnosis:
-                issue = api.issue(diagnosis)
-                if has_run_link(issue.get('body'), row['runUrl']):
-                    row['diagnosisIssue'] = diagnosis
+    # Diagnoses can arrive after the discovery window; refresh every retained red.
+    for key, row in rows.items():
+        diagnosis = config.get('diagnoses', {}).get(f'{key[0]}:{key[1]}')
+        row.pop('diagnosisIssue', None)
+        if diagnosis and row['verdict'] != 'success':
+            issue = api.issue(diagnosis)
+            if has_run_link(issue.get('body'), row['runUrl']):
+                row['diagnosisIssue'] = diagnosis
     # Release identity is informational and never supplies proof by itself.
     releases = api.pages(f'repos/{api.repo}/releases', None)
     for row in rows.values():
@@ -304,7 +319,8 @@ def render(rows, summary):
     for row in reversed(rows):
         detail = f'#{row["diagnosisIssue"]}' if row.get('diagnosisIssue') else row.get('reason', '')
         detail = detail.replace('|', '\\|').replace('\n', ' ')
-        lines.append(f'| {row["date"]} | [{row["sourceSha"][:12]} / {row["runId"]}:{row["runAttempt"]}]({row["runUrl"]}) | {row["verdict"]} | {row.get("shell", "unproven") + ' / ' + row.get("artifactSha256", "—")} | {row.get("autoReleaseTag") or "—"} | {detail} |')
+        artifact_label = row.get('shell', 'unproven') + ' / ' + row.get('artifactSha256', '—')
+        lines.append(f'| {row["date"]} | [{row["sourceSha"][:12]} / {row["runId"]}:{row["runAttempt"]}]({row["runUrl"]}) | {row["verdict"]} | {artifact_label} | {row.get("autoReleaseTag") or "—"} | {detail} |')
     return '\n'.join(lines) + '\n'
 
 

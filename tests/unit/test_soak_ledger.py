@@ -18,7 +18,7 @@ def config():
 
 
 def issues():
-    result = {i: {'state': 'closed', 'closed_at': '2026-09-19T00:00:00Z'} for i in [345, 211, 178, 203, 229, 230, 323]}
+    result = {i: {'state': 'closed', 'closed_at': '2026-09-19T00:00:00Z'} for i in soak.PREREQUISITES | {345}}
     result[212] = {'body': '\n'.join('- [x] ' + text for text in soak.RC_REQUIREMENTS) + '\n- [ ] **Soak starts**: wait'}
     return result
 
@@ -34,10 +34,11 @@ def proof_fixture():
     files = {}
     proof = {'schemaVersion': 1, 'shell': 'winui3', 'observer': 'windows-uia', 'runId': 42,
              'runAttempt': 1, 'sourceSha': run['head_sha'], 'processName': 'Wootc.Shell.exe',
-             'processImageSha256': 'b' * 64,
+             'processImageSha256': 'b' * 64, 'installedBootId': '12345678-1234-1234-1234-123456789abc',
              'identity': {'artifactSha256': 'b' * 64, 'shellTreeSha256': 'c' * 64, 'transportTreeSha256': 'd' * 64},
              'observations': []}
-    facts = {'runId': 42, 'sourceSha': run['head_sha'], 'observer': 'linux-qga', 'uname': 'Linux',
+    facts = {'runId': 42, 'runAttempt': 1, 'capturedAt': '2026-09-20T07:20:00Z',
+             'bootId': proof['installedBootId'], 'liveBootId': proof['installedBootId'], 'sourceSha': run['head_sha'], 'observer': 'linux-qga', 'uname': 'Linux',
              'sourceImage': 'image@sha256:' + 'e' * 64, 'kernel': '6.12.1', 'bridge': 'mounted'}
     files['installed-boot-observation.json'] = json.dumps(facts).encode()
     values = {'InstalledBootSource': facts['sourceImage'], 'InstalledBootKernel': facts['kernel'], 'InstalledBootBridge': facts['bridge']}
@@ -47,7 +48,7 @@ def proof_fixture():
         files[frame] = b'\x89PNG\r\n\x1a\nsynthetic-test-frame'
         checks = [{'automationId': name, 'property': prop, 'expected': literal or values[name]} for name, (prop, literal) in required.items()]
         controls = [{'automationId': check['automationId'], 'visible': True, 'enabled': True, check['property']: check['expected']} for check in checks]
-        files[uia] = json.dumps({'runId': 42, 'processImageSha256': 'b' * 64, 'controls': controls}).encode()
+        files[uia] = json.dumps({'runId': 42, 'runAttempt': 1, 'capturedAt': '2026-09-20T07:30:00Z', 'processImageSha256': 'b' * 64, 'controls': controls}).encode()
         proof['observations'].append({'journey': journey, 'capturedAt': '2026-09-20T07:30:00Z',
                                       'framebufferFile': frame, 'framebufferSha256': soak.digest(files[frame]),
                                       'uiaFile': uia, 'checks': checks})
@@ -84,6 +85,20 @@ class SoakTests(unittest.TestCase):
                 evidence[345]['closed_at'] = '2026-09-21T00:00:00Z'
             with self.subTest(change=change):
                 self.assertFalse(soak.summarize([], cfg, evidence, dt.date(2026, 9, 22))['started'])
+
+    def test_each_m4_authority_and_closure_before_start_is_required(self):
+        for number in range(229, 235):
+            evidence = issues()
+            evidence[number]['state'] = 'open'
+            with self.subTest(open_issue=number):
+                self.assertFalse(soak.prerequisites(config(), evidence)[0])
+            cfg = config()
+            cfg['prerequisiteIssues'].remove(number)
+            with self.subTest(missing_issue=number):
+                self.assertFalse(soak.prerequisites(cfg, issues())[0])
+        evidence = issues()
+        evidence[234]['closed_at'] = '2026-09-20T07:00:00Z'
+        self.assertFalse(soak.prerequisites(config(), evidence)[0])
 
     def test_continuity_exclusion_and_identity_reset(self):
         rows = [row('2026-09-20'), row('2026-09-21', 2), row('2026-09-22', 3)]
@@ -130,7 +145,9 @@ class SoakTests(unittest.TestCase):
         self.assertTrue(valid['semanticProof'])
         self.assertEqual(valid['proofArchiveSha256'], soak.digest(data))
         mutations = ['wails', 'browser', 'source', 'attempt', 'process', 'no-checks', 'hidden',
-                     'wrong-value', 'missing-frame', 'stale', 'facts', 'digest', 'artifact-run']
+                     'wrong-value', 'missing-frame', 'stale', 'facts', 'digest', 'artifact-run',
+                     'old-fact-attempt', 'stale-facts', 'wrong-live-boot', 'wrong-record-boot',
+                     'missing-boot', 'future-facts', 'old-uia-attempt']
         for mutation in mutations:
             changed, changed_files = copy.deepcopy(proof), copy.deepcopy(files)
             if mutation == 'wails': changed['shell'] = 'wails'
@@ -148,6 +165,20 @@ class SoakTests(unittest.TestCase):
             elif mutation == 'missing-frame': changed_files.pop(changed['observations'][0]['framebufferFile'])
             elif mutation == 'stale': changed['observations'][0]['capturedAt'] = '2026-09-19T07:30:00Z'
             elif mutation == 'facts': changed_files['installed-boot-observation.json'] = b'{}'
+            elif mutation == 'old-uia-attempt':
+                name = changed['observations'][0]['uiaFile']
+                tree = json.loads(changed_files[name])
+                tree['runAttempt'] = 0
+                changed_files[name] = json.dumps(tree).encode()
+            elif mutation in {'old-fact-attempt', 'stale-facts', 'wrong-live-boot', 'wrong-record-boot', 'missing-boot', 'future-facts'}:
+                facts = json.loads(changed_files['installed-boot-observation.json'])
+                if mutation == 'old-fact-attempt': facts['runAttempt'] = 0
+                elif mutation == 'stale-facts': facts['capturedAt'] = '2026-09-19T07:20:00Z'
+                elif mutation == 'wrong-live-boot': facts['liveBootId'] = '87654321-1234-1234-1234-123456789abc'
+                elif mutation == 'wrong-record-boot': changed['installedBootId'] = '87654321-1234-1234-1234-123456789abc'
+                elif mutation == 'missing-boot': facts.pop('bootId')
+                else: facts['capturedAt'] = '2026-09-20T07:45:00Z'
+                changed_files['installed-boot-observation.json'] = json.dumps(facts).encode()
             data, artifact = archive(changed, changed_files)
             if mutation == 'digest': artifact['digest'] = 'sha256:' + '0' * 64
             if mutation == 'artifact-run': artifact['workflow_run']['id'] = 1
@@ -269,6 +300,25 @@ class SoakTests(unittest.TestCase):
         rows, _ = soak.collect(API(), [], config(), dt.date(2026, 9, 22))
         self.assertFalse(rows[0]['eligible'])
         self.assertIn('main', rows[0]['reason'])
+
+    def test_diagnosis_refresh_reaches_rows_outside_discovery_window(self):
+        class API:
+            repo = 'tuna-os/wootc'
+            def pages(self, path, key):
+                return []
+            def issue(self, number):
+                if number == 999:
+                    return {'body': 'Diagnosed: https://github.com/tuna-os/wootc/actions/runs/42'}
+                return issues()[number]
+        old = row('2026-01-01', 42, eligible=False, verdict='failure',
+                  runUrl='https://github.com/tuna-os/wootc/actions/runs/42')
+        cfg = config()
+        cfg['diagnoses'] = {'42:1': 999}
+        rows, _ = soak.collect(API(), [old], cfg, dt.date(2026, 9, 22))
+        self.assertEqual(rows[0]['diagnosisIssue'], 999)
+        cfg['diagnoses'] = {}
+        rows, _ = soak.collect(API(), rows, cfg, dt.date(2026, 9, 22))
+        self.assertNotIn('diagnosisIssue', rows[0])
 
     def test_workflow_uses_main_and_does_not_dispatch_vm(self):
         workflow = (ROOT / '.github/workflows/soak-ledger.yml').read_text()
