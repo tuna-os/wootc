@@ -97,6 +97,39 @@ func TestNativePipeActualConnectionIdentity(t *testing.T) {
 	if err := verifyNativePipeClient(pipe, peer); err != nil {
 		t.Fatal(err)
 	}
+	var duplicate windows.Handle
+	if err := windows.DuplicateHandle(windows.CurrentProcess(), pipe, windows.CurrentProcess(), &duplicate, 0, false, windows.DUPLICATE_SAME_ACCESS); err != nil {
+		t.Fatal(err)
+	}
+	connection := os.NewFile(uintptr(duplicate), name)
+	if connection == nil {
+		windows.CloseHandle(duplicate)
+		t.Fatal("pipe connection unavailable")
+	}
+	defer connection.Close()
+	if err := connection.SetReadDeadline(time.Now().Add(50 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := connection.Read(make([]byte, 1)); !os.IsTimeout(err) {
+		t.Fatalf("native pipe read deadline was not observed: %v", err)
+	}
+	if err := connection.SetReadDeadline(time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	readFinished := make(chan error, 1)
+	go func() { _, err := connection.Read(make([]byte, 1)); readFinished <- err }()
+	time.Sleep(50 * time.Millisecond)
+	if err := connection.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-readFinished:
+		if err == nil {
+			t.Fatal("closed connection read succeeded")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("disconnect did not release pending native pipe read")
+	}
 }
 
 func TestNativePipeFirstInstanceAndCancellation(t *testing.T) {

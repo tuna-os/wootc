@@ -9,6 +9,8 @@ on:
       - 'app/native_pipe*'
       - 'app/native_handshake*'
       - 'app/native_package*'
+      - 'app/native_serve*'
+      - 'app/main.go'
       - 'app/tools/gendto/**'
       - '.github/workflows/winui-preview.yml'
   workflow_dispatch:
@@ -113,4 +115,4 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force frontend/dist | Out-Null
           Set-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'
-          go test -count=1 -v -timeout 60s -run '^TestNative(PeerObservation|Pipe|Handshake|Package)' .
+          go test -count=1 -v -timeout 60s -run '^TestNative(PeerObservation|Pipe|Handshake|Package|Serve)' .
