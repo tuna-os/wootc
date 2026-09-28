@@ -1545,5 +1545,18 @@
     "eligible": false,
     "reason": "Not a run from repository main",
     "autoReleaseTag": null
+  },
+  {
+    "runId": 36399679919,
+    "runAttempt": 1,
+    "date": "2026-09-28",
+    "startedAt": "2026-09-28T08:49:34Z",
+    "sourceSha": "16e518423f2709d19517b5e0e06cb6431b2123a3",
+    "event": "workflow_dispatch",
+    "verdict": "failure",
+    "runUrl": "https://github.com/tuna-os/wootc/actions/runs/36399679919",
+    "eligible": false,
+    "reason": "Not a run from repository main",
+    "autoReleaseTag": null
   }
 ]
