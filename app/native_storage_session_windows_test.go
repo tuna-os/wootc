@@ -211,7 +211,11 @@ func prepareNativeHeldStderrAssembly(t *testing.T, good string) (string, string)
 Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class PipeControl{[DllImport("kernel32.dll")]public static extern IntPtr GetStdHandle(int n);[DllImport("kernel32.dll")]public static extern bool SetHandleInformation(IntPtr h,uint mask,uint flags);}' -OutputAssembly '` + strings.ReplaceAll(path, "'", "''") + `' -ErrorAction Stop
 [Console]::Error.WriteLine("held-fixture-compile-complete")
 ` + good
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Cold Add-Type compilation exceeded the earlier 10s preparation bound
+	// on hosted runners (10.014s observed in run 36347144165 without ever
+	// reaching compile-complete). The 5s observation deadline below is
+	// unchanged; only preparation gets a wider but still explicit bound.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	session, err := startNativeStorageSession(ctx)
 	if err != nil {
@@ -250,7 +254,7 @@ Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;publ
 	if err = os.WriteFile(prefix+".warm.stderr.raw", session.stderr.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "fixturePreparationMilliseconds": time.Since(session.started).Milliseconds(), "fixturePreparationBoundMilliseconds": 10000, "observationDeadlineMilliseconds": 5000, "assemblySha256": digest, "assemblySize": len(raw), "parentExited": session.exited, "jobDrained": session.drained, "streamsDrained": session.streamsJoined, "exitCode": session.exitCode, "scope": "owned synthetic fixture preparation; no storage or protector mutation"})
+	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "fixturePreparationMilliseconds": time.Since(session.started).Milliseconds(), "fixturePreparationBoundMilliseconds": 30000, "observationDeadlineMilliseconds": 5000, "assemblySha256": digest, "assemblySize": len(raw), "parentExited": session.exited, "jobDrained": session.drained, "streamsDrained": session.streamsJoined, "exitCode": session.exitCode, "scope": "owned synthetic fixture preparation; no storage or protector mutation"})
 	if err = os.WriteFile(prefix+".warm.json", record, 0600); err != nil {
 		t.Fatal(err)
 	}
