@@ -834,8 +834,16 @@ seed_user_data() {
     local seed_dir="${drive}\\Users\\${guser}\\Documents"
     for attempt in 1 2 3; do
         # Use seed-profile.ps1 if available in C:\OEM, otherwise seed directly via PowerShell
-        out=$(qga_powershell "if (Test-Path 'C:\OEM\seed-profile.ps1') { & 'C:\OEM\seed-profile.ps1' -Username '${guser}' -Drive '${drive}' -RunId '${RUN_ID}' } else { \$ErrorActionPreference='Stop'; \$d = '${drive}\\Users\\${guser}\\Documents'; if (-not (Test-Path \$d)) { New-Item -ItemType Directory -Path \$d -Force | Out-Null }; Set-Content -Path \"\$d\\wootc-e2e-userdata.txt\" -Value 'wootc-e2e-userdata $RUN_ID' -Encoding ASCII }; Get-Content \"\$d\\wootc-e2e-userdata.txt\"" 2>&1)
-        if printf '%s' "$out" | grep -q "$RUN_ID"; then
+        # The PASS below greps $RUN_ID: seed-profile.ps1 prints "(RunId: ...)"
+        # in its banner, so matching script chatter alone would pass without
+        # the canary existing (proxy status). Always read the canary FILE back
+        # after either branch; a silent script failure then fails honestly here
+        # instead of in Phase 2.
+        out=$(qga_powershell "if (Test-Path 'C:\OEM\seed-profile.ps1') { & 'C:\OEM\seed-profile.ps1' -Username '${guser}' -Drive '${drive}' -RunId '${RUN_ID}' | Out-Null }; \$ErrorActionPreference='Stop'; \$d = '${drive}\\Users\\${guser}\\Documents'; if (-not (Test-Path 'C:\OEM\seed-profile.ps1')) { if (-not (Test-Path \$d)) { New-Item -ItemType Directory -Path \$d -Force | Out-Null }; Set-Content -Path \"\$d\\wootc-e2e-userdata.txt\" -Value 'wootc-e2e-userdata $RUN_ID' -Encoding ASCII }; Get-Content \"\$d\\wootc-e2e-userdata.txt\"" 2>&1)
+        # Match the canary's exact content format, not the bare RUN_ID:
+        # seed-profile.ps1 echoes "(RunId: ...)" in its banner, which the old
+        # grep accepted as proof without the file existing.
+        if printf '%s' "$out" | grep -q "wootc-e2e-userdata $RUN_ID"; then
             pass "User data seeded: ${drive}\\Users\\${guser}\\Documents\\wootc-e2e-userdata.txt ($RUN_ID)"
             return 0
         fi

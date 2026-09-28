@@ -33,6 +33,17 @@ setup() {
     grep -q "wootc-e2e-userdata \$RUN_ID" "$E2E"
 }
 
+@test "seed confirmation reads the canary file back, not script chatter" {
+    # Run 20260928T021246Z: seed-profile.ps1 prints "(RunId: ...)" in its
+    # banner, so grepping the bare RUN_ID passed without the canary file
+    # existing — and Phase 2 then found seed@host empty. The seed step must
+    # read the canary FILE back after either branch, and the PASS grep must
+    # match the canary's content format.
+    grep -q "seed-profile.ps1' -Username.*| Out-Null" "$E2E"
+    grep -q 'Get-Content' "$E2E"
+    grep -Fq 'grep -q "wootc-e2e-userdata $RUN_ID"' "$E2E"
+}
+
 @test "Phase-2 bridge check is a live QGA content read against RUN_ID" {
     grep -q 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E"
     grep -Fq 'printf '"'"'%s'"'"' "$USERDATA_HOME" | grep -q "$RUN_ID"' "$E2E"
