@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "head": "7f0cdf6dd6ffebff9fa8f2ec5e8710fc7fca6af6",
+  "run": 36338769554,
+  "logs": {
+    "wootc": {
+      "path": "/tmp/wootc-native501-7f0-wootc.raw.log",
+      "sha256": "f11a31d2ed06001ec36ffe643e82fdb1a881aa488947c553fdb3862e4320f444",
+      "bytes": 97581,
+      "cause": [
+        "2026-09-27T18:01:41.9687101Z    System.InvalidOperationException : Expected installed ConnectionStatus=Offline; observed Ready; Ready; Stage:rpc-recovery-complete; Failure:none; HResult:0; NativeCode:0; Engine:retained-running; PrimaryRpc:none; PrimaryStartup:none"
+      ]
+    },
+    "tunaos": {
+      "path": "/tmp/wootc-native501-7f0-tunaos.raw.log",
+      "sha256": "ed90347d80cd7a38ad4f24eb6524847bbebec68e8cc6b5e3dc35480df33a48d1",
+      "bytes": 97375,
+      "cause": [
+        "2026-09-27T18:01:00.0817542Z    System.InvalidOperationException : Actual configuration RPC/view unavailable; Linux configuration observation is unavailable; Stage:rpc-configuration-response; Failure:protocol; HResult:-2146233087; NativeCode:0; Engine:retained-running; PrimaryRpc:rpc-configuration-response; Failure:protocol; HResult:-2146233087; NativeCode:0; PrimaryStartup:none"
+      ]
+    },
+    "aurora": {
+      "path": "/tmp/wootc-native501-7f0-aurora.raw.log",
+      "sha256": "8da902fd5336e09f3ad8da6e91d69db50e11b33ad038017061a3d87600e01780",
+      "bytes": 97374,
+      "cause": [
+        "2026-09-27T18:00:45.3122954Z    System.InvalidOperationException : Actual configuration RPC/view unavailable; Linux configuration observation is unavailable; Stage:rpc-configuration-response; Failure:protocol; HResult:-2146233087; NativeCode:0; Engine:retained-running; PrimaryRpc:rpc-configuration-response; Failure:protocol; HResult:-2146233087; NativeCode:0; PrimaryStartup:none"
+      ]
+    },
+    "bazzite": {
+      "path": "/tmp/wootc-native501-7f0-bazzite.raw.log",
+      "sha256": "1a590734b15431a1cc0c39bbf3529f00d17e9f2ae80e88fc3911f72b297c1821",
+      "bytes": 97389,
+      "cause": [
+        "2026-09-27T18:01:44.7425007Z    System.InvalidOperationException : Actual configuration RPC/view unavailable; Linux configuration observation is unavailable; Stage:rpc-configuration-response; Failure:protocol; HResult:-2146233087; NativeCode:0; Engine:retained-running; PrimaryRpc:rpc-configuration-response; Failure:protocol; HResult:-2146233087; NativeCode:0; PrimaryStartup:none"
+      ]
+    },
+    "bluefin": {
+      "path": "/tmp/wootc-native501-7f0-bluefin.raw.log",
+      "sha256": "ac2ca13bacbca8477998bf3ce577379b7c319d28391f01a59b2f57b5753375c8",
+      "bytes": 97608,
+      "cause": [
+        "2026-09-27T18:00:52.8392436Z    System.InvalidOperationException : Expected installed ConnectionStatus=Offline; observed Ready; Ready; Stage:rpc-recovery-complete; Failure:none; HResult:0; NativeCode:0; Engine:retained-running; PrimaryRpc:none; PrimaryStartup:none"
+      ]
+    }
+  }
+}

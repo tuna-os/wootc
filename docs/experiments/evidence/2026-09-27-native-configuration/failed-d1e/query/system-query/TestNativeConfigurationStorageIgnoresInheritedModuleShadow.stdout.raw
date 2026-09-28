@@ -1,0 +1,4 @@
+WARNING: The names of some imported commands from the module 'BitLocker' include unapproved verbs that might make them 
+less discoverable. To find the commands with unapproved verbs, run the Import-Module command again with the Verbose 
+parameter. For a list of approved verbs, type Get-Verb.
+[{"driveLetter":"C","diskGuid":"{e3abaec6-4574-417a-847f-6eaa938c96e5}","partitionGuid":"{6f146b24-4f0e-4ba2-97d1-29ea630e5753}","volumeStatus":"FullyDecrypted","protectionStatus":"Off","encryptionPercentage":0}]

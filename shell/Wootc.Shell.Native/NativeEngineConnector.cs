@@ -12,23 +12,31 @@ namespace Wootc.Shell.Native;
 public sealed class NativeEngineConnector : IEngineConnector
 {
     private readonly string directory;
-    private readonly Action<string>? observe;
-    private NativeDiagnosticState diagnostic = new();
-    public NativeEngineConnector(string directory, Action<string>? observe = null) { this.directory = directory; this.observe = observe; }
+    private readonly Action<NativeDiagnosticObservation>? observe;
+    private long observationGeneration;
+    public NativeEngineConnector(string directory, Action<NativeDiagnosticObservation>? observe = null) { this.directory = directory; this.observe = observe; }
     internal static string DescribeFailure(Exception? error)
     {
         string kind = error switch { null => "none", OperationCanceledException => "deadline", Win32Exception => "win32", UnauthorizedAccessException => "access", InvalidDataException => "protocol", IOException => "io", _ => "unexpected" };
         return $"Failure:{kind}; HResult:{error?.HResult ?? 0}; NativeCode:{(error as Win32Exception)?.NativeErrorCode ?? 0}";
     }
-    private void Observe(string stage, Exception? error = null, Process? engine = null)
+    internal Action<string, Exception?, Process?> BeginObservation()
     {
-        observe?.Invoke(diagnostic.Project(stage, error, engine));
+        long generation = Interlocked.Increment(ref observationGeneration);
+        var diagnostic = new NativeDiagnosticState();
+        bool IsCurrent() => Interlocked.Read(ref observationGeneration) == generation;
+        return (stage, error, engine) =>
+        {
+            string projection = diagnostic.Project(stage, error, engine);
+            if (IsCurrent()) observe?.Invoke(new NativeDiagnosticObservation(projection, IsCurrent));
+        };
     }
 
     public async Task<ConnectionAttempt> ConnectAsync(ConnectRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        diagnostic = new();
+        var scopedObserve = BeginObservation();
+        void Observe(string stage, Exception? error = null, Process? engine = null) => scopedObserve(stage, error, engine);
         if (!ProtectedPackage.LowerHex(request.SessionId, 32)) return new(ConnectionOutcome.Incompatible, Reason: "Invalid native session identity");
         Observe("package");
         var package = ProtectedPackage.Read(directory);
@@ -79,7 +87,7 @@ public sealed class NativeEngineConnector : IEngineConnector
             await NativeProtocol.ReadStartupAsync(pipe, hello, phase => { stage = phase; Observe(stage, engine: engine); }, deadline.Token);
             WindowsPeer.VerifyPipeServer(pipe.SafePipeHandle, engine, source, package.EnginePath);
             Observe("authenticated", engine: engine);
-            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine)));
+            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine), package.Manifest.BrandId));
         }
         catch (Exception error)
         {
@@ -99,3 +107,6 @@ public sealed class NativeEngineConnector : IEngineConnector
     [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafePipeHandle CreateFile(string name, uint access, uint share, nint security, uint creation, uint flags, nint template);
 }
+
+// A queued UI delivery must recheck its connection scope when it executes.
+public sealed record NativeDiagnosticObservation(string Projection, Func<bool> IsCurrent);

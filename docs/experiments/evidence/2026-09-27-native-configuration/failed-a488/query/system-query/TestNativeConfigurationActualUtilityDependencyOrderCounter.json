@@ -1,0 +1,1 @@
+{"bounded":true,"exitCode":1,"schemaVersion":1,"scope":"fixed read-only source; diagnostic catch emits stage/type/numeric fields only","test":"TestNativeConfigurationActualUtilityDependencyOrderCounter"}

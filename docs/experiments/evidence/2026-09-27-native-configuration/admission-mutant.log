@@ -1,0 +1,5 @@
+--- FAIL: TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse (0.00s)
+    native_configuration_test.go:38: alpha override falsely admitted: [{Image:{ID:private-test Name:Experimental fixture Emoji: Base: Desktop: DesktopName: ImageRef:ghcr.io/tuna-os/fixture:latest Description: Bootloader: ComposeFS:false Family: Status:experimental MokEnroll:} Admitted:true AdmissionBlockedReason: RequiresMokEnrollment:false ContentVerified:false}]
+FAIL
+exit status 1
+FAIL	wootc	0.008s

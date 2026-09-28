@@ -1,0 +1,928 @@
+﻿2026-09-27T18:21:24.9579045Z Current runner version: '2.337.0'
+2026-09-27T18:21:24.9598774Z ##[group]Runner Image Provisioner
+2026-09-27T18:21:24.9599283Z Hosted Compute Agent
+2026-09-27T18:21:24.9599604Z Version: 20260828.587
+2026-09-27T18:21:24.9599961Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-27T18:21:24.9600432Z Build Date: 2026-08-28T16:44:25Z
+2026-09-27T18:21:24.9600899Z Worker ID: {840fa033-4967-4c25-aaa1-4c6c503a94b2}
+2026-09-27T18:21:24.9601296Z Azure Region: westus3
+2026-09-27T18:21:24.9601758Z ##[endgroup]
+2026-09-27T18:21:24.9602618Z ##[group]Operating System
+2026-09-27T18:21:24.9603001Z Microsoft Windows Server 2025
+2026-09-27T18:21:24.9603325Z 10.0.26100
+2026-09-27T18:21:24.9603622Z Datacenter
+2026-09-27T18:21:24.9603937Z ##[endgroup]
+2026-09-27T18:21:24.9604232Z ##[group]Runner Image
+2026-09-27T18:21:24.9604557Z Image: windows-2025-vs2026
+2026-09-27T18:21:24.9604884Z Version: 20260922.246.2
+2026-09-27T18:21:24.9605738Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+2026-09-27T18:21:24.9606604Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+2026-09-27T18:21:24.9607139Z ##[endgroup]
+2026-09-27T18:21:24.9607780Z ##[group]GITHUB_TOKEN Permissions
+2026-09-27T18:21:24.9609065Z Contents: read
+2026-09-27T18:21:24.9609362Z Metadata: read
+2026-09-27T18:21:24.9609678Z ##[endgroup]
+2026-09-27T18:21:24.9611065Z Secret source: Actions
+2026-09-27T18:21:24.9611545Z Cache mode: write
+2026-09-27T18:21:24.9611943Z Prepare workflow directory
+2026-09-27T18:21:24.9833723Z Prepare all required actions
+2026-09-27T18:21:24.9867823Z Getting action download info
+2026-09-27T18:21:25.3071286Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-27T18:21:25.3971959Z Download action repository 'actions/setup-dotnet@v6' (SHA:a98b56852c35b8e3190ac28c8c2271da59106c68)
+2026-09-27T18:21:25.9779792Z Download action repository 'actions/setup-go@v7' (SHA:b7ad1dad31e06c5925ef5d2fc7ad053ef454303e)
+2026-09-27T18:21:26.5471993Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-09-27T18:21:26.7199219Z Complete job name: Branded preview package (aurora)
+2026-09-27T18:21:26.8167436Z ##[group]Run actions/checkout@v7
+2026-09-27T18:21:26.8168139Z with:
+2026-09-27T18:21:26.8168386Z   repository: tuna-os/wootc
+2026-09-27T18:21:26.8170086Z   token: ***
+2026-09-27T18:21:26.8170324Z   ssh-strict: true
+2026-09-27T18:21:26.8170548Z   ssh-user: git
+2026-09-27T18:21:26.8170797Z   persist-credentials: true
+2026-09-27T18:21:26.8171091Z   clean: true
+2026-09-27T18:21:26.8171354Z   sparse-checkout-cone-mode: true
+2026-09-27T18:21:26.8171649Z   fetch-depth: 1
+2026-09-27T18:21:26.8171885Z   fetch-tags: false
+2026-09-27T18:21:26.8172137Z   show-progress: true
+2026-09-27T18:21:26.8172401Z   lfs: false
+2026-09-27T18:21:26.8172634Z   submodules: false
+2026-09-27T18:21:26.8172905Z   set-safe-directory: true
+2026-09-27T18:21:26.8173195Z   allow-unsafe-pr-checkout: false
+2026-09-27T18:21:26.8173557Z ##[endgroup]
+2026-09-27T18:21:26.9200209Z Syncing repository: tuna-os/wootc
+2026-09-27T18:21:26.9201283Z ##[group]Getting Git version info
+2026-09-27T18:21:26.9201689Z Working directory is 'D:\a\wootc\wootc'
+2026-09-27T18:21:26.9724724Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-09-27T18:21:27.3238114Z git version 2.55.0.windows.5
+2026-09-27T18:21:27.3272495Z ##[endgroup]
+2026-09-27T18:21:27.3285560Z Temporarily overriding HOME='D:\a\_temp\c4f372bb-c092-4480-af73-1667460c5ce1' before making global git config changes
+2026-09-27T18:21:27.3286161Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T18:21:27.3292440Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+2026-09-27T18:21:27.3789477Z Deleting the contents of 'D:\a\wootc\wootc'
+2026-09-27T18:21:27.3793369Z ##[group]Determining repository object format
+2026-09-27T18:21:27.3795539Z ##[endgroup]
+2026-09-27T18:21:27.3795933Z ##[group]Initializing the repository
+2026-09-27T18:21:27.3800840Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+2026-09-27T18:21:27.4469532Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+2026-09-27T18:21:27.4498649Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+2026-09-27T18:21:27.5001975Z ##[endgroup]
+2026-09-27T18:21:27.5002425Z ##[group]Disabling automatic garbage collection
+2026-09-27T18:21:27.5008198Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-09-27T18:21:27.5195013Z ##[endgroup]
+2026-09-27T18:21:27.5195441Z ##[group]Setting up auth
+2026-09-27T18:21:27.5196009Z Removing SSH command configuration
+2026-09-27T18:21:27.5202723Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T18:21:27.5394415Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-09-27T18:21:28.7229972Z Removing HTTP extra header
+2026-09-27T18:21:28.7238600Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T18:21:28.7430216Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-09-27T18:21:29.0923286Z Removing includeIf entries pointing to credentials config files
+2026-09-27T18:21:29.0931594Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T18:21:29.1119504Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-09-27T18:21:29.4963756Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-09-27T18:21:29.5169930Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git.path D:\a\_temp\git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:21:29.5375146Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D:\a\_temp\git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:21:29.5640093Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:21:29.5838769Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:21:29.6028841Z ##[endgroup]
+2026-09-27T18:21:29.6029164Z ##[group]Fetching the repository
+2026-09-27T18:21:29.6109618Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +f095a7d0e02c44412e464f4686fd25d53b240a70:refs/remotes/pull/501/merge
+2026-09-27T18:21:31.0753405Z From https://github.com/tuna-os/wootc
+2026-09-27T18:21:31.0786445Z  * [new ref]         f095a7d0e02c44412e464f4686fd25d53b240a70 -> pull/501/merge
+2026-09-27T18:21:31.0787514Z ##[endgroup]
+2026-09-27T18:21:31.0787806Z ##[group]Determining the checkout info
+2026-09-27T18:21:31.0788201Z ##[endgroup]
+2026-09-27T18:21:31.0795421Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-09-27T18:21:31.1107978Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-09-27T18:21:31.1317109Z ##[group]Checking out the ref
+2026-09-27T18:21:31.1323666Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/501/merge
+2026-09-27T18:21:31.4057915Z Note: switching to 'refs/remotes/pull/501/merge'.
+2026-09-27T18:21:31.4058279Z 
+2026-09-27T18:21:31.4058435Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-27T18:21:31.4058721Z changes and commit them, and you can discard any commits you make in this
+2026-09-27T18:21:31.4058980Z state without impacting any branches by switching back to a branch.
+2026-09-27T18:21:31.4059124Z 
+2026-09-27T18:21:31.4059272Z If you want to create a new branch to retain commits you create, you may
+2026-09-27T18:21:31.4059529Z do so (now or later) by using -c with the switch command. Example:
+2026-09-27T18:21:31.4059664Z 
+2026-09-27T18:21:31.4059725Z   git switch -c <new-branch-name>
+2026-09-27T18:21:31.4059872Z 
+2026-09-27T18:21:31.4059939Z Or undo this operation with:
+2026-09-27T18:21:31.4060083Z 
+2026-09-27T18:21:31.4060132Z   git switch -
+2026-09-27T18:21:31.4060239Z 
+2026-09-27T18:21:31.4060355Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-27T18:21:31.4060513Z 
+2026-09-27T18:21:31.4060698Z HEAD is now at f095a7d Merge fbe9114017c99866a7a63ad9caa82ed10f9f3228 into a1b497449594fd3a62e743cfbf725108950f8171
+2026-09-27T18:21:31.4439420Z ##[endgroup]
+2026-09-27T18:21:31.4444235Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-09-27T18:21:31.4612915Z f095a7d0e02c44412e464f4686fd25d53b240a70
+2026-09-27T18:21:31.4911109Z ##[group]Run actions/setup-dotnet@v6
+2026-09-27T18:21:31.4911287Z with:
+2026-09-27T18:21:31.4911402Z   global-json-file: shell/global.json
+2026-09-27T18:21:31.4911546Z   cache: false
+2026-09-27T18:21:31.4911648Z ##[endgroup]
+2026-09-27T18:21:31.6558842Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Runtime dotnet -Channel LTS
+2026-09-27T18:21:32.6469367Z dotnet-install: .NET Core Runtime with version '10.0.12' is already installed.
+2026-09-27T18:21:32.7292016Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Version 10.0.401
+2026-09-27T18:21:33.2140041Z dotnet-install: .NET Core SDK with version '10.0.401' is already installed.
+2026-09-27T18:21:33.2926464Z ##[group]Run actions/setup-go@v7
+2026-09-27T18:21:33.2926721Z with:
+2026-09-27T18:21:33.2926893Z   go-version-file: app/go.mod
+2026-09-27T18:21:33.2927104Z   check-latest: false
+2026-09-27T18:21:33.2929816Z   token: ***
+2026-09-27T18:21:33.2929975Z   cache: true
+2026-09-27T18:21:33.2930130Z env:
+2026-09-27T18:21:33.2930293Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T18:21:33.2930510Z ##[endgroup]
+2026-09-27T18:21:33.3917117Z Setup go version spec 1.26.0
+2026-09-27T18:21:33.3923976Z Attempting to download 1.26.0...
+2026-09-27T18:21:34.2691902Z matching 1.26.0...
+2026-09-27T18:21:34.2694650Z Acquiring 1.26.0 from https://github.com/actions/go-versions/releases/download/1.26.0-21889650668/go-1.26.0-win32-x64.zip
+2026-09-27T18:21:34.9072162Z Extracting Go...
+2026-09-27T18:21:35.0949783Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp\go-1.26.0-win32-x64.zip', 'D:\a\_temp\64d08a0d-41a5-4c49-93b8-7ff0f5c2552b', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp\go-1.26.0-win32-x64.zip' -DestinationPath 'D:\a\_temp\64d08a0d-41a5-4c49-93b8-7ff0f5c2552b' -Force } else { throw $_ } } ;"
+2026-09-27T18:21:37.6296986Z Successfully extracted go to D:\a\_temp\64d08a0d-41a5-4c49-93b8-7ff0f5c2552b
+2026-09-27T18:21:37.6297265Z Adding to the cache ...
+2026-09-27T18:21:43.4321156Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64 => D:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T18:21:43.4323819Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64.complete => D:\hostedtoolcache\windows\go\1.26.0\x64.complete
+2026-09-27T18:21:43.4324408Z Successfully cached go to C:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T18:21:43.4331134Z Added go to the path
+2026-09-27T18:21:43.4332675Z Successfully set up Go version 1.26.0
+2026-09-27T18:21:43.5905895Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOCACHE
+2026-09-27T18:21:43.5942557Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOMODCACHE
+2026-09-27T18:21:43.6097187Z C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T18:21:43.6104740Z C:\Users\runneradmin\go\pkg\mod
+2026-09-27T18:21:43.6133359Z ##[warning]Restore cache failed: Dependencies file is not found in D:\a\wootc\wootc. Supported file pattern: go.mod
+2026-09-27T18:21:43.6142934Z go version go1.26.0 windows/amd64
+2026-09-27T18:21:43.6143051Z 
+2026-09-27T18:21:43.6143224Z ##[group]go env
+2026-09-27T18:21:46.1346122Z set AR=ar
+2026-09-27T18:21:46.1346370Z set CC=gcc
+2026-09-27T18:21:46.1346646Z set CGO_CFLAGS=-O2 -g
+2026-09-27T18:21:46.1346900Z set CGO_CPPFLAGS=
+2026-09-27T18:21:46.1347122Z set CGO_CXXFLAGS=-O2 -g
+2026-09-27T18:21:46.1347312Z set CGO_ENABLED=1
+2026-09-27T18:21:46.1347487Z set CGO_FFLAGS=-O2 -g
+2026-09-27T18:21:46.1347665Z set CGO_LDFLAGS=-O2 -g
+2026-09-27T18:21:46.1347835Z set CXX=g++
+2026-09-27T18:21:46.1347977Z set GCCGO=gccgo
+2026-09-27T18:21:46.1348134Z set GO111MODULE=
+2026-09-27T18:21:46.1348288Z set GOAMD64=v1
+2026-09-27T18:21:46.1348443Z set GOARCH=amd64
+2026-09-27T18:21:46.1348602Z set GOAUTH=netrc
+2026-09-27T18:21:46.1348771Z set GOBIN=
+2026-09-27T18:21:46.1349016Z set GOCACHE=C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T18:21:46.1349309Z set GOCACHEPROG=
+2026-09-27T18:21:46.1349471Z set GODEBUG=
+2026-09-27T18:21:46.1349692Z set GOENV=C:\Users\runneradmin\AppData\Roaming\go\env
+2026-09-27T18:21:46.1349934Z set GOEXE=.exe
+2026-09-27T18:21:46.1350087Z set GOEXPERIMENT=
+2026-09-27T18:21:46.1350249Z set GOFIPS140=off
+2026-09-27T18:21:46.1350402Z set GOFLAGS=
+2026-09-27T18:21:46.1352640Z set GOGCCFLAGS=-m64 -mthreads -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\RUNNER~1\AppData\Local\Temp\go-build4192162709=/tmp/go-build -gno-record-gcc-switches
+2026-09-27T18:21:46.1353345Z set GOHOSTARCH=amd64
+2026-09-27T18:21:46.1353531Z set GOHOSTOS=windows
+2026-09-27T18:21:46.1353687Z set GOINSECURE=
+2026-09-27T18:21:46.1353836Z set GOMOD=NUL
+2026-09-27T18:21:46.1354056Z set GOMODCACHE=C:\Users\runneradmin\go\pkg\mod
+2026-09-27T18:21:46.1354309Z set GONOPROXY=
+2026-09-27T18:21:46.1354472Z set GONOSUMDB=
+2026-09-27T18:21:46.1354617Z set GOOS=windows
+2026-09-27T18:21:46.1354817Z set GOPATH=C:\Users\runneradmin\go
+2026-09-27T18:21:46.1355073Z set GOPRIVATE=
+2026-09-27T18:21:46.1355383Z set GOPROXY=https://proxy.golang.org,direct
+2026-09-27T18:21:46.1355739Z set GOROOT=C:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T18:21:46.1356022Z set GOSUMDB=sum.golang.org
+2026-09-27T18:21:46.1356369Z set GOTELEMETRY=local
+2026-09-27T18:21:46.1356675Z set GOTELEMETRYDIR=C:\Users\runneradmin\AppData\Roaming\go\telemetry
+2026-09-27T18:21:46.1356979Z set GOTMPDIR=
+2026-09-27T18:21:46.1357150Z set GOTOOLCHAIN=local
+2026-09-27T18:21:46.1357471Z set GOTOOLDIR=C:\hostedtoolcache\windows\go\1.26.0\x64\pkg\tool\windows_amd64
+2026-09-27T18:21:46.1357808Z set GOVCS=
+2026-09-27T18:21:46.1357978Z set GOVERSION=go1.26.0
+2026-09-27T18:21:46.1358156Z set GOWORK=
+2026-09-27T18:21:46.1358339Z set PKG_CONFIG=pkg-config
+2026-09-27T18:21:46.1358462Z 
+2026-09-27T18:21:46.1358994Z ##[endgroup]
+2026-09-27T18:21:46.1602533Z ##[group]Run dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=f095a7d0e02c44412e464f4686fd25d53b240a70 -p:NativeBrandId=aurora --output out/branded-preview
+2026-09-27T18:21:46.1603513Z [36;1mdotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=f095a7d0e02c44412e464f4686fd25d53b240a70 -p:NativeBrandId=aurora --output out/branded-preview[0m
+2026-09-27T18:21:46.1604083Z [36;1mif ($LASTEXITCODE -ne 0) { throw 'Branded native publish refused' }[0m
+2026-09-27T18:21:46.1604364Z [36;1mNew-Item -ItemType Directory -Force app/frontend/dist | Out-Null[0m
+2026-09-27T18:21:46.1604688Z [36;1mSet-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'[0m
+2026-09-27T18:21:46.1604948Z [36;1mPush-Location app[0m
+2026-09-27T18:21:46.1605398Z [36;1mtry { go build -ldflags "-X main.nativeBuildID=f095a7d0e02c44412e464f4686fd25d53b240a70 -X main.brandID=aurora" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }[0m
+2026-09-27T18:21:46.1605877Z [36;1mif ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }[0m
+2026-09-27T18:21:46.2020900Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T18:21:46.2021110Z env:
+2026-09-27T18:21:46.2021241Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T18:21:46.2021388Z   GOTOOLCHAIN: local
+2026-09-27T18:21:46.2021508Z ##[endgroup]
+2026-09-27T18:21:53.2661858Z   Determining projects to restore...
+2026-09-27T18:21:54.6145563Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Core\Wootc.Shell.Core.csproj (in 107 ms).
+2026-09-27T18:22:29.6656495Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Native\Wootc.Shell.Native.csproj (in 35.22 sec).
+2026-09-27T18:22:54.1563304Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell\Wootc.Shell.csproj (in 59.69 sec).
+2026-09-27T18:22:59.7377488Z   Wootc.Shell.Core -> D:\a\wootc\wootc\shell\Wootc.Shell.Core\bin\x64\Release\net8.0\Wootc.Shell.Core.dll
+2026-09-27T18:23:00.4232862Z   Wootc.Shell.Native -> D:\a\wootc\wootc\shell\Wootc.Shell.Native\bin\x64\Release\net8.0-windows10.0.19041.0\Wootc.Shell.Native.dll
+2026-09-27T18:23:08.1354623Z   Wootc.Shell -> D:\a\wootc\wootc\shell\Wootc.Shell\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\Wootc.Shell.dll
+2026-09-27T18:23:09.2148175Z   Wootc.Shell -> D:\a\wootc\wootc\out\branded-preview\
+2026-09-27T18:23:09.6533454Z go: downloading github.com/tredoe/osutil v1.5.0
+2026-09-27T18:23:09.6533901Z go: downloading github.com/wailsapp/wails/v2 v2.16.0
+2026-09-27T18:23:13.8616119Z go: downloading golang.org/x/sys v0.48.0
+2026-09-27T18:23:13.8616520Z go: downloading golang.org/x/mod v0.41.0
+2026-09-27T18:23:13.8617037Z go: downloading golang.org/x/crypto v0.57.0
+2026-09-27T18:23:17.8280147Z go: downloading github.com/leaanthony/u v1.1.1
+2026-09-27T18:23:17.8280535Z go: downloading github.com/leaanthony/slicer v1.6.0
+2026-09-27T18:23:17.8825145Z go: downloading github.com/leaanthony/go-ansi-parser v1.6.1
+2026-09-27T18:23:17.8833548Z go: downloading github.com/pkg/errors v0.9.1
+2026-09-27T18:23:17.8860436Z go: downloading github.com/wailsapp/go-webview2 v1.0.22
+2026-09-27T18:23:17.9247400Z go: downloading github.com/rivo/uniseg v0.4.7
+2026-09-27T18:23:35.4524202Z ##[group]Run ./shell/packaging/test-installed-preview.ps1 -BrandId 'aurora' -BuildId 'f095a7d0e02c44412e464f4686fd25d53b240a70' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer
+2026-09-27T18:23:35.4525063Z [36;1m./shell/packaging/test-installed-preview.ps1 -BrandId 'aurora' -BuildId 'f095a7d0e02c44412e464f4686fd25d53b240a70' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer[0m
+2026-09-27T18:23:35.4590574Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T18:23:35.4590786Z env:
+2026-09-27T18:23:35.4590913Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T18:23:35.4591067Z   GOTOOLCHAIN: local
+2026-09-27T18:23:35.4591946Z ##[endgroup]
+2026-09-27T18:23:36.5996363Z PASS actual root-reparse mutant accepts unsafe path; exact source restored and refuses it
+2026-09-27T18:23:36.6201800Z PASS actual manifest writer, exclusive preservation, missing resources, wrong brand, root/child reparse refusals
+2026-09-27T18:23:38.3053936Z PASS actual uninstaller observation: retained timeout, changed identity, directory, missing, later removal
+2026-09-27T18:23:42.5854972Z Inno Setup 7 Command-Line Compiler
+2026-09-27T18:23:42.5855293Z Copyright (C) 1997-2026 Jordan Russell. All rights reserved.
+2026-09-27T18:23:42.5855586Z Portions Copyright (C) 2000-2026 Martijn Laan. All rights reserved.
+2026-09-27T18:23:42.5855859Z Portions Copyright (C) 2001-2004 Alex Yackimoff. All rights reserved.
+2026-09-27T18:23:42.5856086Z https://www.innosetup.com
+2026-09-27T18:23:42.5856187Z 
+2026-09-27T18:23:42.6001125Z Compiler engine version: Inno Setup 7.1.0
+2026-09-27T18:23:42.6001332Z Non-commercial use only
+2026-09-27T18:23:42.6001454Z 
+2026-09-27T18:23:42.6124335Z Preprocessing
+2026-09-27T18:23:42.6126537Z    Reading file: C:\Users\RUNNER~1\AppData\Local\Temp\wootc-preview-packaging-6d252736cd4a4e76b8f108d237dc52e6\compiler\ISPPBuiltins.iss
+2026-09-27T18:23:42.6132965Z Parsing [Setup] section, line 21
+2026-09-27T18:23:42.6133225Z Parsing [Setup] section, line 22
+2026-09-27T18:23:42.6133441Z Parsing [Setup] section, line 23
+2026-09-27T18:23:42.6133663Z Parsing [Setup] section, line 24
+2026-09-27T18:23:42.6133889Z Parsing [Setup] section, line 25
+2026-09-27T18:23:42.6134138Z Parsing [Setup] section, line 26
+2026-09-27T18:23:42.6134365Z Parsing [Setup] section, line 27
+2026-09-27T18:23:42.6134598Z Parsing [Setup] section, line 28
+2026-09-27T18:23:42.6134814Z Parsing [Setup] section, line 29
+2026-09-27T18:23:42.6135035Z Parsing [Setup] section, line 30
+2026-09-27T18:23:42.6135256Z Parsing [Setup] section, line 31
+2026-09-27T18:23:42.6135484Z Parsing [Setup] section, line 32
+2026-09-27T18:23:42.6135722Z Parsing [Setup] section, line 33
+2026-09-27T18:23:42.6135936Z Parsing [Setup] section, line 34
+2026-09-27T18:23:42.6136412Z Parsing [Setup] section, line 35
+2026-09-27T18:23:42.6136639Z Parsing [Setup] section, line 36
+2026-09-27T18:23:42.6136867Z Parsing [Setup] section, line 37
+2026-09-27T18:23:42.6137040Z Parsing [Setup] section, line 38
+2026-09-27T18:23:42.6137189Z Parsing [Setup] section, line 39
+2026-09-27T18:23:42.6137342Z Reading file (WizardImageFile)
+2026-09-27T18:23:42.6137506Z Reading file (WizardSmallImageFile)
+2026-09-27T18:23:42.6137676Z Preparing Setup program executable
+2026-09-27T18:23:42.6377346Z    Verification successful
+2026-09-27T18:23:42.6399259Z    Updating icons (Setup.e32)
+2026-09-27T18:23:42.6462985Z    Updating version info (Setup.e32)
+2026-09-27T18:23:42.6476178Z Determining language code pages
+2026-09-27T18:23:42.6476741Z    Reading file: C:\Users\RUNNER~1\AppData\Local\Temp\wootc-preview-packaging-6d252736cd4a4e76b8f108d237dc52e6\compiler\Default.isl
+2026-09-27T18:23:42.6480505Z    Messages in script file
+2026-09-27T18:23:42.6480702Z Reading default messages from Default.isl
+2026-09-27T18:23:42.6484470Z Parsing [LangOptions], [Messages], and [CustomMessages] sections
+2026-09-27T18:23:42.6486705Z    Reading file: C:\Users\RUNNER~1\AppData\Local\Temp\wootc-preview-packaging-6d252736cd4a4e76b8f108d237dc52e6\compiler\Default.isl
+2026-09-27T18:23:42.6487349Z    Messages in script file
+2026-09-27T18:23:42.6487490Z Reading [Code] section
+2026-09-27T18:23:42.6487633Z Parsing [Icons] section, line 45
+2026-09-27T18:23:42.6487853Z Parsing [Files] section, line 42
+2026-09-27T18:23:42.6532846Z Compiling [Code] section
+2026-09-27T18:23:42.6573969Z Creating setup files
+2026-09-27T18:23:42.6628852Z    Verification successful
+2026-09-27T18:23:42.6634518Z    Updating icons (Setup.exe)
+2026-09-27T18:23:42.6654054Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\clretwrc.dll
+2026-09-27T18:23:42.6674980Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\clrgc.dll
+2026-09-27T18:23:42.6716165Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\clrjit.dll
+2026-09-27T18:23:42.6825711Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\coreclr.dll
+2026-09-27T18:23:42.7131909Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\CoreMessagingXP.dll
+2026-09-27T18:23:42.7197429Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\createdump.exe
+2026-09-27T18:23:42.7201991Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\dcompi.dll
+2026-09-27T18:23:42.7398817Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\DirectML.dll
+2026-09-27T18:23:45.4996694Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\dwmcorei.dll
+2026-09-27T18:23:45.5193505Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\DwmSceneI.dll
+2026-09-27T18:23:45.9954705Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\DWriteCore.dll
+2026-09-27T18:23:46.0207356Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hostfxr.dll
+2026-09-27T18:23:46.0229305Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hostpolicy.dll
+2026-09-27T18:23:46.0253728Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\marshal.dll
+2026-09-27T18:23:46.0295718Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Asg.SemanticIndex.AiFabric.Compatibility.dll
+2026-09-27T18:23:46.6648650Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.CSharp.dll
+2026-09-27T18:23:46.6720810Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.DiaSymReader.Native.amd64.dll
+2026-09-27T18:23:47.3740270Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.DirectManipulation.dll
+2026-09-27T18:23:47.3782254Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Foundation.winmd
+2026-09-27T18:23:47.3783607Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.Display.dll
+2026-09-27T18:23:47.3797585Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.Imaging.dll
+2026-09-27T18:23:47.3806400Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.Imaging.Projection.dll
+2026-09-27T18:23:47.3808300Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.Imaging.winmd
+2026-09-27T18:23:47.3809567Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.ImagingInternal.ImageObjectRemover.winmd
+2026-09-27T18:23:47.3810522Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.ImagingInternal.winmd
+2026-09-27T18:23:47.3811803Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.Internal.Imaging.winmd
+2026-09-27T18:23:47.3813326Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Graphics.winmd
+2026-09-27T18:23:47.3815050Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.InputStateManager.dll
+2026-09-27T18:23:47.3842340Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.InteractiveExperiences.Projection.dll
+2026-09-27T18:23:48.1266108Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Internal.FrameworkUdk.dll
+2026-09-27T18:23:48.1337431Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.ML.OnnxRuntime.dll
+2026-09-27T18:23:48.1359455Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Security.Authentication.OAuth.Projection.dll
+2026-09-27T18:23:48.1365428Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Security.Authentication.OAuth.winmd
+2026-09-27T18:23:48.1367831Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Composition.OSSupport.dll
+2026-09-27T18:23:48.1372826Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Designer.dll
+2026-09-27T18:23:48.1383170Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.dll
+2026-09-27T18:23:48.1397767Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Input.dll
+2026-09-27T18:23:48.1505748Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.pri
+2026-09-27T18:23:48.1511530Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Text.winmd
+2026-09-27T18:23:48.1514023Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Windowing.Core.dll
+2026-09-27T18:23:48.1550203Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Windowing.dll
+2026-09-27T18:23:48.1596935Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.winmd
+2026-09-27T18:23:48.7451341Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Xaml.Controls.dll
+2026-09-27T18:23:49.5161272Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Xaml.Controls.pri
+2026-09-27T18:23:49.5300546Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.ui.xaml.dll
+2026-09-27T18:23:51.8394616Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Xaml.Internal.dll
+2026-09-27T18:23:52.3796145Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Xaml.Phone.dll
+2026-09-27T18:23:52.3894621Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.ui.xaml.resources.19h1.dll
+2026-09-27T18:23:52.3977346Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.ui.xaml.resources.common.dll
+2026-09-27T18:23:52.3982648Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Xaml.winmd
+2026-09-27T18:23:52.4098929Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.VisualBasic.Core.dll
+2026-09-27T18:23:52.8656360Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.VisualBasic.dll
+2026-09-27T18:23:52.8658561Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Web.WebView2.Core.dll
+2026-09-27T18:23:52.8728353Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Web.WebView2.Core.Projection.dll
+2026-09-27T18:23:52.8770791Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Win32.Primitives.dll
+2026-09-27T18:23:52.8772093Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Win32.Registry.dll
+2026-09-27T18:23:52.8779800Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.AICapabilities.dll
+2026-09-27T18:23:52.8787207Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.ContentModerationInternal.winmd
+2026-09-27T18:23:52.8788436Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.ContentSafety.dll
+2026-09-27T18:23:52.8795263Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.ContentSafety.Projection.dll
+2026-09-27T18:23:52.8797767Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.ContentSafety.winmd
+2026-09-27T18:23:52.8799393Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Foundation.Projection.dll
+2026-09-27T18:23:52.8801245Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Foundation.winmd
+2026-09-27T18:23:52.8802407Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.FoundationInternal.winmd
+2026-09-27T18:23:52.8803496Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.GenerativeInternal.winmd
+2026-09-27T18:23:52.8805475Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Imaging.dll
+2026-09-27T18:23:52.8851501Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Imaging.Projection.dll
+2026-09-27T18:23:52.8856788Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Imaging.winmd
+2026-09-27T18:23:52.8858333Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.MachineLearning.dll
+2026-09-27T18:23:52.8922475Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.MachineLearning.Projection.dll
+2026-09-27T18:23:52.8929528Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Projection.dll
+2026-09-27T18:23:52.8932108Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Search.Experimental.dll
+2026-09-27T18:23:53.3667501Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Text.dll
+2026-09-27T18:23:53.3738552Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Text.Projection.dll
+2026-09-27T18:23:53.3739414Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Text.winmd
+2026-09-27T18:23:53.3740057Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Video.dll
+2026-09-27T18:23:53.3770422Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Video.Projection.dll
+2026-09-27T18:23:53.3771329Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.Video.winmd
+2026-09-27T18:23:53.3772511Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AI.winmd
+2026-09-27T18:23:53.3774162Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.Background.Projection.dll
+2026-09-27T18:23:53.3776456Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.Background.UniversalBGTask.dll
+2026-09-27T18:23:53.3783072Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.Background.UniversalBGTask.winmd
+2026-09-27T18:23:53.3784713Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.Background.winmd
+2026-09-27T18:23:53.3786135Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.DynamicDependency.Projection.dll
+2026-09-27T18:23:53.3789468Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.DynamicDependency.winmd
+2026-09-27T18:23:53.3791276Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.Resources.dll
+2026-09-27T18:23:53.3804595Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.Resources.Projection.dll
+2026-09-27T18:23:53.3810552Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.Resources.winmd
+2026-09-27T18:23:53.3812529Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.WindowsAppRuntime.Projection.dll
+2026-09-27T18:23:53.3835521Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ApplicationModel.WindowsAppRuntime.winmd
+2026-09-27T18:23:53.3836493Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AppLifecycle.Projection.dll
+2026-09-27T18:23:53.3837465Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AppLifecycle.winmd
+2026-09-27T18:23:53.3838340Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AppNotifications.Builder.Projection.dll
+2026-09-27T18:23:53.3839248Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AppNotifications.Builder.winmd
+2026-09-27T18:23:53.3840137Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AppNotifications.Projection.dll
+2026-09-27T18:23:53.3841328Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.AppNotifications.winmd
+2026-09-27T18:23:53.3842160Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.BadgeNotifications.Projection.dll
+2026-09-27T18:23:53.3843027Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.BadgeNotifications.winmd
+2026-09-27T18:23:53.3866804Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Foundation.Projection.dll
+2026-09-27T18:23:53.3867683Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Foundation.winmd
+2026-09-27T18:23:53.3868388Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Globalization.winmd
+2026-09-27T18:23:53.3869233Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.ImageCreationInternal.winmd
+2026-09-27T18:23:53.3871183Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Internal.AI.ContentModeration.winmd
+2026-09-27T18:23:53.3872014Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Internal.AI.Generative.winmd
+2026-09-27T18:23:53.3873241Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Internal.ImageCreation.winmd
+2026-09-27T18:23:53.3874011Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Internal.SemanticSearch.winmd
+2026-09-27T18:23:53.3874729Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Internal.Vision.winmd
+2026-09-27T18:23:53.3875539Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Management.Deployment.Projection.dll
+2026-09-27T18:23:53.3876457Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Management.Deployment.winmd
+2026-09-27T18:23:53.3878292Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Media.Capture.Projection.dll
+2026-09-27T18:23:53.3880043Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Media.Capture.winmd
+2026-09-27T18:23:53.3881414Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Private.Workloads.SessionManager.winmd
+2026-09-27T18:23:53.3882456Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.PrivateCommon.winmd
+2026-09-27T18:23:53.3884141Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.PushNotifications.Projection.dll
+2026-09-27T18:23:53.3887146Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.PushNotifications.winmd
+2026-09-27T18:23:53.3888423Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.SDK.NET.dll
+2026-09-27T18:23:55.9442686Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Search.dll
+2026-09-27T18:23:56.3808206Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Search.Projection.dll
+2026-09-27T18:23:56.3819844Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Search.winmd
+2026-09-27T18:23:56.3823091Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Security.AccessControl.Projection.dll
+2026-09-27T18:23:56.3824671Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Security.AccessControl.winmd
+2026-09-27T18:23:56.3825725Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.SemanticSearch.winmd
+2026-09-27T18:23:56.3826993Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.SemanticSearchInternal.winmd
+2026-09-27T18:23:56.3828509Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Storage.Pickers.Projection.dll
+2026-09-27T18:23:56.3832506Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Storage.Pickers.winmd
+2026-09-27T18:23:56.3834027Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Storage.Projection.dll
+2026-09-27T18:23:56.3836552Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Storage.winmd
+2026-09-27T18:23:56.3838867Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.System.Power.Projection.dll
+2026-09-27T18:23:56.3840707Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.System.Power.winmd
+2026-09-27T18:23:56.3842205Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.System.Projection.dll
+2026-09-27T18:23:56.3844310Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.System.winmd
+2026-09-27T18:23:56.3845302Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Vision.winmd
+2026-09-27T18:23:56.3846346Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.VisionInternal.winmd
+2026-09-27T18:23:56.3847607Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Widgets.dll
+2026-09-27T18:23:56.4014867Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Widgets.Projection.dll
+2026-09-27T18:23:56.8672318Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Widgets.winmd
+2026-09-27T18:23:56.8675416Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Workloads.dll
+2026-09-27T18:23:56.8700390Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Workloads.pri
+2026-09-27T18:23:56.8701174Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Workloads.Resources.dll
+2026-09-27T18:23:56.8711343Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Workloads.Resources_ec.dll
+2026-09-27T18:23:56.8721119Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.Windows.Workloads.winmd
+2026-09-27T18:23:56.8722335Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.WindowsAppRuntime.Bootstrap.dll
+2026-09-27T18:23:56.8746770Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.WindowsAppRuntime.Bootstrap.Net.dll
+2026-09-27T18:23:56.8748469Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.WindowsAppRuntime.dll
+2026-09-27T18:23:56.8905471Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.WindowsAppRuntime.pri
+2026-09-27T18:23:56.8906476Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.WinUI.dll
+2026-09-27T18:23:57.8683085Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\MRM.dll
+2026-09-27T18:23:57.8701463Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mscordaccore.dll
+2026-09-27T18:23:57.8806336Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mscordaccore_amd64_amd64_8.0.3126.42015.dll
+2026-09-27T18:23:57.8887333Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mscordbi.dll
+2026-09-27T18:23:58.2955409Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mscorlib.dll
+2026-09-27T18:23:58.2960540Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mscorrc.dll
+2026-09-27T18:23:58.2972112Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\msquic.dll
+2026-09-27T18:23:58.3015604Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\native-package.json
+2026-09-27T18:23:58.3019356Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\netstandard.dll
+2026-09-27T18:23:58.3027734Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\NPUDetect.dll
+2026-09-27T18:23:58.3051057Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\onnxruntime.dll
+2026-09-27T18:24:01.4066125Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\PerceptiveStreaming.dll
+2026-09-27T18:24:01.8372522Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\PushNotificationsLongRunningTask.ProxyStub.dll
+2026-09-27T18:24:01.8374594Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\RestartAgent.exe
+2026-09-27T18:24:01.8380016Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\SessionHandleIPCProxyStub.dll
+2026-09-27T18:24:01.8382527Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.AppContext.dll
+2026-09-27T18:24:01.8384171Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Buffers.dll
+2026-09-27T18:24:01.8385164Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Collections.Concurrent.dll
+2026-09-27T18:24:01.8402315Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Collections.dll
+2026-09-27T18:24:01.8418052Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Collections.Immutable.dll
+2026-09-27T18:24:01.8468957Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Collections.NonGeneric.dll
+2026-09-27T18:24:01.8475396Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Collections.Specialized.dll
+2026-09-27T18:24:01.8482558Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ComponentModel.Annotations.dll
+2026-09-27T18:24:01.8494665Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ComponentModel.DataAnnotations.dll
+2026-09-27T18:24:01.8495963Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ComponentModel.dll
+2026-09-27T18:24:01.8498161Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ComponentModel.EventBasedAsync.dll
+2026-09-27T18:24:01.8501398Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ComponentModel.Primitives.dll
+2026-09-27T18:24:01.8506450Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ComponentModel.TypeConverter.dll
+2026-09-27T18:24:01.8550829Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Configuration.dll
+2026-09-27T18:24:01.8552162Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Console.dll
+2026-09-27T18:24:01.8562808Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Core.dll
+2026-09-27T18:24:01.8564479Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Data.Common.dll
+2026-09-27T18:24:02.2416542Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Data.DataSetExtensions.dll
+2026-09-27T18:24:02.2418062Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Data.dll
+2026-09-27T18:24:02.2420810Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.Contracts.dll
+2026-09-27T18:24:02.2422441Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.Debug.dll
+2026-09-27T18:24:02.2424259Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.DiagnosticSource.dll
+2026-09-27T18:24:02.2458172Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.FileVersionInfo.dll
+2026-09-27T18:24:02.2461214Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.Process.dll
+2026-09-27T18:24:02.2481611Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.StackTrace.dll
+2026-09-27T18:24:02.2484817Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.TextWriterTraceListener.dll
+2026-09-27T18:24:02.2489055Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.Tools.dll
+2026-09-27T18:24:02.2490302Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.TraceSource.dll
+2026-09-27T18:24:02.2499040Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Diagnostics.Tracing.dll
+2026-09-27T18:24:02.2500301Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.dll
+2026-09-27T18:24:02.2503731Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Drawing.dll
+2026-09-27T18:24:02.2505545Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Drawing.Primitives.dll
+2026-09-27T18:24:02.2513503Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Dynamic.Runtime.dll
+2026-09-27T18:24:02.2514751Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Formats.Asn1.dll
+2026-09-27T18:24:02.2531971Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Formats.Tar.dll
+2026-09-27T18:24:02.2554424Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Globalization.Calendars.dll
+2026-09-27T18:24:02.2556334Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Globalization.dll
+2026-09-27T18:24:02.2557569Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Globalization.Extensions.dll
+2026-09-27T18:24:02.2559104Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.Compression.Brotli.dll
+2026-09-27T18:24:02.2566007Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.Compression.dll
+2026-09-27T18:24:02.2586751Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.Compression.FileSystem.dll
+2026-09-27T18:24:02.2588255Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.Compression.Native.dll
+2026-09-27T18:24:02.2652506Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.Compression.ZipFile.dll
+2026-09-27T18:24:02.2656870Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.dll
+2026-09-27T18:24:02.2658662Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.FileSystem.AccessControl.dll
+2026-09-27T18:24:02.2685918Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.FileSystem.dll
+2026-09-27T18:24:02.2686722Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.FileSystem.DriveInfo.dll
+2026-09-27T18:24:02.2709110Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.FileSystem.Primitives.dll
+2026-09-27T18:24:02.2709879Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.FileSystem.Watcher.dll
+2026-09-27T18:24:02.2710588Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.IsolatedStorage.dll
+2026-09-27T18:24:02.2711351Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.MemoryMappedFiles.dll
+2026-09-27T18:24:02.2712068Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.Pipes.AccessControl.dll
+2026-09-27T18:24:02.2712662Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.Pipes.dll
+2026-09-27T18:24:02.7902344Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.IO.UnmanagedMemoryStream.dll
+2026-09-27T18:24:02.7904093Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Linq.dll
+2026-09-27T18:24:02.7949559Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Linq.Expressions.dll
+2026-09-27T18:24:02.8243592Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Linq.Parallel.dll
+2026-09-27T18:24:03.3684001Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Linq.Queryable.dll
+2026-09-27T18:24:03.3731065Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Memory.dll
+2026-09-27T18:24:03.3731814Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.dll
+2026-09-27T18:24:03.3732418Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Http.dll
+2026-09-27T18:24:03.3818398Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Http.Json.dll
+2026-09-27T18:24:03.3826434Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.HttpListener.dll
+2026-09-27T18:24:03.3859515Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Mail.dll
+2026-09-27T18:24:03.3886782Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.NameResolution.dll
+2026-09-27T18:24:03.3893708Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.NetworkInformation.dll
+2026-09-27T18:24:03.3903390Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Ping.dll
+2026-09-27T18:24:03.3909209Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Primitives.dll
+2026-09-27T18:24:03.3922879Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Quic.dll
+2026-09-27T18:24:03.3957666Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Requests.dll
+2026-09-27T18:24:03.3966278Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Security.dll
+2026-09-27T18:24:03.8955819Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.ServicePoint.dll
+2026-09-27T18:24:03.8956933Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.Sockets.dll
+2026-09-27T18:24:03.8996658Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.WebClient.dll
+2026-09-27T18:24:03.9005890Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.WebHeaderCollection.dll
+2026-09-27T18:24:03.9030443Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.WebProxy.dll
+2026-09-27T18:24:03.9031207Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.WebSockets.Client.dll
+2026-09-27T18:24:03.9031859Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Net.WebSockets.dll
+2026-09-27T18:24:03.9039487Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Numerics.dll
+2026-09-27T18:24:03.9040999Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Numerics.Tensors.dll
+2026-09-27T18:24:03.9075775Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Numerics.Vectors.dll
+2026-09-27T18:24:03.9077574Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ObjectModel.dll
+2026-09-27T18:24:03.9082953Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Private.CoreLib.dll
+2026-09-27T18:24:05.6708715Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Private.DataContractSerialization.dll
+2026-09-27T18:24:05.6831148Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Private.Uri.dll
+2026-09-27T18:24:05.6846863Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Private.Xml.dll
+2026-09-27T18:24:06.6818720Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Private.Xml.Linq.dll
+2026-09-27T18:24:06.6845110Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.DispatchProxy.dll
+2026-09-27T18:24:06.6850061Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.dll
+2026-09-27T18:24:06.6851569Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.Emit.dll
+2026-09-27T18:24:06.6860008Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.Emit.ILGeneration.dll
+2026-09-27T18:24:06.6861505Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.Emit.Lightweight.dll
+2026-09-27T18:24:06.6862763Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.Extensions.dll
+2026-09-27T18:24:06.6864027Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.Metadata.dll
+2026-09-27T18:24:06.6952500Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.Primitives.dll
+2026-09-27T18:24:06.6954686Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Reflection.TypeExtensions.dll
+2026-09-27T18:24:06.6958394Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Resources.Reader.dll
+2026-09-27T18:24:06.6960078Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Resources.ResourceManager.dll
+2026-09-27T18:24:06.6961688Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Resources.Writer.dll
+2026-09-27T18:24:06.6966397Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.CompilerServices.Unsafe.dll
+2026-09-27T18:24:06.6968077Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.CompilerServices.VisualC.dll
+2026-09-27T18:24:06.6971100Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.dll
+2026-09-27T18:24:06.6975612Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Extensions.dll
+2026-09-27T18:24:06.6977699Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Handles.dll
+2026-09-27T18:24:06.6979593Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.InteropServices.dll
+2026-09-27T18:24:06.6986136Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.InteropServices.JavaScript.dll
+2026-09-27T18:24:06.6989827Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.InteropServices.RuntimeInformation.dll
+2026-09-27T18:24:06.6992166Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Intrinsics.dll
+2026-09-27T18:24:06.6992936Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Loader.dll
+2026-09-27T18:24:06.6993567Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Numerics.dll
+2026-09-27T18:24:06.7013780Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Serialization.dll
+2026-09-27T18:24:06.7015413Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Serialization.Formatters.dll
+2026-09-27T18:24:06.7033981Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Serialization.Json.dll
+2026-09-27T18:24:06.7035560Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Serialization.Primitives.dll
+2026-09-27T18:24:06.7038124Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Runtime.Serialization.Xml.dll
+2026-09-27T18:24:06.7039656Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.AccessControl.dll
+2026-09-27T18:24:06.7054524Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Claims.dll
+2026-09-27T18:24:06.7060768Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.Algorithms.dll
+2026-09-27T18:24:06.7062091Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.Cng.dll
+2026-09-27T18:24:06.7063382Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.Csp.dll
+2026-09-27T18:24:06.7064643Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.dll
+2026-09-27T18:24:07.1987946Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.Encoding.dll
+2026-09-27T18:24:07.1989078Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.OpenSsl.dll
+2026-09-27T18:24:07.1990076Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.Primitives.dll
+2026-09-27T18:24:07.1991188Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Cryptography.X509Certificates.dll
+2026-09-27T18:24:07.1993040Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.dll
+2026-09-27T18:24:07.1994609Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Principal.dll
+2026-09-27T18:24:07.1996294Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.Principal.Windows.dll
+2026-09-27T18:24:07.2023794Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Security.SecureString.dll
+2026-09-27T18:24:07.2024556Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ServiceModel.Web.dll
+2026-09-27T18:24:07.2025353Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ServiceProcess.dll
+2026-09-27T18:24:07.2026119Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Text.Encoding.CodePages.dll
+2026-09-27T18:24:07.2082257Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Text.Encoding.dll
+2026-09-27T18:24:07.2083857Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Text.Encoding.Extensions.dll
+2026-09-27T18:24:07.2085275Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Text.Encodings.Web.dll
+2026-09-27T18:24:07.2095241Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Text.Json.dll
+2026-09-27T18:24:07.2186298Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Text.RegularExpressions.dll
+2026-09-27T18:24:07.2262129Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Channels.dll
+2026-09-27T18:24:07.2270714Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.dll
+2026-09-27T18:24:07.7888150Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Overlapped.dll
+2026-09-27T18:24:07.7890157Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Tasks.Dataflow.dll
+2026-09-27T18:24:07.7931941Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Tasks.dll
+2026-09-27T18:24:07.7933792Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Tasks.Extensions.dll
+2026-09-27T18:24:07.7935040Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Tasks.Parallel.dll
+2026-09-27T18:24:07.7949903Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Thread.dll
+2026-09-27T18:24:07.7950589Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.ThreadPool.dll
+2026-09-27T18:24:07.7951212Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Threading.Timer.dll
+2026-09-27T18:24:07.7952139Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Transactions.dll
+2026-09-27T18:24:07.7953152Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Transactions.Local.dll
+2026-09-27T18:24:07.7996664Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.ValueTuple.dll
+2026-09-27T18:24:07.7997831Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Web.dll
+2026-09-27T18:24:07.7999060Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Web.HttpUtility.dll
+2026-09-27T18:24:07.8002995Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Windows.dll
+2026-09-27T18:24:07.8004279Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.dll
+2026-09-27T18:24:07.8006013Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.Linq.dll
+2026-09-27T18:24:07.8007353Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.ReaderWriter.dll
+2026-09-27T18:24:07.8008927Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.Serialization.dll
+2026-09-27T18:24:07.8010136Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.XDocument.dll
+2026-09-27T18:24:07.8011348Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.XmlDocument.dll
+2026-09-27T18:24:07.8012811Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.XmlSerializer.dll
+2026-09-27T18:24:07.8014220Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.XPath.dll
+2026-09-27T18:24:07.8015533Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\System.Xml.XPath.XDocument.dll
+2026-09-27T18:24:07.8017722Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\WebView2Loader.dll
+2026-09-27T18:24:07.8027436Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\WindowsBase.dll
+2026-09-27T18:24:07.8028716Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\WinRT.Runtime.dll
+2026-09-27T18:24:07.8059946Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\WinUIEdit.dll
+2026-09-27T18:24:08.3521073Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\wootc-engine.exe
+2026-09-27T18:24:09.5599063Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.Core.dll
+2026-09-27T18:24:09.5603714Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.Core.pdb
+2026-09-27T18:24:09.5605708Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.deps.json
+2026-09-27T18:24:09.5608320Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.dll
+2026-09-27T18:24:09.5619623Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.exe
+2026-09-27T18:24:09.5636833Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.Native.dll
+2026-09-27T18:24:09.5640437Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.Native.pdb
+2026-09-27T18:24:09.5641740Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.pdb
+2026-09-27T18:24:09.5643815Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.pri
+2026-09-27T18:24:09.9012688Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Wootc.Shell.runtimeconfig.json
+2026-09-27T18:24:09.9013385Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\workloads.365.json
+2026-09-27T18:24:09.9014435Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\workloads.j32.json
+2026-09-27T18:24:09.9015831Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\workloads.json
+2026-09-27T18:24:09.9016483Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\workloads.lnl.json
+2026-09-27T18:24:09.9018012Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\workloads.qnn.json
+2026-09-27T18:24:09.9019341Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\workloads.stx.json
+2026-09-27T18:24:09.9020757Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\wuceffectsi.dll
+2026-09-27T18:24:09.9052039Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\af-ZA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9054289Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\af-ZA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9055428Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\am-ET\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9057230Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\am-ET\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9058374Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ar-SA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9060493Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ar-SA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9061799Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\as-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9063823Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\as-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9065101Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\az-Latn-AZ\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9067091Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\az-Latn-AZ\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9068334Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\bg-BG\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9070451Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\bg-BG\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9071677Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\bn-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9073642Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\bn-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9074746Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Branding\brand.json
+2026-09-27T18:24:09.9075391Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\bs-Latn-BA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9077530Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\bs-Latn-BA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9078831Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ca-ES\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9080964Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ca-ES\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9082314Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ca-Es-VALENCIA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9084486Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ca-Es-VALENCIA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9085798Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\cs-CZ\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9087668Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\cs-CZ\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9088865Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\cy-GB\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9090788Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\cy-GB\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9092115Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\da-DK\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9094084Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\da-DK\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9095208Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\de-DE\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9097626Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\de-DE\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9098722Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\el-GR\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9101276Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\el-GR\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9102464Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\en-GB\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9106290Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\en-GB\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9107134Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\en-us\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9110655Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\en-us\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9111762Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\es-ES\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9113941Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\es-ES\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9114974Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\es-MX\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9117042Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\es-MX\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9118183Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\et-EE\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9119975Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\et-EE\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9121203Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\eu-ES\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9123084Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\eu-ES\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9124263Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fa-IR\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9126451Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fa-IR\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9127567Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fi-FI\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9129519Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fi-FI\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9130745Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fil-PH\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9132744Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fil-PH\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9133791Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fr-CA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9135869Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fr-CA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9136919Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fr-FR\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9138932Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\fr-FR\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9140236Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ga-IE\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9142154Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ga-IE\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9143239Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\gd-gb\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9145477Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\gd-gb\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9146675Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\gl-ES\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9148765Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\gl-ES\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9149843Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\gu-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9151833Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\gu-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9153121Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\he-IL\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9154838Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\he-IL\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9156037Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hi-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9157917Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hi-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9159052Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hr-HR\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9161100Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hr-HR\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9162138Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hu-HU\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9164138Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hu-HU\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9165374Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hy-AM\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9167391Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\hy-AM\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9168717Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\id-ID\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9170602Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\id-ID\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9171729Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\is-IS\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9173454Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\is-IS\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9174525Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\it-IT\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9176445Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\it-IT\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9177593Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ja-JP\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9179183Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ja-JP\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9180225Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ka-GE\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9182149Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ka-GE\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9183221Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\kk-KZ\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9185150Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\kk-KZ\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9186407Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\km-KH\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9188222Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\km-KH\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9189314Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\kn-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9191343Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\kn-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9192517Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ko-KR\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9194062Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ko-KR\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9204632Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\kok-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9205108Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\kok-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9205506Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lb-LU\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9206072Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lb-LU\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9206478Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lo-LA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9206843Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lo-LA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9207340Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lt-LT\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9207711Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lt-LT\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9208155Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lv-LV\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9209451Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\lv-LV\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9210602Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mi-NZ\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9212406Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mi-NZ\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9213480Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Xaml\Assets\map.html
+2026-09-27T18:24:09.9215635Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\Microsoft.UI.Xaml\Assets\NoiseAsset_256x256_PNG.png
+2026-09-27T18:24:09.9216034Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mk-MK\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9217976Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mk-MK\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9219074Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ml-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9221113Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ml-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9222172Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mr-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9224101Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mr-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9225154Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ms-MY\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9227170Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ms-MY\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9228294Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mt-MT\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9230247Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\mt-MT\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9231303Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\nb-NO\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9233127Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\nb-NO\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9234341Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ne-NP\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9236180Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ne-NP\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9237241Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\nl-NL\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9239146Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\nl-NL\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9240283Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\nn-NO\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9242020Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\nn-NO\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9243119Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\or-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9245031Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\or-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9246214Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pa-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9248064Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pa-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9249178Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pl-PL\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9251090Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pl-PL\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9252184Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pt-BR\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9254188Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pt-BR\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9255176Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pt-PT\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9257097Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\pt-PT\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9258232Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\quz-PE\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9260123Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\quz-PE\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9261195Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ro-RO\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9263127Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ro-RO\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9264266Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ru-RU\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9266431Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ru-RU\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9267502Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sk-SK\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9269382Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sk-SK\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9270434Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sl-SI\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9272674Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sl-SI\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9273679Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sq-AL\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9275758Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sq-AL\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9276752Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sr-Cyrl-BA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9278834Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sr-Cyrl-BA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9280093Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sr-Cyrl-RS\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9282673Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sr-Cyrl-RS\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9284294Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sr-Latn-RS\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9286683Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sr-Latn-RS\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9288138Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sv-SE\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9290818Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\sv-SE\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9292327Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ta-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9294936Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ta-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9296394Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\te-IN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9298928Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\te-IN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9300397Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\th-TH\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9302844Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\th-TH\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9304600Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\tr-TR\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9307049Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\tr-TR\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9308461Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\tt-RU\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9310934Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\tt-RU\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9312347Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ug-CN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9314943Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ug-CN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9316250Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\uk-UA\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9318756Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\uk-UA\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9320183Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ur-PK\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9322989Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\ur-PK\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9324845Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\uz-Latn-UZ\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9327612Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\uz-Latn-UZ\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9329081Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\vi-VN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9331645Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\vi-VN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9333086Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\zh-CN\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9335190Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\zh-CN\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:09.9336634Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\zh-TW\Microsoft.ui.xaml.dll.mui
+2026-09-27T18:24:09.9338715Z    Compressing: \\?\D:\a\wootc\wootc\out\branded-preview\zh-TW\Microsoft.UI.Xaml.Phone.dll.mui
+2026-09-27T18:24:10.3995676Z    Compressing Setup program executable
+2026-09-27T18:24:10.7571633Z    Updating version info (Setup.exe)
+2026-09-27T18:24:10.7571945Z    Updating manifest (Setup.exe)
+2026-09-27T18:24:10.7572525Z 
+2026-09-27T18:24:10.7575399Z 
+2026-09-27T18:24:10.7576411Z Successful compile (28.157 sec). Resulting Setup program filename is:
+2026-09-27T18:24:10.7577067Z D:\a\wootc\wootc\out\preview-installer\aurora-native-preview-f095a7d0e02c44412e464f4686fd25d53b240a70.exe
+2026-09-27T18:24:22.1280046Z   Determining projects to restore...
+2026-09-27T18:24:32.2956548Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\Wootc.Shell.UiTests.csproj (in 10.02 sec).
+2026-09-27T18:24:33.1598178Z   Wootc.Shell.UiTests -> D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll
+2026-09-27T18:24:33.1672140Z Test run for D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll (.NETCoreApp,Version=v8.0)
+2026-09-27T18:24:33.7413079Z A total of 1 test files matched the specified pattern.
+2026-09-27T18:24:48.2933807Z [xUnit.net 00:00:12.29]     Wootc.Shell.UiTests.InstalledPreviewTests.ActualInstalledPreviewBrandAndAuthenticatedStartup [FAIL]
+2026-09-27T18:24:48.3920215Z   Failed Wootc.Shell.UiTests.InstalledPreviewTests.ActualInstalledPreviewBrandAndAuthenticatedStartup [11 s]
+2026-09-27T18:24:48.3920786Z   Error Message:
+2026-09-27T18:24:48.3921129Z    FlaUI.Core.Exceptions.ElementNotEnabledException : 
+2026-09-27T18:24:48.3921527Z ---- System.Runtime.InteropServices.COMException : 0x80040200
+2026-09-27T18:24:48.3921843Z   Stack Trace:
+2026-09-27T18:24:48.3922046Z      at FlaUI.Core.Tools.Com.Call(Action nativeAction)
+2026-09-27T18:24:48.3922288Z    at FlaUI.UIA3.Patterns.InvokePattern.Invoke()
+2026-09-27T18:24:48.3922878Z    at Wootc.Shell.UiTests.InstalledPreviewTests.ActualInstalledPreviewBrandAndAuthenticatedStartup() in D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\InstalledPreviewTests.cs:line 88
+2026-09-27T18:24:48.3923369Z --- End of stack trace from previous location ---
+2026-09-27T18:24:48.3923564Z ----- Inner Stack Trace -----
+2026-09-27T18:24:48.3923832Z    at Interop.UIAutomationClient.IUIAutomationInvokePattern.Invoke()
+2026-09-27T18:24:48.3924118Z    at FlaUI.UIA3.Patterns.InvokePattern.<Invoke>b__3_0()
+2026-09-27T18:24:48.3924354Z    at FlaUI.Core.Tools.Com.Call(Action nativeAction)
+2026-09-27T18:24:48.4048270Z Results File: D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\TestResults\installed-aurora.trx
+2026-09-27T18:24:48.4049748Z 
+2026-09-27T18:24:48.4081330Z Failed!  - Failed:     1, Passed:     0, Skipped:     0, Total:     1, Duration: 11 s - Wootc.Shell.UiTests.dll (net8.0)
+2026-09-27T18:24:48.9418418Z [31;1mException: [0mD:\a\wootc\wootc\shell\packaging\test-installed-preview.ps1:53[0m
+2026-09-27T18:24:48.9418800Z [31;1m[0m[36;1mLine |[0m
+2026-09-27T18:24:48.9419376Z [31;1m[0m[36;1m[36;1m  53 | [0m … de -ne 0) { [36;1mthrow "Owned preview operation refused with exit $code"[0m } …[0m
+2026-09-27T18:24:48.9420061Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+2026-09-27T18:24:48.9420916Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mOwned preview operation refused with exit 1[0m
+2026-09-27T18:24:48.9651285Z ##[error]Process completed with exit code 1.
+2026-09-27T18:24:48.9776188Z ##[group]Run actions/upload-artifact@v7
+2026-09-27T18:24:48.9776389Z with:
+2026-09-27T18:24:48.9776523Z   name: winui-preview-package-aurora
+2026-09-27T18:24:48.9776880Z   path: out/preview-installer/
+out/branded-preview/native-package.json
+shell/Wootc.Shell.UiTests/TestResults/*.trx
+
+2026-09-27T18:24:48.9777186Z   if-no-files-found: error
+2026-09-27T18:24:48.9777326Z   compression-level: 6
+2026-09-27T18:24:48.9777451Z   overwrite: false
+2026-09-27T18:24:48.9777575Z   include-hidden-files: false
+2026-09-27T18:24:48.9777710Z   archive: true
+2026-09-27T18:24:48.9777821Z env:
+2026-09-27T18:24:48.9778142Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T18:24:48.9778292Z   GOTOOLCHAIN: local
+2026-09-27T18:24:48.9778419Z ##[endgroup]
+2026-09-27T18:24:49.0951867Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-09-27T18:24:49.0953489Z The least common ancestor is D:\a\wootc\wootc. This will be the root directory of the artifact
+2026-09-27T18:24:49.0953985Z With the provided path, there will be 4 files uploaded
+2026-09-27T18:24:49.0956552Z Artifact name is valid!
+2026-09-27T18:24:49.0957534Z Root directory input is valid!
+2026-09-27T18:24:49.4438513Z Uploading artifact: winui-preview-package-aurora.zip
+2026-09-27T18:24:49.4466877Z Beginning upload of artifact content to blob storage
+2026-09-27T18:24:50.7204261Z Uploaded bytes 8388608
+2026-09-27T18:24:50.8279795Z Uploaded bytes 16777216
+2026-09-27T18:24:50.9815593Z Uploaded bytes 25165824
+2026-09-27T18:24:50.9912562Z Uploaded bytes 33554432
+2026-09-27T18:24:51.0891287Z Uploaded bytes 41943040
+2026-09-27T18:24:51.2205411Z Uploaded bytes 50331648
+2026-09-27T18:24:51.2261377Z Uploaded bytes 58720256
+2026-09-27T18:24:51.2321670Z Uploaded bytes 67108864
+2026-09-27T18:24:51.3516619Z Uploaded bytes 67987780
+2026-09-27T18:24:51.4141312Z Finished uploading artifact content to blob storage!
+2026-09-27T18:24:51.4143912Z SHA256 digest of uploaded artifact is 37829f71379adbbfa4950f6d7d6bb8c4a3007c7236027c7c4f64fa0256612920
+2026-09-27T18:24:51.4145452Z Finalizing artifact upload
+2026-09-27T18:24:51.7928070Z Artifact winui-preview-package-aurora successfully finalized. Artifact ID 10938896520
+2026-09-27T18:24:51.7928560Z Artifact winui-preview-package-aurora has been successfully uploaded! Final size is 67987780 bytes. Artifact ID is 10938896520
+2026-09-27T18:24:51.7935945Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36340333847/artifacts/10938896520
+2026-09-27T18:24:51.8214331Z Post job cleanup.
+2026-09-27T18:24:51.9286348Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-09-27T18:24:51.9471497Z git version 2.55.0.windows.5
+2026-09-27T18:24:51.9510986Z Temporarily overriding HOME='D:\a\_temp\2fdb40ee-2080-4d34-ae95-8b5b667912ff' before making global git config changes
+2026-09-27T18:24:51.9511594Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T18:24:51.9517393Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+2026-09-27T18:24:51.9710728Z Removing SSH command configuration
+2026-09-27T18:24:51.9717379Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T18:24:51.9919439Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-09-27T18:24:52.3926725Z Removing HTTP extra header
+2026-09-27T18:24:52.3934283Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T18:24:52.4132924Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-09-27T18:24:52.7951519Z Removing includeIf entries pointing to credentials config files
+2026-09-27T18:24:52.7965711Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T18:24:52.8141000Z includeif.gitdir:D:/a/wootc/wootc/.git.path
+2026-09-27T18:24:52.8141279Z includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+2026-09-27T18:24:52.8141502Z includeif.gitdir:/github/workspace/.git.path
+2026-09-27T18:24:52.8141765Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T18:24:52.8167398Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git.path
+2026-09-27T18:24:52.8332409Z D:\a\_temp\git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:24:52.8361344Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git.path D\:\\a\\_temp\\git\-credentials\-7e1ba4e2\-a43f\-4bfc\-a686\-97f8a592490b\.config
+2026-09-27T18:24:52.8596079Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+2026-09-27T18:24:52.8764168Z D:\a\_temp\git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:24:52.8791292Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-7e1ba4e2\-a43f\-4bfc\-a686\-97f8a592490b\.config
+2026-09-27T18:24:52.8987443Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-27T18:24:52.9150106Z /github/runner_temp/git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:24:52.9174411Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-7e1ba4e2\-a43f\-4bfc\-a686\-97f8a592490b\.config
+2026-09-27T18:24:52.9366786Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T18:24:52.9525806Z /github/runner_temp/git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config
+2026-09-27T18:24:52.9552696Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-7e1ba4e2\-a43f\-4bfc\-a686\-97f8a592490b\.config
+2026-09-27T18:24:52.9751998Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-09-27T18:24:53.3381836Z Removing credentials config 'D:\a\_temp\git-credentials-7e1ba4e2-a43f-4bfc-a686-97f8a592490b.config'
+2026-09-27T18:24:53.3540193Z Cleaning up orphan processes
+2026-09-27T18:24:53.3726594Z Terminate orphan process: pid (6468) (dotnet)
+2026-09-27T18:24:53.3762692Z Terminate orphan process: pid (7464) (conhost)
+2026-09-27T18:24:53.3866250Z Terminate orphan process: pid (8064) (VBCSCompiler)
+2026-09-27T18:24:53.3945228Z Terminate orphan process: pid (7876) (conhost)

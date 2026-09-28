@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "head": "44c5654",
+  "runId": 36334231493,
+  "jobId": 108661887218,
+  "actualNativeCLRTests": 38,
+  "nativeSkipped": 0,
+  "uiStage": "compile failed before UI execution",
+  "error": "CS8602 nullable ComboBox.SelectedItem.Text in actual UI test",
+  "warningsAsErrorsUnchanged": true,
+  "rawSha256": "8a035681d5a9a016ebfe031193e2f9ce2f792c42fab5af517dd134b751bac4c2"
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "head": "a5b7695b944b528b268e648b224b9278989ae9c8",
+  "run": 36338395953,
+  "testedMerge": "336b712633176dc856af6a0a5c5da9d7f336ade6",
+  "artifact": {
+    "id": 10937942101,
+    "size": 45653,
+    "digest": "56c6a237ee5b3a4e0e4521ca504ad255bce971a0d2bc84ab1ba7b51d66f71aa3",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "Actual fixed query exits successfully but output shape refuses; parser did not retain successful-command stdout, so no cause inferred. Required Utility/CIM removal controls fail positive preconditions and remain unproved.",
+  "files": {
+    "query/artifact.zip": "56c6a237ee5b3a4e0e4521ca504ad255bce971a0d2bc84ab1ba7b51d66f71aa3",
+    "query/receipt.json": "d8ac7bef05d10eb9a81e5fdda9048a15bb64e0a1ac55b17ae7aee78234190fb4",
+    "query/stderr.raw": "7c13c8834e219ec6a4a4f9ad2b5f51ccf579c8590c02762c70bc0cd89e1f96ac",
+    "query/stdout.raw": "a3abfb80bc0c8f8240a478fec4d7305d46f2f14949da569f382cecce0c6e34b3",
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee",
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902",
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+    "query/system-query/trusted-system-modules/inventory.json": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c"
+  }
+}

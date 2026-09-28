@@ -1,0 +1,5 @@
+--- FAIL: TestNativeConfigurationRPCFailureKeepsFixedDiagnostic (0.00s)
+    native_configuration_rpc_test.go:66: current failed request lost bounded diagnostic
+FAIL
+exit status 1
+FAIL	wootc	0.005s

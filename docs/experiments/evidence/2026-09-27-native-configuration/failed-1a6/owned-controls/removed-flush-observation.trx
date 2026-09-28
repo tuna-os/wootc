@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="34e61ac1-6ded-435c-98e8-14a2bd122eb4" name="runneradmin@runnervm99s1a 2026-09-27 19:26:33" runUser="runnervm99s1a\runneradmin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-27T19:26:33.8473026+00:00" queuing="2026-09-27T19:26:33.8473031+00:00" start="2026-09-27T19:26:31.9168075+00:00" finish="2026-09-27T19:26:34.8064004+00:00" />
+  <TestSettings name="default" id="599f0e94-e716-471b-89d1-af2aba18a0cf">
+    <Deployment runDeploymentRoot="runneradmin_runnervm99s1a_2026-09-27_19_26_33" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="9ae19445-4772-4b48-9a28-7a0ac88ab11f" testId="7bf1ea18-3bb8-b8e9-7499-d5fb3b6396b7" testName="Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(method: &quot;GetNativeConfiguration&quot;, diagnosticExpected: True)" computerName="runnervm99s1a" duration="00:00:02.0158018" startTime="2026-09-27T19:26:32.6740933+00:00" endTime="2026-09-27T19:26:34.7267799+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9ae19445-4772-4b48-9a28-7a0ac88ab11f">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Contains() Failure: Sub-string not found&#xD;
+String:    "Stage:session-cleanup-exited; Failure:non"···&#xD;
+Not found: "StoragePhase:import-storage"</Message>
+          <StackTrace>   at Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(String method, Boolean diagnosticExpected) in D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\TransportTests.cs:line 249&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="7095d839-0374-487c-ae05-1bc684b6917c" testId="68b04f56-637c-662e-a6f1-6bb1c3c22e93" testName="Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(method: &quot;GetStatus&quot;, diagnosticExpected: False)" computerName="runnervm99s1a" duration="00:00:00.0745431" startTime="2026-09-27T19:26:32.5771515+00:00" endTime="2026-09-27T19:26:32.6610869+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7095d839-0374-487c-ae05-1bc684b6917c" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(method: &quot;GetNativeConfiguration&quot;, diagnosticExpected: True)" storage="d:\a\wootc\wootc\shell\wootc.shell.nativetests\bin\release\net8.0-windows10.0.19041.0\wootc.shell.nativetests.dll" id="7bf1ea18-3bb8-b8e9-7499-d5fb3b6396b7">
+      <Execution id="9ae19445-4772-4b48-9a28-7a0ac88ab11f" />
+      <TestMethod codeBase="D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.NativeTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Wootc.Shell.NativeTests.TransportTests" name="ActualMatchingPipeStorageFailureSurvivesOwnedCleanup" />
+    </UnitTest>
+    <UnitTest name="Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(method: &quot;GetStatus&quot;, diagnosticExpected: False)" storage="d:\a\wootc\wootc\shell\wootc.shell.nativetests\bin\release\net8.0-windows10.0.19041.0\wootc.shell.nativetests.dll" id="68b04f56-637c-662e-a6f1-6bb1c3c22e93">
+      <Execution id="7095d839-0374-487c-ae05-1bc684b6917c" />
+      <TestMethod codeBase="D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.NativeTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Wootc.Shell.NativeTests.TransportTests" name="ActualMatchingPipeStorageFailureSurvivesOwnedCleanup" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="7bf1ea18-3bb8-b8e9-7499-d5fb3b6396b7" executionId="9ae19445-4772-4b48-9a28-7a0ac88ab11f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="68b04f56-637c-662e-a6f1-6bb1c3c22e93" executionId="7095d839-0374-487c-ae05-1bc684b6917c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="2" executed="2" passed="1" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.0+05679a7ab5 (64-bit .NET 8.0.31)&#xD;
+[xUnit.net 00:00:00.10]   Discovering: Wootc.Shell.NativeTests&#xD;
+[xUnit.net 00:00:00.16]   Discovered:  Wootc.Shell.NativeTests&#xD;
+[xUnit.net 00:00:00.19]   Starting:    Wootc.Shell.NativeTests&#xD;
+[xUnit.net 00:00:02.37]       Assert.Contains() Failure: Sub-string not found&#xD;
+[xUnit.net 00:00:02.37]       String:    "Stage:session-cleanup-exited; Failure:non"···&#xD;
+[xUnit.net 00:00:02.37]       Not found: "StoragePhase:import-storage"&#xD;
+[xUnit.net 00:00:02.37]       Stack Trace:&#xD;
+[xUnit.net 00:00:02.37]         D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\TransportTests.cs(249,0): at Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(String method, Boolean diagnosticExpected)&#xD;
+[xUnit.net 00:00:02.37]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:02.38]   Finished:    Wootc.Shell.NativeTests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="runnervm99s1a" outcome="Error" timestamp="2026-09-27T19:26:34.7350864+00:00">
+        <Text>[xUnit.net 00:00:02.37]     Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(method: "GetNativeConfiguration", diagnosticExpected: True) [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

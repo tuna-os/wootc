@@ -1,0 +1,12 @@
+--- FAIL: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses (0.01s)
+    --- FAIL: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json (0.00s)
+        native_configuration_test.go:110: appeared optional metadata did not refuse: <nil>
+    --- FAIL: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt (0.00s)
+        native_configuration_test.go:110: appeared optional metadata did not refuse: <nil>
+    --- FAIL: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json (0.00s)
+        native_configuration_test.go:110: appeared optional metadata did not refuse: <nil>
+    --- FAIL: TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json (0.00s)
+        native_configuration_test.go:110: appeared optional metadata did not refuse: <nil>
+FAIL
+exit status 1
+FAIL	wootc	0.014s

@@ -1,0 +1,2 @@
+query/** -text whitespace=cr-at-eol
+brands/** -text whitespace=cr-at-eol

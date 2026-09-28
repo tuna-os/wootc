@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "head": "995a27c",
+  "queryRun": 36334650551,
+  "queryJob": 108663071177,
+  "testedQueryMerge": "679198b4230cf607f1e0bd95f439a948348cb0ba",
+  "queryArtifact": {
+    "id": 10936189992,
+    "size": 7244,
+    "digest": "7d4b15dec40c5f6c82df20511e77cbb10d3ff6ce1212cb4b4210738b64e66311",
+    "apiDigestAndSizeVerified": true
+  },
+  "observations": {
+    "actualRootSwapRefused": true,
+    "actualSystemQuery": "import-storage/action-preference/-2146233087/category13",
+    "causeBeyondStage": "unproven; trusted manifest readback added",
+    "allFiveBrandUIFailures": "ConfigurationObservation absent before asynchronous read completed; bounded null-aware polling added, still requires real successful configuration"
+  },
+  "files": {
+    "brands/wootc.raw.log": "09f13a37b3ed4588deaaa3e929f1d875dd64b31008dca65448fe42d25c561670",
+    "brands/bluefin.raw.log": "65c3c1a57f06146dd1e8fdddaf9b53b331a2961b438582ae748a926cf61411a0",
+    "brands/aurora.raw.log": "d564e92e5fb65d8d2b21af0d7f9397cb8a18a9dccb6eff443b278cd54585fff1",
+    "brands/tunaos.raw.log": "b50a12019b9aac15e1c032cb097cd019629b72f6aaf9e4a15d67209bd3579067",
+    "brands/bazzite.raw.log": "c9f1c9e3a4fe5ef09b97af96961049080e9b4e872c598785b42f06ab476b76c3",
+    "query/stdout.raw": "b9e4196ddcc496793cd48935790146e8be98fb4ce265f088b7665af451b52ae7",
+    "query/receipt.json": "7090db9d953ed0e126331b6f84ebbde9faa5be6fd5f35178bc3755ef398af77e",
+    "query/stderr.raw": "1002974445480ed61e5a080618087c7085428f452cfb184f854d0231dde20d97",
+    "query/artifact.zip": "7d4b15dec40c5f6c82df20511e77cbb10d3ff6ce1212cb4b4210738b64e66311",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stderr.raw": "09deb9824df9380d7ff0cdec9e037c47d820f254b35d75e44c16e48eef52e06f",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.json": "a51912c74878559b22afec2665ab1f178599e2c0519026df2831bd23d5c4849e",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.json": "651b92751768a1675303838db0aca913d7c97dd14323a9fc2374230d33f67658",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stderr.raw": "09deb9824df9380d7ff0cdec9e037c47d820f254b35d75e44c16e48eef52e06f"
+  }
+}

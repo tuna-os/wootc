@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "head": "14302a62663002b4b2fcab302aeec8c988cb818f",
+  "run": 36339216141,
+  "testedMerge": "3346bab6110b03b9540b70085d66d62f5caeb04f",
+  "artifact": {
+    "id": 10937893181,
+    "size": 45544,
+    "digest": "36916d5cf7d4fbffa082c8a3433e0df5e49f9c2e83b1e11b4adff41d7ac4b422",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "All31 actual Windows outcomes pass, zero skips: protected system storage query/full NTFS serial, hostile environment/module refusal, directory/physical identity swaps, actual removed/reordered import and warning counterexamples plus restored queries. No complete installed UI, install, Home/minimum OS or alternate-admin/UAC journey claim.",
+  "files": {
+    "query/artifact.zip": "36916d5cf7d4fbffa082c8a3433e0df5e49f9c2e83b1e11b4adff41d7ac4b422",
+    "query/receipt.json": "e876b10b1c1793e2c82370f96f6e1307fce5103b5f91f107a9009cbc4506ae83",
+    "query/stderr.raw": "1002974445480ed61e5a080618087c7085428f452cfb184f854d0231dde20d97",
+    "query/stdout.raw": "83d84808804782a37fa0ad8dded763c83546b840d72eaf4bc16c8bb425a3f57f",
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee",
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902",
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+    "query/system-query/trusted-system-modules/inventory.json": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c"
+  }
+}

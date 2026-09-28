@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "sourceSha256": "3e1dd867b55844ea75900f43767611f759ffcfa92f3c472ff0f3a5560b766b09",
+  "scope": "Actual cross-platform production dispatcher wired diagnostic projection, removed projection red then exact source restored. No CLR/Windows/UI claim.",
+  "commands": [
+    "go",
+    "-C",
+    "app",
+    "test",
+    "-count=1",
+    "-timeout",
+    "30s",
+    "-run",
+    "TestNativeConfigurationRPCFailureKeepsFixedDiagnostic"
+  ],
+  "outcomes": {
+    "positive": 0,
+    "removedProjection": 1,
+    "restored": 0
+  },
+  "files": {
+    "positive.raw": "ae6bd9ada745f67697f0e909488a80a9b6b66af33949b0611e509cfd8d8c82d6",
+    "restored.raw": "5f510d8d48ec63524768cce8cbe6bfbf9f34fd57e9714c787769c7cfd4d2dc78",
+    "removed-projection.raw": "6ac5727d964fcab774d37d5169df9c8a08148df977d95c75dc20a5709c0a37fb"
+  }
+}

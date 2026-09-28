@@ -1,0 +1,18 @@
+{
+  "sourceSha256Restored": "f5d5553d0014a34587fd42f1dff17a3fc749165f02e29ccf0bfb7b769db31410",
+  "controls": [
+    {
+      "guard": "admission",
+      "mutantSha256": "3a8576321a2e525a87e90513f064bee61139f9c5fd52c3dd577af0430dabeabe",
+      "rejected": true,
+      "observedOwnedFixtureEffect": "experimental alpha image reported admitted"
+    },
+    {
+      "guard": "presence",
+      "mutantSha256": "b48b9b3b502353a799d4067e0a8290cb9281548e227646f1f3fa41ae4ab91c5f",
+      "rejected": true,
+      "observedOwnedFixtureEffect": "actual new metadata created after first pass; second-pass guard removed"
+    }
+  ],
+  "restoredControlsPassed": true
+}

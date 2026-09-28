@@ -1,0 +1,2 @@
+native-storage-failure stage=import-storage depth=0 type=action-preference hresult=-2146233087 category=13 loader=command-not-found dependency=unclassified
+native-storage-failure stage=import-storage depth=1 type=parent-error-record hresult=-2146233087 category=13 loader=command-not-found dependency=unclassified

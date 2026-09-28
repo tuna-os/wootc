@@ -203,4 +203,54 @@ public sealed class TransportTests
         using var ended = new MemoryStream();
         await Assert.ThrowsAsync<EndOfStreamException>(() => NativeEngineSession.ReadLineAsync(ended, 16, default));
     }
+
+    [Theory]
+    [InlineData("GetNativeConfiguration",true)]
+    [InlineData("GetStatus",false)]
+    public async Task ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(string method,bool diagnosticExpected)
+    {
+        string name="wootc-storage-diagnostic-"+Guid.NewGuid().ToString("N");
+        using var server=new NamedPipeServerStream(name,PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous);
+        using var client=new NamedPipeClientStream(".",name,PipeDirection.InOut,PipeOptions.Asynchronous);
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var accepting=server.WaitForConnectionAsync(deadline.Token);
+        await client.ConnectAsync(deadline.Token); await accepting;
+        using var owned=Process.Start(new ProcessStartInfo("cmd.exe","/c pause") {UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,CreateNoWindow=true})!;
+        var projector=new NativeDiagnosticState(); string latest="";
+        var session=new NativeEngineSession(client,owned,(stage,error)=>latest=projector.Project(stage,error,owned));
+        bool responseObserved=false;
+        try
+        {
+            var flushedId = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var call=session.CallAsync<InstallStatus>(method,deadline.Token,id=>flushedId.TrySetResult(id));
+            using var request=JsonDocument.Parse(await NativeEngineSession.ReadLineAsync(server,4096,deadline.Token));
+            long id=request.RootElement.GetProperty("id").GetInt64();
+            Assert.Equal(method,request.RootElement.GetProperty("method").GetString());
+            if (diagnosticExpected)
+            {
+                using var flushDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                long observed;
+                try {observed=await flushedId.Task.WaitAsync(flushDeadline.Token);}
+                catch(OperationCanceledException){throw new InvalidOperationException("Configuration post-flush observation missing or foreign");}
+                Assert.True(observed==id,"Configuration post-flush observation missing or foreign");
+            }
+            using var diagnostic=JsonDocument.Parse(DiagnosticTests.StorageDiagnostic);
+            string reply=JsonSerializer.Serialize(new { jsonrpc="2.0", id, error=new { code=-32603, message="generic failure", data=diagnostic.RootElement } })+"\n";
+            await server.WriteAsync(Encoding.UTF8.GetBytes(reply),deadline.Token);await server.FlushAsync(deadline.Token);
+            if (diagnosticExpected) await Assert.ThrowsAsync<StorageObservationFailure>(()=>call);
+            else await Assert.ThrowsAsync<InvalidDataException>(()=>call);
+            responseObserved=true;
+            if(!diagnosticExpected)Assert.True(!flushedId.Task.IsCompleted,"Unexpected configuration flush observation on another method");
+        }
+        finally
+        {
+            owned.StandardInput.Close();await owned.WaitForExitAsync(deadline.Token);
+            await session.DisposeAsync();
+            Assert.Contains("Cleanup:engine-exited",latest);
+            Assert.Contains("Engine:exited:0",latest);
+            Assert.Contains("PrimaryRpc:",latest);
+            if(responseObserved && diagnosticExpected)Assert.Contains("StoragePhase:import-storage",latest);
+            else if(responseObserved)Assert.DoesNotContain("StoragePhase:",latest);
+        }
+    }
 }

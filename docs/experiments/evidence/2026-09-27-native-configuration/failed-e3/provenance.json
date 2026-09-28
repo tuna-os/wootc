@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "failedHead": "e3a8541",
+  "runId": 36334065957,
+  "jobId": 108661427927,
+  "failureStage": "compile-before-CLR-tests",
+  "actualErrors": [
+    "CS8618 required generated nested DTO properties",
+    "CS8604 optional mokEnroll passed to nonnullable projection"
+  ],
+  "supersedingFixExecutedCLR": false,
+  "sourceHashes": {
+    "app/tools/gendto/main.go": "b33389b9e11908eb9d280c49649b3ab164878424614e0e454db17b15e9b19099",
+    "app/tools/gendto/main_test.go": "ddef66b4741146995e59d478cb6f1be7cccff23983345527d0db5f8a0c3a681e",
+    "shell/Wootc.Shell/Engine/Dto.cs": "2a52894a904c266fc96d44eb630038a2318c7d77cd1dd887cd1015055619b194",
+    "shell/Wootc.Shell.Core/ConfigurationProjection.cs": "13ea3d71bf142468cae086f8dfd0a6b9365248736159ae45617fd8c39b392f7d",
+    "shell/Wootc.Shell.NativeTests/ConfigurationProtocolTests.cs": "9db54c796fec38ab586bf299b829f74fae9f5915a1e57cc1e61e8f6d8670ee27"
+  },
+  "files": {
+    "run.json": "31c47b132e61a6f1b7f53352190dfa1901b3f62c54bd04376fdcf8de191281c8",
+    "generator-controls.log": "00d2cbfc67f15b8a5b5929e527b4cb7391183373b2ce15670e09ca1769c23ca4",
+    "core-ubuntu.raw.log": "9cd19339b55cead47db504522ed8f34df0c84e7becb6c88f6356212eeb23b919"
+  },
+  "warningsAsErrorsUnchanged": true,
+  "missingWireShapeStillRejected": true
+}
