@@ -163,7 +163,11 @@ func startNativeStorageSession(ctx context.Context) (*nativeStorageSession, erro
 		defer close(s.cancelStopped)
 		select {
 		case <-ctx.Done():
-			windows.TerminateJobObject(s.job, 1)
+			// Unblock in-flight readers without destroying leftover
+			// evidence: close() observes live owned processes and
+			// force-reaps them with the termination recorded.
+			s.input.Close()
+			s.output.Close()
 		case <-s.cancelDone:
 		}
 	}()
@@ -213,9 +217,9 @@ func (s *nativeStorageSession) query(ctx context.Context) ([]nativeStorageRow, e
 func (s *nativeStorageSession) close(abort bool) error {
 	s.once.Do(func() {
 		s.input.Close()
-		if abort {
-			windows.TerminateJobObject(s.job, 1)
-		}
+		// No up-front termination: the drain loop below observes live
+		// leftovers first and records forced cleanup before reaping.
+		// A hung parent is still bounded by the wait below.
 		// Reaping observes cleanup only; it never extends configuration authority.
 		wait, err := windows.WaitForSingleObject(s.process, 1000)
 		if err != nil || wait != windows.WAIT_OBJECT_0 {

@@ -149,6 +149,7 @@ public sealed class InstalledPreviewTests
             }
             var disconnect=Find("DisconnectEngine").AsButton();
             disconnect.Focus();
+            disconnect.Patterns.ScrollItem.PatternOrDefault?.ScrollIntoView();
             using(var disconnectDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             {
                 while(disconnect.IsOffscreen)
