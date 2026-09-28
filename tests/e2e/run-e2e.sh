@@ -3451,7 +3451,10 @@ mok_sequence() {  # returns 0 only when the MokManager MENU was confirmed and dr
 # enrollment is pending (and widen the boot budget for the extra reboots).
 MOK_PENDING=false
 MOK_SIGHTINGS=0
-snapshot_serial
+# A transient `podman cp` race here (reboot moment) must not abort the run
+# under set -e: the feed reports failure itself and warns after 12
+# consecutive misses, and the MOK grep below tolerates a stale copy.
+snapshot_serial || true
 if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
     MOK_PENDING=true
     MOK_EXTRA=300

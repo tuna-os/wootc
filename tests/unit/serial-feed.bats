@@ -59,6 +59,16 @@ setup() {
     [ "$rm_line" -lt "$guard_line" ]
 }
 
+@test "top-level snapshot calls tolerate a transient feed miss" {
+    # Run 20260928T031042Z: a bare snapshot_serial before the MOK check met
+    # one transient `podman cp` race at the reboot moment and set -e aborted
+    # a healthy run. The feed still reports failure itself (see above); every
+    # top-level caller must let it.
+    run grep -B1 "if grep -aq 'MOK enrollment queued'" "$E2E"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"snapshot_serial || true"* ]]
+}
+
 @test "the PTY-missing failure names the source it could not read" {
     # "QEMU PTY not found at <path>" alone sent debugging to the host path,
     # when the actual problem is the container-side feed.
