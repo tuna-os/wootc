@@ -2531,11 +2531,20 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         # alive but reads came back empty, and the loop treated each as proof
         # the app had died, never recovering when reads resumed).
         drive_state=""
+        # Why the last validation failed, and how big the rejected file was.
+        # A present-but-rejected drive-state.json is a different failure from
+        # a missing one (run 36399679919: ~112 reads returned content, zero
+        # validated, and 2>/dev/null swallowed every reason). Kept, not
+        # discarded, and reported at the stall point and the final verdict.
+        drive_reject=""
+        drive_raw_len=0
         for _try in 1 2 3; do
             local drive_raw=""
             # Failed reads with plausible stdout and stale/malformed reports
             # remain unknown. Only the current directive's typed receipt counts.
             if drive_raw=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null); then
+                drive_raw_len=${#drive_raw}
+                drive_reject=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>&1 >/dev/null) || true
                 drive_state=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>/dev/null) || drive_state=""
             fi
             [ -n "$drive_state" ] && break
@@ -2555,7 +2564,11 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
             # reason" — the same proxy mistake this diagnostic exists to avoid.
             if [ "$empty_reads" -eq 3 ]; then
                 if qga_probe; then
-                    warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    if [ "$drive_raw_len" -gt 0 ]; then
+                        warn "  drive-state.json IS present (${drive_raw_len} bytes) but the receipt rejects it: ${drive_reject:-unknown reason} — the app writes, the binding fails"
+                    else
+                        warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    fi
                     # If the app WAS writing state (last_good is non-empty) and
                     # then stopped, it has CRASHED. Do not burn the remaining
                     # 30 minutes waiting for a dead process. Check whether
@@ -2710,6 +2723,9 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
         info "  last readable state: ${last_good:-<never read one>}"
         info "  unreadable reads: $total_empty of ~180"
+        if [ "$drive_raw_len" -gt 0 ]; then
+            info "  rejected content: ${drive_raw_len} bytes, last reason: ${drive_reject:-unknown reason}"
+        fi
         info "  QGA ping answers; this does not establish GUI identity or progress"
         capture_vm_diagnostics
         exit 1

@@ -263,6 +263,16 @@ echo SCHEDULED
         self.assertIn("qga_read 'C:\\wootc\\e2e-ready.json'", launch)
         self.assertNotIn("qga_read 'C:\\wootc\\e2e-drive-state.json'", launch)
 
+    def test_drive_rejection_reason_is_kept_not_discarded(self):
+        # Run 36399679919 returned content on ~112 drive reads with zero
+        # valid receipts; 2>/dev/null swallowed every reason. The loop must
+        # capture validator stderr and report it at the stall point and the
+        # final verdict instead of "unreadable" alone.
+        gui = SOURCE.split('gui_install_arm() {', 1)[1]
+        self.assertIn('gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>&1 >/dev/null', gui)
+        self.assertIn('drive_reject', gui)
+        self.assertIn('but the receipt rejects it', gui)
+
     def test_gui_and_snapshot_paths_use_account_provisioning(self):
         prime = (Path(__file__).resolve().parents[2] / 'tests/e2e/lib/snapshot-prime.sh').read_text()
         self.assertLess(prime.index('gui_prepare_account ||'), prime.index("Stop-Computer"))
