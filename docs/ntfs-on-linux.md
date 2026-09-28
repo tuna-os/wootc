@@ -148,8 +148,8 @@ view but cannot write to it.
 
 A mask hides the top-level `wootc` installer directory (any case) in this
 view. This hides installer state and recovery keys. The mask never reaches
-below the volume root: user profiles stay published even when a profile is
-literally named `wootc`, or the user-data bridge would see an empty home.
+below the volume root. A profile named `wootc` stays readable, so the
+user-data bridge still finds its home folders.
 The service sets the mask and read-only flag before it
 publishes the view. If setup fails, it does not publish the view.
 
