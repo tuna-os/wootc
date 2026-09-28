@@ -16,6 +16,15 @@ var e2eDirectiveID = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // Bind reports to the directive the frontend actually consumed.
 func e2eUniqueObject(raw []byte) (map[string]json.RawMessage, error) {
+	// A UTF-8 BOM prefix is not JSON whitespace: encoding/json rejects it,
+	// and so would the frontend's JSON.parse. The harness wrote the install
+	// directive with PowerShell 5.1 Set-Content -Encoding UTF8 (BOM) through
+	// runs 36399679919/36413017019/36420437461, so the app saw no directive
+	// and never reported while the harness readback — which decodes and
+	// strips the BOM — kept passing. The writer is fixed to emit BOM-less
+	// UTF-8; stripping here keeps any BOM'd producer from silently disabling
+	// the drive loop again. Central: every drive-file parse enters here.
+	raw = bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))
 	if len(raw) > 16384 {
 		return nil, errors.New("oversized drive record")
 	}

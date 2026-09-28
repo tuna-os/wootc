@@ -2501,10 +2501,23 @@ value = dict(schemaVersion=1, runId=sys.argv[1], directiveId=sys.argv[2],
 print(base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode())
 PYDRIVE
     ) || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # BOM-LESS write, verified byte-exact. Set-Content -Encoding UTF8 on the
+    # guest's PowerShell 5.1 emits a UTF-8 BOM, and NEITHER consumer tolerates
+    # one: Go's encoding/json rejects a leading BOM (so E2EDriveDirective
+    # reads ""), and JS JSON.parse throws on it. The old writer produced
+    # exactly that file in runs 36399679919/36413017019/36420437461 — the
+    # readback still passed because Get-Content decodes and strips the BOM
+    # before comparing, while the app read raw bytes and saw no directive:
+    # ready marker written, zero drive-state reports, 30m silent timeout.
+    # [IO.File]::WriteAllText with UTF8Encoding($false) emits no BOM on any
+    # PowerShell version, and the byte readback below fails the run if one
+    # ever reappears instead of rediscovering this 30 minutes later.
     if ! drive_ack=$(qga_powershell "\$ErrorActionPreference='Stop'
 \$wanted=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$drive_payload'))
-Set-Content -LiteralPath C:\wootc\e2e-drive.json -Value \$wanted -Encoding UTF8
-\$actual=Get-Content -LiteralPath C:\wootc\e2e-drive.json -Raw
+[IO.File]::WriteAllText('C:\wootc\e2e-drive.json', \$wanted, [Text.UTF8Encoding]::new(\$false))
+\$bytes=[IO.File]::ReadAllBytes('C:\wootc\e2e-drive.json')
+if (\$bytes.Length -ge 3 -and \$bytes[0] -eq 0xEF -and \$bytes[1] -eq 0xBB -and \$bytes[2] -eq 0xBF) { throw 'Directive has UTF-8 BOM' }
+\$actual=[Text.Encoding]::UTF8.GetString(\$bytes)
 if (\$actual.TrimEnd([char]13,[char]10) -cne \$wanted) { throw 'Directive readback changed' }
 Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         infra_fail "GUI install directive write is unknown; install observation refused"
@@ -2533,7 +2546,7 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
     # goes deaf we already know reopening is on the table, and the answer is a
     # verdict rather than another round of dialling.
     local reconnect_tried=false
-    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-12}"
+    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-3}"
     drive_deadline=$(deadline_in 1800)
     while ! past_deadline "$drive_deadline"; do
         # Retry a single transient QGA read failure: a hosted runner's container
@@ -2573,7 +2586,21 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
             # that tests the CHANNEL and nothing else. A PowerShell round-trip
             # would conflate "agent is gone" with "exec failed for some guest-side
             # reason" — the same proxy mistake this diagnostic exists to avoid.
+            #
+            # This diagnostic must fire PERIODICALLY, not once. Run 36420437461
+            # tested the one-shot form (`-eq 3`): wootc.exe was alive at the
+            # ~1-minute mark, the block never fired again, and the loop sat
+            # silent for the remaining 29 minutes. First fire at 3 empties
+            # (~1 min), then every 30 empties (~10 min heartbeat), so the log
+            # is never silent for longer and a process that dies mid-wait is
+            # still caught with attribution instead of a bare 30m timeout.
+            local fire_diag=false
             if [ "$empty_reads" -eq 3 ]; then
+                fire_diag=true
+            elif [ "$empty_reads" -gt 3 ] && [ $(( (empty_reads - 3) % 30 )) -eq 0 ]; then
+                fire_diag=true
+            fi
+            if [ "$fire_diag" = true ]; then
                 if qga_probe; then
                     if [ "$drive_raw_len" -gt 0 ]; then
                         warn "  drive-state.json IS present (${drive_raw_len} bytes) but the receipt rejects it: ${drive_reject:-unknown reason} — the app writes, the binding fails"
@@ -2600,6 +2627,11 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
                             capture_vm_diagnostics
                             exit 1
                         fi
+                        # A live process that never wrote is the black-window
+                        # hang, not a verdict yet — but it must be VISIBLE.
+                        # Without this heartbeat the wait is silent until the
+                        # 30m deadline (run 36420437461).
+                        warn "  still no drive report after ${empty_reads} unreadable reads (~$((empty_reads / 3)) min), wootc.exe process is '${wootc_alive}' — waiting on the remaining budget"
                     else
                         dead_app_checks=$((dead_app_checks + 1))
                         local wootc_alive

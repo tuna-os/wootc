@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -648,7 +649,9 @@ func (a *App) E2EDriveDirective() string {
 	if _, err := e2eUniqueObject(b); err != nil {
 		return ""
 	}
-	return string(b)
+	// e2eUniqueObject tolerates a BOM for validation; the frontend's
+	// JSON.parse does not, so never hand one to it.
+	return string(bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")))
 }
 
 // E2EDriveReport persists the frontend's current state for the harness.
