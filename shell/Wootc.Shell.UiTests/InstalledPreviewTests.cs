@@ -149,6 +149,14 @@ public sealed class InstalledPreviewTests
             }
             var disconnect=Find("DisconnectEngine").AsButton();
             disconnect.Focus();
+            using(var disconnectDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                while(disconnect.IsOffscreen)
+                {
+                    if(disconnectDeadline.IsCancellationRequested)throw new InvalidOperationException($"Focused disconnect action remained offscreen; bounds={disconnect.BoundingRectangle}; focus={disconnect.Properties.HasKeyboardFocus.Value}");
+                    await Task.Delay(50);
+                }
+            }
             Assert.True(disconnect.IsEnabled);
             Assert.False(disconnect.IsOffscreen);
             disconnect.Invoke();
