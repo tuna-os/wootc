@@ -2378,14 +2378,25 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
     # that wootc.exe actually started.  Poll for the real readiness signal:
     # e2e-drive-state.json (written by the drive loop every 2 s once the app
     # renders the first screen).
-    local launch_deadline
-    launch_deadline=$(deadline_in 60)
-    while ! past_deadline "$launch_deadline"; do
-        if qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
-            break
-        fi
-        sleep 5
-    done
+    #
+    # Staging took minutes, and schtasks /IT never runs without a session
+    # `query user` can enumerate (GUI red 9/25-9/26: UserName said wootc,
+    # query user empty, task 267011). Re-check the scheduler's own observable
+    # now — waiting 60 s for a file an unrunnable task will never write is
+    # blind. An empty answer skips straight to the classified failure below.
+    local sessions launch_deadline
+    sessions=$(qga_powershell '(query user 2>&1) -join " | "' 2>/dev/null || true)
+    if [[ -z "$sessions" || "$sessions" == *"No User exists"* ]]; then
+        warn "query user shows no interactive session — skipping the launch wait (schtasks /IT cannot run)"
+    else
+        launch_deadline=$(deadline_in 60)
+        while ! past_deadline "$launch_deadline"; do
+            if qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
+                break
+            fi
+            sleep 5
+        done
+    fi
     if ! qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
         fail "wootc.exe did not start within 60 s — e2e-drive-state.json never appeared"
         # "It didn't start" is not a diagnosis: the task may never have run, the
