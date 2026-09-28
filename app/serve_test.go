@@ -525,6 +525,16 @@ func TestServeAllMethodsRoundTrip(t *testing.T) {
 		}
 	})
 
+	t.Run("E2EDriveReady", func(t *testing.T) {
+		res, rpcErr := h.call(t, "E2EDriveReady", "ready", 17)
+		if rpcErr != nil {
+			t.Fatalf("unexpected error: %+v", rpcErr)
+		}
+		if string(res) != "null" {
+			t.Errorf("E2EDriveReady result = %s, want null", string(res))
+		}
+	})
+
 	t.Run("DefragDrive", func(t *testing.T) {
 		// On non-windows dev build defrag returns nil or is stubbed
 		_, _ = h.call(t, "DefragDrive", nil, 13)

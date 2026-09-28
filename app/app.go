@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -648,7 +649,9 @@ func (a *App) E2EDriveDirective() string {
 	if _, err := e2eUniqueObject(b); err != nil {
 		return ""
 	}
-	return string(b)
+	// e2eUniqueObject tolerates a BOM for validation; the frontend's
+	// JSON.parse does not, so never hand one to it.
+	return string(bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")))
 }
 
 // E2EDriveReport persists the frontend's current state for the harness.
@@ -657,6 +660,15 @@ func (a *App) E2EDriveReport(state string) {
 		return
 	}
 	writeE2EDriveReport(state)
+}
+
+// E2EDriveReady persists the frontend's first-render signal for the harness.
+// It binds to no directive on purpose: see writeE2EReady.
+func (a *App) E2EDriveReady(state string) {
+	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
+		return
+	}
+	writeE2EReady(state)
 }
 
 // ── Existing install detection ────────────────────────────────────────────────

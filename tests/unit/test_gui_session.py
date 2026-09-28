@@ -284,13 +284,42 @@ echo SCHEDULED
         self.assertIn('CAPTURED', result.stdout)
         self.assertNotIn('SCHEDULED', result.stdout)
 
+    def test_launch_waits_for_ready_marker_not_bound_state(self):
+        # A bound drive report needs the install directive, which is only
+        # written after launch is confirmed — waiting for it first deadlocked
+        # every GUI run. Launch must poll the unbound readiness marker.
+        gui = SOURCE.split('gui_install_arm() {', 1)[1]
+        launch = gui.split('did not render within 60 s')[0]
+        self.assertIn("qga_read 'C:\\wootc\\e2e-ready.json'", launch)
+        self.assertNotIn("qga_read 'C:\\wootc\\e2e-drive-state.json'", launch)
+
+    def test_drive_rejection_reason_is_kept_not_discarded(self):
+        # Run 36399679919 returned content on ~112 drive reads with zero
+        # valid receipts; 2>/dev/null swallowed every reason. The loop must
+        # capture validator stderr and report it at the stall point and the
+        # final verdict instead of "unreadable" alone.
+        gui = SOURCE.split('gui_install_arm() {', 1)[1]
+        self.assertIn('gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>&1 >/dev/null', gui)
+        self.assertIn('drive_reject', gui)
+        self.assertIn('but the receipt rejects it', gui)
+
     def test_launch_rechecks_enumerable_session_before_drive_poll(self):
         # Staging takes minutes; a session present at the gate can be gone by
-        # /Run. The 60 s drive-state poll must not run blind when schtasks
+        # /Run. The 60 s readiness poll must not run blind when schtasks
         # /IT provably cannot (9/25-9/26: task 267011, query user empty).
         gui = SOURCE.split('gui_install_arm() {', 1)[1]
         self.assertLess(gui.index('query user 2>&1'), gui.index('deadline_in 60'))
-        self.assertLess(gui.index('deadline_in 60'), gui.index('did not start within 60 s'))
+        self.assertLess(gui.index('deadline_in 60'), gui.index('did not render within 60 s'))
+
+    def test_dead_process_before_first_report_fails_fast(self):
+        # Runs 36399679919/36413017019: ready marker written, zero reports
+        # after, black window. The old crash check only ran once a report
+        # had been seen, so a process dead before the first write burned
+        # the full 30 minutes. A dead process must fail fast; a live one
+        # keeps the budget.
+        gui = SOURCE.split('gui_install_arm() {', 1)[1]
+        self.assertIn('died before writing any drive report', gui)
+        self.assertIn('if [ -z "$last_good" ]; then', gui)
 
     def test_gui_and_snapshot_paths_use_account_provisioning(self):
         prime = (Path(__file__).resolve().parents[2] / 'tests/e2e/lib/snapshot-prime.sh').read_text()
