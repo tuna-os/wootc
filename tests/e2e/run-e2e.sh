@@ -3845,7 +3845,13 @@ if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
 elif printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
     product_pass user-data "User data: Windows Documents file readable in /home/wootc with this run's ID"
 else
-    USERDATA_DIAG=$(qga_call exec /bin/sh -c \
+    # The diagnostic travels over the same agent channel the check just used,
+    # and one hiccup blanks the most important evidence in the run
+    # (20260928T070749Z: every layer line empty). Retry a few times and keep
+    # the first non-empty answer before reporting.
+    USERDATA_DIAG=""
+    for _ud_try in 1 2 3; do
+        USERDATA_DIAG=$(qga_call exec /bin/sh -c \
         'echo "host-bind: $(mountpoint -q /run/wootc/host && echo mounted || echo ABSENT)"; \
          echo "profile:   $(find /run/wootc/host -maxdepth 5 -type d -path "*/Users/wootc" 2>/dev/null | head -1 || echo ABSENT)"; \
          echo "seed@host: $(find /run/wootc/host -maxdepth 7 -type f -name "wootc-e2e-userdata.txt" -exec cat {} + 2>/dev/null || echo ABSENT)"; \
@@ -3862,6 +3868,9 @@ else
          echo "ntfs-src:  $(findmnt -n /run/initramfs/wootc-host 2>/dev/null || echo ABSENT)"; \
          echo "passthru:  enabled=$(systemctl is-enabled wootc-passthrough 2>&1) active=$(systemctl is-active wootc-passthrough 2>&1)"; \
          journalctl -u wootc-passthrough --no-pager 2>/dev/null | tail -6' 2>/dev/null || true)
+        [ -n "$USERDATA_DIAG" ] && break
+        sleep 5
+    done
     product_fail "User data NOT visible in Phase 2 \$HOME (expected RUN_ID $RUN_ID)"
     printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
     PASSTHROUGH_OK=false

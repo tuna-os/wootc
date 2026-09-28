@@ -54,6 +54,9 @@ setup() {
     # moved/renamed (run 20260928T035341Z: verified-present canary absent).
     grep -q 'profile-ls:' "$E2E"
     grep -q 'seed-anywhere:' "$E2E"
+    # The diag travels over QGA: one hiccup must not blank it
+    # (run 20260928T070749Z: every layer line empty). It retries.
+    grep -q 'for _ud_try in 1 2 3' "$E2E"
 }
 
 @test "Phase-3 native persistence check reads the file from the native disk" {
