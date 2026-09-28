@@ -235,13 +235,22 @@ bind_profile() {
             src="$redirected"
         fi
         dst="$home/$folder"
-        [[ -d "$src" ]] || continue
+        # Every skip below used to be silent, which left "0 binds" with no
+        # layer identified (run 20260928T061803Z: Documents/Pictures vanished
+        # without a line). Say which gate fired for each folder.
+        if [[ ! -d "$src" ]]; then
+            log "files/$folder: no source dir ($src)"
+            continue
+        fi
         if ! safe_folder_source "$src"; then
             warn "refusing protected or invalid folder source: $src"
             continue
         fi
         # Converted to native storage (wootc-convert-dir) — stop bridging.
-        [[ -e "$home/.config/wootc/converted-$folder" ]] && continue
+        if [[ -e "$home/.config/wootc/converted-$folder" ]]; then
+            log "files/$folder: already converted to native storage"
+            continue
+        fi
         # Do not follow a user-created Documents symlink into another path.
         if [[ -L "$dst" ]]; then
             warn "refusing symlink folder destination: $dst"
@@ -252,6 +261,8 @@ bind_profile() {
             mount --bind "$src" "$dst"
             log "bound $src -> $dst"
             bound=$((bound + 1))
+        else
+            log "files/$folder: destination already mounted ($dst)"
         fi
     done
     add_host_bookmark "$home"
