@@ -46,7 +46,7 @@ qga_powershell() {
         printf '%s' "$SESSION_REPLY"
         return 0
     fi
-    if [[ "$1" == *query\ user* ]]; then
+    if [[ "$1" == *query\\ user* ]]; then
         if [ "${QUERY_REPLY+x}" = x ]; then
             printf '%s' "$QUERY_REPLY"
             return "${QUERY_RC:-0}"
