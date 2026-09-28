@@ -3852,6 +3852,9 @@ else
          echo "profile-ls: $(ls -la /run/wootc/host/Users/wootc/ 2>&1 | head -20 | tr "\n" "|")"; \
          echo "docs-link: $(ls -lad /run/wootc/host/Users/wootc/Documents 2>&1)"; \
          echo "seed-anywhere: $(find /run/wootc/host -xdev -name "*userdata*" 2>/dev/null | head -5 | tr "\n" "|")"; \
+         echo "users-ls: $(ls -la /run/wootc/host/Users/ 2>&1 | head -20 | tr "\n" "|")"; \
+         echo "host-mnt: $(findmnt -n -o SOURCE,TARGET,FSTYPE,OPTIONS /run/wootc/host 2>&1)"; \
+         echo "src-mnt: $(findmnt -n -o SOURCE,TARGET,FSTYPE /run/initramfs/wootc-host 2>&1)"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
          echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
          echo "unit:      enabled=$(systemctl is-enabled wootc-host-bind 2>&1) active=$(systemctl is-active wootc-host-bind 2>&1)"; \
