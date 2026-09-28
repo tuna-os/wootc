@@ -128,3 +128,15 @@ SH
     [ "$status" -eq 0 ]
     grep -q 'mount --bind .*hidden .*public/WOOTC' "$CALLS"
 }
+
+@test "a user profile named wootc is published, not masked" {
+    # Run 20260928: the host-view mask hid C:\Users\wootc (same name as the
+    # installer dir), so the user-data bridge saw an empty 000-perm profile
+    # and every smoke cell failed user-data. The mask covers only the
+    # top-level installer directory; user profiles always stay published.
+    mkdir -p "$T/private/wootc-view-control/public/Users/wootc/Documents"
+    run bash "$T/view" start
+    [ "$status" -eq 0 ]
+    grep -q 'mount --bind .*hidden .*public/wootc$' "$CALLS"
+    ! grep -q 'hidden .*Users/wootc' "$CALLS"
+}

@@ -146,8 +146,11 @@ When Linux runs from `root.disk`, it mounts the Windows volume at
 The system also publishes `/run/wootc/host` for Linux users. They can read this
 view but cannot write to it.
 
-A mask hides the `wootc` directory in this view. This hides installer state
-and recovery keys. The service sets the mask and read-only flag before it
+A mask hides the top-level `wootc` installer directory (any case) in this
+view. This hides installer state and recovery keys. The mask never reaches
+below the volume root: user profiles stay published even when a profile is
+literally named `wootc`, or the user-data bridge would see an empty home.
+The service sets the mask and read-only flag before it
 publishes the view. If setup fails, it does not publish the view.
 
 Root services use the private path to write lifecycle records and remove keys.
