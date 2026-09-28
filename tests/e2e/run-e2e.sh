@@ -2584,7 +2584,23 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
                     # then stopped, it has CRASHED. Do not burn the remaining
                     # 30 minutes waiting for a dead process. Check whether
                     # wootc.exe is still alive to confirm, then fail fast.
-                    if [ -n "$last_good" ]; then
+                    #
+                    # If it NEVER wrote (last_good empty), the process may have
+                    # died before the first write — e.g. a dead WebView2
+                    # renderer behind a black window (runs 36399679919,
+                    # 36413017019: ready marker written, zero reports after).
+                    # A dead process can never report, so fail fast; a live
+                    # one keeps the remaining budget.
+                    if [ -z "$last_good" ]; then
+                        local wootc_alive
+                        wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        if [ "$wootc_alive" = "dead" ]; then
+                            infra_fail "wootc.exe died before writing any drive report — completion cannot be observed"
+                            info "  last screen reached: ${last_screen:-<none>}"
+                            capture_vm_diagnostics
+                            exit 1
+                        fi
+                    else
                         dead_app_checks=$((dead_app_checks + 1))
                         local wootc_alive
                         wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")

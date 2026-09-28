@@ -311,6 +311,16 @@ echo SCHEDULED
         self.assertLess(gui.index('query user 2>&1'), gui.index('deadline_in 60'))
         self.assertLess(gui.index('deadline_in 60'), gui.index('did not render within 60 s'))
 
+    def test_dead_process_before_first_report_fails_fast(self):
+        # Runs 36399679919/36413017019: ready marker written, zero reports
+        # after, black window. The old crash check only ran once a report
+        # had been seen, so a process dead before the first write burned
+        # the full 30 minutes. A dead process must fail fast; a live one
+        # keeps the budget.
+        gui = SOURCE.split('gui_install_arm() {', 1)[1]
+        self.assertIn('died before writing any drive report', gui)
+        self.assertIn('if [ -z "$last_good" ]; then', gui)
+
     def test_gui_and_snapshot_paths_use_account_provisioning(self):
         prime = (Path(__file__).resolve().parents[2] / 'tests/e2e/lib/snapshot-prime.sh').read_text()
         self.assertLess(prime.index('gui_prepare_account ||'), prime.index("Stop-Computer"))
