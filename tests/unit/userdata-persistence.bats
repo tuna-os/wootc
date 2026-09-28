@@ -50,6 +50,10 @@ setup() {
     # Failure diagnostics must localize the broken layer, not just say "no".
     grep -q 'host-bind:' "$E2E"
     grep -q 'home-bind:' "$E2E"
+    # ... including what the profile actually contains and whether the seed
+    # moved/renamed (run 20260928T035341Z: verified-present canary absent).
+    grep -q 'profile-ls:' "$E2E"
+    grep -q 'seed-anywhere:' "$E2E"
 }
 
 @test "Phase-3 native persistence check reads the file from the native disk" {

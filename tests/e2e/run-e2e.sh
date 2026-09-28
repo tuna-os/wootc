@@ -3849,6 +3849,9 @@ else
         'echo "host-bind: $(mountpoint -q /run/wootc/host && echo mounted || echo ABSENT)"; \
          echo "profile:   $(find /run/wootc/host -maxdepth 5 -type d -path "*/Users/wootc" 2>/dev/null | head -1 || echo ABSENT)"; \
          echo "seed@host: $(find /run/wootc/host -maxdepth 7 -type f -name "wootc-e2e-userdata.txt" -exec cat {} + 2>/dev/null || echo ABSENT)"; \
+         echo "profile-ls: $(ls -la /run/wootc/host/Users/wootc/ 2>&1 | head -20 | tr "\n" "|")"; \
+         echo "docs-link: $(ls -lad /run/wootc/host/Users/wootc/Documents 2>&1)"; \
+         echo "seed-anywhere: $(find /run/wootc/host -xdev -name "*userdata*" 2>/dev/null | head -5 | tr "\n" "|")"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
          echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
          echo "unit:      enabled=$(systemctl is-enabled wootc-host-bind 2>&1) active=$(systemctl is-active wootc-host-bind 2>&1)"; \
