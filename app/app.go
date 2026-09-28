@@ -659,6 +659,15 @@ func (a *App) E2EDriveReport(state string) {
 	writeE2EDriveReport(state)
 }
 
+// E2EDriveReady persists the frontend's first-render signal for the harness.
+// It binds to no directive on purpose: see writeE2EReady.
+func (a *App) E2EDriveReady(state string) {
+	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
+		return
+	}
+	writeE2EReady(state)
+}
+
 // ── Existing install detection ────────────────────────────────────────────────
 
 func (a *App) existingInstallFound() bool {

@@ -1,4 +1,4 @@
-import { E2EDriveDirective, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
+import { E2EDriveDirective, E2EDriveReady, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
 
 // Wails' WebView cannot expose CDP, so GUI E2E drives the real form through
 // the same Go-to-JS bridge and DOM event handlers used by the application.
@@ -104,6 +104,17 @@ export function startE2EDrive(state) {
     }
 
     try {
+      if (!raw) {
+        // No directive yet: the harness is still waiting for first render,
+        // and a bound report is impossible without a directive to bind to.
+        // Signal readiness on its own channel so launch is observable before
+        // any directive exists. Diagnostic only; never breaks the app.
+        try {
+          await E2EDriveReady(JSON.stringify({ schemaVersion: 1, screen: state.screen || '' }));
+        } catch {
+          // Readiness is best-effort; the next poll retries.
+        }
+      }
       if (raw) {
         const directive = JSON.parse(raw);
         if (directive.schemaVersion !== 1 || typeof directive.runId !== 'string' ||

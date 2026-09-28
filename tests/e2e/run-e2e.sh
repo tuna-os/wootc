@@ -2350,7 +2350,7 @@ New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 . "\\host.lan\Data\stage-status-cli.ps1"
 Copy-WootcStatusCLI -SourceDirectory "\\host.lan\Data" -Destination "C:\wootc\wootc.exe"
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
-Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
+Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json,C:\wootc\e2e-ready.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1
 set WOOTC_PRELOAD=0
@@ -2376,18 +2376,25 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
     }
     # The QGA powershell completing only proves the task was scheduled, not
     # that wootc.exe actually started.  Poll for the real readiness signal:
-    # e2e-drive-state.json (written by the drive loop every 2 s once the app
-    # renders the first screen).
+    # e2e-ready.json (written by the drive loop every 2 s once the app
+    # renders the first screen, with no directive required).
+    #
+    # Readiness deliberately does NOT wait for e2e-drive-state.json: a bound
+    # drive report requires the install directive, which is only written
+    # after launch is confirmed — waiting for it first is a deadlock (every
+    # GUI run since the drive loop landed burned 60 s here with a rendered
+    # app on screen). Progress authentication stays with the bound
+    # drive-state channel below.
     local launch_deadline
     launch_deadline=$(deadline_in 60)
     while ! past_deadline "$launch_deadline"; do
-        if qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
+        if qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
             break
         fi
         sleep 5
     done
-    if ! qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
-        fail "wootc.exe did not start within 60 s — e2e-drive-state.json never appeared"
+    if ! qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
+        fail "wootc.exe did not render within 60 s — e2e-ready.json never appeared"
         # "It didn't start" is not a diagnosis: the task may never have run, the
         # process may have started and died, or the app may be unable to render
         # at all. wootc is a wails app, so it CANNOT start without the WebView2

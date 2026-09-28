@@ -131,6 +131,10 @@ export function E2EDriveReport(arg1) {
   return window['go']['main']['App']['E2EDriveReport'](arg1);
 }
 
+export function E2EDriveReady(arg1) {
+  return window['go']['main']['App']['E2EDriveReady'](arg1);
+}
+
 export function GetSupportPolicy() {
   return window['go']['main']['App']['GetSupportPolicy']();
 }

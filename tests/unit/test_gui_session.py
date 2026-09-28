@@ -254,6 +254,15 @@ echo SCHEDULED
         self.assertIn('CAPTURED', result.stdout)
         self.assertNotIn('SCHEDULED', result.stdout)
 
+    def test_launch_waits_for_ready_marker_not_bound_state(self):
+        # A bound drive report needs the install directive, which is only
+        # written after launch is confirmed — waiting for it first deadlocked
+        # every GUI run. Launch must poll the unbound readiness marker.
+        gui = SOURCE.split('gui_install_arm() {', 1)[1]
+        launch = gui.split('did not render within 60 s')[0]
+        self.assertIn("qga_read 'C:\\wootc\\e2e-ready.json'", launch)
+        self.assertNotIn("qga_read 'C:\\wootc\\e2e-drive-state.json'", launch)
+
     def test_gui_and_snapshot_paths_use_account_provisioning(self):
         prime = (Path(__file__).resolve().parents[2] / 'tests/e2e/lib/snapshot-prime.sh').read_text()
         self.assertLess(prime.index('gui_prepare_account ||'), prime.index("Stop-Computer"))
