@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   controls:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -54,7 +54,7 @@ jobs:
   execute:
     if: github.event_name == 'workflow_dispatch'
     needs: controls
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 70
     env:
       REVIEWED_SHA: ${{ inputs.source_sha }}
