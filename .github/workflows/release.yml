@@ -276,6 +276,39 @@ jobs:
           done <<< "$brands"
           ls -lh release-assets/
 
+      # ORDER IS LOAD-BEARING: sign after every exe is built and BEFORE the
+      # checksums. Authenticode rewrites the file, so SHA256SUMS written first
+      # would describe bytes nobody downloads and every install would die at
+      # the installer's fail-closed verification (#53). tests/unit/
+      # release-pipeline.bats pins this order.
+      - name: Authenticode-sign the installers (#230)
+        id: authenticode
+        env:
+          CHANNEL: ${{ steps.chan.outputs.channel }}
+          # The credential is #229's decision; jsign speaks all of them.
+          # Unset WOOTC_SIGN_STORETYPE = not configured = ships unsigned.
+          WOOTC_SIGN_STORETYPE: ${{ vars.WOOTC_SIGN_STORETYPE }}
+          WOOTC_SIGN_KEYSTORE: ${{ vars.WOOTC_SIGN_KEYSTORE }}
+          WOOTC_SIGN_ALIAS: ${{ vars.WOOTC_SIGN_ALIAS }}
+          WOOTC_SIGN_TSAURL: ${{ vars.WOOTC_SIGN_TSAURL }}
+          WOOTC_SIGN_PUBLISHER: ${{ vars.WOOTC_SIGN_PUBLISHER }}
+          WOOTC_SIGN_STOREPASS: ${{ secrets.WOOTC_SIGN_STOREPASS }}
+          JSIGN_VERSION: '7.5'
+          JSIGN_SHA256: 602a51c3545a6dc4fb99bd2ea7152b26d1345916d0c93ddfbd5936cb735af91c
+        run: |
+          set -euo pipefail
+          if [ -n "$WOOTC_SIGN_STORETYPE" ]; then
+            sudo apt-get install -y -qq osslsigncode
+            jar="$RUNNER_TEMP/jsign.jar"
+            curl -fsSL -o "$jar" \
+              "https://github.com/ebourg/jsign/releases/download/$JSIGN_VERSION/jsign-$JSIGN_VERSION.jar"
+            echo "$JSIGN_SHA256  $jar" | sha256sum -c -
+            printf '#!/bin/sh\nexec java -jar %s "$@"\n' "$jar" > "$RUNNER_TEMP/jsign"
+            chmod +x "$RUNNER_TEMP/jsign"
+            export JSIGN="$RUNNER_TEMP/jsign"
+          fi
+          bash packaging/sign-exes.sh "$CHANNEL" release-assets
+
       - name: Checksums for the release assets
         # The installer's fail-closed verification (#53/#194) and the
         # getting-started doc both point users at a SHA256SUMS on the
@@ -299,6 +332,7 @@ jobs:
       - name: Record what gated this build
         env:
           RELEASE_TAG: ${{ steps.chan.outputs.tag }}
+          SIGNING: ${{ steps.authenticode.outputs.signing }}
         run: |
           {
             echo "## wootc $RELEASE_TAG"
@@ -319,6 +353,17 @@ jobs:
               echo "\`root.disk\`, then booted the graduated native disk."
               echo "Gate run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             fi
+            case "$SIGNING" in
+              signed) ;;
+              failed)
+                echo
+                echo "> ⚠️ **Not code-signed — signing FAILED for this build.** The exes are"
+                echo "> unsigned: SmartScreen and UAC will show an unknown publisher." ;;
+              *)
+                echo
+                echo "> ⚠️ **Not code-signed** (#229). SmartScreen and UAC will show an"
+                echo "> unknown publisher." ;;
+            esac
             echo
             echo "One installer per distribution — every exe is the same engine"
             echo "wearing its brand (docs/branding-and-distribution.md). The boot"
