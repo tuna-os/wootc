@@ -70,6 +70,18 @@ MANIFEST=app/build/windows/wootc.manifest
     [[ "$output" == *"behind the release"* ]]
 }
 
+@test "winget must install this release, not only resolve it" {
+    # Criterion 1 is "resolves and installs". The installed file is held to
+    # the release's SHA256SUMS, so a winget success with an old binary fails.
+    grep -q 'winget install --exact --id TunaOS.wootc' "$FIELD"
+    grep -q 'Test-WingetInstall -ExitCode' "$FIELD"
+    run bash -c "sed -n '/function Test-WingetInstall/,/^}/p' $FIELD"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Test-Sha256Manifest"* ]]
+    [[ "$output" == *"not a fresh machine"* ]]
+    grep -q 'winget installs the release' docs/RELEASING.md
+}
+
 @test "the checklist cannot be talked into passing, and names its manual half" {
     grep -q 'RESULT: PASS' "$FIELD"
     grep -q 'RESULT: FAIL' "$FIELD"
