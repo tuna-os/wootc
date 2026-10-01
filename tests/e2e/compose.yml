@@ -61,6 +61,9 @@ services:
       SHUTDOWN: "Y"
       # 24h SIGTERM timeout floor so power.sh never kills QEMU
       QEMU_TIMEOUT: "86400"
+      # Guest network device. "N" (the --offline axis, #217) makes Dockur pass
+      # no -netdev/-device for a NIC, and with -nodefaults the guest has none.
+      NETWORK: "${WOOTC_E2E_GUEST_NETWORK:-Y}"
       LANGUAGE: "en-US"
       KEYBOARD: "en-US"
       # Keep SERIAL at Dockur's default (mon:stdio) — Dockur reads the

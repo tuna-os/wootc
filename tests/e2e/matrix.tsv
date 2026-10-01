@@ -12,6 +12,8 @@
 #   opts         Optional 7th column, comma-safe knobs:
 #                bitlocker=on  — WOOTC_E2E_BITLOCKER=on (SPEC 3.5 FDE axis)
 #                phase3=on     — pass --phase3 (rung-3 graduate onto blank disk)
+#                offline=on    — pass --offline (guest has no NIC; deploy from a
+#                                pre-staged OCI bundle, #217). Script path only.
 #
 # The bitlocker axis (WOOTC_E2E_BITLOCKER=on) drops PreventDeviceEncryption so
 # Windows auto-encrypts C:; wootc must then place root.disk on a separate
@@ -27,6 +29,11 @@ smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC
 smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# Offline axis (#217): the proven el10 baseline with NO guest network device.
+# The deployer must ingest the pre-staged bundle, skip the registry pre-flight
+# and finish fisherman from local storage. Green here gates preloadImage
+# default-on for the generic build.
+smoke	el10-gnome-win11pro-offline	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	offline=on
 # btrfs sealed-root axis (#35): a composefs-sealed image forced onto btrfs.
 # NOT bluefin:lts, despite it being the proven baseline — CentOS Stream 10
 # has no in-tree btrfs, so its btrfs comes from an out-of-tree kmod signed

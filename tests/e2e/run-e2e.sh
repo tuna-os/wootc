@@ -47,6 +47,8 @@ source "$SCRIPT_DIR/lib/results.sh"
 source "$SCRIPT_DIR/lib/result-runner.sh"
 # shellcheck source=tests/e2e/lib/snapshot-prime.sh
 source "$SCRIPT_DIR/lib/snapshot-prime.sh"
+# shellcheck source=tests/e2e/lib/offline-bundle.sh
+source "$SCRIPT_DIR/lib/offline-bundle.sh"
 trap 'wootc_report_abort "$?" "$BASH_COMMAND"' ERR
 # IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
 # blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
@@ -80,6 +82,7 @@ SKIP_INSTALL=false
 GUI_INSTALL=false
 FAULT_INJECT="${WOOTC_E2E_FAULT_INJECT:-}"
 RECOVERY_CHECK=false
+OFFLINE=false
 for arg in "$@"; do
     case "$arg" in
         --skip-build)   SKIP_BUILD=true ;;
@@ -90,6 +93,7 @@ for arg in "$@"; do
         --uninstall-check) WOOTC_E2E_UNINSTALL=1 ;;  # after Windows returns: prove leaving works
         --fault-inject=*) FAULT_INJECT="${arg#--fault-inject=}" ; RECOVERY_CHECK=true ;;
         --recovery-check) RECOVERY_CHECK=true ;;
+        --offline)      OFFLINE=true ;;  # guest has no NIC; deploy from a pre-staged bundle (#217)
         # Concurrent-runner slot: gives this run its own container name and
         # storage dir so N VMs can share one host (run-matrix --jobs). Passed
         # as a =flag so it is visible in the process cmdline — the matrix
@@ -199,6 +203,26 @@ if [ -n "${WOOTC_E2E_INSTANCE:-}" ]; then
 fi
 export WOOTC_E2E_CONTAINER="$CONTAINER_NAME"
 export WOOTC_E2E_STORAGE_VOL="$STORAGE_DIR"
+
+# Offline axis (#217, spec docs/branding-and-distribution.md section 4 phase 4).
+# The guest gets NO network device for the whole run (Dockur NETWORK=N leaves
+# -nodefaults QEMU with no NIC), so nothing can mask a deployer that still
+# reaches for the network. The deployer must install from the OCI bundle that
+# offline_stage_bundle copies into C:\wootc\bundle over QGA. The GUI path
+# needs the guest network (WebView2 install, \\host.lan share) and BitLocker
+# moves the storage root off C:, so neither combines with this axis yet.
+OFFLINE_BUNDLE_DIR="$SCRIPT_DIR/wootc-files/offline-bundle-${WOOTC_E2E_INSTANCE:-0}"
+if [ "$OFFLINE" = true ]; then
+    if [ "$GUI_INSTALL" = true ]; then
+        echo "[FAIL] --offline cannot combine with --gui-install: the GUI path needs the guest network" >&2
+        exit 2
+    fi
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
+        echo "[FAIL] --offline cannot combine with WOOTC_E2E_BITLOCKER=on: the bundle is staged on C:" >&2
+        exit 2
+    fi
+    export WOOTC_E2E_GUEST_NETWORK=N
+fi
 # A second orchestrator can otherwise race QGA cleanup and recreate the
 # disposable root disk while the first run is booting the deployer.  Keep the
 # advisory lock open for the lifetime of this shell; it is released
@@ -589,6 +613,51 @@ echo "phase=fisherman pid=$pid workers=$workers cpu_ticks=$cpu_ticks read_bytes=
 # deployer to the bind mount alone silently tests stale code.  QGA provides a
 # guest-file API that lets retries replace the payload without reinstalling
 # Windows or relying on its network stack.
+# Copy a host-built OCI bundle of IMAGE_REF into C:\wootc\bundle over QGA,
+# once the QEMU argv has proven the guest has no NIC. QGA is the only channel
+# into an offline guest, and it rides virtio-serial.
+offline_stage_bundle() {
+    step "Offline axis: staging the image bundle into the guest..."
+    local digest files bytes guest_bytes rel target ready
+    digest=$(wootc_offline_make_bundle "$IMAGE_REF" "$OFFLINE_BUNDLE_DIR") || {
+        infra_fail "Offline axis: could not build an OCI bundle of $IMAGE_REF on the host"
+        return 1
+    }
+    files=$(cd "$OFFLINE_BUNDLE_DIR" && find . -type f | sed 's|^\./||' | sort)
+    bytes=$(find "$OFFLINE_BUNDLE_DIR" -type f -printf '%s\n' | awk '{n += $1} END {print n + 0}')
+    info "  bundle: $IMAGE_REF @ $digest ($((bytes / 1048576)) MiB, $(printf '%s\n' "$files" | wc -l) files)"
+    # The state directory must exist with its trusted ACL before anything is
+    # written under it; setup-wootc.ps1 refuses a C:\wootc it did not secure.
+    ready=$(qga_powershell '$ErrorActionPreference = "Stop"
+. C:\OEM\state-trust.ps1
+Initialize-WootcStateDirectory -Path C:\wootc
+if (Test-Path C:\wootc\bundle) { Remove-Item -Recurse -Force C:\wootc\bundle }
+New-Item -ItemType Directory -Force -Path C:\wootc\bundle\oci\blobs\sha256 | Out-Null
+Write-Output "bundle-dir-ready"' 2>&1 || true)
+    printf '%s\n' "$ready" | sed 's/^/    stage: /'
+    case "$ready" in
+        *bundle-dir-ready*) ;;
+        *) infra_fail "Offline axis: could not prepare C:\wootc\bundle in the guest"; return 1 ;;
+    esac
+    # Blobs reach gigabytes; a per-file timeout of an hour bounds a stuck
+    # channel without cutting off a slow but progressing copy.
+    while IFS= read -r rel; do
+        target="C:\\wootc\\bundle\\${rel//\//\\}"
+        WOOTC_QGA_CALL_TIMEOUT=3600 qga_call write "/shared/$(basename "$OFFLINE_BUNDLE_DIR")/$rel" "$target" >/dev/null || {
+            infra_fail "Offline axis: QGA could not copy bundle file $rel into the guest"
+            return 1
+        }
+    done <<< "$files"
+    guest_bytes=$(qga_powershell '(Get-ChildItem -Recurse -File C:\wootc\bundle | Measure-Object -Property Length -Sum).Sum' 2>/dev/null | tr -dc '0-9')
+    if [ "${guest_bytes:-0}" != "$bytes" ]; then
+        infra_fail "Offline axis: guest bundle holds ${guest_bytes:-0} bytes, host bundle $bytes"
+        return 1
+    fi
+    infra_pass offline-bundle-staged "Offline axis: bundle staged in C:\wootc\bundle ($((bytes / 1048576)) MiB)"
+    # The guest now holds the only copy the run needs; free the runner disk.
+    rm -rf -- "$OFFLINE_BUNDLE_DIR"
+}
+
 qga_sync_oem() {
     step "Refreshing OEM payload in reused Windows guest..."
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\OEM\payload\grub | Out-Null'
@@ -1214,7 +1283,8 @@ MIRROR_ADDR=""
 # into the console log of a run that had aborted nothing (run 30707067821).
 # The matrix reads the LAST [FAIL] as the verdict, so on any run whose real
 # failure is silent (a timeout) this line becomes the recorded reason.
-for ip in $({ ip -4 addr show tailscale0 2>/dev/null || true; } \
+# An offline guest cannot reach a mirror; do not stage a hint it can only fail.
+[ "$OFFLINE" = true ] || for ip in $({ ip -4 addr show tailscale0 2>/dev/null || true; } \
                 | awk '/inet /{sub(/\/.*/,"",$2); print $2}') \
           $({ ip -4 route get 1.1.1.1 2>/dev/null || true; } \
                 | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1); exit}'); do
@@ -1763,6 +1833,18 @@ if ! QEMU_CMD=$(wootc_vm_wait_argv 60 accelerated "$QEMU_CMD"); then
     fail "QEMU is not using KVM acceleration"
     capture_vm_diagnostics
     exit 1
+fi
+# Offline axis: the missing NIC is what the cell asserts, so read it from the
+# running QEMU argv, not from the NETWORK=N setting that should cause it.
+if [ "$OFFLINE" = true ]; then
+    if wootc_offline_qemu_has_no_nic "$QEMU_CMD"; then
+        infra_pass offline-no-nic "Offline axis: QEMU runs with no network device"
+    else
+        OFFLINE_NIC=$(printf '%s' "$QEMU_CMD" | grep -oE -- '-(netdev|nic) [^ ]+|-device [^ ]*net[^ ]*' | head -3 | tr '\n' ' ' || true)
+        infra_fail "Offline axis: QEMU still has a network device: ${OFFLINE_NIC:-<argv unreadable>}"
+        capture_vm_diagnostics
+        exit 1
+    fi
 fi
 QEMU_RAM_MB=$(awk '{
     for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+[MG]$/) {
@@ -2785,6 +2867,10 @@ step "Starting OEM setup through QGA..."
 # stated verdict rather than a bare `set -e` abort with no message.
 qga_sync_oem || { fail "Cannot proceed: the guest's OEM payload could not be refreshed"; exit 1; }
 
+if [ "$OFFLINE" = true ]; then
+    offline_stage_bundle || { capture_vm_diagnostics; exit 1; }
+fi
+
 qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
 pass "OEM setup process started through QGA as SYSTEM"
@@ -3268,6 +3354,20 @@ done
     tail -30 "$PTY"
     exit 1
 }
+
+# ── Assert the offline axis actually took effect (#217) ─────────────────────
+# The deploy can complete over the network after a bundle rejection, so a
+# green deploy alone says nothing about offline. Read the deployer's own lines.
+if [ "$OFFLINE" = true ]; then
+    OFFLINE_FINDINGS=$(wootc_offline_check_serial "$PTY" "$IMAGE_REF") && OFFLINE_OK=true || OFFLINE_OK=false
+    printf '%s\n' "$OFFLINE_FINDINGS" | sed 's/^/    offline: /'
+    if [ "$OFFLINE_OK" = true ]; then
+        product_pass offline-deploy "Offline: deployer installed $IMAGE_REF from the staged bundle with no network device"
+    else
+        product_fail "Offline: the deployer did not honour the offline bundle contract (see offline: lines above)"
+        exit 1
+    fi
+fi
 
 # ── Assert the BitLocker axis actually took effect (SPEC §3.5) ──────────────
 # setup-wootc.ps1 logs the observed C: state and where Linux was placed. On the
