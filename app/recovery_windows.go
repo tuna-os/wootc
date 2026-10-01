@@ -183,7 +183,16 @@ func tryAgainFromArmed(noReboot bool) error {
 }
 
 // repairBootFromArmed re-stages the ESP bootloader files and re-arms BCD.
+//
+// It inspects first and refuses whenever planBootRepair cannot attribute the
+// boot chain to this install (#290), and it reports success only when a fresh
+// observation shows the next boot going to the recorded wootc entry with the
+// recorded ESP hashes — never because the commands returned no error.
 func repairBootFromArmed(noReboot bool) error {
+	before, _ := inspectBoot()
+	if !before.CanRepairBoot {
+		return fmt.Errorf("repair refused, nothing was changed: %s", strings.Join(before.Refusals, "; "))
+	}
 	armed, err := readArmedJSON()
 	if err != nil {
 		return fmt.Errorf("reading armed.json for repair: %w", err)
@@ -204,6 +213,19 @@ func repairBootFromArmed(noReboot bool) error {
 	}
 	if err := configureBCD(cfg); err != nil {
 		return fmt.Errorf("repairing BCD configuration: %w", err)
+	}
+
+	obs := observeBoot()
+	after := planBootRepair(obs)
+	if err := verifyRepairArmed(after, obs); err != nil {
+		// Leave Windows in charge rather than a chain we could not verify.
+		// The entry, the files and armed.json stay, so the user can retry.
+		if cmds, cerr := restoreWindowsCommands(after); cerr == nil {
+			for _, args := range cmds {
+				_, _ = runBCDEdit(args...)
+			}
+		}
+		return fmt.Errorf("repair could not be verified, so wootc was taken out of the boot order again: %w", err)
 	}
 
 	// Reset lifecycle markers

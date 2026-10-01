@@ -23,6 +23,12 @@ function makeApp(mock) {
     GetSupportPolicy: () => P(mock.policy || { channel: 'dev', experimentalImages: true, bitlockerSupported: true, customImageAllowed: true, reason: '' }),
     GetLastRun: () => P(mock.lastRun || {}),
     BootIntoLinux: () => P(undefined),
+    GetRecoveryVerdict: () => P(mock.recoveryVerdict || {}),
+    TryAgain: () => P(),
+    RepairBoot: () => P(),
+    // Boot check (#290): a scenario supplies the observed report.
+    InspectBoot: () => P(mock.bootReport || { bootState: 'unknown', refusals: ['mock: no boot report'] }),
+    RestoreWindowsBoot: () => P(mock.bootReportAfterRestore || { bootState: 'windows-only' }),
     ExistingInstallFound: () => P(!!mock.existing),
     GetStatus: () => P(mock.status || { running: false, done: false, existing: false }),
     StartInstall: (cfg) => {
