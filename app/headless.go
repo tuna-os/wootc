@@ -149,7 +149,9 @@ func headlessRecover(args []string) int {
 	prompt := fs.Bool("prompt", false, "run logon recovery prompt check")
 	status := fs.Bool("status", false, "print recovery verdict JSON")
 	tryAgain := fs.Bool("try-again", false, "re-arm from armed.json and reboot")
-	repairBoot := fs.Bool("repair-boot", false, "re-stage ESP, re-arm BCD and reboot")
+	repairBoot := fs.Bool("repair-boot", false, "re-stage ESP, re-arm BCD and reboot (refuses when ownership is uncertain)")
+	inspect := fs.Bool("inspect", false, "print the observed boot state and safe repair actions as JSON; changes nothing")
+	restoreWindows := fs.Bool("restore-windows", false, "take wootc out of the boot order so Windows starts; keeps files for a retry")
 	remove := fs.Bool("remove", false, "uninstall wootc")
 	noReboot := fs.Bool("no-reboot", false, "do not reboot after try-again or repair-boot")
 
@@ -186,6 +188,29 @@ func headlessRecover(args []string) int {
 			return 1
 		}
 		fmt.Println(string(data))
+		return 0
+	}
+
+	if *inspect {
+		report, _ := inspectBoot()
+		data, err := marshalJSON(report)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover inspect: %v\n", err)
+			return 1
+		}
+		fmt.Println(string(data))
+		return 0
+	}
+
+	if *restoreWindows {
+		report, err := restoreWindowsBoot()
+		if data, merr := marshalJSON(report); merr == nil {
+			fmt.Println(string(data))
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover restore-windows: %v\n", err)
+			return 1
+		}
 		return 0
 	}
 

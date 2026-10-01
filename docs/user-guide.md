@@ -201,6 +201,13 @@ Uninstall does not undo work that you made on a graduated native disk.
   Boot Windows and use a full shutdown before you retry.
 - **Stuck at the boot menu:** choose **Windows Boot Manager**.
   If Windows does not start, use the recovery instructions for that failure.
+- **Setup stopped and Windows started again:** open wootc.
+  The recovery screen shows the boot configuration that wootc reads now.
+  **Keep Windows only** removes the wootc entries from the boot order. It keeps the files, so you can try again later.
+  **Repair boot** writes the installer boot files again and sets the next restart to the installer.
+  wootc disables a button when it cannot prove that it owns the boot entries or files.
+  From a command prompt, `wootc.exe recover --inspect` shows the same report and changes nothing.
+  Each check saves its evidence in `C:\wootc\install\repair\`. Attach that folder to a bug report.
 - **An import asks you to sign in:** authenticate again in the destination app.
   Browser profile transfer and account credentials have different limits.
 - **No TPM:** review the passphrase and unencrypted choices under **Advanced**.
