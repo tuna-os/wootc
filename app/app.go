@@ -81,8 +81,13 @@ type SystemInfo struct {
 	// machine's firmware holds in its db variable ("2011", "2023"), so the
 	// preflight can tell before the reboot whether the signed shim this
 	// build stages will be launched at all (#322). Empty means the db could
-	// not be read, which warns rather than refusing.
+	// not be read (UefiDbRead false), which warns rather than refusing, or
+	// that it was read and holds neither CA (UefiDbRead true), which refuses.
 	TrustedUefiAuthorities []string `json:"trustedUefiAuthorities"`
+	// UefiDbRead is true when the firmware's db was read and held at least
+	// one certificate, so an empty TrustedUefiAuthorities is a fact about
+	// the firmware rather than about our ability to ask (#322).
+	UefiDbRead bool `json:"uefiDbRead"`
 	// SecureBootChainWarning is set when Secure Boot is on but the db could
 	// not be read: honest disclosure that one check could not be made,
 	// shown before the user commits rather than after the restart.
@@ -360,8 +365,7 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 	// prevents ("bad shim signature") happens after the reboot, where the
 	// user has no way to find out why Windows came back.
 	si := getSystemInfo()
-	if v := checkSecureBootChain(si.SecureBootOn, si.SecureBootKnown,
-		si.TrustedUefiAuthorities, stagedShimAuthorities()); v.Blocked {
+	if v := secureBootChainVerdict(si); v.Blocked {
 		return fmt.Errorf("%s", v.Message)
 	}
 	// Only offer images the channel permits. Enterprise images.json override

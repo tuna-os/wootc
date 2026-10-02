@@ -254,10 +254,11 @@ systemd-run --user --unit="$unit" --collect \
     --setenv=WOOTC_E2E_MIN_FREE_GIB="\${WOOTC_E2E_MIN_FREE_GIB:-45}" \
     \$(case "$opts" in *bitlocker=on*) echo '--setenv=WOOTC_E2E_BITLOCKER=on' ;; *) echo '--setenv=WOOTC_E2E_BITLOCKER=off' ;; esac) \
     \$(case "$opts" in *fault=*) echo "--setenv=WOOTC_E2E_FAULT_INJECT=\$(echo "$opts" | grep -o 'fault=[^,]*' | cut -d= -f2)" ;; esac) \
+    \$(case "$opts" in *firmware_db=*) echo "--setenv=WOOTC_E2E_FIRMWARE_DB=\$(echo "$opts" | grep -o 'firmware_db=[^,]*' | cut -d= -f2)" ;; esac) \
     -p StandardOutput=append:"$log" \
     -p StandardError=append:"$log" \
     -p WorkingDirectory="\$_home/wootc/tests/e2e" \
-    -- bash run-e2e.sh "$image" --keep --instance=$inst \$(case "$opts" in *phase3=on*) echo '--phase3' ;; esac) \$(case "$opts" in *fault=*) echo "--fault-inject=\$(echo "$opts" | grep -o 'fault=[^,]*' | cut -d= -f2)" ;; esac)
+    -- bash run-e2e.sh "$image" --keep --instance=$inst \$(case "$opts" in *phase3=on*) echo '--phase3' ;; esac) \$(case "$opts" in *fault=*) echo "--fault-inject=\$(echo "$opts" | grep -o 'fault=[^,]*' | cut -d= -f2)" ;; esac) \$(case "$opts" in *firmware_db=none*) echo '--gui-install' ;; esac)
 # Verify the unit is actually running: a nonce alone is insufficient —
 # nohup proves only that the shell started, not that the durable unit
 # remains alive (AGENTS.md rule). The unit must be active.

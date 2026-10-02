@@ -89,8 +89,11 @@ ISO ships Debian's shim 16.1, which is dual-signed.
 - [x] `SystemInfo.TrustedUefiAuthorities` + the `db` parser
       (`app/secureboot.go`, `app/secureboot_windows.go`)
 - [x] gate + user text (`gateScenario`, launchpad warning banner)
-- [ ] harness `db` axis, three cells (2011-only, 2023-only, both) — the OVMF
-      vars work is the remaining piece
+- [x] harness `db` axis (`tests/e2e/firmware-db.py`, `firmware_db=` cells in
+      `tests/e2e/matrix.tsv`). The cells are 2011, 2023, both and none. The
+      shim is dual-signed, so the first three must boot. The none cell has
+      no third-party CA, so the app must refuse and write nothing. The cells
+      still need a hosted run.
 - [x] `docs/user-guide.md` requirements, `SPEC.md` Secure Boot section
 
 **One deviation from the design above.** This section originally said an
