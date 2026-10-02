@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"syscall"
@@ -443,6 +442,12 @@ func backupBCD() error {
 	return nil
 }
 
+// configureBCD prepares the boot chain as a journaled transaction (boot_txn.go):
+// it proves the staged ESP chain, creates the firmware entry, records it for
+// recovery, and proves the entry is INERT — in no boot order and not armed.
+// The one-shot that makes it boot is set later by armBootChain, the last
+// change before reboot, so an interruption anywhere in between returns to
+// Windows. Any failure here rolls back what this step changed.
 func configureBCD(cfg InstallConfig) error {
 	var efiRelPath string
 
@@ -472,93 +477,27 @@ func configureBCD(cfg InstallConfig) error {
 		return err
 	}
 
-	// Idempotency: sweep any wootc entries from earlier runs first, or every
-	// retried install piles up another firmware entry (three of them showed
-	// up on the first E2E day). Same discovery as uninstall.
-	deleteWootcBCDEntries()
-
-	// bcdedit /copy {bootmgr} /d "wootc" — clones the Windows Boot Manager entry,
-	// inheriting the ESP device/partition settings, so no drive letter is needed.
-	// This is the proven approach from WubiUEFI (millions of users).
-	//
-	// Retry the WHOLE arm, and say what the firmware list looked like when it
-	// fails (#74). The transient BCD-store errors —
-	//     "Illegal operation attempted on a registry key marked for deletion"
-	//     "The data area passed to a system call is too small"
-	// — were first seen on /copy (2 of 3 runs of one cell), so only /copy got
-	// the retry. Then bluefin run 32642504000 hit the SAME "marked for
-	// deletion" transient on the bootsequence step, which had no protection,
-	// and the install died on a one-shot flake. A fresh entry whose registry
-	// key has gone bad cannot be repaired by re-running one command against
-	// it — the retry must discard it (sweep) and rebuild from /copy. So the
-	// loop now wraps copy → parse → path → bootsequence as one attempt.
-	//
-	// deleteWootcBCDEntries removes stale entries by GUID but does not repair
-	// the display order — dangling references make /copy fail when it reads
-	// or touches the display order, so each attempt repairs it first
-	// (idempotent /addfirst of {bootmgr}).
-	re := regexp.MustCompile(`\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}`)
-	var out, guid string
-	var err error
-	// Sweep any stale wootc entries from prior interrupted/cancelled attempts so retries are strictly idempotent
-	deleteWootcBCDEntries()
-	for attempt := 1; attempt <= 3; attempt++ {
-		guid = ""
-		runCmd("bcdedit", "/displayorder", "{bootmgr}", "/addfirst") //nolint:errcheck
-		out, err = runCmd("bcdedit", "/copy", "{bootmgr}", "/d", "wootc")
-		if err == nil {
-			if m := re.FindStringSubmatch(out); m == nil {
-				err = fmt.Errorf("could not parse GUID from bcdedit output: %q", out)
-			} else {
-				guid = "{" + m[1] + "}"
-				// One-shot bootsequence only: nothing permanent changes in
-				// the user's boot order until TunaOS is known to work.
-				// displayorder promotion is a post-deploy, user-confirmed
-				// action, not part of the install.
-				for _, args := range [][]string{
-					{"bcdedit", "/set", guid, "path", efiRelPath},
-					{"bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"},
-				} {
-					if out, err = runCmd(args[0], args[1:]...); err != nil {
-						err = fmt.Errorf("bcdedit %v: %w (output: %s)", args[1:], err, out)
-						break
-					}
-				}
-			}
-		}
-		if err == nil {
-			break
-		}
-		if attempt < 3 {
-			// A partially-created or gone-bad entry from the failed attempt
-			// would itself poison the next one, so sweep before retrying.
-			deleteWootcBCDEntries()
-			time.Sleep(time.Duration(attempt) * 2 * time.Second)
-		}
-	}
+	// The entry may only boot files wootc staged and can attribute. Fail
+	// closed: without the ownership manifest there is no chain to verify.
+	espPath, err := findESP()
 	if err != nil {
-		enum, _ := runCmd("bcdedit", "/enum", "firmware")
-		return fmt.Errorf("bcdedit arm: %w — firmware entries at failure: %d\n%s",
-			err, strings.Count(enum, "identifier"), tail(enum, 2000))
+		return fmt.Errorf("locating the EFI boot partition to verify the staged boot files: %w", err)
 	}
-
-	// Persist the GUID where setup-wootc.ps1 also records it: the E2E
-	// harness schedules the PHASE-2 loopback boot by re-arming exactly this
-	// entry (bcd-guid.txt), and uninstall flows read it too. Without it a
-	// GUI/headless-armed machine deploys fine but Phase 2 can never be
-	// scheduled. Best-effort: BCD itself is already armed at this point.
-	if err := os.WriteFile(filepath.Join(wootcDir(), "install", "bcd-guid.txt"), []byte(guid), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not persist bcd-guid.txt: %v\n", err)
+	owned, err := readESPOwnership(espPath)
+	if err != nil {
+		return fmt.Errorf("reading the ESP ownership manifest: %w", err)
 	}
-
-	// Enforce the bootsequence-only promise: /copy can register the clone in
-	// the permanent firmware displayorder too (position varies by firmware),
-	// and an entry there outlives the one-shot — after the deploy the machine
-	// would boot Linux by default instead of returning to Windows. Removing
-	// it from displayorder leaves the entry itself (and the bootsequence
-	// pointing at it) intact. Best-effort: firmwares that never added it
-	// report a harmless error here.
-	runCmd("bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/remove") //nolint:errcheck
+	staged := make(map[string]string)
+	var espFiles []string
+	for f := range owned {
+		h, err := hashFile(filepath.Join(espPath, filepath.FromSlash(f)))
+		if err != nil {
+			return fmt.Errorf("staged boot file %s is not readable: %w", f, err)
+		}
+		staged[f] = h
+		espFiles = append(espFiles, f)
+	}
+	sort.Strings(espFiles)
 
 	// ── Arm-time recovery guard state & task registration (§2) ────────────────
 	// 1. Stage a copy of wootc.exe under install\ and compute its hash.
@@ -578,26 +517,7 @@ func configureBCD(cfg InstallConfig) error {
 		}
 	}
 
-	// 2. Track ESP files and hashes.
-	var espFiles []string
-	espHashes := make(map[string]string)
-	if espPath, err := findESP(); err == nil {
-		if owned, err := readESPOwnership(espPath); err == nil {
-			for f := range owned {
-				espFiles = append(espFiles, f)
-				fullPath := filepath.Join(espPath, filepath.FromSlash(f))
-				if h, err := hashFile(fullPath); err == nil {
-					espHashes[f] = h
-				}
-			}
-		}
-	}
-	sort.Strings(espFiles)
-
-	// 3. Discover ESP partition GUID.
-	espPartitionGuid := findESPPartitionGuid()
-
-	// 4. Read prior power state.
+	// 2. Read prior power state.
 	powerState := PriorPowerState{}
 	if b, err := os.ReadFile(priorPowerPath()); err == nil {
 		for _, line := range strings.Split(string(b), "\n") {
@@ -618,12 +538,10 @@ func configureBCD(cfg InstallConfig) error {
 		storageDrive = "C"
 	}
 
-	// 5. Persist armed.json atomically.
 	armed := ArmedState{
-		BcdGuid:          guid,
-		EspPartitionGuid: espPartitionGuid,
+		EspPartitionGuid: findESPPartitionGuid(),
 		EspFiles:         espFiles,
-		EspFileHashes:    espHashes,
+		EspFileHashes:    staged,
 		PriorPowerState:  powerState,
 		StorageDrive:     storageDrive,
 		ImageRef:         cfg.ImageRef,
@@ -631,16 +549,64 @@ func configureBCD(cfg InstallConfig) error {
 		Timestamp:        time.Now().UTC().Format(time.RFC3339),
 		ExeHash:          exeHash,
 	}
-	if err := writeArmedJSON(armed); err != nil {
-		fmt.Printf("warning: could not write armed.json: %v\n", err)
-	}
 
-	// 6. Register recovery scheduled tasks (wootc-recovery, wootc-recovery-prompt).
+	// 3. Register the recovery tasks BEFORE the first BCD write, so a power
+	// cut from here on is rolled back by `recover --startup` on the next
+	// Windows start (bootTxnStartupAction).
 	if err := registerRecoveryTasks(installExe); err != nil {
 		fmt.Printf("warning: could not register recovery tasks: %v\n", err)
 	}
 
-	return nil
+	_, err = beginBootChainTxn(windowsBootChainEnv(espPath, armed), efiRelPath, staged)
+	return err
+}
+
+// armBootChain sets the one-shot bootsequence of the prepared chain — the
+// transaction's commit point — and proves the armed chain by observation. On
+// failure the boot changes are rolled back and Windows starts normally.
+func armBootChain() error {
+	txn, err := readBootTxn()
+	if err != nil {
+		return fmt.Errorf("no prepared boot chain to arm (boot-txn.json): %w", err)
+	}
+	armed, err := readArmedJSON()
+	if err != nil {
+		return fmt.Errorf("no recovery record for the boot chain (armed.json): %w", err)
+	}
+	espPath, err := findESP()
+	if err != nil {
+		return fmt.Errorf("locating the EFI boot partition to verify the staged boot files: %w", err)
+	}
+	_, err = armBootChainTxn(windowsBootChainEnv(espPath, armed), txn)
+	return err
+}
+
+// windowsBootChainEnv wires the transaction to bcdedit and the real ESP.
+// onEntry writes bcd-guid.txt and armed.json for each entry it creates: the
+// E2E harness re-arms the Phase-2 boot from bcd-guid.txt, and recovery and
+// uninstall find the entry through both.
+func windowsBootChainEnv(espPath string, armed ArmedState) bootChainEnv {
+	return bootChainEnv{
+		bcdedit: func(args ...string) (string, error) { return runCmd("bcdedit", args...) },
+		hashESP: func(rels []string) map[string]string {
+			out := make(map[string]string, len(rels))
+			for _, rel := range rels {
+				if h, err := hashFile(filepath.Join(espPath, filepath.FromSlash(rel))); err == nil {
+					out[rel] = h
+				}
+			}
+			return out
+		},
+		saveTxn: writeBootTxn,
+		onEntry: func(guid string) error {
+			if err := writeFileSynced(filepath.Join(wootcDir(), "install", "bcd-guid.txt"), guid); err != nil {
+				return err
+			}
+			armed.BcdGuid = guid
+			return writeArmedJSON(armed)
+		},
+		sleep: time.Sleep,
+	}
 }
 
 // findESPPartitionGuid returns the GPT partition GUID of the Windows system disk's ESP.
@@ -667,34 +633,46 @@ if ($null -ne $sysDisk) {
 // Without it, a user who cancelled at 82% — or whose install failed at
 // "Saving your settings" — still had a live one-shot pointing at a
 // half-configured deployer, and got a surprise Linux boot attempt on their
-// next restart while the UI told them "nothing permanent changes". The
-// deployer's own failure path returns safely to Windows either way, so this
-// is about keeping the promise, not about safety. Best-effort by design:
-// every command is harmless when the thing it removes is already gone.
+// next restart while the UI told them "nothing permanent changes".
+//
+// It rolls the boot-chain transaction back and then LOOKS (boot_txn.go). When
+// the rollback cannot be confirmed it fails closed: the journal, armed.json
+// and the recovery tasks stay, so the next Windows start retries the cleanup
+// instead of believing it happened.
 func disarmOneShot() {
-	runCmd("bcdedit", "/deletevalue", "{fwbootmgr}", "bootsequence") //nolint:errcheck
-	guidPath := filepath.Join(wootcDir(), "install", "bcd-guid.txt")
-	if b, err := os.ReadFile(guidPath); err == nil {
-		if g := strings.TrimSpace(string(b)); strings.HasPrefix(g, "{") {
-			runCmd("bcdedit", "/delete", g) //nolint:errcheck
-		}
-		os.Remove(guidPath) //nolint:errcheck
+	if err := rollbackBootChain(); err != nil {
+		fmt.Fprintf(os.Stderr, "[wootc] %v — the recovery task retries on the next Windows start\n", err)
+		return
 	}
+	os.Remove(filepath.Join(wootcDir(), "install", "bcd-guid.txt")) //nolint:errcheck
 	_ = unregisterRecoveryTasks()
-	_ = os.Remove(filepath.Join(wootcDir(), "install", "armed.json"))
+	_ = os.Remove(armedPath())
 }
 
-// tail returns the last n bytes of s, for embedding a bounded slice of a
-// command dump in an error without flooding the GUI.
-func tail(s string, n int) string {
-	if len(s) <= n {
-		return s
+// rollbackBootChain rolls back the journaled transaction. An unreadable
+// journal (a power cut mid-write) still rolls back: by entry description and
+// the GUID in bcd-guid.txt.
+func rollbackBootChain() error {
+	txn, err := readBootTxn()
+	if err != nil {
+		txn = BootTxn{}
+		if b, rerr := os.ReadFile(filepath.Join(wootcDir(), "install", "bcd-guid.txt")); rerr == nil {
+			if g := strings.TrimSpace(string(b)); validBCDGUID(g) {
+				txn.BcdGuid = g
+			}
+		}
 	}
-	return "..." + s[len(s)-n:]
+	env := bootChainEnv{
+		bcdedit: func(args ...string) (string, error) { return runCmd("bcdedit", args...) },
+		saveTxn: writeBootTxn,
+		sleep:   time.Sleep,
+	}
+	_, err = rollbackBootChainTxn(env, txn)
+	return err
 }
 
-// deleteWootcBCDEntries removes every firmware entry named exactly
-// "wootc" (identifier precedes description in bcdedit output).
+// deleteWootcBCDEntries removes every firmware entry named exactly "wootc"
+// plus the GUID in bcd-guid.txt, and only wootc's element of the one-shot.
 //
 // Each entry is pulled out of the PERMANENT firmware displayorder before the
 // delete, because the delete itself is not reliable: /copy can fail
@@ -702,29 +680,20 @@ func tail(s string, n int) string {
 // half-created entry that /delete then fails on the same way — and that
 // zombie sat in the firmware BootOrder AHEAD of Windows, so the first boot
 // after a verified deploy went straight into Linux instead of returning to
-// Windows (aurora run 32633715971: Boot0004 "wootc" from a failed first
-// /copy booted Phase 2 while Boot0003 "Windows Boot Manager" never ran).
-// That is the exact surprise the done screen promises cannot happen. The
-// displayorder removal is a separate, smaller NVRAM write that succeeds even
-// when the object delete does not — an undeletable entry that is in no boot
-// order is inert.
+// Windows (aurora run 32633715971). The displayorder removal is a separate,
+// smaller NVRAM write that succeeds even when the object delete does not — an
+// undeletable entry that is in no boot order is inert.
 func deleteWootcBCDEntries() {
-	out, _ := runCmd("bcdedit", "/enum", "firmware")
-	re := regexp.MustCompile(`(?ms)identifier\s+(\{[^}]+\})[^{]*?description\s+wootc\s*$`)
-	for _, m := range re.FindAllStringSubmatch(out, -1) {
-		runCmd("bcdedit", "/set", "{fwbootmgr}", "displayorder", m[1], "/remove") //nolint:errcheck
-		runCmd("bcdedit", "/delete", m[1])                                        //nolint:errcheck
-	}
-	guidPath := filepath.Join(wootcDir(), "install", "bcd-guid.txt")
-	if b, err := os.ReadFile(guidPath); err == nil {
-		if g := strings.TrimSpace(string(b)); strings.HasPrefix(g, "{") {
-			runCmd("bcdedit", "/set", "{fwbootmgr}", "displayorder", g, "/remove") //nolint:errcheck
-			runCmd("bcdedit", "/delete", g)                                        //nolint:errcheck
+	guid := ""
+	if b, err := os.ReadFile(filepath.Join(wootcDir(), "install", "bcd-guid.txt")); err == nil {
+		if g := strings.TrimSpace(string(b)); validBCDGUID(g) {
+			guid = g
 		}
 	}
-	runCmd("bcdedit", "/deletevalue", "{fwbootmgr}", "bootsequence") //nolint:errcheck
+	sweepWootcEntries(bootChainEnv{
+		bcdedit: func(args ...string) (string, error) { return runCmd("bcdedit", args...) },
+	}, guid)
 }
-
 
 // ── ESP discovery ─────────────────────────────────────────────────────────────
 
@@ -827,4 +796,5 @@ Write-Output $letter
 	}
 	return letter + `:\`, nil
 }
+
 // ── Uninstall ─────────────────────────────────────────────────────────────────
