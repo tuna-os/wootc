@@ -141,6 +141,12 @@ time. Then it registers `wootc-recovery` (`-AtStartup`, SYSTEM, highest) and
 `wootc.exe recover --startup|--prompt` from a copy of the exe under
 `install\`, hash-checked against `armed.json` before it runs anything.
 
+**Boot-chain transaction (#286).** `configureBCD` creates the entry but does
+not arm it. The install arms the one-shot in its last step, after all other
+steps. `install\boot-txn.json` records each step. Before the decision table,
+`recover --startup` rolls back each journal without a commit. Then it reads
+the store again. A journal in `arming` stays when the deployer started.
+
 **Marker protocol** (all on the storage drive under `wootc\install\`, written
 by the deployer while NTFS is mounted, `sync`ed):
 
