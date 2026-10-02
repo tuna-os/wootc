@@ -484,6 +484,54 @@ test('a failed last run is acknowledged on relaunch', async ({ page }) => {
   await expect(page.locator('body')).toContainText('Nothing outside the installation folder was changed');
 });
 
+// An interrupted attempt (#287) greets the relaunch with how it ended, the
+// last finished step, and only the actions the backend allowed.
+const PULL_INTERRUPTED = {
+  class: 'resumable', cause: 'interrupted', imageRef: IMAGES[1].imageRef,
+  lastCompletedStep: 'Downloading Linux', stoppedAtStep: 'Downloading your Linux system',
+  title: 'Setup stopped unexpectedly',
+  message: 'wootc closed or the computer lost power before setup finished.',
+  actions: { resumeInstall: true, retryDeploy: false, repairBoot: false, remove: true },
+  recommended: 'resume', discardsRootDisk: true, keepsVerifiedBlobs: 3, keepsVerifiedBytes: 3 * 1024 ** 3,
+  evidence: ['journal.json: outcome "running", process 4242 no longer running', '<img src=x onerror=window.evidenceInjected=true>'],
+};
+
+test('an interrupted install offers to continue from the kept download', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installRecovery: PULL_INTERRUPTED });
+  const screen = page.locator('#interrupted-screen');
+  await expect(screen).toContainText('Setup stopped unexpectedly');
+  await expect(screen).toContainText('wootc closed or the computer lost power');
+  await expect(screen).toContainText('Last finished step: Downloading Linux');
+  await expect(screen).toContainText('Stopped during: Downloading your Linux system');
+  await expect(screen).toContainText('Kept: 3.0 GB');
+  await expect(page.getByRole('button', { name: /Repair boot/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Try again/ })).toHaveCount(0);
+  expect(await page.evaluate(() => window.evidenceInjected)).toBeUndefined();
+  await page.getByRole('button', { name: /Continue setup/ }).click();
+  await expect(page.locator('#install-btn')).toBeVisible();
+  expect(await page.evaluate(() => window.__wootcPrepareResumeCalls)).toBe(1);
+});
+
+test('an install stopped inside the boot steps only offers removal', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installRecovery: {
+    ...PULL_INTERRUPTED, class: 'needs-repair', cause: 'cancelled',
+    lastCompletedStep: 'Preparing the startup menu', stoppedAtStep: 'Getting Linux prepared',
+    title: 'Setup stopped while changing the startup files',
+    actions: { resumeInstall: false, retryDeploy: false, repairBoot: false, remove: true },
+    recommended: 'remove' } });
+  await expect(page.locator('#interrupted-screen')).toContainText('How it ended: you cancelled it.');
+  await expect(page.getByRole('button', { name: /Remove/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Continue setup/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Repair boot/ })).toHaveCount(0);
+});
+
+test('a complete install never shows the interrupted screen', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    installRecovery: { class: 'complete', cause: 'awaiting-restart', actions: { remove: true } } });
+  await expect(page.locator('#install-btn')).toBeVisible();
+  await expect(page.locator('#interrupted-screen')).toHaveCount(0);
+});
+
 // Once the deployer has completed, the control panel closes the post-deploy
 // loop from the Windows side: a button that actually starts TunaOS.
 test('a deployed install offers Restart into TunaOS', async ({ page }) => {
