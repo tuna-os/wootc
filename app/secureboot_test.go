@@ -5,8 +5,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/binary"
+	"io"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -118,30 +122,32 @@ func TestParseUEFISignatureListSurvivesTruncation(t *testing.T) {
 func TestSecureBootChainBlocksOnlyOnAKnownMismatch(t *testing.T) {
 	cases := []struct {
 		name                  string
-		on, known             bool
+		on, known, read       bool
 		trusted, staged       []string
 		wantBlocked, wantWarn bool
 	}{
 		{"2023-only firmware, 2011-only shim: the failure this exists to prevent",
-			true, true, []string{"2023"}, []string{"2011"}, true, false},
+			true, true, true, []string{"2023"}, []string{"2011"}, true, false},
 		{"2011-only firmware, 2023-only shim: the same failure the other way",
-			true, true, []string{"2011"}, []string{"2023"}, true, false},
+			true, true, true, []string{"2011"}, []string{"2023"}, true, false},
 		{"dual-signed shim satisfies either firmware",
-			true, true, []string{"2023"}, []string{"2011", "2023"}, false, false},
+			true, true, true, []string{"2023"}, []string{"2011", "2023"}, false, false},
 		{"overlapping sets are fine",
-			true, true, []string{"2011", "2023"}, []string{"2011"}, false, false},
+			true, true, true, []string{"2011", "2023"}, []string{"2011"}, false, false},
 		{"db unreadable warns, never blocks: refusing every PC whose SecureBoot module is missing would be worse than a recoverable reboot",
-			true, true, nil, []string{"2011"}, false, true},
+			true, true, false, nil, []string{"2011"}, false, true},
+		{"db read and holds neither third-party CA (Secured-core default): no shim can start, so refuse",
+			true, true, true, nil, []string{"2011", "2023"}, true, false},
 		{"Secure Boot off: the signing authority is not what stands in the way",
-			false, true, nil, []string{"2011"}, false, false},
+			false, true, true, nil, []string{"2011"}, false, false},
 		{"Secure Boot state unknown: nothing to grade against",
-			false, false, []string{"2023"}, []string{"2011"}, false, false},
+			false, false, true, []string{"2023"}, []string{"2011"}, false, false},
 		{"a build that did not record what it stages cannot grade anything",
-			true, true, []string{"2023"}, nil, false, false},
+			true, true, true, []string{"2023"}, nil, false, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := checkSecureBootChain(tc.on, tc.known, tc.trusted, tc.staged)
+			got := checkSecureBootChain(tc.on, tc.known, tc.read, tc.trusted, tc.staged)
 			if got.Blocked != tc.wantBlocked || got.Warn != tc.wantWarn {
 				t.Fatalf("blocked=%v warn=%v, want blocked=%v warn=%v",
 					got.Blocked, got.Warn, tc.wantBlocked, tc.wantWarn)
@@ -156,7 +162,7 @@ func TestSecureBootChainBlocksOnlyOnAKnownMismatch(t *testing.T) {
 func TestSecureBootRefusalSaysWhatToDoAndThatNothingChanged(t *testing.T) {
 	// The moment of maximum fear: the user is told no. The sentence has to
 	// carry the reassurance and the two ways out, or it reads as a dead end.
-	v := checkSecureBootChain(true, true, []string{"2023"}, []string{"2011"})
+	v := checkSecureBootChain(true, true, true, []string{"2023"}, []string{"2011"})
 	for _, want := range []string{"Nothing has been changed", "Secure Boot off", "2023", "2011"} {
 		if !strings.Contains(v.Message, want) {
 			t.Errorf("refusal does not mention %q:\n%s", want, v.Message)
@@ -167,6 +173,101 @@ func TestSecureBootRefusalSaysWhatToDoAndThatNothingChanged(t *testing.T) {
 		if strings.Contains(v.Message, forbidden) {
 			t.Errorf("refusal leaks %q at the user:\n%s", forbidden, v.Message)
 		}
+	}
+}
+
+func TestParseUEFIDbCountsCertificatesSoEmptyMeansNone(t *testing.T) {
+	// A Secured-core db: Windows' own CAs, no third-party CA. The generation
+	// list is empty exactly as it is for an unreadable db; the certificate
+	// count is what tells the two apart.
+	db := signatureList(efiCertX509GUID, selfSigned(t, "Microsoft Windows Production PCA 2011"))
+	db = append(db, signatureList(efiCertX509GUID, selfSigned(t, "Windows UEFI CA 2023"))...)
+	gens, certs := parseUEFIDb(db)
+	if len(gens) != 0 || certs != 2 {
+		t.Fatalf("parseUEFIDb = %v, %d certs; want [], 2", gens, certs)
+	}
+	if gens, certs := parseUEFIDb(nil); len(gens) != 0 || certs != 0 {
+		t.Fatalf("empty db = %v, %d certs; want [], 0", gens, certs)
+	}
+}
+
+func TestParseUEFIDbOnRealMicrosoftCertificates(t *testing.T) {
+	// The E2E firmware-db axis builds these db variables from Microsoft's
+	// published certificates (tests/e2e/firmware-db.py). Parsing the same
+	// bytes here proves the preflight reads each harness cell the way the
+	// harness grades it, on real certificates rather than self-signed ones.
+	cases := map[string][]string{
+		"2011": {"2011"}, "2023": {"2023"}, "both": {"2011", "2023"}, "none": {},
+	}
+	for cell, want := range cases {
+		raw, err := os.ReadFile(filepath.Join("testdata", "uefi-db", "db-"+cell+".b64"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		db, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		gens, certs := parseUEFIDb(db)
+		if strings.Join(gens, ",") != strings.Join(want, ",") || certs == 0 {
+			t.Errorf("cell %s: parseUEFIDb = %v (%d certs), want %v", cell, gens, certs, want)
+		}
+		v := checkSecureBootChain(true, true, certs > 0, gens, []string{"2011", "2023"})
+		if v.Blocked != (cell == "none") {
+			t.Errorf("cell %s with the dual-signed shim: blocked=%v", cell, v.Blocked)
+		}
+	}
+}
+
+func TestWindowsOnlyFirmwareRefusalNamesTheFirmwareSetting(t *testing.T) {
+	v := checkSecureBootChain(true, true, true, nil, []string{"2011", "2023"})
+	if !v.Blocked {
+		t.Fatal("a db with no third-party CA must refuse")
+	}
+	for _, want := range []string{"Nothing has been changed", "bad shim signature",
+		"Allow Microsoft 3rd Party UEFI CA", "Secure Boot off"} {
+		if !strings.Contains(v.Message, want) {
+			t.Errorf("refusal does not mention %q:\n%s", want, v.Message)
+		}
+	}
+}
+
+func TestHeadlessInstallRefusesBeforeTouchingAnything(t *testing.T) {
+	// The headless CLI skips StartInstall, so it skipped gateScenario's
+	// Secure Boot check too: an unattended install on a 2023-only PC armed
+	// a 2011-only shim and rebooted into "bad shim signature".
+	oldInfo, oldStamp := headlessSystemInfo, shimAuthorities
+	t.Cleanup(func() { headlessSystemInfo, shimAuthorities = oldInfo, oldStamp })
+	shimAuthorities = "2011"
+	headlessSystemInfo = func() SystemInfo {
+		return SystemInfo{SecureBootOn: true, SecureBootKnown: true, UefiDbRead: true,
+			TrustedUefiAuthorities: []string{"2023"}}
+	}
+	oldErr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	var code int
+	stdout := captureStdout(t, func() {
+		code = headlessInstall([]string{"-image", "ghcr.io/example/image:latest",
+			"-username", "user", "-password", "pw"})
+	})
+	os.Stderr = oldErr
+	_ = w.Close()
+	stderr, _ := io.ReadAll(r)
+	if code != 1 {
+		t.Fatalf("headlessInstall = %d, want 1 (refused)", code)
+	}
+	// Exit 1 alone would also be a pipeline that started and then failed on
+	// this non-Windows host. The refusal is the sentence, and no progress
+	// line may precede it.
+	if !strings.Contains(string(stderr), "Nothing has been changed") {
+		t.Fatalf("stderr does not carry the refusal:\n%s", stderr)
+	}
+	if strings.Contains(stdout, "[wootc") {
+		t.Fatalf("the pipeline started before the refusal:\n%s", stdout)
 	}
 }
 
