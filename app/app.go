@@ -910,6 +910,9 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		return err
 	}
 	steps := installPipelineSteps(ctx, cfg, emit)
+	// Started only after the gates above, so a refused run never overwrites
+	// the journal of the attempt recovery still has to explain.
+	journal := newInstallJournalRecorder(journalPath(), cfg, nil)
 
 	fault := cfg.FaultInject
 	if fault == "" {
@@ -930,9 +933,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 				disarmOneShot()
 			}
 			writeState(StateStaged, "cancelled", "")
+			journal.end(JournalCancelled, "")
 			return ctx.Err()
 		default:
 		}
+		journal.stepStarted(s.name)
 		emit(installStepProgress(s.name, s.percent))
 
 		if fault != "" {
@@ -942,24 +947,28 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during root disk creation")
+				journal.end(JournalFailed, "fault-injection: simulated failure during root disk creation")
 				return fmt.Errorf("%s: fault-injection: simulated failure during root disk creation", displayStepLabel(s.name))
 			case (fault == "image-pull" || fault == "image-download") && (s.name == StepInstallerDownloadingLinux || s.name == StepInstallerDownloadingYourLinuxSystem):
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during image download")
+				journal.end(JournalFailed, "fault-injection: simulated failure during image download")
 				return fmt.Errorf("%s: fault-injection: simulated failure during image download", displayStepLabel(s.name))
 			case (fault == "efi-staging" || fault == "efi") && s.name == StepInstallerGettingLinuxPrepared:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during EFI staging")
+				journal.end(JournalFailed, "fault-injection: simulated failure during EFI staging")
 				return fmt.Errorf("%s: fault-injection: simulated failure during EFI staging", displayStepLabel(s.name))
 			case (fault == "bcd-arming" || fault == "bcd") && s.name == StepInstallerMakingLinuxBootableOnYourMachine:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during BCD arming")
+				journal.end(JournalFailed, "fault-injection: simulated failure during BCD arming")
 				return fmt.Errorf("%s: fault-injection: simulated failure during BCD arming", displayStepLabel(s.name))
 			}
 		}
@@ -969,8 +978,10 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 				disarmOneShot()
 			}
 			writeState(StateFailed, s.name, err.Error())
+			journal.end(JournalFailed, err.Error())
 			return fmt.Errorf("%s: %w", displayStepLabel(s.name), err)
 		}
+		journal.stepDone(s.name)
 		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
 			armed = true
 		}
@@ -981,10 +992,16 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			disarmOneShot()
 		}
 		writeState(StateStaged, "cancelled", "fault-injection: simulated cancellation before reboot")
+		journal.end(JournalCancelled, "fault-injection: simulated cancellation before reboot")
 		return fmt.Errorf("fault-injection: simulated cancellation before reboot")
 	}
 
-	return finishInstallPipeline(ctx, armed, disarmOneShot, writeState)
+	if err := finishInstallPipeline(ctx, armed, disarmOneShot, writeState); err != nil {
+		journal.end(JournalCancelled, "")
+		return err
+	}
+	journal.end(JournalArmed, "")
+	return nil
 }
 
 // A cancellation can arrive inside the final synchronous operation. There is

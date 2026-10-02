@@ -22,6 +22,11 @@ function makeApp(mock) {
     // Mock = dev harness: exercise the full UI unless a scenario overrides it.
     GetSupportPolicy: () => P(mock.policy || { channel: 'dev', experimentalImages: true, bitlockerSupported: true, customImageAllowed: true, reason: '' }),
     GetLastRun: () => P(mock.lastRun || {}),
+    GetInstallRecovery: () => P(mock.installRecovery || { class: 'none' }),
+    PrepareResume: () => {
+      window.__wootcPrepareResumeCalls = (window.__wootcPrepareResumeCalls || 0) + 1;
+      return P({ discardedRootDisk: true, keptVerifiedBlobs: 3, keptVerifiedBytes: 3e9 });
+    },
     BootIntoLinux: () => P(undefined),
     ExistingInstallFound: () => P(!!mock.existing),
     GetStatus: () => P(mock.status || { running: false, done: false, existing: false }),
