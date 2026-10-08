@@ -67,6 +67,7 @@ func setupESP(cfg InstallConfig) error {
 	if err != nil {
 		return err
 	}
+	defer releaseESPLetter()
 
 	switch cfg.Bootloader {
 	case "systemd-boot":
@@ -495,8 +496,11 @@ func configureBCD(cfg InstallConfig) error {
 	//
 	// deleteWootcBCDEntries removes stale entries by GUID but does not repair
 	// the display order — dangling references make /copy fail when it reads
-	// or touches the display order, so each attempt repairs it first
-	// (idempotent /addfirst of {bootmgr}).
+	// or touches the display order, so each attempt rewrites it first with an
+	// idempotent /addfirst of {current}, the running Windows, which is
+	// already in the menu. It used to add {bootmgr} here: that put Windows
+	// Boot Manager into its own menu as a boot option that loops back to the
+	// menu, on every install (#551).
 	re := regexp.MustCompile(`\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}`)
 	var out, guid string
 	var err error
@@ -504,7 +508,7 @@ func configureBCD(cfg InstallConfig) error {
 	deleteWootcBCDEntries()
 	for attempt := 1; attempt <= 3; attempt++ {
 		guid = ""
-		runCmd("bcdedit", "/displayorder", "{bootmgr}", "/addfirst") //nolint:errcheck
+		runCmd("bcdedit", "/displayorder", "{current}", "/addfirst") //nolint:errcheck
 		out, err = runCmd("bcdedit", "/copy", "{bootmgr}", "/d", "wootc")
 		if err == nil {
 			if m := re.FindStringSubmatch(out); m == nil {
@@ -582,6 +586,7 @@ func configureBCD(cfg InstallConfig) error {
 	var espFiles []string
 	espHashes := make(map[string]string)
 	if espPath, err := findESP(); err == nil {
+		defer releaseESPLetter()
 		if owned, err := readESPOwnership(espPath); err == nil {
 			for f := range owned {
 				espFiles = append(espFiles, f)
@@ -682,6 +687,8 @@ func disarmOneShot() {
 	}
 	_ = unregisterRecoveryTasks()
 	_ = os.Remove(filepath.Join(wootcDir(), "install", "armed.json"))
+	removeBootmgrSelfReference()
+	releaseESPLetter()
 }
 
 // tail returns the last n bytes of s, for embedding a bounded slice of a
@@ -723,8 +730,19 @@ func deleteWootcBCDEntries() {
 		}
 	}
 	runCmd("bcdedit", "/deletevalue", "{fwbootmgr}", "bootsequence") //nolint:errcheck
+	removeBootmgrSelfReference()
 }
 
+// removeBootmgrSelfReference takes Windows Boot Manager out of its own boot
+// menu, where older builds put it on every install (#551). Best-effort, and a
+// no-op on a machine that never had it.
+func removeBootmgrSelfReference() {
+	out, err := runCmd("bcdedit", "/enum", "{bootmgr}")
+	if err != nil || !bootmgrListsItself(out) {
+		return
+	}
+	runCmd("bcdedit", "/displayorder", "{bootmgr}", "/remove") //nolint:errcheck
+}
 
 // ── ESP discovery ─────────────────────────────────────────────────────────────
 
@@ -799,6 +817,9 @@ if (-not $letter) {
         $letter = Get-EspLetter $esp
         if ($letter) { break }
     }
+    # Tell the caller this run assigned the letter, so it is removed again
+    # when wootc is done with the ESP (#551).
+    if ($letter) { $letter = "ASSIGNED:$letter" }
 }
 Write-Output $letter
 `
@@ -812,7 +833,7 @@ Write-Output $letter
 	}
 	// A partition with no letter reports DriveLetter as NUL, not "" — trim it or
 	// the length check below sees a 1-character "letter" that is really nothing.
-	letter := strings.Trim(out, " \t\r\n\x00")
+	letter, assignedByUs := parseESPDiscovery(out)
 	if letter == "WOOTC_NO_SYSTEM_DISK" {
 		return "", fmt.Errorf("could not determine which disk Windows starts from, so wootc cannot " +
 			"safely choose an EFI system partition. Refusing to guess")
@@ -825,6 +846,38 @@ Write-Output $letter
 	if len(letter) != 1 {
 		return "", fmt.Errorf("ESP found but Windows never assigned it a drive letter within 15s (output: %q)", out)
 	}
+	if assignedByUs {
+		// Recorded on disk, not only in memory, so recovery and uninstall
+		// can remove the letter after a crash or an abort.
+		marker := espLetterMarker()
+		_ = os.MkdirAll(filepath.Dir(marker), 0o755)
+		_ = os.WriteFile(marker, []byte(letter+"\n"), 0o644)
+	}
 	return letter + `:\`, nil
 }
+
+func espLetterMarker() string {
+	return filepath.Join(wootcDir(), "install", "esp-letter-assigned.txt")
+}
+
+// releaseESPLetter removes the ESP drive letter that findESP assigned, so
+// the EFI partition does not stay visible in Explorer after wootc is done
+// with it (#551). A letter the user or Windows assigned is never touched:
+// only one recorded in the marker is removed, and only while it still points
+// at an EFI partition. Best-effort.
+func releaseESPLetter() {
+	marker := espLetterMarker()
+	b, err := os.ReadFile(marker)
+	if err != nil {
+		return
+	}
+	letter := strings.TrimSpace(string(b))
+	if len(letter) == 1 {
+		if _, err := os.Stat(letter + `:\EFI`); err == nil {
+			runCmd("mountvol", letter+":", "/D") //nolint:errcheck
+		}
+	}
+	_ = os.Remove(marker)
+}
+
 // ── Uninstall ─────────────────────────────────────────────────────────────────

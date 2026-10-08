@@ -463,8 +463,8 @@ public class InstallConfig
 
     /// <summary>
     /// Encryption for the Linux root inside root.disk (SPEC §2.6):
-    /// "none" | "tpm2-luks" (auto-unlock via TPM, recommended) |
-    /// "luks-passphrase" (prompt every boot).
+    /// "none" (the default) | "tpm2-luks" (auto-unlock via TPM; refused until
+    /// #551/#33 land) | "luks-passphrase" (prompt every boot).
     /// </summary>
     [JsonPropertyName("encryption")]
     public string Encryption { get; set; } = string.Empty;

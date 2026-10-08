@@ -219,17 +219,20 @@ test('installer — BitLocker offers unencrypted-partition path (no forced decry
   await shot(page, '08-bitlocker');
 });
 
-test('installer — LUKS encryption options (§2.6) with TPM recommended', async ({ page }) => {
+test('installer — LUKS encryption options (§2.6), TPM not offered yet', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
-  // Encryption defaults to TPM auto-unlock and is not a main-form question —
-  // the three radio options live under Advanced.
+  // Encryption defaults to none and is not a main-form question — the three
+  // radio options live under Advanced. TPM auto-unlock is shown but disabled
+  // until the install can verify a TPM-sealed disk (#551).
   await page.locator('details:has-text("Advanced") summary').click();
   await expect(page.getByText('Disk Encryption')).toBeVisible();
   await expect(page.getByText('No encryption')).toBeVisible();
   await expect(page.getByText('TPM auto-unlock')).toBeVisible();
   await expect(page.getByText('RECOMMENDED', { exact: true })).toBeVisible();
+  await expect(page.locator('input[name=encryption][value=none]')).toBeChecked();
+  await expect(page.locator('input[name=encryption][value=tpm2-luks]')).toBeDisabled();
   await expect(page.getByText('Passphrase')).toBeVisible();
-  // Default is TPM auto-unlock; no passphrase field shown.
+  // Default is no encryption; no passphrase field shown.
   const passCount = await page.locator('input[type="password"]').count();
   // There should be exactly 2 password fields: Password + Confirm (no LUKS passphrase)
   expect(passCount).toBe(2);
@@ -370,7 +373,7 @@ test('installer — identity stays on the main form when it cannot be derived', 
 // The bare-minimum contract: the default form asks for nothing a Mac's
 // first-run setup would not ask — a password, full stop. Everything else is
 // a solid default (identity mirrored from the PC, disk sized from free
-// space, TPM encryption, Windows look and Wi-Fi brought along), stated in
+// space, no disk encryption, Windows look and Wi-Fi brought along), stated in
 // the plan note and adjustable under Advanced rather than asked up front.
 test('installer — the default form asks for a password and nothing else', async ({ page }) => {
   await boot(page, {

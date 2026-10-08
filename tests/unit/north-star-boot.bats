@@ -146,3 +146,24 @@ MODSETUP="payload/deployer/module-setup.sh"
     printf '%s' "$body" | grep -q '"bootsequence", guid, "/addfirst"'
     printf '%s' "$body" | grep -q 'deleteWootcBCDEntries()'
 }
+
+@test "Windows Boot Manager is never added to its own menu (#551)" {
+    # A bare `bcdedit /displayorder {bootmgr} /addfirst` edits the Windows
+    # boot menu and lists Windows Boot Manager in it as a boot option that
+    # loops back to the menu. It ran on every install. The repair before
+    # /copy must name a loader that is already in the menu ({current}), and
+    # cleanup must take a leftover self-reference out again.
+    run grep -nE '"/displayorder", "\{bootmgr\}", "/add' app/installer_esp.go
+    [ "$status" -ne 0 ]
+    grep -q 'removeBootmgrSelfReference()' app/installer_esp.go
+    grep -q '"/displayorder", "{bootmgr}", "/remove"' app/installer_esp.go
+}
+
+@test "a drive letter wootc gives the ESP is taken away again (#551)" {
+    # findESP assigns a letter when the ESP has none. Left in place, the EFI
+    # partition shows up in Explorer. Every caller releases it, and so do
+    # disarm and uninstall (from the on-disk marker, after a crash).
+    grep -q 'ASSIGNED:' app/installer_esp.go
+    [ "$(grep -c 'defer releaseESPLetter()' app/installer_esp.go app/installer_windows.go | awk -F: '{s+=$2} END {print s}')" -ge 4 ]
+    grep -q '"mountvol", letter+":", "/D"' app/installer_esp.go
+}
