@@ -133,6 +133,7 @@ It exits with a non-zero code if a box fails:
 | Box | How it is decided |
 |---|---|
 | winget serves the release | `winget show TunaOS.wootc` resolves **and** reports the version under test — a manifest that resolves to last month's alpha is a quieter failure than no package at all |
+| winget installs the release | `winget install TunaOS.wootc` exits 0, and the exe it puts on disk has the `SHA256SUMS` hash of this release's `wootc.exe`. A winget success that installs a different file is a fail |
 | each asset matches `SHA256SUMS` | `Get-FileHash` against the published manifest; an asset the manifest does not list fails rather than being skipped |
 | each exe is Authenticode-signed | `Get-AuthenticodeSignature` must be `Valid` *and* name a signer. `HashMismatch` is called out separately — that is a tampered download, not an unsigned one |
 | each branded exe shows its own identity | the exe's VERSIONINFO `ProductName`/`FileDescription`/`CompanyName` match that brand and contain no "wootc" |
