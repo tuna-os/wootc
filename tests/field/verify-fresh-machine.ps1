@@ -13,11 +13,15 @@
 
     This grades all four from evidence and writes the checklist. It is expected
     to report ✘ today: code signing is not implemented yet (#229 is the spend
-    decision, #230 the pipeline plumbing), and no build carries a VERSIONINFO
-    resource at all. Those ✘s are the point — the checklist is what turns
+    decision, #230 the pipeline plumbing) and no winget submission has been
+    accepted yet (#221). Those ✘s are the point — the checklist is what turns
     "still blocked on signing" into a dated artifact instead of a memory, and
     the day #230 lands this becomes a script run rather than a hand-written
     list.
+
+    Criterion 1 is "winget install resolves AND installs", so the script runs
+    a real `winget install TunaOS.wootc` (no -SkipWinget) and checks that the
+    file winget put on disk is byte-for-byte this release's wootc.exe.
 
     Run it on a clean Windows 11 VM that has never had wootc installed, and
     again on a real machine.
@@ -41,7 +45,7 @@ param(
     [string]$Downloaded,
 
     # winget install mutates the machine; skip it when grading a VM snapshot
-    # that must stay pristine.
+    # that must stay pristine. Both winget boxes then stay unticked.
     [switch]$SkipWinget,
 
     # Where app/branding/<brand>/brand.json lives, so the expected per-brand
@@ -196,6 +200,36 @@ function Test-WingetPackage {
     return [pscustomobject]@{ Pass = $true; Detail = "winget serves TunaOS.wootc $found" }
 }
 
+function Test-WingetInstall {
+    <#
+        `winget install TunaOS.wootc` on a fresh machine. `winget show` only
+        proves the manifest resolves; the criterion is that the install
+        succeeds and lands THIS release's binary. The installed file is held to
+        the same SHA256SUMS line as the direct download, so a manifest pointing
+        at an old asset, or a wrong InstallerSha256 that winget refused, fails.
+    #>
+    param([int]$ExitCode, [string]$InstalledPath, [string]$ActualHash, [string]$Manifest, [string]$FileName = 'wootc.exe')
+
+    if ($ExitCode -ne 0) {
+        $hex = '0x{0:X8}' -f $ExitCode
+        $why = switch ($hex) {
+            '0x8A150014' { 'no package matched TunaOS.wootc (no accepted submission yet?)' }
+            '0x8A15002B' { 'already installed — this is not a fresh machine' }
+            '0x8A150011' { 'installer hash does not match the manifest' }
+            default      { 'see winget-install.txt' }
+        }
+        return [pscustomobject]@{ Pass = $false; Detail = "winget install exited ${hex}: $why" }
+    }
+    if (-not $InstalledPath) {
+        return [pscustomobject]@{ Pass = $false; Detail = 'winget reported success but no installed exe was found under the WinGet package root' }
+    }
+    $h = Test-Sha256Manifest -Manifest $Manifest -FileName $FileName -ActualHash $ActualHash
+    if (-not $h.Pass) {
+        return [pscustomobject]@{ Pass = $false; Detail = "winget installed $InstalledPath, but it is not this release's ${FileName}: $($h.Detail)" }
+    }
+    return [pscustomobject]@{ Pass = $true; Detail = "winget installed $InstalledPath, identical to this release's $FileName" }
+}
+
 function Format-Checklist {
     param([System.Collections.IEnumerable]$Results, [hashtable]$Meta)
     $lines = @('## Fresh-machine verification checklist (#241)', '')
@@ -253,6 +287,24 @@ function Get-ReleaseAsset {
     return $dest
 }
 
+function Find-WingetPortable {
+    # A portable package lands in the per-user package root, or the machine
+    # root when winget ran elevated. The folder is <id>_<source>.
+    param([string]$PackageId = 'TunaOS.wootc')
+    $roots = @(
+        (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'),
+        (Join-Path $env:ProgramFiles 'WinGet\Packages')
+    )
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) { continue }
+        $exe = Get-ChildItem -Path $root -Directory -Filter "${PackageId}_*" -ErrorAction SilentlyContinue |
+            ForEach-Object { Get-ChildItem -Path $_.FullName -Filter '*.exe' -File -ErrorAction SilentlyContinue } |
+            Select-Object -First 1
+        if ($exe) { return $exe.FullName }
+    }
+    return $null
+}
+
 function Get-BrandExpectations {
     # productName + exeName straight from the brand configs the build wears, so
     # the expectation cannot drift from the thing it grades.
@@ -285,9 +337,14 @@ function Invoke-Verification {
 
     $results = @()
 
-    # (1) winget resolves and serves the release under test.
+    $sumsPath = if (Test-Path (Join-Path $dl 'SHA256SUMS')) { Join-Path $dl 'SHA256SUMS' }
+                else { Get-ReleaseAsset -Tag $Tag -Name 'SHA256SUMS' -Destination $dl }
+    $sums = Get-Content -Path $sumsPath -Raw
+
+    # (1) winget resolves the release under test, then installs it.
     if ($SkipWinget) {
         $results += [pscustomobject]@{ Name = 'winget serves the release'; Pass = $false; Detail = 'skipped by -SkipWinget — not verified' }
+        $results += [pscustomobject]@{ Name = 'winget installs the release'; Pass = $false; Detail = 'skipped by -SkipWinget — not verified' }
     } else {
         $showOut = ''; $showRc = 1
         try { $showOut = (& winget show TunaOS.wootc --disable-interactivity 2>&1 | Out-String); $showRc = $LASTEXITCODE }
@@ -295,12 +352,23 @@ function Invoke-Verification {
         $w = Test-WingetPackage -ShowOutput $showOut -ExpectedVersion $Tag -ExitCode $showRc
         $results += [pscustomobject]@{ Name = 'winget serves the release'; Pass = $w.Pass; Detail = $w.Detail }
         Set-Content -Path (Join-Path $Out 'winget-show.txt') -Value $showOut -Encoding UTF8
+
+        # No --version: a stranger gets whatever winget picks by default, and
+        # the hash check below decides whether that is this release.
+        $instOut = ''; $instRc = 1
+        try {
+            $instOut = (& winget install --exact --id TunaOS.wootc --source winget --accept-package-agreements `
+                --accept-source-agreements --disable-interactivity 2>&1 | Out-String)
+            $instRc = $LASTEXITCODE
+        } catch { $instOut = "$_"; $instRc = 1 }
+        Set-Content -Path (Join-Path $Out 'winget-install.txt') -Value $instOut -Encoding UTF8
+        $installed = if ($instRc -eq 0) { Find-WingetPortable } else { $null }
+        $instHash = if ($installed) { (Get-FileHash -Path $installed -Algorithm SHA256).Hash } else { '' }
+        $i = Test-WingetInstall -ExitCode $instRc -InstalledPath $installed -ActualHash $instHash -Manifest $sums
+        $results += [pscustomobject]@{ Name = 'winget installs the release'; Pass = $i.Pass; Detail = $i.Detail }
     }
 
     # (2)+(3) direct download: SHA256SUMS and Authenticode on the generic exe.
-    $sumsPath = if (Test-Path (Join-Path $dl 'SHA256SUMS')) { Join-Path $dl 'SHA256SUMS' }
-                else { Get-ReleaseAsset -Tag $Tag -Name 'SHA256SUMS' -Destination $dl }
-    $sums = Get-Content -Path $sumsPath -Raw
 
     $exeNames = @('wootc.exe') + @($brands | Where-Object { $_.ExeName -and $_.ExeName -ne 'wootc' } |
         ForEach-Object { "$($_.ExeName).exe" })

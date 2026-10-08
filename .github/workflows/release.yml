@@ -57,6 +57,15 @@ jobs:
         with: { submodules: recursive }
       - uses: actions/setup-go@v7
         with: { go-version: '1.27', cache: false }
+      # Before ~90 min of VM: a final tag without its narrative notes, or
+      # with notes still marked draft, can never publish (#242).
+      - name: Narrative release notes gate
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          tag="${REQUESTED_TAG}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then tag="${GITHUB_REF_NAME}"; fi
+          if [ -n "$tag" ]; then bash tools/release/check-notes.sh "$tag"; fi
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq bats
       - run: bash tests/run.sh fast
       - uses: ./.github/actions/podman-runtime
@@ -326,6 +335,15 @@ jobs:
             echo "shared by all of them."
             echo
             echo "Walkthrough: https://tuna-os.github.io/wootc/e2e/latest/"
+            # The narrative (#242): docs/release-notes-<tag>.md when it
+            # exists. check-notes.sh fails on a draft, which stops the publish.
+            notes="$(bash tools/release/check-notes.sh "$RELEASE_TAG")"
+            if [ -n "$notes" ]; then
+              echo
+              echo "---"
+              echo
+              cat "$notes"
+            fi
           } > NOTES.md
           cat NOTES.md
 
