@@ -1,6 +1,6 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-09-27 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-10-08 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -30,27 +30,24 @@ The sequence below serves those four requirements.
 
 ---
 
-## Delivery history (recorded 2026-09-17)
+## Delivery history (recorded 2026-10-08)
 
-The entries below record earlier native-path work. They do not prove the current
-build or Phase 1 inside Windows. Use [the status matrix](docs/status.md#buildtest-matrix)
+The entries below record completed milestones and landed changes on `main`. Use [the status matrix](docs/status.md#buildtest-matrix)
 for current verification and [the VM experiments](docs/experiments/vm-first-2026-09-26.md)
 for the work to restore the intended first experience.
 
 **Landed on `main`:**
-- **v0.3.0-beta milestone shipped**: Earlier work enabled the BitLocker policy and captured numerical keys for recovery. It resolved UAC identity to the interactive user and checked ownership of `wootc-data`. It added migrator plugins, JSON manifest schemas, and a runbook to take back a bad release (#211, #358, #354, #362).
-- **Dependencies and tools after v0.3.0-beta**: Wails reached v2.16.0 (#384), and Vite reached v8.3.0 (#382). `golang.org/x/crypto` reached v0.57.0 (#381), and `golang.org/x/sys` reached v0.48.0 (#379). Direct tests cover the DTO generator (#378). The repository adopted the shared English check and Renovate preset (#374, #375).
-- Historical runs used the GUI and passed native deployment, Linux boot, and graduation on `bluefin:lts`. Those runs did not launch Linux inside Windows.
-- **Release automation, three channels**: Tagged releases need an E2E gate. Dispatch inputs can select a tag without tag-push rights. Every green nightly can produce an automatic pre-release. Manual pre-releases also exist. Every release ships all five brand exes, deployer boot artifacts, and `SHA256SUMS`.
-- **First tagged release shipped**: [`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1) passed its E2E gate. The release workflow published it on 2026-08-22.
-- **Brand assets**: Marks, typefaces, and themes come from each project's published assets. Automatic screenshots show each brand (`docs/branded-walkthroughs.md`). `just` brand arguments support local and manual tests.
-- **Offline-first core**: Windows can pre-download OCI data and verify its digest. The deployer ingests that bundle. Its settled hook starts with a bounded wait for the network. Branded builds / `WOOTC_PRELOAD=1` support installation without a network during deployment on Wi-Fi-only laptops.
-- **Earlier user experience**: Windows appears on the boot menu, and users can re-arm a one-shot boot. Product boots have calm text. First login offers a welcome and a bookmark to the Windows drive. Add/Remove has an entry. Uninstall tries cleanup; complete restoration still needs proof. Guides exist in `docs/getting-started.md` and `docs/manual-testing.md`.
-- The winget package (`TunaOS.wootc`) supports automatic submission on full releases. It still needs the one-time `WINGET_TOKEN` secret.
+- **v0.3.0-beta milestone shipped**: Enabled BitLocker policy, captured numerical keys for recovery, resolved interactive UAC identity, and added migrator plugins and manifest schemas (#211, #358, #354, #362).
+- **Boot-chain transactions & rollback landed (#536)**: Boot-chain modifications are now fully transactional with automatic rollback on failure, closing critical reliability requirements from Libertix design (#286, #308).
+- **Secure Boot UEFI CA Preflight & E2E firmware db axis landed (#537)**: Added firmware db axis for the E2E harness and refusal logic when firmware db lacks third-party Microsoft UEFI CA (#322).
+- **Release pipeline & narrative notes gate landed (#530, #531)**: Automated check that winget installs release artifacts on a fresh machine (#531), and enforced narrative release notes gating for final release tags (#530).
+- **Soak infrastructure policy & field report proof landed (#528, #529)**: Standardized infra-red classification and reset rules before the 30-day soak (#528), and added explicit slots in field-report templates for uninstall restoration proof (#529).
+- **Windows GUI linkage & hardware matrix (#525, #526)**: Linked `wootc-engine.exe` with `-H windowsgui` (#526) to prevent console flash on launch (#179 / M2.5), and defined the three-machine hardware set in `docs/manual-testing.md` (#525 / M2.2).
+- **Deployer loop holder unmount & user-data fixes (#514, #515, #527)**: Resolved loop mount teardown ordering before NTFS unmount and refined user-data folder bind filtering.
 
-**In flight**: RC validation and the pipeline for signed releases remain incomplete. Phase A of the WinUI 3 migration (#340) has merged: the Go engine supports `wootc.exe serve` JSON-RPC. Phase B (#343) has a draft native preview and hosted component proof. Phase C (#344) still needs the complete native consumer and VM journey. Phases D (#345) and E (#346) need those gates before the default changes or legacy code goes away.
+**In flight**: RC validation and code signing plumbing (#229, #230, PR #524). Phase A of the WinUI 3 migration (#340) merged; Phase B (#343) native preview, Phase C (#344) consumer and VM journey, and Phases D (#345) / E (#346) in active sequence.
 
-**Open defects and verification**: dakota hangs during its first Phase-2 boot (#209). Session token rewrap still needs verification after beta (#1). Console flash repair (#179) is historical; maintainers closed the issue.
+**Open defects and verification**: Dakota catalog pin (:stable tag in PR #522, addressing #209). Session migration token rewrap verification (#1). VM-first persistent Linux experience (#178, ADR 0004).
 
 ---
 
@@ -63,12 +60,12 @@ The first complete release passed the E2E gate. It shipped installers for five b
 
 ### v0.2.0-alpha — "Proven on real hardware" *(tracking: milestone issue M2)*
 The VM has been the world so far; this milestone makes real laptops the evidence source.
-- Maintainer + early-tester manual runs per `docs/manual-testing.md`, with a field-report issue template; every report triaged to green/fixed/filed.
-- Offline proof: `offline=on` matrix axis (`-nic none`), then `preloadImage` default-on for the generic build.
-- Find the cause of the dakota hang in Phase 2 (#209). Demote catalog status when evidence does not support it.
-- No console flash on launch (#179) — the first second must look intentional.
-- Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
-- Upstream must accept the first winget submission.
+- Maintainer + early-tester manual runs per `docs/manual-testing.md`: three-machine hardware set defined (#525), field-report issue template equipped with uninstall proof slot (#529).
+- Offline proof: `offline=on` matrix axis (`-nic none`, PR #523), then `preloadImage` default-on for the generic build.
+- Resolve dakota catalog stability (#209, PR #522).
+- No console flash on launch: `wootc-engine.exe` linked with `-H windowsgui` (#526, addressing #179 / M2.5).
+- Harness reliability: QGA-channel loss classified, soak infra-red policy codified (#528).
+- Upstream winget acceptance: fresh-machine winget installation proof landed (#531).
 
 ### v0.3.0-beta — "The whole matrix, honestly" *(shipped 2026-09-03: milestone issue #211 / docs/release-notes-v0.3.0-beta.md)*
 Beta means the support policy stops saying "alpha" because the evidence exists.
@@ -85,7 +82,7 @@ Beta means the support policy stops saying "alpha" because the evidence exists.
 - **WinUI 3 shell replaces Wails (#340)**: phases B–D must pass their native gates before the RC default changes. Phase E follows a clean native release. The [sequence for the native shell](#native-shell-sequence-and-evidence-357) defines which earlier evidence can carry forward.
 - **VM-first (#178)**: Required first experience. Prepare and run the persistent Linux image inside Windows before native boot. [ADR 0004](docs/adr/0004-restore-vm-first-product.md) replaces the #318 deferral; current releases do not yet meet this gate.
 - **Migration adapters (#203)**: Discovery and manifests exist. The [extension plan](docs/specs/migration-extensions.md) adds truthful results, transactions, compatibility, and scoped execution before broad support.
-- **Boot-chain work from Libertix (#308)**: [Libertix](https://github.com/ekimiateam/libertix) also installs Linux from Windows. It uses real partitions; wootc uses `root.disk`. Its geometry code does not apply, but its reboot designs help. `docs/borrowed-from-libertix.md` defines six items. They cover Secure Boot CA preflight (#322) and recovery guard (#331). They cover evidence of first boot, checked from Windows (#332), and ESP signed-chain refresh (#333). They also need one catalogue of steps with a CI diff (#334) and pinned, signed artifacts (#335).
+- **Boot-chain work from Libertix (#308)**: [Libertix](https://github.com/ekimiateam/libertix) also installs Linux from Windows. Transactional boot-chain changes with automatic rollback landed (#536, resolving #286). Secure Boot third-party UEFI CA preflight and firmware db harness landed (#537, resolving #322). Remaining Libertix items: recovery guard (#331), first-boot evidence checked from Windows (#332), ESP signed-chain refresh (#333), step catalogue (#334), and pinned signed artifacts (#335).
 - Complete the docs and verify their claims end-to-end. Regenerate walkthrough images from the release build.
 - Start the soak after its prerequisites pass. Count consecutive nightlies that pass toward 1.0; allow only work on regressions that block release.
 
@@ -151,4 +148,4 @@ Verify all four criteria at the top of this file. All 30 days of nightlies must 
 See [the contribution guide](./CONTRIBUTING.md). Prefer tasks tied to a red or unverified matrix cell or an incomplete milestone checklist. Evidence must support each green claim. Milestone issues contain the current tasks.
 
 ---
-*History: refresh on 2026-09-17 (resolves #394), WinUI scope on 2026-09-24 (#357), and Libertix scope on 2026-09-26 (#308). Current-claim audit: 2026-09-27 against `323b7ba`. Refine with maintainer input.*
+*History: refresh on 2026-09-17 (resolves #394), WinUI scope on 2026-09-24 (#357), Libertix scope on 2026-09-26 (#308), and Q4 currency refresh on 2026-10-08 (incorporating #525-#537 milestone completions). Refine with maintainer input.*
