@@ -180,6 +180,38 @@ Use the field verifier and attach screenshots for the published files.
 [#229]: https://github.com/tuna-os/wootc/issues/229
 [#230]: https://github.com/tuna-os/wootc/issues/230
 
+## Narrative release notes
+
+`release.yml` writes a short block that names the gate of each build. A final
+tag (`vX.Y.Z` with no suffix) also needs the story of the version. That story
+is in `docs/release-notes-<tag>.md`, and the publish job adds it to the
+release body after that block.
+
+`tools/release/check-notes.sh` enforces this before the E2E gate starts:
+
+- A final tag without its notes file stops the release.
+- A notes file with the marker `<!-- wootc-release-notes: draft -->` stops
+  every release of that tag, including pre-release tags. Draft notes hold
+  *To add* slots for evidence, and a published draft would claim proof that
+  does not exist.
+
+### Cutting v1.0.0 (#242)
+
+[`release-notes-v1.0.0.md`](release-notes-v1.0.0.md) is a draft now.
+Do these steps in order:
+
+1. Fill each *To add* slot in the notes with its evidence (M5.1 to M5.6).
+   Remove the draft marker in the PR that records the last evidence.
+2. Dispatch `release.yml` with `release_tag: v1.0.0` from the final green SHA
+   of the soak. Do not set `skip_e2e`. The E2E gate of the tagged channel
+   runs again before the publish.
+3. Monitor the `winget-publish.yml` run that the publish job dispatches, until
+   `winget show TunaOS.wootc` reports `1.0.0`.
+4. Change `ROADMAP.md` to the post-1.0 plan. Close the milestone issues
+   #210 to #213, each with links to its evidence.
+5. Announce the release in the channels that each brand agreed to
+   ([upstream blessings](upstream-blessings.md)).
+
 ## When a release has to be taken back
 
 [runbooks/rollback-a-bad-release.md](../runbooks/rollback-a-bad-release.md)
