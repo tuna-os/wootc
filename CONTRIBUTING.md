@@ -12,42 +12,41 @@
 
 ## Prerequisites
 
-The project requires several tools depending on which test tier you run. Install them on your platform:
+You need several tools. Which tools depend on which tests you run. Install them on your platform:
 
 ### All platforms
 
-- **`just`** (task runner; required for all builds)
+- **`just`** — task runner (required for all builds)
   - Linux/macOS: `curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash` or use your package manager
   - macOS: `brew install just`
   - Windows: `choco install just` or `scoop install just`
-  - More: [just installation](https://github.com/casey/just#packages)
 
-- **Python 3.9+** (used by test scripts and the justfile)
-  - Linux: typically pre-installed; `apt install python3` or equivalent
+- **Python 3.9+** — used by tests and the justfile
+  - Linux: usually pre-installed; `apt install python3` or equivalent
   - macOS: `brew install python3`
   - Windows: [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12`
 
-### For containerized and E2E tests (`just test-slow` / full matrix)
+### For container tests and E2E tests (`just test-slow`)
 
-- **`podman`** (container runtime; Linux/macOS/Windows)
+- **`podman`** — container runtime (Linux, macOS, Windows)
   - Linux: `apt install podman` (Debian/Ubuntu) or equivalent
   - macOS: `brew install podman`
   - Windows: `choco install podman-cli` or [Podman Desktop](https://podman-desktop.io/)
 
-- **`qemu-img`** (QEMU disk utilities; Linux/macOS)
+- **`qemu-img`** — QEMU tools (Linux and macOS)
   - Linux: `apt install qemu-utils` (Debian/Ubuntu) or `dnf install qemu-img` (Fedora)
   - macOS: `brew install qemu`
-  - Windows: typically included in QEMU installation via `choco install qemu` or Podman Desktop
+  - Windows: typically included with QEMU; install via `choco install qemu` or Podman Desktop
 
-- **KVM kernel module** (Linux only; required for `/dev/kvm`)
+- **KVM kernel module** (Linux only)
   - Check: `ls /dev/kvm` (should exist)
-  - Enable: `sudo modprobe kvm` (then add `kvm` to `/etc/modules` to persist)
-  - Verify: `kvm-ok` (install `cpu-checker` if missing)
-  - **Note**: KVM requires hardware virtualization (VT-x on Intel, AMD-V on AMD). Check BIOS settings if unavailable.
+  - Enable: `sudo modprobe kvm` (then add `kvm` to `/etc/modules` to keep it enabled)
+  - Verify: `kvm-ok` (install `cpu-checker` if not found)
+  - Note: KVM needs hardware virtualization. This is VT-x on Intel or AMD-V on AMD. Check your BIOS.
 
 ### For GUI E2E tests
 
-- Same as above, plus the E2E GUI suite needs a working Podman daemon and sufficient disk space (~50 GB for full matrix runs).
+Use the same tools as above. The GUI tests also need a running Podman daemon and about 50 GB of disk space for full runs.
 
 ## Building and testing
 
