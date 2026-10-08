@@ -257,7 +257,7 @@ systemd-run --user --unit="$unit" --collect \
     -p StandardOutput=append:"$log" \
     -p StandardError=append:"$log" \
     -p WorkingDirectory="\$_home/wootc/tests/e2e" \
-    -- bash run-e2e.sh "$image" --keep --instance=$inst \$(case "$opts" in *phase3=on*) echo '--phase3' ;; esac) \$(case "$opts" in *fault=*) echo "--fault-inject=\$(echo "$opts" | grep -o 'fault=[^,]*' | cut -d= -f2)" ;; esac)
+    -- bash run-e2e.sh "$image" --keep --instance=$inst \$(case "$opts" in *phase3=on*) echo '--phase3' ;; esac) \$(case "$opts" in *offline=on*) echo '--offline' ;; esac) \$(case "$opts" in *fault=*) echo "--fault-inject=\$(echo "$opts" | grep -o 'fault=[^,]*' | cut -d= -f2)" ;; esac)
 # Verify the unit is actually running: a nonce alone is insufficient —
 # nohup proves only that the shell started, not that the durable unit
 # remains alive (AGENTS.md rule). The unit must be active.

@@ -30,6 +30,10 @@ on:
       # the guest a spare 40G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
       # Windows + root.disk stay untouched, so the run remains reversible.
       phase3: { type: boolean, default: false }
+      # Offline axis (#217): the guest VM gets no network device, and the
+      # deployer must install from an OCI bundle staged over QGA. Passes
+      # --offline. Script path only (run-e2e.sh refuses it with gui_install).
+      offline: { type: boolean, default: false }
       # Force the Phase-2 bootloader (grub2|systemd). Empty = run-e2e.sh's
       # per-image heuristic (EL→grub2, else→systemd). Ostree images (e.g.
       # bluefin) want grub2 (the proven attach path); composefs wants systemd.
@@ -272,6 +276,7 @@ jobs:
           cd tests/e2e
           FLAGS=()
           [ "${{ inputs.phase3 }}" = "true" ] && FLAGS+=(--phase3)
+          [ "${{ inputs.offline }}" = "true" ] && FLAGS+=(--offline)
           [ "${{ inputs.gui_install }}" = "true" ] && FLAGS+=(--gui-install)
           [ "${{ inputs.uninstall_check }}" = "true" ] && FLAGS+=(--uninstall-check)
           [ -n "$WOOTC_FAULT_INJECT" ] && FLAGS+=("--fault-inject=$WOOTC_FAULT_INJECT")

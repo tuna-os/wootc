@@ -75,6 +75,7 @@ jobs:
                   'win_edition': ed, 'win_key': key,
                   'bitlocker': 'on' if 'bitlocker=on' in opts else 'off',
                   'phase3': 'phase3=on' in opts,
+                  'offline': 'offline=on' in opts,
                   'filesystem': fs,
                   'fault_inject': fault,
               })
@@ -104,6 +105,7 @@ jobs:
       bitlocker: ${{ matrix.bitlocker }}
       case_name: ${{ matrix.name }}
       phase3: ${{ matrix.phase3 }}
+      offline: ${{ matrix.offline }}
       filesystem: ${{ matrix.filesystem }}
       fault_inject: ${{ matrix.fault_inject }}
       # GUI mode has only ever been exercised on one cell (bluefin:lts via
@@ -122,4 +124,7 @@ jobs:
       # knob, so a GUI-driven btrfs cell would silently install the default
       # filesystem and report the btrfs axis green without ever touching it.
       # The script path carries wootc.filesystem=; GUI mode must skip it.
-      gui_install: ${{ inputs.gui_install && matrix.bitlocker != 'on' && matrix.filesystem == '' }}
+      #
+      # NEVER on the offline axis: the GUI path needs the guest network
+      # (WebView2 install, the \\host.lan share), and --offline refuses it.
+      gui_install: ${{ inputs.gui_install && matrix.bitlocker != 'on' && matrix.filesystem == '' && !matrix.offline }}
