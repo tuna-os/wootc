@@ -3261,6 +3261,15 @@ done
     _deploy_mins=$(elapsed_min_since "$DEPLOY_STARTED")
     if [ "${DEPLOYER_FATAL_SEEN:-false}" = true ]; then
         fail "Deployment FAILED after ${_deploy_mins}m — the deployer reported a fatal error (above); this is NOT a timeout"
+    elif [ "$DEPLOYER_REBOOT_SEEN" = true ]; then
+        # The deployer finished and asked for its reboot; any Windows QGA
+        # answer would have ended this loop. So the boot that hung is the
+        # RETURN TO WINDOWS, and Phase 2 was never scheduled. #209/#218 was
+        # filed as a "Phase-2 first-boot hang" because this branch said
+        # "deployment did not complete" — a proxy, not what happened.
+        fail "Deployer requested its reboot, but Windows never came back (no Windows QGA for ${_deploy_mins}m) — the post-deploy return boot hung; Phase 2 was never scheduled"
+        info "  Look for '[WARN] /mnt/ntfs still busy' and its 'holder:' lines below: a"
+        info "  lazily-detached NTFS goes back to Windows still mounted and dirty (#218)."
     else
         fail "Deployment did not complete within $((TIMEOUT/60)) minutes (waited ${_deploy_mins}m)"
     fi
