@@ -127,11 +127,16 @@ body:
     attributes:
       label: Journey checkpoints completed
       options:
+        - label: Downloaded the exe and ran it, with no files copied to the machine first
         - label: Installer completed and requested a reboot
         - label: Linux deployed and reached a login or desktop
+        - label: The welcome opened at first login
+        - label: The "Windows drive" bookmark was in the file manager
         - label: Windows files were present in Linux
         - label: Reboot returned to Windows
+        - label: The Manage screen's "Restart into" button booted Linux
         - label: Uninstall completed and restored the machine
+        - label: The verify-uninstall checklist passed and is attached
 
   - type: dropdown
     id: result
@@ -151,7 +156,7 @@ body:
       label: Evidence collected
       description: Check each item attached or pasted below. Remove secrets and recovery keys.
       options:
-        - label: Installer log and state (`C:\\wootc\\logs\\` and `C:\\wootc\\install\\state.json`)
+        - label: Installer log and state (`C:\\wootc\\logs\\` and `C:\\wootc\\state.json`)
         - label: Deployer log (`C:\\wootc\\logs\\deployer.log`)
         - label: Deployer journal snapshot (`C:\\wootc\\logs\\deployer-last-journal.log`)
         - label: Photo or screenshot of what the screen said
