@@ -81,8 +81,13 @@ type SystemInfo struct {
 	// machine's firmware holds in its db variable ("2011", "2023"), so the
 	// preflight can tell before the reboot whether the signed shim this
 	// build stages will be launched at all (#322). Empty means the db could
-	// not be read, which warns rather than refusing.
+	// not be read (UefiDbRead false), which warns rather than refusing, or
+	// that it was read and holds neither CA (UefiDbRead true), which refuses.
 	TrustedUefiAuthorities []string `json:"trustedUefiAuthorities"`
+	// UefiDbRead is true when the firmware's db was read and held at least
+	// one certificate, so an empty TrustedUefiAuthorities is a fact about
+	// the firmware rather than about our ability to ask (#322).
+	UefiDbRead bool `json:"uefiDbRead"`
 	// SecureBootChainWarning is set when Secure Boot is on but the db could
 	// not be read: honest disclosure that one check could not be made,
 	// shown before the user commits rather than after the restart.
@@ -360,8 +365,7 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 	// prevents ("bad shim signature") happens after the reboot, where the
 	// user has no way to find out why Windows came back.
 	si := getSystemInfo()
-	if v := checkSecureBootChain(si.SecureBootOn, si.SecureBootKnown,
-		si.TrustedUefiAuthorities, stagedShimAuthorities()); v.Blocked {
+	if v := secureBootChainVerdict(si); v.Blocked {
 		return fmt.Errorf("%s", v.Message)
 	}
 	// Only offer images the channel permits. Enterprise images.json override
@@ -890,7 +894,11 @@ func installPipelineSteps(ctx context.Context, cfg InstallConfig, emit func(Prog
 			registerUninstallEntry()
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)
-			return nil
+			// Commit point of the boot-chain transaction (#286): the one-shot
+			// is the LAST change before reboot. Until here the wootc entry is
+			// inert, so a cancel, failure, or power cut at any earlier step
+			// returns to Windows.
+			return armBootChain()
 		}},
 	}
 
@@ -973,6 +981,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 		}
 
+		// Set BEFORE the step runs: configureBCD can fail after it created an
+		// entry, and that partial chain must be rolled back too.
+		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
+			armed = true
+		}
 		if err := s.fn(); err != nil {
 			if armed {
 				disarmOneShot()
@@ -982,9 +995,6 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			return fmt.Errorf("%s: %w", displayStepLabel(s.name), err)
 		}
 		journal.stepDone(s.name)
-		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
-			armed = true
-		}
 	}
 
 	if fault == "pre-reboot" {

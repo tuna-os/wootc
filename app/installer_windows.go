@@ -72,9 +72,8 @@ func getSystemInfo() SystemInfo {
 	// firmware launches an unsigned loader too, and the db read costs a
 	// PowerShell spawn on a screen the user is waiting for.
 	if info.SecureBootOn {
-		info.TrustedUefiAuthorities = trustedUefiAuthorities()
-		if v := checkSecureBootChain(info.SecureBootOn, info.SecureBootKnown,
-			info.TrustedUefiAuthorities, stagedShimAuthorities()); v.Warn {
+		info.TrustedUefiAuthorities, info.UefiDbRead = trustedUefiAuthorities()
+		if v := secureBootChainVerdict(info); v.Warn {
 			info.SecureBootChainWarning = v.Message
 		}
 	}

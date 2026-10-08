@@ -156,6 +156,30 @@ Assert-True (-not $r.Pass) 'resolving without a version fails'
 $r = Test-WingetPackage -ShowOutput $stale -ExpectedVersion '' -ExitCode 0
 Assert-True (-not $r.Pass) 'no expected version must fail'
 
+# ── winget install: resolving is not installing ─────────────────────────────
+
+$good = 'aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233'
+$installSums = "$good  wootc.exe`n"
+$r = Test-WingetInstall -ExitCode 0 -InstalledPath 'C:\pkg\wootc.exe' -ActualHash $good.ToUpperInvariant() -Manifest $installSums
+Assert-True $r.Pass 'an install that lands this release''s wootc.exe passes'
+
+$r = Test-WingetInstall -ExitCode 0 -InstalledPath 'C:\pkg\wootc.exe' -ActualHash ('0' * 64) -Manifest $installSums
+Assert-True (-not $r.Pass) 'an install of a different binary must fail even though winget succeeded'
+Assert-True ($r.Detail -match 'not this release') 'the wrong binary is named as such'
+
+$r = Test-WingetInstall -ExitCode 0 -InstalledPath '' -ActualHash '' -Manifest $installSums
+Assert-True (-not $r.Pass) 'success with nothing on disk must fail, not pass by absence'
+
+$r = Test-WingetInstall -ExitCode -1978335212 -InstalledPath '' -ActualHash '' -Manifest $installSums
+Assert-True (-not $r.Pass) 'no matching package fails'
+Assert-True ($r.Detail -match '0x8A150014' -and $r.Detail -match 'no package matched') 'the winget code is decoded'
+
+$r = Test-WingetInstall -ExitCode -1978335189 -InstalledPath '' -ActualHash '' -Manifest $installSums
+Assert-True ($r.Detail -match 'not a fresh machine') 'an existing install says the machine is not fresh'
+
+$r = Test-WingetInstall -ExitCode 1 -InstalledPath '' -ActualHash '' -Manifest $installSums
+Assert-True (-not $r.Pass -and $r.Detail -match 'winget-install.txt') 'an unknown failure points at the saved output'
+
 # Resolve latest once, then use the concrete tag everywhere. These stubs
 # exercise the collector without a network call or Windows machine.
 $script:releaseLookups = 0
