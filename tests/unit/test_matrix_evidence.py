@@ -26,17 +26,22 @@ MATRIX = '\n'.join([
     f'smoke\tbase-btrfs\tghcr.io/x/y:gnome\t11\tpro\t{KEY}\tfilesystem=btrfs',
     f'smoke\tbase-bitlocker\tghcr.io/x/y:gnome\t11\tpro\t{KEY}\tbitlocker=on',
     f'smoke\tbase-offline\tghcr.io/x/y:gnome\t11\tpro\t{KEY}\toffline=on',
+    f'full\trecovery-pre-reboot\tghcr.io/x/y:gnome\t11\tpro\t{KEY}\tfault=pre-reboot',
+    f'full\tsb-db-none-refusal\tghcr.io/x/y:gnome\t11\tpro\t{KEY}\tfirmware_db=none',
     '',
 ])
-SCRIPT_CELLS = ['base', 'kde', 'base-btrfs', 'base-bitlocker', 'base-offline']
-GUI_CELLS = ['base', 'kde']
+SCRIPT_CELLS = ['base', 'kde', 'base-btrfs', 'base-bitlocker', 'base-offline',
+                'recovery-pre-reboot', 'sb-db-none-refusal']
+GUI_CELLS = ['base', 'kde', 'recovery-pre-reboot', 'sb-db-none-refusal']
+MARKER = {'recovery-pre-reboot': 'recovery', 'sb-db-none-refusal': 'sb-refusal'}
 
 
 def job(cell, jid, conclusion='success', attempt=1, **extra):
     entry = {'id': jid, 'name': f'{cell} / e2e', 'conclusion': conclusion, 'run_attempt': attempt,
              'head_sha': SHA}
     if conclusion == 'success':
-        entry.update(passBanner=True, ledgerDump=False)
+        marker = MARKER.get(cell, 'banner')
+        entry.update(passMarkers=[marker], passBanner=marker == 'banner', ledgerDump=False)
     else:
         entry['flake'] = ''
     entry.update(extra)
@@ -117,10 +122,32 @@ class Grade(unittest.TestCase):
         # The job conclusion is a proxy. The banner is printed only after the
         # failure ledger was found empty.
         snap = green()
-        cell_job(snap, 1, 'kde')['passBanner'] = False
+        cell_job(snap, 1, 'kde').update(passBanner=False, passMarkers=[])
         ok, problems = self.grade(snap)
         self.assertFalse(ok)
-        self.assertTrue(any('no pass banner' in p for p in problems), problems)
+        self.assertTrue(any('ALL TESTS PASSED' in p for p in problems), problems)
+
+    def test_short_cells_grade_on_their_own_marker(self):
+        # Recovery and Secure Boot refusal cells exit 0 before the full-cycle
+        # banner; each is green on the marker its scenario prints.
+        ok, problems = self.grade(green())
+        self.assertTrue(ok, problems)
+        for cell, wrong in (('recovery-pre-reboot', 'banner'), ('sb-db-none-refusal', 'recovery')):
+            snap = green()
+            cell_job(snap, 1, cell).update(passMarkers=[wrong])
+            ok, problems = self.grade(snap)
+            self.assertFalse(ok, cell)
+            self.assertTrue(any(cell in p and 'marker' in p for p in problems), problems)
+
+    def test_old_snapshots_without_markers_still_grade_on_the_banner(self):
+        job = {'passBanner': True}
+        self.assertEqual(ev.markers_of(job), {'banner'})
+        self.assertEqual(ev.markers_of({'passBanner': False}), set())
+
+    def test_pass_markers_match_run_e2e(self):
+        script = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        for marker in ev.PASS_MARKERS.values():
+            self.assertIn(marker, script)
 
     def test_ledger_dump_is_not_green(self):
         snap = green()

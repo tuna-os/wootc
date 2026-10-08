@@ -35,6 +35,15 @@ WORKFLOW = '.github/workflows/e2e-matrix.yml'
 # read from the run itself and not guessed from its jobs.
 TITLE = re.compile(r'^E2E matrix \((smoke|full), (script|gui)(?:, grep=(.*))?\)$')
 PASS_BANNER = 'wootc E2E test: ALL TESTS PASSED'
+# Cells that end before the full cycle print their own positive marker and
+# exit 0 without the banner: the fault-injection recovery cells and the
+# Secure Boot refusal cell (firmware_db=none, #322). Each cell is graded on
+# the marker its scenario prints (run-e2e.sh), not on the banner alone.
+PASS_MARKERS = {
+    'banner': PASS_BANNER,
+    'recovery': 'All recovery checks PASSED for fault-injection',
+    'sb-refusal': 'Secure Boot refusal cell PASSED',
+}
 LEDGER_DUMP = 'failure(s) were recorded during this run'
 FLAKE_NOTICE = re.compile(r'run-e2e\.sh classified this failure as a flake: ([a-z-]+)')
 MODES = ('script', 'gui')
@@ -59,6 +68,8 @@ def parse_matrix(text, include_phase3=False):
             'bitlocker': 'bitlocker=on' in opts,
             'offline': 'offline=on' in opts,
             'filesystem': next((o.split('=', 1)[1] for o in opts if o.startswith('filesystem=')), ''),
+            'fault': next((o.split('=', 1)[1] for o in opts if o.startswith('fault=')), ''),
+            'firmware_db': next((o.split('=', 1)[1] for o in opts if o.startswith('firmware_db=')), ''),
         }
         # phase3 cells overflow hosted runner disks; the workflow drops them
         # unless INCLUDE_PHASE3=1, so the hosted record cannot hold them.
@@ -72,6 +83,22 @@ def parse_matrix(text, include_phase3=False):
 def gui_applies(cell):
     """The gui_install guard in e2e-matrix.yml: GUI mode drives only these cells."""
     return not cell['bitlocker'] and not cell['filesystem'] and not cell['offline']
+
+
+def pass_marker(cell):
+    """The PASS_MARKERS key a green job of this cell must show in its log."""
+    if cell.get('fault'):
+        return 'recovery'
+    if cell.get('firmware_db') == 'none':
+        return 'sb-refusal'
+    return 'banner'
+
+
+def markers_of(job):
+    """Markers a collected job showed; older snapshots only recorded passBanner."""
+    if 'passMarkers' in job:
+        return set(job['passMarkers'])
+    return {'banner'} if job.get('passBanner') else set()
 
 
 def expected(cells):
@@ -133,6 +160,7 @@ def grade(snapshot, matrix_text, include_phase3=False):
 
     rows = []
     want = expected(cells)
+    by_name = {c['name']: c for c in cells}
     for mode in MODES:
         for cell in want[mode]:
             history = sorted(attempts[mode].get(cell, []),
@@ -155,8 +183,9 @@ def grade(snapshot, matrix_text, include_phase3=False):
             if final.get('conclusion') != 'success':
                 problems.append(f'{mode}: {cell} final attempt is {final.get("conclusion")} '
                                 f'(run {final["run_id"]})')
-            elif not final.get('passBanner'):
-                problems.append(f'{mode}: {cell} job succeeded but its log has no pass banner '
+            elif pass_marker(by_name[cell]) not in markers_of(final):
+                problems.append(f'{mode}: {cell} job succeeded but its log has no '
+                                f'{PASS_MARKERS[pass_marker(by_name[cell])]!r} marker '
                                 f'(run {final["run_id"]})')
             elif final.get('ledgerDump'):
                 problems.append(f'{mode}: {cell} log dumps a non-empty failure ledger (run {final["run_id"]})')
@@ -182,7 +211,7 @@ def render(snapshot, ok, problems, rows, cells, skipped):
             final, ledger = 'missing', '-'
         else:
             final = f'[{f["run_id"]}#{f.get("run_attempt", 1)}]({base}/{f["run_id"]}/job/{f["id"]}) {f.get("conclusion")}'
-            ledger = 'empty' if f.get('passBanner') and not f.get('ledgerDump') else 'not proven'
+            ledger = 'empty' if markers_of(f) and not f.get('ledgerDump') else 'not proven'
         retry = ', '.join(f'{x["run_id"]}#{x["attempt"]} {x["flake"] or "UNEXPLAINED"}' for x in r['retries']) or '-'
         out.append(f'| {r["mode"]} | {r["cell"]} | {final} | {ledger} | {retry} |')
     if problems:
@@ -217,6 +246,7 @@ def collect(repo, sha, run_ids):
             if job['name'] != 'plan':
                 if job.get('conclusion') == 'success':
                     log = gh_text(f'repos/{repo}/actions/jobs/{job["id"]}/logs')
+                    entry['passMarkers'] = sorted(k for k, m in PASS_MARKERS.items() if m in log)
                     entry['passBanner'] = PASS_BANNER in log
                     entry['ledgerDump'] = LEDGER_DUMP in log
                 else:
