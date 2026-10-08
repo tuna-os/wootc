@@ -2766,6 +2766,12 @@ QGAEOF
         mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
         cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
         rm -rf "$DEPLOY_ROOT/usr/share/wootc/slurp/session"
+        # Nothing imports the envelopes yet (#294-#296), so the NTFS copies
+        # are dead credential artifacts on a volume the installed system
+        # mounts. Shred them; the status-only exports.json ledger stays
+        # (tuna-os/wootc#281).
+        find /mnt/ntfs/wootc/install/slurp/session -maxdepth 1 -type f -name '*.enc' \
+            -exec shred -u {} + 2>/dev/null || true
         SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
         if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
             ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"

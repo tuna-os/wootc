@@ -488,6 +488,8 @@ async function startInstall() {
       }
     }
 
+    // The progress screen names where the BitLocker key copy is stored.
+    state.progress.storageDrive = storageDrive;
     await StartInstall({
       imageRef:   state.selected.imageRef,
       diskSizeGB: state.config.diskSizeGB,
