@@ -85,6 +85,16 @@ class GuiDriveReceiptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['screen'], 'done')
 
+    def test_actual_cli_rejection_names_the_reason_on_stderr(self):
+        # The harness keeps validator stderr as the rejection diagnosis (run
+        # 36399679919 burned 30m with ~112 unread reads and no reason). A
+        # rejection that stays silent here is unobservable there.
+        result = subprocess.run(['python3', str(PARSER), RUN, DIRECTIVE, IMAGE],
+                                input=self.receipt(runId='stale'), text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertIn('stale or unrelated', result.stderr)
+
     def test_stale_other_run_directive_action_are_unknown(self):
         for changes in ({'runId': 'old'}, {'directiveId': '0'*32}, {'action': 'reboot'}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):

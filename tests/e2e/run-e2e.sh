@@ -2350,7 +2350,7 @@ New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 . "\\host.lan\Data\stage-status-cli.ps1"
 Copy-WootcStatusCLI -SourceDirectory "\\host.lan\Data" -Destination "C:\wootc\wootc.exe"
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
-Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
+Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json,C:\wootc\e2e-ready.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1
 set WOOTC_PRELOAD=0
@@ -2376,8 +2376,15 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
     }
     # The QGA powershell completing only proves the task was scheduled, not
     # that wootc.exe actually started.  Poll for the real readiness signal:
-    # e2e-drive-state.json (written by the drive loop every 2 s once the app
-    # renders the first screen).
+    # e2e-ready.json (written by the drive loop every 2 s once the app
+    # renders the first screen, with no directive required).
+    #
+    # Readiness deliberately does NOT wait for e2e-drive-state.json: a bound
+    # drive report requires the install directive, which is only written
+    # after launch is confirmed — waiting for it first is a deadlock (every
+    # GUI run since the drive loop landed burned 60 s here with a rendered
+    # app on screen). Progress authentication stays with the bound
+    # drive-state channel below.
     #
     # Staging took minutes, and schtasks /IT never runs without a session
     # `query user` can enumerate (GUI red 9/25-9/26: UserName said wootc,
@@ -2391,14 +2398,14 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
     else
         launch_deadline=$(deadline_in 60)
         while ! past_deadline "$launch_deadline"; do
-            if qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
+            if qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
                 break
             fi
             sleep 5
         done
     fi
-    if ! qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
-        fail "wootc.exe did not start within 60 s — e2e-drive-state.json never appeared"
+    if ! qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
+        fail "wootc.exe did not render within 60 s — e2e-ready.json never appeared"
         # "It didn't start" is not a diagnosis: the task may never have run, the
         # process may have started and died, or the app may be unable to render
         # at all. wootc is a wails app, so it CANNOT start without the WebView2
@@ -2494,10 +2501,23 @@ value = dict(schemaVersion=1, runId=sys.argv[1], directiveId=sys.argv[2],
 print(base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode())
 PYDRIVE
     ) || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # BOM-LESS write, verified byte-exact. Set-Content -Encoding UTF8 on the
+    # guest's PowerShell 5.1 emits a UTF-8 BOM, and NEITHER consumer tolerates
+    # one: Go's encoding/json rejects a leading BOM (so E2EDriveDirective
+    # reads ""), and JS JSON.parse throws on it. The old writer produced
+    # exactly that file in runs 36399679919/36413017019/36420437461 — the
+    # readback still passed because Get-Content decodes and strips the BOM
+    # before comparing, while the app read raw bytes and saw no directive:
+    # ready marker written, zero drive-state reports, 30m silent timeout.
+    # [IO.File]::WriteAllText with UTF8Encoding($false) emits no BOM on any
+    # PowerShell version, and the byte readback below fails the run if one
+    # ever reappears instead of rediscovering this 30 minutes later.
     if ! drive_ack=$(qga_powershell "\$ErrorActionPreference='Stop'
 \$wanted=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$drive_payload'))
-Set-Content -LiteralPath C:\wootc\e2e-drive.json -Value \$wanted -Encoding UTF8
-\$actual=Get-Content -LiteralPath C:\wootc\e2e-drive.json -Raw
+[IO.File]::WriteAllText('C:\wootc\e2e-drive.json', \$wanted, [Text.UTF8Encoding]::new(\$false))
+\$bytes=[IO.File]::ReadAllBytes('C:\wootc\e2e-drive.json')
+if (\$bytes.Length -ge 3 -and \$bytes[0] -eq 0xEF -and \$bytes[1] -eq 0xBB -and \$bytes[2] -eq 0xBF) { throw 'Directive has UTF-8 BOM' }
+\$actual=[Text.Encoding]::UTF8.GetString(\$bytes)
 if (\$actual.TrimEnd([char]13,[char]10) -cne \$wanted) { throw 'Directive readback changed' }
 Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         infra_fail "GUI install directive write is unknown; install observation refused"
@@ -2526,7 +2546,7 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
     # goes deaf we already know reopening is on the table, and the answer is a
     # verdict rather than another round of dialling.
     local reconnect_tried=false
-    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-12}"
+    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-3}"
     drive_deadline=$(deadline_in 1800)
     while ! past_deadline "$drive_deadline"; do
         # Retry a single transient QGA read failure: a hosted runner's container
@@ -2535,11 +2555,20 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         # alive but reads came back empty, and the loop treated each as proof
         # the app had died, never recovering when reads resumed).
         drive_state=""
+        # Why the last validation failed, and how big the rejected file was.
+        # A present-but-rejected drive-state.json is a different failure from
+        # a missing one (run 36399679919: ~112 reads returned content, zero
+        # validated, and 2>/dev/null swallowed every reason). Kept, not
+        # discarded, and reported at the stall point and the final verdict.
+        drive_reject=""
+        drive_raw_len=0
         for _try in 1 2 3; do
             local drive_raw=""
             # Failed reads with plausible stdout and stale/malformed reports
             # remain unknown. Only the current directive's typed receipt counts.
             if drive_raw=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null); then
+                drive_raw_len=${#drive_raw}
+                drive_reject=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>&1 >/dev/null) || true
                 drive_state=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>/dev/null) || drive_state=""
             fi
             [ -n "$drive_state" ] && break
@@ -2557,14 +2586,53 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
             # that tests the CHANNEL and nothing else. A PowerShell round-trip
             # would conflate "agent is gone" with "exec failed for some guest-side
             # reason" — the same proxy mistake this diagnostic exists to avoid.
+            #
+            # This diagnostic must fire PERIODICALLY, not once. Run 36420437461
+            # tested the one-shot form (`-eq 3`): wootc.exe was alive at the
+            # ~1-minute mark, the block never fired again, and the loop sat
+            # silent for the remaining 29 minutes. First fire at 3 empties
+            # (~1 min), then every 30 empties (~10 min heartbeat), so the log
+            # is never silent for longer and a process that dies mid-wait is
+            # still caught with attribution instead of a bare 30m timeout.
+            local fire_diag=false
             if [ "$empty_reads" -eq 3 ]; then
+                fire_diag=true
+            elif [ "$empty_reads" -gt 3 ] && [ $(( (empty_reads - 3) % 30 )) -eq 0 ]; then
+                fire_diag=true
+            fi
+            if [ "$fire_diag" = true ]; then
                 if qga_probe; then
-                    warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    if [ "$drive_raw_len" -gt 0 ]; then
+                        warn "  drive-state.json IS present (${drive_raw_len} bytes) but the receipt rejects it: ${drive_reject:-unknown reason} — the app writes, the binding fails"
+                    else
+                        warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    fi
                     # If the app WAS writing state (last_good is non-empty) and
                     # then stopped, it has CRASHED. Do not burn the remaining
                     # 30 minutes waiting for a dead process. Check whether
                     # wootc.exe is still alive to confirm, then fail fast.
-                    if [ -n "$last_good" ]; then
+                    #
+                    # If it NEVER wrote (last_good empty), the process may have
+                    # died before the first write — e.g. a dead WebView2
+                    # renderer behind a black window (runs 36399679919,
+                    # 36413017019: ready marker written, zero reports after).
+                    # A dead process can never report, so fail fast; a live
+                    # one keeps the remaining budget.
+                    if [ -z "$last_good" ]; then
+                        local wootc_alive
+                        wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        if [ "$wootc_alive" = "dead" ]; then
+                            infra_fail "wootc.exe died before writing any drive report — completion cannot be observed"
+                            info "  last screen reached: ${last_screen:-<none>}"
+                            capture_vm_diagnostics
+                            exit 1
+                        fi
+                        # A live process that never wrote is the black-window
+                        # hang, not a verdict yet — but it must be VISIBLE.
+                        # Without this heartbeat the wait is silent until the
+                        # 30m deadline (run 36420437461).
+                        warn "  still no drive report after ${empty_reads} unreadable reads (~$((empty_reads / 3)) min), wootc.exe process is '${wootc_alive}' — waiting on the remaining budget"
+                    else
                         dead_app_checks=$((dead_app_checks + 1))
                         local wootc_alive
                         wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
@@ -2714,6 +2782,9 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
         info "  last readable state: ${last_good:-<never read one>}"
         info "  unreadable reads: $total_empty of ~180"
+        if [ "$drive_raw_len" -gt 0 ]; then
+            info "  rejected content: ${drive_raw_len} bytes, last reason: ${drive_reject:-unknown reason}"
+        fi
         info "  QGA ping answers; this does not establish GUI identity or progress"
         capture_vm_diagnostics
         exit 1

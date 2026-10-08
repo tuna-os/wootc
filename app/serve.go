@@ -358,6 +358,14 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		s.app.E2EDriveReport(state)
 		return nil, nil
 
+	case "E2EDriveReady":
+		var state string
+		if err := unmarshalStringParam(req.Params, &state); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: fmt.Sprintf("invalid E2EDriveReady params: %v", err)}
+		}
+		s.app.E2EDriveReady(state)
+		return nil, nil
+
 	case "Shutdown":
 		s.mu.Lock()
 		s.shutdown = true

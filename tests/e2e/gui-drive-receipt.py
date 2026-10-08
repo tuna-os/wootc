@@ -62,6 +62,9 @@ if __name__ == '__main__':
         if len(raw) > 16384:
             raise ValueError('oversized GUI receipt')
         print(validate(raw.decode('utf-8'), *sys.argv[1:]))
-    except (ValueError, TypeError, UnicodeError):
-        print('GUI drive observation unavailable or invalid', file=sys.stderr)
+    except (ValueError, TypeError, UnicodeError) as exc:
+        # Name the check that failed: the harness keeps this line as the
+        # rejection diagnosis, and a generic "invalid" burned a 30-minute
+        # run with no attributable cause (run 36399679919).
+        print(f'GUI drive observation rejected: {exc}', file=sys.stderr)
         sys.exit(1)

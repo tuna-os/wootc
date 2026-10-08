@@ -1,4 +1,4 @@
-import { E2EDriveDirective, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
+import { E2EDriveDirective, E2EDriveReady, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
 
 // Wails' WebView cannot expose CDP, so GUI E2E drives the real form through
 // the same Go-to-JS bridge and DOM event handlers used by the application.
@@ -96,14 +96,43 @@ async function reportState(state, directive) {
 
 export function startE2EDrive(state) {
   async function driveLoop() {
-    let raw = '';
+    // A missing binding throws SYNCHRONOUSLY (a non-E2E build has nothing
+    // to drive, so stop). A rejected promise is a TRANSIENT backend failure
+    // and must not stop the loop the same way: returning here killed all
+    // polling permanently on one bad read, leaving a live app that never
+    // reports again. Same split as main.js session candidates.
+    let call;
     try {
-      raw = await E2EDriveDirective();
+      call = E2EDriveDirective();
     } catch {
       return; // Optional binding is absent outside E2E builds.
     }
+    let raw = '';
+    try {
+      raw = await call;
+    } catch {
+      // Transient failure: fall through to the readiness signal and retry
+      // on the next poll.
+    }
+    // A UTF-8 BOM prefix is not JSON whitespace: JSON.parse throws on it.
+    // The harness wrote the install directive with a BOM through run
+    // 36420437461, so every poll died here and no report was ever written.
+    // The writer is fixed and Go strips it too; this keeps any BOM'd
+    // producer from silently disabling the loop again.
+    raw = (raw || '').replace(/^\uFEFF/, '');
 
     try {
+      if (!raw) {
+        // No directive yet: the harness is still waiting for first render,
+        // and a bound report is impossible without a directive to bind to.
+        // Signal readiness on its own channel so launch is observable before
+        // any directive exists. Diagnostic only; never breaks the app.
+        try {
+          await E2EDriveReady(JSON.stringify({ schemaVersion: 1, screen: state.screen || '' }));
+        } catch {
+          // Readiness is best-effort; the next poll retries.
+        }
+      }
       if (raw) {
         const directive = JSON.parse(raw);
         if (directive.schemaVersion !== 1 || typeof directive.runId !== 'string' ||

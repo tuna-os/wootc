@@ -16,6 +16,15 @@ var e2eDirectiveID = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // Bind reports to the directive the frontend actually consumed.
 func e2eUniqueObject(raw []byte) (map[string]json.RawMessage, error) {
+	// A UTF-8 BOM prefix is not JSON whitespace: encoding/json rejects it,
+	// and so would the frontend's JSON.parse. The harness wrote the install
+	// directive with PowerShell 5.1 Set-Content -Encoding UTF8 (BOM) through
+	// runs 36399679919/36413017019/36420437461, so the app saw no directive
+	// and never reported while the harness readback — which decodes and
+	// strips the BOM — kept passing. The writer is fixed to emit BOM-less
+	// UTF-8; stripping here keeps any BOM'd producer from silently disabling
+	// the drive loop again. Central: every drive-file parse enters here.
+	raw = bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))
 	if len(raw) > 16384 {
 		return nil, errors.New("oversized drive record")
 	}
@@ -111,24 +120,75 @@ func writeE2EDriveReport(state string) {
 		return
 	}
 	path := e2eDrivePath("e2e-drive-state.json")
-	file, err := os.CreateTemp(filepath.Dir(path), ".wootc-drive-report-*")
-	if err != nil {
-		return
-	}
-	defer os.Remove(file.Name())
-	if err = file.Chmod(0600); err == nil {
-		_, err = file.WriteString(state)
-	}
-	if err == nil {
-		err = file.Sync()
-	}
-	closeErr := file.Close()
-	if err != nil || closeErr != nil {
+	staged, ok := stageE2EFile(path, state)
+	if !ok {
 		return
 	}
 	current, err := read(directivePath)
 	if err != nil || !bytes.Equal(current, directive) {
+		os.Remove(staged)
 		return
 	}
-	_ = os.Rename(file.Name(), path)
+	commitE2EFile(staged, path)
+}
+
+// stageE2EFile writes content to a temp file beside path. The caller
+// re-validates whatever the write binds to, then commitE2EFile renames.
+func stageE2EFile(path, content string) (string, bool) {
+	file, err := os.CreateTemp(filepath.Dir(path), ".wootc-drive-report-*")
+	if err != nil {
+		return "", false
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(file.Name())
+		}
+	}()
+	if err = file.Chmod(0600); err == nil {
+		_, err = file.WriteString(content)
+	}
+	if err == nil {
+		err = file.Sync()
+	}
+	if err != nil {
+		_ = file.Close()
+		return "", false
+	}
+	if err = file.Close(); err != nil {
+		return "", false
+	}
+	return file.Name(), true
+}
+
+func commitE2EFile(staged, path string) {
+	defer os.Remove(staged)
+	_ = os.Rename(staged, path)
+}
+
+// writeE2EReady persists the frontend's first-render signal. Unlike a drive
+// report it binds to NO directive: readiness must be observable before the
+// harness writes one (the install directive is only written after launch is
+// confirmed, so waiting for a bound report first is a deadlock — GUI red,
+// every run since the drive loop landed). The payload carries only the
+// schema version and the current screen; progress authentication stays with
+// the bound drive-state channel.
+func writeE2EReady(state string) {
+	fields, err := e2eUniqueObject([]byte(state))
+	if err != nil || len(fields) != 2 {
+		return
+	}
+	if !bytes.Equal(fields["schemaVersion"], []byte("1")) {
+		return
+	}
+	screen, ok := fields["screen"]
+	if !ok {
+		return
+	}
+	var name string
+	if json.Unmarshal(screen, &name) != nil || name == "" {
+		return
+	}
+	if staged, ok := stageE2EFile(e2eDrivePath("e2e-ready.json"), state); ok {
+		commitE2EFile(staged, e2eDrivePath("e2e-ready.json"))
+	}
 }

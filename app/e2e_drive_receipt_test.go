@@ -51,3 +51,23 @@ func TestE2EDriveReportRefusesUnrelatedAndAmbiguousWrites(t *testing.T) {
 		t.Fatal("missing directive allowed report publication")
 	}
 }
+
+func TestE2EDriveToleratesBOMDirective(t *testing.T) {
+	t.Setenv("WOOTC_E2E_DRIVE", "1")
+	removeE2EFiles(t)
+	defer removeE2EFiles(t)
+	// PowerShell 5.1 Set-Content -Encoding UTF8 prefixes a BOM; the drive
+	// loop must survive one (runs 36399679919/36413017019/36420437461).
+	bom := append([]byte("\xef\xbb\xbf"), []byte(boundDirective)...)
+	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), bom, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := (&App{}).E2EDriveDirective(); got != boundDirective {
+		t.Fatalf("BOM directive unreadable, got %q", got)
+	}
+	(&App{}).E2EDriveReport(boundReport)
+	after, err := os.ReadFile(e2eDrivePath("e2e-drive-state.json"))
+	if err != nil || string(after) != boundReport {
+		t.Fatal("BOM directive blocked bound report publication")
+	}
+}
