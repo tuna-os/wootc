@@ -894,7 +894,11 @@ func installPipelineSteps(ctx context.Context, cfg InstallConfig, emit func(Prog
 			registerUninstallEntry()
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)
-			return nil
+			// Commit point of the boot-chain transaction (#286): the one-shot
+			// is the LAST change before reboot. Until here the wootc entry is
+			// inert, so a cancel, failure, or power cut at any earlier step
+			// returns to Windows.
+			return armBootChain()
 		}},
 	}
 
@@ -968,15 +972,17 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			}
 		}
 
+		// Set BEFORE the step runs: configureBCD can fail after it created an
+		// entry, and that partial chain must be rolled back too.
+		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
+			armed = true
+		}
 		if err := s.fn(); err != nil {
 			if armed {
 				disarmOneShot()
 			}
 			writeState(StateFailed, s.name, err.Error())
 			return fmt.Errorf("%s: %w", displayStepLabel(s.name), err)
-		}
-		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
-			armed = true
 		}
 	}
 
