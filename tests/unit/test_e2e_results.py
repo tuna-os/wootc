@@ -163,6 +163,22 @@ false
         self.assertEqual(self.rows()[-1]['verdict'], 'passed')
         self.assertFalse(self.marker.exists())
 
+    def test_secure_boot_refusal_needs_the_words_and_the_untouched_disk(self):
+        # The refusal cell (#322) passes on a refusal, so it must not be able
+        # to pass on half of one: a refusal with something written is a bug.
+        self.ledger.unlink()
+        self.assertEqual(self.call('init', '--scenario', 'secure-boot-refusal').returncode, 0)
+        self.assertEqual(self.call('record', '--kind', 'assertion', '--domain', 'product', '--assertion', 'secure-boot-refused').returncode, 0)
+        self.assertNotEqual(self.call('finish', '--legacy', str(self.legacy)).returncode, 0)
+        self.assertEqual(self.rows()[-1]['missingAssertions'], ['secure-boot-untouched'])
+
+        self.ledger.unlink()
+        self.assertEqual(self.call('init', '--scenario', 'secure-boot-refusal').returncode, 0)
+        for name in ['secure-boot-refused', 'secure-boot-untouched']:
+            self.assertEqual(self.call('record', '--kind', 'assertion', '--domain', 'product', '--assertion', name).returncode, 0)
+        self.assertEqual(self.call('finish', '--legacy', str(self.legacy)).returncode, 0)
+        self.assertEqual(self.rows()[-1]['verdict'], 'passed')
+
     def test_existing_marker_cannot_be_adopted_as_current_proof(self):
         self.assertions()
         self.marker.parent.mkdir()

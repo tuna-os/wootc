@@ -69,7 +69,19 @@ var efiCertX509GUID = [16]byte{
 // cannot fully parse still tells us about the entries we did understand, and
 // "unknown" is the safe answer for the rest.
 func parseUEFISignatureListCAs(db []byte) []string {
+	gens, _ := parseUEFIDb(db)
+	return gens
+}
+
+// parseUEFIDb is parseUEFISignatureListCAs plus the count of X.509
+// certificates it could read. The count is what separates "we read db and it
+// holds no third-party CA" (a Secured-core PC with the third-party CA turned
+// off, which cannot launch any shim) from "we could not read db at all".
+// Those two look the same as an empty generation list and need opposite
+// answers: the first is a certain failure, the second is only a doubt.
+func parseUEFIDb(db []byte) ([]string, int) {
 	seen := map[string]bool{}
+	x509Certs := 0
 	for off := 0; off+28 <= len(db); {
 		var sigType [16]byte
 		copy(sigType[:], db[off:off+16])
@@ -88,6 +100,7 @@ func parseUEFISignatureListCAs(db []byte) []string {
 				// Skip the 16-byte SignatureOwner GUID; the rest is DER.
 				der := db[entries+16 : entries+int(sigSize)]
 				if cert, err := x509.ParseCertificate(der); err == nil {
+					x509Certs++
 					for _, gen := range matchMicrosoftUefiCA(cert.Subject.CommonName) {
 						seen[gen] = true
 					}
@@ -97,7 +110,7 @@ func parseUEFISignatureListCAs(db []byte) []string {
 		}
 		off += int(listSize)
 	}
-	return sortedKeys(seen)
+	return sortedKeys(seen), x509Certs
 }
 
 func le32(b []byte, off int) uint32 {
@@ -189,9 +202,10 @@ type secureBootChainCheck struct {
 
 // checkSecureBootChain compares what the firmware trusts against what this
 // build stages. secureBootOn/secureBootKnown come from the firmware probe;
-// trusted is what parseUEFISignatureListCAs found in db; staged is
-// stagedShimAuthorities().
-func checkSecureBootChain(secureBootOn, secureBootKnown bool, trusted, staged []string) secureBootChainCheck {
+// trusted is what parseUEFISignatureListCAs found in db, and dbRead says
+// whether db was actually read (an empty trusted list means "none" only when
+// it was); staged is stagedShimAuthorities().
+func checkSecureBootChain(secureBootOn, secureBootKnown, dbRead bool, trusted, staged []string) secureBootChainCheck {
 	// Secure Boot off (or unknowable): the firmware launches whatever it is
 	// pointed at, so the signing authority is not what stands in the way.
 	if !secureBootKnown || !secureBootOn {
@@ -200,6 +214,22 @@ func checkSecureBootChain(secureBootOn, secureBootKnown bool, trusted, staged []
 	// A build that did not record what it stages cannot grade anything.
 	if len(staged) == 0 {
 		return secureBootChainCheck{}
+	}
+	if len(trusted) == 0 && dbRead {
+		// db was read and holds certificates, but neither Microsoft
+		// third-party CA. This is how Secured-core PCs ship: Windows boots,
+		// and nothing else signed by Microsoft does. No shim can start here,
+		// so this is as certain as a generation mismatch.
+		return secureBootChainCheck{
+			Blocked: true,
+			Message: "Your PC's Secure Boot is set to start only Microsoft Windows. It does " +
+				"not trust Microsoft's certificate for other systems, which signs this " +
+				"version's startup file, so starting Linux would stop at a \"bad shim " +
+				"signature\" message. Nothing has been changed. In your PC's firmware " +
+				"settings, turn on the option that allows Microsoft's third-party UEFI " +
+				"certificate (often called \"Allow Microsoft 3rd Party UEFI CA\"), or turn " +
+				"Secure Boot off, and try again.",
+		}
 	}
 	if len(trusted) == 0 {
 		return secureBootChainCheck{
@@ -223,6 +253,14 @@ func checkSecureBootChain(secureBootOn, secureBootKnown bool, trusted, staged []
 				"PC's firmware settings and try again.",
 			humanAuthorities(trusted), humanAuthorities(staged), productNameForMessages()),
 	}
+}
+
+// secureBootChainVerdict grades a SystemInfo snapshot. Every install entry
+// point asks through here — the GUI's gateScenario and the headless
+// `install` subcommand alike — so the two cannot drift apart.
+func secureBootChainVerdict(si SystemInfo) secureBootChainCheck {
+	return checkSecureBootChain(si.SecureBootOn, si.SecureBootKnown, si.UefiDbRead,
+		si.TrustedUefiAuthorities, stagedShimAuthorities())
 }
 
 // humanAuthorities renders {"2011","2023"} as "2011 and 2023" for a sentence
