@@ -139,6 +139,19 @@ body:
         - label: The verify-uninstall checklist passed and is attached
 
   - type: dropdown
+    id: uninstall-path
+    attributes:
+      label: Uninstall path tested
+      description: "Complete this if you ran the uninstaller. Issue #238 needs each path proven on real hardware."
+      options:
+        - Not tested
+        - Apps (Add/Remove programs)
+        - "`wootc.exe uninstall`"
+        - Orphaned leftovers (C:\\wootc deleted by hand first)
+    validations:
+      required: false
+
+  - type: dropdown
     id: result
     attributes:
       label: Overall result
@@ -160,6 +173,7 @@ body:
         - label: Deployer log (`C:\\wootc\\logs\\deployer.log`)
         - label: Deployer journal snapshot (`C:\\wootc\\logs\\deployer-last-journal.log`)
         - label: Photo or screenshot of what the screen said
+        - label: Uninstall proof (`checklist.md` from `tests\\field\\verify-uninstall.ps1 verify`)
 
   - type: textarea
     id: evidence
