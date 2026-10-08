@@ -13,10 +13,8 @@ import (
 // Evaluates the Libertix decision table and writes the atomic verdict.
 func runRecoverStartup() error {
 	armed, err := readArmedJSON()
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // nothing armed
-		}
+	armedMissing := os.IsNotExist(err)
+	if err != nil && !armedMissing {
 		return fmt.Errorf("reading armed.json: %w", err)
 	}
 
@@ -34,6 +32,16 @@ func runRecoverStartup() error {
 	startedExists := startedErr == nil
 
 	ls, ok := readState()
+
+	// An install that never reached its commit point (the one-shot) is
+	// rolled back before anything else looks at the machine (#286).
+	if handled, err := recoverBootTxnAtStartup(startedExists, ls); handled || err != nil {
+		return err
+	}
+	if armedMissing {
+		return nil // nothing armed
+	}
+
 	if !ok {
 		ls = LifecycleState{State: StateArmed}
 	}
@@ -62,6 +70,38 @@ func runRecoverStartup() error {
 	default:
 		return writeRecoveryVerdict(verdict)
 	}
+}
+
+// recoverBootTxnAtStartup applies bootTxnStartupAction to the boot-chain
+// journal. handled is true when it rolled back an uncommitted install, which
+// leaves nothing armed for the verdict table to judge. A rollback it cannot
+// confirm returns an error and keeps the journal and tasks for the next start.
+func recoverBootTxnAtStartup(startedExists bool, ls LifecycleState) (bool, error) {
+	txn, err := readBootTxn()
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		txn = BootTxn{} // unreadable journal: never committed as far as anyone can prove
+	}
+	switch bootTxnStartupAction(txn, startedExists, ls) {
+	case bootTxnMarkCommitted:
+		// The firmware took the one-shot before the journal recorded it.
+		txn.Phase = txnCommitted
+		return false, writeBootTxn(txn)
+	case bootTxnRollback:
+		if err := rollbackBootChain(); err != nil {
+			return true, err
+		}
+		_ = os.Remove(filepath.Join(wootcDir(), "install", "bcd-guid.txt"))
+		_ = os.Remove(armedPath())
+		_ = os.Remove(verdictPath())
+		_ = unregisterRecoveryTasks()
+		writeState(StateFailed, StepInstallerMakingLinuxBootableOnYourMachine,
+			"setup stopped before the boot setup was finished; wootc removed its boot entry and Windows starts normally")
+		return true, nil
+	}
+	return false, nil
 }
 
 // runRecoverPrompt displays the recovery prompt on user logon when an actionable
@@ -213,6 +253,9 @@ func repairBootFromArmed(noReboot bool) error {
 	}
 	if err := configureBCD(cfg); err != nil {
 		return fmt.Errorf("repairing BCD configuration: %w", err)
+	}
+	if err := armBootChain(); err != nil {
+		return fmt.Errorf("arming the repaired boot chain: %w", err)
 	}
 
 	obs := observeBoot()

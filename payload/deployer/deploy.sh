@@ -3482,8 +3482,28 @@ rm -f "$SCRATCH_IMG"
 # unmount anything nested, then a BOUNDED umount with a lazy fallback. (The sync
 # means a lazy detach is acceptable rather than hanging the deploy; we still try
 # a clean umount first to avoid a dirty-NTFS flag.)
+#
+# A lazy detach is NOT a clean unmount: ntfs3 keeps the superblock live until
+# its last holder lets go, so `reboot -ff` resets a volume that is still
+# mounted rw and still flagged dirty. It is the first broken link in #218
+# (run 32556250889): the deploy passed verify, logged "lazy-detaching", and
+# the next boot loaded Windows Boot Manager, then ran 78 minutes with a busy
+# CPU, no serial and no QGA — the deployer-side twin of the Phase-2 bug in
+# tests/unit/phase2-clean-ntfs-umount.bats.
+#
+# `losetup -d` on a loop that is still MOUNTED only sets autoclear; the loop
+# (and the root.disk it holds open on /mnt/ntfs) lives on. The run above
+# shows the usual holder: fisherman left its target tree behind
+# ("umount -Rl /mnt/fisherman-target/.fisherman-scratch: exit status 1"), and
+# /mnt/fisherman-target is not under /mnt/ntfs, so nothing below ever
+# unmounted it. Unmount every mount sourced from an NTFS-backed loop (the
+# whole device or a partition of it), with its children, BEFORE detaching.
 sync || true
 for _lp in $(losetup -ln -O NAME,BACK-FILE 2>/dev/null | awk '$2 ~ /\/mnt\/ntfs\// {print $1}'); do
+    awk -v lp="$_lp" '$1 == lp || index($1, lp "p") == 1 {print $2}' /proc/mounts 2>/dev/null \
+        | sort -r | while read -r _m; do
+            umount -R "$_m" 2>/dev/null || umount -Rl "$_m" 2>/dev/null || true
+        done
     losetup -d "$_lp" 2>/dev/null || true
 done
 awk '$2 ~ /^\/mnt\/ntfs\// {print $2}' /proc/mounts 2>/dev/null | sort -r | while read -r _m; do
@@ -3493,6 +3513,16 @@ _ntfs_umounted=false
 for _ in 1 2 3 4 5; do umount /mnt/ntfs 2>/dev/null && { _ntfs_umounted=true; break; }; sync; sleep 2; done
 if [ "$_ntfs_umounted" != true ]; then
     err "  [WARN] /mnt/ntfs still busy after retries; lazy-detaching so the deploy can reboot into Phase 2"
+    # Name the holder ON THE SERIAL. The disk post-mortem that could have
+    # said what pinned the volume lived in a 14-day artifact and expired
+    # before #218 was read; the job log keeps the serial for 90 days.
+    losetup -ln -O NAME,BACK-FILE 2>/dev/null | while read -r _l; do
+        err "    holder: loop $_l"
+    done
+    awk '$1 ~ /^\/dev\/loop/ || $2 ~ /^\/mnt\/(ntfs|fisherman-target|verify)/ {print $1" on "$2" ("$3")"}' \
+        /proc/mounts 2>/dev/null | while read -r _l; do
+        err "    holder: mount $_l"
+    done
     umount -l /mnt/ntfs 2>/dev/null || true
 fi
 

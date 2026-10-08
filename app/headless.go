@@ -67,6 +67,10 @@ func headlessUninstall(args []string) int {
 	return 0
 }
 
+// headlessSystemInfo is getSystemInfo, swappable so tests can stand in a
+// firmware the build host does not have.
+var headlessSystemInfo = getSystemInfo
+
 func headlessInstall(args []string) int {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	var cfg InstallConfig
@@ -94,6 +98,14 @@ func headlessInstall(args []string) int {
 		return 2
 	}
 	cfg.Bootloader = bootloader
+
+	// headless bypasses StartInstall, and with it gateScenario's Secure Boot
+	// check (#322). An unattended install is the one with nobody watching
+	// the reboot, so it needs the refusal more than the GUI does, not less.
+	if v := secureBootChainVerdict(headlessSystemInfo()); v.Blocked {
+		fmt.Fprintf(os.Stderr, "install: %s\n", v.Message)
+		return 1
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
