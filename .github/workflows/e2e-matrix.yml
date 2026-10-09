@@ -5,6 +5,11 @@ name: E2E matrix (hosted)
 # definition the nightly canary and release gate already prove. Laptop runners
 # stay free for interactive work (the GUI-driven run lives on himachal).
 
+# The tier and the mode go into the run title. The release evidence grader
+# (tools/release/matrix-evidence.py, #240) reads them from the run, because
+# the runs API does not return workflow_dispatch inputs.
+run-name: "E2E matrix (${{ inputs.tier }}, ${{ inputs.gui_install && 'gui' || 'script' }}${{ inputs.grep && format(', grep={0}', inputs.grep) || '' }})"
+
 on:
   workflow_dispatch:
     inputs:

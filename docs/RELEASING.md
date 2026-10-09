@@ -111,6 +111,45 @@ The set also includes `wubildr.efi` when its build succeeds.
 `SHA256SUMS` lists hashes for all these files. `skip_e2e` exists for emergencies and
 documents itself in the release notes.
 
+## Full-matrix evidence at the RC SHA (v1.0 criterion 3)
+
+The release notes for v1.0.0 cite one run set at the exact release SHA.
+A green from an earlier commit does not count. [#240] records this set.
+
+1. Dispatch `e2e-matrix.yml` at the RC SHA with `tier=full` two times.
+   Set `gui_install` off for script mode, and on for GUI mode.
+   The run title then shows the tier and the mode, for example
+   `E2E matrix (full, gui)`.
+2. If a cell fails, read its flake notice. The harness writes this notice only
+   for a known infra signature. Re-dispatch that cell with `grep=<cell>`, or
+   re-run the failed job. Do not re-run a red cell that has no flake notice.
+   Diagnose it, because it is a real failure.
+3. Grade the run set and paste the output into [#240] and the release notes:
+
+```
+tools/release/matrix-evidence.py check --sha <rc-sha> \
+    --run <script-run> --run <gui-run> [--run <retry> ...] \
+    --snapshot matrix-evidence.json
+```
+
+The tool reads `tests/e2e/matrix.tsv` at the RC SHA and expects each
+full-tier cell that the hosted plan runs. GUI mode expects only the cells that
+the `gui_install` guard drives. The BitLocker, `filesystem=`, and offline cells
+use script mode only. The tool marks a cell green only when all of these are true:
+
+- The last try of the cell has a passed job.
+- The job log shows the pass banner of `run-e2e.sh`. The harness prints this
+  banner only after it finds an empty failure ledger.
+- Each earlier red try of that cell has a flake notice.
+
+The tool exits with a non-zero code if a cell is missing, red, or has a red
+with no explanation. It also exits with a non-zero code if a run is at a
+different SHA, or if the matrix has no `bitlocker=on` or `offline=on` cell.
+The phase3 cells are too large for the disks of hosted runners. The record
+names them as not in the hosted matrix.
+Keep the `--snapshot` file with the evidence, because job logs expire after
+90 days. Use `tools/release/matrix-evidence.py grade` to grade the file again offline.
+
 ## Fresh-machine verification (v1.0 criterion 4)
 
 The checks above run on machines that already know wootc. Trust is a
@@ -178,6 +217,7 @@ The file identity does not sign the installer or set the UAC publisher.
 Use the field verifier and attach screenshots for the published files.
 
 [#241]: https://github.com/tuna-os/wootc/issues/241
+[#240]: https://github.com/tuna-os/wootc/issues/240
 [#229]: https://github.com/tuna-os/wootc/issues/229
 [#230]: https://github.com/tuna-os/wootc/issues/230
 
