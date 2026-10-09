@@ -56,14 +56,17 @@ func captureBitLockerRecoveryKey(vol string) string {
 // writeBitLockerKey writes the numerical recovery password to
 // C:\wootc\install\bitlocker-key.txt on the storage drive, so Phase 2
 // can read it and unlock the encrypted C: for profile discovery (#61).
-// The file is ACL-restricted (SYSTEM + Administrators only).
+// The file is ACL-restricted (SYSTEM + Administrators only). If the ACL
+// cannot be applied, the key is scrubbed and not stored at all (#279): a
+// recovery password that any local user can read unlocks the whole C:.
 func writeBitLockerKey(key string) error {
 	keyPath := filepath.Join(wootcDir(), "install", "bitlocker-key.txt")
 	if err := os.WriteFile(keyPath, []byte(key+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write bitlocker-key.txt: %w", err)
 	}
 	if err := restrictFileACL(keyPath); err != nil {
-		fmt.Fprintf(os.Stderr, "[wootc] warning: ACL restriction failed for bitlocker-key.txt: %v\n", err)
+		_ = scrubFile(keyPath)
+		return fmt.Errorf("restrict bitlocker-key.txt, so it was not stored: %w", err)
 	}
 	return nil
 }
