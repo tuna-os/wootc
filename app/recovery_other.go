@@ -3,7 +3,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 )
 
 func runRecoverStartup() error {
@@ -61,9 +63,9 @@ func tryAgainFromArmed(noReboot bool) error {
 	return nil
 }
 
+// repairBootFromArmed refuses outside Windows: there is no boot
+// configuration to observe, so there is nothing that could verify a repair.
 func repairBootFromArmed(noReboot bool) error {
-	writeState(StateArmed, "", "")
-	_ = os.Remove(deployerStartedPath())
-	_ = os.Remove(verdictPath())
-	return nil
+	r := planBootRepair(observeBoot())
+	return fmt.Errorf("repair refused, nothing was changed: %s", strings.Join(r.Refusals, "; "))
 }

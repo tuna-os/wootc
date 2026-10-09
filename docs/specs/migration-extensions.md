@@ -4,7 +4,7 @@ Status: proposed contract and delivery plan, 2026-09-26.
 This document extends [the plugin design](../plugin-architecture.md).
 It does not claim that the new runner, APIs, or adapters exist.
 
-The [VM-first product direction](../adr/0004-restore-vm-first-product.md) governs the sequence.
+The sequence follows the [VM-first product direction](../adr/0004-restore-vm-first-product.md).
 The first customer has an older PC and little technical knowledge.
 They want their documents, photos, familiar apps, and preferences within reach.
 They should not need to learn what a plugin is.

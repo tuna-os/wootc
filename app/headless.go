@@ -163,7 +163,9 @@ func headlessRecover(args []string) int {
 	classify := fs.Bool("classify", false, "print the interrupted-install classification JSON (read-only)")
 	prepareResume := fs.Bool("prepare-resume", false, "discard an unfinished attempt's own root.disk, keeping the verified download")
 	tryAgain := fs.Bool("try-again", false, "re-arm from armed.json and reboot")
-	repairBoot := fs.Bool("repair-boot", false, "re-stage ESP, re-arm BCD and reboot")
+	repairBoot := fs.Bool("repair-boot", false, "re-stage ESP, re-arm BCD and reboot (refuses when ownership is uncertain)")
+	inspect := fs.Bool("inspect", false, "print the observed boot state and safe repair actions as JSON; changes nothing")
+	restoreWindows := fs.Bool("restore-windows", false, "take wootc out of the boot order so Windows starts; keeps files for a retry")
 	remove := fs.Bool("remove", false, "uninstall wootc")
 	noReboot := fs.Bool("no-reboot", false, "do not reboot after try-again or repair-boot")
 
@@ -213,6 +215,17 @@ func headlessRecover(args []string) int {
 		return 0
 	}
 
+	if *inspect {
+		report, _ := inspectBoot()
+		data, err := marshalJSON(report)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover inspect: %v\n", err)
+			return 1
+		}
+		fmt.Println(string(data))
+		return 0
+	}
+
 	if *prepareResume {
 		p, err := prepareResumeAt(wootcDir(), processAlive)
 		if err != nil {
@@ -225,6 +238,18 @@ func headlessRecover(args []string) int {
 			return 1
 		}
 		fmt.Println(string(data))
+		return 0
+	}
+
+	if *restoreWindows {
+		report, err := restoreWindowsBoot()
+		if data, merr := marshalJSON(report); merr == nil {
+			fmt.Println(string(data))
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover restore-windows: %v\n", err)
+			return 1
+		}
 		return 0
 	}
 

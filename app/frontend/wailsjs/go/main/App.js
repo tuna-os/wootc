@@ -163,6 +163,14 @@ export function RepairBoot() {
   return window['go']['main']['App']['RepairBoot']();
 }
 
+export function InspectBoot() {
+  return window['go']['main']['App']['InspectBoot']();
+}
+
+export function RestoreWindowsBoot() {
+  return window['go']['main']['App']['RestoreWindowsBoot']();
+}
+
 export function GetReleaseNotice() {
   return window['go']['main']['App']['GetReleaseNotice']();
 }

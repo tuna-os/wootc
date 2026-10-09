@@ -2138,17 +2138,34 @@ if ($null -ne $ts -and @($ts).Count -gt 0) { Write-Output "TASKS=True" } else { 
     pass "Uninstall: Windows rebooted cleanly on its own — the machine is restored"
 }
 
+# Copy the guest-side recovery evidence out before anything else can go wrong
+# (#288). Called on every exit path of recovery_check, not only the green one:
+# the failed VM's state is the evidence an offline diagnosis needs.
+recovery_evidence() {
+    local dir="$STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    mkdir -p "$dir" 2>/dev/null || true
+    qga_read 'C:\wootc\state.json' > "$dir/state.json" 2>/dev/null || true
+    qga_read 'C:\OEM\recovery-baseline.json' > "$dir/recovery-baseline.json" 2>/dev/null || true
+    qga_read 'C:\OEM\recovery-interrupted.json' > "$dir/recovery-interrupted.json" 2>/dev/null || true
+    qga_read 'C:\OEM\wootc-e2e.log' > "$dir/wootc-e2e.log" 2>/dev/null || true
+    qga_powershell 'bcdedit /enum all' > "$dir/bcdedit.txt" 2>/dev/null || true
+    qga_powershell 'Get-ChildItem C:\wootc\bundle\oci\blobs\sha256 -ErrorAction SilentlyContinue | Format-Table Name,Length,LastWriteTimeUtc -AutoSize | Out-String -Width 200' > "$dir/blobs.txt" 2>/dev/null || true
+    info "Recovery: evidence retained in $dir"
+}
+
 # Recovery / Fault-Injection check (#288): exercises cancellation, interruption,
 # and post-reboot failure across all 6 boundaries.
 recovery_check() {
     [ -n "$FAULT_INJECT" ] || [ "${RECOVERY_CHECK:-false}" = true ] || return 0
     step "Recovery: Verifying fault-injection boundary ($FAULT_INJECT), idempotency & cleanup..."
+    local evidence="$STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    mkdir -p "$evidence" 2>/dev/null || true
 
     # 1. Interrupted assertions
     step "Recovery Stage 1: Asserting interrupted/cancelled system state..."
     local assert_out
     assert_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage interrupted -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
-    printf '%s\n' "$assert_out" | sed 's/^/    recovery: /'
+    printf '%s\n' "$assert_out" | tee "$evidence/stage1-interrupted.txt" | sed 's/^/    recovery: /'
     if printf '%s' "$assert_out" | grep -q 'RECOVERY-RESULT: PASS'; then
         product_pass recovery-interrupted "Recovery: Stage 1 (interrupted state) validated successfully"
     else
@@ -2157,44 +2174,48 @@ recovery_check() {
 
     # 2. Windows reboot test
     step "Recovery Stage 2: Rebooting Windows to verify clean boot without Automatic Repair..."
-    qga_restart_windows "Windows after interruption" 600 || return 1
+    if ! qga_restart_windows "Windows after interruption" 600; then
+        product_fail "Recovery: Windows did not come back after the interruption (Automatic Repair or a hang)"
+        recovery_evidence
+        return 1
+    fi
     pass "Recovery: Windows booted normally without Automatic Repair"
 
     # 3. Retry test (Idempotency)
     step "Recovery Stage 3: Retrying setup to verify idempotent retry (no duplicate BCD/EFI)..."
-    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | sed 's/^/    retry: /' || true
+    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | tee "$evidence/stage3-retry-setup.txt" | sed 's/^/    retry: /' || true
 
     local retry_out
-    retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried' 2>&1 || true)
-    printf '%s\n' "$retry_out" | sed 's/^/    recovery-retry: /'
+    retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
+    printf '%s\n' "$retry_out" | tee "$evidence/stage3-retried.txt" | sed 's/^/    recovery-retry: /'
     if printf '%s' "$retry_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        product_pass recovery-retry "Recovery: Stage 3 (idempotent retry) validated successfully — exactly 1 BCD entry, ESP valid"
+        product_pass recovery-retry "Recovery: Stage 3 (idempotent retry) validated successfully — one BCD entry, no duplicate ESP files, verified blobs reused"
     else
         product_fail "Recovery: Stage 3 (idempotent retry) assertion failed"
     fi
 
     # 4. Uninstall test
     step "Recovery Stage 4: Testing clean uninstall from interrupted/retried state..."
-    qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 | sed 's/^/    uninstall: /' || true
+    qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 | tee "$evidence/stage4-uninstall.txt" | sed 's/^/    uninstall: /' || true
     local un_out
     un_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage uninstalled' 2>&1 || true)
-    printf '%s\n' "$un_out" | sed 's/^/    recovery-uninstall: /'
+    printf '%s\n' "$un_out" | tee "$evidence/stage4-uninstalled.txt" | sed 's/^/    recovery-uninstall: /'
     if printf '%s' "$un_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        product_pass recovery-uninstall "Recovery: Stage 4 (uninstall from interrupted state) validated successfully"
+        product_pass recovery-uninstall "Recovery: Stage 4 (uninstall from interrupted state) validated successfully — boot order, ESP and power match the pre-install baseline"
     else
         product_fail "Recovery: Stage 4 (uninstall from interrupted state) assertion failed"
     fi
 
     # 5. Post-uninstall reboot
     step "Recovery Stage 5: Final reboot to verify Windows boots cleanly after uninstall..."
-    qga_restart_windows "Windows after recovery uninstall" 600 || return 1
+    if ! qga_restart_windows "Windows after recovery uninstall" 600; then
+        product_fail "Recovery: Windows did not come back after the recovery uninstall"
+        recovery_evidence
+        return 1
+    fi
     product_pass recovery-windows "Recovery: Windows booted cleanly after recovery uninstall"
 
-    # Retain recovery evidence artifacts
-    mkdir -p "$STORAGE_DIR/artifacts/$RUN_ID/recovery" 2>/dev/null || true
-    qga_read 'C:\wootc\state.json' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/state.json" 2>/dev/null || true
-    qga_powershell 'bcdedit /enum all' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/bcdedit.txt" 2>/dev/null || true
-    pass "Recovery: Evidence artifacts retained in $STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    recovery_evidence
 }
 
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
@@ -2990,7 +3011,9 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
     if [ -n "$OEM_FAILURE" ]; then
         if [ -n "$FAULT_INJECT" ]; then
             info "Observed expected fault injection failure during Phase 1 ($FAULT_INJECT)"
-            recovery_check
+            # Every non-zero return already recorded a product_fail in the
+            # ledger, which the check below turns into a red result.
+            recovery_check || true
             if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
                 _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
                 fail "$_wootc_n failure(s) recorded in recovery run"
@@ -3159,7 +3182,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             if [ "$WINDOWS_BACK_STREAK" -ge 12 ]; then
                 if [ -n "$FAULT_INJECT" ]; then
                     info "Observed expected deploy failure and return to Windows ($FAULT_INJECT)"
-                    recovery_check
+                    recovery_check || true   # failures are in the ledger
                     if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
                         _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
                         fail "$_wootc_n failure(s) recorded in recovery run"

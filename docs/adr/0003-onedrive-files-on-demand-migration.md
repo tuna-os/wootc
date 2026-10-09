@@ -4,13 +4,13 @@
 Approved RFC / Architecture Specification
 
 ## Context
-Windows users frequently have user shell folders (Documents, Pictures, Desktop) redirected to **OneDrive** with **Files On-Demand** active, meaning files exist as un-hydrated cloud reparse points (`FILE_ATTRIBUTE_REPARSE_POINT` / `FILE_ATTRIBUTE_OFFLINE`).
+Windows users frequently have user shell folders (Documents, Pictures, Desktop) redirected to **OneDrive** with **Files On-Demand** active. Many of those files then exist only as cloud reparse points that OneDrive did not hydrate (`FILE_ATTRIBUTE_REPARSE_POINT` / `FILE_ATTRIBUTE_OFFLINE`).
 
 ---
 
 ## 1. Architectural Split: Hydrate in Phase 1, Mount in Phase 2
 
-Migration of OneDrive user folders is strictly partitioned into two independent phases:
+wootc strictly divides the migration of OneDrive user folders into two independent phases:
 
 | Phase | Timing | Mechanism & Guarantee |
 |---|---|---|
@@ -24,10 +24,10 @@ Migration of OneDrive user folders is strictly partitioned into two independent 
 1. **Pre-Flight Measurement**:
    - `app/clouddrive_windows.go` queries `HKCU\Software\Microsoft\OneDrive\Accounts` to calculate `LocalBytes` and `CloudOnly` sizes.
 2. **Honest Capacity Gate**:
-   - Compares required hydration `CloudOnly` bytes against available space in `root.disk`.
-   - If hydration size exceeds `root.disk` capacity or total disk budget, wootc presents an explicit disclosure screen:
+   - Compares the `CloudOnly` bytes to hydrate with the available space in `root.disk`.
+   - If the hydration size is more than the `root.disk` capacity or the total disk budget, wootc presents an explicit disclosure screen:
      - **Option 1**: Hydrate selected folders/subsets.
      - **Option 2**: Proceed with local-only files (skip un-hydrated cloud files).
      - **Option 3**: Cancel without altering Windows files or pinning state.
 3. **Idempotency**:
-   - `attrib -U +P` execution is idempotent per file. Hydration progress markers ensure interrupted runs resume quickly without re-scanning fully hydrated files.
+   - `attrib -U +P` execution is idempotent per file. Markers record the hydration progress. Thus an interrupted run resumes quickly and does not scan a fully hydrated file again.

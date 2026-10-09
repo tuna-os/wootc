@@ -423,6 +423,11 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		if _, err := os.Stat(wDir); err != nil {
 			continue
 		}
+		// Scrub the staged credentials first (#279, #281): RemoveAll only
+		// unlinks them, and NTFS keeps a deleted file's clusters readable.
+		if failed := scrubInstallSecrets(filepath.Join(wDir, "install")); len(failed) > 0 {
+			errs = append(errs, fmt.Sprintf("could not scrub %v", failed))
+		}
 		// Always remove install, bundle, cache, logs, state.json, and metadata
 		for _, sub := range []string{"install", "bundle", "cache", "logs"} {
 			_ = os.RemoveAll(filepath.Join(wDir, sub))

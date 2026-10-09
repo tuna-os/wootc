@@ -1,5 +1,7 @@
 # Phase-2 attach: debugging postmortem
 
+<!-- ste-disable-file: postmortem of the Phase-2 attach debugging, which ended when Phase-2 boot went green on 2026-07-23; it is a record of what happened, kept as written -->
+
 **Scope.** How wootc's Phase-2 boot went from "never attaches root.disk → emergency
 shell" to a working attach chain, told as the sequence of *distinct* root causes we
 peeled — each proven by the next run getting further — plus the wrong turns, the

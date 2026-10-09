@@ -333,10 +333,35 @@ if ($payloadRoot -and (Test-Path "$payloadRoot\mirror.txt")) {
     Copy-Item "$payloadRoot\mirror.txt" "$installDir\mirror.txt" -Force
 }
 
+# Resume rule for an interrupted image pull (#288), the same rule as the app's
+# discardIncompleteBlobs + writeBlob: a *.part is never trusted and is
+# discarded; a completed blob is kept only if its bytes still hash to its
+# name, so a retry reuses verified layers instead of downloading them again.
+$blobDir = "$wootcDir\bundle\oci\blobs\sha256"
+if (Test-Path $blobDir) {
+    foreach ($b in @(Get-ChildItem -LiteralPath $blobDir -File -ErrorAction SilentlyContinue)) {
+        if ($b.Name -like "*.part") {
+            Remove-Item -LiteralPath $b.FullName -Force
+            Write-Host "[wootc] Discarded incomplete blob: $($b.Name)"
+        } elseif ((Get-FileHash -LiteralPath $b.FullName -Algorithm SHA256).Hash.ToLowerInvariant() -ne $b.Name) {
+            Remove-Item -LiteralPath $b.FullName -Force
+            Write-Host "[wootc] Discarded blob whose bytes do not match its digest: $($b.Name)"
+        } else {
+            Write-Host "[wootc] Reusing verified blob: $($b.Name)"
+        }
+    }
+}
+
 if ($FaultInject -eq "image-pull") {
     Write-Host "[wootc] Injected fault at boundary: image-pull (simulating interrupted image pull)"
-    New-Item -ItemType Directory -Force -Path "$wootcDir\bundle\oci\blobs\sha256" | Out-Null
-    Set-Content -Path "$wootcDir\bundle\oci\blobs\sha256\partialblob.part" -Value "INCOMPLETE_BLOB" -Encoding ASCII
+    New-Item -ItemType Directory -Force -Path $blobDir | Out-Null
+    # One layer finished before the interruption (named by its sha256, like a
+    # real verified blob) and one was cut off mid-stream. The retry must keep
+    # the first and discard the second; assert-recovery.ps1 checks both.
+    $doneBytes = [System.Text.Encoding]::ASCII.GetBytes("wootc-e2e verified layer`n")
+    $doneHex = ([System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($doneBytes)) -replace '-', '').ToLowerInvariant()
+    [System.IO.File]::WriteAllBytes("$blobDir\$doneHex", $doneBytes)
+    Set-Content -Path "$blobDir\$('0' * 64).part" -Value "INCOMPLETE_BLOB" -Encoding ASCII
     $st = @{ state = "failed"; phase = "image-pull"; error = "fault-injection: simulated failure during image download"; updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"); updatedBy = "setup-wootc" } | ConvertTo-Json -Compress
     Set-Content -Force -Path "$wootcDir\state.json" -Value $st -Encoding UTF8
     throw "fault-injection: simulated failure during image download"
@@ -715,6 +740,17 @@ if (Test-Path $exeCopy) {
 }
 
 # ── Step 9: Disable Windows Fast Startup ────────────────────────────────────
+# Record the pre-install power state first, in the app's prior-power.txt
+# format (recordPriorPowerState), so `wootc.exe uninstall` can restore it.
+# Only the first install records it: a retry after this step already ran
+# must not record "off" as the state to go back to (#288).
+$priorPowerPath = "$installDir\prior-power.txt"
+if (-not (Test-Path $priorPowerPath)) {
+    $priorHibernate = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" -Name HibernateEnabled -ErrorAction SilentlyContinue).HibernateEnabled
+    $priorHiberboot = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled
+    Set-Content -Force -Path $priorPowerPath -Value "hibernate=$priorHibernate`nhiberboot=$priorHiberboot" -Encoding ASCII
+    Write-Host "[wootc] Recorded prior power state: hibernate=$priorHibernate hiberboot=$priorHiberboot"
+}
 Write-Host "[wootc] Disabling Fast Startup..."
 try {
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" `

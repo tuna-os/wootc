@@ -1054,9 +1054,25 @@ func (a *App) TryAgain() error {
 	return tryAgainFromArmed(false)
 }
 
-// RepairBoot re-stages ESP bootloader files, re-arms BCD, and reboots.
+// RepairBoot re-stages ESP bootloader files, re-arms BCD, and reboots. It
+// refuses when the boot chain cannot be attributed to this install.
 func (a *App) RepairBoot() error {
 	return repairBootFromArmed(false)
+}
+
+// InspectBoot reports the observed boot state, which entries are wootc's,
+// and which repair actions are safe. It changes nothing in BCD or on the ESP
+// and saves an evidence bundle under install\repair.
+func (a *App) InspectBoot() BootRepairReport {
+	report, _ := inspectBoot()
+	return report
+}
+
+// RestoreWindowsBoot takes wootc out of the boot order so Windows starts,
+// keeping the entry and files for a later retry. The returned report is a
+// fresh observation; err is set unless it shows a Windows-only boot.
+func (a *App) RestoreWindowsBoot() (BootRepairReport, error) {
+	return restoreWindowsBoot()
 }
 
 // VMEvent is a Try-in-VM progress event (frontend listens on "vm:progress").
