@@ -561,3 +561,33 @@ test('last-run phase display uses its backend label safely', async ({ page }) =>
   await expect(page.locator('body')).toContainText(label);
   expect(await page.evaluate(() => window.phaseInjected)).toBeUndefined();
 });
+
+// Boot repair (#290): the recovery screen shows the OBSERVED boot state, and
+// the buttons that write to the boot configuration follow the report — not
+// the verdict file, which can be stale.
+const FAILED_VERDICT = { verdict: 'failed', title: 'Setup stopped', message: 'Setup could not finish this time.',
+  untouched: true, canTryAgain: true, canRemove: true, canRepairBoot: true };
+
+test('recovery — boot check enables Keep Windows only for a wootc one-shot', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, recoveryVerdict: FAILED_VERDICT,
+    bootReport: { bootState: 'one-shot-armed', ownership: 'certain', canRestoreWindows: true, canRepairBoot: true,
+      findings: ['lifecycle state is "failed"'], bundlePath: 'C:\\wootc\\install\\repair\\20261001T120000Z' },
+    bootReportAfterRestore: { bootState: 'windows-only', ownership: 'certain', canRestoreWindows: false, canRepairBoot: true } });
+  await expect(page.getByText('The next restart (only) goes to the Linux installer.')).toBeVisible();
+  await expect(page.getByText(/Details saved to C:\\wootc\\install\\repair/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Repair boot' })).toBeEnabled();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Keep Windows only' }).click();
+  await expect(page.getByText('Windows starts normally. wootc is not in the boot order.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeDisabled();
+});
+
+test('recovery — uncertain ownership disables every boot write', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, recoveryVerdict: FAILED_VERDICT,
+    bootReport: { bootState: 'one-shot-armed', ownership: 'uncertain', canRestoreWindows: false, canRepairBoot: false,
+      refusals: ['the boot entry recorded in armed.json is now described as "ubuntu", not "wootc"'] } });
+  await expect(page.getByText(/Not offered: the boot entry recorded in armed.json/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Repair boot' })).toBeDisabled();
+});
