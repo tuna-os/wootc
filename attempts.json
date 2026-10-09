@@ -1740,5 +1740,18 @@
     "eligible": false,
     "reason": "Native semantic proof missing",
     "autoReleaseTag": null
+  },
+  {
+    "runId": 37940030639,
+    "runAttempt": 1,
+    "date": "2026-10-09",
+    "startedAt": "2026-10-09T13:52:51Z",
+    "sourceSha": "91c711716fb04e62314ebf727c65735d393178b5",
+    "event": "schedule",
+    "verdict": "failure",
+    "runUrl": "https://github.com/tuna-os/wootc/actions/runs/37940030639",
+    "eligible": false,
+    "reason": "Native semantic proof missing",
+    "autoReleaseTag": null
   }
 ]
