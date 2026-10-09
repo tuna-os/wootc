@@ -160,6 +160,8 @@ func headlessRecover(args []string) int {
 	startup := fs.Bool("startup", false, "run startup recovery guard logic (decision table)")
 	prompt := fs.Bool("prompt", false, "run logon recovery prompt check")
 	status := fs.Bool("status", false, "print recovery verdict JSON")
+	classify := fs.Bool("classify", false, "print the interrupted-install classification JSON (read-only)")
+	prepareResume := fs.Bool("prepare-resume", false, "discard an unfinished attempt's own root.disk, keeping the verified download")
 	tryAgain := fs.Bool("try-again", false, "re-arm from armed.json and reboot")
 	repairBoot := fs.Bool("repair-boot", false, "re-stage ESP, re-arm BCD and reboot (refuses when ownership is uncertain)")
 	inspect := fs.Bool("inspect", false, "print the observed boot state and safe repair actions as JSON; changes nothing")
@@ -203,11 +205,36 @@ func headlessRecover(args []string) int {
 		return 0
 	}
 
+	if *classify {
+		data, err := marshalJSON(inspectInstallRecovery())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover classify: %v\n", err)
+			return 1
+		}
+		fmt.Println(string(data))
+		return 0
+	}
+
 	if *inspect {
 		report, _ := inspectBoot()
 		data, err := marshalJSON(report)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "recover inspect: %v\n", err)
+			return 1
+		}
+		fmt.Println(string(data))
+		return 0
+	}
+
+	if *prepareResume {
+		p, err := prepareResumeAt(wootcDir(), processAlive)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover prepare-resume: %v\n", err)
+			return 1
+		}
+		data, err := marshalJSON(p)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "recover prepare-resume: %v\n", err)
 			return 1
 		}
 		fmt.Println(string(data))

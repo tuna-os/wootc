@@ -212,6 +212,12 @@ Uninstall does not undo work that you made on a graduated native disk.
   Browser profile transfer and account credentials have different limits.
 - **No TPM:** review the passphrase and unencrypted choices under **Advanced**.
   An encryption choice does not remove the UEFI requirement.
+- **Setup stopped before it finished:** open wootc again.
+  It shows how the last install ended (cancelled, closed, or failed) and the last step that finished.
+  **Continue setup** keeps the checked part of the download and asks for your password again.
+  If setup stopped during a change to the startup files, wootc offers **Remove** only.
+  Remove the installation, then install again.
+  To see the same result in a terminal, run `wootc.exe recover --classify`.
 - **Windows asks to scan a drive:** a power cut or forced shutdown can leave it unclean.
   Complete the Windows check and inspect its result. Do not assume every file survived a failed shutdown.
 
