@@ -157,7 +157,7 @@ export function renderLaunchpad() {
   //
   // The default form asks for as little as a Mac's first-run setup would: a
   // password, nothing else. Everything else has a solid default — identity
-  // mirrored from this PC, disk sized from free space, TPM-backed encryption,
+  // mirrored from this PC, disk sized from free space, no disk encryption,
   // Windows look and Wi-Fi brought along — and every default is inspectable
   // and changeable under Advanced. A control only earns a place on the main
   // form when it is a question we genuinely cannot answer for the user
@@ -233,19 +233,22 @@ export function renderLaunchpad() {
   encSection.appendChild(encLabel);
   const encOpts = el('div');
   encOpts.style.cssText = 'display:flex;flex-direction:column;gap:4px';
-  const encRadio = (value, title, sub, recommended) => {
+  const encRadio = (value, title, sub, recommended, disabled = false) => {
     const row = el('label');
     row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px';
+    if (disabled) row.style.cssText += ';cursor:not-allowed;opacity:0.55';
     const checked = state.config.encryption === value;
-    row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} style="margin-top:1px">
+    row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin-top:1px">
       <span><b>${title}${recommended ? ' <span style="color:var(--accent);font-size:10px;font-weight:500">RECOMMENDED</span>' : ''}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
     row.querySelector('input').onchange = () => { state.config.encryption = value; refreshInstallValidity(); render(); };
     // Visual highlight for selected option
     if (checked) row.style.borderColor = 'var(--accent)';
     return row;
   };
-  encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', false));
-  encOpts.appendChild(encRadio('tpm2-luks', 'TPM auto-unlock', 'LUKS encryption that unlocks automatically via the TPM chip. No prompt at boot.', true));
+  encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', true));
+  // Not available yet (#551): the install cannot verify a TPM-sealed disk
+  // and would not show the recovery key. The backend refuses it too.
+  encOpts.appendChild(encRadio('tpm2-luks', 'TPM auto-unlock', 'Not available yet. LUKS encryption that unlocks automatically via the TPM chip.', false, true));
   encOpts.appendChild(encRadio('luks-passphrase', 'Passphrase', 'LUKS encryption that asks for your Linux password every boot.', false));
   encSection.appendChild(encOpts);
 
@@ -424,7 +427,7 @@ function refreshInstallValidity() {
   else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
   else if (!c.password) reason = 'Set a password.';
   else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
-  else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to TPM or no encryption.';
+  else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to no encryption.';
   else if (!state.selected?.imageRef || !/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\//.test(state.selected.imageRef)) reason = 'Choose a supported TunaOS, Universal Blue, or Bluefin image.';
   btn.disabled = reason !== '';
   if (hint) {

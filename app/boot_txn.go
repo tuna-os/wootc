@@ -411,8 +411,11 @@ func buildBootEntry(env bootChainEnv, txn *BootTxn) error {
 	sweepWootcEntries(env, txn.BcdGuid)
 	txn.BcdGuid = ""
 	// Dangling references left by a swept entry make /copy fail when it reads
-	// the display order, so repair it first (idempotent).
-	env.bcdedit("/displayorder", "{bootmgr}", "/addfirst") //nolint:errcheck
+	// the display order, so rewrite it first with an idempotent /addfirst of
+	// {current}, the running Windows, which is already in the menu. It used
+	// to add {bootmgr} here: that put Windows Boot Manager into its own menu
+	// as a boot option that loops back to the menu, on every install (#551).
+	env.bcdedit("/displayorder", "{current}", "/addfirst") //nolint:errcheck
 	if err := env.save(txn, txnCreatingEntry); err != nil {
 		return err
 	}

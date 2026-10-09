@@ -491,10 +491,19 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	}
 	cfg.Bootloader = bootloader
 	if cfg.Encryption == "" {
-		cfg.Encryption = "tpm2-luks"
+		cfg.Encryption = "none"
 	}
 	switch cfg.Encryption {
-	case "none", "tpm2-luks":
+	case "none":
+	case "tpm2-luks":
+		// The deployer's verification step cannot open a TPM-sealed root
+		// (fisherman stages TPM enrollment for first boot and only emits a
+		// recovery key the deployer never captures), so every such install
+		// aborts at verification, and the user is never shown the key the
+		// first boot asks for (#551, #33). Refuse it until that path works.
+		return fmt.Errorf("TPM auto-unlock is not available yet: the install cannot " +
+			"verify a TPM-sealed disk and would not show you its recovery key (#551). " +
+			"Choose no encryption, or a passphrase")
 	case "luks-passphrase":
 		if cfg.LuksPassphrase == "" {
 			return fmt.Errorf("a LUKS passphrase is required for passphrase encryption")

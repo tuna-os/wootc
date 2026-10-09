@@ -267,6 +267,7 @@ func hasWootcESPArtifacts() bool {
 	if err != nil {
 		return false
 	}
+	defer releaseESPLetter()
 	owned, err := hasESPOwnedFiles(espPath)
 	// An unreadable or unsafe ownership record is unresolved cleanup evidence.
 	return owned || err != nil
@@ -285,6 +286,7 @@ func cleanupESP() error {
 	if err != nil {
 		return fmt.Errorf("locate EFI boot partition for cleanup: %w", err)
 	}
+	defer releaseESPLetter()
 	return cleanupESPOwnedFiles(espPath)
 }
 
