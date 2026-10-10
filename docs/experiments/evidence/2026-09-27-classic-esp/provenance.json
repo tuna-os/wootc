@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "780741667b002c3f9c801f788066ebbff53d9ae1",
+  "firmwareAcceptance": false,
+  "classicOsBootAcceptance": false,
+  "providersImplemented": [
+    "debian"
+  ],
+  "providersRemaining": [
+    "ubuntu",
+    "rpm",
+    "other-classic"
+  ],
+  "observations": "Root, mount and installed-package observations are explicit native fixtures. PE signature verification and ESP transaction are real production code.",
+  "packages": [
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-signed/shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+      "sha256": "3c802fa303c0e6bf126adee74028d1042e3120360d159c2c05181dc9b2f61005",
+      "size": 346976,
+      "control": "Package: shim-signed\nVersion: 1.51~1+deb13u1+16.1-2~deb13u1\nArchitecture: amd64",
+      "officialWebsiteHashChecked": true
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-helpers-amd64-signed/shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+      "sha256": "7e950d75d5a40ecc0a99f727452ce35780b47a04d9a2cc3b1ff7c2bb316c033e",
+      "size": 301476,
+      "control": "Package: shim-helpers-amd64-signed\nVersion: 1+16.1+2~deb13u1\nArchitecture: amd64",
+      "officialWebsiteHashChecked": true
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+      "sha256": "da8bb31308a3682a7d9343fc42bf7f603ad85bb5483eeb3ece23e2f1be2e9bbd",
+      "size": 1363392,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1+2.12+9+deb13u2\nArchitecture: amd64",
+      "officialWebsiteHashChecked": false
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-signed/shim-signed_1.51~1+deb12u1+16.1-2~deb12u1_amd64.deb",
+      "sha256": "c2acf5e559664bbadb7ce5789f9a321f39754a34854d3097b8cc0369df513b3b",
+      "size": 350384,
+      "control": "Package: shim-signed\nVersion: 1.51~1+deb12u1+16.1-2~deb12u1\nArchitecture: amd64"
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-helpers-amd64-signed/shim-helpers-amd64-signed_1+16.1+2~deb12u1_amd64.deb",
+      "sha256": "26acac35133946c1642a09f3fda353ee3b849e5fc643fadb97a8dfec9e2b55fb",
+      "size": 304636,
+      "control": "Package: shim-helpers-amd64-signed\nVersion: 1+16.1+2~deb12u1\nArchitecture: amd64"
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.06+13+deb12u2_amd64.deb",
+      "sha256": "fbe2b28166a6dca8111bbf6a30d52d4781973c3a0440d8080f901e039b1f83f2",
+      "size": 1253404,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1+2.06+13+deb12u2\nArchitecture: amd64"
+    },
+    {
+      "url": "https://snapshot.debian.org/file/bd84f58124602b15d7609c6cd740d226e9c2b9df",
+      "sha256": "2854085908185cc3ed4f611d31f927bce572d3e3394a1a173771e994e85ef81e",
+      "size": 1363472,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1+2.12+9\nArchitecture: amd64",
+      "snapshotContentSha1": "bd84f58124602b15d7609c6cd740d226e9c2b9df"
+    }
+  ],
+  "sourceHashes": {
+    "payload/migration/lib/wootc_boot_identity.py": "895042a2b5c7cd22bfb5c60596e1fd486db3343f0594cd208fbc7ba6374bd83c",
+    "payload/migration/lib/wootc_chain_source.py": "2f8fbe15ae7a3c946631aaf1513140d431f45f973405a44535eaa53e61f70700",
+    "payload/migration/lib/wootc_esp_transaction.py": "d1d2ebbb1cb1aad9f1face828c9056238920669138eed0feb89067a7518ac959",
+    "payload/migration/wootc-esp-control": "36a863f086f6ac0d1f959b3135eee0d38f22cee3fb2b1cc7236e65bb22069515",
+    "payload/migration/wootc-esp-sync": "dfde2961b560b037fbc77f43b4863ee884dcde6ed5096b45b0f1a83376f5e763",
+    "payload/migration/wootc-esp-sync.path": "707ed154bc1f1aa4315627817b30315c2c5e3c2b97001d9ff9c410c32b347217",
+    "tests/unit/test_wootc_classic_source.py": "176cb449da192c4a70e3cce0be083b8a3f95d3fa23f7f8f83fa9449b0822159b",
+    "tests/unit/test_wootc_boot_identity.py": "69ad0031b82e7eebd7132c78f58d87ba4e3f1f9c779c4f0918dd8ae221105afa",
+    "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
+    "tests/probe-classic-esp-chain-real.py": "651662f841bb7fae60747d9bd48b2778bee1122e9cf9a6fe95e33ad604b007b7"
+  },
+  "assetHashes": {
+    "debian-trio/grubx64.efi": "425ffb5b84e8738084815d9df4a33c0e5f64409c7aadeb3dd3bcf60357551c5a",
+    "debian-trio/mmx64.efi": "30ea13138310f0819c1d875fcf3a6cdce8a1607cfd7578053a2df894a41630ae",
+    "debian-trio/shimx64.efi": "e103c5d02657879f141b086ed703584d28bb9e2721b423333be085ee1b4d397b",
+    "debian13-previous-trio/shimx64.efi": "e103c5d02657879f141b086ed703584d28bb9e2721b423333be085ee1b4d397b",
+    "debian13-previous-trio/mmx64.efi": "30ea13138310f0819c1d875fcf3a6cdce8a1607cfd7578053a2df894a41630ae",
+    "debian13-previous-trio/grubx64.efi": "75ad88b7673a108be35a753602088a16f4c419352c4905974d8e8b860360ae6f"
+  }
+}

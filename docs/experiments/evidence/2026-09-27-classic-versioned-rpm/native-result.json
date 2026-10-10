@@ -1,0 +1,196 @@
+{
+  "firmwareAcceptance": false,
+  "classicOsBootAcceptance": false,
+  "scope": "Actual public Fedora package metadata and signature verification; explicit classic OS/root/mount observations",
+  "artifactSourceImage": "ghcr.io/projectbluefin/bluefin@sha256:a50af2d633f72b549b395d0973a2cc317654e4e4ad679543b9c52c63c34a0d61",
+  "sourceFacts": {
+    "components": {
+      "grubx64.efi": "db283a408682e92dabec2c2098576c2a6e374e714320124a0161136c5b326095",
+      "mmx64.efi": "f8af592759c8ab33b69c4b0e772da5a8e2aa6d09c7dbd5e24c62c89fa5fdbd05",
+      "shimx64.efi": "571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff"
+    },
+    "kernelRelease": "6.12.0-public-fixture",
+    "os": {
+      "ID": "fedora",
+      "VERSION_ID": "44"
+    },
+    "packageManager": "rpm",
+    "packages": {
+      "grub2-efi-x64": {
+        "architecture": "x86_64",
+        "version": "1:2.12-64.fc44"
+      },
+      "shim-x64": {
+        "architecture": "x86_64",
+        "version": "0:16.1-5"
+      }
+    },
+    "rootFsUuid": "real-root-uuid",
+    "schemaVersion": 1,
+    "sourceFsUuid": "ABCD-1234",
+    "sourceKind": "classic",
+    "timestamp": "2026-09-27T10:10:53.794790Z",
+    "version": "classic-sha256:33aad910a0dc48aad5e74221a0f5241d03678af266ee45b1ccc4138a82e235b5"
+  },
+  "signatureProof": {
+    "schemaVersion": 1,
+    "verified": true,
+    "current": {
+      "shimx64.efi": "571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff",
+      "grubx64.efi": "db283a408682e92dabec2c2098576c2a6e374e714320124a0161136c5b326095",
+      "mmx64.efi": "f8af592759c8ab33b69c4b0e772da5a8e2aa6d09c7dbd5e24c62c89fa5fdbd05"
+    },
+    "candidate": {
+      "shimx64.efi": "571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff",
+      "grubx64.efi": "db283a408682e92dabec2c2098576c2a6e374e714320124a0161136c5b326095",
+      "mmx64.efi": "f8af592759c8ab33b69c4b0e772da5a8e2aa6d09c7dbd5e24c62c89fa5fdbd05"
+    }
+  },
+  "freshNativeRpmQueries": 16,
+  "queries": [
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "shim-x64"
+      ],
+      "stdout": "shim-x64\t0:16.1-5\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILESTATES}\t%{FILEMODES:octal}\n]",
+        "shim-x64"
+      ],
+      "stdout": "/boot/efi/EFI/BOOT/BOOTX64.EFI\t\t0\t100700\n/boot/efi/EFI/BOOT/fbx64.efi\t\t0\t100700\n/boot/efi/EFI/fedora/BOOTX64.CSV\t\t0\t100700\n/boot/efi/EFI/fedora/mmx64.efi\t\t0\t100700\n/boot/efi/EFI/fedora/shim.efi\t\t0\t100700\n/boot/efi/EFI/fedora/shimx64.efi\t\t0\t100700\n/etc/dnf/protected.d/shim.conf\t3359cd4a7cb961821f5509c6eb6f6b1e7afc0822beb80c623e2ad83e4ad7769e\t0\t100644\n/usr/lib/efi/shim/16.1-5/EFI/BOOT/BOOTX64.EFI\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/BOOT/fbx64.efi\tea9b772575900eeb526faef865ac18ecd2130711e4e9e42c974fb5d31f69927c\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/BOOTX64.CSV\t282a3b2872bebcf3d1ba42fe17c17ebe32a60759a20f058b5e960e542785fe82\t0\t100600\n/usr/lib/efi/shim/16.1-5/EFI/fedora/mmx64.efi\tf8af592759c8ab33b69c4b0e772da5a8e2aa6d09c7dbd5e24c62c89fa5fdbd05\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/shim.efi\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/shimx64.efi\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n"
+    },
+    {
+      "args": [
+        "-qf",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "/usr/lib/efi/shim/16.1-5/EFI/fedora/shimx64.efi"
+      ],
+      "stdout": "shim-x64\t0:16.1-5\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "grub2-efi-x64"
+      ],
+      "stdout": "grub2-efi-x64\t1:2.12-64.fc44\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILESTATES}\t%{FILEMODES:octal}\n]",
+        "grub2-efi-x64"
+      ],
+      "stdout": "/boot/efi/EFI/fedora/grub.cfg\t\t0\t100700\n/boot/efi/EFI/fedora/grubx64.efi\t\t0\t100700\n/boot/grub2/fonts\t\t0\t40700\n/boot/grub2/fonts/unicode.pf2\td7d6e42700f0895de26d72f3036822e56708935542e60c8a7a108b45df9b0aad\t0\t100700\n/boot/grub2/grub.cfg\t\t0\t100600\n/boot/grub2/grubenv\tf64122858064885ef0733e42c6a3d2d3fd642671f714db0d974b880c0f087430\t0\t100644\n/boot/loader/entries\t\t0\t40700\n/etc/dnf/protected.d/grub2-efi-x64.conf\t70c7e4da2743967601d549d2f123175bcd0b892c518b59424a91fd0bd8d45f2b\t0\t100644\n/etc/grub2-efi.cfg\t\t0\t120777\n/etc/grub2.cfg\t\t0\t120777\n/usr/bin/gen_grub_cfgstub\tb1fa0652ff44b5b148e1a8e4e803f706a45360f180abcd618350ba403cfd32b3\t0\t100700\n/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora\t\t0\t40700\n/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora/grub.cfg\t\t0\t100600\n/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora/grubx64.efi\tdb283a408682e92dabec2c2098576c2a6e374e714320124a0161136c5b326095\t0\t100700\n"
+    },
+    {
+      "args": [
+        "-qf",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora/grubx64.efi"
+      ],
+      "stdout": "grub2-efi-x64\t1:2.12-64.fc44\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "shim-x64"
+      ],
+      "stdout": "shim-x64\t0:16.1-5\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILESTATES}\t%{FILEMODES:octal}\n]",
+        "shim-x64"
+      ],
+      "stdout": "/boot/efi/EFI/BOOT/BOOTX64.EFI\t\t0\t100700\n/boot/efi/EFI/BOOT/fbx64.efi\t\t0\t100700\n/boot/efi/EFI/fedora/BOOTX64.CSV\t\t0\t100700\n/boot/efi/EFI/fedora/mmx64.efi\t\t0\t100700\n/boot/efi/EFI/fedora/shim.efi\t\t0\t100700\n/boot/efi/EFI/fedora/shimx64.efi\t\t0\t100700\n/etc/dnf/protected.d/shim.conf\t3359cd4a7cb961821f5509c6eb6f6b1e7afc0822beb80c623e2ad83e4ad7769e\t0\t100644\n/usr/lib/efi/shim/16.1-5/EFI/BOOT/BOOTX64.EFI\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/BOOT/fbx64.efi\tea9b772575900eeb526faef865ac18ecd2130711e4e9e42c974fb5d31f69927c\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/BOOTX64.CSV\t282a3b2872bebcf3d1ba42fe17c17ebe32a60759a20f058b5e960e542785fe82\t0\t100600\n/usr/lib/efi/shim/16.1-5/EFI/fedora/mmx64.efi\tf8af592759c8ab33b69c4b0e772da5a8e2aa6d09c7dbd5e24c62c89fa5fdbd05\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/shim.efi\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/shimx64.efi\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n"
+    },
+    {
+      "args": [
+        "-qf",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "/usr/lib/efi/shim/16.1-5/EFI/fedora/mmx64.efi"
+      ],
+      "stdout": "shim-x64\t0:16.1-5\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "shim-x64"
+      ],
+      "stdout": "shim-x64\t0:16.1-5\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILESTATES}\t%{FILEMODES:octal}\n]",
+        "shim-x64"
+      ],
+      "stdout": "/boot/efi/EFI/BOOT/BOOTX64.EFI\t\t0\t100700\n/boot/efi/EFI/BOOT/fbx64.efi\t\t0\t100700\n/boot/efi/EFI/fedora/BOOTX64.CSV\t\t0\t100700\n/boot/efi/EFI/fedora/mmx64.efi\t\t0\t100700\n/boot/efi/EFI/fedora/shim.efi\t\t0\t100700\n/boot/efi/EFI/fedora/shimx64.efi\t\t0\t100700\n/etc/dnf/protected.d/shim.conf\t3359cd4a7cb961821f5509c6eb6f6b1e7afc0822beb80c623e2ad83e4ad7769e\t0\t100644\n/usr/lib/efi/shim/16.1-5/EFI/BOOT/BOOTX64.EFI\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/BOOT/fbx64.efi\tea9b772575900eeb526faef865ac18ecd2130711e4e9e42c974fb5d31f69927c\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/BOOTX64.CSV\t282a3b2872bebcf3d1ba42fe17c17ebe32a60759a20f058b5e960e542785fe82\t0\t100600\n/usr/lib/efi/shim/16.1-5/EFI/fedora/mmx64.efi\tf8af592759c8ab33b69c4b0e772da5a8e2aa6d09c7dbd5e24c62c89fa5fdbd05\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/shim.efi\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n/usr/lib/efi/shim/16.1-5/EFI/fedora/shimx64.efi\t571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff\t0\t100700\n"
+    },
+    {
+      "args": [
+        "-qf",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "/usr/lib/efi/shim/16.1-5/EFI/fedora/shimx64.efi"
+      ],
+      "stdout": "shim-x64\t0:16.1-5\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "grub2-efi-x64"
+      ],
+      "stdout": "grub2-efi-x64\t1:2.12-64.fc44\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-q",
+        "--qf",
+        "[%{FILENAMES}\t%{FILEDIGESTS}\t%{FILESTATES}\t%{FILEMODES:octal}\n]",
+        "grub2-efi-x64"
+      ],
+      "stdout": "/boot/efi/EFI/fedora/grub.cfg\t\t0\t100700\n/boot/efi/EFI/fedora/grubx64.efi\t\t0\t100700\n/boot/grub2/fonts\t\t0\t40700\n/boot/grub2/fonts/unicode.pf2\td7d6e42700f0895de26d72f3036822e56708935542e60c8a7a108b45df9b0aad\t0\t100700\n/boot/grub2/grub.cfg\t\t0\t100600\n/boot/grub2/grubenv\tf64122858064885ef0733e42c6a3d2d3fd642671f714db0d974b880c0f087430\t0\t100644\n/boot/loader/entries\t\t0\t40700\n/etc/dnf/protected.d/grub2-efi-x64.conf\t70c7e4da2743967601d549d2f123175bcd0b892c518b59424a91fd0bd8d45f2b\t0\t100644\n/etc/grub2-efi.cfg\t\t0\t120777\n/etc/grub2.cfg\t\t0\t120777\n/usr/bin/gen_grub_cfgstub\tb1fa0652ff44b5b148e1a8e4e803f706a45360f180abcd618350ba403cfd32b3\t0\t100700\n/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora\t\t0\t40700\n/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora/grub.cfg\t\t0\t100600\n/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora/grubx64.efi\tdb283a408682e92dabec2c2098576c2a6e374e714320124a0161136c5b326095\t0\t100700\n"
+    },
+    {
+      "args": [
+        "-qf",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "/usr/lib/efi/grub2/1:2.12-64.fc44/EFI/fedora/grubx64.efi"
+      ],
+      "stdout": "grub2-efi-x64\t1:2.12-64.fc44\tx86_64\t8\n"
+    },
+    {
+      "args": [
+        "-qf",
+        "--qf",
+        "%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\t%{FILEDIGESTALGO}\n",
+        "/usr/lib/efi/shim/16.1-5/EFI/fedora/mmx64.efi"
+      ],
+      "stdout": "shim-x64\t0:16.1-5\tx86_64\t8\n"
+    }
+  ]
+}

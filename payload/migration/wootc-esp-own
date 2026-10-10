@@ -1,0 +1,49 @@
+#!/bin/bash
+# Source from the deployer. Actual Phase1 manifest precedes every new ESP file.
+esp_normalize_owned_path() {
+    local value="$1"
+    value="${value//$'\r'/}"
+    value="${value#$'\xef\xbb\xbf'}"
+    value="${value//\\//}"
+    value="${value,,}"
+    [[ "$value" != /* && "$value" != *:* && "$value" != *//* &&
+       "/$value/" != */../* && "/$value/" != */./* && -n "$value" ]] || return 1
+    printf '%s\n' "$value"
+}
+
+esp_path_is_owned() {
+    local esp="$1" wanted="$2" line normalized
+    wanted=$(esp_normalize_owned_path "$wanted") || return 1
+    [[ -f "$esp/EFI/wootc/wootc-owned.txt" && ! -L "$esp/EFI/wootc/wootc-owned.txt" ]] || return 1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        [[ -n "$line" ]] || continue
+        normalized=$(esp_normalize_owned_path "$line") || return 1
+        [[ "$normalized" != "$wanted" ]] || return 0
+    done < "$esp/EFI/wootc/wootc-owned.txt"
+    return 1
+}
+
+esp_assert_owned_or_absent() {
+    local esp="$1" relative="$2"
+    esp_normalize_owned_path "$relative" >/dev/null || return 1
+    [[ -f "$esp/EFI/wootc/wootc-owned.txt" && ! -L "$esp/EFI/wootc/wootc-owned.txt" ]] || return 1
+    [[ ! -e "$esp/$relative" && ! -L "$esp/$relative" ]] || esp_path_is_owned "$esp" "$relative"
+}
+
+esp_claim_before_write() {
+    local esp="$1" relative="$2" temporary normalized
+    esp_assert_owned_or_absent "$esp" "$relative" || {
+        printf '[wootc] refusing foreign/unowned ESP path: %s\n' "$relative" >&2
+        return 1
+    }
+    esp_path_is_owned "$esp" "$relative" && return 0
+    normalized=$(esp_normalize_owned_path "$relative") || return 1
+    temporary=$(mktemp "$esp/EFI/wootc/.owned-XXXXXX") || return 1
+    if ! { cat "$esp/EFI/wootc/wootc-owned.txt"; printf '\n%s\n' "$normalized"; } > "$temporary" ||
+       ! sync -f "$temporary" || ! mv -f "$temporary" "$esp/EFI/wootc/wootc-owned.txt" ||
+       ! sync -f "$esp/EFI/wootc"; then
+        rm -f "$temporary"
+        return 1
+    fi
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "6cc52bb",
+  "firmwareAcceptance": false,
+  "classicOsBootAcceptance": false,
+  "artifactSourceImage": "ghcr.io/projectbluefin/bluefin@sha256:a50af2d633f72b549b395d0973a2cc317654e4e4ad679543b9c52c63c34a0d61",
+  "artifactSourceOs": "Bluefin with Fedora RPMs; this is artifact provenance, not a booted classic image identity",
+  "sourceFormatsRemaining": [
+    "other-distro-package-contracts"
+  ],
+  "scope": "Fresh real RPM queries against the immutable cached artifact and real trio signature verification. Classic OS, root, mount and firmware observations are explicit fixtures. No upgrade publication through this Fedora trio is claimed.",
+  "sourceHashes": {
+    "payload/migration/lib/wootc_chain_source.py": "c48df7dac5991ac194a351e5b9662a0ecc93e1577f4f645be72e060664f44fee",
+    "tests/unit/test_wootc_classic_source.py": "d754a1212b2bd46ba47bc584b1b268ce98b1826ee9b45307718e6bd4dff9d4a5",
+    "tests/probe-classic-providers-real.py": "498d0cee70e640d87f475c238abb1558c28829f40b92f799b055e1b5e49a62eb",
+    "tests/probe-classic-versioned-rpm-real.py": "c16effe6247b0c6e60d23b0f5ee6304589e8fd0843a36dc5bd00011e108da7cc",
+    "tests/audit-classic-chain-provenance.py": "82c0388c35fa50ace35b0865ee21029a4beafb091bdcde5724cd8c765d30c319"
+  },
+  "assetHashes": {
+    "shim-payload/BOOTIA32.CSV": "43f8aba93558f40b14e10d2cace57111014b041b40e3f57344e40681cfde4fd5",
+    "shim-payload/mmx64.efi": "f8af592759c8ab33b69c4b0e772da5a8e2aa6d09c7dbd5e24c62c89fa5fdbd05",
+    "shim-payload/BOOTX64.CSV": "282a3b2872bebcf3d1ba42fe17c17ebe32a60759a20f058b5e960e542785fe82",
+    "shim-payload/shim.efi": "571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff",
+    "shim-payload/shimx64.efi": "571ea56b855dcf73bec6acb63c5ded44c2a191138bca0d8cfa5aa93f60f46fff",
+    "shim-payload/shimia32.efi": "f18994c84f8191b0bda4e504b9e028bc2f428f45ca3e543dcddc6294277808f9",
+    "shim-payload/mmia32.efi": "5535707c82de605e26c877eff6f9726504cf0100d9055b37e7cfa6e5a7a7820e",
+    "grub-payload/grubia32.efi": "8ee400be1ab638f8b290fd7a8da36af9aac83689bddaec14f85cbc4429e2a090",
+    "grub-payload/gcdx64.efi": "accd4ec20f28a5f49beabea808a03d3440cfbf62e0577521ea2a56ce463e2e48",
+    "grub-payload/grubx64.efi": "db283a408682e92dabec2c2098576c2a6e374e714320124a0161136c5b326095"
+  },
+  "resultHashes": {
+    "native-result.json": "89f49c85b65ea4eca3e30f59f5e22b6948ddffc07a1d5b148a6697243d7d69cc",
+    "legacy-provider-result.json": "124db5006fb72b8323c9371afb8778d158336855923393d3d613982e7c923edf"
+  },
+  "verifierClosureHashes": {
+    "COPYING": "7f424707cdb69df658b7b66ea1f9c9ab3ea0a0988999ecba3dad10a811db654f",
+    "SHA256SUMS": "5a41bc4839d3e915cd2a835a701b0d38578cced7177ffdc7e1774acad38b520b",
+    "ld-linux-x86-64.so.2": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+    "ldd.txt": "11cc2af38a08de1a85982c1ad26304abf877318e2ba4f98c8247b16468769d58",
+    "libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+    "libcrypto.so.3": "6a66c3ba6b3749aacc9497973fff00f6ba61c703ba7015d0d7ab3fd9510974b6",
+    "sbpehash": "6c16744c9c10995598cc9c0d1a6f6186b59ec4a19a3754b769a24faf1f882a87",
+    "sbverify": "e345c0797b7b1f2b655cacfcc0d5d8f3ac1095140e2019726cf6ffb8da61df17",
+    "source-revisions.txt": "a86dd2a7870af034e8f3686ec6777cb57bd535c32ddd12096cb5ee5ad4fe05e6"
+  }
+}
