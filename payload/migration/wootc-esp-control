@@ -1,0 +1,150 @@
+#!/usr/bin/python3
+"""Current-boot-bound ownership, signed-chain preflight and publication."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+sys.path.insert(0, os.environ.get('WOOTC_CHAIN_LIBRARY', '/var/usrlocal/lib/wootc'))
+from wootc_boot_identity import observe_installed_boot
+from wootc_chain_source import freeze_sources
+from wootc_chain_verify import (FILES, verify_transition, Verifier, checked_database,
+                                efi_variable, DB_GUID, SHIM_GUID)
+from wootc_pe import PE, X509
+from wootc_esp_transaction import (Transaction, atomic_json, read_json, relative_path,
+                                  find_owned_path, ownership, digest)
+
+
+def prepare(args, observation):
+    state=Path(args.state);state.mkdir(parents=True,exist_ok=True,mode=0o700)
+    esp=Path(args.esp);receipt_path=Path(args.receipt);mirror=Path(args.manifest)
+    with Transaction(esp,state,receipt_path,args.uuid,local_manifest=mirror) as tx:
+        tx.recover()
+        receipt=read_json(receipt_path) if receipt_path.exists() else None
+        if receipt and receipt['loaderVendor'].lower()!=observation['loaderVendor'].lower():
+            raise ValueError('current EFI loader differs from installed receipt')
+        with tempfile.TemporaryDirectory(prefix='bundle-',dir=state) as temporary:
+            candidates=freeze_sources(Path(temporary)/'source', receipt['sourceVendor'] if receipt else None,
+                                      Path(args.updates),Path(args.versioned))
+            current=Path(temporary)/'current';current.mkdir()
+            vendor=observation['loaderVendor']
+            for name in FILES:shutil.copyfile(find_owned_path(esp,'EFI/'+vendor+'/'+name),current/name)
+            valid=[]
+            for source_vendor,candidate in candidates.items():
+                try:proof=verify_transition(current,candidate,Path(args.efivars),Path(args.verifier))
+                except ValueError:
+                    if receipt:raise
+                    continue
+                valid.append((source_vendor,candidate,proof))
+            if len(valid)!=1:raise ValueError('no unique complete authenticated source matches current boot chain')
+            source_vendor,candidate,proof=valid[0]
+            cfg=find_owned_path(esp,'EFI/'+vendor+'/grub.cfg').read_text()
+            linux=[line.split()[1] for line in cfg.splitlines() if line.strip().startswith(('linux ','linuxefi '))]
+            if not linux:raise ValueError('owned GRUB config has no kernel path')
+            kernel_relative=relative_path(linux[0])
+            old_kernel=find_owned_path(esp,kernel_relative)
+            if receipt is None:
+                raw=mirror.read_bytes()
+                if raw!=find_owned_path(esp,'EFI/wootc/wootc-owned.txt').read_bytes():
+                    raise ValueError('actual owned manifest differs from installed mirror')
+                owned={relative_path(line) for line in raw.decode('utf-8-sig').splitlines() if line.strip()}
+                desired={'efi/'+vendor.lower()+'/'+n for n in FILES}
+                desired.update(('efi/'+vendor.lower()+'/grub.cfg','efi/wootc/phase2-vmlinuz','efi/wootc/phase2-initramfs.img',kernel_relative))
+                if not desired<=owned:raise ValueError('Phase1/deployer did not claim complete boot artifacts before writing')
+                cfgs={path for path in owned if path.endswith('/grub.cfg') and
+                      path in {'efi/'+vendor.lower()+'/grub.cfg','efi/'+source_vendor.lower()+'/grub.cfg','efi/wootc/grub.cfg'}}
+                receipt={'schemaVersion':1,'hostEspUuid':args.uuid,'sourceVendor':source_vendor,
+                         'loaderVendor':vendor,'ownedManifestSha256':hashlib.sha256(raw).hexdigest(),
+                         'files':{path:digest(find_owned_path(esp,path)) for path in desired|cfgs},
+                         'initializedBoot':observation}
+                ownership(esp,mirror,receipt,args.uuid)
+                atomic_json(receipt_path,receipt)
+            ownership(esp,mirror,receipt,args.uuid)
+            # The existing signed kernel must remain valid after a shim policy
+            # ratchet, and a requested new kernel must boot under either shim.
+            if kernel_relative not in {relative_path(path) for path in receipt['files']}:
+                raise ValueError('running loader kernel absent from ownership receipt')
+            kernel_sources=[old_kernel]+([Path(args.kernel)] if args.kernel else [])
+            kernels=[]
+            for index,source in enumerate(kernel_sources):
+                before=digest(source)
+                snapshot=Path(temporary)/('kernel-'+str(index))
+                shutil.copyfile(source,snapshot)
+                if digest(source)!=before or digest(snapshot)!=before:
+                    raise ValueError('kernel source changed during preflight snapshot')
+                kernels.append(snapshot)
+            verifier=Verifier(args.verifier)
+            firmware_denied=checked_database(efi_variable(Path(args.efivars),'dbx',DB_GUID))
+            firmware_denied+=checked_database(efi_variable(Path(args.efivars),'MokListXRT',SHIM_GUID,optional=True))
+            for bundle in (current,candidate):
+                allowed,denied=PE((bundle/'shimx64.efi').read_bytes()).vendor_trust()
+                anchors=[value for kind,value in allowed if kind==X509]
+                for kernel in kernels:
+                    image=PE(kernel.read_bytes())
+                    verifier.authenticate(kernel,anchors)
+                    verifier.check_revocations(kernel,image,denied+firmware_denied)
+            chain_changed=tx.refresh(candidate,receipt,Path(args.efivars),Path(args.verifier))
+            fresh=read_json(receipt_path)
+            fresh['preparedBootId']=observation['bootId']
+            if args.kernel:
+                approved=digest(kernels[-1])
+                if digest(Path(args.kernel))!=approved:
+                    raise ValueError('kernel source changed after signature preflight')
+                fresh['approvedKernelSha256']=approved
+                fresh['approvedKernelBootId']=observation['bootId']
+            atomic_json(receipt_path,fresh)
+            cfgs=[path for path in fresh['files'] if path.endswith('/grub.cfg')]
+            return {'cfgs':cfgs,'loaderVendor':vendor,'sourceVendor':source_vendor,'chainChanged':chain_changed}
+
+
+def write(args,observation):
+    esp=Path(args.esp);receipt_path=Path(args.receipt)
+    with Transaction(esp,args.state,receipt_path,args.uuid,local_manifest=args.manifest) as tx:
+        tx.recover();receipt=read_json(receipt_path)
+        if receipt['loaderVendor'].lower()!=observation['loaderVendor'].lower():
+            raise ValueError('current loader differs from content receipt')
+        ownership(esp,Path(args.manifest),receipt,args.uuid)
+        if receipt.get('preparedBootId')!=observation['bootId']:
+            raise ValueError('artifact write has no authenticated preflight for this boot')
+        relative=relative_path(args.destination)
+        if (relative not in ('efi/wootc/phase2-vmlinuz','efi/wootc/phase2-initramfs.img') and
+                not relative.endswith('/grub.cfg')):
+            raise ValueError('artifact API cannot publish signed-chain components or other destinations')
+        if relative not in {relative_path(path) for path in receipt['files']}:
+            raise ValueError('write destination absent from content receipt')
+        if relative=='efi/wootc/phase2-vmlinuz' and (
+                receipt.get('approvedKernelBootId')!=observation['bootId'] or
+                digest(Path(args.source))!=receipt.get('approvedKernelSha256')):
+            raise ValueError('kernel differs from authenticated preflight')
+        approved=receipt['approvedKernelSha256'] if relative=='efi/wootc/phase2-vmlinuz' else None
+        return {'changed':tx.write_artifact(Path(args.source),relative,receipt,approved_hash=approved)}
+
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('action',choices=('prepare','write'))
+    parser.add_argument('--esp',required=True);parser.add_argument('--uuid',required=True)
+    parser.add_argument('--host',default='/run/initramfs/wootc-host')
+    parser.add_argument('--state',default='/var/lib/wootc/esp-transactions')
+    parser.add_argument('--receipt',default='/etc/wootc/esp-chain.json')
+    parser.add_argument('--manifest',default='/etc/wootc/esp-manifest')
+    parser.add_argument('--efivars',default='/sys/firmware/efi/efivars')
+    parser.add_argument('--verifier',default='/var/usrlocal/lib/wootc/sbverify')
+    parser.add_argument('--updates',default='/usr/lib/bootupd/updates')
+    parser.add_argument('--versioned',default='/usr/lib/efi')
+    parser.add_argument('--kernel');parser.add_argument('--source');parser.add_argument('--destination')
+    args=parser.parse_args()
+    if args.action=='write' and (not args.source or not args.destination):parser.error('write requires source/destination')
+    observation=observe_installed_boot(Path(args.esp),Path(args.host),args.uuid)
+    result=prepare(args,observation) if args.action=='prepare' else write(args,observation)
+    print(json.dumps(result,sort_keys=True))
+
+
+if __name__=='__main__':
+    try:main()
+    except (OSError,ValueError,KeyError,TypeError) as error:
+        print('[wootc-esp-control] refusing refresh: '+str(error),file=sys.stderr)
+        sys.exit(1)

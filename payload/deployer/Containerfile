@@ -36,11 +36,20 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /wootc-ntfs-state-write /src/ntfs
 WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
 
+# The verifier uses its own ELF closure. Target images need not share this ABI.
+FROM docker.io/library/ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3 AS verifierbuilder
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    autoconf automake gcc make binutils-dev libssl-dev uuid-dev gnu-efi \
+    pkg-config git help2man ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY packaging/build-sbverify.sh packaging/sbpehash.c /src/
+RUN /src/build-sbverify.sh /out/sbverify
+
 # ── Copy fisherman into the initramfs builder ───────────────────────────────
 FROM builder
 COPY --from=gobuilder /fisherman /usr/bin/fisherman
 COPY --from=gobuilder /wootc-json-check /usr/bin/wootc-json-check
 COPY --from=gobuilder /wootc-ntfs-state-write /usr/bin/wootc-ntfs-state-write
+COPY --from=verifierbuilder /out/sbverify /usr/lib/wootc/sbverify
 
 # ── Deployer script ─────────────────────────────────────────────────────────
 COPY payload/steps.sh /usr/libexec/wootc-steps.sh
@@ -101,6 +110,10 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         df sync truncate journalctl jq tee which basename date head mv; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
+    done && \
+    for binary in sbverify sbpehash ld-linux-x86-64.so.2 libcrypto.so.3 libc.so.6; do \
+        lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/sbverify/${binary}$" || \
+            { echo "FATAL: verifier closure ${binary} missing"; exit 1; }; \
     done && \
     lsinitrd /out/deployer-initramfs.img | grep -qE "xfs.ko" || \
         { echo "FATAL: xfs kernel module missing from initramfs (unsealed images format xfs)"; exit 1; } && \
