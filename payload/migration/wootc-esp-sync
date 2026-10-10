@@ -8,12 +8,14 @@
 # any OS update (`bootc update`, apt/pacman kernel upgrade), the ESP copy
 # goes stale. This service compares the system's current boot artifacts
 # with the ESP pair and refreshes them plus grub.cfg when they differ.
-# Updates therefore take effect one reboot late — never inconsistently:
-# a stale grub.cfg still boots the *old, matching* kernel+deployment.
+# Updates take effect on the next boot. Signed-trio refresh is journaled and
+# cross-compatible; same-name kernel/initramfs publication is not pair-atomic.
 #
-# Variant-agnostic (all TunaOS flavors): prefers BLS entries
-# (ostree/Fedora/EL), falls back to newest /boot/vmlinuz-* (classic
-# Debian/Arch layouts).
+# Kernel discovery understands BLS and classic /boot layouts, but the current
+# signed-chain controller requires a measured loop root and either complete
+# bootupd sources or package-bound Debian, Ubuntu and RPM classic sources. Other
+# classic package providers remain open under #333; unsupported identities
+# refuse before any ESP write.
 #
 # The SIGNED CHAIN goes stale the same way, and worse (#333). shim, GRUB and
 # MokManager are staged once by the Windows installer and then never touched,
@@ -94,12 +96,13 @@ else
     shopt -s nullglob
     kernels=("$BOOT"/vmlinuz-*)
     shopt -u nullglob
-    [[ ${#kernels[@]} -gt 0 ]] || { log "no kernels found under $BOOT"; exit 0; }
+    if [[ ${#kernels[@]} -gt 0 ]]; then
     KERNEL=$(printf '%s\n' "${kernels[@]}" | sort -Vr | head -1)
     kver="${KERNEL##*/vmlinuz-}"
     for cand in "$BOOT/initramfs-$kver.img" "$BOOT/initrd.img-$kver" "$BOOT/initramfs-linux.img"; do
         [[ -f "$cand" ]] && { INITRD="$cand"; break; }
     done
+    fi
     if [[ -f /etc/kernel/cmdline ]]; then
         OPTIONS=$(cat /etc/kernel/cmdline)
     else
@@ -108,7 +111,8 @@ else
     fi
 fi
 
-[[ -f "$KERNEL" && -f "$INITRD" ]] || { log "kernel/initramfs not found (kernel=$KERNEL initrd=$INITRD)"; exit 0; }
+HAVE_KERNEL_PAIR=0
+[[ ! -f "$KERNEL" || ! -f "$INITRD" ]] || HAVE_KERNEL_PAIR=1
 
 # The loop-attach arguments must survive: without wootc.host_uuid= and
 # loop= the initramfs cannot find the root disk. Carry them from the
@@ -123,11 +127,39 @@ done
 OPTIONS=$(printf '%s' "$OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -vE '^(quiet|rhgb|splash)$' | tr '\n' ' ' | sed 's/  */ /g;s/ $//')
 
 # ── Compare and sync ────────────────────────────────────────────────────────
-changed=0
+CONTROL=${WOOTC_ESP_CONTROL:-/var/usrlocal/bin/wootc-esp-control}
+[[ -n "${HOST_ESP_UUID:-}" ]] || HOST_ESP_UUID=${WOOTC_ESP_UUID:-}
+[[ -n "$HOST_ESP_UUID" ]] || { log "missing observed ESP UUID configuration"; exit 1; }
+control_args=(--esp "$ESP_MNT" --uuid "$HOST_ESP_UUID")
+[[ -z "${WOOTC_HOST_DIR:-}" ]] || control_args+=(--host "$WOOTC_HOST_DIR")
+# Ownership and fresh boot/root identity precede every artifact/config write.
+# A full same-source trio is authenticated and recovered under the writer lock.
+prepare_args=()
+[[ "$HAVE_KERNEL_PAIR" -eq 0 ]] || prepare_args+=(--kernel "$KERNEL")
+prepared=$("$CONTROL" prepare "${control_args[@]}" "${prepare_args[@]}")
+# Parse and validate the bounded controller result before any artifact write.
+config_lines=$(printf '%s' "$prepared" | python3 -c '
+import json,sys
+raw=sys.stdin.buffer.read(65537)
+if len(raw)>65536: raise ValueError("oversized controller output")
+data=json.loads(raw)
+if not isinstance(data.get("chainChanged"),bool): raise ValueError("invalid chain change result")
+paths=data["cfgs"]
+if not isinstance(paths,list) or not paths or any(not isinstance(p,str) or not p.endswith("/grub.cfg") or "\n" in p or ".." in p.split("/") or p.startswith("/") for p in paths): raise ValueError("invalid config paths")
+print("\n".join(paths))
+')
+mapfile -t GRUB_CONFIGS <<< "$config_lines"
+changed=$(printf '%s' "$prepared" | python3 -c 'import json,sys;print(int(json.load(sys.stdin)["chainChanged"]))')
+if [[ "$HAVE_KERNEL_PAIR" -eq 0 ]]; then
+    [[ "$changed" -eq 0 ]] || log "signed chain refreshed"
+    log "signed chain checked; no complete kernel/initramfs source pair under $BOOT"
+    exit 0
+fi
+
 sync_file() {
     local src="$1" dst="$2"
     if [[ ! -f "$dst" ]] || ! cmp -s "$src" "$dst"; then
-        cp "$src" "$dst.new" && mv -f "$dst.new" "$dst"
+        "$CONTROL" write "${control_args[@]}" --source "$src" --destination "${dst#"$ESP_MNT"/}" >/dev/null
         changed=1
         log "updated $(basename "$dst")"
     fi
@@ -135,27 +167,8 @@ sync_file() {
 sync_file "$KERNEL" "$WOOTC_DIR/phase2-vmlinuz"
 sync_file "$INITRD" "$WOOTC_DIR/phase2-initramfs.img"
 
-if [[ "${BOOTLOADER:-}" == systemd || -f "$ESP_MNT/EFI/systemd/systemd-bootx64.efi" ]]; then
-    mkdir -p "$ESP_MNT/loader/entries"
-    WANT_ENTRY="title wootc Linux
-linux /EFI/wootc/phase2-vmlinuz
-initrd /EFI/wootc/phase2-initramfs.img
-options $OPTIONS console=tty1
-"
-    ENTRY="$ESP_MNT/loader/entries/wootc.conf"
-    if [[ ! -f "$ENTRY" ]] || [[ "$(cat "$ENTRY")" != "$WANT_ENTRY" ]]; then
-        printf '%s' "$WANT_ENTRY" > "$ENTRY.new" && mv -f "$ENTRY.new" "$ENTRY"
-        changed=1
-        log "updated loader/entries/wootc.conf"
-    fi
-else
 # grub.cfg lives at the signed GRUB's embedded prefix; find it rather than
 # assuming a vendor name (fedora today, target-signed vendors tomorrow).
-GRUB_CFG=""
-for d in "$ESP_MNT"/EFI/*/grub.cfg; do
-    [[ -f "$d" ]] && grep -q 'wootc' "$d" && { GRUB_CFG="$d"; break; }
-done
-[[ -n "$GRUB_CFG" ]] || GRUB_CFG="$ESP_MNT/EFI/fedora/grub.cfg"
 
 WANT_CFG="# wootc Phase 2 - boot installed system from root disk (auto-synced)
 set default=0
@@ -165,96 +178,31 @@ menuentry \"wootc Linux\" {
     linux /EFI/wootc/phase2-vmlinuz $OPTIONS console=tty1
     initrd /EFI/wootc/phase2-initramfs.img
 }
-"
-if [[ ! -f "$GRUB_CFG" ]] || [[ "$(cat "$GRUB_CFG")" != "$WANT_CFG" ]]; then
-    printf '%s' "$WANT_CFG" > "$GRUB_CFG.new" && mv -f "$GRUB_CFG.new" "$GRUB_CFG"
-    changed=1
-    log "updated $(basename "$(dirname "$GRUB_CFG")")/grub.cfg"
-fi
-fi
 
-# ── Signed chain: shim / GRUB / MokManager (#333) ───────────────────────────
-# Only in a vendor directory wootc itself owns. The marker is the same one the
-# Windows installer's D1 guard uses to refuse clobbering another Linux: if the
-# grub.cfg here is not ours, neither are the binaries beside it.
-sync_signed_chain() {
-    command -v wootc-shim-trust >/dev/null 2>&1 || {
-        log "wootc-shim-trust not installed — leaving the signed chain alone"; return 0; }
-
-    local vendor_dir="" d
-    for d in "$ESP_MNT"/EFI/*/; do
-        [[ -f "$d/grub.cfg" ]] || continue
-        grep -q '# wootc' "$d/grub.cfg" 2>/dev/null || continue
-        [[ -f "$d/shimx64.efi" ]] || continue
-        vendor_dir="${d%/}"
-        break
-    done
-    [[ -n "$vendor_dir" ]] || { log "no wootc-owned vendor directory on the ESP; signed chain untouched"; return 0; }
-
-    # Source: bootupd's staged payload first (what `bootc upgrade` refreshes),
-    # then the deployment's own ESP tree for classic layouts.
-    local src="" cand
-    if [[ -n "${WOOTC_CHAIN_SOURCE:-}" ]]; then
-        [[ -f "$WOOTC_CHAIN_SOURCE/shimx64.efi" ]] || {
-            log "WOOTC_CHAIN_SOURCE has no shimx64.efi; signed chain untouched"; return 0; }
-        src="${WOOTC_CHAIN_SOURCE%/}"
-    fi
-    for cand in /usr/lib/bootupd/updates/EFI/*/ /boot/efi/EFI/*/; do
-        [[ -n "$src" ]] && break
-        [[ -f "${cand}shimx64.efi" ]] || continue
-        src="${cand%/}"
-        break
-    done
-    [[ -n "$src" ]] || { log "no signed chain in the deployment to copy forward"; return 0; }
-
-    local archive="$ESP_MNT/EFI/wootc/archive"
-    local f stamp
-    stamp=$(sha256sum "$src/shimx64.efi" 2>/dev/null | cut -c1-16)
-    [[ -n "$stamp" ]] || return 0
-
-    # GRUB and MokManager first, shim LAST. A power cut between them then
-    # leaves a shim that still chains a GRUB it can verify; the other order
-    # leaves a new shim above an old GRUB, which is the combination that does
-    # not boot.
-    local replaced=0
-    for f in grubx64.efi mmx64.efi shimx64.efi; do
-        [[ -f "$src/$f" ]] || continue
-        [[ -f "$vendor_dir/$f" ]] || continue
-        cmp -s "$src/$f" "$vendor_dir/$f" && continue
-        # Grade the candidate. Only shim carries SBAT and a firmware-visible
-        # signature; the others ride behind it, but an unsigned GRUB would be
-        # rejected by shim just as surely, so all three are checked.
-        if ! wootc-shim-trust check "$src/$f" "$vendor_dir/$f" >/dev/null; then
-            log "keeping the installed $f (candidate refused — see above)"
-            continue
-        fi
-        mkdir -p "$archive/$stamp"
-        cp -f "$vendor_dir/$f" "$archive/$stamp/$f" 2>/dev/null || {
-            log "could not archive the current $f — refusing to replace what we cannot put back"
-            continue
-        }
-        cp -f "$src/$f" "$vendor_dir/$f.new" && sync && mv -f "$vendor_dir/$f.new" "$vendor_dir/$f" || {
-            log "failed to install $f; restoring from the archive"
-            cp -f "$archive/$stamp/$f" "$vendor_dir/$f" 2>/dev/null || true
-            rm -f "$vendor_dir/$f.new" 2>/dev/null || true
-            continue
-        }
-        if ! cmp -s "$src/$f" "$vendor_dir/$f"; then
-            log "post-write check failed for $f; restoring from the archive"
-            cp -f "$archive/$stamp/$f" "$vendor_dir/$f" 2>/dev/null || true
-            continue
-        fi
-        log "refreshed $(basename "$vendor_dir")/$f from the deployment"
-        replaced=$((replaced + 1))
-    done
-    [[ "$replaced" -gt 0 ]] && changed=1
-    return 0
+menuentry \"Windows\" {
+    insmod part_gpt
+    insmod chain
+    search --no-floppy --set=root --file /EFI/Microsoft/Boot/bootmgfw.efi
+    chainloader /EFI/Microsoft/Boot/bootmgfw.efi
 }
-sync_signed_chain
+"
+for config_relative in "${GRUB_CONFIGS[@]}"; do
+    GRUB_CFG="$ESP_MNT/$config_relative"
+    if [[ ! -f "$GRUB_CFG" ]] || [[ "$(cat "$GRUB_CFG")" != "$WANT_CFG" ]]; then
+        config_source=$(mktemp)
+        printf '%s' "$WANT_CFG" > "$config_source"
+        "$CONTROL" write "${control_args[@]}" --source "$config_source" --destination "$config_relative" >/dev/null
+        rm -f "$config_source"
+        changed=1
+        log "updated $config_relative"
+    fi
+done
+
+# Signed-trio publication completed by the locked, journaled prepare above.
 
 if [[ "$changed" -eq 1 ]]; then
     sync
-    log "ESP refreshed — the next boot uses the updated kernel"
+    log "ESP refreshed — verified artifacts are ready for the next boot"
 else
     log "ESP already current"
 fi

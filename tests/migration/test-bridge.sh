@@ -176,10 +176,14 @@ check "grep -q '\"app\":\"7zip\"' /home/alice/.config/wootc/bridge-apps.json" "A
 check "[ -f /home/alice/.config/Code/User/settings.json ]" "App detection: VS Code settings.json copied"
 check "[ -f /home/alice/.config/wootc/vscode-extensions.txt ]" "App detection: VS Code extension list saved"
 
-# ── 6. ESP sync (BLS and classic layouts, fake ESP) ────────────────────────
+# ── 6. Actual ESP shell consumer with a controlled test boundary ─────────
+# These fixtures prove artifact routing/options and refusal before writes.
+# The adapter is not EFI identity, signature, archive or firmware evidence.
+# Actual controller/cryptographic controls are separate below and in unit tests.
 mkdir -p /tmp/esp/EFI/wootc /tmp/esp/EFI/fedora /tmp/boot/loader/entries /tmp/boot/ostree/x
 echo old-kernel > /tmp/esp/EFI/wootc/phase2-vmlinuz
 echo old-initrd > /tmp/esp/EFI/wootc/phase2-initramfs.img
+echo original-config > /tmp/esp/EFI/fedora/grub.cfg
 echo new-kernel > /tmp/boot/ostree/x/vmlinuz-6.1
 echo new-initrd > /tmp/boot/ostree/x/initramfs-6.1.img
 cat > /tmp/boot/loader/entries/ostree-2.conf <<'BLS'
@@ -187,26 +191,75 @@ title wootc
 version 2
 linux /ostree/x/vmlinuz-6.1
 initrd /ostree/x/initramfs-6.1.img
-options root=UUID=abcd rw ostree=/ostree/boot.1 wootc.host_uuid=FFFF loop=/wootc/disks/root.vhdx
+options root=UUID=abcd rw ostree=/ostree/boot.1
 BLS
-echo "root=UUID=abcd wootc.host_uuid=FFFF loop=/wootc/disks/root.vhdx" > /tmp/cmdline
-WOOTC_ESP_DIR=/tmp/esp WOOTC_BOOT_DIR=/tmp/boot WOOTC_CMDLINE=/tmp/cmdline \
-    bash /scripts/wootc-esp-sync >/dev/null 2>&1 || true
-check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = new-kernel ]' "ESP sync: stale kernel refreshed from BLS entry"
-check 'grep -q "loop=/wootc/disks/root.vhdx" /tmp/esp/EFI/fedora/grub.cfg' "ESP sync: grub.cfg carries loop-attach args"
-# systemd-boot layout writes a BLS entry instead of touching GRUB.
+echo "root=UUID=abcd wootc.host_uuid=1234567890ABCDEF loop=/wootc/disks/root.disk" > /tmp/cmdline
+cat > /tmp/fixture-esp-control <<'PYCONTROL'
+#!/usr/bin/python3
+import json,os,sys
+from pathlib import Path
+args=sys.argv[1:]
+with open('/tmp/fixture-control-calls','a') as stream:stream.write(json.dumps(args)+'\n')
+if args[0]=='prepare':
+    if os.environ.get('FIXTURE_REFUSE')=='1':raise SystemExit(1)
+    cfg='../foreign/grub.cfg' if os.environ.get('FIXTURE_BAD_OUTPUT')=='1' else 'EFI/fedora/grub.cfg'
+    print(json.dumps({'cfgs':[cfg],'chainChanged':False}))
+elif args[0]=='write':
+    destination=args[args.index('--destination')+1]
+    if destination not in ('EFI/wootc/phase2-vmlinuz','EFI/wootc/phase2-initramfs.img','EFI/fedora/grub.cfg'):
+        raise SystemExit('unexpected consumer destination')
+    source=Path(args[args.index('--source')+1]);esp=Path(args[args.index('--esp')+1])
+    (esp/destination).write_bytes(source.read_bytes())
+else:raise SystemExit('unexpected adapter action')
+PYCONTROL
+chmod 755 /tmp/fixture-esp-control
+fixture_sync() {
+    WOOTC_ESP_DIR=/tmp/esp WOOTC_ESP_UUID=fixture WOOTC_BOOT_DIR=/tmp/boot \
+    WOOTC_CMDLINE=/tmp/cmdline WOOTC_ESP_CONTROL=/tmp/fixture-esp-control \
+        bash /scripts/wootc-esp-sync > /tmp/fixture-esp-sync.log 2>&1
+}
+# Refused preparation must leave all existing bytes unchanged.
+FIXTURE_REFUSE=1
+export FIXTURE_REFUSE
+if fixture_sync; then bad "ESP consumer: refused preparation returned success"; else ok "ESP consumer: refused preparation reports failure"; fi
+check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = old-kernel ] && [ "$(cat /tmp/esp/EFI/fedora/grub.cfg)" = original-config ]' "ESP consumer: refused preparation writes no artifacts"
+unset FIXTURE_REFUSE
+FIXTURE_BAD_OUTPUT=1
+export FIXTURE_BAD_OUTPUT
+if fixture_sync; then bad "ESP consumer: malformed output returned success"; else ok "ESP consumer: malformed controller output reports failure"; fi
+check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = old-kernel ] && [ ! -e /tmp/esp/foreign ]' "ESP consumer: malformed output writes no artifacts"
+unset FIXTURE_BAD_OUTPUT
+fixture_sync
+check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = new-kernel ]' "ESP consumer: stale kernel refreshed from actual BLS entry"
+check 'grep -q "loop=/wootc/disks/root.disk" /tmp/esp/EFI/fedora/grub.cfg' "ESP consumer: GRUB config carries actual loop args"
+check 'python3 -c "import json;calls=[json.loads(line) for line in open(\"/tmp/fixture-control-calls\")];assert calls[2][0]==\"prepare\";assert all(call[0]==\"write\" for call in calls[3:])"' "ESP consumer: preparation precedes delegated writes"
+# A foreign neighboring systemd file cannot override the observed shim route.
 mkdir -p /tmp/esp/EFI/systemd
-echo efi > /tmp/esp/EFI/systemd/systemd-bootx64.efi
-WOOTC_ESP_DIR=/tmp/esp WOOTC_BOOT_DIR=/tmp/boot WOOTC_CMDLINE=/tmp/cmdline \
-    bash /scripts/wootc-esp-sync >/dev/null 2>&1 || true
-check 'grep -q "loop=/wootc/disks/root.vhdx" /tmp/esp/loader/entries/wootc.conf' "ESP sync: systemd-boot BLS entry carries loop-attach args"
-# Classic layout:
+echo foreign-systemd > /tmp/esp/EFI/systemd/systemd-bootx64.efi
+BOOTLOADER=systemd
+export BOOTLOADER
+fixture_sync
+check '[ "$(cat /tmp/esp/EFI/systemd/systemd-bootx64.efi)" = foreign-systemd ] && [ ! -e /tmp/esp/loader ]' "ESP consumer: foreign systemd neighbor preserved without loader mutation"
+unset BOOTLOADER
+# This is classic kernel discovery only, not classic deployment support.
 rm -rf /tmp/boot; mkdir -p /tmp/boot
 echo classic-kernel > /tmp/boot/vmlinuz-6.2-generic
 echo classic-initrd > /tmp/boot/initrd.img-6.2-generic
-WOOTC_ESP_DIR=/tmp/esp WOOTC_BOOT_DIR=/tmp/boot WOOTC_CMDLINE=/tmp/cmdline \
-    bash /scripts/wootc-esp-sync >/dev/null 2>&1 || true
-check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = classic-kernel ]' "ESP sync: classic /boot layout (Debian/Arch) handled"
+fixture_sync
+check '[ "$(cat /tmp/esp/EFI/wootc/phase2-vmlinuz)" = classic-kernel ]' "ESP consumer: classic kernel discovery through controlled adapter"
+# Actual installed controller must reject this container/fake-ESP identity.
+# No missing library/dependency is accepted as a successful refusal.
+before_kernel=$(sha256sum /tmp/esp/EFI/wootc/phase2-vmlinuz)
+before_config=$(sha256sum /tmp/esp/EFI/fedora/grub.cfg)
+if WOOTC_CHAIN_LIBRARY=/scripts/lib WOOTC_ESP_DIR=/tmp/esp WOOTC_ESP_UUID=fixture \
+    WOOTC_BOOT_DIR=/tmp/boot WOOTC_CMDLINE=/tmp/cmdline \
+    WOOTC_ESP_CONTROL=/usr/local/bin/wootc-esp-control \
+    bash /scripts/wootc-esp-sync > /tmp/actual-controller-refusal.log 2>&1; then
+    bad "Actual ESP controller: fake installed identity returned success"
+else
+    check 'grep -q "refusing refresh:.*root" /tmp/actual-controller-refusal.log' "Actual ESP controller: measured root identity refusal"
+fi
+check '[ "$(sha256sum /tmp/esp/EFI/wootc/phase2-vmlinuz)" = "$before_kernel" ] && [ "$(sha256sum /tmp/esp/EFI/fedora/grub.cfg)" = "$before_config" ]' "Actual ESP controller: refusal preserves all boot artifacts"
 
 # ── 7. WSL bridge (dotfiles + dpkg→Brewfile, secrets stay behind) ───────────
 WSLR=/tmp/wslrootfs
