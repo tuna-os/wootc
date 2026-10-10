@@ -2,51 +2,33 @@
 
 ## Getting started
 
-1. Fork the repository and clone your fork.
-2. Read `AGENTS.md` first. It names the four project layers: Windows OEM,
-   QGA control plane, deployer initramfs, and E2E test runner. It also names
-   the docs to read before you change each layer. One of these docs is
-   `docs/agent-lessons.md`. It records traps that each cost a 60–90 minute VM run.
-3. Check the build/test matrix in `docs/status.md` for known-good and
-   known-red cells. Do this before you blame a symptom on your change.
+1. Fork and clone the repository.
+2. Read `AGENTS.md` — it names the four project layers and points to key docs including `docs/agent-lessons.md`, which documents traps that each cost 60–90 minute VM runs.
+3. Check `docs/status.md` for the current test matrix before assuming your change broke something.
 
 ## Building and testing
 
-`just --list` shows all targets (needs `just`; the E2E targets also need
-`podman`, `qemu-img`, and `/dev/kvm`).
+Run `just --list` to see all test targets.
 
-The fast, no-container red-green loop for day-to-day changes:
-
-```bash
-just test          # or: tests/run.sh fast
-```
-
-This runs the bats unit suites (payload gates/transforms) plus `go test` for
-the cross-platform Go packages. Windows-tagged Go (`app/*_windows.go`) only
-builds on Windows by design, so this tier covers the platform-independent
-code.
-
-Containerized integration tests (User Data Bridge, WSL, go-native gates) run
-in a privileged Fedora container and need `podman`:
+Fast local tests — no containers:
 
 ```bash
-just test-slow      # or: tests/run.sh slow
+just test
 ```
 
-Full hosted E2E (Windows 11 → wootc deployer → native Linux → Windows 11)
-runs on dedicated remote hosts. You cannot reproduce it on your own machine.
-`docs/RELEASING.md` tells how matrix cells go green.
+Slow tests in containers — needs `podman`:
+
+```bash
+just test-slow
+```
+
+Full E2E (Windows 11 → Linux → Windows 11) runs on remote hosts only. See `docs/RELEASING.md`.
 
 ## Before opening a PR
 
-- Run `just test` (fast tier) locally — it's fast enough to run on every
-  change.
-- Before you change the E2E harness, the deployer, or the runners, read
-  `docs/agent-lessons.md`. Those traps are easy to hit again.
-- **Status that comes from a proxy and not from an observable** is the most
-  frequent bug class in this codebase. When you add a check, ask what it
-  prints if the asserted thing never occurred. Then break the code and make
-  sure that the test goes red.
+- Run `just test` locally on every change.
+- Read `docs/agent-lessons.md` before touching the E2E harness, deployer, or runners.
+- **Core rule**: Status from a proxy rather than an observable causes most bugs here. When adding a check, verify the test goes red when that observable does not occur.
 
 ## License
 
