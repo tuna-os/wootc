@@ -219,17 +219,20 @@ test('installer — BitLocker offers unencrypted-partition path (no forced decry
   await shot(page, '08-bitlocker');
 });
 
-test('installer — LUKS encryption options (§2.6) with TPM recommended', async ({ page }) => {
+test('installer — LUKS encryption options (§2.6), TPM not offered yet', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
-  // Encryption defaults to TPM auto-unlock and is not a main-form question —
-  // the three radio options live under Advanced.
+  // Encryption defaults to none and is not a main-form question — the three
+  // radio options live under Advanced. TPM auto-unlock is shown but disabled
+  // until the install can verify a TPM-sealed disk (#551).
   await page.locator('details:has-text("Advanced") summary').click();
   await expect(page.getByText('Disk Encryption')).toBeVisible();
   await expect(page.getByText('No encryption')).toBeVisible();
   await expect(page.getByText('TPM auto-unlock')).toBeVisible();
   await expect(page.getByText('RECOMMENDED', { exact: true })).toBeVisible();
+  await expect(page.locator('input[name=encryption][value=none]')).toBeChecked();
+  await expect(page.locator('input[name=encryption][value=tpm2-luks]')).toBeDisabled();
   await expect(page.getByText('Passphrase')).toBeVisible();
-  // Default is TPM auto-unlock; no passphrase field shown.
+  // Default is no encryption; no passphrase field shown.
   const passCount = await page.locator('input[type="password"]').count();
   // There should be exactly 2 password fields: Password + Confirm (no LUKS passphrase)
   expect(passCount).toBe(2);
@@ -370,7 +373,7 @@ test('installer — identity stays on the main form when it cannot be derived', 
 // The bare-minimum contract: the default form asks for nothing a Mac's
 // first-run setup would not ask — a password, full stop. Everything else is
 // a solid default (identity mirrored from the PC, disk sized from free
-// space, TPM encryption, Windows look and Wi-Fi brought along), stated in
+// space, no disk encryption, Windows look and Wi-Fi brought along), stated in
 // the plan note and adjustable under Advanced rather than asked up front.
 test('installer — the default form asks for a password and nothing else', async ({ page }) => {
   await boot(page, {
@@ -484,6 +487,54 @@ test('a failed last run is acknowledged on relaunch', async ({ page }) => {
   await expect(page.locator('body')).toContainText('Nothing outside the installation folder was changed');
 });
 
+// An interrupted attempt (#287) greets the relaunch with how it ended, the
+// last finished step, and only the actions the backend allowed.
+const PULL_INTERRUPTED = {
+  class: 'resumable', cause: 'interrupted', imageRef: IMAGES[1].imageRef,
+  lastCompletedStep: 'Downloading Linux', stoppedAtStep: 'Downloading your Linux system',
+  title: 'Setup stopped unexpectedly',
+  message: 'wootc closed or the computer lost power before setup finished.',
+  actions: { resumeInstall: true, retryDeploy: false, repairBoot: false, remove: true },
+  recommended: 'resume', discardsRootDisk: true, keepsVerifiedBlobs: 3, keepsVerifiedBytes: 3 * 1024 ** 3,
+  evidence: ['journal.json: outcome "running", process 4242 no longer running', '<img src=x onerror=window.evidenceInjected=true>'],
+};
+
+test('an interrupted install offers to continue from the kept download', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installRecovery: PULL_INTERRUPTED });
+  const screen = page.locator('#interrupted-screen');
+  await expect(screen).toContainText('Setup stopped unexpectedly');
+  await expect(screen).toContainText('wootc closed or the computer lost power');
+  await expect(screen).toContainText('Last finished step: Downloading Linux');
+  await expect(screen).toContainText('Stopped during: Downloading your Linux system');
+  await expect(screen).toContainText('Kept: 3.0 GB');
+  await expect(page.getByRole('button', { name: /Repair boot/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Try again/ })).toHaveCount(0);
+  expect(await page.evaluate(() => window.evidenceInjected)).toBeUndefined();
+  await page.getByRole('button', { name: /Continue setup/ }).click();
+  await expect(page.locator('#install-btn')).toBeVisible();
+  expect(await page.evaluate(() => window.__wootcPrepareResumeCalls)).toBe(1);
+});
+
+test('an install stopped inside the boot steps only offers removal', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installRecovery: {
+    ...PULL_INTERRUPTED, class: 'needs-repair', cause: 'cancelled',
+    lastCompletedStep: 'Preparing the startup menu', stoppedAtStep: 'Getting Linux prepared',
+    title: 'Setup stopped while changing the startup files',
+    actions: { resumeInstall: false, retryDeploy: false, repairBoot: false, remove: true },
+    recommended: 'remove' } });
+  await expect(page.locator('#interrupted-screen')).toContainText('How it ended: you cancelled it.');
+  await expect(page.getByRole('button', { name: /Remove/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Continue setup/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Repair boot/ })).toHaveCount(0);
+});
+
+test('a complete install never shows the interrupted screen', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    installRecovery: { class: 'complete', cause: 'awaiting-restart', actions: { remove: true } } });
+  await expect(page.locator('#install-btn')).toBeVisible();
+  await expect(page.locator('#interrupted-screen')).toHaveCount(0);
+});
+
 // Once the deployer has completed, the control panel closes the post-deploy
 // loop from the Windows side: a button that actually starts TunaOS.
 test('a deployed install offers Restart into TunaOS', async ({ page }) => {
@@ -560,4 +611,34 @@ test('last-run phase display uses its backend label safely', async ({ page }) =>
     lastRun: { state: 'failed', phaseId: id, phase: 'legacy diagnostic' } });
   await expect(page.locator('body')).toContainText(label);
   expect(await page.evaluate(() => window.phaseInjected)).toBeUndefined();
+});
+
+// Boot repair (#290): the recovery screen shows the OBSERVED boot state, and
+// the buttons that write to the boot configuration follow the report — not
+// the verdict file, which can be stale.
+const FAILED_VERDICT = { verdict: 'failed', title: 'Setup stopped', message: 'Setup could not finish this time.',
+  untouched: true, canTryAgain: true, canRemove: true, canRepairBoot: true };
+
+test('recovery — boot check enables Keep Windows only for a wootc one-shot', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, recoveryVerdict: FAILED_VERDICT,
+    bootReport: { bootState: 'one-shot-armed', ownership: 'certain', canRestoreWindows: true, canRepairBoot: true,
+      findings: ['lifecycle state is "failed"'], bundlePath: 'C:\\wootc\\install\\repair\\20261001T120000Z' },
+    bootReportAfterRestore: { bootState: 'windows-only', ownership: 'certain', canRestoreWindows: false, canRepairBoot: true } });
+  await expect(page.getByText('The next restart (only) goes to the Linux installer.')).toBeVisible();
+  await expect(page.getByText(/Details saved to C:\\wootc\\install\\repair/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Repair boot' })).toBeEnabled();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Keep Windows only' }).click();
+  await expect(page.getByText('Windows starts normally. wootc is not in the boot order.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeDisabled();
+});
+
+test('recovery — uncertain ownership disables every boot write', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, recoveryVerdict: FAILED_VERDICT,
+    bootReport: { bootState: 'one-shot-armed', ownership: 'uncertain', canRestoreWindows: false, canRepairBoot: false,
+      refusals: ['the boot entry recorded in armed.json is now described as "ubuntu", not "wootc"'] } });
+  await expect(page.getByText(/Not offered: the boot entry recorded in armed.json/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Repair boot' })).toBeDisabled();
 });

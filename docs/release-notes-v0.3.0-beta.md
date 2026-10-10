@@ -1,5 +1,7 @@
 # wootc v0.3.0-beta Release Notes — "The whole matrix, honestly"
 
+<!-- ste-disable-file: release notes for v0.3.0-beta, shipped and published on 2026-09-02; a published record is not rewritten -->
+
 **Release Milestone**: M3 (`v0.3.0-beta`)  
 **Tracking Issue**: [#211](https://github.com/tuna-os/wootc/issues/211)  
 **Status**: Shipped | **Date**: 2026-09-02  

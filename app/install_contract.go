@@ -48,8 +48,8 @@ type InstallConfig struct {
 	// every boot without a decryption prompt (SPEC §3.5). C: stays encrypted.
 	StorageDrive string `json:"storageDrive"`
 	// Encryption for the Linux root inside root.disk (SPEC §2.6):
-	// "none" | "tpm2-luks" (auto-unlock via TPM, recommended) |
-	// "luks-passphrase" (prompt every boot).
+	// "none" (the default) | "tpm2-luks" (auto-unlock via TPM; refused until
+	// #551/#33 land) | "luks-passphrase" (prompt every boot).
 	Encryption     string `json:"encryption"`
 	LuksPassphrase string `json:"luksPassphrase"`
 	// WindowsLook opts into Windows-Style Mode (SPEC §4.4): bring the user's
