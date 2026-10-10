@@ -34,12 +34,18 @@ func (a *App) GetImages() ([]Image, error) {
 		}
 	}
 
-	catalog, err := catalogForBrand(brandFS, brandID)
+	return resolveImageCatalogue(brandFS, brandID, effectiveBranding(), a.GetSupportPolicy(), readBundleInfo())
+}
+
+// Resolve the existing catalogue with explicit metadata observations. Both
+// legacy and native callers use this policy; callers own trusted reads.
+func resolveImageCatalogue(assets fs.FS, id string, brand Branding, policy SupportPolicy, bundle *BundleInfo) ([]Image, error) {
+	catalog, err := catalogForBrand(assets, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if b := readBundleInfo(); b != nil && b.Source != "predownload" {
+	if b := bundle; b != nil && b.Source != "predownload" {
 		for _, img := range catalog {
 			if img.ImageRef == b.Image {
 				return []Image{img}, nil
@@ -53,13 +59,13 @@ func (a *App) GetImages() ([]Image, error) {
 		}}, nil
 	}
 
-	if ids := effectiveBranding().Catalog; len(ids) > 0 {
+	if ids := brand.Catalog; len(ids) > 0 {
 		catalog = brandCatalogImages(catalog, ids)
 		if len(catalog) == 0 {
 			return nil, fmt.Errorf("brand catalog contains no known images")
 		}
 	}
-	if a.GetSupportPolicy().ExperimentalImages {
+	if policy.ExperimentalImages {
 		return catalog, nil
 	}
 	green := catalog[:0]

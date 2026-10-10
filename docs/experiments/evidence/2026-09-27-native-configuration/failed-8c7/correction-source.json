@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "d282dac16b3849e279d0b1741ffadea65bfe859d",
+  "sources": {
+    "app/native_storage_session_windows_test.go": "df56253889666bbb9a5c601c60179338a7318e890eee1c4489fb6a96799209ed",
+    "app/native_storage_windows.go": "40ce329b2bc17e3078390848d438cdab4a0ea54d4d2960eaf82d890bcfd7bda1",
+    "shell/Wootc.Shell.Native/NativeDiagnosticState.cs": "28cd919521cd0018ae03fe51104ed648aded464641640d612838ec1dad153241",
+    "shell/Wootc.Shell.Native/NativeEngineConnector.cs": "df02df4632c001db78a9d1ad6b4d7dce8040b98bfef767f5eb6ca9e3921844b2",
+    "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs": "7acb13d99965ef25dad8c026f12b02721ab45a2f4ae233f130eb1116ccf9ee0d",
+    "shell/Wootc.Shell.NativeTests/TransportTests.cs": "aaafb5362ed1189c9b6cd09114f6299abb3ef289fb95bba16947fb5aad57e7ad",
+    "shell/Wootc.Shell.UiTests/InstalledPreviewTests.cs": "f52058d191773f46a248f32d23aabf260dc3e6d89aff3525cb58d1d4c4c74528",
+    "shell/Wootc.Shell/MainWindow.xaml.cs": "e6587b84b36ffe95e663fb4946e5181de58f0969739e504d526c3d6ef4719ebb",
+    "tests/native_configuration_controls.py": "e1a1b3dc2a3c44c5f01265c67d079928f53f7d22a17deedb506e7992936d3788",
+    "tests/native_configuration_flush_controls.py": "3afa7bc13cde443b30d6120ae943ec19773e288f67e93796954af54c27cd5413"
+  },
+  "localChecks": {
+    "focusedLinuxGo": "PASS 0.028s",
+    "windowsCrosscompile": "PASS; not execution",
+    "pythonParse": "PASS",
+    "sourceDiffCheck": "PASS"
+  },
+  "scope": "Windows runtime, held-stderr cause, CLR counters and five brand UI checks remain owed; same deadlines; no installation"
+}

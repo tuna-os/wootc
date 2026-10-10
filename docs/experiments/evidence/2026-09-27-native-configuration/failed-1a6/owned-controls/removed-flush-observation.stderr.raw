@@ -1,0 +1,1 @@
+[xUnit.net 00:00:02.37]     Wootc.Shell.NativeTests.TransportTests.ActualMatchingPipeStorageFailureSurvivesOwnedCleanup(method: "GetNativeConfiguration", diagnosticExpected: True) [FAIL]

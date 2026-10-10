@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "head": "fbe9114017c99866a7a63ad9caa82ed10f9f3228",
+  "run": 36340333847,
+  "scope": "All five installed brand UI gates failed; no full UI/install claim. First read succeeded for three invoke failures. Missing packaged storage diagnostic does not establish timeout cause.",
+  "brands": {
+    "wootc": {
+      "job": 108679044727,
+      "sha256": "04dbbc256067cf6ac07dc5b15059fde5240ba0b64ff5ca4680a24e8c444d8d62",
+      "size": 97653,
+      "classification": "secondRead.Invoke ElementNotEnabled"
+    },
+    "bluefin": {
+      "job": 108679044673,
+      "sha256": "77a61f2cb89c9f4460d9a8fb2c12308a1388088dac6bbd7051882070386f5dd5",
+      "size": 97439,
+      "classification": "configuration RPC response protocol failure; actual query phase unavailable"
+    },
+    "tunaos": {
+      "job": 108679044728,
+      "sha256": "b9270594722c1b0a3f478524c4edb43945c44729cc449b9e7b3c9faa4b03d93b",
+      "size": 97667,
+      "classification": "secondRead.Invoke ElementNotEnabled"
+    },
+    "bazzite": {
+      "job": 108679044699,
+      "sha256": "8d6756024b2db64a9833643701a217aa31d91e6b9ea46d425ad6d2310a61a2b4",
+      "size": 97441,
+      "classification": "configuration RPC response protocol failure; actual query phase unavailable"
+    },
+    "aurora": {
+      "job": 108679044734,
+      "sha256": "0c9b244ff106db311994738d8d24ae3430f3fe8616e0e0fd9240040be1d9b34a",
+      "size": 97663,
+      "classification": "secondRead.Invoke ElementNotEnabled"
+    }
+  }
+}

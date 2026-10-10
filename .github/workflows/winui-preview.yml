@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'shell/**'
+      - 'tests/native_configuration_flush_controls.py'
+      - 'tests/windows_owned_process.py'
       - 'app/serve*'
       - 'app/native_peer*'
       - 'app/native_pipe*'
@@ -12,6 +14,8 @@ on:
       - 'app/native_serve*'
       - 'app/native_readiness*'
       - 'app/native_audit*'
+      - 'app/native_configuration*'
+      - 'app/native_storage*'
       - 'app/main.go'
       - 'app/status_location*'
       - 'app/tools/gendto/**'
@@ -71,6 +75,8 @@ jobs:
       - name: Test actual Windows adapter identities and private package controls
         working-directory: shell
         run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
+      - name: Prove actual current configuration flush identity and restored counter
+        run: python tests/native_configuration_flush_controls.py
       - name: Observe the actual native startup window with UI Automation
         working-directory: shell
         shell: pwsh
@@ -104,6 +110,7 @@ jobs:
         with:
           name: winui-preview-diagnostics
           path: |
+            out/configuration-flush-controls/
             out/winui-source-diagnostics/
             out/winui-startup-events.json
             out/native-startup-state-observations.json

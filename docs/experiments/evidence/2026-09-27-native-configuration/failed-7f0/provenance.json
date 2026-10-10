@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "head": "7f0cdf6dd6ffebff9fa8f2ec5e8710fc7fca6af6",
+  "queryRun": 36338769580,
+  "testedQueryMerge": "9fee6d58ef97d368d861a37d7cbb1551dc6c3524",
+  "artifact": {
+    "id": 10937564874,
+    "size": 45620,
+    "digest": "03f1a2762ddb3e5b147c230a9edfc08c0aa286fb6f2884a29c7dbfa89f197abc",
+    "apiDigestAndSizeVerified": true
+  },
+  "brandRun": 36338769554,
+  "brandJobs": {
+    "wootc": 108674741609,
+    "tunaos": 108674741544,
+    "aurora": 108674741543,
+    "bazzite": 108674741582,
+    "bluefin": 108674741562
+  },
+  "observation": "System query/serial and warning counter pass. Utility/CIM counter harness fails import literal matching before mutants because checkout CRLF; no counter claim here. All5 installed brand jobs fail: wootc/bluefin reach configuration but stay Ready after disconnect invoke, other3 refuse at configuration response; distinct failures, no inferred common cause.",
+  "files": {
+    "brands/aurora.raw.log": "8da902fd5336e09f3ad8da6e91d69db50e11b33ad038017061a3d87600e01780",
+    "brands/bazzite.raw.log": "1a590734b15431a1cc0c39bbf3529f00d17e9f2ae80e88fc3911f72b297c1821",
+    "brands/bluefin.raw.log": "ac2ca13bacbca8477998bf3ce577379b7c319d28391f01a59b2f57b5753375c8",
+    "brands/inventory.json": "901672fc5d4646dee21bf9c06622f5ad92912f1c4b839436ae6f4e62bef88ce0",
+    "brands/tunaos.raw.log": "ed90347d80cd7a38ad4f24eb6524847bbebec68e8cc6b5e3dc35480df33a48d1",
+    "brands/wootc.raw.log": "f11a31d2ed06001ec36ffe643e82fdb1a881aa488947c553fdb3862e4320f444",
+    "query/artifact.zip": "03f1a2762ddb3e5b147c230a9edfc08c0aa286fb6f2884a29c7dbfa89f197abc",
+    "query/receipt.json": "d04d97683f11bdf3b0e441ef0f5f6e105e8df77c36d898ea3cbe4443c555792f",
+    "query/stderr.raw": "1002974445480ed61e5a080618087c7085428f452cfb184f854d0231dde20d97",
+    "query/stdout.raw": "70d07004692da60cb6c7452d8685d122ed987d8e11eda3a36ec7fac099bedc14",
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee",
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902",
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+    "query/system-query/trusted-system-modules/inventory.json": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c"
+  }
+}

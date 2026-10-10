@@ -1,0 +1,4 @@
+*.raw -text whitespace=cr-at-eol
+*.log -text whitespace=cr-at-eol
+*.trx -text whitespace=cr-at-eol
+receipt.json -text whitespace=cr-at-eol

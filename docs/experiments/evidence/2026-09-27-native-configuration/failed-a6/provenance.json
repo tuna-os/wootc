@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "head": "a6acbdf0352b2647cb4ba7b32ae35e6394cc49d0",
+  "run": 36335809929,
+  "job": 108666321945,
+  "testedMerge": "83eb5fd912814b326ae9822fc465b42120b355a8",
+  "artifact": {
+    "id": 10936823353,
+    "size": 10571,
+    "digest": "3de8db664b66d683cd0e9f5ea3f74621931c77f3dbff48f3a12f6276f11f8689",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "three actual queries loader=command-not-found; nested parent-error-record; script capture refused 64KiB bound, no script observation claimed; no eligible storage observed",
+  "files": {
+    "query/stdout.raw": "73c8a1c49d41934d3b79ca2b31280a150df259630698b3693c6481bf2546b6ef",
+    "query/receipt.json": "becf9ca53c67dcaedfa76cb10133b27977ab4d9753296e545625ca31a55a4de9",
+    "query/stderr.raw": "ce2ff9c7e07b281316b58df29981883b8b71b88d9b0c9460c42cc866256c7290",
+    "query/artifact.zip": "3de8db664b66d683cd0e9f5ea3f74621931c77f3dbff48f3a12f6276f11f8689",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stderr.raw": "0d5701a1ea4ebdf2ad7024554534e9c742e18db287886cc38693f4462809a410",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.json": "a3cd1ee27d81438a0efe9f9a6805d17b13c1dd36b840ce761ba090dbf7eda849",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.json": "a51912c74878559b22afec2665ab1f178599e2c0519026df2831bd23d5c4849e",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.stderr.raw": "0d5701a1ea4ebdf2ad7024554534e9c742e18db287886cc38693f4462809a410",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.json": "651b92751768a1675303838db0aca913d7c97dd14323a9fc2374230d33f67658",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stderr.raw": "0d5701a1ea4ebdf2ad7024554534e9c742e18db287886cc38693f4462809a410",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f"
+  }
+}

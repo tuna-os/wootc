@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "head": "d1eb343ee9f5048fb15b358fc598c53ef7a07446",
+  "run": 36338563362,
+  "testedMerge": "5a8c7196204c762ea2b9b0da812aa1392fabccf7",
+  "artifact": {
+    "id": 10937449735,
+    "size": 52397,
+    "digest": "7eb64949757e0ee1958fc95086c612d1acc371f8d9797e9b3eefed9e874c08ff",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "Actual command exits0 and emits BitLocker import unapproved-verb warning before JSON array. Whole-output parser correctly refuses. Preferences are set after imports in this source. Positive precondition failures mean dependency countertests are not proved.",
+  "files": {
+    "query/artifact.zip": "7eb64949757e0ee1958fc95086c612d1acc371f8d9797e9b3eefed9e874c08ff",
+    "query/receipt.json": "eb7a3b13d4d29fff335d7eb7a4351b7d1ce2ce224ed568f124a80043f3760921",
+    "query/stderr.raw": "c387560449e9067f6a4af1f9294ee1cd4fbdb105ba57de2b7237a4bb4738ba67",
+    "query/stdout.raw": "8749340c1c825d67aee795567f7f88d903a846fc42053746956ccfb5682b5c9b",
+    "query/system-query/TestNativeConfigurationActualCimDependencyCounter.json": "c85c9c5fd4c7485b2194ea8bef0f81e1ca1d20c55ab45f2395c5c18943b15621",
+    "query/system-query/TestNativeConfigurationActualCimDependencyCounter.stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationActualCimDependencyCounter.stdout.raw": "89b305aff8fa80c19dd39ee4bc6fdcc816c91082b9ba2ee4e097a914e7be53c1",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.json": "24beec38a3703ed14b947347ec3d52f5efb065936eae3fe4826b50c353abb652",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stdout.raw": "89b305aff8fa80c19dd39ee4bc6fdcc816c91082b9ba2ee4e097a914e7be53c1",
+    "query/system-query/TestNativeConfigurationActualUtilityDependencyOrderCounter.json": "37a722efbb534fc4deb4b661b3cec8efab5b2b01f4cff8d1f98e3b6fa5e7b848",
+    "query/system-query/TestNativeConfigurationActualUtilityDependencyOrderCounter.stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationActualUtilityDependencyOrderCounter.stdout.raw": "89b305aff8fa80c19dd39ee4bc6fdcc816c91082b9ba2ee4e097a914e7be53c1",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.json": "fbfd5a89d7bc8979e651feee11335803480cb7be0b82ea7c799252b8e542c967",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stdout.raw": "89b305aff8fa80c19dd39ee4bc6fdcc816c91082b9ba2ee4e097a914e7be53c1",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.json": "1d9d08966a12d8f662c62c0dde824c8e25a54559665bdd2d332e35b1f547d568",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.stdout.raw": "89b305aff8fa80c19dd39ee4bc6fdcc816c91082b9ba2ee4e097a914e7be53c1",
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee",
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902",
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+    "query/system-query/trusted-system-modules/inventory.json": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c"
+  }
+}

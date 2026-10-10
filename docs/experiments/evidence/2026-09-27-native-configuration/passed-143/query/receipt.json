@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "scope": "hosted Windows read-only system query and private Go fixtures; no installation",
+  "runId": "36339216141",
+  "runAttempt": "1",
+  "testedHead": "3346bab6110b03b9540b70085d66d62f5caeb04f",
+  "checkoutSources": {
+    "app/app.go": "2351865bd937906359dd1529f862ce1de61a2ce7bfabdd583aa3659f83fa9d66",
+    "app/catalog.go": "fde209e1598c18a23ec99d689d61cc55c7d9a34069d15cc3c4f60dabd19cbff5",
+    "app/native_configuration.go": "f9a4214525ab7f0bf7bc28d30771b04dee8c3bee367a78525c02add3c62772a5",
+    "app/native_configuration_root_windows.go": "5006e41a2dea2d192a655bd1083ecfa5c73b23d31ae4d80ffc51949ef60d12e6",
+    "app/native_configuration_root_other.go": "49425d2a43b311c6bce385e49ac6f2c77927c3cd33d10ef330c3108ba35c6c63",
+    "app/native_configuration_windows.go": "2146702dbe0292a1c6d092f0f17eab9d9ac7188e84b9676f2169a39fb7d32a9c",
+    "app/native_configuration_test.go": "c2316be3e375e7bef949ea0f62f68af30d5e200d01385fe4f16ab043847dda3a",
+    "app/native_configuration_rpc_test.go": "bd94c88b33da7f04ccdce1ef629c9f69d44d5106d3dd97a2d527478fe40bd4ba",
+    "app/native_storage_windows.go": "52c0099080a7d9448d669ed3123aa9a31a8bbf866fa005147da15faf0db67ae9",
+    "app/native_storage_windows_test.go": "e573da9e4934474325e6064f0e842c80b573593586204b92767a8a64727c76e8",
+    "app/native_storage_query.ps1": "4bdb01ad9deb2b4f4f23693b6634e030d7d560f3344b277f156dc9afef00bbdc",
+    "app/status_location_windows.go": "20bbf777926319eb1cafd4f6235776b044d8f749ac718b2510782292d0b02ee9",
+    "app/serve.go": "b45c3037247d7ff8c3414f9e68b22f01cb83a8ab7def2f6188b325304cd97056",
+    "app/native_serve_windows.go": "9bcb6f3d5ffd70bca1be0e7297a00b86721ca2a18630e1013e91d36fea03a15a",
+    "app/state_trust_windows.go": "0fa843795ef1a6070b609fc8ade1222147be207a222267e212f1d1d8f9a39303",
+    "app/go.mod": "7e083365e3205c3e1d5d89809e6bf9f063c20aeb3337972a2816bf7a9a0fedf9",
+    "app/go.sum": "834942c1a88fc11b419d56899bdf78e57d15bf84b352b9a2226b303e80a34192",
+    "tests/native_configuration_controls.py": "1936cf7838aa065107c94e24d7249de02f074fe74963a9cd36cc9066a0993932",
+    ".github/workflows/native-configuration.yml": "2279ec3740bf404eab440bb826eb399e38572a2f815ae829242c38c801be33ca"
+  },
+  "tools": {
+    "go": {
+      "path": "C:\\hostedtoolcache\\windows\\go\\1.26.0\\x64\\bin\\go.EXE",
+      "sha256": "c2f0bc63168a96e854e6e5dd32493cc00a415ddcd4bf94580e302c103b23adfe"
+    },
+    "python": {
+      "path": "C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe",
+      "sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a"
+    }
+  },
+  "returnCode": 0,
+  "tests": [
+    {
+      "name": "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualOverrideKeepsAlphaAdmissionFalse",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationMalformedOverridesNeverFallBack",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAmbiguousPayloadMetadataRefuses",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/brand.json",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/channel.txt",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/images.json",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses/bundle/bundle.json",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationAppearedOptionalMetadataOnAnyRootRefuses",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/bytes",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/delete",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse/swap",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationChangedMetadataAndRootIdentityRefuse",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/none",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/disk",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/partition",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/serial",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/protection",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/query",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity/metadata",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageProtectedVolumeCannotBecomeChoice",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageIgnoresInheritedModuleShadow",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualTrustedModuleManifestInventory",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualUtilityDependencyOrderCounter",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualCimDependencyCounter",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeConfigurationActualImportWarningCounter",
+      "outcome": "pass"
+    }
+  ],
+  "gitSources": {
+    "app/app.go": "e875462452962f3002bde10eb0cf0fbab85b919a2d9f6ae4baaeb3fd74100768",
+    "app/catalog.go": "01fe9e35ba1d5d61e10654d74dcefb0b9cc82b5e45159e97af87cc177ba33de3",
+    "app/native_configuration.go": "2c5cd669ccbd940811c474eb9a3948c7b6968a191dd40cee5ca70c3fa539acc0",
+    "app/native_configuration_root_windows.go": "e343a70b3bf55720a4b290f6a77b2610104a2cea662fdd2b96f1b3afbd6ac746",
+    "app/native_configuration_root_other.go": "e5b78a87a1e6a8099f53df60fcddfd65d46d1f1c0ffcbbc4173751af5ffd1aba",
+    "app/native_configuration_windows.go": "9c786837473fd9508e073cb06e01a43ab02f1a8142ec85a7e7e32aed84d695fe",
+    "app/native_configuration_test.go": "d78b449a8f78e71c053795f63a2d8e0c6a09035a43ddd572e87b98251bbae1f9",
+    "app/native_configuration_rpc_test.go": "d73a44e39687bf75b286efee2ab144ee146245dda5e3361b579c2907bdcae390",
+    "app/native_storage_windows.go": "0433276ca2f53f742846f783601a5b902eb0cadaf294ddb248b0db4c391a5f38",
+    "app/native_storage_windows_test.go": "0f27eac4985810e138010c9b056a7a7d016e1b24196a8bb46c9f60c30fb1fd2f",
+    "app/native_storage_query.ps1": "9513b443ce38835ce3e3bb969891bb4625b77cf83ce7ce48de17d17902e33864",
+    "app/status_location_windows.go": "2b1423003714daa301c45eb107797862bf3278339f3cccdd8b09a7c5fa9ffa87",
+    "app/serve.go": "4b5688f252437016fed5b1e2a1539dd0ae0de18e2724d3327eaa256eec47e92b",
+    "app/native_serve_windows.go": "69f68977feefc800a0c312feeae364fac934eaafd03c248cf3833ac696089b80",
+    "app/state_trust_windows.go": "14060d7c9c404d859780f812b4d889c5203e5c3d58cc6e757a8c972e5b73128e",
+    "app/go.mod": "bf8b0302409344410ce0c7aa8bc7af3396a2a06d44b873a444325ac22c7a4a94",
+    "app/go.sum": "1839c01cebca590e44eba9b25df774e94536238793e500e2ca8d694b83d644f2",
+    "tests/native_configuration_controls.py": "649245c808102bda208de050a38a3818b5b471a96bd2b718e4b5f4eb9500f72a",
+    ".github/workflows/native-configuration.yml": "51a789585373fa97058a9fd8d82635248a9189c643e6d6687eafdeb8bdf94794"
+  },
+  "arguments": [
+    "C:\\hostedtoolcache\\windows\\go\\1.26.0\\x64\\bin\\go.EXE",
+    "test",
+    "-count=1",
+    "-json",
+    "-timeout",
+    "90s",
+    "-run",
+    "^TestNativeConfiguration",
+    "."
+  ],
+  "accepted": true,
+  "rawFiles": {
+    "stderr.raw": {
+      "sha256": "1002974445480ed61e5a080618087c7085428f452cfb184f854d0231dde20d97",
+      "size": 533
+    },
+    "stdout.raw": {
+      "sha256": "83d84808804782a37fa0ad8dded763c83546b840d72eaf4bc16c8bb425a3f57f",
+      "size": 25104
+    }
+  },
+  "diagnosticRecords": {
+    "system-query\\trusted-system-modules\\inventory.json": {
+      "sha256": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c",
+      "size": 1990
+    },
+    "system-query\\trusted-system-modules\\BitLocker\\BitLocker.psd1": {
+      "sha256": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+      "size": 908
+    },
+    "system-query\\trusted-system-modules\\CimCmdlets\\CimCmdlets.psd1": {
+      "sha256": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902",
+      "size": 1888
+    },
+    "system-query\\trusted-system-modules\\Microsoft.PowerShell.Utility\\Microsoft.PowerShell.Utility.psd1": {
+      "sha256": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+      "size": 2459
+    },
+    "system-query\\trusted-system-modules\\Storage\\Storage.psd1": {
+      "sha256": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+      "size": 7390
+    },
+    "system-query\\trusted-system-modules\\Storage\\StorageScripts.psm1": {
+      "sha256": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+      "size": 378458
+    },
+    "system-query\\trusted-system-modules\\BitLocker\\en-US\\BitLocker.psd1": {
+      "sha256": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee",
+      "size": 9470
+    }
+  }
+}

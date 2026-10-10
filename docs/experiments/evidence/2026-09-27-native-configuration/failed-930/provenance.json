@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "head": "9307661b2e37e3fbe9c667f599f5cc17b000555a",
+  "run": 36336608793,
+  "testedMerge": "928c49eb90082e89e9772b980b60a735cfbc3e78",
+  "artifact": {
+    "id": 10937481877,
+    "size": 5498,
+    "digest": "3ac0fde553a8dd3b04d69911b66b4cbf1f4e7f368dbd9e566f3aa3e0d533cb55",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "Actual query refused before execution due wrong PSHOME assembly-path assumption; no successful storage/protection observation. Independent module inventory also failed before capture because owned diagnostic parent was absent.",
+  "files": {
+    "query/artifact.zip": "3ac0fde553a8dd3b04d69911b66b4cbf1f4e7f368dbd9e566f3aa3e0d533cb55",
+    "query/receipt.json": "ea1f6caa3f139ea8441a3952975873e68d5934a8a108c5be7aaa43aae198977f",
+    "query/stderr.raw": "f9d5d3404e15bce41624e94c3bb0aca19246a1041ea7e905c8fce24b1ffbb6f0",
+    "query/stdout.raw": "d5b33f24b98e4b1ebe690c7bf6fa60f8bfba17968d25b8d76fceccf70729414a"
+  }
+}

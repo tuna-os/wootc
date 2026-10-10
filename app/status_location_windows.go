@@ -19,23 +19,9 @@ func readStatusState() (LifecycleState, bool, error) {
 
 // Selection never changes global storage context or repairs a tree.
 func selectWindowsStatusState(ctx context.Context, bounded bool) (LifecycleState, string, bool, error) {
-	drives, err := windows.GetLogicalDrives()
+	roots, err := windowsFixedStateRoots()
 	if err != nil {
 		return LifecycleState{}, "", false, err
-	}
-	var roots []string
-	for i := uint32(0); i < 26; i++ {
-		if drives&(1<<i) == 0 {
-			continue
-		}
-		volume := string(rune('A'+i)) + `:\`
-		p, err := windows.UTF16PtrFromString(volume)
-		if err != nil {
-			return LifecycleState{}, "", false, err
-		}
-		if windows.GetDriveType(p) == windows.DRIVE_FIXED {
-			roots = append(roots, volume+"wootc")
-		}
 	}
 	return discoverStatusState(roots, func(root string) error {
 		if !bounded {
@@ -67,4 +53,26 @@ func auditTrustedStateDirectory(root string) error {
 		}
 		return nil
 	})
+}
+
+func windowsFixedStateRoots() ([]string, error) {
+	drives, err := windows.GetLogicalDrives()
+	if err != nil {
+		return nil, err
+	}
+	var roots []string
+	for i := uint32(0); i < 26; i++ {
+		if drives&(1<<i) == 0 {
+			continue
+		}
+		volume := string(rune('A'+i)) + `:\`
+		p, err := windows.UTF16PtrFromString(volume)
+		if err != nil {
+			return nil, err
+		}
+		if windows.GetDriveType(p) == windows.DRIVE_FIXED {
+			roots = append(roots, volume+"wootc")
+		}
+	}
+	return roots, nil
 }

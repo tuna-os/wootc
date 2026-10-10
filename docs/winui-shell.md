@@ -220,6 +220,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetReleaseNotice` | — | `ReleaseNotice` (optional newer release) |
 | `GetImages` | — | `[]Image` |
 | `GetInstallSteps` | — | `[]StepDefinition` |
+| `GetNativeConfiguration` | — | `NativeConfigurationSnapshot` |
 | `GetSessionCandidates` | — | as today |
 | `StartInstall` | `InstallConfig` | `null` or error |
 | `CancelInstall` | — | `null` |

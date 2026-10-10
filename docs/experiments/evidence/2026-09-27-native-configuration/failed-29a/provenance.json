@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "head": "29a656d1e305cc28af25d7a48d28980833e7e018",
+  "run": 36336077756,
+  "job": 108667055714,
+  "testedMerge": "b2ead0cd249caf910957581672362a042be4cf7f",
+  "artifact": {
+    "id": 10937505964,
+    "size": 47844,
+    "digest": "a5b291c3683517a4a75967492cf20a2cd809a3069e53315d4c5d0417af7fafda",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "actual loader command-not-found; protected StorageScripts lines10060-10062 execute New-Alias unconditionally; protected Utility manifest exports New-Alias; no positive query or repaired import claim",
+  "files": {
+    "query/stdout.raw": "8424119c37d105e99cff3958b2d72b1dcb48e5ea1157971367eeaaac4cd9f979",
+    "query/receipt.json": "371bfa6c68c8a27dbae29d9ac97a0a1c5767bcd1d3d9e4aa48e85f7e1743c1be",
+    "query/stderr.raw": "e00660f8719b2c1926e908b097193bebd7131d53337cc40c249950420f2c7754",
+    "query/artifact.zip": "a5b291c3683517a4a75967492cf20a2cd809a3069e53315d4c5d0417af7fafda",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.stderr.raw": "f058a11f4660a236c981812103c8adacc710998f5a27473f98d36d07f24ab3a3",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.json": "a3cd1ee27d81438a0efe9f9a6805d17b13c1dd36b840ce761ba090dbf7eda849",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.json": "a51912c74878559b22afec2665ab1f178599e2c0519026df2831bd23d5c4849e",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory.stderr.raw": "f058a11f4660a236c981812103c8adacc710998f5a27473f98d36d07f24ab3a3",
+    "query/system-query/TestNativeConfigurationStorageIgnoresInheritedModuleShadow.json": "651b92751768a1675303838db0aca913d7c97dd14323a9fc2374230d33f67658",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stdout.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "query/system-query/TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly.stderr.raw": "f058a11f4660a236c981812103c8adacc710998f5a27473f98d36d07f24ab3a3",
+    "query/system-query/trusted-system-modules/inventory.json": "d22548497e6b68a0ac875dc2c16de593f68e161a30aa0ab9c30dcbfb519bace5",
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca",
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18",
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f",
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6",
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee"
+  }
+}

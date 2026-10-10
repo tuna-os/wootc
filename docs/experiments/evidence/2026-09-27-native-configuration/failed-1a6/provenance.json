@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "1a6b5674351d014fed6d080e0be5cf737863ef06",
+  "testedMerge": "f6be21c25d28f5a42d083f7e34a315499a238b1f",
+  "runId": 36344171677,
+  "diagnosticArtifact": {
+    "id": 10939759072,
+    "size": 61416,
+    "sha256": "3d5e4dedf540371fc348d13d6fac99e6ec18a4fdd990dc4c91361cd822bcf82b"
+  },
+  "scope": "Historical failed trial. Actual owned process controls and CLR baseline passed; expected counter failed but finally masked the required cause. Source bytes restored, no restored CLR run. All five installed previews failed; no UI/install acceptance.",
+  "files": {
+    "wootc.raw.log": {
+      "size": 97674,
+      "sha256": "a6119b5fd090d1a10409bf136b0713761aeb8d06305c32d7f635704fd88abc5c"
+    },
+    "bluefin.raw.log": {
+      "size": 97888,
+      "sha256": "5f1bd7b34d152f90f3fcf4dad2e3356cec13946b047cc2ce5032044848f2954c"
+    },
+    "aurora.raw.log": {
+      "size": 97873,
+      "sha256": "b60aff7b53f99695f80efb7d514ea17f8a7783cc1bb802bea2cb2b8bf0b7818b"
+    },
+    "native.raw.log": {
+      "size": 35443,
+      "sha256": "55ee94cfdd2684ea8797356faf1a2dce835ea2910ec61542e58eabd24ad5c369"
+    },
+    "tunaos.raw.log": {
+      "size": 97685,
+      "sha256": "b0c4ff12664e69674ba97d1731ed468ca919b8115bcfc1b8bc6f2b59f6481af8"
+    },
+    "bazzite.raw.log": {
+      "size": 97879,
+      "sha256": "579c174ee0b9dd3db11ec893494c27bfd5a5fdf5d3ea344a21183ec7ad5685c1"
+    },
+    "owned-controls/removed-flush-observation.trx": {
+      "size": 6296,
+      "sha256": "21e465b7096091596ff2ff1ba5acced952e77374ce1decb61622b6f1bb33e37a"
+    },
+    "owned-controls/identity-source-9.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-10.stdout.raw": {
+      "size": 8439,
+      "sha256": "81d26ea165657af4455b28dc31e9eeb2d13832c07245efd777c3491ed7196e93"
+    },
+    "owned-controls/identity-source-7.stdout.raw": {
+      "size": 105,
+      "sha256": "4e7d5022b2a5a8d02bb951bb264a4c8613eabc332572a0af5f9743d23f23d84e"
+    },
+    "owned-controls/removed-flush-observation.stdout.raw": {
+      "size": 1519,
+      "sha256": "bd289d92da4a4d41c8f43a9986a66f4995d7c066476db6bf722cf38a5624904b"
+    },
+    "owned-controls/identity-source-1.stdout.raw": {
+      "size": 2290,
+      "sha256": "d9698bdc48c53205412c8f8f8081fae607d668d372bfeae0e775d4ac6d304ab0"
+    },
+    "owned-controls/owned-deadline-tree.stdout.raw": {
+      "size": 26,
+      "sha256": "f2b0bf2efef7bec44e92633eb0ff7ec0bcf5f2cdefd816b169cfd41d73cf7e55"
+    },
+    "owned-controls/identity-source-7.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-dotnet-version.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/removed-flush-observation.stderr.raw": {
+      "size": 188,
+      "sha256": "38d22810140e415e44b0db5800f0c5e1dbf10ead844cfa3049317f108a250d5e"
+    },
+    "owned-controls/owned-positive.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-head.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-6.stdout.raw": {
+      "size": 10535,
+      "sha256": "d54eaafecd3ba7bda1433d83138a111c038f09317a2a6058d46307f1c08bdadc"
+    },
+    "owned-controls/identity-source-2.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/receipt.json": {
+      "size": 17800,
+      "sha256": "34393008625fac6a1e3cb771c3a124af3ff4c725121246b04d4430013982293a"
+    },
+    "owned-controls/positive.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-3.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-10.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/owned-output-bound.stdout.raw": {
+      "size": 65536,
+      "sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3"
+    },
+    "owned-controls/identity-source-5.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-5.stdout.raw": {
+      "size": 6472,
+      "sha256": "ec1486de76ec6affc25478c39c4232a35c18131c3ecfd160ade6d3761bb7a782"
+    },
+    "owned-controls/identity-dotnet-version.stdout.raw": {
+      "size": 10,
+      "sha256": "3db6bca4b50618b2e0d2d55d23b3d0541fe039ab6f731df0e9c47317b400ce52"
+    },
+    "owned-controls/positive.trx": {
+      "size": 4697,
+      "sha256": "9eed5b582b7bb381624d009565895d2f7f199b8c2fa3ea090e33c13afce998d7"
+    },
+    "owned-controls/identity-source-3.stdout.raw": {
+      "size": 5257,
+      "sha256": "b398580f4d96d89a68df1f97ee91d8d9cea27d7f4a7f34d6eca0daca9a1bacf8"
+    },
+    "owned-controls/identity-source-0.stdout.raw": {
+      "size": 9173,
+      "sha256": "4e5b06289e5f6dd00d2021eac3d4a50f1b056ff1687db47dba4a228a742b7782"
+    },
+    "owned-controls/identity-source-6.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/positive.stdout.raw": {
+      "size": 892,
+      "sha256": "5c3f2d2ae3ae4342a30aba713ea90bf47a44ea5268e099bb758a8b204e7b581c"
+    },
+    "owned-controls/identity-source-0.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-4.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/owned-output-bound.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-4.stdout.raw": {
+      "size": 16192,
+      "sha256": "2271746492ff289e9e898f52545e12c9ab026f2d32bb2cdd844aff90b182ed6d"
+    },
+    "owned-controls/identity-head.stdout.raw": {
+      "size": 41,
+      "sha256": "261958d432bff8d4eb466d34f2da47c2c7669d194a141358284ab5a75d7b7ec2"
+    },
+    "owned-controls/identity-source-1.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/owned-positive.stdout.raw": {
+      "size": 27,
+      "sha256": "f37c50258d850584f873873dc1de506d8f8d5c24a5a79dcda65dd805c6282ac3"
+    },
+    "owned-controls/identity-source-8.stdout.raw": {
+      "size": 8140,
+      "sha256": "5d0a28f17b21db8b466f083b78fd72cc4614ac14ba2cdbbc32740968c63d432c"
+    },
+    "owned-controls/identity-source-8.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/owned-deadline-tree.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "owned-controls/identity-source-2.stdout.raw": {
+      "size": 4549,
+      "sha256": "8ec7f214ab2402be9b74ce437cc01b41d20b9a9e78452c9e5231fac60febf327"
+    },
+    "owned-controls/identity-source-9.stdout.raw": {
+      "size": 9858,
+      "sha256": "3348422332db561d08efb10b59466eda449f98f33cceafa661002fc25b6c9119"
+    }
+  }
+}

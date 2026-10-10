@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Actual CLR current-request flush observation, removed callback red, restored."""
+import hashlib
+import json
+import os
+import pathlib
+import shutil
+import sys
+import xml.etree.ElementTree as ET
+from windows_owned_process import run_owned, OwnedProcessFailure
+
+root = pathlib.Path(__file__).resolve().parents[1]
+source = root / "shell/Wootc.Shell.Native/NativeEngineSession.cs"
+output = root / "out/configuration-flush-controls"
+output.mkdir(parents=True, exist_ok=True)
+original = source.read_bytes()
+needle = b'if (method == "GetNativeConfiguration") requestFlushed?.Invoke(id);'
+assert original.count(needle) == 1
+source_names = ["shell/Wootc.Shell.Native/NativeEngineSession.cs", "shell/Wootc.Shell.Native/NativeDiagnosticState.cs", "shell/Wootc.Shell.Native/NativeEngineConnector.cs", "shell/Wootc.Shell.Native/StorageObservationFailure.cs", "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs", "shell/Wootc.Shell.NativeTests/TransportTests.cs", "shell/Wootc.Shell.Core/StartupController.cs", "shell/Wootc.Shell/MainWindow.xaml.cs", "shell/global.json", "tests/native_configuration_flush_controls.py", "tests/windows_owned_process.py", ".github/workflows/winui-preview.yml"]
+sha = lambda data: hashlib.sha256(data).hexdigest()
+dotnet = str(pathlib.Path(shutil.which("dotnet")).resolve())
+git = str(pathlib.Path(shutil.which("git")).resolve())
+receipt = {"schemaVersion": 1, "runId": os.environ.get("GITHUB_RUN_ID"), "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "testedHead": None, "scope": "Actual Windows CLR matching local-pipe configuration request ID, removed post-flush callback refusal and exact restoration; no installed GUI/install journey claim.", "gitSources": {}, "checkoutSources": {}, "outcomes": [], "accepted": False, "toolHashes": {"dotnet": sha(pathlib.Path(dotnet).read_bytes()), "python": sha(pathlib.Path(sys.executable).resolve().read_bytes()), "git": sha(pathlib.Path(git).read_bytes())}}
+receipt["toolPaths"] = {"dotnet": dotnet, "python": str(pathlib.Path(sys.executable).resolve()), "git": git}
+command = [dotnet, "test", str(root/"shell/Wootc.Shell.NativeTests"), "--configuration", "Release", "--disable-build-servers", "-p:UseSharedCompilation=false", "-nodeReuse:false", "--filter", "FullyQualifiedName~ActualMatchingPipeStorageFailureSurvivesOwnedCleanup", "--logger", "trx;LogFileName=flush-controls.trx"]
+trx = root/"shell/Wootc.Shell.NativeTests/TestResults/flush-controls.trx"
+
+safe_to_restore = True
+
+def persist():
+    receipt["rawFiles"] = {p.name: {"sha256": sha(p.read_bytes()), "size": p.stat().st_size} for p in output.glob("*") if p.is_file() and p.name != "receipt.json"}
+    with (output/"receipt.json").open("w") as stream:
+        stream.write(json.dumps(receipt, indent=2)+"\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def owned(name, arguments, timeout=120, limit=8*1024*1024):
+    global safe_to_restore
+    entry = {"name": name, "state": "starting"}
+    receipt["outcomes"].append(entry)
+    persist()  # Durable correlation before launching any child or changing source.
+    safe_to_restore = False
+    try:
+        facts = run_owned(arguments, root/"shell", output/name, timeout, limit)
+    except OwnedProcessFailure as failure:
+        facts = failure.facts
+        entry.update(state="refused", process=facts)
+        safe_to_restore = all(facts[key] for key in ("parentExited", "jobDrained", "streamsDrained"))
+        persist()
+        raise
+    entry.update(state="observed", process=facts)
+    safe_to_restore = all(facts[key] for key in ("parentExited", "jobDrained", "streamsDrained"))
+    persist()
+    assert safe_to_restore, "Owned process termination unknown"
+    assert facts["started"] and facts["assignedBeforeResume"]
+    return entry, facts
+
+
+def identity_read(name, arguments, limit):
+    entry, facts = owned(name, arguments, timeout=10, limit=limit)
+    assert facts["exitCode"] == 0 and not facts["timeout"] and not facts["overflow"]
+    assert (output/(name+".stderr.raw")).stat().st_size == 0
+    return (output/(name+".stdout.raw")).read_bytes()
+
+
+def capture_identity():
+    head = identity_read("identity-head", [git, "-C", str(root), "rev-parse", "HEAD"], 128).decode("ascii").strip()
+    assert len(head) == 40 and all(char in "0123456789abcdef" for char in head)
+    receipt["testedHead"] = head
+    for index, name in enumerate(source_names):
+        blob = identity_read("identity-source-"+str(index), [git, "-C", str(root), "show", head+":"+name], 1024*1024)
+        receipt["gitSources"][name] = sha(blob)
+        assert (root/name).stat().st_size <= 1024*1024
+        receipt["checkoutSources"][name] = sha((root/name).read_bytes())
+    version = identity_read("identity-dotnet-version", [dotnet, "--version"], 4096).decode("ascii").strip()
+    assert version == json.loads((root/"shell/global.json").read_text())["sdk"]["version"]
+    receipt["dotnetVersion"] = version
+    persist()
+
+
+def process_controls():
+    python = str(pathlib.Path(sys.executable).resolve())
+    assert sha(pathlib.Path(python).read_bytes()) == receipt["toolHashes"]["python"]
+    job_probe = "import ctypes; k=ctypes.WinDLL('kernel32'); k.GetCurrentProcess.restype=ctypes.c_void_p; k.IsProcessInJob.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.POINTER(ctypes.c_int)]; member=ctypes.c_int(); assert k.IsProcessInJob(k.GetCurrentProcess(),None,ctypes.byref(member)); assert member.value; print('owned-positive-job-member')"
+    entry, facts = owned("owned-positive", [python, "-c", job_probe], timeout=10)
+    assert facts["exitCode"] == 0 and not facts["timeout"] and not facts["overflow"]
+    assert (output/"owned-positive.stdout.raw").read_bytes().strip() == b"owned-positive-job-member"
+    # The descendant announces that it actually ran, then holds inherited streams open.
+    child = "import time; print('owned-descendant-started',flush=True); time.sleep(60)"
+    parent = "import subprocess,sys,time; subprocess.Popen([sys.executable,'-c',"+repr(child)+"]); time.sleep(60)"
+    entry, facts = owned("owned-deadline-tree", [python, "-c", parent], timeout=3)
+    assert facts["timeout"] and not facts["overflow"]
+    assert b"owned-descendant-started" in (output/"owned-deadline-tree.stdout.raw").read_bytes()
+    entry, facts = owned("owned-output-bound", [python, "-c", "import sys,time; sys.stdout.write('x'*2097152); sys.stdout.flush(); time.sleep(60)"], timeout=10, limit=65536)
+    assert facts["overflow"] and not facts["timeout"]
+    assert (output/"owned-output-bound.stdout.raw").stat().st_size == 65536
+    persist()
+
+
+def run(name, expected_failed, expected_marker=None):
+    trx.unlink(missing_ok=True)
+    entry, facts = owned(name, command)
+    assert not facts["timeout"] and not facts["overflow"], "Owned CLR execution exceeded bounds"
+    assert trx.is_file(), "Actual CLR test receipt absent"
+    (output/(name+".trx")).write_bytes(trx.read_bytes())
+    results = ET.fromstring(trx.read_bytes()).findall(".//{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}UnitTestResult")
+    outcomes = [item.attrib["outcome"] for item in results]
+    entry["tests"] = outcomes
+    persist()
+    assert len(outcomes) == 2 and outcomes.count("Failed") == expected_failed and outcomes.count("Passed") == 2-expected_failed
+    assert (facts["exitCode"] != 0) == bool(expected_failed)
+    if expected_failed:
+        assert expected_marker in (output/(name+".stdout.raw")).read_bytes()+(output/(name+".stderr.raw")).read_bytes()
+
+persist()
+try:
+    capture_identity()
+    process_controls()
+    run("positive", 0)
+    assert safe_to_restore
+    source.write_bytes(original.replace(needle, b'// Deliberate owned counter: no post-flush observation.'))
+    run("removed-flush-observation", 1,b"Configuration post-flush observation missing or foreign")
+    assert safe_to_restore
+    source.write_bytes(original)
+    run("restored", 0)
+    assert safe_to_restore
+    source.write_bytes(original.replace(needle,b'requestFlushed?.Invoke(id);'))
+    run("wrong-method-flush-observation",1,b"Unexpected configuration flush observation on another method")
+    assert safe_to_restore
+    source.write_bytes(original)
+    run("restored-purpose-guard",0)
+    assert source.read_bytes() == original
+    receipt["accepted"] = True
+finally:
+    if safe_to_restore:
+        source.write_bytes(original)
+        receipt["restoredSourceSha256"] = sha(source.read_bytes())
+    else:
+        receipt["sourceRestorationHeld"] = True
+    persist()
+print("Actual configuration flush identity positive/counter/restoration PASS")

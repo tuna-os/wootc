@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "5ef59dc4604d9cb31d45d38334d5de159e402f76",
+  "runId": 36346614683,
+  "testedMerge": "a7894d40ba77c88124c5465ddd7461d25ff3a812",
+  "artifactId": 10940567724,
+  "zipSize": 60008,
+  "zipSha256": "4cd738e0e0ac5c55575eeeb6b06dcd429c441301b843675868b3feee19bdaf7e",
+  "scope": "actual query/transport controls; held-stderr fails before first response and only before-add-type marker observed; no migration acceptance",
+  "files": {
+    "query/stdout.raw": {
+      "size": 38819,
+      "sha256": "32095e06b2a72ba18d12e13052800dc5b744cd1982328fd78fd2f35d845d3a7c"
+    },
+    "query/receipt.json": {
+      "size": 24250,
+      "sha256": "e11f7c9e8fffe2fdc024732b3cadc279e2edabd5b2a74262fe2a53e82d550cab"
+    },
+    "query/stderr.raw": {
+      "size": 533,
+      "sha256": "3402a8754e5f4d9090b103f32f8bba3341e6899a077709845f4d4f0f581efb39"
+    },
+    "query/system-query/TestNativeConfigurationActualPreparedStorageSnapshots.stderr.raw": {
+      "size": 1286,
+      "sha256": "828c3337d458063906a6818334cc6a9df9e58b3c8cfe9b58cc909b52bcd20d1b"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/stderr-overflow.json": {
+      "size": 576,
+      "sha256": "2871316e633605733fe615e07b4781d8b67425dde5e05f7fc710c3b2a4786399"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/pid.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/replayed-first.json": {
+      "size": 574,
+      "sha256": "f23f220dc9e9139751596dfe0d7b7611f53ec6e8555bc0525b32c04e29c599bd"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/held-stderr.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/duplicate.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/parent-cancel.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/held-stderr.json": {
+      "size": 573,
+      "sha256": "b291b4777542336964cee2d62a1ae674c006a75ea22b7fd4e1cc4f2eec0799ff"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/nonce.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/extra-output.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/pid.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/held-stderr.stderr.raw": {
+      "size": 30,
+      "sha256": "3018a8e291b3adfdde8aee4af44a1e6b6684e202a326f0d54137c8b5a341297b"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/replayed-first.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/stderr-overflow.stderr.raw": {
+      "size": 65536,
+      "sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/duplicate.json": {
+      "size": 569,
+      "sha256": "80da9de2bdc30f62c31de76e42a5683a574701b5fba776925607ab833f2dafa3"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/nonce.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/extra-output.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/blocked-second.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/parent-cancel.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/blocked-second.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/sequence.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/blocked-second.json": {
+      "size": 576,
+      "sha256": "0fe79d2dd73a3cf52933fb70184bd57f00eb0f8eaf821e3b08661144210e5720"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/sequence.json": {
+      "size": 568,
+      "sha256": "35d807b27d9d770ed9e997566ac7724abfaef87e8dd7cdb06c006e99dd38f491"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/replayed-first.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/nonce.json": {
+      "size": 565,
+      "sha256": "72eb08c4f59a167da7a4784f983e2af48e34f7a1f83425992d40857a7e3796f7"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/duplicate.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/sequence.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/extra-output.json": {
+      "size": 569,
+      "sha256": "6b91283aecd8518b8e67887b2b5d8268f62b6c6e9acef3a0d8afbf02461fb29d"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/pid.json": {
+      "size": 563,
+      "sha256": "3889ec374c5e87bea0b6d625c2ae4e997ae4bd7a84196f772f4263f6565e9630"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/parent-cancel.json": {
+      "size": 575,
+      "sha256": "41bb1894c868599877400a69bc5029564241b90837795f2e09031448d4ed5a7e"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/stderr-overflow.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/trusted-system-modules/inventory.json": {
+      "size": 1990,
+      "sha256": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c"
+    },
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": {
+      "size": 908,
+      "sha256": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca"
+    },
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": {
+      "size": 378458,
+      "sha256": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18"
+    },
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": {
+      "size": 7390,
+      "sha256": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f"
+    },
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": {
+      "size": 2459,
+      "sha256": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6"
+    },
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": {
+      "size": 1888,
+      "sha256": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902"
+    },
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": {
+      "size": 9470,
+      "sha256": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee"
+    }
+  }
+}

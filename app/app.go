@@ -314,8 +314,14 @@ func supportChannel() string {
 
 // GetSupportPolicy returns the gating policy for the active channel.
 func (a *App) GetSupportPolicy() SupportPolicy {
+	return supportPolicyFor(supportChannel(), effectiveBranding(), os.Getenv("WOOTC_E2E_DRIVE") == "1")
+}
+
+// Shared policy calculation accepts observations from the caller. It performs
+// no filesystem discovery and does not authorize an operation.
+func supportPolicyFor(channel string, brand Branding, driveMode bool) SupportPolicy {
 	var pol SupportPolicy
-	switch supportChannel() {
+	switch channel {
 	case "beta":
 		// Full matrix green (the beta bar): everything is on the table; the
 		// axes that are still red stay explicitly false until their issue closes.
@@ -334,7 +340,7 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 	// A branded installer installs its own distribution: no custom OCI ref,
 	// on any channel. This is the backend side of the brand's
 	// hideCustomImage — the frontend hiding the field is not enforcement.
-	if effectiveBranding().HideCustomImage {
+	if brand.HideCustomImage {
 		pol.CustomImageAllowed = false
 	}
 	// The E2E harness exists precisely to test images BEFORE they are green;
@@ -343,7 +349,7 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 	// default instead (run 32581422435: "bazzite" installed bluefin-lts —
 	// the drive loop now also refuses on mismatch, this is the enabling
 	// half). Real users never run with this environment variable set.
-	if os.Getenv("WOOTC_E2E_DRIVE") == "1" {
+	if driveMode {
 		pol.ExperimentalImages = true
 	}
 	return pol

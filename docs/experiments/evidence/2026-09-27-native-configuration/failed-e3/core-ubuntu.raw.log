@@ -1,0 +1,203 @@
+﻿2026-09-27T16:39:54.5601868Z Current runner version: '2.337.0'
+2026-09-27T16:39:54.5627729Z ##[group]Runner Image Provisioner
+2026-09-27T16:39:54.5628636Z Hosted Compute Agent
+2026-09-27T16:39:54.5629352Z Version: 20260828.587
+2026-09-27T16:39:54.5630436Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-27T16:39:54.5631226Z Build Date: 2026-08-28T16:44:25Z
+2026-09-27T16:39:54.5632018Z Worker ID: {87caec33-a806-4465-98a4-7deaf3e17135}
+2026-09-27T16:39:54.5632768Z Azure Region: eastus
+2026-09-27T16:39:54.5633399Z ##[endgroup]
+2026-09-27T16:39:54.5634962Z ##[group]Operating System
+2026-09-27T16:39:54.5635704Z Ubuntu
+2026-09-27T16:39:54.5636253Z 24.04.5
+2026-09-27T16:39:54.5636812Z LTS
+2026-09-27T16:39:54.5637410Z ##[endgroup]
+2026-09-27T16:39:54.5638013Z ##[group]Runner Image
+2026-09-27T16:39:54.5638696Z Image: ubuntu-24.04
+2026-09-27T16:39:54.5639303Z Version: 20260920.314.1
+2026-09-27T16:39:54.5641033Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260920.314/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-27T16:39:54.5642672Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260920.314
+2026-09-27T16:39:54.5643794Z ##[endgroup]
+2026-09-27T16:39:54.5644998Z ##[group]GITHUB_TOKEN Permissions
+2026-09-27T16:39:54.5647038Z Contents: read
+2026-09-27T16:39:54.5647700Z Metadata: read
+2026-09-27T16:39:54.5648456Z ##[endgroup]
+2026-09-27T16:39:54.5651112Z Secret source: Actions
+2026-09-27T16:39:54.5652111Z Cache mode: write
+2026-09-27T16:39:54.5652894Z Prepare workflow directory
+2026-09-27T16:39:54.5996509Z Prepare all required actions
+2026-09-27T16:39:54.6046000Z Getting action download info
+2026-09-27T16:39:54.8017969Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-27T16:39:54.9116669Z Download action repository 'actions/setup-dotnet@v6' (SHA:a98b56852c35b8e3190ac28c8c2271da59106c68)
+2026-09-27T16:39:55.1073599Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-09-27T16:39:55.2822189Z Complete job name: Core startup contract (ubuntu-latest)
+2026-09-27T16:39:55.3620661Z ##[group]Run actions/checkout@v7
+2026-09-27T16:39:55.3621714Z with:
+2026-09-27T16:39:55.3622177Z   repository: tuna-os/wootc
+2026-09-27T16:39:55.3625887Z   token: ***
+2026-09-27T16:39:55.3626337Z   ssh-strict: true
+2026-09-27T16:39:55.3626793Z   ssh-user: git
+2026-09-27T16:39:55.3627261Z   persist-credentials: true
+2026-09-27T16:39:55.3627759Z   clean: true
+2026-09-27T16:39:55.3628231Z   sparse-checkout-cone-mode: true
+2026-09-27T16:39:55.3628838Z   fetch-depth: 1
+2026-09-27T16:39:55.3629279Z   fetch-tags: false
+2026-09-27T16:39:55.3629933Z   show-progress: true
+2026-09-27T16:39:55.3630399Z   lfs: false
+2026-09-27T16:39:55.3630825Z   submodules: false
+2026-09-27T16:39:55.3631305Z   set-safe-directory: true
+2026-09-27T16:39:55.3631831Z   allow-unsafe-pr-checkout: false
+2026-09-27T16:39:55.3632642Z ##[endgroup]
+2026-09-27T16:39:55.4675079Z Syncing repository: tuna-os/wootc
+2026-09-27T16:39:55.4677481Z ##[group]Getting Git version info
+2026-09-27T16:39:55.4678291Z Working directory is '/home/runner/work/wootc/wootc'
+2026-09-27T16:39:55.4679291Z [command]/usr/bin/git version
+2026-09-27T16:39:55.4785443Z git version 2.55.0
+2026-09-27T16:39:55.4811855Z ##[endgroup]
+2026-09-27T16:39:55.4827617Z Temporarily overriding HOME='/home/runner/work/_temp/29fe2ceb-c64f-4724-bac6-251f337bfd7b' before making global git config changes
+2026-09-27T16:39:55.4830286Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T16:39:55.4833835Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+2026-09-27T16:39:55.4887231Z Deleting the contents of '/home/runner/work/wootc/wootc'
+2026-09-27T16:39:55.4891284Z ##[group]Determining repository object format
+2026-09-27T16:39:55.4893383Z ##[endgroup]
+2026-09-27T16:39:55.4894642Z ##[group]Initializing the repository
+2026-09-27T16:39:55.4898678Z [command]/usr/bin/git init /home/runner/work/wootc/wootc
+2026-09-27T16:39:55.5001946Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-27T16:39:55.5004700Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-27T16:39:55.5006590Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-27T16:39:55.5008089Z hint: call:
+2026-09-27T16:39:55.5009118Z hint:
+2026-09-27T16:39:55.5010338Z hint: 	git config --global init.defaultBranch <name>
+2026-09-27T16:39:55.5011126Z hint:
+2026-09-27T16:39:55.5011852Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-27T16:39:55.5012993Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-27T16:39:55.5013906Z hint:
+2026-09-27T16:39:55.5014428Z hint: 	git branch -m <name>
+2026-09-27T16:39:55.5015163Z hint:
+2026-09-27T16:39:55.5016333Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-27T16:39:55.5017541Z Initialized empty Git repository in /home/runner/work/wootc/wootc/.git/
+2026-09-27T16:39:55.5019966Z [command]/usr/bin/git remote add origin https://github.com/tuna-os/wootc
+2026-09-27T16:39:55.5068432Z ##[endgroup]
+2026-09-27T16:39:55.5069272Z ##[group]Disabling automatic garbage collection
+2026-09-27T16:39:55.5072682Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-27T16:39:55.5112468Z ##[endgroup]
+2026-09-27T16:39:55.5114429Z ##[group]Setting up auth
+2026-09-27T16:39:55.5115555Z Removing SSH command configuration
+2026-09-27T16:39:55.5123488Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T16:39:55.5165084Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-27T16:39:55.5574988Z Removing HTTP extra header
+2026-09-27T16:39:55.5583366Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T16:39:55.5627614Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-27T16:39:55.5900343Z Removing includeIf entries pointing to credentials config files
+2026-09-27T16:39:55.5906540Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T16:39:55.5951351Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-27T16:39:55.6235547Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-27T16:39:55.6285383Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git.path /home/runner/work/_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:39:55.6326110Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:39:55.6370902Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:39:55.6420209Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:39:55.6457101Z ##[endgroup]
+2026-09-27T16:39:55.6457882Z ##[group]Fetching the repository
+2026-09-27T16:39:55.6465326Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +a5c0209aa0a5f479c4e3adf85b8b08c0b7beb066:refs/remotes/pull/501/merge
+2026-09-27T16:39:56.2826028Z From https://github.com/tuna-os/wootc
+2026-09-27T16:39:56.2828772Z  * [new ref]         a5c0209aa0a5f479c4e3adf85b8b08c0b7beb066 -> pull/501/merge
+2026-09-27T16:39:56.2835063Z ##[endgroup]
+2026-09-27T16:39:56.2837053Z ##[group]Determining the checkout info
+2026-09-27T16:39:56.2839266Z ##[endgroup]
+2026-09-27T16:39:56.2841324Z [command]/usr/bin/git sparse-checkout disable
+2026-09-27T16:39:56.2898059Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-27T16:39:56.2938096Z ##[group]Checking out the ref
+2026-09-27T16:39:56.2942429Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/501/merge
+2026-09-27T16:39:56.4078338Z Note: switching to 'refs/remotes/pull/501/merge'.
+2026-09-27T16:39:56.4080134Z 
+2026-09-27T16:39:56.4081236Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-27T16:39:56.4084095Z changes and commit them, and you can discard any commits you make in this
+2026-09-27T16:39:56.4086916Z state without impacting any branches by switching back to a branch.
+2026-09-27T16:39:56.4088471Z 
+2026-09-27T16:39:56.4089249Z If you want to create a new branch to retain commits you create, you may
+2026-09-27T16:39:56.4091654Z do so (now or later) by using -c with the switch command. Example:
+2026-09-27T16:39:56.4093289Z 
+2026-09-27T16:39:56.4093974Z   git switch -c <new-branch-name>
+2026-09-27T16:39:56.4095141Z 
+2026-09-27T16:39:56.4095868Z Or undo this operation with:
+2026-09-27T16:39:56.4096998Z 
+2026-09-27T16:39:56.4097556Z   git switch -
+2026-09-27T16:39:56.4098368Z 
+2026-09-27T16:39:56.4099686Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-27T16:39:56.4101323Z 
+2026-09-27T16:39:56.4102928Z HEAD is now at a5c0209 Merge e3a8541e3d8092637eca0268368e3c14a87adcae into b95f51fb80446160427e9c51c835ca91aad78481
+2026-09-27T16:39:56.4109699Z ##[endgroup]
+2026-09-27T16:39:56.4147577Z [command]/usr/bin/git log -1 --format=%H
+2026-09-27T16:39:56.4180115Z a5c0209aa0a5f479c4e3adf85b8b08c0b7beb066
+2026-09-27T16:39:56.4624556Z ##[group]Run actions/setup-dotnet@v6
+2026-09-27T16:39:56.4625897Z with:
+2026-09-27T16:39:56.4626840Z   global-json-file: shell/global.json
+2026-09-27T16:39:56.4628043Z   cache: false
+2026-09-27T16:39:56.4628934Z ##[endgroup]
+2026-09-27T16:39:56.6053726Z [command]/home/runner/work/_actions/actions/setup-dotnet/v6/externals/install-dotnet.sh --skip-non-versioned-files --runtime dotnet --channel LTS
+2026-09-27T16:39:56.8285648Z dotnet-install: .NET Core Runtime with version '10.0.12' is already installed.
+2026-09-27T16:39:56.8311996Z [command]/home/runner/work/_actions/actions/setup-dotnet/v6/externals/install-dotnet.sh --skip-non-versioned-files --version 8.0.425
+2026-09-27T16:39:56.9594291Z dotnet-install: .NET Core SDK with version '8.0.425' is already installed.
+2026-09-27T16:39:56.9754535Z ##[group]Run dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
+2026-09-27T16:39:56.9755440Z [36;1mdotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"[0m
+2026-09-27T16:39:57.0024331Z shell: /usr/bin/bash -e {0}
+2026-09-27T16:39:57.0024774Z env:
+2026-09-27T16:39:57.0025090Z   DOTNET_ROOT: /usr/share/dotnet
+2026-09-27T16:39:57.0025450Z ##[endgroup]
+2026-09-27T16:40:02.5132456Z   Determining projects to restore...
+2026-09-27T16:40:03.2734291Z   Restored /home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj (in 98 ms).
+2026-09-27T16:40:04.6034122Z   Restored /home/runner/work/wootc/wootc/shell/Wootc.Shell.Tests/Wootc.Shell.Tests.csproj (in 1.45 sec).
+2026-09-27T16:40:10.3055100Z ##[error]/home/runner/work/wootc/wootc/shell/Wootc.Shell/Engine/Dto.cs(75,18): error CS8618: Non-nullable property 'Image' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj]
+2026-09-27T16:40:10.3073282Z ##[error]/home/runner/work/wootc/wootc/shell/Wootc.Shell/Engine/Dto.cs(42,26): error CS8618: Non-nullable property 'Policy' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj]
+2026-09-27T16:40:10.3080919Z ##[error]/home/runner/work/wootc/wootc/shell/Wootc.Shell/Engine/Dto.cs(45,21): error CS8618: Non-nullable property 'Branding' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj]
+2026-09-27T16:40:10.3087829Z ##[error]/home/runner/work/wootc/wootc/shell/Wootc.Shell/Engine/Dto.cs(51,40): error CS8618: Non-nullable property 'Defaults' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj]
+2026-09-27T16:40:10.3094919Z ##[error]/home/runner/work/wootc/wootc/shell/Wootc.Shell/Engine/Dto.cs(57,38): error CS8618: Non-nullable property 'Bundle' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj]
+2026-09-27T16:40:10.3103224Z ##[error]/home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/ConfigurationProjection.cs(12,13): error CS8604: Possible null reference argument for parameter 'MokEnrollment' in 'ConfigurationImage.ConfigurationImage(string Id, string Name, string ImageRef, string Status, bool Admitted, string AdmissionBlockedReason, bool RequiresMokEnrollment, string MokEnrollment, bool ContentVerified)'. [/home/runner/work/wootc/wootc/shell/Wootc.Shell.Core/Wootc.Shell.Core.csproj]
+2026-09-27T16:40:10.4225229Z ##[error]Process completed with exit code 1.
+2026-09-27T16:40:10.4354041Z ##[group]Run actions/upload-artifact@v7
+2026-09-27T16:40:10.4354368Z with:
+2026-09-27T16:40:10.4354605Z   name: winui-core-ubuntu-latest
+2026-09-27T16:40:10.4354942Z   path: shell/Wootc.Shell.Tests/TestResults/*.trx
+2026-09-27T16:40:10.4355289Z   if-no-files-found: error
+2026-09-27T16:40:10.4355548Z   compression-level: 6
+2026-09-27T16:40:10.4355780Z   overwrite: false
+2026-09-27T16:40:10.4355998Z   include-hidden-files: false
+2026-09-27T16:40:10.4356238Z   archive: true
+2026-09-27T16:40:10.4356442Z env:
+2026-09-27T16:40:10.4356644Z   DOTNET_ROOT: /usr/share/dotnet
+2026-09-27T16:40:10.4356894Z ##[endgroup]
+2026-09-27T16:40:10.5934612Z ##[error]No files were found with the provided path: shell/Wootc.Shell.Tests/TestResults/*.trx. No artifacts will be uploaded.
+2026-09-27T16:40:10.6254522Z Post job cleanup.
+2026-09-27T16:40:10.7271260Z [command]/usr/bin/git version
+2026-09-27T16:40:10.7294439Z git version 2.55.0
+2026-09-27T16:40:10.7342458Z Temporarily overriding HOME='/home/runner/work/_temp/4f24d55c-fea7-4b44-9053-24a27432c8db' before making global git config changes
+2026-09-27T16:40:10.7344477Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T16:40:10.7345914Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+2026-09-27T16:40:10.7386648Z Removing SSH command configuration
+2026-09-27T16:40:10.7395489Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T16:40:10.7442084Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-27T16:40:10.7822472Z Removing HTTP extra header
+2026-09-27T16:40:10.7823997Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T16:40:10.7856010Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-27T16:40:10.8129413Z Removing includeIf entries pointing to credentials config files
+2026-09-27T16:40:10.8136880Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T16:40:10.8181387Z includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+2026-09-27T16:40:10.8183008Z includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+2026-09-27T16:40:10.8184277Z includeif.gitdir:/github/workspace/.git.path
+2026-09-27T16:40:10.8185368Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T16:40:10.8188225Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+2026-09-27T16:40:10.8214781Z /home/runner/work/_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:40:10.8236081Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-24386087\-3a44\-495a\-9195\-bc3eacda40bd\.config
+2026-09-27T16:40:10.8319087Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+2026-09-27T16:40:10.8351256Z /home/runner/work/_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:40:10.8362267Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-24386087\-3a44\-495a\-9195\-bc3eacda40bd\.config
+2026-09-27T16:40:10.8425847Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-27T16:40:10.8475132Z /github/runner_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:40:10.8478971Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-24386087\-3a44\-495a\-9195\-bc3eacda40bd\.config
+2026-09-27T16:40:10.8525218Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T16:40:10.8557759Z /github/runner_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config
+2026-09-27T16:40:10.8567604Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-24386087\-3a44\-495a\-9195\-bc3eacda40bd\.config
+2026-09-27T16:40:10.8641687Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-27T16:40:10.8901157Z Removing credentials config '/home/runner/work/_temp/git-credentials-24386087-3a44-495a-9195-bc3eacda40bd.config'
+2026-09-27T16:40:10.9157405Z Cleaning up orphan processes
+2026-09-27T16:40:10.9488037Z Terminate orphan process: pid (2535) (dotnet)

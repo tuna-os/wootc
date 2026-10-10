@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "8c7c7cf91defaea41eb69854925ece1a15b3f55a",
+  "query": {
+    "runId": 36345544875,
+    "testedMerge": "fbe2414ae966518e93a44d9496b847c1a1e7bb95",
+    "artifactId": 10940337468,
+    "zipSize": 56906,
+    "zipSha256": "7d0732ff86768947a21fe171b5a9dea21d20f9d22860dd35f2b9a7ff0065d93e"
+  },
+  "preview": {
+    "runId": 36345544884,
+    "artifactId": 10940347487,
+    "zipSize": 61556,
+    "zipSha256": "51c10da278ace00f9166158936542135ef09eed8e944df4ac191d19729148d64"
+  },
+  "outcome": "terminal failure; no installation or five-brand acceptance",
+  "observations": [
+    "actual prepared two snapshots reached assertions then proof directory write failed",
+    "held-stderr first observation unavailable; no retained cause until corrected test executes",
+    "stderr-overflow accepted; embedded bytes.Buffer ReadFrom bypass is separately reproduced",
+    "CLR 41 tests passed; removed callback failure masked by finally latest-stage assertion; source restored without restored CLR run",
+    "three brands configuration action offscreen before second invoke; two brands configuration deadline failure"
+  ],
+  "files": {
+    "brands/aurora.raw.log": {
+      "size": 97872,
+      "sha256": "9079e547adeb8e32a2a14ef609753f4e3adeed47f758c7b350fa0d408557f72b"
+    },
+    "brands/bazzite.raw.log": {
+      "size": 97152,
+      "sha256": "abb9929d8cd935ffc992e5427378729da36ae1a6b74c80bd3ffe876e461a5e83"
+    },
+    "brands/bluefin.raw.log": {
+      "size": 97880,
+      "sha256": "2d429fe4afcea265e52565235aa3e11302a047ea2a763343e73101e5922bc620"
+    },
+    "brands/native.raw.log": {
+      "size": 35408,
+      "sha256": "49c0d9991140079f4e7b8507f60e558995523cfe363617a4adbcd5b725b14067"
+    },
+    "brands/tunaos.raw.log": {
+      "size": 97141,
+      "sha256": "fce4ec84889ff0e64bb9887a15441ded6fac8cc9443b1f604ff34a3f2b784f2c"
+    },
+    "brands/wootc.raw.log": {
+      "size": 97131,
+      "sha256": "113b16b5f31f973c3177113fb249009e454d60ba2f2c121b678ec2d4e737321f"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-dotnet-version.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-dotnet-version.stdout.raw": {
+      "size": 10,
+      "sha256": "3db6bca4b50618b2e0d2d55d23b3d0541fe039ab6f731df0e9c47317b400ce52"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-head.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-head.stdout.raw": {
+      "size": 41,
+      "sha256": "8ee1c80e51fba1841ca38a4e7674f6116625cba61f2910eb5c4eac67a6bcc0f1"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-0.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-0.stdout.raw": {
+      "size": 9173,
+      "sha256": "4e5b06289e5f6dd00d2021eac3d4a50f1b056ff1687db47dba4a228a742b7782"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-1.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-1.stdout.raw": {
+      "size": 2290,
+      "sha256": "d9698bdc48c53205412c8f8f8081fae607d668d372bfeae0e775d4ac6d304ab0"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-10.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-10.stdout.raw": {
+      "size": 8439,
+      "sha256": "81d26ea165657af4455b28dc31e9eeb2d13832c07245efd777c3491ed7196e93"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-2.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-2.stdout.raw": {
+      "size": 4549,
+      "sha256": "8ec7f214ab2402be9b74ce437cc01b41d20b9a9e78452c9e5231fac60febf327"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-3.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-3.stdout.raw": {
+      "size": 5257,
+      "sha256": "b398580f4d96d89a68df1f97ee91d8d9cea27d7f4a7f34d6eca0daca9a1bacf8"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-4.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-4.stdout.raw": {
+      "size": 16385,
+      "sha256": "c2b41444bd824124acfde8a4e7f7184b397752d6347b1c4f90f9d6f4cac478a5"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-5.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-5.stdout.raw": {
+      "size": 6472,
+      "sha256": "ec1486de76ec6affc25478c39c4232a35c18131c3ecfd160ade6d3761bb7a782"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-6.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-6.stdout.raw": {
+      "size": 10828,
+      "sha256": "5c3c15f5e53ae841d9e3be364cefda499a9f38e235410dfcadfd3c5936b05c23"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-7.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-7.stdout.raw": {
+      "size": 105,
+      "sha256": "4e7d5022b2a5a8d02bb951bb264a4c8613eabc332572a0af5f9743d23f23d84e"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-8.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-8.stdout.raw": {
+      "size": 8489,
+      "sha256": "f72011394d1394d3d7a845e1c20ece58d76707eacb0c107324508b175478d26b"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-9.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/identity-source-9.stdout.raw": {
+      "size": 9858,
+      "sha256": "3348422332db561d08efb10b59466eda449f98f33cceafa661002fc25b6c9119"
+    },
+    "diagnostics/out/configuration-flush-controls/owned-deadline-tree.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/owned-deadline-tree.stdout.raw": {
+      "size": 26,
+      "sha256": "f2b0bf2efef7bec44e92633eb0ff7ec0bcf5f2cdefd816b169cfd41d73cf7e55"
+    },
+    "diagnostics/out/configuration-flush-controls/owned-output-bound.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/owned-output-bound.stdout.raw": {
+      "size": 65536,
+      "sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3"
+    },
+    "diagnostics/out/configuration-flush-controls/owned-positive.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/owned-positive.stdout.raw": {
+      "size": 27,
+      "sha256": "f37c50258d850584f873873dc1de506d8f8d5c24a5a79dcda65dd805c6282ac3"
+    },
+    "diagnostics/out/configuration-flush-controls/positive.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "diagnostics/out/configuration-flush-controls/positive.stdout.raw": {
+      "size": 891,
+      "sha256": "2a822e409681ee73df2b1b665ccaa5edcd4e422744ad693d09783985bf8e6ecf"
+    },
+    "diagnostics/out/configuration-flush-controls/positive.trx": {
+      "size": 4697,
+      "sha256": "0d620d60b3b196156ef145ec73e7c1317db89c2bd65c3f0a68e5a2d63e48bf72"
+    },
+    "diagnostics/out/configuration-flush-controls/receipt.json": {
+      "size": 17796,
+      "sha256": "7ebf0811ee116b789d21828b517efb44485c32d0eae8cc38c0ba3c4a67b79b16"
+    },
+    "diagnostics/out/configuration-flush-controls/removed-flush-observation.stderr.raw": {
+      "size": 188,
+      "sha256": "3630def5c38b26e974db8de0e237ac53f42a29b66b339f48a0db8540f1bef99c"
+    },
+    "diagnostics/out/configuration-flush-controls/removed-flush-observation.stdout.raw": {
+      "size": 1520,
+      "sha256": "000d4c5d1994a2e19d9ab6939b36fc8414453cc845e0b2a23dd867503936621b"
+    },
+    "diagnostics/out/configuration-flush-controls/removed-flush-observation.trx": {
+      "size": 6298,
+      "sha256": "0163f79c703ca877b1f2047e470622b2ad903143746eef18638243b422846fc7"
+    },
+    "diagnostics/out/winui-source-diagnostics/App.g.cs": {
+      "size": 994,
+      "sha256": "ab4fad5216574b47ca765abca9842f452bfaca1d9cc9584b331ee78454f1d0cc"
+    },
+    "diagnostics/out/winui-source-diagnostics/App.g.i.cs": {
+      "size": 4077,
+      "sha256": "378be6af6b3a684fe42cefed36d1998b9958a2cdebedac059cfdfe31b0d9bab3"
+    },
+    "diagnostics/out/winui-source-diagnostics/MainWindow.g.cs": {
+      "size": 9185,
+      "sha256": "9f3a3f686cc5183e3ba20405a1d37db2278a6913bbe48a06597ff7b362168a84"
+    },
+    "diagnostics/out/winui-source-diagnostics/MainWindow.g.i.cs": {
+      "size": 6401,
+      "sha256": "f249fb84687146f1857fbd9aed87e79be6f82f537fbb47c1d1d3c99fda08cf0d"
+    },
+    "diagnostics/out/winui-source-diagnostics/XamlTypeInfo.g.cs": {
+      "size": 71557,
+      "sha256": "105ae0995809be35b831d37bc68ae5348ca38424b38afe09d6d0ca89b3fc2db9"
+    },
+    "diagnostics/out/winui-source-diagnostics/resource-indexes.json": {
+      "size": 2309,
+      "sha256": "88fdbab07c207817f422a3697fbb6184ce97d99f763d8977026c5baf0f10ebd2"
+    },
+    "diagnostics/out/winui-startup-events.json": {
+      "size": 4,
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+    },
+    "diagnostics/shell/Wootc.Shell.NativeTests/TestResults/flush-controls.trx": {
+      "size": 6298,
+      "sha256": "0163f79c703ca877b1f2047e470622b2ad903143746eef18638243b422846fc7"
+    },
+    "diagnostics/shell/Wootc.Shell.NativeTests/TestResults/native-adapter.trx": {
+      "size": 61863,
+      "sha256": "7b0c0bedf535495219b734fca3115cb56cc5c75f9ad9b677fe5308c181289070"
+    },
+    "query/receipt.json": {
+      "size": 21569,
+      "sha256": "8e92537d15cf86eb4cda5b4ed167634dc96139a4fc829f5e2313f327bbc6687e"
+    },
+    "query/stderr.raw": {
+      "size": 533,
+      "sha256": "f9d5d3404e15bce41624e94c3bb0aca19246a1041ea7e905c8fce24b1ffbb6f0"
+    },
+    "query/stdout.raw": {
+      "size": 38698,
+      "sha256": "2d1b9aa9801fcfca2239737580f08fd540d3fc93757dadfdf4f1256b1cecd124"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/blocked-second.json": {
+      "size": 576,
+      "sha256": "c779cb764664dc254d18afbdbbd00a6078a453c27f68afea1567407bc28da42c"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/blocked-second.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/blocked-second.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/duplicate.json": {
+      "size": 569,
+      "sha256": "82d95c7ad57edf71833ef17701c5def6cf59e7ec994ead480cedb9153065ea1d"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/duplicate.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/duplicate.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/extra-output.json": {
+      "size": 572,
+      "sha256": "6743b7543e31a18bd14b16615f63a9d068fc822323d1eaa4da1ce80bf8549ccd"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/extra-output.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/extra-output.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/nonce.json": {
+      "size": 565,
+      "sha256": "0b47252d1f783a519c2c1892a1ef7d36f2b51508b60e11eed12b412ee7410f5a"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/nonce.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/nonce.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/parent-cancel.json": {
+      "size": 575,
+      "sha256": "0bd447682bb26632a08a87d08a5127cb52f3bf523aa13f82df9eff16d982ee80"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/parent-cancel.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/parent-cancel.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/pid.json": {
+      "size": 563,
+      "sha256": "066ab9ef4217291671c6cc3b4ea019f23e2be6b8cfcc62b40610e889f9e2719a"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/pid.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/pid.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/replayed-first.json": {
+      "size": 574,
+      "sha256": "a3eaae5eb3ea82b3a6e7e7579e4a3b6930fefab5fc89aa78b8758bd045b73b0c"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/replayed-first.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/replayed-first.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/sequence.json": {
+      "size": 568,
+      "sha256": "82c0d202e8a9f03ea18671bed2ee21b12ed14b832c96b3bfdc6e5cedefc82a34"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/sequence.stderr.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/TestNativeConfigurationPreparedStorageTransportRefusals/sequence.stdout.raw": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "query/system-query/trusted-system-modules/BitLocker/BitLocker.psd1": {
+      "size": 908,
+      "sha256": "e858bd29d01ee2da09c9a1cb8cc5f6031004226dd49ed811b5e04cfdf6cf25ca"
+    },
+    "query/system-query/trusted-system-modules/BitLocker/en-US/BitLocker.psd1": {
+      "size": 9470,
+      "sha256": "9fe732ae1bf7533a8a8338ee663bbe7c42def664ba6f2999f17e384aadf952ee"
+    },
+    "query/system-query/trusted-system-modules/CimCmdlets/CimCmdlets.psd1": {
+      "size": 1888,
+      "sha256": "c11649524f29913c6b6c2bfdaf87d21d4d04699c71c9a8dab370265786603902"
+    },
+    "query/system-query/trusted-system-modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1": {
+      "size": 2459,
+      "sha256": "c09df190addc67f7c6c38e7ea1dca719fd87807107f688c3f60ed8816e1c48a6"
+    },
+    "query/system-query/trusted-system-modules/Storage/Storage.psd1": {
+      "size": 7390,
+      "sha256": "6119dede705a58fd4d3cce00688dca1ab88b49fa25bf5c98239cc0853b2b135f"
+    },
+    "query/system-query/trusted-system-modules/Storage/StorageScripts.psm1": {
+      "size": 378458,
+      "sha256": "c7fdbe67b772319254d4d6fee6e7a1b5dc9351d1a27958d54a59140597907b18"
+    },
+    "query/system-query/trusted-system-modules/inventory.json": {
+      "size": 1990,
+      "sha256": "bde7af3114263008cf52aab964e725547f958e42d7894afda7ddec6f818b3b3c"
+    }
+  }
+}
