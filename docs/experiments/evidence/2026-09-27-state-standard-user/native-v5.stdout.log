@@ -1,0 +1,22 @@
+SOURCE a2a27aa199448f48b3fd56b63fedb0a0146def1d NativeDriverHash 8dc24a94eb869f051fe49f1315d26e393a18a4886581ff330991cd85e7ea6522
+{"schemaVersion":1,"freshOwnedNtfsVolume":true,"sddl":"O:SYG:SYD:(A;OICIIO;SDGXGWGR;;;AU)(A;;0x1301bf;;;AU)(A;;FA;;;SY)(A;OICIIO;GA;;;SY)(A;OICIIO;GA;;;BA)(A;;FA;;;BA)(A;;0x1200a9;;;BU)(A;OICIIO;GXGR;;;BU)","entries":[{"sid":"S-1-5-11","rightsSigned":-536805376,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false},{"sid":"S-1-5-11","rightsSigned":1245631,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-18","rightsSigned":2032127,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-18","rightsSigned":268435456,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false},{"sid":"S-1-5-32-544","rightsSigned":268435456,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false},{"sid":"S-1-5-32-544","rightsSigned":2032127,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-32-545","rightsSigned":1179817,"type":"Allow","inheritance":"None","propagation":"None","inherited":false},{"sid":"S-1-5-32-545","rightsSigned":-1610612736,"type":"Allow","inheritance":"ContainerInherit, ObjectInherit","propagation":"InheritOnly","inherited":false}]}
+NATIVE_ACL_INPUT Windows=5.1.26100.9444 BinarySha256=219197b65f71363db424be32328ebea4043373ada79e71b7b45ee989f8dceedd FileSystem=NTFS FreshOwnedVolume=true
+=== RUN   TestNativeStateStandardUserAndAlternateVolume
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/new_root_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/new_inherited_install_child
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/overwrite_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/delete_manifest
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/system-volume/replace_root_DACL
+=== RUN   TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS
+    state_trust_standard_user_windows_test.go:124: trusted atomic creation: unsafe state volume Z:: DACL gives mutation rights to S-1-5-11
+--- FAIL: TestNativeStateStandardUserAndAlternateVolume (0.04s)
+    --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume (0.02s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/new_root_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/new_inherited_install_child (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/overwrite_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/delete_manifest (0.00s)
+        --- PASS: TestNativeStateStandardUserAndAlternateVolume/system-volume/replace_root_DACL (0.00s)
+    --- FAIL: TestNativeStateStandardUserAndAlternateVolume/alternate-NTFS (0.01s)
+FAIL
+PASS native ACL fixture cleanup observed

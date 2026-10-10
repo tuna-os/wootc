@@ -30,6 +30,10 @@ func TestStateDescriptorTrust(t *testing.T) {
 		{"future writable children", "O:BAD:(A;OICIIO;FW;;;BU)", false, false},
 		{"creator owner children", "O:BAD:(A;OICIIO;FA;;;CO)(A;;FA;;;BA)", false, true},
 		{"volume create child allowed", "O:BAD:(A;;0x00000006;;;BU)(A;;FA;;;BA)", true, true},
+		{"ancestor delete refused", "O:BAD:(A;;SD;;;BU)(A;;FA;;;BA)", true, false},
+		{"state object delete refused", "O:BAD:(A;;SD;;;BU)(A;;FA;;;BA)", false, false},
+		{"volume change ACL refused", "O:BAD:(A;;WD;;;BU)(A;;FA;;;BA)", true, false},
+		{"volume change owner refused", "O:BAD:(A;;WO;;;BU)(A;;FA;;;BA)", true, false},
 		{"volume delete child refused", "O:BAD:(A;;0x00000040;;;BU)(A;;FA;;;BA)", true, false},
 	}
 	for _, tc := range tests {
@@ -144,5 +148,23 @@ func TestStateDriveRejectsInvalidInputBeforeSelection(t *testing.T) {
 		if storageDrive != "C" {
 			t.Fatalf("rejected %q changed selected drive to %q", invalid, storageDrive)
 		}
+	}
+}
+
+func TestLiteralVolumeDeleteDoesNotExemptOtherAncestors(t *testing.T) {
+	sd, err := windows.SecurityDescriptorFromString("O:SYD:(A;;0x1301bf;;;AU)(A;;FA;;;SY)(A;;FA;;;BA)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateStateDescriptorAt(sd, true, true); err != nil {
+		t.Fatalf("literal fresh NTFS root: %v", err)
+	}
+	if err := validateStateDescriptor(sd, true); err == nil {
+		t.Fatal("ordinary ancestor DELETE accepted")
+	}
+	root := trustedFixture(t)
+	applyTestDACL(t, root, "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;;SD;;;BU)")
+	if err := inspectStateObject(root, true); err == nil {
+		t.Fatal("deletable ordinary ancestor treated as literal drive root")
 	}
 }
