@@ -34,7 +34,7 @@
     "base": "Universal Blue (Fedora, composefs)",
     "desktop": "gnome",
     "desktopName": "GNOME",
-    "imageRef": "ghcr.io/projectbluefin/dakota:latest",
+    "imageRef": "ghcr.io/projectbluefin/dakota:stable",
     "description": "Bluefin's next-generation composefs desktop. Newly proven end-to-end.",
     "bootloader": "systemd-boot",
     "composeFs": true,
