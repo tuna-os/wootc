@@ -28,9 +28,9 @@ jobs:
     name: fast tier (bats + go)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: {submodules: recursive}
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with: {go-version: '1.27', cache: false}
       - name: Install native fast-tier fixture dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq bats rsync qemu-system-common qemu-system-gui binutils
@@ -46,7 +46,7 @@ jobs:
         run: bash tests/run.sh fast
       - name: Upload Go coverage reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: go-coverage
           path: ${{ runner.temp }}/go-coverage
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Require native simulation tools
         run: |
           python3 -c 'import sys; assert sys.version_info >= (3, 11)'
@@ -72,7 +72,7 @@ jobs:
     name: migration integration (container)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: {submodules: recursive}
       - uses: ./.github/actions/podman-runtime
       - name: Run containerized bridge suite
@@ -82,7 +82,7 @@ jobs:
     name: GUI screenshots render
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/podman-runtime
       - name: Render the Linux GUIs headlessly
         run: bash tests/gui/capture-linux-guis.sh
@@ -93,7 +93,7 @@ jobs:
             echo "$f: $sz bytes"
             [ "$sz" -gt 5000 ] || { echo "::error::$f is blank ($sz bytes)"; exit 1; }
           done
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: linux-gui-screenshots
           path: docs/screenshots/1[3-6]-*.png
@@ -103,7 +103,7 @@ jobs:
     name: Windows partition policy counterexamples
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Validate PowerShell policy and execute mocked storage controls
         shell: powershell
         run: |
