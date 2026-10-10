@@ -1,141 +1,108 @@
-# wootc Documentation Index
+# wootc Documentation
 
-This folder contains 50+ documents covering wootc's architecture, philosophy, testing, release process, and migration strategies. Use this index to find what you need.
+## Quick navigation
 
-**Quick navigation by role:**
-- **End users**: Start with [getting-started.md](getting-started.md) and [user-guide.md](user-guide.md)
-- **Contributors**: Read [../CONTRIBUTING.md](../CONTRIBUTING.md), then [agent-lessons.md](agent-lessons.md) and [SPEC.md](SPEC.md)
-- **Release maintainers**: See [RELEASING.md](RELEASING.md) and [status.md](status.md)
-- **Packagers/distributors**: Check [branding-and-distribution.md](branding-and-distribution.md) and [upstream-blessings.md](upstream-blessings.md)
+- **End users**: [getting-started.md](getting-started.md), [user-guide.md](user-guide.md)
+- **Contributors**: [../CONTRIBUTING.md](../CONTRIBUTING.md), [agent-lessons.md](agent-lessons.md), [SPEC.md](SPEC.md)
+- **Release**: [RELEASING.md](RELEASING.md), [status.md](status.md)
+- **Packaging**: [branding-and-distribution.md](branding-and-distribution.md), [upstream-blessings.md](upstream-blessings.md)
 
----
+## User guides
 
-## User & Getting Started
+- [getting-started.md](getting-started.md) — Download and first boot
+- [user-guide.md](user-guide.md) — Using wootc and reverting
+- [philosophy.md](philosophy.md) — Product goals
+- [gui-walkthrough.md](gui-walkthrough.md) — Visual tour
 
-| Document | Purpose |
-|---|---|
-| [getting-started.md](getting-started.md) | Download, first boot, and troubleshooting for end users |
-| [user-guide.md](user-guide.md) | Living in the migrated system, and the way back |
-| [philosophy.md](philosophy.md) | The North Star and product goals |
-| [gui-walkthrough.md](gui-walkthrough.md) | Visual tour of the GUI |
+## Architecture
 
-## Architecture & Design
+- [SPEC.md](SPEC.md) — Full specification
+- [architecture-boundary.md](architecture-boundary.md) — Bootc integration
+- [e2e-architecture.md](e2e-architecture.md) — Test harness design
+- [gui-phase1-architecture.md](gui-phase1-architecture.md) — GUI design
+- [plugin-architecture.md](plugin-architecture.md) — Plugin system
+- [winui-shell.md](winui-shell.md) — WinUI 3 shell design
 
-| Document | Purpose |
-|---|---|
-| [SPEC.md](SPEC.md) | The full specification (implementation contract) |
-| [architecture-boundary.md](architecture-boundary.md) | Generic-migration / bootc seam and abstraction points |
-| [e2e-architecture.md](e2e-architecture.md) | E2E test harness architecture and design |
-| [gui-phase1-architecture.md](gui-phase1-architecture.md) | GUI/WinUI architecture for Phase 1 |
-| [backend-contract.md](backend-contract.md) | Backend interface contract |
-| [plugin-architecture.md](plugin-architecture.md) | Plugin system architecture |
-| [winui-shell.md](winui-shell.md) | WinUI 3 shell migration: architecture and engine protocol |
+## Development
 
-## Development & Testing
+- [agent-lessons.md](agent-lessons.md) — E2E and deployer traps
+- [manual-testing.md](manual-testing.md) — Pre-flight checklist
+- [status.md](status.md) — Test matrix and known issues
+- [prefilled-profile-testing.md](prefilled-profile-testing.md) — Profile testing
+- [ntfs-on-linux.md](ntfs-on-linux.md) — NTFS hazards
 
-| Document | Purpose |
-|---|---|
-| [agent-lessons.md](agent-lessons.md) | Traps and gotchas from 60–90 minute VM runs; read before touching E2E/deployer |
-| [manual-testing.md](manual-testing.md) | Pre-flight checklist for real-hardware test runs |
-| [status.md](status.md) | Current verification matrix, known-good vs. known-red cells |
-| [prefilled-profile-testing.md](prefilled-profile-testing.md) | Migration profile testing patterns |
-| [ntfs-on-linux.md](ntfs-on-linux.md) | NTFS on Linux: known hazards and design resilience |
+## Implementation
 
-## Specific Implementation Topics
+- [session-migration.md](session-migration.md) — Browser/app state migration
+- [destructive-paths.md](destructive-paths.md) — Reversibility gates
+- [artifact-authentication.md](artifact-authentication.md) — Boot signing
+- [windows-state-trust.md](windows-state-trust.md) — Windows validation
+- [systemd-boot.md](systemd-boot.md) — Boot configuration
+- [borrowed-from-libertix.md](borrowed-from-libertix.md) — Boot chain designs
 
-| Document | Purpose |
-|---|---|
-| [session-migration.md](session-migration.md) | Browser/app session migration strategy and state tracking |
-| [destructive-paths.md](destructive-paths.md) | Destructive operations, reversibility, and gates |
-| [artifact-authentication.md](artifact-authentication.md) | Boot artifact signing and verification |
-| [windows-state-trust.md](windows-state-trust.md) | Windows state validation and trust boundaries |
-| [systemd-boot.md](systemd-boot.md) | systemd-boot integration and configuration |
-| [borrowed-from-libertix.md](borrowed-from-libertix.md) | Six boot-chain and recovery designs, specified against wootc's code |
+## Release
 
-## Release & Distribution
+- [RELEASING.md](RELEASING.md) — Release process
+- [release-notes-v0.3.0-beta.md](release-notes-v0.3.0-beta.md) — v0.3.0-beta notes
+- [branding-and-distribution.md](branding-and-distribution.md) — Branding strategy
+- [branding.md](branding.md) — Brand guidelines
+- [upstream-blessings.md](upstream-blessings.md) — Upstream governance
+- [distro-adoption.md](distro-adoption.md) — Distributor guide
 
-| Document | Purpose |
-|---|---|
-| [RELEASING.md](RELEASING.md) | Release process, gates, signing, and automation |
-| [release-notes-v0.3.0-beta.md](release-notes-v0.3.0-beta.md) | v0.3.0-beta release notes and changelog |
-| [branding-and-distribution.md](branding-and-distribution.md) | One engine, five installers; branding strategy |
-| [branding.md](branding.md) | Brand asset guidelines |
-| [upstream-blessings.md](upstream-blessings.md) | Upstream project governance and distribution approval |
-| [distro-adoption.md](distro-adoption.md) | How distributions can adopt and customize wootc |
+## Planning
 
-## Planning & Roadmap
+- [../ROADMAP.md](../ROADMAP.md) — Roadmap and milestones
+- [milestones.md](milestones.md) — Milestone definitions
+- [plan.md](plan.md) — Long-term strategy
+- [finish-plan.md](finish-plan.md) — Path to 1.0
+- [soak.md](soak.md) — Soak testing
 
-| Document | Purpose |
-|---|---|
-| [../ROADMAP.md](../ROADMAP.md) | Project roadmap, milestones, and version ladder (main repo) |
-| [milestones.md](milestones.md) | Milestone tracking and definitions |
-| [plan.md](plan.md) | Strategic planning and long-term vision |
-| [finish-plan.md](finish-plan.md) | Path to release completion and 1.0 |
-| [soak.md](soak.md) | Soak testing policy and execution |
+## Architecture decisions
 
-## Architecture Decision Records (ADRs)
+See `adr/` for design records:
 
-Design decisions are recorded as ADRs in `adr/`:
+- [adr/0001-phase1-first-architecture.md](adr/0001-phase1-first-architecture.md) — VM-first design
+- [adr/0002-hardware-preflight-bootc-matching.md](adr/0002-hardware-preflight-bootc-matching.md) — Hardware check
+- [adr/0003-onedrive-files-on-demand-migration.md](adr/0003-onedrive-files-on-demand-migration.md) — OneDrive migration
+- [adr/0004-composefs-kernel-module-matching.md](adr/0004-composefs-kernel-module-matching.md) — composefs matching
+- [adr/0004-restore-vm-first-product.md](adr/0004-restore-vm-first-product.md) — VM-first restoration
 
-| ADR | Title |
-|---|---|
-| [adr/0001-phase1-first-architecture.md](adr/0001-phase1-first-architecture.md) | Phase 1: VM-first architecture |
-| [adr/0002-hardware-preflight-bootc-matching.md](adr/0002-hardware-preflight-bootc-matching.md) | Hardware preflight and bootc image matching |
-| [adr/0003-onedrive-files-on-demand-migration.md](adr/0003-onedrive-files-on-demand-migration.md) | OneDrive Files on Demand migration strategy |
-| [adr/0004-composefs-kernel-module-matching.md](adr/0004-composefs-kernel-module-matching.md) | composefs kernel module matching |
-| [adr/0004-restore-vm-first-product.md](adr/0004-restore-vm-first-product.md) | Restore VM-first product focus (ADR 0004-2) |
+## Migration
 
-## Migration & Integration
+- [specs/enterprise-migration.md](specs/enterprise-migration.md) — Enterprise use cases
+- [specs/migration-extensions.md](specs/migration-extensions.md) — Plugin extensions
+- [non-bootc-adoption.md](non-bootc-adoption.md) — Non-bootc images
 
-| Document | Purpose |
-|---|---|
-| [specs/enterprise-migration.md](specs/enterprise-migration.md) | Enterprise migration strategy and requirements |
-| [specs/migration-extensions.md](specs/migration-extensions.md) | Migration plugin extensions and interfaces |
-| [non-bootc-adoption.md](non-bootc-adoption.md) | Non-bootc image adoption and compatibility |
+## Other
 
-## Development & Maintenance
+- [alpha-adopter-program.md](alpha-adopter-program.md) — Early adopters
+- [deployer-experience.md](deployer-experience.md) — Deployer UX
+- [phase2-attach-postmortem.md](phase2-attach-postmortem.md) — Phase 2 lessons
+- [phase2-debug-plan.md](phase2-debug-plan.md) — Phase 2 debug strategy
+- [project-review-2026-09-26.md](project-review-2026-09-26.md) — Project status
 
-| Document | Purpose |
-|---|---|
-| [alpha-adopter-program.md](alpha-adopter-program.md) | Alpha adopter engagement and feedback |
-| [deployer-experience.md](deployer-experience.md) | Deployer initramfs user experience |
-| [phase2-attach-postmortem.md](phase2-attach-postmortem.md) | Phase 2 attach postmortem and lessons learned |
-| [phase2-debug-plan.md](phase2-debug-plan.md) | Phase 2 debugging strategy |
-| [project-review-2026-09-26.md](project-review-2026-09-26.md) | Project status review (2026-09-26) |
+## Experiments
 
-## Experiments & Investigations
+- [experiments/vm-first-2026-09-26.md](experiments/vm-first-2026-09-26.md) — VM-first tests
+- [experiments/vm-first-hosted-qualification-2026-09-27.md](experiments/vm-first-hosted-qualification-2026-09-27.md) — Hosted VM tests
+- [experiments/vm-helper-2026-09-26.md](experiments/vm-helper-2026-09-26.md) — VM helper tests
+- [experiments/vm-capacity-recovery-2026-09-27.md](experiments/vm-capacity-recovery-2026-09-27.md) — Capacity recovery
+- [experiments/artifact-auth-2026-09-27.md](experiments/artifact-auth-2026-09-27.md) — Artifact auth
+- [experiments/classic-offline-prerequisites.md](experiments/classic-offline-prerequisites.md) — Offline install
 
-Recent experiments exploring design alternatives and proof-of-concepts live in `experiments/`:
+## Evidence
 
-| Document | Purpose |
-|---|---|
-| [experiments/vm-first-2026-09-26.md](experiments/vm-first-2026-09-26.md) | VM-first product restoration experiments |
-| [experiments/vm-first-hosted-qualification-2026-09-27.md](experiments/vm-first-hosted-qualification-2026-09-27.md) | Hosted VM qualification experiments |
-| [experiments/vm-helper-2026-09-26.md](experiments/vm-helper-2026-09-26.md) | VM helper testing and preflight |
-| [experiments/vm-capacity-recovery-2026-09-27.md](experiments/vm-capacity-recovery-2026-09-27.md) | VM capacity recovery strategies |
-| [experiments/artifact-auth-2026-09-27.md](experiments/artifact-auth-2026-09-27.md) | Artifact authentication mechanisms |
-| [experiments/classic-offline-prerequisites.md](experiments/classic-offline-prerequisites.md) | Classic offline installation prerequisites |
+- [evidence/2026-09-27-bitlocker-readiness.md](evidence/2026-09-27-bitlocker-readiness.md) — BitLocker validation
 
-## Evidence & Validation
+## Maintenance
 
-Test runs, matrix cells, and proof artifacts are recorded in `evidence/`:
-
-| Document | Purpose |
-|---|---|
-| [evidence/2026-09-27-bitlocker-readiness.md](evidence/2026-09-27-bitlocker-readiness.md) | BitLocker readiness validation evidence |
-
-## Internal & Maintenance
-
-| Document | Purpose |
-|---|---|
-| [docs-truth-pass.md](docs-truth-pass.md) | Documentation audit and truth verification |
+- [docs-truth-pass.md](docs-truth-pass.md) — Documentation audit
 
 ---
 
-## How to contribute to docs
+## Contributing to docs
 
-1. If documenting a new feature or design decision, consider creating an ADR (copy and adapt `adr/0001-phase1-first-architecture.md`)
-2. Keep docs in sync with code changes — stale docs are worse than missing docs
-3. Link liberally — cross-reference related documents so readers don't get lost
-4. Use the relevant section above to guide where a new document belongs
-5. Update this index if you add or rename a file
+1. Create an ADR for design decisions (copy [adr/0001-phase1-first-architecture.md](adr/0001-phase1-first-architecture.md))
+2. Keep docs in sync with code
+3. Link to related docs
+4. Update this index if you add files
