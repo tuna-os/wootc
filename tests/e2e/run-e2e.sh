@@ -80,6 +80,10 @@ SKIP_INSTALL=false
 GUI_INSTALL=false
 FAULT_INJECT="${WOOTC_E2E_FAULT_INJECT:-}"
 RECOVERY_CHECK=false
+# Firmware db axis (#322): which Microsoft third-party UEFI CA the VM's
+# firmware trusts. Empty keeps Dockur's stock vars (both CAs). See
+# tests/e2e/firmware-db.py for the cells.
+FIRMWARE_DB="${WOOTC_E2E_FIRMWARE_DB:-}"
 for arg in "$@"; do
     case "$arg" in
         --skip-build)   SKIP_BUILD=true ;;
@@ -124,9 +128,23 @@ WOOTC_RESULT_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-results.$$.jsonl"
 RESULT_SCENARIO=full-cycle
 if [ "${RUN_PHASE3:-false}" = true ]; then RESULT_SCENARIO=native-cycle; fi
 if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
+case "$FIRMWARE_DB" in
+    ""|2011|2023|both) ;;
+    # Firmware that trusts neither third-party CA cannot launch any shim, so
+    # the product must refuse before it writes anything. The refusal lives in
+    # the app's install gate, which only the real GUI (or headless CLI) runs;
+    # the scripted OEM path would arm regardless and prove nothing.
+    none)
+        if [ "$GUI_INSTALL" != true ]; then
+            echo "[FAIL] WOOTC_E2E_FIRMWARE_DB=none needs --gui-install: the refusal is the app's, not setup-wootc.ps1's" >&2
+            exit 2
+        fi
+        RESULT_SCENARIO=secure-boot-refusal ;;
+    *) echo "[FAIL] WOOTC_E2E_FIRMWARE_DB must be 2011|2023|both|none (got: $FIRMWARE_DB)" >&2; exit 2 ;;
+esac
 if [ -n "${WOOTC_E2E_SNAPSHOT_OUT:-}" ]; then RESULT_SCENARIO="snapshot-prime"; fi
 RESULT_REQUIRED=""
-if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ]; then RESULT_REQUIRED=gui-install; fi
+if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ] && [ "$RESULT_SCENARIO" != secure-boot-refusal ]; then RESULT_REQUIRED=gui-install; fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
 trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
@@ -1133,6 +1151,20 @@ fi
     fail "wootc-files/SHA256SUMS is empty — no boot artifacts to checksum"
     exit 1
 }
+# Which Microsoft CA signed the shim we stage (#322), read off the binary the
+# way release.yml does. The app prefers a pre-staged install\shim-authorities.json
+# over its build stamp, and an E2E exe carries no stamp, so without this file
+# the Secure Boot preflight grades nothing and every firmware-db cell would
+# pass it vacuously. Written through a temp file: wootc-files/ is shared by
+# concurrent instances, and a reader must never see half a file.
+python3 "$REPO_ROOT/packaging/shim-authorities.py" --json \
+    "$SCRIPT_DIR/wootc-files/shimx64.efi" > "$SCRIPT_DIR/wootc-files/shim-authorities.json.$$" \
+    && mv -f "$SCRIPT_DIR/wootc-files/shim-authorities.json.$$" "$SCRIPT_DIR/wootc-files/shim-authorities.json" || {
+    rm -f "$SCRIPT_DIR/wootc-files/shim-authorities.json.$$"
+    fail "Could not read the staged shim's signing authorities (packaging/shim-authorities.py)"
+    exit 1
+}
+info "Staged shim authorities: $(tr -d ' \n' < "$SCRIPT_DIR/wootc-files/shim-authorities.json")"
 # GUI fixtures use the same signature verifier as releases, with a key whose
 # public half was embedded when this test executable was built. Never stage
 # the private seed into the guest or the artifact directory.
@@ -1690,6 +1722,64 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     rm -f "$STORAGE_DIR/phase3/data2.qcow2"
 fi
 
+# ── Firmware db axis (#322) ─────────────────────────────────────────────────
+# Dockur copies OVMF_VARS_4M.ms.fd to /storage/windows_secure.vars only when
+# that file is absent, and QEMU then writes Secure Boot state there. So the
+# axis is set up by writing that file before the container starts: from the
+# existing one when Windows already booted from it (keeping its boot
+# entries), else from the image's own template. A marker records that the
+# file is ours, so a later run on the same storage without the axis gets
+# Dockur's stock db back instead of inheriting a stripped one.
+seed_firmware_db() {
+    local vars="$STORAGE_DIR/windows_secure.vars" marker="$STORAGE_DIR/windows_secure.vars.firmware-db"
+    if [ -z "$FIRMWARE_DB" ]; then
+        if [ -e "$marker" ]; then
+            info "Firmware db axis off: discarding the $(cat "$marker" 2>/dev/null)-cell vars a previous run left"
+            rm -f "$vars" "$marker"
+        fi
+        return 0
+    fi
+    command -v virt-fw-vars >/dev/null || {
+        infra_fail "Firmware db axis needs virt-fw-vars: pip install virt-firmware"
+        return 1
+    }
+    if [ ! -s "$vars" ]; then
+        local image="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
+        "$DOCKER" run --rm --entrypoint cat "$image" /usr/share/OVMF/OVMF_VARS_4M.ms.fd > "$vars.tmp" \
+            && [ -s "$vars.tmp" ] && mv "$vars.tmp" "$vars" || {
+            rm -f "$vars.tmp"
+            infra_fail "Could not read OVMF_VARS_4M.ms.fd from $image for the firmware db axis"
+            return 1
+        }
+    fi
+    python3 "$SCRIPT_DIR/firmware-db.py" build --cell "$FIRMWARE_DB" "$vars" || {
+        infra_fail "Could not build the '$FIRMWARE_DB' firmware db"
+        return 1
+    }
+    printf '%s\n' "$FIRMWARE_DB" > "$marker"
+    info "Firmware db axis: cell '$FIRMWARE_DB' written to $vars (graded again from inside Windows)"
+}
+
+# The host-side build proves only that a file was written. What counts is the
+# db Windows reads at runtime: a vars file Dockur ignored, or a path it never
+# mounted, would otherwise pass every cell on the stock db.
+assert_firmware_db() {
+    [ -n "$FIRMWARE_DB" ] || return 0
+    local sb raw verdict
+    sb=$(qga_powershell 'try { Confirm-SecureBootUEFI -ErrorAction Stop } catch { "error" }' 2>/dev/null | tr -d '\r\n' || true)
+    if [ "$sb" != True ]; then
+        infra_fail "Firmware db axis: Secure Boot is not on in the guest (Confirm-SecureBootUEFI: '${sb:-<no answer>}')"
+        return 1
+    fi
+    raw=$(qga_powershell '$ErrorActionPreference = "Stop"; [Convert]::ToBase64String((Get-SecureBootUEFI -Name db).Bytes)' 2>/dev/null | tr -d '\r\n' || true)
+    if verdict=$(printf '%s' "$raw" | python3 "$SCRIPT_DIR/firmware-db.py" grade --cell "$FIRMWARE_DB"); then
+        infra_pass firmware-db "Firmware db axis: Windows reads $verdict"
+    else
+        infra_fail "Firmware db axis: the db Windows reads is not cell '$FIRMWARE_DB': ${verdict:-<no db read>}"
+        return 1
+    fi
+}
+
 # Start only the configured VM. Host network conflicts are infrastructure
 # failures; the adapter never removes unrelated network state.
 # shellcheck source=tests/e2e/lib/vm-start.sh
@@ -1724,6 +1814,8 @@ while ! past_deadline "$RAM_WAIT_DEADLINE"; do
     info "Waiting for host memory: ${MEM_AVAIL_MIB} MiB available, want ${RAM_WANT_MIB} MiB before starting QEMU..."
     sleep 15
 done
+
+seed_firmware_db || exit 1
 
 if ! compose_up_windows; then
     infra_fail "Could not start the Windows container (all recovery paths exhausted)"
@@ -2046,17 +2138,34 @@ if ($null -ne $ts -and @($ts).Count -gt 0) { Write-Output "TASKS=True" } else { 
     pass "Uninstall: Windows rebooted cleanly on its own — the machine is restored"
 }
 
+# Copy the guest-side recovery evidence out before anything else can go wrong
+# (#288). Called on every exit path of recovery_check, not only the green one:
+# the failed VM's state is the evidence an offline diagnosis needs.
+recovery_evidence() {
+    local dir="$STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    mkdir -p "$dir" 2>/dev/null || true
+    qga_read 'C:\wootc\state.json' > "$dir/state.json" 2>/dev/null || true
+    qga_read 'C:\OEM\recovery-baseline.json' > "$dir/recovery-baseline.json" 2>/dev/null || true
+    qga_read 'C:\OEM\recovery-interrupted.json' > "$dir/recovery-interrupted.json" 2>/dev/null || true
+    qga_read 'C:\OEM\wootc-e2e.log' > "$dir/wootc-e2e.log" 2>/dev/null || true
+    qga_powershell 'bcdedit /enum all' > "$dir/bcdedit.txt" 2>/dev/null || true
+    qga_powershell 'Get-ChildItem C:\wootc\bundle\oci\blobs\sha256 -ErrorAction SilentlyContinue | Format-Table Name,Length,LastWriteTimeUtc -AutoSize | Out-String -Width 200' > "$dir/blobs.txt" 2>/dev/null || true
+    info "Recovery: evidence retained in $dir"
+}
+
 # Recovery / Fault-Injection check (#288): exercises cancellation, interruption,
 # and post-reboot failure across all 6 boundaries.
 recovery_check() {
     [ -n "$FAULT_INJECT" ] || [ "${RECOVERY_CHECK:-false}" = true ] || return 0
     step "Recovery: Verifying fault-injection boundary ($FAULT_INJECT), idempotency & cleanup..."
+    local evidence="$STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    mkdir -p "$evidence" 2>/dev/null || true
 
     # 1. Interrupted assertions
     step "Recovery Stage 1: Asserting interrupted/cancelled system state..."
     local assert_out
     assert_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage interrupted -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
-    printf '%s\n' "$assert_out" | sed 's/^/    recovery: /'
+    printf '%s\n' "$assert_out" | tee "$evidence/stage1-interrupted.txt" | sed 's/^/    recovery: /'
     if printf '%s' "$assert_out" | grep -q 'RECOVERY-RESULT: PASS'; then
         product_pass recovery-interrupted "Recovery: Stage 1 (interrupted state) validated successfully"
     else
@@ -2065,44 +2174,48 @@ recovery_check() {
 
     # 2. Windows reboot test
     step "Recovery Stage 2: Rebooting Windows to verify clean boot without Automatic Repair..."
-    qga_restart_windows "Windows after interruption" 600 || return 1
+    if ! qga_restart_windows "Windows after interruption" 600; then
+        product_fail "Recovery: Windows did not come back after the interruption (Automatic Repair or a hang)"
+        recovery_evidence
+        return 1
+    fi
     pass "Recovery: Windows booted normally without Automatic Repair"
 
     # 3. Retry test (Idempotency)
     step "Recovery Stage 3: Retrying setup to verify idempotent retry (no duplicate BCD/EFI)..."
-    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | sed 's/^/    retry: /' || true
+    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | tee "$evidence/stage3-retry-setup.txt" | sed 's/^/    retry: /' || true
 
     local retry_out
-    retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried' 2>&1 || true)
-    printf '%s\n' "$retry_out" | sed 's/^/    recovery-retry: /'
+    retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
+    printf '%s\n' "$retry_out" | tee "$evidence/stage3-retried.txt" | sed 's/^/    recovery-retry: /'
     if printf '%s' "$retry_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        product_pass recovery-retry "Recovery: Stage 3 (idempotent retry) validated successfully — exactly 1 BCD entry, ESP valid"
+        product_pass recovery-retry "Recovery: Stage 3 (idempotent retry) validated successfully — one BCD entry, no duplicate ESP files, verified blobs reused"
     else
         product_fail "Recovery: Stage 3 (idempotent retry) assertion failed"
     fi
 
     # 4. Uninstall test
     step "Recovery Stage 4: Testing clean uninstall from interrupted/retried state..."
-    qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 | sed 's/^/    uninstall: /' || true
+    qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 | tee "$evidence/stage4-uninstall.txt" | sed 's/^/    uninstall: /' || true
     local un_out
     un_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage uninstalled' 2>&1 || true)
-    printf '%s\n' "$un_out" | sed 's/^/    recovery-uninstall: /'
+    printf '%s\n' "$un_out" | tee "$evidence/stage4-uninstalled.txt" | sed 's/^/    recovery-uninstall: /'
     if printf '%s' "$un_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        product_pass recovery-uninstall "Recovery: Stage 4 (uninstall from interrupted state) validated successfully"
+        product_pass recovery-uninstall "Recovery: Stage 4 (uninstall from interrupted state) validated successfully — boot order, ESP and power match the pre-install baseline"
     else
         product_fail "Recovery: Stage 4 (uninstall from interrupted state) assertion failed"
     fi
 
     # 5. Post-uninstall reboot
     step "Recovery Stage 5: Final reboot to verify Windows boots cleanly after uninstall..."
-    qga_restart_windows "Windows after recovery uninstall" 600 || return 1
+    if ! qga_restart_windows "Windows after recovery uninstall" 600; then
+        product_fail "Recovery: Windows did not come back after the recovery uninstall"
+        recovery_evidence
+        return 1
+    fi
     product_pass recovery-windows "Recovery: Windows booted cleanly after recovery uninstall"
 
-    # Retain recovery evidence artifacts
-    mkdir -p "$STORAGE_DIR/artifacts/$RUN_ID/recovery" 2>/dev/null || true
-    qga_read 'C:\wootc\state.json' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/state.json" 2>/dev/null || true
-    qga_powershell 'bcdedit /enum all' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/bcdedit.txt" 2>/dev/null || true
-    pass "Recovery: Evidence artifacts retained in $STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    recovery_evidence
 }
 
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
@@ -2197,6 +2310,7 @@ DIRTY_CHECK=$(qga_powershell 'fsutil dirty query C:' 2>/dev/null | tr -d '\r\n' 
 if [ -n "$DIRTY_CHECK" ]; then
     info "[PREFLIGHT] Windows C: volume status: $DIRTY_CHECK"
 fi
+assert_firmware_db || { capture_vm_diagnostics; exit 1; }
 
 if [ "$SKIP_INSTALL" = false ] && [ -s "$STORAGE_DIR/data.qcow2" ]; then
     info "Saving pristine base Windows image to $STORAGE_DIR/data.qcow2.pristine..."
@@ -2263,6 +2377,59 @@ reset_oem_attempt
 # shellcheck source=tests/e2e/lib/gui-observations.sh
 source "$SCRIPT_DIR/lib/gui-observations.sh"
 wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
+
+# ── Firmware db cell 'none' (#322): the pass is a refusal ──────────────────
+# Firmware that trusts neither Microsoft third-party CA cannot launch any
+# shim. The app has to say so while Windows is on screen, and must not have
+# written a thing — a refusal that leaves a root.disk or a one-shot behind is
+# the same broken reboot with a nicer sentence in front of it. Both halves
+# are required assertions of the secure-boot-refusal scenario.
+secure_boot_refusal_verdict() {
+    local err="$1" want missing="" evidence
+    for want in 'bad shim signature' 'Nothing has been changed' 'Allow Microsoft 3rd Party UEFI CA'; do
+        case "$err" in *"$want"*) ;; *) missing="$missing '$want'" ;; esac
+    done
+    if [ -n "$missing" ]; then
+        product_fail "Secure Boot refusal cell: the app stopped, but not with the Secure Boot refusal (missing:$missing)"
+        info "  the app says: $err"
+        capture_vm_diagnostics
+        exit 1
+    fi
+    # Hold the refusal on screen long enough for the recording to show it.
+    sleep 4; freeze_frame
+    product_pass secure-boot-refused "The GUI refused in words before the reboot: $err"
+
+    evidence=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$s = (& cmd.exe /d /c "C:\wootc\wootc.exe status" | Out-String).Trim()
+Write-Output ("status=" + $s)
+$fw = cmd.exe /d /c "bcdedit /enum {fwbootmgr}" | Out-String
+Write-Output ("bootsequence=" + [bool]($fw -match "bootsequence"))
+$all = cmd.exe /d /c "bcdedit /enum firmware" | Out-String
+Write-Output ("wootc-entry=" + [bool]($all -match "(?m)^description\s+wootc"))
+$disks = @(Get-PSDrive -PSProvider FileSystem | ForEach-Object { Join-Path $_.Root "wootc\disks\root.disk" } | Where-Object { Test-Path -LiteralPath $_ })
+Write-Output ("root-disk=" + ($disks -join ","))' 2>/dev/null | tr -d '\r' || true)
+    printf '%s\n' "$evidence" | sed 's/^/    untouched: /'
+    case "$evidence" in
+        *'status={"state":"absent"}'*) ;;
+        *) product_fail "Secure Boot refusal cell: wootc.exe status is not absent after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    case "$evidence" in
+        *bootsequence=False*) ;;
+        *) product_fail "Secure Boot refusal cell: a one-shot boot is armed after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    case "$evidence" in
+        *wootc-entry=False*) ;;
+        *) product_fail "Secure Boot refusal cell: a wootc firmware entry exists after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    case "$evidence" in
+        *"root-disk="|*"root-disk="$'\n'*) ;;
+        *) product_fail "Secure Boot refusal cell: a root.disk exists after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    product_pass secure-boot-untouched "Nothing written: status absent, no one-shot, no firmware entry, no root.disk"
+    wootc_result_finish "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$WOOTC_FAILURE_LEDGER" "" "$IMAGE_REF" || exit 1
+    pass "Secure Boot refusal cell PASSED: refused in words, nothing written"
+    exit 0
+}
 
 gui_install_arm() {
     # Seed while Windows is alive — the OEM path seeds inside
@@ -2349,7 +2516,7 @@ Initialize-WootcStateDirectory -Path C:\wootc
 New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 . "\\host.lan\Data\stage-status-cli.ps1"
 Copy-WootcStatusCLI -SourceDirectory "\\host.lan\Data" -Destination "C:\wootc\wootc.exe"
-foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig","shim-authorities.json") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
 @"
 set WOOTC_E2E_DRIVE=1
@@ -2661,6 +2828,19 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         else
             blocked_reads=0
         fi
+        # Firmware db cell 'none' (#322): reaching done is the failure, and the
+        # refusal is the pass. Checked before the generic error branch, which
+        # would call the refusal a red.
+        if [ "$FIRMWARE_DB" = none ]; then
+            if [ "$screen" = "done" ]; then
+                product_fail "Secure Boot refusal cell: the install COMPLETED on firmware that cannot launch any shim — the reboot would end at 'bad shim signature'"
+                capture_vm_diagnostics
+                exit 1
+            fi
+            local refusal
+            refusal=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["error"] or "")')
+            [ -n "$refusal" ] && secure_boot_refusal_verdict "$refusal"
+        fi
         if [ "$screen" = "done" ]; then
             product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
             # Let the done screen actually appear in a capture, then hold it.
@@ -2831,7 +3011,9 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
     if [ -n "$OEM_FAILURE" ]; then
         if [ -n "$FAULT_INJECT" ]; then
             info "Observed expected fault injection failure during Phase 1 ($FAULT_INJECT)"
-            recovery_check
+            # Every non-zero return already recorded a product_fail in the
+            # ledger, which the check below turns into a red result.
+            recovery_check || true
             if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
                 _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
                 fail "$_wootc_n failure(s) recorded in recovery run"
@@ -3000,7 +3182,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             if [ "$WINDOWS_BACK_STREAK" -ge 12 ]; then
                 if [ -n "$FAULT_INJECT" ]; then
                     info "Observed expected deploy failure and return to Windows ($FAULT_INJECT)"
-                    recovery_check
+                    recovery_check || true   # failures are in the ledger
                     if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
                         _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
                         fail "$_wootc_n failure(s) recorded in recovery run"
@@ -3261,6 +3443,15 @@ done
     _deploy_mins=$(elapsed_min_since "$DEPLOY_STARTED")
     if [ "${DEPLOYER_FATAL_SEEN:-false}" = true ]; then
         fail "Deployment FAILED after ${_deploy_mins}m — the deployer reported a fatal error (above); this is NOT a timeout"
+    elif [ "$DEPLOYER_REBOOT_SEEN" = true ]; then
+        # The deployer finished and asked for its reboot; any Windows QGA
+        # answer would have ended this loop. So the boot that hung is the
+        # RETURN TO WINDOWS, and Phase 2 was never scheduled. #209/#218 was
+        # filed as a "Phase-2 first-boot hang" because this branch said
+        # "deployment did not complete" — a proxy, not what happened.
+        fail "Deployer requested its reboot, but Windows never came back (no Windows QGA for ${_deploy_mins}m) — the post-deploy return boot hung; Phase 2 was never scheduled"
+        info "  Look for '[WARN] /mnt/ntfs still busy' and its 'holder:' lines below: a"
+        info "  lazily-detached NTFS goes back to Windows still mounted and dirty (#218)."
     else
         fail "Deployment did not complete within $((TIMEOUT/60)) minutes (waited ${_deploy_mins}m)"
     fi

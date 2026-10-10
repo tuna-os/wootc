@@ -111,6 +111,45 @@ The set also includes `wubildr.efi` when its build succeeds.
 `SHA256SUMS` lists hashes for all these files. `skip_e2e` exists for emergencies and
 documents itself in the release notes.
 
+## Full-matrix evidence at the RC SHA (v1.0 criterion 3)
+
+The release notes for v1.0.0 cite one run set at the exact release SHA.
+A green from an earlier commit does not count. [#240] records this set.
+
+1. Dispatch `e2e-matrix.yml` at the RC SHA with `tier=full` two times.
+   Set `gui_install` off for script mode, and on for GUI mode.
+   The run title then shows the tier and the mode, for example
+   `E2E matrix (full, gui)`.
+2. If a cell fails, read its flake notice. The harness writes this notice only
+   for a known infra signature. Re-dispatch that cell with `grep=<cell>`, or
+   re-run the failed job. Do not re-run a red cell that has no flake notice.
+   Diagnose it, because it is a real failure.
+3. Grade the run set and paste the output into [#240] and the release notes:
+
+```
+tools/release/matrix-evidence.py check --sha <rc-sha> \
+    --run <script-run> --run <gui-run> [--run <retry> ...] \
+    --snapshot matrix-evidence.json
+```
+
+The tool reads `tests/e2e/matrix.tsv` at the RC SHA and expects each
+full-tier cell that the hosted plan runs. GUI mode expects only the cells that
+the `gui_install` guard drives. The BitLocker, `filesystem=`, and offline cells
+use script mode only. The tool marks a cell green only when all of these are true:
+
+- The last try of the cell has a passed job.
+- The job log shows the pass banner of `run-e2e.sh`. The harness prints this
+  banner only after it finds an empty failure ledger.
+- Each earlier red try of that cell has a flake notice.
+
+The tool exits with a non-zero code if a cell is missing, red, or has a red
+with no explanation. It also exits with a non-zero code if a run is at a
+different SHA, or if the matrix has no `bitlocker=on` or `offline=on` cell.
+The phase3 cells are too large for the disks of hosted runners. The record
+names them as not in the hosted matrix.
+Keep the `--snapshot` file with the evidence, because job logs expire after
+90 days. Use `tools/release/matrix-evidence.py grade` to grade the file again offline.
+
 ## Fresh-machine verification (v1.0 criterion 4)
 
 The checks above run on machines that already know wootc. Trust is a
@@ -133,6 +172,7 @@ It exits with a non-zero code if a box fails:
 | Box | How it is decided |
 |---|---|
 | winget serves the release | `winget show TunaOS.wootc` resolves **and** reports the version under test — a manifest that resolves to last month's alpha is a quieter failure than no package at all |
+| winget installs the release | `winget install TunaOS.wootc` exits 0, and the exe it puts on disk has the `SHA256SUMS` hash of this release's `wootc.exe`. A winget success that installs a different file is a fail |
 | each asset matches `SHA256SUMS` | `Get-FileHash` against the published manifest; an asset the manifest does not list fails rather than being skipped |
 | each exe is Authenticode-signed | `Get-AuthenticodeSignature` must be `Valid` *and* name a signer. `HashMismatch` is called out separately — that is a tampered download, not an unsigned one |
 | each branded exe shows its own identity | the exe's VERSIONINFO `ProductName`/`FileDescription`/`CompanyName` match that brand and contain no "wootc" |
@@ -177,8 +217,41 @@ The file identity does not sign the installer or set the UAC publisher.
 Use the field verifier and attach screenshots for the published files.
 
 [#241]: https://github.com/tuna-os/wootc/issues/241
+[#240]: https://github.com/tuna-os/wootc/issues/240
 [#229]: https://github.com/tuna-os/wootc/issues/229
 [#230]: https://github.com/tuna-os/wootc/issues/230
+
+## Narrative release notes
+
+`release.yml` writes a short block that names the gate of each build. A final
+tag (`vX.Y.Z` with no suffix) also needs the story of the version. That story
+is in `docs/release-notes-<tag>.md`, and the publish job adds it to the
+release body after that block.
+
+`tools/release/check-notes.sh` enforces this before the E2E gate starts:
+
+- A final tag without its notes file stops the release.
+- A notes file with the marker `<!-- wootc-release-notes: draft -->` stops
+  every release of that tag, including pre-release tags. Draft notes hold
+  *To add* slots for evidence, and a published draft would claim proof that
+  does not exist.
+
+### Cutting v1.0.0 (#242)
+
+[`release-notes-v1.0.0.md`](release-notes-v1.0.0.md) is a draft now.
+Do these steps in order:
+
+1. Fill each *To add* slot in the notes with its evidence (M5.1 to M5.6).
+   Remove the draft marker in the PR that records the last evidence.
+2. Dispatch `release.yml` with `release_tag: v1.0.0` from the final green SHA
+   of the soak. Do not set `skip_e2e`. The E2E gate of the tagged channel
+   runs again before the publish.
+3. Monitor the `winget-publish.yml` run that the publish job dispatches, until
+   `winget show TunaOS.wootc` reports `1.0.0`.
+4. Change `ROADMAP.md` to the post-1.0 plan. Close the milestone issues
+   #210 to #213, each with links to its evidence.
+5. Announce the release in the channels that each brand agreed to
+   ([upstream blessings](upstream-blessings.md)).
 
 ## When a release has to be taken back
 

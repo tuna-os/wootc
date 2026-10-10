@@ -24,6 +24,9 @@ NATIVE_JOB = 'native-shell GUI acceptance'
 NATIVE_STEPS = {'Verify native process identity', 'Assert native UIA journeys', 'Capture native framebuffer'}
 RC_REQUIREMENTS = {'**Code signing**:', 'Signed-build plumbing', 'Try-in-VM (#178):',
                    'Program-migrator plugin architecture (#203):', 'Docs pass:', 'Field-report corpus review:'}
+# M2.6 harness classes (tests/e2e/run-e2e.sh note_flake). An infra red is
+# annotated with its class but still resets the streak; see docs/soak.md.
+INFRA_CLASSES = {'qga-channel-lost', 'serial-feed-lost'}
 MAX_PROOF = 8 * 1024 * 1024
 MAX_PRODUCT = 128 * 1024 * 1024
 
@@ -295,10 +298,18 @@ def collect(api, old, config, today):
     for key, row in rows.items():
         diagnosis = config.get('diagnoses', {}).get(f'{key[0]}:{key[1]}')
         row.pop('diagnosisIssue', None)
+        row.pop('infraClass', None)
+        infra = None
+        if isinstance(diagnosis, dict):
+            diagnosis, infra = diagnosis.get('issue'), diagnosis.get('infraClass')
+            if infra is not None and infra not in INFRA_CLASSES:
+                raise ValueError(f'Unknown infra class {infra!r} for {key[0]}:{key[1]}')
         if diagnosis and row['verdict'] != 'success':
             issue = api.issue(diagnosis)
             if has_run_link(issue.get('body'), row['runUrl']):
                 row['diagnosisIssue'] = diagnosis
+                if infra:
+                    row['infraClass'] = infra
     # Release identity is informational and never supplies proof by itself.
     releases = api.pages(f'repos/{api.repo}/releases', None)
     for row in rows.values():
@@ -318,6 +329,8 @@ def render(rows, summary):
              '|---|---|---|---|---|---|']
     for row in reversed(rows):
         detail = f'#{row["diagnosisIssue"]}' if row.get('diagnosisIssue') else row.get('reason', '')
+        if row.get('infraClass'):
+            detail += f' (infra: {row["infraClass"]}; streak reset)'
         detail = detail.replace('|', '\\|').replace('\n', ' ')
         artifact_label = row.get('shell', 'unproven') + ' / ' + row.get('artifactSha256', '—')
         lines.append(f'| {row["date"]} | [{row["sourceSha"][:12]} / {row["runId"]}:{row["runAttempt"]}]({row["runUrl"]}) | {row["verdict"]} | {artifact_label} | {row.get("autoReleaseTag") or "—"} | {detail} |')

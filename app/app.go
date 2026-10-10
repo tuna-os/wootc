@@ -81,8 +81,13 @@ type SystemInfo struct {
 	// machine's firmware holds in its db variable ("2011", "2023"), so the
 	// preflight can tell before the reboot whether the signed shim this
 	// build stages will be launched at all (#322). Empty means the db could
-	// not be read, which warns rather than refusing.
+	// not be read (UefiDbRead false), which warns rather than refusing, or
+	// that it was read and holds neither CA (UefiDbRead true), which refuses.
 	TrustedUefiAuthorities []string `json:"trustedUefiAuthorities"`
+	// UefiDbRead is true when the firmware's db was read and held at least
+	// one certificate, so an empty TrustedUefiAuthorities is a fact about
+	// the firmware rather than about our ability to ask (#322).
+	UefiDbRead bool `json:"uefiDbRead"`
 	// SecureBootChainWarning is set when Secure Boot is on but the db could
 	// not be read: honest disclosure that one check could not be made,
 	// shown before the user commits rather than after the restart.
@@ -360,8 +365,7 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 	// prevents ("bad shim signature") happens after the reboot, where the
 	// user has no way to find out why Windows came back.
 	si := getSystemInfo()
-	if v := checkSecureBootChain(si.SecureBootOn, si.SecureBootKnown,
-		si.TrustedUefiAuthorities, stagedShimAuthorities()); v.Blocked {
+	if v := secureBootChainVerdict(si); v.Blocked {
 		return fmt.Errorf("%s", v.Message)
 	}
 	// Only offer images the channel permits. Enterprise images.json override
@@ -487,10 +491,19 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 	}
 	cfg.Bootloader = bootloader
 	if cfg.Encryption == "" {
-		cfg.Encryption = "tpm2-luks"
+		cfg.Encryption = "none"
 	}
 	switch cfg.Encryption {
-	case "none", "tpm2-luks":
+	case "none":
+	case "tpm2-luks":
+		// The deployer's verification step cannot open a TPM-sealed root
+		// (fisherman stages TPM enrollment for first boot and only emits a
+		// recovery key the deployer never captures), so every such install
+		// aborts at verification, and the user is never shown the key the
+		// first boot asks for (#551, #33). Refuse it until that path works.
+		return fmt.Errorf("TPM auto-unlock is not available yet: the install cannot " +
+			"verify a TPM-sealed disk and would not show you its recovery key (#551). " +
+			"Choose no encryption, or a passphrase")
 	case "luks-passphrase":
 		if cfg.LuksPassphrase == "" {
 			return fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
@@ -890,7 +903,11 @@ func installPipelineSteps(ctx context.Context, cfg InstallConfig, emit func(Prog
 			registerUninstallEntry()
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)
-			return nil
+			// Commit point of the boot-chain transaction (#286): the one-shot
+			// is the LAST change before reboot. Until here the wootc entry is
+			// inert, so a cancel, failure, or power cut at any earlier step
+			// returns to Windows.
+			return armBootChain()
 		}},
 	}
 
@@ -910,6 +927,9 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 		return err
 	}
 	steps := installPipelineSteps(ctx, cfg, emit)
+	// Started only after the gates above, so a refused run never overwrites
+	// the journal of the attempt recovery still has to explain.
+	journal := newInstallJournalRecorder(journalPath(), cfg, nil)
 
 	fault := cfg.FaultInject
 	if fault == "" {
@@ -930,9 +950,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 				disarmOneShot()
 			}
 			writeState(StateStaged, "cancelled", "")
+			journal.end(JournalCancelled, "")
 			return ctx.Err()
 		default:
 		}
+		journal.stepStarted(s.name)
 		emit(installStepProgress(s.name, s.percent))
 
 		if fault != "" {
@@ -942,38 +964,46 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during root disk creation")
+				journal.end(JournalFailed, "fault-injection: simulated failure during root disk creation")
 				return fmt.Errorf("%s: fault-injection: simulated failure during root disk creation", displayStepLabel(s.name))
 			case (fault == "image-pull" || fault == "image-download") && (s.name == StepInstallerDownloadingLinux || s.name == StepInstallerDownloadingYourLinuxSystem):
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during image download")
+				journal.end(JournalFailed, "fault-injection: simulated failure during image download")
 				return fmt.Errorf("%s: fault-injection: simulated failure during image download", displayStepLabel(s.name))
 			case (fault == "efi-staging" || fault == "efi") && s.name == StepInstallerGettingLinuxPrepared:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during EFI staging")
+				journal.end(JournalFailed, "fault-injection: simulated failure during EFI staging")
 				return fmt.Errorf("%s: fault-injection: simulated failure during EFI staging", displayStepLabel(s.name))
 			case (fault == "bcd-arming" || fault == "bcd") && s.name == StepInstallerMakingLinuxBootableOnYourMachine:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during BCD arming")
+				journal.end(JournalFailed, "fault-injection: simulated failure during BCD arming")
 				return fmt.Errorf("%s: fault-injection: simulated failure during BCD arming", displayStepLabel(s.name))
 			}
 		}
 
+		// Set BEFORE the step runs: configureBCD can fail after it created an
+		// entry, and that partial chain must be rolled back too.
+		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
+			armed = true
+		}
 		if err := s.fn(); err != nil {
 			if armed {
 				disarmOneShot()
 			}
 			writeState(StateFailed, s.name, err.Error())
+			journal.end(JournalFailed, err.Error())
 			return fmt.Errorf("%s: %w", displayStepLabel(s.name), err)
 		}
-		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
-			armed = true
-		}
+		journal.stepDone(s.name)
 	}
 
 	if fault == "pre-reboot" {
@@ -981,10 +1011,16 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			disarmOneShot()
 		}
 		writeState(StateStaged, "cancelled", "fault-injection: simulated cancellation before reboot")
+		journal.end(JournalCancelled, "fault-injection: simulated cancellation before reboot")
 		return fmt.Errorf("fault-injection: simulated cancellation before reboot")
 	}
 
-	return finishInstallPipeline(ctx, armed, disarmOneShot, writeState)
+	if err := finishInstallPipeline(ctx, armed, disarmOneShot, writeState); err != nil {
+		journal.end(JournalCancelled, "")
+		return err
+	}
+	journal.end(JournalArmed, "")
+	return nil
 }
 
 // A cancellation can arrive inside the final synchronous operation. There is
@@ -1027,9 +1063,25 @@ func (a *App) TryAgain() error {
 	return tryAgainFromArmed(false)
 }
 
-// RepairBoot re-stages ESP bootloader files, re-arms BCD, and reboots.
+// RepairBoot re-stages ESP bootloader files, re-arms BCD, and reboots. It
+// refuses when the boot chain cannot be attributed to this install.
 func (a *App) RepairBoot() error {
 	return repairBootFromArmed(false)
+}
+
+// InspectBoot reports the observed boot state, which entries are wootc's,
+// and which repair actions are safe. It changes nothing in BCD or on the ESP
+// and saves an evidence bundle under install\repair.
+func (a *App) InspectBoot() BootRepairReport {
+	report, _ := inspectBoot()
+	return report
+}
+
+// RestoreWindowsBoot takes wootc out of the boot order so Windows starts,
+// keeping the entry and files for a later retry. The returned report is a
+// fresh observation; err is set unless it shows a Windows-only boot.
+func (a *App) RestoreWindowsBoot() (BootRepairReport, error) {
+	return restoreWindowsBoot()
 }
 
 // VMEvent is a Try-in-VM progress event (frontend listens on "vm:progress").

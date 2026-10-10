@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetInstallSteps, GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict } from '../wailsjs/go/main/App';
+import { GetInstallSteps, GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict, GetInstallRecovery } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { startE2EDrive } from './lib/e2e.js';
 import { state } from './lib/state.js';
@@ -13,6 +13,7 @@ import { renderDoneScreen } from './screens/done.js';
 import { renderControlPanel } from './screens/control.js';
 import { renderMigrateScreen, renderMigrateRows, refreshCategories } from './screens/migrate.js';
 import { renderRecoveryScreen } from './screens/recovery.js';
+import { renderInterruptedScreen, INTERRUPTED_CLASSES } from './screens/interrupted.js';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,7 @@ async function init() {
     return;
   }
 
-  const [images, sysinfo, existing, policy, sessionCandidates, lastRun, recoveryVerdict] = await Promise.all([
+  const [images, sysinfo, existing, policy, sessionCandidates, lastRun, recoveryVerdict, installRecovery] = await Promise.all([
     GetImages(),
     GetSystemInfo(),
     ExistingInstallFound(),
@@ -89,9 +90,12 @@ async function init() {
     Promise.resolve().then(GetLastRun).catch(() => null),
     // Recovery guard verdict (§2)
     Promise.resolve().then(GetRecoveryVerdict).catch(() => null),
+    // Interrupted-install classification from the durable journal (#287).
+    Promise.resolve().then(GetInstallRecovery).catch(() => null),
   ]);
   state.lastRun = lastRun && lastRun.state ? lastRun : null;
   state.recoveryVerdict = recoveryVerdict && recoveryVerdict.verdict && recoveryVerdict.verdict !== 'none' && recoveryVerdict.verdict !== 'healthy' && recoveryVerdict.verdict !== 'deployed' ? recoveryVerdict : null;
+  state.installRecovery = installRecovery && INTERRUPTED_CLASSES.includes(installRecovery.class) ? installRecovery : null;
 
   state.policy = policy;
   state.images = images || [];
@@ -132,6 +136,8 @@ async function init() {
   
   if (state.recoveryVerdict) {
     state.screen = 'recovery';
+  } else if (state.installRecovery) {
+    state.screen = 'interrupted';
   } else {
     state.screen = existing ? 'control' : 'launchpad';
   }
@@ -165,6 +171,7 @@ function render() {
     case 'migrate':   content.appendChild(renderMigrateScreen()); break;
     case 'vmpreview': content.appendChild(renderVMPreviewScreen()); break;
     case 'recovery':  content.appendChild(renderRecoveryScreen()); break;
+    case 'interrupted': content.appendChild(renderInterruptedScreen()); break;
     default:          content.innerHTML = '<div style="padding:40px;color:#666">Loading…</div>';
   }
 
