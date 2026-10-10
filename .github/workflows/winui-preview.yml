@@ -33,14 +33,14 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: shell/global.json
       - name: Run startup, route and refusal counterexamples
         working-directory: shell
         run: dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: winui-core-${{ matrix.os }}
@@ -51,14 +51,14 @@ jobs:
     name: Native preview XAML and packaging build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: shell/global.json
       - name: Restore and publish the native preview
         working-directory: shell
         run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} --output ../out/winui-preview
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: app/go.mod
       - name: Build the exact preview engine for authenticated startup RPC
@@ -99,7 +99,7 @@ jobs:
           Get-ChildItem shell/Wootc.Shell/obj -Recurse -File |
             Where-Object { $_.Name -match '^(App|MainWindow|XamlTypeInfo)[.]g[.]' } |
             Copy-Item -Destination out/winui-source-diagnostics
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: winui-preview-diagnostics
@@ -110,7 +110,7 @@ jobs:
             shell/Wootc.Shell.UiTests/TestResults/*.trx
             shell/Wootc.Shell.NativeTests/TestResults/*.trx
           if-no-files-found: error
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: winui-preview-unpackaged
@@ -124,8 +124,8 @@ jobs:
     name: Native Windows process identity observations
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: app/go.mod
       - name: Observe actual process tokens and retained handles
@@ -145,11 +145,11 @@ jobs:
       matrix:
         brand: [wootc, tunaos, aurora, bazzite, bluefin]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: shell/global.json
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: app/go.mod
       - name: Publish the selected preview brand and exact engine
@@ -165,7 +165,7 @@ jobs:
       - name: Compile, install, observe and remove only the preview package
         shell: pwsh
         run: ./shell/packaging/test-installed-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: winui-preview-package-${{ matrix.brand }}
