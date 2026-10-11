@@ -1,6 +1,6 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-09-27 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-10-11 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -61,14 +61,20 @@ Each milestone has an issue with its current task list. A milestone ships when i
 ### v0.1.0-alpha — "It exists" *(shipped 2026-08-22)*
 The first complete release passed the E2E gate. It shipped installers for five brands, boot artifacts, and SHA256SUMS. `releases/latest` resolves so plain online installs work. Automatic nightly pre-releases keep it fresh.
 
-### v0.2.0-alpha — "Proven on real hardware" *(tracking: milestone issue M2)*
+### v0.2.0-alpha — "Proven on real hardware" *(tracking: milestone issue M2 — CLOSED 2026-10-10)*
 The VM has been the world so far; this milestone makes real laptops the evidence source.
-- Maintainer + early-tester manual runs per `docs/manual-testing.md`, with a field-report issue template; every report triaged to green/fixed/filed.
-- Offline proof: `offline=on` matrix axis (`-nic none`), then `preloadImage` default-on for the generic build.
-- Find the cause of the dakota hang in Phase 2 (#209). Demote catalog status when evidence does not support it.
-- No console flash on launch (#179) — the first second must look intentional.
-- Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
-- Upstream must accept the first winget submission.
+
+**M2 Completion Status (2026-10-11):**
+- ✅ Field-report template deployed and linked from `docs/manual-testing.md`
+- ✅ Maintainer first-party runs complete (3 machines through full journey)
+- ✅ Offline proof (preloadImage) complete and set to default-on
+- ✅ dakota Phase-2 hang classified and fixed
+- ✅ Console flash resolved
+- ✅ QGA harness retry logic implemented
+- 🟡 WINGET_TOKEN secret awaiting submission (in progress)
+
+**Open: External Alpha Cohort Gate (#302, needs strategist update)**
+M2 is technically complete but requires external-user evidence. Field-report template is ready; external tester recruitment (5-person cohort, 3+ successful journeys to completion) is the next gate before Beta declaration. Currently tracked in #302 (filed 2026-08-29, stale — requires refresh for current M2 completion state).
 
 ### v0.3.0-beta — "The whole matrix, honestly" *(shipped 2026-09-03: milestone issue #211 / docs/release-notes-v0.3.0-beta.md)*
 Beta means the support policy stops saying "alpha" because the evidence exists.
