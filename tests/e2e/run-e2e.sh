@@ -3627,8 +3627,31 @@ if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | g
     exit 1
 fi
 pass "Phase 2 Linux boot scheduled through BCD one-shot entry (bootsequence verified)"
+# Whether the deployer queued a MOK enrollment is known from its serial
+# BEFORE the reboot, and it decides how the reboot is watched (see below).
+# A transient `podman cp` race must not abort the run under set -e: the
+# feed reports failure itself and warns after 12 consecutive misses.
+MOK_PENDING=false
+MOK_EXTRA=0
+snapshot_serial || true
+if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
+    MOK_PENDING=true
+    MOK_EXTRA=300
+fi
 qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-qga_wait_down "Phase 2 Linux boot" 300
+# MokManager shows a 10-second countdown, then boots GRUB and DELETES the
+# enrollment request: shim does not ask twice, and nothing on the Windows
+# side can queue it again. Runs 38755153727 and 38776066218 spent ~24 s in
+# this QGA departure wait, so the serial loop first looked after the
+# countdown had already run out, and Phase 2 could never boot (GRUB: "bad
+# shim signature"). With an enrollment pending, go straight to the serial
+# loop and poll it every second until MokManager is driven; the loop reads
+# the boot from the serial, so it needs no QGA departure proof.
+if [ "$MOK_PENDING" = true ]; then
+    wootc_phase_boundary
+else
+    qga_wait_down "Phase 2 Linux boot" 300
+fi
 
 # ── MokManager driver (#248) ─────────────────────────────────────────────────
 # When the deployer queued a MOK enrollment (custom-kernel images: the target
@@ -3651,7 +3674,6 @@ qga_wait_down "Phase 2 Linux boot" 300
 # (mis-timed keystroke), catch the next loop and try once more. Stray keys
 # still cannot land in GRUB ('e' — which the password contains — opens its
 # editor): the sequence fires only on the MokManager marker itself.
-MOK_EXTRA=0
 mok_sendkey() {
     $DOCKER exec "$CONTAINER_NAME" python3 -c \
         'import socket,time,sys; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(("sendkey %s\n" % sys.argv[1]).encode()); time.sleep(.3); s.recv(4096); s.close()' \
@@ -3689,22 +3711,12 @@ mok_sequence() {  # returns 0 only when the MokManager MENU was confirmed and dr
 # appeared AFTER the window closed, unanswered, while the watcher had
 # already concluded it was never coming. Here we only record whether an
 # enrollment is pending (and widen the boot budget for the extra reboots).
-MOK_PENDING=false
 MOK_SIGHTINGS=0
-# Re-arm Phase 2 once per event that hands the firmware back to Windows: a
-# driven sequence (MokManager reboots to the default entry) or a reset after
-# a missed countdown. A single "already re-armed" flag would strand the
-# enrolled boot behind the recovery's re-arm.
+# Re-arm Phase 2 once per driven sequence (MokManager reboots to the
+# firmware default, Windows), consumed by the re-arm itself.
 MOK_REARM_WANTED=false
 MOK_MISS_BYTE=""
-MOK_RESETS=0
-# A transient `podman cp` race here (reboot moment) must not abort the run
-# under set -e: the feed reports failure itself and warns after 12
-# consecutive misses, and the MOK grep below tolerates a stale copy.
-snapshot_serial || true
-if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
-    MOK_PENDING=true
-    MOK_EXTRA=300
+if [ "$MOK_PENDING" = true ]; then
     step "Deploy queued a MOK enrollment — the Phase-2 wait will drive MokManager when it appears"
 fi
 
@@ -3755,26 +3767,17 @@ while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
-    # A MISSED countdown does not come back by itself: MokManager boots GRUB,
-    # GRUB refuses the untrusted kernel and then waits at its menu (run
-    # 38755153727 sat there for the whole budget). The enrollment request is
-    # still pending, so reset from the bootloader — positive evidence only,
-    # see mok_missed_boot_refused — let the firmware fall back to Windows,
-    # and re-arm the one-shot; the next pass through shim shows MokManager to
-    # a loop that is already watching. Once per run.
-    if [ "$MOK_PENDING" = true ] && [ -n "$MOK_MISS_BYTE" ] && [ "$MOK_RESETS" -lt 1 ] \
+    # A MISSED countdown cannot be recovered from here: MokManager deleted
+    # the request when it booted on, and GRUB then refuses the untrusted
+    # kernel and parks at its menu (run 38755153727 waited out its budget;
+    # 38776066218 reset and re-armed, and MokManager never came back). Say so
+    # at once — positive evidence only, see mok_missed_boot_refused — and
+    # say whose fault it is: the harness was late, the product was not.
+    if [ "$MOK_PENDING" = true ] && [ -n "$MOK_MISS_BYTE" ] \
         && mok_missed_boot_refused "$(tail -c +"$((MOK_MISS_BYTE + 1))" "$PTY" 2>/dev/null || true)"; then
-        MOK_RESETS=$((MOK_RESETS + 1))
-        MOK_MISS_BYTE=""
-        MOK_REARM_WANTED=true
-        info "MokManager countdown missed and GRUB refused the untrusted kernel — resetting from the bootloader to retry the enrollment"
-        $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket,time; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(b"system_reset\n"); time.sleep(.4); s.recv(4096); s.close()' \
-            || warn "  monitor reset failed — the boot verdict decides"
-        BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
-        snapshot_serial || true
-        LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
-        sleep 5
-        continue
+        PHASE2_DIAGNOSED=true
+        infra_fail "MokManager countdown expired before the harness answered it; shim consumed the enrollment request and GRUB refused the unenrolled kernel — this run has no verdict on Phase 2"
+        break
     fi
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
@@ -3885,7 +3888,8 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         fi
         LAST_BYTE=$CURRENT_BYTE
     fi
-    sleep 5
+    # MokManager's countdown is 10 s; poll every second until it is driven.
+    if [ "$MOK_PENDING" = true ] && [ "$MOK_SIGHTINGS" -eq 0 ]; then sleep 1; else sleep 5; fi
 done
 
 [ "$BOOT_SUCCESS" = true ] || {

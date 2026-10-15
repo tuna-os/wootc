@@ -128,13 +128,12 @@ E2E=tests/e2e/run-e2e.sh
     # once and reboot when Windows comes back after a driven sequence.
     local E2E=tests/e2e/run-e2e.sh
     grep -q 'starting Boot.\* "Windows Boot Manager"' "$E2E"
-    # Gated on an event that handed the firmware back to Windows (a driven
-    # sequence, or the missed-countdown reset) and consumed by the re-arm
-    # itself — a re-arm loop could bounce the machine forever. Bounded: at
-    # most two driven sequences and one reset can ask for one.
+    # Gated on a driven sequence and consumed by the re-arm itself — a
+    # re-arm loop could bounce the machine forever. Bounded: at most two
+    # driven sequences can ask for one.
     grep -q '^    MOK_REARM_WANTED=false$' "$E2E"
     [ "$(grep -c 'if \[ "$MOK_REARM_WANTED" = true \] \\$' "$E2E")" -eq 2 ]
-    [ "$(grep -c '^ *MOK_REARM_WANTED=true$' "$E2E")" -eq 2 ]
+    [ "$(grep -c '^ *MOK_REARM_WANTED=true$' "$E2E")" -eq 1 ]
     ! grep -q 'MOK_REARMED' "$E2E"
     # The soft QGA wait cannot write the failure ledger (qga_wait's timeout
     # branch calls fail(); this must not be able to fail the run on its own).
