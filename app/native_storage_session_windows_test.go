@@ -133,16 +133,22 @@ $code="[Console]::Error.WriteLine('owned-descendant-started'); [Console]::Out.Wr
 $encoded=[System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($code))
 $info=[System.Diagnostics.ProcessStartInfo]::new()
 $info.FileName="$PSHOME\powershell.exe"
+# The descendant must hold only the inherited stderr pipe. Without its own
+# stdin, .NET passes it this helper's stdin (the session request pipe), and
+# Windows PowerShell reads redirected stdin as $input: it then takes the
+# test's request lines from the helper. Give it a private stdin and close it
+# at once, so its read of stdin ends at EOF.
 $info.Arguments="-NoProfile -NonInteractive -EncodedCommand $encoded"
 $info.UseShellExecute=$false
+$info.RedirectStandardInput=$true
 $info.RedirectStandardOutput=$true
 $info.CreateNoWindow=$true
 $child=[System.Diagnostics.Process]::Start($info)
+$child.StandardInput.Close()
 [Console]::Error.WriteLine("held-fixture-child-start-returned")
 # Wait for the descendant's own readiness line instead of a fixed sleep: it
 # writes its stderr marker first, so the marker is in the held pipe before
-# the helper answers. A slow descendant start now fails the first query
-# under the same five-second deadline instead of racing the marker.
+# the helper answers the first request.
 if ($child.StandardOutput.ReadLine() -ne 'owned-descendant-ready') {throw 'Owned descendant readiness refused'}
 `
 				nativeStorageQuery = child + good

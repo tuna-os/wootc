@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -47,5 +48,15 @@ if not receipt.get("accepted"):
     for name in sorted(required - set(outcomes)):
         print(f"CONTROL MISSING {name}")
     print(f"go test return code {receipt['returnCode']}")
+    # The failing tests' own t.Fatal/t.Error lines (file:line: message),
+    # bounded. Raw helper bytes stay in the artifact only.
+    failed = {name for name, outcome in outcomes.items() if outcome == "fail"}
+    shown = 0
+    for line in (output/"stdout.raw").read_bytes().splitlines():
+        event = json.loads(line)
+        text = event.get("Output") or ""
+        if event.get("Action") == "output" and event.get("Test") in failed and re.match(r"\s+\w+_test\.go:\d+: ", text) and shown < 40:
+            print(f"CONTROL MESSAGE {event['Test']}: {text.strip()[:300]}")
+            shown += 1
     raise SystemExit("Actual native controls failed or skipped; retained raw bytes and receipt")
 print("Actual native configuration controls PASS; no skipped controls")
