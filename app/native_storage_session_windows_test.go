@@ -19,7 +19,9 @@ import (
 )
 
 func TestNativeConfigurationActualPreparedStorageSnapshots(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// This is the first real storage query in the test binary, so it meets
+	// the same Windows PowerShell cold start as the product: use its budget.
+	ctx, cancel := context.WithTimeout(context.Background(), nativeStorageQueryBudget)
 	defer cancel()
 	session, err := startNativeStorageSession(ctx)
 	if err != nil {
