@@ -50,9 +50,31 @@ type nativeInstallSession struct {
 	mu        sync.Mutex
 	prepare   nativeInstallPrepare
 	start     func(InstallConfig) error
+	reboot    func() error
 	authority nativeInstallAuthority
 	prepared  bool
 	confirmed bool
+	started   bool
+}
+
+// withReboot sets the restart action. A restart is offered only after this
+// session's own confirmed install finished without an error.
+func (session *nativeInstallSession) withReboot(reboot func() error) *nativeInstallSession {
+	session.reboot = reboot
+	return session
+}
+
+func (session *nativeInstallSession) restart(status InstallStatus) (any, *jsonrpcError) {
+	session.mu.Lock()
+	started, reboot := session.started, session.reboot
+	session.mu.Unlock()
+	if !started || !status.Done || status.Running || status.Error != "" || reboot == nil {
+		return nil, &jsonrpcError{Code: errCodeInternal, Message: "restart is available only after this session's installation finished"}
+	}
+	if err := reboot(); err != nil {
+		return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+	}
+	return nil, nil
 }
 
 func newNativeInstallSession(prepare nativeInstallPrepare, start func(InstallConfig) error) *nativeInstallSession {
@@ -145,6 +167,9 @@ func (session *nativeInstallSession) dispatch(method string, params json.RawMess
 		if err := authority.confirmIntent(params, start); err != nil {
 			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
 		}
+		session.mu.Lock()
+		session.started = true
+		session.mu.Unlock()
 		return nil, nil
 	}
 	return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in install session"}

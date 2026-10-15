@@ -16,6 +16,8 @@ on:
       - 'app/go.sum'
       - 'tests/native_original_user_controls.py'
       - 'app/native_install_session*'
+      - 'app/native_install_progress*'
+      - 'tests/unit/fixtures/install-progress/**'
       - 'app/native_install_plan.go'
       - 'app/native_serve_windows.go'
       - '.github/workflows/native-original-user.yml'

@@ -45,6 +45,27 @@
       <TextBlock x:Name="InstallGateStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallGateStatus" />
       <Button x:Name="InstallButton" Content="Install Linux" Click="Install_Click" IsEnabled="False" AutomationProperties.AutomationId="InstallLinux" />
     </StackPanel>
+    <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Spacing="10">
+      <TextBlock x:Name="ProgressTitle" FontSize="20" FontWeight="SemiBold" AutomationProperties.AutomationId="ProgressTitle" />
+      <TextBlock x:Name="ProgressSubtitle" TextWrapping="Wrap" AutomationProperties.AutomationId="ProgressSubtitle" />
+      <TextBlock x:Name="ProgressStep" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.AutomationId="ProgressStep" />
+      <TextBlock x:Name="ProgressMessage" TextWrapping="Wrap" AutomationProperties.AutomationId="ProgressMessage" />
+      <ProgressBar x:Name="InstallProgressBar" Minimum="0" Maximum="100" AutomationProperties.AutomationId="InstallProgressBar" />
+      <StackPanel x:Name="ProgressNotes" Spacing="6" />
+      <StackPanel x:Name="ProgressSteps" Spacing="2" />
+      <Button x:Name="CancelInstallButton" Content="Cancel" Click="CancelInstall_Click" AutomationProperties.AutomationId="CancelInstall" />
+    </StackPanel>
+    <StackPanel x:Name="DonePanel" Visibility="Collapsed" Spacing="10">
+      <TextBlock x:Name="DoneTitle" FontSize="20" FontWeight="SemiBold" AutomationProperties.AutomationId="DoneTitle" />
+      <TextBlock x:Name="DoneBody" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneBody" />
+      <TextBlock x:Name="DoneSafety" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSafety" />
+      <TextBlock x:Name="DoneMok" TextWrapping="Wrap" Visibility="Collapsed" AutomationProperties.AutomationId="DoneMok" />
+      <TextBlock x:Name="DoneSaveWork" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSaveWork" />
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <Button x:Name="RebootLaterButton" Content="Reboot Later" Click="RebootLater_Click" AutomationProperties.AutomationId="RebootLater" />
+        <Button x:Name="RebootNowButton" Content="Reboot Now →" Style="{StaticResource AccentButtonStyle}" Click="RebootNow_Click" AutomationProperties.AutomationId="RebootNow" />
+      </StackPanel>
+    </StackPanel>
   </StackPanel>
   </Border>
   </Grid>

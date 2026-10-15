@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
     private readonly Branding brand;
     private InstallGate? installGate;
     private string configurationBrandId = "";
+    private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
     private long configurationGeneration;
@@ -167,6 +168,7 @@ public sealed partial class MainWindow : Window
             if (generation != configurationGeneration || controller.Connection != ConnectionState.Ready) return;
             var observed = new ConsumerConfiguration(snapshot.BrandId);
             configurationBrandId = snapshot.BrandId;
+            configurationSteps = snapshot.Steps.ToArray();
             observed.ApplyCatalogue(ConfigurationProjection.ToCatalogue(snapshot));
             updatingConfiguration = true;
             configuration = observed;
@@ -261,15 +263,94 @@ public sealed partial class MainWindow : Window
             InstallGateState.Refused or InstallGateState.Failed => installGate!.Reason,
             InstallGateState.Confirming => "Starting the installation",
             InstallGateState.Started => "The installation started. Keep this window open.",
+            InstallGateState.Cancelling => "Cancelling the installation",
+            InstallGateState.Cancelled => "The installation was cancelled.",
             _ => "",
         };
+        RenderInstallProgress(state);
+    }
+
+    // The legacy progress and done screens, word for word, from this
+    // session's own install:progress events.
+    private void RenderInstallProgress(InstallGateState state)
+    {
+        var progress = installGate?.Progress;
+        bool finished = progress is not null && state is InstallGateState.Finished or InstallGateState.Restarting;
+        bool installing = progress is not null && !finished && state is InstallGateState.Confirming or InstallGateState.Started or InstallGateState.Cancelling or InstallGateState.Failed;
+        ProgressPanel.Visibility = installing ? Visibility.Visible : Visibility.Collapsed;
+        DonePanel.Visibility = finished ? Visibility.Visible : Visibility.Collapsed;
+        if (installing || finished) ConfigurationPanel.Visibility = Visibility.Collapsed;
+        else if (configuration is not null) ConfigurationPanel.Visibility = Visibility.Visible;
+        if (progress is null) return;
+        var grant = installGate!.Grant;
+        var image = configuration?.Images.FirstOrDefault(candidate => candidate.ImageRef == grant?.ImageRef);
+        if (installing)
+        {
+            ProgressTitle.Text = InstallProgressText.Title(brand);
+            ProgressSubtitle.Text = InstallProgressText.Subtitle(image);
+            ProgressStep.Text = progress.StepLabel;
+            ProgressMessage.Text = progress.Message;
+            InstallProgressBar.Value = progress.Percent;
+            ProgressNotes.Children.Clear();
+            var notes = InstallProgressText.Notes(progress, grant?.StorageDrive ?? "", brand);
+            for (int index = 0; index < notes.Count; index++)
+            {
+                var note = new TextBlock { Text = notes[index], TextWrapping = TextWrapping.Wrap };
+                AutomationProperties.SetAutomationId(note, $"ProgressNote{index}");
+                ProgressNotes.Children.Add(note);
+            }
+            ProgressSteps.Children.Clear();
+            foreach (var step in progress.Steps)
+            {
+                var item = new TextBlock { Text = step.Label, Opacity = step.State == InstallStepState.Pending ? 0.6 : 1 };
+                if (step.State == InstallStepState.Active) item.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+                AutomationProperties.SetHelpText(item, step.State.ToString());
+                ProgressSteps.Children.Add(item);
+            }
+            CancelInstallButton.IsEnabled = state == InstallGateState.Started;
+        }
+        if (finished)
+        {
+            DoneTitle.Text = InstallProgressText.DoneTitle(brand);
+            DoneBody.Text = InstallProgressText.DoneBody(image, brand);
+            DoneSafety.Text = InstallProgressText.DoneSafety;
+            string? mok = InstallProgressText.MokEnrollment(image);
+            DoneMok.Text = mok ?? "";
+            DoneMok.Visibility = mok is null ? Visibility.Collapsed : Visibility.Visible;
+            DoneSaveWork.Text = InstallProgressText.SaveWork;
+            RebootNowButton.IsEnabled = state == InstallGateState.Finished;
+        }
+    }
+
+    private async void CancelInstall_Click(object sender, RoutedEventArgs args)
+    {
+        if (installGate is null) return;
+        CancelInstallButton.IsEnabled = false;
+        await installGate.CancelAsync();
+        UpdateInstallGate();
+    }
+
+    // Reboot Later leaves the prepared restart in place, as the legacy app does.
+    private void RebootLater_Click(object sender, RoutedEventArgs args) => Close();
+
+    private async void RebootNow_Click(object sender, RoutedEventArgs args)
+    {
+        if (installGate is null) return;
+        RebootNowButton.IsEnabled = false;
+        try { await installGate.RebootAsync(); }
+        catch (Exception error) { InstallGateStatus.Text = error.Message; }
+        UpdateInstallGate();
     }
 
     private async void PrepareInstall_Click(object sender, RoutedEventArgs args)
     {
         if (configuration is null || configuration.FormProblem.Length != 0 || configurationBrandId.Length == 0) return;
         var draft = configuration.CreateDraft();
-        installGate ??= new InstallGate(connector, configurationBrandId);
+        if (installGate is null)
+        {
+            installGate = new InstallGate(connector, configurationBrandId);
+            installGate.Changed += () => DispatcherQueue.TryEnqueue(() => { if (!closing) UpdateInstallGate(); });
+        }
         var preparing = installGate.PrepareAsync(draft);
         UpdateInstallGate();
         await preparing;
@@ -301,7 +382,7 @@ public sealed partial class MainWindow : Window
         var answer = await dialog.ShowAsync();
         if (answer == ContentDialogResult.Primary)
         {
-            var confirming = gate.ConfirmAsync();
+            var confirming = gate.ConfirmAsync(configurationSteps);
             UpdateInstallGate();
             await confirming;
         }

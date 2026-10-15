@@ -165,8 +165,8 @@ internal static class NativeProtocol
         {
             case "PrepareNativeInstall":
                 return (T)(object)DecodeInstallGrant(result, expectedBrand);
-            case "ConfirmNativeInstall":
-                if (result.ValueKind != JsonValueKind.Null) throw new InvalidDataException("Install confirmation returned an unexpected result");
+            case "ConfirmNativeInstall" or "CancelInstall" or "Reboot":
+                if (result.ValueKind != JsonValueKind.Null) throw new InvalidDataException("Install action returned an unexpected result");
                 return default!;
             default:
                 return DecodeStartup<T>(method, result);
@@ -192,6 +192,27 @@ internal static class NativeProtocol
             Text("encryption") is not ("none" or "luks-passphrase") || Text("secureBootChainWarning").Length > 1024)
             throw new InvalidDataException("Install grant is invalid");
         return result.Deserialize<NativeInstallGrant>() ?? throw new InvalidDataException("Install grant is missing");
+    }
+
+    private static readonly HashSet<string> ProgressFields = new(StringComparer.Ordinal) { "phaseId", "step", "message", "percent", "done", "error" };
+
+    // One install:progress event: the engine's ProgressEvent fields only, each
+    // once, bounded, with a finite percent. Step IDs are matched, never trusted
+    // as labels; the view looks labels up in the engine's catalogue.
+    internal static ProgressEvent DecodeProgress(JsonElement update)
+    {
+        if (update.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Install progress must be an object");
+        RejectDuplicates(update);
+        if (update.EnumerateObject().Any(property => !ProgressFields.Contains(property.Name)))
+            throw new InvalidDataException("Install progress has an unsupported field");
+        foreach (string field in new[] { "step", "message" }) Require(update, field, JsonValueKind.String);
+        Require(update, "done", JsonValueKind.True);
+        OptionalString(update, "phaseId"); OptionalString(update, "error");
+        if (!update.TryGetProperty("percent", out var percent) || percent.ValueKind != JsonValueKind.Number || !percent.TryGetDouble(out double value) || !double.IsFinite(value))
+            throw new InvalidDataException("Install progress percent is invalid");
+        foreach (var (field, limit) in new[] { ("phaseId", 256), ("step", 256), ("message", 4096), ("error", 4096) })
+            if (update.TryGetProperty(field, out var text) && text.GetString()!.Length > limit) throw new InvalidDataException("Install progress text exceeds its bound");
+        return update.Deserialize<ProgressEvent>() ?? throw new InvalidDataException("Install progress is missing");
     }
 
     internal static T DecodeStartup<T>(string method, JsonElement result)

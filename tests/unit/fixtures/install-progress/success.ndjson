@@ -1,0 +1,18 @@
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Checking your PC","step":"Checking your PC","message":"Checking your PC…","percent":5,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Preparing Windows","step":"Preparing Windows","message":"Preparing Windows…","percent":10,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Setting things up","step":"Setting things up","message":"Setting things up…","percent":15,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Finding your files","step":"Finding your files","message":"Finding your files…","percent":20,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Making room for Linux","step":"Making room for Linux","message":"Making room for Linux…","percent":26,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Downloading Linux","step":"Downloading Linux","message":"Downloading Linux…","percent":31,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Downloading your Linux system","step":"Downloading your Linux system","message":"Downloading your Linux system…","percent":36,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Preparing the startup menu","step":"Preparing the startup menu","message":"Preparing the startup menu…","percent":42,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Getting Linux prepared","step":"Getting Linux prepared","message":"Getting Linux prepared…","percent":47,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Making Linux bootable on your machine","step":"Making Linux bootable on your machine","message":"Making Linux bootable on your machine…","percent":52,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Saving your settings","step":"Saving your settings","message":"Saving your settings…","percent":57,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Saving your BitLocker recovery key","step":"Saving your BitLocker recovery key","message":"Saving your BitLocker recovery key…","percent":63,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Looking at your installed apps","step":"Looking at your installed apps","message":"Looking at your installed apps…","percent":68,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Checking your signed-in apps","step":"Checking your signed-in apps","message":"Checking your signed-in apps…","percent":73,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Looking for your cloud drives","step":"Looking for your cloud drives","message":"Looking for your cloud drives…","percent":79,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Collecting your look and Wi-Fi","step":"Collecting your look and Wi-Fi","message":"Collecting your look and Wi-Fi…","percent":84,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Finishing up","step":"Finishing up","message":"Finishing up…","percent":89,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"step":"done","message":"Installation complete. Reboot to start TunaOS.","percent":100,"done":true}}

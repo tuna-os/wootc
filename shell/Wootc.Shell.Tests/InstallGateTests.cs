@@ -9,6 +9,8 @@ public sealed class InstallGateTests
     private const string Brand = "fixture-brand";
     private const string Intent = "0123456789abcdef0123456789abcdef";
 
+    internal static readonly StepDefinition[] Steps = InstallProgressTests.Catalogue();
+
     private static InstallConfig Plan() => new() { ImageRef = "ghcr.io/tuna-os/yellowfin:gnome", Username = "linux_user", Password = "public synthetic password", StorageDrive = "D", DiskSizeGB = 40, Encryption = "none", Bootloader = "auto" };
 
     private sealed class FakeInstallSession : IInstallEngineSession
@@ -22,7 +24,13 @@ public sealed class InstallGateTests
         public string SessionId = "";
         public readonly List<InstallConfig> Plans = new();
         public readonly List<NativeInstallGrant> Confirmed = new();
-        public int Disposed;
+        public int Disposed, Cancels, Restarts;
+        public Queue<bool> Running = new();
+        public event Action<ProgressEvent>? ProgressReceived;
+        public void Emit(ProgressEvent update) => ProgressReceived?.Invoke(update);
+        public Task<InstallStatus> GetInstallStatusAsync(CancellationToken token) => Task.FromResult(new InstallStatus { Running = Running.Count > 0 && Running.Dequeue() });
+        public Task CancelInstallAsync(CancellationToken token) { Cancels++; return Task.CompletedTask; }
+        public Task RebootAsync(CancellationToken token) { Restarts++; return Task.CompletedTask; }
         public Task<StartupSnapshot> ReadStartupAsync(CancellationToken token) => throw new InvalidOperationException("An install session has no startup read");
         public Task<NativeInstallGrant> PrepareInstallAsync(InstallConfig plan, CancellationToken token)
         {
@@ -116,7 +124,7 @@ public sealed class InstallGateTests
             Assert.Equal("TPM auto-unlock is not available yet", gate.Reason);
             Assert.False(gate.CanInstall);
             Assert.Equal(1, refused.Sessions[0].Disposed);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync(Steps));
         }
         var declined = new FakeConnector { Outcome = ConnectionOutcome.PermissionDeclined };
         await using (var gate = new InstallGate(declined, Brand))
@@ -139,7 +147,7 @@ public sealed class InstallGateTests
         Assert.False(gate.CanInstall);
         Assert.Null(gate.Grant);
         Assert.Equal(1, connector.Sessions[0].Disposed);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync(Steps));
         Assert.Empty(connector.Sessions[0].Confirmed);
         // A new plan uses a new session identity and a new elevation.
         await gate.PrepareAsync(Plan());
@@ -154,14 +162,14 @@ public sealed class InstallGateTests
         await using var gate = new InstallGate(connector, Brand);
         await gate.PrepareAsync(Plan());
         var grant = gate.Grant!;
-        await gate.ConfirmAsync();
+        await gate.ConfirmAsync(Steps);
         Assert.Equal(InstallGateState.Started, gate.State);
         Assert.Same(grant, Assert.Single(connector.Sessions[0].Confirmed));
         Assert.False(gate.CanInstall);
         await gate.InvalidateAsync();
         Assert.Equal(InstallGateState.Started, gate.State);
         Assert.Equal(0, connector.Sessions[0].Disposed);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync(Steps));
         Assert.Single(connector.Sessions[0].Confirmed);
     }
 
@@ -171,11 +179,83 @@ public sealed class InstallGateTests
         var connector = new FakeConnector { Configure = session => session.ConfirmFailure = new InvalidDataException("native install observations changed") };
         await using var gate = new InstallGate(connector, Brand);
         await gate.PrepareAsync(Plan());
-        await gate.ConfirmAsync();
+        await gate.ConfirmAsync(Steps);
         Assert.Equal(InstallGateState.Failed, gate.State);
         Assert.Equal("native install observations changed", gate.Reason);
         Assert.False(gate.CanInstall);
         Assert.Equal(1, connector.Sessions[0].Disposed);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync(Steps));
+    }
+
+    [Fact]
+    public async Task ProgressEventsDriveTheConfirmedInstallToItsEnd()
+    {
+        var connector = new FakeConnector();
+        await using var gate = new InstallGate(connector, Brand);
+        int changes = 0;
+        gate.Changed += () => changes++;
+        await gate.PrepareAsync(Plan());
+        await gate.ConfirmAsync(Steps);
+        var session = connector.Sessions[0];
+        foreach (var update in InstallProgressTests.Replay("success.ndjson")) session.Emit(update);
+        Assert.Equal(InstallGateState.Finished, gate.State);
+        Assert.True(gate.Progress!.Done);
+        Assert.True(changes > 10);
+        await gate.CancelAsync();
+        Assert.Equal(InstallGateState.Finished, gate.State);
+        Assert.Equal(0, connector.Sessions[0].Cancels);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.ConfirmAsync(Steps));
+        await gate.RebootAsync();
+        Assert.Equal(1, session.Restarts);
+    }
+
+    [Fact]
+    public async Task AFailedInstallShowsTheEngineErrorAndCannotRestart()
+    {
+        var connector = new FakeConnector();
+        await using var gate = new InstallGate(connector, Brand);
+        await gate.PrepareAsync(Plan());
+        await gate.ConfirmAsync(Steps);
+        foreach (var update in InstallProgressTests.Replay("failure-after-arm.ndjson")) connector.Sessions[0].Emit(update);
+        Assert.Equal(InstallGateState.Failed, gate.State);
+        Assert.Equal("public synthetic step failure", gate.Reason);
+        Assert.True(gate.Progress!.PastArm);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.RebootAsync());
+        Assert.Equal(0, connector.Sessions[0].Restarts);
+    }
+
+    [Fact]
+    public async Task CancelGoesThroughTheSessionAndWaitsForTheInstallToStop()
+    {
+        var connector = new FakeConnector();
+        await using var gate = new InstallGate(connector, Brand);
+        await gate.PrepareAsync(Plan());
+        await gate.ConfirmAsync(Steps);
+        var session = connector.Sessions[0];
+        session.Emit(InstallProgressTests.Replay("success.ndjson").First());
+        session.Running = new Queue<bool>(new[] { true, true, false });
+        await gate.CancelAsync();
+        Assert.Equal(InstallGateState.Cancelled, gate.State);
+        Assert.Equal(1, session.Cancels);
+        Assert.Empty(session.Running);
+        Assert.Equal(1, session.Disposed);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.RebootAsync());
+        // Events after the cancel completed cannot revive the install view.
+        session.Emit(InstallProgressTests.Replay("success.ndjson").Last());
+        Assert.Equal(InstallGateState.Cancelled, gate.State);
+    }
+
+    [Fact]
+    public async Task NoProgressOrRestartBeforeConsent()
+    {
+        var connector = new FakeConnector();
+        await using var gate = new InstallGate(connector, Brand);
+        await gate.PrepareAsync(Plan());
+        connector.Sessions[0].Emit(InstallProgressTests.Replay("success.ndjson").Last());
+        Assert.Equal(InstallGateState.Granted, gate.State);
+        Assert.Null(gate.Progress);
+        await gate.CancelAsync();
+        Assert.Equal(0, connector.Sessions[0].Cancels);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gate.RebootAsync());
     }
 }

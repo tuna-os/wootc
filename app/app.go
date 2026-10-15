@@ -565,13 +565,9 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 			}
 		})
 		if err != nil && err != context.Canceled {
-			a.emit(ProgressEvent{
-				Step: "error", Message: err.Error(), Percent: 0, Error: err.Error(),
-			})
+			a.emit(installFailureEvent(err))
 		} else if err == nil {
-			a.emit(ProgressEvent{
-				Step: "done", Message: "Installation complete. Reboot to start TunaOS.", Percent: 100, Done: true,
-			})
+			a.emit(installDoneEvent())
 		}
 	})
 }
@@ -1186,6 +1182,17 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 		s.Done = true
 	})
 	a.emit(ProgressEvent{Step: "done", Message: "Installation complete (preview).", Percent: 100, Done: true})
+}
+
+// installDoneEvent and installFailureEvent are the last install:progress
+// events of a real run. The native shell's recorded progress streams
+// (tests/unit/fixtures/install-progress) are built from these constructors.
+func installDoneEvent() ProgressEvent {
+	return ProgressEvent{Step: "done", Message: "Installation complete. Reboot to start TunaOS.", Percent: 100, Done: true}
+}
+
+func installFailureEvent(err error) ProgressEvent {
+	return ProgressEvent{Step: "error", Message: err.Error(), Percent: 0, Error: err.Error()}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

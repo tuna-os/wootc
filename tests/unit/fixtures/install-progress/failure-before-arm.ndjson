@@ -1,0 +1,7 @@
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Checking your PC","step":"Checking your PC","message":"Checking your PC…","percent":5,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Preparing Windows","step":"Preparing Windows","message":"Preparing Windows…","percent":10,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Setting things up","step":"Setting things up","message":"Setting things up…","percent":15,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Finding your files","step":"Finding your files","message":"Finding your files…","percent":20,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Making room for Linux","step":"Making room for Linux","message":"Making room for Linux…","percent":26,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"Downloading Linux","step":"Downloading Linux","message":"Downloading Linux…","percent":31,"done":false}}
+{"jsonrpc":"2.0","method":"install:progress","params":{"step":"error","message":"public synthetic step failure","percent":0,"done":false,"error":"public synthetic step failure"}}

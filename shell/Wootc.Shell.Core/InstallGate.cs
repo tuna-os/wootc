@@ -3,7 +3,7 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Core;
 
-public enum InstallGateState { Idle, Preparing, Granted, Refused, Confirming, Started, Failed }
+public enum InstallGateState { Idle, Preparing, Granted, Refused, Confirming, Started, Failed, Cancelling, Cancelled, Finished, Restarting }
 
 // Install is enabled only by an engine grant for the exact plan on screen.
 // Each plan gets its own install-purpose session (a new elevation); a changed
@@ -17,7 +17,13 @@ public sealed class InstallGate : IAsyncDisposable
     private readonly SemaphoreSlim gate = new(1, 1);
     private IInstallEngineSession? session;
     private string sessionId = "";
-    public InstallGateState State { get; private set; } = InstallGateState.Idle;
+    private readonly object stateLock = new();
+    private InstallGateState state = InstallGateState.Idle;
+    public InstallGateState State { get { lock (stateLock) return state; } private set { lock (stateLock) state = value; } }
+    // The progress of a confirmed install, fed by this session's events.
+    public InstallProgress? Progress { get; private set; }
+    // Raised on the engine reader thread; the view marshals it.
+    public event Action? Changed;
     public string Reason { get; private set; } = "";
     public NativeInstallGrant? Grant { get; private set; }
     public bool CanInstall => State == InstallGateState.Granted && Grant is not null;
@@ -35,8 +41,9 @@ public sealed class InstallGate : IAsyncDisposable
         if (!await gate.WaitAsync(0, cancellationToken)) return;
         try
         {
-            if (State is InstallGateState.Confirming or InstallGateState.Started) return;
+            if (State is not (InstallGateState.Idle or InstallGateState.Granted or InstallGateState.Refused or InstallGateState.Failed or InstallGateState.Cancelled)) return;
             await CloseSessionAsync();
+            Progress = null;
             State = InstallGateState.Preparing;
             Reason = "";
             sessionId = Guid.NewGuid().ToString("N");
@@ -68,26 +75,90 @@ public sealed class InstallGate : IAsyncDisposable
     }
 
     // Confirming sends only the grant's intent. The engine runs the plan it
-    // granted, never a plan supplied with the confirmation.
-    public async Task ConfirmAsync(CancellationToken cancellationToken = default)
+    // granted, never a plan supplied with the confirmation. Progress is
+    // subscribed first, so no early event of the install is lost.
+    public async Task ConfirmAsync(IEnumerable<StepDefinition> steps, CancellationToken cancellationToken = default)
     {
         await gate.WaitAsync(cancellationToken);
         try
         {
             if (!CanInstall || session is null) throw new InvalidOperationException("No granted install plan");
+            var progress = new InstallProgress(steps);
+            Progress = progress;
             State = InstallGateState.Confirming;
+            session.ProgressReceived += OnProgress;
             try
             {
                 await session.ConfirmInstallAsync(Grant!, cancellationToken);
-                State = InstallGateState.Started;
+                lock (stateLock) { if (state == InstallGateState.Confirming) state = InstallGateState.Started; }
             }
             catch (Exception error)
             {
+                session.ProgressReceived -= OnProgress;
                 Grant = null;
+                Progress = null;
                 await CloseSessionAsync();
                 State = InstallGateState.Failed;
                 Reason = error.Message;
             }
+        }
+        finally { gate.Release(); }
+        Changed?.Invoke();
+    }
+
+    private void OnProgress(ProgressEvent update)
+    {
+        lock (stateLock)
+        {
+            if (Progress is null || state is not (InstallGateState.Confirming or InstallGateState.Started or InstallGateState.Cancelling)) return;
+            Progress.Apply(update);
+            if (Progress.Done && state != InstallGateState.Cancelling) state = InstallGateState.Finished;
+            else if (Progress.Error is { } error && state != InstallGateState.Cancelling) { state = InstallGateState.Failed; Reason = error; }
+        }
+        Changed?.Invoke();
+    }
+
+    // Cancel goes through the install session; the session stays open until
+    // the engine reports the install stopped, because closing it is itself a
+    // cancellation request that must not race the first one.
+    public async Task CancelAsync(CancellationToken cancellationToken = default)
+    {
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (State != InstallGateState.Started || session is null) return;
+            State = InstallGateState.Cancelling;
+            Changed?.Invoke();
+            try
+            {
+                await session.CancelInstallAsync(cancellationToken);
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(TimeSpan.FromMinutes(5));
+                while ((await session.GetInstallStatusAsync(deadline.Token)).Running) await Task.Delay(500, deadline.Token);
+                session.ProgressReceived -= OnProgress;
+                await CloseSessionAsync();
+                State = InstallGateState.Cancelled;
+            }
+            catch (Exception error)
+            {
+                State = InstallGateState.Failed;
+                Reason = error.Message;
+            }
+        }
+        finally { gate.Release(); }
+        Changed?.Invoke();
+    }
+
+    // Only a finished install of this session can request the restart.
+    public async Task RebootAsync(CancellationToken cancellationToken = default)
+    {
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (State != InstallGateState.Finished || session is null) throw new InvalidOperationException("No finished installation");
+            State = InstallGateState.Restarting;
+            try { await session.RebootAsync(cancellationToken); }
+            catch (Exception error) { State = InstallGateState.Finished; Reason = error.Message; throw; }
         }
         finally { gate.Release(); }
     }
@@ -99,7 +170,7 @@ public sealed class InstallGate : IAsyncDisposable
         await gate.WaitAsync();
         try
         {
-            if (State is InstallGateState.Confirming or InstallGateState.Started) return;
+            if (State is not (InstallGateState.Preparing or InstallGateState.Granted or InstallGateState.Refused)) return;
             await CloseSessionAsync();
             State = InstallGateState.Idle;
             Reason = "";

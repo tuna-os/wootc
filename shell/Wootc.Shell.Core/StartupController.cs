@@ -28,6 +28,12 @@ public interface IInstallEngineSession : IEngineSession
 {
     Task<NativeInstallGrant> PrepareInstallAsync(InstallConfig plan, CancellationToken cancellationToken);
     Task ConfirmInstallAsync(NativeInstallGrant grant, CancellationToken cancellationToken);
+    // install:progress notifications of this session, validated, in order.
+    event Action<ProgressEvent>? ProgressReceived;
+    Task<InstallStatus> GetInstallStatusAsync(CancellationToken cancellationToken);
+    Task CancelInstallAsync(CancellationToken cancellationToken);
+    // The engine allows it only after this session's install finished.
+    Task RebootAsync(CancellationToken cancellationToken);
 }
 
 public interface IConfigurationEngineSession : IEngineSession

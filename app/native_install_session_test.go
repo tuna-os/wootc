@@ -52,7 +52,7 @@ func TestNativeInstallSessionAllowsOnlyStatusCancelPlanAndConsent(t *testing.T) 
 		prepared++
 		return nil, NativeInstallGrant{}, errors.New("unused")
 	}, func(InstallConfig) error { t.Fatal("start reached"); return nil })
-	allowed := map[string]bool{"GetStatus": true, "CancelInstall": true, "PrepareNativeInstall": true, "ConfirmNativeInstall": true}
+	allowed := map[string]bool{"GetStatus": true, "CancelInstall": true, "PrepareNativeInstall": true, "ConfirmNativeInstall": true, "Reboot": true}
 	methods := append(append([]string{}, ProtocolMethods...), "StartInstall", "startinstall", "GetNativeConfiguration", "Unknown")
 	for _, method := range methods {
 		if allowed[method] {

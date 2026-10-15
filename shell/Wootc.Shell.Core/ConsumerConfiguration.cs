@@ -6,7 +6,8 @@ namespace Wootc.Shell.Core;
 // View data comes from an authenticated configuration observation. It is not
 // an independent image catalogue or authorization to change this computer.
 public sealed record ConfigurationImage(string Id, string Name, string ImageRef, string Status,
-    bool Admitted, string AdmissionBlockedReason, bool RequiresMokEnrollment, string MokEnrollment, bool ContentVerified);
+    bool Admitted, string AdmissionBlockedReason, bool RequiresMokEnrollment, string MokEnrollment, bool ContentVerified,
+    string DesktopName = "", string Base = "");
 public sealed record ConfigurationDefaults(int DiskSizeGb, string Encryption, string Bootloader, bool ComposeFs, bool WindowsLook);
 public sealed record ConfigurationStorage(string Id, string DriveLetter, string DiskGuid, string PartitionGuid,
     string NtfsSerial, long FreeBytes, int MaximumRootDiskSizeGb);

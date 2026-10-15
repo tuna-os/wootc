@@ -63,6 +63,8 @@ internal sealed class NativeDiagnosticState
         "rpc-install-request" or "rpc-install-response" or "rpc-install-decode" or "rpc-install-complete" or
         "rpc-plan-request" or "rpc-plan-response" or "rpc-plan-decode" or "rpc-plan-complete" or
         "rpc-consent-request" or "rpc-consent-response" or "rpc-consent-decode" or "rpc-consent-complete" or
+        "rpc-cancel-request" or "rpc-cancel-response" or "rpc-cancel-decode" or "rpc-cancel-complete" or
+        "rpc-restart-request" or "rpc-restart-response" or "rpc-restart-decode" or "rpc-restart-complete" or
         "rpc-configuration-request" or "rpc-configuration-response" or "rpc-configuration-decode" or "rpc-configuration-complete" or
         "rpc-other-request" or "rpc-other-response" or "rpc-other-decode" or "rpc-other-complete" => stage,
         _ => "unknown"

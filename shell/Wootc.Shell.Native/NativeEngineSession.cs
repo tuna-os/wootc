@@ -66,8 +66,15 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
                 if (!root.TryGetProperty("id", out var id))
                 {
                     // Progress notifications do not acknowledge requests or
-                    // establish startup state. Later views may consume them.
-                    if (!root.TryGetProperty("method", out _)) throw new InvalidDataException("Engine RPC frame has neither response nor notification identity");
+                    // establish startup state. Only an install session reads
+                    // its own install:progress; a malformed one ends the session.
+                    if (!root.TryGetProperty("method", out var method)) throw new InvalidDataException("Engine RPC frame has neither response nor notification identity");
+                    if (installSession is not null && method.ValueKind == JsonValueKind.String && method.GetString() == "install:progress")
+                    {
+                        if (!root.TryGetProperty("params", out var parameters)) throw new InvalidDataException("Install progress has no event");
+                        var update = NativeProtocol.DecodeProgress(parameters);
+                        try { ProgressReceived?.Invoke(update); } catch { /* A view failure must not end the engine session. */ }
+                    }
                     continue;
                 }
                 if (!id.TryGetInt64(out long value)) throw new InvalidDataException("Invalid engine response identity");
@@ -95,7 +102,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
         "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration",
-        "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", _ => "rpc-other"
+        "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", "CancelInstall" => "rpc-cancel", "Reboot" => "rpc-restart", _ => "rpc-other"
     };
 
     internal Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null) =>
@@ -150,6 +157,24 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
         var grant = await CallAsync<NativeInstallGrant>("PrepareNativeInstall", parameters, deadline.Token);
         if (grant.Session != installSession) throw new InvalidDataException("The install grant names another session");
         return grant;
+    }
+
+    public event Action<ProgressEvent>? ProgressReceived;
+
+    public Task<InstallStatus> GetInstallStatusAsync(CancellationToken cancellationToken) =>
+        installSession is null ? throw new InvalidOperationException("This engine session is not an install session")
+            : CallAsync<InstallStatus>("GetStatus", cancellationToken);
+
+    public async Task CancelInstallAsync(CancellationToken cancellationToken)
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+        await CallAsync<object?>("CancelInstall", cancellationToken);
+    }
+
+    public async Task RebootAsync(CancellationToken cancellationToken)
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+        await CallAsync<object?>("Reboot", cancellationToken);
     }
 
     // Only the intent's identity is sent: no plan field can travel with consent.

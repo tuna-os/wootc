@@ -243,6 +243,11 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 	if s.installSession != nil {
 		switch req.Method {
 		case "GetStatus", "CancelInstall":
+		case "Reboot":
+			if len(req.Params) != 0 && string(req.Params) != "null" {
+				return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "restart accepts no parameters"}
+			}
+			return s.installSession.restart(s.app.GetStatus())
 		case "PrepareNativeInstall", "ConfirmNativeInstall":
 			if s.startupValidate != nil {
 				if err := s.startupValidate(ctx); err != nil {
