@@ -53,9 +53,9 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { submodules: recursive }
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with: { go-version: '1.27', cache: false }
       # Before ~90 min of VM: a final tag without its narrative notes, or
       # with notes still marked draft, can never publish (#242).
@@ -102,7 +102,7 @@ jobs:
       ) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           submodules: recursive
           # Auto channel: build the exact SHA the nightly proved, not
@@ -123,9 +123,9 @@ jobs:
           docker image prune -af 2>/dev/null || true
           echo "--- after cleanup ---"; df -h /
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with: { go-version: '1.27', cache: false }
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with: { node-version: '24' }
       - uses: ./.github/actions/podman-runtime
 
@@ -347,7 +347,7 @@ jobs:
           } > NOTES.md
           cat NOTES.md
 
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ steps.chan.outputs.tag }}
           target_commitish: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || (github.ref_type != 'tag' && github.sha || '') }}

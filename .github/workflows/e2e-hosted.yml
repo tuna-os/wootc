@@ -77,7 +77,7 @@ jobs:
     outputs:
       flake_verdict: ${{ steps.flake.outputs.verdict }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { submodules: recursive }
 
       - name: Confirm KVM is available
@@ -174,7 +174,7 @@ jobs:
       # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
       # loader tag, so this is a stock production build.
       - name: Set up Node for lifecycle CLI
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           # Disk reclaim removes the runner's preinstalled global Node modules.
           # GUI runs build the real Wails frontend, so explicitly restore a
@@ -182,7 +182,7 @@ jobs:
           node-version: '24'
 
       - name: Set up Go for lifecycle CLI
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
@@ -381,7 +381,7 @@ jobs:
         if: always()
         run: python3 tests/e2e/safe-log.py --tree /tmp/evidence
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always() && steps.safe_logs.outcome == 'success'
         with:
           # Per-CASE name. Every cell used to upload "e2e-nightly-<run_id>", so
