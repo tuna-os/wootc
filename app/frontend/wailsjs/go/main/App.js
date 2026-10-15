@@ -143,8 +143,16 @@ export function BootIntoLinux() {
   return window['go']['main']['App']['BootIntoLinux']();
 }
 
+export function GetInstallRecovery() {
+  return window['go']['main']['App']['GetInstallRecovery']();
+}
+
 export function GetRecoveryVerdict() {
   return window['go']['main']['App']['GetRecoveryVerdict']();
+}
+
+export function PrepareResume() {
+  return window['go']['main']['App']['PrepareResume']();
 }
 
 export function TryAgain() {
@@ -153,6 +161,14 @@ export function TryAgain() {
 
 export function RepairBoot() {
   return window['go']['main']['App']['RepairBoot']();
+}
+
+export function InspectBoot() {
+  return window['go']['main']['App']['InspectBoot']();
+}
+
+export function RestoreWindowsBoot() {
+  return window['go']['main']['App']['RestoreWindowsBoot']();
 }
 
 export function GetReleaseNotice() {

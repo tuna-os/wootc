@@ -1,9 +1,9 @@
 name: E2E (KVM)
 
+# Least privilege: the self-hosted e2e job only reads the repository. Only
+# deploy-pages gets the Pages token (#519).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: e2e-kvm-pages
@@ -92,6 +92,10 @@ jobs:
     if: ${{ success() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     needs: e2e
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -75,6 +75,25 @@ class ObserverTests(unittest.TestCase):
         with (self.folder/'serial.log').open('a') as stream:stream.write(final[half:]+'\n')
         result=self.observe(self.child,1)
         self.assertTrue(result['packageInstallationAccepted']);self.assertEqual(self.calls,['old','new'])
+        # Exercise the actual hosted exporter and independently rerun acceptance
+        # from its retained bytes after the producer returns.
+        export=self.folder/'export';export.mkdir()
+        hosted=runpy.run_path(str(ROOT/'tests/e2e/package-runtime/hosted-execute.py'))
+        hosted['retain'](self.folder,export)
+        proof=json.loads((export/(self.folder.name+'-final-readback.json')).read_bytes())
+        serial=(export/(self.folder.name+'-serial.log')).read_text()
+        self.assertEqual(SERIAL['validate'](serial,proof['plan'],proof['readback']),result)
+        self.assertEqual(proof['accepted'],result)
+        proof['readback']['challenge']='0'*64
+        with self.assertRaisesRegex(ValueError,'QGA readback differs'):
+            SERIAL['validate'](serial,proof['plan'],proof['readback'])
+
+    def test_final_readback_retention_failure_blocks_acceptance(self):
+        self.old_observed()
+        (self.folder/'serial.log').write_text(self.text(4))
+        (self.folder/'final-readback.json').mkdir()
+        with self.assertRaises(IsADirectoryError):self.observe(self.child,1)
+        self.assertEqual(self.calls,['old','new'])
 
     def test_completed_malformed_fourth_line_refuses_in_production_observe(self):
         self.old_observed()

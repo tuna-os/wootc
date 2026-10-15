@@ -15,6 +15,9 @@ REQUIRED = {
     'full-cycle': {'deployed', 'linux-root', 'linux-proof', 'user-data', 'windows-return', 'healthy'},
     'native-cycle': {'deployed', 'linux-root', 'linux-proof', 'user-data', 'native-boot', 'native-user-data'},
     'recovery': {'recovery-interrupted', 'recovery-retry', 'recovery-uninstall', 'recovery-windows'},
+    # Firmware that trusts no third-party CA (#322): the pass is a refusal in
+    # words AND proof that nothing was written, never a completed install.
+    'secure-boot-refusal': {'secure-boot-refused', 'secure-boot-untouched'},
 }
 OPTIONAL = {'gui-install'}
 DOMAINS = {'runner', 'infrastructure', 'product'}

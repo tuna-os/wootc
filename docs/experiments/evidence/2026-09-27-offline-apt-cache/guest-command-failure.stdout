@@ -1,0 +1,24 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  cloud-image-utils cloud-utils genisoimage initramfs-tools-bin
+  initramfs-tools-core klibc-utils libaio1t64 libklibc qemu-utils
+Use 'apt autoremove' to remove them.
+Suggested packages:
+  dracut-network rng-tools
+Recommended packages:
+  binutils console-setup cryptsetup kpartx lvm2 mdadm systemd-cryptsetup
+  libgpg-error-l10n
+The following packages will be REMOVED:
+  cloud-initramfs-growroot initramfs-tools
+The following NEW packages will be installed:
+  dracut dracut-core efibootmgr fuse3 libgcrypt20 libgpg-error0
+  libntfs-3g89t64 ntfs-3g qemu-guest-agent
+The following packages will be DOWNGRADED:
+  grub-common grub-efi-amd64-bin grub-efi-amd64-signed grub-efi-amd64-unsigned
+  grub-pc-bin grub2-common
+0 upgraded, 9 newly installed, 6 downgraded, 2 to remove and 0 not upgraded.
+After this operation, 9386 kB of additional disk space will be used.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24426 files and directories currently installed.)
+Removing cloud-initramfs-growroot (0.18.debian14) ...

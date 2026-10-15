@@ -1,0 +1,21 @@
+source	Verify actual installed production tool closure without starting a guest	﻿2026-09-27T15:22:00.2869386Z ##[group]Run python3 - <<'PY'
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2869726Z ^[[36;1mpython3 - <<'PY'^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2869970Z ^[[36;1mimport json, os, runpy^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2870240Z ^[[36;1mfrom pathlib import Path^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2870633Z ^[[36;1mhelper=runpy.run_path('tests/e2e/package-runtime/hosted-execute.py')^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2871132Z ^[[36;1moutput=Path(os.environ['RUNNER_TEMP'])/'native-tool-closure.json'^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2871545Z ^[[36;1mhashes=helper['closure'](proof=output)^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2871982Z ^[[36;1mprint(json.dumps({'protectedFiles':len(hashes),'runtimeExecuted':False}))^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2872379Z ^[[36;1mPY^[[0m
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2938132Z shell: /usr/bin/bash -e {0}
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.2938415Z ##[endgroup]
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9545492Z Traceback (most recent call last):
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9546055Z   File "<stdin>", line 5, in <module>
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9546676Z   File "tests/e2e/package-runtime/hosted-execute.py", line 125, in closure
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9554259Z     if path.is_file():paths.add(protected(path))
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9555063Z                                 ^^^^^^^^^^^^^^^
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9556006Z   File "tests/e2e/package-runtime/hosted-execute.py", line 31, in protected
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9556965Z     if meta.st_uid!=0 or meta.st_mode&0o022:raise ValueError('host source parent is writable')
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9557739Z                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9558291Z ValueError: host source parent is writable
+source	Verify actual installed production tool closure without starting a guest	2026-09-27T15:22:00.9689264Z ##[error]Process completed with exit code 1.

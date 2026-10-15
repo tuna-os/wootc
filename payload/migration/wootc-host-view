@@ -27,7 +27,11 @@ start)
     mount --bind "$source" "$staging"
     mount --make-private "$staging"
     shopt -s nullglob
-    states=("$staging"/[wW][oO][oO][tT][cC] "$staging"/*/[wW][oO][oO][tT][cC])
+    # Mask ONLY the top-level installer directory (any case). A second-level
+    # glob would also match a user profile literally named `wootc`
+    # (C:\Users\wootc) and blind the user-data bridge to it — the bridge's
+    # entire job is publishing Users/*, so depth stays at one.
+    states=("$staging"/[wW][oO][oO][tT][cC])
     ((${#states[@]} > 0))
     for state in "${states[@]}"; do
         [[ -d "$state" && ! -L "$state" ]]

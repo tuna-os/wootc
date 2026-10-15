@@ -104,6 +104,19 @@ SH
         [ "$status" -ne 0 ]
     done
 }
+@test "a user profile named wootc is a valid folder source" {
+    # The safe_folder_source depth-two wootc glob also matched a profile
+    # literally named wootc (C:\Users\wootc), so the bridge refused every
+    # folder of the E2E user. Profiles under Users/ are never installer
+    # state; deeper wootc paths elsewhere stay refused.
+    mkdir -p "$T/host/Users/wootc/Documents" "$T/host/wootc/install" \
+        "$T/host/elsewhere/wootc/stash"
+    sed -n '/^safe_folder_source()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs" > "$T/source-function"
+    run bash -c 'source "$1"; HOST="$2"; safe_folder_source "$2/Users/wootc/Documents"' bash "$T/source-function" "$T/host"
+    [ "$status" -eq 0 ]
+    run bash -c 'source "$1"; HOST="$2"; safe_folder_source "$2/elsewhere/wootc/stash"' bash "$T/source-function" "$T/host"
+    [ "$status" -ne 0 ]
+}
 @test "a user-created folder symlink is never used as a bind destination" {
     HOST="$T/host"
     mkdir -p "$HOST/Users/fixture/Documents" "$T/home" "$T/elsewhere"
@@ -127,4 +140,16 @@ SH
     run env STATE_NAME=WOOTC bash "$T/view" start
     [ "$status" -eq 0 ]
     grep -q 'mount --bind .*hidden .*public/WOOTC' "$CALLS"
+}
+
+@test "a user profile named wootc is published, not masked" {
+    # Run 20260928: the host-view mask hid C:\Users\wootc (same name as the
+    # installer dir), so the user-data bridge saw an empty 000-perm profile
+    # and every smoke cell failed user-data. The mask covers only the
+    # top-level installer directory; user profiles always stay published.
+    mkdir -p "$T/private/wootc-view-control/public/Users/wootc/Documents"
+    run bash "$T/view" start
+    [ "$status" -eq 0 ]
+    grep -q 'mount --bind .*hidden .*public/wootc$' "$CALLS"
+    ! grep -q 'hidden .*Users/wootc' "$CALLS"
 }

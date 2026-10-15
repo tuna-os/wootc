@@ -16,17 +16,19 @@ import (
 // builds and is tried second — it returns parsed certificates, so it needs
 // no signature-list walk, only the subject strings.
 //
-// An empty result means "could not tell", never "trusts nothing": the caller
-// warns rather than refusing.
-func trustedUefiAuthorities() []string {
+// The second result says whether db was actually read: true only when a
+// source returned at least one certificate. An empty generation list with
+// read=false means "could not tell" and warns; with read=true it means the
+// firmware holds neither third-party CA, and the caller refuses.
+func trustedUefiAuthorities() ([]string, bool) {
 	out, err := runPowerShellOutput(
 		`try { $v = Get-SecureBootUEFI -Name db -ErrorAction Stop; ` +
 			`[Convert]::ToBase64String($v.Bytes) } catch { '' }`)
 	if err == nil {
 		if raw := strings.TrimSpace(out); raw != "" {
 			if db, decErr := base64.StdEncoding.DecodeString(raw); decErr == nil {
-				if gens := parseUEFISignatureListCAs(db); len(gens) > 0 {
-					return gens
+				if gens, certs := parseUEFIDb(db); certs > 0 {
+					return gens, true
 				}
 			}
 		}
@@ -39,13 +41,18 @@ func trustedUefiAuthorities() []string {
 		`try { Get-SecureBootDbCertificates -ErrorAction Stop | ` +
 			`ForEach-Object { $_.Subject } } catch { '' }`)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	seen := map[string]bool{}
+	subjects := 0
 	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		subjects++
 		for _, gen := range matchMicrosoftUefiCA(line) {
 			seen[gen] = true
 		}
 	}
-	return sortedKeys(seen)
+	return sortedKeys(seen), subjects > 0
 }

@@ -132,9 +132,13 @@ export function E2EDriveReport(arg1:string):Promise<void>;
 export function GetSupportPolicy():Promise<Record<string, any>>;
 export function GetLastRun():Promise<Record<string, any>>;
 export function BootIntoLinux():Promise<void>;
+export function GetInstallRecovery():Promise<Record<string, any>>;
 export function GetRecoveryVerdict():Promise<Record<string, any>>;
+export function PrepareResume():Promise<Record<string, any>>;
 export function TryAgain():Promise<void>;
 export function RepairBoot():Promise<void>;
+export function InspectBoot():Promise<Record<string, any>>;
+export function RestoreWindowsBoot():Promise<Record<string, any>>;
 
 export function GetReleaseNotice(): Promise<{version: string; url: string}>;
 

@@ -1,0 +1,21 @@
+test_actual_directive_consumer_stops_before_handover_on_failed_write (__main__.HandoverTests.test_actual_directive_consumer_stops_before_handover_on_failed_write) ... ok
+test_actual_runner_does_not_claim_reboot_from_unknown_windows (__main__.HandoverTests.test_actual_runner_does_not_claim_reboot_from_unknown_windows) ... ok
+test_actual_runner_handover_consumer_refuses_unknown_and_labels_loss_only (__main__.HandoverTests.test_actual_runner_handover_consumer_refuses_unknown_and_labels_loss_only) ... ok
+test_bound_reboot_payload_reaches_actual_script_and_preserves_write_guard (__main__.HandoverTests.test_bound_reboot_payload_reaches_actual_script_and_preserves_write_guard) ... ok
+test_directive_write_requires_windows_success_and_exact_readback_ack (__main__.HandoverTests.test_directive_write_requires_windows_success_and_exact_readback_ack) ... ok
+test_expired_deadline_before_first_sample_refuses_without_guest_calls (__main__.HandoverTests.test_expired_deadline_before_first_sample_refuses_without_guest_calls) ... ok
+test_failed_or_malformed_identity_with_live_ping_never_proves_handover (__main__.HandoverTests.test_failed_or_malformed_identity_with_live_ping_never_proves_handover) ... ok
+test_invalid_budget_refuses_before_guest_calls (__main__.HandoverTests.test_invalid_budget_refuses_before_guest_calls) ... ok
+test_invalid_encoded_reboot_refuses_before_any_guest_call (__main__.HandoverTests.test_invalid_encoded_reboot_refuses_before_any_guest_call) ... ok
+test_positive_windows_clears_phase_in_actual_caller_context (__main__.HandoverTests.test_positive_windows_clears_phase_in_actual_caller_context) ... ok
+test_positive_windows_is_not_departure (__main__.HandoverTests.test_positive_windows_is_not_departure) ... ok
+test_real_blocking_transport_obeys_whole_deadline (__main__.HandoverTests.test_real_blocking_transport_obeys_whole_deadline) ... ok
+test_real_infrastructure_ledger_on_unknown_handover (__main__.HandoverTests.test_real_infrastructure_ledger_on_unknown_handover) ... ok
+test_removed_status_guard_mutant_accepts_failed_linux_token (__main__.HandoverTests.test_removed_status_guard_mutant_accepts_failed_linux_token) ... ok
+test_semantic_fixture_samples_then_expires_without_real_sleep (__main__.HandoverTests.test_semantic_fixture_samples_then_expires_without_real_sleep) ... ok
+test_successful_linux_identity_is_distinct_from_channel_loss (__main__.HandoverTests.test_successful_linux_identity_is_distinct_from_channel_loss) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 3.940s
+
+OK

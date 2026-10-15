@@ -73,8 +73,16 @@ gui_wait_interactive_session() {
         if user=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" "${WOOTC_GUI_POWERSHELL:?Configure GUI first}" '$ErrorActionPreference = "Stop"; $u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output "interactive-user=$u" }' 2>/dev/null); then
             user=$(printf '%s' "$user" | tr -d '\r')
             if [[ "$user" =~ $pattern ]]; then
-                pass "GUI interactive session ready: ${user#interactive-user=}"
-                return 0
+                # UserName alone is not what schtasks /IT needs: on 9/25-9/26
+                # it said wootc while `query user` was empty and the launch
+                # task never ran (Last Result 267011). Only a session the
+                # scheduler itself can enumerate counts as ready.
+                # shellcheck disable=SC2016 # PowerShell variables are literal.
+                if sessions=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" "${WOOTC_GUI_POWERSHELL:?Configure GUI first}" '(query user 2>&1) -join " | "' 2>/dev/null) \
+                    && [[ -n "$sessions" && "$sessions" != *"No User exists"* ]]; then
+                    pass "GUI interactive session ready: ${user#interactive-user=} (query user: $sessions)"
+                    return 0
+                fi
             fi
         fi
         remaining=$((deadline - $(date +%s)))
@@ -85,7 +93,7 @@ gui_wait_interactive_session() {
     done
     # Deliberately not a retryable flake: another copy of the same expired or
     # misconfigured snapshot cannot fix itself on a second hosted runner.
-    infra_fail "autologon-no-session: no interactive Windows user within $budget s; GUI was not scheduled"
+    infra_fail "autologon-no-session: Win32_ComputerSystem.UserName never paired with a query-user session within $budget s; GUI was not scheduled"
     # The deadline has expired. Do not issue a new guest diagnostic/write
     # beyond it; the infrastructure ledger above retains the refusal.
     return 1

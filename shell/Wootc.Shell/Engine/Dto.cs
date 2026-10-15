@@ -184,10 +184,19 @@ public class SystemInfo
     /// machine's firmware holds in its db variable ("2011", "2023"), so the
     /// preflight can tell before the reboot whether the signed shim this
     /// build stages will be launched at all (#322). Empty means the db could
-    /// not be read, which warns rather than refusing.
+    /// not be read (UefiDbRead false), which warns rather than refusing, or
+    /// that it was read and holds neither CA (UefiDbRead true), which refuses.
     /// </summary>
     [JsonPropertyName("trustedUefiAuthorities")]
     public List<string> TrustedUefiAuthorities { get; set; } = new();
+
+    /// <summary>
+    /// UefiDbRead is true when the firmware's db was read and held at least
+    /// one certificate, so an empty TrustedUefiAuthorities is a fact about
+    /// the firmware rather than about our ability to ask (#322).
+    /// </summary>
+    [JsonPropertyName("uefiDbRead")]
+    public bool UefiDbRead { get; set; }
 
     /// <summary>
     /// SecureBootChainWarning is set when Secure Boot is on but the db could
@@ -463,8 +472,8 @@ public class InstallConfig
 
     /// <summary>
     /// Encryption for the Linux root inside root.disk (SPEC §2.6):
-    /// "none" | "tpm2-luks" (auto-unlock via TPM, recommended) |
-    /// "luks-passphrase" (prompt every boot).
+    /// "none" (the default) | "tpm2-luks" (auto-unlock via TPM; refused until
+    /// #551/#33 land) | "luks-passphrase" (prompt every boot).
     /// </summary>
     [JsonPropertyName("encryption")]
     public string Encryption { get; set; } = string.Empty;

@@ -41,6 +41,27 @@ setup() {
     ! grep -q 'C:\\wootc\\install\\state.json' docs/manual-testing.md
 }
 
+@test "the hardware report form asks for the state file that actually exists" {
+    # The form's evidence checklist named C:\wootc\install\state.json, the
+    # same wrong path the protocol once had. A reporter who follows it attaches
+    # nothing, and the triager learns that only after the machine is wiped.
+    local form=.github/ISSUE_TEMPLATE/manual-test-report.yml
+    grep -qE 'C:(\\)+wootc(\\)+state\.json' "$form"
+    ! grep -qE 'install(\\)+state\.json' "$form"
+}
+
+@test "the hardware report form has a box for each M2.2 journey step" {
+    # #216 grades a run on steps that the form had no box for: the Manage
+    # screen's restart into Linux, the welcome, the bookmark, the checklist.
+    local form=.github/ISSUE_TEMPLATE/manual-test-report.yml
+    grep -q 'no files copied to the machine first' "$form"
+    grep -q 'welcome opened' "$form"
+    grep -q 'Windows drive' "$form"
+    grep -q 'Restart into' "$form"
+    grep -q 'verify-uninstall checklist' "$form"
+    grep -q '^## The three-machine hardware set (M2.2)' docs/manual-testing.md
+}
+
 @test "every C:\\wootc path the docs name is one the code builds" {
     # The docs' whole reversibility promise is "it all lives in one folder", so
     # a path claim that has drifted undermines the claim it was making.

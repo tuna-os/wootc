@@ -189,11 +189,19 @@ print(d.get("folders", {}).get(os.environ["WOOTC_FOLDER"], ""))' 2>/dev/null || 
 # A selected folder must not re-export the private installer tree or the
 # entire Windows volume through a redirected path or symlink.
 safe_folder_source() {
-    local resolved root
+    local resolved root rlow low
     resolved=$(realpath -e -- "$1") || return 1
     root=$(realpath -e -- "$HOST") || return 1
-    case "${resolved,,}" in
-        "${root,,}"|"${root,,}/wootc"|"${root,,}/wootc/"*|"${root,,}/"*/wootc|"${root,,}/"*/wootc/*) return 1 ;;
+    rlow="${resolved,,}"; low="${root,,}"
+    case "$rlow" in
+        "$low"|"$low/wootc"|"$low/wootc/"*) return 1 ;;
+    esac
+    # A user profile literally named wootc (C:\Users\wootc) lives under
+    # Users/ — never confuse it with the installer tree. Deeper wootc
+    # paths stay refused everywhere else on the volume.
+    case "$rlow" in
+        "$low/users/"*) ;;
+        "$low/"*/wootc|"$low/"*/wootc/*) return 1 ;;
     esac
     [[ "$resolved" == "$root/"* ]] && return 0
     # The only alternate source is the volume this service unlocked itself.
@@ -235,13 +243,22 @@ bind_profile() {
             src="$redirected"
         fi
         dst="$home/$folder"
-        [[ -d "$src" ]] || continue
+        # Every skip below used to be silent, which left "0 binds" with no
+        # layer identified (run 20260928T061803Z: Documents/Pictures vanished
+        # without a line). Say which gate fired for each folder.
+        if [[ ! -d "$src" ]]; then
+            log "files/$folder: no source dir ($src)"
+            continue
+        fi
         if ! safe_folder_source "$src"; then
             warn "refusing protected or invalid folder source: $src"
             continue
         fi
         # Converted to native storage (wootc-convert-dir) — stop bridging.
-        [[ -e "$home/.config/wootc/converted-$folder" ]] && continue
+        if [[ -e "$home/.config/wootc/converted-$folder" ]]; then
+            log "files/$folder: already converted to native storage"
+            continue
+        fi
         # Do not follow a user-created Documents symlink into another path.
         if [[ -L "$dst" ]]; then
             warn "refusing symlink folder destination: $dst"
@@ -252,6 +269,8 @@ bind_profile() {
             mount --bind "$src" "$dst"
             log "bound $src -> $dst"
             bound=$((bound + 1))
+        else
+            log "files/$folder: destination already mounted ($dst)"
         fi
     done
     add_host_bookmark "$home"

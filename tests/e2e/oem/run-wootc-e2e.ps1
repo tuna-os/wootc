@@ -67,7 +67,16 @@ try {
     # keeps setup-wootc.ps1's default (the deployer decides).
     if ($cfg.ContainsKey("Filesystem") -and $cfg.Filesystem -and $cfg.Filesystem -ne "auto") { $setupArgs.Filesystem = $cfg.Filesystem }
     if ($cfg.ContainsKey("RootDiskGiB") -and $cfg.RootDiskGiB) { $setupArgs.DiskSizeGB = [int]$cfg.RootDiskGiB }
-    if ($cfg.ContainsKey("FaultInject") -and $cfg.FaultInject) { $setupArgs.FaultInject = $cfg.FaultInject }
+    if ($cfg.ContainsKey("FaultInject") -and $cfg.FaultInject) {
+        $setupArgs.FaultInject = $cfg.FaultInject
+        # Recovery cells (#288) grade "nothing changed" and "everything
+        # restored" against Windows as it was before setup ran. Capture that
+        # now; a baseline from an earlier run of a retained VM is not it.
+        $baselinePath = Join-Path $oemDir "recovery-baseline.json"
+        Remove-Item -Path $baselinePath, (Join-Path $oemDir "recovery-interrupted.json") -Force -ErrorAction SilentlyContinue
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$oemDir\assert-recovery.ps1" -Stage baseline -StateDir $oemDir *>&1 |
+            Tee-Object -FilePath $logPath -Append
+    }
     # Run setup once, teeing every stream to the log. A terminating error in
     # setup-wootc.ps1 propagates through the pipeline to the outer catch, which
     # records the real exception in e2e-setup-failed.txt. The previous inner

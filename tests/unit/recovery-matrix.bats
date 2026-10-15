@@ -83,3 +83,43 @@ MATRIX_WF="$ROOT/.github/workflows/e2e-matrix.yml"
     grep -q '\--fault-inject=' "$HOSTED_WF"
     grep -q 'fault_inject' "$MATRIX_WF"
 }
+
+@test "recovery cells capture a pre-install baseline before setup runs" {
+    run_e2e_ps1="$ROOT/tests/e2e/oem/run-wootc-e2e.ps1"
+    grep -q 'assert-recovery.ps1" -Stage baseline' "$run_e2e_ps1"
+    # The baseline must be taken before setup-wootc.ps1 touches the machine.
+    baseline_line=$(grep -n 'Stage baseline' "$run_e2e_ps1" | head -1 | cut -d: -f1)
+    setup_line=$(grep -n '& "$oemDir\\setup-wootc.ps1"' "$run_e2e_ps1" | head -1 | cut -d: -f1)
+    [ -n "$baseline_line" ] && [ -n "$setup_line" ]
+    [ "$baseline_line" -lt "$setup_line" ]
+}
+
+@test "assert-recovery.ps1 grades every stage against the baseline, not a constant" {
+    ! grep -q 'Assert-True (\$true)' "$ASSERT_RECOVERY"
+    grep -q 'Test-BootMatchesBaseline' "$ASSERT_RECOVERY"
+    grep -q 'Test-RetryBootEntries' "$ASSERT_RECOVERY"
+    grep -q 'Test-EspAgainstBaseline' "$ASSERT_RECOVERY"
+    grep -q 'Test-PowerMatchesBaseline' "$ASSERT_RECOVERY"
+    grep -q 'Test-BlobResume' "$ASSERT_RECOVERY"
+}
+
+@test "image-pull fault seeds a verified blob and a partial one; retry sweeps by the app's rule" {
+    grep -q 'Discarded incomplete blob' "$SETUP_WOOTC"
+    grep -q 'Reusing verified blob' "$SETUP_WOOTC"
+    grep -q 'WriteAllBytes("$blobDir' "$SETUP_WOOTC"
+    grep -q 'func discardIncompleteBlobs' "$ROOT/app/ocipull.go"
+}
+
+@test "setup-wootc.ps1 records prior power state before disabling Fast Startup" {
+    rec=$(grep -n 'prior-power.txt' "$SETUP_WOOTC" | head -1 | cut -d: -f1)
+    off=$(grep -n '"HiberbootEnabled" -Value 0' "$SETUP_WOOTC" | head -1 | cut -d: -f1)
+    [ -n "$rec" ] && [ -n "$off" ]
+    [ "$rec" -lt "$off" ]
+}
+
+@test "recovery_check keeps evidence and records a failure on every early exit" {
+    body=$(awk '/^recovery_check\(\) \{/,/^\}/' "$RUN_E2E")
+    [ "$(printf '%s\n' "$body" | grep -c 'recovery_evidence')" -ge 3 ]
+    ! printf '%s\n' "$body" | grep -q 'qga_restart_windows .* || return 1'
+    printf '%s\n' "$body" | grep -q 'tee "$evidence/stage3-retried.txt"'
+}

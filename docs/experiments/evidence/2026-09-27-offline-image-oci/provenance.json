@@ -1,0 +1,45 @@
+{
+  "commands": [
+    "python3 -m unittest discover -s tests/unit -p test_offline_image_bundle.py",
+    "python3 tests/offline-image-native.py",
+    "python3 tests/offline-image-native.py --docker"
+  ],
+  "currentScope": "Real tiny native byte imports and readbacks, no selected bootc OS, publisher authentication, Windows staging or VM boot proof.",
+  "earlierProofCorrection": "Earlier ad hoc shell podman function did not intercept timeout executable lookup. Dedicated-store claim was false for that run. Current proofs use executable PATH wrapper and explicit private root/runroot for every import/tag and independent readback.",
+  "firmwareAcceptance": false,
+  "multiarchSourceRootChainContract": {
+    "callerChainAuthority": false,
+    "childField": "digest",
+    "depth": 8,
+    "metadataBytes": 1048576,
+    "metadataCount": 64,
+    "rootField": "sourceDigest",
+    "uniquePlatform": "linux/amd64 without variant"
+  },
+  "nativeControls": 9,
+  "producerNativeExecution": "awaiting hosted skopeo tooling; producer source runs actual raw inspect/copy with redirected native OCI registry boundary in dedicated workflow",
+  "proofHashes": {
+    "docs/experiments/evidence/2026-09-27-offline-image-oci/controls.log": "3fbbbc3d4f79107401906c43896e2a854ab92c4c6ee29c5ea45bbcac1595c17a",
+    "docs/experiments/evidence/2026-09-27-offline-image-oci/early-default-store-cleanup.log": "20293220b37f8dce235ef9f112911d467f0fbbc4714cfda20cdba0d343c498cc",
+    "docs/experiments/evidence/2026-09-27-offline-image-oci/native-docker.json": "6358e7415cb87ef3a0ca2d97b99e5110065cf6585fdf341866092a8b466eb102",
+    "docs/experiments/evidence/2026-09-27-offline-image-oci/native-oci.json": "87b899417244c688052b93150c6a0c5694ac6bd448e9e412498fc0e100c50cbc"
+  },
+  "publisherAuthentication": false,
+  "schemaVersion": 1,
+  "selectedOsBootAcceptance": false,
+  "sourceHashes": {
+    ".github/workflows/offline-image-bundle.yml": "135d50910a7daed075a16c2e919e834d7d36112286cdc10210b0c3a9defb3cb2",
+    "payload/bundle/make-bundle.sh": "0c088eb9cbc7c497f3936b3da770b490e2b3e71c0a1dc8bb31834b6a50a56caa",
+    "payload/bundle/make-release-bundle.sh": "9965276cfcbb2b3c7e9aa44fe6eb59719286a7aae6c2e3a631da722f8cf9f116",
+    "payload/deployer/Containerfile": "54e5833047f72f594a5eb47cb9c9b52d5c6cbd89f2fb947646920f311b764926",
+    "payload/deployer/deploy.sh": "964964f2851070dd75a5795e4c76246c6d2967b3ede7f14f4300888aab8323f8",
+    "payload/deployer/module-setup.sh": "c9bce93b351b3ea84d3178f86099a6ee958aed2a0f8947c15b231046e29e2754",
+    "payload/deployer/offline-bundle.sh": "04b0b3e8805610fa260c93fb9d1179f9946daf9694a872ea1a01f0555e8829da",
+    "payload/json-check/main.go": "15fb8653a2f7c98f7d6f54d5637123e06665d30e7dd3479faff11e082e5ebaa2",
+    "tests/offline-image-native.py": "5624471c94884d08e155466bc8881d865a5dbee51cfeccf1855b7538cd0167e5",
+    "tests/unit/test_offline_image_bundle.py": "22dd387f297cb87b13e1e1a70ff81d030038b839801fa984344c6ee8662461cc"
+  },
+  "upstreamRawInspectObservation": "raw branch writes rawManifest bytes without a newline",
+  "upstreamRawInspectSource": "https://github.com/containers/skopeo/blob/main/cmd/skopeo/inspect.go",
+  "vmExecuted": false
+}

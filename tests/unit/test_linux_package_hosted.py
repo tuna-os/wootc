@@ -30,12 +30,15 @@ class HostedTests(unittest.TestCase):
         key={'qualify':'qualify','acquire':'acquire','prepare':'prepare','launch':'launch'}[phase]
         return {key:action,'readback':None,'acknowledge':None}
 
-    def execute(self):return MODULE['execute'](self.folder,ENV,self.load,lambda:{})
+    def execute(self):return MODULE['execute'](self.folder,ENV,self.load,lambda:{},namespace_check=lambda *_:{'fixtureNamespace':True})
 
     def test_actual_root_tool_is_protected_but_private_tmp_is_refused(self):
         self.assertTrue(MODULE['protected']('/usr/bin/true').is_file())
         path=Path(self.temp.name)/'mutable-tool';path.write_text('fixture')
-        with self.assertRaises(ValueError):MODULE['protected'](path)
+        with self.assertRaises(ValueError) as caught:MODULE['protected'](path)
+        diagnostic=str(caught.exception)
+        self.assertIn(str(path),diagnostic)
+        for field in ('uid=','gid=','mode='):self.assertIn(field,diagnostic)
 
     def test_malformed_source_sha_refuses_before_any_stage(self):
         env=dict(ENV);env['GITHUB_SHA']='unreviewed'
@@ -83,8 +86,12 @@ class HostedTests(unittest.TestCase):
         (self.folder/'serial.log').write_bytes(b'x'*300000)
         (self.folder/'cloud.qcow2').write_bytes(b'private image fixture')
         MODULE['retain'](self.folder,artifacts)
-        self.assertEqual((artifacts/'owned-serial.log').stat().st_size,262144)
-        self.assertTrue((artifacts/'owned-serial.log.truncated').exists())
+        self.assertEqual((artifacts/'owned-serial.log').stat().st_size,300000)
+        self.assertFalse((artifacts/'owned-serial.log.truncated').exists())
+        (self.folder/'process.stdout').write_bytes(b'x'*300000)
+        MODULE['retain'](self.folder,artifacts)
+        self.assertEqual((artifacts/'owned-process.stdout').stat().st_size,262144)
+        self.assertTrue((artifacts/'owned-process.stdout.truncated').exists())
         self.assertFalse((artifacts/'owned-cloud.qcow2').exists())
 
 
