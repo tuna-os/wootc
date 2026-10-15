@@ -81,7 +81,7 @@ Beta means the support policy stops saying "alpha" because the evidence exists.
 - **Support-policy audit**: every `GetSupportPolicy` flag traceable to a green matrix row with comprehensive test coverage.
 
 ### v0.9.0-rc — "Ship-shaped" *(tracking: milestone issue M4)*
-- **Signed binaries**: Choose an EV cert or `Azure Trusted Signing` (#229). The maintainer must decide on the spend. Verify publisher identity and fresh-machine SmartScreen behavior (#230). A valid signature alone does not guarantee that SmartScreen lets a launch proceed without a prompt.
+- **Signed binaries**: The maintainer chose `Azure Trusted Signing` (#229). The release workflow can sign with it after the Azure setup in `docs/RELEASING.md`. Verify publisher identity and fresh-machine SmartScreen behavior (#230). A valid signature alone does not guarantee that SmartScreen lets a launch proceed without a prompt.
 - **WinUI 3 shell replaces Wails (#340)**: phases B–D must pass their native gates before the RC default changes. Phase E follows a clean native release. The [sequence for the native shell](#native-shell-sequence-and-evidence-357) defines which earlier evidence can carry forward.
 - **VM-first (#178)**: Required first experience. Prepare and run the persistent Linux image inside Windows before native boot. [ADR 0004](docs/adr/0004-restore-vm-first-product.md) replaces the #318 deferral; current releases do not yet meet this gate.
 - **Migration adapters (#203)**: Discovery and manifests exist. The [extension plan](docs/specs/migration-extensions.md) adds truthful results, transactions, compatibility, and scoped execution before broad support.
