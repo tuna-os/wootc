@@ -1,5 +1,10 @@
 using System.Text.Json;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Wootc.Shell.Engine;
 using Wootc.Shell.Core;
 using Wootc.Shell.Native;
@@ -22,10 +27,82 @@ public sealed partial class MainWindow : Window
         Title = $"{brand.ProductName} — Preview";
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
+        ApplyBrand(brand, BrandTheme.From(brand));
         controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic)));
         Closed += async (_, _) => { await controller.DisposeAsync(); };
     }
+    // Local, validated brand assets render before any elevation request and
+    // stay visible after a refusal. High contrast keeps the system palette.
+    private void ApplyBrand(Branding brand, BrandTheme theme)
+    {
+        string palette = "system";
+        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast) palette = "high-contrast";
+        else if (theme.HasPalette)
+        {
+            ApplyPalette(theme);
+            palette = "brand";
+        }
+        AutomationProperties.SetHelpText(ProductName, $"Palette: {palette}");
+        string logo = Path.Combine(AppContext.BaseDirectory, "Branding", "logo.svg");
+        if (File.Exists(logo))
+        {
+            AutomationProperties.SetName(BrandLogo, $"{brand.Name} logo");
+            AutomationProperties.SetHelpText(BrandLogo, "Brand logo loading");
+            BrandLogo.Visibility = Visibility.Visible;
+            _ = LoadLogoAsync(logo);
+        }
+        else if (!string.IsNullOrWhiteSpace(brand.LogoEmoji))
+        {
+            BrandEmoji.Text = brand.LogoEmoji;
+            AutomationProperties.SetName(BrandEmoji, brand.LogoEmoji);
+            BrandEmoji.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async Task LoadLogoAsync(string path)
+    {
+        try
+        {
+            var source = new SvgImageSource { RasterizePixelHeight = 112 };
+            using var stream = File.OpenRead(path);
+            var status = await source.SetSourceAsync(stream.AsRandomAccessStream());
+            if (status != SvgImageSourceLoadStatus.Success) throw new InvalidDataException($"SVG status {status}");
+            BrandLogo.Source = source;
+            AutomationProperties.SetHelpText(BrandLogo, "Brand logo loaded");
+        }
+        catch (Exception error)
+        {
+            // The product and distribution names remain; never fetch a fallback.
+            BrandLogo.Visibility = Visibility.Collapsed;
+            AutomationProperties.SetHelpText(BrandLogo, $"Brand logo failed: {error.GetType().Name}");
+        }
+    }
+
+    private void ApplyPalette(BrandTheme theme)
+    {
+        static SolidColorBrush Brush(BrandColor color) => new(ColorHelper.FromArgb(255, color.R, color.G, color.B));
+        if (theme.Background is { } background)
+        {
+            BrandRoot.RequestedTheme = theme.Ground == BrandGround.Dark ? ElementTheme.Dark : ElementTheme.Light;
+            BrandRoot.Background = Brush(background);
+            BrandCard.Background = Brush(theme.Card!.Value);
+            var text = Brush(theme.Text!.Value);
+            foreach (var block in new[] { ProductName, DistributionName, PreviewHeading, PreviewIntro, PreviewStatus, ConnectionStatus, StartupRouteText, StartupObservations })
+                block.Foreground = text;
+        }
+        if (theme.Accent is { } accent)
+        {
+            // Lightweight styling: these keys feed AccentButtonStyle's states.
+            var fill = Brush(accent);
+            var label = Brush(theme.AccentText!.Value);
+            foreach (string key in new[] { "AccentButtonBackground", "AccentButtonBackgroundPointerOver", "AccentButtonBackgroundPressed", "AccentButtonBorderBrush", "AccentButtonBorderBrushPointerOver", "AccentButtonBorderBrushPressed" })
+                ConnectButton.Resources[key] = fill;
+            foreach (string key in new[] { "AccentButtonForeground", "AccentButtonForegroundPointerOver", "AccentButtonForegroundPressed" })
+                ConnectButton.Resources[key] = label;
+        }
+    }
+
     private async void Connect_Click(object sender, RoutedEventArgs args)
     {
         ConnectButton.IsEnabled = false;

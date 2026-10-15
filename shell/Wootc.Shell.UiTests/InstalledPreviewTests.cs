@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.Json;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
@@ -36,6 +37,33 @@ public sealed class InstalledPreviewTests
             Assert.Equal(distribution, Find("DistributionName").Name);
             Assert.Contains("cannot install", Find("PreviewStatus").Name);
             Assert.Equal("Offline", Find("ConnectionStatus").Name);
+            // Native brand assets come from the same source brand directory.
+            var root = brand.RootElement;
+            bool palette = root.TryGetProperty("accent", out _) || root.TryGetProperty("background", out _);
+            Assert.Equal(palette ? "Palette: brand" : "Palette: system", Find("ProductName").Properties.HelpText.ValueOrDefault);
+            string sourceLogo = Path.Combine(Path.GetDirectoryName(brandSource)!, "logo.svg");
+            string installedLogo = Path.Combine(Path.GetDirectoryName(executable)!, "Branding", "logo.svg");
+            Assert.Equal(File.Exists(sourceLogo), File.Exists(installedLogo));
+            if (File.Exists(sourceLogo))
+            {
+                Assert.Equal(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourceLogo))), Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(installedLogo))));
+                var logo = Find("BrandLogo");
+                Assert.Equal(distribution + " logo", logo.Name);
+                using var logoDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                while (logo.Properties.HelpText.ValueOrDefault != "Brand logo loaded")
+                {
+                    if (logoDeadline.IsCancellationRequested) throw new InvalidOperationException($"Brand logo did not load: {logo.Properties.HelpText.ValueOrDefault}");
+                    await Task.Delay(100);
+                }
+                Assert.True(logo.BoundingRectangle.Height > 0);
+                Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("BrandEmoji")));
+            }
+            else
+            {
+                Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("BrandLogo")));
+                string emoji = root.TryGetProperty("logoEmoji", out var mark) ? mark.GetString() ?? "" : "";
+                if (emoji.Length != 0) Assert.Equal(emoji, Find("BrandEmoji").Name);
+            }
             Find("ConnectEngine").AsButton().Invoke();
             async Task Expect(string id, string expected)
             {
