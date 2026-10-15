@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  # The full set once a day, whatever changed: the backstop for path scoping.
+  schedule:
+    - cron: '23 3 * * *'
 
 permissions:
   contents: read
@@ -15,9 +18,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Path scoping: on a pull request, each build job below runs only when the
-  # change touches its inputs (.github/scripts/ci-scope.sh owns the map).
-  # Push to main and workflow_dispatch always run every job.
+  # Path scoping: on a pull request or a push to main, each build job below
+  # runs only when the change touches its inputs (.github/scripts/ci-scope.sh
+  # owns the map). workflow_dispatch and the nightly schedule run every job.
   changes:
     name: select path-scoped jobs
     runs-on: ubuntu-latest
@@ -35,13 +38,26 @@ jobs:
       - id: scope
         env:
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = pull_request ]; then
-            git diff --name-only HEAD^1 HEAD | tee /dev/stderr | .github/scripts/ci-scope.sh >> "$GITHUB_OUTPUT"
-          else
-            .github/scripts/ci-scope.sh --all >> "$GITHUB_OUTPUT"
-          fi
+          case "$EVENT" in
+            pull_request)
+              git diff --name-only HEAD^1 HEAD | tee /dev/stderr | .github/scripts/ci-scope.sh >> "$GITHUB_OUTPUT" ;;
+            push)
+              # The pushed range only. Every main commit still gets its own
+              # run (#363), and a commit that touches a job's inputs runs
+              # that job on the combined tree. A range that cannot be read
+              # (new branch, force push) runs everything.
+              if [ -n "$BEFORE" ] && [ "${BEFORE//0/}" != "" ] &&
+                 git fetch -q --depth=1 origin "$BEFORE" 2>/dev/null; then
+                git diff --name-only "$BEFORE" HEAD | tee /dev/stderr | .github/scripts/ci-scope.sh >> "$GITHUB_OUTPUT"
+              else
+                .github/scripts/ci-scope.sh --all >> "$GITHUB_OUTPUT"
+              fi ;;
+            *)
+              .github/scripts/ci-scope.sh --all >> "$GITHUB_OUTPUT" ;;
+          esac
           cat "$GITHUB_OUTPUT"
 
   build-deployer:
@@ -92,6 +108,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: app/go.mod
+          # go.sum is in app/; the default (a root go.sum) caches nothing.
+          cache-dependency-path: app/go.sum
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
