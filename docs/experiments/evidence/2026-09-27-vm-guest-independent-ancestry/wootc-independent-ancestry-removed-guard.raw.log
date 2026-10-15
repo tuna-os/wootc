@@ -1,0 +1,28 @@
+=== RUN   TestVMGuestIndependentAncestryConsumer
+=== RUN   TestVMGuestIndependentAncestryConsumer/wrong-gpt
+    vm_guest_ancestry_test.go:31: guest asserted currentRootVerified accepted without measured selected ancestry
+=== RUN   TestVMGuestIndependentAncestryConsumer/missing-parent
+    vm_guest_ancestry_test.go:31: guest asserted currentRootVerified accepted without measured selected ancestry
+=== RUN   TestVMGuestIndependentAncestryConsumer/wrong-current-root
+    vm_guest_ancestry_test.go:31: guest asserted currentRootVerified accepted without measured selected ancestry
+=== RUN   TestVMGuestIndependentAncestryConsumer/source-major-disagree
+    vm_guest_ancestry_test.go:31: guest asserted currentRootVerified accepted without measured selected ancestry
+=== RUN   TestVMGuestIndependentAncestryConsumer/workdir-only
+    vm_guest_ancestry_test.go:31: guest asserted currentRootVerified accepted without measured selected ancestry
+=== RUN   TestVMGuestIndependentAncestryConsumer/unresolved-lower
+    vm_guest_ancestry_test.go:31: guest asserted currentRootVerified accepted without measured selected ancestry
+=== RUN   TestVMGuestIndependentAncestryConsumer/btrfs-unobserved-members
+    vm_guest_ancestry_test.go:31: guest asserted currentRootVerified accepted without measured selected ancestry
+=== NAME  TestVMGuestIndependentAncestryConsumer
+    vm_guest_ancestry_test.go:57: loop-backed current root accepted
+--- FAIL: TestVMGuestIndependentAncestryConsumer (0.01s)
+    --- FAIL: TestVMGuestIndependentAncestryConsumer/wrong-gpt (0.00s)
+    --- FAIL: TestVMGuestIndependentAncestryConsumer/missing-parent (0.00s)
+    --- FAIL: TestVMGuestIndependentAncestryConsumer/wrong-current-root (0.00s)
+    --- FAIL: TestVMGuestIndependentAncestryConsumer/source-major-disagree (0.00s)
+    --- FAIL: TestVMGuestIndependentAncestryConsumer/workdir-only (0.00s)
+    --- FAIL: TestVMGuestIndependentAncestryConsumer/unresolved-lower (0.00s)
+    --- FAIL: TestVMGuestIndependentAncestryConsumer/btrfs-unobserved-members (0.00s)
+FAIL
+FAIL	wootc	0.011s
+FAIL
