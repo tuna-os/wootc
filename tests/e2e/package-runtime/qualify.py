@@ -19,11 +19,12 @@ def qualify(folder,output):
         checker=runpy.run_path(str(Path(__file__).with_name('launch.py')))['qualify']
         record['measuredResources']=checker(folder)
         if not all(record['tools'].values()):raise ValueError('required installed tools missing')
+        trust=runpy.run_path(str(Path(__file__).with_name('hosted-execute.py')))['protected']
         firmware=[Path('/usr/share/OVMF')/name for name in ('OVMF_CODE_4M.fd','OVMF_VARS_4M.fd')]
         if not all(path.is_file() for path in firmware):raise ValueError('installed firmware closure missing')
         record['toolSha256']={name:hashlib.sha256(Path(path).read_bytes()).hexdigest()
                              for name,path in record['tools'].items()}
-        record['firmwareSha256']={str(path):hashlib.sha256(path.read_bytes()).hexdigest() for path in firmware}
+        record['firmwareSha256']={str(path):hashlib.sha256(trust(path).read_bytes()).hexdigest() for path in firmware}
         record['qualified']=True
     except Exception as error:
         record['failureType']=type(error).__name__;record['failure']=str(error)

@@ -33,12 +33,30 @@ setup() {
     grep -q "wootc-e2e-userdata \$RUN_ID" "$E2E"
 }
 
+@test "seed confirmation reads the canary file back, not script chatter" {
+    # Run 20260928T021246Z: seed-profile.ps1 prints "(RunId: ...)" in its
+    # banner, so grepping the bare RUN_ID passed without the canary file
+    # existing — and Phase 2 then found seed@host empty. The seed step must
+    # read the canary FILE back after either branch, and the PASS grep must
+    # match the canary's content format.
+    grep -q "seed-profile.ps1' -Username.*| Out-Null" "$E2E"
+    grep -q 'Get-Content' "$E2E"
+    grep -Fq 'grep -q "wootc-e2e-userdata $RUN_ID"' "$E2E"
+}
+
 @test "Phase-2 bridge check is a live QGA content read against RUN_ID" {
     grep -q 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E"
     grep -Fq 'printf '"'"'%s'"'"' "$USERDATA_HOME" | grep -q "$RUN_ID"' "$E2E"
     # Failure diagnostics must localize the broken layer, not just say "no".
     grep -q 'host-bind:' "$E2E"
     grep -q 'home-bind:' "$E2E"
+    # ... including what the profile actually contains and whether the seed
+    # moved/renamed (run 20260928T035341Z: verified-present canary absent).
+    grep -q 'profile-ls:' "$E2E"
+    grep -q 'seed-anywhere:' "$E2E"
+    # The diag travels over QGA: one hiccup must not blank it
+    # (run 20260928T070749Z: every layer line empty). It retries.
+    grep -q 'for _ud_try in 1 2 3' "$E2E"
 }
 
 @test "Phase-3 native persistence check reads the file from the native disk" {

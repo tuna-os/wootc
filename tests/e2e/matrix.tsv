@@ -12,6 +12,8 @@
 #   opts         Optional 7th column, comma-safe knobs:
 #                bitlocker=on  — WOOTC_E2E_BITLOCKER=on (SPEC 3.5 FDE axis)
 #                phase3=on     — pass --phase3 (rung-3 graduate onto blank disk)
+#                firmware_db=2011|2023|both|none — WOOTC_E2E_FIRMWARE_DB, the
+#                              Secure Boot db cell (#322); none forces GUI mode
 #
 # The bitlocker axis (WOOTC_E2E_BITLOCKER=on) drops PreventDeviceEncryption so
 # Windows auto-encrypts C:; wootc must then place root.disk on a separate
@@ -25,7 +27,7 @@
 # tier	name	image	win_version	win_edition	win_key
 smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
-smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # btrfs sealed-root axis (#35): a composefs-sealed image forced onto btrfs.
 # NOT bluefin:lts, despite it being the proven baseline — CentOS Stream 10
@@ -45,8 +47,8 @@ smoke	el10-gnome-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC
 # Each backend must also prove Phase 3.
 full	bluefin-lts-win11pro-phase3	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
 full	el10-gnome-win11pro-phase3	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
-full	bluefin-dakota-win11pro-phase3	ghcr.io/projectbluefin/dakota:latest	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
-full	bluefin-dakota-win10pro	ghcr.io/projectbluefin/dakota:latest	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	bluefin-dakota-win11pro-phase3	ghcr.io/projectbluefin/dakota:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
+full	bluefin-dakota-win10pro	ghcr.io/projectbluefin/dakota:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	bluefin-lts-win10pro	ghcr.io/projectbluefin/bluefin:lts	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── image axis (Win 11 Pro) — every family/bootloader/desktop ──
 full	el10-kde-win11pro	ghcr.io/tuna-os/yellowfin:kde	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
@@ -78,4 +80,13 @@ full	recovery-efi-staging-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-
 full	recovery-pre-reboot-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=pre-reboot
 full	recovery-image-pull-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=image-pull
 full	recovery-bcd-arming-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	fault=bcd-arming
-
+# -- Firmware db axis (#322): which Microsoft third-party UEFI CA Secure Boot trusts --
+# The released shim is dual-signed (2011 + 2023), so the 2011, 2023 and both
+# cells must each BOOT it end to end; the guest-read db is graded first. The
+# none cell is firmware that trusts no third-party CA (the Secured-core
+# default): no shim can start there, so the pass is the app refusing in words
+# with nothing written. It always runs GUI-driven: the refusal is the app's.
+full	sb-db-2011-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	firmware_db=2011
+full	sb-db-2023-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	firmware_db=2023
+full	sb-db-both-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	firmware_db=both
+full	sb-db-none-refusal-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	firmware_db=none

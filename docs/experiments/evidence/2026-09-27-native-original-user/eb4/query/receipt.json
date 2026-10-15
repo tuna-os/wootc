@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "scope": "actual retained token/profile/binding reads and refusal controls; same-user elevated interactive capture and token-owned folder consumption; no unelevated caller/UAC/alternate-admin journey, operation authorization or installation proof",
+  "runId": "36338569204",
+  "runAttempt": "1",
+  "testedHead": "eb4a4b7c3d817701005daf1dc2e207a4dd8adf3f",
+  "checkoutSources": {
+    "app/native_peer_windows.go": "3c7bd546475b838f45911059e176647bb58cc19de06e9ea2578ff8359e40ee8a",
+    "app/native_original_user_windows.go": "73a4d1826dd54bf5bdadea706d7623dbc56311a998db100fd3e3eeaa4ac327d5",
+    "app/native_original_user_windows_test.go": "a90959576fce748a6f2aca0f384d364b13b04e743e6783434f4c09038a7e2bdc",
+    "app/native_knownfolders_windows.go": "602c77caed5fc9e17a7fc5c6efaab646889dd2a11260cc714110decf7adfb867",
+    "app/knownfolders_contract.go": "a880f87325916ebb9ed11c73f1a411913edc907251ff6c076cc20954fac365da",
+    "app/knownfolders_windows.go": "b1ea1b8b1a73c8eef316d3be675e10198923c12c185649e6f4bdbede433d36b9",
+    "app/go.mod": "7e083365e3205c3e1d5d89809e6bf9f063c20aeb3337972a2816bf7a9a0fedf9",
+    "app/go.sum": "834942c1a88fc11b419d56899bdf78e57d15bf84b352b9a2226b303e80a34192",
+    "tests/native_original_user_controls.py": "d8deb886e42e2bb78d6b9e3ba80098063ba1a4fadb71912f233f7ddfb838d1ce",
+    ".github/workflows/native-original-user.yml": "ebd7ff2c18c9d6d56a522fc67041d9a452397b8c1a2b1df3aedd3a8f585e6764"
+  },
+  "gitSources": {
+    "app/native_peer_windows.go": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+    "app/native_original_user_windows.go": "708690eef151e9e358e5b6a26a16c2f2f7f635f50ffcca7ebb8850542ffa19e1",
+    "app/native_original_user_windows_test.go": "0301195f23aa7cfea120d7c9786f613c717e3ae5e0f3d6f9e3533a616a4f9b6f",
+    "app/native_knownfolders_windows.go": "efb4d898a56165010d45c44adc4ad341bbb83b5990bf5dd7a11cd4190ef9fffe",
+    "app/knownfolders_contract.go": "93564ec335070939e6ff87bbb7e7295a71203267cd18b7fde60ca314e64196d1",
+    "app/knownfolders_windows.go": "0e34b5cf3c71c8344d337e2482e8feeb96075c41bf6620c2b64e421fb3dfae89",
+    "app/go.mod": "bf8b0302409344410ce0c7aa8bc7af3396a2a06d44b873a444325ac22c7a4a94",
+    "app/go.sum": "1839c01cebca590e44eba9b25df774e94536238793e500e2ca8d694b83d644f2",
+    "tests/native_original_user_controls.py": "0e1a78d93c3c3d5913f2ce28cc992c7abe211e4558e4619a5b638d523c48b4fc",
+    ".github/workflows/native-original-user.yml": "d9008d6ed0b74e35968d700b3bd45ae36e7297a7314dd632a48a3d6865d41ed0"
+  },
+  "tools": {
+    "go": "c2f0bc63168a96e854e6e5dd32493cc00a415ddcd4bf94580e302c103b23adfe",
+    "python": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a"
+  },
+  "accepted": true,
+  "tests": [
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-source",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/missing-engine",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator/alternative-admin",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserRejectsMissingClosedOrAlternativeAdministrator",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserCannotReplaceObservedTokenWithPeerFields",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualTokenProfileAndBindingReadOnly",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualInteractiveCapture",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualRestrictedInteractiveCriterion",
+      "outcome": "pass"
+    },
+    {
+      "name": "TestNativeOriginalUserActualKnownFolderCollector",
+      "outcome": "pass"
+    }
+  ],
+  "stdout.raw": "e2dcea405a04df476fd7a6955173f5b12c7be99857540ce29478d6253165e237",
+  "stderr.raw": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "exitCode": 0
+}

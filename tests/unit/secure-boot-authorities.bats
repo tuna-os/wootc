@@ -87,9 +87,14 @@ setup() {
 
 @test "the preflight gates BEFORE anything is written, and only on a known mismatch" {
     local app="$REPO_ROOT/app/app.go"
-    # In gateScenario, which runs before the first byte of the install.
-    grep -q 'checkSecureBootChain' "$app"
+    # In gateScenario, which runs before the first byte of the install, and
+    # in the headless CLI, which never calls gateScenario.
+    grep -q 'secureBootChainVerdict(si)' "$app"
+    grep -q 'secureBootChainVerdict(headlessSystemInfo())' "$REPO_ROOT/app/headless.go"
     grep -q 'TrustedUefiAuthorities' "$app"
+    # "Read and empty" is a refusal, "not read" only a warning (#322): the
+    # flag that tells them apart must reach the verdict.
+    grep -q 'si.UefiDbRead' "$REPO_ROOT/app/secureboot.go"
     # An unreadable db must warn, not refuse: "bad shim signature" costs a
     # reboot back into Windows, and refusing every PC whose SecureBoot module
     # is unavailable would block machines that work today.
@@ -100,7 +105,54 @@ setup() {
 
 @test "the db read is Windows-only and the dev stub gates nothing" {
     grep -q 'func trustedUefiAuthorities' "$REPO_ROOT/app/secureboot_windows.go"
-    grep -q 'func trustedUefiAuthorities() \[\]string { return nil }' "$REPO_ROOT/app/secureboot_other.go"
+    grep -q 'func trustedUefiAuthorities() (\[\]string, bool) { return nil, false }' "$REPO_ROOT/app/secureboot_other.go"
     grep -q 'go:build windows' "$REPO_ROOT/app/secureboot_windows.go"
     grep -q 'go:build !windows' "$REPO_ROOT/app/secureboot_other.go"
+}
+
+# ── The firmware db axis (harness) ───────────────────────────────────────────
+
+@test "the firmware db axis is written before QEMU starts and graded from inside Windows" {
+    # Dockur copies its template vars only when /storage/windows_secure.vars
+    # is absent, so the cell has to be on disk before compose up.
+    local seed up
+    seed=$(grep -n '^seed_firmware_db || exit 1' "$E2E" | cut -d: -f1)
+    up=$(grep -n '^if ! compose_up_windows; then' "$E2E" | cut -d: -f1)
+    [ -n "$seed" ] && [ -n "$up" ] && [ "$seed" -lt "$up" ]
+    grep -q 'windows_secure.vars' "$E2E"
+    # The verdict is what Windows reads, not what the host wrote.
+    grep -q "Get-SecureBootUEFI -Name db" "$E2E"
+    grep -q 'firmware-db.py" grade --cell "$FIRMWARE_DB"' "$E2E"
+    grep -q '^assert_firmware_db || ' "$E2E"
+    # A run without the axis must not inherit a previous cell's stripped db.
+    grep -q 'windows_secure.vars.firmware-db' "$E2E"
+}
+
+@test "the 'none' cell is a GUI refusal cell that needs words AND an untouched disk" {
+    # setup-wootc.ps1 never runs the app's gate, so a scripted 'none' cell
+    # would arm regardless and prove nothing.
+    grep -q 'WOOTC_E2E_FIRMWARE_DB=none needs --gui-install' "$E2E"
+    grep -q "'secure-boot-refusal': {'secure-boot-refused', 'secure-boot-untouched'}" "$REPO_ROOT/tests/e2e/lib/results.py"
+    grep -q 'product_pass secure-boot-refused' "$E2E"
+    grep -q 'product_pass secure-boot-untouched' "$E2E"
+    # Reaching done on that firmware is the failure.
+    grep -q 'the install COMPLETED on firmware that cannot launch any shim' "$E2E"
+}
+
+@test "E2E stages the shim's real authorities, so the preflight grades something" {
+    # An E2E exe has no -X main.shimAuthorities stamp. Without the staged
+    # json the gate sees "unknown" and every firmware cell passes it vacuously.
+    grep -q 'packaging/shim-authorities.py" --json' "$E2E"
+    grep -q '"shim-authorities.json") { if (Test-Path' "$E2E"
+}
+
+@test "the matrix carries all four firmware cells through to run-e2e" {
+    local m="$REPO_ROOT/tests/e2e/matrix.tsv"
+    for cell in 2011 2023 both none; do
+        grep -qP "\tfirmware_db=$cell(\t|,|$)" "$m"
+    done
+    grep -q "firmware_db" "$REPO_ROOT/.github/workflows/e2e-matrix.yml"
+    grep -q "WOOTC_E2E_FIRMWARE_DB" "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
+    grep -q "virt-firmware" "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
+    grep -q "WOOTC_E2E_FIRMWARE_DB" "$REPO_ROOT/tests/e2e/run-matrix.sh"
 }

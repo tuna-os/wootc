@@ -1,0 +1,22 @@
+{
+  "sourceCommit": "28833f0",
+  "historicalFailedRun": 36342353432,
+  "historicalSource": "f3890fc142b0ee31aeb56b7bbfdab01b4362deb8",
+  "sourceHashes": {
+    "tests/e2e/package-runtime/bootstrap.py": "18bf533368e2f4b1489435a1efbc0835e358beb4e36123719201df557bbf7332",
+    "tests/unit/test_linux_package_bootstrap.py": "cea5397e7e4e7249e9943e001e1cd6c75274ebe93aa01f2c9ebfb5eb557fc58e",
+    "tests/unit/test_linux_package_agent_command.py": "3561151248b078ce66215cb1c345b9ed8300e2f7c0d29e2d161c050644ae3f49",
+    "tests/unit/test_linux_package_agent_lifecycle.py": "a686b2705bfa977f8bd36758c2045d872cd220074867ef83acf8f61797a6224a"
+  },
+  "evidenceHashes": {
+    "controls.raw.log": "dcccc38c442eeb8bd1801e4fe5bf362db8c2707e6efbb62a6590d95b73ed861a",
+    "removed-cleanup.raw.log": "911ecdd0f5427c85e09a3da92d29dbfc0132bf1ba3eb4726b9e2e79ac605fb1f",
+    "removed-cleanup.py": "0f5d6fd050df5371a2616b56f509147c2185ba82cb63890ed2c4d268df5b7423",
+    "archive-readback.json": "8c371d6cb0447243ff39a700c13995d3d7da953436c622f60c7ce8c8cadd8d6a"
+  },
+  "controls": 129,
+  "nativeDisposableChildControls": 5,
+  "explicitFixtureLifecycleControls": 5,
+  "scope": "Native command process ownership and approved archive readback; explicit device/unit/process observation fixtures. No actual guest lifecycle, target installation, QGA response, VM or package acceptance.",
+  "originalGuestState": "baseline package absent; old-installed archive present and static unit start skipped; actual guest device/unit/process state unknown; independent QGA timed out."
+}

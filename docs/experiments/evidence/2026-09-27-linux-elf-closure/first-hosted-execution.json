@@ -1,0 +1,15 @@
+{
+  "classicOsBootAcceptance": false,
+  "executionRequested": false,
+  "failure": "tool dependency closure absent",
+  "failureType": "ValueError",
+  "firmwareAcceptance": false,
+  "guestBaselineObserved": false,
+  "packageInstallationAccepted": false,
+  "processStarted": false,
+  "runAttempt": "1",
+  "runId": "36328515853",
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "sourceCommit": "99f3987f235006e9b6f5893ff13c5234359a80b8"
+}

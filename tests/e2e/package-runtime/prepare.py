@@ -10,6 +10,7 @@ import subprocess
 import uuid
 
 ROOT=Path(__file__).resolve().parents[3]
+BOOTSTRAP=runpy.run_path(str(Path(__file__).with_name('bootstrap.py')))
 POLICY=runpy.run_path(str(ROOT/'tests/e2e/esp-chain/package-policy.py'))
 
 
@@ -53,6 +54,8 @@ def prepare(inputs,scratch,run=subprocess.run):
     if not re.fullmatch('[A-Za-z0-9_/.-]+',str(scratch)):
         raise ValueError('scratch path cannot be encoded in QEMU arguments')
     acquisition,source,wanted,observed=checked_inputs(inputs)
+    prefix=Path(os.environ.get('WOOTC_HOST_DATA_PREFIX',''))
+    host_data=runpy.run_path(str(Path(__file__).with_name('host-namespace.py')))['checked'](prefix)
     scratch.mkdir(mode=0o700,parents=False,exist_ok=False)
     seed=scratch/'seed';seed.mkdir(mode=0o700)
     scratch_id=uuid.uuid4().hex;vm_uuid=str(uuid.uuid4());challenge=os.urandom(32).hex()
@@ -68,7 +71,8 @@ def prepare(inputs,scratch,run=subprocess.run):
     before=policy['phases']['old']['beforeInventory']
     baseline_sha=hashlib.sha256((json.dumps(before,sort_keys=True,separators=(',',':'))+'\n').encode()).hexdigest()
     manifest={'schemaVersion':1,'scratchId':scratch_id,'vmUuid':vm_uuid,'challenge':challenge,
-              'helperHashes':hashes,'baselineSha256':baseline_sha}
+              'helperHashes':hashes,'baselineSha256':baseline_sha,
+              'diskSerial':BOOTSTRAP['disk_serial'](scratch_id,challenge)}
     (seed/'manifest.json').write_text(json.dumps(manifest,sort_keys=True)+'\n')
     command='set -eu; mkdir -p /run/wootc-package-seed; mount -t iso9660 -o ro /dev/disk/by-label/CIDATA /run/wootc-package-seed; exec /usr/bin/python3 /run/wootc-package-seed/bootstrap.py /run/wootc-package-seed /var/lib/wootc/package-proof'
     (seed/'user-data').write_text('#cloud-config\npackage_update: false\npackage_upgrade: false\npackages: []\nresize_rootfs: false\ngrowpart:\n  mode: off\nssh_pwauth: false\nruncmd:\n  - '+json.dumps(['/bin/sh','-c',command])+'\n')
@@ -90,13 +94,14 @@ def prepare(inputs,scratch,run=subprocess.run):
         raise ValueError('frozen image source shape differs')
     run(['/usr/bin/qemu-img','create','-f','qcow2','-F','qcow2','-b',str(scratch/'base.qcow2'),str(scratch/'overlay.qcow2')],
         check=True,capture_output=True,timeout=30)
-    for name,path in (('code.fd','/usr/share/OVMF/OVMF_CODE_4M.fd'),('vars.fd','/usr/share/OVMF/OVMF_VARS_4M.fd')):
+    for name,path in (('code.fd',prefix/'usr/share/OVMF/OVMF_CODE_4M.fd'),('vars.fd',prefix/'usr/share/OVMF/OVMF_VARS_4M.fd')):
         freeze(path,scratch/name,sha(path))
     (scratch/'vars.fd').chmod(0o600)
     for name,path in (('qga-readback.py',Path(__file__).with_name('qga-readback.py')),
                       ('qga-client.py',ROOT/'tests/e2e/qga.py')):
         freeze(path,scratch/name,sha(path))
-    ownership=dict(manifest,stage=str(scratch.resolve()),policy=policy,seedSha256=sha(iso),
+    ownership=dict(manifest,hostDataPrefix=str(prefix),hostDataSourceSha256=sha(prefix/'host-data.json'),
+                   qemuDataPath=str(prefix/'usr/share/qemu'),stage=str(scratch.resolve()),policy=policy,seedSha256=sha(iso),
                    policySha256=hashes['packages.json'],qgaReadbackSourceSha256=hashes['readback.py'],
                    baseSha256=observed['cloud.qcow2'],actualVirtualBytes=info['virtual-size'],
                    firmwareSourceHashes={name:sha(scratch/name) for name in ('code.fd','vars.fd')},

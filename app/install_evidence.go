@@ -18,7 +18,7 @@ func hasInstallAttempt(root string) bool {
 		"state.json", "known-folders.json",
 		"disks/root.disk", "disks/root.vhdx",
 		"install/prior-power.txt", "install/vault.json", "install/grub.install.cfg",
-		"install/bcd-before.bak", "install/bcd-guid.txt", "install/armed.json",
+		"install/bcd-before.bak", "install/bcd-guid.txt", "install/armed.json", "install/boot-txn.json",
 		"install/deployer-started.json", "install/recovery-verdict.json",
 		"logs/deployer.log", "logs/deployer-last-journal.log",
 	} {

@@ -24,14 +24,38 @@ concurrency:
 jobs:
   source:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      - name: Install native ELF fixture tools without starting a guest
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf genisoimage binutils
+      - name: Authenticate private host resources and verify isolated closure without a guest
+        run: |
+          HOST_DATA_PREFIX="/run/wootc-package-host-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-data.py "$HOST_DATA_PREFIX"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-namespace.py "$HOST_DATA_PREFIX" --probe
       - name: Execute actual source controls without guest installation
         run: |
           python3 -m unittest discover -s tests/unit -p 'test_linux_package_*.py'
           python3 -m unittest discover -s tests/unit -p test_wootc_package_consumer.py
           python3 tests/audit-linux-package-runtime.py .
+      - name: Retain bounded host authentication and namespace proof
+        if: always()
+        run: |
+          HOST_DATA_PREFIX="/run/wootc-package-host-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,RUNNER_TEMP \
+            /usr/bin/python3 tests/e2e/package-runtime/host-data-proof.py "$HOST_DATA_PREFIX" "$RUNNER_TEMP/host-data-proof"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: host-data-proof-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/host-data-proof/
+          if-no-files-found: warn
+          retention-days: 14
   qualify:
     if: github.event_name == 'workflow_dispatch' && inputs.stage == 'qualify'
     runs-on: ubuntu-24.04

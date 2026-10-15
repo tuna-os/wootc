@@ -29,8 +29,9 @@ HOOK="payload/deployer/deploy-hook.sh"
     # Plain-file OCI layout on NTFS, matched against the user's selection,
     # ingested into local storage so probes + fisherman run network-free.
     grep -q 'BUNDLE_OCI="/mnt/ntfs/wootc/bundle/oci"' "$DEPLOY"
-    grep -q 'podman pull -q "oci:${BUNDLE_OCI}"' "$DEPLOY"
-    grep -q 'podman tag "$_iid" "$IMAGE"' "$DEPLOY"
+    grep -q 'wootc_bundle_ingest /mnt/ntfs/wootc/bundle "$IMAGE"' "$DEPLOY"
+    grep -q 'podman pull -q "oci:$bundle/oci"' payload/deployer/offline-bundle.sh
+    grep -q 'podman tag "$imported" "$selected"' payload/deployer/offline-bundle.sh
     # Best-effort: a broken bundle degrades to the network, never a dead PC.
     grep -q 'bundle ingest failed' "$DEPLOY"
 }

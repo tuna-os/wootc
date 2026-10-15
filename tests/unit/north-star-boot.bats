@@ -90,7 +90,7 @@ MODSETUP="payload/deployer/module-setup.sh"
     # beside them — and the app must prefer that pre-staged manifest (the
     # offline-bundle contract) over a release fetch that 404s in E2E.
     grep -q 'sha256sum "$f" >> SHA256SUMS' tests/e2e/run-e2e.sh
-    grep -q '"SHA256SUMS","SHA256SUMS.sig") { if (Test-Path' tests/e2e/run-e2e.sh
+    grep -q '"SHA256SUMS","SHA256SUMS.sig","shim-authorities.json") { if (Test-Path' tests/e2e/run-e2e.sh
     grep -q 'fetchArtifactChecksums(ctx, installDir)' app/deployer_windows.go
     grep -q 'filepath.Join(installDir, "SHA256SUMS")' app/artifact_manifest.go
     # wubildr.efi is best-effort in the release pipeline and mmx64.efi only
@@ -121,14 +121,17 @@ MODSETUP="payload/deployer/module-setup.sh"
     #   1. the sweep pulls every wootc entry out of displayorder BEFORE the
     #      delete — the smaller NVRAM write succeeds when /delete repeats the
     #      transient, and an entry in no boot order is inert;
-    #   2. the fresh entry is removed from displayorder after arming — the
-    #      one-shot lives in bootsequence alone;
+    #   2. the fresh entry is removed from displayorder before it is
+    #      verified and armed — the one-shot lives in bootsequence alone
+    #      (#286: TestBootTxnCommitsVerifiedChain proves it against a store
+    #      whose /copy adds the clone to displayorder);
     #   3. the E2E reset sweeps firmware entries too, not just ESP files, so
     #      one run's zombie cannot fail the next.
-    grep -q '"bcdedit", "/set", "{fwbootmgr}", "displayorder", m\[1\], "/remove"' app/installer_esp.go
+    grep -q 'env.bcdedit("/set", "{fwbootmgr}", "displayorder", id, "/remove")' app/boot_txn.go
     # ...and the delete still follows it (removal alone would leak objects).
-    grep -A1 'displayorder", m\[1\], "/remove"' app/installer_esp.go | grep -q '"bcdedit", "/delete", m\[1\]'
-    grep -q '"bcdedit", "/set", "{fwbootmgr}", "displayorder", guid, "/remove"' app/installer_esp.go
+    grep -A1 '"displayorder", id, "/remove")' app/boot_txn.go | grep -q 'env.bcdedit("/delete", id)'
+    grep -q 'env.bcdedit("/set", "{fwbootmgr}", "displayorder", guid, "/remove")' app/boot_txn.go
+    grep -q 'TestBootTxnCommitsVerifiedChain' app/boot_txn_test.go
     grep -q 'bcdedit /set {fwbootmgr} displayorder \$g /remove' tests/e2e/run-e2e.sh
     grep -q 'bcdedit /delete \$g' tests/e2e/run-e2e.sh
 }
@@ -139,10 +142,35 @@ MODSETUP="payload/deployer/module-setup.sh"
     # /copy retry loop — one flake of an unprotected command killed the whole
     # install. A fresh entry whose registry key went bad cannot be repaired
     # by re-running one command against it; the retry must sweep and rebuild
-    # from /copy whenever ANY arm step fails. Pin: the bootsequence set and
-    # the between-attempts sweep both live inside the attempt loop.
+    # from /copy whenever ANY arm step fails. Pin: a failed arm attempt
+    # rebuilds the entry, and the rebuild starts with the sweep (#286 moved
+    # the arm into armBootChainTxn, the transaction's commit point).
     local body
-    body=$(awk '/for attempt := 1; attempt <= 3/,/bcdedit arm:/' app/installer_esp.go)
-    printf '%s' "$body" | grep -q '"bootsequence", guid, "/addfirst"'
-    printf '%s' "$body" | grep -q 'deleteWootcBCDEntries()'
+    body=$(awk '/^func armBootChainTxn/,/^}/' app/boot_txn.go)
+    printf '%s' "$body" | grep -q 'for attempt := 1; attempt <= 3'
+    printf '%s' "$body" | grep -q '"bootsequence", txn.BcdGuid, "/addfirst"'
+    printf '%s' "$body" | grep -q 'buildBootEntry(env, &txn)'
+    awk '/^func buildBootEntry/,/^}/' app/boot_txn.go | grep -q 'sweepWootcEntries(env, txn.BcdGuid)'
+    grep -q 'TestBootTxnTransientArmFailureRebuildsEntry' app/boot_txn_test.go
+}
+
+@test "Windows Boot Manager is never added to its own menu (#551)" {
+    # A bare `bcdedit /displayorder {bootmgr} /addfirst` edits the Windows
+    # boot menu and lists Windows Boot Manager in it as a boot option that
+    # loops back to the menu. It ran on every install. The repair before
+    # /copy must name a loader that is already in the menu ({current}), and
+    # cleanup must take a leftover self-reference out again.
+    run grep -nE '"/displayorder", "\{bootmgr\}", "/add' app/installer_esp.go app/boot_txn.go
+    [ "$status" -ne 0 ]
+    grep -q 'removeBootmgrSelfReference()' app/installer_esp.go
+    grep -q '"/displayorder", "{bootmgr}", "/remove"' app/installer_esp.go
+}
+
+@test "a drive letter wootc gives the ESP is taken away again (#551)" {
+    # findESP assigns a letter when the ESP has none. Left in place, the EFI
+    # partition shows up in Explorer. Every caller releases it, and so do
+    # disarm and uninstall (from the on-disk marker, after a crash).
+    grep -q 'ASSIGNED:' app/installer_esp.go
+    [ "$(grep -c 'defer releaseESPLetter()' app/installer_esp.go app/installer_windows.go | awk -F: '{s+=$2} END {print s}')" -ge 4 ]
+    grep -q '"mountvol", letter+":", "/D"' app/installer_esp.go
 }

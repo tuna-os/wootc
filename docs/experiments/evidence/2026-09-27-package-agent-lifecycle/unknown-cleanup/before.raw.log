@@ -1,0 +1,16 @@
+test_unknown_cleanup_after_leader_reap_retains_facts_without_retry (<run_path>.AgentCommandTests.test_unknown_cleanup_after_leader_reap_retains_facts_without_retry) ... FAIL
+
+======================================================================
+FAIL: test_unknown_cleanup_after_leader_reap_retains_facts_without_retry (<run_path>.AgentCommandTests.test_unknown_cleanup_after_leader_reap_retains_facts_without_retry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "tests/unit/test_linux_package_agent_command.py", line 73, in test_unknown_cleanup_after_leader_reap_retains_facts_without_retry
+    self.assertIs(caught.exception.agentCommandFacts,facts)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None is not {'empty': False, 'stage': 'controlled-failure-after-reap', 'leader': 3360745}
+
+----------------------------------------------------------------------
+Ran 1 test in 0.015s
+
+FAILED (failures=1)
+FROZEN288 RED: unknown cleanup facts overwritten with None
