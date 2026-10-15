@@ -1,6 +1,6 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-09-27 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-10-15 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -38,8 +38,8 @@ for current verification and [the VM experiments](docs/experiments/vm-first-2026
 for the work to restore the intended first experience.
 
 **Landed on `main`:**
-- **v0.3.0-beta milestone shipped**: Earlier work enabled the BitLocker policy and captured numerical keys for recovery. It resolved UAC identity to the interactive user and checked ownership of `wootc-data`. It added migrator plugins, JSON manifest schemas, and a runbook to take back a bad release (#211, #358, #354, #362).
-- **Dependencies and tools after v0.3.0-beta**: Wails reached v2.16.0 (#384), and Vite reached v8.3.0 (#382). `golang.org/x/crypto` reached v0.57.0 (#381), and `golang.org/x/sys` reached v0.48.0 (#379). Direct tests cover the DTO generator (#378). The repository adopted the shared English check and Renovate preset (#374, #375).
+- **v0.3.0-beta milestone work (not released)**: The milestone issue #211 closed on 2026-09-02, but no `v0.3.0-beta` tag or release exists. Earlier work enabled the BitLocker policy and captured numerical keys for recovery. It resolved UAC identity to the interactive user and checked ownership of `wootc-data`. It added migrator plugins, JSON manifest schemas, and a runbook to take back a bad release (#211, #358, #354, #362).
+- **Later dependencies and tools**: Wails reached v2.16.0 (#384), and Vite reached v8.3.0 (#382). `golang.org/x/crypto` reached v0.57.0 (#381), and `golang.org/x/sys` reached v0.48.0 (#379). Direct tests cover the DTO generator (#378). The repository adopted the shared English check and Renovate preset (#374, #375).
 - Historical runs used the GUI and passed native deployment, Linux boot, and graduation on `bluefin:lts`. Those runs did not launch Linux inside Windows.
 - **Release automation, three channels**: Tagged releases need an E2E gate. Dispatch inputs can select a tag without tag-push rights. Every green nightly can produce an automatic pre-release. Manual pre-releases also exist. Every release ships all five brand exes, deployer boot artifacts, and `SHA256SUMS`.
 - **First tagged release shipped**: [`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1) passed its E2E gate. The release workflow published it on 2026-08-22.
@@ -70,7 +70,7 @@ The VM has been the world so far; this milestone makes real laptops the evidence
 - Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
 - Upstream must accept the first winget submission.
 
-### v0.3.0-beta — "The whole matrix, honestly" *(shipped 2026-09-03: milestone issue #211 / docs/release-notes-v0.3.0-beta.md)*
+### v0.3.0-beta — "The whole matrix, honestly" *(planned: milestone issue #211 closed 2026-09-02; no tag or release yet; release notes drafted in docs/release-notes-v0.3.0-beta.md)*
 Beta means the support policy stops saying "alpha" because the evidence exists.
 - **Full-tier matrix green (#222)**: every green-status catalog image × win10/11 Pro (+ Enterprise/LTSC cells where media allows) proven in `tests/e2e/matrix.tsv` and `app/data/images.json`.
 - **BitLocker path (#34, #223) green**: Enable `BitLockerSupported: true` on beta with numerical keys for recovery and dedicated storage volumes.
@@ -92,8 +92,8 @@ Beta means the support policy stops saying "alpha" because the evidence exists.
 ### Native shell sequence and evidence (#357)
 
 The WinUI cutover is inside the road to 1.0. Earlier Wails releases can ship
-before phase D. They do not start the 1.0 soak. The existing beta release is
-history, not proof of the future native product.
+before phase D. They do not start the 1.0 soak. A beta release, when one is
+cut, is not proof of the future native product.
 
 | Phase | Place on the ladder | Gate |
 |---|---|---|
