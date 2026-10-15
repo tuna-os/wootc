@@ -750,6 +750,22 @@ copy loop saw an unattributable vendor binary and refused, correctly.
 - The harness now drops the task once the app is up and then *counts*
   `wootc.exe` before writing the directive — no instance can install until the
   directive exists, so an extra killed at that point provably never installed.
+- **The drop was a silent no-op for a month (2026-10).** It was written
+  `cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-gui-e2e\" /F >NUL 2>&1"`.
+  PowerShell has no backslash escape, so `\"` *ended* the string; cmd.exe got
+  two arguments, schtasks tried to delete a task named `"`, and `>NUL` hid the
+  error. The count still caught the extra while launch confirmation was slower
+  than the trigger's minute. When the ready marker (#364) made confirmation
+  fast, the count ran first, the trigger fired after it, and the second app's
+  pipeline died on the first one's file: `Making room for Linux: root.disk
+  already exists` on every image (runs 36450824541, 38735109866). The ESP at
+  failure time held a complete deployer chain from the other pipeline — the
+  failing one had stopped before it ever wrote there. The delete is now
+  verified from a successful task listing, and the directive is refused
+  without both "task absent" and "one wootc.exe"
+  (`tests/unit/test_gui_launch_task.py`, which also parses the line with
+  `pwsh` when present). A fix that hides its own failure behind `>NUL` is a
+  proxy for itself (§1).
 
 ## 33. A deaf channel has no opinion about the product
 
