@@ -189,7 +189,9 @@ func reportStateTrustFailure(err error) {
 	fmt.Fprintln(os.Stderr, message)
 	if !isHeadlessInvocation(os.Args) {
 		text, _ := windows.UTF16PtrFromString(message)
-		title, _ := windows.UTF16PtrFromString("wootc — unsafe installer state")
+		// The state directory is exactly what is untrusted here, so the title
+		// comes from the compiled-in brand, never a brand.json overlay in it.
+		title, _ := windows.UTF16PtrFromString(embeddedProductName() + " — unsafe installer state")
 		_, _ = windows.MessageBox(0, text, title, windows.MB_OK|windows.MB_ICONERROR)
 	}
 }

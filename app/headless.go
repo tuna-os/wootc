@@ -51,7 +51,7 @@ func runHeadless(args []string) int {
 func headlessUninstall(args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	deleteRootDisk := fs.Bool("delete-root-disk", false, "delete root.disk (loses Linux data)")
-	removePartition := fs.Bool("remove-partition", false, "remove the wootc data partition and extend C:")
+	removePartition := fs.Bool("remove-partition", false, "remove the "+productName()+" data partition and extend C:")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -165,8 +165,8 @@ func headlessRecover(args []string) int {
 	tryAgain := fs.Bool("try-again", false, "re-arm from armed.json and reboot")
 	repairBoot := fs.Bool("repair-boot", false, "re-stage ESP, re-arm BCD and reboot (refuses when ownership is uncertain)")
 	inspect := fs.Bool("inspect", false, "print the observed boot state and safe repair actions as JSON; changes nothing")
-	restoreWindows := fs.Bool("restore-windows", false, "take wootc out of the boot order so Windows starts; keeps files for a retry")
-	remove := fs.Bool("remove", false, "uninstall wootc")
+	restoreWindows := fs.Bool("restore-windows", false, "take "+productName()+" out of the boot order so Windows starts; keeps files for a retry")
+	remove := fs.Bool("remove", false, "uninstall "+productName())
 	noReboot := fs.Bool("no-reboot", false, "do not reboot after try-again or repair-boot")
 
 	if err := fs.Parse(args); err != nil {

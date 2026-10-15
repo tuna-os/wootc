@@ -43,12 +43,12 @@ func (a *App) GetVMCapability() VMCapability {
 	qemuPath, bundled := findQEMU()
 	if qemuPath == "" {
 		return VMCapability{Available: false, DiskPath: info.DiskPath,
-			Reason: "QEMU isn't installed. Install QEMU for Windows or reinstall wootc with the VM viewer."}
+			Reason: "QEMU isn't installed. Install QEMU for Windows or reinstall " + productName() + " with the VM viewer."}
 	}
 	if _, err := os.Stat(edk2Code()); err != nil {
 		return VMCapability{Available: false, DiskPath: info.DiskPath,
 			QEMUPath: qemuPath, Bundled: bundled,
-			Reason: "The VM firmware is missing. Reinstall wootc with the VM viewer."}
+			Reason: "The VM firmware is missing. Reinstall " + productName() + " with the VM viewer."}
 	}
 	accelerator := availableAccelerator()
 	if accelerator == "" {
@@ -133,11 +133,11 @@ func (a *App) GetFreshVMCapability() VMCapability {
 	qemuPath, bundled := findQEMU()
 	cap := VMCapability{QEMUPath: qemuPath, Bundled: bundled}
 	if qemuPath == "" {
-		cap.Reason = "QEMU isn't installed. Reinstall wootc with the VM viewer."
+		cap.Reason = "QEMU isn't installed. Reinstall " + productName() + " with the VM viewer."
 		return cap
 	}
 	if _, err := os.Stat(edk2Code()); err != nil {
-		cap.Reason = "The VM firmware is missing. Reinstall wootc with the VM viewer."
+		cap.Reason = "The VM firmware is missing. Reinstall " + productName() + " with the VM viewer."
 		return cap
 	}
 	if _, err := os.Stat(builderKernel()); err != nil {
