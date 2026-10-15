@@ -533,6 +533,8 @@ qga_wait_windows() {
 # password and autologon configuration intact. Never change machine-wide policy.
 # shellcheck source=tests/e2e/lib/gui-session.sh
 source "$SCRIPT_DIR/lib/gui-session.sh"
+# shellcheck source=tests/e2e/lib/mok.sh
+source "$SCRIPT_DIR/lib/mok.sh"
 wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_restart_windows
 
 # Which drive holds the guest's \wootc tree. NOT always C:.
@@ -3760,6 +3762,13 @@ mok_sequence() {  # returns 0 only when the MokManager MENU was confirmed and dr
 # enrollment is pending (and widen the boot budget for the extra reboots).
 MOK_PENDING=false
 MOK_SIGHTINGS=0
+# Re-arm Phase 2 once per event that hands the firmware back to Windows: a
+# driven sequence (MokManager reboots to the default entry) or a reset after
+# a missed countdown. A single "already re-armed" flag would strand the
+# enrolled boot behind the recovery's re-arm.
+MOK_REARM_WANTED=false
+MOK_MISS_BYTE=""
+MOK_RESETS=0
 # A transient `podman cp` race here (reboot moment) must not abort the run
 # under set -e: the feed reports failure itself and warns after 12
 # consecutive misses, and the MOK grep below tolerates a stale copy.
@@ -3780,7 +3789,7 @@ fi
 # (run 32674246660 — sequence 1 driven, Windows booted 2s later, the re-arm
 # never fired, 9 idle minutes to timeout).
 mok_rearm_phase2() {
-    MOK_REARMED=true
+    MOK_REARM_WANTED=false
     info "Windows returned after the MokManager sequence (one-shot consumed) — re-arming Phase 2"
     # Soft wait: qga_wait's timeout branch writes the failure ledger, and
     # this re-arm must not be able to fail the run on its own — the boot
@@ -3817,6 +3826,27 @@ while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
+    # A MISSED countdown does not come back by itself: MokManager boots GRUB,
+    # GRUB refuses the untrusted kernel and then waits at its menu (run
+    # 38755153727 sat there for the whole budget). The enrollment request is
+    # still pending, so reset from the bootloader — positive evidence only,
+    # see mok_missed_boot_refused — let the firmware fall back to Windows,
+    # and re-arm the one-shot; the next pass through shim shows MokManager to
+    # a loop that is already watching. Once per run.
+    if [ "$MOK_PENDING" = true ] && [ -n "$MOK_MISS_BYTE" ] && [ "$MOK_RESETS" -lt 1 ] \
+        && mok_missed_boot_refused "$(tail -c +"$((MOK_MISS_BYTE + 1))" "$PTY" 2>/dev/null || true)"; then
+        MOK_RESETS=$((MOK_RESETS + 1))
+        MOK_MISS_BYTE=""
+        MOK_REARM_WANTED=true
+        info "MokManager countdown missed and GRUB refused the untrusted kernel — resetting from the bootloader to retry the enrollment"
+        $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket,time; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(b"system_reset\n"); time.sleep(.4); s.recv(4096); s.close()' \
+            || warn "  monitor reset failed — the boot verdict decides"
+        BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
+        snapshot_serial || true
+        LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
+        sleep 5
+        continue
+    fi
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
             fail "Could not read serial output and persist its observed phase vocabulary"; exit 1;
@@ -3830,6 +3860,8 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         if [ "$MOK_PENDING" = true ] && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'Press any key to perform MOK management'; then
             if mok_sequence; then
                 MOK_SIGHTINGS=$((MOK_SIGHTINGS + 1))
+                MOK_REARM_WANTED=true
+                MOK_MISS_BYTE=""
                 info "MokManager driven (sequence $MOK_SIGHTINGS): Enroll MOK, password universalblue"
                 if [ "$MOK_SIGHTINGS" -ge 2 ]; then
                     warn "  two MokManager sequences sent — the boot verdict decides"
@@ -3838,6 +3870,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
                 BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
             else
                 info "MokManager sighted but its menu was not confirmed (countdown expired?) — catching the next cycle"
+                MOK_MISS_BYTE=$CURRENT_BYTE
             fi
             # Consume everything the sequence itself painted (menu redraws
             # repeat the marker) — or the next poll would re-trigger on our
@@ -3851,7 +3884,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
             snapshot_serial || true
             _mok_seq_tail=$(tail -c +"$((CURRENT_BYTE + 1))" "$PTY" 2>/dev/null || true)
             LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
-            if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+            if [ "$MOK_REARM_WANTED" = true ] \
                 && printf '%s\n' "$_mok_seq_tail" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
                 mok_rearm_phase2
                 snapshot_serial || true
@@ -3861,7 +3894,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         fi
         # The Windows-return line can also land in ordinary fresh output
         # (slower firmware, or a boot cycle later): same one-time re-arm.
-        if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+        if [ "$MOK_REARM_WANTED" = true ] \
             && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
             mok_rearm_phase2
             snapshot_serial || true
