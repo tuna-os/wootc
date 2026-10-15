@@ -86,11 +86,13 @@ jobs:
           brands=$(printf '%s\n' "${picked[@]}" | jq -Rsc 'split("\n") | map(select(. != ""))')
           echo "brands=$brands" | tee -a "$GITHUB_OUTPUT"
 
+  # The Windows leg of the core contract runs inside native-build, which
+  # already has .NET on a Windows runner: one runner instead of two.
   core:
     name: Core startup contract (${{ matrix.os }})
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -107,6 +109,9 @@ jobs:
           path: shell/Wootc.Shell.Tests/TestResults/*.trx
           if-no-files-found: error
 
+  # Also runs the Windows core contract and the process identity
+  # observations, which used to take a Windows runner each for about a
+  # minute of tests behind a minute of setup.
   native-build:
     name: Native preview XAML and packaging build
     runs-on: windows-latest
@@ -115,12 +120,24 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: shell/global.json
+      # NuGet packages only: restore still resolves every version from the
+      # project files, so a cache hit changes download time, not inputs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('shell/global.json', 'shell/Directory.Build.props', 'shell/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Run startup, route and refusal counterexamples (windows-latest)
+        working-directory: shell
+        run: dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
       - name: Restore and publish the native preview
         working-directory: shell
         run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} --output ../out/winui-preview
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: app/go.mod
+          # go.sum is in app/; the default (a root go.sum) caches nothing.
+          cache-dependency-path: app/go.sum
       - name: Build the exact preview engine for authenticated startup RPC
         working-directory: app
         shell: pwsh
@@ -128,6 +145,10 @@ jobs:
           New-Item -ItemType Directory -Force frontend/dist | Out-Null
           Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
           go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
+      - name: Observe actual process tokens and retained handles
+        working-directory: app
+        shell: pwsh
+        run: go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve|Assessment|Audit)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
       - name: Test actual Windows adapter identities and private package controls
         working-directory: shell
         run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
@@ -162,6 +183,12 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
+          name: winui-core-windows-latest
+          path: shell/Wootc.Shell.Tests/TestResults/*.trx
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
           name: winui-preview-diagnostics
           path: |
             out/winui-source-diagnostics/
@@ -180,22 +207,6 @@ jobs:
             out/winui-startup-events.json
           if-no-files-found: error
 
-  native-peer:
-    name: Native Windows process identity observations
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: app/go.mod
-      - name: Observe actual process tokens and retained handles
-        working-directory: app
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force frontend/dist | Out-Null
-          Set-Content frontend/dist/index.html '<!doctype html><title>Transport unit tests</title>'
-          go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve|Assessment|Audit)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
-
   preview-packaging:
     name: Branded preview package (${{ matrix.brand }})
     needs: plan
@@ -210,9 +221,18 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: shell/global.json
+      # NuGet packages only: restore still resolves every version from the
+      # project files, so a cache hit changes download time, not inputs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('shell/global.json', 'shell/Directory.Build.props', 'shell/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: app/go.mod
+          # go.sum is in app/; the default (a root go.sum) caches nothing.
+          cache-dependency-path: app/go.sum
       - name: Publish the selected preview brand and exact engine
         shell: pwsh
         run: |
@@ -238,7 +258,7 @@ jobs:
 
   publish-preview:
     name: Attach native preview installers to the release
-    needs: [core, native-build, native-peer, preview-packaging]
+    needs: [core, native-build, preview-packaging]
     if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
