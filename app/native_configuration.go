@@ -12,6 +12,22 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
+)
+
+// Budgets for the read-only configuration observation. A cold Windows
+// PowerShell 5.1 start plus its module and CIM loads took slightly more than
+// the earlier 10 s limit on hosted runners whose own steps used PowerShell 7:
+// run 38801326196 (tunaos) stopped before the script's first phase, and run
+// 38801276457 (wootc) stopped in its last phase, "serialize". Both were the
+// deadline, not a hang. The storage query must end before the whole read, and the
+// whole read before the shell stops waiting (50 s, NativeEngineSession), so a
+// slow read ends with the engine's own typed diagnostic. Every value stays
+// under the 60 s bound that both diagnostic decoders enforce.
+const (
+	nativeStorageQueryBudget  = 30 * time.Second
+	nativeConfigurationBudget = 40 * time.Second
+	nativeDiagnosticBound     = 60 * time.Second
 )
 
 // NativeConfigurationSnapshot is a versioned read-only observation. Catalogue
