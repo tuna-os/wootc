@@ -22,7 +22,7 @@ public static class Program
         }
         XamlCheckProcessRequirements();
         WinRT.ComWrappersSupport.InitializeComWrappers();
-        Microsoft.UI.Xaml.Application.Start(_ =>
+        Microsoft.UI.Xaml.Application.Start(callback =>
         {
             SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));
             _ = new App();
