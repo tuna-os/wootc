@@ -19,7 +19,8 @@
 #   WOOTC_SIGN_TSAURL      RFC 3161 timestamp server (optional; jsign default)
 #   WOOTC_SIGN_PUBLISHER   CN the signer certificate must carry (required
 #                          once configured; "Valid" alone is not "ours")
-#   WOOTC_SIGN_CAFILE      CA bundle for verification (default: system)
+#   WOOTC_SIGN_CAFILE      CA bundle for verification (default: system
+#                          TLS bundle; release.yml appends vars.WOOTC_SIGN_CA_PEM)
 #
 # Outcomes (printed as `signing=<state>` to stdout and $GITHUB_OUTPUT):
 #   signed      every exe is signed, timestamped, and verified against the
@@ -88,6 +89,10 @@ args=(--storetype "$WOOTC_SIGN_STORETYPE" --keystore "$WOOTC_SIGN_KEYSTORE"
 if [ -n "${WOOTC_SIGN_CERTFILE:-}" ]; then args+=(--certfile "$WOOTC_SIGN_CERTFILE"); fi
 if [ -n "${WOOTC_SIGN_TSAURL:-}" ]; then args+=(--tsaurl "$WOOTC_SIGN_TSAURL"); fi
 cafile=${WOOTC_SIGN_CAFILE:-/etc/ssl/certs/ca-certificates.crt}
+# The system bundle is TLS roots only. A code-signing root that is not in
+# it (Trusted Signing's Microsoft root, for one) must come in through
+# WOOTC_SIGN_CAFILE, which release.yml builds from vars.WOOTC_SIGN_CA_PEM.
+[ -r "$cafile" ] || fail "CA file $cafile for verification is not readable"
 
 for exe in "${exes[@]}"; do
     name=$(basename "$exe")

@@ -1,0 +1,6 @@
+=== RUN   TestMissingCapabilityReturnMustRefuse
+    missing_return_test.go:6: missing capability return accepted as successful negotiation
+--- FAIL: TestMissingCapabilityReturnMustRefuse (0.00s)
+FAIL
+FAIL	command-line-arguments	0.012s
+FAIL

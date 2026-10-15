@@ -1,0 +1,20 @@
+=== RUN   TestQMPTypedResponseCounterexamples
+=== RUN   TestQMPTypedResponseCounterexamples/{"id":"2"}
+    vm_qmp_protocol_test.go:39: invalid response accepted
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":null,"id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{},"error":{"class":"GenericError","desc":"failed"},"id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{},"id":"2","id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{"running":true,"running":false},"id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{},"id":"unknown"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"error":{"class":"GenericError","desc":"failed"},"id":"2"}
+--- FAIL: TestQMPTypedResponseCounterexamples (0.01s)
+    --- FAIL: TestQMPTypedResponseCounterexamples/{"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":null,"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{},"error":{"class":"GenericError","desc":"failed"},"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{},"id":"2","id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{"running":true,"running":false},"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{},"id":"unknown"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"error":{"class":"GenericError","desc":"failed"},"id":"2"} (0.00s)
+FAIL
+FAIL	wootc	0.022s
+FAIL

@@ -1,0 +1,78 @@
+=== RUN   TestVMDisplayChild
+--- PASS: TestVMDisplayChild (0.00s)
+=== RUN   TestVMDisplayActionsAndSessionNonce
+--- PASS: TestVMDisplayActionsAndSessionNonce (0.08s)
+=== RUN   TestVMDisplayIdentityAndReplayRefuseBeforeGuest
+--- PASS: TestVMDisplayIdentityAndReplayRefuseBeforeGuest (0.03s)
+=== RUN   TestVMDisplayUnknownOrFailedObservations
+=== RUN   TestVMDisplayUnknownOrFailedObservations/paused
+=== RUN   TestVMDisplayUnknownOrFailedObservations/fake-status
+=== RUN   TestVMDisplayUnknownOrFailedObservations/ambiguous-mice
+=== RUN   TestVMDisplayUnknownOrFailedObservations/bad-pixels
+=== RUN   TestVMDisplayUnknownOrFailedObservations/missing-capture
+=== RUN   TestVMDisplayUnknownOrFailedObservations/bad-key-ack
+--- PASS: TestVMDisplayUnknownOrFailedObservations (0.21s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/paused (0.03s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/fake-status (0.04s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/ambiguous-mice (0.04s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/bad-pixels (0.04s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/missing-capture (0.03s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/bad-key-ack (0.04s)
+=== RUN   TestVMDisplayKeyValidation
+--- PASS: TestVMDisplayKeyValidation (0.00s)
+=== RUN   TestVMDisplayDeadlineAndLifecycle
+--- PASS: TestVMDisplayDeadlineAndLifecycle (0.08s)
+=== RUN   TestVMDisplaySymlinkCaptureParentRefused
+--- PASS: TestVMDisplaySymlinkCaptureParentRefused (0.04s)
+=== RUN   TestVMDisplayEngineOwnerAndChangedSession
+--- PASS: TestVMDisplayEngineOwnerAndChangedSession (0.19s)
+=== RUN   TestVMDisplayForceRemainsAvailableDuringShutdownWait
+--- PASS: TestVMDisplayForceRemainsAvailableDuringShutdownWait (0.04s)
+=== RUN   TestVMDisplayCaptureRetentionExhaustion
+--- PASS: TestVMDisplayCaptureRetentionExhaustion (1.09s)
+=== RUN   TestVMDisplayActualRetainedByteBudget
+--- PASS: TestVMDisplayActualRetainedByteBudget (0.04s)
+=== RUN   TestVMDisplayNeverInheritsDesktopClaim
+--- PASS: TestVMDisplayNeverInheritsDesktopClaim (0.03s)
+=== RUN   TestManagedVMShutdownContract
+=== RUN   TestManagedVMShutdownContract/clean
+=== RUN   TestManagedVMShutdownContract/host
+=== RUN   TestManagedVMShutdownContract/crash
+=== RUN   TestManagedVMShutdownContract/hung
+--- PASS: TestManagedVMShutdownContract (2.31s)
+    --- PASS: TestManagedVMShutdownContract/clean (1.05s)
+    --- PASS: TestManagedVMShutdownContract/host (1.04s)
+    --- PASS: TestManagedVMShutdownContract/crash (0.04s)
+    --- PASS: TestManagedVMShutdownContract/hung (0.19s)
+=== RUN   TestQMPNativePausedComponent
+    vm_qmp_native_test.go:27: QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+        Copyright (c) 2003-2023 Fabrice Bellard and the QEMU Project developers
+    vm_qmp_native_test.go:49: actual paused status {"status": "prelaunch", "singlestep": false, "running": false}
+    vm_qmp_native_test.go:61: actual native PPM 640x480 sha256=15e7d086f38e02fb3b8af538b68d76619b0ecf56927333e1ba7510e79346fb03
+--- PASS: TestQMPNativePausedComponent (0.09s)
+=== RUN   TestQMPTypedResponseCounterexamples
+=== RUN   TestQMPTypedResponseCounterexamples/{"id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":null,"id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{},"error":{"class":"GenericError","desc":"failed"},"id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{},"id":"2","id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{"running":true,"running":false},"id":"2"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"return":{},"id":"unknown"}
+=== RUN   TestQMPTypedResponseCounterexamples/{"error":{"class":"GenericError","desc":"failed"},"id":"2"}
+--- PASS: TestQMPTypedResponseCounterexamples (0.01s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":null,"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{},"error":{"class":"GenericError","desc":"failed"},"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{},"id":"2","id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{"running":true,"running":false},"id":"2"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"return":{},"id":"unknown"} (0.00s)
+    --- PASS: TestQMPTypedResponseCounterexamples/{"error":{"class":"GenericError","desc":"failed"},"id":"2"} (0.00s)
+=== RUN   TestQMPBoundedBlockedWriteAndUnsupportedCommand
+--- PASS: TestQMPBoundedBlockedWriteAndUnsupportedCommand (0.03s)
+=== RUN   TestQMPDuplicateOrMalformedJSON
+--- PASS: TestQMPDuplicateOrMalformedJSON (0.00s)
+=== RUN   TestQMPShutdownNeedsLiteralTypedFields
+--- PASS: TestQMPShutdownNeedsLiteralTypedFields (0.00s)
+=== RUN   TestQMPRejectsMissingGreetingPromptly
+--- PASS: TestQMPRejectsMissingGreetingPromptly (0.00s)
+PASS
+ok  	wootc	5.304s

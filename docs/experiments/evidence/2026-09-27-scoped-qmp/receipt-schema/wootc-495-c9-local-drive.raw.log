@@ -1,0 +1,16 @@
+..E.......
+======================================================================
+ERROR: test_actual_frontend_produces_bound_install_and_refuses_changed_identity (__main__.GuiDriveReceiptTests.test_actual_frontend_produces_bound_install_and_refuses_changed_identity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-vm-scoped-qmp/tests/unit/test_gui_drive_receipt.py", line 57, in test_actual_frontend_produces_bound_install_and_refuses_changed_identity
+    receipt = json.loads(module.validate(raw, 'current', DIRECTIVE, IMAGE))
+                         ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/wootc-vm-scoped-qmp/tests/e2e/gui-drive-receipt.py", line 30, in validate
+    raise ValueError('invalid GUI fields')
+ValueError: invalid GUI fields
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.451s
+
+FAILED (errors=1)

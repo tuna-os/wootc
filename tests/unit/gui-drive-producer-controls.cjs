@@ -7,6 +7,9 @@ const source = fs.readFileSync(process.argv[2], 'utf8').replace(/^import .*;\n/,
 const image = 'ghcr.io/tuna-os/yellowfin:gnome';
 const identity = {schemaVersion: 1, runId: 'current', directiveId: '1234567890abcdef1234567890abcdef'};
 let directive = {...identity, action: 'install', image, username: 'wootc', hostname: 'test', password: 'public-test'};
+const installFields = ['schemaVersion', 'runId', 'directiveId', 'action', 'screen', 'installDriven', 'installBtnDisabled', 'hint', 'progressStep', 'error', 'selectedRef', 'imageMismatch'];
+const vmFields = ['vmPrepareDriven', 'freshVmAvailable', 'freshVmReason', 'vmPrepareButtonVisible', 'vmPrepareButtonDisabled', 'vmRuntimeButtonVisible', 'vmImageMismatch', 'vmReady', 'vmProgressStage'];
+const fieldsEqual = (receipt, expected) => assert.deepEqual(Object.keys(receipt).sort(), [...expected].sort());
 const reports = [];
 let scheduled, clicks = 0, reboots = 0, events = 0;
 const button = {disabled: false, click() { clicks++; }};
@@ -38,6 +41,8 @@ async function settle() { await new Promise(resolve => setImmediate(resolve)); }
  assert.equal(reports[0].action, 'install'); assert.equal(reports[0].installDriven, true);
  state.screen = 'done'; scheduled(); await settle();
  assert.equal(reports.at(-1).screen, 'done');
+ fieldsEqual(reports.at(-1), installFields);
+ const installReceipt = reports.at(-1);
  const count = reports.length;
  directive = {...directive, runId: 'stale'}; scheduled(); await settle();
  assert.equal(reports.length, count); assert.equal(clicks, 1); assert.equal(reboots, 0);
@@ -46,6 +51,22 @@ async function settle() { await new Promise(resolve => setImmediate(resolve)); }
  directive = {...identity, action: 'reboot'}; scheduled(); await settle();
  assert.equal(reboots, 1); assert.equal(reports.at(-1).action, 'reboot');
  scheduled(); await settle(); assert.equal(reboots, 1);
+ const rebootReceipt = reports.at(-1);
+ fieldsEqual(rebootReceipt, installFields);
+ const prepareReports = []; let prepareClicks = 0;
+ const prepareContext = {...context, window: {},
+  document: {...context.document, getElementById(id) {
+   return id === 'vm-prepare-btn' ? {disabled: false, click() { prepareClicks++; }} : null;
+  }},
+  E2EDriveDirective: async () => JSON.stringify({...identity, action: 'prepare-vm', image, username: 'wootc', password: 'public-test'}),
+  E2EDriveReport: async raw => prepareReports.push(JSON.parse(raw)),
+ };
+ vm.runInNewContext(source, prepareContext);
+ prepareContext.startE2EDrive({...state, screen: 'launchpad'}); await settle();
+ assert.equal(prepareClicks, 1);
+ const prepareReceipt = prepareReports.at(-1);
+ assert.equal(prepareReceipt.vmPrepareDriven, true);
+ fieldsEqual(prepareReceipt, [...installFields, ...vmFields]);
  // A click that throws never reports installDriven and is not replayed.
  const failedReports = []; let failedScheduled, failedClicks = 0;
  const failedContext = {...context, window: {},
@@ -77,5 +98,5 @@ async function settle() { await new Promise(resolve => setImmediate(resolve)); }
  assert.equal(mismatchClicks, 0); assert.equal(mismatchReports.length, 1);
  assert.equal(mismatchReports[0].installDriven, false);
  assert.equal(mismatchReports[0].imageMismatch, true);
- console.log(JSON.stringify({controls: 8, mismatchReceipt: mismatchReports[0], thrownClickReceipt: failedReports[0], scope: 'actual frontend module with DOM and bridge spies', installReceipt: reports[1]}));
+ console.log(JSON.stringify({controls: 8, mismatchReceipt: mismatchReports[0], thrownClickReceipt: failedReports[0], scope: 'actual frontend module with DOM and bridge spies', installReceipt, rebootReceipt, prepareReceipt, receiptActionControls: 3}));
 })().catch(error => { console.error(error); process.exitCode = 1; });
