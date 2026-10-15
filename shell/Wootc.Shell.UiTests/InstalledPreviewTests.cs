@@ -135,6 +135,15 @@ public sealed class InstalledPreviewTests
             // never confirms anything.
             var prepareInstall=Find("PrepareInstall").AsButton();
             Assert.False(prepareInstall.IsEnabled);
+            // The engine's default size can exceed what a hosted volume holds.
+            // Every observed volume holds at least 20 GB, the form's minimum.
+            var diskSize=Find("LinuxDiskSize");
+            if(diskSize.Patterns.RangeValue.IsSupported)diskSize.Patterns.RangeValue.Pattern.SetValue(20);
+            else
+            {
+                var sizeText=diskSize.FindFirstDescendant(cf=>cf.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))?.AsTextBox()??throw new InvalidOperationException("Disk size input is absent");
+                sizeText.Text="20";sizeText.Focus();FlaUI.Core.Input.Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.TAB);
+            }
             var storageChoice=Find("StorageChoice").AsComboBox();
             storageChoice.Expand();int volumes=storageChoice.Items.Length;storageChoice.Collapse();
             Assert.True(volumes>0,"No observed storage volume");
@@ -149,7 +158,7 @@ public sealed class InstalledPreviewTests
                     while(!prepareInstall.IsEnabled&&!offered.IsCancellationRequested)await Task.Delay(50);
                 }
             }
-            if(!prepareInstall.IsEnabled)throw new InvalidOperationException($"No observed image and volume made a complete plan; {Find("InstallBlockedReason").Name}");
+            if(!prepareInstall.IsEnabled)throw new InvalidOperationException($"No observed image and volume made a complete plan; {Find("InstallBlockedReason").Name}; size={(diskSize.Patterns.RangeValue.IsSupported?diskSize.Patterns.RangeValue.Pattern.Value.Value:double.NaN)}");
             Assert.False(Find("InstallLinux").IsEnabled);
             string stateRoot=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!,"wootc");
             bool stateRootBefore=Directory.Exists(stateRoot);
