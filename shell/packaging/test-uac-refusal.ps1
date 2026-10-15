@@ -1,7 +1,7 @@
 #Requires -Version 7.2
 # Real UAC refusal against the installed preview. A disposable standard user
 # runs the installed shell; ConsentPromptBehaviorUser=0 makes Windows itself
-# deny that user's elevation request with ERROR_CANCELLED. The prior policy
+# deny that user's elevation request (ERROR_ACCESS_DISABLED_BY_POLICY). The prior policy
 # value and the account are restored/removed whatever the outcome.
 param(
     [Parameter(Mandatory=$true)][string]$Executable,

@@ -15,7 +15,9 @@ namespace Wootc.Shell.UiTests;
 // as that user and its real runas request reaches the real UAC policy.
 public sealed class UacRefusalTests
 {
-    private const string Declined = "PermissionDeclined: Administrator permission was declined. You can retry.";
+    // Windows answers ConsentPromptBehaviorUser=0 with ERROR_ACCESS_DISABLED_BY_POLICY
+    // (observed on windows-latest), not the ERROR_CANCELLED of a No click.
+    private const string Declined = "PermissionDeclined: Windows policy on this computer does not let this account request administrator permission. Ask an administrator, then retry.";
 
     [Fact]
     public async Task ActualUacRefusalKeepsBrandedAssessmentAndOffersRetry()
