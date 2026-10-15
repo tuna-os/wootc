@@ -1,0 +1,66 @@
+{
+  "runId": "36333288398",
+  "runAttempt": 1,
+  "head": "054f3ad2e21258e3135e81c99efc30c61e014c82",
+  "testedMerge": "a4f4e371dcb69d2be1bb837da5c61b362777ea5f",
+  "conclusion": "failure",
+  "cause": "PowerShell5.1 Stop interpreted normal native Go module download stderr as NativeCommandError before any test assertion executed",
+  "windowsTestsExecuted": false,
+  "rawLogSha256": "8a44d45506c6d732c330d4d27b8e22e2ab751e046c203b8af183837efd80da7f",
+  "checkoutMapping": {
+    "app/vm_guest_pipe_windows.go": {
+      "gitBlobSha256": "bf696d191dd79ac17dc1d0d54859d8aa617da9b9a93baf5f20b97dfb16e340a7",
+      "windowsCheckoutSha256": "f32cd4a3019d8404466ae4c90e6ebd0a56e2da0ae3ef14bf092b7acc06251635",
+      "lfToCrlfSha256": "f32cd4a3019d8404466ae4c90e6ebd0a56e2da0ae3ef14bf092b7acc06251635",
+      "matches": true
+    },
+    "app/vm_guest_pipe_windows_test.go": {
+      "gitBlobSha256": "6c66a526e0b63dd9b0f9d732877d7c5dca3ba7fe1ff2584bcc51ffd6adfff3f3",
+      "windowsCheckoutSha256": "4fb80cf76006fd62ce39ac8e78441a8afc1d1d28b18b13e5d84b8eae9bc2e852",
+      "lfToCrlfSha256": "4fb80cf76006fd62ce39ac8e78441a8afc1d1d28b18b13e5d84b8eae9bc2e852",
+      "matches": true
+    },
+    "app/vm_guest_protocol.go": {
+      "gitBlobSha256": "39f593fe177ebb59c3cc0b7a4a7d4f9d1ede54d6d0030e5dee5619410643793a",
+      "windowsCheckoutSha256": "20c5ef0fdc6e1cb28a106d77ae844352debba4cbf7535dd5a08b19fb6baeaeae",
+      "lfToCrlfSha256": "20c5ef0fdc6e1cb28a106d77ae844352debba4cbf7535dd5a08b19fb6baeaeae",
+      "matches": true
+    },
+    "app/vm_guest_protocol_test.go": {
+      "gitBlobSha256": "9e36982025b3f732557df0d98d7e37280de20cb28bdc679a75394854362b1a4f",
+      "windowsCheckoutSha256": "b3b00d649e3abd2f77bbf020348196cb5a8c4c3c3bcad30b2c8a985f446eaec6",
+      "lfToCrlfSha256": "b3b00d649e3abd2f77bbf020348196cb5a8c4c3c3bcad30b2c8a985f446eaec6",
+      "matches": true
+    },
+    "payload/vm-observer/boot_probe.py": {
+      "gitBlobSha256": "94e93f1c2ae154818b9ad61b15f244eb9c997ff76ac4781b1c9792bcef67cf2a",
+      "windowsCheckoutSha256": "ec2cab57dfece41a69a00743e9caa1a54e6bfbda880ca6751cfdd33d57c966d8",
+      "lfToCrlfSha256": "ec2cab57dfece41a69a00743e9caa1a54e6bfbda880ca6751cfdd33d57c966d8",
+      "matches": true
+    },
+    "tests/e2e/phase3_ancestry.py": {
+      "gitBlobSha256": "2bdcd2cd4d041ec77a6816a53829b90f4f8ded330bd308ee2711c048b12c84ef",
+      "windowsCheckoutSha256": "dfb1086111c8eafbd18afe2aed3f37d14a1ef3e48a4016acdd032de5cf009afe",
+      "lfToCrlfSha256": "dfb1086111c8eafbd18afe2aed3f37d14a1ef3e48a4016acdd032de5cf009afe",
+      "matches": true
+    },
+    "app/vm_qmp.go": {
+      "gitBlobSha256": "1a434e11459306dafc415eac323e98f4c3f5d8a2b1ee94bfb9568dcdfe12e66f",
+      "windowsCheckoutSha256": "1d277f153508a18c832ca29ee8f508885b89e825816941ac33fa047ad309ec8a",
+      "lfToCrlfSha256": "1d277f153508a18c832ca29ee8f508885b89e825816941ac33fa047ad309ec8a",
+      "matches": true
+    },
+    "app/vm_display.go": {
+      "gitBlobSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+      "windowsCheckoutSha256": "9a03412abe0b45276c17e57783c07bcfa18026779e9c72ab09c1abbd2e354b0d",
+      "lfToCrlfSha256": "9a03412abe0b45276c17e57783c07bcfa18026779e9c72ab09c1abbd2e354b0d",
+      "matches": true
+    },
+    "app/native_peer_windows.go": {
+      "gitBlobSha256": "4428461007c83814922a94f2c8c530807f088fae8d952003daf0253aa29bbb87",
+      "windowsCheckoutSha256": "3c7bd546475b838f45911059e176647bb58cc19de06e9ea2578ff8359e40ee8a",
+      "lfToCrlfSha256": "3c7bd546475b838f45911059e176647bb58cc19de06e9ea2578ff8359e40ee8a",
+      "matches": true
+    }
+  }
+}

@@ -48,6 +48,16 @@ release matrix follows:
   brands too.
 - **declined** — the exe drops from the release matrix. Not ours to ship.
 
+**Publisher follows the blessing too.** `brand.json`'s `publisher` and
+`copyright` name the mark's owner, and the exe may say so only once that
+owner has said yes. Until `blessing.json` is `blessed` (or the brand is
+self-owned), the exe's CompanyName, its Apps & features Publisher and the
+winget draft's Publisher name `distributor` from `ownership.json` (TunaOS),
+and no copyright is claimed in the owner's name. Recording the yes switches
+all three; nothing else needs editing. `app/brand_publisher_test.go`,
+`tests/unit/test_windows_resources.py` and `tests/unit/test_winget_brand.py`
+fail if an unblessed brand names its owner.
+
 A brand directory with **no** `blessing.json` is a hard build error, not a
 default yes: a new brand cannot reach a release without someone writing down
 who was asked. `app/blessing_test.go` holds the rest of the line — the status

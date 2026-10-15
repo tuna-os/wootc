@@ -30,6 +30,10 @@ on:
       # the guest a spare 40G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
       # Windows + root.disk stay untouched, so the run remains reversible.
       phase3: { type: boolean, default: false }
+      # Offline axis (#217): the guest VM gets no network device, and the
+      # deployer must install from an OCI bundle staged over QGA. Passes
+      # --offline. Script path only (run-e2e.sh refuses it with gui_install).
+      offline: { type: boolean, default: false }
       # Force the Phase-2 bootloader (grub2|systemd). Empty = run-e2e.sh's
       # per-image heuristic (EL→grub2, else→systemd). Ostree images (e.g.
       # bluefin) want grub2 (the proven attach path); composefs wants systemd.
@@ -77,7 +81,7 @@ jobs:
     outputs:
       flake_verdict: ${{ steps.flake.outputs.verdict }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { submodules: recursive }
 
       - name: Confirm KVM is available
@@ -174,7 +178,7 @@ jobs:
       # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
       # loader tag, so this is a stock production build.
       - name: Set up Node for lifecycle CLI
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           # Disk reclaim removes the runner's preinstalled global Node modules.
           # GUI runs build the real Wails frontend, so explicitly restore a
@@ -182,7 +186,7 @@ jobs:
           node-version: '24'
 
       - name: Set up Go for lifecycle CLI
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
@@ -288,6 +292,7 @@ jobs:
           cd tests/e2e
           FLAGS=()
           [ "${{ inputs.phase3 }}" = "true" ] && FLAGS+=(--phase3)
+          [ "${{ inputs.offline }}" = "true" ] && FLAGS+=(--offline)
           [ "${{ inputs.gui_install }}" = "true" ] && FLAGS+=(--gui-install)
           [ "${{ inputs.uninstall_check }}" = "true" ] && FLAGS+=(--uninstall-check)
           [ -n "$WOOTC_FAULT_INJECT" ] && FLAGS+=("--fault-inject=$WOOTC_FAULT_INJECT")
@@ -381,7 +386,7 @@ jobs:
         if: always()
         run: python3 tests/e2e/safe-log.py --tree /tmp/evidence
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always() && steps.safe_logs.outcome == 'success'
         with:
           # Per-CASE name. Every cell used to upload "e2e-nightly-<run_id>", so

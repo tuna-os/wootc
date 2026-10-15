@@ -47,6 +47,12 @@ func embeddedBranding() (Branding, bool) {
 	if json.Unmarshal(data, &b) != nil {
 		return Branding{}, false
 	}
+	if !brandMayNameOwner(brandID) {
+		// Until the mark's owner has said yes, the exe and its Add/Remove
+		// entry name who actually built and distributes it, not them.
+		b.Publisher = brandDistributor()
+		b.Copyright = ""
+	}
 	if logo, err := brandFS.ReadFile("branding/" + brandID + "/logo.svg"); err == nil {
 		b.LogoDataURI = "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(logo)
 	}
@@ -57,6 +63,73 @@ func embeddedBranding() (Branding, bool) {
 		b.ThemeCSS = string(css)
 	}
 	return b, true
+}
+
+// brandMayNameOwner reports whether a brand's own publisher and copyright
+// (brand.json) may appear on the exe and its Add/Remove entry. A branded
+// build names its mark's owner as publisher only once that owner has said
+// yes — blessing.json status "blessed" — or when the mark is this project's
+// own (selfOwned, and listed in ownership.json). Anything else, including a
+// missing or unreadable record, fails closed: claiming another project's
+// authorship before they agree is the presumption #227 exists to prevent.
+// packaging/brand.py effective_identity applies the same rule to the
+// exe's version resource and the winget manifests.
+func brandMayNameOwner(id string) bool {
+	record, err := brandFS.ReadFile("branding/" + id + "/blessing.json")
+	if err != nil {
+		return false
+	}
+	policy, ok := brandOwnership()
+	return ok && ownerMayBeNamed(id, record, policy)
+}
+
+// ownerMayBeNamed is brandMayNameOwner without the I/O, so a test can drive
+// a blessed record the checkout does not (yet) hold.
+func ownerMayBeNamed(id string, blessing []byte, policy brandOwnershipPolicyFile) bool {
+	var record struct {
+		Brand     string `json:"brand"`
+		SelfOwned bool   `json:"selfOwned"`
+		Status    string `json:"status"`
+	}
+	if json.Unmarshal(blessing, &record) != nil || record.Brand != id {
+		return false
+	}
+	if record.SelfOwned {
+		for _, own := range policy.SelfOwnedBrands {
+			if own == id {
+				return true
+			}
+		}
+		return false
+	}
+	return record.Status == "blessed"
+}
+
+type brandOwnershipPolicyFile struct {
+	SelfOwnedBrands  []string `json:"selfOwnedBrands"`
+	WingetNamespaces []string `json:"wingetNamespaces"`
+	// Distributor is who builds and ships every exe in this checkout — the
+	// publisher an unblessed brand's exe carries instead of the mark owner.
+	Distributor string `json:"distributor"`
+}
+
+func brandOwnership() (brandOwnershipPolicyFile, bool) {
+	var policy brandOwnershipPolicyFile
+	data, err := brandFS.ReadFile("branding/ownership.json")
+	if err != nil || json.Unmarshal(data, &policy) != nil {
+		return policy, false
+	}
+	return policy, true
+}
+
+// brandDistributor is ownership.json's distributor. Never empty: an empty
+// publisher would fall back to the brand's own name in effectiveBranding,
+// which is the very claim this replaces.
+func brandDistributor() string {
+	if policy, ok := brandOwnership(); ok && policy.Distributor != "" {
+		return policy.Distributor
+	}
+	return defaultBranding().Name
 }
 
 // releaseTag is the release this binary was cut from, set at build time with

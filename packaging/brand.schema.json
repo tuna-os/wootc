@@ -53,7 +53,8 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
     },
     "publisher": {
-      "type": "string"
+      "type": "string",
+      "description": "The mark owner's publisher name. Used on the exe and in Apps & features only once blessing.json is blessed (or the brand is self-owned); until then the exe names ownership.json's distributor."
     },
     "copyright": {
       "type": "string"

@@ -131,6 +131,10 @@ export function E2EDriveReport(arg1) {
   return window['go']['main']['App']['E2EDriveReport'](arg1);
 }
 
+export function E2EDriveReady(arg1) {
+  return window['go']['main']['App']['E2EDriveReady'](arg1);
+}
+
 export function GetSupportPolicy() {
   return window['go']['main']['App']['GetSupportPolicy']();
 }
@@ -178,3 +182,10 @@ export function GetReleaseNotice() {
 export function GetInstallSteps() {
   return window['go']['main']['App']['GetInstallSteps']();
 }
+export function GetVMState() { return window['go']['main']['App']['GetVMState'](); }
+export function StopVM() { return window['go']['main']['App']['StopVM'](); }
+export function ForceStopVM() { return window['go']['main']['App']['ForceStopVM'](); }
+
+export function PrepareVM(config) { return window['go']['main']['App']['PrepareVM'](config); }
+
+export function InstallVMRuntime() { return window['go']['main']['App']['InstallVMRuntime'](); }

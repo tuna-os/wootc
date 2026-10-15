@@ -37,7 +37,7 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: plan
         name: Parse matrix.tsv into a job matrix
         run: |
@@ -85,6 +85,7 @@ jobs:
                   'win_edition': ed, 'win_key': key,
                   'bitlocker': 'on' if 'bitlocker=on' in opts else 'off',
                   'phase3': 'phase3=on' in opts,
+                  'offline': 'offline=on' in opts,
                   'filesystem': fs,
                   'fault_inject': fault,
                   'firmware_db': firmware_db,
@@ -115,6 +116,7 @@ jobs:
       bitlocker: ${{ matrix.bitlocker }}
       case_name: ${{ matrix.name }}
       phase3: ${{ matrix.phase3 }}
+      offline: ${{ matrix.offline }}
       filesystem: ${{ matrix.filesystem }}
       fault_inject: ${{ matrix.fault_inject }}
       firmware_db: ${{ matrix.firmware_db }}
@@ -137,4 +139,7 @@ jobs:
       #
       # ALWAYS on the firmware_db=none cell (#322): its pass is the app's own
       # refusal, which the scripted OEM path never runs.
-      gui_install: ${{ (inputs.gui_install || matrix.firmware_db == 'none') && matrix.bitlocker != 'on' && matrix.filesystem == '' }}
+      #
+      # NEVER on the offline axis: the GUI path needs the guest network
+      # (WebView2 install, the \\host.lan share), and --offline refuses it.
+      gui_install: ${{ (inputs.gui_install || matrix.firmware_db == 'none') && matrix.bitlocker != 'on' && matrix.filesystem == '' && !matrix.offline }}

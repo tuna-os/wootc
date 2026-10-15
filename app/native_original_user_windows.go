@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -21,6 +22,10 @@ type nativeOriginalUser struct {
 	profile    string
 	folders    map[string]string
 	statistics nativeOriginalTokenStatistics
+	// viaPipe marks a token retained from pipe impersonation. It is a
+	// distinct token object, so revalidation compares its logon session with
+	// the live source process rather than the process token's statistics.
+	viaPipe bool
 }
 
 func captureNativeOriginalUser(source, engine *nativeProcessPeer) (*nativeOriginalUser, error) {
@@ -34,7 +39,88 @@ func captureNativeOriginalUser(source, engine *nativeProcessPeer) (*nativeOrigin
 	if err := windows.OpenProcessToken(source.handle, windows.TOKEN_QUERY|windows.TOKEN_IMPERSONATE|windows.TOKEN_DUPLICATE, &token); err != nil {
 		return nil, fmt.Errorf("original user token unavailable")
 	}
-	captured := &nativeOriginalUser{token: token, source: source, folders: map[string]string{}}
+	return completeNativeOriginalUser(token, source, engine, false)
+}
+
+// captureNativeOriginalUserFromPipe is the original-user bridge for
+// alternative-administrator UAC: a standard user supplies another
+// administrator's credentials, so the elevated engine runs as a different
+// SID. The person whose files migrate is the authenticated pipe client, so
+// identity comes from that client's own token through
+// ImpersonateNamedPipeClient (docs/winui-shell.md, "Correct elevation and
+// transport", step 6). The engine's own HKCU, USERPROFILE and profile are
+// never consulted, and any impersonation failure refuses the capture.
+// The caller must already have read client data and run
+// verifyNativePipeClient on this exact pipe.
+func captureNativeOriginalUserFromPipe(pipe windows.Handle, source, engine *nativeProcessPeer) (*nativeOriginalUser, error) {
+	if source == nil || engine == nil || source.checkAlive() != nil || engine.checkAlive() != nil {
+		return nil, fmt.Errorf("original user process unavailable")
+	}
+	if source.sessionID == 0 || source.sessionID != engine.sessionID || !engine.elevated {
+		return nil, fmt.Errorf("original user context refused")
+	}
+	var pid uint32
+	if err := windows.GetNamedPipeClientProcessId(pipe, &pid); err != nil || pid != source.pid {
+		return nil, fmt.Errorf("original user pipe client is not the retained source")
+	}
+	token, err := openNativePipeClientToken(pipe)
+	if err != nil {
+		return nil, err
+	}
+	var level, returned uint32
+	if err := windows.GetTokenInformation(token, windows.TokenImpersonationLevel, (*byte)(unsafe.Pointer(&level)), 4, &returned); err != nil || returned != 4 || level < 2 /* SecurityImpersonation */ {
+		token.Close()
+		return nil, fmt.Errorf("original user pipe client refused impersonation")
+	}
+	return completeNativeOriginalUser(token, source, engine, true)
+}
+
+// openNativePipeClientToken retains the client's impersonation token. The
+// locked thread returns to the pool only after RevertToSelf succeeds;
+// otherwise its goroutine exits locked and Go retires that OS thread.
+func openNativePipeClientToken(pipe windows.Handle) (windows.Token, error) {
+	type opened struct {
+		token windows.Token
+		err   error
+	}
+	result := make(chan opened, 1)
+	go func() {
+		runtime.LockOSThread()
+		var value opened
+		impersonated := false
+		defer func() {
+			canUnlock := true
+			if impersonated {
+				if err := windows.RevertToSelf(); err != nil {
+					if value.token != 0 {
+						value.token.Close()
+					}
+					value = opened{err: fmt.Errorf("original user impersonation could not be reverted")}
+					canUnlock = false
+				}
+			}
+			if canUnlock {
+				runtime.UnlockOSThread()
+			}
+			result <- value
+		}()
+		if ok, _, _ := nativeImpersonatePipeClient.Call(uintptr(pipe)); ok == 0 {
+			value.err = fmt.Errorf("original user pipe impersonation refused")
+			return
+		}
+		impersonated = true
+		// OpenAsSelf: the engine opens the thread token with its own access
+		// check; the impersonated client never needs rights on its own token.
+		if err := windows.OpenThreadToken(windows.CurrentThread(), windows.TOKEN_QUERY|windows.TOKEN_IMPERSONATE|windows.TOKEN_DUPLICATE, true, &value.token); err != nil {
+			value = opened{err: fmt.Errorf("original user pipe token unavailable")}
+		}
+	}()
+	value := <-result
+	return value.token, value.err
+}
+
+func completeNativeOriginalUser(token windows.Token, source, engine *nativeProcessPeer, viaPipe bool) (*nativeOriginalUser, error) {
+	captured := &nativeOriginalUser{token: token, source: source, folders: map[string]string{}, viaPipe: viaPipe}
 	success := false
 	defer func() {
 		if !success {
@@ -140,7 +226,17 @@ func (user *nativeOriginalUser) revalidateToken() error {
 	}
 	defer current.Close()
 	actual, err := observeNativeOriginalTokenStatistics(current)
-	if err != nil || actual != user.statistics {
+	if err != nil {
+		return fmt.Errorf("original user process token changed")
+	}
+	if user.viaPipe {
+		owner, err := current.GetTokenUser()
+		if err != nil || owner.User.Sid.String() != user.source.userSID || actual.AuthenticationID != user.statistics.AuthenticationID {
+			return fmt.Errorf("original user process token changed")
+		}
+		return nil
+	}
+	if actual != user.statistics {
 		return fmt.Errorf("original user process token changed")
 	}
 	return nil

@@ -53,8 +53,10 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 		return fmt.Errorf("native engine requires elevation in the source Windows session")
 	}
 	// Do not run existing USERPROFILE/HKCU collectors under a different user's
-	// token. An original-user collector bridge is required for alternative-admin
-	// UAC; until that bridge exists, this context is explicitly refused.
+	// token. captureNativeOriginalUserFromPipe is the original-user bridge for
+	// alternative-admin UAC, but no operation session consumes it yet and the
+	// shell cannot observe another administrator's elevated token, so this
+	// context stays refused until that journey has interactive UAC proof.
 	if engine.userSID != source.userSID {
 		return fmt.Errorf("native engine cannot use an alternative administrator without original-user collection")
 	}

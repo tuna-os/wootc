@@ -41,6 +41,7 @@ public sealed class NativeEngineConnector : IEngineConnector
         // process remains our responsibility through disconnect completion.
         Observe("launch");
         var launched = await RunasLaunch.StartAsync(start, Process.Start);
+        if (launched.PolicyBlocked) return new(ConnectionOutcome.PermissionDeclined, Reason: "Windows policy on this computer does not let this account request administrator permission. Ask an administrator, then retry.");
         if (launched.Declined) return new(ConnectionOutcome.PermissionDeclined, Reason: "Administrator permission was declined. You can retry.");
         Process? engine = launched.Process;
         if (engine is null) return new(ConnectionOutcome.Unavailable, Reason: "Windows did not return the launched engine process");

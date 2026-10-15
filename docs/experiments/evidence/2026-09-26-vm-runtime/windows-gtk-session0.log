@@ -1,0 +1,82 @@
+BUNDLE_GTK_BOOT=False SECONDS=30.0479868 SESSION=0
+C:\Windows\Temp\wootc-runtime-bundle-probe\qemu\qemu-system-x86_64.exe: Gdk: gdk_monitor_get_geometry: assertion 'GDK_IS_MONITOR (monitor)' failed
+C:\Windows\Temp\wootc-runtime-bundle-probe\qemu\qemu-system-x86_64.exe: Gdk: _gdk_win32_monitor_get_pixel_structure: assertion 'monitor != NULL' failed
+
+(qemu:12928): Gdk-WARNING **: 18:29:42.895: ../gtk-3.24.52/gdk/win32/gdkwindow-win32.c:527: DwmEnableBlurBehindWindow (0000000000250074) failed: 80263001
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gdk_monitor_get_refresh_rate: assertion 'GDK_IS_MONITOR (monitor)' failed
+qemu: Gdk: gd
+Bundled GTK runtime did not execute guest marker
+At line:23 char:22
++ ... t $ready) { throw 'Bundled GTK runtime did not execute guest marker'  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Bundled GTK run...te guest marker:String) [], RuntimeException
+    + FullyQualifiedErrorId : Bundled GTK runtime did not execute guest marker
+ 

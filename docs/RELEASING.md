@@ -184,11 +184,58 @@ A person must attach three screenshots, because a script cannot make them:
 
 ### Signatures and file identity
 
-**No release has a signature.** `release.yml` has no step that signs the
-files. [#229] is the choice and purchase of a signature method. This is a
-spend decision for the maintainer. [#230] adds that method to the pipeline.
-Until both issues are done, each signature box is ✘. SmartScreen shows the
-wall for unknown apps, and UAC shows "unknown publisher".
+**No release has a signature yet.** [#229] is the choice and purchase of a
+signature method. This is a spend decision for the maintainer. Until a
+credential exists, each signature box is ✘. SmartScreen shows the wall for
+unknown apps, and UAC shows "unknown publisher".
+
+The pipeline side ([#230]) is ready for any credential that #229 selects.
+The release step `Authenticode-sign the installers` runs
+`packaging/sign-exes.sh` after the build of the exes and before the
+step that writes `SHA256SUMS`. Authenticode changes the bytes of the file, so the
+checksums must come after the signature. `tests/unit/release-pipeline.bats`
+keeps this order.
+
+The script uses [jsign], which supports the Azure `TRUSTEDSIGNING` service, cloud HSM keys
+for EV certificates, and PKCS12 files. Repository variables select the
+credential:
+
+| Name | Kind | Value |
+|------|------|-------|
+| `WOOTC_SIGN_STORETYPE` | variable | jsign `--storetype`, for example `TRUSTEDSIGNING`. Empty means that signing is not configured |
+| `WOOTC_SIGN_KEYSTORE` | variable | jsign `--keystore`: the endpoint, the vault, or the file |
+| `WOOTC_SIGN_ALIAS` | variable | jsign `--alias`: the key, or `account/profile` for Trusted Signing |
+| `WOOTC_SIGN_PUBLISHER` | variable | the CN that the signer certificate must show |
+| `WOOTC_SIGN_TSAURL` | variable | optional RFC 3161 timestamp server |
+| `WOOTC_SIGN_STOREPASS` | secret | the token or password. jsign reads it from the environment |
+| `WOOTC_SIGN_CA_PEM` | variable | optional PEM roots for the check of the signature and the timestamp |
+| `WOOTC_SIGN_CERTCHAIN_PEM` | variable | optional PEM chain for jsign `--certfile`. Some HSM store types need it |
+
+The check uses the Ubuntu CA bundle. That bundle has TLS roots only.
+The Azure `TRUSTEDSIGNING` certificates chain to a Microsoft root that is not in
+the bundle (`Microsoft Identity Verification Root Certificate Authority 2020`).
+For that store type, put that root and the root of its timestamp server in `WOOTC_SIGN_CA_PEM`.
+If you do not, the check fails and the tagged release stops.
+
+For `TRUSTEDSIGNING` and `AZUREKEYVAULT`, jsign uses an Azure access token as the
+store password. Such a token expires after about one hour, so a static secret does not
+work for a release. Get a new token in the release job, for example with an Azure
+OIDC login. That step depends on the choice in #229, so it is not in the workflow yet.
+
+The script signs copies of each exe. It then makes `osslsigncode verify`
+examine each copy for a valid chain, a timestamp, and the expected
+publisher. It replaces the exes only when all copies pass. The results are:
+
+- `signed`: all exes have a verified signature.
+- `unsigned`: `WOOTC_SIGN_STORETYPE` is empty. The release continues and the
+  notes say "Not code-signed".
+- `failed`: a tagged release stops. An auto or manual pre-release continues
+  with the unsigned exes, and its notes say that the signature step failed.
+  Thus an outage of the signature service does not stop the nightly
+  releases.
+
+When #229 is done, set the variables and the secret. Then cut a tagged
+release and do the fresh-machine check above.
 
 The release now builds a VERSIONINFO resource **per brand** through
 `packaging/build-windows.py`. It reads the product name, description,
@@ -220,6 +267,7 @@ Use the field verifier and attach screenshots for the published files.
 [#240]: https://github.com/tuna-os/wootc/issues/240
 [#229]: https://github.com/tuna-os/wootc/issues/229
 [#230]: https://github.com/tuna-os/wootc/issues/230
+[jsign]: https://ebourg.github.io/jsign/
 
 ## Narrative release notes
 
