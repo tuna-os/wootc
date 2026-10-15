@@ -33,6 +33,7 @@ var DTOStructs = []string{
 	"RecoveryVerdict",
 	"InstallRecoverySummary",
 	"InstallRecoveryActions",
+	"NativeInstallGrant",
 	"InstallStatus",
 	"UninstallInfo",
 	"UninstallOptions",

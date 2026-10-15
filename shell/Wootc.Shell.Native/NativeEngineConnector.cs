@@ -44,7 +44,7 @@ public sealed class NativeEngineConnector : IEngineConnector
         var source = WindowsPeer.Observe(sourceProcess);
         if (!string.Equals(Path.GetFullPath(source.ImagePath), Path.Combine(package.Directory, "Wootc.Shell.exe"), StringComparison.OrdinalIgnoreCase))
             return new(ConnectionOutcome.Incompatible, Reason: "The shell is outside this protected preview package");
-        var start = RunasLaunch.Create(package.EnginePath, request.SessionId, sourceProcess.Id);
+        var start = RunasLaunch.Create(package.EnginePath, request.SessionId, sourceProcess.Id, request.Install);
         // Do not abandon a pending interactive consent request. Any returned
         // process remains our responsibility through disconnect completion.
         Observe("launch");
@@ -88,7 +88,7 @@ public sealed class NativeEngineConnector : IEngineConnector
             await NativeProtocol.ReadStartupAsync(pipe, hello, phase => { stage = phase; Observe(stage, engine: engine); }, deadline.Token);
             WindowsPeer.VerifyPipeServer(pipe.SafePipeHandle, engine, source, package.EnginePath);
             Observe("authenticated", engine: engine);
-            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine), package.Manifest.BrandId));
+            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine), package.Manifest.BrandId, request.Install ? request.SessionId : null));
         }
         catch (Exception error)
         {

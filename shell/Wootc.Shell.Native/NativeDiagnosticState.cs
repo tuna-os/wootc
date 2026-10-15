@@ -61,6 +61,8 @@ internal sealed class NativeDiagnosticState
         "rpc-lifecycle-request" or "rpc-lifecycle-response" or "rpc-lifecycle-decode" or "rpc-lifecycle-complete" or
         "rpc-recovery-request" or "rpc-recovery-response" or "rpc-recovery-decode" or "rpc-recovery-complete" or
         "rpc-install-request" or "rpc-install-response" or "rpc-install-decode" or "rpc-install-complete" or
+        "rpc-plan-request" or "rpc-plan-response" or "rpc-plan-decode" or "rpc-plan-complete" or
+        "rpc-consent-request" or "rpc-consent-response" or "rpc-consent-decode" or "rpc-consent-complete" or
         "rpc-configuration-request" or "rpc-configuration-response" or "rpc-configuration-decode" or "rpc-configuration-complete" or
         "rpc-other-request" or "rpc-other-response" or "rpc-other-decode" or "rpc-other-complete" => stage,
         _ => "unknown"

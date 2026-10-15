@@ -7,8 +7,11 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
-internal sealed class NativeEngineSession : IConfigurationEngineSession
+internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession
 {
+    // Set only for an install-purpose session; an assessment session refuses
+    // install calls locally as well as in the engine.
+    private readonly string? installSession;
     private readonly Stream pipe;
     private readonly string? expectedBrand;
     private readonly Process engine;
@@ -23,10 +26,11 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
     private Exception? receiveFailure;
     private readonly Action<string, Exception?>? observe;
 
-    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null, string? expectedBrand = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe, expectedBrand) { }
+    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null, string? expectedBrand = null, string? installSession = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe, expectedBrand, installSession) { }
 
-    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null, string? expectedBrand = null)
+    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null, string? expectedBrand = null, string? installSession = null)
     {
+        this.installSession = installSession;
         this.pipe = pipe;
         this.expectedBrand = expectedBrand;
         this.engine = engine;
@@ -90,10 +94,14 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
     internal static string RpcStage(string method) => method switch
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
-        "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration", _ => "rpc-other"
+        "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration",
+        "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", _ => "rpc-other"
     };
 
-    internal async Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null)
+    internal Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null) =>
+        CallAsync<T>(method, null, token, requestFlushed);
+
+    internal async Task<T> CallAsync<T>(string method, object? parameters, CancellationToken token, Action<long>? requestFlushed = null)
     {
         long id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -105,7 +113,8 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
             observe?.Invoke(stage, null);
             if (disconnected || engine.HasExited) throw new EndOfStreamException("The authenticated engine disconnected");
             if (Volatile.Read(ref receiveFailure) is not null) throw new EndOfStreamException("The authenticated engine disconnected");
-            byte[] request = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { jsonrpc = "2.0", id, method }) + "\n");
+            object frame = parameters is null ? new { jsonrpc = "2.0", id, method } : new { jsonrpc = "2.0", id, method, @params = parameters };
+            byte[] request = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(frame) + "\n");
             await writes.WaitAsync(token);
             try { await pipe.WriteAsync(request, token); await pipe.FlushAsync(token); }
             finally { writes.Release(); }
@@ -116,12 +125,40 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
             stage = RpcStage(method) + "-decode";
             observe?.Invoke(stage, null);
             var decoded = method == "GetNativeConfiguration" && typeof(T) == typeof(NativeConfigurationSnapshot)
-                ? (T)(object)NativeConfigurationProtocol.Decode(result, expectedBrand ?? throw new InvalidDataException("Authenticated configuration brand is unavailable")) : NativeProtocol.DecodeStartup<T>(method, result);
+                ? (T)(object)NativeConfigurationProtocol.Decode(result, expectedBrand ?? throw new InvalidDataException("Authenticated configuration brand is unavailable")) : NativeProtocol.DecodeResult<T>(method, result, expectedBrand);
             observe?.Invoke(RpcStage(method) + "-complete", null);
             return decoded;
         }
         catch (Exception error) { observe?.Invoke(stage, error); throw; }
         finally { pending.TryRemove(id, out _); pendingMethods.TryRemove(id, out _); }
+    }
+
+    // The plan crosses the authenticated pipe once, in this session only, with
+    // exactly the fields the engine accepts. Two storage observations run
+    // before a grant, so the wait allows two configuration budgets.
+    public async Task<NativeInstallGrant> PrepareInstallAsync(InstallConfig plan, CancellationToken cancellationToken)
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(110));
+        var parameters = new Dictionary<string, object>
+        {
+            ["imageRef"] = plan.ImageRef, ["diskSizeGB"] = plan.DiskSizeGB, ["username"] = plan.Username, ["password"] = plan.Password,
+            ["hostname"] = plan.Hostname, ["bootloader"] = plan.Bootloader, ["composeFs"] = plan.ComposeFs, ["storageDrive"] = plan.StorageDrive,
+            ["encryption"] = plan.Encryption, ["luksPassphrase"] = plan.LuksPassphrase, ["windowsLook"] = plan.WindowsLook,
+        };
+        var grant = await CallAsync<NativeInstallGrant>("PrepareNativeInstall", parameters, deadline.Token);
+        if (grant.Session != installSession) throw new InvalidDataException("The install grant names another session");
+        return grant;
+    }
+
+    // Only the intent's identity is sent: no plan field can travel with consent.
+    public async Task ConfirmInstallAsync(NativeInstallGrant grant, CancellationToken cancellationToken)
+    {
+        if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        await CallAsync<object?>("ConfirmNativeInstall", new { kind = "confirm-install", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId }, deadline.Token);
     }
 
     public async Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken)

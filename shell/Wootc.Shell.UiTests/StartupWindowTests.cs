@@ -288,7 +288,7 @@ public sealed class StartupWindowTests
             Assert.Equal("wootc — Preview", window.Title);
             Assert.Equal("wootc", (window.FindFirstDescendant(cf => cf.ByAutomationId("ProductName")) ?? throw new InvalidOperationException("Product identity is absent")).Name);
             Assert.Equal("TunaOS", (window.FindFirstDescendant(cf => cf.ByAutomationId("DistributionName")) ?? throw new InvalidOperationException("Distribution identity is absent")).Name);
-            Assert.Contains("cannot install", (window.FindFirstDescendant(cf => cf.ByAutomationId("PreviewStatus")) ?? throw new InvalidOperationException("Preview status is absent")).Name);
+            Assert.Contains("changes nothing until you confirm", (window.FindFirstDescendant(cf => cf.ByAutomationId("PreviewStatus")) ?? throw new InvalidOperationException("Preview status is absent")).Name);
         }
         catch (Exception error)
         {

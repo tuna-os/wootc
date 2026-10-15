@@ -796,6 +796,51 @@ public class InstallRecoveryActions
 }
 
 /// <summary>
+/// NativeInstallGrant is what an install-purpose session returns when the
+/// engine accepts a plan. It names the plan the person will confirm and the
+/// facts the confirmation must disclose. The intent ID is single use: the first
+/// ConfirmNativeInstall attempt consumes it, whatever its outcome.
+/// </summary>
+public class NativeInstallGrant
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("session")]
+    public string Session { get; set; } = string.Empty;
+
+    [JsonPropertyName("brandId")]
+    public string BrandId { get; set; } = string.Empty;
+
+    [JsonPropertyName("intentId")]
+    public string IntentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("storageDrive")]
+    public string StorageDrive { get; set; } = string.Empty;
+
+    [JsonPropertyName("diskSizeGB")]
+    public int DiskSizeGB { get; set; }
+
+    [JsonPropertyName("encryption")]
+    public string Encryption { get; set; } = string.Empty;
+
+    [JsonPropertyName("bitLockerOn")]
+    public bool BitLockerOn { get; set; }
+
+    [JsonPropertyName("bitLockerRecoveryKeyWarning")]
+    public bool BitLockerRecoveryKeyWarning { get; set; }
+
+    [JsonPropertyName("fastStartupOn")]
+    public bool FastStartupOn { get; set; }
+
+    [JsonPropertyName("secureBootChainWarning")]
+    public string SecureBootChainWarning { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// InstallStatus is the current state of a running or completed install.
 /// </summary>
 public class InstallStatus

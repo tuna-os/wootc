@@ -57,7 +57,7 @@ public sealed class ConsumerConfiguration
     // operation route must obtain and bind authorization separately.
     public bool CanInstall => false;
     public string InstallationBlockedReason => FormProblem.Length != 0 ? FormProblem :
-        "This native preview cannot authorize installation or change storage.";
+        "Check this plan with the engine before you install.";
 
     public ConsumerConfiguration(string brandId)
     {

@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'shell/**'
+      - 'app/native_install*'
+      - 'app/frontend/src/screens/launchpad.js'
       - 'tests/unit/fixtures/install-recovery/**'
       - 'app/status_install_recovery*'
       - 'tests/native_configuration_flush_controls.py'

@@ -6,7 +6,9 @@ public enum StartupRoute { Assessment, Progress, Manage, Recovery, Interrupted }
 public enum ConnectionState { Offline, RequestingPermission, Ready, PermissionDeclined, Unavailable, DisconnectPending }
 public enum ConnectionOutcome { Connected, PermissionDeclined, Incompatible, Unavailable }
 public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? Recovery, LifecycleState? LastRun = null, InstallRecoverySummary? InstallRecovery = null);
-public sealed record ConnectRequest(string SessionId);
+// Install selects a separate install-purpose engine session. The assessment
+// connection never becomes one; a new elevation and session are required.
+public sealed record ConnectRequest(string SessionId, bool Install = false);
 public sealed record ConnectionAttempt(ConnectionOutcome Outcome, IEngineSession? Session = null, string? Reason = null);
 
 // Implementations must authenticate the actual operating-system peer before
@@ -18,6 +20,14 @@ public interface IEngineConnector
 public interface IEngineSession : IAsyncDisposable
 {
     Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken);
+}
+
+// An install-purpose session: one plan, one confirmation. The engine grants
+// the intent; the shell never infers it from a complete form.
+public interface IInstallEngineSession : IEngineSession
+{
+    Task<NativeInstallGrant> PrepareInstallAsync(InstallConfig plan, CancellationToken cancellationToken);
+    Task ConfirmInstallAsync(NativeInstallGrant grant, CancellationToken cancellationToken);
 }
 
 public interface IConfigurationEngineSession : IEngineSession

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
@@ -154,6 +155,43 @@ internal static class NativeProtocol
             throw new InvalidDataException("An absent install attempt cannot carry recovery actions");
         if (recoveryClass is "resumable" or "failed" or "needs-repair" && (Text("title").Length == 0 || Text("message").Length == 0 || !anyAction))
             throw new InvalidDataException("An interrupted install needs engine text and a safe action");
+    }
+
+    private static readonly string[] InstallGrantFields = ["schemaVersion", "session", "brandId", "intentId", "imageRef", "storageDrive", "diskSizeGB", "encryption", "bitLockerOn", "bitLockerRecoveryKeyWarning", "fastStartupOn", "secureBootChainWarning"];
+
+    internal static T DecodeResult<T>(string method, JsonElement result, string? expectedBrand)
+    {
+        switch (method)
+        {
+            case "PrepareNativeInstall":
+                return (T)(object)DecodeInstallGrant(result, expectedBrand);
+            case "ConfirmNativeInstall":
+                if (result.ValueKind != JsonValueKind.Null) throw new InvalidDataException("Install confirmation returned an unexpected result");
+                return default!;
+            default:
+                return DecodeStartup<T>(method, result);
+        }
+    }
+
+    // A grant names one session, brand and single-use intent, and the plan the
+    // person confirms. Anything outside that exact shape is refused.
+    internal static NativeInstallGrant DecodeInstallGrant(JsonElement result, string? expectedBrand)
+    {
+        if (result.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Install grant must be an object");
+        RejectDuplicates(result);
+        if (result.EnumerateObject().Count() != InstallGrantFields.Length || InstallGrantFields.Any(field => !result.TryGetProperty(field, out _)))
+            throw new InvalidDataException("Install grant has an unsupported field set");
+        foreach (string field in new[] { "session", "brandId", "intentId", "imageRef", "storageDrive", "encryption", "secureBootChainWarning" }) Require(result, field, JsonValueKind.String);
+        foreach (string field in new[] { "bitLockerOn", "bitLockerRecoveryKeyWarning", "fastStartupOn" }) Require(result, field, JsonValueKind.True);
+        string Text(string field) => result.GetProperty(field).GetString()!;
+        if (!result.GetProperty("schemaVersion").TryGetInt32(out int schema) || schema != 1 ||
+            !result.GetProperty("diskSizeGB").TryGetInt32(out int size) || size is < 20 or > 2048 ||
+            !ProtectedPackage.LowerHex(Text("session"), 32) || !ProtectedPackage.LowerHex(Text("intentId"), 32) ||
+            expectedBrand is null || Text("brandId") != expectedBrand ||
+            Text("imageRef").Length is 0 or > 512 || Text("storageDrive").Length != 1 || Text("storageDrive")[0] is < 'A' or > 'Z' ||
+            Text("encryption") is not ("none" or "luks-passphrase") || Text("secureBootChainWarning").Length > 1024)
+            throw new InvalidDataException("Install grant is invalid");
+        return result.Deserialize<NativeInstallGrant>() ?? throw new InvalidDataException("Install grant is missing");
     }
 
     internal static T DecodeStartup<T>(string method, JsonElement result)

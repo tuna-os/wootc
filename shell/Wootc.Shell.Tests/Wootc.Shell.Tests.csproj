@@ -10,4 +10,8 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- InstallDisclosureTests compares the native confirmation with these words. -->
+    <None Include="../../app/frontend/src/screens/launchpad.js" Link="Fixtures/launchpad.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

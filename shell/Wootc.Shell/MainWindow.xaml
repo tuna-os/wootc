@@ -13,7 +13,7 @@
     </StackPanel>
     <TextBlock x:Name="PreviewHeading" Text="Native installer preview" FontSize="20" FontWeight="SemiBold" />
     <TextBlock x:Name="PreviewIntro" Text="Review your computer before installing Linux." TextWrapping="Wrap" />
-    <TextBlock x:Name="PreviewStatus" Text="This preview can read startup status through the authenticated engine. It cannot install Linux or change storage." TextWrapping="Wrap" AutomationProperties.AutomationId="PreviewStatus" />
+    <TextBlock x:Name="PreviewStatus" Text="This preview reads your computer through the authenticated engine. It changes nothing until you confirm an installation." TextWrapping="Wrap" AutomationProperties.AutomationId="PreviewStatus" />
     <TextBlock x:Name="ConnectionStatus" Text="Offline" AutomationProperties.AutomationId="ConnectionStatus" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupRouteText" Text="Startup status has not been read" AutomationProperties.AutomationId="StartupRoute" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupObservations" Text="No authenticated startup observations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
@@ -41,7 +41,9 @@
       <PasswordBox x:Name="LinuxLuksPassphrase" Header="LUKS Passphrase" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxLuksPassphrase" />
       <CheckBox x:Name="LinuxWindowsLook" Content="Use a familiar Windows appearance" Checked="ConfigurationChanged" Unchecked="ConfigurationChanged" AutomationProperties.AutomationId="LinuxWindowsLook" />
       <TextBlock x:Name="InstallBlockedReason" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallBlockedReason" />
-      <Button Content="Install Linux" IsEnabled="False" AutomationProperties.AutomationId="InstallLinux" />
+      <Button x:Name="PrepareInstallButton" Content="Check this plan" Click="PrepareInstall_Click" IsEnabled="False" AutomationProperties.AutomationId="PrepareInstall" />
+      <TextBlock x:Name="InstallGateStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallGateStatus" />
+      <Button x:Name="InstallButton" Content="Install Linux" Click="Install_Click" IsEnabled="False" AutomationProperties.AutomationId="InstallLinux" />
     </StackPanel>
   </StackPanel>
   </Border>

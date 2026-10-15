@@ -37,7 +37,7 @@ public sealed class InstalledPreviewTests
             Assert.Equal(product + " — Preview", window.Title);
             Assert.Equal(product, Find("ProductName").Name);
             Assert.Equal(distribution, Find("DistributionName").Name);
-            Assert.Contains("cannot install", Find("PreviewStatus").Name);
+            Assert.Contains("changes nothing until you confirm", Find("PreviewStatus").Name);
             Assert.Equal("Offline", Find("ConnectionStatus").Name);
             // Native brand assets come from the same source brand directory.
             var root = brand.RootElement;
@@ -128,6 +128,49 @@ public sealed class InstalledPreviewTests
             var selectedEncryption=Find("LinuxEncryption").AsComboBox().SelectedItem;
             Assert.NotNull(selectedEncryption);
             Assert.Equal("TPM auto-unlock",selectedEncryption.Text);
+            // A separate install-purpose engine checks the plan (a second
+            // elevation, original-user capture, the plan over the pipe). The
+            // default encryption is TPM auto-unlock, which the engine always
+            // refuses, so this hosted run can never be granted an intent and
+            // never confirms anything.
+            var prepareInstall=Find("PrepareInstall").AsButton();
+            Assert.False(prepareInstall.IsEnabled);
+            var storageChoice=Find("StorageChoice").AsComboBox();
+            storageChoice.Expand();int volumes=storageChoice.Items.Length;storageChoice.Collapse();
+            Assert.True(volumes>0,"No observed storage volume");
+            int imageCount=images.Items.Length;
+            for(int image=0;image<imageCount&&!prepareInstall.IsEnabled;image++)
+            {
+                images.Expand();images.Select(image);images.Collapse();
+                for(int volume=0;volume<volumes&&!prepareInstall.IsEnabled;volume++)
+                {
+                    storageChoice.Expand();storageChoice.Select(volume);storageChoice.Collapse();
+                    using var offered=new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    while(!prepareInstall.IsEnabled&&!offered.IsCancellationRequested)await Task.Delay(50);
+                }
+            }
+            if(!prepareInstall.IsEnabled)throw new InvalidOperationException($"No observed image and volume made a complete plan; {Find("InstallBlockedReason").Name}");
+            Assert.False(Find("InstallLinux").IsEnabled);
+            string stateRoot=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!,"wootc");
+            bool stateRootBefore=Directory.Exists(stateRoot);
+            prepareInstall.Invoke();
+            string gateStatus="";
+            using(var refusalDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(150)))
+            {
+                while((gateStatus=Find("InstallGateStatus").Name).Length==0||gateStatus=="Checking this plan with the engine")
+                {
+                    if(refusalDeadline.IsCancellationRequested)throw new InvalidOperationException($"Install plan check did not finish; {Find("ConnectionStatus").Properties.HelpText.Value}");
+                    await Task.Delay(100);
+                }
+            }
+            Assert.True(new[]{"TPM auto-unlock is not available yet","Secure Boot","BitLocker","tested set"}.Any(text=>gateStatus.Contains(text,StringComparison.Ordinal)),
+                $"The plan did not reach the engine's own validation: {gateStatus}");
+            Assert.DoesNotContain("accepted this plan",gateStatus);
+            Assert.False(Find("InstallLinux").IsEnabled);
+            Assert.True(Find("PrepareInstall").IsEnabled);
+            Assert.Null(window.FindFirstDescendant(cf=>cf.ByAutomationId("InstallConfirmation")));
+            Assert.Equal(stateRootBefore,Directory.Exists(stateRoot));
+            Console.WriteLine($"Install plan check outcome: {gateStatus}");
             // Drive a real second configuration RPC, then disconnect while its
             // consumer is pending. A late response must not restore the form.
             var secondRead=Find("ReadConfiguration").AsButton();

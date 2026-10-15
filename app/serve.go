@@ -40,6 +40,8 @@ var ProtocolMethods = []string{
 	"GetNativeConfiguration",
 	"GetSessionCandidates",
 	"StartInstall",
+	"PrepareNativeInstall",
+	"ConfirmNativeInstall",
 	"CancelInstall",
 	"GetStatus",
 	"DefragDrive",
@@ -196,6 +198,7 @@ type Server struct {
 	startupValidate   func(context.Context) error
 	assessmentOnly    bool
 	configurationRead func(context.Context) (NativeConfigurationSnapshot, error)
+	installSession    *nativeInstallSession
 	app               *App
 	writer            *synchronizedWriter
 	mu                sync.Mutex
@@ -219,6 +222,15 @@ func NewAssessmentServer(app *App, writer *synchronizedWriter) *Server {
 	return server
 }
 
+// newNativeInstallServer serves a separate install-purpose session. Only the
+// authenticated native transport chooses it, after it captured the original
+// user; it permits status, cancellation and the one-shot plan and consent.
+func newNativeInstallServer(app *App, writer *synchronizedWriter, install *nativeInstallSession) *Server {
+	server := NewServer(app, writer)
+	server.installSession = install
+	return server
+}
+
 // Only the authenticated native transport may supply this read-only callback.
 // The original assessment constructor remains limited to three startup reads.
 func newConfigurationAssessmentServer(app *App, writer *synchronizedWriter, read func(context.Context) (NativeConfigurationSnapshot, error)) *Server {
@@ -228,6 +240,20 @@ func newConfigurationAssessmentServer(app *App, writer *synchronizedWriter, read
 }
 
 func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrpcError) {
+	if s.installSession != nil {
+		switch req.Method {
+		case "GetStatus", "CancelInstall":
+		case "PrepareNativeInstall", "ConfirmNativeInstall":
+			if s.startupValidate != nil {
+				if err := s.startupValidate(ctx); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+				}
+			}
+			return s.installSession.dispatch(req.Method, req.Params)
+		default:
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in install session"}
+		}
+	}
 	if s.assessmentOnly {
 		switch req.Method {
 		case "GetStatus", "GetLastRun", "GetRecoveryVerdict", "GetInstallRecovery":

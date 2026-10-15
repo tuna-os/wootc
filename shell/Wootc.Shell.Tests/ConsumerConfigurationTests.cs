@@ -33,7 +33,7 @@ public sealed class ConsumerConfigurationTests
         var model = Complete();
         Assert.Empty(model.FormProblem);
         Assert.False(model.CanInstall);
-        Assert.Equal("This native preview cannot authorize installation or change storage.", model.InstallationBlockedReason);
+        Assert.Equal("Check this plan with the engine before you install.", model.InstallationBlockedReason);
         var draft = model.CreateDraft();
         Assert.Equal(Reference, draft.ImageRef);
         Assert.Equal("linux_user", draft.Username);

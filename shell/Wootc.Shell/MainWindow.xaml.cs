@@ -14,6 +14,10 @@ namespace Wootc.Shell;
 public sealed partial class MainWindow : Window
 {
     private readonly StartupController controller;
+    private readonly NativeEngineConnector connector;
+    private readonly Branding brand;
+    private InstallGate? installGate;
+    private string configurationBrandId = "";
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
     private long configurationGeneration;
@@ -33,7 +37,7 @@ public sealed partial class MainWindow : Window
         }
         // Local branding is available before any elevation or engine connection.
         string path = Path.Combine(AppContext.BaseDirectory, "Branding", "brand.json");
-        var brand = JsonSerializer.Deserialize<Branding>(File.ReadAllText(path))
+        brand = JsonSerializer.Deserialize<Branding>(File.ReadAllText(path))
             ?? throw new InvalidDataException("Preview branding is missing");
         if (string.IsNullOrWhiteSpace(brand.ProductName) || string.IsNullOrWhiteSpace(brand.Name))
             throw new InvalidDataException("Preview branding has no product or distribution identity");
@@ -41,9 +45,13 @@ public sealed partial class MainWindow : Window
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
         ApplyBrand(brand, BrandTheme.From(brand));
-        controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
-            DispatcherQueue.TryEnqueue(() => { if (!closing && diagnostic.IsCurrent()) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic.Projection); })));
-        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); await controller.DisposeAsync(); };
+        connector = new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
+            DispatcherQueue.TryEnqueue(() => { if (!closing && diagnostic.IsCurrent()) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic.Projection); }));
+        controller = new StartupController(brand, connector);
+        InstallButton.Content = $"Advanced: {InstallDisclosure.InstallVerb(brand)} with reboot";
+        // Closing the window disconnects both sessions; the engine treats that
+        // as a cancellation request for any running install.
+        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); await controller.DisposeAsync(); };
     }
     // Local, validated brand assets render before any elevation request and
     // stay visible after a refusal. High contrast keeps the system palette.
@@ -158,6 +166,7 @@ public sealed partial class MainWindow : Window
             });
             if (generation != configurationGeneration || controller.Connection != ConnectionState.Ready) return;
             var observed = new ConsumerConfiguration(snapshot.BrandId);
+            configurationBrandId = snapshot.BrandId;
             observed.ApplyCatalogue(ConfigurationProjection.ToCatalogue(snapshot));
             updatingConfiguration = true;
             configuration = observed;
@@ -195,6 +204,7 @@ public sealed partial class MainWindow : Window
 
         LinuxEncryption.SelectedItem = null; LinuxDiskSize.Value = double.NaN; LinuxWindowsLook.IsChecked = false;
         ImageFacts.Text = ""; StorageFacts.Text = ""; InstallBlockedReason.Text = "";
+        _ = DiscardInstallGrantAsync();
     }
 
     private void ConfigurationChanged(object sender, object args)
@@ -227,6 +237,75 @@ public sealed partial class MainWindow : Window
         StorageFacts.Text = configuration.SelectedStorage is null ? "Choose an assessed volume; no drive is selected automatically" :
             $"{configuration.SelectedStorage.DriveLetter}: {configuration.SelectedStorage.FreeBytes} available bytes; partition: {configuration.SelectedStorage.PartitionGuid}; NTFS: {configuration.SelectedStorage.NtfsSerial}";
         InstallBlockedReason.Text = configuration.InstallationBlockedReason;
+        // Any change to the plan on screen discards an earlier grant and its
+        // install session; the new plan needs its own engine check.
+        _ = DiscardInstallGrantAsync();
+    }
+
+    private async Task DiscardInstallGrantAsync()
+    {
+        if (installGate is { State: not InstallGateState.Idle }) await installGate.InvalidateAsync();
+        UpdateInstallGate();
+    }
+
+    private void UpdateInstallGate()
+    {
+        var state = installGate?.State ?? InstallGateState.Idle;
+        bool busy = state is InstallGateState.Preparing or InstallGateState.Confirming or InstallGateState.Started;
+        PrepareInstallButton.IsEnabled = !busy && configuration is { FormProblem.Length: 0 } && controller.Connection == ConnectionState.Ready;
+        InstallButton.IsEnabled = installGate?.CanInstall == true;
+        InstallGateStatus.Text = state switch
+        {
+            InstallGateState.Preparing => "Checking this plan with the engine",
+            InstallGateState.Granted => "The engine accepted this plan. Nothing changes until you confirm.",
+            InstallGateState.Refused or InstallGateState.Failed => installGate!.Reason,
+            InstallGateState.Confirming => "Starting the installation",
+            InstallGateState.Started => "The installation started. Keep this window open.",
+            _ => "",
+        };
+    }
+
+    private async void PrepareInstall_Click(object sender, RoutedEventArgs args)
+    {
+        if (configuration is null || configuration.FormProblem.Length != 0 || configurationBrandId.Length == 0) return;
+        var draft = configuration.CreateDraft();
+        installGate ??= new InstallGate(connector, configurationBrandId);
+        var preparing = installGate.PrepareAsync(draft);
+        UpdateInstallGate();
+        await preparing;
+        UpdateInstallGate();
+    }
+
+    // The confirmation repeats the legacy launchpad's own disclosures. Cancel
+    // is the default button, so Enter never starts an install.
+    private async void Install_Click(object sender, RoutedEventArgs args)
+    {
+        var gate = installGate;
+        var grant = gate?.Grant;
+        if (gate is null || !gate.CanInstall || grant is null) return;
+        var disclosure = InstallDisclosure.For(brand, grant);
+        var lines = new StackPanel { Spacing = 8 };
+        for (int index = 0; index < disclosure.Lines.Count; index++)
+        {
+            var line = new TextBlock { Text = disclosure.Lines[index], TextWrapping = TextWrapping.Wrap };
+            AutomationProperties.SetAutomationId(line, $"InstallDisclosure{index}");
+            lines.Children.Add(line);
+        }
+        var dialog = new ContentDialog
+        {
+            Title = disclosure.Heading, Content = lines, PrimaryButtonText = disclosure.Action, CloseButtonText = disclosure.Cancel,
+            DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot,
+        };
+        AutomationProperties.SetAutomationId(dialog, "InstallConfirmation");
+        InstallButton.IsEnabled = false;
+        var answer = await dialog.ShowAsync();
+        if (answer == ContentDialogResult.Primary)
+        {
+            var confirming = gate.ConfirmAsync();
+            UpdateInstallGate();
+            await confirming;
+        }
+        UpdateInstallGate();
     }
 
     private void UpdateConnection()

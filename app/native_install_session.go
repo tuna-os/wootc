@@ -1,0 +1,151 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"sync"
+)
+
+// nativePurposeInstall selects the install-purpose session at launch
+// (--purpose install). Any other purpose value is refused.
+const nativePurposeInstall = "install"
+
+// NativeInstallGrant is what an install-purpose session returns when the
+// engine accepts a plan. It names the plan the person will confirm and the
+// facts the confirmation must disclose. The intent ID is single use: the first
+// ConfirmNativeInstall attempt consumes it, whatever its outcome.
+type NativeInstallGrant struct {
+	SchemaVersion               int    `json:"schemaVersion"`
+	Session                     string `json:"session"`
+	BrandID                     string `json:"brandId"`
+	IntentID                    string `json:"intentId"`
+	ImageRef                    string `json:"imageRef"`
+	StorageDrive                string `json:"storageDrive"`
+	DiskSizeGB                  int    `json:"diskSizeGB"`
+	Encryption                  string `json:"encryption"`
+	BitLockerOn                 bool   `json:"bitLockerOn"`
+	BitLockerRecoveryKeyWarning bool   `json:"bitLockerRecoveryKeyWarning"`
+	FastStartupOn               bool   `json:"fastStartupOn"`
+	SecureBootChainWarning      string `json:"secureBootChainWarning"`
+}
+
+// nativeInstallAuthority is the one-shot consent boundary from #606
+// (nativeInstallAuthorization on Windows): it holds the immutable plan and
+// the captured original user, and runs the action at most once.
+type nativeInstallAuthority interface {
+	intentID() string
+	confirmIntent(data []byte, action func(InstallConfig) error) error
+}
+
+// nativeInstallPrepare validates a plan and returns its authority and grant.
+// A refusal error carries engine text the person can act on.
+type nativeInstallPrepare func(InstallConfig) (nativeInstallAuthority, NativeInstallGrant, error)
+
+// nativeInstallSession serves one install-purpose connection. It accepts one
+// plan and one confirmation. A changed plan needs a new session, so a grant
+// can never outlive the plan it was made for.
+type nativeInstallSession struct {
+	mu        sync.Mutex
+	prepare   nativeInstallPrepare
+	start     func(InstallConfig) error
+	authority nativeInstallAuthority
+	prepared  bool
+	confirmed bool
+}
+
+func newNativeInstallSession(prepare nativeInstallPrepare, start func(InstallConfig) error) *nativeInstallSession {
+	return &nativeInstallSession{prepare: prepare, start: start}
+}
+
+// decodeNativeInstallPlan accepts exactly the InstallConfig fields, once
+// each. Fault injection and session-consent moves are not native options.
+func decodeNativeInstallPlan(raw json.RawMessage) (InstallConfig, error) {
+	var config InstallConfig
+	if len(raw) == 0 || len(raw) > 16384 {
+		return config, fmt.Errorf("install plan refused")
+	}
+	keys := json.NewDecoder(bytes.NewReader(raw))
+	token, err := keys.Token()
+	if err != nil || token != json.Delim('{') {
+		return config, fmt.Errorf("install plan refused")
+	}
+	allowed := map[string]bool{"imageRef": true, "diskSizeGB": true, "username": true, "password": true, "hostname": true, "bootloader": true, "composeFs": true, "storageDrive": true, "encryption": true, "luksPassphrase": true, "windowsLook": true}
+	seen := map[string]bool{}
+	for keys.More() {
+		token, err = keys.Token()
+		key, ok := token.(string)
+		if err != nil || !ok || !allowed[key] || seen[key] {
+			return config, fmt.Errorf("install plan refused")
+		}
+		seen[key] = true
+		var value json.RawMessage
+		if keys.Decode(&value) != nil || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return config, fmt.Errorf("install plan refused")
+		}
+	}
+	if _, err = keys.Token(); err != nil {
+		return config, fmt.Errorf("install plan refused")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&config) != nil {
+		return InstallConfig{}, fmt.Errorf("install plan refused")
+	}
+	var extra json.RawMessage
+	if decoder.Decode(&extra) != io.EOF {
+		return InstallConfig{}, fmt.Errorf("install plan refused")
+	}
+	if config.ImageRef == "" || config.Username == "" || config.Password == "" || config.StorageDrive == "" || config.DiskSizeGB <= 0 {
+		return InstallConfig{}, fmt.Errorf("install plan is incomplete")
+	}
+	return config, nil
+}
+
+func (session *nativeInstallSession) dispatch(method string, params json.RawMessage) (any, *jsonrpcError) {
+	switch method {
+	case "PrepareNativeInstall":
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		if session.prepared {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "this install session already holds a plan; start a new session for a changed plan"}
+		}
+		session.prepared = true
+		plan, err := decodeNativeInstallPlan(params)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: err.Error()}
+		}
+		if session.prepare == nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native install preparation unavailable"}
+		}
+		authority, grant, err := session.prepare(plan)
+		if err != nil || authority == nil {
+			message := "native install preparation refused"
+			if err != nil {
+				message = err.Error()
+			}
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: message}
+		}
+		if grant.IntentID != authority.intentID() || !lowerHexLength(grant.IntentID, 32) {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native install preparation refused"}
+		}
+		session.authority = authority
+		return grant, nil
+	case "ConfirmNativeInstall":
+		session.mu.Lock()
+		authority, start := session.authority, session.start
+		already := session.confirmed
+		session.confirmed = true
+		session.authority = nil
+		session.mu.Unlock()
+		if already || authority == nil || start == nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "no install intent is available in this session"}
+		}
+		if err := authority.confirmIntent(params, start); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
+	}
+	return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in install session"}
+}
