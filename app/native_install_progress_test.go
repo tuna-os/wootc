@@ -61,6 +61,9 @@ func TestNativeInstallSessionRestartOnlyAfterItsOwnFinishedInstall(t *testing.T)
 // tests). They come from the real stdio emitter and the real pipeline's event
 // constructors, so no install runs to record them.
 func TestNativeInstallProgressRecordedStreams(t *testing.T) {
+	// The goldens are the generic build's stream; a local brand overlay must
+	// not change the done message they record.
+	wearBrand(t, "wootc")
 	record := func(events []ProgressEvent) []byte {
 		var out bytes.Buffer
 		emitter := newStdioEmitter(&synchronizedWriter{out: &out})

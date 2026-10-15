@@ -1188,7 +1188,17 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 // events of a real run. The native shell's recorded progress streams
 // (tests/unit/fixtures/install-progress) are built from these constructors.
 func installDoneEvent() ProgressEvent {
-	return ProgressEvent{Step: "done", Message: "Installation complete. Reboot to start TunaOS.", Percent: 100, Done: true}
+	return ProgressEvent{Step: "done", Message: "Installation complete. Reboot to start " + installedSystemName() + ".", Percent: 100, Done: true}
+}
+
+// installedSystemName is the distribution this build installs, from the
+// effective branding: a Bazzite build says "Bazzite", the generic build says
+// its default name. Only a brand that clears the name falls back to "Linux".
+func installedSystemName() string {
+	if n := strings.TrimSpace(effectiveBranding().Name); n != "" {
+		return n
+	}
+	return "Linux"
 }
 
 func installFailureEvent(err error) ProgressEvent {

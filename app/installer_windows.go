@@ -320,7 +320,7 @@ func armOneShotFromPersistedGUID() error {
 		return fmt.Errorf("recorded boot entry id looks invalid (%q) — reinstalling repairs this", guid)
 	}
 	if out, err := runCmd("bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"); err != nil {
-		return fmt.Errorf("could not arm the one-time TunaOS boot: %w (output: %s)", err, out)
+		return fmt.Errorf("could not arm the one-time %s boot: %w (output: %s)", installedSystemName(), err, out)
 	}
 	return nil
 }
