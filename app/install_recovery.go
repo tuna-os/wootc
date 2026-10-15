@@ -227,7 +227,7 @@ func classifyInstall(o InstallObservation) InstallRecovery {
 		if o.JournalOwnerUp {
 			r.Class, r.Cause = InstallClassInProgress, ""
 			r.Title = "An installation is running"
-			r.Message = "Another wootc window is installing right now. Wait for it to finish."
+			r.Message = "Another " + productName() + " window is installing right now. Wait for it to finish."
 			return r
 		}
 		r.Cause = CauseInterrupted
@@ -256,11 +256,11 @@ func classifyInstall(o InstallObservation) InstallRecovery {
 		r.Title = "Setup stopped while changing the startup files"
 		switch r.Cause {
 		case CauseInterrupted:
-			r.Message = "The computer restarted or wootc closed unexpectedly while it was changing the startup files. Remove the installation to put the startup files back, then install again."
+			r.Message = "The computer restarted or " + productName() + " closed unexpectedly while it was changing the startup files. Remove the installation to put the startup files back, then install again."
 		case CauseCancelled:
-			r.Message = "You cancelled after wootc changed the startup files. The one-time Linux start was turned off. Remove the installation to clean up the startup files, then install again."
+			r.Message = "You cancelled after " + productName() + " changed the startup files. The one-time Linux start was turned off. Remove the installation to clean up the startup files, then install again."
 		default:
-			r.Message = "A step failed after wootc changed the startup files. The one-time Linux start was turned off. Remove the installation to clean up the startup files, then install again."
+			r.Message = "A step failed after " + productName() + " changed the startup files. The one-time Linux start was turned off. Remove the installation to clean up the startup files, then install again."
 		}
 		return r
 	}
@@ -285,7 +285,7 @@ func classifyInstall(o InstallObservation) InstallRecovery {
 	case CauseInterrupted:
 		r.Class = InstallClassResumable
 		r.Title = "Setup stopped unexpectedly"
-		r.Message = "wootc closed or the computer lost power before setup finished. Nothing outside the installation folder changed, and Windows starts as usual."
+		r.Message = productName() + " closed or the computer lost power before setup finished. Nothing outside the installation folder changed, and Windows starts as usual."
 	case CauseCancelled:
 		r.Class = InstallClassResumable
 		r.Title = "You cancelled the last installation"
@@ -320,7 +320,7 @@ func classifyWithoutJournal(r InstallRecovery, o InstallObservation) InstallReco
 			r.Cause = CauseUnknown
 		}
 		r.Title = "The last installation did not finish"
-		r.Message = "This record comes from an older wootc. Remove the installation if a new install will not start."
+		r.Message = "This record comes from an older version of " + productName() + ". Remove the installation if a new install will not start."
 		r.Actions.Remove = true
 		r.Actions.ResumeInstall = !o.RootDisk && !o.ArmedFile
 		r.Recommended = "remove"
