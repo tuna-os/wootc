@@ -264,7 +264,11 @@ SH
     grep -q 'packaging/build-windows.py --brand "\$BRAND_ID"' .github/workflows/e2e-hosted.yml
     grep -q 'app/branding/\$name' .github/workflows/e2e-hosted.yml
     grep -q 'set WOOTC_PRELOAD=0' tests/e2e/run-e2e.sh
-    grep -q 'os.Getenv("WOOTC_PRELOAD") == "0"' app/app.go
+    # The decision itself lives in shouldPreloadImage (branding_policy.go);
+    # TestBazziteBuild_PreloadsTheImageOnWindows holds its behaviour, this
+    # holds that the install pipeline still asks it.
+    grep -q 'case "0":' app/branding_policy.go
+    grep -q 'shouldPreloadImage(effectiveBranding())' app/app.go
     # An image without a brand directory of its own can still belong to a
     # brand's CATALOG — dakota ships inside the Bluefin installer, and a
     # real Dakota user downloads Bluefin's exe, so that is the installer the
