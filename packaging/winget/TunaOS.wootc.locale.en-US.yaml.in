@@ -9,12 +9,14 @@ PackageName: wootc
 PackageUrl: https://github.com/tuna-os/wootc
 License: GPL-2.0 OR MIT
 LicenseUrl: https://github.com/tuna-os/wootc/blob/main/LICENSE-GPL-2.0
-ShortDescription: Try Linux alongside Windows — no USB, no repartitioning, fully undoable.
+ShortDescription: Try Linux alongside Windows — no USB, fully undoable.
 Description: |-
   wootc installs a bootc-based Linux (TunaOS, Bluefin, and friends) from
-  inside Windows. Everything lives in one folder on your Windows drive —
-  no partitions are touched, Windows stays the default boot, your files are
-  bridged into Linux, and one uninstall puts everything back.
+  inside Windows. On most PCs everything lives in one folder on your Windows
+  drive. If BitLocker encrypts that drive, wootc shrinks it and adds one
+  unencrypted data partition; uninstall can remove that partition and give
+  the space back to Windows. Windows stays the default boot and your files
+  are bridged into Linux.
 Moniker: wootc
 Tags:
   - linux
