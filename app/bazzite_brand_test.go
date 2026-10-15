@@ -9,8 +9,6 @@ package main
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -19,23 +17,9 @@ import (
 // asBazziteBuild makes this test binary behave like Bazzite-Installer.exe.
 func asBazziteBuild(t *testing.T) {
 	t.Helper()
-	old := brandID
-	brandID = "bazzite"
-	t.Cleanup(func() { brandID = old })
-	// The runtime overlays win over the embedded brand; a leftover from
-	// another test (or a dev machine) would make these tests assert the
-	// overlay, not the build.
-	for _, name := range []string{"brand.json", "brand.css", "images.json", "channel.txt"} {
-		path := filepath.Join(wootcDir(), name)
-		saved, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("clear overlay %s: %v", path, err)
-		}
-		t.Cleanup(func() { _ = os.WriteFile(path, saved, 0o644) })
-	}
+	// The runtime overlays win over the embedded brand; asBrandBuild clears
+	// them so these tests assert the build, not a leftover overlay.
+	asBrandBuild(t, "bazzite")
 	t.Setenv("WOOTC_PRELOAD", "")
 	t.Setenv("WOOTC_E2E_DRIVE", "")
 }

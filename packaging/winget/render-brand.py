@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Render a draft winget package, with quoted YAML values from brand metadata."""
+import importlib.util
 import json
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+_spec = importlib.util.spec_from_file_location("wootc_brand", Path(__file__).resolve().parents[1] / "brand.py")
+brand_rules = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(brand_rules)
 
 
 def text_field(config, key, fallback=""):
@@ -39,21 +43,34 @@ def render(root, brand, version="", url="", sha=""):
     website = text_field(config, "websiteURL", fallback)
     support = text_field(config, "supportURL", "https://github.com/tuna-os/wootc/issues")
     agreed = winget.get("identifierAgreed") is True
+    # Same authorship rule as the exe's CompanyName: the mark's owner is named
+    # as publisher only once they said yes; until then, the distributor.
+    if brand_rules.owner_may_be_named(root, brand):
+        publisher = text_field(config, "publisher", identifier.split(".")[0])
+        publisher_url = website
+    else:
+        publisher = brand_rules.effective_identity(root, brand, config)[0]
+        publisher_url = "https://github.com/tuna-os/wootc"
     permission = (f"The {name} name and mark are used with the {name} project's permission." if agreed else
                   "PERMISSION NOT YET GRANTED — this is a draft offered for review, not a submission.")
+    # Say what the installer really does to the disk. On most PCs that is one
+    # folder on C:; when BitLocker encrypts C:, it shrinks C: and adds one
+    # unencrypted data partition (app/disk_windows.go). "No partitions are
+    # touched" is false on exactly the PCs Windows 11 ships encrypted.
     description = (
-        f"{product} installs {name} from inside Windows. Everything\n"
-        "lives in one folder on your Windows drive — no partitions are touched,\n"
-        "Windows stays the default boot, your files are bridged into Linux, and one\n"
-        "uninstall puts everything back.\n\n"
+        f"{product} installs {name} from inside Windows. On most PCs everything\n"
+        "lives in one folder on your Windows drive. If BitLocker encrypts that\n"
+        "drive, the installer shrinks it and adds one unencrypted data partition;\n"
+        "uninstall can remove that partition and give the space back to Windows.\n"
+        "Windows stays the default boot and your files are bridged into Linux.\n\n"
         "Built by the wootc project (https://github.com/tuna-os/wootc).\n" + permission)
     values = {
         "IDENTIFIER": identifier,
         "VERSION": version or "{{VERSION}}",
         "URL": url or "{{URL}}",
         "SHA256": sha or "{{SHA256}}",
-        "PUBLISHER": text_field(config, "publisher", identifier.split(".")[0]),
-        "PUBLISHER_URL": website,
+        "PUBLISHER": publisher,
+        "PUBLISHER_URL": publisher_url,
         "SUPPORT_URL": support,
         "PACKAGE_URL": text_field(config, "websiteURL", "https://github.com/tuna-os/wootc"),
         "PACKAGE_NAME": product,

@@ -1,4 +1,5 @@
 {
+  "distributor": "TunaOS",
   "selfOwnedBrands": ["wootc", "tunaos"],
   "wingetNamespaces": ["TunaOS"]
 }

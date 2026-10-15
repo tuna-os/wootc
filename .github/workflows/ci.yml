@@ -15,7 +15,38 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Path scoping: on a pull request, each build job below runs only when the
+  # change touches its inputs (.github/scripts/ci-scope.sh owns the map).
+  # Push to main and workflow_dispatch always run every job.
+  changes:
+    name: select path-scoped jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      deployer: ${{ steps.scope.outputs.deployer }}
+      app: ${{ steps.scope.outputs.app }}
+      recipe: ${{ steps.scope.outputs.recipe }}
+      gui: ${{ steps.scope.outputs.gui }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The PR merge commit and its base parent.
+          fetch-depth: 2
+      - id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD | tee /dev/stderr | .github/scripts/ci-scope.sh >> "$GITHUB_OUTPUT"
+          else
+            .github/scripts/ci-scope.sh --all >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
   build-deployer:
+    needs: changes
+    if: needs.changes.outputs.deployer == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -52,6 +83,8 @@ jobs:
           retention-days: 7
 
   build-app:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -91,6 +124,8 @@ jobs:
           retention-days: 7
 
   validate-recipe:
+    needs: changes
+    if: needs.changes.outputs.recipe == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -118,6 +153,8 @@ jobs:
           /tmp/fisherman validate /tmp/test-recipe.json
 
   gui-tests:
+    needs: changes
+    if: needs.changes.outputs.gui == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

@@ -37,6 +37,23 @@ Full hosted E2E (Windows 11 → wootc deployer → native Linux → Windows 11)
 runs on dedicated remote hosts. You cannot reproduce it on your own machine.
 `docs/RELEASING.md` tells how matrix cells go green.
 
+### What CI runs on a pull request
+
+CI runners are shared by all tuna-os repositories, so a PR runs only the
+jobs that its change can affect:
+
+- Lint and the fast tier run on every PR.
+- The other jobs in `ci.yml` and `ci-tests.yml` run only when the PR changes
+  their inputs. `.github/scripts/ci-scope.sh` holds the path map. A change to
+  that script, to those two workflows, or to `.github/actions/` runs all jobs.
+- `winui-preview.yml` packages one brand per PR. The brand changes with the
+  run number. The PR also packages each brand whose `app/branding/<brand>/`
+  it changes. Set the `WINUI_PREVIEW_BRANDS_PER_PR` repository variable to
+  package more brands.
+
+A push to `main` and a manual dispatch run all jobs. `winui-preview.yml` also
+packages all brands each night.
+
 ## Before opening a PR
 
 - Run `just test` (fast tier) locally — it's fast enough to run on every

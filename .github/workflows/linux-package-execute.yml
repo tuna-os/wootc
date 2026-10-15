@@ -16,9 +16,11 @@ on:
 permissions:
   contents: read
 
+# Dispatches keep one group per run (each proves a distinct source_sha);
+# pull requests share one group per PR so a new push cancels the old run.
 concurrency:
-  group: linux-package-execute-${{ github.run_id }}
-  cancel-in-progress: false
+  group: linux-package-execute-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   controls:

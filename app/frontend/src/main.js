@@ -18,7 +18,7 @@ import { renderInterruptedScreen, INTERRUPTED_CLASSES } from './screens/interrup
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
-  try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'TunaOS', productName: 'wootc', tagline: '', logoEmoji: '🐠', version: '0.1.0', installVerb: 'Install' }); }
+  try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'TunaOS', productName: 'wootc', tagline: '', logoEmoji: '🐠', version: '', installVerb: 'Install' }); }
   setInstallSteps(await GetInstallSteps());
   // Listen for progress events from Go backend
   EventsOn('install:progress', (e) => {

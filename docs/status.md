@@ -131,6 +131,8 @@ re-runs since (dates on the affected rows).
 | `marlin` (Arch) / `flounder` (Debian) | ostree · xfs (unsealed) | ✅ | 🔴 | ⚪ | ⚪ | ⚪ |
 | `bazzite:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ✅ | ✅ | ✅ | ⚪ | ✅ ([32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098), 2026-08-24) |
 | `bazzite-deck:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
+| `aurora:stable` (Aurora-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32613697020](https://github.com/tuna-os/wootc/actions/runs/32613697020), 2026-08-23) |
+| `bluefin:stable` (Bluefin-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32604804979](https://github.com/tuna-os/wootc/actions/runs/32604804979), 2026-08-22) |
 
 `bazzite:stable` has one green GUI run, [32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098).
 It ran on `4fd4bc8` (2026-08-24) on the failure-ledger harness.
@@ -145,6 +147,14 @@ That proof is old. The last green GUI-driven run on `main`, for any image, was o
 `bazzite-deck:stable` has no green run, so the catalog keeps it `experimental`.
 On 2026-10-15, [38731850924](https://github.com/tuna-os/wootc/actions/runs/38731850924) (`bazzite`) and [38731854579](https://github.com/tuna-os/wootc/actions/runs/38731854579) (`bazzite-deck`) stopped at the GUI launch, before the install.
 The [test record for the Bazzite brand](branded-walkthroughs.md#bazzite-brand-test-record) has each check.
+
+The Aurora and Bluefin current runs installed their image through the GUI.
+Phase 2 started, and then Windows started again. Phase 3 was off.
+Both runs used the generic `wootc.exe`. The hosted job did not build the brand installer for each image before 2026-08-24.
+Thus they prove the image, not the Aurora or Bluefin installer.
+
+[#226](https://github.com/tuna-os/wootc/issues/226) needs a green GUI run of each `branded-*` cell in `tests/e2e/matrix.tsv`.
+None of the three cells has that run yet.
 
 `dakota` (composefs-native) went green on the failure-ledger harness —
 composefs full chain, run `30710282014` (2026-08-02);

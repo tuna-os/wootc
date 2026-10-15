@@ -302,6 +302,15 @@ jobs:
           WOOTC_SIGN_TSAURL: ${{ vars.WOOTC_SIGN_TSAURL }}
           WOOTC_SIGN_PUBLISHER: ${{ vars.WOOTC_SIGN_PUBLISHER }}
           WOOTC_SIGN_STOREPASS: ${{ secrets.WOOTC_SIGN_STOREPASS }}
+          # PEM text, not paths: a repository variable cannot name a file on
+          # the runner. CA_PEM adds the code-signing and timestamp roots to
+          # the verify trust store. The Ubuntu bundle holds TLS roots only;
+          # Trusted Signing chains to "Microsoft Identity Verification Root
+          # Certificate Authority 2020", which is not in it, so verification
+          # (and a tagged release) fails without this. CERTCHAIN_PEM is
+          # jsign --certfile, which some HSM store types need.
+          WOOTC_SIGN_CA_PEM: ${{ vars.WOOTC_SIGN_CA_PEM }}
+          WOOTC_SIGN_CERTCHAIN_PEM: ${{ vars.WOOTC_SIGN_CERTCHAIN_PEM }}
           JSIGN_VERSION: '7.5'
           JSIGN_SHA256: 602a51c3545a6dc4fb99bd2ea7152b26d1345916d0c93ddfbd5936cb735af91c
         run: |
@@ -315,6 +324,15 @@ jobs:
             printf '#!/bin/sh\nexec java -jar %s "$@"\n' "$jar" > "$RUNNER_TEMP/jsign"
             chmod +x "$RUNNER_TEMP/jsign"
             export JSIGN="$RUNNER_TEMP/jsign"
+            if [ -n "$WOOTC_SIGN_CA_PEM" ]; then
+              cat /etc/ssl/certs/ca-certificates.crt > "$RUNNER_TEMP/sign-ca.pem"
+              printf '%s\n' "$WOOTC_SIGN_CA_PEM" >> "$RUNNER_TEMP/sign-ca.pem"
+              export WOOTC_SIGN_CAFILE="$RUNNER_TEMP/sign-ca.pem"
+            fi
+            if [ -n "$WOOTC_SIGN_CERTCHAIN_PEM" ]; then
+              printf '%s\n' "$WOOTC_SIGN_CERTCHAIN_PEM" > "$RUNNER_TEMP/sign-chain.pem"
+              export WOOTC_SIGN_CERTFILE="$RUNNER_TEMP/sign-chain.pem"
+            fi
           fi
           bash packaging/sign-exes.sh "$CHANNEL" release-assets
 
