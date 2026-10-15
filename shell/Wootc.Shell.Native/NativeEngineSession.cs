@@ -7,13 +7,15 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
-internal sealed class NativeEngineSession : IEngineSession
+internal sealed class NativeEngineSession : IConfigurationEngineSession
 {
     private readonly Stream pipe;
+    private readonly string? expectedBrand;
     private readonly Process engine;
     private readonly TimeSpan disconnectTimeout;
     private readonly SemaphoreSlim writes = new(1, 1);
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> pending = new();
+    private readonly ConcurrentDictionary<long, string> pendingMethods = new();
     private readonly CancellationTokenSource readerStop = new();
     private readonly Task reader;
     private long nextId;
@@ -21,11 +23,12 @@ internal sealed class NativeEngineSession : IEngineSession
     private Exception? receiveFailure;
     private readonly Action<string, Exception?>? observe;
 
-    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe) { }
+    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null, string? expectedBrand = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe, expectedBrand) { }
 
-    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null)
+    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null, string? expectedBrand = null)
     {
         this.pipe = pipe;
+        this.expectedBrand = expectedBrand;
         this.engine = engine;
         this.disconnectTimeout = disconnectTimeout;
         this.observe = observe;
@@ -68,7 +71,13 @@ internal sealed class NativeEngineSession : IEngineSession
                 bool hasResult = root.TryGetProperty("result", out _);
                 if (hasError == hasResult) throw new InvalidDataException("Ambiguous engine response outcome");
                 if (!pending.TryRemove(value, out var completion)) continue; // Canceled request's late response.
-                if (root.TryGetProperty("error", out var error))
+                pendingMethods.TryRemove(value, out var responseMethod);
+                if (root.TryGetProperty("error", out var error) && error.TryGetProperty("data", out var storageData))
+                {
+                    if (responseMethod != "GetNativeConfiguration") completion.TrySetException(new InvalidDataException("Unexpected diagnostic response"));
+                    else { try { completion.TrySetException(StorageObservationFailure.Decode(storageData)); } catch { completion.TrySetException(new InvalidDataException("Storage diagnostic refused")); } }
+                }
+                else if (root.TryGetProperty("error", out error))
                     completion.TrySetException(new InvalidDataException(error.TryGetProperty("message", out var text) ? text.GetString() ?? "Engine request failed" : "Engine request failed"));
                 else if (root.TryGetProperty("result", out var result)) completion.TrySetResult(result.Clone());
                 else completion.TrySetException(new InvalidDataException("Engine response has no result"));
@@ -81,14 +90,15 @@ internal sealed class NativeEngineSession : IEngineSession
     internal static string RpcStage(string method) => method switch
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
-        "GetRecoveryVerdict" => "rpc-recovery", _ => "rpc-other"
+        "GetRecoveryVerdict" => "rpc-recovery", "GetNativeConfiguration" => "rpc-configuration", _ => "rpc-other"
     };
 
-    internal async Task<T> CallAsync<T>(string method, CancellationToken token)
+    internal async Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null)
     {
         long id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!pending.TryAdd(id, completion)) throw new InvalidOperationException("Duplicate engine request identity");
+        pendingMethods[id] = method;
         string stage = RpcStage(method) + "-request";
         try
         {
@@ -99,17 +109,19 @@ internal sealed class NativeEngineSession : IEngineSession
             await writes.WaitAsync(token);
             try { await pipe.WriteAsync(request, token); await pipe.FlushAsync(token); }
             finally { writes.Release(); }
+            if (method == "GetNativeConfiguration") requestFlushed?.Invoke(id);
             stage = RpcStage(method) + "-response";
             observe?.Invoke(stage, null);
             var result = await completion.Task.WaitAsync(token);
             stage = RpcStage(method) + "-decode";
             observe?.Invoke(stage, null);
-            var decoded = NativeProtocol.DecodeStartup<T>(method, result);
+            var decoded = method == "GetNativeConfiguration" && typeof(T) == typeof(NativeConfigurationSnapshot)
+                ? (T)(object)NativeConfigurationProtocol.Decode(result, expectedBrand ?? throw new InvalidDataException("Authenticated configuration brand is unavailable")) : NativeProtocol.DecodeStartup<T>(method, result);
             observe?.Invoke(RpcStage(method) + "-complete", null);
             return decoded;
         }
         catch (Exception error) { observe?.Invoke(stage, error); throw; }
-        finally { pending.TryRemove(id, out _); }
+        finally { pending.TryRemove(id, out _); pendingMethods.TryRemove(id, out _); }
     }
 
     public async Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken)
@@ -120,6 +132,13 @@ internal sealed class NativeEngineSession : IEngineSession
         var lifecycle = await CallAsync<LifecycleState>("GetLastRun", deadline.Token);
         var recovery = await CallAsync<RecoveryVerdict>("GetRecoveryVerdict", deadline.Token);
         return new(status, recovery, lifecycle);
+    }
+
+    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        return await CallAsync<NativeConfigurationSnapshot>("GetNativeConfiguration", deadline.Token, requestFlushed);
     }
 
     public async ValueTask DisposeAsync()
