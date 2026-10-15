@@ -67,7 +67,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force frontend/dist | Out-Null
           Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
-          go build -ldflags "-X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
+          go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
       - name: Test actual Windows adapter identities and private package controls
         working-directory: shell
         run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
@@ -160,7 +160,7 @@ jobs:
           New-Item -ItemType Directory -Force app/frontend/dist | Out-Null
           Set-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
           Push-Location app
-          try { go build -ldflags "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
+          try { go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
           if ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }
       - name: Compile, install, observe and remove only the preview package
         shell: pwsh

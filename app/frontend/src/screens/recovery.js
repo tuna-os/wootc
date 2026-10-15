@@ -1,4 +1,4 @@
-import { TryAgain, RepairBoot, Uninstall, GetRecoveryVerdict } from '../../wailsjs/go/main/App';
+import { TryAgain, RepairBoot, Uninstall, GetRecoveryVerdict, InspectBoot, RestoreWindowsBoot } from '../../wailsjs/go/main/App';
 import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { distroName } from '../lib/branding.js';
@@ -55,6 +55,20 @@ export function renderRecoveryScreen() {
   card.innerHTML = detailsHtml || `<div style="font-size:12.5px;color:var(--text-muted)">Choose an option below to proceed.</div>`;
   screen.appendChild(card);
 
+  // Boot check (#290): what the boot configuration looks like right now,
+  // observed, not inferred from the verdict. Actions that write to the boot
+  // configuration stay disabled until this report says they are safe.
+  const bootCard = el('div');
+  bootCard.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:12.5px';
+  const bootTitle = el('div');
+  bootTitle.style.cssText = 'font-weight:600;color:var(--text)';
+  bootTitle.textContent = 'Checking the boot configuration…';
+  bootCard.appendChild(bootTitle);
+  const bootBody = el('div');
+  bootBody.style.cssText = 'display:flex;flex-direction:column;gap:4px;color:var(--text-muted)';
+  bootCard.appendChild(bootBody);
+  screen.appendChild(bootCard);
+
   wrap.appendChild(screen);
 
   // Action buttons
@@ -73,17 +87,34 @@ export function renderRecoveryScreen() {
     }
   }));
 
-  // 2. Repair boot button
-  footer.appendChild(btn('Repair boot', 'btn btn-ghost', async () => {
+  // 2. Keep Windows only: take wootc out of the boot order, keep the files.
+  const restoreBtn = btn('Keep Windows only', 'btn btn-ghost', async () => {
+    try {
+      const after = await RestoreWindowsBoot();
+      showBootReport(after);
+      alert('Windows will start normally. Your setup files are kept, so you can try again later.');
+    } catch (e) {
+      alert('Windows boot was not restored: ' + e);
+      refreshBootReport();
+    }
+  });
+  restoreBtn.disabled = true;
+  footer.appendChild(restoreBtn);
+
+  // 3. Repair boot button
+  const repairBtn = btn('Repair boot', 'btn btn-ghost', async () => {
     try {
       await RepairBoot();
-      alert('Boot configuration repaired. Your computer will restart to try again.');
+      alert('Boot configuration repaired and checked. Your computer will restart to try again.');
     } catch (e) {
       alert('Repair boot hit a problem: ' + e);
+      refreshBootReport();
     }
-  }));
+  });
+  repairBtn.disabled = true;
+  footer.appendChild(repairBtn);
 
-  // 3. Try again button (primary)
+  // 4. Try again button (primary)
   footer.appendChild(btn('Try again →', 'btn btn-primary', async () => {
     try {
       await TryAgain();
@@ -93,5 +124,41 @@ export function renderRecoveryScreen() {
   }));
 
   wrap.appendChild(footer);
+
+  const stateText = {
+    'windows-only': 'Windows starts normally. wootc is not in the boot order.',
+    'one-shot-armed': 'The next restart (only) goes to the Linux installer.',
+    'wootc-default': 'A wootc entry is ahead of Windows in the boot order.',
+    'wootc-listed': 'Windows starts first; a wootc entry is still in the boot order.',
+    'foreign-next': 'The next restart goes to an entry wootc does not own.',
+    unknown: 'The boot configuration could not be read.',
+  };
+
+  function line(text) {
+    const d = el('div');
+    d.textContent = text;
+    bootBody.appendChild(d);
+  }
+
+  function showBootReport(r) {
+    r = r || {};
+    bootTitle.textContent = stateText[r.bootState] || stateText.unknown;
+    bootBody.textContent = '';
+    (r.findings || []).forEach(line);
+    (r.refusals || []).forEach((t) => line('Not offered: ' + t));
+    if (r.bundlePath) line('Details saved to ' + r.bundlePath);
+    restoreBtn.disabled = !r.canRestoreWindows;
+    repairBtn.disabled = !r.canRepairBoot;
+  }
+
+  async function refreshBootReport() {
+    try {
+      showBootReport(await InspectBoot());
+    } catch (e) {
+      showBootReport({ bootState: 'unknown', refusals: ['boot check failed: ' + e] });
+    }
+  }
+
+  refreshBootReport();
   return wrap;
 }

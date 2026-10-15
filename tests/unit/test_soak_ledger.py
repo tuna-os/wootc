@@ -320,6 +320,36 @@ class SoakTests(unittest.TestCase):
         rows, _ = soak.collect(API(), rows, cfg, dt.date(2026, 9, 22))
         self.assertNotIn('diagnosisIssue', rows[0])
 
+    def test_infra_classified_red_is_annotated_and_still_resets(self):
+        class API:
+            repo = 'tuna-os/wootc'
+            def pages(self, path, key):
+                return []
+            def issue(self, number):
+                if number == 999:
+                    return {'body': 'Diagnosed: https://github.com/tuna-os/wootc/actions/runs/42'}
+                return issues()[number]
+        old = row('2026-09-21', 42, eligible=False, verdict='failure', sourceSha='d' * 40,
+                  runUrl='https://github.com/tuna-os/wootc/actions/runs/42')
+        cfg = config()
+        cfg['diagnoses'] = {'42:1': {'issue': 999, 'infraClass': 'qga-channel-lost'}}
+        rows, authority = soak.collect(API(), [old], cfg, dt.date(2026, 9, 23))
+        self.assertEqual(rows[0]['diagnosisIssue'], 999)
+        self.assertEqual(rows[0]['infraClass'], 'qga-channel-lost')
+        self.assertIn('infra: qga-channel-lost; streak reset', soak.render(rows, {'streak': 0, 'valid': True, 'throughDate': '2026-09-22'}))
+        # The policy is fixed before the first occurrence: infra reds reset.
+        result = soak.summarize([row('2026-09-20'), rows[0], row('2026-09-22', 3)], cfg, issues(), dt.date(2026, 9, 23))
+        self.assertTrue(result['valid'])
+        self.assertEqual(result['streak'], 1)
+        # A class outside the M2.6 harness verdicts is refused, not trusted.
+        cfg['diagnoses'] = {'42:1': {'issue': 999, 'infraClass': 'runner-was-slow'}}
+        with self.assertRaises(ValueError):
+            soak.collect(API(), rows, cfg, dt.date(2026, 9, 23))
+        # Dropping the annotation drops it from the row too.
+        cfg['diagnoses'] = {'42:1': 999}
+        rows, _ = soak.collect(API(), rows, cfg, dt.date(2026, 9, 23))
+        self.assertNotIn('infraClass', rows[0])
+
     def test_workflow_uses_main_and_does_not_dispatch_vm(self):
         workflow = (ROOT / '.github/workflows/soak-ledger.yml').read_text()
         self.assertIn('ref: main', workflow)
