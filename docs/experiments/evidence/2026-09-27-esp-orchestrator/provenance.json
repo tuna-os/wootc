@@ -119,7 +119,7 @@
     "payload/migration/wootc-esp-sync.path": "528d306ed246fce40ac04b1bb484da4d28ce3a59ded2d411d711ca914a7d41d0",
     "payload/migration/wootc-esp-sync.service": "4aa34a748d7163c962952c82fd2fa1a2a342e3f9daee956e943b06059ada34fb",
     "payload/migration/wootc-host-bind.service": "4c3073d8ef289da5842c224ee5f57c25cdfd5e56b16bee0819fb47f4f6b80dc8",
-    "payload/migration/wootc-host-view": "6b61613232c336747458a8f29a39b9d70b7ad815d690e1bd97d0636729c99f15",
+    "payload/migration/wootc-host-view": "6aad821409b3323caa436037755d7b9555a44b3a11795c1ec483f6082ec06c7b",
     "platform/dracut/99wootc-boot/module-setup.sh": "7a6a8e8c649855e82b63d1214ff533a69bf50c3d7629bf04a08db1c484f35cb2",
     "platform/dracut/99wootc-boot/wootc-attach-loop.sh": "848370aee89d6c9aab10456be9da40950d741eac21a5a949309bee85b56b57ef",
     "platform/dracut/99wootc-boot/wootc-attach.service": "16a3cc88aeb16b18c224f7a2239b608f8d9e1c67f789a3fcd9bf47b9b9d8af31",
