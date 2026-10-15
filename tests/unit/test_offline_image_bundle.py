@@ -96,6 +96,8 @@ class BundleTests(unittest.TestCase):
 wootc-json-check() { "$CHECKER" "$@"; }
 timeout() { shift; "$@"; }
 phase() { :; }; log() { :; }; err() { printf '%s\\n' "$*"; }
+# Scratch sizing has its own suite (deployer-scratch-capacity.bats).
+ensure_scratch_capacity() { :; }
 IMAGE=example.test/os:tag
 podman() {
  case "$1" in
