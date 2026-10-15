@@ -1,7 +1,7 @@
 import { TryAgain, RepairBoot, Uninstall, GetRecoveryVerdict, InspectBoot, RestoreWindowsBoot } from '../../wailsjs/go/main/App';
 import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
-import { distroName } from '../lib/branding.js';
+import { distroName, productName } from '../lib/branding.js';
 import { el, btn, warningBanner } from '../lib/ui.js';
 
 // ── Screen: Recovery Guard Prompt (§2, Borrowed from Libertix) ───────────────
@@ -126,11 +126,11 @@ export function renderRecoveryScreen() {
   wrap.appendChild(footer);
 
   const stateText = {
-    'windows-only': 'Windows starts normally. wootc is not in the boot order.',
+    'windows-only': `Windows starts normally. ${productName()} is not in the boot order.`,
     'one-shot-armed': 'The next restart (only) goes to the Linux installer.',
-    'wootc-default': 'A wootc entry is ahead of Windows in the boot order.',
-    'wootc-listed': 'Windows starts first; a wootc entry is still in the boot order.',
-    'foreign-next': 'The next restart goes to an entry wootc does not own.',
+    'wootc-default': `A startup entry from ${productName()} is ahead of Windows in the boot order.`,
+    'wootc-listed': `Windows starts first; a startup entry from ${productName()} is still in the boot order.`,
+    'foreign-next': `The next restart goes to an entry ${productName()} does not own.`,
     unknown: 'The boot configuration could not be read.',
   };
 
