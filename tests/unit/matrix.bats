@@ -130,3 +130,24 @@ setup() {
     run grep -c 'index(\$2, want)' "$RUNNER"
     [ "$output" -eq 0 ]
 }
+
+@test "matrix has a branded-installer cell per branded image (#226)" {
+    # #226 is done only with green branded cells for Bazzite, Aurora and plain
+    # Bluefin. The release grader (tools/release/matrix-evidence.py) can only
+    # demand cells that exist, so a missing row lets an RC pass without them.
+    for img in ghcr.io/ublue-os/bazzite:stable ghcr.io/ublue-os/aurora:stable \
+               ghcr.io/projectbluefin/bluefin:stable; do
+        row=$(awk -F'\t' -v i="$img" '!/^#/ && $3==i && $1=="full" && $2 ~ /^branded-/' "$MATRIX")
+        [ -n "$row" ] || { echo "no branded cell for $img"; return 1; }
+        # GUI mode must reach the cell, or the branded exe never runs.
+        opts=$(printf '%s\n' "$row" | cut -f7)
+        case "$opts" in *bitlocker=on*|*filesystem=*|*offline=on*|*phase3=on*)
+            echo "$img cell is excluded from hosted GUI mode: $opts"; return 1 ;;
+        esac
+        # The hosted job picks the brand from the image name; the directory
+        # must exist or the cell silently drives the generic installer.
+        name=$(basename "${img%:*}")
+        [ -f "$REPO_ROOT/app/branding/$name/brand.json" ] || { echo "no brand dir for $name"; return 1; }
+    done
+    grep -q 'if \[ -d "app/branding/\$name" \]; then' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
+}
