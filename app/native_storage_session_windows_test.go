@@ -129,7 +129,7 @@ if ($actual -ne '` + digest + `') {throw 'Owned fixture assembly identity refuse
 [System.Reflection.Assembly]::Load($assemblyBytes) | Out-Null
 [Console]::Error.WriteLine("held-fixture-after-assembly-load")
 if (-not [PipeControl]::SetHandleInformation([PipeControl]::GetStdHandle(-11),1,0)) {throw 'Owned stdout inheritance refusal'}
-$code="[Console]::Error.WriteLine('owned-descendant-started'); [System.Threading.Thread]::Sleep(30000)"
+$code="[Console]::Error.WriteLine('owned-descendant-started'); [Console]::Out.WriteLine('owned-descendant-ready'); [Console]::Out.Flush(); [System.Threading.Thread]::Sleep(30000)"
 $encoded=[System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($code))
 $info=[System.Diagnostics.ProcessStartInfo]::new()
 $info.FileName="$PSHOME\powershell.exe"
@@ -139,7 +139,11 @@ $info.RedirectStandardOutput=$true
 $info.CreateNoWindow=$true
 $child=[System.Diagnostics.Process]::Start($info)
 [Console]::Error.WriteLine("held-fixture-child-start-returned")
-[System.Threading.Thread]::Sleep(1500)
+# Wait for the descendant's own readiness line instead of a fixed sleep: it
+# writes its stderr marker first, so the marker is in the held pipe before
+# the helper answers. A slow descendant start now fails the first query
+# under the same five-second deadline instead of racing the marker.
+if ($child.StandardOutput.ReadLine() -ne 'owned-descendant-ready') {throw 'Owned descendant readiness refused'}
 `
 				nativeStorageQuery = child + good
 			case "blocked-second":
