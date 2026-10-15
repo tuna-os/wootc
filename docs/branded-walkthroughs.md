@@ -34,6 +34,43 @@ Each brand has the same journey:
 | ![Bazzite launchpad](screenshots/brands/bazzite/01-launchpad.png) | ![Bazzite progress](screenshots/brands/bazzite/02-progress.png) |
 | ![Bazzite done](screenshots/brands/bazzite/03-done.png) | ![Bazzite manage](screenshots/brands/bazzite/04-manage.png) |
 
+### Bazzite brand test record
+
+This record is for the `-X main.brandID=bazzite` build (`Bazzite-Installer.exe`).
+Each row has one check, the result, and the evidence.
+A unit test or a mock GUI test is not proof that the product works on a computer.
+Only the hosted E2E rows show that.
+
+| Check | Status | Evidence |
+|---|:--:|---|
+| Name, product, exe and publisher never say "wootc" | ✅ | `TestBazziteBuild_WearsItsOwnIdentity` (`app/bazzite_brand_test.go`) |
+| Catalog is `bazzite`, then `bazzite-deck`, with `bazzite` selected | ✅ | `TestBazziteBuild_OffersOnlyBazziteImages`; launchpad screenshot above |
+| Image refs are `ghcr.io/ublue-os/bazzite:stable` and `bazzite-deck:stable` | ✅ | `TestBazziteBuild_OffersOnlyBazziteImages` |
+| Both images use GRUB2 without composefs and queue the `universalblue` MOK enrollment | ✅ | `TestBazziteBuild_OffersOnlyBazziteImages`; `tests/unit/mok-enrollment.bats` |
+| The default channel (alpha) still offers the default image | ✅ | `TestBazziteBuild_DefaultChannelStillOffersTheDefaultImage` |
+| No custom image field, on every channel | ✅ | `TestHideCustomImage_TightensPolicy`; walkthrough launchpad test |
+| The image downloads on Windows, so the deployer needs no network | ✅ unit, ⚪ E2E | `TestBazziteBuild_PreloadsTheImageOnWindows`. The E2E sets `WOOTC_PRELOAD=0`, so no run proves this path ([#217](https://github.com/tuna-os/wootc/issues/217)) |
+| Logo, typeface and theme are in the exe; nothing comes from the network | ✅ | `TestBazziteBuild_AssetsNeverFetchAtRuntime` |
+| Light-mode and dark-mode Windows both get the Bazzite look | ✅ | `TestBazziteBuild_ThemeIsNotConditionalOnColorScheme`; walkthrough test "a light-mode Windows still gets the brand look" (`05-light-mode.png`) |
+| Add/Remove entry and the restart notice say "Bazzite" | ✅ | `TestBazziteBuild_WindowsSurfacesNeverSayWootc` |
+| Recovery messages never say "wootc" | ✅ | `TestBazziteBuild_RecoveryMessagesNeverSayWootc` |
+| Launchpad, progress, done, manage, uninstall dialogs, interrupted, recovery and failed-run screens never say "wootc" | ✅ | `tests/gui/branded-walkthrough.spec.js`. Windows paths such as `C:\wootc\disks` are the on-disk contract, so the test ignores them |
+| The done screen shows the MokManager step and its password | ✅ | walkthrough test "done celebrates the brand" |
+| Exe version resource: product "Bazzite Installer", file `Bazzite-Installer.exe`, company "Universal Blue" | ✅ | local `packaging/build-windows.py --brand bazzite` build, read with `pefile` (2026-10-15) |
+| The release builds the exe, and the log names it as unblessed | ✅ | `tests/unit/brand-blessings.bats`; `packaging/brands.sh explain` |
+| winget manifests render into `Bazzite.Installer` and are not submitted | ✅ | `tests/unit/brand-blessings.bats`; `packaging/winget/render-brand.sh bazzite` |
+| Hosted GUI E2E, `bazzite:stable`: install, MOK under Secure Boot, Phase 2, user data, Windows return | ✅ 2026-08-24 | [run 32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098) on `4fd4bc8` |
+| Hosted GUI E2E, `bazzite:stable`, current `main` | 🔴 inconclusive | [run 38731850924](https://github.com/tuna-os/wootc/actions/runs/38731850924) on `13afd74` (2026-10-15). The harness built the Bazzite installer, but its first drive report did not come in 60 s. Nothing was installed. This is the launch deadlock that [PR #516](https://github.com/tuna-os/wootc/pull/516) addresses |
+| Hosted GUI E2E, `bazzite-deck:stable`, current `main` | 🔴 inconclusive | [run 38731854579](https://github.com/tuna-os/wootc/actions/runs/38731854579) on `13afd74` (2026-10-15). The same launch failure stopped it before the install |
+| Hosted GUI E2E, `bazzite:stable`, branch of PR #516 (launch fix) | 🔴 inconclusive | [run 38735109866](https://github.com/tuna-os/wootc/actions/runs/38735109866) on `2eb7791` (2026-10-15). The Bazzite installer started, selected `ghcr.io/ublue-os/bazzite:stable` (no image mismatch), and the harness clicked Install. Then "Making room for Linux" stopped with "root.disk already exists". The bluefin run of that branch stopped with the same error, so the cause is not specific to Bazzite |
+| Phase 3 (graduate to a native disk) with Bazzite | ⚪ | not run |
+
+Gaps that this page does not close:
+
+- The firmware boot entry, the deployer GRUB menu ("Install wootc"), and the data volume label (`wootc-data`) still say "wootc".
+  They are part of the on-disk contract. A Bazzite user can see them in the firmware boot menu, the GRUB menu, and File Explorer.
+- `matrix.tsv` has no Bazzite cell. The script path (`setup-wootc.ps1`) does not queue the MOK enrollment, so only the GUI path can prove Bazzite.
+
 ## Bluefin — "The next generation Linux workstation"
 
 | | |

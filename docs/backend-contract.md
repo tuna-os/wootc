@@ -24,7 +24,7 @@ evidence of a composefs backend.
 | `ghcr.io/ublue-os/bluefin:stable` | **ostree** | 1 | grub2 | NTFS→loop→GRUB (proven) |
 | `ghcr.io/ublue-os/bluefin:lts` | **ostree** | 1 | grub2 | NTFS→loop→GRUB |
 | `ghcr.io/projectbluefin/bluefin:lts` | **ostree** | 1 | grub2 | NTFS→loop→GRUB (proven) |
-| `ghcr.io/projectbluefin/dakota:latest` | **composefs-native** | 1 | systemd-boot | systemd-boot path |
+| `ghcr.io/projectbluefin/dakota:stable` | **composefs-native** | 1 | systemd-boot | systemd-boot path |
 | `ghcr.io/tuna-os/yellowfin:gnome` | **ostree** | 1 | grub2 | NTFS→loop→GRUB (proven) |
 
 This matches the maintainers' ground truth (2026-07-23): bluefin stable/lts

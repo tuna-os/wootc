@@ -358,7 +358,7 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 		if getSystemInfo().BitLockerOn {
 			return fmt.Errorf("BitLocker drive encryption isn't supported in the %s yet — "+
 				"we're finishing testing so your files stay safe. It's coming soon; "+
-				"for now, wootc works on PCs where drive encryption is off", pol.Channel)
+				"for now, %s works on PCs where drive encryption is off", pol.Channel, productName())
 		}
 	}
 	// Secure Boot: can this firmware launch the shim we stage? (#322)
@@ -804,10 +804,7 @@ func installPipelineSteps(ctx context.Context, cfg InstallConfig, emit func(Prog
 			// path has its own matrix axis (#217) — until that is green,
 			// the harness proves branding and deploy separately from
 			// preload. Real users never run with this variable set.
-			if os.Getenv("WOOTC_PRELOAD") == "0" {
-				return nil
-			}
-			if !effectiveBranding().PreloadImage && os.Getenv("WOOTC_PRELOAD") == "" {
+			if !shouldPreloadImage(effectiveBranding()) {
 				return nil
 			}
 			return stageImageBundle(ctx, cfg.ImageRef, func(done, total int64) {
