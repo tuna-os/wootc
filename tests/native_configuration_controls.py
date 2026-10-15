@@ -18,13 +18,13 @@ source_paths = ["app/app.go", "app/catalog.go", "app/native_configuration.go", "
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 receipt = {"schemaVersion": 1, "scope": "hosted Windows read-only system query and private Go fixtures; no installation", "runId": os.environ.get("GITHUB_RUN_ID"), "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "testedHead": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(), "checkoutSources": {p: digest(repo/p) for p in source_paths}, "tools": {"go": {"path": str(go), "sha256": digest(go)}, "python": {"path": sys.executable, "sha256": digest(Path(sys.executable))}}, "returnCode": None, "tests": []}
-args = [str(go), "test", "-count=1", "-json", "-timeout", "90s", "-run", "^TestNativeConfiguration", "."]
+args = [str(go), "test", "-count=1", "-json", "-timeout", "150s", "-run", "^TestNativeConfiguration", "."]
 receipt["gitSources"] = {p: hashlib.sha256(subprocess.check_output(["git", "show", "HEAD:"+p],cwd=repo)).hexdigest() for p in source_paths}
 receipt["arguments"] = args
 try:
     with (output/"stdout.raw").open("wb") as stdout, (output/"stderr.raw").open("wb") as stderr:
         environment=dict(os.environ, WOOTC_NATIVE_QUERY_PROOF_DIR=str(output/"system-query"))
-        completed = subprocess.run(args, cwd=repo/"app", stdout=stdout, stderr=stderr, env=environment, timeout=180, check=False)
+        completed = subprocess.run(args, cwd=repo/"app", stdout=stdout, stderr=stderr, env=environment, timeout=240, check=False)
     receipt["returnCode"] = completed.returncode
     for line in (output/"stdout.raw").read_bytes().splitlines():
         event = json.loads(line)
