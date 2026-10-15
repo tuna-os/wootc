@@ -18,6 +18,8 @@ on:
       - 'app/native_install_session*'
       - 'app/native_install_progress*'
       - 'tests/unit/fixtures/install-progress/**'
+      - 'app/native_maintenance*'
+      - 'tests/unit/fixtures/native-maintenance/**'
       - 'app/native_install_plan.go'
       - 'app/native_serve_windows.go'
       - '.github/workflows/native-original-user.yml'
@@ -62,7 +64,7 @@ jobs:
           [IO.File]::WriteAllText((Join-Path $assets 'index.html'), '<title>Unit-test embed placeholder</title>')
           Push-Location app
           try {
-            & go test -count=1 -v -timeout 120s -run '^TestNativeInstall' .
+            & go test -count=1 -v -timeout 120s -run '^TestNative(Install|Maintenance)' .
             if ($LASTEXITCODE -ne 0) { throw 'Install session controls failed' }
           } finally { Pop-Location }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

@@ -49,6 +49,9 @@ var ProtocolMethods = []string{
 	"ExistingInstallFound",
 	"GetUninstallInfo",
 	"UninstallWith",
+	"InspectBoot",
+	"PrepareNativeMaintenance",
+	"ConfirmNativeMaintenance",
 	"BootIntoLinux",
 	"GetLastRun",
 	"GetRecoveryVerdict",
@@ -248,7 +251,14 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 				return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "restart accepts no parameters"}
 			}
 			return s.installSession.restart(s.app.GetStatus())
-		case "PrepareNativeInstall", "ConfirmNativeInstall":
+		case "GetUninstallInfo", "InspectBoot":
+			if s.startupValidate != nil {
+				if err := s.startupValidate(ctx); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+				}
+			}
+			return s.installSession.read(req.Method, req.Params)
+		case "PrepareNativeInstall", "ConfirmNativeInstall", "PrepareNativeMaintenance", "ConfirmNativeMaintenance":
 			if s.startupValidate != nil {
 				if err := s.startupValidate(ctx); err != nil {
 					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}

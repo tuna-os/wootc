@@ -841,6 +841,110 @@ public class NativeInstallGrant
 }
 
 /// <summary>
+/// NativeMaintenancePlan is what the person chose on the Manage or Recovery
+/// screen. The uninstall options apply to the uninstall action only.
+/// </summary>
+public class NativeMaintenancePlan
+{
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("deleteRootDisk")]
+    public bool DeleteRootDisk { get; set; }
+
+    [JsonPropertyName("removePartition")]
+    public bool RemovePartition { get; set; }
+}
+
+/// <summary>
+/// NativeMaintenanceGrant names the admitted plan and the observed facts the
+/// confirmation discloses. The intent ID is single use, as for an install.
+/// </summary>
+public class NativeMaintenanceGrant
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("session")]
+    public string Session { get; set; } = string.Empty;
+
+    [JsonPropertyName("brandId")]
+    public string BrandId { get; set; } = string.Empty;
+
+    [JsonPropertyName("intentId")]
+    public string IntentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("deleteRootDisk")]
+    public bool DeleteRootDisk { get; set; }
+
+    [JsonPropertyName("removePartition")]
+    public bool RemovePartition { get; set; }
+
+    [JsonPropertyName("diskPath")]
+    public string DiskPath { get; set; } = string.Empty;
+
+    [JsonPropertyName("storageDrive")]
+    public string StorageDrive { get; set; } = string.Empty;
+
+    [JsonPropertyName("volumeLabel")]
+    public string VolumeLabel { get; set; } = string.Empty;
+
+    [JsonPropertyName("orphaned")]
+    public bool Orphaned { get; set; }
+
+    [JsonPropertyName("bootState")]
+    public string BootState { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// BootRepairReport is what the user (GUI or `recover --inspect`) sees.
+/// </summary>
+public class BootRepairReport
+{
+    [JsonPropertyName("observedAt")]
+    public string ObservedAt { get; set; } = string.Empty;
+
+    [JsonPropertyName("bootState")]
+    public string BootState { get; set; } = string.Empty;
+
+    [JsonPropertyName("ownership")]
+    public string Ownership { get; set; } = string.Empty;
+
+    [JsonPropertyName("lifecycleState")]
+    public string? LifecycleState { get; set; }
+
+    [JsonPropertyName("bootSequence")]
+    public List<string>? BootSequence { get; set; }
+
+    [JsonPropertyName("displayOrder")]
+    public List<string>? DisplayOrder { get; set; }
+
+    [JsonPropertyName("wootcEntries")]
+    public List<string>? WootcEntries { get; set; }
+
+    [JsonPropertyName("findings")]
+    public List<string>? Findings { get; set; }
+
+    [JsonPropertyName("refusals")]
+    public List<string>? Refusals { get; set; }
+
+    [JsonPropertyName("canRestoreWindows")]
+    public bool CanRestoreWindows { get; set; }
+
+    [JsonPropertyName("canRepairBoot")]
+    public bool CanRepairBoot { get; set; }
+
+    [JsonPropertyName("recommended")]
+    public string Recommended { get; set; } = string.Empty;
+
+    [JsonPropertyName("bundlePath")]
+    public string? BundlePath { get; set; }
+}
+
+/// <summary>
 /// InstallStatus is the current state of a running or completed install.
 /// </summary>
 public class InstallStatus

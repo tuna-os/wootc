@@ -17,6 +17,7 @@ public sealed partial class MainWindow : Window
     private readonly NativeEngineConnector connector;
     private readonly Branding brand;
     private InstallGate? installGate;
+    private MaintenanceGate? maintenanceGate;
     private string configurationBrandId = "";
     private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
@@ -52,7 +53,7 @@ public sealed partial class MainWindow : Window
         InstallButton.Content = $"Advanced: {InstallDisclosure.InstallVerb(brand)} with reboot";
         // Closing the window disconnects both sessions; the engine treats that
         // as a cancellation request for any running install.
-        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); await controller.DisposeAsync(); };
+        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); await controller.DisposeAsync(); };
     }
     // Local, validated brand assets render before any elevation request and
     // stay visible after a refusal. High contrast keeps the system palette.
@@ -141,6 +142,9 @@ public sealed partial class MainWindow : Window
         ConfigurationButton.IsEnabled = false;
         ConnectionStatus.Text = "Disconnecting engine";
         ClearConfiguration();
+        // An open maintenance session holds no grant the user has confirmed;
+        // it closes with the engine connection.
+        if (maintenanceGate is { } maintenance) { maintenanceGate = null; await maintenance.DisposeAsync(); }
         try { await controller.DisposeAsync(); }
         catch (Exception error) { ConnectionStatus.Text = $"Disconnect pending: {error.Message}"; }
         UpdateConnection();
@@ -389,6 +393,105 @@ public sealed partial class MainWindow : Window
         UpdateInstallGate();
     }
 
+    private string StepLabel(string id) => configurationSteps.FirstOrDefault(step => step.Id == id)?.Label ?? id;
+
+    // The legacy Manage and Recovery screens, word for word. Every action
+    // runs through its own install-purpose session: the engine reads the
+    // installation, grants one action, and runs it on one confirmation.
+    private void RenderMaintenance()
+    {
+        var view = controller.Connection == ConnectionState.Ready ? MaintenanceScreen.For(controller.Route, controller.Snapshot, maintenanceGate, brand, StepLabel) : null;
+        MaintenancePanel.Visibility = view is null ? Visibility.Collapsed : Visibility.Visible;
+        if (view is null) return;
+        MaintenanceLines.Children.Clear();
+        foreach (var line in view.Lines)
+        {
+            var block = new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap };
+            if (line.Id is "ManageTitle" or "RecoveryTitle") { block.FontSize = 20; block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; }
+            else if (line.Id is "ManageCardTitle" or "ManageInstalledTitle" or "RecoverySafe" or "RecoveryBootState") block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+            AutomationProperties.SetAutomationId(block, line.Id);
+            MaintenanceLines.Children.Add(block);
+        }
+        var info = maintenanceGate?.Info;
+        DeleteLinuxData.Visibility = view.OfferDeleteData ? Visibility.Visible : Visibility.Collapsed;
+        DeleteLinuxData.Content = $"{MaintenanceText.DeleteData}\n{MaintenanceText.DeleteDataDetail}";
+        if (!view.OfferDeleteData) DeleteLinuxData.IsChecked = false;
+        GiveSpaceBack.Visibility = view.OfferPartition && info is not null ? Visibility.Visible : Visibility.Collapsed;
+        GiveSpaceBack.Content = info is null ? "" : $"{MaintenanceText.GiveBack(info)}\n{MaintenanceText.GiveBackDetail(info)}";
+        if (!view.OfferPartition) GiveSpaceBack.IsChecked = false;
+        MaintenanceStatus.Text = view.Status;
+        MaintenanceButtons.Children.Clear();
+        foreach (var action in view.Buttons)
+        {
+            var button = new Button { Content = action.Label, IsEnabled = action.Enabled };
+            AutomationProperties.SetAutomationId(button, action.Id);
+            string id = action.Id;
+            button.Click += (_, _) => Maintenance_Click(id);
+            MaintenanceButtons.Children.Add(button);
+        }
+    }
+
+    private async void Maintenance_Click(string id)
+    {
+        bool recovery = controller.Route == StartupRoute.Recovery;
+        switch (id)
+        {
+            case "CloseWindow": Close(); return;
+            case "Reinstall": Configuration_Click(ConfigurationButton, new RoutedEventArgs()); return;
+            case "ReadInstallation":
+                string? brandId = connector.AuthenticatedBrandId;
+                if (brandId is null) return;
+                maintenanceGate ??= new MaintenanceGate(connector, brandId);
+                var opening = maintenanceGate.OpenAsync();
+                RenderMaintenance();
+                await opening;
+                RenderMaintenance();
+                return;
+        }
+        var gate = maintenanceGate;
+        if (gate is null || gate.State != MaintenanceGateState.Observed) return;
+        var plan = new NativeMaintenancePlan
+        {
+            Action = id switch
+            {
+                "UninstallLinux" or "RemoveLinux" => MaintenanceActions.Uninstall,
+                "KeepWindowsOnly" => MaintenanceActions.RestoreWindowsBoot,
+                "RepairBoot" => MaintenanceActions.RepairBoot,
+                "TryAgain" => MaintenanceActions.TryAgain,
+                "RestartIntoLinux" => MaintenanceActions.BootLinux,
+                _ => throw new InvalidDataException("Unsupported maintenance action"),
+            },
+            // The Recovery screen's Remove keeps the Linux data, as the legacy one did.
+            DeleteRootDisk = id == "UninstallLinux" && DeleteLinuxData.IsChecked == true,
+            RemovePartition = id == "UninstallLinux" && GiveSpaceBack.IsChecked == true && GiveSpaceBack.Visibility == Visibility.Visible,
+        };
+        var preparing = gate.PrepareAsync(plan);
+        RenderMaintenance();
+        await preparing;
+        RenderMaintenance();
+        if (!gate.CanConfirm || gate.Grant is not { } grant) return;
+        string? question = MaintenanceText.Confirmation(grant, recovery, brand);
+        if (question is not null)
+        {
+            var dialog = new ContentDialog
+            {
+                Content = new TextBlock { Text = question, TextWrapping = TextWrapping.Wrap },
+                PrimaryButtonText = "OK", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot,
+            };
+            AutomationProperties.SetAutomationId(dialog, "MaintenanceConfirmation");
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                await gate.DeclineAsync();
+                RenderMaintenance();
+                return;
+            }
+        }
+        var confirming = gate.ConfirmAsync();
+        RenderMaintenance();
+        await confirming;
+        RenderMaintenance();
+    }
+
     private void UpdateConnection()
     {
         ConnectionStatus.Text = controller.Problem is null ? controller.Connection.ToString()
@@ -416,5 +519,6 @@ public sealed partial class MainWindow : Window
         var interrupted = controller.Connection == ConnectionState.Ready && controller.Route == StartupRoute.Interrupted ? observed?.InstallRecovery : null;
         InstallRecoveryText.Text = interrupted is null ? "" : $"{interrupted.Title} {interrupted.Message}";
         InstallRecoveryText.Visibility = interrupted is null ? Visibility.Collapsed : Visibility.Visible;
+        RenderMaintenance();
     }
 }

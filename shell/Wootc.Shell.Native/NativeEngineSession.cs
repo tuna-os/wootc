@@ -7,7 +7,7 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
-internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession
+internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession, IMaintenanceEngineSession
 {
     // Set only for an install-purpose session; an assessment session refuses
     // install calls locally as well as in the engine.
@@ -102,7 +102,9 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
         "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration",
-        "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", "CancelInstall" => "rpc-cancel", "Reboot" => "rpc-restart", _ => "rpc-other"
+        "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", "CancelInstall" => "rpc-cancel", "Reboot" => "rpc-restart",
+        "GetUninstallInfo" => "rpc-uninstall-info", "InspectBoot" => "rpc-boot-check",
+        "PrepareNativeMaintenance" => "rpc-maintenance-plan", "ConfirmNativeMaintenance" => "rpc-maintenance-consent", _ => "rpc-other"
     };
 
     internal Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null) =>
@@ -184,6 +186,48 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(60));
         await CallAsync<object?>("ConfirmNativeInstall", new { kind = "confirm-install", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId }, deadline.Token);
+    }
+
+    private void RequireInstallSession()
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+    }
+
+    public async Task<UninstallInfo> ReadUninstallInfoAsync(CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        return await CallAsync<UninstallInfo>("GetUninstallInfo", deadline.Token);
+    }
+
+    public async Task<BootRepairReport> InspectBootAsync(CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        return await CallAsync<BootRepairReport>("InspectBoot", deadline.Token);
+    }
+
+    // The plan carries the action and the two uninstall choices, nothing else.
+    public async Task<NativeMaintenanceGrant> PrepareMaintenanceAsync(NativeMaintenancePlan plan, CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(120));
+        var grant = await CallAsync<NativeMaintenanceGrant>("PrepareNativeMaintenance",
+            new { action = plan.Action, deleteRootDisk = plan.DeleteRootDisk, removePartition = plan.RemovePartition }, deadline.Token);
+        if (grant.Session != installSession) throw new InvalidDataException("The maintenance grant names another session");
+        return grant;
+    }
+
+    // Only the intent's identity is sent. The engine runs the action before it
+    // answers, and an uninstall or a boot repair is not bounded by a timer
+    // here: a timeout must not report success or abandon a running cleanup.
+    public async Task ConfirmMaintenanceAsync(NativeMaintenanceGrant grant, CancellationToken cancellationToken)
+    {
+        if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
+        await CallAsync<object?>("ConfirmNativeMaintenance", new { kind = "confirm-maintenance", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId, action = grant.Action }, cancellationToken);
     }
 
     public async Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken)

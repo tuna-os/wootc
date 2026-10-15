@@ -165,7 +165,13 @@ internal static class NativeProtocol
         {
             case "PrepareNativeInstall":
                 return (T)(object)DecodeInstallGrant(result, expectedBrand);
-            case "ConfirmNativeInstall" or "CancelInstall" or "Reboot":
+            case "PrepareNativeMaintenance":
+                return (T)(object)DecodeMaintenanceGrant(result, expectedBrand);
+            case "GetUninstallInfo":
+                return (T)(object)DecodeUninstallInfo(result);
+            case "InspectBoot":
+                return (T)(object)DecodeBootReport(result);
+            case "ConfirmNativeInstall" or "CancelInstall" or "Reboot" or "ConfirmNativeMaintenance":
                 if (result.ValueKind != JsonValueKind.Null) throw new InvalidDataException("Install action returned an unexpected result");
                 return default!;
             default:
@@ -192,6 +198,78 @@ internal static class NativeProtocol
             Text("encryption") is not ("none" or "luks-passphrase") || Text("secureBootChainWarning").Length > 1024)
             throw new InvalidDataException("Install grant is invalid");
         return result.Deserialize<NativeInstallGrant>() ?? throw new InvalidDataException("Install grant is missing");
+    }
+
+    private static void Exactly(JsonElement result, string what, string[] required, string[] optional)
+    {
+        if (result.ValueKind != JsonValueKind.Object) throw new InvalidDataException(what + " must be an object");
+        RejectDuplicates(result);
+        var known = new HashSet<string>(required.Concat(optional), StringComparer.Ordinal);
+        if (result.EnumerateObject().Any(property => !known.Contains(property.Name)) || required.Any(field => !result.TryGetProperty(field, out _)))
+            throw new InvalidDataException(what + " has an unsupported field set");
+    }
+
+    private static void BoundedText(JsonElement result, string field, int limit, bool optional = false)
+    {
+        if (optional && !result.TryGetProperty(field, out _)) return;
+        Require(result, field, JsonValueKind.String);
+        if (result.GetProperty(field).GetString()!.Length > limit) throw new InvalidDataException("Engine text exceeds its bound");
+    }
+
+    private static bool DriveLetter(string value) => value.Length == 0 || (value.Length == 1 && value[0] is >= 'A' and <= 'Z');
+
+    private static readonly string[] MaintenanceActionNames = ["uninstall", "repair-boot", "restore-windows-boot", "try-again", "boot-linux"];
+    private static readonly string[] MaintenanceGrantFields = ["schemaVersion", "session", "brandId", "intentId", "action", "deleteRootDisk", "removePartition", "diskPath", "storageDrive", "volumeLabel", "orphaned", "bootState"];
+
+    // A maintenance grant names one session, brand, single-use intent and
+    // action, with the facts the engine observed for the confirmation.
+    internal static NativeMaintenanceGrant DecodeMaintenanceGrant(JsonElement result, string? expectedBrand)
+    {
+        Exactly(result, "Maintenance grant", MaintenanceGrantFields, []);
+        foreach (var (field, limit) in new[] { ("session", 32), ("brandId", 64), ("intentId", 32), ("action", 32), ("diskPath", 1024), ("storageDrive", 1), ("volumeLabel", 256), ("bootState", 64) }) BoundedText(result, field, limit);
+        foreach (string field in new[] { "deleteRootDisk", "removePartition", "orphaned" }) Require(result, field, JsonValueKind.True);
+        string Text(string field) => result.GetProperty(field).GetString()!;
+        bool uninstall = Text("action") == "uninstall";
+        if (!result.GetProperty("schemaVersion").TryGetInt32(out int schema) || schema != 1 ||
+            !ProtectedPackage.LowerHex(Text("session"), 32) || !ProtectedPackage.LowerHex(Text("intentId"), 32) ||
+            expectedBrand is null || Text("brandId") != expectedBrand || !MaintenanceActionNames.Contains(Text("action")) || !DriveLetter(Text("storageDrive")) ||
+            (!uninstall && (result.GetProperty("deleteRootDisk").GetBoolean() || result.GetProperty("removePartition").GetBoolean())))
+            throw new InvalidDataException("Maintenance grant is invalid");
+        return result.Deserialize<NativeMaintenanceGrant>() ?? throw new InvalidDataException("Maintenance grant is missing");
+    }
+
+    internal static UninstallInfo DecodeUninstallInfo(JsonElement result)
+    {
+        Exactly(result, "Installation details", ["found", "storageDrive", "diskPath", "diskSizeGB", "onDedicatedVol", "reclaimGB", "orphaned", "deployed"], ["partitionRemovalReason", "volumeLabel"]);
+        foreach (string field in new[] { "found", "onDedicatedVol", "orphaned", "deployed" }) Require(result, field, JsonValueKind.True);
+        BoundedText(result, "storageDrive", 1); BoundedText(result, "diskPath", 1024);
+        BoundedText(result, "partitionRemovalReason", 1024, optional: true); BoundedText(result, "volumeLabel", 256, optional: true);
+        foreach (string field in new[] { "diskSizeGB", "reclaimGB" })
+            if (result.GetProperty(field).ValueKind != JsonValueKind.Number || !result.GetProperty(field).TryGetDouble(out double value) || !double.IsFinite(value) || value < 0)
+                throw new InvalidDataException("Installation details carry an invalid size");
+        if (!DriveLetter(result.GetProperty("storageDrive").GetString()!)) throw new InvalidDataException("Installation details carry an invalid drive");
+        return result.Deserialize<UninstallInfo>() ?? throw new InvalidDataException("Installation details are missing");
+    }
+
+    private static readonly string[] BootStates = ["windows-only", "one-shot-armed", "wootc-default", "wootc-listed", "foreign-next", "unknown"];
+
+    internal static BootRepairReport DecodeBootReport(JsonElement result)
+    {
+        string[] lists = ["bootSequence", "displayOrder", "wootcEntries", "findings", "refusals"];
+        Exactly(result, "Boot check", ["observedAt", "bootState", "ownership", "canRestoreWindows", "canRepairBoot", "recommended"], [.. lists, "lifecycleState", "bundlePath"]);
+        foreach (var (field, limit) in new[] { ("observedAt", 64), ("bootState", 64), ("ownership", 64), ("recommended", 64) }) BoundedText(result, field, limit);
+        BoundedText(result, "lifecycleState", 64, optional: true); BoundedText(result, "bundlePath", 1024, optional: true);
+        foreach (string field in new[] { "canRestoreWindows", "canRepairBoot" }) Require(result, field, JsonValueKind.True);
+        foreach (string field in lists)
+        {
+            if (!result.TryGetProperty(field, out var list)) continue;
+            if (list.ValueKind != JsonValueKind.Array || list.GetArrayLength() > 64 || list.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.String || item.GetString()!.Length > 1024))
+                throw new InvalidDataException("Boot check list is invalid");
+        }
+        if (!BootStates.Contains(result.GetProperty("bootState").GetString()) ||
+            result.GetProperty("recommended").GetString() is not ("" or "none" or "restore-windows" or "repair-boot" or "manual"))
+            throw new InvalidDataException("Boot check classification is unsupported");
+        return result.Deserialize<BootRepairReport>() ?? throw new InvalidDataException("Boot check is missing");
     }
 
     private static readonly HashSet<string> ProgressFields = new(StringComparer.Ordinal) { "phaseId", "step", "message", "percent", "done", "error" };

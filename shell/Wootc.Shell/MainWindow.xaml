@@ -22,6 +22,13 @@
       <Button x:Name="ConnectButton" Style="{StaticResource AccentButtonStyle}" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
       <Button x:Name="DisconnectButton" Content="Disconnect engine" Click="Disconnect_Click" IsEnabled="False" AutomationProperties.AutomationId="DisconnectEngine" />
     </StackPanel>
+    <StackPanel x:Name="MaintenancePanel" Visibility="Collapsed" Spacing="10" AutomationProperties.AutomationId="MaintenancePanel">
+      <StackPanel x:Name="MaintenanceLines" Spacing="6" />
+      <CheckBox x:Name="DeleteLinuxData" Visibility="Collapsed" AutomationProperties.AutomationId="DeleteLinuxData" />
+      <CheckBox x:Name="GiveSpaceBack" Visibility="Collapsed" AutomationProperties.AutomationId="GiveSpaceBack" />
+      <TextBlock x:Name="MaintenanceStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="MaintenanceStatus" />
+      <StackPanel x:Name="MaintenanceButtons" Spacing="8" />
+    </StackPanel>
     <Button x:Name="ConfigurationButton" Content="Read Linux configuration" Click="Configuration_Click" IsEnabled="False" AutomationProperties.AutomationId="ReadConfiguration" />
     <StackPanel x:Name="ConfigurationPanel" Visibility="Collapsed" Spacing="12">
       <TextBlock Text="Linux configuration" FontSize="20" />

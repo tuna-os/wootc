@@ -14,5 +14,6 @@
     <!-- Engine goldens from app/status_install_recovery_test.go. -->
     <None Include="../../tests/unit/fixtures/install-recovery/*.json" LinkBase="Fixtures/install-recovery" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../tests/unit/fixtures/install-progress/*.ndjson" LinkBase="Fixtures/install-progress" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../tests/unit/fixtures/native-maintenance/*.ndjson" LinkBase="Fixtures/native-maintenance" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

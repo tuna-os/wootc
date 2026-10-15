@@ -52,9 +52,13 @@ type nativeInstallSession struct {
 	start     func(InstallConfig) error
 	reboot    func() error
 	authority nativeInstallAuthority
-	prepared  bool
-	confirmed bool
-	started   bool
+	// maintenance serves the Manage and Recovery actions. A session holds
+	// one plan of either kind: an install or one maintenance action.
+	maintenance          *nativeMaintenanceHost
+	maintenanceAuthority *nativeMaintenanceAuthorization
+	prepared             bool
+	confirmed            bool
+	started              bool
 }
 
 // withReboot sets the restart action. A restart is offered only after this
@@ -62,6 +66,30 @@ type nativeInstallSession struct {
 func (session *nativeInstallSession) withReboot(reboot func() error) *nativeInstallSession {
 	session.reboot = reboot
 	return session
+}
+
+// withMaintenance sets the uninstall and boot-repair actions of this session.
+func (session *nativeInstallSession) withMaintenance(host *nativeMaintenanceHost) *nativeInstallSession {
+	session.maintenance = host
+	return session
+}
+
+// read serves the two observations the Manage and Recovery screens need
+// before a plan: where the installation lives, and the boot check.
+func (session *nativeInstallSession) read(method string, params json.RawMessage) (any, *jsonrpcError) {
+	if len(params) != 0 && string(params) != "null" {
+		return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "this observation accepts no parameters"}
+	}
+	session.mu.Lock()
+	host := session.maintenance
+	session.mu.Unlock()
+	if !host.usable() {
+		return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in install session"}
+	}
+	if method == "InspectBoot" {
+		return host.inspect(), nil
+	}
+	return host.info(), nil
 }
 
 func (session *nativeInstallSession) restart(status InstallStatus) (any, *jsonrpcError) {
@@ -170,6 +198,40 @@ func (session *nativeInstallSession) dispatch(method string, params json.RawMess
 		session.mu.Lock()
 		session.started = true
 		session.mu.Unlock()
+		return nil, nil
+	case "PrepareNativeMaintenance":
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		if session.prepared {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "this install session already holds a plan; start a new session for a changed plan"}
+		}
+		session.prepared = true
+		plan, err := decodeNativeMaintenancePlan(params)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: err.Error()}
+		}
+		if !session.maintenance.usable() {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native maintenance unavailable"}
+		}
+		authority, grant, err := session.maintenance.prepare(plan)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		session.maintenanceAuthority = authority
+		return grant, nil
+	case "ConfirmNativeMaintenance":
+		session.mu.Lock()
+		authority := session.maintenanceAuthority
+		already := session.confirmed
+		session.confirmed = true
+		session.maintenanceAuthority = nil
+		session.mu.Unlock()
+		if already || authority == nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "no maintenance intent is available in this session"}
+		}
+		if err := authority.confirm(params); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
 		return nil, nil
 	}
 	return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in install session"}

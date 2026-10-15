@@ -66,3 +66,25 @@ func newWindowsNativeInstallPrepare(ctx context.Context, app *App, user *nativeO
 		}, nil
 	}
 }
+
+// newWindowsNativeMaintenanceHost binds the Manage and Recovery actions to
+// the captured original user (#606) and to the engine's own observations.
+// Admission reads the boot configuration without writing a bundle; the
+// screen's boot check (InspectBoot) saves one, as the legacy screen does.
+func newWindowsNativeMaintenanceHost(app *App, user *nativeOriginalUser, session, brand string) *nativeMaintenanceHost {
+	return &nativeMaintenanceHost{
+		session: session, brand: brand,
+		running: func() bool { return app.GetStatus().Running },
+		info:    getUninstallInfo,
+		boot:    func() BootRepairReport { return planBootRepair(observeBoot()) },
+		inspect: app.InspectBoot,
+		verdict: app.GetRecoveryVerdict,
+		revalidateUser: func() error {
+			if user == nil {
+				return fmt.Errorf("native maintenance captured user unavailable")
+			}
+			return user.revalidateToken()
+		},
+		run: func(plan NativeMaintenancePlan) error { return runNativeMaintenance(app, plan) },
+	}
+}

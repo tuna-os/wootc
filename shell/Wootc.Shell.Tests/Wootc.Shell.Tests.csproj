@@ -15,6 +15,9 @@
     <None Include="../../app/frontend/src/screens/launchpad.js" Link="Fixtures/launchpad.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../app/frontend/src/screens/progress.js" Link="Fixtures/progress.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../app/frontend/src/screens/done.js" Link="Fixtures/done.js" CopyToOutputDirectory="PreserveNewest" />
+    <!-- MaintenanceTextTests compares the Manage and Recovery screens with these words. -->
+    <None Include="../../app/frontend/src/screens/control.js" Link="Fixtures/control.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../app/frontend/src/screens/recovery.js" Link="Fixtures/recovery.js" CopyToOutputDirectory="PreserveNewest" />
     <!-- Recorded engine event streams from app/native_install_progress_test.go. -->
     <None Include="../../tests/unit/fixtures/install-progress/*.ndjson" LinkBase="Fixtures/install-progress" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
