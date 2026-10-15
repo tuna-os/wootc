@@ -16,6 +16,7 @@ install() {
     # dracut generates /init itself; run the deployer once networking is online.
     inst /usr/bin/wootc-deploy
     inst_simple /usr/libexec/wootc-steps.sh
+    inst_simple /usr/libexec/wootc-offline-bundle.sh
     # dracut defines moddir before invoking module install hooks.
     # shellcheck disable=SC2154
     inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh
@@ -73,7 +74,7 @@ install() {
     # swapon/swapoff, fuser, useradd, chpasswd, restorecon. deploy.sh itself
     # needs install, mountpoint, udevadm, jq.
     inst_multiple \
-        podman skopeo conmon crun \
+        podman skopeo conmon crun wootc-json-check \
         parted sfdisk partprobe wipefs \
         mkfs.ext4 mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
         losetup qemu-img qemu-nbd dmsetup cryptsetup systemd-cryptenroll blockdev blkid lsblk \
@@ -82,7 +83,7 @@ install() {
         curl dhclient ip NetworkManager \
         mount umount mountpoint reboot sleep cat sed grep cut sync tr \
         shred chroot install mv udevadm jq truncate fallocate dd df awk qemu-ga journalctl \
-        tee which basename date chown cp ln ls mkdir head wc tail
+        tee which basename date chown cp ln ls mkdir head wc tail stat sha256sum mktemp rm
 
     # restorecon (policycoreutils) may not be installed in the build container.
     # ldd is a glibc-common shell script, not a binary pulled in by any

@@ -1,0 +1,1103 @@
+{
+  "aptConfigSha256": "b35beb056f59d914b5a4c6a01b1ce72e0d8da7d363b0a35e0dafeeda44ac0cf7",
+  "archiveDirectoryModes": {
+    "usr": [
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-common"
+      },
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-data"
+      },
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-gui"
+      },
+      {
+        "archiveMode": 493,
+        "package": "ovmf"
+      },
+      {
+        "archiveMode": 493,
+        "package": "seabios"
+      },
+      {
+        "archiveMode": 493,
+        "package": "ipxe-qemu"
+      }
+    ],
+    "usr/lib": [
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-common"
+      },
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-gui"
+      },
+      {
+        "archiveMode": 493,
+        "package": "ipxe-qemu"
+      }
+    ],
+    "usr/lib/ipxe": [
+      {
+        "archiveMode": 493,
+        "package": "ipxe-qemu"
+      }
+    ],
+    "usr/lib/ipxe/qemu": [
+      {
+        "archiveMode": 493,
+        "package": "ipxe-qemu"
+      }
+    ],
+    "usr/share": [
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-common"
+      },
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-data"
+      },
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-gui"
+      },
+      {
+        "archiveMode": 493,
+        "package": "ovmf"
+      },
+      {
+        "archiveMode": 493,
+        "package": "seabios"
+      },
+      {
+        "archiveMode": 493,
+        "package": "ipxe-qemu"
+      }
+    ],
+    "usr/share/OVMF": [
+      {
+        "archiveMode": 493,
+        "package": "ovmf"
+      }
+    ],
+    "usr/share/ovmf": [
+      {
+        "archiveMode": 493,
+        "package": "ovmf"
+      }
+    ],
+    "usr/share/qemu": [
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-common"
+      },
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-data"
+      },
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-gui"
+      },
+      {
+        "archiveMode": 493,
+        "package": "ovmf"
+      }
+    ],
+    "usr/share/qemu/firmware": [
+      {
+        "archiveMode": 493,
+        "package": "ovmf"
+      }
+    ],
+    "usr/share/qemu/init": [
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-common"
+      }
+    ],
+    "usr/share/qemu/keymaps": [
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-data"
+      }
+    ],
+    "usr/share/qemu/vhost-user": [
+      {
+        "archiveMode": 493,
+        "package": "qemu-system-gui"
+      }
+    ],
+    "usr/share/seabios": [
+      {
+        "archiveMode": 493,
+        "package": "seabios"
+      }
+    ]
+  },
+  "archiveKeyFingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+  "archiveKeyFingerprintSource": "https://documentation.ubuntu.com/chisel/en/v1.4.0/reference/security/",
+  "archiveKeySha256": "5ebbeeb474034b1fa7e50abbe6f136e177fc826219e01f314b3623f7b3097e96",
+  "authenticatedIndexFiles": {
+    "archive.ubuntu.com_ubuntu_dists_noble-security_InRelease": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+    "archive.ubuntu.com_ubuntu_dists_noble-security_main_binary-amd64_Packages": "207e1d251ecfc9215516c8db3a71c23cc6039298803c56bc5c2bca8c35bb4c55",
+    "archive.ubuntu.com_ubuntu_dists_noble-security_universe_binary-amd64_Packages": "69ef69e72ed3bd48f7e5feddbf114d32f45046a6fb4cefa43e2b394a550d9bf2",
+    "archive.ubuntu.com_ubuntu_dists_noble-updates_InRelease": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+    "archive.ubuntu.com_ubuntu_dists_noble-updates_main_binary-amd64_Packages": "b994c3a4a14026a759751f64cc35b8a0ffe96f8cc48fd86fc78b1a98b3521629",
+    "archive.ubuntu.com_ubuntu_dists_noble-updates_universe_binary-amd64_Packages": "2fd46f6bbbae59224141c872dc85aad5eae314e504d58459754d8912fff828b3",
+    "archive.ubuntu.com_ubuntu_dists_noble_InRelease": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+    "archive.ubuntu.com_ubuntu_dists_noble_main_binary-amd64_Packages": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+    "archive.ubuntu.com_ubuntu_dists_noble_universe_binary-amd64_Packages": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+    "lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "authenticatedPackagePins": {
+    "ipxe-qemu": {
+      "Architecture": "all",
+      "Filename": "pool/main/i/ipxe/ipxe-qemu_1.21.1+git-20220113.fbbdc3926-0ubuntu2_all.deb",
+      "Package": "ipxe-qemu",
+      "SHA256": "1f1612934b6ddaf4dd633760dfe5ef2a79ea2507341fd5efe394ff589a044707",
+      "Size": "1564600",
+      "Version": "1.21.1+git-20220113.fbbdc3926-0ubuntu2"
+    },
+    "ovmf": {
+      "Architecture": "all",
+      "Filename": "pool/main/e/edk2/ovmf_2024.02-2ubuntu0.9_all.deb",
+      "Package": "ovmf",
+      "SHA256": "a094c13d06f2740691ff57d108dff32aa087179363ddb0de42d463b4f7f9bc13",
+      "Size": "5187470",
+      "Version": "2024.02-2ubuntu0.9"
+    },
+    "qemu-system-common": {
+      "Architecture": "amd64",
+      "Filename": "pool/main/q/qemu/qemu-system-common_8.2.2+ds-0ubuntu1.18_amd64.deb",
+      "Package": "qemu-system-common",
+      "SHA256": "0a0b744f31e87d72dd0465436b8dfbb1ef9f574ecd0d5a2e9dd8c5cb7d0fef1f",
+      "Size": "1255316",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    "qemu-system-data": {
+      "Architecture": "all",
+      "Filename": "pool/main/q/qemu/qemu-system-data_8.2.2+ds-0ubuntu1.18_all.deb",
+      "Package": "qemu-system-data",
+      "SHA256": "a14b88d864859bd61c8a3274971da4ecb7da6cec15be6c265d0d411f783d5f2e",
+      "Size": "1796342",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    "qemu-system-gui": {
+      "Architecture": "amd64",
+      "Filename": "pool/main/q/qemu/qemu-system-gui_8.2.2+ds-0ubuntu1.18_amd64.deb",
+      "Package": "qemu-system-gui",
+      "SHA256": "b642b544a1089b63f5da8dac5a1fa38511dc918ea73d27e39f9f7b726c2c9814",
+      "Size": "312274",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    "seabios": {
+      "Architecture": "all",
+      "Filename": "pool/main/s/seabios/seabios_1.16.3-2_all.deb",
+      "Package": "seabios",
+      "SHA256": "cac4e59a66c834d19cae751c22ab3a0391c22f78010fd11aa2e3fe630e6bc0e0",
+      "Size": "174648",
+      "Version": "1.16.3-2"
+    }
+  },
+  "complete": true,
+  "packages": [
+    {
+      "Architecture": "amd64",
+      "Filename": "pool/main/q/qemu/qemu-system-common_8.2.2+ds-0ubuntu1.18_amd64.deb",
+      "Package": "qemu-system-common",
+      "SHA256": "0a0b744f31e87d72dd0465436b8dfbb1ef9f574ecd0d5a2e9dd8c5cb7d0fef1f",
+      "Size": "1255316",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    {
+      "Architecture": "all",
+      "Filename": "pool/main/q/qemu/qemu-system-data_8.2.2+ds-0ubuntu1.18_all.deb",
+      "Package": "qemu-system-data",
+      "SHA256": "a14b88d864859bd61c8a3274971da4ecb7da6cec15be6c265d0d411f783d5f2e",
+      "Size": "1796342",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    {
+      "Architecture": "amd64",
+      "Filename": "pool/main/q/qemu/qemu-system-gui_8.2.2+ds-0ubuntu1.18_amd64.deb",
+      "Package": "qemu-system-gui",
+      "SHA256": "b642b544a1089b63f5da8dac5a1fa38511dc918ea73d27e39f9f7b726c2c9814",
+      "Size": "312274",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    {
+      "Architecture": "all",
+      "Filename": "pool/main/e/edk2/ovmf_2024.02-2ubuntu0.9_all.deb",
+      "Package": "ovmf",
+      "SHA256": "a094c13d06f2740691ff57d108dff32aa087179363ddb0de42d463b4f7f9bc13",
+      "Size": "5187470",
+      "Version": "2024.02-2ubuntu0.9"
+    },
+    {
+      "Architecture": "all",
+      "Filename": "pool/main/s/seabios/seabios_1.16.3-2_all.deb",
+      "Package": "seabios",
+      "SHA256": "cac4e59a66c834d19cae751c22ab3a0391c22f78010fd11aa2e3fe630e6bc0e0",
+      "Size": "174648",
+      "Version": "1.16.3-2"
+    },
+    {
+      "Architecture": "all",
+      "Filename": "pool/main/i/ipxe/ipxe-qemu_1.21.1+git-20220113.fbbdc3926-0ubuntu2_all.deb",
+      "Package": "ipxe-qemu",
+      "SHA256": "1f1612934b6ddaf4dd633760dfe5ef2a79ea2507341fd5efe394ff589a044707",
+      "Size": "1564600",
+      "Version": "1.21.1+git-20220113.fbbdc3926-0ubuntu2"
+    }
+  ],
+  "prefix": "/run/wootc-package-host-36331691668-1",
+  "producerSha256": "a1b3c9d3fd7451e1174d2f572fce8a91d2ffc7a5d2805d5251f70c5f3b068713",
+  "resources": {
+    "usr/lib/ipxe/qemu/efi-e1000.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "2e100b3f6aeadb8702189882bc8f5de9948cb09a54f1d501430aa5ded0556d76"
+    },
+    "usr/lib/ipxe/qemu/efi-e1000e.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "210c1500c58f474e8b026b04cc32b5cd8990e6380ac3ebc4d7ded519b69ba3fd"
+    },
+    "usr/lib/ipxe/qemu/efi-eepro100.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "7b34bb236b86051f8968fad2c32809cfc19209d46effcaa642c2220a9120326c"
+    },
+    "usr/lib/ipxe/qemu/efi-ne2k_pci.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "60c92acb8ccccc41aa92897578fdad781c5e9a5eefee1ee1f86516c78dda1690"
+    },
+    "usr/lib/ipxe/qemu/efi-pcnet.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "e17cba443669cd403e7db180b9b8ed2cae73046c09b536bb0729cc13a6f210f7"
+    },
+    "usr/lib/ipxe/qemu/efi-rtl8139.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "c9e6c48c6c545288210152e73623f75d653c1ea6e4b1ec71dd88ef37991ad145"
+    },
+    "usr/lib/ipxe/qemu/efi-virtio.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "606518e1cfa5afd4ceac95ea309a7e385d60fb17ae0b684cee948d73ab255dfc"
+    },
+    "usr/lib/ipxe/qemu/efi-vmxnet3.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "1b2a64a0660262d45d6223af798e9586f79f7e05e15df04407812f3ecf34cbad"
+    },
+    "usr/lib/ipxe/qemu/pxe-e1000.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "18a2e519231685541fc43330c009d1dbd3d4b6ede67c8d2676c7fdb795a0d7af"
+    },
+    "usr/lib/ipxe/qemu/pxe-e1000e.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "ef141f0fe0e619e45cea0fdcc9ee8e77fa729adb21f4453db1af03ebe5a2f7d6"
+    },
+    "usr/lib/ipxe/qemu/pxe-eepro100.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "8c1ef1648cabb766e055bf2343a3580892acef6ffab503e41473309cc50cca64"
+    },
+    "usr/lib/ipxe/qemu/pxe-ne2k_pci.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "498d43bc4b45c0aa46d2d5434aac2063bb5b03787d677221407c4d39e164a657"
+    },
+    "usr/lib/ipxe/qemu/pxe-pcnet.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "819be0ec287c2e8830d34b0ceae74958ff4b6ffbcdd32e9e92c53c39360f3e23"
+    },
+    "usr/lib/ipxe/qemu/pxe-rtl8139.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "7113631bc627ffab70546a006f16cf794a238630027f97f210b893e028fd51b0"
+    },
+    "usr/lib/ipxe/qemu/pxe-virtio.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "da0d02aa932c7a6300ccf30c10279af20757c490ea9513d11cfb8fbaefc0a385"
+    },
+    "usr/lib/ipxe/qemu/pxe-vmxnet3.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ipxe-qemu",
+      "resolvedPackage": "ipxe-qemu",
+      "sha256": "43544141001bd1b251e16951034d8d54626a311eccc7a5dc3b1b4ab3fd5e9224"
+    },
+    "usr/share/OVMF/OVMF_CODE_4M.fd": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "949bfa5389c4c48582737481e7d24f46b3a16b276ef44c4089a56858c6a0a446"
+    },
+    "usr/share/OVMF/OVMF_CODE_4M.ms.fd": {
+      "archiveMode": 511,
+      "originalLinkTarget": "usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "1dbb7f9b7e7285b950929bbbc1494c186bfb061cde60cf531ff9756ef87dab7a"
+    },
+    "usr/share/OVMF/OVMF_CODE_4M.secboot.fd": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "1dbb7f9b7e7285b950929bbbc1494c186bfb061cde60cf531ff9756ef87dab7a"
+    },
+    "usr/share/OVMF/OVMF_CODE_4M.snakeoil.fd": {
+      "archiveMode": 511,
+      "originalLinkTarget": "usr/share/OVMF/OVMF_CODE_4M.secboot.fd",
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "1dbb7f9b7e7285b950929bbbc1494c186bfb061cde60cf531ff9756ef87dab7a"
+    },
+    "usr/share/OVMF/OVMF_VARS_4M.fd": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "5d2ac383371b408398accee7ec27c8c09ea5b74a0de0ceea6513388b15be5d1e"
+    },
+    "usr/share/OVMF/OVMF_VARS_4M.ms.fd": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "ece331afc5daf97ebb45099f3414a0894e45e3508a672c1aa0452406119bbdaf"
+    },
+    "usr/share/OVMF/OVMF_VARS_4M.snakeoil.fd": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "dfc447b3bc1be78b98f1afe5357702202c9e6c3d44303b5b733d63c5514024f0"
+    },
+    "usr/share/ovmf/OVMF.amdsev.fd": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "e6f2503719f65ef0db17b337edb88a0effbec2c7db433c4098231d32396c25c8"
+    },
+    "usr/share/ovmf/OVMF.fd": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "101afad5f520753224b60b9555df60add435cf50c7a82b781d7d7d8c60db7eb5"
+    },
+    "usr/share/ovmf/PkKek-1-snakeoil.key": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "3473e7581c66d6c0f1d9cde1c454b81f8d1bc5991621913e2edfca2af3f315f3"
+    },
+    "usr/share/ovmf/PkKek-1-snakeoil.pem": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "d1ead44fc7748b8c26e0cba2141b0b54a379c0f11c4e593fbc5d7dd995f90265"
+    },
+    "usr/share/qemu/OVMF.fd": {
+      "archiveMode": 511,
+      "originalLinkTarget": "usr/share/ovmf/OVMF.fd",
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "101afad5f520753224b60b9555df60add435cf50c7a82b781d7d7d8c60db7eb5"
+    },
+    "usr/share/qemu/QEMU,VGA.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "0598d03abae4525c40e48e8d638a2342cc44056ab034ae91a737843a891e050a"
+    },
+    "usr/share/qemu/QEMU,cgthree.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "a99f3a06fdac5cf5d72bd0fd24647d897302c3ff8e918add65168185f8cbdf4d"
+    },
+    "usr/share/qemu/QEMU,tcx.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "92da99a770ab24f96c33c78382940cac8b25e88cb110634c1b32aa2d8cb852e7"
+    },
+    "usr/share/qemu/bamboo.dtb": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "90f7b887ef793cdd5982de3300b8bda3175eb508ba2c010a7b5a6a21cb00c512"
+    },
+    "usr/share/qemu/canyonlands.dtb": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "3e7ed2ed8637d8c8a1e619d8a280bc2da853e7a17eab689597c7b69770e503b0"
+    },
+    "usr/share/qemu/firmware/40-edk2-x86_64-secure-enrolled.json": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "34e6d591cacd307a68c70091b7301eca5becabc449d117e878e92dfbf2de47c5"
+    },
+    "usr/share/qemu/firmware/50-edk2-x86_64-secure.json": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "7fcfc82aba09d6613000e45af1774aa2f7f8fba20dd989543b1037bbedfc0044"
+    },
+    "usr/share/qemu/firmware/60-edk2-x86_64-amdsev.json": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "91487fc97bd12276c1199253b092364830ca70e9e54920debe5a3068a850cea8"
+    },
+    "usr/share/qemu/firmware/60-edk2-x86_64.json": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "ovmf",
+      "resolvedPackage": "ovmf",
+      "sha256": "2e25c2d5f69a5eea485762b83621eb5d8df282703ed4f262194dd24516585cd8"
+    },
+    "usr/share/qemu/hppa-firmware.img": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "6d1122768f078540859fc7bf78d2a8aabb420a328e70f4913d568eeb621b095b"
+    },
+    "usr/share/qemu/init/qemu-kvm-init": {
+      "archiveMode": 493,
+      "originalLinkTarget": null,
+      "package": "qemu-system-common",
+      "resolvedPackage": "qemu-system-common",
+      "sha256": "c769a6a149897575767c5a4377cc7cb15dcbb586a9a1eec1d6248dba098b08f2"
+    },
+    "usr/share/qemu/keymaps/ar": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "059ab719df4296edb800d399501e3823e1e6f470cc06a3a4564f4bb2dbd5c1fc"
+    },
+    "usr/share/qemu/keymaps/bepo": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "01ccdb7e2d0b20f517e03d39cc70802ad83dfc1ed2e5d50ff9b4a4f77e37a9f8"
+    },
+    "usr/share/qemu/keymaps/cz": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "3664b3f13e6cfff0e6d05f12000aa6610eff04f570707261ec35ca830ded6c36"
+    },
+    "usr/share/qemu/keymaps/da": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "95ef0c168f0b25e936a7ff944da820a43af8028b515cc6709724f457e105c187"
+    },
+    "usr/share/qemu/keymaps/de": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "cda7dc9656f007ca3e88e5bac50f20c7f61f934bcec2e87c6d61859e632ddb98"
+    },
+    "usr/share/qemu/keymaps/de-ch": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "3260cb64fdcdf48e2b53c5d0573dc2a9410d7d3aae227ed42dda945f9ab74e06"
+    },
+    "usr/share/qemu/keymaps/en-gb": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "e14229b7f9165bf226bf4de968fd5f6a504014a2179de08c2b2184cefe68174e"
+    },
+    "usr/share/qemu/keymaps/en-us": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "52cf4c523e686078699ed58761c7e1443080305237a5f67a3716832570c5c8e5"
+    },
+    "usr/share/qemu/keymaps/es": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "d9b1da8193232882705bd4a312c0923b6d91268f1e1a8eed2afbd7fc37681c06"
+    },
+    "usr/share/qemu/keymaps/et": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "95af1e25132185e3cb271d491086ccf09cb667033afb718f1a11e974e80a838f"
+    },
+    "usr/share/qemu/keymaps/fi": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "4c5cd5359c18635187d7af9570088a7bbd21f96d961aedbc4c9fb1e5df099281"
+    },
+    "usr/share/qemu/keymaps/fo": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "3750b8090caea3cf6c827b97f5ecc2d1172c33d960141c50f96e61c53f682ccf"
+    },
+    "usr/share/qemu/keymaps/fr": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "60d9baa3565b7727b4178704100bffb02cbd5b527a9dcc9f9ca76d76767b166e"
+    },
+    "usr/share/qemu/keymaps/fr-be": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "522b5e758375e3d796fba096a46077766bd44548c8c61a4abe946e3116c1ad97"
+    },
+    "usr/share/qemu/keymaps/fr-ca": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "9ee3fc13beec6e74f40fb6d150d7fe3b0afe4557fdf0769601e662a122a88cc0"
+    },
+    "usr/share/qemu/keymaps/fr-ch": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "7b2ad2929f3b7b4f5d60176bd7e1852f91efbcfe2700e8df9bc9b891609a7170"
+    },
+    "usr/share/qemu/keymaps/hr": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "e8391ed09015ce8459a98e3470daddd3a6d95c4c7e93b750098f5a321fd57482"
+    },
+    "usr/share/qemu/keymaps/hu": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "763a938ed2fdd224b9cb8ad606d02aabc93a0e3fb7a5e5e9caafa0ec8c05d422"
+    },
+    "usr/share/qemu/keymaps/is": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "6eb4e5bd93ca2f7a2059a31fd014444108eb684ecd97902da2492b0a0f6e3cdc"
+    },
+    "usr/share/qemu/keymaps/it": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "12d090cdcb6af0e95a0c0330b8b7f0ac0446ab8cf7140b4f8c6c797c08e9c219"
+    },
+    "usr/share/qemu/keymaps/ja": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "a4561aefcc2fd2f4ba01604001c9c0dc67469514ea0a665063b72e79d5d9c687"
+    },
+    "usr/share/qemu/keymaps/lt": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "0bfc98e913451c0b9082d0317deffa03c6f0c53a1422cb4f4c1ef64dc3939d2f"
+    },
+    "usr/share/qemu/keymaps/lv": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "be4f1e28325ae2ea927bd51e31863a327e64c0a938725fd02c2a7260660bdf77"
+    },
+    "usr/share/qemu/keymaps/mk": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "71068ffe163ce6684b35f423e897e00c97debe0c3df555c43d26b46a79ca68e7"
+    },
+    "usr/share/qemu/keymaps/nl": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "70cb1b41f184d61520867e639e6b69cddea4b0e2458c5502c7c40512301876c7"
+    },
+    "usr/share/qemu/keymaps/no": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "95b3fe5258264b827ba01acc7a774bd9edbaec52c54e582a0737c33087a92514"
+    },
+    "usr/share/qemu/keymaps/pl": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "5f3da802f81f385c58179272e48c4f8680dfdfe55383c504a6d84b3b7a8aadfb"
+    },
+    "usr/share/qemu/keymaps/pt": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "29161e1b8b61b761c3f3bff237ca73ce4ee3316a99090890b32469824b5eed8a"
+    },
+    "usr/share/qemu/keymaps/pt-br": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "fbb9491c0bfc4253cced9d8a20965aca98d0249c4626fe6e7d31358b24e34e8d"
+    },
+    "usr/share/qemu/keymaps/ru": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "afa015a736cd935fc38a0df62fd6ab2f3c64b44c48b3e6d95969cbbfcdc43e91"
+    },
+    "usr/share/qemu/keymaps/sl": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "bea8fe8ac0ca281038ac0e1788c39f090507ff0646bd4f57cc18f6873b030147"
+    },
+    "usr/share/qemu/keymaps/sv": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "97731fbe91f254d81c005ffc232180a8dd7baeb6d699f0f0fc15e341672f96b3"
+    },
+    "usr/share/qemu/keymaps/th": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "6dd9562a2b10c81f658ad96075fd87832777e87357620e89c7d070e4097fbbb9"
+    },
+    "usr/share/qemu/keymaps/tr": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "f59f8cc154f0dc8b45166b524b9c1e649ba027e39381aac286663ad2227ddce8"
+    },
+    "usr/share/qemu/kvmvapic.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "8bbe341af0ab06c3008d65b29fb961f21f63a1419297dd4db80632261046cd98"
+    },
+    "usr/share/qemu/linuxboot.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "1ecfb26c19da9dc00cdec0d0d738db69aeea4f1231c0c0ffc483ff69b3cda6ce"
+    },
+    "usr/share/qemu/linuxboot_dma.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "d2f20622ebfea0a0222005452fd6a7747e1634395ed682272b38e17ad2334512"
+    },
+    "usr/share/qemu/multiboot.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "13a3f9f119797b8776105f020f36572ce6a20fa2c60d3b8112818bfaefcdd348"
+    },
+    "usr/share/qemu/multiboot_dma.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "e01667420ee78a318ea44627d2dd68058d3377d024e6eb7237700afe2e86507d"
+    },
+    "usr/share/qemu/npcm7xx_bootrom.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "2b17c3531daba9c133cbaa53595052e799505b2b4b3005ebc7b229f5c5e64322"
+    },
+    "usr/share/qemu/openbios-ppc": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "277f5d3e5dd931f08f7cae6caeacf0681c1bc803dcc6f31b05aedfd8cb2c9d5f"
+    },
+    "usr/share/qemu/openbios-sparc32": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "d73907fbea9f6ba8866a54ecb81b02947f06472f3d2248d4e3697d9423f8fb1d"
+    },
+    "usr/share/qemu/openbios-sparc64": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "d29dc37af0149244bb74d22ac01a18ced5ea53f69d226a17c0ce705b6ddcaac2"
+    },
+    "usr/share/qemu/opensbi-riscv64-generic-fw_dynamic.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "171a91cceeb419d5cf238008c77641a13c4783d2540fec9294b1ba969bfa095d"
+    },
+    "usr/share/qemu/opensbi-riscv64-generic-fw_dynamic.elf": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "2c7bfa54eff5761318430f2d00dd04b73b08a110e8aeab039f3928128f226679"
+    },
+    "usr/share/qemu/palcode-clipper": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "250085715ac3b26f687e9bcb1654dd9d65c3f2b5502924aa7a52ee7a5cf3e08e"
+    },
+    "usr/share/qemu/pvh.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "b9c640a7ad193826020ee38350fdd669b4d752a56b3890a3af66a8712e5e04ce"
+    },
+    "usr/share/qemu/qboot.rom": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "324775635733fb9f8a2628a99af288ddae256b29daf253254bb5dea64064e0f0"
+    },
+    "usr/share/qemu/s390-ccw.img": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "b5193a1a737e2b4d5150130c1898c5c0ed64fb10a582c271c9e565e3045da575"
+    },
+    "usr/share/qemu/s390-netboot.img": {
+      "archiveMode": 511,
+      "originalLinkTarget": "usr/share/qemu/s390-ccw.img",
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "b5193a1a737e2b4d5150130c1898c5c0ed64fb10a582c271c9e565e3045da575"
+    },
+    "usr/share/qemu/skiboot.lid": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "bd15fa10e3477af4caf3024e0de6d2b9bb468ff594c825b3d1ed60aff6a48f6f"
+    },
+    "usr/share/qemu/slof.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "9cf8a9b1ef21b40b84175e4e3e126720b2a8882af9c877c30fe56b4c11bbf15b"
+    },
+    "usr/share/qemu/trace-events-all": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-common",
+      "resolvedPackage": "qemu-system-common",
+      "sha256": "bba28b4ac4e4a9f5945083fcc40e44ed51cfe1f44dc8e44212395f3440269989"
+    },
+    "usr/share/qemu/u-boot-sam460-20100605.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "14747797afa52e46a83ad5c9738f3f6f21fdebe872a20db81e4cd2dc015c59ef"
+    },
+    "usr/share/qemu/u-boot.e500": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "fe2571372d2e5bb3263602f0ceeaf3da78cdae6bbdf4d3d0d73f41c939b434d2"
+    },
+    "usr/share/qemu/vhost-user/50-qemu-gpu.json": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-gui",
+      "resolvedPackage": "qemu-system-gui",
+      "sha256": "b5306eec445c302675cae5519fce35490e394ce4208c35a9c395b0433bab5d7d"
+    },
+    "usr/share/qemu/vof.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "qemu-system-data",
+      "resolvedPackage": "qemu-system-data",
+      "sha256": "057a773c0f42966095712440ada35faa7305ca76d03aa59cd32ab9723d64b4ac"
+    },
+    "usr/share/seabios/acpi-dsdt.aml": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "c47c3b72cc85165f35756f261a10c5b93286d29d63536c8cade37734728542fe"
+    },
+    "usr/share/seabios/bios-256k.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "1a9ea4f17bcfb27bda5728e2c21d9fa074cf7947b9b4910bb28213a735c96735"
+    },
+    "usr/share/seabios/bios-microvm.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "3dc79b28380ae79a014060ac23052f32293bc80cdbb39e347811965807cfee1f"
+    },
+    "usr/share/seabios/bios.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "4d597f68e06a0e28498e12e96e1f2ce64aee88a519685c61da92eb775c95a445"
+    },
+    "usr/share/seabios/vgabios-ati.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "a3aacc3cf21aaa4670f256707361eefb7a30a8c8d82014484edf22e160110059"
+    },
+    "usr/share/seabios/vgabios-bochs-display.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "e053baf2d244fb191b88dc0b4fc4397e2afc3d573b60ec9d87f0be771f2bf665"
+    },
+    "usr/share/seabios/vgabios-cirrus.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "f071ca6eea1b8491f2ef753f3b9eeaf9b3917ee37996b188d83c4c35dbafa5fb"
+    },
+    "usr/share/seabios/vgabios-isavga.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "c59bdf2260616625670f88f6b2fa82301db6b1233812887cdda37c560b88b0de"
+    },
+    "usr/share/seabios/vgabios-qxl.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "ba1a376d2900b6defbbe5043cca27644979e0a4ac9ee06e46bf2a5a8f71cee0d"
+    },
+    "usr/share/seabios/vgabios-ramfb.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "547afbe25102dd113e6c6c20a84d135e252ad2ba0d35521c097abbe16b85c29a"
+    },
+    "usr/share/seabios/vgabios-stdvga.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "4eecd8e752efc02c6c0fe87eb92bf66934cb9ea67b0e1bc41e86f8430c8bf8a0"
+    },
+    "usr/share/seabios/vgabios-virtio.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "74736b920fef951ee905febad65a3ea5fed0b6b5334dc6c5f5955948247b9267"
+    },
+    "usr/share/seabios/vgabios-vmware.bin": {
+      "archiveMode": 420,
+      "originalLinkTarget": null,
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "082783f1023752e811c6fd017b6da3e02e159e04ecd7c378c9c3fdae0217ce0e"
+    },
+    "usr/share/seabios/vgabios.bin": {
+      "archiveMode": 511,
+      "originalLinkTarget": "usr/share/seabios/vgabios-isavga.bin",
+      "package": "seabios",
+      "resolvedPackage": "seabios",
+      "sha256": "c59bdf2260616625670f88f6b2fa82301db6b1233812887cdda37c560b88b0de"
+    }
+  },
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "signedPackageIndices": [
+    {
+      "metaKey": "main/binary-amd64/Packages",
+      "rawBytes": 7165069,
+      "rawSha256": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+      "signedReleaseSha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+      "storedSha256": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+      "suite": "noble"
+    },
+    {
+      "metaKey": "universe/binary-amd64/Packages",
+      "rawBytes": 73379142,
+      "rawSha256": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+      "signedReleaseSha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+      "storedSha256": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+      "suite": "noble"
+    },
+    {
+      "metaKey": "main/binary-amd64/Packages",
+      "rawBytes": 7119812,
+      "rawSha256": "b994c3a4a14026a759751f64cc35b8a0ffe96f8cc48fd86fc78b1a98b3521629",
+      "signedReleaseSha256": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+      "storedSha256": "b994c3a4a14026a759751f64cc35b8a0ffe96f8cc48fd86fc78b1a98b3521629",
+      "suite": "noble-updates"
+    },
+    {
+      "metaKey": "universe/binary-amd64/Packages",
+      "rawBytes": 10590257,
+      "rawSha256": "2fd46f6bbbae59224141c872dc85aad5eae314e504d58459754d8912fff828b3",
+      "signedReleaseSha256": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+      "storedSha256": "2fd46f6bbbae59224141c872dc85aad5eae314e504d58459754d8912fff828b3",
+      "suite": "noble-updates"
+    },
+    {
+      "metaKey": "main/binary-amd64/Packages",
+      "rawBytes": 5721326,
+      "rawSha256": "207e1d251ecfc9215516c8db3a71c23cc6039298803c56bc5c2bca8c35bb4c55",
+      "signedReleaseSha256": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+      "storedSha256": "207e1d251ecfc9215516c8db3a71c23cc6039298803c56bc5c2bca8c35bb4c55",
+      "suite": "noble-security"
+    },
+    {
+      "metaKey": "universe/binary-amd64/Packages",
+      "rawBytes": 7666073,
+      "rawSha256": "69ef69e72ed3bd48f7e5feddbf114d32f45046a6fb4cefa43e2b394a550d9bf2",
+      "signedReleaseSha256": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+      "storedSha256": "69ef69e72ed3bd48f7e5feddbf114d32f45046a6fb4cefa43e2b394a550d9bf2",
+      "suite": "noble-security"
+    }
+  ],
+  "signedReleases": [
+    {
+      "name": "archive.ubuntu.com_ubuntu_dists_noble-security_InRelease",
+      "sha256": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+      "signatureStatus": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID 85JhIydHNUF4O4ASJ2l/MggLctY 2026-09-26 1790445980\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2026-09-26 1790445980 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n"
+    },
+    {
+      "name": "archive.ubuntu.com_ubuntu_dists_noble-updates_InRelease",
+      "sha256": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+      "signatureStatus": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID hT68j9dOTZcU+a7vJjqoxgBh0jY 2026-09-27 1790513016\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2026-09-27 1790513016 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n"
+    },
+    {
+      "name": "archive.ubuntu.com_ubuntu_dists_noble_InRelease",
+      "sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+      "signatureStatus": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID GVnDvebl2qOVy2n1fx2yPFLiSUA 2024-04-25 1714057881\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2024-04-25 1714057881 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n"
+    }
+  ],
+  "sourceCommit": "e5b4387cf5fdf8ffe4f799aee483c5f2b30edc10"
+}

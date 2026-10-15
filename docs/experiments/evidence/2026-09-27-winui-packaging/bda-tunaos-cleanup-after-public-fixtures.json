@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "buildId": "9ab2148d5316e4661fd5f0f6c895e7fe077d689d",
+  "brandId": "tunaos",
+  "observation": "after-public-fixtures",
+  "entries": [
+    {
+      "path": "unins000.exe",
+      "directory": false,
+      "reparse": false,
+      "sha256": "A76DA509ED472C8E39DE66786331E463C84BFF0E7AA8DE24A9744BAA9DDC3589"
+    }
+  ]
+}

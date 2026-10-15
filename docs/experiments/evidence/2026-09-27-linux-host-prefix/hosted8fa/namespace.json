@@ -1,0 +1,1 @@
+{"beforeNamespace": "mnt:[4026531832]", "bindings": {"usr/lib/ipxe/qemu": "/usr/lib/ipxe/qemu", "usr/share": "/usr/share"}, "kernelReadonlyWriteRefusals": ["/usr/share", "/usr/lib/ipxe/qemu"], "privateNamespace": "mnt:[4026532313]", "runtimeExecuted": false}

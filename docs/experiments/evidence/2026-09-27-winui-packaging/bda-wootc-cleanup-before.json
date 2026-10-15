@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "buildId": "9ab2148d5316e4661fd5f0f6c895e7fe077d689d",
+  "brandId": "wootc",
+  "observation": "before",
+  "entries": [
+    {
+      "path": "bundle",
+      "directory": true,
+      "reparse": false,
+      "sha256": null
+    },
+    {
+      "path": "bundle\\public-preserved-bundle.txt",
+      "directory": false,
+      "reparse": false,
+      "sha256": "7932B97C4F41A2363F41A98E79FD80E5DDF26B8069385D1B8F282889230A1D99"
+    },
+    {
+      "path": "public-preserved-root.txt",
+      "directory": false,
+      "reparse": false,
+      "sha256": "7932B97C4F41A2363F41A98E79FD80E5DDF26B8069385D1B8F282889230A1D99"
+    },
+    {
+      "path": "unins000.exe",
+      "directory": false,
+      "reparse": false,
+      "sha256": "39A4D2B7F4BDC1FF402681DCFAB4252592428CAF3EDABEFB9DFF1FA4F75CA53D"
+    }
+  ]
+}

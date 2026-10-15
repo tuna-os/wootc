@@ -117,5 +117,25 @@ cd tests/e2e && ./run-e2e.sh
 6. Re-arm the one-shot BCD entry through QGA and verify the installed Phase 2
    Linux system boots, then verify the entry returns to Windows through QGA.
 
+## Secure Boot `db` axis (#322)
+
+`WOOTC_E2E_FIRMWARE_DB` sets the Microsoft third-party CAs in the VM's
+Secure Boot `db`. Use `2011`, `2023`, `both` or `none`. Leave it empty to
+keep the stock Dockur firmware, which has both CAs.
+
+- Before QEMU starts, `firmware-db.py build` writes the cell into
+  `storage/windows_secure.vars`. Each cell keeps the Windows CAs, so
+  Windows still boots. This step needs `virt-fw-vars`
+  (`pip install virt-firmware`).
+- After Windows starts, the harness reads `db` with `Get-SecureBootUEFI`.
+  `firmware-db.py grade` then checks it against the cell. If the host file
+  had no effect, the run fails here.
+- The shim is dual-signed, so the `2011`, `2023` and `both` cells must
+  each finish a full cycle.
+- `none` is the default on Secured-core PCs, and no shim can start there.
+  This cell needs `--gui-install`. It passes only when the app refuses
+  with its Secure Boot message, and `wootc.exe status`, the BCD and the
+  drives show that nothing was written.
+
 See the repository-root [HANDOFF.md](../../HANDOFF.md) for the QGA migration
 design, package cache details, and troubleshooting evidence.

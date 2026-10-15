@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "source plan; execution workflow not yet qualified",
+  "selection": {
+    "source": "Reviewed exact Git commit and app/data/images.json SHA256",
+    "eligible": "Unique green catalogue ID; registry GHCR over default verified TLS",
+    "root": "Retain raw root metadata observed once; later producer must use repository@sourceDigest",
+    "publisherAuthentication": false
+  },
+  "metadataPhase": {
+    "layerAcquisitionExecuted": false,
+    "sharedDeadlineSeconds": 600,
+    "metadataBytesPerObject": 1048576,
+    "metadataNodes": 64,
+    "aggregateRetainedRawMetadataBytes": 2097152,
+    "maximumDepth": 8,
+    "maximumDeclaredCompressedBytes": 12884901888
+  },
+  "proposedExecutionPhase": {
+    "reviewRequired": "Concrete metadata artifact hash, exact root/child/config/layer descriptors, source closure and capacity observations",
+    "minimumHostFreeBytes": 51539607552,
+    "exclusiveFilesystemBytes": 42949672960,
+    "outsideHostReserveBytes": 8589934592,
+    "reserveInsideScratchBytes": 1073741824,
+    "producerDeadlineSeconds": 2700,
+    "importDeadlineSeconds": 1800,
+    "storeDriver": "vfs in exclusive root-owned store, no default store reuse",
+    "expandedStoreBytes": null,
+    "completionQualification": "40 GiB is a hard ceiling, not evidence that expansion will fit. Collect actual per-stage usage and refuse exhaustion. Later resize needs a separately reviewed bound.",
+    "freeSpaceGuard": "Owned supervisor monitors actual scratch statvfs every second, terminates only its recorded process group at the reserve threshold and waits/reaps. Preserve failure stage and return code.",
+    "producer": "Run actual make-bundle.sh with the reviewed pinned root ref; no fixture redirection. Revalidate complete root/selected chain and all config/layer bytes against reviewed plan before import.",
+    "offlineImport": "Root-owned unshare network namespace, loopback only, no routes; observe socket ENETUNREACH before and after. Run executable wrapper binding every Podman operation to the owned store. Import local OCI and independently inspect exact selected ref ID/digest.",
+    "readback": "Full bundle verification plus manifest/config/layer hash-size inventory and actual imported ID/digest. No container execution or selected OS boot assertion.",
+    "retention": "Bounded public proof only, <=4 MiB; no full layer artifact. Retain complete metadata, source/run identity, capacity samples, process/reap receipts and numeric failure status.",
+    "cleanup": "Trap cancellation/failure, stop and reap only owned group, verify mount source/loop backing inode before unmount/detach. Remove only exclusive scratch after bounded proof export. No global reclaim or prune. Retain metadata and original failed evidence."
+  },
+  "acceptance": {
+    "registryProducerExecuted": false,
+    "isolatedImportExecuted": false,
+    "selectedOsBootAcceptance": false,
+    "windowsStagingAcceptance": false,
+    "vmExecuted": false,
+    "issue196Complete": false
+  }
+}

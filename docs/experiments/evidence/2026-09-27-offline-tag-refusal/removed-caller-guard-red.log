@@ -1,0 +1,15 @@
+F
+======================================================================
+FAIL: test_actual_deploy_branch_stops_after_uncertain_tag_and_keeps_ref (<run_path>.BundleTests.test_actual_deploy_branch_stops_after_uncertain_tag_and_keeps_ref)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-offline-image-tag-refusal/tests/unit/test_offline_image_bundle.py", line 126, in test_actual_deploy_branch_stops_after_uncertain_tag_and_keeps_ref
+    self.assertEqual(result.returncode,1,result.stderr);self.assertNotIn('LATER_LOCAL_IMAGE_PROBE',result.stdout);self.assertIn('refusing deployment',result.stdout)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 1 : 
+
+----------------------------------------------------------------------
+Ran 1 test in 0.710s
+
+FAILED (failures=1)
+Actual caller posttag refusal removed: RED; original source unchanged

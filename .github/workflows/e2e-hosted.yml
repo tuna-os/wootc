@@ -53,6 +53,10 @@ on:
       # Fault-injection axis (#288): injects simulated failure or cancellation
       # at an install boundary: "root-disk", "image-pull", "efi-staging", "bcd-arming", "pre-reboot", "deploy-failure".
       fault_inject: { type: string, default: '' }
+      # Firmware db axis (#322): which Microsoft third-party UEFI CA the VM's
+      # Secure Boot db holds — 2011, 2023, both, or none. Empty keeps
+      # Dockur's stock vars. "none" needs gui_install: its pass is a refusal.
+      firmware_db: { type: string, default: '' }
     outputs:
       # Non-empty ONLY when run-e2e.sh classified its own failure as a known
       # infrastructure flake (qga-channel-lost, serial-feed-lost). Callers may
@@ -90,6 +94,17 @@ jobs:
           sudo usermod -aG kvm "$USER" || true
           sudo chmod 0666 /dev/kvm
           kvm-ok || true
+
+      # virt-fw-vars writes the firmware db cell into the OVMF vars (#322).
+      # Its own venv, linked onto PATH as a command: the harness's python3
+      # stays the system one, and the step costs nothing on other cells.
+      - name: Install virt-fw-vars for the firmware db axis
+        if: ${{ inputs.firmware_db != '' }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/virt-firmware"
+          "$RUNNER_TEMP/virt-firmware/bin/pip" install --quiet 'virt-firmware==26.9'
+          sudo ln -sf "$RUNNER_TEMP/virt-firmware/bin/virt-fw-vars" /usr/local/bin/virt-fw-vars
+          virt-fw-vars --help >/dev/null
 
       - name: Reclaim disk (hosted runners ship ~30 GB of toolchains)
         run: |
@@ -268,6 +283,7 @@ jobs:
           # introduced here by 2617aed (#159) on 2026-08-14.
           WOOTC_TARGET_IMAGE: ${{ inputs.image }}
           WOOTC_FAULT_INJECT: ${{ inputs.fault_inject }}
+          WOOTC_E2E_FIRMWARE_DB: ${{ inputs.firmware_db }}
         run: |
           cd tests/e2e
           FLAGS=()

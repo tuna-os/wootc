@@ -79,6 +79,19 @@ It ended in graduated Linux, so it does not prove a Windows return after graduat
 It does not prove the Windows-hosted VM journey, a GUI editor save, the new installed-boot record, or the WinUI shell.
 Later candidates still need their own gates.
 
+## Native Windows preview components, 2026-09-27
+
+[Run 36328543336](https://github.com/tuna-os/wootc/actions/runs/36328543336) passed all nine native jobs on head `7aee354`.
+The tested merge and build identity was `68e6f452`.
+It observed RPC at startup after peer authentication.
+It did not create an installer root. ACLs stayed the same. It refused malformed records.
+
+Each package passed the startup check for its brand.
+These are component checks with the same elevated user.
+Interactive UAC, original-user collection, the minimum OS, and the full native journey remain open.
+[The source record](experiments/evidence/2026-09-27-native-serving-readiness/hosted-7a/provenance.json) retains the exact source, jobs, and artifact hashes.
+Wails remains the default. #343 and #344 remain open.
+
 ## Build/test matrix
 
 Red/green status per combination, from the KVM E2E rig (laptop runners) and
@@ -140,6 +153,7 @@ ostree images that ship no `bootupd`.
 | Encryption: none | ✅ | |
 | Encryption: `tpm2-luks` | 🟡 | [#33](https://github.com/tuna-os/wootc/issues/33) fixed (`bffd284`, 2026-08-10) — Phase-2 dracut regen works; green cell re-verification pending under the failure-ledger harness |
 | BitLocker FDE (unencrypted-volume path) | ✅ | refusal path green 2026-08-22; full install path is the v0.3.0-beta gate — [#34](https://github.com/tuna-os/wootc/issues/34). Setup carves unencrypted volume E: for `root.disk` while C: stays encrypted |
+| Secure Boot `db`: 2011 / 2023 / both / none | ⚪ | harness cells landed for [#322](https://github.com/tuna-os/wootc/issues/322) (`firmware_db=` in `tests/e2e/matrix.tsv`). The VM firmware gets each `db`, and Windows reads it back before the run. 2011, 2023 and both must boot the dual-signed shim. The none cell has no third-party CA, so the app must refuse with nothing written. No hosted run yet |
 | Offline (`-nic none`, pre-downloaded image) | ⚪ | code path shipped (branded builds / `WOOTC_PRELOAD=1`); matrix axis tracked as [#217](https://github.com/tuna-os/wootc/issues/217) |
 
 The historical native chain passed on `bluefin:lts` through the script path

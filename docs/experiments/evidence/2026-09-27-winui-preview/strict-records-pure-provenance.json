@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "a51691e56c94ddf5b0858860d94058e93dc8f702",
+  "sourceSha256": {
+    "app/status_location.go": "9fccb00d7eb88a02cb414db07140ca24df0ca1bc9073713c0259795489bd57d6",
+    "app/status_records.go": "edbe981508c1c0fac9c0aab8529726e95e4dfb908dc7c36543768456d2944540",
+    "app/status_records_test.go": "b30b54330ff4ea938750b85407d869f6e4c00d4a4338f1dc10db8e015b884dc1",
+    "app/status_location_test.go": "e1cb9191ae32ed55ac9103dcb25f8023836bd8c4108fc1dc82a7e9b48e0b99bd",
+    "app/state.go": "9edfd2221ba106f6ed41fee4e6fc732f32403f1160b4fc735714042c5a3ac62f",
+    "app/install_evidence.go": "bdb5ad1d570da7429b252a516d6faa8831d01ecd41b6d4bbc6d67b8d0f06e57d",
+    "app/recovery.go": "2844104341f496b97bdb8c0b47eb1c496e2a1b4551cde2adae71c50cee1993d4",
+    "app/serve.go": "fcdf7ecf021301f47b5ffed101303ca579530791e22f3f3d4974be6fe21addc9",
+    "app/native_serve_windows.go": "5751317c9b228d7313c670e95f5f883379e307ee3831b71a0a1d7131cc10b217"
+  },
+  "pureTestLogSha256": "5c04d2369bcefdcac1a9e19d66912bf61a768a7e579b245c69221f903da72d4c",
+  "scope": "Files-only actual production selector/record readers and tests with only unused platform/writer stubs; RecoveryVerdict type copied verbatim from production. Not full-app Linux execution. Full Windows app test binary cross-compiled successfully. Hosted actual producer/RPC validation pending.",
+  "observed": [
+    "Both orders failed/healthy duplicate lifecycle fields refused",
+    "Case alias, unknown and null optional lifecycle fields refused",
+    "Existing disk missing lifecycle cannot become fresh",
+    "Missing recovery distinguished from malformed/duplicate/invalid timestamp and contract-swapped records"
+  ],
+  "integration": "Native strict RPC dispatch audits selected root and propagates reader errors; stdio/default Wails getters unchanged"
+}

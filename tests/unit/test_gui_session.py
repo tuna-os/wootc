@@ -46,6 +46,14 @@ qga_powershell() {
         printf '%s' "$SESSION_REPLY"
         return 0
     fi
+    if [[ "$1" == *query\\ user* ]]; then
+        if [ "${QUERY_REPLY+x}" = x ]; then
+            printf '%s' "$QUERY_REPLY"
+            return "${QUERY_RC:-0}"
+        fi
+        printf 'USERNAME SESSIONNAME ID STATE IDLE TIME LOGON TIME | >wootc console 1 Active none 9/26/2026 11:52 AM'
+        return 0
+    fi
     printf '%s' "${REPLY:-}"
     return "${REPLY_RC:-0}"
 }
@@ -103,6 +111,28 @@ qga_powershell() {
                 self.assertIn("autologon-no-session", result.stdout)
                 self.assertIn("Win32_ComputerSystem", calls)
                 self.assertNotIn("schtasks", calls)
+
+    def test_username_without_enumerable_session_blocks_launch(self):
+        # 9/25-9/26 GUI red: Win32_ComputerSystem.UserName said wootc while
+        # `query user` was empty, so schtasks /IT never ran (task 267011).
+        # The gate must keep waiting (then refuse) instead of scheduling.
+        for query, rc in [("No User exists for *", "0"), ("", "0"), ("No User exists for *", "1")]:
+            with self.subTest(query=query, rc=rc):
+                result, calls = self.shell('gui_wait_interactive_session; echo SCHEDULED',
+                                           SESSION_REPLY="interactive-user=DESKTOP\\wootc\r\n",
+                                           QUERY_REPLY=query, QUERY_RC=rc)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("SCHEDULED", result.stdout)
+                self.assertIn("autologon-no-session", result.stdout)
+                self.assertIn("query user", calls)
+
+    def test_paired_username_and_session_allows_launch(self):
+        result, calls = self.shell('gui_wait_interactive_session; echo SCHEDULED',
+                                   SESSION_REPLY="interactive-user=DESKTOP\\wootc\r\n",
+                                   QUERY_REPLY="USERNAME SESSIONNAME | >wootc console 1 Active")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("SCHEDULED", result.stdout)
+        self.assertIn("query user", calls)
 
     def test_wrong_os_refuses_before_account_or_session_guest_call(self):
         for method in ['gui_prepare_account', 'gui_wait_interactive_session', 'gui_settle_pending_servicing']:
@@ -253,6 +283,14 @@ echo SCHEDULED
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('CAPTURED', result.stdout)
         self.assertNotIn('SCHEDULED', result.stdout)
+
+    def test_launch_rechecks_enumerable_session_before_drive_poll(self):
+        # Staging takes minutes; a session present at the gate can be gone by
+        # /Run. The 60 s drive-state poll must not run blind when schtasks
+        # /IT provably cannot (9/25-9/26: task 267011, query user empty).
+        gui = SOURCE.split('gui_install_arm() {', 1)[1]
+        self.assertLess(gui.index('query user 2>&1'), gui.index('deadline_in 60'))
+        self.assertLess(gui.index('deadline_in 60'), gui.index('did not start within 60 s'))
 
     def test_gui_and_snapshot_paths_use_account_provisioning(self):
         prime = (Path(__file__).resolve().parents[2] / 'tests/e2e/lib/snapshot-prime.sh').read_text()

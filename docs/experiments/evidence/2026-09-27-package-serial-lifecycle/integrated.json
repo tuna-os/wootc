@@ -1,0 +1,11 @@
+{
+  "testedHeadBeforeEvidence": "22690627f92cd3d9eb10f88669d52fbb778e5b08",
+  "integratedMain": "a1b497449594fd3a62e743cfbf725108950f8171",
+  "sourceHashes": {
+    "tests/e2e/package-runtime/bootstrap.py": "4e81866c41f15f0393b9b68c0996ae477ec397120b59fc2256578a8b0f3b6286",
+    "tests/unit/test_linux_package_serial_lifecycle.py": "493e62dc96326108ae32424c7c1f32f3b4d2608b0a2fe34ce190cbe4bcca52a8"
+  },
+  "controls": 119,
+  "rawLogSha256": "fc3f2a2084a52530f765f8243aa4bcade2c8a0864008048365f3206fe3d37d24",
+  "runtimeExecuted": false
+}

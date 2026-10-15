@@ -263,6 +263,29 @@ func (p *ociPuller) writeBlob(ctx context.Context, blobDir string, d ociDescript
 	return os.Rename(tmp, final)
 }
 
+// discardIncompleteBlobs removes the *.part files that an interrupted pull
+// left behind (#288). writeBlob only renames a .part to its final name after
+// the digest check passes, so a .part is never trusted: it is either
+// re-created from byte zero by the retry, or it belongs to a layer the retry
+// no longer needs (the user picked a different image) and would otherwise
+// hold gigabytes of C: for good. Completed blobs are left alone; their name
+// is their verified checksum, so the retry reuses them.
+func discardIncompleteBlobs(blobDir string) error {
+	entries, err := os.ReadDir(blobDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".part") {
+			continue
+		}
+		if err := os.Remove(filepath.Join(blobDir, e.Name())); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("discard incomplete blob %s: %w", e.Name(), err)
+		}
+	}
+	return nil
+}
+
 // pullImageToOCILayout downloads imageRef into an OCI image layout at destDir.
 // Returns the platform manifest digest and the total layout size. progress is
 // called with cumulative verified bytes against the expected total.
@@ -285,6 +308,9 @@ func pullImageToOCILayout(ctx context.Context, imageRef, destDir string, progres
 	}
 	blobDir := filepath.Join(destDir, "blobs", "sha256")
 	if err := os.MkdirAll(blobDir, 0o755); err != nil {
+		return "", 0, err
+	}
+	if err := discardIncompleteBlobs(blobDir); err != nil {
 		return "", 0, err
 	}
 	var total int64 = m.Config.Size

@@ -1,0 +1,413 @@
+﻿2026-09-27T10:54:15.9584092Z Current runner version: '2.337.0'
+2026-09-27T10:54:15.9604558Z ##[group]Runner Image Provisioner
+2026-09-27T10:54:15.9605045Z Hosted Compute Agent
+2026-09-27T10:54:15.9605397Z Version: 20260828.587
+2026-09-27T10:54:15.9605754Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-27T10:54:15.9606151Z Build Date: 2026-08-28T16:44:25Z
+2026-09-27T10:54:15.9606535Z Worker ID: {c0b19b29-aaf5-4eb3-81b7-cd983cd54135}
+2026-09-27T10:54:15.9606926Z Azure Region: centralus
+2026-09-27T10:54:15.9607306Z ##[endgroup]
+2026-09-27T10:54:15.9608425Z ##[group]Operating System
+2026-09-27T10:54:15.9608796Z Microsoft Windows Server 2025
+2026-09-27T10:54:15.9609134Z 10.0.26100
+2026-09-27T10:54:15.9609454Z Datacenter
+2026-09-27T10:54:15.9609741Z ##[endgroup]
+2026-09-27T10:54:15.9610035Z ##[group]Runner Image
+2026-09-27T10:54:15.9610353Z Image: windows-2025-vs2026
+2026-09-27T10:54:15.9610695Z Version: 20260922.246.2
+2026-09-27T10:54:15.9611686Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+2026-09-27T10:54:15.9612604Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+2026-09-27T10:54:15.9613182Z ##[endgroup]
+2026-09-27T10:54:15.9613826Z ##[group]GITHUB_TOKEN Permissions
+2026-09-27T10:54:15.9614984Z Contents: read
+2026-09-27T10:54:15.9615341Z Metadata: read
+2026-09-27T10:54:15.9615664Z ##[endgroup]
+2026-09-27T10:54:15.9617091Z Secret source: Actions
+2026-09-27T10:54:15.9617565Z Cache mode: write
+2026-09-27T10:54:15.9617980Z Prepare workflow directory
+2026-09-27T10:54:15.9844331Z Prepare all required actions
+2026-09-27T10:54:15.9877955Z Getting action download info
+2026-09-27T10:54:16.2060907Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-27T10:54:16.2867921Z Download action repository 'actions/setup-dotnet@v6' (SHA:a98b56852c35b8e3190ac28c8c2271da59106c68)
+2026-09-27T10:54:16.6515907Z Download action repository 'actions/setup-go@v7' (SHA:b7ad1dad31e06c5925ef5d2fc7ad053ef454303e)
+2026-09-27T10:54:17.0415431Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-09-27T10:54:17.2470014Z Complete job name: Native preview XAML and packaging build
+2026-09-27T10:54:17.3530932Z ##[group]Run actions/checkout@v7
+2026-09-27T10:54:17.3531793Z with:
+2026-09-27T10:54:17.3532102Z   repository: tuna-os/wootc
+2026-09-27T10:54:17.3534407Z   token: ***
+2026-09-27T10:54:17.3534672Z   ssh-strict: true
+2026-09-27T10:54:17.3534944Z   ssh-user: git
+2026-09-27T10:54:17.3535233Z   persist-credentials: true
+2026-09-27T10:54:17.3535532Z   clean: true
+2026-09-27T10:54:17.3535853Z   sparse-checkout-cone-mode: true
+2026-09-27T10:54:17.3536173Z   fetch-depth: 1
+2026-09-27T10:54:17.3536473Z   fetch-tags: false
+2026-09-27T10:54:17.3536766Z   show-progress: true
+2026-09-27T10:54:17.3537069Z   lfs: false
+2026-09-27T10:54:17.3537608Z   submodules: false
+2026-09-27T10:54:17.3537887Z   set-safe-directory: true
+2026-09-27T10:54:17.3538270Z   allow-unsafe-pr-checkout: false
+2026-09-27T10:54:17.3538770Z ##[endgroup]
+2026-09-27T10:54:17.4770081Z Syncing repository: tuna-os/wootc
+2026-09-27T10:54:17.4771376Z ##[group]Getting Git version info
+2026-09-27T10:54:17.4771797Z Working directory is 'D:\a\wootc\wootc'
+2026-09-27T10:54:17.5459187Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-09-27T10:54:17.8889070Z git version 2.55.0.windows.5
+2026-09-27T10:54:17.8927178Z ##[endgroup]
+2026-09-27T10:54:17.8940560Z Temporarily overriding HOME='D:\a\_temp\23876f5f-737a-48d9-821a-5f9046325753' before making global git config changes
+2026-09-27T10:54:17.8947131Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T10:54:17.8948502Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+2026-09-27T10:54:17.9463136Z Deleting the contents of 'D:\a\wootc\wootc'
+2026-09-27T10:54:17.9467084Z ##[group]Determining repository object format
+2026-09-27T10:54:17.9470692Z ##[endgroup]
+2026-09-27T10:54:17.9471416Z ##[group]Initializing the repository
+2026-09-27T10:54:17.9475256Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+2026-09-27T10:54:18.0189701Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+2026-09-27T10:54:18.0233133Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+2026-09-27T10:54:18.0782354Z ##[endgroup]
+2026-09-27T10:54:18.0783371Z ##[group]Disabling automatic garbage collection
+2026-09-27T10:54:18.0789252Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-09-27T10:54:18.1017091Z ##[endgroup]
+2026-09-27T10:54:18.1018073Z ##[group]Setting up auth
+2026-09-27T10:54:18.1018901Z Removing SSH command configuration
+2026-09-27T10:54:18.1025159Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T10:54:18.1256885Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-09-27T10:54:23.0159713Z Removing HTTP extra header
+2026-09-27T10:54:23.0168064Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T10:54:23.0402708Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-09-27T10:54:23.4718416Z Removing includeIf entries pointing to credentials config files
+2026-09-27T10:54:23.4729642Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T10:54:23.4975114Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-09-27T10:54:23.9501913Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-09-27T10:54:23.9764592Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git.path D:\a\_temp\git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:54:24.0020197Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D:\a\_temp\git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:54:24.0353373Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:54:24.0643622Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:54:24.0887431Z ##[endgroup]
+2026-09-27T10:54:24.0887858Z ##[group]Fetching the repository
+2026-09-27T10:54:24.0900427Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +7d6cb6528506ba7bf254d551eca0640e5f560735:refs/remotes/pull/450/merge
+2026-09-27T10:54:25.4900625Z From https://github.com/tuna-os/wootc
+2026-09-27T10:54:25.4901604Z  * [new ref]         7d6cb6528506ba7bf254d551eca0640e5f560735 -> pull/450/merge
+2026-09-27T10:54:25.4934302Z ##[endgroup]
+2026-09-27T10:54:25.4934661Z ##[group]Determining the checkout info
+2026-09-27T10:54:25.4935581Z ##[endgroup]
+2026-09-27T10:54:25.4942758Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-09-27T10:54:25.5290968Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-09-27T10:54:25.5532507Z ##[group]Checking out the ref
+2026-09-27T10:54:25.5540087Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/450/merge
+2026-09-27T10:54:25.7192644Z Note: switching to 'refs/remotes/pull/450/merge'.
+2026-09-27T10:54:25.7193064Z 
+2026-09-27T10:54:25.7193255Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-27T10:54:25.7193691Z changes and commit them, and you can discard any commits you make in this
+2026-09-27T10:54:25.7194048Z state without impacting any branches by switching back to a branch.
+2026-09-27T10:54:25.7194256Z 
+2026-09-27T10:54:25.7194429Z If you want to create a new branch to retain commits you create, you may
+2026-09-27T10:54:25.7194800Z do so (now or later) by using -c with the switch command. Example:
+2026-09-27T10:54:25.7195015Z 
+2026-09-27T10:54:25.7195103Z   git switch -c <new-branch-name>
+2026-09-27T10:54:25.7195292Z 
+2026-09-27T10:54:25.7195371Z Or undo this operation with:
+2026-09-27T10:54:25.7195534Z 
+2026-09-27T10:54:25.7195600Z   git switch -
+2026-09-27T10:54:25.7195702Z 
+2026-09-27T10:54:25.7195883Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-27T10:54:25.7196141Z 
+2026-09-27T10:54:25.7196500Z HEAD is now at 7d6cb65 Merge 9ee99f163c69baeb61f67d008c946e7d3a41919b into f20dff96f90ca6f7ba54102fd79d73cf11531150
+2026-09-27T10:54:25.7303027Z ##[endgroup]
+2026-09-27T10:54:25.7648284Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-09-27T10:54:25.7857888Z 7d6cb6528506ba7bf254d551eca0640e5f560735
+2026-09-27T10:54:25.8214814Z ##[group]Run actions/setup-dotnet@v6
+2026-09-27T10:54:25.8215168Z with:
+2026-09-27T10:54:25.8215285Z   global-json-file: shell/global.json
+2026-09-27T10:54:25.8215436Z   cache: false
+2026-09-27T10:54:25.8215540Z ##[endgroup]
+2026-09-27T10:54:26.0291128Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Runtime dotnet -Channel LTS
+2026-09-27T10:54:27.3080794Z dotnet-install: .NET Core Runtime with version '10.0.12' is already installed.
+2026-09-27T10:54:27.3919196Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -Sta -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command & 'D:\a\_actions\actions\setup-dotnet\v6\externals\install-dotnet.ps1' -SkipNonVersionedFiles -Version 8.0.425
+2026-09-27T10:54:27.9033807Z dotnet-install: .NET Core SDK with version '8.0.425' is already installed.
+2026-09-27T10:54:27.9858327Z ##[group]Run dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=7d6cb6528506ba7bf254d551eca0640e5f560735 --output ../out/winui-preview
+2026-09-27T10:54:27.9859214Z dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=7d6cb6528506ba7bf254d551eca0640e5f560735 --output ../out/winui-preview
+2026-09-27T10:54:28.0299814Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T10:54:28.0300049Z env:
+2026-09-27T10:54:28.0300186Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:54:28.0300331Z ##[endgroup]
+2026-09-27T10:54:36.6936084Z   Determining projects to restore...
+2026-09-27T10:54:37.5346810Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Core\Wootc.Shell.Core.csproj (in 78 ms).
+2026-09-27T10:54:41.4156880Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Native\Wootc.Shell.Native.csproj (in 3.92 sec).
+2026-09-27T10:55:08.7108334Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell\Wootc.Shell.csproj (in 31.26 sec).
+2026-09-27T10:55:14.5509509Z   Wootc.Shell.Core -> D:\a\wootc\wootc\shell\Wootc.Shell.Core\bin\x64\Release\net8.0\Wootc.Shell.Core.dll
+2026-09-27T10:55:15.4138974Z   Wootc.Shell.Native -> D:\a\wootc\wootc\shell\Wootc.Shell.Native\bin\x64\Release\net8.0-windows10.0.19041.0\Wootc.Shell.Native.dll
+2026-09-27T10:55:22.7769309Z   Wootc.Shell -> D:\a\wootc\wootc\shell\Wootc.Shell\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\Wootc.Shell.dll
+2026-09-27T10:55:23.8683479Z   Wootc.Shell -> D:\a\wootc\wootc\out\winui-preview\
+2026-09-27T10:55:23.9966157Z ##[group]Run actions/setup-go@v7
+2026-09-27T10:55:23.9966398Z with:
+2026-09-27T10:55:23.9966525Z   go-version-file: app/go.mod
+2026-09-27T10:55:23.9966670Z   check-latest: false
+2026-09-27T10:55:23.9968106Z   token: ***
+2026-09-27T10:55:23.9968214Z   cache: true
+2026-09-27T10:55:23.9968320Z env:
+2026-09-27T10:55:23.9968439Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:55:23.9968594Z ##[endgroup]
+2026-09-27T10:55:24.1200052Z Setup go version spec 1.26.0
+2026-09-27T10:55:24.1209795Z Attempting to download 1.26.0...
+2026-09-27T10:55:24.7579691Z matching 1.26.0...
+2026-09-27T10:55:24.7665840Z Acquiring 1.26.0 from https://github.com/actions/go-versions/releases/download/1.26.0-21889650668/go-1.26.0-win32-x64.zip
+2026-09-27T10:55:25.3436169Z Extracting Go...
+2026-09-27T10:55:25.3781746Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp\go-1.26.0-win32-x64.zip', 'D:\a\_temp\f345030d-3aad-4b28-b42a-133aab2c8d77', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp\go-1.26.0-win32-x64.zip' -DestinationPath 'D:\a\_temp\f345030d-3aad-4b28-b42a-133aab2c8d77' -Force } else { throw $_ } } ;"
+2026-09-27T10:55:28.3700723Z Successfully extracted go to D:\a\_temp\f345030d-3aad-4b28-b42a-133aab2c8d77
+2026-09-27T10:55:28.3701029Z Adding to the cache ...
+2026-09-27T10:55:35.4942007Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64 => D:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T10:55:35.4944555Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64.complete => D:\hostedtoolcache\windows\go\1.26.0\x64.complete
+2026-09-27T10:55:35.4945284Z Successfully cached go to C:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T10:55:35.4949872Z Added go to the path
+2026-09-27T10:55:35.4951418Z Successfully set up Go version 1.26.0
+2026-09-27T10:55:35.7422977Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOCACHE
+2026-09-27T10:55:35.7460975Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOMODCACHE
+2026-09-27T10:55:35.7617793Z C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T10:55:35.7633098Z C:\Users\runneradmin\go\pkg\mod
+2026-09-27T10:55:35.7665204Z ##[warning]Restore cache failed: Dependencies file is not found in D:\a\wootc\wootc. Supported file pattern: go.mod
+2026-09-27T10:55:35.7674669Z go version go1.26.0 windows/amd64
+2026-09-27T10:55:35.7674802Z 
+2026-09-27T10:55:35.7674987Z ##[group]go env
+2026-09-27T10:55:38.3594719Z set AR=ar
+2026-09-27T10:55:38.3594951Z set CC=gcc
+2026-09-27T10:55:38.3595226Z set CGO_CFLAGS=-O2 -g
+2026-09-27T10:55:38.3595462Z set CGO_CPPFLAGS=
+2026-09-27T10:55:38.3595709Z set CGO_CXXFLAGS=-O2 -g
+2026-09-27T10:55:38.3595913Z set CGO_ENABLED=1
+2026-09-27T10:55:38.3596097Z set CGO_FFLAGS=-O2 -g
+2026-09-27T10:55:38.3596291Z set CGO_LDFLAGS=-O2 -g
+2026-09-27T10:55:38.3596468Z set CXX=g++
+2026-09-27T10:55:38.3596622Z set GCCGO=gccgo
+2026-09-27T10:55:38.3596789Z set GO111MODULE=
+2026-09-27T10:55:38.3596956Z set GOAMD64=v1
+2026-09-27T10:55:38.3597124Z set GOARCH=amd64
+2026-09-27T10:55:38.3597290Z set GOAUTH=netrc
+2026-09-27T10:55:38.3597451Z set GOBIN=
+2026-09-27T10:55:38.3597704Z set GOCACHE=C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T10:55:38.3597990Z set GOCACHEPROG=
+2026-09-27T10:55:38.3598154Z set GODEBUG=
+2026-09-27T10:55:38.3598391Z set GOENV=C:\Users\runneradmin\AppData\Roaming\go\env
+2026-09-27T10:55:38.3598676Z set GOEXE=.exe
+2026-09-27T10:55:38.3599145Z set GOEXPERIMENT=
+2026-09-27T10:55:38.3599326Z set GOFIPS140=off
+2026-09-27T10:55:38.3599491Z set GOFLAGS=
+2026-09-27T10:55:38.3601748Z set GOGCCFLAGS=-m64 -mthreads -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\RUNNER~1\AppData\Local\Temp\go-build626959818=/tmp/go-build -gno-record-gcc-switches
+2026-09-27T10:55:38.3602608Z set GOHOSTARCH=amd64
+2026-09-27T10:55:38.3602809Z set GOHOSTOS=windows
+2026-09-27T10:55:38.3602985Z set GOINSECURE=
+2026-09-27T10:55:38.3603147Z set GOMOD=NUL
+2026-09-27T10:55:38.3603375Z set GOMODCACHE=C:\Users\runneradmin\go\pkg\mod
+2026-09-27T10:55:38.3603629Z set GONOPROXY=
+2026-09-27T10:55:38.3603789Z set GONOSUMDB=
+2026-09-27T10:55:38.3603952Z set GOOS=windows
+2026-09-27T10:55:38.3604154Z set GOPATH=C:\Users\runneradmin\go
+2026-09-27T10:55:38.3604451Z set GOPRIVATE=
+2026-09-27T10:55:38.3604746Z set GOPROXY=https://proxy.golang.org,direct
+2026-09-27T10:55:38.3605073Z set GOROOT=C:\hostedtoolcache\windows\go\1.26.0\x64
+2026-09-27T10:55:38.3605372Z set GOSUMDB=sum.golang.org
+2026-09-27T10:55:38.3605580Z set GOTELEMETRY=local
+2026-09-27T10:55:38.3605917Z set GOTELEMETRYDIR=C:\Users\runneradmin\AppData\Roaming\go\telemetry
+2026-09-27T10:55:38.3606248Z set GOTMPDIR=
+2026-09-27T10:55:38.3606425Z set GOTOOLCHAIN=local
+2026-09-27T10:55:38.3606761Z set GOTOOLDIR=C:\hostedtoolcache\windows\go\1.26.0\x64\pkg\tool\windows_amd64
+2026-09-27T10:55:38.3607257Z set GOVCS=
+2026-09-27T10:55:38.3607435Z set GOVERSION=go1.26.0
+2026-09-27T10:55:38.3607630Z set GOWORK=
+2026-09-27T10:55:38.3607816Z set PKG_CONFIG=pkg-config
+2026-09-27T10:55:38.3607952Z 
+2026-09-27T10:55:38.3608298Z ##[endgroup]
+2026-09-27T10:55:38.3842801Z ##[group]Run New-Item -ItemType Directory -Force frontend/dist | Out-Null
+2026-09-27T10:55:38.3843266Z New-Item -ItemType Directory -Force frontend/dist | Out-Null
+2026-09-27T10:55:38.3843568Z Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
+2026-09-27T10:55:38.3843988Z go build -ldflags "-X main.nativeBuildID=7d6cb6528506ba7bf254d551eca0640e5f560735" -o ../out/winui-preview/wootc-engine.exe .
+2026-09-27T10:55:38.3894985Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T10:55:38.3895271Z env:
+2026-09-27T10:55:38.3895420Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:55:38.3895564Z   GOTOOLCHAIN: local
+2026-09-27T10:55:38.3895683Z ##[endgroup]
+2026-09-27T10:55:38.8266951Z go: downloading github.com/tredoe/osutil v1.5.0
+2026-09-27T10:55:38.8267504Z go: downloading github.com/wailsapp/wails/v2 v2.16.0
+2026-09-27T10:55:40.4967729Z go: downloading golang.org/x/mod v0.41.0
+2026-09-27T10:55:40.4968185Z go: downloading golang.org/x/sys v0.48.0
+2026-09-27T10:55:40.4968528Z go: downloading golang.org/x/crypto v0.57.0
+2026-09-27T10:55:41.0775078Z go: downloading github.com/leaanthony/u v1.1.1
+2026-09-27T10:55:41.0779097Z go: downloading github.com/leaanthony/slicer v1.6.0
+2026-09-27T10:55:41.1117071Z go: downloading github.com/leaanthony/go-ansi-parser v1.6.1
+2026-09-27T10:55:41.1147943Z go: downloading github.com/pkg/errors v0.9.1
+2026-09-27T10:55:41.1358908Z go: downloading github.com/wailsapp/go-webview2 v1.0.22
+2026-09-27T10:55:41.1696603Z go: downloading github.com/rivo/uniseg v0.4.7
+2026-09-27T10:55:54.9781397Z ##[group]Run dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=7d6cb6528506ba7bf254d551eca0640e5f560735 --logger "trx;LogFileName=native-adapter.trx"
+2026-09-27T10:55:54.9785152Z dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=7d6cb6528506ba7bf254d551eca0640e5f560735 --logger "trx;LogFileName=native-adapter.trx"
+2026-09-27T10:55:54.9854852Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T10:55:54.9855059Z env:
+2026-09-27T10:55:54.9855191Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:55:54.9855340Z   GOTOOLCHAIN: local
+2026-09-27T10:55:54.9855460Z ##[endgroup]
+2026-09-27T10:55:55.5568458Z   Determining projects to restore...
+2026-09-27T10:55:55.8758121Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Native\Wootc.Shell.Native.csproj (in 62 ms).
+2026-09-27T10:55:55.8759078Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Core\Wootc.Shell.Core.csproj (in 59 ms).
+2026-09-27T10:55:59.4018794Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\Wootc.Shell.NativeTests.csproj (in 3.59 sec).
+2026-09-27T10:56:00.1461530Z   Wootc.Shell.Core -> D:\a\wootc\wootc\shell\Wootc.Shell.Core\bin\Release\net8.0\Wootc.Shell.Core.dll
+2026-09-27T10:56:00.4186219Z   Wootc.Shell.Native -> D:\a\wootc\wootc\shell\Wootc.Shell.Native\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.Native.dll
+2026-09-27T10:56:00.7291932Z   Wootc.Shell.NativeTests -> D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.NativeTests.dll
+2026-09-27T10:56:00.7351307Z Test run for D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.NativeTests.dll (.NETCoreApp,Version=v8.0)
+2026-09-27T10:56:00.8959649Z VSTest version 17.11.1 (x64)
+2026-09-27T10:56:00.8995991Z 
+2026-09-27T10:56:01.2397634Z Starting test execution, please wait...
+2026-09-27T10:56:01.2878420Z A total of 1 test files matched the specified pattern.
+2026-09-27T10:56:02.4066370Z Results File: D:\a\wootc\wootc\shell\Wootc.Shell.NativeTests\TestResults\native-adapter.trx
+2026-09-27T10:56:02.4068548Z 
+2026-09-27T10:56:02.4100513Z Passed!  - Failed:     0, Passed:    18, Skipped:     0, Total:    18, Duration: 529 ms - Wootc.Shell.NativeTests.dll (net8.0)
+2026-09-27T10:56:02.5609453Z ##[group]Run $env:WOOTC_NATIVE_BUILD_ID = '7d6cb6528506ba7bf254d551eca0640e5f560735'
+2026-09-27T10:56:02.5609865Z $env:WOOTC_NATIVE_BUILD_ID = '7d6cb6528506ba7bf254d551eca0640e5f560735'
+2026-09-27T10:56:02.5610130Z $env:WOOTC_NATIVE_PREVIEW_DIAGNOSTICS = '1'
+2026-09-27T10:56:02.5610457Z $env:WOOTC_NATIVE_PREVIEW_EXE = Join-Path $env:GITHUB_WORKSPACE 'out/winui-preview/Wootc.Shell.exe'
+2026-09-27T10:56:02.5610890Z dotnet test Wootc.Shell.UiTests --configuration Release --logger "trx;LogFileName=native-ui.trx"
+2026-09-27T10:56:02.5659130Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T10:56:02.5659335Z env:
+2026-09-27T10:56:02.5659465Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:56:02.5659611Z   GOTOOLCHAIN: local
+2026-09-27T10:56:02.5659728Z ##[endgroup]
+2026-09-27T10:56:03.1598088Z   Determining projects to restore...
+2026-09-27T10:56:07.3649815Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\Wootc.Shell.UiTests.csproj (in 4.07 sec).
+2026-09-27T10:56:08.1674307Z   Wootc.Shell.UiTests -> D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll
+2026-09-27T10:56:08.1766294Z Test run for D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\bin\Release\net8.0-windows10.0.19041.0\Wootc.Shell.UiTests.dll (.NETCoreApp,Version=v8.0)
+2026-09-27T10:56:08.2323595Z VSTest version 17.11.1 (x64)
+2026-09-27T10:56:08.2347359Z 
+2026-09-27T10:56:08.3059061Z Starting test execution, please wait...
+2026-09-27T10:56:08.3355792Z A total of 1 test files matched the specified pattern.
+2026-09-27T10:56:27.4776101Z Results File: D:\a\wootc\wootc\shell\Wootc.Shell.UiTests\TestResults\native-ui.trx
+2026-09-27T10:56:27.4777967Z 
+2026-09-27T10:56:27.4804872Z Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration: 18 s - Wootc.Shell.UiTests.dll (net8.0)
+2026-09-27T10:56:27.5559623Z ##[group]Run New-Item -ItemType Directory -Force out/winui-source-diagnostics | Out-Null
+2026-09-27T10:56:27.5560015Z New-Item -ItemType Directory -Force out/winui-source-diagnostics | Out-Null
+2026-09-27T10:56:27.5560365Z $resourceFiles = @(Get-ChildItem shell/Wootc.Shell/bin,out/winui-preview -Recurse -File -Filter '*.pri' |
+2026-09-27T10:56:27.5560795Z   Select-Object FullName,Length,@{Name='SHA256';Expression={(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}})
+2026-09-27T10:56:27.5561423Z ConvertTo-Json -InputObject $resourceFiles -Depth 3 | Set-Content -Encoding utf8 out/winui-source-diagnostics/resource-indexes.json
+2026-09-27T10:56:27.5561781Z Get-ChildItem shell/Wootc.Shell/obj -Recurse -File |
+2026-09-27T10:56:27.5562024Z   Where-Object { $_.Name -match '^(App|MainWindow|XamlTypeInfo)[.]g[.]' } |
+2026-09-27T10:56:27.5562314Z   Copy-Item -Destination out/winui-source-diagnostics
+2026-09-27T10:56:27.5607213Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-09-27T10:56:27.5607399Z env:
+2026-09-27T10:56:27.5607516Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:56:27.5607661Z   GOTOOLCHAIN: local
+2026-09-27T10:56:27.5607778Z ##[endgroup]
+2026-09-27T10:56:27.9305216Z ##[group]Run actions/upload-artifact@v7
+2026-09-27T10:56:27.9305415Z with:
+2026-09-27T10:56:27.9305537Z   name: winui-preview-diagnostics
+2026-09-27T10:56:27.9306052Z   path: out/winui-source-diagnostics/
+out/winui-startup-events.json
+out/native-startup-state-observations.json
+shell/Wootc.Shell.UiTests/TestResults/*.trx
+shell/Wootc.Shell.NativeTests/TestResults/*.trx
+
+2026-09-27T10:56:27.9306544Z   if-no-files-found: error
+2026-09-27T10:56:27.9306672Z   compression-level: 6
+2026-09-27T10:56:27.9306785Z   overwrite: false
+2026-09-27T10:56:27.9306900Z   include-hidden-files: false
+2026-09-27T10:56:27.9307022Z   archive: true
+2026-09-27T10:56:27.9307121Z env:
+2026-09-27T10:56:27.9307229Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:56:27.9307375Z   GOTOOLCHAIN: local
+2026-09-27T10:56:27.9307480Z ##[endgroup]
+2026-09-27T10:56:28.0596146Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-09-27T10:56:28.0598780Z The least common ancestor is D:\a\wootc\wootc. This will be the root directory of the artifact
+2026-09-27T10:56:28.0599367Z With the provided path, there will be 9 files uploaded
+2026-09-27T10:56:28.0602665Z Artifact name is valid!
+2026-09-27T10:56:28.0603327Z Root directory input is valid!
+2026-09-27T10:56:28.3395754Z Uploading artifact: winui-preview-diagnostics.zip
+2026-09-27T10:56:28.3424557Z Beginning upload of artifact content to blob storage
+2026-09-27T10:56:28.5307776Z Uploaded bytes 15785
+2026-09-27T10:56:28.5671573Z Finished uploading artifact content to blob storage!
+2026-09-27T10:56:28.5672227Z SHA256 digest of uploaded artifact is e0497cb4ec4b57cec5ddef44202d480954c209e036207a01c59ffac4cb2d80b1
+2026-09-27T10:56:28.5672710Z Finalizing artifact upload
+2026-09-27T10:56:28.8335104Z Artifact winui-preview-diagnostics successfully finalized. Artifact ID 10929728660
+2026-09-27T10:56:28.8335803Z Artifact winui-preview-diagnostics has been successfully uploaded! Final size is 15785 bytes. Artifact ID is 10929728660
+2026-09-27T10:56:28.8342521Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36314008323/artifacts/10929728660
+2026-09-27T10:56:28.8562968Z ##[group]Run actions/upload-artifact@v7
+2026-09-27T10:56:28.8563160Z with:
+2026-09-27T10:56:28.8563290Z   name: winui-preview-unpackaged
+2026-09-27T10:56:28.8563540Z   path: out/winui-preview/
+shell/Wootc.Shell.UiTests/TestResults/*.trx
+out/winui-startup-events.json
+
+2026-09-27T10:56:28.8563793Z   if-no-files-found: error
+2026-09-27T10:56:28.8563916Z   compression-level: 6
+2026-09-27T10:56:28.8564027Z   overwrite: false
+2026-09-27T10:56:28.8564136Z   include-hidden-files: false
+2026-09-27T10:56:28.8564260Z   archive: true
+2026-09-27T10:56:28.8564368Z env:
+2026-09-27T10:56:28.8564476Z   DOTNET_ROOT: C:\Program Files\dotnet
+2026-09-27T10:56:28.8564622Z   GOTOOLCHAIN: local
+2026-09-27T10:56:28.8564733Z ##[endgroup]
+2026-09-27T10:56:29.0543273Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-09-27T10:56:29.0545611Z The least common ancestor is D:\a\wootc\wootc. This will be the root directory of the artifact
+2026-09-27T10:56:29.0546250Z With the provided path, there will be 520 files uploaded
+2026-09-27T10:56:29.0550385Z Artifact name is valid!
+2026-09-27T10:56:29.0551433Z Root directory input is valid!
+2026-09-27T10:56:29.3249301Z Uploading artifact: winui-preview-unpackaged.zip
+2026-09-27T10:56:29.3322152Z Beginning upload of artifact content to blob storage
+2026-09-27T10:56:30.4053547Z Uploaded bytes 8388608
+2026-09-27T10:56:30.6082497Z Uploaded bytes 16777216
+2026-09-27T10:56:30.7236430Z Uploaded bytes 25165824
+2026-09-27T10:56:31.1178301Z Uploaded bytes 33554432
+2026-09-27T10:56:31.7364637Z Uploaded bytes 41943040
+2026-09-27T10:56:32.0542870Z Uploaded bytes 50331648
+2026-09-27T10:56:32.5453622Z Uploaded bytes 58720256
+2026-09-27T10:56:32.9092177Z Uploaded bytes 67108864
+2026-09-27T10:56:33.3967873Z Uploaded bytes 75497472
+2026-09-27T10:56:33.7814363Z Uploaded bytes 83886080
+2026-09-27T10:56:34.3149727Z Uploaded bytes 92274688
+2026-09-27T10:56:34.6175843Z Uploaded bytes 98938071
+2026-09-27T10:56:34.6539255Z Finished uploading artifact content to blob storage!
+2026-09-27T10:56:34.6542148Z SHA256 digest of uploaded artifact is 0d30243c664c1c8786126adda5079a07c17b7f9ee50c9b5dda167e497799c377
+2026-09-27T10:56:34.6543523Z Finalizing artifact upload
+2026-09-27T10:56:34.9272121Z Artifact winui-preview-unpackaged successfully finalized. Artifact ID 10929892466
+2026-09-27T10:56:34.9272587Z Artifact winui-preview-unpackaged has been successfully uploaded! Final size is 98938071 bytes. Artifact ID is 10929892466
+2026-09-27T10:56:34.9280275Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36314008323/artifacts/10929892466
+2026-09-27T10:56:34.9539348Z Post job cleanup.
+2026-09-27T10:56:35.0883641Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOCACHE
+2026-09-27T10:56:35.0946526Z [command]C:\hostedtoolcache\windows\go\1.26.0\x64\bin\go.exe env GOMODCACHE
+2026-09-27T10:56:35.1124158Z C:\Users\runneradmin\AppData\Local\go-build
+2026-09-27T10:56:35.1149298Z C:\Users\runneradmin\go\pkg\mod
+2026-09-27T10:56:35.1166354Z Primary key was not generated. Please check the log messages above for more errors or information
+2026-09-27T10:56:35.1368168Z Post job cleanup.
+2026-09-27T10:56:35.2570195Z Post job cleanup.
+2026-09-27T10:56:35.3683299Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-09-27T10:56:35.3876024Z git version 2.55.0.windows.5
+2026-09-27T10:56:35.3918454Z Temporarily overriding HOME='D:\a\_temp\b34c7610-deda-471c-a90d-6f5ca49bd14d' before making global git config changes
+2026-09-27T10:56:35.3919315Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T10:56:35.3925941Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+2026-09-27T10:56:35.4141009Z Removing SSH command configuration
+2026-09-27T10:56:35.4149337Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T10:56:35.4367598Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-09-27T10:56:35.8476831Z Removing HTTP extra header
+2026-09-27T10:56:35.8484552Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T10:56:35.8695208Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-09-27T10:56:36.2552994Z Removing includeIf entries pointing to credentials config files
+2026-09-27T10:56:36.2567576Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T10:56:36.2745165Z includeif.gitdir:D:/a/wootc/wootc/.git.path
+2026-09-27T10:56:36.2745481Z includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+2026-09-27T10:56:36.2745701Z includeif.gitdir:/github/workspace/.git.path
+2026-09-27T10:56:36.2746202Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T10:56:36.2773755Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git.path
+2026-09-27T10:56:36.2947377Z D:\a\_temp\git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:56:36.2981595Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git.path D\:\\a\\_temp\\git\-credentials\-bde87a3e\-5cc5\-4ee9\-b035\-71c0cb02444f\.config
+2026-09-27T10:56:36.3189251Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+2026-09-27T10:56:36.3360343Z D:\a\_temp\git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:56:36.3388399Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-bde87a3e\-5cc5\-4ee9\-b035\-71c0cb02444f\.config
+2026-09-27T10:56:36.3583244Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-27T10:56:36.3743566Z /github/runner_temp/git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:56:36.3768984Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-bde87a3e\-5cc5\-4ee9\-b035\-71c0cb02444f\.config
+2026-09-27T10:56:36.3967902Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T10:56:36.4142207Z /github/runner_temp/git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config
+2026-09-27T10:56:36.4198140Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-bde87a3e\-5cc5\-4ee9\-b035\-71c0cb02444f\.config
+2026-09-27T10:56:36.4401374Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-09-27T10:56:36.8631539Z Removing credentials config 'D:\a\_temp\git-credentials-bde87a3e-5cc5-4ee9-b035-71c0cb02444f.config'
+2026-09-27T10:56:36.8782216Z Cleaning up orphan processes
+2026-09-27T10:56:36.8882990Z Terminate orphan process: pid (9012) (dotnet)
+2026-09-27T10:56:36.8914796Z Terminate orphan process: pid (4036) (conhost)
+2026-09-27T10:56:36.9019842Z Terminate orphan process: pid (6776) (dotnet)
+2026-09-27T10:56:36.9059162Z Terminate orphan process: pid (8160) (conhost)

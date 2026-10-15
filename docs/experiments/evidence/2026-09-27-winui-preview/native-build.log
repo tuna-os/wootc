@@ -1,0 +1,6 @@
+Native preview XAML and packaging build	Restore and publish the native preview	﻿2026-09-27T08:57:18.1179022Z ##[group]Run dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 --output ../out/winui-preview
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T08:57:18.1180200Z ^[[36;1mdotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 --output ../out/winui-preview^[[0m
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T08:57:27.7172007Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell.Core\Wootc.Shell.Core.csproj (in 118 ms).
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T08:57:49.3253449Z   Restored D:\a\wootc\wootc\shell\Wootc.Shell\Wootc.Shell.csproj (in 21.74 sec).
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T08:58:06.3768082Z   Wootc.Shell -> D:\a\wootc\wootc\shell\Wootc.Shell\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\Wootc.Shell.dll
+Native preview XAML and packaging build	Restore and publish the native preview	2026-09-27T08:58:08.0865279Z   Wootc.Shell -> D:\a\wootc\wootc\out\winui-preview\

@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "bda4c7f94a96b14ab47c061c6ec0cb8ad7f51165",
+  "runId": 36321029786,
+  "testedMerge": "9ab2148d5316e4661fd5f0f6c895e7fe077d689d",
+  "nativeBuildId": "9ab2148d5316e4661fd5f0f6c895e7fe077d689d",
+  "conclusion": "failure",
+  "sourceFiles": [
+    {
+      "path": "shell/packaging/test-installed-preview.ps1",
+      "sha256": "7e4d9bc6429a2c28c662840aaad70dcc8997939be1d0a3a22152cc8c07853a5e"
+    },
+    {
+      "path": "shell/Wootc.Shell.UiTests/InstalledPreviewTests.cs",
+      "sha256": "3683d54c045ea7351c8e9a6d0ee74abd8da42ea7d296c5f88735dc96a794a4dc"
+    }
+  ],
+  "brands": [
+    {
+      "brand": "wootc",
+      "artifactId": 10932795198,
+      "artifactDigest": "sha256:89b2b645bd465ea1adfa0c3c01851cfeb7fff10c8128c36513a19ff150d48317",
+      "artifactSize": 67912105,
+      "selectedRangeFiles": [
+        {
+          "path": "bda-wootc-cleanup-after-public-fixtures.json",
+          "sha256": "1394557513fdb6b529154fc14231e8bec57b58c071d3accfbffc99d8443540ba"
+        },
+        {
+          "path": "bda-wootc-cleanup-before.json",
+          "sha256": "2e8476a0dc52f50d210b19f1d1c2ad7fb29390d607c173e45d3cdbc65928223a"
+        }
+      ],
+      "rawLog": "bda-wootc.raw.log",
+      "rawSha256": "7e731b220c47c6dd7821bbb84525b94b4da9ce9319d4df0e193e44238776006e",
+      "failure": "exact-unins000.exe-remains-at-cleanup",
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "bluefin",
+      "artifactId": 10932662059,
+      "artifactDigest": "sha256:36a644cd217204f19d88621c52f2fced09ef4dba4cd4a18fb8155afc47b4e634",
+      "artifactSize": 67909124,
+      "selectedRangeFiles": [
+        {
+          "path": "bda-bluefin-cleanup-after-public-fixtures.json",
+          "sha256": "685f8d7d3015f9fb52d353078a6d9732adcd7b5447bfcf8e6b1b933e759cfbc9"
+        },
+        {
+          "path": "bda-bluefin-cleanup-before.json",
+          "sha256": "8a3efc66287c6dfaa28cab5dc0e9f773560c3b6e956628a254404eec820891a5"
+        }
+      ],
+      "rawLog": "bda-bluefin.raw.log",
+      "rawSha256": "399b07ebc94b620e56ae4f8f25a07d3edb9ea0d20a45fcd198267ee30d7cc483",
+      "failure": "exact-unins000.exe-remains-at-cleanup",
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "tunaos",
+      "artifactId": 10932243678,
+      "artifactDigest": "sha256:a73ec99285cdcade91806db8c4862f75d2ea3a9cb9a853fae826c2225fc28058",
+      "artifactSize": 67909083,
+      "selectedRangeFiles": [
+        {
+          "path": "bda-tunaos-cleanup-after-public-fixtures.json",
+          "sha256": "e15dadc7f21f46da2b22fe93757766f8d41c46211710ac171109e50b12d91674"
+        },
+        {
+          "path": "bda-tunaos-cleanup-before.json",
+          "sha256": "00a227122b6820ca490e00691c9338bc22bd8265e73b3b3c026bf49227fcf5f3"
+        }
+      ],
+      "rawLog": "bda-tunaos.raw.log",
+      "rawSha256": "5793b42600ccaa6326622a167e04984d22f96b73e78fd9e77c07555c1c79055f",
+      "failure": "exact-unins000.exe-remains-at-cleanup",
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "bazzite",
+      "artifactId": 10932157696,
+      "artifactDigest": "sha256:baaa5356f73da50862dac646224c2065431710af3ec2c4a3327ec6c88a26dcdc",
+      "artifactSize": 67908356,
+      "selectedRangeFiles": [
+        {
+          "path": "bda-bazzite-cleanup-after-public-fixtures.json",
+          "sha256": "33e7346495b59070075bfd5cbee073be878c4b8b4ef40a156b3c750a339eb030"
+        },
+        {
+          "path": "bda-bazzite-cleanup-before.json",
+          "sha256": "4e588ea7c8ffe6f719992e42fd8dff4bd5451d09a1f3406688231c29de7a3ff3"
+        }
+      ],
+      "rawLog": "bda-bazzite.raw.log",
+      "rawSha256": "84a52e04a264db056883a37129073e7c0eda38aa8547642bd67f156358cbb374",
+      "failure": "exact-unins000.exe-remains-at-cleanup",
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    },
+    {
+      "brand": "aurora",
+      "artifactId": 10932109284,
+      "artifactDigest": "sha256:4a10dfdf6f3088e5d66c9e94f491f66c98253e73861458cfd889f90ff2f18d58",
+      "artifactSize": 67907387,
+      "selectedRangeFiles": [],
+      "rawLog": "bda-aurora.raw.log",
+      "rawSha256": "b7bb603cd3995d59996521174638d90333cc9d75ebb6a3b511c4d14f2cf685b7",
+      "failure": "installed-Ready-deadline-no-state-observed",
+      "wholeArtifactDownloaded": false,
+      "wholeArtifactDigestLocallyVerified": false
+    }
+  ],
+  "primaryUninstallerSource": "https://raw.githubusercontent.com/jrsoftware/issrc/is-7_1_0/Projects/Src/Setup.Uninstall.pas",
+  "primarySourceRelevantLines": "228-254",
+  "scope": "four exact uninstaller residual identities; separate aurora Ready deadline; no allbrand acceptance"
+}

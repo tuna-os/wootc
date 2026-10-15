@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "head": "010c136a49a03c642587eaec905d041cea4cb20d",
+  "run": 36336625137,
+  "job": 108668595353,
+  "testedHead": "010c136a49a03c642587eaec905d041cea4cb20d",
+  "artifact": {
+    "id": 10936399975,
+    "size": 2389,
+    "digest": "60561da02f6c2c3a98a277bba4e1baddfab79dbbec9d20a1bffa849b5e7b2157",
+    "apiDigestAndSizeVerified": true
+  },
+  "observation": "actual token profile/knownfolder read and modified-statistics primitive passed; noninteractive control inconclusive because actual runner token is interactive; no full capture/transport/operation authorization proof",
+  "files": {
+    "query/stdout.raw": "57a6d332fda390f06ef1f8bd8e41de87d077d3536e6abfc3ab68be11d5148ed9",
+    "query/receipt.json": "ce7492d9ae0bee7aa31e064ce5af679c7e5af21cfe6f427056f9bb765715c7c9",
+    "query/stderr.raw": "18a8590315993e3bd11e87f38ebd23cf798435394bb45ff46dfc56a49c5b9751",
+    "query/artifact.zip": "60561da02f6c2c3a98a277bba4e1baddfab79dbbec9d20a1bffa849b5e7b2157"
+  }
+}

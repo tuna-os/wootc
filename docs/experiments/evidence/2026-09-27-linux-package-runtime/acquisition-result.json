@@ -1,0 +1,483 @@
+{
+  "candidatePlanSha256": "e0e6e11b7f2ff4184f1b155be79610280a548c3af46614a66159b03136099dda",
+  "complete": true,
+  "currentFreeBytes": 37219741696,
+  "files": [
+    {
+      "algorithm": "sha512",
+      "bytes": 433651712,
+      "complete": true,
+      "digest": "a733e7d49442a03e70d03e4eb5aaf3967f3efc69ef70952f9bb10fc1ee2c4876eb95956b5ad2d31350e5fada768feb651352535fb8cd1233f61998a5a7d2e93c",
+      "localSha256": "b6e3a4dac69b38d55a763b1752e8fd7bb12e3948672a79fee4ef13fa53839d2f",
+      "name": "cloud.qcow2",
+      "size": 433651712,
+      "url": "https://cloud.debian.org/images/cloud/trixie/20260914-2601/debian-13-generic-amd64-20260914-2601.qcow2",
+      "urls": [
+        "https://cloud.debian.org/images/cloud/trixie/20260914-2601/debian-13-generic-amd64-20260914-2601.qcow2"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 296368,
+      "complete": true,
+      "digest": "3d42a242f2a1d6a8dcef15a66ddbb1263050695b2cff544b57a7a12d88338686",
+      "localSha256": "3d42a242f2a1d6a8dcef15a66ddbb1263050695b2cff544b57a7a12d88338686",
+      "name": "dracut-core_106-6_amd64.deb",
+      "size": 296368,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/d/dracut/dracut-core_106-6_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/d/dracut/dracut-core_106-6_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/d/dracut/dracut-core_106-6_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 37784,
+      "complete": true,
+      "digest": "5ef87c15510db933d4ec7617b88012b436b0ebfc248e4c7d3b6baf9aa5acbc76",
+      "localSha256": "5ef87c15510db933d4ec7617b88012b436b0ebfc248e4c7d3b6baf9aa5acbc76",
+      "name": "dracut-install_106-6_amd64.deb",
+      "size": 37784,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/d/dracut/dracut-install_106-6_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/d/dracut/dracut-install_106-6_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/d/dracut/dracut-install_106-6_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 8976,
+      "complete": true,
+      "digest": "01d71791af2b8306296c48f22b3aef390df21c84eb1328ded174722f19e1d349",
+      "localSha256": "01d71791af2b8306296c48f22b3aef390df21c84eb1328ded174722f19e1d349",
+      "name": "dracut_106-6_all.deb",
+      "size": 8976,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/d/dracut/dracut_106-6_all.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/d/dracut/dracut_106-6_all.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/d/dracut/dracut_106-6_all.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 30156,
+      "complete": true,
+      "digest": "617327cab7f7d4457bbcbb5aef603f89d5bc408e487cb85b006939b8c70b0b09",
+      "localSha256": "617327cab7f7d4457bbcbb5aef603f89d5bc408e487cb85b006939b8c70b0b09",
+      "name": "efibootmgr_18-2_amd64.deb",
+      "size": 30156,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/e/efibootmgr/efibootmgr_18-2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/e/efibootmgr/efibootmgr_18-2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/e/efibootmgr/efibootmgr_18-2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 41296,
+      "complete": true,
+      "digest": "4866550a235224b538a66fcaf95c8a796b6968d21c6f231086e142350b302eea",
+      "localSha256": "4866550a235224b538a66fcaf95c8a796b6968d21c6f231086e142350b302eea",
+      "name": "fuse3_3.17.2-3_amd64.deb",
+      "size": 41296,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/f/fuse3/fuse3_3.17.2-3_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/f/fuse3/fuse3_3.17.2-3_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/f/fuse3/fuse3_3.17.2-3_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 2899204,
+      "complete": true,
+      "digest": "a59d34a52e98450165ffc05b75886e139ad77b9d851d25b11eaa973cbdcb3bdd",
+      "localSha256": "a59d34a52e98450165ffc05b75886e139ad77b9d851d25b11eaa973cbdcb3bdd",
+      "name": "grub-common_2.12-9+deb13u2_amd64.deb",
+      "size": 2899204,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-common_2.12-9+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-common_2.12-9+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-common_2.12-9+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 2898928,
+      "complete": true,
+      "digest": "8ed602eda13469c0f18fb081ca7baf72d13edf97ae9ffaa46b0221f50d7268e8",
+      "localSha256": "8ed602eda13469c0f18fb081ca7baf72d13edf97ae9ffaa46b0221f50d7268e8",
+      "name": "grub-common_2.12-9_amd64.deb",
+      "size": 2898928,
+      "url": "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-common_2.12-9_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-common_2.12-9_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-common_2.12-9_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1053352,
+      "complete": true,
+      "digest": "d486d62c83aa197f83c1dd0560ffd96d91c896f4d58485164eb7e1623e7bfde2",
+      "localSha256": "d486d62c83aa197f83c1dd0560ffd96d91c896f4d58485164eb7e1623e7bfde2",
+      "name": "grub-efi-amd64-bin_2.12-9+deb13u2_amd64.deb",
+      "size": 1053352,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-efi-amd64-bin_2.12-9+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-efi-amd64-bin_2.12-9+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-efi-amd64-bin_2.12-9+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1053676,
+      "complete": true,
+      "digest": "39f030641355cca517293163505508c0513e754fd13bbe21b822c2358fe778d4",
+      "localSha256": "39f030641355cca517293163505508c0513e754fd13bbe21b822c2358fe778d4",
+      "name": "grub-efi-amd64-bin_2.12-9_amd64.deb",
+      "size": 1053676,
+      "url": "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-efi-amd64-bin_2.12-9_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-efi-amd64-bin_2.12-9_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-efi-amd64-bin_2.12-9_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1363392,
+      "complete": true,
+      "digest": "da8bb31308a3682a7d9343fc42bf7f603ad85bb5483eeb3ece23e2f1be2e9bbd",
+      "localSha256": "da8bb31308a3682a7d9343fc42bf7f603ad85bb5483eeb3ece23e2f1be2e9bbd",
+      "name": "grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+      "size": 1363392,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1363472,
+      "complete": true,
+      "digest": "2854085908185cc3ed4f611d31f927bce572d3e3394a1a173771e994e85ef81e",
+      "localSha256": "2854085908185cc3ed4f611d31f927bce572d3e3394a1a173771e994e85ef81e",
+      "name": "grub-efi-amd64-signed_1+2.12+9_amd64.deb",
+      "size": 1363472,
+      "url": "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1361532,
+      "complete": true,
+      "digest": "f30a4ab589f70af74bea89df37f538ad2faa7c6c41b2e7fa3b54a8fb81bf4193",
+      "localSha256": "f30a4ab589f70af74bea89df37f538ad2faa7c6c41b2e7fa3b54a8fb81bf4193",
+      "name": "grub-efi-amd64-unsigned_2.12-9+deb13u2_amd64.deb",
+      "size": 1361532,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-efi-amd64-unsigned_2.12-9+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-efi-amd64-unsigned_2.12-9+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-efi-amd64-unsigned_2.12-9+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1361264,
+      "complete": true,
+      "digest": "3f44189d1d62bd065512707362f330d14a4256f967b91a715033ddfb5fe806e2",
+      "localSha256": "3f44189d1d62bd065512707362f330d14a4256f967b91a715033ddfb5fe806e2",
+      "name": "grub-efi-amd64-unsigned_2.12-9_amd64.deb",
+      "size": 1361264,
+      "url": "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-efi-amd64-unsigned_2.12-9_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-efi-amd64-unsigned_2.12-9_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-efi-amd64-unsigned_2.12-9_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1021068,
+      "complete": true,
+      "digest": "ebeaa7a12f6a96127dec15d2a64a6d3d8278b9a8bc5531185d990e1c97a4728d",
+      "localSha256": "ebeaa7a12f6a96127dec15d2a64a6d3d8278b9a8bc5531185d990e1c97a4728d",
+      "name": "grub-pc-bin_2.12-9+deb13u2_amd64.deb",
+      "size": 1021068,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-pc-bin_2.12-9+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-pc-bin_2.12-9+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-pc-bin_2.12-9+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 1021096,
+      "complete": true,
+      "digest": "ce335f0f3f39c42ff1d2b242b7b103ee58c6ab41a70e3ef90c0d4d5fa8974921",
+      "localSha256": "ce335f0f3f39c42ff1d2b242b7b103ee58c6ab41a70e3ef90c0d4d5fa8974921",
+      "name": "grub-pc-bin_2.12-9_amd64.deb",
+      "size": 1021096,
+      "url": "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-pc-bin_2.12-9_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub-pc-bin_2.12-9_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub-pc-bin_2.12-9_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 641340,
+      "complete": true,
+      "digest": "0eeac6998ef810a67ecd6bef103bc4005e2b3559a99ee0e06483f3b6a473ad1f",
+      "localSha256": "0eeac6998ef810a67ecd6bef103bc4005e2b3559a99ee0e06483f3b6a473ad1f",
+      "name": "grub2-common_2.12-9+deb13u2_amd64.deb",
+      "size": 641340,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub2-common_2.12-9+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub2-common_2.12-9+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub2-common_2.12-9+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 642612,
+      "complete": true,
+      "digest": "737ff34249363b346173935177de1fb9232a416c2dbb08fd8c05064aead2b919",
+      "localSha256": "737ff34249363b346173935177de1fb9232a416c2dbb08fd8c05064aead2b919",
+      "name": "grub2-common_2.12-9_amd64.deb",
+      "size": 642612,
+      "url": "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub2-common_2.12-9_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/g/grub2/grub2-common_2.12-9_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/g/grub2/grub2-common_2.12-9_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 98748,
+      "complete": true,
+      "digest": "92e2d521ff872755a13aa69dba7b24025a7dc0f0f5aa708c9a86cd3565f570da",
+      "localSha256": "92e2d521ff872755a13aa69dba7b24025a7dc0f0f5aa708c9a86cd3565f570da",
+      "name": "libfuse3-4_3.17.2-3_amd64.deb",
+      "size": 98748,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/f/fuse3/libfuse3-4_3.17.2-3_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/f/fuse3/libfuse3-4_3.17.2-3_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/f/fuse3/libfuse3-4_3.17.2-3_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 843104,
+      "complete": true,
+      "digest": "f0eb41f8cb40896e0822e9ab65611e8383c12b721c76c54764f744abb4a8c247",
+      "localSha256": "f0eb41f8cb40896e0822e9ab65611e8383c12b721c76c54764f744abb4a8c247",
+      "name": "libgcrypt20_1.11.0-7+deb13u1_amd64.deb",
+      "size": 843104,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/libg/libgcrypt20/libgcrypt20_1.11.0-7+deb13u1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/libg/libgcrypt20/libgcrypt20_1.11.0-7+deb13u1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/libg/libgcrypt20/libgcrypt20_1.11.0-7+deb13u1_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 82108,
+      "complete": true,
+      "digest": "22b95570fd41c113ef6f5651563b4d748292844baab1278a46eb940c1dec2322",
+      "localSha256": "22b95570fd41c113ef6f5651563b4d748292844baab1278a46eb940c1dec2322",
+      "name": "libgpg-error0_1.51-4_amd64.deb",
+      "size": 82108,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/libg/libgpg-error/libgpg-error0_1.51-4_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/libg/libgpg-error/libgpg-error0_1.51-4_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/libg/libgpg-error/libgpg-error0_1.51-4_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 166788,
+      "complete": true,
+      "digest": "74641ea68ec67b37781435f0335b49747e300c4fd2ead3fdbb02d7a03569c5a3",
+      "localSha256": "74641ea68ec67b37781435f0335b49747e300c4fd2ead3fdbb02d7a03569c5a3",
+      "name": "libntfs-3g89t64_2022.10.3-5+deb13u2_amd64.deb",
+      "size": 166788,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/n/ntfs-3g/libntfs-3g89t64_2022.10.3-5+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/n/ntfs-3g/libntfs-3g89t64_2022.10.3-5+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/n/ntfs-3g/libntfs-3g89t64_2022.10.3-5+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 10180,
+      "complete": true,
+      "digest": "7e142ed64a81ccdd39714f213467bd365736ef341adb2be11be981f638b9175f",
+      "localSha256": "7e142ed64a81ccdd39714f213467bd365736ef341adb2be11be981f638b9175f",
+      "name": "libpython3-stdlib_3.13.5-1_amd64.deb",
+      "size": 10180,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/p/python3-defaults/libpython3-stdlib_3.13.5-1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/p/python3-defaults/libpython3-stdlib_3.13.5-1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/p/python3-defaults/libpython3-stdlib_3.13.5-1_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 409592,
+      "complete": true,
+      "digest": "a3cc777da48b3ae5f85ea0b193d81949be41c73dc8c310a87ec9dd3b59b49061",
+      "localSha256": "a3cc777da48b3ae5f85ea0b193d81949be41c73dc8c310a87ec9dd3b59b49061",
+      "name": "ntfs-3g_2022.10.3-5+deb13u2_amd64.deb",
+      "size": 409592,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/n/ntfs-3g/ntfs-3g_2022.10.3-5+deb13u2_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/n/ntfs-3g/ntfs-3g_2022.10.3-5+deb13u2_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/n/ntfs-3g/ntfs-3g_2022.10.3-5+deb13u2_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 27248,
+      "complete": true,
+      "digest": "a5d2371bebf3689f676e3f3bae800371bcc4392a8a51269e23d528249b399615",
+      "localSha256": "a5d2371bebf3689f676e3f3bae800371bcc4392a8a51269e23d528249b399615",
+      "name": "python3-minimal_3.13.5-1_amd64.deb",
+      "size": 27248,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/p/python3-defaults/python3-minimal_3.13.5-1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/p/python3-defaults/python3-minimal_3.13.5-1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/p/python3-defaults/python3-minimal_3.13.5-1_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 28244,
+      "complete": true,
+      "digest": "c1388174dc7140e6c19a6dd39f8a0dcb38a835cd66c65644e0dded43d5223cb0",
+      "localSha256": "c1388174dc7140e6c19a6dd39f8a0dcb38a835cd66c65644e0dded43d5223cb0",
+      "name": "python3_3.13.5-1_amd64.deb",
+      "size": 28244,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/p/python3-defaults/python3_3.13.5-1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/p/python3-defaults/python3_3.13.5-1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/p/python3-defaults/python3_3.13.5-1_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 562256,
+      "complete": true,
+      "digest": "7d7d6be6a52d6ea21eabdb78f686e4bb886f933171d33f5f3cf3cf2390343abd",
+      "localSha256": "7d7d6be6a52d6ea21eabdb78f686e4bb886f933171d33f5f3cf3cf2390343abd",
+      "name": "qemu-guest-agent_10.0.13+ds-0+deb13u1_amd64.deb",
+      "size": 562256,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/q/qemu/qemu-guest-agent_10.0.13+ds-0+deb13u1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/q/qemu/qemu-guest-agent_10.0.13+ds-0+deb13u1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/q/qemu/qemu-guest-agent_10.0.13+ds-0+deb13u1_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 2024216,
+      "complete": true,
+      "digest": "6d31339b1630153fe7c5f8a51426b8fa6ce35731aeb015a84f2d333c4e4dca30",
+      "localSha256": "6d31339b1630153fe7c5f8a51426b8fa6ce35731aeb015a84f2d333c4e4dca30",
+      "name": "qemu-utils_10.0.13+ds-0+deb13u1_amd64.deb",
+      "size": 2024216,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/q/qemu/qemu-utils_10.0.13+ds-0+deb13u1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/q/qemu/qemu-utils_10.0.13+ds-0+deb13u1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/q/qemu/qemu-utils_10.0.13+ds-0+deb13u1_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 301476,
+      "complete": true,
+      "digest": "7e950d75d5a40ecc0a99f727452ce35780b47a04d9a2cc3b1ff7c2bb316c033e",
+      "localSha256": "7e950d75d5a40ecc0a99f727452ce35780b47a04d9a2cc3b1ff7c2bb316c033e",
+      "name": "shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+      "size": 301476,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/s/shim-helpers-amd64-signed/shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/s/shim-helpers-amd64-signed/shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/s/shim-helpers-amd64-signed/shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 15868,
+      "complete": true,
+      "digest": "d26f0c83436223bc805a3c77a025df18f60f4c8328f6c96233355bba8e0a5251",
+      "localSha256": "d26f0c83436223bc805a3c77a025df18f60f4c8328f6c96233355bba8e0a5251",
+      "name": "shim-signed-common_1.51~1+deb13u1+16.1-2~deb13u1_all.deb",
+      "size": 15868,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/s/shim-signed/shim-signed-common_1.51~1+deb13u1+16.1-2~deb13u1_all.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/s/shim-signed/shim-signed-common_1.51~1+deb13u1+16.1-2~deb13u1_all.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/s/shim-signed/shim-signed-common_1.51~1+deb13u1+16.1-2~deb13u1_all.deb"
+      ]
+    },
+    {
+      "algorithm": "sha256",
+      "bytes": 346976,
+      "complete": true,
+      "digest": "3c802fa303c0e6bf126adee74028d1042e3120360d159c2c05181dc9b2f61005",
+      "localSha256": "3c802fa303c0e6bf126adee74028d1042e3120360d159c2c05181dc9b2f61005",
+      "name": "shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+      "size": 346976,
+      "url": "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/s/shim-signed/shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+      "urls": [
+        "https://snapshot.debian.org/archive/debian/20260914T000000Z/pool/main/s/shim-signed/shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+        "https://snapshot.debian.org/archive/debian/20250801T000000Z/pool/main/s/shim-signed/shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb"
+      ]
+    }
+  ],
+  "qemuImgInfo": {
+    "actual-size": 433655808,
+    "children": [
+      {
+        "info": {
+          "actual-size": 433655808,
+          "children": [],
+          "dirty-flag": false,
+          "filename": "/tmp/wootc-linux-package-inputs-20260927/cloud.qcow2",
+          "format": "file",
+          "format-specific": {
+            "data": {},
+            "type": "file"
+          },
+          "virtual-size": 433651712
+        },
+        "name": "file"
+      }
+    ],
+    "cluster-size": 65536,
+    "dirty-flag": false,
+    "filename": "/tmp/wootc-linux-package-inputs-20260927/cloud.qcow2",
+    "format": "qcow2",
+    "format-specific": {
+      "data": {
+        "compat": "1.1",
+        "compression-type": "zlib",
+        "corrupt": false,
+        "extended-l2": false,
+        "lazy-refcounts": false,
+        "refcount-bits": 16
+      },
+      "type": "qcow2"
+    },
+    "virtual-size": 3221225472
+  },
+  "quotaBytes": 1073741824,
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "scope": "authorized exact public acquisition only; no VM or host package installation",
+  "scratchId": "1df56e11dd1e45c2a15917e9553bb487",
+  "sourcePlanSha256": "ada5ba0f52a7c42620a5d0e5b8c2926c452022accd3877b5fe6a436ec3cb83a8",
+  "stage": "/tmp/wootc-linux-package-inputs-20260927"
+}

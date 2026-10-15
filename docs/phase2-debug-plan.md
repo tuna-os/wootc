@@ -1,5 +1,7 @@
 # Phase-2 debug plan and open hypotheses
 
+<!-- ste-disable-file: historical debug plan dated 2026-07-18 whose hypotheses are resolved; it is a record, kept as written -->
+
 Status as of 2026-07-18. Written after four consecutive failed E2E runs, none of
 which produced enough evidence to attribute the failure.
 

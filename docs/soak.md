@@ -23,6 +23,35 @@ with the key `runId:runAttempt`. An unexplained red invalidates the streak.
 Missing UTC days and ineligible runs reset it. A change to the shell or transport
 code resets it. The current UTC day does not count until it ends.
 
+## Infrastructure reds
+
+We record this policy before the first infrastructure red. Do not change it
+after a red occurs.
+
+The harness can classify a red as an infrastructure failure (M2.6, #220).
+The two classes are `qga-channel-lost` and `serial-feed-lost`. Such a red
+**resets the streak**. It is not an exception.
+
+- The red needs a diagnosis issue, as every red does.
+- Record the class with the issue in the config, for example
+  `"42:1": {"issue": 501, "infraClass": "qga-channel-lost"}`.
+  The ledger then shows the class in the row.
+- The collector refuses other class names.
+- The automatic flake retry is a `workflow_dispatch` run. It cannot count.
+- A green rerun try of the same scheduled run can count that day as
+  day 1 of a new streak. It cannot erase the red.
+
+## Merge policy during the soak
+
+After the start date, merge only these changes to main:
+
+- regression fixes
+- changes that block the release
+
+A feature waits on its branch until the soak ends. A change to the shell or
+transport code resets the streak, as stated above. A red nightly gets a
+diagnosis issue on the same day. Automatic pre-releases continue each day.
+
 ## Native proof contract
 
 Wails cannot qualify. A future native runner must supply a job named
