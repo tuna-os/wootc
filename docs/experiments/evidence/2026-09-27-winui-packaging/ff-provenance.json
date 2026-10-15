@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "ff862950cb97817aef00865e2bdd4274d29a08df",
+  "testedMerge": "d25baf8e6061fe10e22800dbfda829a867d542e8",
+  "nativeBuildId": "d25baf8e6061fe10e22800dbfda829a867d542e8",
+  "mergeParents": [
+    "09f26981dc5f159111d7240d19894147b166b0eb",
+    "ff862950cb97817aef00865e2bdd4274d29a08df"
+  ],
+  "runId": 36324584008,
+  "conclusion": "success",
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/winui-preview.yml",
+      "sha256": "2febc90ee61cf4a97b1d57213180aa5e10aa7bdf5efd9be902d0bbcf12aa939e"
+    },
+    {
+      "path": "shell/Wootc.Shell.Native/NativeDiagnosticState.cs",
+      "sha256": "71f42b273de369a11b7cf0d310cd46201dbe8ba5c468807b8797ad409bc36fca"
+    },
+    {
+      "path": "shell/Wootc.Shell.Native/NativeEngineConnector.cs",
+      "sha256": "64ca10375b48b506e9e113a5834dce49e0d8e92d3795bbda245eca03e92be156"
+    },
+    {
+      "path": "shell/Wootc.Shell.Native/NativeEngineSession.cs",
+      "sha256": "57fcd803f2a26ab181f29c01a31600779245a43b6119f80ece61b1bcf23be148"
+    },
+    {
+      "path": "shell/Wootc.Shell.NativeTests/DiagnosticTests.cs",
+      "sha256": "78b1bca99e96a76d18d245a53e5f1b8ad65eabfbef0f2df983ad1a7fe1b41e14"
+    },
+    {
+      "path": "shell/Wootc.Shell.NativeTests/TransportTests.cs",
+      "sha256": "f30cdfcd444d58bfc7f0f4ba820e5b845b43d6e45827f7af0f1f31b768c185c1"
+    },
+    {
+      "path": "shell/Wootc.Shell.UiTests/InstalledPreviewTests.cs",
+      "sha256": "6fe338aadc1f61150001fc478d6337030fe9c1c653c77761528b65da2a6d7310"
+    },
+    {
+      "path": "shell/Wootc.Shell/MainWindow.xaml.cs",
+      "sha256": "8598657562eba99a957855e79000f3fcd9fc731508b1fae470e0937e3467f201"
+    },
+    {
+      "path": "shell/packaging/inno-tool.json",
+      "sha256": "8a7636f4205fa0d496a00d1bc4f3beb02c8e05b291a3775cb6ef50460843c441"
+    },
+    {
+      "path": "shell/packaging/preview.iss",
+      "sha256": "3254fdec293c55217a5a5d83afe402104ca556b9d5dee40d945b69a7e356bddf"
+    },
+    {
+      "path": "shell/packaging/test-installed-preview.ps1",
+      "sha256": "afdc18ed8d054c53898775eadb948539fcab7af1d8c16f957c5bec7d0d709624"
+    },
+    {
+      "path": "shell/packaging/test-manifest.ps1",
+      "sha256": "602716dd5ec38d7ba6ec21dd09a6532940be0e5b1196c0cb7cf65081cd0f5f5c"
+    },
+    {
+      "path": "shell/packaging/test-uninstaller-removal.ps1",
+      "sha256": "b09e487aa78365cc72b2018ad0ad2601854e1aefe6bc7bd35586a5f119d53c23"
+    },
+    {
+      "path": "shell/packaging/wait-uninstaller-removal.ps1",
+      "sha256": "79d22397960058ebd91b3456e2d1d3b3e8047cdbf3de9d145ee8872805f1a099"
+    },
+    {
+      "path": "shell/packaging/write-manifest.ps1",
+      "sha256": "529972b2476dd83bbbe91a9905c3650071b212c13599825e2a05ebb9a8845f74"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 10933990865,
+      "name": "winui-preview-package-aurora",
+      "publishedArtifactDigest": "sha256:3c865093f9d28fe90506764f66719848df9595ca68c769447f9de3e80ba7e892",
+      "sizeInBytes": 67913511,
+      "wholeZipDigestLocallyVerified": false,
+      "rangeLog": "ff-artifact-10933990865-range.log",
+      "observedUninstallerRemovalMilliseconds": 550
+    },
+    {
+      "id": 10933961209,
+      "name": "winui-preview-package-bluefin",
+      "publishedArtifactDigest": "sha256:8dc36f5af11513440a3ced6e43260d8e0ae0d6aa2ef4b1738474c25c6e2ea42c",
+      "sizeInBytes": 67907103,
+      "wholeZipDigestLocallyVerified": false,
+      "rangeLog": "ff-artifact-10933961209-range.log",
+      "observedUninstallerRemovalMilliseconds": 574
+    },
+    {
+      "id": 10933787583,
+      "name": "winui-preview-package-wootc",
+      "publishedArtifactDigest": "sha256:4407f235b488b9f81c3bfa8cc5291a761d46574ee8fcf36bd2190361da22768e",
+      "sizeInBytes": 67908575,
+      "wholeZipDigestLocallyVerified": false,
+      "rangeLog": "ff-artifact-10933787583-range.log",
+      "observedUninstallerRemovalMilliseconds": 579
+    },
+    {
+      "id": 10933427259,
+      "name": "winui-preview-package-tunaos",
+      "publishedArtifactDigest": "sha256:52be9dce89783fcde0af41e2cef07723f533cd4d68f44adeff8cd7edb43375af",
+      "sizeInBytes": 67906047,
+      "wholeZipDigestLocallyVerified": false,
+      "rangeLog": "ff-artifact-10933427259-range.log",
+      "observedUninstallerRemovalMilliseconds": 562
+    },
+    {
+      "id": 10933133881,
+      "name": "winui-preview-package-bazzite",
+      "publishedArtifactDigest": "sha256:993fbb76e91e5464130edc4c5f74f1378c748b20aee5f7f5fd609d3838d3b76d",
+      "sizeInBytes": 67908463,
+      "wholeZipDigestLocallyVerified": false,
+      "rangeLog": "ff-artifact-10933133881-range.log",
+      "observedUninstallerRemovalMilliseconds": 567
+    }
+  ],
+  "evidenceHashes": {
+    "ff-bazzite-packaging-observations.json": "3099c62e5b102146b1c9d2310e2b024ef00905e3d412766a2d5559709924f11f",
+    "ff-tunaos-compiler-observations.json": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763",
+    "ff-tunaos-native-package.json": "4ee8543dc9244c49fb0e63c3b8145521585f9b05c89f88f864c6eee16020ff3e",
+    "ff-artifact-10933427259-range.log": "4dba332a65769ad110f1b950da0ea2933fd1f75202427a03b2214ca1b29a7ab7",
+    "ff-tunaos.raw.log": "e951f1f5eaacfa8dd723c44164fa48d629bb941d1dc8d519ad61e3346eafbbf5",
+    "ff-bluefin-packaging-observations.json": "aaf862be1de3b0cfaa30efc6fbf26c1690fbca49ffadf2cd7baf75447338a9e9",
+    "ff-native.raw.log": "89e0c77a81ebefe6b9da3763da972aaa4aeb24f45b9c5f7d17dc69d144ccd388",
+    "ff-artifact-10933961209-range.log": "25675d9ca7d18b47e43d4fd2ea759d7c9ef209c2df094c7b84e58917bcc2e07b",
+    "ff-artifact-10933787583-range.log": "2cd42ab1be67af230486f77e1c659928e7a4534b2b195ebb55f02cad55b78b3a",
+    "ff-aurora.raw.log": "653997fc5e7da5761325e4b2b59b9bb29552ba1048151df9589e49a6c269b074",
+    "ff-artifact-10933133881-range.log": "61e004ab9632ce7b539c6ee0c16d93153da8a443dfd5021722577b715fb0f3e4",
+    "ff-bluefin-compiler-observations.json": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763",
+    "ff-artifact-10933990865-range.log": "92837d1e284e2eeeab6ab1f28707daa958de022f113dafe63a89af4986eedb44",
+    "ff-bazzite.raw.log": "ea2ebce1ec66e5fb3aff5974ab006ada9b5c2b4dd4bb0180a3b5d15346e5aadf",
+    "ff-bazzite-compiler-observations.json": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763",
+    "ff-aurora-native-package.json": "efec7a4a5ebdc96f26df971997543e03c9f6af4adf35cc183e2230a0e327dcd2",
+    "ff-artifacts-api.json": "24ac6e51636f03694528c0d843688d394a72a515629a8233b1bb741b3a72a278",
+    "ff-wootc-compiler-observations.json": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763",
+    "ff-bluefin-native-package.json": "545993329e0ec6bfdd3aff4eaeae706e1c43fe89c03007a6a541216610e0bfa1",
+    "ff-aurora-compiler-observations.json": "a8b0fa6219817e6cc949acdbcdc434480095da9ccad52a6942d982e54d5f3763",
+    "ff-wootc.raw.log": "9ad4405a1b7a998f5dbe9301d3d286f0838c4ab2165619cce4ac4eef4486dc98",
+    "ff-wootc-packaging-cleanup.json": "af22d47afa6a67ba2ecc72d2409bbaa56b6f981e651f4eb2d1fad295e6d24c5e",
+    "ff-bluefin.raw.log": "ff933b463b643a0f0bfb39d8e10eeb9768c6b05c07b9e187e8b3de7a230dbdd0",
+    "ff-wootc-native-package.json": "2e9de2fedf97bd01a8bef20951ae725a30dd86c413274d665cc20e4be4029063",
+    "ff-aurora-packaging-observations.json": "2ec0dcf32af177bb2dd4dc628d3914d7b618c4b085756767d6b5c6fa9d145b4f",
+    "ff-run-api.json": "c14f0e6a5cbb943b79b7ce4a55a0bc0151ef4816a02b9f4e4967dd3666abb13f",
+    "ff-bazzite-packaging-cleanup.json": "aecc94b427c652aad4ab235594ede8b142333507797f1c9ab5feb39680765678",
+    "ff-tunaos-packaging-observations.json": "99484858ee60a10aefc7dae2f42593291a5a5b62d868250675aa52a55d6ba01c",
+    "ff-aurora-packaging-cleanup.json": "25c779603591d0679986d087696754c7a2174691a4d583294f1ddf5d7d285fa7",
+    "ff-tunaos-packaging-cleanup.json": "70490958ef450fb667eefd12e7b7add37eb19e69fa1606281f4f637410a644b4",
+    "ff-wootc-packaging-observations.json": "f0b5d7bf6f6699e8544dd51fa6cc35360f0a7e2190e70c834a4aa5567b069f9b",
+    "ff-bazzite-native-package.json": "facc640817a759c8abdc287960051c4d931297cdb562ec48b76dbb42654957fc",
+    "ff-bluefin-packaging-cleanup.json": "5070e10c07e3662fb7f90fc710e09771c48bb2cf87173acceb53d614418424d9",
+    "ff-jobs-api.json": "1265edb3409f6627e3d0104666215d83fece9afa540592ed5d474586e172e850"
+  },
+  "observedNativeAdapterTests": 25,
+  "nativeAdapterSkips": 0,
+  "observedUiTests": 2,
+  "uiSkips": 0,
+  "allBrandJobsPassed": true,
+  "scope": "Same-user elevated hosted component tests and actual installed branded startup RPC/uninstall preservation/observed cleanup. Primary failed RPC survives latest cleanup diagnostic. Interactive UAC, alternate-admin original-user bridge, offline/minimum-OS and full Linux journey remain unproved.",
+  "preservedFailedDiagnosticSource": "e7a168ed5d58a37abdb4f461d15b95d0c36a0d53",
+  "failedSourceObservation": "Duplicate whole-frame refusal occurs at response stage; previous test incorrectly expected DTO decode stage. Corrected source passes same refusal controls."
+}

@@ -1,0 +1,34 @@
+1..33
+ok 1 the reconnect cycle reports a channel that came back
+ok 2 the reconnect cycle claims nothing when the channel stays deaf
+ok 3 the recovery path cannot itself kill the run under set -e
+ok 4 the verdict lands in BOTH the ledger and the machine-readable file
+ok 5 channel loss is classified, not waited out
+ok 6 the reconnect cycle runs ONCE, and only before the verdict
+ok 7 the reconnect cycle reaps stale clients before reopening
+ok 8 the verdict names the class and claims nothing about the product
+ok 9 the GUI timeout never treats live ping as a product verdict
+ok 10 a channel that comes back is not a failure
+ok 11 qga.py: a socket that will not open is TRANSPORT, not a guest exit code
+ok 12 qga.py: the reconnect cycle drains before it syncs
+ok 13 the synthetic channel-kill test exists and runs in the fast tier
+ok 14 run-e2e.sh is syntactically valid
+ok 15 fail() records to the ledger, not just stderr
+ok 16 a fail inside a command substitution still reaches the ledger
+ok 17 a fail inside a pipeline still reaches the ledger
+ok 18 the success banner is gated on the ledger being empty
+ok 19 the gate exits non-zero and says TESTS FAILED when the ledger is non-empty
+ok 20 the user-data check records a failure — it is the North Star assertion
+ok 21 Phase-2 health failures preserve the firstboot unit result before reboot
+ok 22 a recovered ntfs3 mount error does not fail the run
+ok 23 a drm_panic handler registration is not a kernel panic
+ok 24 OEM payload transfers retry and report instead of aborting silently
+ok 25 a non-matching grep in a checked assignment cannot abort the run
+ok 26 a probe for something absent cannot print a [FAIL] that aborted nothing
+ok 27 log helpers do not mangle Windows paths
+ok 28 a locked OEM payload file is force-replaced, not just unheld
+ok 29 the serial arms the deployer-death detector, not just the heartbeat
+ok 30 an unreachable Phase-2 agent is inconclusive, not proof of data loss
+ok 31 drive mode can only install the image the directive named
+ok 32 flake auto-retry: only harness-classified flakes are ever re-dispatched
+ok 33 the North Star read polls the bridge, it does not race it

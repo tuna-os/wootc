@@ -1,0 +1,45 @@
+{
+  "baseCommit": "87a116e18979def1dfd236e5c7513d6f01efece2",
+  "controls": {
+    "causalControl": "Native APT Debug::pkgDPkgPM mode; no dpkg execution. Empty cache refuses; canonical cache yields absolute archive path.",
+    "consumerTests": 31,
+    "nativeRecorder": "Actual APT invokes private dpkg recorder; archive path and SHA verified. Host package state remains untouched.",
+    "removedCacheGuard": "RED",
+    "runtimeTests": 115
+  },
+  "evidenceSha256": {
+    "cache-guard-removed.raw.log": "3c748791e7a9e627307bec77e08bec16a6ce6af24f596637bddc98057bdb48b9",
+    "consumer-controls.raw.log": "67f83072884131173c9cb0cb16e50bf0a5d38c2c838deadf842b0cc525ce1650",
+    "guest-command-failure.stderr": "e6b8bc2574e4e7066ba19d926acff008ee5c876afac73426e64591493f20b69f",
+    "guest-command-failure.stdout": "a44624f3bc0e4d7e025e82fe25b7bd480b9fa1b6ffa9b8285f4c7e1f1655277a",
+    "guest-guest-failure.json": "29d399042fe82867250ca2d742d1dd78a1689449dc7b0294a44c2d9202e9bb69",
+    "guest-process-reap.json": "1039f3da921fcd247bcf571b3c489cdcb55422581ad149e543b690c737112d70",
+    "native-cache-causal.raw.log": "3a764e0160fb3df3987ddff44503a7a76f63978defd3202b66b223635c1834a3",
+    "runtime-controls.raw.log": "80dd3c3228e7d8d0268446d721f0fbefd53b5cbe385202b69e3f5fd095c0393e"
+  },
+  "originalRun": {
+    "artifactId": 10938416126,
+    "artifactSha256": "74c4b45a646c7292d7dd2eec8743b3ddc28180b89c1f1944e79dadc549250356",
+    "attempt": 1,
+    "conclusion": "failure",
+    "id": 36338221272,
+    "jobId": 108673215385,
+    "sourceCommit": "87a116e18979def1dfd236e5c7513d6f01efece2"
+  },
+  "primarySource": [
+    "https://raw.githubusercontent.com/Debian/apt/main/apt-pkg/acquire-item.cc",
+    "https://raw.githubusercontent.com/Debian/apt/main/apt-pkg/contrib/strutl.cc"
+  ],
+  "schemaVersion": 1,
+  "scope": {
+    "correctedGuestPackageInstallationAccepted": false,
+    "desktopAccepted": false,
+    "newRuntimeDispatched": false,
+    "originalGuestPartiallyChanged": true,
+    "originalProcessReaped": true
+  },
+  "sourceSha256": {
+    "tests/e2e/esp-chain/package-consumer.py": "2eaeffa0ff26a30efd58c45bac5d501a124384e5fd0b8f3b116de27461c00bd8",
+    "tests/unit/test_wootc_package_consumer.py": "8a82b0214e5b5c77e36aade2b288c2ed4712f23ad65292fce1950f7981f754a5"
+  }
+}

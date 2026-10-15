@@ -36,6 +36,7 @@ var ProtocolMethods = []string{
 	"GetBranding",
 	"GetReleaseNotice",
 	"GetImages",
+	"GetInstallSteps",
 	"GetSessionCandidates",
 	"StartInstall",
 	"CancelInstall",
@@ -47,6 +48,7 @@ var ProtocolMethods = []string{
 	"UninstallWith",
 	"BootIntoLinux",
 	"GetLastRun",
+	"GetRecoveryVerdict",
 	"E2EDriveDirective",
 	"E2EDriveReport",
 	"Shutdown",
@@ -179,10 +181,13 @@ func unmarshalStringParam(raw json.RawMessage, target *string) error {
 // ── JSON-RPC 2.0 Server ─────────────────────────────────────────────────────
 
 type Server struct {
-	app      *App
-	writer   *synchronizedWriter
-	mu       sync.Mutex
-	shutdown bool
+	strictStartup   bool
+	startupValidate func(context.Context) error
+	assessmentOnly  bool
+	app             *App
+	writer          *synchronizedWriter
+	mu              sync.Mutex
+	shutdown        bool
 }
 
 func NewServer(app *App, writer *synchronizedWriter) *Server {
@@ -192,7 +197,24 @@ func NewServer(app *App, writer *synchronizedWriter) *Server {
 	}
 }
 
+// NewAssessmentServer permits only the observed startup contract. The trusted
+// transport chooses this capability; no request or client field can upgrade it.
+// Native preview integration must choose this constructor; legacy Serve keeps
+// its separately authorized NewServer capability.
+func NewAssessmentServer(app *App, writer *synchronizedWriter) *Server {
+	server := NewServer(app, writer)
+	server.assessmentOnly = true
+	return server
+}
+
 func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrpcError) {
+	if s.assessmentOnly {
+		switch req.Method {
+		case "GetStatus", "GetLastRun", "GetRecoveryVerdict":
+		default:
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
+		}
+	}
 	switch req.Method {
 	case "GetSupportPolicy":
 		return s.app.GetSupportPolicy(), nil
@@ -244,6 +266,12 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return nil, nil
 
 	case "GetStatus":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+
 		return s.app.GetStatus(), nil
 
 	case "DefragDrive":
@@ -281,7 +309,43 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return nil, nil
 
 	case "GetLastRun":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		if s.strictStartup {
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
+			}
+			state, err := readNativeStartupLifecycle(wootcDir())
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native lifecycle observation refused"}
+			}
+			return state, nil
+		}
 		return s.app.GetLastRun(), nil
+	case "GetRecoveryVerdict":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		if s.strictStartup {
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
+			}
+			verdict, err := readNativeStartupRecovery(wootcDir())
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native recovery observation refused"}
+			}
+			return verdict, nil
+		}
+		return s.app.GetRecoveryVerdict(), nil
 
 	case "E2EDriveDirective":
 		return s.app.E2EDriveDirective(), nil
@@ -309,12 +373,20 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 // responses and notifications to out. On shutdown it closes out when out is
 // an io.Closer, so a disconnected client cannot block installation cleanup.
 func Serve(ctx context.Context, app *App, in io.Reader, out io.Writer) error {
+	return serveRPC(ctx, app, in, out, false)
+}
+
+func serveRPC(ctx context.Context, app *App, in io.Reader, out io.Writer, strictStartup bool) error {
 	syncWriter := &synchronizedWriter{out: out}
 	emitter := newStdioEmitter(syncWriter)
 	app.SetEmitter(emitter)
 
 	srv := NewServer(app, syncWriter)
+	srv.strictStartup = strictStartup
+	return servePreparedRPC(ctx, app, in, syncWriter, srv)
+}
 
+func servePreparedRPC(ctx context.Context, app *App, in io.Reader, syncWriter *synchronizedWriter, srv *Server) error {
 	scanner := bufio.NewScanner(in)
 	buf := make([]byte, 1024*1024)
 	scanner.Buffer(buf, 10*1024*1024)

@@ -1,0 +1,1 @@
+{"schema":1,"operation":"check-empty","before":[{"device":"owned-cd","qdev":"/machine/peripheral-anon/device[0]","type":"ide-cd","bootIndex":9,"medium":null}],"removed":[],"after":[{"device":"owned-cd","qdev":"/machine/peripheral-anon/device[0]","type":"ide-cd","bootIndex":9,"medium":null}],"empty":true}

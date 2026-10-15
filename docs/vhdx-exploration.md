@@ -2,8 +2,8 @@
 
 ## Decision
 
-`root.vhdx` replaces the raw `root.disk` container. We are deliberately
-skipping fixed VHD: VHDX provides the recovery UX we want (native Windows
+`root.vhdx` replaces the raw `root.disk` container. We do not use
+fixed VHD. VHDX provides the recovery UX we want (native Windows
 attach) plus an allocation log for metadata crash resilience.
 
 Windows creates a **dynamic VHDX** with DiskPart. The `.vhdx` extension makes
@@ -25,9 +25,9 @@ Windows NTFS → C:\wootc\disks\root.vhdx
 
 The deployer includes `qemu-nbd` and `nbd.ko`. During deployment it copies the
 binary into the target's `99wootc-boot` dracut module; that module inserts the
-NBD driver and adds the binary to the Phase-2 initramfs. The EFI path is
-unchanged: the kernel and initramfs remain on the ESP, and the initramfs makes
-the VHDX-backed root UUID appear before `sysroot.mount` runs.
+NBD driver and adds the binary to the Phase-2 initramfs. The EFI path does
+not change: the kernel and initramfs remain on the ESP. The initramfs makes the
+root UUID on the VHDX appear before `sysroot.mount` runs.
 
 ## Required validation
 
@@ -41,6 +41,6 @@ the VHDX-backed root UUID appear before `sysroot.mount` runs.
 
 ## Open risk
 
-The target initramfs must include all QEMU block-driver dependencies required
-by `qemu-nbd`; the first E2E run must inspect `lsinitrd` and prove that a VHDX
-can be opened after the target dracut regeneration.
+The target initramfs must include each QEMU block driver that `qemu-nbd`
+needs. The first E2E run must inspect `lsinitrd`. It must also prove that
+`qemu-nbd` can open a VHDX after dracut makes the target initramfs again.

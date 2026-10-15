@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Actual GUI handover observation callbacks; no guest or VM fixture."""
 import json
+import base64
 import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +15,21 @@ MODULE = ROOT / 'tests/e2e/lib/gui-observations.sh'
 class HandoverTests(unittest.TestCase):
     def run_shell(self, body, module=MODULE, **env):
         prefix = f'''set -Eeuo pipefail
+# Semantic fixtures control time; the separate blocking test uses real time.
+date() {{
+ [ "$*" = +%s ] || {{ command date "$@"; return; }}
+ local now reads
+ read -r now reads < "$CLOCK"
+ reads=$((reads + 1))
+ if [ "$CLOCK_EXPIRE_AT_READ" -gt 0 ] && [ "$reads" -ge "$CLOCK_EXPIRE_AT_READ" ]; then now=1001; fi
+ printf '%s %s\\n' "$now" "$reads" > "$CLOCK"
+ printf '%s\\n' "$now"
+}}
+sleep() {{
+ local now reads
+ read -r now reads < "$CLOCK"
+ printf '%s %s\\n' "$((now + $1))" "$reads" > "$CLOCK"
+}}
 infra_fail() {{ echo "INFRA $*"; }}
 qga_call() {{
  printf '%s\\n' "$*" >> "$CALLS"
@@ -31,9 +48,11 @@ wootc_gui_observations_configure qga_call wootc_phase_boundary
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / 'calls'
             calls.touch()
-            defaults = dict(WINDOWS='', WINDOWS_RC='1', LINUX='', LINUX_RC='1', PING_RC='0', WRITE_REPLY='gui-reboot-directive-written', WRITE_RC='0')
+            clock = Path(tmp) / 'clock'
+            clock.write_text('1000 0\n')
+            defaults = dict(CLOCK_EXPIRE_AT_READ='0', WINDOWS='', WINDOWS_RC='1', LINUX='', LINUX_RC='1', PING_RC='0', WRITE_REPLY='gui-reboot-directive-written', WRITE_RC='0', reboot_payload='')
             result = subprocess.run(['bash', '-c', prefix+body], capture_output=True, text=True,
-                                    timeout=4, env={**os.environ, **defaults, **env, 'CALLS':str(calls)})
+                                    timeout=4, env={**os.environ, **defaults, **env, 'CALLS':str(calls), 'CLOCK':str(clock)})
             return result, calls.read_text()
 
     def test_successful_linux_identity_is_distinct_from_channel_loss(self):
@@ -55,6 +74,21 @@ wootc_gui_observations_configure qga_call wootc_phase_boundary
             self.assertNotIn('PROVEN', result.stdout)
             self.assertIn('unknown', result.stdout)
             self.assertIn('ping', calls)
+
+    def test_expired_deadline_before_first_sample_refuses_without_guest_calls(self):
+        result, calls = self.run_shell('gui_wait_handover 1; echo PROVEN',
+                                      CLOCK_EXPIRE_AT_READ='2', LINUX='Linux', LINUX_RC='0')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('PROVEN', result.stdout)
+        self.assertEqual(calls, '')
+
+    def test_semantic_fixture_samples_then_expires_without_real_sleep(self):
+        result, calls = self.run_shell('gui_wait_handover 1; echo PROVEN')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(calls.count('powershell'), 1)
+        self.assertEqual(calls.count('exec'), 1)
+        self.assertEqual(calls.count('ping'), 1)
+        self.assertIn('unknown', result.stdout)
 
     def test_removed_status_guard_mutant_accepts_failed_linux_token(self):
         source=MODULE.read_text()
@@ -98,7 +132,8 @@ gui_handover_sample
     def test_real_blocking_transport_obeys_whole_deadline(self):
         with tempfile.TemporaryDirectory() as tmp:
             runtime = Path(tmp)/'runtime'
-            runtime.write_text('#!/bin/bash\nsleep 20\necho Linux\n')
+            calls = Path(tmp)/'blocking-calls'
+            runtime.write_text(f'#!/bin/bash\nprintf called >> {calls}\nsleep 20\necho Linux\n')
             runtime.chmod(0o755)
             script = f'''set -Eeuo pipefail
 source '{ROOT}/tests/e2e/lib/qga-transport.sh'
@@ -107,10 +142,13 @@ wootc_qga_configure '{runtime}' owned /owned/qga.py
 wootc_phase_boundary() {{ :; }}
 wootc_gui_observations_configure qga_call wootc_phase_boundary
 infra_fail() {{ echo "$*"; }}
-gui_wait_handover 1
+gui_wait_handover 3
 echo PROVEN
 '''
-            result = subprocess.run(['bash','-c',script], capture_output=True, text=True, timeout=3)
+            started = time.monotonic()
+            result = subprocess.run(['bash','-c',script], capture_output=True, text=True, timeout=5)
+            self.assertLess(time.monotonic() - started, 4.5)
+            self.assertEqual(calls.read_text(), 'called')
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn('PROVEN', result.stdout)
 
@@ -162,8 +200,9 @@ gui_wait_handover 1
 
     def test_actual_directive_consumer_stops_before_handover_on_failed_write(self):
         source=(ROOT/'tests/e2e/run-e2e.sh').read_text()
-        tail=source.split('    gui_write_reboot_directive ||',1)[1]
-        tail='gui_write_reboot_directive ||'+tail.split('\n}\n\nif [ "$GUI_INSTALL" = true ]; then',1)[0]
+        call=next(line.strip() for line in source.splitlines() if line.strip().startswith('gui_write_reboot_directive ') and 'capture_vm_diagnostics' in line)
+        tail=source.split('    '+call,1)[1]
+        tail=call+tail.split('\n}\n\nif [ "$GUI_INSTALL" = true ]; then',1)[0]
         body='info() { echo "$*"; }; step() { :; }; capture_vm_diagnostics() { echo DIAGNOSTICS; };'+tail.replace('gui_wait_handover 180','gui_wait_handover 1')
         result,calls=self.run_shell(body,WINDOWS='Windows_NT',WINDOWS_RC='0',WRITE_RC='7')
         self.assertNotEqual(result.returncode,0)
@@ -172,10 +211,30 @@ gui_wait_handover 1
         self.assertEqual(calls.count('powershell'),2)
         self.assertNotIn('ping',calls)
         # Removing the real caller refusal would proceed to the handover gate.
-        mutant=body.replace('gui_write_reboot_directive || { capture_vm_diagnostics; exit 1; }','gui_write_reboot_directive || true',1)
+        mutant=body.replace(call,call.split(' ||',1)[0]+' || true',1)
         broken,broken_calls=self.run_shell(mutant,WINDOWS='Windows_NT',WINDOWS_RC='0',WRITE_RC='7')
         self.assertIn('Reboot directive written',broken.stdout)
         self.assertGreater(broken_calls.count('powershell'),2)
+
+    def test_bound_reboot_payload_reaches_actual_script_and_preserves_write_guard(self):
+        value = dict(schemaVersion=1, runId='current', directiveId='1234567890abcdef1234567890abcdef', action='reboot')
+        payload = base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode()
+        for status in ['0', '7']:
+            result,calls=self.run_shell('gui_write_reboot_directive "$reboot_payload"; echo WRITTEN',
+                WINDOWS='Windows_NT', WINDOWS_RC='0', WRITE_RC=status, reboot_payload=payload)
+            self.assertEqual('WRITTEN' in result.stdout,status=='0')
+            self.assertIn("$encoded='"+payload+"'",calls)
+            self.assertIn('FromBase64String($encoded)',calls)
+            self.assertNotIn('$directive = "{`"action`":`"reboot`"}"',calls)
+            self.assertIn('Get-Content -LiteralPath',calls)
+            self.assertEqual(calls.count('Set-Content'),1)
+
+    def test_invalid_encoded_reboot_refuses_before_any_guest_call(self):
+        for payload in ["bad'; Write-Host injected", 'A'*4097, 'YWJj===', 'YW Jj']:
+            result,calls=self.run_shell('gui_write_reboot_directive "$reboot_payload"; echo WRITTEN',reboot_payload=payload)
+            self.assertNotEqual(result.returncode,0)
+            self.assertNotIn('WRITTEN',result.stdout)
+            self.assertEqual(calls,'')
 
     def test_actual_runner_does_not_claim_reboot_from_unknown_windows(self):
         source = (ROOT/'tests/e2e/run-e2e.sh').read_text()

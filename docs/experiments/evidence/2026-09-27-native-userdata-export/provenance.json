@@ -1,0 +1,54 @@
+{
+  "actualNativeBootAcceptance": false,
+  "checks": {
+    "extractedProbeBashSyntax": true,
+    "extractedProbeShellCheck": true,
+    "extractedProducerControls": 12,
+    "fullGoNativeShellCheck": "existingSC2086/SC2012/SC2015 outside changed heredoc; not a whole-file pass",
+    "fullGoNativeSyntax": true,
+    "goNativeBats": 34
+  },
+  "commands": [
+    "python3 -m unittest discover -s tests/unit -p 'test_native_userdata_export.py'",
+    "bats tests/unit/go-native.bats",
+    "bash -n payload/migration/wootc-go-native",
+    "shellcheck /tmp/wootc-native-userdata-producer-probe.sh"
+  ],
+  "contract": [
+    "EXPORT_SCHEMA=1",
+    "EXPORT_BOOT_ID=canonical current proc boot_id",
+    "SRC=source from same successful raw findmnt row",
+    "DATA_MAJ_MIN=major:minor from same row",
+    "DATA_MOUNT=absolute target from same row",
+    "exact seed file bytes follow headers"
+  ],
+  "controls": [
+    "positive exact CRLF and no final newline",
+    "failed findmnt with plausible stdout",
+    "failed boot read with valid stdout",
+    "boot changed across collection",
+    "partial failed seed read",
+    "seed metadata changed across read",
+    "missing seed and stale export",
+    "ambiguous seed",
+    "malformed mount/boot",
+    "failed stat with plausible stdout",
+    "failed chmod",
+    "failed atomic rename"
+  ],
+  "firmwareAcceptance": false,
+  "mainBase": "a333164",
+  "noexecControl": "fixture executable positively invoked before refusal assertions",
+  "resultHashes": {
+    "go-native-tests.log": "a537fdc48384799342dec923c9b46ccb388d00a4748605fbd51ddb35112c1400",
+    "producer-tests.log": "b992d21ba421d557e11867df8e955eaa29c45d63fcabd28b6b56cb7a051be8bb"
+  },
+  "schemaVersion": 1,
+  "scope": "actual extracted producer runs on private paths with explicit mount/boot command fixtures; no VM, OS, disk migration or firmware execution",
+  "sourceHashes": {
+    "payload/migration/wootc-go-native": "1df88aff7ceb9a0561aecc49e914bfd7952c6bfb66263eda1bad6e06ae9b53c9",
+    "tests/unit/go-native.bats": "75f11f7ae214d78f11b75ffd02563504d2c578803fb15c1c502c02de2d1a8168",
+    "tests/unit/test_native_userdata_export.py": "5f8d327f805b49b4ae67ef64785adf90bb5a2eb5696140cb4bd8efeb5932a80c"
+  },
+  "vmExecuted": false
+}

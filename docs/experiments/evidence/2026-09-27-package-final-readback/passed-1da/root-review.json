@@ -1,0 +1,29 @@
+{
+  "source": "1da5e196492410aabb4674a8a17777e6f20b9ac7",
+  "runId": 36345420818,
+  "conclusion": "success",
+  "artifactId": 10940510943,
+  "serialSha256": "8ff426d30b6ccf4d4aeb8a58ae2e87b868a795a5c17028ec5fccd759d97b9e3c",
+  "inventoryCounts": [
+    322,
+    329,
+    329,
+    329
+  ],
+  "serialSharedIdentityVerified": true,
+  "oldQgaReadbackAndAdvanceVerified": true,
+  "ownedProcessReap": {
+    "ownedProcessIdentity": {
+      "cmdlineSha256": "ab4dc6e1bd4490399d4514bb6710a8eb2465a5eca79e60b4fe99180708713fed",
+      "pid": 4155,
+      "startTime": "28204"
+    },
+    "returnCode": 0,
+    "schemaVersion": 1,
+    "waitCompleted": true
+  },
+  "workflowPackageAcceptanceReported": true,
+  "finalQgaReadbackRetained": false,
+  "firmwareAcceptance": false,
+  "classicOsBootAcceptance": false
+}

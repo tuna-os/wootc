@@ -1,0 +1,211 @@
+﻿2026-09-27T14:37:28.3915450Z Current runner version: '2.337.0'
+2026-09-27T14:37:28.3952625Z ##[group]Runner Image Provisioner
+2026-09-27T14:37:28.3954018Z Hosted Compute Agent
+2026-09-27T14:37:28.3955382Z Version: 20260828.587
+2026-09-27T14:37:28.3956640Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-27T14:37:28.3958030Z Build Date: 2026-08-28T16:44:25Z
+2026-09-27T14:37:28.3959564Z Worker ID: {ba43304b-137a-462e-873b-5885ea2c4396}
+2026-09-27T14:37:28.3960961Z Azure Region: eastus2
+2026-09-27T14:37:28.3961956Z ##[endgroup]
+2026-09-27T14:37:28.3964141Z ##[group]Operating System
+2026-09-27T14:37:28.3965507Z Ubuntu
+2026-09-27T14:37:28.3966555Z 24.04.5
+2026-09-27T14:37:28.3967449Z LTS
+2026-09-27T14:37:28.3968318Z ##[endgroup]
+2026-09-27T14:37:28.3969343Z ##[group]Runner Image
+2026-09-27T14:37:28.3970404Z Image: ubuntu-24.04
+2026-09-27T14:37:28.3971487Z Version: 20260920.314.1
+2026-09-27T14:37:28.3973542Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260920.314/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-27T14:37:28.3976615Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260920.314
+2026-09-27T14:37:28.3978304Z ##[endgroup]
+2026-09-27T14:37:28.3980271Z ##[group]GITHUB_TOKEN Permissions
+2026-09-27T14:37:28.3983024Z Contents: read
+2026-09-27T14:37:28.3984142Z Metadata: read
+2026-09-27T14:37:28.3985297Z ##[endgroup]
+2026-09-27T14:37:28.3988287Z Secret source: Actions
+2026-09-27T14:37:28.3989830Z Cache mode: write
+2026-09-27T14:37:28.3991095Z Prepare workflow directory
+2026-09-27T14:37:28.4462309Z Prepare all required actions
+2026-09-27T14:37:28.4534263Z Getting action download info
+2026-09-27T14:37:28.7114151Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-27T14:37:28.9139187Z Complete job name: classic offline package prerequisites
+2026-09-27T14:37:28.9898194Z ##[group]Run actions/checkout@v7
+2026-09-27T14:37:28.9899100Z with:
+2026-09-27T14:37:28.9899566Z   repository: tuna-os/wootc
+2026-09-27T14:37:28.9903655Z   token: ***
+2026-09-27T14:37:28.9904130Z   ssh-strict: true
+2026-09-27T14:37:28.9904806Z   ssh-user: git
+2026-09-27T14:37:28.9905280Z   persist-credentials: true
+2026-09-27T14:37:28.9905788Z   clean: true
+2026-09-27T14:37:28.9906247Z   sparse-checkout-cone-mode: true
+2026-09-27T14:37:28.9906794Z   fetch-depth: 1
+2026-09-27T14:37:28.9907239Z   fetch-tags: false
+2026-09-27T14:37:28.9907712Z   show-progress: true
+2026-09-27T14:37:28.9908181Z   lfs: false
+2026-09-27T14:37:28.9908618Z   submodules: false
+2026-09-27T14:37:28.9909081Z   set-safe-directory: true
+2026-09-27T14:37:28.9909605Z   allow-unsafe-pr-checkout: false
+2026-09-27T14:37:28.9910401Z ##[endgroup]
+2026-09-27T14:37:29.0917400Z Syncing repository: tuna-os/wootc
+2026-09-27T14:37:29.0919958Z ##[group]Getting Git version info
+2026-09-27T14:37:29.0921166Z Working directory is '/home/runner/work/wootc/wootc'
+2026-09-27T14:37:29.0922219Z [command]/usr/bin/git version
+2026-09-27T14:37:29.1020619Z git version 2.55.0
+2026-09-27T14:37:29.1051046Z ##[endgroup]
+2026-09-27T14:37:29.1065175Z Temporarily overriding HOME='/home/runner/work/_temp/a5b6a765-87b7-4395-99aa-74a53fc7a60b' before making global git config changes
+2026-09-27T14:37:29.1067484Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T14:37:29.1071752Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+2026-09-27T14:37:29.1130385Z Deleting the contents of '/home/runner/work/wootc/wootc'
+2026-09-27T14:37:29.1133505Z ##[group]Determining repository object format
+2026-09-27T14:37:29.1135783Z ##[endgroup]
+2026-09-27T14:37:29.1136864Z ##[group]Initializing the repository
+2026-09-27T14:37:29.1140675Z [command]/usr/bin/git init /home/runner/work/wootc/wootc
+2026-09-27T14:37:29.1276370Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-27T14:37:29.1278245Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-27T14:37:29.1279945Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-27T14:37:29.1281525Z hint: call:
+2026-09-27T14:37:29.1281987Z hint:
+2026-09-27T14:37:29.1282839Z hint: 	git config --global init.defaultBranch <name>
+2026-09-27T14:37:29.1283902Z hint:
+2026-09-27T14:37:29.1284929Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-27T14:37:29.1286373Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-27T14:37:29.1287150Z hint:
+2026-09-27T14:37:29.1287593Z hint: 	git branch -m <name>
+2026-09-27T14:37:29.1288095Z hint:
+2026-09-27T14:37:29.1288747Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-27T14:37:29.1290159Z Initialized empty Git repository in /home/runner/work/wootc/wootc/.git/
+2026-09-27T14:37:29.1293582Z [command]/usr/bin/git remote add origin https://github.com/tuna-os/wootc
+2026-09-27T14:37:29.1356695Z ##[endgroup]
+2026-09-27T14:37:29.1358513Z ##[group]Disabling automatic garbage collection
+2026-09-27T14:37:29.1375992Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-27T14:37:29.1400501Z ##[endgroup]
+2026-09-27T14:37:29.1402095Z ##[group]Setting up auth
+2026-09-27T14:37:29.1403222Z Removing SSH command configuration
+2026-09-27T14:37:29.1407549Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T14:37:29.1446322Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-27T14:37:29.1833212Z Removing HTTP extra header
+2026-09-27T14:37:29.1838938Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T14:37:29.1875975Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-27T14:37:29.2093190Z Removing includeIf entries pointing to credentials config files
+2026-09-27T14:37:29.2098398Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T14:37:29.2133563Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-27T14:37:29.2355203Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-27T14:37:29.2394760Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git.path /home/runner/work/_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:29.2427666Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:29.2467850Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:29.2502029Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:29.2532866Z ##[endgroup]
+2026-09-27T14:37:29.2533635Z ##[group]Fetching the repository
+2026-09-27T14:37:29.2539542Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +3e411ead9dc2b0eabd86e62f99586b87994c4333:refs/remotes/pull/489/merge
+2026-09-27T14:37:29.9098412Z From https://github.com/tuna-os/wootc
+2026-09-27T14:37:29.9100784Z  * [new ref]         3e411ead9dc2b0eabd86e62f99586b87994c4333 -> pull/489/merge
+2026-09-27T14:37:29.9106281Z ##[endgroup]
+2026-09-27T14:37:29.9108360Z ##[group]Determining the checkout info
+2026-09-27T14:37:29.9110849Z ##[endgroup]
+2026-09-27T14:37:29.9112229Z [command]/usr/bin/git sparse-checkout disable
+2026-09-27T14:37:29.9168691Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-27T14:37:29.9207108Z ##[group]Checking out the ref
+2026-09-27T14:37:29.9210543Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/489/merge
+2026-09-27T14:37:30.0037816Z Note: switching to 'refs/remotes/pull/489/merge'.
+2026-09-27T14:37:30.0039167Z 
+2026-09-27T14:37:30.0040266Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-27T14:37:30.0042169Z changes and commit them, and you can discard any commits you make in this
+2026-09-27T14:37:30.0043938Z state without impacting any branches by switching back to a branch.
+2026-09-27T14:37:30.0045687Z 
+2026-09-27T14:37:30.0046842Z If you want to create a new branch to retain commits you create, you may
+2026-09-27T14:37:30.0049488Z do so (now or later) by using -c with the switch command. Example:
+2026-09-27T14:37:30.0051076Z 
+2026-09-27T14:37:30.0051885Z   git switch -c <new-branch-name>
+2026-09-27T14:37:30.0053298Z 
+2026-09-27T14:37:30.0054261Z Or undo this operation with:
+2026-09-27T14:37:30.0055856Z 
+2026-09-27T14:37:30.0056649Z   git switch -
+2026-09-27T14:37:30.0057884Z 
+2026-09-27T14:37:30.0059434Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-27T14:37:30.0061429Z 
+2026-09-27T14:37:30.0063596Z HEAD is now at 3e411ea Merge 84dcb7133e7062e360360cb0dbc857001a1e97f9 into 73456c6aaae77b6b73193a5979e213c98890d17b
+2026-09-27T14:37:30.0092624Z ##[endgroup]
+2026-09-27T14:37:30.0170078Z [command]/usr/bin/git log -1 --format=%H
+2026-09-27T14:37:30.0203471Z 3e411ead9dc2b0eabd86e62f99586b87994c4333
+2026-09-27T14:37:30.0496080Z ##[group]Run python3 -c 'import sys; assert sys.version_info >= (3, 11)'
+2026-09-27T14:37:30.0498382Z [36;1mpython3 -c 'import sys; assert sys.version_info >= (3, 11)'[0m
+2026-09-27T14:37:30.0500155Z [36;1m/usr/bin/dpkg-deb --version[0m
+2026-09-27T14:37:30.0501496Z [36;1m/usr/bin/apt-get --version[0m
+2026-09-27T14:37:30.0834833Z shell: /usr/bin/bash -e {0}
+2026-09-27T14:37:30.0836381Z ##[endgroup]
+2026-09-27T14:37:30.1152772Z Debian 'dpkg-deb' package archive backend version 1.22.6 (amd64).
+2026-09-27T14:37:30.1156617Z This is free software; see the GNU General Public License version 2 or
+2026-09-27T14:37:30.1158635Z later for copying conditions. There is NO warranty.
+2026-09-27T14:37:30.1223489Z apt 2.8.3 (amd64)
+2026-09-27T14:37:30.1224978Z Supported modules:
+2026-09-27T14:37:30.1229246Z *Ver: Standard .deb
+2026-09-27T14:37:30.1231148Z  Pkg:  Debian APT solver interface (Priority -1000)
+2026-09-27T14:37:30.1233699Z  Pkg:  Debian APT planner interface (Priority -1000)
+2026-09-27T14:37:30.1235687Z *Pkg:  Debian dpkg interface (Priority 30)
+2026-09-27T14:37:30.1238959Z  S.L: 'deb' Debian binary tree
+2026-09-27T14:37:30.1241091Z  S.L: 'deb-src' Debian source tree
+2026-09-27T14:37:30.1243241Z  Idx: EDSP scenario file
+2026-09-27T14:37:30.1245448Z  Idx: EIPP scenario file
+2026-09-27T14:37:30.1247340Z  Idx: Debian Source Index
+2026-09-27T14:37:30.1249236Z  Idx: Debian Package Index
+2026-09-27T14:37:30.1251178Z  Idx: Debian Translation Index
+2026-09-27T14:37:30.1252451Z  Idx: Debian dpkg status file
+2026-09-27T14:37:30.1253601Z  Idx: Debian deb file
+2026-09-27T14:37:30.1255019Z  Idx: Debian dsc file
+2026-09-27T14:37:30.1256174Z  Idx: Debian control file
+2026-09-27T14:37:30.1340600Z ##[group]Run python3 -m unittest discover -s tests/unit -p test_wootc_package_consumer.py
+2026-09-27T14:37:30.1343258Z [36;1mpython3 -m unittest discover -s tests/unit -p test_wootc_package_consumer.py[0m
+2026-09-27T14:37:30.1345609Z [36;1mpython3 tests/audit-classic-offline.py .[0m
+2026-09-27T14:37:30.1411992Z shell: /usr/bin/bash -e {0}
+2026-09-27T14:37:30.1413084Z ##[endgroup]
+2026-09-27T14:37:31.1162162Z .................E..........
+2026-09-27T14:37:31.1162958Z ======================================================================
+2026-09-27T14:37:31.1164122Z ERROR: test_owned_descendant_cannot_hold_status_pipe_past_deadline (test_wootc_package_consumer.PackageConsumerTests.test_owned_descendant_cannot_hold_status_pipe_past_deadline)
+2026-09-27T14:37:31.1165947Z ----------------------------------------------------------------------
+2026-09-27T14:37:31.1166530Z Traceback (most recent call last):
+2026-09-27T14:37:31.1167488Z   File "/home/runner/work/wootc/wootc/tests/unit/test_wootc_package_consumer.py", line 324, in test_owned_descendant_cannot_hold_status_pipe_past_deadline
+2026-09-27T14:37:31.1168399Z     state = status.read_text().split(') ')[1]
+2026-09-27T14:37:31.1168811Z             ^^^^^^^^^^^^^^^^^^
+2026-09-27T14:37:31.1169281Z   File "/usr/lib/python3.12/pathlib.py", line 1030, in read_text
+2026-09-27T14:37:31.1169751Z     return f.read()
+2026-09-27T14:37:31.1170063Z            ^^^^^^^^
+2026-09-27T14:37:31.1170430Z ProcessLookupError: [Errno 3] No such process
+2026-09-27T14:37:31.1170724Z 
+2026-09-27T14:37:31.1170943Z ----------------------------------------------------------------------
+2026-09-27T14:37:31.1171442Z Ran 28 tests in 0.762s
+2026-09-27T14:37:31.1171660Z 
+2026-09-27T14:37:31.1171850Z FAILED (errors=1)
+2026-09-27T14:37:31.1298721Z ##[error]Process completed with exit code 1.
+2026-09-27T14:37:31.1448845Z Post job cleanup.
+2026-09-27T14:37:31.2294089Z [command]/usr/bin/git version
+2026-09-27T14:37:31.2337823Z git version 2.55.0
+2026-09-27T14:37:31.2373279Z Temporarily overriding HOME='/home/runner/work/_temp/064a1837-f7a2-44dd-af3d-dc2fb74dd628' before making global git config changes
+2026-09-27T14:37:31.2375110Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T14:37:31.2385323Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+2026-09-27T14:37:31.2412940Z Removing SSH command configuration
+2026-09-27T14:37:31.2418711Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T14:37:31.2465078Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-27T14:37:31.2712910Z Removing HTTP extra header
+2026-09-27T14:37:31.2718402Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T14:37:31.2759922Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-27T14:37:31.3051031Z Removing includeIf entries pointing to credentials config files
+2026-09-27T14:37:31.3052390Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T14:37:31.3066067Z includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+2026-09-27T14:37:31.3075885Z includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+2026-09-27T14:37:31.3076693Z includeif.gitdir:/github/workspace/.git.path
+2026-09-27T14:37:31.3077378Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T14:37:31.3079202Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+2026-09-27T14:37:31.3091679Z /home/runner/work/_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:31.3112768Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-224758b3\-67fb\-44bb\-a2c0\-2480988a631c\.config
+2026-09-27T14:37:31.3154283Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+2026-09-27T14:37:31.3192196Z /home/runner/work/_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:31.3202556Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-224758b3\-67fb\-44bb\-a2c0\-2480988a631c\.config
+2026-09-27T14:37:31.3242250Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-27T14:37:31.3272152Z /github/runner_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:31.3280651Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-224758b3\-67fb\-44bb\-a2c0\-2480988a631c\.config
+2026-09-27T14:37:31.3320912Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T14:37:31.3347530Z /github/runner_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config
+2026-09-27T14:37:31.3356991Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-224758b3\-67fb\-44bb\-a2c0\-2480988a631c\.config
+2026-09-27T14:37:31.3398840Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-27T14:37:31.3618709Z Removing credentials config '/home/runner/work/_temp/git-credentials-224758b3-67fb-44bb-a2c0-2480988a631c.config'
+2026-09-27T14:37:31.3759182Z Cleaning up orphan processes

@@ -234,3 +234,19 @@ The architecture page falls from 28 English findings to zero.
 Its headings, tables and diagrams remain; earlier dated records remain.
 The shared count falls from 1589 to 1561, and the budget follows that count.
 RC, hardware, firmware, signatures, restoration and the soak still need proof.
+
+
+## Pass — 2026-09-27, manual native hardware trials
+
+Checked the preparation and recovery claims in `docs/manual-testing.md` against
+source `09f2698`. This is a static review, not a hardware run.
+`tests/unit/docs-truth.bats` pins the three corrections.
+
+| Result | Previous claim | Source and correction |
+|---|---|---|
+| ✘ | Everything lives in one folder; no repartitioning | `app/disk_windows.go` can resize Windows and create a data partition. `app/app.go` changes power settings and stages ESP files. The guide describes those changes. |
+| ✘ | Only the folder and one boot entry exist before reboot; failure returns Windows after 30 seconds; uninstall puts everything back | Preparation also changes the ESP, registry and power state. The deployer requests a reboot; that request does not prove a Windows return. `app/installer_windows.go` reports incomplete cleanup. The guide requires observed return and baseline comparison. |
+| Scope gap | The manual journey has no shell or VM boundary | The steps cover the legacy Wails native path. They do not prove the VM desktop or WinUI journey. Those gates need their own tests on hardware. |
+
+Code samples, tables and the participant protocol remain unchanged.
+Hardware, timings and firmware outcomes still need the RC walk.

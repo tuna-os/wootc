@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>tuna-os/.github"
+    "local>tuna-os/.github",
+    "helpers:pinGitHubActionDigests"
   ],
   "packageRules": [
     {
@@ -24,6 +25,22 @@
       "description": "Experiment evidence records measured inputs. Keep its historical dependencies unchanged; production dependencies still update. See PR #424.",
       "matchFileNames": [
         "docs/experiments/evidence/**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "These workflows pin the ubuntu-24.04 runner on purpose: tests/e2e/package-runtime/host-data.py resolves the noble suites and pins noble qemu/ovmf packages, so a newer runner breaks the authenticated package closure (PR #491). Bump together with host-data.py, not alone.",
+      "matchDatasources": [
+        "github-runners"
+      ],
+      "matchPackageNames": [
+        "ubuntu"
+      ],
+      "matchFileNames": [
+        ".github/workflows/linux-package-execute.yml",
+        ".github/workflows/linux-package-runtime.yml",
+        ".github/workflows/offline-image-bundle.yml",
+        ".github/workflows/offline-release-plan.yml"
       ],
       "enabled": false
     }

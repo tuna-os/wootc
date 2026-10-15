@@ -1,0 +1,9 @@
+{"elapsed_ms":1,"message":"Mounting Windows partition for data migration","timestamp":"2026-09-27T18:39:38.453397019Z","type":"substep"}
+{"elapsed_ms":1,"message":"Data migration scratch budget: 0 B","timestamp":"2026-09-27T18:39:38.453489307Z","type":"info"}
+{"elapsed_ms":1,"message":"Copying Alice/Documents","timestamp":"2026-09-27T18:39:38.453582436Z","type":"substep"}
+{"elapsed_ms":1,"message":"Scratch space budget reached — stopping data migration","timestamp":"2026-09-27T18:39:38.453648619Z","type":"info"}
+--- FAIL: TestExtractData_FullFlow (0.00s)
+    extract_test.go:459: Found = false, want true
+FAIL
+FAIL	github.com/tuna-os/fisherman/internal/slurp	0.005s
+FAIL

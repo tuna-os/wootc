@@ -8,7 +8,7 @@ wootc_gui_configure() {
     WOOTC_GUI_SCRIPT_DIR="$1"
     WOOTC_GUI_POWERSHELL="$2"
     WOOTC_GUI_IDENTITY="$3"
-    WOOTC_GUI_WAIT_REBOOT="$4"
+    WOOTC_GUI_RESTART_WINDOWS="$4"
 }
 gui_prepare_account() {
     "${WOOTC_GUI_IDENTITY:?Configure GUI first}" || { infra_fail "GUI account preparation requires positive Windows identity"; return 1; }
@@ -73,8 +73,16 @@ gui_wait_interactive_session() {
         if user=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" "${WOOTC_GUI_POWERSHELL:?Configure GUI first}" '$ErrorActionPreference = "Stop"; $u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output "interactive-user=$u" }' 2>/dev/null); then
             user=$(printf '%s' "$user" | tr -d '\r')
             if [[ "$user" =~ $pattern ]]; then
-                pass "GUI interactive session ready: ${user#interactive-user=}"
-                return 0
+                # UserName alone is not what schtasks /IT needs: on 9/25-9/26
+                # it said wootc while `query user` was empty and the launch
+                # task never ran (Last Result 267011). Only a session the
+                # scheduler itself can enumerate counts as ready.
+                # shellcheck disable=SC2016 # PowerShell variables are literal.
+                if sessions=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" "${WOOTC_GUI_POWERSHELL:?Configure GUI first}" '(query user 2>&1) -join " | "' 2>/dev/null) \
+                    && [[ -n "$sessions" && "$sessions" != *"No User exists"* ]]; then
+                    pass "GUI interactive session ready: ${user#interactive-user=} (query user: $sessions)"
+                    return 0
+                fi
             fi
         fi
         remaining=$((deadline - $(date +%s)))
@@ -85,7 +93,7 @@ gui_wait_interactive_session() {
     done
     # Deliberately not a retryable flake: another copy of the same expired or
     # misconfigured snapshot cannot fix itself on a second hosted runner.
-    infra_fail "autologon-no-session: no interactive Windows user within $budget s; GUI was not scheduled"
+    infra_fail "autologon-no-session: Win32_ComputerSystem.UserName never paired with a query-user session within $budget s; GUI was not scheduled"
     # The deadline has expired. Do not issue a new guest diagnostic/write
     # beyond it; the infrastructure ledger above retains the refusal.
     return 1
@@ -123,8 +131,7 @@ Write-Output "update service stop requested"' >/dev/null 2>&1 || true
         return 0
     fi
     info "Windows reports $pending; restarting as the app instructs"
-    "${WOOTC_GUI_POWERSHELL:?Configure GUI first}" 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || { infra_fail "Servicing restart request failed"; return 1; }
-    "${WOOTC_GUI_WAIT_REBOOT:?Configure GUI first}" "Windows after the pending-servicing restart" || return 1
+    "${WOOTC_GUI_RESTART_WINDOWS:?Configure GUI first}" "Windows after the pending-servicing restart" || return 1
     gui_wait_interactive_session 300 || return 1
     pending=$(gui_servicing_probe) || { infra_fail "GUI servicing status after restart is unknown; launch refused"; return 1; }
     if [ "$pending" != clean ]; then

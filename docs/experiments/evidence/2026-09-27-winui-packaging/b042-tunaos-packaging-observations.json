@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "buildId": "095a45b1abe3e3703b2f830aaf0501a57b1e52a8",
+  "brandId": "tunaos",
+  "toolSha256": "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f",
+  "toolSigner": "CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL",
+  "toolVersion": "7.1.0",
+  "peFileVersion": "0.0.0.0",
+  "installerSha256": "D5B3E68EE05958D00EB5938BB3C098F7FC970DD9B4A2D55B1395FFD72A21C60A",
+  "manifestSha256": "312F024C58B90DA2E0624B9A906E2C8D05196B9A9718B6A49CC01093C94DF278",
+  "beforeStartup": {},
+  "afterStartup": {},
+  "afterUninstall": {},
+  "existingDestinationRefused": true,
+  "foreignFilesPreserved": true,
+  "actualInstalledStartupRpc": true,
+  "uninstallerRemovalObserved": true,
+  "uninstallerRemovalMilliseconds": 577,
+  "interactiveUacProved": false,
+  "offlineRuntimeProved": false,
+  "minimumOsProved": false
+}

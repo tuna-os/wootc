@@ -453,14 +453,36 @@ EOF
 #!/bin/bash
 # Runs from init's unconfined context at boot; the confined guest agent
 # reads only the /run export.
-f=$(ls /var/home/*/Documents/wootc-e2e-userdata.txt 2>/dev/null | head -1)
-{
-    if [ -n "$f" ]; then
-        printf 'SRC=%s\n' "$(findmnt -no SOURCE "$(df -P "$f" | awk 'NR==2{print $6}')" 2>/dev/null)"
-        cat "$f"
-    fi
-} > /run/wootc-e2e-native-userdata
-chmod 0644 /run/wootc-e2e-native-userdata
+set -Eeuo pipefail
+out=/run/wootc-e2e-native-userdata
+# A failed new observation must never leave an old successful export.
+rm -f -- "$out"
+temp=""
+trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
+boot=$(cat /proc/sys/kernel/random/boot_id)
+[[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+shopt -s nullglob
+files=(/var/home/*/Documents/wootc-e2e-userdata.txt)
+[[ ${#files[@]} == 1 ]]
+f=${files[0]}
+[[ -f "$f" && ! -L "$f" ]]
+before=$(stat -Lc '%d:%i:%s:%y:%z' -- "$f")
+row=$(findmnt --noheadings --raw --output SOURCE,MAJ:MIN,TARGET --target "$f")
+# Raw encoding and extra rows are unsupported, rather than decoded by guess.
+[[ "$row" != *$'\n'* && "$row" != *"\\"* ]]
+read -r src major target extra <<< "$row"
+[[ -z "$extra" && "$src" == /dev/* && "$major" =~ ^[0-9]+:[0-9]+$ && "$target" == /* ]]
+temp=$(mktemp "${out}.XXXXXX")
+printf 'EXPORT_SCHEMA=1\nEXPORT_BOOT_ID=%s\nSRC=%s\nDATA_MAJ_MIN=%s\nDATA_MOUNT=%s\n' \
+    "$boot" "$src" "$major" "$target" > "$temp"
+cat -- "$f" >> "$temp"
+after=$(stat -Lc '%d:%i:%s:%y:%z' -- "$f")
+[[ "$before" == "$after" ]]
+chmod 0644 "$temp"
+current=$(cat /proc/sys/kernel/random/boot_id)
+[[ "$current" == "$boot" ]]
+mv -T -- "$temp" "$out"
+temp=""
 PROBE
         chmod +x "$etcroot/wootc/e2e-native-probe.sh"
         cat > "$etcroot/systemd/system/wootc-e2e-native-probe.service" <<'UNIT'

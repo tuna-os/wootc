@@ -9,6 +9,7 @@ package main
 // reached, and the state tests operate on the dev-mode wootcDir (/tmp/wootc).
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -111,32 +112,39 @@ func captureStdout(t *testing.T, fn func()) string {
 }
 
 func TestHeadlessStatusAbsentState(t *testing.T) {
-	_ = os.Remove(statePath())
 	out := captureStdout(t, func() {
-		if code := headlessStatus(); code != 0 {
-			t.Errorf("headlessStatus(absent) = %d, want 0", code)
+		if code := headlessStatusWithReader(func() (LifecycleState, bool, error) { return LifecycleState{}, false, nil }); code != 0 {
+			t.Errorf("absent exit = %d", code)
 		}
 	})
-	if !strings.Contains(out, `{"state":"absent"}`) {
-		t.Errorf("headlessStatus(absent) output = %q, want state absent JSON", out)
+	if out != "{\"state\":\"absent\"}\n" {
+		t.Fatalf("absent output = %q", out)
 	}
 }
 
 func TestHeadlessStatusPrintsStateJSON(t *testing.T) {
-	dir := filepath.Dir(statePath())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(statePath())
-	writeState(StateDeployed, "deploy", "")
-
 	out := captureStdout(t, func() {
-		if code := headlessStatus(); code != 0 {
-			t.Errorf("headlessStatus(present) = %d, want 0", code)
+		if code := headlessStatusWithReader(func() (LifecycleState, bool, error) {
+			return LifecycleState{State: StateDeployed, Phase: "deploy"}, true, nil
+		}); code != 0 {
+			t.Errorf("present exit = %d", code)
 		}
 	})
 	if !strings.Contains(out, `"state": "deployed"`) || !strings.Contains(out, `"phase": "deploy"`) {
-		t.Errorf("headlessStatus(present) output = %q, want deployed state JSON", out)
+		t.Fatalf("present output = %q", out)
+	}
+}
+
+func TestHeadlessStatusRefusalNeverPrintsAbsent(t *testing.T) {
+	out := captureStdout(t, func() {
+		if code := headlessStatusWithReader(func() (LifecycleState, bool, error) {
+			return LifecycleState{}, false, errors.New("unsafe private path")
+		}); code != 1 {
+			t.Errorf("refusal exit = %d", code)
+		}
+	})
+	if out != "" {
+		t.Fatalf("refusal printed guessed status: %q", out)
 	}
 }
 

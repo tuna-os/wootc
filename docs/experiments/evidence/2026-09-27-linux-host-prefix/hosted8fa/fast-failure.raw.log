@@ -1,0 +1,1583 @@
+﻿2026-09-27T16:01:51.4276742Z Current runner version: '2.337.0'
+2026-09-27T16:01:51.4301901Z ##[group]Runner Image Provisioner
+2026-09-27T16:01:51.4302800Z Hosted Compute Agent
+2026-09-27T16:01:51.4303381Z Version: 20260828.587
+2026-09-27T16:01:51.4304149Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-27T16:01:51.4304900Z Build Date: 2026-08-28T16:44:25Z
+2026-09-27T16:01:51.4305702Z Worker ID: {ffa7fd71-6357-407d-a796-091855b4b7d3}
+2026-09-27T16:01:51.4306483Z Azure Region: westus
+2026-09-27T16:01:51.4307477Z ##[endgroup]
+2026-09-27T16:01:51.4309163Z ##[group]Operating System
+2026-09-27T16:01:51.4309813Z Ubuntu
+2026-09-27T16:01:51.4310411Z 24.04.5
+2026-09-27T16:01:51.4310947Z LTS
+2026-09-27T16:01:51.4311468Z ##[endgroup]
+2026-09-27T16:01:51.4312106Z ##[group]Runner Image
+2026-09-27T16:01:51.4312725Z Image: ubuntu-24.04
+2026-09-27T16:01:51.4313372Z Version: 20260920.314.1
+2026-09-27T16:01:51.4314631Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260920.314/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-27T16:01:51.4316316Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260920.314
+2026-09-27T16:01:51.4317632Z ##[endgroup]
+2026-09-27T16:01:51.4318847Z ##[group]GITHUB_TOKEN Permissions
+2026-09-27T16:01:51.4320787Z Contents: read
+2026-09-27T16:01:51.4321524Z Metadata: read
+2026-09-27T16:01:51.4322121Z ##[endgroup]
+2026-09-27T16:01:51.4324172Z Secret source: Actions
+2026-09-27T16:01:51.4325200Z Cache mode: write
+2026-09-27T16:01:51.4325936Z Prepare workflow directory
+2026-09-27T16:01:51.4725087Z Prepare all required actions
+2026-09-27T16:01:51.4773617Z Getting action download info
+2026-09-27T16:01:51.8576690Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-27T16:01:52.0074264Z Download action repository 'actions/setup-go@v7' (SHA:b7ad1dad31e06c5925ef5d2fc7ad053ef454303e)
+2026-09-27T16:01:52.5729216Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-09-27T16:01:52.8360553Z Complete job name: fast tier (bats + go)
+2026-09-27T16:01:52.9185971Z ##[group]Run actions/checkout@v7
+2026-09-27T16:01:52.9187123Z with:
+2026-09-27T16:01:52.9187574Z   submodules: recursive
+2026-09-27T16:01:52.9188054Z   repository: tuna-os/wootc
+2026-09-27T16:01:52.9191965Z   token: ***
+2026-09-27T16:01:52.9192402Z   ssh-strict: true
+2026-09-27T16:01:52.9192849Z   ssh-user: git
+2026-09-27T16:01:52.9193291Z   persist-credentials: true
+2026-09-27T16:01:52.9193843Z   clean: true
+2026-09-27T16:01:52.9194291Z   sparse-checkout-cone-mode: true
+2026-09-27T16:01:52.9194803Z   fetch-depth: 1
+2026-09-27T16:01:52.9195234Z   fetch-tags: false
+2026-09-27T16:01:52.9195689Z   show-progress: true
+2026-09-27T16:01:52.9196137Z   lfs: false
+2026-09-27T16:01:52.9196575Z   set-safe-directory: true
+2026-09-27T16:01:52.9197235Z   allow-unsafe-pr-checkout: false
+2026-09-27T16:01:52.9198088Z ##[endgroup]
+2026-09-27T16:01:53.0242407Z Syncing repository: tuna-os/wootc
+2026-09-27T16:01:53.0245244Z ##[group]Getting Git version info
+2026-09-27T16:01:53.0246485Z Working directory is '/home/runner/work/wootc/wootc'
+2026-09-27T16:01:53.0248705Z [command]/usr/bin/git version
+2026-09-27T16:01:53.0305232Z git version 2.55.0
+2026-09-27T16:01:53.0369362Z ##[endgroup]
+2026-09-27T16:01:53.0381187Z Temporarily overriding HOME='/home/runner/work/_temp/32811e7f-9f47-44d8-a43e-2d5d9431bfdc' before making global git config changes
+2026-09-27T16:01:53.0383828Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T16:01:53.0388055Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+2026-09-27T16:01:53.0445403Z Deleting the contents of '/home/runner/work/wootc/wootc'
+2026-09-27T16:01:53.0450098Z ##[group]Determining repository object format
+2026-09-27T16:01:53.0452156Z ##[endgroup]
+2026-09-27T16:01:53.0453438Z ##[group]Initializing the repository
+2026-09-27T16:01:53.0457994Z [command]/usr/bin/git init /home/runner/work/wootc/wootc
+2026-09-27T16:01:53.0627822Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-27T16:01:53.0630287Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-27T16:01:53.0632077Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-27T16:01:53.0633493Z hint: call:
+2026-09-27T16:01:53.0634248Z hint:
+2026-09-27T16:01:53.0635257Z hint: 	git config --global init.defaultBranch <name>
+2026-09-27T16:01:53.0636428Z hint:
+2026-09-27T16:01:53.0637806Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-27T16:01:53.0639391Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-27T16:01:53.0640657Z hint:
+2026-09-27T16:01:53.0641416Z hint: 	git branch -m <name>
+2026-09-27T16:01:53.0642318Z hint:
+2026-09-27T16:01:53.0643594Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-27T16:01:53.0644809Z Initialized empty Git repository in /home/runner/work/wootc/wootc/.git/
+2026-09-27T16:01:53.0646649Z [command]/usr/bin/git remote add origin https://github.com/tuna-os/wootc
+2026-09-27T16:01:53.0720722Z ##[endgroup]
+2026-09-27T16:01:53.0721574Z ##[group]Disabling automatic garbage collection
+2026-09-27T16:01:53.0722293Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-27T16:01:53.0765961Z ##[endgroup]
+2026-09-27T16:01:53.0768579Z ##[group]Setting up auth
+2026-09-27T16:01:53.0770051Z Removing SSH command configuration
+2026-09-27T16:01:53.0772747Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T16:01:53.0829555Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-27T16:01:53.1196701Z Removing HTTP extra header
+2026-09-27T16:01:53.1202906Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T16:01:53.1240273Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-27T16:01:53.1473361Z Removing includeIf entries pointing to credentials config files
+2026-09-27T16:01:53.1479057Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T16:01:53.1529265Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-27T16:01:53.1763789Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-27T16:01:53.1806574Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git.path /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:01:53.1843375Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:01:53.1882259Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:01:53.1918679Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:01:53.1952918Z ##[endgroup]
+2026-09-27T16:01:53.1953683Z ##[group]Fetching the repository
+2026-09-27T16:01:53.1960684Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +e5b4387cf5fdf8ffe4f799aee483c5f2b30edc10:refs/remotes/pull/494/merge
+2026-09-27T16:01:54.1807392Z From https://github.com/tuna-os/wootc
+2026-09-27T16:01:54.1808879Z  * [new ref]         e5b4387cf5fdf8ffe4f799aee483c5f2b30edc10 -> pull/494/merge
+2026-09-27T16:01:54.1812696Z ##[endgroup]
+2026-09-27T16:01:54.1814092Z ##[group]Determining the checkout info
+2026-09-27T16:01:54.1815626Z ##[endgroup]
+2026-09-27T16:01:54.1817968Z [command]/usr/bin/git sparse-checkout disable
+2026-09-27T16:01:54.1871220Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-27T16:01:54.1905001Z ##[group]Checking out the ref
+2026-09-27T16:01:54.1909018Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/494/merge
+2026-09-27T16:01:54.2979486Z Note: switching to 'refs/remotes/pull/494/merge'.
+2026-09-27T16:01:54.2980442Z 
+2026-09-27T16:01:54.2981204Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-27T16:01:54.2982978Z changes and commit them, and you can discard any commits you make in this
+2026-09-27T16:01:54.2984683Z state without impacting any branches by switching back to a branch.
+2026-09-27T16:01:54.2985701Z 
+2026-09-27T16:01:54.2986448Z If you want to create a new branch to retain commits you create, you may
+2026-09-27T16:01:54.2988485Z do so (now or later) by using -c with the switch command. Example:
+2026-09-27T16:01:54.2989567Z 
+2026-09-27T16:01:54.2990143Z   git switch -c <new-branch-name>
+2026-09-27T16:01:54.2990965Z 
+2026-09-27T16:01:54.2991520Z Or undo this operation with:
+2026-09-27T16:01:54.2992292Z 
+2026-09-27T16:01:54.2992788Z   git switch -
+2026-09-27T16:01:54.2993416Z 
+2026-09-27T16:01:54.2994411Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-27T16:01:54.2995792Z 
+2026-09-27T16:01:54.2997624Z HEAD is now at e5b4387 Merge 8fa0e6956cf47493bb28456ae8dfb0b38d480ed5 into a1fd5f7dcea3d4ac8c67a588d5f41c4277609822
+2026-09-27T16:01:54.3015234Z ##[endgroup]
+2026-09-27T16:01:54.3018644Z ##[group]Setting up auth for fetching submodules
+2026-09-27T16:01:54.3025135Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-27T16:01:54.3074319Z [command]/usr/bin/git config --global include.path /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:01:54.3109893Z [command]/usr/bin/git config --global --unset-all url.https://github.com/.insteadOf
+2026-09-27T16:01:54.3143278Z [command]/usr/bin/git config --global --add url.https://github.com/.insteadOf git@github.com:
+2026-09-27T16:01:54.3181510Z [command]/usr/bin/git config --global --add url.https://github.com/.insteadOf org-223733964@github.com:
+2026-09-27T16:01:54.3241862Z ##[endgroup]
+2026-09-27T16:01:54.3244474Z ##[group]Fetching submodules
+2026-09-27T16:01:54.3245901Z [command]/usr/bin/git submodule sync --recursive
+2026-09-27T16:01:54.3487618Z [command]/usr/bin/git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
+2026-09-27T16:01:54.3791328Z Submodule 'fisherman' (https://github.com/tuna-os/fisherman.git) registered for path 'fisherman'
+2026-09-27T16:01:54.3818808Z Cloning into '/home/runner/work/wootc/wootc/fisherman'...
+2026-09-27T16:01:57.3325198Z From https://github.com/tuna-os/fisherman
+2026-09-27T16:01:57.3331098Z  * branch            e2b316600fc68ba397730b39d1eb205dc1f1f240 -> FETCH_HEAD
+2026-09-27T16:01:57.3581559Z Submodule path 'fisherman': checked out 'e2b316600fc68ba397730b39d1eb205dc1f1f240'
+2026-09-27T16:01:57.3613832Z [command]/usr/bin/git submodule foreach --recursive git config --local gc.auto 0
+2026-09-27T16:01:57.3840455Z Entering 'fisherman'
+2026-09-27T16:01:57.3995871Z ##[endgroup]
+2026-09-27T16:01:57.3996736Z ##[group]Persisting credentials for submodules
+2026-09-27T16:01:57.4003687Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'url\.https\:\/\/github\.com\/\.insteadOf' && git config --local --unset-all 'url.https://github.com/.insteadOf' || :"
+2026-09-27T16:01:57.4231442Z Entering 'fisherman'
+2026-09-27T16:01:57.4291857Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-27T16:01:57.4522883Z Entering 'fisherman'
+2026-09-27T16:01:57.4543663Z file:/home/runner/work/wootc/wootc/.git/modules/fisherman/config	remote.origin.url
+2026-09-27T16:01:57.4579545Z [command]/usr/bin/git config --file /home/runner/work/wootc/wootc/.git/modules/fisherman/config includeIf.gitdir:/home/runner/work/wootc/wootc/.git/modules/fisherman.path /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:01:57.4618378Z [command]/usr/bin/git config --file /home/runner/work/wootc/wootc/.git/modules/fisherman/config includeIf.gitdir:/github/workspace/.git/modules/fisherman.path /github/runner_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:01:57.4659973Z [command]/usr/bin/git submodule foreach --recursive git config --local --add 'url.https://github.com/.insteadOf' 'git@github.com:'
+2026-09-27T16:01:57.4888774Z Entering 'fisherman'
+2026-09-27T16:01:57.4941788Z [command]/usr/bin/git submodule foreach --recursive git config --local --add 'url.https://github.com/.insteadOf' 'org-223733964@github.com:'
+2026-09-27T16:01:57.5173172Z Entering 'fisherman'
+2026-09-27T16:01:57.5222699Z ##[endgroup]
+2026-09-27T16:01:57.5272662Z [command]/usr/bin/git log -1 --format=%H
+2026-09-27T16:01:57.5303105Z e5b4387cf5fdf8ffe4f799aee483c5f2b30edc10
+2026-09-27T16:01:57.5579067Z ##[group]Run actions/setup-go@v7
+2026-09-27T16:01:57.5579461Z with:
+2026-09-27T16:01:57.5579726Z   go-version: 1.27
+2026-09-27T16:01:57.5579995Z   cache: false
+2026-09-27T16:01:57.5580269Z   check-latest: false
+2026-09-27T16:01:57.5582898Z   token: ***
+2026-09-27T16:01:57.5583165Z ##[endgroup]
+2026-09-27T16:01:57.6811331Z Setup go version spec 1.27
+2026-09-27T16:01:57.7401284Z Attempting to download 1.27...
+2026-09-27T16:01:58.3088595Z matching 1.27...
+2026-09-27T16:01:58.3128680Z Acquiring 1.27.1 from https://github.com/actions/go-versions/releases/download/1.27.1-33583469715/go-1.27.1-linux-x64.tar.gz
+2026-09-27T16:01:58.8996631Z Extracting Go...
+2026-09-27T16:01:58.9110734Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/fe36673f-fd7b-4472-b0b2-f2db1ff8c1e9 -f /home/runner/work/_temp/cec45083-9322-4192-9f54-9ed5532a2b17
+2026-09-27T16:02:00.6099113Z Successfully extracted go to /home/runner/work/_temp/fe36673f-fd7b-4472-b0b2-f2db1ff8c1e9
+2026-09-27T16:02:00.6100305Z Adding to the cache ...
+2026-09-27T16:02:07.9550567Z Successfully cached go to /opt/hostedtoolcache/go/1.27.1/x64
+2026-09-27T16:02:07.9552789Z Added go to the path
+2026-09-27T16:02:07.9554884Z Successfully set up Go version 1.27
+2026-09-27T16:02:07.9845179Z go version go1.27.1 linux/amd64
+2026-09-27T16:02:07.9845569Z 
+2026-09-27T16:02:07.9846323Z ##[group]go env
+2026-09-27T16:02:09.7612026Z AR='ar'
+2026-09-27T16:02:09.7612572Z CC='gcc'
+2026-09-27T16:02:09.7613167Z CGO_CFLAGS='-O2 -g'
+2026-09-27T16:02:09.7613675Z CGO_CPPFLAGS=''
+2026-09-27T16:02:09.7614123Z CGO_CXXFLAGS='-O2 -g'
+2026-09-27T16:02:09.7614520Z CGO_ENABLED='1'
+2026-09-27T16:02:09.7614879Z CGO_FFLAGS='-O2 -g'
+2026-09-27T16:02:09.7615224Z CGO_LDFLAGS='-O2 -g'
+2026-09-27T16:02:09.7615590Z CXX='g++'
+2026-09-27T16:02:09.7615960Z GCCGO='gccgo'
+2026-09-27T16:02:09.7616282Z GO111MODULE=''
+2026-09-27T16:02:09.7616600Z GOAMD64='v1'
+2026-09-27T16:02:09.7617232Z GOARCH='amd64'
+2026-09-27T16:02:09.7617562Z GOAUTH='netrc'
+2026-09-27T16:02:09.7617923Z GOBIN='/home/runner/go/bin'
+2026-09-27T16:02:09.7618478Z GOCACHE='/home/runner/.cache/go-build'
+2026-09-27T16:02:09.7619050Z GOCACHEPROG=''
+2026-09-27T16:02:09.7619498Z GODEBUG=''
+2026-09-27T16:02:09.7619940Z GOENV='/home/runner/.config/go/env'
+2026-09-27T16:02:09.7620478Z GOEXE=''
+2026-09-27T16:02:09.7620846Z GOEXPERIMENT=''
+2026-09-27T16:02:09.7621229Z GOFIPS140='off'
+2026-09-27T16:02:09.7621534Z GOFLAGS=''
+2026-09-27T16:02:09.7622626Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build2650980530=/tmp/go-build -gno-record-gcc-switches'
+2026-09-27T16:02:09.7623899Z GOHOSTARCH='amd64'
+2026-09-27T16:02:09.7624612Z GOHOSTOS='linux'
+2026-09-27T16:02:09.7624935Z GOINSECURE=''
+2026-09-27T16:02:09.7625250Z GOMOD='/dev/null'
+2026-09-27T16:02:09.7625614Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-09-27T16:02:09.7626031Z GONOPROXY=''
+2026-09-27T16:02:09.7626334Z GONOSUMDB=''
+2026-09-27T16:02:09.7626635Z GOOS='linux'
+2026-09-27T16:02:09.7627179Z GOPACKAGESDRIVER=''
+2026-09-27T16:02:09.7627535Z GOPATH='/home/runner/go'
+2026-09-27T16:02:09.7627882Z GOPRIVATE=''
+2026-09-27T16:02:09.7628270Z GOPROXY='https://proxy.golang.org,direct'
+2026-09-27T16:02:09.7628781Z GOROOT='/opt/hostedtoolcache/go/1.27.1/x64'
+2026-09-27T16:02:09.7629250Z GOSUMDB='sum.golang.org'
+2026-09-27T16:02:09.7629634Z GOTELEMETRY='local'
+2026-09-27T16:02:09.7630092Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-09-27T16:02:09.7630564Z GOTMPDIR=''
+2026-09-27T16:02:09.7630858Z GOTOOLCHAIN='local'
+2026-09-27T16:02:09.7631420Z GOTOOLDIR='/opt/hostedtoolcache/go/1.27.1/x64/pkg/tool/linux_amd64'
+2026-09-27T16:02:09.7631983Z GOVCS=''
+2026-09-27T16:02:09.7632279Z GOVERSION='go1.27.1'
+2026-09-27T16:02:09.7632594Z GOWORK=''
+2026-09-27T16:02:09.7632892Z PKG_CONFIG='pkg-config'
+2026-09-27T16:02:09.7633113Z 
+2026-09-27T16:02:09.7633591Z ##[endgroup]
+2026-09-27T16:02:09.7901950Z ##[group]Run sudo apt-get update -qq && sudo apt-get install -y -qq bats rsync
+2026-09-27T16:02:09.7902947Z [36;1msudo apt-get update -qq && sudo apt-get install -y -qq bats rsync[0m
+2026-09-27T16:02:09.8216630Z shell: /usr/bin/bash -e {0}
+2026-09-27T16:02:09.8217314Z env:
+2026-09-27T16:02:09.8217651Z   GOTOOLCHAIN: local
+2026-09-27T16:02:09.8218035Z ##[endgroup]
+2026-09-27T16:02:19.5205149Z Selecting previously unselected package bats.
+2026-09-27T16:02:19.7455623Z (Reading database ... 
+2026-09-27T16:02:19.7456143Z (Reading database ... 5%
+2026-09-27T16:02:19.7456587Z (Reading database ... 10%
+2026-09-27T16:02:19.7457994Z (Reading database ... 15%
+2026-09-27T16:02:19.7458520Z (Reading database ... 20%
+2026-09-27T16:02:19.7459041Z (Reading database ... 25%
+2026-09-27T16:02:19.7459580Z (Reading database ... 30%
+2026-09-27T16:02:19.7459989Z (Reading database ... 35%
+2026-09-27T16:02:19.7460356Z (Reading database ... 40%
+2026-09-27T16:02:19.7460713Z (Reading database ... 45%
+2026-09-27T16:02:19.7461142Z (Reading database ... 50%
+2026-09-27T16:02:19.7588674Z (Reading database ... 55%
+2026-09-27T16:02:20.3771117Z (Reading database ... 60%
+2026-09-27T16:02:20.7154628Z (Reading database ... 65%
+2026-09-27T16:02:21.0841592Z (Reading database ... 70%
+2026-09-27T16:02:21.4671797Z (Reading database ... 75%
+2026-09-27T16:02:22.1097510Z (Reading database ... 80%
+2026-09-27T16:02:23.0989152Z (Reading database ... 85%
+2026-09-27T16:02:24.2348162Z (Reading database ... 90%
+2026-09-27T16:02:25.2004836Z (Reading database ... 95%
+2026-09-27T16:02:25.2005457Z (Reading database ... 100%
+2026-09-27T16:02:25.2006046Z (Reading database ... 202190 files and directories currently installed.)
+2026-09-27T16:02:25.2053717Z Preparing to unpack .../archives/bats_1.10.0-1_all.deb ...
+2026-09-27T16:02:25.2081696Z Unpacking bats (1.10.0-1) ...
+2026-09-27T16:02:25.2907983Z Setting up bats (1.10.0-1) ...
+2026-09-27T16:02:25.2931716Z Processing triggers for man-db (2.12.0-4build2) ...
+2026-09-27T16:02:25.2953640Z Not building database; man-db/auto-update is not 'true'.
+2026-09-27T16:02:26.6170764Z 
+2026-09-27T16:02:26.6171418Z Running kernel seems to be up-to-date.
+2026-09-27T16:02:26.6171801Z 
+2026-09-27T16:02:26.6171999Z No services need to be restarted.
+2026-09-27T16:02:26.6172308Z 
+2026-09-27T16:02:26.6172493Z No containers need to be restarted.
+2026-09-27T16:02:26.6172810Z 
+2026-09-27T16:02:26.6173034Z No user sessions are running outdated binaries.
+2026-09-27T16:02:26.6173395Z 
+2026-09-27T16:02:26.6173769Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-09-27T16:02:27.4948108Z ##[group]Run git fetch --no-tags --depth=1 origin "$COVERAGE_BASE_SHA"
+2026-09-27T16:02:27.4948706Z [36;1mgit fetch --no-tags --depth=1 origin "$COVERAGE_BASE_SHA"[0m
+2026-09-27T16:02:27.5012293Z shell: /usr/bin/bash -e {0}
+2026-09-27T16:02:27.5012781Z env:
+2026-09-27T16:02:27.5013020Z   GOTOOLCHAIN: local
+2026-09-27T16:02:27.5013405Z   COVERAGE_BASE_SHA: a1fd5f7dcea3d4ac8c67a588d5f41c4277609822
+2026-09-27T16:02:27.5013841Z ##[endgroup]
+2026-09-27T16:02:27.9280978Z From https://github.com/tuna-os/wootc
+2026-09-27T16:02:27.9281674Z  * branch            a1fd5f7dcea3d4ac8c67a588d5f41c4277609822 -> FETCH_HEAD
+2026-09-27T16:02:27.9342171Z ##[group]Run bash tests/run.sh fast
+2026-09-27T16:02:27.9342512Z [36;1mbash tests/run.sh fast[0m
+2026-09-27T16:02:27.9406211Z shell: /usr/bin/bash -e {0}
+2026-09-27T16:02:27.9406505Z env:
+2026-09-27T16:02:27.9406726Z   GOTOOLCHAIN: local
+2026-09-27T16:02:27.9407352Z   WOOTC_COVERAGE_DIR: /home/runner/work/_temp/go-coverage
+2026-09-27T16:02:27.9407858Z   WOOTC_COVERAGE_BASE_SHA: a1fd5f7dcea3d4ac8c67a588d5f41c4277609822
+2026-09-27T16:02:27.9408284Z ##[endgroup]
+2026-09-27T16:02:27.9561009Z ══ fast tier ═════════════════════════════════════════════════════════
+2026-09-27T16:02:27.9561786Z ── bats unit suites (tests/unit) ──
+2026-09-27T16:02:30.3615557Z 1..645
+2026-09-27T16:02:30.6012324Z ok 1 GNOME look-apply exits 0 and writes the marker with no pins
+2026-09-27T16:02:30.7511128Z ok 2 KDE look-apply exits 0 with no pins
+2026-09-27T16:02:30.8747194Z ok 3 unknown desktop still exits 0 and records the marker (mapped=none)
+2026-09-27T16:02:31.0287740Z ok 4 the once-only marker suppresses a second apply
+2026-09-27T16:02:31.0567288Z ok 5 no slurp data is a clean exit 0
+2026-09-27T16:02:31.2240469Z ok 6 GNOME dock favorites built from taskbar pins (refactor regression guard)
+2026-09-27T16:02:31.3882624Z ok 7 KDE panel launchers built from the same pins, targeting the task-manager applet
+2026-09-27T16:02:31.5446530Z ok 8 KDE favorites fall back to a default group when no appletsrc exists
+2026-09-27T16:02:31.6711223Z ok 9 XFCE is retired (X11/out of scope) — clean exit, mapped=none
+2026-09-27T16:02:31.7499564Z ok 10 look turned OFF in the chooser is skipped
+2026-09-27T16:02:31.9008696Z ok 11 a BROKEN selection helper must NOT block the migration (fail open)
+2026-09-27T16:02:32.0255892Z ok 12 run-e2e.sh is syntactically valid
+2026-09-27T16:02:32.1646137Z ok 13 keeps the N newest runs and prunes the rest
+2026-09-27T16:02:32.2509638Z ok 14 serial and logs from pruned runs are preserved as evidence
+2026-09-27T16:02:32.3043443Z ok 15 a failed evidence copy retains the complete source run
+2026-09-27T16:02:32.3580733Z ok 16 a successful exit without copied bytes cannot authorize deletion
+2026-09-27T16:02:32.4214673Z ok 17 failed run and evidence enumeration cannot delete old runs
+2026-09-27T16:02:32.4918580Z ok 18 actual source deletion follows a verified complete text archive
+2026-09-27T16:02:32.5719845Z ok 19 the bulk (video) is NOT preserved — that is the point
+2026-09-27T16:02:32.6634354Z ok 20 the evidence directory is never itself pruned
+2026-09-27T16:02:32.6925884Z ok 21 an empty or missing artifacts dir is a clean no-op
+2026-09-27T16:02:32.7278348Z ok 22 fewer runs than the keep count prunes nothing
+2026-09-27T16:02:32.7563578Z ok 23 retention runs on startup so a run cannot be blocked by its predecessors
+2026-09-27T16:02:32.7828075Z ok 24 preflight demands headroom for two runs, not the bare minimum for one
+2026-09-27T16:02:32.8071790Z ok 25 a hosted runner's ~114 GiB clears the requirement
+2026-09-27T16:02:32.8294633Z ok 26 the requirement is overridable for unusual hosts
+2026-09-27T16:02:32.8534428Z ok 27 the cached-ISO and reuse paths keep proportional headroom
+2026-09-27T16:02:32.8765037Z ok 28 the keep count is overridable
+2026-09-27T16:02:32.9059808Z ok 29 the README timelapse only publishes green runs
+2026-09-27T16:02:32.9388324Z ok 30 per-distribution walkthrough cuts survive each publish
+2026-09-27T16:02:32.9664301Z ok 31 the timelapse gives viewers time to read: 5s cards and freeze-frames
+2026-09-27T16:02:32.9993235Z ok 32 brand runs drive the BRANDED installer
+2026-09-27T16:02:33.0319757Z ok 33 the exe pins its boot artifacts to its own release, never to latest
+2026-09-27T16:02:33.1534935Z ok 34 deployer accepts auto before image backend detection
+2026-09-27T16:02:33.1856092Z ok 35 E2E and Windows setup pass auto through by default
+2026-09-27T16:02:33.2252804Z ok 36 backend detection falls back to safe defaults when the probe fails or is ambiguous
+2026-09-27T16:02:33.2491642Z ok 37 current bootupd versioned EFI layout is recognized as ostree
+2026-09-27T16:02:33.2764655Z ok 38 ESP staging supports the current versioned shim and GRUB layout
+2026-09-27T16:02:33.3104157Z ok 39 ESP staging logs every selected source and fails closed
+2026-09-27T16:02:33.3357211Z ok 40 initramfs regen KVER comes from the module tree that owns vmlinuz
+2026-09-27T16:02:33.3594519Z ok 41 deploy.sh uses no binaries absent from the initramfs closure
+2026-09-27T16:02:33.3872334Z ok 42 filesystem defaults: xfs unsealed, ext4 sealed (btrfs blocked on #35)
+2026-09-27T16:02:33.4103384Z ok 43 dracut regen failures report dracut's own output
+2026-09-27T16:02:33.4409318Z ok 44 the backend probe acquires the image before inspecting it
+2026-09-27T16:02:33.4652090Z ok 45 verification does not assume the ostree 3-partition layout
+2026-09-27T16:02:33.4872097Z ok 46 a composefs deployment root is not prepared as a chroot
+2026-09-27T16:02:33.5106495Z ok 47 an image with no NTFS driver fails the deploy, not Phase 2
+2026-09-27T16:02:33.5371845Z ok 48 Phase 2 never ships without an NTFS driver
+2026-09-27T16:02:33.5621288Z ok 49 no unbounded podman call in the deployer
+2026-09-27T16:02:33.5866588Z ok 50 a failed deploy puts its own log tail on the serial
+2026-09-27T16:02:33.6094022Z ok 51 the NTFS gate uses the same capability test as the injector
+2026-09-27T16:02:33.6317869Z ok 52 ntfs-3g injection acquires the image before running dnf in it
+2026-09-27T16:02:33.6609046Z ok 53 ntfs-3g injection self-heals a broken rpmdb before escalating
+2026-09-27T16:02:33.6918575Z ok 54 an image without an NTFS driver is not refused when the deployer has one
+2026-09-27T16:02:33.7189602Z ok 55 no assignment in the deployer aborts on a non-matching grep or empty ls
+2026-09-27T16:02:33.7434346Z ok 56 teardown never turns a successful deploy into a failure
+2026-09-27T16:02:33.7684813Z ok 57 the deployer names the command that aborts it
+2026-09-27T16:02:33.8270474Z ok 58 the launchpad sends windowsLook with the install config
+2026-09-27T16:02:33.8557893Z ok 59 Wi-Fi collection runs outside the WindowsLook gate
+2026-09-27T16:02:33.8925228Z ok 60 Wi-Fi ordering assertion rejects collection moved inside the look gate
+2026-09-27T16:02:34.0401281Z ok 61 the real tree lists every brand that has not been declined
+2026-09-27T16:02:34.2197888Z ok 62 a declined project's exe drops out of the release matrix
+2026-09-27T16:02:34.2872885Z ok 63 a brand with no recorded decision is an error, not a default yes
+2026-09-27T16:02:34.3441179Z ok 64 an unrecognised status is an error, never treated as buildable
+2026-09-27T16:02:34.4168036Z ok 65 WOOTC_REQUIRE_BLESSING tightens pending brands out without a code change
+2026-09-27T16:02:34.4983786Z ok 66 a pending brand still builds, and the log says it is unblessed
+2026-09-27T16:02:34.5316756Z ok 67 the release workflow selects brands through the gate, not a bare glob
+2026-09-27T16:02:34.7531956Z ok 68 every brand renders a complete winget manifest set
+2026-09-27T16:02:34.8096751Z ok 69 a rendered manifest never claims a permission nobody has granted
+2026-09-27T16:02:34.8652167Z ok 70 the renderer refuses a brand with no record to offer
+2026-09-27T16:02:34.9026389Z ok 71 no branded package is auto-submitted to winget
+2026-09-27T16:02:34.9263526Z ok 72 the README table and the records cannot drift apart
+2026-09-27T16:02:35.0177961Z ok 73 btrfs deploys bake an early modules-load.d entry into the Phase-2 initramfs
+2026-09-27T16:02:35.0467633Z ok 74 the attach hook clears the btrfs udev readiness gate without modprobe
+2026-09-27T16:02:35.0681659Z ok 75 the dracut module carries btrfs.ko and (optionally) btrfs-progs
+2026-09-27T16:02:35.1028983Z ok 76 the filesystem axis reaches the deployer from every harness layer
+2026-09-27T16:02:35.1483460Z ok 77 a btrfs deploy is refused when the target kernel cannot load btrfs
+2026-09-27T16:02:35.1746042Z ok 78 the Phase-2 emergency verdict reads the whole boot, and names the btrfs case
+2026-09-27T16:02:35.3310597Z ok 79 the Phase-2 → Windows reboot requires the guest to actually go down
+2026-09-27T16:02:35.3524868Z ok 80 ext4 stays the sealed default; btrfs works on supported kernels via opt-in
+2026-09-27T16:02:35.4273195Z ok 81 run-e2e.sh is syntactically valid
+2026-09-27T16:02:35.4508178Z ok 82 the ssh image is built BEFORE compose needs it
+2026-09-27T16:02:35.4746254Z ok 83 a failed image build aborts instead of proceeding
+2026-09-27T16:02:35.4940097Z ok 84 the build is verified to have actually produced the image
+2026-09-27T16:02:35.5169847Z ok 85 compose_up_windows's return value is NOT ignored
+2026-09-27T16:02:35.5378596Z ok 86 container existence is verified even when compose reports success
+2026-09-27T16:02:35.5585282Z ok 87 the failure message names the actual cause and the fix
+2026-09-27T16:02:35.5810478Z ok 88 startup failure exits rather than falling through to the QEMU wait
+2026-09-27T16:02:35.6470412Z ok 89 the hook is syntactically valid
+2026-09-27T16:02:35.6685970Z ok 90 the hook starts NO background job
+2026-09-27T16:02:35.6895150Z ok 91 no sleep-based watchdog remains in the code
+2026-09-27T16:02:35.7108137Z ok 92 no cancel_watchdog / WATCHDOG_PID machinery remains
+2026-09-27T16:02:35.7314902Z ok 93 the deployer exit status is still reported to kmsg
+2026-09-27T16:02:35.7519074Z ok 94 the failure path still reboots back to Windows
+2026-09-27T16:02:35.7703625Z ok 95 the removal is documented so it is not reintroduced
+2026-09-27T16:02:35.8905372Z ok 96 both scripts are syntactically valid
+2026-09-27T16:02:35.9162901Z ok 97 a kernel reboot is NOT treated as a successful deploy
+2026-09-27T16:02:35.9381598Z ok 98 a kernel reboot with no verification summary fails loudly
+2026-09-27T16:02:35.9579544Z ok 99 the kernel-reboot failure explains that Phase-2 setup never ran
+2026-09-27T16:02:35.9796022Z ok 100 Windows answering QGA without completion is a failure, not a wait
+2026-09-27T16:02:35.9996781Z ok 101 the streak resets when Windows is NOT answering
+2026-09-27T16:02:36.0199365Z ok 102 the failure prints the deployer's own log, not just a verdict
+2026-09-27T16:02:36.0420159Z ok 103 the post-fisherman verification stretch is instrumented
+2026-09-27T16:02:36.0678578Z ok 104 no staged binary is executed during the deploy any more
+2026-09-27T16:02:36.0901766Z ok 105 the dracut regen is bounded — it cannot hang the deploy forever
+2026-09-27T16:02:36.1125041Z ok 106 a regen timeout aborts rather than booting a stale initramfs
+2026-09-27T16:02:36.1326447Z ok 107 the regen announces itself before starting
+2026-09-27T16:02:36.1542414Z ok 108 both dracut regeneration paths explicitly include OSTree prepare-root
+2026-09-27T16:02:36.1779145Z ok 109 the generated initramfs guard requires wired OSTree prepare-root
+2026-09-27T16:02:36.1989554Z ok 110 the OSTree wiring guard accepts lsinitrd symlink output
+2026-09-27T16:02:36.2266390Z ok 111 the deployed chroot has a valid sticky var tmp before dracut
+2026-09-27T16:02:36.2518481Z ok 112 ostree usr-local backing directory exists before bridge installation
+2026-09-27T16:02:36.2814883Z ok 113 post-install writes use the OSTree stateroot var visible at runtime
+2026-09-27T16:02:36.3074776Z ok 114 stateroot paths need no dirname binary in the minimal initramfs
+2026-09-27T16:02:36.3418997Z ok 115 post-install payload is relabeled and Phase-3 label is verified
+2026-09-27T16:02:36.3648337Z ok 116 nonfatal Phase-2 checks are still collected into one verdict
+2026-09-27T16:02:36.3866682Z ok 117 the collected problems are reported as one summary
+2026-09-27T16:02:36.4065934Z ok 118 a clean Phase-2 setup says so explicitly
+2026-09-27T16:02:36.4297795Z ok 119 instrumentation brackets the dracut module copy and the closure
+2026-09-27T16:02:36.5162508Z ok 120 find_ldso locates the dynamic loader this deployer runs on
+2026-09-27T16:02:36.5825183Z ok 121 the closure resolves with neither ldd nor awk on PATH
+2026-09-27T16:02:36.6223231Z ok 122 the loader is preferred over ldd, so a broken ldd cannot break staging
+2026-09-27T16:02:36.6638408Z ok 123 a binary with no closure still reports none — no phantom loader
+2026-09-27T16:02:36.7480648Z ok 124 the fallback qemu-ga stages end-to-end with no ldd in the initramfs
+2026-09-27T16:02:36.7747979Z ok 125 no call site pipes ldd into awk any more
+2026-09-27T16:02:36.8114931Z ok 126 best-effort stagers warn, they do not [FAIL]
+2026-09-27T16:02:36.8305479Z ok 127 the initramfs also carries ldd, as the second path
+2026-09-27T16:02:36.9150203Z ok 128 deploy.sh is syntactically valid
+2026-09-27T16:02:36.9434446Z ok 129 the premise holds: run-e2e.sh really does kill the deploy on [FAIL]
+2026-09-27T16:02:36.9695510Z ok 130 every [FAIL] in deploy.sh terminates the deploy
+2026-09-27T16:02:37.0017949Z ok 131 the scanner is not vacuous — a planted non-fatal [FAIL] is caught
+2026-09-27T16:02:37.0297282Z ok 132 a [FAIL] behind a return needs every call site to exit
+2026-09-27T16:02:37.0628729Z ok 133 the six sites this suite was written for stayed downgraded
+2026-09-27T16:02:37.2254523Z ok 134 E2E stages the GRUB configuration embedded by the application
+2026-09-27T16:02:37.2505719Z ok 135 docs point at the state file that actually exists
+2026-09-27T16:02:37.3306659Z ok 136 every C:\wootc path the docs name is one the code builds
+2026-09-27T16:02:37.3866373Z ok 137 the branded exe names the docs advertise are the ones brand.json builds
+2026-09-27T16:02:37.4100170Z ok 138 RELEASING does not claim a single published artifact
+2026-09-27T16:02:37.5985423Z ok 139 docs do not link to files that are not in the tree
+2026-09-27T16:02:37.6262288Z ok 140 no doc promises BitLocker works while the channel gate refuses it
+2026-09-27T16:02:37.6488361Z ok 141 the documented default channel is the one the code defaults to
+2026-09-27T16:02:37.6757107Z ok 142 the image the docs call the alpha default is the one that gets selected
+2026-09-27T16:02:37.7034333Z ok 143 the free-space figure is the one the launchpad enforces
+2026-09-27T16:02:37.7307537Z ok 144 the first screen the docs quote is the one the build renders
+2026-09-27T16:02:37.7610750Z ok 145 the uninstall entry the docs name is the one the installer registers
+2026-09-27T16:02:37.7857547Z ok 146 the migration dashboard is called what the app calls it
+2026-09-27T16:02:37.8181338Z ok 147 documented buttons and toggles exist in the frontend
+2026-09-27T16:02:37.8465847Z ok 148 no doc claims real-hardware verification before the ladder banks it
+2026-09-27T16:02:37.8895637Z ok 149 every branded walkthrough has its four screenshots on disk
+2026-09-27T16:02:37.9173011Z ok 150 guide describes the explicit Windows-side Linux boot choice
+2026-09-27T16:02:37.9418079Z ok 151 guide discloses Firefox profile passwords instead of blanket secret exclusion
+2026-09-27T16:02:37.9679148Z ok 152 guide describes Windows removal as a plan without a consumer execution path
+2026-09-27T16:02:38.0016184Z ok 153 guide qualifies uninstall restoration and preserves old section anchors
+2026-09-27T16:02:38.0408747Z ok 154 release guide matches the tagged native graduation gate and its waiver
+2026-09-27T16:02:38.0686703Z ok 155 release user instructions disclose Install writes before reboot
+2026-09-27T16:02:38.0951448Z ok 156 release user instructions describe Windows return and explicit Linux boot
+2026-09-27T16:02:38.1248129Z ok 157 release user instructions qualify cleanup and disclose the data choice
+2026-09-27T16:02:38.1542726Z ok 158 getting started discloses preparation beyond a folder and boot entry
+2026-09-27T16:02:38.1832930Z ok 159 getting started qualifies cleanup and exposes its data choice
+2026-09-27T16:02:38.2136358Z ok 160 getting started qualifies reputation prompts instead of promising bypass
+2026-09-27T16:02:38.2402686Z ok 161 getting started distinguishes checksums from publisher identity
+2026-09-27T16:02:38.2698511Z ok 162 startup guides disclose the Windows WebView2 runtime dependency
+2026-09-27T16:02:38.2963464Z ok 163 roadmap separates native preview work from complete consumer proof
+2026-09-27T16:02:38.3231293Z ok 164 roadmap separates restoration requirement from current partial cleanup
+2026-09-27T16:02:38.3509148Z ok 165 roadmap requires a SmartScreen observation beyond a valid signature
+2026-09-27T16:02:38.3789124Z ok 166 README qualifies the VM goal against current desktop evidence
+2026-09-27T16:02:38.4082665Z ok 167 README exposes preparation settings and normal Windows return
+2026-09-27T16:02:38.4374734Z ok 168 README separates cleanup from restoration and Linux data removal
+2026-09-27T16:02:38.4653571Z ok 169 README matches release graduation and its manual waiver
+2026-09-27T16:02:38.4900155Z ok 170 README qualifies browser secrets instead of a blanket exclusion
+2026-09-27T16:02:38.5184302Z ok 171 README discloses runtime and distinguishes hashes from signed manifests
+2026-09-27T16:02:38.5425731Z ok 172 E2E architecture separates historical native diagrams from current acceptance
+2026-09-27T16:02:38.5793880Z ok 173 E2E architecture follows the actual sourced runner boundaries
+2026-09-27T16:02:38.6075598Z ok 174 E2E architecture does not claim an atomic deployer menu handoff
+2026-09-27T16:02:38.6320919Z ok 175 E2E architecture distinguishes a QGA service request from a working channel
+2026-09-27T16:02:38.6691699Z ok 176 release rollback distinguishes remote withdrawal from signed local cache
+2026-09-27T16:02:38.7038073Z ok 177 manual hardware guide discloses actual preparation outside the state folder
+2026-09-27T16:02:38.7338793Z ok 178 manual hardware guide separates requested return and cleanup from restoration
+2026-09-27T16:02:38.7585464Z ok 179 manual hardware guide qualifies the legacy path instead of claiming VM-first or WinUI proof
+2026-09-27T16:02:38.8481011Z ok 180 run-e2e.sh is syntactically valid
+2026-09-27T16:02:38.8745266Z ok 181 deadline_in returns an absolute epoch in the future
+2026-09-27T16:02:38.9083328Z ok 182 past_deadline is false before and true after the deadline
+2026-09-27T16:02:40.9471966Z ok 183 a deadline elapses in real time even when the loop body blocks
+2026-09-27T16:02:40.9735805Z ok 184 elapsed_min_since reports whole minutes of real time
+2026-09-27T16:02:41.0023452Z ok 185 no wait loop is bound by a tick counter
+2026-09-27T16:02:41.0254912Z ok 186 the long-running loops use past_deadline
+2026-09-27T16:02:41.0477136Z ok 187 progress lines report real minutes against the real budget
+2026-09-27T16:02:41.0746499Z ok 188 the deploy budget is calibrated against real wall-clock behaviour
+2026-09-27T16:02:41.0967090Z ok 189 every QGA call is bounded by a timeout
+2026-09-27T16:02:41.1187551Z ok 190 the QGA call timeout is overridable for slow hosts
+2026-09-27T16:02:41.1408189Z ok 191 Phase-2 boot failure reports actual waited time, not the nominal budget
+2026-09-27T16:02:41.1704713Z ok 192 an abort before the full cleanup trap still stamps the run-state file
+2026-09-27T16:02:41.3393829Z ok 193 run-e2e.sh is syntactically valid
+2026-09-27T16:02:41.4438172Z ok 194 fail() records to the ledger, not just stderr
+2026-09-27T16:02:41.5489681Z ok 195 a fail inside a command substitution still reaches the ledger
+2026-09-27T16:02:41.6536664Z ok 196 a fail inside a pipeline still reaches the ledger
+2026-09-27T16:02:41.7215478Z ok 197 the success banner is gated on the ledger being empty
+2026-09-27T16:02:41.7875869Z ok 198 the gate exits non-zero and says TESTS FAILED when the ledger is non-empty
+2026-09-27T16:02:41.8511486Z ok 199 the user-data check records a failure — it is the North Star assertion
+2026-09-27T16:02:41.9204080Z ok 200 Phase-2 health failures preserve the firstboot unit result before reboot
+2026-09-27T16:02:41.9902214Z ok 201 a recovered ntfs3 mount error does not fail the run
+2026-09-27T16:02:42.0718443Z ok 202 a drm_panic handler registration is not a kernel panic
+2026-09-27T16:02:42.1407273Z ok 203 OEM payload transfers retry and report instead of aborting silently
+2026-09-27T16:02:42.2223998Z ok 204 a non-matching grep in a checked assignment cannot abort the run
+2026-09-27T16:02:42.3021686Z ok 205 a probe for something absent cannot print a [FAIL] that aborted nothing
+2026-09-27T16:02:42.3741338Z ok 206 log helpers do not mangle Windows paths
+2026-09-27T16:02:42.4475482Z ok 207 a locked OEM payload file is force-replaced, not just unheld
+2026-09-27T16:02:42.5192079Z ok 208 the serial arms the deployer-death detector, not just the heartbeat
+2026-09-27T16:02:42.5932998Z ok 209 an unreachable Phase-2 agent is inconclusive, not proof of data loss
+2026-09-27T16:02:42.6637446Z ok 210 drive mode can only install the image the directive named
+2026-09-27T16:02:42.7516528Z ok 211 flake auto-retry: only harness-classified flakes are ever re-dispatched
+2026-09-27T16:02:42.8215684Z ok 212 the North Star read polls the bridge, it does not race it
+2026-09-27T16:02:42.8907030Z ok 213 the refresh is gated: no trust helper, no chain changes
+2026-09-27T16:02:42.9094774Z ok 214 only a vendor directory wootc owns is touched
+2026-09-27T16:02:42.9282700Z ok 215 shim is replaced LAST, after GRUB and MokManager
+2026-09-27T16:02:42.9501873Z ok 216 the current chain is archived before anything replaces it
+2026-09-27T16:02:42.9735403Z ok 217 the candidate is graded against the firmware AND the installed SBAT
+2026-09-27T16:02:43.0197347Z ok 218 SBAT is read from the .sbat section, not the first matching string
+2026-09-27T16:02:43.0449041Z ok 219 the helper and the update trigger travel into the deployment
+2026-09-27T16:02:43.1226315Z ok 220 the verifier grades all four criteria
+2026-09-27T16:02:43.1448697Z ok 221 an unsigned binary fails instead of reading as 'nothing wrong'
+2026-09-27T16:02:43.1679525Z ok 222 a missing exe identity fails instead of passing by absence
+2026-09-27T16:02:43.1883734Z ok 223 the expected per-brand identity comes from brand.json, not a copy
+2026-09-27T16:02:43.2104457Z ok 224 an asset absent from SHA256SUMS fails rather than being skipped
+2026-09-27T16:02:43.2326557Z ok 225 a stale winget manifest fails even though the package resolved
+2026-09-27T16:02:43.2619279Z ok 226 the checklist cannot be talked into passing, and names its manual half
+2026-09-27T16:02:43.2823555Z ok 227 the elevation manifest is intact in the committed resource object
+2026-09-27T16:02:43.3084057Z ok 228 the release doc records signing blockers and per-brand resources
+2026-09-27T16:02:43.3274438Z ok 229 the PowerShell graders are actually run by the fast tier
+2026-09-27T16:02:43.5317949Z ok 230 E2E invokes go-native by absolute path under QGA's minimal PATH
+2026-09-27T16:02:43.5945901Z ok 231 go-native supplies sbin paths for GUI and QGA service environments
+2026-09-27T16:02:43.6686652Z ok 232 --phase3 provisions its dedicated blank target and handles none found
+2026-09-27T16:02:43.7395205Z ok 233 Phase-3 QGA uses the request-gated systemd boundary
+2026-09-27T16:02:43.8111389Z ok 234 Phase-3 dispatcher rechecks blank target before destructive gate
+2026-09-27T16:02:43.8819402Z ok 235 Phase-3 dispatcher runs NTFS shrink verification before migration
+2026-09-27T16:02:43.9642711Z ok 236 migrate --dual-boot on loopback describes the graduate stages and touches nothing
+2026-09-27T16:02:44.0632230Z ok 237 migrate --dual-boot with shrink fixture shows available space and safe defaults
+2026-09-27T16:02:44.1469703Z ok 238 migrate --dual-boot with dirty NTFS fixture shows the dirty-volume diagnostic
+2026-09-27T16:02:44.2357374Z ok 239 migrate --dual-boot with no-space NTFS fixture shows the nospace diagnostic
+2026-09-27T16:02:44.3119129Z ok 240 plan when already native says nothing to graduate
+2026-09-27T16:02:44.4334756Z ok 241 check reports loopback + counts converted folders, never touches disk
+2026-09-27T16:02:44.5158194Z ok 242 check verifies NTFS shrinkability when layout is discoverable
+2026-09-27T16:02:44.5893996Z ok 243 check warns on dirty NTFS but does not hard-block
+2026-09-27T16:02:44.6565016Z ok 244 migrate --reclaim REFUSES while still on loopback
+2026-09-27T16:02:44.7266265Z ok 245 migrate --reclaim REFUSES when no folders are verified native
+2026-09-27T16:02:44.8102423Z ok 246 migrate --execute REFUSES without WOOTC_GN_ALLOW_DESTRUCTIVE=1
+2026-09-27T16:02:44.8778927Z ok 247 migrate with no mode REFUSES
+2026-09-27T16:02:44.9601427Z ok 248 migrate --dual-boot (no --execute) is a dry run that touches no disk
+2026-09-27T16:02:45.0393000Z ok 249 Phase-3 plan uses recorded registry origin, not deployer-local derived tag
+2026-09-27T16:02:45.1081867Z ok 250 Phase-3 native install supplies the deployer-selected filesystem
+2026-09-27T16:02:45.1725248Z ok 251 Phase-3 home migration selects a partition, never the whole target disk
+2026-09-27T16:02:45.2473791Z ok 252 Phase-3 schedules and positively verifies the native boot
+2026-09-27T16:02:45.3208703Z ok 253 migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched
+2026-09-27T16:02:45.3888051Z ok 254 migrate REFUSES when the Windows disk cannot be located
+2026-09-27T16:02:45.5313262Z ok 255 status --json on loopback: canGraduate true, canReclaim false, touches nothing
+2026-09-27T16:02:45.6631335Z ok 256 status --json with shrink fixture reports ntfsShrinkable gate and safeGib
+2026-09-27T16:02:45.7884004Z ok 257 status --json native + converted folders: canReclaim true, folders listed
+2026-09-27T16:02:45.9097387Z ok 258 status --json native but NO converted folders: canReclaim false (data-safety gate)
+2026-09-27T16:02:46.0211318Z ok 259 migrate --to-disk REFUSES to install onto the Windows disk # skip no loop device
+2026-09-27T16:02:46.1006538Z ok 260 Phase-3 install uses fisherman podman-run mode with the origin image
+2026-09-27T16:02:46.1711405Z ok 261 Phase-3 post-install /etc writes target the deployment etc, not sysroot etc
+2026-09-27T16:02:46.2407709Z ok 262 Phase-3 recipe mirrors the running account into the native install
+2026-09-27T16:02:46.3127287Z ok 263 Phase-3 installs the /run userdata probe for the confined guest agent
+2026-09-27T16:02:46.3960812Z ok 264 the hook is syntactically valid
+2026-09-27T16:02:46.4151739Z ok 265 say() writes to /dev/console (the only threshold-independent path)
+2026-09-27T16:02:46.4337988Z ok 266 say() also emits an explicit low priority to kmsg for the journal
+2026-09-27T16:02:46.4582379Z ok 267 the hook announces entry before any early return
+2026-09-27T16:02:46.4795230Z ok 268 diagnostics never use dracut info()/warn(), which printk filters away
+2026-09-27T16:02:46.4995477Z ok 269 every failure exit states a reason
+2026-09-27T16:02:46.5202131Z ok 270 the hook reports what appeared after attach, not just that it attached
+2026-09-27T16:02:46.5405698Z ok 271 deployer log()/err() emit an explicit kmsg priority
+2026-09-27T16:02:46.5619625Z ok 272 deployer log()/err() do NOT also write to /dev/console
+2026-09-27T16:02:46.5809117Z ok 273 the low-volume Phase-2 hook DOES still write to /dev/console
+2026-09-27T16:02:46.6027568Z ok 274 the initramfs guard aborts the deploy when the attach service is unwired
+2026-09-27T16:02:46.6775856Z ok 275 every hosted workflow that runs containers wires in the runtime repair
+2026-09-27T16:02:46.6967974Z ok 276 the repair installs crun over /usr/bin, where podman actually looks
+2026-09-27T16:02:46.7172752Z ok 277 the repair proves a container can be created, not just that versions look right
+2026-09-27T16:02:46.7369453Z ok 278 the repair never touches self-hosted runners
+2026-09-27T16:02:46.7568656Z ok 279 the #71 arm gate defaults to empty so it can never gate the nightly
+2026-09-27T16:02:46.8781241Z ok 280 scan reports a Linux-safe username and the full name/email/locale
+2026-09-27T16:02:46.9556692Z ok 281 scan always reports the password as NOT migratable
+2026-09-27T16:02:47.0327267Z ok 282 scan finds the account picture
+2026-09-27T16:02:47.1334795Z ok 283 apply copies the account picture to ~/.face and AccountsService
+2026-09-27T16:02:47.1943040Z ok 284 apply with no account picture still succeeds (name only, no crash)
+2026-09-27T16:02:47.3133178Z ok 285 scan finds the spare NTFS and the BitLocker disk, not the running disk
+2026-09-27T16:02:47.3837269Z ok 286 the running-disk (sda) partitions are excluded
+2026-09-27T16:02:47.4537763Z ok 287 BitLocker volume is flagged fs=bitlocker + locked=true
+2026-09-27T16:02:47.5233336Z ok 288 plain NTFS volume is fs=ntfs + locked=false, with its label
+2026-09-27T16:02:47.5930452Z ok 289 non-Windows filesystems (ext4) are not offered
+2026-09-27T16:02:47.6429088Z ok 290 empty disk list is a clean empty scan
+2026-09-27T16:02:47.7448557Z ok 291 deploy.sh is syntactically valid
+2026-09-27T16:02:47.7676449Z ok 292 wootc-firstboot-evidence is syntactically valid
+2026-09-27T16:02:47.7948517Z ok 293 deploy.sh writes deployer-started.json and state.json = deploying right after ntfs-mounted
+2026-09-27T16:02:47.8197551Z ok 294 deploy.sh writes state.json = deployed after vstage verify-complete
+2026-09-27T16:02:47.8495870Z ok 295 deploy.sh cleanup writes state.json = failed with phase on non-zero exit
+2026-09-27T16:02:47.8822359Z ok 296 deployer metadata uses the descriptor-preserving atomic writer
+2026-09-27T16:02:47.9080270Z ok 297 wootc-firstboot-evidence exists and writes state.json = healthy atomically
+2026-09-27T16:02:47.9313350Z ok 298 wootc-firstboot-evidence.service is ordered after host-bind
+2026-09-27T16:02:47.9528010Z ok 299 firstboot service PATH includes the staged NTFS state writer
+2026-09-27T16:02:48.0279321Z ok 300 firstboot health writer publishes readable state and evidence
+2026-09-27T16:02:48.0642974Z ok 301 firstboot health writer fails when the private Windows mount is absent
+2026-09-27T16:02:48.1142593Z ok 302 firstboot does not publish its retry marker when the state write fails
+2026-09-27T16:02:48.1395850Z ok 303 first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh
+2026-09-27T16:02:48.1729414Z ok 304 deployHasCompleted stops trusting journal file alone
+2026-09-27T16:02:48.2016191Z ok 305 state.go defines all six lifecycle states
+2026-09-27T16:02:48.2674570Z ok 306 lifecycle capture retains failing exit even when stdout claims healthy
+2026-09-27T16:02:48.2933737Z ok 307 lifecycle capture preserves successful output and separate empty stderr
+2026-09-27T16:02:48.4170053Z ok 308 public view is masked and read-only before publication
+2026-09-27T16:02:48.4779466Z ok 309 read-only failure never publishes the Windows view
+2026-09-27T16:02:48.5145696Z ok 310 privileged lifecycle and folder writers use the private mount
+2026-09-27T16:02:48.5596190Z ok 311 FUSE NTFS fallback keeps private writes available to root services
+2026-09-27T16:02:48.6150323Z ok 312 legacy kernel NTFS fallback keeps private writes available to root services
+2026-09-27T16:02:48.6869007Z ok 313 folder redirects cannot export installer state or the whole volume
+2026-09-27T16:02:48.7397889Z ok 314 a user-created folder symlink is never used as a bind destination
+2026-09-27T16:02:48.7995862Z ok 315 a case-sensitive uppercase installer directory is also masked
+2026-09-27T16:02:49.3318744Z ok 316 scan discovers present categories and defaults them ON
+2026-09-27T16:02:49.6303269Z ok 317 absent category is present=false and defaultOn=false
+2026-09-27T16:02:49.9060633Z ok 318 files category lists the actual folders found
+2026-09-27T16:02:50.1783790Z ok 319 wifi item reports the number of exported profiles
+2026-09-27T16:02:50.4526729Z ok 320 the Public profile is ignored by --all
+2026-09-27T16:02:50.7214911Z ok 321 scan with no discoverable data is a clean empty catalog (no crash)
+2026-09-27T16:02:50.8043309Z ok 322 matrix covers Windows 10 and 11 Pro
+2026-09-27T16:02:50.8264990Z ok 323 Home rows are disabled until a Home-capable ISO fixture exists
+2026-09-27T16:02:50.8467470Z ok 324 matrix covers the BitLocker axis
+2026-09-27T16:02:50.8703696Z ok 325 matrix covers all three deployment backends
+2026-09-27T16:02:50.8960063Z ok 326 matrix has a phase3 case per backend flavor
+2026-09-27T16:02:50.9166055Z ok 327 host_worker threads the opts column through to run_case
+2026-09-27T16:02:50.9373570Z ok 328 phase3=on translates to --phase3 on the remote invocation
+2026-09-27T16:02:50.9619383Z ok 329 himachal has a hard ceiling of one concurrent VM
+2026-09-27T16:02:50.9895635Z ok 330 a case waits for a loaded host instead of piling onto it
+2026-09-27T16:02:51.0181124Z ok 331 the matrix runs from an immutable snapshot of itself
+2026-09-27T16:02:51.0434919Z ok 332 remote cases are launched as systemd user units, not nohup
+2026-09-27T16:02:51.0643594Z ok 333 the poll reads systemd unit terminal state on abnormal death
+2026-09-27T16:02:51.0875649Z ok 334 --grep is a regex so an iteration loop can name distinct code paths
+2026-09-27T16:02:51.1744706Z ok 335 MokManager (mmx64.efi) travels with the signed boot chain
+2026-09-27T16:02:51.2135579Z ok 336 the deployer queues MOK enrollment for akmods images
+2026-09-27T16:02:51.2447738Z ok 337 MOK certs are harvested before the verify tree is unmounted
+2026-09-27T16:02:51.2812608Z ok 338 MokManager is driven from inside the Phase-2 wait, on its own serial marker
+2026-09-27T16:02:51.3029843Z ok 339 the GUI warns about the one-time MokManager screen for images that need it
+2026-09-27T16:02:51.3255348Z ok 340 the enrolled kernel actually gets a boot: re-arm after MokManager lands in Windows
+2026-09-27T16:02:51.3509340Z ok 341 the Windows-return marker is scanned in the consumed span, not just fresh output
+2026-09-27T16:02:51.4406248Z ok 342 run-e2e accepts --instance= and derives disjoint state from it
+2026-09-27T16:02:51.4684897Z ok 343 compose volumes and container name are instance-parameterized
+2026-09-27T16:02:51.4948306Z ok 344 matrix per-slot cleanup is scoped to its own instance
+2026-09-27T16:02:51.5189528Z ok 345 matrix sizes runners instead of assuming capacity
+2026-09-27T16:02:51.5432154Z ok 346 concurrent deployer builds are serialized, artifacts written atomically
+2026-09-27T16:02:51.5828033Z ok 347 GUI-driven install path: seeds, drives the live form, rejoins normal flow
+2026-09-27T16:02:51.6090760Z ok 348 matrix poll ssh cannot eat the case queue
+2026-09-27T16:02:51.6352012Z ok 349 fresh runs reclaim their own disposable disk before preflight
+2026-09-27T16:02:51.6651995Z ok 350 registry mirror is an opt-in, probed hint at every layer
+2026-09-27T16:02:51.6880665Z ok 351 post-deploy parsing survives no-match greps (pipefail)
+2026-09-27T16:02:51.7121480Z ok 352 a failed run tears the VM down even under --keep
+2026-09-27T16:02:51.7408544Z ok 353 setup-wootc.ps1 is single-instance (mutex) — no fresh-install OEM race
+2026-09-27T16:02:51.8268969Z ok 354 the Phase-2 boot menu says the word Windows
+2026-09-27T16:02:51.8550019Z ok 355 the Linux entry is named for the product, and stays the default
+2026-09-27T16:02:51.8836199Z ok 356 product Phase-2 boots quiet; observed runs keep the verbose consoles
+2026-09-27T16:02:51.9031358Z ok 357 product tool output never scrolls over the splash
+2026-09-27T16:02:51.9277530Z ok 358 a verified deploy re-arms the next boot — but never under E2E observation
+2026-09-27T16:02:51.9472998Z ok 359 the final splash message is only 'starting Linux' when a Linux boot is armed
+2026-09-27T16:02:51.9686354Z ok 360 efibootmgr ships in the deployer initramfs
+2026-09-27T16:02:51.9940139Z ok 361 staged boot artifacts come with their manifest
+2026-09-27T16:02:52.0144600Z ok 362 something is on screen before the network is up
+2026-09-27T16:02:52.0385053Z ok 363 a wootc firmware entry can never survive in the permanent boot order
+2026-09-27T16:02:52.0623840Z ok 364 the one-shot arm retries as a unit — bootsequence included
+2026-09-27T16:02:52.1484717Z ok 365 a first-login welcome exists, is visible, and runs once
+2026-09-27T16:02:52.1673173Z ok 366 the welcome opens the migration dashboard, with a fallback that still says hello
+2026-09-27T16:02:52.1937579Z ok 367 the deployer stages the welcome as an autostart — tolerantly, and the initramfs ships it
+2026-09-27T16:02:52.2918732Z ok 368 every migration payload deploy.sh stages is shipped in the initramfs
+2026-09-27T16:02:52.3155371Z ok 369 every bridged home gets a Windows-drive bookmark
+2026-09-27T16:02:52.4143652Z ok 370 the Windows-drive bookmark also reaches KDE's Dolphin
+2026-09-27T16:02:52.4396188Z ok 371 the timelapse demo stages exist and can never fail a run
+2026-09-27T16:02:52.4684935Z ok 372 the NTFS-on-Linux doc cites code that still exists
+2026-09-27T16:03:00.3797184Z ok 373 NTFS state writer rejects forged descriptors and truncated records
+2026-09-27T16:03:00.4167192Z ok 374 firstboot never announces healthy when descriptor preservation fails
+2026-09-27T16:03:00.5066143Z ok 375 run-e2e.sh is syntactically valid
+2026-09-27T16:03:00.5262215Z ok 376 the run id is passed to the guest via wootc-config.txt
+2026-09-27T16:03:00.5511549Z ok 377 the guest stamps the run id into the completion marker, not a constant
+2026-09-27T16:03:00.5721543Z ok 378 the guest falls back safely when RunId is absent from the config
+2026-09-27T16:03:00.5928245Z ok 379 the barrier requires the marker to equal this run's id
+2026-09-27T16:03:00.6120064Z ok 380 an empty marker does NOT satisfy the barrier
+2026-09-27T16:03:00.6334901Z ok 381 the barrier no longer passes on a bare readable-file check
+2026-09-27T16:03:00.6574857Z ok 382 the OEM sync uses the CONTAINER's view of the mount, not a host path
+2026-09-27T16:03:00.6766719Z ok 383 C:\OEM is refreshed from the host before setup starts
+2026-09-27T16:03:00.6996422Z ok 384 the OEM sync is unconditional, not limited to --skip-install
+2026-09-27T16:03:00.7245548Z ok 385 the refresh happens BEFORE the OEM script is launched
+2026-09-27T16:03:00.7454274Z ok 386 a barrier timeout distinguishes 'never completed' from 'stale marker'
+2026-09-27T16:03:00.8139391Z ok 387 the deploy hook fires without a network (settled + online, one guard)
+2026-09-27T16:03:00.8424126Z ok 388 a staged OCI bundle is ingested before anything network-shaped runs
+2026-09-27T16:03:00.8656091Z ok 389 with a bundle, the registry preflight is skipped; without one, the wait is bounded and names the fix
+2026-09-27T16:03:00.8863835Z ok 390 offline deploys skip the dnf injection instead of burning its timeouts
+2026-09-27T16:03:00.9143623Z ok 391 the app pre-downloads with fail-closed digest verification
+2026-09-27T16:03:01.0658489Z ok 392 both hooks are syntactically valid and safe to SOURCE
+2026-09-27T16:03:01.0947481Z ok 393 the dracut module registers both hooks under the exact expected names
+2026-09-27T16:03:01.1391016Z ok 394 the early-cpio overlay carries both hooks, and refuses to build without them
+2026-09-27T16:03:01.2105059Z ok 395 the overlay completeness gate actually rejects a hookless overlay
+2026-09-27T16:03:01.2545882Z ok 396 behavioral: nothing is staged when the host NTFS is not mounted
+2026-09-27T16:03:01.3167663Z ok 397 behavioral: a Phase-2 boot stages an initramfs that systemd will pivot into
+2026-09-27T16:03:01.3878673Z ok 398 behavioral: an initramfs with no /shutdown arms nothing (fail-safe)
+2026-09-27T16:03:01.4789004Z ok 399 behavioral: a staged tree carrying no umount hook is reverted
+2026-09-27T16:03:01.5238011Z ok 400 behavioral: staging is skipped rather than risking OOM on a low-memory box
+2026-09-27T16:03:01.5677394Z ok 401 behavioral: an already-populated /run/initramfs is left alone
+2026-09-27T16:03:01.6108153Z ok 402 behavioral: the volume is found at the path dracut's shutdown.sh leaves it
+2026-09-27T16:03:01.6906000Z ok 403 behavioral: the other post-pivot spellings are found too
+2026-09-27T16:03:01.7287798Z ok 404 behavioral: a busy volume asks to be retried instead of being abandoned
+2026-09-27T16:03:01.7748609Z ok 405 behavioral: the final pass syncs and lazy-detaches rather than leaving it mounted
+2026-09-27T16:03:01.8076580Z ok 406 behavioral: a boot with no host NTFS mounted is a no-op, not an unmount
+2026-09-27T16:03:01.9228432Z ok 407 no early-cpio branch references the phantom /mnt/sysroot
+2026-09-27T16:03:01.9584733Z ok 408 all three prepend-cpio branches share one overlay implementation
+2026-09-27T16:03:01.9848711Z ok 409 the deployer-sourced fallback ships the loader and is exec-verified
+2026-09-27T16:03:02.0092319Z ok 410 the built Phase-2 initrd is verified by listing, not by size
+2026-09-27T16:03:02.0487394Z ok 411 a missing mountable installed root is fatal, with evidence (#45)
+2026-09-27T16:03:02.1112159Z ok 412 behavioral: target ntfs-3g is staged with its libraries, symlinks intact
+2026-09-27T16:03:02.1786824Z ok 413 behavioral: fallback wrapper hardcodes the '@' argv[0] that survives switch-root
+2026-09-27T16:03:02.3123463Z ok 414 behavioral: a complete overlay + complete base initrd builds and verifies
+2026-09-27T16:03:02.3923925Z ok 415 behavioral: a base initrd without bash is REFUSED (mutation test)
+2026-09-27T16:03:02.4545506Z ok 416 behavioral: an overlay with a missing wants edge is refused before packing
+2026-09-27T16:03:02.6626695Z ok 417 behavioral: a microcode early-cpio does not hide the real initrd (#76)
+2026-09-27T16:03:02.8608758Z ok 418 behavioral: a real absence is still fatal behind an early-cpio
+2026-09-27T16:03:03.0388097Z ok 419 behavioral: a microcode-only image is unverifiable, not a failure
+2026-09-27T16:03:03.1830159Z ok 420 behavioral: an unlistable base initrd warns but does not fail the deploy
+2026-09-27T16:03:03.2889964Z ok 421 run-e2e.sh is syntactically valid
+2026-09-27T16:03:03.3139739Z ok 422 guest-ping is OS-agnostic, so it cannot stand alone as a down-detector
+2026-09-27T16:03:03.3423951Z ok 423 a positive Linux discriminator exists alongside the Windows one
+2026-09-27T16:03:03.3661770Z ok 424 no agent answering is read as 'down'
+2026-09-27T16:03:03.3903366Z ok 425 a Windows agent answering is read as 'windows', not as a live Phase 2
+2026-09-27T16:03:03.4144392Z ok 426 a Linux agent still answering is read as 'linux'
+2026-09-27T16:03:03.4387312Z ok 427 an agent that identifies as neither is read as 'unknown', never as Linux
+2026-09-27T16:03:03.4661826Z ok 428 the observation stops the moment Windows is seen, without draining the budget
+2026-09-27T16:03:03.4891254Z ok 429 system_reset in the Phase-2 return is reachable only from the 'linux' verdict
+2026-09-27T16:03:03.5202481Z ok 430 the verdict is computed before the reset, from p2_reboot_observe
+2026-09-27T16:03:03.5431628Z ok 431 the reboot request is bounded so it cannot eat the observation window
+2026-09-27T16:03:03.5640588Z ok 432 the Windows return is still asserted with the OS discriminator afterwards
+2026-09-27T16:03:03.5872263Z ok 433 the old ping-only shape really would have reset run 30710282779
+2026-09-27T16:03:04.6246687Z ok 434 mutation: a reboot that does nothing must fail the final Windows-return assertion
+2026-09-27T16:03:04.7071151Z ok 435 the script is syntactically valid
+2026-09-27T16:03:04.7448094Z ok 436 picks the blank spare disk, never the Windows disk
+2026-09-27T16:03:04.7785490Z ok 437 REFUSES when the only non-root disk is the Windows disk
+2026-09-27T16:03:04.8115153Z ok 438 a whole-disk filesystem with no partition table is NOT blank
+2026-09-27T16:03:04.8421627Z ok 439 skips nbd/loop/sr/zram even when they look empty
+2026-09-27T16:03:04.8752452Z ok 440 picks the first blank disk when several exist
+2026-09-27T16:03:04.9057490Z ok 441 no disks at all fails closed
+2026-09-27T16:03:04.9414739Z ok 442 a blank disk listed AFTER the Windows disk is still found
+2026-09-27T16:03:05.2738911Z ok 443 manifest discovers categories from prefilled profile
+2026-09-27T16:03:05.3102231Z ok 444 VS Code configuration is preserved in prefilled profile
+2026-09-27T16:03:05.3482902Z ok 445 MS Office custom dictionary and templates are present in profile
+2026-09-27T16:03:05.4062382Z ok 446 registry programs.json includes typical apps
+2026-09-27T16:03:06.5817471Z ok 447 the reconnect cycle reports a channel that came back
+2026-09-27T16:03:07.6705076Z ok 448 the reconnect cycle claims nothing when the channel stays deaf
+2026-09-27T16:03:09.7846371Z ok 449 the recovery path cannot itself kill the run under set -e
+2026-09-27T16:03:10.0192607Z ok 450 the verdict lands in BOTH the ledger and the machine-readable file
+2026-09-27T16:03:10.1013437Z ok 451 channel loss is classified, not waited out
+2026-09-27T16:03:10.1817155Z ok 452 the reconnect cycle runs ONCE, and only before the verdict
+2026-09-27T16:03:10.2641719Z ok 453 the reconnect cycle reaps stale clients before reopening
+2026-09-27T16:03:10.3455231Z ok 454 the verdict names the class and claims nothing about the product
+2026-09-27T16:03:10.4591840Z ok 455 the GUI timeout never treats live ping as a product verdict
+2026-09-27T16:03:10.5391635Z ok 456 a channel that comes back is not a failure
+2026-09-27T16:03:10.6204553Z ok 457 qga.py: a socket that will not open is TRANSPORT, not a guest exit code
+2026-09-27T16:03:10.7113595Z ok 458 qga.py: the reconnect cycle drains before it syncs
+2026-09-27T16:03:19.6559844Z ok 459 the synthetic channel-kill test exists and runs in the fast tier
+2026-09-27T16:03:19.7798941Z ok 460 the staged agent is reachable from the booted root, not from /usr
+2026-09-27T16:03:19.8471974Z ok 461 the unit's ExecStart points at the file that was actually staged
+2026-09-27T16:03:19.9121309Z ok 462 the fallback stands down when the image ships its own agent
+2026-09-27T16:03:19.9643184Z ok 463 an unstageable closure fails loudly and leaves nothing half-installed
+2026-09-27T16:03:19.9899546Z ok 464 the deployer no longer installs the agent into the shadowed /usr
+2026-09-27T16:03:20.0113624Z ok 465 the real-root stager is called from the post-install stage
+2026-09-27T16:03:20.1403813Z ok 466 all scripts are syntactically valid
+2026-09-27T16:03:20.1662009Z ok 467 Windows creates a PREALLOCATED raw image, not a VHDX
+2026-09-27T16:03:20.1908554Z ok 468 the image is physically allocated to prevent ntfs3 sparse I/O errors
+2026-09-27T16:03:20.2111154Z ok 469 the created size is verified, not assumed
+2026-09-27T16:03:20.2315442Z ok 470 the deployer attaches with losetup --partscan
+2026-09-27T16:03:20.2554903Z ok 471 --partscan is present everywhere a loop device is attached
+2026-09-27T16:03:20.2777204Z ok 472 loop.max_part is set on the Phase-2 kernel cmdline, not just via modprobe
+2026-09-27T16:03:20.2978680Z ok 473 the verify attach is guarded like the main attach
+2026-09-27T16:03:20.3237492Z ok 474 detach uses losetup -d, not qemu-nbd --disconnect
+2026-09-27T16:03:20.3464965Z ok 475 no qemu-nbd remains in deployer CODE
+2026-09-27T16:03:20.3707336Z ok 476 the closure staging is gone entirely
+2026-09-27T16:03:20.3961188Z ok 477 the VHDX format check is gone
+2026-09-27T16:03:20.4166022Z ok 478 the boot hook attaches with losetup --partscan
+2026-09-27T16:03:20.4382921Z ok 479 the hook's failure message names losetup and the loop module
+2026-09-27T16:03:20.4626138Z ok 480 the hook calls no modprobe at all (Secure Boot lockdown), and never nbd
+2026-09-27T16:03:20.4829428Z ok 481 post-attach partitions are reported from the actual loop device
+2026-09-27T16:03:20.5045877Z ok 482 the attach mechanism is a systemd SERVICE, not just an initqueue hook
+2026-09-27T16:03:20.5302517Z ok 483 Phase-2 prefers the kernel ntfs3 mount and preserves FUSE fallback
+2026-09-27T16:03:20.5524802Z ok 484 the service is ordered before sysroot.mount and after udev
+2026-09-27T16:03:20.5746084Z ok 485 the service is WIRED into initrd-root-device.target, verified at build
+2026-09-27T16:03:20.5952938Z ok 486 module-setup falls back when systemdsystemunitdir is empty
+2026-09-27T16:03:20.6160775Z ok 487 the module depends on systemd so the unit dir exists
+2026-09-27T16:03:20.6408806Z ok 488 the initramfs guard checks the WIRED service, not the hook
+2026-09-27T16:03:20.6628728Z ok 489 the module installs losetup and the loop kernel module
+2026-09-27T16:03:20.6856809Z ok 490 the module stages NO foreign binary
+2026-09-27T16:03:20.7152849Z ok 491 the host-NTFS wait is wall-clock with an unconditional sleep
+2026-09-27T16:03:20.7392419Z ok 492 the EXIT device inventory cannot fall back to listing a directory
+2026-09-27T16:03:20.8069218Z ok 493 deploy.sh contains state writes for deploying, deployed, and failed
+2026-09-27T16:03:20.8269873Z ok 494 deploy.sh contains fault injection hooks
+2026-09-27T16:03:20.8472993Z ok 495 setup-wootc.ps1 registers scheduled tasks and writes armed.json
+2026-09-27T16:03:20.8660787Z ok 496 app writes armed.json and registers recovery tasks in configureBCD
+2026-09-27T16:03:20.8844129Z ok 497 app unregisters recovery tasks on disarm and uninstall
+2026-09-27T16:03:20.9015199Z ok 498 uninstall_check asserts recovery scheduled tasks are unregistered
+2026-09-27T16:03:20.9243367Z ok 499 decision table covers all five verdicts
+2026-09-27T16:03:21.0090860Z ok 500 matrix.tsv covers all 6 fault injection boundaries
+2026-09-27T16:03:21.0367769Z ok 501 matrix.tsv smoke tier includes critical recovery cells
+2026-09-27T16:03:21.0563855Z ok 502 run-matrix.sh threads fault= opts to --fault-inject and env var
+2026-09-27T16:03:21.0787047Z ok 503 run-e2e.sh accepts --fault-inject flag and handles recovery check
+2026-09-27T16:03:21.1032747Z ok 504 setup-wootc.ps1 supports -FaultInject parameter for all boundaries
+2026-09-27T16:03:21.1221131Z ok 505 setup-wootc.ps1 sweeps stale BCD entries for retry idempotency
+2026-09-27T16:03:21.1424186Z ok 506 deploy.sh reads wootc.fault and records failed state
+2026-09-27T16:03:21.1658317Z ok 507 assert-recovery.ps1 validates interrupted, retried, and uninstalled stages
+2026-09-27T16:03:21.1878691Z ok 508 run-recovery-matrix.sh is executable and accepts parameters
+2026-09-27T16:03:21.2082560Z ok 509 e2e-hosted.yml and e2e-matrix.yml support fault_inject
+2026-09-27T16:03:21.2645186Z ok 510 full releases hand the tag to winget-publish themselves
+2026-09-27T16:03:21.3361287Z ok 511 deploy.sh is syntactically valid
+2026-09-27T16:03:21.3546705Z ok 512 a dirty NTFS volume is still mountable via ntfs3 -o force
+2026-09-27T16:03:21.3822742Z ok 513 the plain read-only mount is still tried first
+2026-09-27T16:03:21.4014821Z ok 514 ntfs-3g is the last resort when the kernel driver is absent
+2026-09-27T16:03:21.4198015Z ok 515 an unmountable device is logged, never skipped silently
+2026-09-27T16:03:21.4380937Z ok 516 a mounted device without the vhdx is also logged
+2026-09-27T16:03:21.4564644Z ok 517 success reports which driver worked
+2026-09-27T16:03:21.4789972Z ok 518 the scan still fails closed when nothing carries the vhdx
+2026-09-27T16:03:21.5596362Z ok 519 the release stages a DUAL-signed shim, pinned by exact NVR
+2026-09-27T16:03:21.5803151Z ok 520 the build refuses to publish a shim that 2023-only firmware cannot launch
+2026-09-27T16:03:21.6107286Z ok 521 the exe is stamped from the extracted shim, never from a second copy of the pin
+2026-09-27T16:03:21.6320444Z ok 522 MokManager is NOT graded against the Microsoft CAs
+2026-09-27T16:03:21.6555628Z ok 523 the harness proves the same shim the release ships
+2026-09-27T16:03:21.7043430Z ok 524 the extractor walks EVERY signature, not just the first
+2026-09-27T16:03:21.7267291Z ok 525 the extractor matches on the ISSUER, not the leaf subject
+2026-09-27T16:03:21.7521670Z ok 526 the preflight gates BEFORE anything is written, and only on a known mismatch
+2026-09-27T16:03:21.7754684Z ok 527 the db read is Windows-only and the dev stub gates nothing
+2026-09-27T16:03:21.8725640Z ok 528 no selection file at all → everything migrates (default on)
+2026-09-27T16:03:21.9433314Z ok 529 category explicitly ON → migrates
+2026-09-27T16:03:22.0138169Z ok 530 category explicitly OFF → skipped (this is the bug that was unwired)
+2026-09-27T16:03:22.0842109Z ok 531 turning one category off does not disable the others
+2026-09-27T16:03:22.1327566Z ok 532 unreadable/corrupt selection fails open (never blocks a migration)
+2026-09-27T16:03:22.2952860Z ok 533 the GUI's own default selection keeps every discovered category on
+2026-09-27T16:03:22.3965499Z ok 534 an explicitly disabled item is skipped while sibling items stay on
+2026-09-27T16:03:22.4703205Z ok 535 run-e2e.sh is syntactically valid
+2026-09-27T16:03:22.4917189Z ok 536 snapshot_serial reports failure rather than swallowing it
+2026-09-27T16:03:22.5104667Z ok 537 a sustained dead feed produces a warning
+2026-09-27T16:03:22.5290922Z ok 538 the dead-feed warning states that downstream checks are untrustworthy
+2026-09-27T16:03:22.5491613Z ok 539 consecutive failures are counted, and success resets the counter
+2026-09-27T16:03:22.5691677Z ok 540 the warning fires once, not on every poll
+2026-09-27T16:03:22.5936393Z ok 541 a stale PTY from a previous run is deleted before monitoring begins
+2026-09-27T16:03:22.6125311Z ok 542 the PTY-missing failure names the source it could not read
+2026-09-27T16:03:22.6955651Z ok 543 run-e2e.sh is syntactically valid
+2026-09-27T16:03:22.7145625Z ok 544 silence is measured against the serial file, not a counter
+2026-09-27T16:03:22.7355774Z ok 545 the silence threshold is generous enough for bootc install
+2026-09-27T16:03:22.7633944Z ok 546 guest CPU is sampled before any wedged verdict
+2026-09-27T16:03:22.7823742Z ok 547 high CPU during silence is reported as WORKING, not warned about
+2026-09-27T16:03:22.8014479Z ok 548 low CPU during silence is called out as wedged
+2026-09-27T16:03:22.8207144Z ok 549 a missing QEMU process is distinguished from a slow one
+2026-09-27T16:03:22.8396701Z ok 550 the CPU threshold is a real comparison, not a string test
+2026-09-27T16:03:22.8588863Z ok 551 the threshold is overridable for slow or busy hosts
+2026-09-27T16:03:22.8833364Z ok 552 quiet-deploy heartbeat samples fisherman inside the guest through QGA
+2026-09-27T16:03:22.9039169Z ok 553 heartbeat is bounded and its thresholds are overridable
+2026-09-27T16:03:22.9270313Z ok 554 heartbeat cannot become success evidence or an automatic restart
+2026-09-27T16:03:22.9480702Z ok 555 unchanged workload counters require repeated samples before warning
+2026-09-27T16:03:23.0224700Z ok 556 run-e2e.sh is syntactically valid
+2026-09-27T16:03:23.0402234Z ok 557 the snapshot is disabled by default
+2026-09-27T16:03:23.0654809Z ok 558 the skip path still releases the OEM barrier
+2026-09-27T16:03:23.0908631Z ok 559 the skip happens BEFORE any freeze or copy
+2026-09-27T16:03:23.1094448Z ok 560 the skip is announced, not silent
+2026-09-27T16:03:23.1281957Z ok 561 it can still be re-enabled explicitly
+2026-09-27T16:03:23.1485407Z ok 562 there is still no restore path — the snapshot remains write-only
+2026-09-27T16:03:23.2084521Z ok 563 missing status CLI fails before VM setup
+2026-09-27T16:03:23.2477600Z ok 564 CLI checksum matches staged bytes and deleting binary fails again
+2026-09-27T16:03:23.2772875Z ok 565 guest checks CLI before partitioning and BCD arming
+2026-09-27T16:03:23.3765877Z ok 566 all generated step IDs, owners and labels are current
+2026-09-27T16:03:23.4149941Z ok 567 every phase the deployer announces is catalogued with the correct owner
+2026-09-27T16:03:24.4233693Z ok 568 real splash, firstboot and harness consumers reject label and stale-output mutations
+2026-09-27T16:03:24.4930269Z ok 569 the uninstall stage exists, opt-in, after Windows verifiably returned
+2026-09-27T16:03:24.5255862Z ok 570 every cleanup claim is asserted separately, and data preservation is one of them
+2026-09-27T16:03:24.5438178Z ok 571 the workflow can request the uninstall stage
+2026-09-27T16:03:24.6138522Z ok 572 getUninstallInfo detects partial install when wootc directory exists without root.disk
+2026-09-27T16:03:24.6325001Z ok 573 uninstallWith cleans up install, bundle, cache, and logs dirs on keep-root.disk
+2026-09-27T16:03:24.6495713Z ok 574 uninstallWith sweeps entire wootc folder when no root.disk exists or on deletion request
+2026-09-27T16:03:24.6740768Z ok 575 dedicated volume verification uses receipt policy and accepts only non-system basic NTFS partitions
+2026-09-27T16:03:24.6937893Z ok 576 partition reclaim refuses C and consumes only a receipt-bound target
+2026-09-27T16:03:24.7121678Z ok 577 uninstall verifies clean convergence and reports leftover artifacts
+2026-09-27T16:03:24.7319327Z ok 578 headless uninstall command parses -delete-root-disk and -remove-partition flags
+2026-09-27T16:03:24.8155892Z ok 579 the power record is read BEFORE the folder holding it is removed
+2026-09-27T16:03:24.8505304Z ok 580 the pre-install power state is mirrored where a hand-deleted folder cannot take it
+2026-09-27T16:03:24.8745526Z ok 581 restoration re-enables only what was on, and reads values not substrings
+2026-09-27T16:03:24.8968342Z ok 582 only the FIRST install defines what 'prior' means
+2026-09-27T16:03:24.9171799Z ok 583 the field verifier exists and refuses to grade without a baseline
+2026-09-27T16:03:24.9391845Z ok 584 the verifier grades keep and delete against different end states
+2026-09-27T16:03:24.9615618Z ok 585 a missing power baseline fails the box instead of skipping it
+2026-09-27T16:03:24.9838005Z ok 586 the ESP check is two-sided: ours gone AND nothing else touched
+2026-09-27T16:03:25.0082997Z ok 587 the checklist cannot be talked into passing
+2026-09-27T16:03:25.0274218Z ok 588 the PowerShell grading logic is actually run by the fast tier
+2026-09-27T16:03:25.0518424Z ok 589 manual-testing documents the procedure the issue asks for
+2026-09-27T16:03:25.1669767Z ok 590 self-test passes
+2026-09-27T16:03:25.2159326Z ok 591 identity fields are pre-filled from the scan
+2026-09-27T16:03:25.2643798Z ok 592 prefill never carries a password field through
+2026-09-27T16:03:25.3128599Z ok 593 the password explanation is never blank
+2026-09-27T16:03:25.3621302Z ok 594 valid usernames are accepted, invalid ones explained
+2026-09-27T16:03:25.4215854Z ok 595 reserved system usernames are refused
+2026-09-27T16:03:25.4708035Z ok 596 passwords must meet the length floor and match their confirmation
+2026-09-27T16:03:25.5205102Z ok 597 validate reports every problem at once, not one at a time
+2026-09-27T16:03:25.5743376Z ok 598 the password NEVER reaches the saved account file
+2026-09-27T16:03:25.6234232Z ok 599 a future field added to the form cannot leak into the saved record
+2026-09-27T16:03:25.6722930Z ok 600 the password goes to chpasswd on stdin, never in argv
+2026-09-27T16:03:25.7218042Z ok 601 a chpasswd failure is surfaced, not silently swallowed
+2026-09-27T16:03:25.7708485Z ok 602 set_password refuses empty credentials
+2026-09-27T16:03:25.8488308Z ok 603 the arm script vaults a Linux user matching the Windows profile name
+2026-09-27T16:03:25.8736647Z ok 604 user data is seeded before the deployer barrier is released
+2026-09-27T16:03:25.8975451Z ok 605 Phase-2 bridge check is a live QGA content read against RUN_ID
+2026-09-27T16:03:25.9233877Z ok 606 Phase-3 native persistence check reads the file from the native disk
+2026-09-27T16:03:25.9461164Z ok 607 vault user requests only the wheel group
+2026-09-27T16:03:25.9767688Z ok 608 passthrough is wanted by multi-user, after /var is mounted
+2026-09-27T16:03:26.0017457Z ok 609 Phase-3 reboot never rides the QGA channel
+2026-09-27T16:03:26.0225949Z ok 610 mount-user-dirs reports a bind verdict and flags a missing home
+2026-09-27T16:03:26.0443857Z ok 611 fisherman pins user homes into the stateroot var
+2026-09-27T16:03:26.0655982Z ok 612 emergency-shell diagnosis distinguishes attach from mount failure
+2026-09-27T16:03:26.2046604Z ok 613 WPA2-PSK profile becomes a wpa-psk NM keyfile with the passphrase
+2026-09-27T16:03:26.2719336Z ok 614 WPA3-SAE profile maps to key-mgmt=sae
+2026-09-27T16:03:26.3398343Z ok 615 open network imports with no wifi-security section
+2026-09-27T16:03:26.4006131Z ok 616 enterprise 802.1X profile is DETECTED but never copied
+2026-09-27T16:03:26.4607205Z ok 617 PSK profile with no cleartext key is skipped, not written keyless
+2026-09-27T16:03:26.5249007Z ok 618 the transient cleartext export is destroyed after import
+2026-09-27T16:03:26.6238906Z ok 619 state json records the imported/skipped counts for the dashboard
+2026-09-27T16:03:26.6878112Z ok 620 an existing NM connection is not clobbered
+2026-09-27T16:03:26.7154296Z ok 621 empty export dir is a clean no-op
+2026-09-27T16:03:26.8014986Z ok 622 picks Pro without matching Pro N or Pro Education
+2026-09-27T16:03:26.8298156Z ok 623 picks LTSC, which spells itself Enterprise LTSC
+2026-09-27T16:03:26.8580329Z ok 624 plain Enterprise never resolves to the LTSC image
+2026-09-27T16:03:26.8897792Z ok 625 an ambiguous list yields nothing rather than a coin flip
+2026-09-27T16:03:26.9182265Z ok 626 no match yields nothing, leaving Setup to decide
+2026-09-27T16:03:26.9449439Z ok 627 an unknown edition never guesses
+2026-09-27T16:03:26.9732721Z ok 628 surrounding whitespace in wiminfo output is tolerated
+2026-09-27T16:03:27.0058271Z ok 629 the in-run heal only fires when it can add information
+2026-09-27T16:03:27.0360886Z ok 630 the in-run heal waits for the download to settle before reading
+2026-09-27T16:03:27.0671449Z ok 631 the in-run heal never proceeds on an ambiguous list
+2026-09-27T16:03:27.1615538Z ok 632 run-e2e.sh is syntactically valid
+2026-09-27T16:03:27.1867598Z ok 633 the capture point is BEFORE any OEM/migration setup runs
+2026-09-27T16:03:27.2102695Z ok 634 prime captures via a CLEAN shutdown, never a live fsfreeze
+2026-09-27T16:03:27.2296653Z ok 635 prime waits for the guest to power off before converting
+2026-09-27T16:03:27.2545182Z ok 636 prime brings the container down before qemu-img convert
+2026-09-27T16:03:27.2738917Z ok 637 prime produces a compressed, standalone qcow2
+2026-09-27T16:03:27.2931532Z ok 638 prime refuses to combine with --skip-install
+2026-09-27T16:03:27.3155780Z ok 639 prime writes the correctness key AND dockur's install markers
+2026-09-27T16:03:27.3405602Z ok 640 restore keys on the SAME formula as ANSWER_SHA (folds in bitlocker)
+2026-09-27T16:03:27.3664725Z ok 641 a key MISMATCH falls back to a full install, never fails the run
+2026-09-27T16:03:27.3932206Z ok 642 a successful restore forces the --skip-install reuse path
+2026-09-27T16:03:27.4140193Z ok 643 the hosted E2E pull is best-effort (a cache miss never gates a run)
+2026-09-27T16:03:27.4377463Z ok 644 the prime workflow pushes to a per-axis GHCR tag via ORAS
+2026-09-27T16:03:27.4571398Z ok 645 the hosted workflow has packages:read to pull the base image
+2026-09-27T16:03:27.6833216Z ── python unit tests (tests/unit/test_*.py) ──
+2026-09-27T16:03:27.6834043Z    tests/unit/test_brand_adoption.py
+2026-09-27T16:03:27.9770278Z ....
+2026-09-27T16:03:27.9770860Z ----------------------------------------------------------------------
+2026-09-27T16:03:27.9771452Z Ran 4 tests in 0.243s
+2026-09-27T16:03:27.9771663Z 
+2026-09-27T16:03:27.9771782Z OK
+2026-09-27T16:03:27.9852827Z    tests/unit/test_convert_directory_swap.py
+2026-09-27T16:03:28.5240932Z .....
+2026-09-27T16:03:28.5241634Z ----------------------------------------------------------------------
+2026-09-27T16:03:28.5242165Z Ran 5 tests in 0.494s
+2026-09-27T16:03:28.5242368Z 
+2026-09-27T16:03:28.5242488Z OK
+2026-09-27T16:03:28.5329254Z    tests/unit/test_coverage_report.py
+2026-09-27T16:03:29.0929256Z .........
+2026-09-27T16:03:29.0929775Z ----------------------------------------------------------------------
+2026-09-27T16:03:29.0930398Z Ran 9 tests in 0.508s
+2026-09-27T16:03:29.0930612Z 
+2026-09-27T16:03:29.0930723Z OK
+2026-09-27T16:03:29.1015242Z    tests/unit/test_deployer_splash.py
+2026-09-27T16:03:29.1766091Z ....
+2026-09-27T16:03:29.1766732Z ----------------------------------------------------------------------
+2026-09-27T16:03:29.1767742Z Ran 4 tests in 0.030s
+2026-09-27T16:03:29.1768037Z 
+2026-09-27T16:03:29.1768188Z OK
+2026-09-27T16:03:29.1848512Z    tests/unit/test_e2e_adapters.py
+2026-09-27T16:03:47.9447884Z ................
+2026-09-27T16:03:47.9448433Z ----------------------------------------------------------------------
+2026-09-27T16:03:47.9448814Z Ran 16 tests in 18.711s
+2026-09-27T16:03:47.9448976Z 
+2026-09-27T16:03:47.9449055Z OK
+2026-09-27T16:03:47.9535451Z    tests/unit/test_e2e_results.py
+2026-09-27T16:03:51.1878577Z ........[FAIL] Result evidence rejected: [Errno 17] File exists: '/tmp/tmpe1_2gdrg/video/.passed.li4apgey' -> '/tmp/tmpe1_2gdrg/video/.passed'
+2026-09-27T16:03:53.6369982Z ..........
+2026-09-27T16:03:53.6370517Z ----------------------------------------------------------------------
+2026-09-27T16:03:53.6371126Z Ran 18 tests in 5.507s
+2026-09-27T16:03:53.6371361Z 
+2026-09-27T16:03:53.6371495Z OK
+2026-09-27T16:03:53.6501096Z    tests/unit/test_esp_chain_refresh.py
+2026-09-27T16:03:53.7413855Z test_a_refused_candidate_leaves_the_working_chain_in_place (__main__.ChainRefresh.test_a_refused_candidate_leaves_the_working_chain_in_place) ... ok
+2026-09-27T16:03:53.8169501Z test_another_linuxs_vendor_directory_on_the_same_esp_is_never_touched (__main__.ChainRefresh.test_another_linuxs_vendor_directory_on_the_same_esp_is_never_touched) ... ok
+2026-09-27T16:03:53.8569008Z test_identical_chain_is_a_no_op (__main__.ChainRefresh.test_identical_chain_is_a_no_op) ... ok
+2026-09-27T16:03:53.8890070Z test_no_helper_means_the_chain_is_left_alone (__main__.ChainRefresh.test_no_helper_means_the_chain_is_left_alone) ... ok
+2026-09-27T16:03:53.8938486Z test_no_wootc_owned_directory_means_nothing_is_touched (__main__.ChainRefresh.test_no_wootc_owned_directory_means_nothing_is_touched) ... ok
+2026-09-27T16:03:53.9655192Z test_refreshes_all_three_when_the_candidate_is_accepted (__main__.ChainRefresh.test_refreshes_all_three_when_the_candidate_is_accepted) ... ok
+2026-09-27T16:03:54.0386837Z test_shim_is_written_last (__main__.ChainRefresh.test_shim_is_written_last) ... ok
+2026-09-27T16:03:54.1113881Z test_the_previous_chain_is_archived_before_replacement (__main__.ChainRefresh.test_the_previous_chain_is_archived_before_replacement) ... ok
+2026-09-27T16:03:54.1114867Z 
+2026-09-27T16:03:54.1115127Z ----------------------------------------------------------------------
+2026-09-27T16:03:54.1115660Z Ran 8 tests in 0.416s
+2026-09-27T16:03:54.1115879Z 
+2026-09-27T16:03:54.1116002Z OK
+2026-09-27T16:03:54.1211544Z    tests/unit/test_gui_drive_receipt.py
+2026-09-27T16:03:56.8113131Z ..........
+2026-09-27T16:03:56.8113917Z ----------------------------------------------------------------------
+2026-09-27T16:03:56.8114880Z Ran 10 tests in 2.641s
+2026-09-27T16:03:56.8115236Z 
+2026-09-27T16:03:56.8115437Z OK
+2026-09-27T16:03:56.8200123Z    tests/unit/test_gui_observations.py
+2026-09-27T16:04:06.2411146Z ..............
+2026-09-27T16:04:06.2411554Z ----------------------------------------------------------------------
+2026-09-27T16:04:06.2412055Z Ran 14 tests in 9.372s
+2026-09-27T16:04:06.2412242Z 
+2026-09-27T16:04:06.2412341Z OK
+2026-09-27T16:04:06.2495381Z    tests/unit/test_gui_session.py
+2026-09-27T16:04:09.2138152Z ................
+2026-09-27T16:04:09.2138677Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.2139071Z Ran 16 tests in 2.915s
+2026-09-27T16:04:09.2139229Z 
+2026-09-27T16:04:09.2139315Z OK
+2026-09-27T16:04:09.2227340Z    tests/unit/test_linux_package_acquisition.py
+2026-09-27T16:04:09.3180057Z ....
+2026-09-27T16:04:09.3180610Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.3181199Z Ran 4 tests in 0.010s
+2026-09-27T16:04:09.3181423Z 
+2026-09-27T16:04:09.3181531Z OK
+2026-09-27T16:04:09.3340269Z    tests/unit/test_linux_package_bootstrap.py
+2026-09-27T16:04:09.4411960Z ...........
+2026-09-27T16:04:09.4412640Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.4413387Z Ran 11 tests in 0.052s
+2026-09-27T16:04:09.4413689Z 
+2026-09-27T16:04:09.4413921Z OK
+2026-09-27T16:04:09.4509072Z    tests/unit/test_linux_package_elf.py
+2026-09-27T16:04:09.5098714Z EEEEEEEE
+2026-09-27T16:04:09.5099251Z ======================================================================
+2026-09-27T16:04:09.5100549Z ERROR: test_actual_dynamic_address_not_bound_to_loaded_bytes_refuses (__main__.ElfTests.test_actual_dynamic_address_not_bound_to_loaded_bytes_refuses)
+2026-09-27T16:04:09.5101738Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5102306Z Traceback (most recent call last):
+2026-09-27T16:04:09.5103158Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5104175Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5105032Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5105649Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5106279Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5106773Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5107588Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5108387Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5109256Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5110199Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5110928Z 
+2026-09-27T16:04:09.5111152Z ======================================================================
+2026-09-27T16:04:09.5112527Z ERROR: test_actual_invalid_needed_string_offset_refuses (__main__.ElfTests.test_actual_invalid_needed_string_offset_refuses)
+2026-09-27T16:04:09.5113650Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5114244Z Traceback (most recent call last):
+2026-09-27T16:04:09.5115320Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5116324Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5117510Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5118216Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5118916Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5119475Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5120031Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5120846Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5121800Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5122746Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5123417Z 
+2026-09-27T16:04:09.5123613Z ======================================================================
+2026-09-27T16:04:09.5124682Z ERROR: test_actual_missing_dynamic_terminator_refuses (__main__.ElfTests.test_actual_missing_dynamic_terminator_refuses)
+2026-09-27T16:04:09.5125771Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5126375Z Traceback (most recent call last):
+2026-09-27T16:04:09.5127485Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5128494Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5129481Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5130205Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5130932Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5131495Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5132091Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5132972Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5133929Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5134978Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5135798Z 
+2026-09-27T16:04:09.5136032Z ======================================================================
+2026-09-27T16:04:09.5137480Z ERROR: test_actual_module_zero_needed_matches_native_readelf_and_ldd (__main__.ElfTests.test_actual_module_zero_needed_matches_native_readelf_and_ldd)
+2026-09-27T16:04:09.5138675Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5139218Z Traceback (most recent call last):
+2026-09-27T16:04:09.5139996Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5140986Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5141895Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5142716Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5143492Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5144054Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5144664Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5145434Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5146276Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5147496Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5148294Z 
+2026-09-27T16:04:09.5148755Z ======================================================================
+2026-09-27T16:04:09.5149848Z ERROR: test_actual_needed_executable_empty_ldd_is_refused (__main__.ElfTests.test_actual_needed_executable_empty_ldd_is_refused)
+2026-09-27T16:04:09.5150950Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5151558Z Traceback (most recent call last):
+2026-09-27T16:04:09.5152622Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5153592Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5154519Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5155207Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5156056Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5156592Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5157382Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5158227Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5159172Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5160176Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5160946Z 
+2026-09-27T16:04:09.5161167Z ======================================================================
+2026-09-27T16:04:09.5162232Z ERROR: test_actual_truncated_elf_program_table_refuses (__main__.ElfTests.test_actual_truncated_elf_program_table_refuses)
+2026-09-27T16:04:09.5163334Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5163959Z Traceback (most recent call last):
+2026-09-27T16:04:09.5164868Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5165862Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5166846Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5167767Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5168449Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5168989Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5169485Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5170339Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5171317Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5172340Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5173108Z 
+2026-09-27T16:04:09.5173342Z ======================================================================
+2026-09-27T16:04:09.5174385Z ERROR: test_sparse_oversized_elf_refuses_before_read (__main__.ElfTests.test_sparse_oversized_elf_refuses_before_read)
+2026-09-27T16:04:09.5175458Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5176068Z Traceback (most recent call last):
+2026-09-27T16:04:09.5177185Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5178190Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5179102Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5179831Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5180687Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5181261Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5181793Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5182589Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5183558Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5184587Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5185639Z 
+2026-09-27T16:04:09.5185860Z ======================================================================
+2026-09-27T16:04:09.5187337Z ERROR: test_zero_needed_nonmodule_does_not_enable_blanket_empty_ldd (__main__.ElfTests.test_zero_needed_nonmodule_does_not_enable_blanket_empty_ldd)
+2026-09-27T16:04:09.5188748Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5189323Z Traceback (most recent call last):
+2026-09-27T16:04:09.5190165Z   File "/home/runner/work/wootc/wootc/tests/unit/test_linux_package_elf.py", line 19, in setUp
+2026-09-27T16:04:09.5191107Z     self.copy.write_bytes(MODULE_PATH.read_bytes())
+2026-09-27T16:04:09.5192077Z                           ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5192701Z   File "/usr/lib/python3.12/pathlib.py", line 1021, in read_bytes
+2026-09-27T16:04:09.5193303Z     with self.open(mode='rb') as f:
+2026-09-27T16:04:09.5193841Z          ^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5194383Z   File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+2026-09-27T16:04:09.5195196Z     return io.open(self, mode, buffering, encoding, errors, newline)
+2026-09-27T16:04:09.5196062Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-09-27T16:04:09.5197274Z FileNotFoundError: [Errno 2] No such file or directory: '/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so'
+2026-09-27T16:04:09.5198032Z 
+2026-09-27T16:04:09.5198286Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.5198834Z Ran 8 tests in 0.003s
+2026-09-27T16:04:09.5199052Z 
+2026-09-27T16:04:09.5199186Z FAILED (errors=8)
+2026-09-27T16:04:09.5211298Z    tests/unit/test_linux_package_host_data.py
+2026-09-27T16:04:09.8018164Z .....................
+2026-09-27T16:04:09.8018898Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.8019571Z Ran 21 tests in 0.178s
+2026-09-27T16:04:09.8019773Z 
+2026-09-27T16:04:09.8019892Z OK
+2026-09-27T16:04:09.8184877Z    tests/unit/test_linux_package_hosted.py
+2026-09-27T16:04:09.8874051Z .........
+2026-09-27T16:04:09.8874788Z ----------------------------------------------------------------------
+2026-09-27T16:04:09.8875441Z Ran 9 tests in 0.013s
+2026-09-27T16:04:09.8875674Z 
+2026-09-27T16:04:09.8875796Z OK
+2026-09-27T16:04:09.8966124Z    tests/unit/test_linux_package_launcher.py
+2026-09-27T16:04:10.1402536Z .............
+2026-09-27T16:04:10.1403273Z ----------------------------------------------------------------------
+2026-09-27T16:04:10.1404068Z Ran 13 tests in 0.165s
+2026-09-27T16:04:10.1404384Z 
+2026-09-27T16:04:10.1404556Z OK
+2026-09-27T16:04:10.1541859Z    tests/unit/test_linux_package_namespace.py
+2026-09-27T16:04:10.2778801Z ...
+2026-09-27T16:04:10.2779451Z ----------------------------------------------------------------------
+2026-09-27T16:04:10.2780027Z Ran 3 tests in 0.001s
+2026-09-27T16:04:10.2780236Z 
+2026-09-27T16:04:10.2780349Z OK
+2026-09-27T16:04:10.2925370Z    tests/unit/test_linux_package_observer.py
+2026-09-27T16:04:10.5615863Z .......
+2026-09-27T16:04:10.5616412Z ----------------------------------------------------------------------
+2026-09-27T16:04:10.5617293Z Ran 7 tests in 0.212s
+2026-09-27T16:04:10.5617543Z 
+2026-09-27T16:04:10.5617668Z OK
+2026-09-27T16:04:10.5714631Z    tests/unit/test_linux_package_prepare.py
+2026-09-27T16:04:10.6325610Z ......
+2026-09-27T16:04:10.6326108Z ----------------------------------------------------------------------
+2026-09-27T16:04:10.6326620Z Ran 6 tests in 0.005s
+2026-09-27T16:04:10.6419138Z 
+2026-09-27T16:04:10.6419518Z OK
+2026-09-27T16:04:10.6420437Z    tests/unit/test_linux_package_qga.py
+2026-09-27T16:04:10.7662642Z .....
+2026-09-27T16:04:10.7663100Z ----------------------------------------------------------------------
+2026-09-27T16:04:10.7663614Z Ran 5 tests in 0.075s
+2026-09-27T16:04:10.7663809Z 
+2026-09-27T16:04:10.7663920Z OK
+2026-09-27T16:04:10.7757601Z    tests/unit/test_linux_package_readback.py
+2026-09-27T16:04:10.8489435Z ....
+2026-09-27T16:04:10.8490004Z ----------------------------------------------------------------------
+2026-09-27T16:04:10.8490843Z Ran 4 tests in 0.025s
+2026-09-27T16:04:10.8491056Z 
+2026-09-27T16:04:10.8579075Z OK
+2026-09-27T16:04:10.8579791Z    tests/unit/test_linux_package_serial.py
+2026-09-27T16:04:10.9127830Z .......
+2026-09-27T16:04:10.9128495Z ----------------------------------------------------------------------
+2026-09-27T16:04:10.9129446Z Ran 7 tests in 0.004s
+2026-09-27T16:04:10.9129658Z 
+2026-09-27T16:04:10.9129771Z OK
+2026-09-27T16:04:10.9209843Z    tests/unit/test_native_userdata_export.py
+2026-09-27T16:04:11.1827724Z ............
+2026-09-27T16:04:11.1828362Z ----------------------------------------------------------------------
+2026-09-27T16:04:11.1828925Z Ran 12 tests in 0.216s
+2026-09-27T16:04:11.1829145Z 
+2026-09-27T16:04:11.1829263Z OK
+2026-09-27T16:04:11.1921675Z    tests/unit/test_optical_media_control.py
+2026-09-27T16:04:11.7677674Z ..........s.
+2026-09-27T16:04:11.7678427Z ----------------------------------------------------------------------
+2026-09-27T16:04:11.7679023Z Ran 12 tests in 0.522s
+2026-09-27T16:04:11.7679236Z 
+2026-09-27T16:04:11.7679381Z OK (skipped=1)
+2026-09-27T16:04:11.7764065Z    tests/unit/test_phase3_observations.py
+2026-09-27T16:04:15.1698380Z .................................
+2026-09-27T16:04:15.1698955Z ----------------------------------------------------------------------
+2026-09-27T16:04:15.1699463Z Ran 33 tests in 3.341s
+2026-09-27T16:04:15.1699706Z 
+2026-09-27T16:04:15.1699847Z OK
+2026-09-27T16:04:15.1792384Z    tests/unit/test_plugin_import_results.py
+2026-09-27T16:04:16.6544441Z .
+2026-09-27T16:04:16.6544991Z ----------------------------------------------------------------------
+2026-09-27T16:04:16.6545396Z Ran 1 test in 1.428s
+2026-09-27T16:04:16.6545560Z 
+2026-09-27T16:04:16.6545631Z OK
+2026-09-27T16:04:16.6629311Z    tests/unit/test_plugin_manifest.py
+2026-09-27T16:04:18.7268831Z .......
+2026-09-27T16:04:18.7269382Z ----------------------------------------------------------------------
+2026-09-27T16:04:18.7269980Z Ran 7 tests in 2.016s
+2026-09-27T16:04:18.7270202Z 
+2026-09-27T16:04:18.7270314Z OK
+2026-09-27T16:04:18.7352731Z    tests/unit/test_prefilled_profile.py
+2026-09-27T16:04:18.7758227Z PASS (14 checks)
+2026-09-27T16:04:18.7813194Z    tests/unit/test_qga_reconnect.py
+2026-09-27T16:04:25.6316834Z QGA: cannot open /tmp/qga-channel-kill-cj7zp2ai/not-here.sock: [Errno 2] No such file or directory
+2026-09-27T16:04:26.6347770Z QGA reconnect: attempt 1/2: timed out
+2026-09-27T16:04:27.6364117Z QGA reconnect: attempt 2/2: timed out
+2026-09-27T16:04:27.6365676Z QGA: channel still deaf after 2 reconnect attempts — qga-channel-lost
+2026-09-27T16:04:27.6368940Z PASS (10 checks)
+2026-09-27T16:04:27.6433062Z    tests/unit/test_qga_write.py
+2026-09-27T16:04:27.6872705Z PASS (3 checks)
+2026-09-27T16:04:27.6932808Z    tests/unit/test_recovery_guard.py
+2026-09-27T16:04:27.7367389Z ........
+2026-09-27T16:04:27.7367920Z ----------------------------------------------------------------------
+2026-09-27T16:04:27.7368431Z Ran 8 tests in 0.002s
+2026-09-27T16:04:27.7368668Z 
+2026-09-27T16:04:27.7368775Z OK
+2026-09-27T16:04:27.7438775Z    tests/unit/test_recovery_matrix.py
+2026-09-27T16:04:27.7897424Z ....
+2026-09-27T16:04:27.7898165Z ----------------------------------------------------------------------
+2026-09-27T16:04:27.7898734Z Ran 4 tests in 0.002s
+2026-09-27T16:04:27.7898952Z 
+2026-09-27T16:04:27.7899070Z OK
+2026-09-27T16:04:27.7969148Z    tests/unit/test_safe_diagnostics.py
+2026-09-27T16:04:28.4756620Z .........
+2026-09-27T16:04:28.4757403Z ----------------------------------------------------------------------
+2026-09-27T16:04:28.4757983Z Ran 9 tests in 0.630s
+2026-09-27T16:04:28.4758204Z 
+2026-09-27T16:04:28.4758319Z OK
+2026-09-27T16:04:28.4845158Z    tests/unit/test_shim_trust.py
+2026-09-27T16:04:28.5343059Z test_accepts_when_the_authorities_intersect (__main__.Decision.test_accepts_when_the_authorities_intersect) ... ok
+2026-09-27T16:04:28.5345671Z test_refuses_a_candidate_the_firmware_does_not_trust (__main__.Decision.test_refuses_a_candidate_the_firmware_does_not_trust) ... [wootc-shim-trust] refusing cand.efi: signed by 2023, firmware trusts 2011. Installing it would stop this machine booting Linux.
+2026-09-27T16:04:28.5348120Z ok
+2026-09-27T16:04:28.5350124Z test_refuses_a_candidate_with_no_microsoft_signature (__main__.Decision.test_refuses_a_candidate_with_no_microsoft_signature) ... [wootc-shim-trust] refusing cand.efi: no Microsoft UEFI CA signature. The firmware would not launch it.
+2026-09-27T16:04:28.5351912Z ok
+2026-09-27T16:04:28.5353926Z test_refuses_when_secure_boot_is_on_and_the_db_is_unreadable (__main__.Decision.test_refuses_when_secure_boot_is_on_and_the_db_is_unreadable) ... [wootc-shim-trust] refusing cand.efi: Secure Boot is on and the firmware's trust store could not be read. The chain that boots today stays.
+2026-09-27T16:04:28.5355858Z ok
+2026-09-27T16:04:28.5357742Z test_secure_boot_off_skips_the_trust_check_but_not_sbat (__main__.Decision.test_secure_boot_off_skips_the_trust_check_but_not_sbat) ... [wootc-shim-trust] refusing cand.efi: SBAT generation 3 is older than the installed 7. A downgrade is what revocation blocks.
+2026-09-27T16:04:28.5359356Z ok
+2026-09-27T16:04:28.5360144Z test_a_non_pe_file_raises_rather_than_guessing (__main__.ParserSafety.test_a_non_pe_file_raises_rather_than_guessing) ... ok
+2026-09-27T16:04:28.5361468Z test_an_unsigned_pe_reports_no_authorities (__main__.ParserSafety.test_an_unsigned_pe_reports_no_authorities) ... ok
+2026-09-27T16:04:28.5362783Z test_no_efivarfs_means_unknown_not_untrusted (__main__.ParserSafety.test_no_efivarfs_means_unknown_not_untrusted) ... ok
+2026-09-27T16:04:28.5364334Z test_reads_a_dual_signed_shim_as_dual_signed (__main__.RealBinaries.test_reads_a_dual_signed_shim_as_dual_signed) ... skipped 'no real shim fixtures available'
+2026-09-27T16:04:28.5366268Z test_reads_the_sbat_generation_from_the_sbat_section (__main__.RealBinaries.test_reads_the_sbat_generation_from_the_sbat_section) ... skipped 'no real shim fixtures available'
+2026-09-27T16:04:28.5367641Z 
+2026-09-27T16:04:28.5367930Z ----------------------------------------------------------------------
+2026-09-27T16:04:28.5368532Z Ran 10 tests in 0.001s
+2026-09-27T16:04:28.5368761Z 
+2026-09-27T16:04:28.5368914Z OK (skipped=2)
+2026-09-27T16:04:28.5369286Z ok cand.efi cas=2011,2023 sbat=4
+2026-09-27T16:04:28.5437889Z    tests/unit/test_soak_ledger.py
+2026-09-27T16:04:28.6250827Z .............
+2026-09-27T16:04:28.6251376Z ----------------------------------------------------------------------
+2026-09-27T16:04:28.6251945Z Ran 13 tests in 0.023s
+2026-09-27T16:04:28.6252168Z 
+2026-09-27T16:04:28.6252281Z OK
+2026-09-27T16:04:28.6338019Z    tests/unit/test_step_catalogue.py
+2026-09-27T16:04:29.6312606Z ........
+2026-09-27T16:04:29.6313137Z ----------------------------------------------------------------------
+2026-09-27T16:04:29.6313706Z Ran 8 tests in 0.949s
+2026-09-27T16:04:29.6313928Z 
+2026-09-27T16:04:29.6314042Z OK
+2026-09-27T16:04:29.6399643Z    tests/unit/test_uninstall_partial.py
+2026-09-27T16:04:29.6581696Z ── test_uninstall_partial: verifying partial-state uninstall convergence ──
+2026-09-27T16:04:29.6582638Z   [PASS] getUninstallInfo checks BCD firmware entries
+2026-09-27T16:04:29.6583357Z   [PASS] getUninstallInfo checks ESP artifacts
+2026-09-27T16:04:29.6584091Z   [PASS] getUninstallInfo checks Add/Remove registry key
+2026-09-27T16:04:29.6585069Z   [PASS] uninstallWith invokes ownership-aware cleanupESP
+2026-09-27T16:04:29.6585781Z   [PASS] uninstallWith verifies clean convergence
+2026-09-27T16:04:29.6586415Z   [PASS] uninstallWith sweeps BCD entries
+2026-09-27T16:04:29.6587294Z   [PASS] uninstallWith clears one-shot bootsequence
+2026-09-27T16:04:29.6588075Z   [PASS] uninstallWith restores power state before directory removal
+2026-09-27T16:04:29.6588931Z   [PASS] assessment requires protected persistent creation receipt
+2026-09-27T16:04:29.6589775Z   [PASS] actual removal uses full identity and contents binding
+2026-09-27T16:04:29.6590640Z   [PASS] removal consumes verified object rather than drive letter
+2026-09-27T16:04:29.6591995Z   [PASS] backend requires positively observed deletion and extension
+2026-09-27T16:04:29.6592983Z   [PASS] explicit removal intent survives partial uninstall
+2026-09-27T16:04:29.6593724Z   [PASS] headless CLI dispatches to headlessUninstall
+2026-09-27T16:04:29.6594470Z   [PASS] headlessUninstall supports -delete-root-disk flag
+2026-09-27T16:04:29.6595408Z   [PASS] headlessUninstall supports -remove-partition flag
+2026-09-27T16:04:29.6596305Z   [PASS] sysprobe_windows.go supports reading power state from registry mirror
+2026-09-27T16:04:29.6597522Z   [PASS] sysprobe_windows.go mirrors WootcPriorHibernate in registry
+2026-09-27T16:04:29.6598463Z   [PASS] sysprobe_windows.go mirrors WootcPriorHiberboot in registry
+2026-09-27T16:04:29.6598966Z 
+2026-09-27T16:04:29.6599133Z ALL CHECKS PASSED
+2026-09-27T16:04:29.6620388Z    tests/unit/test_vm_first_host.py
+2026-09-27T16:04:29.7771941Z ..............
+2026-09-27T16:04:29.7772514Z ----------------------------------------------------------------------
+2026-09-27T16:04:29.7773113Z Ran 14 tests in 0.042s
+2026-09-27T16:04:29.7773337Z 
+2026-09-27T16:04:29.7773443Z OK
+2026-09-27T16:04:29.7902664Z    tests/unit/test_vm_helper.py
+2026-09-27T16:04:29.9718998Z .......
+2026-09-27T16:04:29.9720173Z ----------------------------------------------------------------------
+2026-09-27T16:04:29.9720983Z Ran 7 tests in 0.136s
+2026-09-27T16:04:29.9721360Z 
+2026-09-27T16:04:29.9721506Z OK
+2026-09-27T16:04:29.9799528Z    tests/unit/test_vm_start.py
+2026-09-27T16:04:47.3881451Z ...................
+2026-09-27T16:04:47.3882014Z ----------------------------------------------------------------------
+2026-09-27T16:04:47.3882578Z Ran 19 tests in 17.358s
+2026-09-27T16:04:47.3882794Z 
+2026-09-27T16:04:47.3882908Z OK
+2026-09-27T16:04:47.3964655Z    tests/unit/test_windows_resources.py
+2026-09-27T16:04:47.4903475Z go: downloading github.com/tc-hib/go-winres v0.3.3
+2026-09-27T16:04:47.7152376Z go: downloading github.com/tc-hib/winres v0.2.1
+2026-09-27T16:04:47.7171622Z go: downloading github.com/urfave/cli/v2 v2.25.7
+2026-09-27T16:04:47.7731118Z go: downloading github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
+2026-09-27T16:04:47.7774911Z go: downloading golang.org/x/image v0.12.0
+2026-09-27T16:04:47.8990053Z go: downloading github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673
+2026-09-27T16:04:47.8999767Z go: downloading github.com/cpuguy83/go-md2man/v2 v2.0.2
+2026-09-27T16:04:47.9188584Z go: downloading github.com/russross/blackfriday/v2 v2.1.0
+2026-09-27T16:04:52.7930487Z ...
+2026-09-27T16:04:52.7930871Z ----------------------------------------------------------------------
+2026-09-27T16:04:52.7931262Z Ran 3 tests in 5.346s
+2026-09-27T16:04:52.7931417Z 
+2026-09-27T16:04:52.7931500Z OK
+2026-09-27T16:04:52.8019866Z    tests/unit/test_windows_restart.py
+2026-09-27T16:05:00.1859977Z .....................
+2026-09-27T16:05:00.1860853Z ----------------------------------------------------------------------
+2026-09-27T16:05:00.1861651Z Ran 21 tests in 7.334s
+2026-09-27T16:05:00.1862064Z 
+2026-09-27T16:05:00.1862255Z OK
+2026-09-27T16:05:00.1953584Z    tests/unit/test_winget_brand.py
+2026-09-27T16:05:00.2565739Z .....
+2026-09-27T16:05:00.2566380Z ----------------------------------------------------------------------
+2026-09-27T16:05:00.2567151Z Ran 5 tests in 0.013s
+2026-09-27T16:05:00.2567378Z 
+2026-09-27T16:05:00.2567494Z OK
+2026-09-27T16:05:00.2642377Z    tests/unit/test_wootc_package_consumer.py
+2026-09-27T16:05:01.1009531Z ............................
+2026-09-27T16:05:01.1010260Z ----------------------------------------------------------------------
+2026-09-27T16:05:01.1010839Z Ran 28 tests in 0.758s
+2026-09-27T16:05:01.1011055Z 
+2026-09-27T16:05:01.1011166Z OK
+2026-09-27T16:05:01.1165990Z    tests/unit/test_workflow_safety.py
+2026-09-27T16:05:01.2141213Z ........
+2026-09-27T16:05:01.2141923Z ----------------------------------------------------------------------
+2026-09-27T16:05:01.2142635Z Ran 8 tests in 0.047s
+2026-09-27T16:05:01.2142990Z 
+2026-09-27T16:05:01.2143305Z OK
+2026-09-27T16:05:01.2229436Z ── powershell lint (tests/lint-ps1.ps1) ──
+2026-09-27T16:05:07.3025313Z   ok app/partition-policy.ps1
+2026-09-27T16:05:07.3308237Z   ok app/partition-policy.tests.ps1
+2026-09-27T16:05:07.3404871Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-bootsector-run.ps1
+2026-09-27T16:05:07.3470922Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-disk-probe-run300.ps1
+2026-09-27T16:05:07.3535176Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-disk-probe-run900.ps1
+2026-09-27T16:05:07.3603968Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-probe-run-userspaceirq.ps1
+2026-09-27T16:05:07.3667398Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-probe-run.ps1
+2026-09-27T16:05:07.3715431Z   ok docs/experiments/evidence/2026-09-27-artifact-auth/native-windows.ps1
+2026-09-27T16:05:07.3801924Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-invocation.ps1
+2026-09-27T16:05:07.4081117Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-diagnostics.tests.ps1
+2026-09-27T16:05:07.4224734Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-key.ps1
+2026-09-27T16:05:07.4353347Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-key.tests.ps1
+2026-09-27T16:05:07.4521600Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-protection.ps1
+2026-09-27T16:05:07.4843228Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-protection.tests.ps1
+2026-09-27T16:05:07.4940336Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/lint-ps1.ps1
+2026-09-27T16:05:07.4989153Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/hostless-probe.ps1
+2026-09-27T16:05:07.5073712Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/native-invocation.ps1
+2026-09-27T16:05:07.5157825Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/prior-ancestor-mask-native/native-invocation.ps1
+2026-09-27T16:05:07.5185309Z   ok docs/experiments/evidence/2026-09-27-drive-receipt/native/install-command.ps1
+2026-09-27T16:05:07.5301260Z   ok docs/experiments/evidence/2026-09-27-drive-receipt/native/invocation.ps1
+2026-09-27T16:05:07.5333526Z   ok docs/experiments/evidence/2026-09-27-drive-receipt/native/reboot-command.ps1
+2026-09-27T16:05:07.5444637Z   ok docs/experiments/evidence/2026-09-27-gui-handover/native-invocation.ps1
+2026-09-27T16:05:07.5534599Z   ok docs/experiments/evidence/2026-09-27-gui-session/native-invocation.ps1
+2026-09-27T16:05:07.5632274Z   ok docs/experiments/evidence/2026-09-27-storage-root/wootc-storage-query-native-invocation.ps1
+2026-09-27T16:05:07.5669258Z   ok docs/experiments/evidence/2026-09-27-windows-restart/boot-query.literal.ps1
+2026-09-27T16:05:07.5687718Z   ok docs/experiments/evidence/2026-09-27-windows-restart/restart-request.literal.ps1
+2026-09-27T16:05:07.5808176Z   ok docs/experiments/evidence/2026-09-27-windows-restart/wootc-restart-native-invocation.ps1
+2026-09-27T16:05:07.5853772Z   ok packaging/winget/verified-tool.ps1
+2026-09-27T16:05:07.6572371Z   ok shell/packaging/test-installed-preview.ps1
+2026-09-27T16:05:07.6685339Z   ok shell/packaging/test-manifest.ps1
+2026-09-27T16:05:07.6764565Z   ok shell/packaging/test-uninstaller-removal.ps1
+2026-09-27T16:05:07.6795978Z   ok shell/packaging/wait-uninstaller-removal.ps1
+2026-09-27T16:05:07.6880694Z   ok shell/packaging/write-manifest.ps1
+2026-09-27T16:05:07.7050464Z   ok tests/e2e/assert-recovery.ps1
+2026-09-27T16:05:07.7421316Z   ok tests/e2e/fixture-bitlocker-diagnostics.tests.ps1
+2026-09-27T16:05:07.7810357Z   ok tests/e2e/fixture-bitlocker-key.ps1
+2026-09-27T16:05:07.7933301Z   ok tests/e2e/fixture-bitlocker-key.tests.ps1
+2026-09-27T16:05:07.8116026Z   ok tests/e2e/fixture-bitlocker-protection.ps1
+2026-09-27T16:05:07.8275857Z   ok tests/e2e/fixture-bitlocker-protection.tests.ps1
+2026-09-27T16:05:07.8363428Z   ok tests/e2e/oem/run-wootc-e2e.ps1
+2026-09-27T16:05:07.8546131Z   ok tests/e2e/oem/seed-profile.ps1
+2026-09-27T16:05:07.8674836Z   ok tests/e2e/phase1/assert-phase1.ps1
+2026-09-27T16:05:07.8837275Z   ok tests/e2e/seed-profile.ps1
+2026-09-27T16:05:07.9273382Z   ok tests/e2e/setup-wootc.ps1
+2026-09-27T16:05:07.9324064Z   ok tests/e2e/stage-status-cli.ps1
+2026-09-27T16:05:07.9409890Z   ok tests/e2e/state-trust.ps1
+2026-09-27T16:05:07.9467587Z   ok tests/e2e/test-stage-status-cli.ps1
+2026-09-27T16:05:07.9599404Z   ok tests/e2e/test-state-trust.ps1
+2026-09-27T16:05:07.9624616Z   ok tests/e2e/windows-storage-root.ps1
+2026-09-27T16:05:07.9879001Z   ok tests/field/verify-fresh-machine.ps1
+2026-09-27T16:05:08.0241299Z   ok tests/field/verify-uninstall.ps1
+2026-09-27T16:05:08.0325147Z   ok tests/lint-ps1.ps1
+2026-09-27T16:05:08.0387109Z   ok tests/unit/test-verified-winget-tool.ps1
+2026-09-27T16:05:08.0593616Z   ok tests/unit/test-verify-fresh-machine.ps1
+2026-09-27T16:05:08.0760700Z   ok tests/unit/test-verify-uninstall.ps1
+2026-09-27T16:05:08.0767418Z PowerShell lint passed
+2026-09-27T16:05:08.2525342Z ── powershell unit tests (tests/unit/test-*.ps1) ──
+2026-09-27T16:05:08.2526337Z    tests/unit/test-verified-winget-tool.ps1
+2026-09-27T16:05:09.2654326Z PASS (8 checks)
+2026-09-27T16:05:09.3043706Z    tests/unit/test-verify-fresh-machine.ps1
+2026-09-27T16:05:10.2044315Z PASS (54 checks)
+2026-09-27T16:05:10.2428773Z    tests/unit/test-verify-uninstall.ps1
+2026-09-27T16:05:11.1135137Z PASS (34 checks)
+2026-09-27T16:05:11.1544125Z ── go test (fisherman TUI, cross-platform app) ──
+2026-09-27T16:05:11.1559614Z    (created placeholder app/frontend/dist for the go:embed)
+2026-09-27T16:05:11.1925481Z go: downloading github.com/wailsapp/wails/v2 v2.16.0
+2026-09-27T16:05:11.4429594Z go: downloading golang.org/x/crypto v0.57.0
+2026-09-27T16:05:11.4430658Z go: downloading golang.org/x/mod v0.41.0
+2026-09-27T16:05:11.4809630Z go: downloading github.com/leaanthony/slicer v1.6.0
+2026-09-27T16:05:11.4810664Z go: downloading github.com/leaanthony/u v1.1.1
+2026-09-27T16:05:11.4990947Z go: downloading github.com/leaanthony/go-ansi-parser v1.6.1
+2026-09-27T16:05:11.5018547Z go: downloading github.com/pkg/errors v0.9.1
+2026-09-27T16:05:11.5158498Z go: downloading github.com/rivo/uniseg v0.4.7
+2026-09-27T16:05:25.8675877Z ok  	wootc	3.411s	coverage: 63.0% of statements
+2026-09-27T16:05:25.8676640Z ok  	wootc/internal/artifactauth	0.015s	coverage: 96.2% of statements
+2026-09-27T16:05:25.8677713Z ok  	wootc/tools/gendto	0.013s	coverage: 86.6% of statements
+2026-09-27T16:05:25.8678487Z ok  	wootc/tools/signmanifest	0.011s	coverage: 69.8% of statements
+2026-09-27T16:05:25.9216078Z go: downloading github.com/charmbracelet/bubbletea v1.3.10
+2026-09-27T16:05:25.9217307Z go: downloading github.com/charmbracelet/bubbles v1.0.0
+2026-09-27T16:05:25.9218420Z go: downloading github.com/charmbracelet/huh v1.0.0
+2026-09-27T16:05:25.9728023Z go: downloading github.com/charmbracelet/lipgloss v1.1.0
+2026-09-27T16:05:25.9864397Z go: downloading github.com/catppuccin/go v0.3.0
+2026-09-27T16:05:25.9872726Z go: downloading github.com/charmbracelet/x/cellbuf v0.0.15
+2026-09-27T16:05:25.9879978Z go: downloading github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0
+2026-09-27T16:05:26.0079345Z go: downloading github.com/mitchellh/hashstructure/v2 v2.0.2
+2026-09-27T16:05:26.0150963Z go: downloading github.com/charmbracelet/x/ansi v0.11.6
+2026-09-27T16:05:26.0151901Z go: downloading github.com/charmbracelet/x/term v0.2.2
+2026-09-27T16:05:26.0152912Z go: downloading github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6
+2026-09-27T16:05:26.0289935Z go: downloading github.com/muesli/cancelreader v0.2.2
+2026-09-27T16:05:26.0480065Z go: downloading github.com/lucasb-eyer/go-colorful v1.3.0
+2026-09-27T16:05:26.0484217Z go: downloading github.com/charmbracelet/harmonica v0.2.0
+2026-09-27T16:05:26.0505642Z go: downloading github.com/muesli/termenv v0.16.0
+2026-09-27T16:05:26.0646233Z go: downloading github.com/dustin/go-humanize v1.0.1
+2026-09-27T16:05:26.0660819Z go: downloading github.com/atotto/clipboard v0.1.4
+2026-09-27T16:05:26.0804294Z go: downloading github.com/mattn/go-runewidth v0.0.19
+2026-09-27T16:05:26.0867945Z go: downloading github.com/charmbracelet/colorprofile v0.4.1
+2026-09-27T16:05:26.0942750Z go: downloading golang.org/x/sys v0.38.0
+2026-09-27T16:05:26.1017179Z go: downloading github.com/clipperhouse/displaywidth v0.9.0
+2026-09-27T16:05:26.1018204Z go: downloading github.com/clipperhouse/uax29/v2 v2.5.0
+2026-09-27T16:05:26.1219474Z go: downloading github.com/aymanbagabas/go-osc52/v2 v2.0.1
+2026-09-27T16:05:26.1334878Z go: downloading github.com/mattn/go-isatty v0.0.20
+2026-09-27T16:05:26.1385039Z go: downloading github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+2026-09-27T16:05:26.1471049Z go: downloading github.com/clipperhouse/stringish v0.1.1
+2026-09-27T16:05:30.4032710Z 	github.com/projectbluefin/fisherman/tui/cmd/bootc-installer-tui		coverage: 0.0% of statements
+2026-09-27T16:05:30.4033657Z ok  	github.com/projectbluefin/fisherman/tui/internal/config	0.005s	coverage: 90.5% of statements
+2026-09-27T16:05:30.4034462Z ok  	github.com/projectbluefin/fisherman/tui/internal/disks	0.004s	coverage: 38.9% of statements
+2026-09-27T16:05:30.4035330Z 	github.com/projectbluefin/fisherman/tui/internal/network		coverage: 0.0% of statements
+2026-09-27T16:05:30.4036174Z ok  	github.com/projectbluefin/fisherman/tui/internal/sshkeys	0.020s	coverage: 81.0% of statements
+2026-09-27T16:05:30.4037128Z 	github.com/projectbluefin/fisherman/tui/internal/tui		coverage: 0.0% of statements
+2026-09-27T16:05:31.4545687Z ok  	github.com/tuna-os/fisherman/cmd/fisherman	0.011s	coverage: 10.6% of statements
+2026-09-27T16:05:31.6510488Z 	github.com/tuna-os/fisherman/cmd/validate-overlay		coverage: 0.0% of statements
+2026-09-27T16:05:34.4179703Z ok  	github.com/tuna-os/fisherman/internal/disk	2.955s	coverage: 36.3% of statements
+2026-09-27T16:05:34.4180589Z 	github.com/tuna-os/fisherman/internal/images		coverage: 0.0% of statements
+2026-09-27T16:05:35.9851592Z ok  	github.com/tuna-os/fisherman/internal/install	4.374s	coverage: 60.9% of statements
+2026-09-27T16:05:35.9852827Z ok  	github.com/tuna-os/fisherman/internal/luks	0.005s	coverage: 75.6% of statements
+2026-09-27T16:05:35.9853889Z ok  	github.com/tuna-os/fisherman/internal/post	0.077s	coverage: 52.2% of statements
+2026-09-27T16:05:35.9855166Z ok  	github.com/tuna-os/fisherman/internal/progress	0.004s	coverage: 63.6% of statements
+2026-09-27T16:05:35.9856339Z ok  	github.com/tuna-os/fisherman/internal/recipe	0.006s	coverage: 82.5% of statements
+2026-09-27T16:05:35.9857830Z ok  	github.com/tuna-os/fisherman/internal/runner	0.007s	coverage: 87.2% of statements
+2026-09-27T16:05:35.9858953Z ok  	github.com/tuna-os/fisherman/internal/slurp	0.054s	coverage: 92.2% of statements
+2026-09-27T16:05:36.0555906Z ## Measured Go coverage
+2026-09-27T16:05:36.0556260Z 
+2026-09-27T16:05:36.0556512Z | Module | Covered statements | Total | Percent |
+2026-09-27T16:05:36.0557396Z |---|---:|---:|---:|
+2026-09-27T16:05:36.0557664Z | app | 1972 | 3046 | 64.74% |
+2026-09-27T16:05:36.0557958Z | fisherman-tui | 43 | 742 | 5.80% |
+2026-09-27T16:05:36.0558307Z | fisherman-core | 1806 | 3838 | 47.06% |
+2026-09-27T16:05:36.0558523Z 
+2026-09-27T16:05:36.0558659Z Project: 50.10% (minimum 45%).
+2026-09-27T16:05:36.0558840Z 
+2026-09-27T16:05:36.0559331Z Go statements compiled by the current OS in all configured fast-tier modules. Windows-only code is not measured by a Linux run.
+2026-09-27T16:05:36.0560097Z A passing report does not mean every subprocess was instrumented.
+2026-09-27T16:05:36.0560406Z 
+2026-09-27T16:05:36.0560632Z Changed-line coverage: unavailable or no changed instrumented lines.
+2026-09-27T16:05:36.0560954Z 
+2026-09-27T16:05:36.0623709Z 
+2026-09-27T16:05:36.0624422Z ✗ fast tier FAILED
+2026-09-27T16:05:36.0644780Z ##[error]Process completed with exit code 1.
+2026-09-27T16:05:36.0741320Z ##[group]Run actions/upload-artifact@v7
+2026-09-27T16:05:36.0741622Z with:
+2026-09-27T16:05:36.0741808Z   name: go-coverage
+2026-09-27T16:05:36.0742041Z   path: /home/runner/work/_temp/go-coverage
+2026-09-27T16:05:36.0742327Z   if-no-files-found: error
+2026-09-27T16:05:36.0742567Z   compression-level: 6
+2026-09-27T16:05:36.0742781Z   overwrite: false
+2026-09-27T16:05:36.0743001Z   include-hidden-files: false
+2026-09-27T16:05:36.0743227Z   archive: true
+2026-09-27T16:05:36.0743409Z env:
+2026-09-27T16:05:36.0743585Z   GOTOOLCHAIN: local
+2026-09-27T16:05:36.0743786Z ##[endgroup]
+2026-09-27T16:05:36.2218855Z With the provided path, there will be 5 files uploaded
+2026-09-27T16:05:36.2219796Z Artifact name is valid!
+2026-09-27T16:05:36.2220232Z Root directory input is valid!
+2026-09-27T16:05:36.5838549Z Uploading artifact: go-coverage.zip
+2026-09-27T16:05:36.5884180Z Beginning upload of artifact content to blob storage
+2026-09-27T16:05:36.9603147Z Uploaded bytes 36810
+2026-09-27T16:05:37.0311026Z Finished uploading artifact content to blob storage!
+2026-09-27T16:05:37.0312314Z SHA256 digest of uploaded artifact is a7107751f13e320801a88eabce8af3157d2be123bb8860d7a9ffbe9288b357dc
+2026-09-27T16:05:37.0313670Z Finalizing artifact upload
+2026-09-27T16:05:37.4534402Z Artifact go-coverage successfully finalized. Artifact ID 10934894937
+2026-09-27T16:05:37.4535946Z Artifact go-coverage has been successfully uploaded! Final size is 36810 bytes. Artifact ID is 10934894937
+2026-09-27T16:05:37.4540400Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36331691671/artifacts/10934894937
+2026-09-27T16:05:37.4725560Z Post job cleanup.
+2026-09-27T16:05:37.5575466Z [command]/usr/bin/git version
+2026-09-27T16:05:37.5634566Z git version 2.55.0
+2026-09-27T16:05:37.5679274Z Temporarily overriding HOME='/home/runner/work/_temp/0180d777-8b75-4b9d-b67a-94e7a5b8b354' before making global git config changes
+2026-09-27T16:05:37.5680931Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-27T16:05:37.5684803Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+2026-09-27T16:05:37.5720674Z Removing SSH command configuration
+2026-09-27T16:05:37.5728152Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-27T16:05:37.5766786Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-27T16:05:37.6027207Z Entering 'fisherman'
+2026-09-27T16:05:37.6123154Z Removing HTTP extra header
+2026-09-27T16:05:37.6163954Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-27T16:05:37.6189659Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-27T16:05:37.6413076Z Entering 'fisherman'
+2026-09-27T16:05:37.6457986Z Removing includeIf entries pointing to credentials config files
+2026-09-27T16:05:37.6465896Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T16:05:37.6501856Z includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+2026-09-27T16:05:37.6504464Z includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+2026-09-27T16:05:37.6505618Z includeif.gitdir:/github/workspace/.git.path
+2026-09-27T16:05:37.6506610Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T16:05:37.6514959Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+2026-09-27T16:05:37.6544982Z /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:05:37.6560145Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-e7da43a8\-f62b\-4d4f\-81de\-4d8c9a9f59e5\.config
+2026-09-27T16:05:37.6601829Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+2026-09-27T16:05:37.6637512Z /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:05:37.6649804Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-e7da43a8\-f62b\-4d4f\-81de\-4d8c9a9f59e5\.config
+2026-09-27T16:05:37.6695219Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-27T16:05:37.6728859Z /github/runner_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:05:37.6739962Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-e7da43a8\-f62b\-4d4f\-81de\-4d8c9a9f59e5\.config
+2026-09-27T16:05:37.6786187Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-27T16:05:37.6806710Z /github/runner_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:05:37.6818908Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-e7da43a8\-f62b\-4d4f\-81de\-4d8c9a9f59e5\.config
+2026-09-27T16:05:37.6858767Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-27T16:05:37.7073928Z Entering 'fisherman'
+2026-09-27T16:05:37.7094333Z file:/home/runner/work/wootc/wootc/.git/modules/fisherman/config	remote.origin.url
+2026-09-27T16:05:37.7125830Z [command]/usr/bin/git config --file /home/runner/work/wootc/wootc/.git/modules/fisherman/config --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-27T16:05:37.7155112Z includeif.gitdir:/home/runner/work/wootc/wootc/.git/modules/fisherman.path
+2026-09-27T16:05:37.7156056Z includeif.gitdir:/github/workspace/.git/modules/fisherman.path
+2026-09-27T16:05:37.7162919Z [command]/usr/bin/git config --file /home/runner/work/wootc/wootc/.git/modules/fisherman/config --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git/modules/fisherman.path
+2026-09-27T16:05:37.7188298Z /home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:05:37.7195931Z [command]/usr/bin/git config --file /home/runner/work/wootc/wootc/.git/modules/fisherman/config --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git/modules/fisherman.path \/home\/runner\/work\/_temp\/git\-credentials\-e7da43a8\-f62b\-4d4f\-81de\-4d8c9a9f59e5\.config
+2026-09-27T16:05:37.7233203Z [command]/usr/bin/git config --file /home/runner/work/wootc/wootc/.git/modules/fisherman/config --get-all includeif.gitdir:/github/workspace/.git/modules/fisherman.path
+2026-09-27T16:05:37.7259057Z /github/runner_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config
+2026-09-27T16:05:37.7268055Z [command]/usr/bin/git config --file /home/runner/work/wootc/wootc/.git/modules/fisherman/config --unset includeif.gitdir:/github/workspace/.git/modules/fisherman.path \/github\/runner_temp\/git\-credentials\-e7da43a8\-f62b\-4d4f\-81de\-4d8c9a9f59e5\.config
+2026-09-27T16:05:37.7304356Z Removing credentials config '/home/runner/work/_temp/git-credentials-e7da43a8-f62b-4d4f-81de-4d8c9a9f59e5.config'
+2026-09-27T16:05:37.7450948Z Cleaning up orphan processes
+2026-09-27T16:05:37.7875563Z Terminate orphan process: pid (16681) (catatonit)

@@ -41,6 +41,27 @@ setup() {
     ! grep -q 'C:\\wootc\\install\\state.json' docs/manual-testing.md
 }
 
+@test "the hardware report form asks for the state file that actually exists" {
+    # The form's evidence checklist named C:\wootc\install\state.json, the
+    # same wrong path the protocol once had. A reporter who follows it attaches
+    # nothing, and the triager learns that only after the machine is wiped.
+    local form=.github/ISSUE_TEMPLATE/manual-test-report.yml
+    grep -qE 'C:(\\)+wootc(\\)+state\.json' "$form"
+    ! grep -qE 'install(\\)+state\.json' "$form"
+}
+
+@test "the hardware report form has a box for each M2.2 journey step" {
+    # #216 grades a run on steps that the form had no box for: the Manage
+    # screen's restart into Linux, the welcome, the bookmark, the checklist.
+    local form=.github/ISSUE_TEMPLATE/manual-test-report.yml
+    grep -q 'no files copied to the machine first' "$form"
+    grep -q 'welcome opened' "$form"
+    grep -q 'Windows drive' "$form"
+    grep -q 'Restart into' "$form"
+    grep -q 'verify-uninstall checklist' "$form"
+    grep -q '^## The three-machine hardware set (M2.2)' docs/manual-testing.md
+}
+
 @test "every C:\\wootc path the docs name is one the code builds" {
     # The docs' whole reversibility promise is "it all lives in one folder", so
     # a path claim that has drifted undermines the claim it was making.
@@ -415,4 +436,45 @@ setup() {
     grep -Fq 'MGMT_KARG="systemd.wants=qemu-guest-agent.service"' payload/deployer/deploy.sh
     grep -q 'That request alone does not prove the service exists or runs' docs/e2e-architecture.md
     ! grep -q 'deployed system is given a control channel' docs/e2e-architecture.md
+}
+
+@test "release rollback distinguishes remote withdrawal from signed local cache" {
+    # The current engine authenticates local metadata first. Deleting a release
+    # cannot recall valid cached inputs, and preparation precedes downloads.
+    grep -q 'readLocalMetadata(path, artifactauth.MaxManifestSize)' app/artifact_manifest.go
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'Remote asset removal cannot revoke' runbooks/rollback-a-bad-release.md ||
+        grep -q 'local cache and offline bundle can remain usable' runbooks/rollback-a-bad-release.md
+    grep -q 'SHA256SUMS.sig' runbooks/rollback-a-bad-release.md
+    grep -q 'removes its private seed after use' runbooks/rollback-a-bad-release.md
+    grep -q 'preparation occur before that stage' runbooks/rollback-a-bad-release.md
+    ! grep -q 'installs nothing' runbooks/rollback-a-bad-release.md
+    ! grep -q 'upload the matching regenerated' runbooks/rollback-a-bad-release.md
+}
+
+@test "manual hardware guide discloses actual preparation outside the state folder" {
+    grep -q 'Resize-Partition -DriveLetter C' app/disk_windows.go
+    grep -q 'New-Partition -DiskNumber' app/disk_windows.go
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'boot files on the ESP' docs/manual-testing.md
+    grep -q 'may resize Windows' docs/manual-testing.md
+    ! grep -q 'no repartitioning' <(tr '\n' ' ' < docs/manual-testing.md)
+    ! grep -q 'Nothing before the reboot leaves more than' docs/manual-testing.md
+}
+
+@test "manual hardware guide separates requested return and cleanup from restoration" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'reboot -ff' payload/deployer/deploy.sh
+    grep -q 'a reboot request does not prove a Windows return' docs/manual-testing.md
+    grep -q 'Uninstall tries cleanup; it can leave files or boot state behind' docs/manual-testing.md
+    ! grep -q 'Uninstall puts everything back' docs/manual-testing.md
+    ! grep -q 'after 30 seconds' docs/manual-testing.md
+}
+
+@test "manual hardware guide qualifies the legacy path instead of claiming VM-first or WinUI proof" {
+    [ -f docs/adr/0004-restore-vm-first-product.md ]
+    [ -f docs/winui-shell.md ]
+    grep -q 'legacy Wails path for native installation' docs/manual-testing.md
+    grep -q 'prove a Linux desktop inside Windows or the WinUI journey' docs/manual-testing.md
 }

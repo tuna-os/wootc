@@ -1,0 +1,26 @@
+{
+  "base": "b95f51fb80446160427e9c51c835ca91aad78481",
+  "scope": "Test fixture only; no VM or production deadline change",
+  "originalHostedFailure": {
+    "runId": "36335305601",
+    "jobId": "108664914559",
+    "rawSha256": "e927a6d17284d41808393fdfc77f7897c51a9c8b48cd04101eb2abba9fd58a14",
+    "cause": "One-second real integer clock expired before first semantic sample; calls empty, ping assertion failed",
+    "rawPrivatePath": "/tmp/wootc-503-d0-fast.raw.log"
+  },
+  "controls": {
+    "passed": 16,
+    "removedActualStatusGuard": "Actual malformed/failed identity assertion fails in isolated module copy",
+    "realBlocking": "Real clock, owned executable invocation marker, budget3s, elapsed under4.5s; no semantic clock override"
+  },
+  "sourceSha256": {
+    "tests/unit/test_gui_observations.py": "07d6a3e9944bbc6d13f78dbd152f22ea8863126a186135ec52e79e6ada202133",
+    "tests/e2e/lib/gui-observations.sh": "ef73d99358015d94f84d249f4905d6361c079ed8ca4161c893cdca56c067611f",
+    "tests/e2e/lib/qga-transport.sh": "f418c0d75eabeae5720b53cd38f14e911bd3b1329eef30714fa6f3c46f49c729",
+    "tests/e2e/run-e2e.sh": "2e4bc866ec22d5efe6cad8e451924cde678f1bd59453a45a9dcf623d9c668c56"
+  },
+  "evidenceSha256": {
+    "removed-status-guard.raw.log": "a50f843fc4dc2ff582156dac5d4c49b8c531321f6277a7ee0457005255ee8ddd",
+    "controls.raw.log": "fe91d36071fa3e0fc5783f0af43b0976a87994142cb2bf90a2e6b649597ee875"
+  }
+}

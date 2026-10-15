@@ -116,6 +116,14 @@ cat << 'EOF' > "$WRAPPER"
 mkdir -p /run/sshd
 /usr/sbin/sshd
 
+# The private QMP endpoint must exist before Dockur starts QEMU. Refuse an
+# unexpected filesystem, symlink or owner rather than exposing control access.
+[ "$(stat -f -c %T /run/shm)" = tmpfs ] || exit 1
+[ ! -L /run/shm/wootc-control ] || exit 1
+mkdir -m 700 -p /run/shm/wootc-control || exit 1
+[ "$(stat -c %u /run/shm/wootc-control)" = "$(id -u)" ] || exit 1
+[ "$(stat -c %a /run/shm/wootc-control)" = 700 ] || exit 1
+
 while true; do
   rm -f /run/shm/qemu.end /run/shm/qemu.pid /run/shm/qemu.pty /run/shm/console.pid /run/shm/console.sock
   /run/entry.sh || true

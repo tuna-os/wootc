@@ -1,0 +1,59 @@
+{
+  "sourceCapture": {
+    "sourceCommit": "63a75ef25948a06fc84fc7353797a8068c30d163",
+    "scope": "Actual host-generated guest commands captured from runner and callback module; no guest execution yet",
+    "runId": "public-native-current",
+    "directiveId": "79c54f3541cc4cc5aa1f8b44318b500b",
+    "commandSHA256": {
+      "install-command.ps1": "c9f774a8a7a9d3686620868655462f160ea5490e5cf009b8610330eec37bb6f9",
+      "reboot-command.ps1": "14c86232750388e265244fdaf3b58b4987fabdfae521bd6b07e47886c55ea4ff"
+    },
+    "sourceSHA256": {
+      "tests/e2e/run-e2e.sh": "d0ae6cf4a111bed103eae1ad09c12582a0faa913ef30a2facc94f85e4da26085",
+      "tests/e2e/lib/gui-observations.sh": "ef73d99358015d94f84d249f4905d6361c079ed8ca4161c893cdca56c067611f"
+    }
+  },
+  "nativeSourceFiles": [
+    {
+      "name": "install-command.ps1",
+      "rawSHA256": "c9f774a8a7a9d3686620868655462f160ea5490e5cf009b8610330eec37bb6f9",
+      "stagedSHA256": "6982e241c627ea60c17a73efb4bc6e72998ce6f38e0c5f450cea6cc101eaf480",
+      "rawBytes": 692
+    },
+    {
+      "name": "reboot-command.ps1",
+      "rawSHA256": "14c86232750388e265244fdaf3b58b4987fabdfae521bd6b07e47886c55ea4ff",
+      "stagedSHA256": "6ba36e90e36f14c77d9ec53a66d28aa5df0b8189b9ee07e3dab486985f2e089a",
+      "rawBytes": 570
+    }
+  ],
+  "invocationSHA256": "13abb4c2efd106ca05b1dba860b5d997ef8b46cee4fe921b2e9dbe2f48961c5f",
+  "scope": "Actual PS5.1 parser with real mock call spies for Set-Content/Get-Content; public test password only; no C path/registry/account/service/protector/reboot operations; fresh private TEMP staging removed.",
+  "guestExitCode": 0,
+  "nativePowerShellVersion": "5.1.26100.9444",
+  "observations": [
+    "Both exact captured scripts native ParseFile passed",
+    "Matching write/read produces typed exact acknowledgment",
+    "Write throw stops before read and produces no acknowledgment",
+    "Read throw and mismatched readback produce no acknowledgment",
+    "Actual mock call counts and bound runId/directiveId/action/public fixture fields verified"
+  ],
+  "files": {
+    "invocation.ps1": {
+      "sha256": "13abb4c2efd106ca05b1dba860b5d997ef8b46cee4fe921b2e9dbe2f48961c5f",
+      "bytes": 5404
+    },
+    "native.raw.log": {
+      "sha256": "9b8521860db3680cd9db295615e09dd78a6eb3177ff262ca10c5c1bc63452dcb",
+      "bytes": 497
+    },
+    "native.raw.stderr": {
+      "sha256": "2ce70d6c8c9ad6726c794690c8b14a2b83673648cac88edf4ff1acc50ec46348",
+      "bytes": 616
+    },
+    "qga-client.py": {
+      "sha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+      "bytes": 1424
+    }
+  }
+}

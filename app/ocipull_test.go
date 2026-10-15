@@ -69,6 +69,7 @@ func TestPullImageToOCILayout(t *testing.T) {
 	idxBytes, _ := json.Marshal(index)
 
 	corrupt := false
+	cfgFetches := 0
 	mux := http.NewServeMux()
 	var srv *httptest.Server
 	mux.HandleFunc("/v2/", func(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +94,7 @@ func TestPullImageToOCILayout(t *testing.T) {
 			w.Header().Set("Content-Type", mtOCIManifest)
 			w.Write(manBytes)
 		case strings.HasSuffix(r.URL.Path, "/blobs/"+cfgDigest):
+			cfgFetches++
 			w.Write(cfgBytes)
 		case strings.HasSuffix(r.URL.Path, "/blobs/"+layerDigest):
 			if corrupt {
@@ -127,6 +129,9 @@ func TestPullImageToOCILayout(t *testing.T) {
 		}
 		blobDir := filepath.Join(dest, "blobs", "sha256")
 		if err := os.MkdirAll(blobDir, 0o755); err != nil {
+			return "", 0, err
+		}
+		if err := discardIncompleteBlobs(blobDir); err != nil {
 			return "", 0, err
 		}
 		var done int64
@@ -171,6 +176,58 @@ func TestPullImageToOCILayout(t *testing.T) {
 		}
 		if _, statErr := os.Stat(filepath.Join(dest, "blobs", "sha256", strings.TrimPrefix(layerDigest, "sha256:"))); statErr == nil {
 			t.Error("corrupted blob left on disk")
+		}
+	})
+	// #288: an interrupted pull must resume safely. A blob that finished (its
+	// name is its verified digest) is reused without a second download; a
+	// .part from the killed pull is discarded, never promoted.
+	t.Run("a retried pull reuses verified blobs and discards incomplete ones", func(t *testing.T) {
+		dest := t.TempDir()
+		blobDir := filepath.Join(dest, "blobs", "sha256")
+		if err := os.MkdirAll(blobDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cfgPath := filepath.Join(blobDir, strings.TrimPrefix(cfgDigest, "sha256:"))
+		if err := os.WriteFile(cfgPath, cfgBytes, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		layerPart := filepath.Join(blobDir, strings.TrimPrefix(layerDigest, "sha256:")+".part")
+		if err := os.WriteFile(layerPart, layerBytes[:4], 0o644); err != nil {
+			t.Fatal(err)
+		}
+		orphanPart := filepath.Join(blobDir, strings.Repeat("ab", 32)+".part")
+		if err := os.WriteFile(orphanPart, []byte("from-another-image"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfgFetches = 0
+		if _, _, err := pull(dest); err != nil {
+			t.Fatalf("retried pull: %v", err)
+		}
+		if cfgFetches != 0 {
+			t.Errorf("verified config blob downloaded again (%d fetches), want reuse", cfgFetches)
+		}
+		got, err := os.ReadFile(filepath.Join(blobDir, strings.TrimPrefix(layerDigest, "sha256:")))
+		if err != nil || string(got) != string(layerBytes) {
+			t.Errorf("layer after retry = %q, %v; want the full verified layer", got, err)
+		}
+		for _, p := range []string{layerPart, orphanPart} {
+			if _, err := os.Stat(p); !os.IsNotExist(err) {
+				t.Errorf("incomplete blob %s survived the retry", filepath.Base(p))
+			}
+		}
+	})
+
+	t.Run("a failed pull leaves no incomplete blob behind", func(t *testing.T) {
+		corrupt = true
+		defer func() { corrupt = false }()
+		dest := t.TempDir()
+		if _, _, err := pull(dest); err == nil {
+			t.Fatal("tampered blob accepted")
+		}
+		parts, _ := filepath.Glob(filepath.Join(dest, "blobs", "sha256", "*.part"))
+		if len(parts) != 0 {
+			t.Errorf("incomplete blobs left after a refused pull: %v", parts)
 		}
 	})
 }

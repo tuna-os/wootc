@@ -1,0 +1,51 @@
+{
+  "assetsAcquired": false,
+  "availableWorkflowSources": {
+    "e2e-kvm.yml": "manual gated self-hosted kvm job; hardware label is not measured eligibility",
+    "e2e-nightly.yml": "manual full bootc workflow, delegates to hosted job; not a classic firmware producer",
+    "e2e-snapshot.yml": "manual Windows snapshot prime; currently exports disk/install markers/answer key, lacks coherent TPM/NVRAM/UUID export and clone observation"
+  },
+  "baselineProducer": {
+    "candidateSource": "e2e-snapshot.yml + tests/e2e/lib/snapshot-prime.sh, separate QGA-only baseline recipe is required",
+    "complete": false,
+    "eligibleRetainedBaseline": null,
+    "requiredChanges": [
+      "exclusive fresh scratch UUID/disks and pinned Windows media/QGA-only answer file",
+      "no wootc arm or migration before successful Windows/profile/NTFS/GPT and FullyDecrypted-Off-zero observations",
+      "positive successful shutdown followed by disk+TPM+NVRAM+UUID coherent offline hash manifest",
+      "exclusive clone followed by fresh QGA Windows identity, volume/firmware/TPM/encryption and absence observations",
+      "reject cached encrypted/live fixture identities and source-only expected SBAT policy as runtime approval"
+    ]
+  },
+  "classicPrerequisites": {
+    "cloudBytesAcquired": false,
+    "consumerSourceReady": true,
+    "firstLinuxApproval": "actual current BootCurrent/root/source/ESP/NTFS and runtime firmware/SBAT policy observations before upgrade",
+    "packageBytesAcquired": false,
+    "producerIntegrationMerged": false,
+    "ubuntuRpmClosureComplete": false
+  },
+  "coherentWindowsBaselineObserved": false,
+  "dispatchAllowed": false,
+  "hostContract": {
+    "dynamicScratchCapacity": "max(20GiB, Windows disk stored bytes + cloud stored bytes + 2*observed cloud virtual size + 12GiB reserve + frozen support bytes)",
+    "kvm": "successful O_RDWR open and KVM_GET_API_VERSION == 12 before asset acquisition",
+    "minimumCpus": 4,
+    "minimumMemAvailableBytes": 11811160064,
+    "minimumPlanningFreeBytes": 68719476736,
+    "observedResources": "unknown until selected runner starts and emits successful measured facts",
+    "tools": "pin QEMU, OVMF protected-pflash/SMM, swtpm, qemu-img, guestfs appliance and QGA closure before execution"
+  },
+  "nextReviewBoundary": "review source-only baseline producer and measured-host workflow before any asset acquisition or VM dispatch",
+  "qualifiedHostObserved": false,
+  "schemaVersion": 1,
+  "scope": "source inspection and proposed measured execution prerequisites only",
+  "sourceHashes": {
+    ".github/workflows/e2e-hosted.yml": "295228442998d850111bdf0d6f9e3f0157a16303643b2e7faadcedb8d205bdcd",
+    ".github/workflows/e2e-kvm.yml": "d70ea8eef81a46824e4080c4a30122a28358072b0508d97a9dc78c18f45d075f",
+    ".github/workflows/e2e-nightly.yml": "d842e77e27e97c1669420730d2c0a0d03b33dad4b7e306c679e6a927ccaae9a3",
+    ".github/workflows/e2e-snapshot.yml": "7caa54f33367ab9b2e167443bfb9fbf7129adf7bc5c05b918f79f9cc1ccbfcd3",
+    "tests/e2e/lib/snapshot-prime.sh": "a0f6df7a7fd5d463a0f4ecdd219a87fc6ddfd2d718d1b66211061c80c2b7c208",
+    "tests/run.sh": "897527668b6586104e8957eb8d4807303d0451f526a3b3c53ff6c5196fc05d26"
+  }
+}

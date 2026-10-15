@@ -1,0 +1,3 @@
+Single-read ENOENT accepted as observed process absence
+PermissionError remains an actual test failure
+Both controls retain real native process execution, deadline and cancellation; no guest execution

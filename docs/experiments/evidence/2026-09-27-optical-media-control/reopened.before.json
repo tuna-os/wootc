@@ -1,0 +1,10 @@
+{
+  "sourceFile": "/tmp/wootc-bitlocker-media-acceptance/tests/e2e/lib/fixture-optical-media.sh",
+  "sourceSHA256": "64d6dc67ad21339793311f6b143bbced8bc74fa9aa438607f0f9f95c12b90007",
+  "actualFunction": "fixture_verify_windows_boot_after_detach",
+  "scenario": "Synthetic new positive Windows boot; current optical transport would report reattached medium/refuse if queried. Gate currently performs no current media observation. No actual guest/QEMU/disk/activation call.",
+  "exitCode": 0,
+  "stdout": "pre-activation-boot-gate-accepted-without-current-media-observation\n",
+  "stderr": "",
+  "sourceCommit": "adb232b120cc928aa1ea96d96b301d3f4a7d1b09"
+}

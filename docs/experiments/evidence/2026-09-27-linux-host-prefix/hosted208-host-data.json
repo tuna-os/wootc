@@ -1,0 +1,145 @@
+{
+  "aptConfigSha256": "4a1cd7fd264cafb869c173e916bd64e3c7beb32ab1be0b74839cb706242d2b47",
+  "archiveKeyFingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+  "archiveKeyFingerprintSource": "https://documentation.ubuntu.com/chisel/en/v1.4.0/reference/security/",
+  "archiveKeySha256": "5ebbeeb474034b1fa7e50abbe6f136e177fc826219e01f314b3623f7b3097e96",
+  "authenticatedIndexFiles": {
+    "archive.ubuntu.com_ubuntu_dists_noble-security_InRelease": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+    "archive.ubuntu.com_ubuntu_dists_noble-security_main_binary-amd64_Packages": "207e1d251ecfc9215516c8db3a71c23cc6039298803c56bc5c2bca8c35bb4c55",
+    "archive.ubuntu.com_ubuntu_dists_noble-security_universe_binary-amd64_Packages": "69ef69e72ed3bd48f7e5feddbf114d32f45046a6fb4cefa43e2b394a550d9bf2",
+    "archive.ubuntu.com_ubuntu_dists_noble-updates_InRelease": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+    "archive.ubuntu.com_ubuntu_dists_noble-updates_main_binary-amd64_Packages": "b994c3a4a14026a759751f64cc35b8a0ffe96f8cc48fd86fc78b1a98b3521629",
+    "archive.ubuntu.com_ubuntu_dists_noble-updates_universe_binary-amd64_Packages": "2fd46f6bbbae59224141c872dc85aad5eae314e504d58459754d8912fff828b3",
+    "archive.ubuntu.com_ubuntu_dists_noble_InRelease": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+    "archive.ubuntu.com_ubuntu_dists_noble_main_binary-amd64_Packages": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+    "archive.ubuntu.com_ubuntu_dists_noble_universe_binary-amd64_Packages": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+    "lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "authenticatedPackagePins": {
+    "ipxe-qemu": {
+      "Architecture": "all",
+      "Filename": "pool/main/i/ipxe/ipxe-qemu_1.21.1+git-20220113.fbbdc3926-0ubuntu2_all.deb",
+      "Package": "ipxe-qemu",
+      "SHA256": "1f1612934b6ddaf4dd633760dfe5ef2a79ea2507341fd5efe394ff589a044707",
+      "Size": "1564600",
+      "Version": "1.21.1+git-20220113.fbbdc3926-0ubuntu2"
+    },
+    "ovmf": {
+      "Architecture": "all",
+      "Filename": "pool/main/e/edk2/ovmf_2024.02-2ubuntu0.9_all.deb",
+      "Package": "ovmf",
+      "SHA256": "a094c13d06f2740691ff57d108dff32aa087179363ddb0de42d463b4f7f9bc13",
+      "Size": "5187470",
+      "Version": "2024.02-2ubuntu0.9"
+    },
+    "qemu-system-common": {
+      "Architecture": "amd64",
+      "Filename": "pool/main/q/qemu/qemu-system-common_8.2.2+ds-0ubuntu1.18_amd64.deb",
+      "Package": "qemu-system-common",
+      "SHA256": "0a0b744f31e87d72dd0465436b8dfbb1ef9f574ecd0d5a2e9dd8c5cb7d0fef1f",
+      "Size": "1255316",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    "qemu-system-data": {
+      "Architecture": "all",
+      "Filename": "pool/main/q/qemu/qemu-system-data_8.2.2+ds-0ubuntu1.18_all.deb",
+      "Package": "qemu-system-data",
+      "SHA256": "a14b88d864859bd61c8a3274971da4ecb7da6cec15be6c265d0d411f783d5f2e",
+      "Size": "1796342",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    "qemu-system-gui": {
+      "Architecture": "amd64",
+      "Filename": "pool/main/q/qemu/qemu-system-gui_8.2.2+ds-0ubuntu1.18_amd64.deb",
+      "Package": "qemu-system-gui",
+      "SHA256": "b642b544a1089b63f5da8dac5a1fa38511dc918ea73d27e39f9f7b726c2c9814",
+      "Size": "312274",
+      "Version": "1:8.2.2+ds-0ubuntu1.18"
+    },
+    "seabios": {
+      "Architecture": "all",
+      "Filename": "pool/main/s/seabios/seabios_1.16.3-2_all.deb",
+      "Package": "seabios",
+      "SHA256": "cac4e59a66c834d19cae751c22ab3a0391c22f78010fd11aa2e3fe630e6bc0e0",
+      "Size": "174648",
+      "Version": "1.16.3-2"
+    }
+  },
+  "complete": false,
+  "failure": "'NoneType' object has no attribute 'raw'",
+  "failureType": "AttributeError",
+  "packages": [],
+  "prefix": "/run/wootc-package-host-36331479746-1",
+  "producerSha256": "0d69c8555956e92d5763a691a9fc5b2e11d09546ac0a64c2168c47e32ee3e7fa",
+  "resources": {},
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "signedPackageIndices": [
+    {
+      "metaKey": "main/binary-amd64/Packages",
+      "rawBytes": 7165069,
+      "rawSha256": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+      "signedReleaseSha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+      "storedSha256": "8f6f71ae839c8cba390a7643fcbbdacddb0bc7d12c1583a2dd80a1f8443a30e5",
+      "suite": "noble"
+    },
+    {
+      "metaKey": "universe/binary-amd64/Packages",
+      "rawBytes": 73379142,
+      "rawSha256": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+      "signedReleaseSha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+      "storedSha256": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+      "suite": "noble"
+    },
+    {
+      "metaKey": "main/binary-amd64/Packages",
+      "rawBytes": 7119812,
+      "rawSha256": "b994c3a4a14026a759751f64cc35b8a0ffe96f8cc48fd86fc78b1a98b3521629",
+      "signedReleaseSha256": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+      "storedSha256": "b994c3a4a14026a759751f64cc35b8a0ffe96f8cc48fd86fc78b1a98b3521629",
+      "suite": "noble-updates"
+    },
+    {
+      "metaKey": "universe/binary-amd64/Packages",
+      "rawBytes": 10590257,
+      "rawSha256": "2fd46f6bbbae59224141c872dc85aad5eae314e504d58459754d8912fff828b3",
+      "signedReleaseSha256": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+      "storedSha256": "2fd46f6bbbae59224141c872dc85aad5eae314e504d58459754d8912fff828b3",
+      "suite": "noble-updates"
+    },
+    {
+      "metaKey": "main/binary-amd64/Packages",
+      "rawBytes": 5721326,
+      "rawSha256": "207e1d251ecfc9215516c8db3a71c23cc6039298803c56bc5c2bca8c35bb4c55",
+      "signedReleaseSha256": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+      "storedSha256": "207e1d251ecfc9215516c8db3a71c23cc6039298803c56bc5c2bca8c35bb4c55",
+      "suite": "noble-security"
+    },
+    {
+      "metaKey": "universe/binary-amd64/Packages",
+      "rawBytes": 7666073,
+      "rawSha256": "69ef69e72ed3bd48f7e5feddbf114d32f45046a6fb4cefa43e2b394a550d9bf2",
+      "signedReleaseSha256": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+      "storedSha256": "69ef69e72ed3bd48f7e5feddbf114d32f45046a6fb4cefa43e2b394a550d9bf2",
+      "suite": "noble-security"
+    }
+  ],
+  "signedReleases": [
+    {
+      "name": "archive.ubuntu.com_ubuntu_dists_noble-security_InRelease",
+      "sha256": "e46a62c5a5d44a49262e24db7154483696238e42b706c72d1879273b059ae982",
+      "signatureStatus": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID 85JhIydHNUF4O4ASJ2l/MggLctY 2026-09-26 1790445980\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2026-09-26 1790445980 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n"
+    },
+    {
+      "name": "archive.ubuntu.com_ubuntu_dists_noble-updates_InRelease",
+      "sha256": "18f4a5137a941157e184a556f19d53ee4a771ac61bec963a2edfccc09e10045b",
+      "signatureStatus": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID hT68j9dOTZcU+a7vJjqoxgBh0jY 2026-09-27 1790513016\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2026-09-27 1790513016 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n"
+    },
+    {
+      "name": "archive.ubuntu.com_ubuntu_dists_noble_InRelease",
+      "sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+      "signatureStatus": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID GVnDvebl2qOVy2n1fx2yPFLiSUA 2024-04-25 1714057881\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2024-04-25 1714057881 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n"
+    }
+  ],
+  "sourceCommit": "fcd97d613275be2d6126cd0ba7a915b8043d3a1d"
+}

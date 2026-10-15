@@ -1,0 +1,20 @@
+E
+======================================================================
+ERROR: test_partial_fourth_live_line_waits_then_actual_completion_accepts (test_linux_package_observer.ObserverTests.test_partial_fourth_live_line_waits_then_actual_completion_accepts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-package-final-readback/tests/unit/test_linux_package_observer.py", line 83, in test_partial_fourth_live_line_waits_then_actual_completion_accepts
+    proof=json.loads((export/(self.folder.name+'-final-readback.json')).read_bytes())
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/linuxbrew/.linuxbrew/Cellar/python@3.14/3.14.7/lib/python3.14/pathlib/__init__.py", line 777, in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/linuxbrew/.linuxbrew/Cellar/python@3.14/3.14.7/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmpy5vhiv50/export/tmpy5vhiv50-final-readback.json'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.052s
+
+FAILED (errors=1)

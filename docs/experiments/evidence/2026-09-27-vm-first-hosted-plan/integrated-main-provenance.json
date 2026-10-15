@@ -1,0 +1,31 @@
+{
+  "capturedAt": "2026-09-27T14:29:29.640901+00:00",
+  "integratedMain": "45ffa86",
+  "inheritedProofSource": "e56bd763fef6b32c55e94d66641640fef3eb8462",
+  "checks": {
+    "integrated-controls": {
+      "exit": 0,
+      "log": "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/integrated-controls.log"
+    },
+    "integrated-actionlint": {
+      "exit": 0,
+      "log": "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/integrated-actionlint.log"
+    },
+    "integrated-prose": {
+      "exit": 0,
+      "log": "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/integrated-prose.log"
+    }
+  },
+  "hashes": {
+    "tests/e2e/vm-first/qualify-host.py": "31ecd868223f04bb1cdd642d6c280f6cb62e55d8b3829bb2de0cc9a2539464e8",
+    "tests/unit/test_vm_first_host.py": "b316c9e48a30e026370b2673ce537cba0f6795a3048a4b6de3eaf957036f833b",
+    ".github/workflows/vm-first-hosted.yml": "794706941bb59bbcdfa784a7d2b4b21819f9b2e83d02370f5587d51c2dedd2af",
+    "docs/experiments/vm-first-hosted-qualification-2026-09-27.md": "50602c5e3ac3ed3cb5f2440f217212d29b17e8fca9f446fcb00ba8649775d95d",
+    ".ste-budget": "c0a0973095905ebe6991e8fdc1c7538df3cad393dd94f997f0e87254d6c2f4cc",
+    "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/integrated-controls.log": "7fd57b466d484a4f33a366eb61ee9b7f2f1fae9723c19615d53c0020cfdae809",
+    "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/integrated-actionlint.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/integrated-prose.log": "9233fe5e6202ff272151a3f6374c2e9477434220cd2c52a701f060c16ad13f80"
+  },
+  "scope": "source/consumer controls only; no hosted qualification dispatch, guest execution or desktop acceptance",
+  "resourceReceipt": "outerCpuProposed only; expanded actual model null; Windows/WHPX false"
+}

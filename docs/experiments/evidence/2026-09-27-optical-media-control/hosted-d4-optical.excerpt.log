@@ -1,0 +1,11 @@
+2026-09-27T13:50:46.4161802Z ##[group]GITHUB_TOKEN Permissions
+2026-09-27T13:51:18.8797480Z Ran 12 tests in 2.066s
+2026-09-27T13:51:18.8797755Z OK
+2026-09-27T13:51:19.6515280Z OK
+2026-09-27T13:51:19.6648104Z [36;1msha256sum tests/e2e/qmp-optical-media.py[0m
+2026-09-27T13:51:19.6649782Z [36;1mif result.skipped or result.testsRun != 12 or not result.wasSuccessful():[0m
+2026-09-27T13:51:19.6916478Z QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+2026-09-27T13:51:19.8554708Z 534d2c8c24cba969bfe89419a8d21e4f3c05c31de4afafcf1c08c88eb451de84  tests/e2e/qmp-optical-media.py
+2026-09-27T13:51:20.4619340Z test_real_paused_qemu_optical_removal_preserves_owned_data_bytes (test_optical_media_control.OpticalTests.test_real_paused_qemu_optical_removal_preserves_owned_data_bytes) ... ok
+2026-09-27T13:51:20.4624390Z Ran 12 tests in 0.564s
+2026-09-27T13:51:20.4624888Z OK

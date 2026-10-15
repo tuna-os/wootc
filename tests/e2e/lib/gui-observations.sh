@@ -57,7 +57,12 @@ gui_wait_handover() {
 }
 
 gui_write_reboot_directive() {
-    local observed remaining
+    local observed remaining write_script payload="${1-}"
+    if [ -n "$payload" ]; then
+        [ "${#payload}" -le 4096 ] && [[ "$payload" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || {
+            infra_fail "Invalid encoded GUI reboot directive"; return 1;
+        }
+    fi
     WOOTC_GUI_OBSERVATION_DEADLINE=$(( $(date +%s) + 60 ))
     # shellcheck disable=SC2016
     observed=$(wootc_gui_observation_call powershell '$env:OS' 2>/dev/null) || {
@@ -72,14 +77,24 @@ gui_write_reboot_directive() {
     [ "$remaining" -gt 0 ] || { infra_fail "GUI reboot directive deadline expired before write"; return 1; }
     # One write only; a failed or timed-out side effect is never replayed.
     # shellcheck disable=SC2016
-    observed=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" "${WOOTC_GUI_OBSERVATION_CALL:?Configure GUI observations first}" powershell '
+    write_script='
 $ErrorActionPreference = "Stop"
 $directive = "{`"action`":`"reboot`"}"
 Set-Content -LiteralPath C:\wootc\e2e-drive.json -Value $directive -Encoding ascii
 $readback = Get-Content -LiteralPath C:\wootc\e2e-drive.json -Raw
 if ($readback.Trim() -ne $directive) { throw "GUI reboot directive readback mismatch" }
 Write-Output "gui-reboot-directive-written"
-' 2>/dev/null) || { infra_fail "GUI reboot directive write/readback failed; handover refused"; return 1; }
+'
+    if [ -n "$payload" ]; then
+        # Base64 alphabet was checked before interpolation. The host constructs
+        # JSON; this command decodes it without PowerShell string expansion.
+        write_script=${write_script/'$directive = "{`"action`":`"reboot`"}"'/'$directive = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))'}
+        write_script="\$encoded='$payload'
+$write_script"
+    fi
+    observed=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" "${WOOTC_GUI_OBSERVATION_CALL:?Configure GUI observations first}" powershell "$write_script" 2>/dev/null) || {
+        infra_fail "GUI reboot directive write/readback failed; handover refused"; return 1;
+    }
     observed=$(printf '%s' "$observed" | tr -d '\r\n')
     [ "$observed" = gui-reboot-directive-written ] || {
         infra_fail "GUI reboot directive acknowledgment is unknown; handover refused"; return 1;

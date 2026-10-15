@@ -73,6 +73,7 @@ services:
       # UEFI / Secure Boot / firmware-path issues.
       # QEMU_LOG: "Y"
       ARGUMENTS: >-
+        -qmp unix:/run/shm/wootc-control/qmp.sock,server=on,wait=off
         -chardev socket,id=qga0,path=/run/shm/qga.sock,server=on,wait=off
         -device virtio-serial
         -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0

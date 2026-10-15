@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "2019304f2f73d1e44bec746e6ec01f7739905251",
+  "runnerSha256": "b6ab63f2920357ad90bc162cbe01bf8540ace120e260fe173d13c3ff21105b7c",
+  "testConsumerSha256": "14e1aba105cda332577d76a6997b550c78631b40f11068774ec197dc8915f81d",
+  "nativeReceipt": "SCHEMA=1\nUNAME=Linux\nCMDLINE=root=/dev/loop0p3 ro\nTARGET=/dev/sdb\nBOOT_ID=12345678-1234-1234-1234-123456789abc\n",
+  "userdataReceipt": "SCHEMA=1\nUNAME=Linux\nBOOT_ID=12345678-1234-1234-1234-123456789abc\nSRC=/dev/loop0\nwootc-e2e-userdata current-run\n",
+  "exitCode": 0,
+  "wronglyAccepted": [
+    "native-boot",
+    "native-user-data"
+  ],
+  "rawLog": "loop-ancestry-gap.before.raw.log",
+  "rawSha256": "fd255cfaf2f2cab23c2b3c0e2d248ec030b5f44d2faa20b143a95d900024e54b",
+  "scope": "Actual extracted acceptance consumer; successful shaped reads report loop root in cmdline and loop-backed SRC yet both pass. Current component tests cover command status and boot binding, not required physical root/data ancestry. Synthetic only, no VM."
+}

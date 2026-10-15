@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "a48ab302c505872194a7fd3eaae4e5c808b1a42c",
+  "mergedMain": "29aad3942e83a1374acff7af2723e881d9d02d85",
+  "sourceHashes": {
+    ".github/workflows/readonly-cli-status.yml": "126df4b8d7a093756a98976512c090bf6524ac51410de9d35666cb4e5f8324c5",
+    "app/headless.go": "6867264b5dea62a0c934cdd8a11a3c729a5285dbba95ed2be8e1e5a1c13e2cdd",
+    "app/headless_test.go": "7307f8921849ac7cf86336ca947671163bf8ceb15985080c090247aecc58b96d",
+    "app/main.go": "d8ff86072d3302162d90f31e7f6c1fa623cc2e2bfc69c06acde80086c3d76e28",
+    "app/status_entrypoint_test.go": "7eb84f2624a407c5553fd463f4e46981aa32f1cc9d8f5aa7dd0479b8dea7bc98",
+    "app/status_location.go": "0919323f56c68732976b30ce9f80005d97b4274dd60dffb6253e9ca6137a6bc0",
+    "app/status_location_test.go": "a3811a2f9d245e77facc7762f9b3877ef0140d4b5bc68e92bc5c15f4a287df5d",
+    "app/status_location_windows_test.go": "a00c9bc82e757c7384588cf8abd9b34b2e07a18d0546ebe942dc43216f525a82"
+  },
+  "evidenceHashes": {
+    "mutant.log": "b800347423bc164fd8864c4a1f712115151d1f5e59a5ce0442ea425824af1183",
+    "restored.log": "ecf50b2cd4231051de40168bd9380ae6e681fcbddbab344b9a067da0d059061d",
+    "go.log": "b18bf497dbfd5c05f0d8cf44f5666caaaff7d3e40f75f7d868cccafe0a955e63"
+  },
+  "preservedMainNativeSources": [
+    "app/status_location_windows.go",
+    "app/status_records.go",
+    "app/native_serve_windows.go",
+    "app/native_readiness.go"
+  ],
+  "crosscompile": {
+    "bytes": 16380416,
+    "sha256": "14644e97cd21f9af16e35a712afdba12140c60b240151556cf57d5940ed879d2",
+    "executed": false,
+    "removedDisposableBuild": true
+  },
+  "linuxStatusAndNativeReadinessControlsPassed": true,
+  "originalMainCallMutantRejected": true,
+  "exactMainSourceRestored": true,
+  "windowsRuntimeExecuted": false
+}

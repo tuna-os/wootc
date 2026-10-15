@@ -1,0 +1,95 @@
+NOTE: This is only a simulation!
+      apt-get needs root privileges for real execution.
+      Keep also in mind that locking is deactivated,
+      so don't depend on the relevance to the real current situation!
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  apparmor apt-utils bash-completion bind9-host bind9-libs bsdextrautils curl
+  dosfstools ethtool groff-base initramfs-tools-bin initramfs-tools-core
+  iproute2 iptables iputils-ping klibc-utils less libbpf1 libcap2-bin
+  libcurl4t64 libduktape207 libelf1t64 libgdbm6t64 libgpm2 libip4tc2 libip6tc2
+  libjson-c5 libklibc libldap2 liblmdb0 libmaxminddb0 libmnl0
+  libnetfilter-conntrack3 libnetplan1 libnewt0.52 libnfnetlink0 libnftnl11
+  libnghttp2-14 libpam-systemd libpcap0.8t64 libpci3 libpipeline1
+  libpolkit-agent-1-0 libpolkit-gobject-1-0 libprotobuf-c1 librtmp1 libsasl2-2
+  libsasl2-modules-db libslang2 libsodium23 libtirpc-common libtirpc3t64
+  libuchardet0 liburcu8t64 libuv1t64 libxml2 libxtables12 man-db manpages nano
+  netplan-generator netplan.io pci.ids pciutils polkitd psmisc python3-dbus
+  python3-distro-info python3-netplan screen sgml-base sudo tcpdump
+  unattended-upgrades uuid-runtime vim vim-common vim-runtime vim-tiny
+  whiptail xml-core xz-utils
+Use 'apt autoremove' to remove them.
+The following additional packages will be installed:
+  dracut-core dracut-install fuse3 libfuse3-4 libgcrypt20 libgpg-error0
+  libntfs-3g89t64 libpython3-stdlib python3-minimal qemu-utils
+  shim-signed-common
+Suggested packages:
+  dracut-network multiboot-doc grub-emu mtools xorriso desktop-base
+  console-setup rng-tools python3-doc python3-tk python3-venv
+Recommended packages:
+  binutils console-setup cryptsetup kpartx lvm2 mdadm systemd-cryptsetup
+  os-prober libgpg-error-l10n qemu-block-extra
+The following packages will be REMOVED:
+  cloud-initramfs-growroot initramfs-tools
+The following NEW packages will be installed:
+  dracut dracut-core efibootmgr fuse3 libgcrypt20 libgpg-error0
+  libntfs-3g89t64 ntfs-3g qemu-guest-agent
+The following packages will be upgraded:
+  dracut-install libfuse3-4 libpython3-stdlib python3 python3-minimal
+  qemu-utils shim-helpers-amd64-signed shim-signed shim-signed-common
+The following packages will be DOWNGRADED:
+  grub-common grub-efi-amd64-bin grub-efi-amd64-signed grub-efi-amd64-unsigned
+  grub-pc-bin grub2-common
+9 upgraded, 9 newly installed, 6 downgraded, 2 to remove and 305 not upgraded.
+Remv cloud-initramfs-growroot [0.18.debian14]
+Inst dracut-install [106-6] (106-6 Debian:testing, Debian:13.7/stable [amd64])
+Inst dracut-core (106-6 Debian:testing, Debian:13.7/stable [amd64])
+Remv initramfs-tools [0.148.4] [linux-image-6.12.107+deb13-amd64:amd64 ]
+Inst dracut (106-6 Debian:testing, Debian:13.7/stable [all])
+Inst libpython3-stdlib [3.13.5-1] (3.13.5-1 Debian:testing, Debian:13.7/stable [amd64])
+Inst python3 [3.13.5-1] (3.13.5-1 Debian:testing, Debian:13.7/stable [amd64])
+Inst python3-minimal [3.13.5-1] (3.13.5-1 Debian:testing, Debian:13.7/stable [amd64])
+Inst qemu-guest-agent (1:10.0.13+ds-0+deb13u1 Debian:13.7/stable [amd64])
+Inst shim-signed-common [1.51~1+deb13u1+16.1-2~deb13u1] (1.51~1+deb13u1+16.1-2~deb13u1 Debian:13.7/stable [all])
+Inst shim-helpers-amd64-signed [1+16.1+2~deb13u1] (1+16.1+2~deb13u1 Debian:13.7/stable [amd64])
+Inst grub2-common [2.12-9+deb13u2] (2.12-9 Debian:testing [amd64]) []
+Inst grub-pc-bin [2.12-9+deb13u2] (2.12-9 Debian:testing [amd64]) []
+Inst grub-efi-amd64-unsigned [2.12-9+deb13u2] (2.12-9 Debian:testing [amd64]) []
+Inst grub-efi-amd64-bin [2.12-9+deb13u2] (2.12-9 Debian:testing [amd64]) []
+Inst grub-common [2.12-9+deb13u2] (2.12-9 Debian:testing [amd64]) [grub-efi-amd64-signed:amd64 ]
+Inst grub-efi-amd64-signed [1+2.12+9+deb13u2] (1+2.12+9 Debian:testing [amd64])
+Inst libfuse3-4 [3.17.2-3] (3.17.2-3 Debian:testing, Debian:13.7/stable [amd64])
+Inst shim-signed [1.51~1+deb13u1+16.1-2~deb13u1] (1.51~1+deb13u1+16.1-2~deb13u1 Debian:13.7/stable [amd64])
+Inst efibootmgr (18-2 Debian:testing, Debian:13.7/stable [amd64])
+Inst fuse3 (3.17.2-3 Debian:testing, Debian:13.7/stable [amd64])
+Inst libgpg-error0 (1.51-4 Debian:testing, Debian:13.7/stable [amd64])
+Inst libgcrypt20 (1.11.0-7+deb13u1 Debian:13.7/stable [amd64])
+Inst libntfs-3g89t64 (1:2022.10.3-5+deb13u2 Debian:13.7/stable [amd64])
+Inst ntfs-3g (1:2022.10.3-5+deb13u2 Debian:13.7/stable [amd64])
+Inst qemu-utils [1:10.0.13+ds-0+deb13u1] (1:10.0.13+ds-0+deb13u1 Debian:13.7/stable [amd64])
+Conf dracut-install (106-6 Debian:testing, Debian:13.7/stable [amd64])
+Conf dracut-core (106-6 Debian:testing, Debian:13.7/stable [amd64])
+Conf dracut (106-6 Debian:testing, Debian:13.7/stable [all])
+Conf libpython3-stdlib (3.13.5-1 Debian:testing, Debian:13.7/stable [amd64])
+Conf python3 (3.13.5-1 Debian:testing, Debian:13.7/stable [amd64])
+Conf python3-minimal (3.13.5-1 Debian:testing, Debian:13.7/stable [amd64])
+Conf qemu-guest-agent (1:10.0.13+ds-0+deb13u1 Debian:13.7/stable [amd64])
+Conf shim-signed-common (1.51~1+deb13u1+16.1-2~deb13u1 Debian:13.7/stable [all])
+Conf shim-helpers-amd64-signed (1+16.1+2~deb13u1 Debian:13.7/stable [amd64])
+Conf grub2-common (2.12-9 Debian:testing [amd64])
+Conf grub-pc-bin (2.12-9 Debian:testing [amd64])
+Conf grub-efi-amd64-unsigned (2.12-9 Debian:testing [amd64])
+Conf grub-efi-amd64-bin (2.12-9 Debian:testing [amd64])
+Conf grub-common (2.12-9 Debian:testing [amd64])
+Conf grub-efi-amd64-signed (1+2.12+9 Debian:testing [amd64])
+Conf libfuse3-4 (3.17.2-3 Debian:testing, Debian:13.7/stable [amd64])
+Conf shim-signed (1.51~1+deb13u1+16.1-2~deb13u1 Debian:13.7/stable [amd64])
+Conf efibootmgr (18-2 Debian:testing, Debian:13.7/stable [amd64])
+Conf fuse3 (3.17.2-3 Debian:testing, Debian:13.7/stable [amd64])
+Conf libgpg-error0 (1.51-4 Debian:testing, Debian:13.7/stable [amd64])
+Conf libgcrypt20 (1.11.0-7+deb13u1 Debian:13.7/stable [amd64])
+Conf libntfs-3g89t64 (1:2022.10.3-5+deb13u2 Debian:13.7/stable [amd64])
+Conf ntfs-3g (1:2022.10.3-5+deb13u2 Debian:13.7/stable [amd64])
+Conf qemu-utils (1:10.0.13+ds-0+deb13u1 Debian:13.7/stable [amd64])

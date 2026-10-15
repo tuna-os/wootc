@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-09-27T14:24:21.162804+00:00",
+  "scope": "source-only host prerequisites; no VM or hosted dispatch",
+  "tests": {
+    "command": "python3 tests/unit/test_vm_first_host.py",
+    "exit": 0,
+    "count": 14
+  },
+  "files": {
+    "tests/e2e/vm-first/qualify-host.py": "9ced8f574c7d8c5793c69b23bc9671f31fdbdc3d8bc81bcb9a21222a8d1359eb",
+    "tests/unit/test_vm_first_host.py": "1c3793347803de18058889d1b949b80c8a1b2d4a957ce096a9ec6e781ffa3161",
+    ".github/workflows/vm-first-hosted.yml": "21ce60f46bdaba33fcf6526c10a8dfbdc9d981ce703d8efaab6494824dd399b3",
+    "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/qualification-controls.log": "357a61e4157bd25312bf94125cf6fa13430b907026f74a763a371e1086370595",
+    "docs/experiments/evidence/2026-09-27-vm-first-hosted-plan/qualification-counterexamples.json": "071626b996ff96ad39c44fc448568099165a76b42957bbb092bea69634f176d8"
+  }
+}

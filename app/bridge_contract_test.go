@@ -63,13 +63,18 @@ func TestE2EDriveReportWritesStateWhenEnabled(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
 	removeE2EFiles(t)
 	defer removeE2EFiles(t)
-	(&App{}).E2EDriveReport("installing")
+	directive := `{"schemaVersion":1,"runId":"current","directiveId":"1234567890abcdef1234567890abcdef","action":"install"}`
+	report := `{"schemaVersion":1,"runId":"current","directiveId":"1234567890abcdef1234567890abcdef","action":"install","screen":"progress","installDriven":true,"installBtnDisabled":null,"hint":"","progressStep":"","error":null,"selectedRef":"image","imageMismatch":false}`
+	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	(&App{}).E2EDriveReport(report)
 	data, err := os.ReadFile(e2eDrivePath("e2e-drive-state.json"))
 	if err != nil {
 		t.Fatalf("E2EDriveReport did not write state: %v", err)
 	}
-	if string(data) != "installing" {
-		t.Errorf("state file = %q, want installing", data)
+	if string(data) != report {
+		t.Errorf("state file = %q, want bound report", data)
 	}
 }
 

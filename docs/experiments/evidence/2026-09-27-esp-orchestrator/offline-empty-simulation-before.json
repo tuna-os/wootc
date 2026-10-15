@@ -1,0 +1,11 @@
+{
+  "source": "61487305f39f16e94dbe8b17eb8015ffff17fb0f",
+  "control": "successful apt simulation with absent Inst/Conf/Remv observations",
+  "installerCalled": true,
+  "result": {
+    "installedPhase": "old",
+    "scratchId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "networkPackageAcquisition": false,
+    "scope": "package consumer result only; no OS or firmware boot acceptance"
+  }
+}
