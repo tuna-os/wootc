@@ -62,6 +62,7 @@ Only the hosted E2E rows show that.
 | Hosted GUI E2E, `bazzite:stable`: install, MOK under Secure Boot, Phase 2, user data, Windows return | ✅ 2026-08-24 | [run 32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098) on `4fd4bc8` |
 | Hosted GUI E2E, `bazzite:stable`, current `main` | 🔴 inconclusive | [run 38731850924](https://github.com/tuna-os/wootc/actions/runs/38731850924) on `13afd74` (2026-10-15). The harness built the Bazzite installer, but its first drive report did not come in 60 s. Nothing was installed. This is the launch deadlock that [PR #516](https://github.com/tuna-os/wootc/pull/516) addresses |
 | Hosted GUI E2E, `bazzite-deck:stable`, current `main` | 🔴 inconclusive | [run 38731854579](https://github.com/tuna-os/wootc/actions/runs/38731854579) on `13afd74` (2026-10-15). The same launch failure stopped it before the install |
+| Hosted GUI E2E, `bazzite:stable`, branch of PR #516 (launch fix) | 🔴 inconclusive | [run 38735109866](https://github.com/tuna-os/wootc/actions/runs/38735109866) on `2eb7791` (2026-10-15). The Bazzite installer started, selected `ghcr.io/ublue-os/bazzite:stable` (no image mismatch), and the harness clicked Install. Then "Making room for Linux" stopped with "root.disk already exists". The bluefin run of that branch stopped with the same error, so the cause is not specific to Bazzite |
 | Phase 3 (graduate to a native disk) with Bazzite | ⚪ | not run |
 
 Gaps that this page does not close:
