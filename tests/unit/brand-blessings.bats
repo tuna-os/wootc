@@ -128,6 +128,9 @@ json.dump(d, open(path, "w"), indent=2)
     [[ "$output" == *"NOT submitted anywhere"* ]]
     [[ "$output" == *"Namespace owner : Universal Blue"* ]]
     [[ "$output" != *"used with the Bazzite project's permission"* ]]
+    # Nor does it name Universal Blue as publisher before they said yes.
+    [[ "$output" == *'Publisher: "TunaOS"'* ]]
+    [[ "$output" != *'Publisher: "Universal Blue"'* ]]
     # The identifier sits in THEIR namespace, not ours.
     [[ "$output" == *"PackageIdentifier: Bazzite.Installer"* ]]
     [[ "$output" != *"PackageIdentifier: TunaOS.Bazzite"* ]]

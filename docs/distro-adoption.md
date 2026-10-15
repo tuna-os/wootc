@@ -30,7 +30,7 @@ The tool updates the ownership table. It refuses to overwrite a brand.
 | `app/branding/acme/font.woff2` | Optional embedded font; set `fontFamily` |
 | `app/branding/acme/theme.css` | Optional CSS for the whole UI |
 | `app/branding/acme/blessing.json` | Mark and package ownership decision |
-| `app/branding/ownership.json` | Self-owned brands and winget namespaces for this checkout |
+| `app/branding/ownership.json` | Self-owned brands, winget namespaces, and the `distributor` named as publisher until a mark owner says yes |
 | `packaging/brand.schema.json` | Editor schema; the CLI also checks catalogs and ownership |
 
 The new image starts as `experimental`. Use the beta channel in a test VM.
@@ -45,7 +45,7 @@ An invalid catalog causes an error. It does not select another distro.
 | `name` | Distro name, boot-menu label, Apps entry |
 | `productName` | Installer window and title bar |
 | `exeName` | Release filename stem; unique across brands |
-| `publisher` | Windows company metadata and Apps publisher |
+| `publisher` | Windows company metadata and Apps publisher — used only once `blessing.json` is `blessed` (or the mark is self-owned); until then the exe names `ownership.json`'s `distributor` |
 | `fileDescription` | Windows Details description; defaults to product name |
 | `copyright` | Windows legal-copyright metadata; keep accurate license notices |
 | `websiteURL` | Apps information link |

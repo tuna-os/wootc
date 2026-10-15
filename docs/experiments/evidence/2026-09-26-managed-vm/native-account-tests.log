@@ -1,0 +1,48 @@
+Verified SHA256 348b79fba4c8dbdd58a671311d004c96c55063a39bc8e44f7e47841289c35ff5
+=== RUN   TestVMAccountInputIsPrivateTransientAndPreservesDisk
+--- PASS: TestVMAccountInputIsPrivateTransientAndPreservesDisk (0.03s)
+=== RUN   TestVMAccountValidationDoesNotEchoPassword
+--- PASS: TestVMAccountValidationDoesNotEchoPassword (0.00s)
+=== RUN   TestVMReceiptRequiresCreatedAccountIdentity
+--- PASS: TestVMReceiptRequiresCreatedAccountIdentity (0.01s)
+=== RUN   TestVMOwnedJobReapsChildOnClose
+--- PASS: TestVMOwnedJobReapsChildOnClose (0.17s)
+=== RUN   TestVMEnvironmentDoesNotInheritUserPluginPaths
+--- PASS: TestVMEnvironmentDoesNotInheritUserPluginPaths (0.00s)
+=== RUN   TestVMReceiptRejectsProxySuccess
+=== RUN   TestVMReceiptRejectsProxySuccess/good
+=== RUN   TestVMReceiptRejectsProxySuccess/only-marker
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-run
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-image
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-disk
+=== RUN   TestVMReceiptRejectsProxySuccess/no-efi
+=== RUN   TestVMReceiptRejectsProxySuccess/duplicate
+=== RUN   TestVMReceiptRejectsProxySuccess/late-error
+=== RUN   TestVMReceiptRejectsProxySuccess/early-marker
+--- PASS: TestVMReceiptRejectsProxySuccess (0.01s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/good (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/only-marker (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-run (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-image (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-disk (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/no-efi (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/duplicate (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/late-error (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/early-marker (0.00s)
+=== RUN   TestVMDurableStateAndNativeWriterGuard
+--- PASS: TestVMDurableStateAndNativeWriterGuard (0.04s)
+=== RUN   TestManagedVMShutdownContract
+=== RUN   TestManagedVMShutdownContract/clean
+=== RUN   TestManagedVMShutdownContract/host
+=== RUN   TestManagedVMShutdownContract/crash
+=== RUN   TestManagedVMShutdownContract/hung
+--- PASS: TestManagedVMShutdownContract (0.66s)
+    --- PASS: TestManagedVMShutdownContract/clean (0.12s)
+    --- PASS: TestManagedVMShutdownContract/host (0.12s)
+    --- PASS: TestManagedVMShutdownContract/crash (0.12s)
+    --- PASS: TestManagedVMShutdownContract/hung (0.29s)
+=== RUN   TestQMPRejectsMissingGreetingPromptly
+--- PASS: TestQMPRejectsMissingGreetingPromptly (0.00s)
+=== RUN   TestVMRuntimeRequiresCompleteSignedClosure
+--- PASS: TestVMRuntimeRequiresCompleteSignedClosure (0.05s)
+PASS

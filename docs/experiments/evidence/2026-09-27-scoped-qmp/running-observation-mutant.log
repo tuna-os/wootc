@@ -1,0 +1,18 @@
+=== RUN   TestVMDisplayUnknownOrFailedObservations
+=== RUN   TestVMDisplayUnknownOrFailedObservations/paused
+    vm_display_test.go:197: failed observation accepted
+=== RUN   TestVMDisplayUnknownOrFailedObservations/fake-status
+=== RUN   TestVMDisplayUnknownOrFailedObservations/ambiguous-mice
+=== RUN   TestVMDisplayUnknownOrFailedObservations/bad-pixels
+=== RUN   TestVMDisplayUnknownOrFailedObservations/missing-capture
+=== RUN   TestVMDisplayUnknownOrFailedObservations/bad-key-ack
+--- FAIL: TestVMDisplayUnknownOrFailedObservations (0.17s)
+    --- FAIL: TestVMDisplayUnknownOrFailedObservations/paused (0.04s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/fake-status (0.03s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/ambiguous-mice (0.03s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/bad-pixels (0.03s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/missing-capture (0.03s)
+    --- PASS: TestVMDisplayUnknownOrFailedObservations/bad-key-ack (0.03s)
+FAIL
+FAIL	wootc	0.182s
+FAIL

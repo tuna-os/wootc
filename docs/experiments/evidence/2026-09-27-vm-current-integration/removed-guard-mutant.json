@@ -1,0 +1,7 @@
+{
+  "sourceBeforeSha256": "02d55c01f2b4e60c1c246b972627186e14d8cab3479ccdc1ec9da0ab3eb6f059",
+  "mutant": "removed actual directive schema check",
+  "test": "VM preparation drive refuses a directive missing schemaVersion",
+  "mutantExit": 1,
+  "sourceRestoredSha256": "02d55c01f2b4e60c1c246b972627186e14d8cab3479ccdc1ec9da0ab3eb6f059"
+}

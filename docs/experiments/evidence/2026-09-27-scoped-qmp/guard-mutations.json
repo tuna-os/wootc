@@ -1,0 +1,107 @@
+[
+  {
+    "case": "missing-return",
+    "exit": 1,
+    "sourceFile": "app/vm_qmp.go",
+    "productionSha256": "1a434e11459306dafc415eac323e98f4c3f5d8a2b1ee94bfb9568dcdfe12e66f",
+    "mutantSha256": "47f313ce817dd1ca7ba3f61903408d1572a986e9ce1d7acc888994ad909beb9e",
+    "behaviorFailureObserved": "invalid response accepted",
+    "test": "TestQMPTypedResponseCounterexamples",
+    "replacements": [
+      [
+        "hasReturn == hasError || len(fields) != 2",
+        "(hasReturn && hasError)"
+      ]
+    ]
+  },
+  {
+    "case": "session-correlation",
+    "exit": 1,
+    "sourceFile": "app/vm_display.go",
+    "productionSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "mutantSha256": "745b1b87227e49777fdbf31bfbd96d79b63bd3a552e8b8c0eafecfd6fe6650d6",
+    "behaviorFailureObserved": "accepted",
+    "test": "TestVMDisplayIdentityAndReplayRefuseBeforeGuest",
+    "replacements": [
+      [
+        "req.SessionID != s.sessionID",
+        "false"
+      ]
+    ]
+  },
+  {
+    "case": "running-observation",
+    "exit": 1,
+    "sourceFile": "app/vm_display.go",
+    "productionSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "mutantSha256": "81c5f2779dd8d587445894ed0ee482d1040429846912f2d090751f89629e597e",
+    "behaviorFailureObserved": "failed observation accepted",
+    "test": "TestVMDisplayUnknownOrFailedObservations",
+    "replacements": [
+      [
+        " || !*r.Running || r.Status != \"running\"",
+        ""
+      ]
+    ]
+  },
+  {
+    "case": "capture-pixels",
+    "exit": 1,
+    "sourceFile": "app/vm_display.go",
+    "productionSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "mutantSha256": "7e4e71eb74fcc14e9833121558fa6116d5ce48479127ab02d7044a9b8625a34d",
+    "behaviorFailureObserved": "failed observation accepted",
+    "test": "TestVMDisplayUnknownOrFailedObservations",
+    "replacements": [
+      [
+        "n, err := io.Copy(io.Discard, r)\n\tif err != nil || n != int64(width)*int64(height)*3",
+        "_, err = io.Copy(io.Discard, r)\n\tif err != nil"
+      ]
+    ]
+  },
+  {
+    "case": "capture-budget-before-qmp",
+    "exit": 1,
+    "sourceFile": "app/vm_display.go",
+    "productionSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "mutantSha256": "d7209573213e5fc74bffb49b8efdfaf60e5e7d46ecb883160ed47e446fc0a0be",
+    "behaviorFailureObserved": "exhausted budget reached QMP",
+    "test": "TestVMDisplayCaptureRetentionExhaustion",
+    "replacements": [
+      [
+        "\tif req.Action == \"capture\" {\n\t\tif _, count, bytes, err := s.captureInventory(); err != nil {\n\t\t\treturn out, err\n\t\t} else if count >= vmCaptureCountLimit || bytes >= vmCaptureBytesLimit {\n\t\t\treturn out, fmt.Errorf(\"retained capture budget exhausted\")\n\t\t}\n\t}",
+        ""
+      ]
+    ]
+  },
+  {
+    "case": "engine-owner-after-response",
+    "exit": 1,
+    "sourceFile": "app/vm_display.go",
+    "productionSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "mutantSha256": "7609178e920535bc5718ca24f725b830de9e68421cafcf459d11f4d8773548d5",
+    "behaviorFailureObserved": "changed engine owner accepted stale session response",
+    "test": "TestVMDisplayEngineOwnerAndChangedSession",
+    "replacements": [
+      [
+        "if !same {",
+        "if false && !same {"
+      ]
+    ]
+  },
+  {
+    "case": "actual-retained-bytes",
+    "exit": 1,
+    "sourceFile": "app/vm_display.go",
+    "productionSha256": "fb0404e638d465a080ad487b41e652eed387198af380e6b2b4859f53e0644b5f",
+    "mutantSha256": "a7178f6a100e7b7fadf81c144ac7a3de0a0a74775121dca739c425e052246472",
+    "behaviorFailureObserved": "actual file bytes not measured",
+    "test": "TestVMDisplayActualRetainedByteBudget",
+    "replacements": [
+      [
+        "retained += info.Size()",
+        "retained += 0"
+      ]
+    ]
+  }
+]
