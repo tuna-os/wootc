@@ -191,6 +191,8 @@ jobs:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
           go-version: '1.27.x'
+          # go.sum is in app/; the default (a root go.sum) caches nothing.
+          cache-dependency-path: app/go.sum
 
       - name: Build wootc.exe for lifecycle and GUI checks
         env:
