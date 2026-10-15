@@ -627,7 +627,7 @@ qga_sync_oem() {
             qga_call write "/oem/$relative" "$target" && break
             if [ "$try" -lt 3 ]; then
                 warn "OEM payload write failed for $relative (attempt $try/3) — clearing holders and retrying"
-                qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+                qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
                 # Killing holders is NOT enough on the restore path: the file
                 # carries the PRIME image's attributes and ACLs, so the write
                 # still fails "Access is denied" with nothing holding it. The
@@ -670,7 +670,7 @@ qga_sync_oem() {
         warn "OEM config still carries RunId='${got:-<unreadable>}' (want '$want_run_id'); clearing holders and retrying ($attempt/5)"
         # Stop whatever is holding C:\OEM: the auto-relaunched OEM task and any
         # setup/run-wootc-e2e PowerShell left over from the primed image.
-        qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+        qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
         sleep 5
         # Killing holders was not enough: a snapshot-restored C:\OEM carries the
         # PRIME's file attributes/ACLs, so the write fails "Access is denied"
@@ -695,7 +695,7 @@ qga_sync_oem() {
 # process into the next attempt.  Do not remove C: or the Windows disk.
 reset_oem_attempt() {
     step "Resetting prior OEM handoff state..."
-    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
     # An interrupted OEM arm (killed above, or killed during the snapshot
     # PRIME) copies shimx64.efi/grubx64.efi into EFI\fedora before it writes
     # grub.cfg — setup-wootc.ps1 stages the binaries first — so the GUI arm
@@ -2058,7 +2058,7 @@ schtasks /Run /TN wootc-e2e-demo | Out-Null
 Write-Output "demo-task-scheduled"' >/dev/null 2>&1 || true
     sleep "${WOOTC_E2E_DEMO_DWELL:-40}"
     freeze_frame
-    qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-demo\" /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
+    qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-demo /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
     pass "Timelapse demo: Windows-untouched segment recorded"
 }
 
@@ -2621,9 +2621,40 @@ Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption)
     # wootc.exe. Both happen BEFORE the directive is written, and no instance
     # can install until it exists — after this point a second launch is
     # impossible and any extra we killed provably never started an install.
+    #
+    # The delete itself was a silent no-op until 2026-10: it was written as
+    #     cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-gui-e2e\" /F >NUL 2>&1"
+    # but PowerShell has no backslash escape, so `\"` CLOSED the string and
+    # cmd.exe received two arguments ("schtasks.exe /Delete /TN \" and
+    # "wootc-gui-e2e\ /F >NUL 2>&1"). schtasks was asked to delete a task
+    # named `"`, failed into >NUL, and the ONCE trigger stayed armed. While
+    # launch confirmation took longer than the trigger's minute the extra app
+    # was up before the count and got killed; once e2e-ready.json made launch
+    # confirmation fast (PR 516), the count ran BEFORE the trigger fired, the
+    # trigger then started a second wootc.exe that drove the directive too, and
+    # its pipeline found the first one's root.disk: "Making room for Linux:
+    # root.disk already exists" in every image (runs 36450824541, 38735109866;
+    # the ESP at failure time held the other pipeline's complete deployer chain).
+    #
+    # So the delete is now verified from a SUCCESSFUL task listing (absence in
+    # a listing that failed proves nothing), and the run refuses to write the
+    # directive unless both the task is gone and exactly one wootc.exe runs.
     local single_out
     single_out=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
-cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-gui-e2e\" /F >NUL 2>&1" | Out-Null
+cmd.exe /d /c "schtasks.exe /Delete /TN wootc-gui-e2e /F >NUL 2>&1" | Out-Null
+cmd.exe /d /c "schtasks.exe /Query /TN wootc-gui-e2e >NUL 2>&1" | Out-Null
+$named = $LASTEXITCODE
+$tasks = @(schtasks.exe /Query /FO CSV /NH 2>$null)
+$listed = $LASTEXITCODE
+if ($named -eq 0) {
+    Write-Output "TASK-STILL-PRESENT: wootc-gui-e2e answers /Query after its delete; its ONCE trigger can launch a second installer"
+} elseif ($listed -ne 0) {
+    Write-Output ("TASK-STATE-UNKNOWN: schtasks /Query rc=" + $listed)
+} elseif (@($tasks | Where-Object { $_ -match "^.\\wootc-gui-e2e.," }).Count -gt 0) {
+    Write-Output "TASK-STILL-PRESENT: wootc-gui-e2e survived its delete; its ONCE trigger can launch a second installer"
+} else {
+    Write-Output "task-absent: wootc-gui-e2e"
+}
 # The delete can lose by a hair to a launch already in flight (launch-gui.cmd
 # started, wootc.exe not yet created), so settle before counting: a second app
 # that appears after the count would drive the directive we are about to write.
@@ -2641,13 +2672,18 @@ for ($round = 1; $round -le 2; $round++) {
     Start-Sleep -Seconds 4
 }
 $left = @(Get-Process wootc -ErrorAction SilentlyContinue)
-if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " wootc.exe running") }' 2>&1) || true
+if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " wootc.exe running") }
+else { Write-Output "single-instance: 1 wootc.exe" }' 2>&1) || true
     printf '%s\n' "$single_out" | sed 's/^/    gui-single: /'
     if printf '%s' "$single_out" | grep -q 'EXTRA-INSTANCE'; then
         warn "a second wootc.exe had already been launched by the task trigger; killed it before the directive was written"
     fi
-    if printf '%s' "$single_out" | grep -q 'SINGLE-INSTANCE-UNPROVEN'; then
-        warn "could not reduce the guest to a single wootc.exe — two install pipelines may race on the ESP"
+    # Positive evidence only (gui_single_instance_proven): an empty answer from
+    # a lost channel proves nothing and is refused like a surviving task.
+    if ! gui_single_instance_proven "$single_out"; then
+        infra_fail "cannot prove a single installer: the launch task's trigger is not provably gone or wootc.exe is not exactly one process — refusing to write the install directive (two pipelines would race on root.disk and the ESP)"
+        capture_vm_diagnostics
+        return 1
     fi
 
     step "Driving the REAL install through the live form (drive directive)..."
