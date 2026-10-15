@@ -10,4 +10,8 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Engine goldens from app/status_install_recovery_test.go. -->
+    <None Include="../../tests/unit/fixtures/install-recovery/*.json" LinkBase="Fixtures/install-recovery" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

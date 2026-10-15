@@ -90,7 +90,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
     internal static string RpcStage(string method) => method switch
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
-        "GetRecoveryVerdict" => "rpc-recovery", "GetNativeConfiguration" => "rpc-configuration", _ => "rpc-other"
+        "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration", _ => "rpc-other"
     };
 
     internal async Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null)
@@ -131,7 +131,8 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
         var status = await CallAsync<InstallStatus>("GetStatus", deadline.Token);
         var lifecycle = await CallAsync<LifecycleState>("GetLastRun", deadline.Token);
         var recovery = await CallAsync<RecoveryVerdict>("GetRecoveryVerdict", deadline.Token);
-        return new(status, recovery, lifecycle);
+        var install = await CallAsync<InstallRecoverySummary>("GetInstallRecovery", deadline.Token);
+        return new(status, recovery, lifecycle, install);
     }
 
     public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null)

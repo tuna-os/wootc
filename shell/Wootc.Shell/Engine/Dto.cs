@@ -717,6 +717,85 @@ public class RecoveryVerdict
 }
 
 /// <summary>
+/// InstallRecoverySummary is the stdio projection of InstallRecovery (#287).
+/// It carries the classification, the safe actions and the fixed engine copy,
+/// and leaves out the evidence lines, the step error and the raw observation:
+/// those can hold paths and free-form error text, which the native pipe does
+/// not carry. Step IDs are present only when they are known catalogue IDs.
+/// </summary>
+public class InstallRecoverySummary
+{
+    [JsonPropertyName("class")]
+    public string Class { get; set; } = string.Empty;
+
+    [JsonPropertyName("cause")]
+    public string Cause { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("lastCompletedStep")]
+    public string LastCompletedStep { get; set; } = string.Empty;
+
+    [JsonPropertyName("stoppedAtStep")]
+    public string StoppedAtStep { get; set; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("recommended")]
+    public string Recommended { get; set; } = string.Empty;
+
+    [JsonPropertyName("actions")]
+    public InstallRecoveryActions Actions { get; set; } = new();
+
+    [JsonPropertyName("discardsRootDisk")]
+    public bool DiscardsRootDisk { get; set; }
+
+    [JsonPropertyName("keepsVerifiedBlobs")]
+    public int KeepsVerifiedBlobs { get; set; }
+
+    [JsonPropertyName("keepsVerifiedBytes")]
+    public long KeepsVerifiedBytes { get; set; }
+}
+
+/// <summary>
+/// InstallRecoveryActions are the recovery choices the evidence allows.
+/// </summary>
+public class InstallRecoveryActions
+{
+    /// <summary>
+    /// ResumeInstall: go back to the launchpad and run Phase 1 again. Verified
+    /// image blobs are reused; a root.disk this attempt created (and the
+    /// deployer never touched) is discarded first.
+    /// </summary>
+    [JsonPropertyName("resumeInstall")]
+    public bool ResumeInstall { get; set; }
+
+    /// <summary>
+    /// RetryDeploy: re-arm the one-shot boot into the deployer (TryAgain).
+    /// </summary>
+    [JsonPropertyName("retryDeploy")]
+    public bool RetryDeploy { get; set; }
+
+    /// <summary>
+    /// RepairBoot: re-stage and re-arm the recorded boot chain (RepairBoot).
+    /// </summary>
+    [JsonPropertyName("repairBoot")]
+    public bool RepairBoot { get; set; }
+
+    /// <summary>
+    /// Remove: uninstall, which restores the boot configuration and power
+    /// settings and deletes the install folder.
+    /// </summary>
+    [JsonPropertyName("remove")]
+    public bool Remove { get; set; }
+}
+
+/// <summary>
 /// InstallStatus is the current state of a running or completed install.
 /// </summary>
 public class InstallStatus

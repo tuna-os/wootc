@@ -31,6 +31,8 @@ var DTOStructs = []string{
 	"ProgressEvent",
 	"StepDefinition",
 	"RecoveryVerdict",
+	"InstallRecoverySummary",
+	"InstallRecoveryActions",
 	"InstallStatus",
 	"UninstallInfo",
 	"UninstallOptions",

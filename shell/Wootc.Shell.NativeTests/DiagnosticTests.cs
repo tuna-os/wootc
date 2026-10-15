@@ -10,6 +10,7 @@ public sealed class DiagnosticTests
     [InlineData("GetStatus", "rpc-status")]
     [InlineData("GetLastRun", "rpc-lifecycle")]
     [InlineData("GetRecoveryVerdict", "rpc-recovery")]
+    [InlineData("GetInstallRecovery", "rpc-install")]
     [InlineData("111111-111111-111111-111111-111111-111111-111111-111111", "rpc-other")]
     public void RpcStageOnlyProjectsKnownStartupMethods(string method, string expected) =>
         Assert.Equal(expected, NativeEngineSession.RpcStage(method));

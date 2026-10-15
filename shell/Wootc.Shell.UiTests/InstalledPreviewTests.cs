@@ -78,7 +78,7 @@ public sealed class InstalledPreviewTests
             }
             await Expect("ConnectionStatus", "Ready");
             await Expect("StartupRoute", "Review your computer before installation");
-            await Expect("StartupObservations", "Running: False; Existing: False; Lifecycle: ; Recovery: ");
+            await Expect("StartupObservations", "Running: False; Existing: False; Lifecycle: ; Recovery: ; Install: none");
             Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
             Find("ReadConfiguration").AsButton().Invoke();
             using (var configurationDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(60)))

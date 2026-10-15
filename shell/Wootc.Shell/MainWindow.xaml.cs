@@ -101,7 +101,7 @@ public sealed partial class MainWindow : Window
             BrandRoot.Background = Brush(background);
             BrandCard.Background = Brush(theme.Card!.Value);
             var text = Brush(theme.Text!.Value);
-            foreach (var block in new[] { ProductName, DistributionName, PreviewHeading, PreviewIntro, PreviewStatus, ConnectionStatus, StartupRouteText, StartupObservations })
+            foreach (var block in new[] { ProductName, DistributionName, PreviewHeading, PreviewIntro, PreviewStatus, ConnectionStatus, StartupRouteText, StartupObservations, InstallRecoveryText })
                 block.Foreground = text;
         }
         if (theme.Accent is { } accent)
@@ -245,10 +245,16 @@ public sealed partial class MainWindow : Window
             StartupRoute.Progress => "An installation is running",
             StartupRoute.Manage => "Manage the existing installation",
             StartupRoute.Recovery => "Review the previous installation attempt",
+            StartupRoute.Interrupted => "Finish or remove the interrupted installation",
             _ => throw new InvalidDataException("Unsupported startup route")
         } : "Startup status has not been read";
         var observed = controller.Snapshot;
         StartupObservations.Text = observed is null ? "No authenticated startup observations" :
-            $"Running: {observed.Status.Running}; Existing: {observed.Status.Existing}; Lifecycle: {observed.LastRun?.State ?? ""}; Recovery: {observed.Recovery?.Verdict ?? ""}";
+            $"Running: {observed.Status.Running}; Existing: {observed.Status.Existing}; Lifecycle: {observed.LastRun?.State ?? ""}; Recovery: {observed.Recovery?.Verdict ?? ""}; Install: {observed.InstallRecovery?.Class ?? ""}";
+        // The engine's own text for the interrupted attempt. No action runs
+        // from this preview; the safe actions need the install route.
+        var interrupted = controller.Connection == ConnectionState.Ready && controller.Route == StartupRoute.Interrupted ? observed?.InstallRecovery : null;
+        InstallRecoveryText.Text = interrupted is null ? "" : $"{interrupted.Title} {interrupted.Message}";
+        InstallRecoveryText.Visibility = interrupted is null ? Visibility.Collapsed : Visibility.Visible;
     }
 }

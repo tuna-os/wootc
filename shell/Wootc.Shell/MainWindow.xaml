@@ -17,6 +17,7 @@
     <TextBlock x:Name="ConnectionStatus" Text="Offline" AutomationProperties.AutomationId="ConnectionStatus" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupRouteText" Text="Startup status has not been read" AutomationProperties.AutomationId="StartupRoute" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupObservations" Text="No authenticated startup observations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
+    <TextBlock x:Name="InstallRecoveryText" Visibility="Collapsed" AutomationProperties.AutomationId="InstallRecovery" TextWrapping="Wrap" />
     <StackPanel Orientation="Horizontal" Spacing="12">
       <Button x:Name="ConnectButton" Style="{StaticResource AccentButtonStyle}" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
       <Button x:Name="DisconnectButton" Content="Disconnect engine" Click="Disconnect_Click" IsEnabled="False" AutomationProperties.AutomationId="DisconnectEngine" />

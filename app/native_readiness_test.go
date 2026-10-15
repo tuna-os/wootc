@@ -63,13 +63,13 @@ func TestNativeAssessmentDriftRefusesAllStartupReads(t *testing.T) {
 	server.strictStartup = true
 	calls := 0
 	server.startupValidate = func(context.Context) error { calls++; return errors.New("public-secret-path-must-not-cross-pipe") }
-	for _, method := range []string{"GetStatus", "GetLastRun", "GetRecoveryVerdict"} {
+	for _, method := range []string{"GetStatus", "GetLastRun", "GetRecoveryVerdict", "GetInstallRecovery"} {
 		result, err := server.dispatch(context.Background(), jsonrpcRequest{JSONRPC: "2.0", Method: method})
 		if result != nil || err == nil || err.Message != "native startup observation refused" {
 			t.Fatalf("%s guessed observation after drift: %v %+v", method, result, err)
 		}
 	}
-	if calls != 3 {
+	if calls != 4 {
 		t.Fatalf("startup reads bypassed revalidation: %d", calls)
 	}
 }

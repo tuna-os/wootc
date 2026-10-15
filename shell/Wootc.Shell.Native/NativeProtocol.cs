@@ -120,6 +120,42 @@ internal static class NativeProtocol
             throw new InvalidDataException("The engine mistyped an optional startup observation");
     }
 
+    private static readonly string[] InstallRecoveryFields = ["class", "cause", "imageRef", "lastCompletedStep", "stoppedAtStep", "title", "message", "recommended", "actions", "discardsRootDisk", "keepsVerifiedBlobs", "keepsVerifiedBytes"];
+    private static readonly string[] InstallRecoveryActionFields = ["resumeInstall", "retryDeploy", "repairBoot", "remove"];
+
+    // The summary has a fixed field set: evidence lines, the step error and the
+    // raw observation never cross the pipe, so their presence is a refusal.
+    private static void DecodeInstallRecovery(JsonElement result)
+    {
+        if (result.EnumerateObject().Count() != InstallRecoveryFields.Length || InstallRecoveryFields.Any(field => !result.TryGetProperty(field, out _)))
+            throw new InvalidDataException("Install recovery payload has an unsupported field set");
+        foreach (string field in new[] { "class", "cause", "imageRef", "lastCompletedStep", "stoppedAtStep", "title", "message", "recommended" })
+        {
+            Require(result, field, JsonValueKind.String);
+            if (result.GetProperty(field).GetString()!.Length > 512) throw new InvalidDataException("Install recovery text exceeds its bound");
+        }
+        Require(result, "discardsRootDisk", JsonValueKind.True);
+        if (!result.GetProperty("keepsVerifiedBlobs").TryGetInt32(out int blobs) || blobs < 0 ||
+            !result.GetProperty("keepsVerifiedBytes").TryGetInt64(out long bytes) || bytes < 0)
+            throw new InvalidDataException("Install recovery counts are invalid");
+        var actions = result.GetProperty("actions");
+        if (actions.ValueKind != JsonValueKind.Object || actions.EnumerateObject().Count() != InstallRecoveryActionFields.Length)
+            throw new InvalidDataException("Install recovery actions have an unsupported field set");
+        RejectDuplicates(actions);
+        foreach (string field in InstallRecoveryActionFields) Require(actions, field, JsonValueKind.True);
+        string Text(string field) => result.GetProperty(field).GetString()!;
+        string recoveryClass = Text("class");
+        if (recoveryClass is not ("none" or "complete" or "in-progress" or "resumable" or "failed" or "needs-repair") ||
+            Text("cause") is not ("" or "cancelled" or "interrupted" or "step-failed" or "never-booted" or "deployer-interrupted" or "deployer-failed" or "awaiting-restart" or "deployed" or "healthy" or "unknown") ||
+            Text("recommended") is not ("" or "resume" or "retry-deploy" or "repair-boot" or "remove"))
+            throw new InvalidDataException("Install recovery classification is unsupported");
+        bool anyAction = InstallRecoveryActionFields.Any(field => actions.GetProperty(field).GetBoolean());
+        if (recoveryClass == "none" && (anyAction || Text("title").Length != 0 || Text("message").Length != 0))
+            throw new InvalidDataException("An absent install attempt cannot carry recovery actions");
+        if (recoveryClass is "resumable" or "failed" or "needs-repair" && (Text("title").Length == 0 || Text("message").Length == 0 || !anyAction))
+            throw new InvalidDataException("An interrupted install needs engine text and a safe action");
+    }
+
     internal static T DecodeStartup<T>(string method, JsonElement result)
     {
         if (result.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Startup result must be an object");
@@ -142,6 +178,9 @@ internal static class NativeProtocol
                 OptionalString(result, "phase"); OptionalString(result, "phaseId"); OptionalString(result, "details");
                 if (result.TryGetProperty("logTail", out var tail) && (tail.ValueKind != JsonValueKind.Array || tail.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.String)))
                     throw new InvalidDataException("Recovery log tail is not a string array");
+                break;
+            case "GetInstallRecovery":
+                DecodeInstallRecovery(result);
                 break;
             default: throw new InvalidDataException("Unsupported native startup method");
         }

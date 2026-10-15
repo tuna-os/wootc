@@ -115,7 +115,7 @@ public sealed class StartupWindowTests
                 }
                 await ExpectName("ConnectionStatus", "Ready");
                 await ExpectName("StartupRoute", "Review your computer before installation");
-                await ExpectName("StartupObservations", "Running: False; Existing: False; Lifecycle: ; Recovery: ");
+                await ExpectName("StartupObservations", "Running: False; Existing: False; Lifecycle: ; Recovery: ; Install: none");
                 Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
                 Find("DisconnectEngine").AsButton().Invoke();
                 await ExpectName("ConnectionStatus", "Offline");
@@ -164,6 +164,25 @@ public sealed class StartupWindowTests
                     if (malformedRecovery) { Assert.Equal("{}", File.ReadAllText(recoveryPath)); File.Delete(recoveryPath); }
                 }
             }
+            // A valid staged state and a journal still marked "running" is an
+            // interrupted install (#287). Its PID is 4, the System process: alive,
+            // but created at this boot, long after the journal started, so the
+            // engine must not take it for the journal's owner.
+            string journalPath = Path.Combine(stateRoot, "install", "journal.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(journalPath)!);
+            string stagedState = "{\"state\":\"staged\",\"phase\":\"Downloading Linux\",\"phaseId\":\"Downloading Linux\",\"updatedAt\":\"2026-01-01T00:05:00Z\",\"updatedBy\":\"public-native-test\"}";
+            string interruptedJournal = "{\"schema\":1,\"attemptId\":\"20260101T000000.000000000Z\",\"imageRef\":\"ghcr.io/tuna-os/yellowfin:gnome\",\"storageDrive\":\"C\",\"pid\":4,\"startedAt\":\"2026-01-01T00:00:00Z\",\"updatedAt\":\"2026-01-01T00:05:00Z\",\"outcome\":\"running\",\"currentStep\":\"Downloading Linux\",\"completedSteps\":[\"Checking your PC\",\"Preparing Windows\"]}";
+            File.WriteAllText(lifecyclePath, stagedState);
+            File.WriteAllText(journalPath, interruptedJournal);
+            try { await ObserveInterruptedRoute(Path.Combine(root, "Wootc.Shell.exe")); }
+            finally
+            {
+                Assert.Equal(stagedState, File.ReadAllText(lifecyclePath));
+                Assert.Equal(interruptedJournal, File.ReadAllText(journalPath));
+                Assert.Equal(stateAcl, new DirectoryInfo(stateRoot).GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.All));
+                File.Delete(journalPath);
+                File.Delete(lifecyclePath);
+            }
             Assert.Equal(markerHash, SHA256.HashData(File.ReadAllBytes(marker)));
             File.Delete(marker);
             string installDirectory = Path.Combine(stateRoot, "install");
@@ -173,6 +192,47 @@ public sealed class StartupWindowTests
             File.WriteAllBytes(observations, JsonSerializer.SerializeToUtf8Bytes(new { buildId, before, after = BeforeState(), readOnlyStartupRootAbsent=true, volumeAclUnchanged=true, malformedRecordsAndAclUnchanged=true, scope = "Disposable hosted Windows; actual same-user elevated startup RPC; no interactive UAC or installation" }));
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    private static async Task ObserveInterruptedRoute(string executable)
+    {
+        using var automation = new UIA3Automation();
+        using var process = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(executable)! })!;
+        _ = process.Handle;
+        using var application = Application.Attach(process.Id);
+        try
+        {
+            var window = application.GetMainWindow(automation, TimeSpan.FromSeconds(30));
+            Assert.NotNull(window);
+            AutomationElement Find(string id) => window.FindFirstDescendant(cf => cf.ByAutomationId(id)) ?? throw new InvalidOperationException($"Preview element {id} is absent");
+            Find("ConnectEngine").AsButton().Invoke();
+            async Task ExpectName(string id, string expected)
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                while (Find(id).Name != expected)
+                {
+                    if (deadline.IsCancellationRequested) throw new InvalidOperationException($"Expected {id}={expected}; observed {Find(id).Name}; connection={Find("ConnectionStatus").Name}; {Find("ConnectionStatus").Properties.HelpText.Value}");
+                    await Task.Delay(100, deadline.Token);
+                }
+            }
+            await ExpectName("ConnectionStatus", "Ready");
+            await ExpectName("StartupRoute", "Finish or remove the interrupted installation");
+            await ExpectName("StartupObservations", "Running: False; Existing: True; Lifecycle: staged; Recovery: ; Install: resumable");
+            Assert.StartsWith("Setup stopped unexpectedly ", Find("InstallRecovery").Name, StringComparison.Ordinal);
+            Assert.Null(window.FindFirstDescendant(cf => cf.ByAutomationId("StartInstall")));
+            Find("DisconnectEngine").AsButton().Invoke();
+            await ExpectName("ConnectionStatus", "Offline");
+            var cleared = window.FindFirstDescendant(cf => cf.ByAutomationId("InstallRecovery"));
+            Assert.True(cleared is null || cleared.IsOffscreen || cleared.Name.Length == 0, "Disconnect kept the interrupted-install text");
+            window.Close();
+            using var closing = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await process.WaitForExitAsync(closing.Token);
+            Assert.Equal(0, process.ExitCode);
+        }
+        finally
+        {
+            if (!process.HasExited) { process.CloseMainWindow(); if (!process.WaitForExit(5000)) { process.Kill(); process.WaitForExit(5000); } }
+        }
     }
 
     private static async Task ObserveUnavailableWithoutRoute(string executable, string primaryFailure)

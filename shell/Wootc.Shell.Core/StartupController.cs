@@ -2,10 +2,10 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Core;
 
-public enum StartupRoute { Assessment, Progress, Manage, Recovery }
+public enum StartupRoute { Assessment, Progress, Manage, Recovery, Interrupted }
 public enum ConnectionState { Offline, RequestingPermission, Ready, PermissionDeclined, Unavailable, DisconnectPending }
 public enum ConnectionOutcome { Connected, PermissionDeclined, Incompatible, Unavailable }
-public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? Recovery, LifecycleState? LastRun = null);
+public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? Recovery, LifecycleState? LastRun = null, InstallRecoverySummary? InstallRecovery = null);
 public sealed record ConnectRequest(string SessionId);
 public sealed record ConnectionAttempt(ConnectionOutcome Outcome, IEngineSession? Session = null, string? Reason = null);
 
@@ -56,6 +56,12 @@ public sealed class StartupController : IAsyncDisposable
         if (verdict is "failed" or "interrupted" or "one-shot-never-booted") return StartupRoute.Recovery;
         if (verdict is not ("" or "healthy" or "deployed"))
             throw new InvalidDataException("The engine returned an unsupported recovery verdict");
+        // Same order as the legacy relaunch: a boot verdict first, then the
+        // install journal's classification (#287).
+        string install = snapshot.InstallRecovery?.Class ?? "none";
+        if (install is "resumable" or "failed" or "needs-repair") return StartupRoute.Interrupted;
+        if (install is not ("none" or "complete" or "in-progress"))
+            throw new InvalidDataException("The engine returned an unsupported install recovery class");
         // This route offers management. It does not assert a verified Linux boot.
         if (snapshot.Status.Existing) return StartupRoute.Manage;
         return StartupRoute.Assessment;

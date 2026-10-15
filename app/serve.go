@@ -50,6 +50,7 @@ var ProtocolMethods = []string{
 	"BootIntoLinux",
 	"GetLastRun",
 	"GetRecoveryVerdict",
+	"GetInstallRecovery",
 	"E2EDriveDirective",
 	"E2EDriveReport",
 	"GetVMCapability",
@@ -229,7 +230,7 @@ func newConfigurationAssessmentServer(app *App, writer *synchronizedWriter, read
 func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrpcError) {
 	if s.assessmentOnly {
 		switch req.Method {
-		case "GetStatus", "GetLastRun", "GetRecoveryVerdict":
+		case "GetStatus", "GetLastRun", "GetRecoveryVerdict", "GetInstallRecovery":
 		case "GetNativeConfiguration":
 			if s.configurationRead == nil {
 				return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
@@ -386,6 +387,32 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 			return verdict, nil
 		}
 		return s.app.GetRecoveryVerdict(), nil
+
+	case "GetInstallRecovery":
+		if len(req.Params) != 0 && string(req.Params) != "null" {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "install recovery observation accepts no parameters"}
+		}
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		if s.strictStartup {
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
+			}
+			if s.app.GetStatus().Running {
+				return summarizeInstallRecovery(InstallRecovery{Class: InstallClassInProgress}), nil
+			}
+			summary, err := readNativeInstallRecovery(wootcDir(), journalOwnerRunning)
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native install recovery observation refused"}
+			}
+			return summary, nil
+		}
+		return summarizeInstallRecovery(s.app.GetInstallRecovery()), nil
 
 	case "E2EDriveDirective":
 		return s.app.E2EDriveDirective(), nil

@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'shell/**'
+      - 'tests/unit/fixtures/install-recovery/**'
+      - 'app/status_install_recovery*'
       - 'tests/native_configuration_flush_controls.py'
       - 'tests/windows_owned_process.py'
       - 'app/serve*'
