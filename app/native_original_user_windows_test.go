@@ -478,10 +478,10 @@ func TestNativeOriginalUserActualAlternativeAdministratorPipe(t *testing.T) {
 	t.Setenv("USERNAME", "engine-administrator")
 
 	t.Run("impersonation", func(t *testing.T) {
-		user, source, cleanup := nativeAlternativeClient(t, engine, name, secret, "Impersonation")
+		user, source, refusal, cleanup := nativeAlternativeClient(t, engine, name, secret, "Impersonation")
 		defer cleanup()
 		if user == nil {
-			t.Fatal("alternative-admin capture refused")
+			t.Fatalf("alternative-admin capture refused: %v", refusal)
 		}
 		defer user.close()
 		if user.sid != sid || source.userSID != sid || user.sid == engine.userSID || user.session != engine.sessionID {
@@ -515,11 +515,16 @@ func TestNativeOriginalUserActualAlternativeAdministratorPipe(t *testing.T) {
 		}
 	})
 	t.Run("identification-only", func(t *testing.T) {
-		user, _, cleanup := nativeAlternativeClient(t, engine, name, secret, "Identification")
+		user, _, refusal, cleanup := nativeAlternativeClient(t, engine, name, secret, "Identification")
 		defer cleanup()
 		if user != nil {
 			user.close()
 			t.Fatal("identification-only client authorized original-user capture")
+		}
+		// The refusal must come from the impersonation-level check, not from
+		// an earlier failure that would make this counterexample vacuous.
+		if refusal == nil || refusal.Error() != "original user pipe client refused impersonation" {
+			t.Fatalf("identification-only client refused for another reason: %v", refusal)
 		}
 	})
 }
@@ -527,7 +532,7 @@ func TestNativeOriginalUserActualAlternativeAdministratorPipe(t *testing.T) {
 // nativeAlternativeClient starts powershell.exe as the standard user, serves
 // one authenticated preview pipe to it and returns the bridge's capture (nil
 // when refused). The client allows the requested impersonation level only.
-func nativeAlternativeClient(t *testing.T, engine *nativeProcessPeer, name, secret, level string) (*nativeOriginalUser, *nativeProcessPeer, func()) {
+func nativeAlternativeClient(t *testing.T, engine *nativeProcessPeer, name, secret, level string) (*nativeOriginalUser, *nativeProcessPeer, error, func()) {
 	t.Helper()
 	var random [16]byte
 	if _, err := rand.Read(random[:]); err != nil {
@@ -618,10 +623,9 @@ func nativeAlternativeClient(t *testing.T, engine *nativeProcessPeer, name, secr
 	}
 	user, err := captureNativeOriginalUserFromPipe(pipe, source, engine)
 	if err != nil {
-		t.Logf("capture refused: %v", err)
 		user = nil
 	}
-	return user, source, func() {
+	return user, source, err, func() {
 		if connection != nil {
 			connection.Write([]byte{10})
 		}
