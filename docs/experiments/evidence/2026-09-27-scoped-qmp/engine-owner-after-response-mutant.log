@@ -1,0 +1,6 @@
+=== RUN   TestVMDisplayEngineOwnerAndChangedSession
+    vm_display_test.go:281: changed engine owner accepted stale session response
+--- FAIL: TestVMDisplayEngineOwnerAndChangedSession (0.20s)
+FAIL
+FAIL	wootc	0.219s
+FAIL

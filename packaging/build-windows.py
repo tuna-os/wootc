@@ -6,6 +6,7 @@ rendered with rsvg-convert when available. Missing artwork falls back explicitly
 to the platform icon. RELEASE_TAG supplies version metadata for release builds.
 """
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,9 @@ import xml.etree.ElementTree as ET
 
 WINRES = "github.com/tc-hib/go-winres@v0.3.3"
 ROOT = Path(__file__).resolve().parents[1]
+_spec = importlib.util.spec_from_file_location("wootc_brand", Path(__file__).resolve().with_name("brand.py"))
+brand_rules = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(brand_rules)
 
 
 def fixed_version(version):
@@ -63,11 +67,14 @@ def resources(root, brand, version, work):
         else:
             print(f"{brand}: using platform icon (supply icon.ico or logo.svg + rsvg-convert)", file=sys.stderr)
             icon = root / "app/build/windows/icon.ico"
+    # Authorship is a claim: an unblessed brand's exe names the distributor,
+    # not the mark's owner (packaging/brand.py effective_identity, #227).
+    publisher, legal_copyright = brand_rules.effective_identity(root, brand, config)
     info = {
         "ProductName": config["productName"],
         "FileDescription": config.get("fileDescription") or config["productName"],
-        "CompanyName": config.get("publisher") or config["name"],
-        "LegalCopyright": config.get("copyright") or "",
+        "CompanyName": publisher,
+        "LegalCopyright": legal_copyright,
         "OriginalFilename": config["exeName"] + ".exe",
         "InternalName": config["exeName"],
         "ProductVersion": version,

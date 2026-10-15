@@ -14,6 +14,8 @@
 #                phase3=on     — pass --phase3 (rung-3 graduate onto blank disk)
 #                firmware_db=2011|2023|both|none — WOOTC_E2E_FIRMWARE_DB, the
 #                              Secure Boot db cell (#322); none forces GUI mode
+#                offline=on    — pass --offline (guest has no NIC; deploy from a
+#                                pre-staged OCI bundle, #217). Script path only.
 #
 # The bitlocker axis (WOOTC_E2E_BITLOCKER=on) drops PreventDeviceEncryption so
 # Windows auto-encrypts C:; wootc must then place root.disk on a separate
@@ -29,6 +31,11 @@ smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC
 smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# Offline axis (#217): the proven el10 baseline with NO guest network device.
+# The deployer must ingest the pre-staged bundle, skip the registry pre-flight
+# and finish fisherman from local storage. Green here gates preloadImage
+# default-on for the generic build.
+smoke	el10-gnome-win11pro-offline	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	offline=on
 # btrfs sealed-root axis (#35): a composefs-sealed image forced onto btrfs.
 # NOT bluefin:lts, despite it being the proven baseline — CentOS Stream 10
 # has no in-tree btrfs, so its btrfs comes from an out-of-tree kmod signed
@@ -57,6 +64,24 @@ full	fedora-kde-win11pro	ghcr.io/tuna-os/bonito:kde	11	pro	W269N-WFGWX-YVC9B-4J6
 full	fedora-niri-win11pro	ghcr.io/tuna-os/bonito:niri	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	arch-gnome-win11pro	ghcr.io/tuna-os/marlin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	debian-gnome-win11pro	ghcr.io/tuna-os/flounder:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# ── Branded-installer axis (#226) — one cell per brand image ──
+# e2e-hosted.yml builds the installer of the brand whose directory matches
+# the image name (app/branding/<brand>), so in GUI mode
+# (gui_install=true) each cell drives that brand's own exe, catalog and
+# default selection. Script mode proves only the image. #226 needs the GUI
+# mode of these cells. Evidence as of 2026-10-15 (matrix.tsv has no status
+# column; docs/status.md carries the status):
+#   bazzite:stable  — branded exe GUI pass, Phase 3 off: run 32679831098 on
+#                     4fd4bc8 (2026-08-24). Current main is red at GUI launch:
+#                     run 38731850924. Not proven on this cell definition.
+#   aurora:stable   — UNPROVEN branded. Run 32613697020 (9748e0a, 2026-08-23)
+#                     passed, but it drove the GENERIC wootc.exe (the
+#                     brand-matching build landed after it). Image only.
+#   bluefin:stable  — UNPROVEN branded. Run 32604804979 (7fb2398, 2026-08-22)
+#                     passed with the GENERIC wootc.exe. Image only.
+full	branded-bazzite-win11pro	ghcr.io/ublue-os/bazzite:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	branded-aurora-win11pro	ghcr.io/ublue-os/aurora:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	branded-bluefin-stable-win11pro	ghcr.io/projectbluefin/bluefin:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── Windows axis (baseline EL10 GNOME image) — editions & versions ──
 # disabled(home-media): el10-gnome-win11home	ghcr.io/tuna-os/yellowfin:gnome	11	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7
 full	el10-gnome-win11ent	ghcr.io/tuna-os/yellowfin:gnome	11e	enterprise	NPPR9-FWDCX-D2C8J-H872K-2YT43

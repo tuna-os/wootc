@@ -1,0 +1,6 @@
+=== RUN   TestVMDisplayCaptureRetentionExhaustion
+    vm_display_test.go:347: exhausted budget reached QMP
+--- FAIL: TestVMDisplayCaptureRetentionExhaustion (0.05s)
+FAIL
+FAIL	wootc	0.059s
+FAIL

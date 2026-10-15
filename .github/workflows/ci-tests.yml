@@ -3,7 +3,8 @@ name: tests
 # Everything here runs on FREE GitHub-hosted runners with no VM, no KVM and no
 # self-hosted anything — the fast bats suites, the cross-platform Go tests, the
 # containerized migration integration suite, and the GUI screenshot render.
-# These were being run by hand on laptops; they belong on every push/PR.
+# These were being run by hand on laptops; they belong on every push to main
+# and on every PR that touches their inputs (see the changes job).
 #
 # The Windows-VM E2E is deliberately NOT here: it needs KVM + a full Windows
 # install (~45-85 min) and has no persistent disk on hosted runners. See
@@ -24,6 +25,35 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Path scoping: on a pull request, the fast tier always runs and every other
+  # job runs only when the change touches its inputs
+  # (.github/scripts/ci-scope.sh owns the map). Push to main and
+  # workflow_dispatch always run every job.
+  changes:
+    name: select path-scoped jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      classic: ${{ steps.scope.outputs.classic }}
+      migration: ${{ steps.scope.outputs.migration }}
+      partition: ${{ steps.scope.outputs.partition }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The PR merge commit and its base parent.
+          fetch-depth: 2
+      - id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD | tee /dev/stderr | .github/scripts/ci-scope.sh >> "$GITHUB_OUTPUT"
+          else
+            .github/scripts/ci-scope.sh --all >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
   fast:
     name: fast tier (bats + go)
     runs-on: ubuntu-latest
@@ -54,6 +84,8 @@ jobs:
 
   classic-offline:
     name: classic offline package prerequisites
+    needs: changes
+    if: needs.changes.outputs.classic == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -70,6 +102,8 @@ jobs:
 
   integration:
     name: migration integration (container)
+    needs: changes
+    if: needs.changes.outputs.migration == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -80,6 +114,8 @@ jobs:
 
   gui-shots:
     name: GUI screenshots render
+    needs: changes
+    if: needs.changes.outputs.migration == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -101,6 +137,8 @@ jobs:
 
   partition-policy:
     name: Windows partition policy counterexamples
+    needs: changes
+    if: needs.changes.outputs.partition == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

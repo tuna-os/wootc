@@ -28,6 +28,9 @@ on:
         description: 'Attach the native preview installers to this existing release (dispatch at that tag). Empty = build and test only.'
         type: string
         default: ''
+  # Nightly: the full branded-package matrix (a PR runs a rotating slice).
+  schedule:
+    - cron: '40 4 * * *'
 
 permissions:
   contents: read
@@ -37,6 +40,52 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Branded packages are the same code with a different brand.json. A PR
+  # packages WINUI_PREVIEW_BRANDS_PER_PR brands (repo variable, default 1),
+  # rotated by run number, plus every brand whose app/branding/<brand>/ it
+  # changes. Schedule and dispatch package every brand.
+  plan:
+    name: Select preview brands
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      brands: ${{ steps.pick.outputs.brands }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The PR merge commit and its base parent.
+          fetch-depth: 2
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+          PER_PR: ${{ vars.WINUI_PREVIEW_BRANDS_PER_PR || '1' }}
+        run: |
+          set -euo pipefail
+          all=(wootc tunaos aurora bazzite bluefin)
+          n=${#all[@]}
+          declare -A want=()
+          if [ "$EVENT" != pull_request ]; then
+            for b in "${all[@]}"; do want[$b]=1; done
+          else
+            [[ "$PER_PR" =~ ^[0-9]+$ ]] && [ "$PER_PR" -ge 1 ] || { echo "::error::WINUI_PREVIEW_BRANDS_PER_PR must be a positive integer"; exit 1; }
+            if [ "$PER_PR" -gt "$n" ]; then PER_PR=$n; fi
+            start=$(( RUN_NUMBER * PER_PR % n ))
+            for ((i = 0; i < PER_PR; i++)); do want[${all[(start + i) % n]}]=1; done
+            changed=$(git diff --name-only HEAD^1 HEAD)
+            while IFS= read -r f; do
+              case "$f" in
+                app/branding/*/*)
+                  b=${f#app/branding/}; b=${b%%/*}
+                  for known in "${all[@]}"; do [ "$b" != "$known" ] || want[$b]=1; done ;;
+              esac
+            done <<< "$changed"
+          fi
+          picked=()
+          for b in "${all[@]}"; do [ -z "${want[$b]:-}" ] || picked+=("$b"); done
+          brands=$(printf '%s\n' "${picked[@]}" | jq -Rsc 'split("\n") | map(select(. != ""))')
+          echo "brands=$brands" | tee -a "$GITHUB_OUTPUT"
+
   core:
     name: Core startup contract (${{ matrix.os }})
     strategy:
@@ -149,12 +198,13 @@ jobs:
 
   preview-packaging:
     name: Branded preview package (${{ matrix.brand }})
+    needs: plan
     runs-on: windows-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        brand: [wootc, tunaos, aurora, bazzite, bluefin]
+        brand: ${{ fromJSON(needs.plan.outputs.brands) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6

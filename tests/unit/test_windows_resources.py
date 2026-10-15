@@ -66,6 +66,50 @@ class WindowsResources(unittest.TestCase):
                 with self.subTest(brand=brand), self.assertRaises(ValueError):
                     builder.resources(ROOT, brand, "v1.2.3", Path(tmp))
 
+    def test_unblessed_brands_never_name_their_owner_as_company(self):
+        # Every real brand: the version resource names the mark's owner only
+        # once blessing.json says "blessed" (or the mark is ours). Bazzite,
+        # Bluefin and Aurora are pending, so their exes say the distributor.
+        distributor = json.loads((ROOT / "app/branding/ownership.json").read_text())["distributor"]
+        self.assertTrue(distributor.strip())
+        checked = 0
+        for directory in sorted((ROOT / "app/branding").iterdir()):
+            if not (directory / "brand.json").is_file():
+                continue
+            record = json.loads((directory / "blessing.json").read_text())
+            config = json.loads((directory / "brand.json").read_text())
+            with tempfile.TemporaryDirectory() as tmp, self.subTest(brand=directory.name):
+                info = builder.resources(ROOT, directory.name, "v1.2.3", Path(tmp))["RT_VERSION"]["#1"]["0000"]["info"]["0409"]
+                if record.get("selfOwned") or record["status"] == "blessed":
+                    self.assertEqual(info["CompanyName"], config.get("publisher") or config["name"])
+                    continue
+                checked += 1
+                owner = record["mark"]["owner"].split("—")[0].strip()
+                self.assertEqual(info["CompanyName"], distributor)
+                self.assertNotIn(owner, info["CompanyName"] + info["LegalCopyright"])
+        self.assertGreater(checked, 0, "no unblessed brand exercised; the rule held nothing")
+
+    def test_blessing_switches_the_company_to_the_owner(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app/branding/acme").mkdir(parents=True)
+            shutil.copytree(ROOT / "app/build/windows", root / "app/build/windows")
+            (root / "app/branding/ownership.json").write_text(json.dumps(dict(distributor="Us", selfOwnedBrands=[])))
+            config = dict(name="Acme", productName="Acme Installer", exeName="Acme-Installer", publisher="Acme Org", copyright="© Acme Org")
+            (root / "app/branding/acme/brand.json").write_text(json.dumps(config))
+            for status, company, legal in (("pending", "Us", ""), ("declined", "Us", ""), ("blessed", "Acme Org", "© Acme Org")):
+                (root / "app/branding/acme/blessing.json").write_text(json.dumps(dict(brand="acme", status=status)))
+                work = root / ("work-" + status)
+                work.mkdir()
+                info = builder.resources(root, "acme", "v1.0.0", work)["RT_VERSION"]["#1"]["0000"]["info"]["0409"]
+                self.assertEqual((info["CompanyName"], info["LegalCopyright"]), (company, legal), status)
+            # A selfOwned claim the ownership policy does not back is not a yes.
+            (root / "app/branding/acme/blessing.json").write_text(json.dumps(dict(brand="acme", selfOwned=True, status="blessed")))
+            work = root / "work-self"
+            work.mkdir()
+            info = builder.resources(root, "acme", "v1.0.0", work)["RT_VERSION"]["#1"]["0000"]["info"]["0409"]
+            self.assertEqual(info["CompanyName"], "Us")
+
     @unittest.skipUnless(shutil.which("go"), "Go required for PE link verification")
     def test_linked_brand_resources_and_isolation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -77,14 +121,20 @@ class WindowsResources(unittest.TestCase):
             (app / "main.go").write_text('package main\nvar brandID, releaseTag string\nfunc main() {}\n')
             shutil.copytree(ROOT / "app/build/windows", app / "build/windows")
             original = ROOT / "app/build/windows/icon.ico"
+            (app / "branding").mkdir()
+            (app / "branding/ownership.json").write_text(json.dumps(
+                dict(distributor="Fixture Distributor", selfOwnedBrands=[], wingetNamespaces=[])))
             icons = {}
-            for brand, name in (("first", "First & Co"), ("second", "Second")):
+            # "first" is blessed and may name its owner; "second" is pending
+            # and must name the distributor instead (#227).
+            for brand, name, status in (("first", "First & Co", "blessed"), ("second", "Second", "pending")):
                 directory = app / "branding" / brand
                 directory.mkdir(parents=True)
                 config = dict(name=name, productName=name + " Installer", exeName=brand,
                               publisher=name + " Project", copyright="© 2026 " + name,
                               fileDescription=name + " migration")
                 (directory / "brand.json").write_text(json.dumps(config))
+                (directory / "blessing.json").write_text(json.dumps(dict(brand=brand, selfOwned=False, status=status)))
                 # Two distinct valid icons: choose different source image entries.
                 ico = original.read_bytes()
                 count = struct.unpack_from("<H", ico, 4)[0]
@@ -105,9 +155,13 @@ class WindowsResources(unittest.TestCase):
                 self.assertIn("8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a", manifest)
                 fixed = next(value for key, value in resources.items() if key[:2] == (16, 1))
                 version = fixed.decode("utf-16le", errors="surrogatepass")
-                for expected in (config["productName"], config["publisher"], config["copyright"],
+                company = (config["publisher"], config["copyright"]) if status == "blessed" else ("Fixture Distributor",)
+                for expected in (config["productName"], *company,
                                  config["fileDescription"], brand + ".exe", "v2.3.4-rc.1"):
                     self.assertIn(expected + "\0", version)
+                if status != "blessed":
+                    self.assertNotIn(config["publisher"], version)
+                    self.assertNotIn(config["copyright"], version)
                 signature = fixed.index(struct.pack("<I", 0xfeef04bd))
                 self.assertEqual(struct.unpack_from("<II", fixed, signature + 8), (2 << 16 | 3, 4 << 16))
                 self.assertIn(payload, [value for key, value in resources.items() if key[0] == 3])

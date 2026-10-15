@@ -208,6 +208,19 @@ credential:
 | `WOOTC_SIGN_PUBLISHER` | variable | the CN that the signer certificate must show |
 | `WOOTC_SIGN_TSAURL` | variable | optional RFC 3161 timestamp server |
 | `WOOTC_SIGN_STOREPASS` | secret | the token or password. jsign reads it from the environment |
+| `WOOTC_SIGN_CA_PEM` | variable | optional PEM roots for the check of the signature and the timestamp |
+| `WOOTC_SIGN_CERTCHAIN_PEM` | variable | optional PEM chain for jsign `--certfile`. Some HSM store types need it |
+
+The check uses the Ubuntu CA bundle. That bundle has TLS roots only.
+The Azure `TRUSTEDSIGNING` certificates chain to a Microsoft root that is not in
+the bundle (`Microsoft Identity Verification Root Certificate Authority 2020`).
+For that store type, put that root and the root of its timestamp server in `WOOTC_SIGN_CA_PEM`.
+If you do not, the check fails and the tagged release stops.
+
+For `TRUSTEDSIGNING` and `AZUREKEYVAULT`, jsign uses an Azure access token as the
+store password. Such a token expires after about one hour, so a static secret does not
+work for a release. Get a new token in the release job, for example with an Azure
+OIDC login. That step depends on the choice in #229, so it is not in the workflow yet.
 
 The script signs copies of each exe. It then makes `osslsigncode verify`
 examine each copy for a valid chain, a timestamp, and the expected

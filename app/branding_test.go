@@ -38,7 +38,7 @@ func TestMergeBranding_OverlaysNonEmptyFields(t *testing.T) {
 		t.Errorf("mergeBranding() did not overlay: %+v", base)
 	}
 	// Unset overlay fields must keep the base values.
-	if base.Version != "0.1.0" || base.Background == "" || base.InstallVerb == "" {
+	if base.Version != buildVersion() || base.Background == "" || base.InstallVerb == "" {
 		t.Errorf("mergeBranding() clobbered defaults: %+v", base)
 	}
 }

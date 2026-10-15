@@ -122,6 +122,7 @@ STUB
     cat > "$work/bin/osslsigncode" <<'STUB'
 #!/bin/bash
 for last; do :; done
+printf '%s\n' "$*" >> "${OSSL_ARGS_LOG:-/dev/null}"
 grep -q SIGNED "$last" || { echo "No signature found"; exit 1; }
 echo "Subject: /CN=${VERIFY_CN:-TunaOS}"
 echo "Timestamp Server Signature verification: ok"
@@ -191,6 +192,46 @@ sign_configure() {
     run bash packaging/sign-exes.sh tagged "$work/assets"
     [ "$status" -eq 1 ]
     [[ "$output" == *"WOOTC_SIGN_PUBLISHER is empty"* ]]
+}
+
+@test "release.yml can supply the verify roots and the cert chain from variables (#230)" {
+    # osslsigncode verifies against the Ubuntu TLS bundle by default, which
+    # lacks the Trusted Signing root. Without a way in, a configured tagged
+    # release would fail closed on every run.
+    grep -q 'WOOTC_SIGN_CA_PEM: ${{ vars.WOOTC_SIGN_CA_PEM }}' "$RELEASE"
+    grep -q 'WOOTC_SIGN_CERTCHAIN_PEM: ${{ vars.WOOTC_SIGN_CERTCHAIN_PEM }}' "$RELEASE"
+    grep -q 'export WOOTC_SIGN_CAFILE="$RUNNER_TEMP/sign-ca.pem"' "$RELEASE"
+    grep -q 'export WOOTC_SIGN_CERTFILE="$RUNNER_TEMP/sign-chain.pem"' "$RELEASE"
+    # Only the signing path may read them: the unconfigured release stays a no-op.
+    sign=$(grep -n -- '- name: Authenticode-sign the installers' "$RELEASE" | cut -d: -f1)
+    sums=$(grep -n -- '- name: Checksums for the release assets' "$RELEASE" | cut -d: -f1)
+    ca=$(grep -n 'export WOOTC_SIGN_CAFILE=' "$RELEASE" | cut -d: -f1)
+    [ "$sign" -lt "$ca" ] && [ "$ca" -lt "$sums" ]
+}
+
+@test "sign-exes: verification uses the configured CA file and jsign gets the chain" {
+    sign_setup; sign_configure
+    printf 'ROOT\n' > "$work/roots.pem"; printf 'CHAIN\n' > "$work/chain.pem"
+    export WOOTC_SIGN_CAFILE="$work/roots.pem" WOOTC_SIGN_CERTFILE="$work/chain.pem"
+    export OSSL_ARGS_LOG="$work/ossl.log"
+    cat > "$work/bin/jsign" <<'STUB'
+#!/bin/bash
+for last; do :; done
+case "$*" in *"--certfile $WOOTC_SIGN_CERTFILE"*) ;; *) echo "no certfile" >&2; exit 9 ;; esac
+printf ' SIGNED' >> "$last"
+STUB
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -q -- "-CAfile $work/roots.pem -TSA-CAfile $work/roots.pem" "$work/ossl.log"
+}
+
+@test "sign-exes: an unreadable CA file is a signing failure, not a crash later" {
+    sign_setup; sign_configure
+    export WOOTC_SIGN_CAFILE="$work/missing.pem"
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"is not readable"* ]]
+    [ "$(cat "$work/assets/wootc.exe")" = "MZ one" ]
 }
 
 teardown() {
