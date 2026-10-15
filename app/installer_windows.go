@@ -123,20 +123,20 @@ func validatePlatformConfig(cfg InstallConfig) error {
 
 func checkSystem() error {
 	if !isAdmin() {
-		return fmt.Errorf("wootc must be run as Administrator")
+		return fmt.Errorf("%s must be run as Administrator", productName())
 	}
 	if !isUEFI() {
-		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — wootc needs UEFI. " +
-			"Most PCs made after 2012 support UEFI; it can usually be enabled in firmware setup")
+		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — %s needs UEFI. "+
+			"Most PCs made after 2012 support UEFI; it can usually be enabled in firmware setup", productName())
 	}
 	// SPEC §3.5: never touch a volume mid-(de)cryption — the partition
 	// table is unstable and a resize could corrupt it.
 	switch bitlockerState(`C:`) {
 	case "encrypting":
-		return fmt.Errorf("Windows is still encrypting drive C:. Wait for BitLocker to finish " +
-			"(you can check progress in the BitLocker control panel), then run wootc again")
+		return fmt.Errorf("Windows is still encrypting drive C:. Wait for BitLocker to finish "+
+			"(you can check progress in the BitLocker control panel), then run %s again", productName())
 	case "decrypting":
-		return fmt.Errorf("Windows is still decrypting drive C:. Wait for it to finish, then run wootc again")
+		return fmt.Errorf("Windows is still decrypting drive C:. Wait for it to finish, then run %s again", productName())
 	}
 	return nil
 }
@@ -494,11 +494,11 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 	var errs []string
 
 	if hasWootcBCDEntry() {
-		errs = append(errs, "a wootc BCD firmware entry is still present")
+		errs = append(errs, "the "+productName()+" firmware boot entry is still present")
 	}
 
 	if hasWootcESPArtifacts() {
-		errs = append(errs, "wootc boot files are still present on the ESP")
+		errs = append(errs, productName()+" boot files are still present on the EFI system partition")
 	}
 
 	if hasUninstallRegistryEntry() {

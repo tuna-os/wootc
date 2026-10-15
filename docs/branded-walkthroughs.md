@@ -54,6 +54,8 @@ Only the hosted E2E rows show that.
 | Light-mode and dark-mode Windows both get the Bazzite look | ✅ | `TestBazziteBuild_ThemeIsNotConditionalOnColorScheme`; walkthrough test "a light-mode Windows still gets the brand look" (`05-light-mode.png`) |
 | Add/Remove entry and the restart notice say "Bazzite" | ✅ | `TestBazziteBuild_WindowsSurfacesNeverSayWootc` |
 | Recovery messages never say "wootc" | ✅ | `TestBazziteBuild_RecoveryMessagesNeverSayWootc` |
+| Deployer GRUB menu says "Install Bazzite (automatic)" / "(debug)"; the systemd-boot title says "Bazzite installer" | ✅ unit, ⚪ E2E | `TestDeployerMenus_BazziteBuildSaysBazzite`; `TestDeployerMenus_LookupsDoNotDependOnTheTitle` pins that the marker, `set default=0` and the boot paths are unchanged, so older and newer installs are found the same way. Needs a hosted GUI E2E run on a branded image before release: no run has booted the branded menu yet |
+| Windows-side errors (BitLocker busy, legacy BIOS, VM viewer, ESP guards, boot repair, uninstall check, unsafe-state dialog) never say "wootc" | ✅ | `TestUserFacingStringsNeverHardcodeWootc` (source scan: every string literal in `app/` that says "wootc" is an identifier or marker on an explicit list) |
 | Launchpad, progress, done, manage, uninstall dialogs, interrupted, recovery and failed-run screens never say "wootc" | ✅ | `tests/gui/branded-walkthrough.spec.js`. Windows paths such as `C:\wootc\disks` are the on-disk contract, so the test ignores them |
 | The done screen shows the MokManager step and its password | ✅ | walkthrough test "done celebrates the brand" |
 | Exe version resource: product "Bazzite Installer", file `Bazzite-Installer.exe`, company "TunaOS", no copyright | ✅ | local `packaging/build-windows.py --brand bazzite --version v0.4.0` build, read with `pefile` (2026-10-15). The company is the distributor, not Universal Blue, while `blessing.json` is pending: `TestUnblessedBrandsNeverClaimTheOwnerAsPublisher`, `tests/unit/test_windows_resources.py` |
@@ -68,8 +70,10 @@ Only the hosted E2E rows show that.
 
 Gaps that this page does not close:
 
-- The firmware boot entry, the deployer GRUB menu ("Install wootc"), and the data volume label (`wootc-data`) still say "wootc".
-  They are part of the on-disk contract. A Bazzite user can see them in the firmware boot menu, the GRUB menu, and File Explorer.
+- The firmware boot entry and the data volume label (`wootc-data`) still say "wootc". A Bazzite user can see them in the firmware one-time boot menu and in File Explorer.
+  They stay because the code that finds them matches **by that name**, not by a stable identifier:
+  - The firmware entry's description *is* its identity. `wootcEntryIDs` and `bootChainProblems` (`boot_txn.go`), `planBootRepair` (`boot_repair.go`), `hasWootcBCDEntry` (`installer_windows.go`), the uninstall sweep, `setup-wootc.ps1`, and `run-e2e.sh` all match `description wootc`. If a branded description such as "Bazzite" were matched there, cleanup could claim a user's real Bazzite entry. It needs a GUID-first lookup that also accepts the legacy name, and an E2E run.
+  - `wootc-data` is part of the partition-removal gate (`partition-policy.ps1` `Get-WootcPartitionRemovalBinding`, together with the receipt GUIDs). Orphan detection in `installer_windows.go` and the Phase-1 E2E assertion also find the volume by that label. Weakening a gate that guards `Remove-Partition` needs its own change and an E2E run.
 - `matrix.tsv` has no Bazzite cell. The script path (`setup-wootc.ps1`) does not queue the MOK enrollment, so only the GUI path can prove Bazzite.
 
 ## Bluefin — "The next generation Linux workstation"

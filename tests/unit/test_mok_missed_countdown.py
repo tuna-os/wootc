@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""A missed MokManager countdown must be recovered, not waited out.
+"""Never miss the MokManager countdown; if it is missed, say so at once.
 
 Run 38755153727 (bazzite:stable, GUI) deployed, queued the MOK enrollment and
 rebooted into Phase 2. The harness sighted MokManager after its 10 s countdown
 had already run out; MokManager booted GRUB, GRUB refused the Bazzite kernel
 ("bad shim signature", wrapped across two serial lines) and then sat at its
 menu. The driver logged "catching the next cycle" and waited out its whole
-budget for a cycle that never came. The fixture is that run's serial from the
+budget for a cycle that never came. Run 38776066218 reset from GRUB instead:
+MokManager never came back, because it deletes the request when the countdown
+runs out. Both runs first looked at the serial ~24 s after the reboot, spent in
+the QGA departure wait. The fixture is the first run's serial from the
 MokManager marker to the end of the capture.
 """
 import os
@@ -56,16 +59,34 @@ class RunnerWiringTests(unittest.TestCase):
         miss = RUNNER.index("MokManager sighted but its menu was not confirmed")
         self.assertIn("MOK_MISS_BYTE=$CURRENT_BYTE", RUNNER[miss:miss + 300])
 
-    def test_the_reset_is_gated_on_the_predicate_once_and_outside_fresh_output(self):
+    def test_a_confirmed_miss_fails_fast_as_infrastructure(self):
         loop = self.loop()
         gate = loop.index('mok_missed_boot_refused "$(tail -c +"$((MOK_MISS_BYTE + 1))"')
         # Evaluated every pass, before the fresh-output branch: a machine
         # parked at the GRUB menu prints nothing more.
         self.assertLess(gate, loop.index('if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then'))
-        block = loop[loop.rindex("if ", 0, gate):loop.index("continue", gate)]
-        self.assertIn('[ "$MOK_RESETS" -lt 1 ]', block)
-        self.assertIn("system_reset", block)
-        self.assertIn("MOK_REARM_WANTED=true", block)
+        block = loop[loop.rindex("if ", 0, gate):loop.index("fi\n", gate)]
+        self.assertIn("infra_fail", block)
+        self.assertIn("PHASE2_DIAGNOSED=true", block)
+        self.assertIn("break", block)
+        # The request is gone after a miss: resetting cannot bring it back.
+        self.assertNotIn("system_reset", loop)
+
+    def test_pending_enrollment_is_known_before_the_reboot(self):
+        reboot = RUNNER.index("""shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true\n# MokManager shows""")
+        self.assertLess(RUNNER.index("if grep -aq 'MOK enrollment queued' \"$PTY\""), reboot)
+
+    def test_a_pending_enrollment_skips_the_qga_departure_wait(self):
+        after = RUNNER[RUNNER.index("# MokManager shows a 10-second countdown"):]
+        branch = after[:after.index("\nfi\n") + 4]
+        self.assertIn('if [ "$MOK_PENDING" = true ]; then', branch)
+        then, other = branch.split("else", 1)
+        self.assertNotIn("qga_wait_down", then)
+        self.assertIn('qga_wait_down "Phase 2 Linux boot" 300', other)
+
+    def test_the_loop_polls_every_second_until_mokmanager_is_driven(self):
+        self.assertIn('if [ "$MOK_PENDING" = true ] && [ "$MOK_SIGHTINGS" -eq 0 ]; then sleep 1; else sleep 5; fi',
+                      self.loop())
 
     def test_every_windows_return_rearm_follows_a_wanted_event(self):
         loop = self.loop()
@@ -74,6 +95,8 @@ class RunnerWiringTests(unittest.TestCase):
         for at in rearms:
             self.assertIn('[ "$MOK_REARM_WANTED" = true ]', loop[loop.rindex("if ", 0, at):at])
         self.assertNotIn("MOK_REARMED", RUNNER)
+        # Only a driven sequence hands the firmware back and wants a re-arm.
+        self.assertEqual(RUNNER.count("MOK_REARM_WANTED=true"), 1)
 
     def test_a_driven_sequence_still_wants_its_rearm(self):
         loop = self.loop()

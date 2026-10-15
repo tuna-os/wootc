@@ -2,14 +2,13 @@
 # Source-only helpers for the Phase-2 MokManager driver in run-e2e.sh.
 
 # Succeeds only when the serial span since a MISSED MokManager countdown shows
-# the untrusted kernel being refused by GRUB and no kernel starting after it.
-# That is positive evidence the machine sits in firmware/bootloader code with
-# nothing mounted, so a QEMU monitor reset cannot interrupt an OS. Run
-# 38755153727 (bazzite:stable): the countdown ran out before the harness
-# sighted it, GRUB printed "bad shim signature" (wrapped across two serial
-# lines, hence the "bad shim" match), and the machine then waited
-# at the GRUB menu — the loop back into MokManager the driver waited for
-# never came.
+# the untrusted kernel being refused by GRUB and nothing starting after it.
+# MokManager deletes the enrollment request when its countdown runs out, so
+# this is a terminal state for the run: Phase 2 cannot boot until someone
+# queues the key again from Linux. Run 38755153727 (bazzite:stable): GRUB
+# printed "bad shim signature" (wrapped across two serial lines, hence the
+# "bad shim" match) and parked at its menu; run 38776066218 reset from there
+# and MokManager never came back.
 mok_missed_boot_refused() {
     local span="${1:-}"
     printf '%s\n' "$span" | grep -aq 'bad shim' || return 1

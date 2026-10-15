@@ -211,6 +211,9 @@ sign_configure() {
 
 @test "sign-exes: verification uses the configured CA file and jsign gets the chain" {
     sign_setup; sign_configure
+    # An HSM-style credential: the CA file is used as given. (TRUSTEDSIGNING
+    # adds the pinned Microsoft root to it; tested below.)
+    export WOOTC_SIGN_STORETYPE=PKCS11
     printf 'ROOT\n' > "$work/roots.pem"; printf 'CHAIN\n' > "$work/chain.pem"
     export WOOTC_SIGN_CAFILE="$work/roots.pem" WOOTC_SIGN_CERTFILE="$work/chain.pem"
     export OSSL_ARGS_LOG="$work/ossl.log"
@@ -232,6 +235,196 @@ STUB
     [ "$status" -eq 1 ]
     [[ "$output" == *"is not readable"* ]]
     [ "$(cat "$work/assets/wootc.exe")" = "MZ one" ]
+}
+
+# ── Azure Trusted Signing over GitHub OIDC (#229) ───────────────────────────
+
+# az stub: logs its argv, prints a token unless told to fail.
+az_stub() {
+    cat > "$work/bin/az" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >> "${AZ_ARGS_LOG:-/dev/null}"
+if [ -n "${AZ_FAIL:-}" ]; then echo "ERROR: AADSTS70021: No matching federated identity record" >&2; exit 1; fi
+echo "WARNING: this goes to stderr and must not become the token" >&2
+echo "oidc-token-123"
+STUB
+    # jsign stub: the store password must be the az token, read from the
+    # environment, and never on argv.
+    cat > "$work/bin/jsign" <<'STUB'
+#!/bin/bash
+for last; do :; done
+printf '%s\n' "$*" >> "${JSIGN_ARGS_LOG:-/dev/null}"
+case "$*" in *oidc-token-123*) echo "token on argv" >&2; exit 9 ;; esac
+case "$*" in *"--storepass env:WOOTC_SIGN_STOREPASS"*) ;; *) exit 9 ;; esac
+[ "$WOOTC_SIGN_STOREPASS" = oidc-token-123 ] || { echo "storepass is '$WOOTC_SIGN_STOREPASS'" >&2; exit 8; }
+printf ' SIGNED' >> "$last"
+STUB
+    chmod +x "$work/bin/az" "$work/bin/jsign"
+    export AZ="$work/bin/az" AZ_ARGS_LOG="$work/az.log" JSIGN_ARGS_LOG="$work/jsign.log"
+}
+
+azure_configure() {
+    sign_configure
+    unset WOOTC_SIGN_STOREPASS
+    export WOOTC_SIGN_AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000001 \
+           WOOTC_SIGN_AZURE_LOGIN=success
+}
+
+@test "sign-exes: Azure variables without a store type still ship unsigned, and az is not called" {
+    sign_setup; az_stub
+    unset WOOTC_SIGN_STORETYPE
+    export WOOTC_SIGN_AZURE_CLIENT_ID=x WOOTC_SIGN_AZURE_LOGIN=skipped
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -qx 'signing=unsigned' "$GITHUB_OUTPUT"
+    [ ! -e "$work/az.log" ]
+    [ "$(cat "$work/assets/wootc.exe")" = "MZ one" ]
+}
+
+@test "sign-exes: Trusted Signing over OIDC signs with a fresh token, Microsoft's TSA and the pinned root" {
+    sign_setup; az_stub; azure_configure
+    export OSSL_ARGS_LOG="$work/ossl.log"
+    # Outside Actions there is no runner to mask it, so it is never printed.
+    unset GITHUB_ACTIONS
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -qx 'signing=signed' "$GITHUB_OUTPUT"
+    [ "$(cat "$work/assets/wootc.exe")" = "MZ one SIGNED" ]
+    [ "$(cat "$work/assets/Bazzite-Installer.exe")" = "MZ two SIGNED" ]
+    # One token, for the Trusted Signing audience.
+    [ "$(wc -l < "$work/az.log")" -eq 1 ]
+    grep -q -- 'account get-access-token --resource https://codesigning.azure.net' "$work/az.log"
+    # The configured endpoint and account/profile reach jsign.
+    grep -q -- '--storetype TRUSTEDSIGNING --keystore weu.codesigning.azure.net --alias tunaos/wootc' "$work/jsign.log"
+    grep -q -- '--tsaurl http://timestamp.acs.microsoft.com' "$work/jsign.log"
+    # The token is never printed.
+    [[ "$output" != *oidc-token-123* ]]
+}
+
+@test "sign-exes: on Actions the token appears only in its ::add-mask:: line" {
+    # The runner hides a value from every later log line once it sees
+    # ::add-mask::. That line is the one place the token may be printed.
+    sign_setup; az_stub; azure_configure
+    export GITHUB_ACTIONS=true
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -qx 'signing=signed' "$GITHUB_OUTPUT"
+    [ "$(grep -c oidc-token-123 <<< "$output")" -eq 1 ]
+    grep -qx '::add-mask::oidc-token-123' <<< "$output"
+    ! grep -q oidc-token-123 "$GITHUB_OUTPUT"
+}
+
+@test "sign-exes: an explicit timestamp server wins over the Trusted Signing default" {
+    sign_setup; az_stub; azure_configure
+    export WOOTC_SIGN_TSAURL=http://tsa.example
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -q -- '--tsaurl http://tsa.example' "$work/jsign.log"
+    ! grep -q 'timestamp.acs.microsoft.com' "$work/jsign.log"
+}
+
+@test "sign-exes: Trusted Signing verification trusts the pinned Microsoft root" {
+    sign_setup; az_stub; azure_configure
+    printf 'SYSTEM-ROOTS\n' > "$work/roots.pem"
+    export WOOTC_SIGN_CAFILE="$work/roots.pem"
+    # Capture the CA file while it still exists (the script removes its work dir).
+    cat > "$work/bin/osslsigncode" <<'STUB'
+#!/bin/bash
+for last; do :; done
+while [ $# -gt 0 ]; do [ "$1" = -CAfile ] && cp "$2" "$CA_COPY"; shift; done
+grep -q SIGNED "$last" || exit 1
+echo "Subject: /CN=TunaOS"; echo "Timestamp ok"; echo "Signature verification: ok"
+STUB
+    export CA_COPY="$work/ca-seen.pem"
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -qx 'SYSTEM-ROOTS' "$work/ca-seen.pem"
+    pinned=packaging/authenticode-roots/microsoft-identity-verification-root-2020.pem
+    grep -qF "$(sed -n 2p "$pinned")" "$work/ca-seen.pem"
+}
+
+@test "the pinned Trusted Signing root is Microsoft Identity Verification Root CA 2020" {
+    # A swapped root would make verification trust whatever signed the
+    # swap. SHA-1 F40042E2... is in Microsoft's authroot CTL; SHA-256 below.
+    command -v openssl >/dev/null || skip "openssl not installed"
+    pinned=packaging/authenticode-roots/microsoft-identity-verification-root-2020.pem
+    run openssl x509 -in "$pinned" -noout -subject -fingerprint -sha256
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"CN = Microsoft Identity Verification Root Certificate Authority 2020"* ]]
+    [[ "$output" == *"53:67:F2:0C:7A:DE:0E:2B:CA:79:09:15:05:6D:08:6B:72:0C:33:C1:FA:2A:26:61:AC:F7:87:E3:29:2E:12:70"* ]]
+}
+
+@test "sign-exes: a failed Azure token request fails a tagged release and touches no exe" {
+    sign_setup; az_stub; azure_configure
+    export AZ_FAIL=1
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 1 ]
+    grep -qx 'signing=failed' "$GITHUB_OUTPUT"
+    [[ "$output" == *"no Azure access token"*"AADSTS70021"* ]]
+    [ ! -e "$work/jsign.log" ]
+    [ "$(cat "$work/assets/wootc.exe")" = "MZ one" ]
+}
+
+@test "sign-exes: a failed Azure token request leaves an auto pre-release unsigned, not stalled" {
+    sign_setup; az_stub; azure_configure
+    export AZ_FAIL=1
+    run bash packaging/sign-exes.sh auto "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -qx 'signing=failed' "$GITHUB_OUTPUT"
+    [ "$(cat "$work/assets/wootc.exe")" = "MZ one" ]
+}
+
+@test "sign-exes: a failed azure/login is a signing failure before any token request" {
+    sign_setup; az_stub; azure_configure
+    export WOOTC_SIGN_AZURE_LOGIN=failure
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"azure/login did not succeed (outcome: 'failure')"* ]]
+    [ ! -e "$work/az.log" ]
+}
+
+@test "sign-exes: an Azure client id with another store type is a configuration error" {
+    sign_setup; az_stub; azure_configure
+    export WOOTC_SIGN_STORETYPE=PKCS12
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"not TRUSTEDSIGNING"* ]]
+    [ ! -e "$work/az.log" ]
+}
+
+@test "release.yml logs in to Azure with OIDC, in the publish job only, right before signing (#229)" {
+    # Pinned by full SHA with a version comment, like every other action.
+    grep -qE 'uses: azure/login@[0-9a-f]{40} # v[0-9.]+$' "$RELEASE"
+    grep -q 'client-id: ${{ vars.AZURE_CLIENT_ID }}' "$RELEASE"
+    grep -q 'tenant-id: ${{ vars.AZURE_TENANT_ID }}' "$RELEASE"
+    grep -q 'subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}' "$RELEASE"
+    # Variables, not secrets: an OIDC login has no secret to store.
+    ! grep -qE 'secrets\.AZURE_' "$RELEASE"
+    # Only when configured, and a failed login is the signer's verdict.
+    grep -q "if: \${{ vars.WOOTC_SIGN_STORETYPE == 'TRUSTEDSIGNING' && vars.AZURE_CLIENT_ID != '' }}" "$RELEASE"
+    awk '/- name: Azure login for Trusted Signing/,/uses: azure\/login/' "$RELEASE" \
+        | grep -q 'continue-on-error: true'
+    grep -q 'WOOTC_SIGN_AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}' "$RELEASE"
+    grep -q 'WOOTC_SIGN_AZURE_LOGIN: ${{ steps.azure-login.outcome }}' "$RELEASE"
+    # Login sits between the build and the signing step: the token is not
+    # requested until the exes exist.
+    build=$(grep -n -- '- name: Build brand installers' "$RELEASE" | cut -d: -f1)
+    login=$(grep -n -- '- name: Azure login for Trusted Signing' "$RELEASE" | cut -d: -f1)
+    sign=$(grep -n -- '- name: Authenticode-sign the installers' "$RELEASE" | cut -d: -f1)
+    [ "$build" -lt "$login" ] && [ "$login" -lt "$sign" ]
+    # id-token: write exactly once, inside the publish job.
+    [ "$(grep -c 'id-token: write' "$RELEASE")" -eq 1 ]
+    awk '/^  publish:/,/^    steps:/' "$RELEASE" | grep -q 'id-token: write'
+    awk '/^  publish:/,/^    steps:/' "$RELEASE" | grep -q 'environment: release'
+}
+
+@test "release.yml passes actionlint and yamllint" {
+    command -v actionlint >/dev/null || skip "actionlint not installed (lint.yml runs it in CI)"
+    command -v yamllint >/dev/null || skip "yamllint not installed (lint.yml runs it in CI)"
+    SHELLCHECK_OPTS=--severity=warning run actionlint "$RELEASE"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    run yamllint -d '{extends: relaxed, rules: {line-length: disable}}' "$RELEASE"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
 teardown() {

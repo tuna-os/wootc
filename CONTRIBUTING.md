@@ -51,8 +51,10 @@ jobs that its change can affect:
   it changes. Set the `WINUI_PREVIEW_BRANDS_PER_PR` repository variable to
   package more brands.
 
-A push to `main` and a manual dispatch run all jobs. `winui-preview.yml` also
-packages all brands each night.
+A push to `main` uses the same path map on the pushed commits, so each
+commit that changes a job's inputs still gets its own run of that job (#363).
+A manual dispatch and a nightly schedule run all jobs. `winui-preview.yml`
+also packages all brands each night.
 
 ## Before opening a PR
 
