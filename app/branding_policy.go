@@ -11,7 +11,7 @@ import (
 func defaultBranding() Branding {
 	return Branding{
 		Name: "TunaOS", Tagline: "Bring Windows to Linux — keep everything.",
-		LogoEmoji: "🐠", Version: "0.1.0",
+		LogoEmoji: "🐠", Version: buildVersion(),
 		Accent: "#5b6ee1", AccentText: "#ffffff",
 		Background: "#0a0a0f", Card: "#13131e", Text: "#e8e8f0",
 		InstallVerb: "Install", ProductName: "wootc", ExeName: "wootc",
@@ -39,9 +39,25 @@ func effectiveBranding() Branding {
 	if b.FileDescription == "" {
 		b.FileDescription = b.ProductName
 	}
+	// The title bar shows the build, not a number from a config file: an
+	// embedded brand or a runtime overlay cannot report a version this
+	// binary is not.
+	b.Version = buildVersion()
 	b.WebsiteURL = safeBrandURL(b.WebsiteURL)
 	b.SupportURL = safeBrandURL(b.SupportURL)
 	return b
+}
+
+// buildVersion is the version this binary was cut as: the release tag
+// stamped with -ldflags "-X main.releaseTag=…" (packaging/build-windows.py
+// --version, RELEASE_TAG in release.yml), or "dev" for an unstamped local
+// build. It used to be a hard-coded "0.1.0" in every build, which the title
+// bar showed whatever the release.
+func buildVersion() string {
+	if tag := strings.TrimSpace(releaseTag); tag != "" {
+		return tag
+	}
+	return "dev"
 }
 
 func safeBrandURL(value string) string {

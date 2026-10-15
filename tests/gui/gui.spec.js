@@ -263,6 +263,20 @@ test('branding — partner re-skin applies theme + copy', async ({ page }) => {
   await shot(page, '07-branded');
 });
 
+test('title bar shows the build version the backend reports, never a made-up one', async ({ page }) => {
+  // The version is the release tag linked into the exe (buildVersion() in
+  // branding_policy.go). The frontend must print exactly that, and when the
+  // backend cannot answer it must print nothing rather than the old
+  // hard-coded "0.1.0".
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    brand: { name: 'TunaOS', productName: 'wootc', logoEmoji: '🐠', version: 'v0.4.0', installVerb: 'Install' } });
+  await expect(page.locator('.titlebar-version')).toHaveText('v0.4.0');
+
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, brandFailure: true });
+  await expect(page.locator('.titlebar-name')).toBeVisible();
+  await expect(page.locator('.titlebar-version')).toHaveText('');
+});
+
 test('branding — a brand build wears real assets, not the wootc name', async ({ page }) => {
   // Mirrors what a `-X main.brandID=bazzite` binary serves from GetBranding:
   // real logo (data URI), embedded typeface, deep theme CSS, own catalog.
