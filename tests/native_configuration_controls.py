@@ -30,7 +30,7 @@ try:
         if event.get("Action") in ("pass", "fail", "skip") and event.get("Test"):
             receipt["tests"].append({"name": event["Test"], "outcome": event["Action"]})
     required = {"TestNativeConfigurationBoundedOutputCopiesRefuseOverflow","TestNativeConfigurationActualPreparedStorageSnapshots", "TestNativeConfigurationPreparedStorageTransportRefusals","TestNativeConfigurationTimingAttributesWholeObservedCall","TestNativeConfigurationStorageDiagnosticProjectionExcludesRawAndRefusesInvalidFacts", "TestNativeConfigurationRPCFailureKeepsFixedDiagnostic","TestNativeConfigurationActualSystemStorageQueryAndSerialReadOnly", "TestNativeConfigurationStorageIgnoresInheritedModuleShadow",
-        "TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory", "TestNativeConfigurationActualUtilityDependencyOrderCounter", "TestNativeConfigurationActualCimDependencyCounter", "TestNativeConfigurationActualImportWarningCounter", "TestNativeConfigurationStoragePhaseRejectsUnknownText", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters", "TestNativeConfigurationActualTrustedModuleManifestInventory"}
+        "TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory", "TestNativeConfigurationActualUtilityDependencyOrderCounter", "TestNativeConfigurationActualCimDependencyCounter", "TestNativeConfigurationActualImportWarningCounter", "TestNativeConfigurationStoragePhaseRejectsUnknownText", "TestNativeConfigurationStorageReobservesSameLetterPhysicalIdentity", "TestNativeConfigurationRPCRequiresTrustedCapabilityAndNoParameters", "TestNativeConfigurationActualTrustedModuleManifestInventory", "TestNativeConfigurationBudgetsNestInsideTheDiagnosticBound"}
     passed = {test["name"] for test in receipt["tests"] if test["outcome"] == "pass"}
     receipt["accepted"] = completed.returncode == 0 and required <= passed and all(test["outcome"] == "pass" for test in receipt["tests"])
 finally:
@@ -38,5 +38,14 @@ finally:
     receipt["diagnosticRecords"] = {str(p.relative_to(output)): {"sha256": digest(p), "size": p.stat().st_size} for p in (output/"system-query").rglob("*") if p.is_file()}
     (output/"receipt.json").write_text(json.dumps(receipt, indent=2)+"\n", encoding="utf-8")
 if not receipt.get("accepted"):
+    # Name the failing or missing controls in the job log; the raw bytes stay
+    # in the artifact. Test names are fixed source identifiers, not output.
+    outcomes = {test["name"]: test["outcome"] for test in receipt["tests"]}
+    for name in sorted(outcomes):
+        if outcomes[name] != "pass":
+            print(f"CONTROL {outcomes[name].upper()} {name}")
+    for name in sorted(required - set(outcomes)):
+        print(f"CONTROL MISSING {name}")
+    print(f"go test return code {receipt['returnCode']}")
     raise SystemExit("Actual native controls failed or skipped; retained raw bytes and receipt")
 print("Actual native configuration controls PASS; no skipped controls")
