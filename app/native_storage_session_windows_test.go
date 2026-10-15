@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sys/windows"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -119,7 +120,7 @@ for ($sequence=1; $sequence -le 2; $sequence++) {
 			case "stderr-overflow":
 				nativeStorageQuery = good + "\n[Console]::Error.WriteLine([string]::new([char]'x',70000))"
 			case "held-stderr":
-				assembly, digest := prepareNativeHeldStderrAssembly(t, good)
+				assembly, digest := prepareNativeHeldStderrAssembly(t)
 				child := `[Console]::Error.WriteLine("held-fixture-before-assembly-load")
 $assemblyPath='` + strings.ReplaceAll(assembly, "'", "''") + `'
 $assemblyBytes=[System.IO.File]::ReadAllBytes($assemblyPath)
@@ -199,10 +200,15 @@ if ($child.StandardOutput.ReadLine() -ne 'owned-descendant-ready') {throw 'Owned
 	}
 }
 
-// Cold compilation runs as bounded fixture preparation before the unchanged
-// five-second observation deadline. The timed helper loads these exact bytes
-// and still spawns a real descendant holding its inherited stderr pipe.
-func prepareNativeHeldStderrAssembly(t *testing.T, good string) (string, string) {
+// The P/Invoke fixture assembly is test scaffolding, not code under test. It
+// is compiled with a plain child process outside the guarded storage
+// session: that session refuses anything off its contract with one fixed
+// error class, so a slow or failed cold Add-Type compile could only appear
+// as "storage observation command refused" (run 38810942006). The timed
+// held-stderr observation that follows still runs through the guarded
+// session, loads these exact bytes, and spawns a real descendant that holds
+// its inherited stderr pipe.
+func prepareNativeHeldStderrAssembly(t *testing.T) (string, string) {
 	t.Helper()
 	directory := t.TempDir()
 	sd, err := windows.SecurityDescriptorFromString(stateDirectorySDDL)
@@ -217,34 +223,29 @@ func prepareNativeHeldStderrAssembly(t *testing.T, good string) (string, string)
 		t.Fatal(err)
 	}
 	path := filepath.Join(directory, "held-fixture.dll")
-	original := nativeStorageQuery
-	defer func() { nativeStorageQuery = original }()
-	nativeStorageQuery = `[Console]::Error.WriteLine("held-fixture-compile-start")
-Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class PipeControl{[DllImport("kernel32.dll")]public static extern IntPtr GetStdHandle(int n);[DllImport("kernel32.dll")]public static extern bool SetHandleInformation(IntPtr h,uint mask,uint flags);}' -OutputAssembly '` + strings.ReplaceAll(path, "'", "''") + `' -ErrorAction Stop
-[Console]::Error.WriteLine("held-fixture-compile-complete")
-` + good
-	// Cold Add-Type compilation exceeded the earlier 10s preparation bound
-	// on hosted runners (10.014s observed in run 36347144165 without ever
-	// reaching compile-complete). The 5s observation deadline below is
-	// unchanged; only preparation gets a wider but still explicit bound.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	session, err := startNativeStorageSession(ctx)
+	system, err := windows.GetSystemDirectory()
 	if err != nil {
-		retainNativeStorageQueryFailure(t, err)
 		t.Fatal(err)
 	}
-	defer session.close(true)
-	for range 2 {
-		if _, err = session.query(ctx); err != nil {
-			retainNativeStorageQueryFailure(t, err)
-			t.Fatal("bounded fixture compilation failed", err)
+	compile := `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class PipeControl{[DllImport("kernel32.dll")]public static extern IntPtr GetStdHandle(int n);[DllImport("kernel32.dll")]public static extern bool SetHandleInformation(IntPtr h,uint mask,uint flags);}' -OutputAssembly '` + strings.ReplaceAll(path, "'", "''") + `' -ErrorAction Stop`
+	// Cold Add-Type compilation took more than 10 s on hosted runners (run
+	// 36347144165); preparation keeps its own explicit bound, separate from
+	// the five-second observation below.
+	const preparationBound = 60 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), preparationBound)
+	defer cancel()
+	started := time.Now()
+	command := exec.CommandContext(ctx, filepath.Join(system, "WindowsPowerShell", "v1.0", "powershell.exe"), "-NoProfile", "-NonInteractive", "-Command", compile)
+	var output bytes.Buffer
+	command.Stdout, command.Stderr = &output, &output
+	if err = command.Run(); err != nil {
+		text := output.String()
+		if len(text) > 4096 {
+			text = text[:4096]
 		}
+		t.Fatalf("fixture assembly compilation failed after %v: %v\n%s", time.Since(started).Round(time.Millisecond), err, text)
 	}
-	if !session.exited || !session.drained || !session.streamsJoined || session.forcedCleanup || session.exitCode != 0 || !strings.Contains(string(session.stderr.Bytes()), "held-fixture-compile-complete") {
-		retainNativeStorageQueryFailure(t, session.failure())
-		t.Fatal("owned fixture preparation not observed complete")
-	}
+	preparationMilliseconds := time.Since(started).Milliseconds()
 	st, err := os.Lstat(path)
 	if err != nil || !st.Mode().IsRegular() || st.Size() <= 0 || st.Size() > 65536 {
 		t.Fatal("fixture assembly unavailable or oversized")
@@ -263,10 +264,7 @@ Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;publ
 	if err = os.MkdirAll(filepath.Dir(prefix), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(prefix+".warm.stderr.raw", session.stderr.Bytes(), 0600); err != nil {
-		t.Fatal(err)
-	}
-	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "fixturePreparationMilliseconds": time.Since(session.started).Milliseconds(), "fixturePreparationBoundMilliseconds": 30000, "observationDeadlineMilliseconds": 5000, "assemblySha256": digest, "assemblySize": len(raw), "parentExited": session.exited, "jobDrained": session.drained, "streamsDrained": session.streamsJoined, "exitCode": session.exitCode, "scope": "owned synthetic fixture preparation; no storage or protector mutation"})
+	record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "fixturePreparationMilliseconds": preparationMilliseconds, "fixturePreparationBoundMilliseconds": preparationBound.Milliseconds(), "observationDeadlineMilliseconds": 5000, "assemblySha256": digest, "assemblySize": len(raw), "scope": "plain child compiles owned synthetic fixture; no storage or protector mutation"})
 	if err = os.WriteFile(prefix+".warm.json", record, 0600); err != nil {
 		t.Fatal(err)
 	}
