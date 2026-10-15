@@ -16,7 +16,18 @@ on:
       - 'app/status_location*'
       - 'app/tools/gendto/**'
       - '.github/workflows/winui-preview.yml'
+  # A release published by a person triggers this directly. Releases cut by
+  # release.yml use GITHUB_TOKEN, which never triggers other workflows, so
+  # those are attached by dispatching this workflow at the release tag with
+  # release_tag set. Nothing here publishes to winget.
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Attach the native preview installers to this existing release (dispatch at that tag). Empty = build and test only.'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -174,3 +185,65 @@ jobs:
             out/branded-preview/native-package.json
             shell/Wootc.Shell.UiTests/TestResults/*.trx
           if-no-files-found: error
+
+  publish-preview:
+    name: Attach native preview installers to the release
+    needs: [core, native-build, native-peer, preview-packaging]
+    if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Bind the release tag to the exact tested source
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-$INPUT_TAG}"
+          if [[ ! "$tag" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,99}$ ]]; then
+            echo "::error::Refusing release tag '$tag'"; exit 1
+          fi
+          # The packages were built and tested at github.sha. Attach them only
+          # to a release whose tag names that same commit.
+          tagged=$(git rev-parse --verify "refs/tags/$tag^{commit}")
+          if [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag $tag is $tagged; these packages were tested at $GITHUB_SHA"; exit 1
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft > release.json
+          jq -e --arg t "$tag" '.tagName == $t and (.isDraft | not)' release.json > /dev/null
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: winui-preview-package-*
+          path: preview-artifacts
+      - name: Select brands by recorded blessing and name the preview assets
+        run: |
+          set -euo pipefail
+          # The same policy as the Wails brand exes: a declined brand drops,
+          # a pending one ships as it does today. The preview never adds a
+          # brand the release matrix would not build.
+          brands=$(bash packaging/brands.sh list)
+          [ -n "$brands" ] || { echo "::error::no brand is buildable"; exit 1; }
+          mkdir preview-assets
+          while IFS=$'\t' read -r brand exe; do
+            src="preview-artifacts/winui-preview-package-$brand/out/preview-installer/$brand-native-preview-$GITHUB_SHA.exe"
+            [ -s "$src" ] || { echo "::error::missing tested preview installer for $brand"; exit 1; }
+            cp "$src" "preview-assets/$exe-Native-Preview-Setup.exe"
+          done <<< "$brands"
+          ( cd preview-assets && sha256sum -- *.exe > native-preview-SHA256SUMS )
+          cat preview-assets/native-preview-SHA256SUMS
+      - name: Upload beside the existing release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # No --clobber: a preview never replaces an asset already published.
+          gh release upload "$TAG" preview-assets/* --repo "$GITHUB_REPOSITORY"
