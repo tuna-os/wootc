@@ -6,8 +6,11 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 const nativeConfigurationExperimental = `[{"id":"private-test","name":"Experimental fixture","imageRef":"ghcr.io/tuna-os/fixture:latest","status":"experimental"}]`
@@ -158,5 +161,25 @@ func TestNativeConfigurationBundleMetadataIsNotOfflineIntegrity(t *testing.T) {
 	}
 	if snapshot.Bundle.State != "metadata-only" || snapshot.Bundle.ContentVerified || snapshot.Images[0].ContentVerified {
 		t.Fatal("bundle metadata was treated as verified contents")
+	}
+}
+
+func TestNativeConfigurationBudgetsNestInsideTheDiagnosticBound(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("..", "shell", "Wootc.Shell.Native", "NativeEngineSession.cs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`CancelAfter\(TimeSpan\.FromSeconds\((\d+)\)\);\s*return await CallAsync<NativeConfigurationSnapshot>`).FindSubmatch(source)
+	if match == nil {
+		t.Fatal("NativeEngineSession no longer states its configuration wait")
+	}
+	seconds, _ := strconv.Atoi(string(match[1]))
+	shellWait := time.Duration(seconds) * time.Second
+	if !(nativeStorageQueryBudget < nativeConfigurationBudget && nativeConfigurationBudget < shellWait && shellWait < nativeDiagnosticBound) {
+		t.Fatalf("budgets must nest: storage %v < configuration %v < shell %v < diagnostic bound %v",
+			nativeStorageQueryBudget, nativeConfigurationBudget, shellWait, nativeDiagnosticBound)
+	}
+	if nativeStorageQueryBudget < 30*time.Second {
+		t.Fatalf("storage budget %v is below the observed PowerShell cold start", nativeStorageQueryBudget)
 	}
 }

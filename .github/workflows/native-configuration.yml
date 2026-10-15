@@ -12,6 +12,7 @@ on:
       - 'app/go.mod'
       - 'app/go.sum'
       - 'tests/native_configuration_controls.py'
+      - 'shell/Wootc.Shell.Native/NativeEngineSession.cs'
       - '.github/workflows/native-configuration.yml'
   workflow_dispatch:
 permissions:

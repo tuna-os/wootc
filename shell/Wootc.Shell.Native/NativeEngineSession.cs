@@ -137,7 +137,10 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
     public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        // Longer than the engine's own configuration budget (40 s in
+        // app/native_configuration.go), so a slow read ends with the
+        // engine's typed storage diagnostic and not a shell-side timeout.
+        deadline.CancelAfter(TimeSpan.FromSeconds(50));
         return await CallAsync<NativeConfigurationSnapshot>("GetNativeConfiguration", deadline.Token, requestFlushed);
     }
 

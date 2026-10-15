@@ -105,7 +105,7 @@ func storageQueryExitCode(command *exec.Cmd) int {
 }
 
 func queryNativeStorage(ctx context.Context) ([]nativeStorageRow, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, nativeStorageQueryBudget)
 	defer cancel()
 	command, auditMilliseconds, err := prepareNativeStorageCommand(ctx)
 	if err != nil {
@@ -266,7 +266,7 @@ func observeNativeStorage(ctx context.Context, between func() error) ([]NativeCo
 	return observeNativeStorageTimed(ctx, between, nil)
 }
 func observeNativeStorageTimed(ctx context.Context, between func() error, mark func(string)) (result []NativeConfigurationStorage, resultErr error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, nativeStorageQueryBudget)
 	defer cancel()
 	if mark != nil {
 		mark("storage-first-query")

@@ -8,11 +8,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-	"time"
 )
 
 func observeWindowsNativeConfiguration(ctx context.Context, selectedRoot string, selectedFound bool) (result NativeConfigurationSnapshot, resultErr error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, nativeConfigurationBudget)
 	defer cancel()
 	timing := newNativeConfigurationTiming()
 	defer func() {
