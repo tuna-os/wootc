@@ -179,6 +179,14 @@ class GuiDriveReceiptTests(unittest.TestCase):
             self.assertEqual(result.stdout, b'')
             self.assertNotIn(raw[:20], result.stderr)
 
+    def test_native_shell_goldens_pass_the_host_parser(self):
+        # shell/Wootc.Shell.Tests/E2EDriveTests.cs builds these bytes.
+        fixtures = ROOT / 'tests/unit/fixtures/e2e-drive'
+        directive = json.loads((fixtures / 'directive-install.json').read_text())
+        for name in ('report-install-ready.json', 'report-install-mismatch.json', 'report-install-done.json'):
+            raw = (fixtures / name).read_text()
+            module.validate(raw, directive['runId'], directive['directiveId'], directive['image'])
+
 
 if __name__ == '__main__':
     unittest.main()

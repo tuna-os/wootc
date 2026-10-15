@@ -159,9 +159,16 @@ public sealed class ConsumerConfiguration
             ImageMismatch = true;
             return new(directive.RunId, directive.DirectiveId, false, true, false, InstallationBlockedReason);
         }
-        var requestedStorage = catalogue?.Storage.SingleOrDefault(volume => volume.Id == directive.StorageId);
+        // The harness directive names no storage. It then maps only when the
+        // engine observed exactly one eligible volume; a choice between
+        // volumes is never made for the person or the harness.
+        var volumes = catalogue?.Storage ?? Array.Empty<ConfigurationStorage>();
+        var requestedStorage = directive.StorageId.Length == 0
+            ? (volumes.Count == 1 ? volumes[0] : null)
+            : volumes.SingleOrDefault(volume => volume.Id == directive.StorageId);
         if (requestedStorage is null) return new(directive.RunId, directive.DirectiveId, false, false, false,
-            "The requested storage identity has not been observed.");
+            directive.StorageId.Length == 0 ? "The drive directive names no storage and the engine did not observe exactly one volume."
+                : "The requested storage identity has not been observed.");
         selected = requested;
         storage = requestedStorage;
         ImageMismatch = false;

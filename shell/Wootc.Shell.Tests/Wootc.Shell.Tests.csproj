@@ -10,4 +10,8 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Shared with app/e2e_drive_receipt_test.go and tests/unit/test_gui_drive_receipt.py. -->
+    <None Include="../../tests/unit/fixtures/e2e-drive/*.json" LinkBase="Fixtures/e2e-drive" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

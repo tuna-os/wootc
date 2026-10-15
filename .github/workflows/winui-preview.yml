@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'shell/**'
+      - 'tests/unit/fixtures/e2e-drive/**'
       - 'tests/native_configuration_flush_controls.py'
       - 'tests/windows_owned_process.py'
       - 'app/serve*'
