@@ -525,15 +525,9 @@ func registerUninstallEntry() {
 	if err != nil {
 		return
 	}
-	// The generic build keeps its documented "TunaOS (wootc)" listing;
-	// branded builds list under the distribution's own name — a Bazzite user
-	// searching Apps for "wootc" would find nothing, because nothing ever
-	// told them that word.
+	// uninstallDisplayName (branding_policy.go) owns the listing name.
 	b := effectiveBranding()
-	displayName := b.Name
-	if strings.EqualFold(b.ProductName, "wootc") {
-		displayName = b.Name + " (wootc)"
-	}
+	displayName := uninstallDisplayName(b)
 	// Brand names may contain quotes. PowerShell uses doubled apostrophes,
 	// not Go's backslash quoting, in a literal string.
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
@@ -562,7 +556,7 @@ func unregisterUninstallEntry() {
 
 func rebootWindows() error {
 	_, err := runCmd("shutdown", "/r", "/t", "5", "/f",
-		"/c", effectiveBranding().ProductName+" is rebooting to start the installer")
+		"/c", rebootMessage(effectiveBranding()))
 	return err
 }
 

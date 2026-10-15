@@ -140,3 +140,18 @@ Write-Output "update service stop requested"' >/dev/null 2>&1 || true
     fi
     pass "Windows reports servicing cleared after restart"
 }
+# Judge the launch task's single-instance probe from its printed tokens.
+# Succeeds ONLY on positive evidence: the task was absent from a successful
+# listing AND exactly one wootc.exe was counted. An empty answer (lost QGA
+# channel), an unknown task state, a surviving task or any other count is a
+# refusal — a surviving ONCE trigger launches a second installer that drives
+# the same directive (runs 36450824541, 38735109866: "root.disk already exists").
+gui_single_instance_proven() {
+    local out="${1:-}"
+    out="${out//$'\r'/}"
+    if printf '%s\n' "$out" | grep -q 'TASK-STILL-PRESENT\|TASK-STATE-UNKNOWN\|SINGLE-INSTANCE-UNPROVEN'; then
+        return 1
+    fi
+    printf '%s\n' "$out" | grep -qx 'task-absent: wootc-gui-e2e' || return 1
+    printf '%s\n' "$out" | grep -qx 'single-instance: 1 wootc.exe' || return 1
+}

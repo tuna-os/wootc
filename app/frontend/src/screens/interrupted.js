@@ -2,7 +2,7 @@ import { PrepareResume, TryAgain, RepairBoot, Uninstall } from '../../wailsjs/go
 import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
-import { distroName } from '../lib/branding.js';
+import { distroName, productName } from '../lib/branding.js';
 import { fmtSize } from '../lib/format.js';
 import { el, btn } from '../lib/ui.js';
 import { installStepLabel } from './progress.js';
@@ -26,7 +26,7 @@ function textDiv(text, css) {
 function causeLine(r) {
   switch (r.cause) {
     case 'cancelled': return 'How it ended: you cancelled it.';
-    case 'interrupted': return 'How it ended: wootc closed or the computer lost power.';
+    case 'interrupted': return `How it ended: ${productName()} closed or the computer lost power.`;
     case 'step-failed': return 'How it ended: a step failed.';
     case 'never-booted': return 'How it ended: the computer did not start the installer.';
     case 'deployer-interrupted': return 'How it ended: the installer stopped before it finished.';
@@ -62,7 +62,7 @@ export function renderInterruptedScreen() {
     const det = el('details');
     det.style.cssText = 'color:var(--text-muted);font-size:11.5px';
     const sum = el('summary');
-    sum.textContent = 'What wootc found';
+    sum.textContent = `What ${productName()} found`;
     det.appendChild(sum);
     const ul = el('ul');
     ul.className = 'interrupted-evidence';

@@ -183,7 +183,8 @@ setup() {
 
 @test "the uninstall entry the docs name is the one the installer registers" {
     # Generic build registers "<Name> (wootc)"; three docs send users to it.
-    grep -q 'displayName = b.Name + " (wootc)"' app/installer_windows.go
+    grep -q 'return b.Name + " (wootc)"' app/branding_policy.go
+    grep -q 'displayName := uninstallDisplayName(b)' app/installer_windows.go
     local name
     name=$(jq -r '.name' app/branding/wootc/brand.json)
     grep -qF "$name (wootc)" docs/user-guide.md
