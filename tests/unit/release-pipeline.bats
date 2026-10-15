@@ -284,6 +284,8 @@ azure_configure() {
 @test "sign-exes: Trusted Signing over OIDC signs with a fresh token, Microsoft's TSA and the pinned root" {
     sign_setup; az_stub; azure_configure
     export OSSL_ARGS_LOG="$work/ossl.log"
+    # Outside Actions there is no runner to mask it, so it is never printed.
+    unset GITHUB_ACTIONS
     run bash packaging/sign-exes.sh tagged "$work/assets"
     [ "$status" -eq 0 ]
     grep -qx 'signing=signed' "$GITHUB_OUTPUT"
@@ -297,6 +299,19 @@ azure_configure() {
     grep -q -- '--tsaurl http://timestamp.acs.microsoft.com' "$work/jsign.log"
     # The token is never printed.
     [[ "$output" != *oidc-token-123* ]]
+}
+
+@test "sign-exes: on Actions the token appears only in its ::add-mask:: line" {
+    # The runner hides a value from every later log line once it sees
+    # ::add-mask::. That line is the one place the token may be printed.
+    sign_setup; az_stub; azure_configure
+    export GITHUB_ACTIONS=true
+    run bash packaging/sign-exes.sh tagged "$work/assets"
+    [ "$status" -eq 0 ]
+    grep -qx 'signing=signed' "$GITHUB_OUTPUT"
+    [ "$(grep -c oidc-token-123 <<< "$output")" -eq 1 ]
+    grep -qx '::add-mask::oidc-token-123' <<< "$output"
+    ! grep -q oidc-token-123 "$GITHUB_OUTPUT"
 }
 
 @test "sign-exes: an explicit timestamp server wins over the Trusted Signing default" {
