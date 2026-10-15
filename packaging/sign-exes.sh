@@ -22,6 +22,20 @@
 #   WOOTC_SIGN_CAFILE      CA bundle for verification (default: system
 #                          TLS bundle; release.yml appends vars.WOOTC_SIGN_CA_PEM)
 #
+# Azure Trusted Signing over GitHub OIDC (#229, the maintainer's choice). No
+# stored secret: release.yml runs azure/login with a federated credential,
+# and this script asks the Azure CLI for a code-signing access token right
+# before the first exe is signed (a token lives about an hour):
+#   WOOTC_SIGN_AZURE_CLIENT_ID  vars.AZURE_CLIENT_ID. Non-empty = the store
+#                          password is that token, not WOOTC_SIGN_STOREPASS.
+#                          Only valid with WOOTC_SIGN_STORETYPE=TRUSTEDSIGNING.
+#   WOOTC_SIGN_AZURE_LOGIN the azure/login step's outcome; anything but
+#                          `success` is a signing failure.
+# For TRUSTEDSIGNING the timestamp server defaults to Microsoft's
+# (timestamp.acs.microsoft.com), and verification also trusts the
+# in-repo pin packaging/authenticode-roots/microsoft-identity-verification-
+# root-2020.pem, which both the signing and the timestamp chains end in.
+#
 # Outcomes (printed as `signing=<state>` to stdout and $GITHUB_OUTPUT):
 #   signed      every exe is signed, timestamped, and verified against the
 #               expected publisher; the signed bytes replace the originals.
@@ -36,13 +50,18 @@
 # every one verified. A half-signed release is worse than an unsigned one —
 # it hides which file the warning is about.
 #
-# JSIGN and OSSLSIGNCODE name the commands (tests replace them).
+# JSIGN, OSSLSIGNCODE and AZ name the commands (tests replace them).
 set -euo pipefail
 
 channel=${1:?usage: sign-exes.sh <channel> <assets-dir>}
 assets=${2:?usage: sign-exes.sh <channel> <assets-dir>}
 JSIGN=${JSIGN:-jsign}
 OSSLSIGNCODE=${OSSLSIGNCODE:-osslsigncode}
+AZ=${AZ:-az}
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ms_root="$here/authenticode-roots/microsoft-identity-verification-root-2020.pem"
+# The audience every Trusted Signing data-plane token is issued for.
+trusted_signing_resource=https://codesigning.azure.net
 
 emit() {
     echo "signing=$1"
@@ -76,23 +95,51 @@ fail() {
     exit 0
 }
 
+work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/wootc-authenticode.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+
+if [ -n "${WOOTC_SIGN_AZURE_CLIENT_ID:-}" ]; then
+    [ "$WOOTC_SIGN_STORETYPE" = TRUSTEDSIGNING ] \
+        || fail "AZURE_CLIENT_ID is set, but WOOTC_SIGN_STORETYPE is '$WOOTC_SIGN_STORETYPE', not TRUSTEDSIGNING"
+    [ "${WOOTC_SIGN_AZURE_LOGIN:-}" = success ] \
+        || fail "azure/login did not succeed (outcome: '${WOOTC_SIGN_AZURE_LOGIN:-}'); check the federated credential"
+    # stdout is the token and nothing else; az's warnings go to a file.
+    token=$("$AZ" account get-access-token --resource "$trusted_signing_resource" \
+                --query accessToken --output tsv 2> "$work/az.err") \
+        || fail "no Azure access token for $trusted_signing_resource: $(tail -n 3 "$work/az.err")"
+    [ -n "$token" ] || fail "the Azure CLI returned an empty access token"
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::add-mask::$token"; fi
+    WOOTC_SIGN_STOREPASS=$token
+    export WOOTC_SIGN_STOREPASS
+    unset token
+fi
+
 for var in WOOTC_SIGN_KEYSTORE WOOTC_SIGN_ALIAS WOOTC_SIGN_STOREPASS WOOTC_SIGN_PUBLISHER; do
     [ -n "${!var:-}" ] || fail "$var is empty while WOOTC_SIGN_STORETYPE is set"
 done
-
-work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/wootc-authenticode.XXXXXX")
-trap 'rm -rf "$work"' EXIT
 
 args=(--storetype "$WOOTC_SIGN_STORETYPE" --keystore "$WOOTC_SIGN_KEYSTORE"
       --alias "$WOOTC_SIGN_ALIAS" --storepass env:WOOTC_SIGN_STOREPASS
       --alg SHA-256 --tsmode RFC3161)
 if [ -n "${WOOTC_SIGN_CERTFILE:-}" ]; then args+=(--certfile "$WOOTC_SIGN_CERTFILE"); fi
-if [ -n "${WOOTC_SIGN_TSAURL:-}" ]; then args+=(--tsaurl "$WOOTC_SIGN_TSAURL"); fi
+tsaurl=${WOOTC_SIGN_TSAURL:-}
+if [ -z "$tsaurl" ] && [ "$WOOTC_SIGN_STORETYPE" = TRUSTEDSIGNING ]; then
+    # Microsoft's own RFC 3161 service, as its signing tools default to. Its
+    # chain ends in the same pinned root as the signing certificate.
+    tsaurl=http://timestamp.acs.microsoft.com
+fi
+if [ -n "$tsaurl" ]; then args+=(--tsaurl "$tsaurl"); fi
 cafile=${WOOTC_SIGN_CAFILE:-/etc/ssl/certs/ca-certificates.crt}
 # The system bundle is TLS roots only. A code-signing root that is not in
-# it (Trusted Signing's Microsoft root, for one) must come in through
-# WOOTC_SIGN_CAFILE, which release.yml builds from vars.WOOTC_SIGN_CA_PEM.
+# it must come in through WOOTC_SIGN_CAFILE, which release.yml builds from
+# vars.WOOTC_SIGN_CA_PEM. Trusted Signing's root is pinned in the repo
+# instead: a reviewed file beats a variable nobody sees change.
 [ -r "$cafile" ] || fail "CA file $cafile for verification is not readable"
+if [ "$WOOTC_SIGN_STORETYPE" = TRUSTEDSIGNING ]; then
+    [ -r "$ms_root" ] || fail "pinned Trusted Signing root $ms_root is missing"
+    cat "$cafile" "$ms_root" > "$work/verify-roots.pem"
+    cafile="$work/verify-roots.pem"
+fi
 
 for exe in "${exes[@]}"; do
     name=$(basename "$exe")

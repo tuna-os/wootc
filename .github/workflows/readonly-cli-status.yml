@@ -7,6 +7,7 @@ on:
       - 'app/headless*.go'
       - 'app/status_*.go'
       - 'app/state_trust*.go'
+      - 'tests/e2e/state-trust-standard-user.ps1'
       - '.github/workflows/readonly-cli-status.yml'
 
 permissions:
@@ -61,3 +62,35 @@ jobs:
             $env:TMP=$originalTmp
             Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop
           }
+
+  standard-user-acl:
+    name: Actual standard-user state ACL controls
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with: {go-version: '1.27', cache: false}
+      - name: Build the ACL control binary from this exact source
+        shell: powershell
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          $ErrorActionPreference='Stop'
+          $assets=Join-Path 'app/frontend' 'dist'
+          if (Test-Path -LiteralPath $assets) { throw 'Refusing unexpected prebuilt assets' }
+          [IO.Directory]::CreateDirectory($assets) | Out-Null
+          [IO.File]::WriteAllText((Join-Path $assets 'index.html'),'<title>Unit-test embed placeholder</title>')
+          Push-Location app
+          try {
+            & go test -c -o (Join-Path $env:RUNNER_TEMP 'acl.test.exe') .
+            if ($LASTEXITCODE -ne 0) { throw 'ACL control binary build failed' }
+          } finally { Pop-Location }
+      - name: Run disposable standard-user and fresh NTFS controls
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $binary=Join-Path $env:RUNNER_TEMP 'acl.test.exe'
+          $hash=(Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Output "HEAD $(git rev-parse HEAD) ACL_BINARY_SHA256 $hash"
+          & ./tests/e2e/state-trust-standard-user.ps1 -BinaryUrl ([uri]$binary).AbsoluteUri -BinarySha256 $hash

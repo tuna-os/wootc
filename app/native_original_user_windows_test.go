@@ -444,3 +444,191 @@ func TestNativeOriginalUserActualOneShotInstallConsent(t *testing.T) {
 		t.Fatal("absent observation validator granted intent")
 	}
 }
+
+// Alternative-administrator topology with real accounts: this elevated test
+// process plays the engine; a disposable standard user (created by
+// tests/native_original_user_controls.py) runs the pipe client in this same
+// interactive session through the Secondary Logon service. The captured
+// identity, profile and known folders must be that user's, never the
+// engine's. A client that allows only Identification must be refused.
+func TestNativeOriginalUserActualAlternativeAdministratorPipe(t *testing.T) {
+	name, secret, sid := os.Getenv("WOOTC_ORIGINAL_ALT_USER"), os.Getenv("WOOTC_ORIGINAL_ALT_PASSWORD"), os.Getenv("WOOTC_ORIGINAL_ALT_SID")
+	if name == "" || secret == "" || sid == "" {
+		// The control script requires this test to pass, so a skip there fails.
+		t.Skip("disposable standard-user fixture required; run tests/native_original_user_controls.py")
+	}
+	engine, err := observeNativeProcessPeer(uint32(os.Getpid()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.close()
+	if !engine.elevated || engine.userSID == sid {
+		t.Fatal("engine must be an elevated, different administrator")
+	}
+	var engineToken windows.Token
+	if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_QUERY, &engineToken); err != nil {
+		t.Fatal(err)
+	}
+	engineProfile, err := engineToken.GetUserProfileDirectory()
+	engineToken.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("USERPROFILE", engineProfile)
+	t.Setenv("USERNAME", "engine-administrator")
+
+	t.Run("impersonation", func(t *testing.T) {
+		user, source, refusal, cleanup := nativeAlternativeClient(t, engine, name, secret, "Impersonation")
+		defer cleanup()
+		if user == nil {
+			t.Fatalf("alternative-admin capture refused: %v", refusal)
+		}
+		defer user.close()
+		if user.sid != sid || source.userSID != sid || user.sid == engine.userSID || user.session != engine.sessionID {
+			t.Fatal("captured identity is not the original standard user")
+		}
+		if strings.EqualFold(user.profile, filepath.Clean(engineProfile)) || !filepath.IsAbs(user.profile) {
+			t.Fatal("captured profile is the engine administrator's")
+		}
+		var written *KnownFolders
+		if err := user.collectKnownFolders(func(value *KnownFolders) error { written = value; return nil }); err != nil {
+			t.Fatalf("original-user collection refused: %v", err)
+		}
+		if written == nil || written.User != filepath.Base(user.profile) || strings.EqualFold(written.User, filepath.Base(engineProfile)) || len(written.Folders) != 6 {
+			t.Fatal("collection does not belong to the original user")
+		}
+		for folder, path := range written.Folders {
+			inOriginal := strings.HasPrefix(strings.ToLower(path), strings.ToLower(user.profile)+`\`)
+			inEngine := strings.HasPrefix(strings.ToLower(path), strings.ToLower(filepath.Clean(engineProfile))+`\`)
+			if !inOriginal || inEngine {
+				t.Fatalf("%s resolved outside the original user's profile: %s", folder, path)
+			}
+		}
+		record, _ := json.Marshal(map[string]any{"schemaVersion": 1, "originalSid": user.sid, "engineSid": engine.userSID, "session": user.session, "originalProfileBase": filepath.Base(user.profile), "engineProfileBase": filepath.Base(engineProfile), "folders": len(written.Folders)})
+		fmt.Println("alternative-admin-original-user=" + string(record))
+		if err := user.revalidateToken(); err != nil {
+			t.Fatal(err)
+		}
+		cleanup()
+		if user.revalidateToken() == nil {
+			t.Fatal("capture survived the original user's process exit")
+		}
+	})
+	t.Run("identification-only", func(t *testing.T) {
+		user, _, refusal, cleanup := nativeAlternativeClient(t, engine, name, secret, "Identification")
+		defer cleanup()
+		if user != nil {
+			user.close()
+			t.Fatal("identification-only client authorized original-user capture")
+		}
+		// The refusal must come from the impersonation-level check, not from
+		// an earlier failure that would make this counterexample vacuous.
+		if refusal == nil || refusal.Error() != "original user pipe client refused impersonation" {
+			t.Fatalf("identification-only client refused for another reason: %v", refusal)
+		}
+	})
+}
+
+// nativeAlternativeClient starts powershell.exe as the standard user, serves
+// one authenticated preview pipe to it and returns the bridge's capture (nil
+// when refused). The client allows the requested impersonation level only.
+func nativeAlternativeClient(t *testing.T, engine *nativeProcessPeer, name, secret, level string) (*nativeOriginalUser, *nativeProcessPeer, error, func()) {
+	t.Helper()
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		t.Fatal(err)
+	}
+	session := hex.EncodeToString(random[:])
+	pipeName := `wootc-preview-` + session
+	script := "$ErrorActionPreference='Stop';" +
+		"$p=[IO.Pipes.NamedPipeClientStream]::new('.','" + pipeName + "',[IO.Pipes.PipeAccessRights]0x0012019b,[IO.Pipes.PipeOptions]::None,[Security.Principal.TokenImpersonationLevel]::" + level + ",[IO.HandleInheritability]::None);" +
+		"$p.Connect(30000);$p.WriteByte(10);$p.Flush();$null=$p.ReadByte();$p.Dispose()"
+	system32, err := windows.GetSystemDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command, err := windows.UTF16FromString(`"` + filepath.Join(system32, `WindowsPowerShell\v1.0\powershell.exe`) + `" -NoLogo -NoProfile -NonInteractive -Command "` + script + `"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user16, _ := windows.UTF16PtrFromString(name)
+	domain16, _ := windows.UTF16PtrFromString(".")
+	secret16, _ := windows.UTF16PtrFromString(secret)
+	directory16, _ := windows.UTF16PtrFromString(system32)
+	startup := windows.StartupInfo{Cb: uint32(unsafe.Sizeof(windows.StartupInfo{})), Flags: windows.STARTF_USESHOWWINDOW, ShowWindow: windows.SW_HIDE}
+	var process windows.ProcessInformation
+	logon := windows.NewLazySystemDLL("advapi32.dll").NewProc("CreateProcessWithLogonW")
+	const logonWithProfile, createNoWindow = 1, 0x08000000
+	ok, _, callErr := logon.Call(uintptr(unsafe.Pointer(user16)), uintptr(unsafe.Pointer(domain16)), uintptr(unsafe.Pointer(secret16)), logonWithProfile, 0,
+		uintptr(unsafe.Pointer(&command[0])), createNoWindow, 0, uintptr(unsafe.Pointer(directory16)), uintptr(unsafe.Pointer(&startup)), uintptr(unsafe.Pointer(&process)))
+	if ok == 0 {
+		t.Fatalf("standard-user client launch refused: %v", callErr)
+	}
+	windows.CloseHandle(process.Thread)
+	var pipe windows.Handle = windows.InvalidHandle
+	var connection *os.File
+	var source *nativeProcessPeer
+	done := false
+	cleanup := func() {
+		if done {
+			return
+		}
+		done = true
+		if connection != nil {
+			connection.Close()
+		} else if pipe != windows.InvalidHandle {
+			windows.CloseHandle(pipe)
+		}
+		if state, _ := windows.WaitForSingleObject(process.Process, 30000); state != windows.WAIT_OBJECT_0 {
+			windows.TerminateProcess(process.Process, 1)
+			windows.WaitForSingleObject(process.Process, 5000)
+		}
+		windows.CloseHandle(process.Process)
+		if source != nil {
+			source.close()
+		}
+	}
+	source, err = observeNativeProcessPeer(process.ProcessId)
+	if err != nil {
+		cleanup()
+		t.Fatalf("engine could not observe the standard-user client: %v", err)
+	}
+	pipe, err = createNativePipe(`\\.\pipe\`+pipeName, source)
+	if err != nil {
+		cleanup()
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	err = connectNativePipe(ctx, pipe)
+	cancel()
+	if err != nil {
+		cleanup()
+		t.Fatalf("standard-user client did not connect: %v", err)
+	}
+	connection = os.NewFile(uintptr(pipe), pipeName)
+	if err := connection.SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
+		cleanup()
+		t.Fatal(err)
+	}
+	var first [1]byte
+	if _, err := connection.Read(first[:]); err != nil || first[0] != 10 {
+		cleanup()
+		t.Fatalf("client data required before impersonation: %v", err)
+	}
+	if level == "Impersonation" {
+		if err := verifyNativePipeClient(pipe, source); err != nil {
+			cleanup()
+			t.Fatal(err)
+		}
+	}
+	user, err := captureNativeOriginalUserFromPipe(pipe, source, engine)
+	if err != nil {
+		user = nil
+	}
+	return user, source, err, func() {
+		if connection != nil {
+			connection.Write([]byte{10})
+		}
+		cleanup()
+	}
+}

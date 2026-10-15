@@ -9,7 +9,7 @@ This revision corrects the transport and identity assumptions in the earlier des
 | Phase | Actual state | Remaining work |
 |---|---|---|
 | A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
-| B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks | Real UAC refusal, original-user collection, minimum OS, native brand assets, and preview release assets |
+| B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent, original-user collection for an alternative administrator (#606), proof on build 17763, the native typeface, and preview release assets (#608) |
 | C: experience (#344) | A read-only startup view and UI Automation controls exist | Consumer screens, VM and migration flows, drive mode, accessibility, persistence, and the full journey |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
 | E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
@@ -20,6 +20,10 @@ The adapter passed 30 tests. Both tests for the UI passed at startup. No test sk
 The [source and artifact record](experiments/evidence/2026-09-27-native-serving-readiness/hosted-7a/provenance.json) binds those checks.
 
 The tests used the same elevated user. They do not prove interactive UAC or installation.
+
+The UAC refusal test uses `ConsentPromptBehaviorUser=0` for a disposable standard user.
+Windows then returns `ERROR_ACCESS_DISABLED_BY_POLICY`, not the `ERROR_CANCELLED` of a No click.
+The shell shows both as a refusal. A No click on the secure desktop has no hosted test.
 The current Wails installer and release assets remain the default.
 
 The future preview and results follow the [migration extension plan](specs/migration-extensions.md). Those APIs do not exist in `serve` yet.
@@ -160,6 +164,11 @@ UAC names the engine's publisher, so shell-only identity is insufficient.
 Bundle local assets for the brand after validation for startup and UAC refusal.
 Translate palette, typeface, logos, title, and support links into native resources.
 CSS is not a native theme contract; document which custom layouts lack support.
+
+The preview translates the palette and the existing `logo.svg` into native resources.
+Contrast must pass WCAG limits, and high contrast keeps the system palette.
+Each brand supplies its font as WOFF2. XAML cannot load that format, so the preview uses the system font.
+Gradients and radii from `theme.css` have no native equivalent.
 Use the distro config from the adoption work, with versioned extensions.
 
 Use standard Windows controls, light/dark themes, and a high-contrast fallback.

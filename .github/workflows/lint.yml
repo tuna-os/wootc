@@ -40,7 +40,7 @@ jobs:
             tests/e2e/steps.sh \
             tests/e2e/phase-ledger.sh tests/e2e/phase3-snapshot.sh \
             tests/e2e/lib/results.sh \
-            tests/e2e/lib/qga-transport.sh tests/e2e/lib/host-runtime.sh tests/e2e/lib/retention.sh tests/e2e/lib/vm-start.sh tests/e2e/lib/gui-session.sh tests/e2e/lib/gui-observations.sh \
+            tests/e2e/lib/qga-transport.sh tests/e2e/lib/host-runtime.sh tests/e2e/lib/retention.sh tests/e2e/lib/vm-start.sh tests/e2e/lib/gui-session.sh tests/e2e/lib/gui-observations.sh tests/e2e/lib/mok.sh \
             tests/e2e/lib/result-runner.sh \
             tests/e2e/lib/snapshot-prime.sh tests/e2e/lib/offline-bundle.sh \
             payload/steps.sh
@@ -57,6 +57,26 @@ jobs:
         run: |
           pip install --break-system-packages yamllint
           yamllint tests/e2e/compose.yml
+          # The release workflow holds the signing and OIDC wiring; a YAML or
+          # expression mistake there only shows on a tag push. Relaxed rules:
+          # its comments and long `if:` expressions are deliberate.
+          yamllint -d '{extends: relaxed, rules: {line-length: disable}}' \
+            .github/workflows/release.yml
+
+      - name: actionlint (release workflow)
+        env:
+          ACTIONLINT_VERSION: '1.7.12'
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+          # The same bar as the ShellCheck step above.
+          SHELLCHECK_OPTS: --severity=warning
+        run: |
+          set -euo pipefail
+          tgz="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$tgz" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" .github/workflows/release.yml
 
       - name: Validate autounattend.xml
         run: |

@@ -104,6 +104,8 @@ try {
     $stateRoot=Join-Path ([IO.Path]::GetPathRoot($destination)) 'wootc'
     if (Test-Path -LiteralPath (Join-Path $stateRoot 'disks/root.disk')) { throw 'Disposable packaging host unexpectedly has an installation disk' }
     $null=Invoke-OwnedNative -Executable 'dotnet' -TimeoutSeconds 180 -Arguments @('test',(Join-Path $PSScriptRoot '../Wootc.Shell.UiTests'),'--configuration','Release','--filter','FullyQualifiedName~InstalledPreviewTests','--logger',"trx;LogFileName=installed-$BrandId.trx")
+    & (Join-Path $PSScriptRoot 'test-uac-refusal.ps1') -Executable $env:WOOTC_NATIVE_INSTALLED_EXE -BrandSource $env:WOOTC_NATIVE_BRAND_SOURCE -OutputDirectory $output -BrandId $BrandId
+    if (@(Get-Process -Name 'wootc-engine' -ErrorAction SilentlyContinue).Count -ne 0) { throw 'An engine process survived the refused elevation' }
     $afterStartup=StateHashes
     $owned=@(Get-ChildItem -LiteralPath $bundle -File -Recurse -Force | Select-Object -ExpandProperty FullName)
     $foreignRoot=Join-Path $destination 'public-preserved-root.txt'
@@ -119,7 +121,7 @@ try {
     foreach ($path in @($foreignRoot,$foreignBundle)) { if ((Get-FileHash -LiteralPath $path).Hash -cne $foreignHash) { throw 'Preview uninstall changed foreign bytes' } }
     $afterUninstall=StateHashes
     if (($afterStartup | ConvertTo-Json -Compress) -cne ($afterUninstall | ConvertTo-Json -Compress)) { throw 'Preview uninstall changed engine installation state' }
-    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;uninstallerRemovalObserved=$true;uninstallerRemovalMilliseconds=$uninstallerRemovalMs;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
+    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;actualUacRefusal=$true;uninstallerRemovalObserved=$true;uninstallerRemovalMilliseconds=$uninstallerRemovalMs;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'packaging-observations.json') -Encoding utf8
     $verifiedUninstall=$true
 } finally {

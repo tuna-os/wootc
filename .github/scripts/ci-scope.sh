@@ -4,11 +4,13 @@
 #
 # Reads the changed paths (one per line) on stdin and prints one
 # "<scope>=true|false" line per scope, ready for $GITHUB_OUTPUT. Run it from
-# the repository root. With --all, prints every scope as true (push to main,
-# workflow_dispatch: always the full set).
+# the repository root. Pull requests pass the PR's changed paths, pushes to
+# main the pushed range's. With --all, prints every scope as true
+# (workflow_dispatch, the nightly schedule, an unreadable push range).
 #
 # A change to this script, to ci.yml/ci-tests.yml or to a local action selects
-# every scope. The fast tier and lint are not scoped: they run on every PR.
+# every scope. The fast tier and lint are not scoped: they run on every PR
+# and every push.
 #
 #   deployer   ci.yml build-deployer (payload/deployer/Containerfile inputs)
 #   app        ci.yml build-app (wootc.exe + Linux dashboard)

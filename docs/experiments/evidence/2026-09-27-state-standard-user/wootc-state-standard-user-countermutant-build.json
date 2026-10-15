@@ -1,0 +1,9 @@
+{
+  "baselineSource": "27ebee564e16161279dd4e93167deb7a8344f683",
+  "originalSha256": "c18cb97ca15c86513df620cdf11140eb8eac75c786bc54c9845ac0f381e5d085",
+  "mutantSha256": "14fcfe35ffd01b262dd9cfd30dba04f428baf1f394e21995994ea8d5ec493ced",
+  "mutation": "actual inspector skips owner/DACL validation after object query; reparse checks retained",
+  "binary": "/tmp/wootc-state-standard-user-countermutant.test.exe",
+  "buildExitCode": 0,
+  "binarySha256": "b219f4a2203c5f9ce0a2478aee3f4b06681ccae5d0f81449148896d71dc7c54b"
+}

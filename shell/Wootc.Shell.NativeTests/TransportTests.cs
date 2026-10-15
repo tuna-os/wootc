@@ -23,6 +23,9 @@ public sealed class TransportTests
         Assert.Equal("--source-pid", request.ArgumentList[3]);
         var declined = await RunasLaunch.StartAsync(request, _ => throw new Win32Exception(1223));
         Assert.True(declined.Declined); Assert.Null(declined.Process);
+        var blocked = await RunasLaunch.StartAsync(request, _ => throw new Win32Exception(1260));
+        Assert.True(blocked.Declined); Assert.True(blocked.PolicyBlocked); Assert.Null(blocked.Process);
+        Assert.False(declined.PolicyBlocked);
         var retry = RunasLaunch.Create(engine, Guid.NewGuid().ToString("N"), Environment.ProcessId);
         Assert.NotEqual(request.ArgumentList[2], retry.ArgumentList[2]);
         await Assert.ThrowsAsync<Win32Exception>(() => RunasLaunch.StartAsync(retry, _ => throw new Win32Exception(5)));

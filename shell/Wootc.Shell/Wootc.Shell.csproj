@@ -12,6 +12,8 @@
     <Platforms>x64</Platforms>
     <NativeBrandId Condition="'$(NativeBrandId)' == ''">wootc</NativeBrandId>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Program.cs refuses an unsupported Windows before WinUI starts. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
@@ -19,6 +21,8 @@
     <ProjectReference Include="../Wootc.Shell.Native/Wootc.Shell.Native.csproj" />
     <Compile Remove="Engine/Dto.cs" />
     <Content Include="../../app/branding/$(NativeBrandId)/brand.json" Link="Branding/brand.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The same mark the Wails build of this brand embeds; no new asset. -->
+    <Content Include="../../app/branding/$(NativeBrandId)/logo.svg" Link="Branding/logo.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('../../app/branding/$(NativeBrandId)/logo.svg')" />
   </ItemGroup>
   <!-- Unpackaged MRT Core currently generates the app PRI without publishing it.
        Keep the generated resource index beside the executable, not only SDK PRIs. -->

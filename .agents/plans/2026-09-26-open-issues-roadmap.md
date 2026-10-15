@@ -14,7 +14,7 @@ Clear the 80 open issues and 7 open PRs in tuna-os/wootc in a dependency-safe se
 
 - Backlog size (verified 2026-09-26 via `gh issue/pr list`): 80 open issues, 7 open PRs.
 - All 7 open PRs report `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`, all required checks SUCCESS: #401 (ROADMAP WinUI mention), #338 (recovery guard #331), #327 (fault-injection #288), #325 (fresh-machine verification #241), #324 (uninstall restoration #238), #317 (UAC identity #225), #313 (BitLocker beta #223).
-- Milestone trackers: M2 #210 (real hardware), M4 #212 (v0.9.0-rc), M5 #213 (v1.0.0). ROADMAP.md ladder already shipped v0.3.0-beta (#211); in-flight is v0.9.0-rc validation + signing.
+- Milestone trackers: M2 #210 (real hardware), M4 #212 (v0.9.0-rc), M5 #213 (v1.0.0). ROADMAP.md ladder claimed v0.3.0-beta shipped (#211), but no such tag or release exists (corrected 2026-10-15); in-flight is v0.9.0-rc validation + signing.
 - Dominant live risk: `e2e-gui.yml` red ~20 consecutive scheduled runs since 2026-09-01 (epic #399; snapshots #367/#364). Current mode A: GUI app never launches, no interactive session (autologon failure). This blocks the nightly auto-release channel by design.
 - CI self-sabotage: `ci.yml` + `ci-tests.yml` share `cancel-in-progress: true` on `github.ref`, so merge trains on `main` cancel verdicts for already-merged commits (#363). Duplicate lint jobs on push+PR (#315).
 - Security batch is concrete and small-scoped: workflow script injection (#373, #372, #282), unsigned/redirectable SHA256SUMS (#371, paired with #335 pin+sign), un-ACL'd `C:\wootc` (#370), dead credential envelopes (#281), BitLocker key on NTFS (#279).

@@ -128,6 +128,68 @@ setup() {
     [ "$missing" -eq 0 ]
 }
 
+# ── releases ─────────────────────────────────────────────────────────────────
+
+# The versions that have a tag AND a published GitHub release. Add a version
+# here only in the PR after release.yml published it; check it first with
+#   gh api repos/tuna-os/wootc/releases/tags/<tag>
+# ROADMAP said v0.3.0-beta "shipped 2026-09-03" for six weeks while no such
+# tag existed (only v0.1.0-alpha.1 and the auto-v* pre-releases did). The
+# milestone issue had closed; nobody had cut the release. CI checks out no
+# tags, so this list is the record the docs are held to.
+PUBLISHED_RELEASES="v0.1.0-alpha.1"
+
+# A version is published when it is in the list, or is a milestone name that
+# a listed tag continues with "." (v0.1.0-alpha -> v0.1.0-alpha.1).
+release_published() {
+    local v=$1 tag
+    for tag in $PUBLISHED_RELEASES; do
+        [ "$v" = "$tag" ] && return 0
+        [[ "$tag" == "$v".* ]] && return 0
+    done
+    return 1
+}
+
+@test "no doc says a version shipped that has no published release" {
+    local line v bad=0
+    # Lines that say a version went out. Lines that say it did NOT (a draft,
+    # "not released", "no ... tag") are the honest wording, not a claim.
+    while IFS= read -r line; do
+        for v in $(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?' <<< "${line#*:*:}" | sort -u); do
+            release_published "$v" || { echo "claims $v shipped, but it has no release: $line"; bad=1; }
+        done
+    done < <(git ls-files 'README.md' 'ROADMAP.md' 'docs/*.md' ':!docs/experiments/evidence/*' |
+             xargs grep -n -i -E 'shipped|published|released' |
+             grep -v -i -E 'not released|unreleased|no [^.]*(tag|release) [^.]*exists|(^|[^a-z])draft([^a-z]|$)')
+    [ "$bad" -eq 0 ]
+}
+
+@test "release notes for an unpublished version stay a draft" {
+    # check-notes.sh refuses to publish a draft, so the marker also keeps a
+    # release from going out on notes nobody re-checked.
+    local notes tag
+    for notes in docs/release-notes-*.md; do
+        tag=${notes#docs/release-notes-}; tag=${tag%.md}
+        release_published "$tag" && continue
+        run bash tools/release/check-notes.sh "$tag" .
+        [ "$status" -eq 1 ] && [[ "$output" == *"still a draft"* ]] ||
+            { echo "$notes has no published release but is not a draft"; return 1; }
+        ! grep -qiE '\*\*Status\*\*: *(Shipped|Released|Published)' "$notes" ||
+            { echo "$notes says it shipped"; return 1; }
+    done
+}
+
+@test "every listed published release is a tag, when tags are present" {
+    # A full clone has the tags; CI's shallow checkout does not, and then the
+    # list above is the record. Keep the list honest wherever it can be checked.
+    [ -n "$(git tag -l 'v*' 2>/dev/null)" ] || skip "no tags in this checkout"
+    local tag
+    for tag in $PUBLISHED_RELEASES; do
+        git rev-parse -q --verify "refs/tags/$tag" >/dev/null ||
+            { echo "$tag is listed as published but is not a tag"; return 1; }
+    done
+}
+
 # ── channel behaviour ────────────────────────────────────────────────────────
 
 @test "no doc promises BitLocker works while the channel gate refuses it" {

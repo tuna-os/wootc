@@ -61,7 +61,7 @@
     "priorProvenance": "runtime-prior-provenance.json"
   },
   "sourceHashes": {
-    ".github/workflows/ci-tests.yml": "bfbd309a980893893686f7ea5873f33dcec94bd6f52f0a5db95128fdb3deb97a",
+    ".github/workflows/ci-tests.yml": "1a70e2402a80bef22203ed53dce670297310a106d056c717eaf7875a5eed019e",
     ".github/workflows/linux-package-execute.yml": "e5cab8943e0015e09bf46eaaf4139483c6d085df9713eae5ff4f0a2c3d8ca832",
     ".github/workflows/linux-package-runtime.yml": "c90b8c5a4c5dd85599065f482f2f6852dcc5c8448251d06ef6e25bf4fcc11a04",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/authenticated-dependencies/authenticated-dependency-plan.json": "ada5ba0f52a7c42620a5d0e5b8c2926c452022accd3877b5fe6a436ec3cb83a8",
