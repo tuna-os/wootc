@@ -92,9 +92,12 @@ func TestNativeStateStandardUserAndAlternateVolume(t *testing.T) {
 		{"alternate-NTFS", alternate + "wootc", alternate, ensureTrustedStateDirectory},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			control := filepath.Join(tc.writable, "public-standard-user-control.txt")
-			if err := asUser(func() error { return os.WriteFile(control, []byte("public control"), 0600) }); err != nil {
-				t.Fatalf("positive standard-user write: %v", err)
+			// A directory, not a file: Windows Server's fresh NTFS root grants
+			// Users only FILE_ADD_SUBDIRECTORY (observed on windows-latest), and
+			// the planted state below is itself a standard-user directory.
+			control := filepath.Join(tc.writable, "public-standard-user-control")
+			if err := asUser(func() error { return os.Mkdir(control, 0700) }); err != nil {
+				t.Fatalf("positive standard-user create: %v", err)
 			}
 			defer os.Remove(control)
 			planted := filepath.Join(tc.root, "install", "SHA256SUMS")
