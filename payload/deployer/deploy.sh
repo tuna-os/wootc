@@ -1034,14 +1034,73 @@ DISTRO_NAME=$(printf '%s' "$DISTRO_NAME" | tr -d '"$`\\')
 # inject ntfs-3g using the image's OWN repos (matching glibc) and persist it as
 # a local derived image (podman commit — the same layer remora persists). This
 # lets wootc boot arbitrary bootc images, not only ones that ship NTFS support.
+#
+# Every read-only look inside $IMAGE goes through probe_image, and the
+# capability tests are named strings so both call sites run the SAME test.
+#
+# Runs 38792319332 (bazzite:stable) and 38832644743 (bazzite-deck:stable) both
+# logged "ntfs-3g or qemu-guest-agent still absent ... after injection", yet
+# both images ship /usr/bin/ntfs-3g and /usr/bin/qemu-ga (their published
+# layers carry the files and the rpmdb lists both packages), and injection
+# should never have run: the image already had ntfs-3g. The two failing probes
+# were the only `podman run`s here WITHOUT --network=host, and the first one
+# also ran before the image was pulled, inside a 60s bound. Every probe that
+# passes uses --network=host on a local image. So a probe that could not RUN
+# was read as "the tool is absent". probe_image keeps the shape that works and
+# saves podman's stderr, so a probe that cannot run says so instead.
+NTFS_DRIVER_PROBE='command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
+ ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
+ grep -qxE "CONFIG_NTFS3_FS=[ym]" /usr/lib/modules/*/config 2>/dev/null'
+# Prints one "<tool>=<path>" line per tool, or "<tool>=ABSENT". PATH first, then
+# the directories packages put these binaries in. A unit's ExecStart names its
+# own absolute path, so an agent under /usr/libexec still runs. Then the rpmdb
+# view, which tells "never installed" apart from "installed, binary missing".
+# shellcheck disable=SC2016  # expanded by the container's sh, not here
+INJECTED_TOOLS_PROBE='for t in ntfs-3g qemu-ga; do
+  p=$(command -v "$t" 2>/dev/null) || p=""
+  if [ -z "$p" ]; then
+    for d in /usr/bin /usr/sbin /usr/libexec /usr/local/bin /usr/local/sbin; do
+      if [ -x "$d/$t" ]; then p="$d/$t"; break; fi
+    done
+  fi
+  echo "$t=${p:-ABSENT}"
+done
+echo "rpm=$(rpm -q ntfs-3g qemu-guest-agent 2>&1 | tr "\n" " ")"'
+PROBE_ERR="${TMPDIR:-/tmp}/wootc-probe.err"
+probe_image() {  # <script>
+    timeout "${WOOTC_IMAGE_PROBE_TIMEOUT:-300}" podman run --rm --network=host "$IMAGE" sh -c "$1" 2>"$PROBE_ERR"
+}
+# Check what injection left in $IMAGE. Every finding goes on ONE [WARN] line:
+# the E2E serial relay forwards only the last [WARN] line of each chunk, so
+# the evidence has to travel in that line or it never reaches the job log.
+verify_injected_tools() {
+    local out rc=0 summary
+    out=$(probe_image "$INJECTED_TOOLS_PROBE") || rc=$?
+    summary=$(printf '%s' "$out" | tr '\n' ' ')
+    if [[ "$rc" -ne 0 ]]; then
+        err "  [WARN] could not inspect ${IMAGE} after injection (probe exit ${rc}): podman: $(tail -c 400 "$PROBE_ERR" 2>/dev/null | tr '\n' ' ') ${summary}"
+        return 1
+    fi
+    if printf '%s\n' "$out" | grep -q '=ABSENT$'; then
+        err "  [WARN] ntfs-3g or qemu-guest-agent still absent from ${IMAGE} after injection: ${summary}"
+        return 1
+    fi
+    log "  [PASS] verified the deployed image's tools: ${summary}"
+}
+
 ensure_ntfs_support() {
-    if timeout 60 podman run --rm "$IMAGE" sh -c \
-        'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
-         ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
-         grep -qxE "CONFIG_NTFS3_FS=[ym]" /usr/lib/modules/*/config 2>/dev/null'; then
+    # Pull BEFORE probing. `podman run` on an image that is not local pulls it,
+    # and a multi-GB image cannot pull inside a probe bound, so the probe used
+    # to fail on every cold cache and injection ran against images that
+    # already had a driver. Offline there is nothing to pull from.
+    if [[ "${WOOTC_OFFLINE:-0}" != 1 ]] && ! acquire_image "NTFS probe"; then
+        err "  [WARN] could not pull ${IMAGE} for the NTFS probe (see the pull errors above)"
+    fi
+    if probe_image "$NTFS_DRIVER_PROBE"; then
         log "Image already has an NTFS driver (ntfs3 or ntfs-3g)."
         return 0
     fi
+    [[ -s "$PROBE_ERR" ]] && err "  NTFS probe: podman: $(tail -c 400 "$PROBE_ERR" | tr '\n' ' ')"
     # NOTE: the capability check above is NOT authoritative. It inspects only
     # target-owned artifacts (config, modules, binaries). /proc/filesystems is
     # deliberately excluded: inside a container it reflects the deployer's
@@ -1123,6 +1182,11 @@ ensure_ntfs_support() {
                dnf install -y ntfs-3g qemu-guest-agent; } || \
              microdnf install -y ntfs-3g qemu-guest-agent || rpm-ostree install ntfs-3g qemu-guest-agent' 2>"$inj_err"; then
             inj_ok=1
+            # Which rung succeeded, and what dnf said: "Nothing to do" on an
+            # image that already ships the packages reads very differently
+            # from a fresh install.
+            log "  injection output (tail): $(timeout 60 podman logs "$cname" 2>&1 | tail -8 | tr '\n' ' ')"
+            [ -s "$inj_err" ] && log "  injection stderr (tail): $(tail -c 600 "$inj_err" | tr '\n' ' ')"
             break
         fi
         err "  [WARN] ntfs-3g install attempt ${attempt}/3 failed in ${IMAGE}"
@@ -1154,11 +1218,7 @@ ensure_ntfs_support() {
     IMAGE="$derived"
     log "  [PASS] injected ntfs-3g; deploying ${IMAGE}"
     # Prove it actually landed rather than trusting the commit.
-    if ! timeout 60 podman run --rm "$IMAGE" sh -c 'command -v ntfs-3g >/dev/null && command -v qemu-ga >/dev/null'; then
-        err "  [WARN] ntfs-3g or qemu-guest-agent still absent from ${IMAGE} after injection"
-        return 1
-    fi
-    log "  [PASS] verified ntfs-3g + qemu-guest-agent present in the deployed image"
+    verify_injected_tools
 }
 # "Using the image's own NTFS support" must be CHECKED, not hoped for. When
 # injection fails on an image whose kernel has no ntfs3 — every EL-family image,
@@ -1179,11 +1239,7 @@ if ! ensure_ntfs_support; then
     # worked". A weaker probe here would refuse deploys that work.
     # (/proc/filesystems is deliberately excluded — it reflects the deployer's
     # kernel, not the image's. See #48 and docs/agent-lessons.md §8.)
-    if timeout 300 podman run --rm --network=host "$IMAGE" sh -c \
-        'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
-         ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
-         grep -qxE "CONFIG_NTFS3_FS=[ym]" /usr/lib/modules/*/config 2>/dev/null' \
-        >/dev/null 2>&1; then
+    if probe_image "$NTFS_DRIVER_PROBE" >/dev/null 2>&1; then
         log "  image provides its own NTFS driver — continuing without injection"
     elif command -v ntfs-3g >/dev/null 2>&1; then
         # The DEPLOYER ships ntfs-3g (its Containerfile) and both Phase-2 paths

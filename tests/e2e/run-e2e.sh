@@ -4296,6 +4296,12 @@ USERDATA_PROBE=$(qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || t
 USERDATA_HOME=""
 _ud_deadline=$(deadline_in 120)
 while ! past_deadline "$_ud_deadline"; do
+    # The agent probe above is ONE shot taken the moment the passthrough scan
+    # ends. An agent that starts later in the window is still an agent that
+    # answered, so re-ask until it does (bounded: a dead agent must not eat
+    # the window 60s at a time).
+    printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK \
+        || USERDATA_PROBE=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || true)
     USERDATA_HOME=$(qga_call exec /bin/sh -c \
         'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
     printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID" && break
@@ -4305,6 +4311,17 @@ if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
     fail "Cannot verify user data: the Phase-2 guest agent never answered, so the bridge was NOT measured"
     info "  This is an INCONCLUSIVE check, not proof of data loss — the file may well be there."
     info "  Fix the agent in Phase 2 (is qemu-guest-agent present and enabled in this image?), then re-run."
+    # Say why from the one channel still open. The serial carries systemd's
+    # unit lines, so a failed, skipped or never-started agent shows up here;
+    # a silence here means the unit was never even queued.
+    _qga_serial=$(tail -c 4000000 "$PTY" 2>/dev/null \
+        | grep -aiE 'qemu-ga|qemu-guest-agent|guest_agent|virtio.ports|virtio_console' | tail -12 || true)
+    if [ -n "$_qga_serial" ]; then
+        info "  Serial lines about the guest agent (last 12):"
+        printf '%s\n' "$_qga_serial" | cut -c1-220 | sed 's/^/    /'
+    else
+        info "  The serial console never mentions the guest agent or its virtio port"
+    fi
 elif printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
     product_pass user-data "User data: Windows Documents file readable in /home/wootc with this run's ID"
 else
