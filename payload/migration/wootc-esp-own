@@ -24,11 +24,25 @@ esp_path_is_owned() {
     return 1
 }
 
+# EFI/wootc and loader/entries/wootc.conf are wootc's by name: nothing else
+# writes there. A wootc install that predates the manifest left them behind
+# unclaimed, and refusing them would block that install's own reinstall. The
+# Windows installer's guard (app/esp_ownership.go isOwnNamespace) already
+# treats EFI/wootc this way; shared vendor directories still need a claim.
+esp_path_is_own_namespace() {
+    local value
+    value=$(esp_normalize_owned_path "$1") || return 1
+    [[ "$value" == efi/wootc/* && "$value" != efi/wootc/wootc-owned.txt ]] ||
+        [[ "$value" == loader/entries/wootc.conf ]]
+}
+
 esp_assert_owned_or_absent() {
     local esp="$1" relative="$2"
     esp_normalize_owned_path "$relative" >/dev/null || return 1
     [[ -f "$esp/EFI/wootc/wootc-owned.txt" && ! -L "$esp/EFI/wootc/wootc-owned.txt" ]] || return 1
-    [[ ! -e "$esp/$relative" && ! -L "$esp/$relative" ]] || esp_path_is_owned "$esp" "$relative"
+    [[ ! -e "$esp/$relative" && ! -L "$esp/$relative" ]] && return 0
+    [[ ! -L "$esp/$relative" ]] && esp_path_is_own_namespace "$relative" && return 0
+    esp_path_is_owned "$esp" "$relative"
 }
 
 esp_claim_before_write() {

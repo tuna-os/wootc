@@ -60,7 +60,6 @@ else:
     def test_neighboring_systemd_binary_does_not_change_observed_shim_route(self):
         folder=self.esp/'EFI/systemd';folder.mkdir()
         neighbor=folder/'systemd-bootx64.efi';neighbor.write_bytes(b'foreign neighboring bootloader')
-        self.env['BOOTLOADER']='systemd'
         result=self.run_sync();self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(neighbor.read_bytes(),b'foreign neighboring bootloader')
         self.assertFalse((self.esp/'loader').exists())
@@ -76,5 +75,37 @@ else:
         calls=[json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertEqual(len(calls),1);self.assertEqual(calls[0][0],'prepare')
         self.assertNotIn('--kernel',calls[0])
+
+    def test_systemd_record_refreshes_kernel_and_loader_entry_without_trio(self):
+        # The deployer's BOOTLOADER=systemd record (composefs-native images):
+        # no shim/GRUB/MokManager trio exists, so the controller is never asked.
+        self.env['BOOTLOADER']='systemd'
+        result=self.run_sync();self.assertEqual(result.returncode,0,result.stderr)
+        self.assertFalse(self.calls.exists())
+        self.assertEqual((self.esp/'EFI/wootc/phase2-vmlinuz').read_bytes(),b'kernel')
+        self.assertEqual((self.esp/'EFI/wootc/phase2-initramfs.img').read_bytes(),b'initrd')
+        entry=(self.esp/'loader/entries/wootc.conf').read_text()
+        self.assertIn('linux /EFI/wootc/phase2-vmlinuz\n',entry)
+        self.assertIn('loop=/wootc/disks/root.disk',entry)
+        self.assertIn('wootc.host_uuid=0123456789ABCDEF',entry)
+        self.assertEqual((self.esp/'EFI/fedora/grub.cfg').read_text(),'original config')
+        again=self.run_sync();self.assertEqual(again.returncode,0,again.stderr)
+        self.assertIn('ESP already current',again.stdout)
+
+    def test_missing_controller_refreshes_marked_grub_config_only(self):
+        (self.esp/'EFI/fedora/grub.cfg').write_text('# wootc Phase 2 - old\n')
+        (self.esp/'EFI/fedora/shimx64.efi').write_bytes(b'installed shim')
+        self.env['WOOTC_ESP_CONTROL']=str(self.root/'absent-control')
+        result=self.run_sync();self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual((self.esp/'EFI/wootc/phase2-vmlinuz').read_bytes(),b'kernel')
+        config=(self.esp/'EFI/fedora/grub.cfg').read_text()
+        self.assertIn('loop=/wootc/disks/root.disk',config);self.assertIn('Windows',config)
+        self.assertEqual((self.esp/'EFI/fedora/shimx64.efi').read_bytes(),b'installed shim')
+        self.assertFalse((self.esp/'loader').exists())
+
+    def test_missing_controller_never_rewrites_unmarked_config(self):
+        before=self.snapshot();self.env['WOOTC_ESP_CONTROL']=str(self.root/'absent-control')
+        result=self.run_sync();self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(self.snapshot(),before)
 
 if __name__=='__main__':unittest.main()

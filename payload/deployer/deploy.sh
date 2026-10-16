@@ -2890,32 +2890,44 @@ QGAEOF
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after bootc updates of the installed loop-root deployment.
     # Keep the verifier's loader and libraries together on every target ABI.
+    # The authenticated signed-chain controller only goes in when its helpers
+    # and verifier run in the installed image. Without it the install still
+    # completes: wootc-esp-sync then refreshes the kernel pair and grub.cfg
+    # directly and leaves the signed chain alone, as before the controller.
+    esp_control_ready=1
     mkdir -p "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify"
-    install -m644 /usr/lib/wootc/sbverify/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/"
-    chmod 755 "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2" \
-        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbverify" \
-        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbpehash"
-    install -m644 /usr/lib/wootc/migration/lib/*.py "$DEPLOY_ROOT/var/usrlocal/lib/wootc/"
-    chroot "$DEPLOY_ROOT" /usr/bin/python3 -c \
-        'import sys; sys.path.insert(0, "/var/usrlocal/lib/wootc"); import wootc_boot_identity, wootc_esp_transaction, wootc_chain_source' || {
-        err "  [FAIL] signed-chain Python helpers cannot run in installed image"
-        exit 1
-    }
-    chroot "$DEPLOY_ROOT" /var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2 \
+    if ! install -m644 /usr/lib/wootc/sbverify/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/" ||
+       ! chmod 755 "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2" \
+            "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbverify" \
+            "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbpehash" ||
+       ! install -m644 /usr/lib/wootc/migration/lib/*.py "$DEPLOY_ROOT/var/usrlocal/lib/wootc/"; then
+        err "  [WARN] signed-chain helpers could not be staged into the installed image"
+        esp_control_ready=0
+    fi
+    if [[ "$esp_control_ready" == 1 ]] && ! chroot "$DEPLOY_ROOT" /usr/bin/python3 -c \
+        'import sys; sys.path.insert(0, "/var/usrlocal/lib/wootc"); import wootc_boot_identity, wootc_esp_transaction, wootc_chain_source'; then
+        err "  [WARN] signed-chain Python helpers cannot run in installed image"
+        esp_control_ready=0
+    fi
+    if [[ "$esp_control_ready" == 1 ]] && ! chroot "$DEPLOY_ROOT" /var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2 \
         --library-path /var/usrlocal/lib/wootc/sbverify \
-        /var/usrlocal/lib/wootc/sbverify/sbverify --version || {
-        err "  [FAIL] signed-chain verifier closure cannot run in installed image"
-        exit 1
-    }
-
-    install -m755 /usr/lib/wootc/migration/wootc-esp-control \
-        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-control"
+        /var/usrlocal/lib/wootc/sbverify/sbverify --version; then
+        err "  [WARN] signed-chain verifier closure cannot run in installed image"
+        esp_control_ready=0
+    fi
+    if [[ "$esp_control_ready" == 1 ]]; then
+        install -m755 /usr/lib/wootc/migration/wootc-esp-control \
+            "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-control"
+    else
+        rm -f "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-control"
+        err "  [WARN] wootc-esp-sync will refresh the kernel pair and grub.cfg without signed-chain refresh"
+    fi
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-sync"
     install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
     # Diagnostic CLI shares the same complete-trio signature/policy verifier.
-    # The mandatory controller refuses refresh if that closure cannot run.
+    # The controller, when installed, refuses refresh if that closure cannot run.
     mig_opt 755 wootc-shim-trust "$DEPLOY_ROOT/var/usrlocal/bin/wootc-shim-trust"
     if [[ -f /usr/lib/wootc/migration/wootc-esp-sync.path ]]; then
         install -m644 /usr/lib/wootc/migration/wootc-esp-sync.path \

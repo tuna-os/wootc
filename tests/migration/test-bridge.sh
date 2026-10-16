@@ -236,11 +236,16 @@ check 'python3 -c "import json;calls=[json.loads(line) for line in open(\"/tmp/f
 # A foreign neighboring systemd file cannot override the observed shim route.
 mkdir -p /tmp/esp/EFI/systemd
 echo foreign-systemd > /tmp/esp/EFI/systemd/systemd-bootx64.efi
+fixture_sync
+check '[ "$(cat /tmp/esp/EFI/systemd/systemd-bootx64.efi)" = foreign-systemd ] && [ ! -e /tmp/esp/loader ]' "ESP consumer: foreign systemd neighbor preserved without loader mutation"
+# The deployer's BOOTLOADER=systemd record (composefs-native images, no signed
+# trio) refreshes the kernel pair and loader entry without the controller.
 BOOTLOADER=systemd
 export BOOTLOADER
 fixture_sync
-check '[ "$(cat /tmp/esp/EFI/systemd/systemd-bootx64.efi)" = foreign-systemd ] && [ ! -e /tmp/esp/loader ]' "ESP consumer: foreign systemd neighbor preserved without loader mutation"
+check 'grep -q "loop=/wootc/disks/root.disk" /tmp/esp/loader/entries/wootc.conf' "ESP consumer: systemd-boot record refreshes the loader entry with loop args"
 unset BOOTLOADER
+rm -rf /tmp/esp/loader /tmp/esp/EFI/systemd
 # This is classic kernel discovery only, not classic deployment support.
 rm -rf /tmp/boot; mkdir -p /tmp/boot
 echo classic-kernel > /tmp/boot/vmlinuz-6.2-generic

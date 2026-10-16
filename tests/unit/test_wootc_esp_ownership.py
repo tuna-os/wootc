@@ -34,9 +34,25 @@ class OwnershipTests(unittest.TestCase):
         relative='EFI/wootc/phase2-vmlinuz';self.assertEqual(self.claim(relative).returncode,0)
         self.assertFalse((self.esp/relative).exists());self.assertIn(b'efi/wootc/phase2-vmlinuz',self.manifest.read_bytes())
 
-    def test_existing_unclaimed_kernel_cannot_be_deleted_or_claimed(self):
-        existing=self.esp/'EFI/wootc/phase2-vmlinuz';existing.write_bytes(b'foreign kernel')
-        self.assertNotEqual(self.claim('EFI/wootc/phase2-vmlinuz').returncode,0);self.assertEqual(existing.read_bytes(),b'foreign kernel')
+    def test_pre_manifest_own_namespace_leftover_is_claimed_for_reinstall(self):
+        # A wootc install from before the manifest left its Phase-2 pair in
+        # EFI/wootc unclaimed; its reinstall must not be refused (#477 review).
+        existing=self.esp/'EFI/wootc/phase2-vmlinuz';existing.write_bytes(b'older wootc kernel')
+        self.assertEqual(self.claim('EFI/wootc/phase2-vmlinuz').returncode,0)
+        self.assertIn(b'efi/wootc/phase2-vmlinuz',self.manifest.read_bytes())
+        self.assertEqual(existing.read_bytes(),b'older wootc kernel')
+        (self.esp/'loader/entries').mkdir(parents=True);(self.esp/'loader/entries/wootc.conf').write_text('title old')
+        self.assertEqual(self.claim('loader/entries/wootc.conf').returncode,0)
+
+    def test_existing_unclaimed_shared_vendor_file_cannot_be_claimed(self):
+        existing=self.esp/'EFI/fedora/grubx64.efi';existing.write_bytes(b'foreign grub')
+        before=self.manifest.read_bytes()
+        self.assertNotEqual(self.claim('EFI/fedora/grubx64.efi').returncode,0)
+        self.assertEqual(existing.read_bytes(),b'foreign grub');self.assertEqual(self.manifest.read_bytes(),before)
+
+    def test_symlink_in_own_namespace_refuses(self):
+        link=self.esp/'EFI/wootc/phase2-vmlinuz';link.symlink_to(self.esp/'EFI/fedora/shimx64.efi')
+        self.assertNotEqual(self.claim('EFI/wootc/phase2-vmlinuz').returncode,0)
 
     def test_missing_manifest_or_traversal_refuses(self):
         self.assertNotEqual(self.claim('../EFI/foreign').returncode,0)
