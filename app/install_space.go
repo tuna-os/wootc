@@ -44,8 +44,11 @@ const (
 	// 7 GiB → 3.5×7 + 4 = 28.5 → 29 GiB of scratch.
 	scratchDefaultCompressedBytes int64 = 7 << 30
 	// minimumInstallReserveGiB is the reserve of the smallest image: the
-	// scratch floor plus slack and deployer artifacts. A volume-level limit
-	// (the native engine's MaximumRootDiskSizeGB) can subtract no less.
+	// scratch floor plus slack and deployer artifacts. The launchpad assumes
+	// it until GetInstallSpace answers. (The native engine's per-volume
+	// MaximumRootDiskSizeGB is left as observed: validateInstallConfig
+	// refuses the chosen image's plan, and lowering the volume listing hid
+	// real volumes from the engine's own storage observation.)
 	minimumInstallReserveGiB = scratchMinGiB + scratchDriveSlackGiB + deployerArtifactsGiB
 	// imageSizeLookupTimeout bounds the registry manifest read (a token and
 	// one or two small manifests, no blobs).
