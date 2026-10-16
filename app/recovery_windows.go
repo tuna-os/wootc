@@ -206,7 +206,7 @@ func tryAgainFromArmed(noReboot bool) error {
 	}
 
 	// Ensure recovery tasks are fresh
-	installExe := filepath.Join(wootcDir(), "install", "wootc.exe")
+	installExe := filepath.Join(wootcDir(), "install", stagedEngineName)
 	if _, err := os.Stat(installExe); err == nil {
 		_ = registerRecoveryTasks(installExe)
 	}

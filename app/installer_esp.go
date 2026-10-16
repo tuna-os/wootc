@@ -477,7 +477,7 @@ func configureBCD(cfg InstallConfig) error {
 
 	// ── Arm-time recovery guard state & task registration (§2) ────────────────
 	// 1. Stage a copy of wootc.exe under install\ and compute its hash.
-	installExe := filepath.Join(wootcDir(), "install", "wootc.exe")
+	installExe := filepath.Join(wootcDir(), "install", stagedEngineName)
 	exeHash := ""
 	curExe, errExe := os.Executable()
 	if errExe == nil {

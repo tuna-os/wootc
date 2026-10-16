@@ -444,6 +444,17 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	// 3. Remove the install dir, staged files, cache, and logs.
 	// Clean both the active storage drive and C: if distinct.
+	// The Apps entry runs the staged copy under install\, so step aside first.
+	var removedDirs []string
+	for _, d := range targetDrives {
+		removedDirs = append(removedDirs, d+`:\wootc\install`)
+		if opts.DeleteRootDisk || opts.RemovePartition {
+			removedDirs = append(removedDirs, d+`:\wootc`)
+		}
+	}
+	if err := moveRunningImageAside(removedDirs); err != nil {
+		errs = append(errs, err.Error())
+	}
 	for _, d := range targetDrives {
 		if opts.RemovePartition {
 			// Target files stay intact until the partition's final contents audit.
@@ -559,19 +570,15 @@ func registerUninstallEntry() {
 	if err != nil {
 		return
 	}
+	// The entry runs the staged copy under install\ (see uninstallEntryTarget),
+	// never a download or a preview package that can disappear first.
+	target := uninstallEntryTarget(filepath.Join(wootcDir(), "install", stagedEngineName), exe,
+		func(p string) bool { st, err := os.Stat(p); return err == nil && st.Mode().IsRegular() })
 	// uninstallDisplayName (branding_policy.go) owns the listing name.
-	b := effectiveBranding()
-	displayName := uninstallDisplayName(b)
+	values := uninstallEntryValues(effectiveBranding(), target, wootcDir())
 	// Brand names may contain quotes. PowerShell uses doubled apostrophes,
 	// not Go's backslash quoting, in a literal string.
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
-	values := map[string]string{
-		"DisplayName": displayName, "Publisher": b.Publisher,
-		"DisplayVersion": b.Version, "DisplayIcon": exe,
-		"URLInfoAbout": b.WebsiteURL, "HelpLink": b.SupportURL,
-		"InstallLocation": wootcDir(),
-		"UninstallString": fmt.Sprintf(`"%s" uninstall`, exe),
-	}
 	script := "New-Item -Path " + quote(uninstallRegKey) + " -Force | Out-Null; "
 	for name, value := range values {
 		script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name " + quote(name) + " -Value " + quote(value) + "; "
@@ -579,6 +586,30 @@ func registerUninstallEntry() {
 	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoModify -Value 1 -Type DWord; "
 	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoRepair -Value 1 -Type DWord"
 	_ = runPowerShell(script)
+}
+
+// moveRunningImageAside renames this program out of a directory uninstall is
+// about to delete. Windows refuses to delete a running image but allows it to
+// be renamed on the same volume; the renamed file is deleted at the next
+// restart.
+func moveRunningImageAside(removed []string) error {
+	self, err := os.Executable()
+	if err != nil || !uninstallRemovesImage(self, removed) {
+		return nil
+	}
+	volume := filepath.VolumeName(self)
+	dir := os.TempDir()
+	if !strings.EqualFold(filepath.VolumeName(dir), volume) {
+		dir = volume + `\`
+	}
+	aside := filepath.Join(dir, fmt.Sprintf("%s-uninstall-%d.exe", strings.TrimSuffix(stagedEngineName, ".exe"), os.Getpid()))
+	if err := os.Rename(self, aside); err != nil {
+		return fmt.Errorf("could not move the running uninstaller %s out of the install directory: %w", self, err)
+	}
+	if p, err := windows.UTF16PtrFromString(aside); err == nil {
+		_ = windows.MoveFileEx(p, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT)
+	}
+	return nil
 }
 
 func unregisterUninstallEntry() {
