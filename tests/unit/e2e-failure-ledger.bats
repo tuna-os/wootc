@@ -299,3 +299,11 @@ setup() {
     printf '%s\n' "$loop" | grep -q "USERDATA_PROBE=\$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK'"
     grep -A12 'Fix the agent in Phase 2' "$E2E" | grep -q "qemu-guest-agent|guest_agent|virtio.ports"
 }
+
+@test "a fisherman line on the serial proves the deployer started" {
+    # Run 38839917797 (bazzite-deck): the deployer booted and fisherman ran at
+    # t=385s, but no [wootc] line reached the serial before the 10-minute
+    # deployer-start deadline, so the harness failed a deploy that was running.
+    local E2E=tests/e2e/run-e2e.sh
+    grep -F 'grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true' "$E2E"
+}

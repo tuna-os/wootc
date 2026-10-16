@@ -3430,7 +3430,13 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         echo "$NEW_OUTPUT" | strings | grep -aE "\[wootc\]|fisherman|VERIFICATION_SUMMARY|\[FAIL\]" \
             | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
 
-        echo "$NEW_OUTPUT" | grep -q "\[wootc\]"               && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
+        # [fisherman] counts too: only the deployer runs fisherman. The first
+        # [wootc] line on the serial is whatever deploy.sh writes to stderr,
+        # and on bazzite-deck that used to be the ntfs-3g injection [WARN].
+        # Without injection, run 38839917797 pulled for six silent minutes,
+        # started fisherman ("[fisherman] version: dev" at t=385s), and was
+        # still failed as "Deployer did NOT start" at the 10-minute mark.
+        echo "$NEW_OUTPUT" | grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
         echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
