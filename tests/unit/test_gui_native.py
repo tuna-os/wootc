@@ -9,6 +9,7 @@ shell running from somewhere other than the installed package.
 """
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -114,16 +115,40 @@ class GuestVerdictTests(unittest.TestCase):
         'package-digests: Wootc.Shell.exe wootc-engine.exe',
         'package-brand: bluefin',
         'package-build: ' + BUILD,
+        'install-method: inno',
+        'inno-uninstall-entry: wootc-native-preview-bluefin_is1 C:\\Program Files\\wootc Native Preview\\bluefin\\',
+        'inno-uninstallers: 1',
         'machine-env: WOOTC_E2E_DRIVE=1 WOOTC_PRELOAD=0',
         'uac: ConsentPromptBehaviorAdmin=0',
         'uac-lua: EnableLUA=1',
         'native-package-installed', ''])
+    # What a robocopy leaves: no uninstall entry, no uninstaller.
+    COPIED = (INSTALLED.replace('install-method: inno', 'install-method: robocopy')
+              .replace('inno-uninstall-entry: wootc-native-preview-bluefin_is1 C:\\Program Files\\wootc Native Preview\\bluefin\\\r\n', '')
+              .replace('inno-uninstallers: 1', 'inno-uninstallers: 0'))
 
-    def installed(self, out):
-        return shell('gui_native_installed_proven "$OUT"', OUT=out, NATIVE_BRAND='bluefin').returncode
+    def installed(self, out, method='inno'):
+        return shell('gui_native_installed_proven "$OUT"', OUT=out, NATIVE_BRAND='bluefin',
+                     NATIVE_INSTALLER=method).returncode
 
     def test_a_whole_provisioned_package_passes(self):
         self.assertEqual(self.installed(self.INSTALLED), 0)
+        self.assertEqual(self.installed(self.COPIED, 'robocopy'), 0)
+
+    def test_an_inno_run_needs_what_only_the_installer_writes(self):
+        # A copied package is never accepted as an installed one.
+        self.assertNotEqual(self.installed(self.COPIED, 'inno'), 0)
+        self.assertNotEqual(self.installed(self.INSTALLED.replace('inno-uninstallers: 1', 'inno-uninstallers: 2')), 0)
+        self.assertNotEqual(self.installed(self.INSTALLED.replace('preview-bluefin_is1', 'preview-bazzite_is1')), 0)
+        self.assertNotEqual(self.installed(self.INSTALLED.replace('install-method: inno', 'install-method: robocopy')), 0)
+        # A robocopy run states its method; an unknown method passes nothing.
+        self.assertNotEqual(self.installed(self.INSTALLED, 'robocopy'), 0)
+        self.assertNotEqual(self.installed(self.INSTALLED, ''), 0)
+
+    def test_installer_exit_codes(self):
+        for raw, want in (('rc=0', 'ok'), ('rc=0\r\n', 'ok'), ('rc=1', 'failed'), ('rc=2', 'failed'), ('rc=7', 'failed'),
+                          ('rc=8', 'failed'), ('rc=1223', 'failed'), ('rc=-1', 'failed'), ('rc=0x1', 'pending'), ('pending', 'pending'), ('', 'pending'), ('rc=', 'pending')):
+            self.assertEqual(shell('gui_native_exit_verdict "$RAW"', RAW=raw).stdout.strip(), want, raw)
 
     def test_each_missing_proof_is_refused(self):
         for line in ('native-package-installed', 'machine-env: WOOTC_E2E_DRIVE=1 WOOTC_PRELOAD=0',
@@ -164,6 +189,148 @@ class GuestVerdictTests(unittest.TestCase):
         self.assertNotEqual(shell('gui_native_bundle_ps', NATIVE_BRAND='blue fin').returncode, 0)
 
 
+class OptionTests(unittest.TestCase):
+    def test_the_options_and_their_defaults(self):
+        for installer, unelevated, ok in (('inno', '1', True), ('robocopy', '0', True), ('', '1', False),
+                                          ('msi', '1', False), ('inno', '', False), ('inno', 'yes', False)):
+            result = shell('gui_native_options_valid', NATIVE_INSTALLER=installer, NATIVE_UNELEVATED=unelevated)
+            self.assertEqual(result.returncode == 0, ok, (installer, unelevated))
+        runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        self.assertIn('NATIVE_INSTALLER="${WOOTC_E2E_NATIVE_INSTALLER:-inno}"', runner)
+        self.assertIn('NATIVE_UNELEVATED="${WOOTC_E2E_NATIVE_UNELEVATED:-1}"', runner)
+
+    def test_only_an_unelevated_native_run_drops_the_task_run_level(self):
+        for frontend, unelevated, want in (('native', '1', 'LIMITED'), ('native', '0', 'HIGHEST'),
+                                           ('wails', '1', 'HIGHEST'), ('wails', '', 'HIGHEST')):
+            result = shell('gui_task_runlevel', GUI_FRONTEND=frontend, NATIVE_UNELEVATED=unelevated)
+            self.assertEqual(result.stdout.strip(), want, (frontend, unelevated))
+
+    def test_the_installer_is_the_one_for_this_build_and_brand(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            call = 'gui_native_installer_file "$DIR" bluefin ' + BUILD
+            self.assertNotEqual(shell(call, DIR=tmp).returncode, 0)
+            want = Path(tmp) / f'bluefin-native-preview-{BUILD}.exe'
+            want.write_bytes(b'MZ')
+            result = shell(call, DIR=tmp)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), str(want))
+            # Another brand's or build's installer is not this run's.
+            self.assertNotEqual(shell('gui_native_installer_file "$DIR" bazzite ' + BUILD, DIR=tmp).returncode, 0)
+            self.assertNotEqual(shell('gui_native_installer_file "$DIR" bluefin ' + '1' * 40, DIR=tmp).returncode, 0)
+            # Two candidates are ambiguous; an empty file is no installer.
+            (Path(tmp) / 'other.exe').write_bytes(b'MZ')
+            self.assertNotEqual(shell(call, DIR=tmp).returncode, 0)
+            (Path(tmp) / 'other.exe').unlink()
+            want.write_bytes(b'')
+            self.assertNotEqual(shell(call, DIR=tmp).returncode, 0)
+
+    def test_the_installer_name_matches_preview_iss(self):
+        iss = (ROOT / 'shell/packaging/preview.iss').read_text()
+        self.assertIn('OutputBaseFilename={#BrandId}-native-preview-{#BuildId}', iss)
+        self.assertIn('AppId=wootc-native-preview-{#BrandId}', iss)
+
+
+class IntegrityTests(unittest.TestCase):
+    SID = 'S-1-5-21-1111111111-2222222222-3333333333-1001'
+    BUNDLE = 'C:\\Program Files\\wootc Native Preview\\bluefin\\bundle\\'
+    GOOD = '\r\n'.join([
+        f'native-integrity: role=shell pid=4100 rid=0x2000 elevated=0 sid={SID} path={BUNDLE}Wootc.Shell.exe',
+        f'native-integrity: role=engine-config pid=4200 rid=0x3000 elevated=1 sid={SID} path={BUNDLE}wootc-engine.exe',
+        f'native-integrity: role=engine-install pid=4300 rid=0x3000 elevated=1 sid={SID} path={BUNDLE}wootc-engine.exe',
+        'native-integrity-done', ''])
+
+    def proven(self, fn, out):
+        return shell(f'{fn} "$OUT"', OUT=out, NATIVE_BRAND='bluefin').returncode
+
+    def test_the_split_passes(self):
+        self.assertEqual(self.proven('gui_native_shell_unelevated_proven', self.GOOD), 0)
+        self.assertEqual(self.proven('gui_native_engine_elevated_proven', self.GOOD), 0)
+
+    def test_an_elevated_shell_is_not_unelevated(self):
+        # Exactly what the /RL HIGHEST launch of run 38857241312 would print.
+        out = self.GOOD.replace('pid=4100 rid=0x2000 elevated=0', 'pid=4100 rid=0x3000 elevated=1')
+        self.assertNotEqual(self.proven('gui_native_shell_unelevated_proven', out), 0)
+        out = self.GOOD.replace('pid=4100 rid=0x2000 elevated=0', 'pid=4100 rid=0x2000 elevated=1')
+        self.assertNotEqual(self.proven('gui_native_shell_unelevated_proven', out), 0)
+
+    def test_the_engine_must_be_the_install_session_elevated_for_the_same_user(self):
+        no_install = '\r\n'.join(l for l in self.GOOD.split('\r\n') if 'engine-install' not in l)
+        self.assertNotEqual(self.proven('gui_native_engine_elevated_proven', no_install), 0)
+        medium = self.GOOD.replace('pid=4300 rid=0x3000 elevated=1', 'pid=4300 rid=0x2000 elevated=0')
+        self.assertNotEqual(self.proven('gui_native_engine_elevated_proven', medium), 0)
+        other = self.GOOD.replace(f'pid=4300 rid=0x3000 elevated=1 sid={self.SID}',
+                                  'pid=4300 rid=0x3000 elevated=1 sid=S-1-5-21-9-9-9-500')
+        self.assertNotEqual(self.proven('gui_native_engine_elevated_proven', other), 0)
+        system = self.GOOD.replace('pid=4300 rid=0x3000', 'pid=4300 rid=0x4000')
+        self.assertNotEqual(self.proven('gui_native_engine_elevated_proven', system), 0)
+        stray = self.GOOD.replace(f'pid=4300 rid=0x3000 elevated=1 sid={self.SID} path={self.BUNDLE}',
+                                  f'pid=4300 rid=0x3000 elevated=1 sid={self.SID} path=C:\\Users\\wootc\\')
+        self.assertNotEqual(self.proven('gui_native_engine_elevated_proven', stray), 0)
+
+    def test_silence_or_an_unreadable_token_proves_nothing(self):
+        for fn in ('gui_native_shell_unelevated_proven', 'gui_native_engine_elevated_proven'):
+            self.assertNotEqual(self.proven(fn, ''), 0)
+            self.assertNotEqual(self.proven(fn, self.GOOD.replace('native-integrity-done', '')), 0)
+            unreadable = self.GOOD.replace(f'rid=0x2000 elevated=0 sid={self.SID} path=', 'error=token-5 path=')
+            self.assertNotEqual(self.proven(fn, unreadable), 0)
+
+    def test_two_shells_are_refused(self):
+        two = self.GOOD.replace('native-integrity-done', self.GOOD.split('\r\n')[0].replace('4100', '4101') + '\r\nnative-integrity-done')
+        self.assertNotEqual(self.proven('gui_native_shell_unelevated_proven', two), 0)
+        self.assertNotEqual(self.proven('gui_native_engine_elevated_proven', two), 0)
+
+    def test_the_probe_reads_the_mandatory_label_and_the_install_purpose(self):
+        probe = shell('gui_native_integrity_ps').stdout
+        self.assertIn('Query(token, 25)', probe)          # TokenIntegrityLevel
+        self.assertIn('Query(token, 20)', probe)          # TokenElevation
+        self.assertIn('--purpose\\s+install', probe)
+        self.assertIn('native-integrity-done', probe)
+        self.assertNotIn("'@\n}", probe.replace("'@\n}\nforeach", ''))  # one here-string, closed at column 0
+        runas = (ROOT / 'shell/Wootc.Shell.Native/RunasLaunch.cs').read_text()
+        self.assertIn('start.ArgumentList.Add("--purpose"); start.ArgumentList.Add("install");', runas)
+
+    def test_an_unelevated_run_requires_both_assertions(self):
+        runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        self.assertIn('RESULT_REQUIRED="$RESULT_REQUIRED,native-shell-unelevated,native-engine-elevated"', runner)
+        module = MODULE.read_text()
+        self.assertIn('product_pass native-shell-unelevated ', module)
+        self.assertIn('product_pass native-engine-elevated ', module)
+
+
+class WaitArtifactTests(unittest.TestCase):
+    SCRIPT = ROOT / '.github/scripts/wait-run-artifact.sh'
+
+    def run_with(self, answers, *names, budget='0'):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp) / 'gh'
+            # Answers the artifact count per name from $ANSWERS (name=count;...).
+            fake.write_text('#!/usr/bin/env bash\n'
+                            'for a in "$@"; do case "$a" in name=*) n=${a#name=} ;; esac; done\n'
+                            'v=$(printf "%s" "$ANSWERS" | tr ";" "\\n" | sed -n "s/^$n=//p")\n'
+                            '[ "$v" = error ] && exit 1\n'
+                            'echo "${v:-0}"\n')
+            fake.chmod(0o755)
+            env = dict(os.environ, PATH=f'{tmp}:{os.environ["PATH"]}', ANSWERS=answers,
+                       GITHUB_REPOSITORY='o/r', GITHUB_RUN_ID='1', WAIT_RUN_ARTIFACT_INTERVAL='0')
+            return subprocess.run(['bash', str(self.SCRIPT), budget, *names], env=env, text=True, capture_output=True)
+
+    def test_the_first_present_name_is_printed(self):
+        result = self.run_with('a=0;b=1', 'a', 'b')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), 'b')
+
+    def test_absence_and_api_errors_time_out(self):
+        result = self.run_with('a=0', 'a')
+        self.assertEqual(result.returncode, 1)
+        result = self.run_with('a=error', 'a')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('listing artifacts failed', result.stderr)
+
+    def test_bad_arguments(self):
+        self.assertEqual(self.run_with('', 'a', budget='soon').returncode, 2)
+        self.assertEqual(self.run_with('').returncode, 2)
+
+
 class ResultLedgerTests(unittest.TestCase):
     def test_a_native_run_requires_the_native_shell_assertion(self):
         runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
@@ -180,6 +347,40 @@ class ResultLedgerTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
+    def job(self, name):
+        start = WORKFLOW.index(f'\n  {name}:\n')
+        end = re.search(r'\n  [\w-]+:\n', WORKFLOW[start + 1:])
+        return WORKFLOW[start:start + 1 + end.start()] if end else WORKFLOW[start:]
+
+    def test_the_installer_is_compiled_on_windows_around_the_e2e_engine(self):
+        native = self.job('native-shell')
+        self.assertIn('runs-on: windows-latest', native)
+        self.assertIn('wait-run-artifact.sh 3600 "$NATIVE_ENGINE_ARTIFACT"', native)
+        self.assertIn('python tests/e2e/native-package.py check out/native-shell', native)
+        self.assertIn('./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND', native)
+        # Only an unavailable compiler may fall back, and it says so.
+        self.assertIn("-notlike 'INNO-UNAVAILABLE:*') { throw }", native)
+        self.assertIn('::warning::', native)
+        # The signing seed never leaves the e2e job.
+        self.assertNotIn('signmanifest', native)
+        self.assertNotIn('MANIFEST_KEY', native)
+
+    def test_the_e2e_job_hands_over_only_the_engine_and_manifest(self):
+        e2e = self.job('e2e')
+        self.assertNotIn('\n    needs:', e2e)
+        upload = e2e[e2e.index('cp "$pkg/wootc-engine.exe" "$pkg/native-package.json" "$RUNNER_TEMP/native-engine/"'):]
+        self.assertNotIn('seed', upload[:upload.index('- id: native_engine')])
+        self.assertIn('echo "WOOTC_E2E_NATIVE_INSTALLER=inno" >> "$GITHUB_ENV"', e2e)
+        self.assertIn('echo "WOOTC_E2E_NATIVE_INSTALLER=robocopy" >> "$GITHUB_ENV"', e2e)
+        self.assertIn('::error::the native-shell job did not produce the preview installer', e2e)
+        self.assertIn("WOOTC_E2E_NATIVE_UNELEVATED: ${{ inputs.native_unelevated && '1' || '0' }}", e2e)
+
+    def test_callers_grant_artifact_listing(self):
+        for name in ('e2e-nightly.yml', 'e2e-gui.yml', 'e2e-matrix.yml', 'release.yml'):
+            text = (ROOT / '.github/workflows' / name).read_text()
+            top = text[text.index('\npermissions:'):text.index('\njobs:')]
+            self.assertIn('actions: read', top, name)
+
     def test_the_e2e_never_publishes_the_gallery(self):
         publishes = [line for line in WORKFLOW.splitlines() if 'dotnet publish' in line]
         self.assertEqual(len(publishes), 1)

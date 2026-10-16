@@ -41,6 +41,7 @@ on:
 permissions:
   contents: read
   packages: read
+  actions: read                  # e2e-hosted's native jobs list this run's artifacts
 
 concurrency:
   group: e2e-gui-publish

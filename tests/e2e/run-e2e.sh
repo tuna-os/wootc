@@ -158,7 +158,27 @@ case "$GUI_FRONTEND" in
             exit 1
         fi
         NATIVE_BRAND=$(printf '%s' "$NATIVE_PACKAGE_IDENTITY" | sed -n 's/.* brandId=\([a-z]*\) .*/\1/p')
-        [ -n "$NATIVE_BRAND" ] || { echo "[FAIL] native package identity is unreadable: $NATIVE_PACKAGE_IDENTITY" >&2; exit 1; }
+        NATIVE_BUILD=$(printf '%s' "$NATIVE_PACKAGE_IDENTITY" | sed -n 's/^buildId=\([0-9a-f]*\) .*/\1/p')
+        [ -n "$NATIVE_BRAND" ] && [ -n "$NATIVE_BUILD" ] || { echo "[FAIL] native package identity is unreadable: $NATIVE_PACKAGE_IDENTITY" >&2; exit 1; }
+        # shellcheck source=tests/e2e/lib/gui-native.sh
+        source "$SCRIPT_DIR/lib/gui-native.sh"
+        # How the package is installed (inno: the real preview installer, the
+        # default; robocopy: only when the runner had no Inno compiler) and
+        # whether the shell starts unelevated (1, the default). See gui-native.sh.
+        NATIVE_INSTALLER="${WOOTC_E2E_NATIVE_INSTALLER:-inno}"
+        NATIVE_UNELEVATED="${WOOTC_E2E_NATIVE_UNELEVATED:-1}"
+        if ! gui_native_options_valid; then
+            echo "[FAIL] WOOTC_E2E_NATIVE_INSTALLER must be inno|robocopy and WOOTC_E2E_NATIVE_UNELEVATED 0|1 (got '$NATIVE_INSTALLER', '$NATIVE_UNELEVATED')" >&2
+            exit 1
+        fi
+        if [ "$NATIVE_INSTALLER" = inno ]; then
+            if ! NATIVE_INSTALLER_FILE=$(gui_native_installer_file "$SCRIPT_DIR/wootc-files/native-installer" "$NATIVE_BRAND" "$NATIVE_BUILD"); then
+                echo "[FAIL] WOOTC_E2E_NATIVE_INSTALLER=inno: wootc-files/native-installer must hold exactly $NATIVE_BRAND-native-preview-$NATIVE_BUILD.exe (build it with shell/packaging/compile-preview.ps1, or set WOOTC_E2E_NATIVE_INSTALLER=robocopy to copy the package instead)" >&2
+                exit 1
+            fi
+        else
+            echo "[WARN] WOOTC_E2E_NATIVE_INSTALLER=robocopy: the package is copied, NOT installed by the preview installer; this run cannot prove the installer" >&2
+        fi
         ;;
     *)
         echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be wails or native, not '$GUI_FRONTEND'" >&2
@@ -185,6 +205,11 @@ if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCEN
     # A native run must prove which frontend drove it, or its green would
     # read exactly like a Wails one.
     if [ "$GUI_FRONTEND" = native ]; then RESULT_REQUIRED=gui-install,native-shell; fi
+    # An unelevated native run must prove both integrity levels, or its green
+    # would read exactly like an elevated-shell one.
+    if [ "$GUI_FRONTEND" = native ] && [ "$NATIVE_UNELEVATED" = 1 ]; then
+        RESULT_REQUIRED="$RESULT_REQUIRED,native-shell-unelevated,native-engine-elevated"
+    fi
 fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
@@ -2682,11 +2707,15 @@ $start = (Get-Date).AddMinutes(-1).ToString('\''HH:mm'\'')
 $who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
 if (-not $who) { throw "autologon-no-session: interactive user disappeared before GUI scheduling" }
 Write-Output ("launching as: " + $who)
+# The run level: HIGHEST elevates the Wails app; LIMITED starts the native
+# shell at medium integrity, as a real user does (gui_task_runlevel).
+'"\$rl = '$(gui_task_runlevel)'"'
+Write-Output ("run level: " + $rl)
 # cmd.exe merges schtasks stderr into stdout. Under "Stop", PowerShell 5.1
 # turns any native stderr line into a terminating error, and /Create writes
 # its past-start-time WARNING there (native run 38853736862 aborted staging
 # on it). The exit code is the verdict.
-$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR C:\wootc\launch-gui.cmd /RU $who /IT /RL HIGHEST /F 2>&1"
+$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR C:\wootc\launch-gui.cmd /RU $who /IT /RL $rl /F 2>&1"
 $mkRc = $LASTEXITCODE
 Write-Output ("schtasks /Create rc=" + $mkRc + " :: " + ($mk -join " "))
 if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }
@@ -2894,6 +2923,14 @@ else {
         return 1
     fi
 
+    # The unelevated native shell: its integrity is observable now; the
+    # install-session engine appears only once the plan check starts, so the
+    # drive loop below keeps sampling until both are proven.
+    if [ "$GUI_FRONTEND" = native ] && [ "$NATIVE_UNELEVATED" = 1 ]; then
+        info "  native elevation (shell and engines, before the directive):"
+        gui_native_observe_integrity
+    fi
+
     # Evidence for the space preflight: the form sizes root.disk from C:'s
     # free space minus the image's deployer scratch (app/install_space.go).
     # A refusal or a deployer "[FAIL] … temporary space" is read against this.
@@ -3094,6 +3131,11 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
             info "  GUI screen: ${last_screen:-<start>} -> $screen"
             last_screen="$screen"
         fi
+        # Until both are proven: the shell at medium integrity and the
+        # install-session engine elevated (no-op once both are recorded).
+        if [ "$GUI_FRONTEND" = native ] && [ "$NATIVE_UNELEVATED" = 1 ]; then
+            gui_native_observe_integrity
+        fi
 
         # INTEGRITY: the drive loop refuses to click Install when the
         # directive's image is not the one actually selected on the form
@@ -3152,7 +3194,10 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         if [ "$screen" = "done" ]; then
             product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
             if [ "$GUI_FRONTEND" = native ]; then
-                product_pass native-shell "The native shell drove the install to done: $(printf '%s\n' "$single_out" | tr -d '\r' | sed -n 's/^native-shell-path: //p'), no Wails app running"
+                product_pass native-shell "The native shell drove the install to done: $(printf '%s\n' "$single_out" | tr -d '\r' | sed -n 's/^native-shell-path: //p'), no Wails app running; installed by $NATIVE_INSTALLER, launched with run level $(gui_task_runlevel)"
+                if [ "$NATIVE_UNELEVATED" = 1 ] && { [ "$GUI_NATIVE_SHELL_UNELEVATED_PROVEN" = false ] || [ "$GUI_NATIVE_ENGINE_ELEVATED_PROVEN" = false ]; }; then
+                    warn "  done, but the elevation split is unproven (shell medium: $GUI_NATIVE_SHELL_UNELEVATED_PROVEN, install engine elevated: $GUI_NATIVE_ENGINE_ELEVATED_PROVEN); the result ledger requires both"
+                fi
             fi
             # Let the done screen actually appear in a capture, then hold it.
             sleep 4; freeze_frame

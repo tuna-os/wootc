@@ -68,24 +68,11 @@ try {
     & (Join-Path $PSScriptRoot 'test-manifest.ps1')
     & (Join-Path $PSScriptRoot 'test-uninstaller-removal.ps1')
     & (Join-Path $PSScriptRoot 'write-manifest.ps1') -PackageDirectory $package -BuildId $BuildId -BrandId $BrandId
-    $tool=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'inno-tool.json') -Raw | ConvertFrom-Json
-    $download=Join-Path $private 'inno-pinned.exe'
-    Invoke-WebRequest -Uri $tool.browser_download_url -OutFile $download
-    $toolHash=(Get-FileHash -LiteralPath $download).Hash.ToLowerInvariant()
-    if ($toolHash -cne $tool.digest.Substring(7) -or (Get-Item -LiteralPath $download).Length -ne $tool.size) { throw 'Pinned compiler installer digest/size mismatch' }
-    $signature=Get-AuthenticodeSignature -LiteralPath $download
-    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Pyrsys B[.]V[.]') { throw 'Pinned compiler installer signer mismatch' }
-    $toolDirectory=Join-Path $private 'compiler'
-    $null=Invoke-OwnedNative -Executable $download -Arguments @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/NOICONS',"/DIR=$toolDirectory")
-    $compiler=Join-Path $toolDirectory 'ISCC.exe'
-    $version=[Diagnostics.FileVersionInfo]::GetVersionInfo($compiler)
-    $compilerVersion=(& $compiler --version | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $compilerVersion -cne '7.1.0') { throw 'Compiler engine version differs from pinned release' }
-    [ordered]@{toolSha256=$toolHash;signer=$signature.SignerCertificate.Subject;peFileVersion=$version.FileVersion;compilerEngineVersion=$compilerVersion} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'compiler-observations.json') -Encoding utf8
+    $compiled=& (Join-Path $PSScriptRoot 'compile-preview.ps1') -BrandId $BrandId -BuildId $BuildId -PackageDirectory $package -OutputDirectory $output -ScratchDirectory $private
+    $installer=$compiled.Installer
+    $toolHash=$compiled.ToolSha256
+    $compilerVersion=$compiled.CompilerVersion
     $brandPath=Join-Path $PSScriptRoot "../../app/branding/$BrandId/brand.json"
-    $brand=Get-Content -LiteralPath $brandPath -Raw | ConvertFrom-Json
-    $null=Invoke-OwnedNative -Executable $compiler -TimeoutSeconds 300 -Arguments @("/DSourceDir=$package","/DOutputDir=$output","/DBrandId=$BrandId","/DProductName=$($brand.productName)","/DPublisher=$($brand.publisher)","/DBuildId=$BuildId",(Join-Path $PSScriptRoot 'preview.iss'))
-    $installer=Join-Path $output "$BrandId-native-preview-$BuildId.exe"
     $arguments=@('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',"/DIR=$destination","/GROUP=wootc Preview Test $unique")
     # A real installer refusal must preserve an existing foreign destination.
     [IO.Directory]::CreateDirectory($destination) | Out-Null
@@ -121,7 +108,7 @@ try {
     foreach ($path in @($foreignRoot,$foreignBundle)) { if ((Get-FileHash -LiteralPath $path).Hash -cne $foreignHash) { throw 'Preview uninstall changed foreign bytes' } }
     $afterUninstall=StateHashes
     if (($afterStartup | ConvertTo-Json -Compress) -cne ($afterUninstall | ConvertTo-Json -Compress)) { throw 'Preview uninstall changed engine installation state' }
-    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;actualUacRefusal=$true;uninstallerRemovalObserved=$true;uninstallerRemovalMilliseconds=$uninstallerRemovalMs;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
+    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$compiled.Signer;toolVersion=$compilerVersion;peFileVersion=$compiled.PeFileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;actualUacRefusal=$true;uninstallerRemovalObserved=$true;uninstallerRemovalMilliseconds=$uninstallerRemovalMs;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'packaging-observations.json') -Encoding utf8
     $verifiedUninstall=$true
 } finally {
