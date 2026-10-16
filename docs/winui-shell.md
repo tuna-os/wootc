@@ -274,6 +274,8 @@ The form now reads that reserve with `GetNativeInstallSpace` and lowers the disk
 [Run 38923119161](https://github.com/tuna-os/wootc/actions/runs/38923119161) passed a full Windows, deployer, Linux and Windows cycle for bluefin with all three proofs.
 The shell came from the real preview installer and started unelevated from a `/RL LIMITED` task.
 The install engine ran elevated through `runas` for the same user.
+[Run 38931058878](https://github.com/tuna-os/wootc/actions/runs/38931058878) passed the same cycle for bazzite, with the same three proofs.
+MokManager enrolled the key, and the form chose a 35 GB disk on 59 GB free.
 The form lowered the 40 GB default to 35 GB beside the 22 GB reserve on a drive with 58 GB free.
 
 The plan check has a known time risk.
