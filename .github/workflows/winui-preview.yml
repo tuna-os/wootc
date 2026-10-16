@@ -10,6 +10,7 @@ on:
       - 'app/frontend/src/screens/done.js'
       - 'app/frontend/src/screens/control.js'
       - 'app/frontend/src/screens/recovery.js'
+      - 'app/frontend/src/screens/vmpreview.js'
       - 'tests/unit/fixtures/install-progress/**'
       - 'app/native_maintenance*'
       - 'tests/unit/fixtures/native-maintenance/**'

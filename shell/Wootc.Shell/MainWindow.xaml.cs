@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
     private readonly Branding brand;
     private InstallGate? installGate;
     private MaintenanceGate? maintenanceGate;
+    private VMGate? vmGate;
     private string configurationBrandId = "";
     private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
@@ -53,7 +54,7 @@ public sealed partial class MainWindow : Window
         InstallButton.Content = $"Advanced: {InstallDisclosure.InstallVerb(brand)} with reboot";
         // Closing the window disconnects both sessions; the engine treats that
         // as a cancellation request for any running install.
-        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); await controller.DisposeAsync(); };
+        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); if (vmGate is not null) await vmGate.DisposeAsync(); await controller.DisposeAsync(); };
     }
     // Local, validated brand assets render before any elevation request and
     // stay visible after a refusal. High contrast keeps the system palette.
@@ -145,6 +146,8 @@ public sealed partial class MainWindow : Window
         // An open maintenance session holds no grant the user has confirmed;
         // it closes with the engine connection.
         if (maintenanceGate is { } maintenance) { maintenanceGate = null; await maintenance.DisposeAsync(); }
+        // The engine stops a Linux window this session started when it closes.
+        if (vmGate is { } vm) { vmGate = null; await vm.DisposeAsync(); }
         try { await controller.DisposeAsync(); }
         catch (Exception error) { ConnectionStatus.Text = $"Disconnect pending: {error.Message}"; }
         UpdateConnection();
@@ -243,6 +246,7 @@ public sealed partial class MainWindow : Window
         StorageFacts.Text = configuration.SelectedStorage is null ? "Choose an assessed volume; no drive is selected automatically" :
             $"{configuration.SelectedStorage.DriveLetter}: {configuration.SelectedStorage.FreeBytes} available bytes; partition: {configuration.SelectedStorage.PartitionGuid}; NTFS: {configuration.SelectedStorage.NtfsSerial}";
         InstallBlockedReason.Text = configuration.InstallationBlockedReason;
+        RenderVM();
         // Any change to the plan on screen discards an earlier grant and its
         // install session; the new plan needs its own engine check.
         _ = DiscardInstallGrantAsync();
@@ -393,6 +397,93 @@ public sealed partial class MainWindow : Window
         UpdateInstallGate();
     }
 
+    // The legacy Linux window screens, word for word, from this session's
+    // VM status and vm:progress events.
+    private void RenderVM()
+    {
+        VMPanel.Visibility = controller.Connection == ConnectionState.Ready ? Visibility.Visible : Visibility.Collapsed;
+        if (VMPanel.Visibility != Visibility.Visible) return;
+        var image = ImageChoice.SelectedItem as ConfigurationImage;
+        string blocked = VMText.PrepareBlockedReason(image?.ImageRef, LinuxUsername.Text, LinuxPassword.Password, LinuxPasswordConfirmation.Password);
+        var view = VMScreen.For(vmGate, brand, image?.Name, blocked);
+        VMLines.Children.Clear();
+        foreach (var line in view.Lines)
+        {
+            var block = new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap };
+            if (line.Id == "VMTitle") { block.FontSize = 20; block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; }
+            AutomationProperties.SetAutomationId(block, line.Id);
+            VMLines.Children.Add(block);
+        }
+        VMProgressBar.Visibility = view.ShowProgress ? Visibility.Visible : Visibility.Collapsed;
+        VMProgressBar.Value = view.ProgressValue;
+        VMButtons.Children.Clear();
+        foreach (var action in view.Buttons)
+        {
+            var button = new Button { Content = action.Label, IsEnabled = action.Enabled };
+            AutomationProperties.SetAutomationId(button, action.Id);
+            string id = action.Id;
+            button.Click += (_, _) => VM_Click(id);
+            VMButtons.Children.Add(button);
+        }
+    }
+
+    private async void VM_Click(string id)
+    {
+        if (id == "ReadVMStatus")
+        {
+            string? brandId = connector.AuthenticatedBrandId;
+            if (brandId is null) return;
+            if (vmGate is null)
+            {
+                vmGate = new VMGate(connector, brandId);
+                var gate = vmGate;
+                gate.Changed += () => DispatcherQueue.TryEnqueue(async () =>
+                {
+                    if (closing) return;
+                    // The legacy screen read the VM again after these events.
+                    if (gate.Progress?.Stage is "started" or "stopped" or "needs_recovery" or "runtime-ready" && gate.State == VMGateState.Open) await gate.RefreshAsync();
+                    RenderVM();
+                });
+            }
+            var opening = vmGate.OpenAsync();
+            RenderVM();
+            await opening;
+            RenderVM();
+            return;
+        }
+        var vm = vmGate;
+        if (vm is null) return;
+        var image = ImageChoice.SelectedItem as ConfigurationImage;
+        var plan = id switch
+        {
+            "StartInWindow" => new NativeVMPlan { Action = VMActions.Prepare, ImageRef = image?.ImageRef, Username = LinuxUsername.Text, Password = LinuxPassword.Password },
+            "SetUpRuntime" => new NativeVMPlan { Action = VMActions.InstallRuntime },
+            "ShutDownLinux" => new NativeVMPlan { Action = VMActions.Stop },
+            "ForceStopLinux" or "CancelSetup" => new NativeVMPlan { Action = VMActions.ForceStop },
+            "StartLinuxAgain" or "BootInVM" => new NativeVMPlan { Action = VMActions.Boot },
+            _ => throw new InvalidDataException("Unsupported VM action"),
+        };
+        if (plan.Action == VMActions.Prepare && VMText.PrepareBlockedReason(plan.ImageRef, plan.Username ?? "", plan.Password ?? "", LinuxPasswordConfirmation.Password).Length != 0) return;
+        // Force stop asks the legacy question; every other action ran on the click.
+        bool ask = id == "ForceStopLinux";
+        var running = vm.RunAsync(plan, async _ =>
+        {
+            if (!ask) return true;
+            var dialog = new ContentDialog
+            {
+                Content = new TextBlock { Text = VMText.ForceStopConfirm, TextWrapping = TextWrapping.Wrap },
+                PrimaryButtonText = "OK", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot,
+            };
+            AutomationProperties.SetAutomationId(dialog, "VMForceStopConfirmation");
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        });
+        RenderVM();
+        bool ran = await running;
+        // As the legacy screen did, the password leaves the form once preparation starts.
+        if (ran && plan.Action == VMActions.Prepare) { LinuxPassword.Password = ""; LinuxPasswordConfirmation.Password = ""; }
+        RenderVM();
+    }
+
     private string StepLabel(string id) => configurationSteps.FirstOrDefault(step => step.Id == id)?.Label ?? id;
 
     // The legacy Manage and Recovery screens, word for word. Every action
@@ -520,5 +611,6 @@ public sealed partial class MainWindow : Window
         InstallRecoveryText.Text = interrupted is null ? "" : $"{interrupted.Title} {interrupted.Message}";
         InstallRecoveryText.Visibility = interrupted is null ? Visibility.Collapsed : Visibility.Visible;
         RenderMaintenance();
+        RenderVM();
     }
 }

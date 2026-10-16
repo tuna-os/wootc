@@ -29,6 +29,11 @@
       <TextBlock x:Name="MaintenanceStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="MaintenanceStatus" />
       <StackPanel x:Name="MaintenanceButtons" Spacing="8" />
     </StackPanel>
+    <StackPanel x:Name="VMPanel" Visibility="Collapsed" Spacing="10" AutomationProperties.AutomationId="VMPanel">
+      <StackPanel x:Name="VMLines" Spacing="6" />
+      <ProgressBar x:Name="VMProgressBar" Minimum="0" Maximum="100" Visibility="Collapsed" AutomationProperties.AutomationId="VMProgressBar" />
+      <StackPanel x:Name="VMButtons" Spacing="8" />
+    </StackPanel>
     <Button x:Name="ConfigurationButton" Content="Read Linux configuration" Click="Configuration_Click" IsEnabled="False" AutomationProperties.AutomationId="ReadConfiguration" />
     <StackPanel x:Name="ConfigurationPanel" Visibility="Collapsed" Spacing="12">
       <TextBlock Text="Linux configuration" FontSize="20" />
