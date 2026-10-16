@@ -84,6 +84,18 @@ class NativePackageTests(unittest.TestCase):
         (self.dir / 'wootc-engine.exe').unlink()
         self.assertIn('wootc-engine.exe', self.write().stderr)
 
+    def test_a_windows_checkout_brand_with_crlf_is_the_same_brand(self):
+        # windows-latest checks out brand.json with CRLF (run 38843668488).
+        crlf = self.brand.read_bytes().replace(b'\n', b'\r\n')
+        self.assertNotEqual(crlf, self.brand.read_bytes())
+        (self.dir / 'Branding/brand.json').write_bytes(crlf)
+        self.assertEqual(self.write().returncode, 0)
+        self.assertEqual(package('check', str(self.dir)).returncode, 0)
+
+    def test_a_different_brand_content_is_still_refused(self):
+        (self.dir / 'Branding/brand.json').write_bytes((ROOT / 'app/branding/bazzite/brand.json').read_bytes())
+        self.assertIn('differs from the selected source brand', self.write().stderr)
+
     def test_identity_must_be_a_commit_and_a_known_brand(self):
         self.assertEqual(package('write', str(self.dir), BUILD.upper(), 'bluefin', str(self.brand)).returncode, 1)
         self.assertEqual(package('write', str(self.dir), BUILD, 'gtk', str(self.brand)).returncode, 1)

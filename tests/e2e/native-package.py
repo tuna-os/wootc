@@ -90,7 +90,13 @@ def write(root, build, brand, brand_json):
         raise PackageError('refusing to overwrite an existing native manifest')
     files = observe(root)
     require(files)
-    if files['Branding/brand.json'] != digest(Path(brand_json)):
+    # The shell is published from a Windows checkout, where git writes
+    # brand.json with CRLF (the shipped preview packages carry the same
+    # bytes). Compare the brand's content, not its line endings; the manifest
+    # still records the published bytes, which is what the shell verifies.
+    def lines(path):
+        return path.read_bytes().replace(b'\r\n', b'\n')
+    if lines(root / 'Branding/brand.json') != lines(Path(brand_json)):
         raise PackageError('package branding differs from the selected source brand')
     body = json.dumps({'schemaVersion': 1, 'protocolVersion': 1, 'buildId': build,
                        'brandId': brand, 'files': files}, separators=(',', ':'), sort_keys=True).encode()
