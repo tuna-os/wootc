@@ -45,10 +45,28 @@ class OwnershipTests(unittest.TestCase):
         self.assertEqual(self.claim('loader/entries/wootc.conf').returncode,0)
 
     def test_existing_unclaimed_shared_vendor_file_cannot_be_claimed(self):
+        (self.esp/'EFI/fedora/grub.cfg').write_text('set default=0\n')
         existing=self.esp/'EFI/fedora/grubx64.efi';existing.write_bytes(b'foreign grub')
         before=self.manifest.read_bytes()
         self.assertNotEqual(self.claim('EFI/fedora/grubx64.efi').returncode,0)
         self.assertEqual(existing.read_bytes(),b'foreign grub');self.assertEqual(self.manifest.read_bytes(),before)
+
+    def test_wootc_marked_fedora_tree_is_claimed_without_prior_manifest_entry(self):
+        # setup-wootc.ps1 and pre-manifest installers stage EFI/fedora under
+        # the "# wootc" grub.cfg marker without claims (app ownsFedoraNamespace).
+        existing=self.esp/'EFI/fedora/grubx64.efi';existing.write_bytes(b'wootc staged grub')
+        self.assertEqual(self.claim('EFI/fedora/grubx64.efi').returncode,0)
+        self.assertIn(b'efi/fedora/grubx64.efi',self.manifest.read_bytes())
+
+    def test_absent_manifest_is_started_empty_in_own_namespace(self):
+        self.manifest.unlink()
+        ensure=lambda:subprocess.run(['bash','-c','source "$1";esp_ensure_manifest "$2"','ensure',
+            str(ROOT/'payload/migration/wootc-esp-own'),str(self.esp)],capture_output=True)
+        self.assertEqual(ensure().returncode,0);self.assertEqual(self.manifest.read_bytes(),b'')
+        self.manifest.write_bytes(b'efi/fedora/grub.cfg\n')
+        self.assertEqual(ensure().returncode,0);self.assertEqual(self.manifest.read_bytes(),b'efi/fedora/grub.cfg\n')
+        self.manifest.unlink();self.manifest.symlink_to(self.esp/'EFI/fedora/grub.cfg')
+        self.assertNotEqual(ensure().returncode,0)
 
     def test_symlink_in_own_namespace_refuses(self):
         link=self.esp/'EFI/wootc/phase2-vmlinuz';link.symlink_to(self.esp/'EFI/fedora/shimx64.efi')

@@ -36,12 +36,35 @@ esp_path_is_own_namespace() {
         [[ "$value" == loader/entries/wootc.conf ]]
 }
 
+# A grub.cfg carrying the "# wootc" marker family means wootc staged the
+# shared EFI/fedora tree: an installer that predates the manifest, and the
+# scripted Phase 1 (setup-wootc.ps1), stage it without claims. Same rule as
+# app/esp_ownership.go ownsFedoraNamespace; no other vendor tree gets it.
+esp_fedora_tree_is_wootc() {
+    local esp="$1"
+    [[ -f "$esp/EFI/fedora/grub.cfg" && ! -L "$esp/EFI/fedora/grub.cfg" ]] &&
+        grep -q '# wootc' "$esp/EFI/fedora/grub.cfg"
+}
+
+# The deployer runs after a Phase 1 that may have written no manifest (see
+# above). The manifest lives in wootc's own namespace, so an absent one is
+# started empty and every later claim is recorded in it.
+esp_ensure_manifest() {
+    local esp="$1"
+    [[ ! -L "$esp/EFI/wootc/wootc-owned.txt" ]] || return 1
+    [[ -f "$esp/EFI/wootc/wootc-owned.txt" ]] && return 0
+    mkdir -p "$esp/EFI/wootc" && : > "$esp/EFI/wootc/wootc-owned.txt" &&
+        sync -f "$esp/EFI/wootc"
+}
+
 esp_assert_owned_or_absent() {
-    local esp="$1" relative="$2"
-    esp_normalize_owned_path "$relative" >/dev/null || return 1
+    local esp="$1" relative="$2" normalized
+    normalized=$(esp_normalize_owned_path "$relative") || return 1
     [[ -f "$esp/EFI/wootc/wootc-owned.txt" && ! -L "$esp/EFI/wootc/wootc-owned.txt" ]] || return 1
     [[ ! -e "$esp/$relative" && ! -L "$esp/$relative" ]] && return 0
-    [[ ! -L "$esp/$relative" ]] && esp_path_is_own_namespace "$relative" && return 0
+    [[ ! -L "$esp/$relative" ]] || return 1
+    esp_path_is_own_namespace "$relative" && return 0
+    [[ "$normalized" == efi/fedora/* ]] && esp_fedora_tree_is_wootc "$esp" && return 0
     esp_path_is_owned "$esp" "$relative"
 }
 

@@ -147,7 +147,7 @@
     "tests/unit/test_wootc_esp_control.py": "131ea36dd16ebf1619a7a9d7ea0842701a5750b0fcf710357878089d07c668d2",
     "tests/unit/test_wootc_esp_launcher.py": "07e662910ef398c992662fc9bff16cb465cbc6172f9a73db64c9bdc9c3c86546",
     "tests/unit/test_wootc_esp_orchestrator.py": "684ea317cb21f53536965bad0c976dc23f576636da967aaf25784ceea983a32e",
-    "tests/unit/test_wootc_esp_ownership.py": "85b226bed1183f89b1474ee39d5740d4b2446c57246e836d7bc28817d451f8fc",
+    "tests/unit/test_wootc_esp_ownership.py": "f826c33264dd18b2baf255cadac953496d8aacc2ea06b2e29fe10c2b54520da7",
     "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
     "tests/unit/test_wootc_pe.py": "2ff362c3a4b7f3dcdd73507862dd6f750b386f273a6487e910e39d4d84f51f57"
   },

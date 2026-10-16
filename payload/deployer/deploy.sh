@@ -3059,6 +3059,10 @@ QGAEOF
         if mount -t vfat "$ESP_DEV" /mnt/esp 2>/dev/null; then
             # shellcheck source=payload/migration/wootc-esp-own
             source /usr/lib/wootc/migration/wootc-esp-own
+            esp_ensure_manifest /mnt/esp || {
+                err "  [FAIL] ESP ownership manifest EFI/wootc/wootc-owned.txt is not a regular file"
+                exit 1
+            }
             # Refuse foreign contents BEFORE deleting/copying any ESP payload.
             for owned_path in EFI/wootc/deployer-vmlinuz EFI/wootc/deployer-initramfs.img \
                 EFI/wootc/phase2-vmlinuz EFI/wootc/phase2-initramfs.img \
