@@ -139,6 +139,12 @@ class SingleInstanceVerdictTests(unittest.TestCase):
         out = self.NATIVE + "OTHER-FRONTEND: 1 wootc.exe running beside the frontend under test\n"
         self.assertNotEqual(self.verdict(out, "Wootc.Shell.exe"), 0)
 
+    def test_the_launch_trigger_is_in_the_past(self):
+        # A ONCE trigger at now+1m fires a second launch after /Run (native
+        # run 38849303170). A past start time leaves /Run as the only launch.
+        self.assertIn("$start = (Get-Date).AddMinutes(-1).ToString('\\''HH:mm'\\'')", SOURCE)
+        self.assertNotIn("$start = (Get-Date).AddMinutes(1).ToString('\\''HH:mm'\\'')\n# /RU must name", SOURCE)
+
     def test_the_probe_counts_the_frontend_under_test(self):
         payload = single_instance_payload()
         self.assertIn("Get-Process -Name $gui", payload)

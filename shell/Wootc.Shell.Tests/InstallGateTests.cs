@@ -42,7 +42,8 @@ public sealed class InstallGateTests
             Confirmed.Add(grant);
             return ConfirmFailure is null ? Task.CompletedTask : Task.FromException(ConfirmFailure);
         }
-        public ValueTask DisposeAsync() { Disposed++; return ValueTask.CompletedTask; }
+        public Exception? DisposeFailure;
+        public ValueTask DisposeAsync() { Disposed++; return DisposeFailure is null ? ValueTask.CompletedTask : ValueTask.FromException(DisposeFailure); }
     }
 
     private sealed class FakeConnector : IEngineConnector
@@ -111,6 +112,51 @@ public sealed class InstallGateTests
         Assert.Equal(InstallGateState.Refused, gate.State);
         Assert.False(gate.CanInstall);
         Assert.Equal(1, connector.Sessions[0].Disposed);
+    }
+
+    // Native E2E run 38849303170: the engine's plan check outlasted the
+    // shell's deadline, and closing the busy engine's session then failed
+    // too. That second exception escaped PrepareAsync and left the gate in
+    // Preparing with no reason, so the form stayed disabled with no error.
+    [Fact]
+    public async Task APlanCheckTimeoutWhoseCleanupFailsIsARefusalWithAReason()
+    {
+        var connector = new FakeConnector
+        {
+            Configure = session =>
+            {
+                session.Refusal = new OperationCanceledException();
+                session.DisposeFailure = new IOException("Engine cleanup is still pending; do not reboot");
+            },
+        };
+        await using var gate = new InstallGate(connector, Brand);
+        int changes = 0;
+        gate.Changed += () => changes++;
+        await gate.PrepareAsync(Plan());
+        Assert.Equal(InstallGateState.Refused, gate.State);
+        Assert.False(gate.CanInstall);
+        Assert.Contains("did not finish checking this plan in time", gate.Reason);
+        Assert.Contains("Engine cleanup is still pending", gate.Reason);
+        Assert.Equal(1, connector.Sessions[0].Disposed);
+        Assert.True(changes >= 1);
+    }
+
+    [Fact]
+    public async Task ARefusalWhoseCleanupFailsKeepsBothReasons()
+    {
+        var connector = new FakeConnector
+        {
+            Configure = session =>
+            {
+                session.Refusal = new InvalidDataException("native install observations refused");
+                session.DisposeFailure = new IOException("Engine cleanup is still pending; do not reboot");
+            },
+        };
+        await using var gate = new InstallGate(connector, Brand);
+        await gate.PrepareAsync(Plan());
+        Assert.Equal(InstallGateState.Refused, gate.State);
+        Assert.Contains("native install observations refused", gate.Reason);
+        Assert.Contains("Engine cleanup is still pending", gate.Reason);
     }
 
     [Fact]

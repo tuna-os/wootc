@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -295,5 +296,39 @@ func TestHumanAuthoritiesReadsAsASentence(t *testing.T) {
 		if got := humanAuthorities(strings.Split(in, ",")); got != want {
 			t.Errorf("humanAuthorities(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// The native plan check validates a plan twice and reports the system once,
+// all inside the shell's deadline. Each system read spawns PowerShell, so the
+// gate must read the system exactly once per call, and a memoized read must
+// serve every call of one check (native E2E run 38849303170 overran it).
+func TestGateScenarioReadsTheSystemOnce(t *testing.T) {
+	a := NewApp()
+	reads := 0
+	info := func() SystemInfo { reads++; return SystemInfo{} }
+	_ = a.gateScenarioWith(InstallConfig{ImageRef: "ghcr.io/example/image:latest"}, info)
+	if reads != 1 {
+		t.Fatalf("gateScenarioWith read the system %d times, want 1", reads)
+	}
+	once := sync.OnceValue(info)
+	_, _ = a.validateInstallConfigWith(InstallConfig{ImageRef: "ghcr.io/example/image:latest"}, once)
+	_, _ = a.validateInstallConfigWith(InstallConfig{ImageRef: "ghcr.io/example/image:latest"}, once)
+	if reads != 2 {
+		t.Fatalf("a memoized read served %d system reads for two validations, want 1", reads-1)
+	}
+}
+
+// The refusal still comes from the one read it was given.
+func TestGateScenarioRefusesFromTheSuppliedRead(t *testing.T) {
+	oldStamp := shimAuthorities
+	t.Cleanup(func() { shimAuthorities = oldStamp })
+	shimAuthorities = "2011"
+	a := NewApp()
+	err := a.gateScenarioWith(InstallConfig{ImageRef: "ghcr.io/example/image:latest"}, func() SystemInfo {
+		return SystemInfo{SecureBootOn: true, SecureBootKnown: true, UefiDbRead: true, TrustedUefiAuthorities: []string{"2023"}}
+	})
+	if err == nil {
+		t.Fatal("a 2023-only firmware with a 2011 shim was not refused")
 	}
 }

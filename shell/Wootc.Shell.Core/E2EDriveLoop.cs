@@ -111,9 +111,23 @@ public sealed class E2EDriveLoop
                 // Before the click: a click whose handler partly ran is never replayed.
                 Session.MarkInstallRequested();
                 bool started;
+                string? failure = null;
                 try { started = await view.ClickInstallAsync(); }
-                catch (Exception error) when (error is not OperationCanceledException) { started = false; }
+                catch (Exception error) when (error is not OperationCanceledException) { started = false; failure = error.Message; }
                 if (started) Session.MarkInstallDriven();
+                else
+                {
+                    // The click is never replayed, so an install that did not
+                    // start ends this drive. Say why, or the harness sees a
+                    // disabled form with no error and waits for nothing
+                    // (native E2E run 38849303170).
+                    var after = view.Observe();
+                    string reason = !string.IsNullOrWhiteSpace(after.Error) ? after.Error
+                        : !string.IsNullOrWhiteSpace(failure) ? "The install could not start: " + failure
+                        : "The engine did not grant this plan, so the install did not start." +
+                          (string.IsNullOrWhiteSpace(after.Hint) ? "" : " " + after.Hint);
+                    Session.MarkRefused(reason);
+                }
                 break;
             case DriveCommand.Reboot:
                 Session.MarkRebootDriven();

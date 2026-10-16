@@ -131,6 +131,36 @@ public sealed class E2EDriveLoopTests
         Assert.Contains("\"installDriven\":false", channel.Reports[^1]);
     }
 
+    // Native E2E run 38849303170: the plan check failed, the form stayed
+    // disabled, and the report carried no error, so the harness could only
+    // time out. An install that did not start is reported as the drive error.
+    [Fact]
+    public async Task AnInstallThatDidNotStartIsReportedAsTheDriveError()
+    {
+        var channel = new FakeChannel { Directive = Golden("directive-install.json") };
+        var view = new FakeView { ClickStarts = false };
+        var loop = new E2EDriveLoop(channel, view);
+        for (int tick = 0; tick < 3; tick++) await loop.TickAsync();
+        Assert.Equal(1, view.Clicks);
+        Assert.Contains("did not grant this plan", loop.Session.DriveError);
+        Assert.Contains("\"error\":\"The engine did not grant this plan", channel.Reports[^1]);
+    }
+
+    [Fact]
+    public async Task TheViewsOwnErrorIsTheDriveErrorWhenTheInstallDidNotStart()
+    {
+        var channel = new FakeChannel { Directive = Golden("directive-install.json") };
+        var view = new FakeView { ClickStarts = false };
+        var loop = new E2EDriveLoop(channel, view);
+        await loop.TickAsync();
+        view.Error = "The engine did not finish checking this plan in time.";
+        await loop.TickAsync();
+        Assert.Equal("The engine did not finish checking this plan in time.", loop.Session.DriveError);
+        view.Error = null;
+        await loop.TickAsync();
+        Assert.Contains("\"error\":\"The engine did not finish checking this plan in time.\"", channel.Reports[^1]);
+    }
+
     [Fact]
     public async Task AFailedMappingIsReportedAsTheDriveError()
     {

@@ -63,15 +63,35 @@ public sealed class InstallGate : IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await CloseSessionAsync();
-            State = InstallGateState.Idle;
+            string? cleanup = await CloseSessionAfterFailureAsync();
+            if (cleanup is null) State = InstallGateState.Idle;
+            else Refuse(cleanup);
         }
         catch (Exception error)
         {
-            await CloseSessionAsync();
-            Refuse(error.Message);
+            // The plan check failed. Closing its session can fail too (an
+            // engine still busy past its disconnect deadline); that must not
+            // leave the gate in Preparing with no reason, which looks like a
+            // check still running and disables the form for good.
+            string reason = error is OperationCanceledException
+                ? "The engine did not finish checking this plan in time."
+                : error.Message;
+            string? cleanup = await CloseSessionAfterFailureAsync();
+            Refuse(cleanup is null ? reason : $"{reason} {cleanup}");
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+            // Every outcome reaches the view, including the early returns.
+            Changed?.Invoke();
+        }
+    }
+
+    // Closes the session of a failed check. Returns why cleanup failed, or null.
+    private async Task<string?> CloseSessionAfterFailureAsync()
+    {
+        try { await CloseSessionAsync(); return null; }
+        catch (Exception error) { return string.IsNullOrWhiteSpace(error.Message) ? "The engine session did not close." : error.Message; }
     }
 
     // Confirming sends only the grant's intent. The engine runs the plan it

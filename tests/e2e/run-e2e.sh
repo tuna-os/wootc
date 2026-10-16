@@ -2670,7 +2670,11 @@ start `"`" $launch
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
 Stop-Process -Name wootc,Wootc.Shell -Force -ErrorAction SilentlyContinue
 try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
-$start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
+# The trigger time is one minute in the PAST, so the ONCE trigger never fires
+# and /Run is the only launch. A trigger at now+1m launched a second app
+# (native run 38849303170 killed one before the directive). schtasks warns
+# that the task may not run and still creates it.
+$start = (Get-Date).AddMinutes(-1).ToString('\''HH:mm'\'')
 # /RU must name the account that is actually autologged on: Pro media use
 # "wootc", Enterprise/LTSC use "docker". A wrong name fails /Create outright
 # with "No mapping between account names and security IDs was done" (see
@@ -2780,7 +2784,9 @@ Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption)
     fi
     pass "$GUI_PROCESS.exe GUI launched in drive mode in the wootc session"
 
-    # The task that launched the app must not launch it a SECOND time.
+    # The task that launched the app must not launch it a SECOND time. The
+    # trigger is now set in the past, so it should never fire; the delete and
+    # the count below stay as the proof.
     # `/Create /SC ONCE /ST <now+1m>` leaves a live trigger behind and `/Run`
     # does not consume it, so Task Scheduler starts launch-gui.cmd again within
     # the minute — and nothing makes wootc.exe single-instance. The second app

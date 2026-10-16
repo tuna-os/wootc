@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
 func (authorization *nativeInstallAuthorization) intentID() string { return authorization.intent }
@@ -23,7 +24,12 @@ func newWindowsNativeInstallPrepare(ctx context.Context, app *App, user *nativeO
 		if user == nil {
 			return nil, NativeInstallGrant{}, fmt.Errorf("native install preparation unavailable")
 		}
-		validated, err := app.validateInstallConfig(plan)
+		// One system read for the whole check: each read spawns several
+		// PowerShell queries, and this check validates twice and reports
+		// BitLocker, Fast Startup and Secure Boot within the shell's
+		// deadline (native E2E run 38849303170 overran it).
+		systemInfo := sync.OnceValue(getSystemInfo)
+		validated, err := app.validateInstallConfigWith(plan, systemInfo)
 		if err != nil {
 			return nil, NativeInstallGrant{}, err
 		}
@@ -50,14 +56,14 @@ func newWindowsNativeInstallPrepare(ctx context.Context, app *App, user *nativeO
 			return binding.unchangedIn(current, validated)
 		}
 		validate := func(config InstallConfig) error {
-			_, err := app.validateInstallConfig(config)
+			_, err := app.validateInstallConfigWith(config, systemInfo)
 			return err
 		}
 		authority, err := prepareNativeInstallAuthorization(user, session, brand, validated, validate, revalidate)
 		if err != nil {
 			return nil, NativeInstallGrant{}, err
 		}
-		info := getSystemInfo()
+		info := systemInfo()
 		return authority, NativeInstallGrant{
 			SchemaVersion: 1, Session: session, BrandID: brand, IntentID: authority.intent,
 			ImageRef: validated.ImageRef, StorageDrive: validated.StorageDrive, DiskSizeGB: validated.DiskSizeGB, Encryption: validated.Encryption,

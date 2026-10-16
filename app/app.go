@@ -367,10 +367,19 @@ func supportPolicyFor(channel string, brand Branding, driveMode bool) SupportPol
 
 // gateScenario refuses an install the active channel has not proven green.
 func (a *App) gateScenario(cfg InstallConfig) error {
+	return a.gateScenarioWith(cfg, getSystemInfo)
+}
+
+// gateScenarioWith reads the system once. Each read spawns several
+// PowerShell queries, and the native plan check validates a plan more than
+// once inside the shell's deadline (native E2E run 38849303170 overran it),
+// so it passes one memoized read for the whole check.
+func (a *App) gateScenarioWith(cfg InstallConfig, systemInfo func() SystemInfo) error {
 	pol := a.GetSupportPolicy()
+	si := systemInfo()
 	// BitLocker/FDE path is not green yet (#34).
 	if !pol.BitLockerSupported {
-		if getSystemInfo().BitLockerOn {
+		if si.BitLockerOn {
 			return fmt.Errorf("BitLocker drive encryption isn't supported in the %s yet — "+
 				"we're finishing testing so your files stay safe. It's coming soon; "+
 				"for now, %s works on PCs where drive encryption is off", pol.Channel, productName())
@@ -380,7 +389,6 @@ func (a *App) gateScenario(cfg InstallConfig) error {
 	// Checked here, before a single byte is written, because the failure it
 	// prevents ("bad shim signature") happens after the reboot, where the
 	// user has no way to find out why Windows came back.
-	si := getSystemInfo()
 	if v := secureBootChainVerdict(si); v.Blocked {
 		return fmt.Errorf("%s", v.Message)
 	}
@@ -496,10 +504,16 @@ func normalizeBootloader(v string) (string, error) {
 // It reads only and returns the normalized configuration. The native install
 // session runs it before it grants an install intent.
 func (a *App) validateInstallConfig(cfg InstallConfig) (InstallConfig, error) {
+	return a.validateInstallConfigWith(cfg, getSystemInfo)
+}
+
+// validateInstallConfigWith validates against one system read (see
+// gateScenarioWith).
+func (a *App) validateInstallConfigWith(cfg InstallConfig, systemInfo func() SystemInfo) (InstallConfig, error) {
 	// Green-gate (docs/RELEASING.md): refuse scenarios the active channel has
 	// not proven, so an alpha user can never be walked into a known-red path.
 	// The frontend gates the UI too; this is the authoritative backstop.
-	if err := a.gateScenario(cfg); err != nil {
+	if err := a.gateScenarioWith(cfg, systemInfo); err != nil {
 		return InstallConfig{}, err
 	}
 	bootloader, err := normalizeBootloader(cfg.Bootloader)

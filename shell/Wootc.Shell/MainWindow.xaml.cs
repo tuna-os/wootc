@@ -386,8 +386,10 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         }
         var preparing = installGate.PrepareAsync(draft);
         UpdateInstallGate();
-        await preparing;
-        UpdateInstallGate();
+        // Whatever the check's outcome, the form shows it: a check that
+        // threw must not leave the buttons as they were while it ran.
+        try { await preparing; }
+        finally { UpdateInstallGate(); }
     }
 
     // The confirmation repeats the legacy launchpad's own disclosures. Cancel
