@@ -61,6 +61,7 @@ var ProtocolMethods = []string{
 	"GetInstallRecovery",
 	"E2EDriveDirective",
 	"E2EDriveReport",
+	"E2EDriveReady",
 	"GetVMCapability",
 	"GetFreshVMCapability",
 	"GetVMState",
@@ -283,6 +284,15 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		switch req.Method {
 		case "GetStatus", "GetLastRun", "GetRecoveryVerdict", "GetInstallRecovery":
 		case "GetNativeConfiguration":
+			if s.configurationRead == nil {
+				return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
+			}
+		case "E2EDriveDirective", "E2EDriveReport", "E2EDriveReady":
+			// The native shell's drive mode reads the harness directive and
+			// writes its reports through its authenticated configuration
+			// session, as the Wails frontend does through its bridge. All
+			// three stay inert unless WOOTC_E2E_DRIVE=1 is set in this
+			// engine's own environment; the shell cannot turn them on.
 			if s.configurationRead == nil {
 				return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
 			}

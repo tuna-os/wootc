@@ -86,6 +86,11 @@ RECOVERY_CHECK=false
 # firmware trusts. Empty keeps Dockur's stock vars (both CAs). See
 # tests/e2e/firmware-db.py for the cells.
 FIRMWARE_DB="${WOOTC_E2E_FIRMWARE_DB:-}"
+# Which GUI --gui-install drives: the legacy Wails app (default) or the native
+# shell. Only the directive differs so far (the native one names its target
+# volume); the native shell's launch is not wired yet, so that value is
+# refused below rather than driving the Wails app and recording it as native.
+GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-wails}"
 OFFLINE=false
 for arg in "$@"; do
     case "$arg" in
@@ -132,6 +137,15 @@ WOOTC_RESULT_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-results.$$.jsonl"
 RESULT_SCENARIO=full-cycle
 if [ "${RUN_PHASE3:-false}" = true ]; then RESULT_SCENARIO=native-cycle; fi
 if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
+case "$GUI_FRONTEND" in
+    wails) ;;
+    native)
+        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native: the harness cannot launch the native shell yet (#344); its directive is ready, its launch is not" >&2
+        exit 1 ;;
+    *)
+        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be wails or native, not '$GUI_FRONTEND'" >&2
+        exit 1 ;;
+esac
 case "$FIRMWARE_DB" in
     ""|2011|2023|both) ;;
     # Firmware that trusts neither third-party CA cannot launch any shim, so
@@ -2780,14 +2794,10 @@ else { Write-Output "single-instance: 1 wootc.exe" }' 2>&1) || true
     step "Driving the REAL install through the live form (drive directive)..."
     local drive_directive_id drive_payload drive_ack
     drive_directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
-    drive_payload=$(python3 - "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" <<'PYDRIVE'
-import base64, json, sys
-value = dict(schemaVersion=1, runId=sys.argv[1], directiveId=sys.argv[2],
-             action='install', image=sys.argv[3], username='wootc',
-             password='wootc-e2e-pass', hostname='wootc-test')
-print(base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode())
-PYDRIVE
-    ) || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # The native shell's directive names its target volume (storageId "C:");
+    # the Wails directive is unchanged. See gui-drive-directive.py.
+    drive_payload=$(python3 "$SCRIPT_DIR/gui-drive-directive.py" "$GUI_FRONTEND" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF") \
+        || { infra_fail "Could not construct this run's GUI directive"; return 1; }
     # BOM-LESS write, verified byte-exact. Set-Content -Encoding UTF8 on the
     # guest's PowerShell 5.1 emits a UTF-8 BOM, and NEITHER consumer tolerates
     # one: Go's encoding/json rejects a leading BOM (so E2EDriveDirective

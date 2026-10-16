@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -11,7 +12,7 @@ using Wootc.Shell.Native;
 
 namespace Wootc.Shell;
 
-public sealed partial class MainWindow : Window
+public sealed partial class MainWindow : Window, IE2EDriveView
 {
     private readonly StartupController controller;
     private readonly IBrandedEngineConnector connector;
@@ -28,6 +29,13 @@ public sealed partial class MainWindow : Window
     private bool closing;
     private readonly bool observeFixtureInput = Environment.GetEnvironmentVariable("WOOTC_NATIVE_PREVIEW_INPUT_OBSERVATION") == "1";
     private int passwordChanges, confirmationChanges;
+    // E2E drive mode (WOOTC_E2E_DRIVE=1), the counterpart of the Wails
+    // frontend's startE2EDrive. The engine answers the drive channel only when
+    // its own environment enables it too.
+    private readonly bool driveMode = Environment.GetEnvironmentVariable("WOOTC_E2E_DRIVE") == "1";
+    private E2EDriveLoop? drive;
+    private DispatcherQueueTimer? driveTimer;
+    private bool driveTicking, driveConnectRequested, driveConfigurationRequested;
 
     public MainWindow()
     {
@@ -58,9 +66,12 @@ public sealed partial class MainWindow : Window
 #endif
         controller = new StartupController(brand, connector);
         InstallButton.Content = $"Advanced: {InstallDisclosure.InstallVerb(brand)} with reboot";
+#if !NATIVE_GALLERY
+        if (driveMode) StartDrive();
+#endif
         // Closing the window disconnects both sessions; the engine treats that
         // as a cancellation request for any running install.
-        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); if (vmGate is not null) await vmGate.DisposeAsync(); await controller.DisposeAsync(); };
+        Closed += async (_, _) => { closing=true; driveTimer?.Stop(); InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); if (vmGate is not null) await vmGate.DisposeAsync(); await controller.DisposeAsync(); };
     }
     // Local, validated brand assets render before any elevation request and
     // stay visible after a refusal. High contrast keeps the system palette.
@@ -133,7 +144,9 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void Connect_Click(object sender, RoutedEventArgs args)
+    private async void Connect_Click(object sender, RoutedEventArgs args) => await ConnectAsync();
+
+    private async Task ConnectAsync()
     {
         ConnectButton.IsEnabled = false;
         ConnectionStatus.Text = "Requesting administrator permission";
@@ -159,7 +172,9 @@ public sealed partial class MainWindow : Window
         UpdateConnection();
     }
 
-    private async void Configuration_Click(object sender, RoutedEventArgs args)
+    private async void Configuration_Click(object sender, RoutedEventArgs args) => await ReadConfigurationAsync();
+
+    private async Task ReadConfigurationAsync()
     {
         ConfigurationButton.IsEnabled = false;
         using var read = new CancellationTokenSource();
@@ -347,7 +362,9 @@ public sealed partial class MainWindow : Window
     // Reboot Later leaves the prepared restart in place, as the legacy app does.
     private void RebootLater_Click(object sender, RoutedEventArgs args) => Close();
 
-    private async void RebootNow_Click(object sender, RoutedEventArgs args)
+    private async void RebootNow_Click(object sender, RoutedEventArgs args) => await RebootNowAsync();
+
+    private async Task RebootNowAsync()
     {
         if (installGate is null) return;
         RebootNowButton.IsEnabled = false;
@@ -356,7 +373,9 @@ public sealed partial class MainWindow : Window
         UpdateInstallGate();
     }
 
-    private async void PrepareInstall_Click(object sender, RoutedEventArgs args)
+    private async void PrepareInstall_Click(object sender, RoutedEventArgs args) => await PrepareInstallAsync();
+
+    private async Task PrepareInstallAsync()
     {
         if (configuration is null || configuration.FormProblem.Length != 0 || configurationBrandId.Length == 0) return;
         var draft = configuration.CreateDraft();
@@ -619,4 +638,117 @@ public sealed partial class MainWindow : Window
         RenderMaintenance();
         RenderVM();
     }
+
+    // ── E2E drive mode ───────────────────────────────────────────────────────
+    // The drive performs the clicks a person makes, in the same order: read
+    // the startup status (one elevation), read the Linux configuration, then
+    // let E2EDriveLoop fill the form, check the plan and install.
+    private void StartDrive()
+    {
+        drive = new E2EDriveLoop(controller, this);
+        driveTimer = DispatcherQueue.CreateTimer();
+        driveTimer.Interval = TimeSpan.FromMilliseconds(E2EDriveLoop.PollMilliseconds);
+        driveTimer.Tick += async (_, _) => await DriveTickAsync();
+        driveTimer.Start();
+    }
+
+    private async Task DriveTickAsync()
+    {
+        if (driveTicking || closing || drive is null) return;
+        driveTicking = true;
+        try
+        {
+            // One permission request per window: a refused elevation is not retried.
+            if (!driveConnectRequested)
+            {
+                driveConnectRequested = true;
+                await ConnectAsync();
+                return;
+            }
+            if (controller.Connection != ConnectionState.Ready) return;
+            if (configuration is null && configurationRead is null && !driveConfigurationRequested && controller.Route == StartupRoute.Assessment)
+            {
+                driveConfigurationRequested = true;
+                await ReadConfigurationAsync();
+            }
+            await drive.TickAsync();
+        }
+        catch
+        {
+            // Drive mode is diagnostic and must never break the window.
+        }
+        finally { driveTicking = false; }
+    }
+
+    DriveObservation IE2EDriveView.Observe()
+    {
+        var state = installGate?.State ?? InstallGateState.Idle;
+        var progress = installGate?.Progress;
+        string? error = state is InstallGateState.Refused or InstallGateState.Failed ? installGate!.Reason : progress?.Error;
+        DriveScreen screen;
+        if (controller.Connection != ConnectionState.Ready) screen = DriveScreen.Loading;
+        else if (DonePanel.Visibility == Visibility.Visible) screen = DriveScreen.Done;
+        else if (ProgressPanel.Visibility == Visibility.Visible) screen = DriveScreen.Progress;
+        else screen = controller.Route switch
+        {
+            StartupRoute.Manage => DriveScreen.Control,
+            StartupRoute.Recovery or StartupRoute.Interrupted => DriveScreen.Recovery,
+            StartupRoute.Progress => DriveScreen.Progress,
+            _ => configuration is null ? DriveScreen.Loading : DriveScreen.Launchpad,
+        };
+        // The Install action is two controls here: check the plan, then Install.
+        bool? disabled = screen == DriveScreen.Launchpad ? !(PrepareInstallButton.IsEnabled || InstallButton.IsEnabled) : null;
+        string hint = disabled == true ? (string.IsNullOrEmpty(error) ? InstallBlockedReason.Text : error) : "";
+        return new(screen, disabled, hint, progress?.Step ?? "", screen == DriveScreen.Done ? null : error,
+            configuration?.SelectedImage?.ImageRef ?? "", configuration?.ObservedStorage);
+    }
+
+    DriveMappingObservation IE2EDriveView.MapInstall(E2EDriveDirective directive)
+    {
+        var model = configuration ?? throw new InvalidOperationException("The Linux configuration has not been read");
+        var mapping = directive.ToInstallMapping();
+        var outcome = model.ApplyDriveMapping(mapping, directive.RunId);
+        if (!outcome.Mapped)
+        {
+            InstallBlockedReason.Text = outcome.BlockedReason;
+            return outcome;
+        }
+        // Put the mapped plan on the form a person sees, then read it back
+        // from those controls, as a person's edits are.
+        updatingConfiguration = true;
+        try
+        {
+            ImageChoice.SelectedItem = model.Images.Single(image => image.Id == model.SelectedImage!.Id);
+            var volumes = StorageChoice.ItemsSource as IEnumerable<NativeConfigurationStorage> ?? throw new InvalidOperationException("No observed storage is on the form");
+            StorageChoice.SelectedItem = volumes.Single(volume => volume.Id == model.SelectedStorage!.Id);
+            LinuxUsername.Text = model.Username;
+            LinuxHostname.Text = model.Hostname;
+            LinuxPassword.Password = mapping.Password;
+            LinuxPasswordConfirmation.Password = mapping.Password;
+            LinuxLuksPassphrase.Password = mapping.LuksPassphrase;
+            LinuxDiskSize.Value = model.DiskSizeGb;
+            LinuxEncryption.SelectedItem = LinuxEncryption.Items.OfType<ComboBoxItem>().Single(item => (string)item.Tag == model.Encryption);
+        }
+        finally { updatingConfiguration = false; }
+        RefreshConfiguration();
+        return outcome;
+    }
+
+    // The plan check and the Install confirmation a person would accept. The
+    // confirmation's words are pinned by InstallDisclosureTests; the drive
+    // accepts it without drawing the dialog.
+    async Task<bool> IE2EDriveView.ClickInstallAsync()
+    {
+        await PrepareInstallAsync();
+        var gate = installGate;
+        if (gate is null || !gate.CanInstall) return false;
+        InstallButton.IsEnabled = false;
+        var confirming = gate.ConfirmAsync(configurationSteps);
+        UpdateInstallGate();
+        await confirming;
+        UpdateInstallGate();
+        return gate.State is InstallGateState.Confirming or InstallGateState.Started or InstallGateState.Finished;
+    }
+
+    Task IE2EDriveView.RebootAsync() => RebootNowAsync();
 }

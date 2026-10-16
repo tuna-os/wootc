@@ -175,6 +175,14 @@ internal static class NativeProtocol
                 return (T)(object)DecodeVMStatus(result);
             case "PrepareNativeVMAction":
                 return (T)(object)DecodeVMGrant(result, expectedBrand);
+            case "E2EDriveDirective":
+                // The engine returns the raw directive (at most 16 KiB) or "".
+                if (result.ValueKind != JsonValueKind.String || System.Text.Encoding.UTF8.GetByteCount(result.GetString()!) > Wootc.Shell.Core.E2EDriveDirective.MaximumBytes)
+                    throw new InvalidDataException("Drive directive result is invalid");
+                return (T)(object)result.GetString()!;
+            case "E2EDriveReport" or "E2EDriveReady":
+                if (result.ValueKind != JsonValueKind.Null) throw new InvalidDataException("Drive report returned an unexpected result");
+                return default!;
             case "ConfirmNativeInstall" or "CancelInstall" or "Reboot" or "ConfirmNativeMaintenance" or "ConfirmNativeVMAction":
                 if (result.ValueKind != JsonValueKind.Null) throw new InvalidDataException("Install action returned an unexpected result");
                 return default!;

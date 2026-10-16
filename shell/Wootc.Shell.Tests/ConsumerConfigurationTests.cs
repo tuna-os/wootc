@@ -118,7 +118,8 @@ public sealed class ConsumerConfigurationTests
         Assert.Equal(Reference, draft.ImageRef);
         Assert.Equal("fixture", draft.Username);
         Assert.Equal(48, draft.DiskSizeGB);
-        Assert.Equal("tpm2-luks", draft.Encryption);
+        // The catalogue default is tpm2-luks; the drive follows the Wails loop.
+        Assert.Equal("none", draft.Encryption);
         Assert.False(model.CanInstall);
         Assert.DoesNotContain("public fixture password", Directive().ToString());
     }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -103,5 +105,86 @@ func TestE2EDriveSharedNativeGoldens(t *testing.T) {
 	}
 	if !e2eBoundDriveReport(read("report-reboot-done.json"), reboot) || e2eBoundDriveReport(read("report-reboot-done.json"), install) {
 		t.Error("the reboot report must bind only to the reboot directive")
+	}
+}
+
+// The native shell drives through its authenticated configuration session
+// (shell/Wootc.Shell.Core/E2EDriveLoop.cs). Only that session carries the
+// drive channel, and only while this engine's own environment enables it.
+func TestE2EDriveNativeConfigurationSessionCarriesTheDriveChannel(t *testing.T) {
+	read := func(name string) string {
+		raw, err := os.ReadFile("../tests/unit/fixtures/e2e-drive/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(raw)
+	}
+	param := func(value string) json.RawMessage {
+		encoded, err := json.Marshal([]string{value})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return encoded
+	}
+	directive, report := read("directive-install.json"), read("report-install-ready.json")
+	ready := `{"schemaVersion":1,"screen":"loading"}`
+	writer := &synchronizedWriter{out: &bytes.Buffer{}}
+	configurationReads := 0
+	native := newConfigurationAssessmentServer(&App{}, writer, func(context.Context) (NativeConfigurationSnapshot, error) {
+		configurationReads++
+		return NativeConfigurationSnapshot{}, nil
+	})
+
+	t.Setenv("WOOTC_E2E_DRIVE", "1")
+	removeE2EFiles(t)
+	defer removeE2EFiles(t)
+	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, other := range []*Server{NewAssessmentServer(&App{}, writer)} {
+		for _, method := range []string{"E2EDriveDirective", "E2EDriveReport", "E2EDriveReady"} {
+			if _, failure := other.dispatch(context.Background(), jsonrpcRequest{Method: method, Params: param(report)}); failure == nil || failure.Code != errCodeMethodNotFound {
+				t.Fatalf("%s reached a session without the configuration capability", method)
+			}
+		}
+	}
+	if _, err := os.Stat(e2eDrivePath("e2e-drive-state.json")); !os.IsNotExist(err) {
+		t.Fatal("a refused session wrote a drive report")
+	}
+	got, failure := native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveDirective"})
+	if failure != nil || got != directive {
+		t.Fatalf("native session did not return the directive: %v %v", got, failure)
+	}
+	if _, failure = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReport", Params: param(report)}); failure != nil {
+		t.Fatal(failure)
+	}
+	if state, err := os.ReadFile(e2eDrivePath("e2e-drive-state.json")); err != nil || string(state) != report {
+		t.Fatalf("native session did not write the bound report: %v", err)
+	}
+	if _, failure = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReady", Params: param(ready)}); failure != nil {
+		t.Fatal(failure)
+	}
+	if marker, err := os.ReadFile(e2eDrivePath("e2e-ready.json")); err != nil || string(marker) != ready {
+		t.Fatalf("native session did not write the readiness marker: %v", err)
+	}
+
+	// Without drive mode in the engine's environment the channel is inert.
+	t.Setenv("WOOTC_E2E_DRIVE", "")
+	removeE2EFiles(t)
+	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, failure = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveDirective"}); failure != nil || got != "" {
+		t.Fatal("drive directive returned while drive mode is off")
+	}
+	_, _ = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReport", Params: param(report)})
+	_, _ = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReady", Params: param(ready)})
+	for _, name := range []string{"e2e-drive-state.json", "e2e-ready.json"} {
+		if _, err := os.Stat(e2eDrivePath(name)); !os.IsNotExist(err) {
+			t.Fatalf("%s written while drive mode is off", name)
+		}
+	}
+	if configurationReads != 0 {
+		t.Fatal("the drive channel read the configuration")
 	}
 }

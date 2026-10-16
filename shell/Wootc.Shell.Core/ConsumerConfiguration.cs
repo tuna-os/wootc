@@ -181,7 +181,9 @@ public sealed class ConsumerConfiguration
         PasswordConfirmation = directive.Password;
         Hostname = directive.Hostname;
         DiskSizeGb = directive.DiskSizeGb == 0 ? catalogue!.Defaults.DiskSizeGb : directive.DiskSizeGb;
-        Encryption = directive.Encryption.Length == 0 ? catalogue!.Defaults.Encryption : directive.Encryption;
+        // As the Wails drive loop does (directive.encryption || 'none'): a
+        // directive that names no encryption installs unencrypted.
+        Encryption = directive.Encryption.Length == 0 ? "none" : directive.Encryption;
         LuksPassphrase = directive.LuksPassphrase;
         // Mapping a directive is not an Install click or a backend mutation.
         return new(directive.RunId, directive.DirectiveId, true, false, false, InstallationBlockedReason);

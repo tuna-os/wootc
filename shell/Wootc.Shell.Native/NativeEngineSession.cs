@@ -7,7 +7,7 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
-internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession, IMaintenanceEngineSession, IVMEngineSession
+internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession, IMaintenanceEngineSession, IVMEngineSession, IDriveEngineSession
 {
     // Set only for an install-purpose session; an assessment session refuses
     // install calls locally as well as in the engine.
@@ -290,6 +290,37 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
         // engine's typed storage diagnostic and not a shell-side timeout.
         deadline.CancelAfter(TimeSpan.FromSeconds(50));
         return await CallAsync<NativeConfigurationSnapshot>("GetNativeConfiguration", deadline.Token, requestFlushed);
+    }
+
+    // The drive channel belongs to the assessment session only; the engine
+    // refuses it in an install session as well.
+    private void RequireAssessmentSession()
+    {
+        if (installSession is not null) throw new InvalidOperationException("The drive channel is not part of an install session");
+    }
+
+    public async Task<string> ReadDriveDirectiveAsync(CancellationToken cancellationToken)
+    {
+        RequireAssessmentSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        return await CallAsync<string>("E2EDriveDirective", deadline.Token);
+    }
+
+    public async Task ReportDriveAsync(string state, CancellationToken cancellationToken)
+    {
+        RequireAssessmentSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        await CallAsync<object?>("E2EDriveReport", new[] { state ?? "" }, deadline.Token);
+    }
+
+    public async Task ReportDriveReadyAsync(string state, CancellationToken cancellationToken)
+    {
+        RequireAssessmentSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        await CallAsync<object?>("E2EDriveReady", new[] { state ?? "" }, deadline.Token);
     }
 
     public async ValueTask DisposeAsync()

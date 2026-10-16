@@ -46,7 +46,17 @@ public interface IConfigurationEngineSession : IEngineSession
     Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null);
 }
 
-public sealed class StartupController : IAsyncDisposable
+// The E2E drive channel of an assessment session. The engine answers only
+// when its own environment enables drive mode; otherwise the directive is
+// empty and reports are dropped.
+public interface IDriveEngineSession : IEngineSession
+{
+    Task<string> ReadDriveDirectiveAsync(CancellationToken cancellationToken);
+    Task ReportDriveAsync(string state, CancellationToken cancellationToken);
+    Task ReportDriveReadyAsync(string state, CancellationToken cancellationToken);
+}
+
+public sealed class StartupController : IAsyncDisposable, IE2EDriveChannel
 {
     private readonly IEngineConnector connector;
     private readonly SemaphoreSlim connectionGate = new(1, 1);
@@ -148,6 +158,29 @@ public sealed class StartupController : IAsyncDisposable
         }
         finally { connectionGate.Release(); }
     }
+
+    // The drive loop never waits behind a connection or configuration read:
+    // a busy controller fails this tick, and the loop tries again.
+    private async Task<T> DriveAsync<T>(Func<IDriveEngineSession, Task<T>> call)
+    {
+        if (!await connectionGate.WaitAsync(0)) throw new InvalidOperationException("The engine connection is busy");
+        try
+        {
+            if (Connection != ConnectionState.Ready || session is not IDriveEngineSession drive)
+                throw new InvalidOperationException("Authenticated drive channel is unavailable");
+            return await call(drive);
+        }
+        finally { connectionGate.Release(); }
+    }
+
+    public Task<string> ReadDirectiveAsync(CancellationToken cancellationToken) =>
+        DriveAsync(drive => drive.ReadDriveDirectiveAsync(cancellationToken));
+
+    public Task ReportAsync(string state, CancellationToken cancellationToken) =>
+        DriveAsync(async drive => { await drive.ReportDriveAsync(state, cancellationToken); return true; });
+
+    public Task ReadyAsync(string state, CancellationToken cancellationToken) =>
+        DriveAsync(async drive => { await drive.ReportDriveReadyAsync(state, cancellationToken); return true; });
 
     private async Task DisconnectAsync()
     {
