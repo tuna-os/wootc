@@ -90,6 +90,16 @@ try {
     $beforeStartup=StateHashes
     $stateRoot=Join-Path ([IO.Path]::GetPathRoot($destination)) 'wootc'
     if (Test-Path -LiteralPath (Join-Path $stateRoot 'disks/root.disk')) { throw 'Disposable packaging host unexpectedly has an installation disk' }
+    # Which fixed volumes the engine can offer for a plan: it lists only NTFS
+    # basic-data partitions on GPT disks. Recorded so a runner without room
+    # for a plan says why (docs/winui-shell.md, Hosted plan check).
+    foreach ($volume in @(Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter })) {
+        try {
+            $part=Get-Partition -DriveLetter $volume.DriveLetter -ErrorAction Stop
+            $style=(Get-Disk -Number $part.DiskNumber -ErrorAction Stop).PartitionStyle
+            Write-Output "volume $($volume.DriveLetter): $($volume.FileSystem), disk $style, partition type $($part.GptType), $([math]::Floor($volume.SizeRemaining/1GB)) GB free"
+        } catch { Write-Output "volume $($volume.DriveLetter): not observed ($($_.Exception.Message))" }
+    }
     # The engine's plan check can take two minutes (a second elevation, then
     # PrepareNativeInstall), so the test gets more than that on top of startup.
     $null=Invoke-OwnedNative -Executable 'dotnet' -TimeoutSeconds 420 -Arguments @('test',(Join-Path $PSScriptRoot '../Wootc.Shell.UiTests'),'--configuration','Release','--filter','FullyQualifiedName~InstalledPreviewTests','--logger',"trx;LogFileName=installed-$BrandId.trx",'--logger','console;verbosity=normal')

@@ -36,7 +36,6 @@ on:
       - 'app/status_location*'
       - 'app/tools/gendto/**'
       - '.github/workflows/winui-preview.yml'
-      - '.github/scripts/free-windows-runner-space.ps1'
   # A release published by a person triggers this directly. Releases cut by
   # release.yml use GITHUB_TOKEN, which never triggers other workflows, so
   # those are attached by dispatching this workflow at the release tag with
@@ -254,7 +253,7 @@ jobs:
     name: Branded preview package (${{ matrix.brand }})
     needs: plan
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -286,12 +285,6 @@ jobs:
           Push-Location app
           try { go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
           if ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }
-      # The installed preview checks a real install plan with the engine. The
-      # plan needs the Linux disk and the image's working space free on C:,
-      # more than the hosted runner has free by default.
-      - name: Free real space on C for the engine plan check
-        shell: pwsh
-        run: ./.github/scripts/free-windows-runner-space.ps1
       - name: Compile, install, observe and remove only the preview package
         shell: pwsh
         run: ./shell/packaging/test-installed-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer

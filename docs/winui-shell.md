@@ -308,16 +308,22 @@ The shell now reads and hashes its package on a worker thread, not on the window
 
 ### Hosted plan check
 
-On the hosted runner, the UI test of the installed preview checks a real plan with the engine.
+On the hosted runner, the UI test of the installed preview tries each image on each volume that the engine observes.
 A plan needs space for the Linux disk (20 GB at least) and for the image's unpack area (22 GB at least) on one drive.
-The hosted runner had 28 GB free on C: (run 38908347372), and its other drive is not an eligible volume.
-So the test could not check a plan, and that check had no hosted coverage.
+The engine offers only an NTFS basic-data partition on a GPT disk.
+The hosted runner had 28 GB free on C: (run 38908347372), and no other volume gave a plan.
+So the test cannot check a plan with the engine there.
+It checks the form's space refusal against the drive's real free space, and it logs the observed volumes.
 
-`.github/scripts/free-windows-runner-space.ps1` now removes toolchains that the job does not use after the publish step.
-It then reads the free space on C: again, and it stops the job when C: has less than 50 GB free.
-When it passes, the test must check a plan, and a plan that does not come is a failure.
-The free space is real: the form, the engine and the test each read the drive.
+`test-installed-preview.ps1` also logs each fixed volume with its file system, partition style and free space.
 
+Only the native VM E2E (`gui_frontend: native`) exercises the engine plan check.
+The test does not change the free space or the reserve.
+If a runner gives a volume that holds a plan, the test checks that plan with the engine automatically.
+
+The job does not free space on C:.
+In a trial, the job removed the toolchains that it does not use. That took about seven minutes, and C: then had 49 GB free.
+That time is too much for each branded package job.
 ## Evidence before cutover
 
 | Gate | Evidence |
