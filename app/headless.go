@@ -133,10 +133,12 @@ func headlessInstall(args []string) int {
 }
 
 func headlessStatus() int {
-	return headlessStatusWithReader(readStatusState)
+	return headlessStatusWithReader(readStatusState, verifyReportedLinuxHealth)
 }
 
-func headlessStatusWithReader(read func() (LifecycleState, bool, error)) int {
+// verifyHealthy proves a reported healthy state against the installed boot's
+// own evidence before status repeats it.
+func headlessStatusWithReader(read func() (LifecycleState, bool, error), verifyHealthy func() error) int {
 	s, ok, err := read()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "status: cannot safely read installation state")
@@ -145,6 +147,12 @@ func headlessStatusWithReader(read func() (LifecycleState, bool, error)) int {
 	if !ok {
 		fmt.Println(`{"state":"absent"}`)
 		return 0
+	}
+	if s.State == StateHealthy {
+		if err := verifyHealthy(); err != nil {
+			fmt.Fprintf(os.Stderr, "status: installed Linux boot is unverified: %v\n", err)
+			return 1
+		}
 	}
 	data, err := marshalJSON(s)
 	if err != nil {

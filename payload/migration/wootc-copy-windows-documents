@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# Copy a read-only Windows Documents tree into persistent Linux storage.
+# The final directory appears atomically, is owned by the Linux user, and is
+# never refreshed on later boots. Windows remains the untouched source.
+
+set -Eeuo pipefail
+
+say() { printf '[wootc-files-copy] %s\n' "$*"; }
+refuse() { say "WARNING: $*" >&2; exit 1; }
+
+[[ $# -eq 3 || $# -eq 4 ]] || refuse "usage: wootc-copy-windows-documents <source> <home> <linux-user> [windows-profile]"
+source_dir=$1
+home=$2
+user=$3
+
+[[ -d "$source_dir" && ! -L "$source_dir" ]] || refuse "source is not a real directory: $source_dir"
+[[ -d "$home" && ! -L "$home" ]] || refuse "home is not a real directory: $home"
+uid=$(id -u "$user" 2>/dev/null) || refuse "Linux user does not exist: $user"
+gid=$(id -g "$user" 2>/dev/null) || refuse "Linux user has no primary group: $user"
+home_uid=$(stat -c '%u' -- "$home") || refuse "cannot read home ownership: $home"
+[[ "$home_uid" == "$uid" ]] || refuse "home is not owned by $user: $home"
+
+source_dir=$(realpath -e -- "$source_dir") || refuse "cannot resolve the Windows source"
+profile_dir=$(realpath -e -- "${4:-$source_dir}") || refuse "cannot resolve the Windows profile"
+volume_uuid=$(findmnt -n -o UUID -T "$source_dir" 2>/dev/null || true)
+profile_key=$(printf '%s\0%s' "$volume_uuid" "$profile_dir" | sha256sum | cut -d ' ' -f1)
+state_dir="$home/.local/state/wootc"
+state_file="$state_dir/bitlocker-documents-import-v2-$profile_key"
+for state_path in "$home/.local" "$home/.local/state" "$state_dir"; do
+    [[ ! -L "$state_path" ]] || refuse "migration state path is a symlink: $state_path"
+    if [[ ! -e "$state_path" ]]; then
+        install -d -m 0700 -o "$uid" -g "$gid" -- "$state_path" \
+            || refuse "cannot create persistent import state under the Linux home"
+    elif [[ ! -d "$state_path" || "$(stat -c '%u' -- "$state_path")" != "$uid" ]]; then
+        refuse "migration state path is not a directory owned by $user: $state_path"
+    fi
+done
+if [[ -e "$state_file" || -L "$state_file" ]]; then
+    [[ -f "$state_file" && ! -L "$state_file" ]] || refuse "persistent import state is not a regular file"
+    grep -qx 'state=complete' "$state_file" \
+        || refuse "persistent import state is incomplete; refusing an automatic retry"
+    say "a completed one-time import is recorded; preserving the Linux workspace"
+    exit 0
+fi
+
+write_complete_state() {
+    local final_destination="$1" temp
+    temp=$(mktemp -- "$state_dir/.bitlocker-documents-import.XXXXXXXX") || return 1
+    printf 'version=2\nstate=complete\nprofile_key=%s\ndestination=%s\nsource=%s\ncompleted_at=%s\n' \
+        "$profile_key" "$final_destination" "$source_dir" "$(date -u +%FT%TZ)" > "$temp" || { rm -f -- "$temp"; return 1; }
+    chown "$uid:$gid" -- "$temp" || { rm -f -- "$temp"; return 1; }
+    chmod 0600 -- "$temp" || { rm -f -- "$temp"; return 1; }
+    sync -f "$temp" 2>/dev/null || sync
+    if ! ln -- "$temp" "$state_file"; then
+        rm -f -- "$temp"
+        [[ -f "$state_file" && ! -L "$state_file" ]] && grep -qx 'state=complete' "$state_file"
+        return $?
+    fi
+    rm -f -- "$temp"
+    sync -f "$state_dir" 2>/dev/null || sync
+}
+
+documents="$home/Documents"
+if [[ -L "$documents" ]]; then
+    refuse "Documents is a symlink; leaving it and the Windows source untouched"
+fi
+if [[ ! -e "$documents" ]]; then
+    install -d -m 0700 -o "$uid" -g "$gid" -- "$documents" \
+        || refuse "cannot create the Linux Documents folder"
+elif [[ ! -d "$documents" ]]; then
+    refuse "Documents is not a directory"
+fi
+
+documents_uid=$(stat -c '%u' -- "$documents") || refuse "cannot read Documents ownership"
+if [[ "$documents_uid" != "$uid" ]]; then
+    # The old bind bridge could leave an empty, root-owned mountpoint behind.
+    # Repair only that empty directory; never take ownership of existing data.
+    first_child=$(find "$documents" -mindepth 1 -maxdepth 1 -print -quit)
+    if [[ "$documents_uid" == 0 && -z "$first_child" ]]; then
+        chown "$uid:$gid" -- "$documents" || refuse "cannot make the empty Documents folder user-owned"
+    else
+        refuse "Documents is not owned by $user; refusing to write as root"
+    fi
+fi
+documents_mode=$(stat -c '%a' -- "$documents") || refuse "cannot read Documents permissions"
+if (( (8#$documents_mode & 0200) == 0 )); then
+    refuse "Documents is not writable by $user"
+fi
+
+source_dir=$(realpath -e -- "$source_dir") || refuse "cannot resolve the Windows source"
+[[ ! -e "$source_dir/ABOUT-WINDOWS-COPY.txt" && ! -e "$source_dir/.wootc-import-complete" ]] \
+    || refuse "the Windows source contains a reserved wootc metadata name; no files were changed"
+
+# Recover the tiny crash window after the atomic directory publish but before
+# the separate no-refresh marker landed. This check must precede the free-space
+# test: a complete published copy is already the user's data, even on a nearly
+# full disk.
+destination="$documents/From Windows"
+suffix=2
+while [[ -e "$destination" || -L "$destination" ]]; do
+    if [[ -d "$destination" && ! -L "$destination" \
+        && -f "$destination/.wootc-import-complete" \
+        && ! -L "$destination/.wootc-import-complete" ]] \
+        && grep -qx "profile_key=$profile_key" "$destination/.wootc-import-complete"; then
+        write_complete_state "$destination" \
+            || say "WARNING: the copy exists, but its separate no-refresh marker could not be written"
+        say "an earlier complete copy is already present; preserving Linux edits"
+        exit 0
+    fi
+    destination="$documents/From Windows ($suffix)"
+    suffix=$((suffix + 1))
+done
+
+source_bytes=$(du -s --apparent-size -B1 -- "$source_dir" | awk 'NR == 1 {print $1}')
+available_bytes=$(df -B1 --output=avail -- "$documents" | tail -n 1 | tr -d '[:space:]')
+skipped_items=$(find "$source_dir" ! -type f ! -type d -printf . | wc -c | tr -d '[:space:]')
+[[ "$source_bytes" =~ ^[0-9]+$ && "$available_bytes" =~ ^[0-9]+$ ]] \
+    || refuse "cannot measure source size or Linux free space"
+[[ "$skipped_items" =~ ^[0-9]+$ ]] || refuse "cannot count symbolic links and special files"
+# Keep a 1 GiB safety margin for the installed system. A large Documents tree
+# remains available read-only rather than filling the root disk silently.
+if awk -v need="$source_bytes" -v avail="$available_bytes" 'BEGIN { exit !(avail < need + 1073741824) }'; then
+    refuse "not enough free Linux space for a safe Documents copy (${source_bytes} bytes plus 1 GiB reserve)"
+fi
+
+stage=$(mktemp -d -- "$documents/.wootc-import-XXXXXXXX") \
+    || refuse "cannot create a staging directory in Linux Documents"
+cleanup() { [[ -z "${stage:-}" || ! -e "$stage" ]] || rm -rf -- "$stage"; }
+trap cleanup EXIT
+
+# Copy directories and regular files only. Do not import Windows reparse
+# points, symbolic links, devices, or other special files into Linux home.
+if ! find "$source_dir" -mindepth 1 -type d -print0 |
+    while IFS= read -r -d '' item; do
+        relative=${item#"$source_dir"/}
+        mkdir -p -- "$stage/$relative" || exit 1
+    done; then
+    refuse "could not create the copied folder tree; the partial copy was removed"
+fi
+if ! find "$source_dir" -type f -print0 |
+    while IFS= read -r -d '' item; do
+        relative=${item#"$source_dir"/}
+        mkdir -p -- "$(dirname -- "$stage/$relative")" || exit 1
+        cp -- "$item" "$stage/$relative" || exit 1
+    done; then
+    refuse "could not copy every document; the partial copy was removed"
+fi
+
+cat > "$stage/ABOUT-WINDOWS-COPY.txt" <<'NOTICE'
+This is a copy of your Windows Documents folder, stored on your Linux disk.
+You can edit these files here. Changes stay with Linux and do not sync back to
+Windows. The original Windows files have been left unchanged.
+
+This copy is made once. Later Windows-side changes are not brought over
+automatically, and wootc will not overwrite your Linux edits.
+NOTICE
+printf '\nSymbolic links and special files not copied: %s\n' "$skipped_items" \
+    >> "$stage/ABOUT-WINDOWS-COPY.txt"
+printf 'version=2\nprofile_key=%s\nsource=%s\ncompleted_at=%s\n' \
+    "$profile_key" "$source_dir" "$(date -u +%FT%TZ)" > "$stage/.wootc-import-complete"
+
+# These are now native user files, not read-only NTFS files. Keep them private
+# to their owner, including nested directories, and ensure the copy is durable
+# before publishing it under the visible name.
+chown -R -h "$uid:$gid" -- "$stage" || refuse "could not assign the copy to $user"
+find "$stage" -type d -exec chmod 0700 {} +
+find "$stage" -type f -exec chmod 0600 {} +
+sync -f "$stage" 2>/dev/null || sync
+mv -T -- "$stage" "$destination" \
+    || refuse "the Linux destination changed during import; the source is untouched"
+stage=""
+sync -f "$documents" 2>/dev/null || sync
+write_complete_state "$destination" \
+    || say "WARNING: the copy is complete, but its separate no-refresh marker could not be written"
+say "copied Windows Documents into $destination; the original remains unchanged and read-only"
+if [[ "$skipped_items" -gt 0 ]]; then
+    say "copied all regular files; $skipped_items symbolic link or special item(s) were left on Windows"
+fi

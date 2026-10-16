@@ -55,6 +55,25 @@ func TestE2EDriveReportRefusesUnrelatedAndAmbiguousWrites(t *testing.T) {
 	}
 }
 
+func TestE2EDriveInstalledBootReportCarriesExactlyItsReceipt(t *testing.T) {
+	verify := strings.Replace(boundDirective, `"install"`, `"verify-installed-boot"`, 1)
+	base := strings.Replace(boundReport, `"install"`, `"verify-installed-boot"`, 1)
+	withReceipt := strings.Replace(base, `"imageMismatch":false`, `"imageMismatch":false,"installedBootVerification":{"nonce":"n"}`, 1)
+	if !e2eBoundDriveReport([]byte(withReceipt), []byte(verify)) {
+		t.Fatal("installed-boot report with its receipt field was refused")
+	}
+	if e2eBoundDriveReport([]byte(base), []byte(verify)) {
+		t.Fatal("installed-boot report without its receipt field was accepted")
+	}
+	installWithReceipt := strings.Replace(boundReport, `"imageMismatch":false`, `"imageMismatch":false,"installedBootVerification":null`, 1)
+	if e2eBoundDriveReport([]byte(installWithReceipt), []byte(boundDirective)) {
+		t.Fatal("install report carrying an installed-boot field was accepted")
+	}
+	if e2eBoundDriveReport([]byte(withReceipt), []byte(boundDirective)) {
+		t.Fatal("installed-boot report bound to an install directive")
+	}
+}
+
 func TestE2EDriveToleratesBOMDirective(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
 	removeE2EFiles(t)

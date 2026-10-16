@@ -46,13 +46,37 @@ log "$(wootc_step_label firstboot-evidence)"
 
 mkdir -p "$INSTALL_DIR"
 
-NOW=$(date -u +%FT%TZ 2>/dev/null || date)
-KERNEL_VER="$(uname -r 2>/dev/null || echo "unknown")"
+# Collect every required fact before publishing anything. The collector refuses
+# a boot of another ESP, image, Windows volume, or root.disk.
+COLLECTOR="${WOOTC_FIRSTBOOT_COLLECTOR:-/var/usrlocal/bin/wootc-collect-firstboot.py}"
+EVIDENCE_TEMP=$(mktemp)
+trap 'rm -f "$EVIDENCE_TEMP"' EXIT
+python3 "$COLLECTOR" --host "$HOST" > "$EVIDENCE_TEMP"
+# The catalogue phase describes this observed collection/publication. Add it to
+# the verified record; the lifecycle state retains its separate vocabulary.
+python3 - "$EVIDENCE_TEMP" <<'PYTHON'
+import json
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+with path.open('rb') as stream:
+    data = stream.read(65537)
+if len(data) > 65536:
+    raise ValueError('first-boot evidence exceeds 64 KiB')
+record = json.loads(data)
+if not isinstance(record, dict):
+    raise ValueError('first-boot evidence must be an object')
+record['phaseId'] = 'firstboot-evidence'
+data = (json.dumps(record, indent=2) + '\n').encode()
+if len(data) > 65536:
+    raise ValueError('first-boot evidence exceeds 64 KiB after phase annotation')
+path.write_bytes(data)
+PYTHON
 
-# Update the lifecycle state before the evidence marker. The unit is gated on
-# the marker's absence; writing it last lets the service retry after a failed
-# state update on the next boot. The helper preserves the Windows ACL and
-# atomically replaces each record on the NTFS volume.
+# Publish evidence before healthy. Only the final completion marker suppresses
+# retries, so a failed descriptor-preserving state write is retried next boot.
+wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" < "$EVIDENCE_TEMP"
+NOW=$(date -u +%FT%TZ)
 wootc-ntfs-state-write "$STATE_FINAL" "$STATE_FINAL" <<JSONEOF
 {
   "state": "healthy",
@@ -60,15 +84,10 @@ wootc-ntfs-state-write "$STATE_FINAL" "$STATE_FINAL" <<JSONEOF
   "updatedBy": "wootc-firstboot"
 }
 JSONEOF
+# Publish only the facts useful to the local control panel; the private
+# Windows UUID, paths and profile mappings remain on the protected NTFS tree.
+python3 "${WOOTC_FIRSTBOOT_PUBLISHER:-/var/usrlocal/bin/wootc-collect-firstboot.py}" --publish-summary "$EVIDENCE_TEMP" \
+    --summary-dir "${WOOTC_FIRSTBOOT_SUMMARY_DIR:-/var/lib/wootc}"
+wootc-ntfs-state-write "$STATE_FINAL" "$INSTALL_DIR/installed-linux-boot.complete" < "$EVIDENCE_TEMP"
 
-wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" <<JSONEOF
-{
-  "state": "healthy",
-  "phaseId": "firstboot-evidence",
-  "kernel": "$KERNEL_VER",
-  "writtenAt": "$NOW",
-  "updatedBy": "wootc-firstboot"
-}
-JSONEOF
-
-log "Phase-2 first-boot health reported: state.json -> healthy ($KERNEL_VER)"
+log "Phase-2 first-boot health reported: evidence verified and state.json -> healthy"

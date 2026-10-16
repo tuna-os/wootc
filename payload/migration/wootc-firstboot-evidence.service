@@ -2,8 +2,8 @@
 Description=wootc Phase-2 first-boot evidence and health marker
 DefaultDependencies=no
 After=wootc-host-bind.service wootc-passthrough.service local-fs.target
-Requires=wootc-host-bind.service
-ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json
+Requires=wootc-host-bind.service wootc-passthrough.service
+ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.complete
 
 [Service]
 Type=oneshot

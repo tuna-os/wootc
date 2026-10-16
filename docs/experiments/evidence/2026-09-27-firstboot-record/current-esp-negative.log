@@ -1,0 +1,5 @@
+--- FAIL: TestLinuxBootEvidenceRejectsWrongInstallation (0.00s)
+    boot_evidence_test.go:50: accepted different current ESP
+FAIL
+FAIL	wootc	0.005s
+FAIL
