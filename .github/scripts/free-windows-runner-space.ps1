@@ -49,12 +49,14 @@ if ($before -lt $RequiredFreeGB) {
         (Join-Path $env:USERPROFILE '.rustup'),
         (Join-Path $env:USERPROFILE '.cargo')
     ) | Where-Object { Test-Path -LiteralPath $_ }
+    # Write-Host, not Write-Output: only the started processes may reach $jobs
+    # (run 38943142666 collected the log lines too and failed on them).
     $jobs = foreach ($path in $candidates) {
-        Write-Output "  removing $path"
+        Write-Host "  removing $path"
         Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList @('/d', '/c', 'rd', '/s', '/q', "`"$path`"") -WindowStyle Hidden -PassThru
     }
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    foreach ($job in @($jobs)) {
+    foreach ($job in @($jobs | Where-Object { $_ -is [System.Diagnostics.Process] })) {
         $left = [math]::Max(1, [int]($deadline - [DateTime]::UtcNow).TotalMilliseconds)
         if (-not $job.WaitForExit($left)) { Write-Output "  still removing after $TimeoutSeconds s (pid $($job.Id)); measuring what is free now" }
     }
