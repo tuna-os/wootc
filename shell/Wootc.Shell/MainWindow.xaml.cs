@@ -14,7 +14,7 @@ namespace Wootc.Shell;
 public sealed partial class MainWindow : Window
 {
     private readonly StartupController controller;
-    private readonly NativeEngineConnector connector;
+    private readonly IBrandedEngineConnector connector;
     private readonly Branding brand;
     private InstallGate? installGate;
     private MaintenanceGate? maintenanceGate;
@@ -48,8 +48,14 @@ public sealed partial class MainWindow : Window
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
         ApplyBrand(brand, BrandTheme.From(brand));
+#if NATIVE_GALLERY
+        // Screen gallery build: recorded engine answers, no engine process.
+        connector = Wootc.Shell.Gallery.GalleryConnector.FromEnvironment(AppContext.BaseDirectory);
+        Title += " — Screen gallery (recorded fixtures)";
+#else
         connector = new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
             DispatcherQueue.TryEnqueue(() => { if (!closing && diagnostic.IsCurrent()) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic.Projection); }));
+#endif
         controller = new StartupController(brand, connector);
         InstallButton.Content = $"Advanced: {InstallDisclosure.InstallVerb(brand)} with reboot";
         // Closing the window disconnects both sessions; the engine treats that

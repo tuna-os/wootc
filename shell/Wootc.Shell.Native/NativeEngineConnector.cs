@@ -9,7 +9,7 @@ using Wootc.Shell.Core;
 
 namespace Wootc.Shell.Native;
 
-public sealed class NativeEngineConnector : IEngineConnector
+public sealed class NativeEngineConnector : IBrandedEngineConnector
 {
     private readonly string directory;
     private readonly Action<NativeDiagnosticObservation>? observe;

@@ -10,7 +10,7 @@ This revision corrects the transport and identity assumptions in the earlier des
 |---|---|---|
 | A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
 | B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent, original-user collection for an alternative administrator (#606), proof on build 17763, the native typeface, and preview release assets (#608) |
-| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, and UI Automation controls exist | Consumer screens, VM and migration flows, drive mode, accessibility, persistence, and the full journey |
+| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, and a screen gallery exist | Consumer screens, VM and migration flows, drive mode, accessibility, persistence, and the full journey |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
 | E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
 
@@ -198,6 +198,20 @@ Do not infer it only from the minimum for Windows App SDK.
 Test Windows 10 and 11 before a change to the product requirements.
 MSIX, signatures, and winget changes need their own proven distribution path.
 A native UI does not remove SmartScreen or code-signature requirements.
+
+## Screen gallery
+
+The gallery is a separate build of the shell (`-p:NativeGallery=true`).
+It uses recorded fixtures in `shell/Wootc.Shell.Gallery` in place of the engine, and it starts no engine process.
+It cannot install, remove, repair, restart Windows, or run a VM.
+A confirmed install in the gallery only replays the recorded `install:progress` stream.
+The shipped preview never references the gallery project or its fixtures.
+
+The `native-build` job drives the gallery with UI Automation through each screen.
+The test reaches each screen and starts each action with the keyboard only.
+Each control that gets focus must have an accessible name.
+One screen is also shown with the Windows high-contrast setting on.
+The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, not in git.
 
 ## Evidence before cutover
 

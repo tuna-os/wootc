@@ -24,6 +24,21 @@
     <!-- The same mark the Wails build of this brand embeds; no new asset. -->
     <Content Include="../../app/branding/$(NativeBrandId)/logo.svg" Link="Branding/logo.svg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('../../app/branding/$(NativeBrandId)/logo.svg')" />
   </ItemGroup>
+  <!-- The screen gallery build (-p:NativeGallery=true) swaps the engine
+       connector for recorded fixtures. Published builds never set it, so the
+       shipped shell contains neither the gallery engine nor its fixtures. -->
+  <PropertyGroup Condition="'$(NativeGallery)' == 'true'">
+    <DefineConstants>$(DefineConstants);NATIVE_GALLERY</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NativeGallery)' == 'true'">
+    <ProjectReference Include="../Wootc.Shell.Gallery/Wootc.Shell.Gallery.csproj" />
+    <Content Include="../../tests/unit/fixtures/install-progress/success.ndjson" Link="Fixtures/install-progress/success.ndjson" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../tests/unit/fixtures/install-recovery/none.json" Link="Fixtures/install-recovery/none.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../tests/unit/fixtures/install-recovery/interrupted.json" Link="Fixtures/install-recovery/interrupted.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../tests/unit/fixtures/native-maintenance/responses.ndjson" Link="Fixtures/native-maintenance/responses.ndjson" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../tests/unit/fixtures/native-vm/responses.ndjson" Link="Fixtures/native-vm/responses.ndjson" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../tests/unit/fixtures/native-gallery/configuration.json" Link="Fixtures/native-gallery/configuration.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
   <!-- Unpackaged MRT Core currently generates the app PRI without publishing it.
        Keep the generated resource index beside the executable, not only SDK PRIs. -->
   <Target Name="PublishNativePreviewResourceIndex"

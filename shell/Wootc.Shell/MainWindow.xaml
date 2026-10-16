@@ -38,19 +38,19 @@
     <StackPanel x:Name="ConfigurationPanel" Visibility="Collapsed" Spacing="12">
       <TextBlock Text="Linux configuration" FontSize="20" />
       <TextBlock x:Name="ConfigurationObservation" AutomationProperties.AutomationId="ConfigurationObservation" TextWrapping="Wrap" />
-      <ComboBox x:Name="ImageChoice" Header="Linux image" DisplayMemberPath="Name" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="ImageChoice" />
+      <ComboBox x:Name="ImageChoice" AutomationProperties.Name="Linux image" Header="Linux image" DisplayMemberPath="Name" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="ImageChoice" />
       <TextBlock x:Name="ImageFacts" TextWrapping="Wrap" AutomationProperties.AutomationId="ImageFacts" />
-      <ComboBox x:Name="StorageChoice" Header="Storage volume" DisplayMemberPath="DriveLetter" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="StorageChoice" />
+      <ComboBox x:Name="StorageChoice" AutomationProperties.Name="Storage volume" Header="Storage volume" DisplayMemberPath="DriveLetter" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="StorageChoice" />
       <TextBlock x:Name="StorageFacts" TextWrapping="Wrap" AutomationProperties.AutomationId="StorageFacts" />
-      <TextBox x:Name="LinuxUsername" Header="Linux Username" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxUsername" />
-      <PasswordBox x:Name="LinuxPassword" Header="Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPassword" />
-      <PasswordBox x:Name="LinuxPasswordConfirmation" Header="Confirm Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPasswordConfirmation" />
-      <TextBox x:Name="LinuxHostname" Header="Computer name" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxHostname" />
-      <NumberBox x:Name="LinuxDiskSize" Header="Linux disk size (GB)" Minimum="20" Maximum="2048" ValueChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxDiskSize" />
-      <ComboBox x:Name="LinuxEncryption" Header="Linux encryption" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxEncryption">
+      <TextBox x:Name="LinuxUsername" AutomationProperties.Name="Linux Username" Header="Linux Username" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxUsername" />
+      <PasswordBox x:Name="LinuxPassword" AutomationProperties.Name="Password" Header="Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPassword" />
+      <PasswordBox x:Name="LinuxPasswordConfirmation" AutomationProperties.Name="Confirm Password" Header="Confirm Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPasswordConfirmation" />
+      <TextBox x:Name="LinuxHostname" AutomationProperties.Name="Computer name" Header="Computer name" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxHostname" />
+      <NumberBox x:Name="LinuxDiskSize" AutomationProperties.Name="Linux disk size (GB)" Header="Linux disk size (GB)" Minimum="20" Maximum="2048" ValueChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxDiskSize" />
+      <ComboBox x:Name="LinuxEncryption" AutomationProperties.Name="Linux encryption" Header="Linux encryption" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxEncryption">
         <ComboBoxItem Content="TPM auto-unlock" Tag="tpm2-luks" /><ComboBoxItem Content="Passphrase" Tag="luks-passphrase" /><ComboBoxItem Content="No encryption" Tag="none" />
       </ComboBox>
-      <PasswordBox x:Name="LinuxLuksPassphrase" Header="LUKS Passphrase" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxLuksPassphrase" />
+      <PasswordBox x:Name="LinuxLuksPassphrase" AutomationProperties.Name="LUKS Passphrase" Header="LUKS Passphrase" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxLuksPassphrase" />
       <CheckBox x:Name="LinuxWindowsLook" Content="Use a familiar Windows appearance" Checked="ConfigurationChanged" Unchecked="ConfigurationChanged" AutomationProperties.AutomationId="LinuxWindowsLook" />
       <TextBlock x:Name="InstallBlockedReason" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallBlockedReason" />
       <Button x:Name="PrepareInstallButton" Content="Check this plan" Click="PrepareInstall_Click" IsEnabled="False" AutomationProperties.AutomationId="PrepareInstall" />

@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Wootc.Shell.Core/Wootc.Shell.Core.csproj" />
+    <ProjectReference Include="../Wootc.Shell.Gallery/Wootc.Shell.Gallery.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
@@ -21,6 +22,12 @@
     <!-- VMTextTests compares the Linux window views with these words; VMGateTests replays the engine's recorded vm:progress stream. -->
     <None Include="../../app/frontend/src/screens/vmpreview.js" Link="Fixtures/vmpreview.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../tests/unit/fixtures/native-vm/*.ndjson" LinkBase="Fixtures/native-vm" CopyToOutputDirectory="PreserveNewest" />
+    <!-- GalleryEngineTests read the gallery's own fixture set and the files that keep it out of shipped builds. -->
+    <None Include="../../tests/unit/fixtures/install-recovery/*.json" LinkBase="Fixtures/install-recovery" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../tests/unit/fixtures/native-maintenance/*.ndjson" LinkBase="Fixtures/native-maintenance" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../tests/unit/fixtures/native-gallery/*.json" LinkBase="Fixtures/native-gallery" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Wootc.Shell/Wootc.Shell.csproj" Link="Fixtures/Wootc.Shell.csproj" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../.github/workflows/winui-preview.yml" Link="Fixtures/winui-preview.yml" CopyToOutputDirectory="PreserveNewest" />
     <!-- Recorded engine event streams from app/native_install_progress_test.go. -->
     <None Include="../../tests/unit/fixtures/install-progress/*.ndjson" LinkBase="Fixtures/install-progress" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

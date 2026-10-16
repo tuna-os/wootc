@@ -17,6 +17,11 @@ public interface IEngineConnector
 {
     Task<ConnectionAttempt> ConnectAsync(ConnectRequest request, CancellationToken cancellationToken);
 }
+// A connector that knows which package brand its sessions authenticated.
+public interface IBrandedEngineConnector : IEngineConnector
+{
+    string? AuthenticatedBrandId { get; }
+}
 public interface IEngineSession : IAsyncDisposable
 {
     Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken);
