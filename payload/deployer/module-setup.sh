@@ -76,7 +76,7 @@ install() {
     inst_multiple \
         podman skopeo conmon crun wootc-json-check \
         parted sfdisk partprobe wipefs \
-        mkfs.ext4 mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
+        mkfs.ext4 resize2fs mkfs.vfat mkfs.fat mkfs.xfs mkfs.btrfs mkswap \
         losetup qemu-img qemu-nbd dmsetup cryptsetup systemd-cryptenroll blockdev blkid lsblk \
         fsfreeze fstrim swapon swapoff fuser \
         useradd chpasswd \

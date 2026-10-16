@@ -14,6 +14,13 @@ namespace Wootc.Shell;
 public sealed partial class MainWindow : Window
 {
     private readonly StartupController controller;
+    private readonly IBrandedEngineConnector connector;
+    private readonly Branding brand;
+    private InstallGate? installGate;
+    private MaintenanceGate? maintenanceGate;
+    private VMGate? vmGate;
+    private string configurationBrandId = "";
+    private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
     private long configurationGeneration;
@@ -33,7 +40,7 @@ public sealed partial class MainWindow : Window
         }
         // Local branding is available before any elevation or engine connection.
         string path = Path.Combine(AppContext.BaseDirectory, "Branding", "brand.json");
-        var brand = JsonSerializer.Deserialize<Branding>(File.ReadAllText(path))
+        brand = JsonSerializer.Deserialize<Branding>(File.ReadAllText(path))
             ?? throw new InvalidDataException("Preview branding is missing");
         if (string.IsNullOrWhiteSpace(brand.ProductName) || string.IsNullOrWhiteSpace(brand.Name))
             throw new InvalidDataException("Preview branding has no product or distribution identity");
@@ -41,9 +48,19 @@ public sealed partial class MainWindow : Window
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
         ApplyBrand(brand, BrandTheme.From(brand));
-        controller = new StartupController(brand, new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
-            DispatcherQueue.TryEnqueue(() => { if (!closing && diagnostic.IsCurrent()) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic.Projection); })));
-        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); await controller.DisposeAsync(); };
+#if NATIVE_GALLERY
+        // Screen gallery build: recorded engine answers, no engine process.
+        connector = Wootc.Shell.Gallery.GalleryConnector.FromEnvironment(AppContext.BaseDirectory);
+        Title += " — Screen gallery (recorded fixtures)";
+#else
+        connector = new NativeEngineConnector(AppContext.BaseDirectory, diagnostic =>
+            DispatcherQueue.TryEnqueue(() => { if (!closing && diagnostic.IsCurrent()) Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConnectionStatus, diagnostic.Projection); }));
+#endif
+        controller = new StartupController(brand, connector);
+        InstallButton.Content = $"Advanced: {InstallDisclosure.InstallVerb(brand)} with reboot";
+        // Closing the window disconnects both sessions; the engine treats that
+        // as a cancellation request for any running install.
+        Closed += async (_, _) => { closing=true; InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); if (vmGate is not null) await vmGate.DisposeAsync(); await controller.DisposeAsync(); };
     }
     // Local, validated brand assets render before any elevation request and
     // stay visible after a refusal. High contrast keeps the system palette.
@@ -101,7 +118,7 @@ public sealed partial class MainWindow : Window
             BrandRoot.Background = Brush(background);
             BrandCard.Background = Brush(theme.Card!.Value);
             var text = Brush(theme.Text!.Value);
-            foreach (var block in new[] { ProductName, DistributionName, PreviewHeading, PreviewIntro, PreviewStatus, ConnectionStatus, StartupRouteText, StartupObservations })
+            foreach (var block in new[] { ProductName, DistributionName, PreviewHeading, PreviewIntro, PreviewStatus, ConnectionStatus, StartupRouteText, StartupObservations, InstallRecoveryText })
                 block.Foreground = text;
         }
         if (theme.Accent is { } accent)
@@ -132,6 +149,11 @@ public sealed partial class MainWindow : Window
         ConfigurationButton.IsEnabled = false;
         ConnectionStatus.Text = "Disconnecting engine";
         ClearConfiguration();
+        // An open maintenance session holds no grant the user has confirmed;
+        // it closes with the engine connection.
+        if (maintenanceGate is { } maintenance) { maintenanceGate = null; await maintenance.DisposeAsync(); }
+        // The engine stops a Linux window this session started when it closes.
+        if (vmGate is { } vm) { vmGate = null; await vm.DisposeAsync(); }
         try { await controller.DisposeAsync(); }
         catch (Exception error) { ConnectionStatus.Text = $"Disconnect pending: {error.Message}"; }
         UpdateConnection();
@@ -158,6 +180,8 @@ public sealed partial class MainWindow : Window
             });
             if (generation != configurationGeneration || controller.Connection != ConnectionState.Ready) return;
             var observed = new ConsumerConfiguration(snapshot.BrandId);
+            configurationBrandId = snapshot.BrandId;
+            configurationSteps = snapshot.Steps.ToArray();
             observed.ApplyCatalogue(ConfigurationProjection.ToCatalogue(snapshot));
             updatingConfiguration = true;
             configuration = observed;
@@ -195,6 +219,7 @@ public sealed partial class MainWindow : Window
 
         LinuxEncryption.SelectedItem = null; LinuxDiskSize.Value = double.NaN; LinuxWindowsLook.IsChecked = false;
         ImageFacts.Text = ""; StorageFacts.Text = ""; InstallBlockedReason.Text = "";
+        _ = DiscardInstallGrantAsync();
     }
 
     private void ConfigurationChanged(object sender, object args)
@@ -227,6 +252,341 @@ public sealed partial class MainWindow : Window
         StorageFacts.Text = configuration.SelectedStorage is null ? "Choose an assessed volume; no drive is selected automatically" :
             $"{configuration.SelectedStorage.DriveLetter}: {configuration.SelectedStorage.FreeBytes} available bytes; partition: {configuration.SelectedStorage.PartitionGuid}; NTFS: {configuration.SelectedStorage.NtfsSerial}";
         InstallBlockedReason.Text = configuration.InstallationBlockedReason;
+        RenderVM();
+        // Any change to the plan on screen discards an earlier grant and its
+        // install session; the new plan needs its own engine check.
+        _ = DiscardInstallGrantAsync();
+    }
+
+    private async Task DiscardInstallGrantAsync()
+    {
+        if (installGate is { State: not InstallGateState.Idle }) await installGate.InvalidateAsync();
+        UpdateInstallGate();
+    }
+
+    private void UpdateInstallGate()
+    {
+        var state = installGate?.State ?? InstallGateState.Idle;
+        bool busy = state is InstallGateState.Preparing or InstallGateState.Confirming or InstallGateState.Started;
+        PrepareInstallButton.IsEnabled = !busy && configuration is { FormProblem.Length: 0 } && controller.Connection == ConnectionState.Ready;
+        InstallButton.IsEnabled = installGate?.CanInstall == true;
+        InstallGateStatus.Text = state switch
+        {
+            InstallGateState.Preparing => "Checking this plan with the engine",
+            InstallGateState.Granted => "The engine accepted this plan. Nothing changes until you confirm.",
+            InstallGateState.Refused or InstallGateState.Failed => installGate!.Reason,
+            InstallGateState.Confirming => "Starting the installation",
+            InstallGateState.Started => "The installation started. Keep this window open.",
+            InstallGateState.Cancelling => "Cancelling the installation",
+            InstallGateState.Cancelled => "The installation was cancelled.",
+            _ => "",
+        };
+        RenderInstallProgress(state);
+    }
+
+    // The legacy progress and done screens, word for word, from this
+    // session's own install:progress events.
+    private void RenderInstallProgress(InstallGateState state)
+    {
+        var progress = installGate?.Progress;
+        bool finished = progress is not null && state is InstallGateState.Finished or InstallGateState.Restarting;
+        bool installing = progress is not null && !finished && state is InstallGateState.Confirming or InstallGateState.Started or InstallGateState.Cancelling or InstallGateState.Failed;
+        ProgressPanel.Visibility = installing ? Visibility.Visible : Visibility.Collapsed;
+        DonePanel.Visibility = finished ? Visibility.Visible : Visibility.Collapsed;
+        if (installing || finished) ConfigurationPanel.Visibility = Visibility.Collapsed;
+        else if (configuration is not null) ConfigurationPanel.Visibility = Visibility.Visible;
+        if (progress is null) return;
+        var grant = installGate!.Grant;
+        var image = configuration?.Images.FirstOrDefault(candidate => candidate.ImageRef == grant?.ImageRef);
+        if (installing)
+        {
+            ProgressTitle.Text = InstallProgressText.Title(brand);
+            ProgressSubtitle.Text = InstallProgressText.Subtitle(image);
+            ProgressStep.Text = progress.StepLabel;
+            ProgressMessage.Text = progress.Message;
+            InstallProgressBar.Value = progress.Percent;
+            ProgressNotes.Children.Clear();
+            var notes = InstallProgressText.Notes(progress, grant?.StorageDrive ?? "", brand);
+            for (int index = 0; index < notes.Count; index++)
+            {
+                var note = new TextBlock { Text = notes[index], TextWrapping = TextWrapping.Wrap };
+                AutomationProperties.SetAutomationId(note, $"ProgressNote{index}");
+                ProgressNotes.Children.Add(note);
+            }
+            ProgressSteps.Children.Clear();
+            foreach (var step in progress.Steps)
+            {
+                var item = new TextBlock { Text = step.Label, Opacity = step.State == InstallStepState.Pending ? 0.6 : 1 };
+                if (step.State == InstallStepState.Active) item.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+                AutomationProperties.SetHelpText(item, step.State.ToString());
+                ProgressSteps.Children.Add(item);
+            }
+            CancelInstallButton.IsEnabled = state == InstallGateState.Started;
+        }
+        if (finished)
+        {
+            DoneTitle.Text = InstallProgressText.DoneTitle(brand);
+            DoneBody.Text = InstallProgressText.DoneBody(image, brand);
+            DoneSafety.Text = InstallProgressText.DoneSafety;
+            string? mok = InstallProgressText.MokEnrollment(image);
+            DoneMok.Text = mok ?? "";
+            DoneMok.Visibility = mok is null ? Visibility.Collapsed : Visibility.Visible;
+            DoneSaveWork.Text = InstallProgressText.SaveWork;
+            RebootNowButton.IsEnabled = state == InstallGateState.Finished;
+        }
+    }
+
+    private async void CancelInstall_Click(object sender, RoutedEventArgs args)
+    {
+        if (installGate is null) return;
+        CancelInstallButton.IsEnabled = false;
+        await installGate.CancelAsync();
+        UpdateInstallGate();
+    }
+
+    // Reboot Later leaves the prepared restart in place, as the legacy app does.
+    private void RebootLater_Click(object sender, RoutedEventArgs args) => Close();
+
+    private async void RebootNow_Click(object sender, RoutedEventArgs args)
+    {
+        if (installGate is null) return;
+        RebootNowButton.IsEnabled = false;
+        try { await installGate.RebootAsync(); }
+        catch (Exception error) { InstallGateStatus.Text = error.Message; }
+        UpdateInstallGate();
+    }
+
+    private async void PrepareInstall_Click(object sender, RoutedEventArgs args)
+    {
+        if (configuration is null || configuration.FormProblem.Length != 0 || configurationBrandId.Length == 0) return;
+        var draft = configuration.CreateDraft();
+        if (installGate is null)
+        {
+            installGate = new InstallGate(connector, configurationBrandId);
+            installGate.Changed += () => DispatcherQueue.TryEnqueue(() => { if (!closing) UpdateInstallGate(); });
+        }
+        var preparing = installGate.PrepareAsync(draft);
+        UpdateInstallGate();
+        await preparing;
+        UpdateInstallGate();
+    }
+
+    // The confirmation repeats the legacy launchpad's own disclosures. Cancel
+    // is the default button, so Enter never starts an install.
+    private async void Install_Click(object sender, RoutedEventArgs args)
+    {
+        var gate = installGate;
+        var grant = gate?.Grant;
+        if (gate is null || !gate.CanInstall || grant is null) return;
+        var disclosure = InstallDisclosure.For(brand, grant);
+        var lines = new StackPanel { Spacing = 8 };
+        for (int index = 0; index < disclosure.Lines.Count; index++)
+        {
+            var line = new TextBlock { Text = disclosure.Lines[index], TextWrapping = TextWrapping.Wrap };
+            AutomationProperties.SetAutomationId(line, $"InstallDisclosure{index}");
+            lines.Children.Add(line);
+        }
+        var dialog = new ContentDialog
+        {
+            Title = disclosure.Heading, Content = lines, PrimaryButtonText = disclosure.Action, CloseButtonText = disclosure.Cancel,
+            DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot,
+        };
+        AutomationProperties.SetAutomationId(dialog, "InstallConfirmation");
+        InstallButton.IsEnabled = false;
+        var answer = await dialog.ShowAsync();
+        if (answer == ContentDialogResult.Primary)
+        {
+            var confirming = gate.ConfirmAsync(configurationSteps);
+            UpdateInstallGate();
+            await confirming;
+        }
+        UpdateInstallGate();
+    }
+
+    // The legacy Linux window screens, word for word, from this session's
+    // VM status and vm:progress events.
+    private void RenderVM()
+    {
+        VMPanel.Visibility = controller.Connection == ConnectionState.Ready ? Visibility.Visible : Visibility.Collapsed;
+        if (VMPanel.Visibility != Visibility.Visible) return;
+        var image = ImageChoice.SelectedItem as ConfigurationImage;
+        string blocked = VMText.PrepareBlockedReason(image?.ImageRef, LinuxUsername.Text, LinuxPassword.Password, LinuxPasswordConfirmation.Password);
+        var view = VMScreen.For(vmGate, brand, image?.Name, blocked);
+        VMLines.Children.Clear();
+        foreach (var line in view.Lines)
+        {
+            var block = new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap };
+            if (line.Id == "VMTitle") { block.FontSize = 20; block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; }
+            AutomationProperties.SetAutomationId(block, line.Id);
+            VMLines.Children.Add(block);
+        }
+        VMProgressBar.Visibility = view.ShowProgress ? Visibility.Visible : Visibility.Collapsed;
+        VMProgressBar.Value = view.ProgressValue;
+        VMButtons.Children.Clear();
+        foreach (var action in view.Buttons)
+        {
+            var button = new Button { Content = action.Label, IsEnabled = action.Enabled };
+            AutomationProperties.SetAutomationId(button, action.Id);
+            string id = action.Id;
+            button.Click += (_, _) => VM_Click(id);
+            VMButtons.Children.Add(button);
+        }
+    }
+
+    private async void VM_Click(string id)
+    {
+        if (id == "ReadVMStatus")
+        {
+            string? brandId = connector.AuthenticatedBrandId;
+            if (brandId is null) return;
+            if (vmGate is null)
+            {
+                vmGate = new VMGate(connector, brandId);
+                var gate = vmGate;
+                gate.Changed += () => DispatcherQueue.TryEnqueue(async () =>
+                {
+                    if (closing) return;
+                    // The legacy screen read the VM again after these events.
+                    if (gate.Progress?.Stage is "started" or "stopped" or "needs_recovery" or "runtime-ready" && gate.State == VMGateState.Open) await gate.RefreshAsync();
+                    RenderVM();
+                });
+            }
+            var opening = vmGate.OpenAsync();
+            RenderVM();
+            await opening;
+            RenderVM();
+            return;
+        }
+        var vm = vmGate;
+        if (vm is null) return;
+        var image = ImageChoice.SelectedItem as ConfigurationImage;
+        var plan = id switch
+        {
+            "StartInWindow" => new NativeVMPlan { Action = VMActions.Prepare, ImageRef = image?.ImageRef, Username = LinuxUsername.Text, Password = LinuxPassword.Password },
+            "SetUpRuntime" => new NativeVMPlan { Action = VMActions.InstallRuntime },
+            "ShutDownLinux" => new NativeVMPlan { Action = VMActions.Stop },
+            "ForceStopLinux" or "CancelSetup" => new NativeVMPlan { Action = VMActions.ForceStop },
+            "StartLinuxAgain" or "BootInVM" => new NativeVMPlan { Action = VMActions.Boot },
+            _ => throw new InvalidDataException("Unsupported VM action"),
+        };
+        if (plan.Action == VMActions.Prepare && VMText.PrepareBlockedReason(plan.ImageRef, plan.Username ?? "", plan.Password ?? "", LinuxPasswordConfirmation.Password).Length != 0) return;
+        // Force stop asks the legacy question; every other action ran on the click.
+        bool ask = id == "ForceStopLinux";
+        var running = vm.RunAsync(plan, async _ =>
+        {
+            if (!ask) return true;
+            var dialog = new ContentDialog
+            {
+                Content = new TextBlock { Text = VMText.ForceStopConfirm, TextWrapping = TextWrapping.Wrap },
+                PrimaryButtonText = "OK", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot,
+            };
+            AutomationProperties.SetAutomationId(dialog, "VMForceStopConfirmation");
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        });
+        RenderVM();
+        bool ran = await running;
+        // As the legacy screen did, the password leaves the form once preparation starts.
+        if (ran && plan.Action == VMActions.Prepare) { LinuxPassword.Password = ""; LinuxPasswordConfirmation.Password = ""; }
+        RenderVM();
+    }
+
+    private string StepLabel(string id) => configurationSteps.FirstOrDefault(step => step.Id == id)?.Label ?? id;
+
+    // The legacy Manage and Recovery screens, word for word. Every action
+    // runs through its own install-purpose session: the engine reads the
+    // installation, grants one action, and runs it on one confirmation.
+    private void RenderMaintenance()
+    {
+        var view = controller.Connection == ConnectionState.Ready ? MaintenanceScreen.For(controller.Route, controller.Snapshot, maintenanceGate, brand, StepLabel) : null;
+        MaintenancePanel.Visibility = view is null ? Visibility.Collapsed : Visibility.Visible;
+        if (view is null) return;
+        MaintenanceLines.Children.Clear();
+        foreach (var line in view.Lines)
+        {
+            var block = new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap };
+            if (line.Id is "ManageTitle" or "RecoveryTitle") { block.FontSize = 20; block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; }
+            else if (line.Id is "ManageCardTitle" or "ManageInstalledTitle" or "RecoverySafe" or "RecoveryBootState") block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+            AutomationProperties.SetAutomationId(block, line.Id);
+            MaintenanceLines.Children.Add(block);
+        }
+        var info = maintenanceGate?.Info;
+        DeleteLinuxData.Visibility = view.OfferDeleteData ? Visibility.Visible : Visibility.Collapsed;
+        DeleteLinuxData.Content = $"{MaintenanceText.DeleteData}\n{MaintenanceText.DeleteDataDetail}";
+        if (!view.OfferDeleteData) DeleteLinuxData.IsChecked = false;
+        GiveSpaceBack.Visibility = view.OfferPartition && info is not null ? Visibility.Visible : Visibility.Collapsed;
+        GiveSpaceBack.Content = info is null ? "" : $"{MaintenanceText.GiveBack(info)}\n{MaintenanceText.GiveBackDetail(info)}";
+        if (!view.OfferPartition) GiveSpaceBack.IsChecked = false;
+        MaintenanceStatus.Text = view.Status;
+        MaintenanceButtons.Children.Clear();
+        foreach (var action in view.Buttons)
+        {
+            var button = new Button { Content = action.Label, IsEnabled = action.Enabled };
+            AutomationProperties.SetAutomationId(button, action.Id);
+            string id = action.Id;
+            button.Click += (_, _) => Maintenance_Click(id);
+            MaintenanceButtons.Children.Add(button);
+        }
+    }
+
+    private async void Maintenance_Click(string id)
+    {
+        bool recovery = controller.Route == StartupRoute.Recovery;
+        switch (id)
+        {
+            case "CloseWindow": Close(); return;
+            case "Reinstall": Configuration_Click(ConfigurationButton, new RoutedEventArgs()); return;
+            case "ReadInstallation":
+                string? brandId = connector.AuthenticatedBrandId;
+                if (brandId is null) return;
+                maintenanceGate ??= new MaintenanceGate(connector, brandId);
+                var opening = maintenanceGate.OpenAsync();
+                RenderMaintenance();
+                await opening;
+                RenderMaintenance();
+                return;
+        }
+        var gate = maintenanceGate;
+        if (gate is null || gate.State != MaintenanceGateState.Observed) return;
+        var plan = new NativeMaintenancePlan
+        {
+            Action = id switch
+            {
+                "UninstallLinux" or "RemoveLinux" => MaintenanceActions.Uninstall,
+                "KeepWindowsOnly" => MaintenanceActions.RestoreWindowsBoot,
+                "RepairBoot" => MaintenanceActions.RepairBoot,
+                "TryAgain" => MaintenanceActions.TryAgain,
+                "RestartIntoLinux" => MaintenanceActions.BootLinux,
+                _ => throw new InvalidDataException("Unsupported maintenance action"),
+            },
+            // The Recovery screen's Remove keeps the Linux data, as the legacy one did.
+            DeleteRootDisk = id == "UninstallLinux" && DeleteLinuxData.IsChecked == true,
+            RemovePartition = id == "UninstallLinux" && GiveSpaceBack.IsChecked == true && GiveSpaceBack.Visibility == Visibility.Visible,
+        };
+        var preparing = gate.PrepareAsync(plan);
+        RenderMaintenance();
+        await preparing;
+        RenderMaintenance();
+        if (!gate.CanConfirm || gate.Grant is not { } grant) return;
+        string? question = MaintenanceText.Confirmation(grant, recovery, brand);
+        if (question is not null)
+        {
+            var dialog = new ContentDialog
+            {
+                Content = new TextBlock { Text = question, TextWrapping = TextWrapping.Wrap },
+                PrimaryButtonText = "OK", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot,
+            };
+            AutomationProperties.SetAutomationId(dialog, "MaintenanceConfirmation");
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                await gate.DeclineAsync();
+                RenderMaintenance();
+                return;
+            }
+        }
+        var confirming = gate.ConfirmAsync();
+        RenderMaintenance();
+        await confirming;
+        RenderMaintenance();
     }
 
     private void UpdateConnection()
@@ -245,10 +605,18 @@ public sealed partial class MainWindow : Window
             StartupRoute.Progress => "An installation is running",
             StartupRoute.Manage => "Manage the existing installation",
             StartupRoute.Recovery => "Review the previous installation attempt",
+            StartupRoute.Interrupted => "Finish or remove the interrupted installation",
             _ => throw new InvalidDataException("Unsupported startup route")
         } : "Startup status has not been read";
         var observed = controller.Snapshot;
         StartupObservations.Text = observed is null ? "No authenticated startup observations" :
-            $"Running: {observed.Status.Running}; Existing: {observed.Status.Existing}; Lifecycle: {observed.LastRun?.State ?? ""}; Recovery: {observed.Recovery?.Verdict ?? ""}";
+            $"Running: {observed.Status.Running}; Existing: {observed.Status.Existing}; Lifecycle: {observed.LastRun?.State ?? ""}; Recovery: {observed.Recovery?.Verdict ?? ""}; Install: {observed.InstallRecovery?.Class ?? ""}";
+        // The engine's own text for the interrupted attempt. No action runs
+        // from this preview; the safe actions need the install route.
+        var interrupted = controller.Connection == ConnectionState.Ready && controller.Route == StartupRoute.Interrupted ? observed?.InstallRecovery : null;
+        InstallRecoveryText.Text = interrupted is null ? "" : $"{interrupted.Title} {interrupted.Message}";
+        InstallRecoveryText.Visibility = interrupted is null ? Visibility.Collapsed : Visibility.Visible;
+        RenderMaintenance();
+        RenderVM();
     }
 }

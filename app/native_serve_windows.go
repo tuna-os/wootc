@@ -20,25 +20,27 @@ import (
 func runNativeServe(args []string) int {
 	flags := flag.NewFlagSet("native-serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var session string
+	var session, purpose string
 	var sourcePID uint
 	flags.StringVar(&session, "session", "", "native session")
 	flags.UintVar(&sourcePID, "source-pid", 0, "retained source process")
+	flags.StringVar(&purpose, "purpose", "", "native session purpose")
 	if len(args) < 2 || flags.Parse(args[2:]) != nil || len(flags.Args()) != 0 ||
-		!lowerHexLength(session, 32) || sourcePID == 0 || uint64(sourcePID) > 0xffffffff {
+		!lowerHexLength(session, 32) || sourcePID == 0 || uint64(sourcePID) > 0xffffffff ||
+		(purpose != "" && purpose != nativePurposeInstall) {
 		fmt.Fprintln(os.Stderr, "native-serve: invalid launch arguments")
 		return 1
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	if err := serveNativeSession(ctx, uint32(sourcePID), session); err != nil {
+	if err := serveNativeSession(ctx, uint32(sourcePID), session, purpose); err != nil {
 		fmt.Fprintf(os.Stderr, "native-serve: %v\n", err)
 		return 1
 	}
 	return 0
 }
 
-func serveNativeSession(ctx context.Context, sourcePID uint32, session string) error {
+func serveNativeSession(ctx context.Context, sourcePID uint32, session, purpose string) error {
 	source, err := observeNativeProcessPeer(sourcePID)
 	if err != nil {
 		return err
@@ -110,6 +112,18 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 	if err := verifyNativePipeClient(pipe, source); err != nil {
 		return err
 	}
+	// An install-purpose session binds its one-shot consent to the original
+	// user (#606). Same-user capture only: the alternative-administrator case
+	// is refused earlier and stays refused. Capture follows the package,
+	// handshake and pipe-client checks, so it binds only this shell.
+	var installUser *nativeOriginalUser
+	if purpose == nativePurposeInstall {
+		installUser, err = captureNativeOriginalUser(source, engine)
+		if err != nil {
+			return err
+		}
+		defer installUser.close()
+	}
 	// All preparation runs within the existing handshake deadline. Selection
 	// audits only; it never creates roots, changes ACLs, or starts file logging.
 	startupCtx, cancelStartup := context.WithDeadline(ctx, handshakeDeadline)
@@ -134,17 +148,24 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session string) e
 		app.setStatus(InstallStatus{Existing: found})
 		return nil
 	}, func() error {
-		dispatcher = newConfigurationAssessmentServer(app, syncWriter, func(readCtx context.Context) (NativeConfigurationSnapshot, error) {
+		observe := func(readCtx context.Context) (NativeConfigurationSnapshot, error) {
 			return observeWindowsNativeConfiguration(readCtx, selectedRoot, selectedFound)
-		})
-		dispatcher.strictStartup = true
-		dispatcher.startupValidate = func(readCtx context.Context) error {
+		}
+		validateSelection := func(readCtx context.Context) error {
 			_, root, currentFound, err := selectWindowsStatusState(readCtx, true)
 			if err != nil || currentFound != selectedFound || root != selectedRoot {
 				return fmt.Errorf("native installation observation changed")
 			}
 			return nil
 		}
+		if purpose == nativePurposeInstall {
+			prepare := newWindowsNativeInstallPrepare(ctx, app, installUser, session, manifest.BrandID, observe, validateSelection)
+			dispatcher = newNativeInstallServer(app, syncWriter, newNativeInstallSession(prepare, app.StartInstall).withReboot(app.Reboot).withMaintenance(newWindowsNativeMaintenanceHost(app, installUser, session, manifest.BrandID)).withVM(newWindowsNativeVMHost(app, installUser, session, manifest.BrandID)))
+		} else {
+			dispatcher = newConfigurationAssessmentServer(app, syncWriter, observe)
+		}
+		dispatcher.strictStartup = true
+		dispatcher.startupValidate = validateSelection
 		return nil
 	})
 	if err != nil {

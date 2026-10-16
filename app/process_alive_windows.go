@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/windows"
 )
@@ -36,4 +37,25 @@ func processAlive(pid int) bool {
 		return false
 	}
 	return strings.EqualFold(filepath.Base(windows.UTF16ToString(buf[:size])), filepath.Base(self))
+}
+
+// processCreationTime returns when a still-running pid was created.
+func processCreationTime(pid int) (time.Time, bool) {
+	if pid <= 0 {
+		return time.Time{}, false
+	}
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil {
+		return time.Time{}, false
+	}
+	defer windows.CloseHandle(h)
+	var code uint32
+	if err := windows.GetExitCodeProcess(h, &code); err != nil || code != 259 { // STILL_ACTIVE
+		return time.Time{}, false
+	}
+	var created, exited, kernel, user windows.Filetime
+	if err := windows.GetProcessTimes(h, &created, &exited, &kernel, &user); err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(0, created.Nanoseconds()), true
 }

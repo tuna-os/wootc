@@ -60,6 +60,18 @@ internal sealed class NativeDiagnosticState
         "rpc-status-request" or "rpc-status-response" or "rpc-status-decode" or "rpc-status-complete" or
         "rpc-lifecycle-request" or "rpc-lifecycle-response" or "rpc-lifecycle-decode" or "rpc-lifecycle-complete" or
         "rpc-recovery-request" or "rpc-recovery-response" or "rpc-recovery-decode" or "rpc-recovery-complete" or
+        "rpc-install-request" or "rpc-install-response" or "rpc-install-decode" or "rpc-install-complete" or
+        "rpc-plan-request" or "rpc-plan-response" or "rpc-plan-decode" or "rpc-plan-complete" or
+        "rpc-consent-request" or "rpc-consent-response" or "rpc-consent-decode" or "rpc-consent-complete" or
+        "rpc-cancel-request" or "rpc-cancel-response" or "rpc-cancel-decode" or "rpc-cancel-complete" or
+        "rpc-restart-request" or "rpc-restart-response" or "rpc-restart-decode" or "rpc-restart-complete" or
+        "rpc-uninstall-info-request" or "rpc-uninstall-info-response" or "rpc-uninstall-info-decode" or "rpc-uninstall-info-complete" or
+        "rpc-boot-check-request" or "rpc-boot-check-response" or "rpc-boot-check-decode" or "rpc-boot-check-complete" or
+        "rpc-maintenance-plan-request" or "rpc-maintenance-plan-response" or "rpc-maintenance-plan-decode" or "rpc-maintenance-plan-complete" or
+        "rpc-maintenance-consent-request" or "rpc-maintenance-consent-response" or "rpc-maintenance-consent-decode" or "rpc-maintenance-consent-complete" or
+        "rpc-vm-status-request" or "rpc-vm-status-response" or "rpc-vm-status-decode" or "rpc-vm-status-complete" or
+        "rpc-vm-plan-request" or "rpc-vm-plan-response" or "rpc-vm-plan-decode" or "rpc-vm-plan-complete" or
+        "rpc-vm-consent-request" or "rpc-vm-consent-response" or "rpc-vm-consent-decode" or "rpc-vm-consent-complete" or
         "rpc-configuration-request" or "rpc-configuration-response" or "rpc-configuration-decode" or "rpc-configuration-complete" or
         "rpc-other-request" or "rpc-other-response" or "rpc-other-decode" or "rpc-other-complete" => stage,
         _ => "unknown"

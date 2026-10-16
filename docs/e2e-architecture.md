@@ -103,7 +103,7 @@ flowchart TD
     wd["watchdog: sleep 2700 → force_reboot"]
     scan["scan for /wootc/disks/root.disk<br/>retry 24×5s + udevadm settle<br/>(ntfs3 ro probe of every partition)"]
     mnt["mount NTFS rw<br/>(dirty volume → clear error + fail)"]
-    scratch["ext4 scratch loop on NTFS<br/>C:\\wootc\\cache\\deployer-scratch.img (30G)<br/>mounted at /var/fisherman-tmp<br/>binds: /var/lib/containers, /var/tmp"]
+    scratch["ext4 scratch loop on NTFS<br/>C:\\wootc\\cache\\deployer-scratch.img (20G floor, grown to fit the image)<br/>mounted at /var/fisherman-tmp<br/>binds: /var/lib/containers, /var/tmp"]
     preflight["registry pre-flight<br/>skopeo inspect docker://image<br/>(prints real DNS/TLS errors)"]
     loop["losetup root.disk → /dev/loopN"]
     fish["fisherman recipe.json<br/>partition → mkfs → podman pull →<br/>podman run bootc install to-filesystem"]

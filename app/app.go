@@ -491,19 +491,20 @@ func normalizeBootloader(v string) (string, error) {
 	}
 }
 
-// StartInstall begins the install pipeline in a goroutine. Progress events
-// are emitted via Wails runtime events (event: "install:progress").
-// Returns immediately — poll GetStatus() or listen to events.
-func (a *App) StartInstall(cfg InstallConfig) error {
+// validateInstallConfig is the install gate StartInstall applies before any
+// work: channel scenario policy, bootloader, encryption and platform checks.
+// It reads only and returns the normalized configuration. The native install
+// session runs it before it grants an install intent.
+func (a *App) validateInstallConfig(cfg InstallConfig) (InstallConfig, error) {
 	// Green-gate (docs/RELEASING.md): refuse scenarios the active channel has
 	// not proven, so an alpha user can never be walked into a known-red path.
 	// The frontend gates the UI too; this is the authoritative backstop.
 	if err := a.gateScenario(cfg); err != nil {
-		return err
+		return InstallConfig{}, err
 	}
 	bootloader, err := normalizeBootloader(cfg.Bootloader)
 	if err != nil {
-		return err
+		return InstallConfig{}, err
 	}
 	cfg.Bootloader = bootloader
 	if cfg.Encryption == "" {
@@ -517,17 +518,28 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 		// recovery key the deployer never captures), so every such install
 		// aborts at verification, and the user is never shown the key the
 		// first boot asks for (#551, #33). Refuse it until that path works.
-		return fmt.Errorf("TPM auto-unlock is not available yet: the install cannot " +
+		return InstallConfig{}, fmt.Errorf("TPM auto-unlock is not available yet: the install cannot " +
 			"verify a TPM-sealed disk and would not show you its recovery key (#551). " +
 			"Choose no encryption, or a passphrase")
 	case "luks-passphrase":
 		if cfg.LuksPassphrase == "" {
-			return fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
+			return InstallConfig{}, fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
 		}
 	default:
-		return fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
+		return InstallConfig{}, fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
 	}
 	if err := validatePlatformConfig(cfg); err != nil {
+		return InstallConfig{}, err
+	}
+	return cfg, nil
+}
+
+// StartInstall begins the install pipeline in a goroutine. Progress events
+// are emitted via Wails runtime events (event: "install:progress").
+// Returns immediately — poll GetStatus() or listen to events.
+func (a *App) StartInstall(cfg InstallConfig) error {
+	cfg, err := a.validateInstallConfig(cfg)
+	if err != nil {
 		return err
 	}
 
@@ -553,13 +565,9 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 			}
 		})
 		if err != nil && err != context.Canceled {
-			a.emit(ProgressEvent{
-				Step: "error", Message: err.Error(), Percent: 0, Error: err.Error(),
-			})
+			a.emit(installFailureEvent(err))
 		} else if err == nil {
-			a.emit(ProgressEvent{
-				Step: "done", Message: "Installation complete. Reboot to start TunaOS.", Percent: 100, Done: true,
-			})
+			a.emit(installDoneEvent())
 		}
 	})
 }
@@ -1174,6 +1182,27 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 		s.Done = true
 	})
 	a.emit(ProgressEvent{Step: "done", Message: "Installation complete (preview).", Percent: 100, Done: true})
+}
+
+// installDoneEvent and installFailureEvent are the last install:progress
+// events of a real run. The native shell's recorded progress streams
+// (tests/unit/fixtures/install-progress) are built from these constructors.
+func installDoneEvent() ProgressEvent {
+	return ProgressEvent{Step: "done", Message: "Installation complete. Reboot to start " + installedSystemName() + ".", Percent: 100, Done: true}
+}
+
+// installedSystemName is the distribution this build installs, from the
+// effective branding: a Bazzite build says "Bazzite", the generic build says
+// its default name. Only a brand that clears the name falls back to "Linux".
+func installedSystemName() string {
+	if n := strings.TrimSpace(effectiveBranding().Name); n != "" {
+		return n
+	}
+	return "Linux"
+}
+
+func installFailureEvent(err error) ProgressEvent {
+	return ProgressEvent{Step: "error", Message: err.Error(), Percent: 0, Error: err.Error()}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

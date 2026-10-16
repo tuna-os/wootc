@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "brandId": "wootc",
+  "rootBinding": "",
+  "rootScope": "none",
+  "catalogueSource": "embedded",
+  "catalogueMetadataSha256": "3ecb8150350ceaaef125af6ea4d9ec4240b5162745e54fc46beff46aaa81f919",
+  "policySource": "default",
+  "policy": {
+    "channel": "alpha",
+    "experimentalImages": false,
+    "bitlockerSupported": false,
+    "customImageAllowed": false,
+    "reason": "Alpha — only fully-tested images and unencrypted disks are offered. More unlock as testing goes green."
+  },
+  "branding": {
+    "name": "TunaOS",
+    "tagline": "Bring Windows to Linux — keep everything.",
+    "logoEmoji": "🐠",
+    "version": "dev",
+    "accent": "#5b6ee1",
+    "accentText": "#ffffff",
+    "background": "#0a0a0f",
+    "card": "#13131e",
+    "text": "#e8e8f0",
+    "installVerb": "Install",
+    "productName": "wootc",
+    "exeName": "wootc",
+    "publisher": "TunaOS",
+    "copyright": "",
+    "fileDescription": "wootc",
+    "websiteURL": "",
+    "supportURL": "",
+    "catalog": null,
+    "defaultImage": "",
+    "hideCustomImage": false,
+    "preloadImage": false,
+    "fontFamily": "",
+    "logoDataUri": "",
+    "fontDataUri": "",
+    "themeCss": ""
+  },
+  "images": [
+    {
+      "image": {
+        "id": "bluefin-lts",
+        "name": "Bluefin LTS",
+        "emoji": "🐟",
+        "base": "Universal Blue (Fedora)",
+        "desktop": "gnome",
+        "desktopName": "GNOME",
+        "imageRef": "ghcr.io/projectbluefin/bluefin:lts",
+        "description": "A calm, reliable cloud-native desktop on the long-term-support base. The most-tested choice.",
+        "bootloader": "grub2",
+        "composeFs": false,
+        "family": "fedora",
+        "status": "green"
+      },
+      "admitted": true,
+      "admissionBlockedReason": "",
+      "requiresMokEnrollment": false,
+      "contentVerified": false
+    },
+    {
+      "image": {
+        "id": "bluefin",
+        "name": "Bluefin",
+        "emoji": "🐟",
+        "base": "Universal Blue (Fedora)",
+        "desktop": "gnome",
+        "desktopName": "GNOME",
+        "imageRef": "ghcr.io/projectbluefin/bluefin:stable",
+        "description": "The next generation Linux workstation — Bluefin's current release.",
+        "bootloader": "grub2",
+        "composeFs": false,
+        "family": "fedora",
+        "status": "green"
+      },
+      "admitted": true,
+      "admissionBlockedReason": "",
+      "requiresMokEnrollment": false,
+      "contentVerified": false
+    },
+    {
+      "image": {
+        "id": "dakota",
+        "name": "Dakota",
+        "emoji": "🐬",
+        "base": "Universal Blue (Fedora, composefs)",
+        "desktop": "gnome",
+        "desktopName": "GNOME",
+        "imageRef": "ghcr.io/projectbluefin/dakota:stable",
+        "description": "Bluefin's next-generation composefs desktop. Newly proven end-to-end.",
+        "bootloader": "systemd-boot",
+        "composeFs": true,
+        "family": "fedora",
+        "status": "green"
+      },
+      "admitted": true,
+      "admissionBlockedReason": "",
+      "requiresMokEnrollment": false,
+      "contentVerified": false
+    },
+    {
+      "image": {
+        "id": "yellowfin-gnome",
+        "name": "Yellowfin",
+        "emoji": "🐠",
+        "base": "AlmaLinux Kitten 10",
+        "desktop": "gnome",
+        "desktopName": "GNOME",
+        "imageRef": "ghcr.io/tuna-os/yellowfin:gnome",
+        "description": "Modern GNOME desktop on Enterprise Linux. Stable and reliable.",
+        "bootloader": "grub2",
+        "composeFs": false,
+        "family": "el10",
+        "status": "green"
+      },
+      "admitted": true,
+      "admissionBlockedReason": "",
+      "requiresMokEnrollment": false,
+      "contentVerified": false
+    },
+    {
+      "image": {
+        "id": "bonito-gnome",
+        "name": "Bonito",
+        "emoji": "🎣",
+        "base": "Fedora 44",
+        "desktop": "gnome",
+        "desktopName": "GNOME",
+        "imageRef": "ghcr.io/tuna-os/bonito:gnome",
+        "description": "Cutting-edge GNOME on Fedora. Latest upstream packages.",
+        "bootloader": "grub2",
+        "composeFs": false,
+        "family": "fedora",
+        "status": "green"
+      },
+      "admitted": true,
+      "admissionBlockedReason": "",
+      "requiresMokEnrollment": false,
+      "contentVerified": false
+    },
+    {
+      "image": {
+        "id": "aurora",
+        "name": "Aurora",
+        "emoji": "🌌",
+        "base": "Universal Blue (Fedora)",
+        "desktop": "kde",
+        "desktopName": "KDE Plasma",
+        "imageRef": "ghcr.io/ublue-os/aurora:stable",
+        "description": "Simply delightful — a clean, reliable KDE Plasma desktop for everyone.",
+        "bootloader": "grub2",
+        "composeFs": false,
+        "family": "fedora",
+        "status": "green"
+      },
+      "admitted": true,
+      "admissionBlockedReason": "",
+      "requiresMokEnrollment": false,
+      "contentVerified": false
+    },
+    {
+      "image": {
+        "id": "bazzite",
+        "name": "Bazzite",
+        "emoji": "🎮",
+        "base": "Universal Blue (Fedora)",
+        "desktop": "kde",
+        "desktopName": "KDE Plasma",
+        "imageRef": "ghcr.io/ublue-os/bazzite:stable",
+        "description": "The next generation of Linux gaming — Steam and game-ready drivers out of the box.",
+        "bootloader": "grub2",
+        "composeFs": false,
+        "family": "fedora",
+        "status": "green",
+        "mokEnroll": "universalblue"
+      },
+      "admitted": true,
+      "admissionBlockedReason": "",
+      "requiresMokEnrollment": true,
+      "contentVerified": false
+    }
+  ],
+  "defaults": {
+    "diskSizeGB": 40,
+    "encryption": "tpm2-luks",
+    "bootloader": "auto",
+    "composeFs": false,
+    "windowsLook": false
+  },
+  "steps": [
+    {
+      "id": "Checking your PC",
+      "owner": "installer",
+      "label": "Checking your PC"
+    },
+    {
+      "id": "Preparing Windows",
+      "owner": "installer",
+      "label": "Preparing Windows"
+    },
+    {
+      "id": "Setting things up",
+      "owner": "installer",
+      "label": "Setting things up"
+    },
+    {
+      "id": "Finding your files",
+      "owner": "installer",
+      "label": "Finding your files"
+    },
+    {
+      "id": "Making room for Linux",
+      "owner": "installer",
+      "label": "Making room for Linux"
+    },
+    {
+      "id": "Downloading Linux",
+      "owner": "installer",
+      "label": "Downloading Linux"
+    },
+    {
+      "id": "Downloading your Linux system",
+      "owner": "installer",
+      "label": "Downloading your Linux system"
+    },
+    {
+      "id": "Preparing the startup menu",
+      "owner": "installer",
+      "label": "Preparing the startup menu"
+    },
+    {
+      "id": "Getting Linux prepared",
+      "owner": "installer",
+      "label": "Getting Linux prepared"
+    },
+    {
+      "id": "Making Linux bootable on your machine",
+      "owner": "installer",
+      "label": "Making Linux bootable on your machine"
+    },
+    {
+      "id": "Saving your settings",
+      "owner": "installer",
+      "label": "Saving your settings"
+    },
+    {
+      "id": "Saving your BitLocker recovery key",
+      "owner": "installer",
+      "label": "Saving your BitLocker recovery key"
+    },
+    {
+      "id": "Looking at your installed apps",
+      "owner": "installer",
+      "label": "Looking at your installed apps"
+    },
+    {
+      "id": "Checking your signed-in apps",
+      "owner": "installer",
+      "label": "Checking your signed-in apps"
+    },
+    {
+      "id": "Looking for your cloud drives",
+      "owner": "installer",
+      "label": "Looking for your cloud drives"
+    },
+    {
+      "id": "Collecting your look and Wi-Fi",
+      "owner": "installer",
+      "label": "Collecting your look and Wi-Fi"
+    },
+    {
+      "id": "Finishing up",
+      "owner": "installer",
+      "label": "Finishing up"
+    }
+  ],
+  "bundle": {
+    "state": "absent",
+    "imageRef": "",
+    "digest": "",
+    "contentVerified": false
+  },
+  "storageStatus": "observed",
+  "storage": [
+    {
+      "id": "gallery-volume-d",
+      "driveLetter": "D",
+      "diskGuid": "11111111-1111-1111-1111-111111111111",
+      "partitionGuid": "22222222-2222-2222-2222-222222222222",
+      "ntfsSerial": "0123456789abcdef",
+      "freeBytes": 137438953472,
+      "maximumRootDiskSizeGB": 100
+    }
+  ],
+  "originalUserCaptured": false,
+  "installAuthorized": false
+}

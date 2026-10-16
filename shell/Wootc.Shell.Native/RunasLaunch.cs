@@ -10,13 +10,15 @@ namespace Wootc.Shell.Native;
 internal sealed record RunasResult(Process? Process, bool Declined, bool PolicyBlocked = false);
 internal static class RunasLaunch
 {
-    public static ProcessStartInfo Create(string engine, string session, int sourcePid)
+    public static ProcessStartInfo Create(string engine, string session, int sourcePid, bool install = false)
     {
         if (!Path.IsPathFullyQualified(engine) || !ProtectedPackage.LowerHex(session, 32) || sourcePid <= 0)
             throw new InvalidDataException("Invalid retained native launch context");
         var start = new ProcessStartInfo(engine) { UseShellExecute = true, Verb = "runas", WorkingDirectory = Path.GetDirectoryName(engine)! };
         start.ArgumentList.Add("--native-serve"); start.ArgumentList.Add("--session"); start.ArgumentList.Add(session);
         start.ArgumentList.Add("--source-pid"); start.ArgumentList.Add(sourcePid.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // A separate install-purpose engine; the assessment engine never gains it.
+        if (install) { start.ArgumentList.Add("--purpose"); start.ArgumentList.Add("install"); }
         return start;
     }
     public static async Task<RunasResult> StartAsync(ProcessStartInfo request, Func<ProcessStartInfo, Process?> launch)

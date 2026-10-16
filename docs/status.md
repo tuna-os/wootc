@@ -129,13 +129,13 @@ re-runs since (dates on the affected rows).
 | `bonito:gnome` / `:kde` / `:niri` (Fedora) | ostree · **xfs** (unsealed) | ✅ | ✅ | ✅ | ⚪ | ⚪ |
 | `dakota` | composefs-native | ✅ | ✅ | 🔴 [#209](https://github.com/tuna-os/wootc/issues/209) | ⚪ | ⚪ |
 | `marlin` (Arch) / `flounder` (Debian) | ostree · xfs (unsealed) | ✅ | 🔴 | ⚪ | ⚪ | ⚪ |
-| `bazzite:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ✅ | ✅ | ✅ | ⚪ | ✅ ([32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098), 2026-08-24) |
-| `bazzite-deck:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
+| `bazzite:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ✅ | ✅ | ✅ | ⚪ | ✅ ([38792319332](https://github.com/tuna-os/wootc/actions/runs/38792319332), 2026-10-15) |
+| `bazzite-deck:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ⚪ | ⚪ | ⚪ | ⚪ | 🔴 deployer out of space ([38804321935](https://github.com/tuna-os/wootc/actions/runs/38804321935), 2026-10-15) |
 | `aurora:stable` (Aurora-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32613697020](https://github.com/tuna-os/wootc/actions/runs/32613697020), 2026-08-23) |
 | `bluefin:stable` (Bluefin-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32604804979](https://github.com/tuna-os/wootc/actions/runs/32604804979), 2026-08-22) |
 
-`bazzite:stable` has one green GUI run, [32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098).
-It ran on `4fd4bc8` (2026-08-24) on the failure-ledger harness.
+`bazzite:stable` has a green GUI run on 2026-10-15, [38792319332](https://github.com/tuna-os/wootc/actions/runs/38792319332).
+It ran on `b102db9`, the head of PR #609, which also contains the launch fix of PR #516.
 The harness built the Bazzite-branded installer, and the GUI clicked Install.
 
 The deployer queued the MOK enrollment, and the harness drove MokManager.
@@ -143,9 +143,11 @@ After the enrollment, Phase 2 started with the Bazzite kernel under Secure Boot.
 Linux read the Documents file from this run, and then Windows started again.
 Phase 3 was off, and the image download on Windows (`WOOTC_PRELOAD=0`) was off.
 
-That proof is old. The last green GUI-driven run on `main`, for any image, was on 2026-08-31 ([33402962420](https://github.com/tuna-os/wootc/actions/runs/33402962420)).
+The earlier green run was [32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098) on `4fd4bc8` (2026-08-24).
+On 2026-10-15, [38803985996](https://github.com/tuna-os/wootc/actions/runs/38803985996) also passed with the branded deployer menus of PR #610.
 `bazzite-deck:stable` has no green run, so the catalog keeps it `experimental`.
-On 2026-10-15, [38731850924](https://github.com/tuna-os/wootc/actions/runs/38731850924) (`bazzite`) and [38731854579](https://github.com/tuna-os/wootc/actions/runs/38731854579) (`bazzite-deck`) stopped at the GUI launch, before the install.
+On 2026-10-15, [38804321935](https://github.com/tuna-os/wootc/actions/runs/38804321935) on `main` (`a9d659f`) installed through the GUI.
+Then the deployer stopped: each pull of the image failed with "no space left on device".
 The [test record for the Bazzite brand](branded-walkthroughs.md#bazzite-brand-test-record) has each check.
 
 The Aurora and Bluefin current runs installed their image through the GUI.

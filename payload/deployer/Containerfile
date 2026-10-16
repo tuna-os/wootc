@@ -95,7 +95,7 @@ RUN printf 'sysloglvl=0\n' > /etc/dracut.conf.d/99-wootc.conf && \
 # image that could not be injected became a FATAL refusal instead of taking
 # the fallback. That is precisely the silent-drop failure this loop exists to
 # catch, so assert it here too.
-RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 \
+RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo fisherman ostree cpio sfdisk mkfs.ext4 resize2fs \
         mkfs.xfs qemu-ga qemu-img qemu-nbd cryptsetup systemd-cryptenroll \
         ntfs-3g efibootmgr mokutil \
         df sync truncate journalctl jq tee which basename date head mv; do \

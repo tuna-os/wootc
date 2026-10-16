@@ -7,8 +7,11 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
-internal sealed class NativeEngineSession : IConfigurationEngineSession
+internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession, IMaintenanceEngineSession, IVMEngineSession
 {
+    // Set only for an install-purpose session; an assessment session refuses
+    // install calls locally as well as in the engine.
+    private readonly string? installSession;
     private readonly Stream pipe;
     private readonly string? expectedBrand;
     private readonly Process engine;
@@ -23,10 +26,11 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
     private Exception? receiveFailure;
     private readonly Action<string, Exception?>? observe;
 
-    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null, string? expectedBrand = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe, expectedBrand) { }
+    public NativeEngineSession(Stream pipe, Process engine, Action<string, Exception?>? observe = null, string? expectedBrand = null, string? installSession = null) : this(pipe, engine, TimeSpan.FromSeconds(30), observe, expectedBrand, installSession) { }
 
-    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null, string? expectedBrand = null)
+    internal NativeEngineSession(Stream pipe, Process engine, TimeSpan disconnectTimeout, Action<string, Exception?>? observe = null, string? expectedBrand = null, string? installSession = null)
     {
+        this.installSession = installSession;
         this.pipe = pipe;
         this.expectedBrand = expectedBrand;
         this.engine = engine;
@@ -62,8 +66,21 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
                 if (!root.TryGetProperty("id", out var id))
                 {
                     // Progress notifications do not acknowledge requests or
-                    // establish startup state. Later views may consume them.
-                    if (!root.TryGetProperty("method", out _)) throw new InvalidDataException("Engine RPC frame has neither response nor notification identity");
+                    // establish startup state. Only an install session reads
+                    // its own install:progress; a malformed one ends the session.
+                    if (!root.TryGetProperty("method", out var method)) throw new InvalidDataException("Engine RPC frame has neither response nor notification identity");
+                    if (installSession is not null && method.ValueKind == JsonValueKind.String && method.GetString() == "install:progress")
+                    {
+                        if (!root.TryGetProperty("params", out var parameters)) throw new InvalidDataException("Install progress has no event");
+                        var update = NativeProtocol.DecodeProgress(parameters);
+                        try { ProgressReceived?.Invoke(update); } catch { /* A view failure must not end the engine session. */ }
+                    }
+                    else if (installSession is not null && method.ValueKind == JsonValueKind.String && method.GetString() == "vm:progress")
+                    {
+                        if (!root.TryGetProperty("params", out var parameters)) throw new InvalidDataException("VM progress has no event");
+                        var update = NativeProtocol.DecodeVMProgress(parameters);
+                        try { VMProgressReceived?.Invoke(update); } catch { /* A view failure must not end the engine session. */ }
+                    }
                     continue;
                 }
                 if (!id.TryGetInt64(out long value)) throw new InvalidDataException("Invalid engine response identity");
@@ -90,10 +107,17 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
     internal static string RpcStage(string method) => method switch
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
-        "GetRecoveryVerdict" => "rpc-recovery", "GetNativeConfiguration" => "rpc-configuration", _ => "rpc-other"
+        "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration",
+        "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", "CancelInstall" => "rpc-cancel", "Reboot" => "rpc-restart",
+        "GetUninstallInfo" => "rpc-uninstall-info", "InspectBoot" => "rpc-boot-check",
+        "PrepareNativeMaintenance" => "rpc-maintenance-plan", "ConfirmNativeMaintenance" => "rpc-maintenance-consent",
+        "GetNativeVMStatus" => "rpc-vm-status", "PrepareNativeVMAction" => "rpc-vm-plan", "ConfirmNativeVMAction" => "rpc-vm-consent", _ => "rpc-other"
     };
 
-    internal async Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null)
+    internal Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null) =>
+        CallAsync<T>(method, null, token, requestFlushed);
+
+    internal async Task<T> CallAsync<T>(string method, object? parameters, CancellationToken token, Action<long>? requestFlushed = null)
     {
         long id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -105,7 +129,8 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
             observe?.Invoke(stage, null);
             if (disconnected || engine.HasExited) throw new EndOfStreamException("The authenticated engine disconnected");
             if (Volatile.Read(ref receiveFailure) is not null) throw new EndOfStreamException("The authenticated engine disconnected");
-            byte[] request = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { jsonrpc = "2.0", id, method }) + "\n");
+            object frame = parameters is null ? new { jsonrpc = "2.0", id, method } : new { jsonrpc = "2.0", id, method, @params = parameters };
+            byte[] request = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(frame) + "\n");
             await writes.WaitAsync(token);
             try { await pipe.WriteAsync(request, token); await pipe.FlushAsync(token); }
             finally { writes.Release(); }
@@ -116,12 +141,134 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
             stage = RpcStage(method) + "-decode";
             observe?.Invoke(stage, null);
             var decoded = method == "GetNativeConfiguration" && typeof(T) == typeof(NativeConfigurationSnapshot)
-                ? (T)(object)NativeConfigurationProtocol.Decode(result, expectedBrand ?? throw new InvalidDataException("Authenticated configuration brand is unavailable")) : NativeProtocol.DecodeStartup<T>(method, result);
+                ? (T)(object)NativeConfigurationProtocol.Decode(result, expectedBrand ?? throw new InvalidDataException("Authenticated configuration brand is unavailable")) : NativeProtocol.DecodeResult<T>(method, result, expectedBrand);
             observe?.Invoke(RpcStage(method) + "-complete", null);
             return decoded;
         }
         catch (Exception error) { observe?.Invoke(stage, error); throw; }
         finally { pending.TryRemove(id, out _); pendingMethods.TryRemove(id, out _); }
+    }
+
+    // The plan crosses the authenticated pipe once, in this session only, with
+    // exactly the fields the engine accepts. Two storage observations run
+    // before a grant, so the wait allows two configuration budgets.
+    public async Task<NativeInstallGrant> PrepareInstallAsync(InstallConfig plan, CancellationToken cancellationToken)
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(110));
+        var parameters = new Dictionary<string, object>
+        {
+            ["imageRef"] = plan.ImageRef, ["diskSizeGB"] = plan.DiskSizeGB, ["username"] = plan.Username, ["password"] = plan.Password,
+            ["hostname"] = plan.Hostname, ["bootloader"] = plan.Bootloader, ["composeFs"] = plan.ComposeFs, ["storageDrive"] = plan.StorageDrive,
+            ["encryption"] = plan.Encryption, ["luksPassphrase"] = plan.LuksPassphrase, ["windowsLook"] = plan.WindowsLook,
+        };
+        var grant = await CallAsync<NativeInstallGrant>("PrepareNativeInstall", parameters, deadline.Token);
+        if (grant.Session != installSession) throw new InvalidDataException("The install grant names another session");
+        return grant;
+    }
+
+    public event Action<ProgressEvent>? ProgressReceived;
+
+    public Task<InstallStatus> GetInstallStatusAsync(CancellationToken cancellationToken) =>
+        installSession is null ? throw new InvalidOperationException("This engine session is not an install session")
+            : CallAsync<InstallStatus>("GetStatus", cancellationToken);
+
+    public async Task CancelInstallAsync(CancellationToken cancellationToken)
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+        await CallAsync<object?>("CancelInstall", cancellationToken);
+    }
+
+    public async Task RebootAsync(CancellationToken cancellationToken)
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+        await CallAsync<object?>("Reboot", cancellationToken);
+    }
+
+    // Only the intent's identity is sent: no plan field can travel with consent.
+    public async Task ConfirmInstallAsync(NativeInstallGrant grant, CancellationToken cancellationToken)
+    {
+        if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        await CallAsync<object?>("ConfirmNativeInstall", new { kind = "confirm-install", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId }, deadline.Token);
+    }
+
+    private void RequireInstallSession()
+    {
+        if (installSession is null) throw new InvalidOperationException("This engine session is not an install session");
+    }
+
+    public async Task<UninstallInfo> ReadUninstallInfoAsync(CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        return await CallAsync<UninstallInfo>("GetUninstallInfo", deadline.Token);
+    }
+
+    public async Task<BootRepairReport> InspectBootAsync(CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        return await CallAsync<BootRepairReport>("InspectBoot", deadline.Token);
+    }
+
+    // The plan carries the action and the two uninstall choices, nothing else.
+    public async Task<NativeMaintenanceGrant> PrepareMaintenanceAsync(NativeMaintenancePlan plan, CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(120));
+        var grant = await CallAsync<NativeMaintenanceGrant>("PrepareNativeMaintenance",
+            new { action = plan.Action, deleteRootDisk = plan.DeleteRootDisk, removePartition = plan.RemovePartition }, deadline.Token);
+        if (grant.Session != installSession) throw new InvalidDataException("The maintenance grant names another session");
+        return grant;
+    }
+
+    // Only the intent's identity is sent. The engine runs the action before it
+    // answers, and an uninstall or a boot repair is not bounded by a timer
+    // here: a timeout must not report success or abandon a running cleanup.
+    public async Task ConfirmMaintenanceAsync(NativeMaintenanceGrant grant, CancellationToken cancellationToken)
+    {
+        if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
+        await CallAsync<object?>("ConfirmNativeMaintenance", new { kind = "confirm-maintenance", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId, action = grant.Action }, cancellationToken);
+    }
+
+    public event Action<VMEvent>? VMProgressReceived;
+
+    public async Task<NativeVMStatus> ReadVMStatusAsync(CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        // Reading whether a VM can be prepared may probe the runtime.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(120));
+        return await CallAsync<NativeVMStatus>("GetNativeVMStatus", deadline.Token);
+    }
+
+    // Only prepare carries the image and the Linux account; the password
+    // crosses this authenticated pipe once and never comes back in the grant.
+    public async Task<NativeVMGrant> PrepareVMActionAsync(NativeVMPlan plan, CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(240));
+        object parameters = plan.Action == VMActions.Prepare
+            ? new { action = plan.Action, imageRef = plan.ImageRef ?? "", username = plan.Username ?? "", password = plan.Password ?? "" }
+            : new { action = plan.Action };
+        var grant = await CallAsync<NativeVMGrant>("PrepareNativeVMAction", parameters, deadline.Token);
+        if (grant.Session != installSession) throw new InvalidDataException("The VM grant names another session");
+        return grant;
+    }
+
+    // Only the intent's identity is sent. A stop may take up to its engine
+    // bound of 90 seconds; the shell waits for the engine's answer.
+    public async Task ConfirmVMActionAsync(NativeVMGrant grant, CancellationToken cancellationToken)
+    {
+        if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
+        await CallAsync<object?>("ConfirmNativeVMAction", new { kind = "confirm-vm", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId, action = grant.Action }, cancellationToken);
     }
 
     public async Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken)
@@ -131,7 +278,8 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession
         var status = await CallAsync<InstallStatus>("GetStatus", deadline.Token);
         var lifecycle = await CallAsync<LifecycleState>("GetLastRun", deadline.Token);
         var recovery = await CallAsync<RecoveryVerdict>("GetRecoveryVerdict", deadline.Token);
-        return new(status, recovery, lifecycle);
+        var install = await CallAsync<InstallRecoverySummary>("GetInstallRecovery", deadline.Token);
+        return new(status, recovery, lifecycle, install);
     }
 
     public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null)

@@ -10,7 +10,7 @@ This revision corrects the transport and identity assumptions in the earlier des
 |---|---|---|
 | A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
 | B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent, original-user collection for an alternative administrator (#606), proof on build 17763, the native typeface, and preview release assets (#608) |
-| C: experience (#344) | A read-only startup view and UI Automation controls exist | Consumer screens, VM and migration flows, drive mode, accessibility, persistence, and the full journey |
+| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, and a screen gallery exist | Consumer screens, VM and migration flows, drive mode, accessibility, persistence, and the full journey |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
 | E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
 
@@ -199,6 +199,20 @@ Test Windows 10 and 11 before a change to the product requirements.
 MSIX, signatures, and winget changes need their own proven distribution path.
 A native UI does not remove SmartScreen or code-signature requirements.
 
+## Screen gallery
+
+The gallery is a separate build of the shell (`-p:NativeGallery=true`).
+It uses recorded fixtures in `shell/Wootc.Shell.Gallery` in place of the engine, and it starts no engine process.
+It cannot install, remove, repair, restart Windows, or run a VM.
+A confirmed install in the gallery only replays the recorded `install:progress` stream.
+The shipped preview never references the gallery project or its fixtures.
+
+The `native-build` job drives the gallery with UI Automation through each screen.
+The test reaches each screen and starts each action with the keyboard only.
+Each control that gets focus must have an accessible name.
+One screen is also shown with the Windows high-contrast setting on.
+The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, not in git.
+
 ## Evidence before cutover
 
 | Gate | Evidence |
@@ -232,6 +246,8 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetNativeConfiguration` | — | `NativeConfigurationSnapshot` |
 | `GetSessionCandidates` | — | as today |
 | `StartInstall` | `InstallConfig` | `null` or error |
+| `PrepareNativeInstall` | `InstallConfig` | `NativeInstallGrant` (install session only; one plan for each session) |
+| `ConfirmNativeInstall` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
 | `CancelInstall` | — | `null` |
 | `GetStatus` | — | `InstallStatus` |
 | `DefragDrive` | — | `null` |
@@ -239,9 +255,16 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `ExistingInstallFound` | — | `bool` |
 | `GetUninstallInfo` | — | `UninstallInfo` |
 | `UninstallWith` | `UninstallOptions` | `null` |
+| `InspectBoot` | — | `BootRepairReport` (install session only; saves an evidence bundle, changes no boot entry) |
+| `PrepareNativeMaintenance` | `NativeMaintenancePlan` | `NativeMaintenanceGrant` (install session only; one plan for each session) |
+| `ConfirmNativeMaintenance` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
+| `GetNativeVMStatus` | — | `NativeVMStatus` (install session only; no paths, process IDs or runtime hashes) |
+| `PrepareNativeVMAction` | `NativeVMPlan` | `NativeVMGrant` (install session only; one pending VM action at a time) |
+| `ConfirmNativeVMAction` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
 | `BootIntoLinux` | — | `null` |
 | `GetLastRun` | — | `LifecycleState` |
 | `GetRecoveryVerdict` | — | `RecoveryVerdict` |
+| `GetInstallRecovery` | — | `InstallRecoverySummary` (class, safe actions and engine text; no evidence or step error) |
 | `E2EDriveDirective` | — | `string` |
 | `E2EDriveReport` | `string` | `null` |
 | `GetVMCapability` | — | `VMCapability` | Signed runtime and persistent disk availability. |
@@ -256,4 +279,6 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `Shutdown` | — | `null` (engine exits 0) |
 
 Notifications use `install:progress` and `vm:progress`.
-The VM methods still need a versioned native-shell contract.
+The native shell uses the versioned VM contract (`NativeVMStatus`, `NativeVMPlan` and `NativeVMGrant`) in an install session.
+Each VM action that changes state needs its own engine grant, and each grant is used once.
+The legacy VM methods stay for the legacy app.

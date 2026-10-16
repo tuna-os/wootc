@@ -717,6 +717,332 @@ public class RecoveryVerdict
 }
 
 /// <summary>
+/// InstallRecoverySummary is the stdio projection of InstallRecovery (#287).
+/// It carries the classification, the safe actions and the fixed engine copy,
+/// and leaves out the evidence lines, the step error and the raw observation:
+/// those can hold paths and free-form error text, which the native pipe does
+/// not carry. Step IDs are present only when they are known catalogue IDs.
+/// </summary>
+public class InstallRecoverySummary
+{
+    [JsonPropertyName("class")]
+    public string Class { get; set; } = string.Empty;
+
+    [JsonPropertyName("cause")]
+    public string Cause { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("lastCompletedStep")]
+    public string LastCompletedStep { get; set; } = string.Empty;
+
+    [JsonPropertyName("stoppedAtStep")]
+    public string StoppedAtStep { get; set; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("recommended")]
+    public string Recommended { get; set; } = string.Empty;
+
+    [JsonPropertyName("actions")]
+    public InstallRecoveryActions Actions { get; set; } = new();
+
+    [JsonPropertyName("discardsRootDisk")]
+    public bool DiscardsRootDisk { get; set; }
+
+    [JsonPropertyName("keepsVerifiedBlobs")]
+    public int KeepsVerifiedBlobs { get; set; }
+
+    [JsonPropertyName("keepsVerifiedBytes")]
+    public long KeepsVerifiedBytes { get; set; }
+}
+
+/// <summary>
+/// InstallRecoveryActions are the recovery choices the evidence allows.
+/// </summary>
+public class InstallRecoveryActions
+{
+    /// <summary>
+    /// ResumeInstall: go back to the launchpad and run Phase 1 again. Verified
+    /// image blobs are reused; a root.disk this attempt created (and the
+    /// deployer never touched) is discarded first.
+    /// </summary>
+    [JsonPropertyName("resumeInstall")]
+    public bool ResumeInstall { get; set; }
+
+    /// <summary>
+    /// RetryDeploy: re-arm the one-shot boot into the deployer (TryAgain).
+    /// </summary>
+    [JsonPropertyName("retryDeploy")]
+    public bool RetryDeploy { get; set; }
+
+    /// <summary>
+    /// RepairBoot: re-stage and re-arm the recorded boot chain (RepairBoot).
+    /// </summary>
+    [JsonPropertyName("repairBoot")]
+    public bool RepairBoot { get; set; }
+
+    /// <summary>
+    /// Remove: uninstall, which restores the boot configuration and power
+    /// settings and deletes the install folder.
+    /// </summary>
+    [JsonPropertyName("remove")]
+    public bool Remove { get; set; }
+}
+
+/// <summary>
+/// NativeInstallGrant is what an install-purpose session returns when the
+/// engine accepts a plan. It names the plan the person will confirm and the
+/// facts the confirmation must disclose. The intent ID is single use: the first
+/// ConfirmNativeInstall attempt consumes it, whatever its outcome.
+/// </summary>
+public class NativeInstallGrant
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("session")]
+    public string Session { get; set; } = string.Empty;
+
+    [JsonPropertyName("brandId")]
+    public string BrandId { get; set; } = string.Empty;
+
+    [JsonPropertyName("intentId")]
+    public string IntentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("storageDrive")]
+    public string StorageDrive { get; set; } = string.Empty;
+
+    [JsonPropertyName("diskSizeGB")]
+    public int DiskSizeGB { get; set; }
+
+    [JsonPropertyName("encryption")]
+    public string Encryption { get; set; } = string.Empty;
+
+    [JsonPropertyName("bitLockerOn")]
+    public bool BitLockerOn { get; set; }
+
+    [JsonPropertyName("bitLockerRecoveryKeyWarning")]
+    public bool BitLockerRecoveryKeyWarning { get; set; }
+
+    [JsonPropertyName("fastStartupOn")]
+    public bool FastStartupOn { get; set; }
+
+    [JsonPropertyName("secureBootChainWarning")]
+    public string SecureBootChainWarning { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// NativeMaintenancePlan is what the person chose on the Manage or Recovery
+/// screen. The uninstall options apply to the uninstall action only.
+/// </summary>
+public class NativeMaintenancePlan
+{
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("deleteRootDisk")]
+    public bool DeleteRootDisk { get; set; }
+
+    [JsonPropertyName("removePartition")]
+    public bool RemovePartition { get; set; }
+}
+
+/// <summary>
+/// NativeMaintenanceGrant names the admitted plan and the observed facts the
+/// confirmation discloses. The intent ID is single use, as for an install.
+/// </summary>
+public class NativeMaintenanceGrant
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("session")]
+    public string Session { get; set; } = string.Empty;
+
+    [JsonPropertyName("brandId")]
+    public string BrandId { get; set; } = string.Empty;
+
+    [JsonPropertyName("intentId")]
+    public string IntentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("deleteRootDisk")]
+    public bool DeleteRootDisk { get; set; }
+
+    [JsonPropertyName("removePartition")]
+    public bool RemovePartition { get; set; }
+
+    [JsonPropertyName("diskPath")]
+    public string DiskPath { get; set; } = string.Empty;
+
+    [JsonPropertyName("storageDrive")]
+    public string StorageDrive { get; set; } = string.Empty;
+
+    [JsonPropertyName("volumeLabel")]
+    public string VolumeLabel { get; set; } = string.Empty;
+
+    [JsonPropertyName("orphaned")]
+    public bool Orphaned { get; set; }
+
+    [JsonPropertyName("bootState")]
+    public string BootState { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// BootRepairReport is what the user (GUI or `recover --inspect`) sees.
+/// </summary>
+public class BootRepairReport
+{
+    [JsonPropertyName("observedAt")]
+    public string ObservedAt { get; set; } = string.Empty;
+
+    [JsonPropertyName("bootState")]
+    public string BootState { get; set; } = string.Empty;
+
+    [JsonPropertyName("ownership")]
+    public string Ownership { get; set; } = string.Empty;
+
+    [JsonPropertyName("lifecycleState")]
+    public string? LifecycleState { get; set; }
+
+    [JsonPropertyName("bootSequence")]
+    public List<string>? BootSequence { get; set; }
+
+    [JsonPropertyName("displayOrder")]
+    public List<string>? DisplayOrder { get; set; }
+
+    [JsonPropertyName("wootcEntries")]
+    public List<string>? WootcEntries { get; set; }
+
+    [JsonPropertyName("findings")]
+    public List<string>? Findings { get; set; }
+
+    [JsonPropertyName("refusals")]
+    public List<string>? Refusals { get; set; }
+
+    [JsonPropertyName("canRestoreWindows")]
+    public bool CanRestoreWindows { get; set; }
+
+    [JsonPropertyName("canRepairBoot")]
+    public bool CanRepairBoot { get; set; }
+
+    [JsonPropertyName("recommended")]
+    public string Recommended { get; set; } = string.Empty;
+
+    [JsonPropertyName("bundlePath")]
+    public string? BundlePath { get; set; }
+}
+
+/// <summary>
+/// NativeVMCapability is what the shell may know about one VM path.
+/// </summary>
+public class NativeVMCapability
+{
+    [JsonPropertyName("available")]
+    public bool Available { get; set; }
+
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = string.Empty;
+
+    [JsonPropertyName("accelerator")]
+    public string Accelerator { get; set; } = string.Empty;
+
+    [JsonPropertyName("runtimeNeeded")]
+    public bool RuntimeNeeded { get; set; }
+}
+
+/// <summary>
+/// NativeVMStatus is the shell's view of the persistent VM system.
+/// </summary>
+public class NativeVMStatus
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("phase")]
+    public string Phase { get; set; } = string.Empty;
+
+    [JsonPropertyName("image")]
+    public string Image { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("desktopReady")]
+    public bool DesktopReady { get; set; }
+
+    [JsonPropertyName("error")]
+    public string Error { get; set; } = string.Empty;
+
+    [JsonPropertyName("launch")]
+    public NativeVMCapability Launch { get; set; } = new();
+
+    [JsonPropertyName("prepare")]
+    public NativeVMCapability Prepare { get; set; } = new();
+}
+
+/// <summary>
+/// NativeVMPlan is one VM action. Image, username and password belong to
+/// prepare only.
+/// </summary>
+public class NativeVMPlan
+{
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string? ImageRef { get; set; }
+
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    [JsonPropertyName("password")]
+    public string? Password { get; set; }
+}
+
+/// <summary>
+/// NativeVMGrant names the admitted action and what the engine observed. It
+/// never carries the password.
+/// </summary>
+public class NativeVMGrant
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("session")]
+    public string Session { get; set; } = string.Empty;
+
+    [JsonPropertyName("brandId")]
+    public string BrandId { get; set; } = string.Empty;
+
+    [JsonPropertyName("intentId")]
+    public string IntentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("phase")]
+    public string Phase { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// InstallStatus is the current state of a running or completed install.
 /// </summary>
 public class InstallStatus

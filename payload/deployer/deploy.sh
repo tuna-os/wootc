@@ -665,6 +665,113 @@ if [[ "$FAULT" == "deploy-failure" || "$FAULT" == "deploy" ]]; then
     exit 1
 fi
 
+# ── Scratch sizing and image acquisition helpers ────────────────────────────
+# Peak scratch use of ONE pull of an image whose layers total C compressed
+# bytes. containers/image stages every compressed blob as a temp file under
+# /var/tmp (bind-mounted onto the scratch below) and deletes the staging
+# directory only when the whole pull ends (storage_dest.go Close), while the
+# unpacked layers accumulate in the same filesystem. So the peak is
+#     C (staged blobs)  +  unpacked layers on ext4
+# Measured on the two images that bracket the failure (all layers streamed and
+# counted in 4K blocks): bazzite:stable 4.71 GiB -> 12.67 GiB (2.7x),
+# bazzite-deck:stable 6.29 GiB -> 14.49 GiB (2.3x). 3.5x C covers staging plus
+# the worse ratio; +4 GiB covers ext4 metadata/journal, per-layer tar-split
+# files, the committed ntfs-3g layer and fisherman's own scratch files.
+SCRATCH_MIN_GIB=20
+scratch_need_gib() {  # <compressed layer bytes> -> GiB the scratch must hold
+    local bytes=$1 gib=$((1 << 30)) need
+    if [[ ! "$bytes" =~ ^[0-9]+$ ]] || (( bytes == 0 )); then
+        echo "$SCRATCH_MIN_GIB"
+        return 0
+    fi
+    need=$(( (bytes * 7 / 2 + gib - 1) / gib + 4 ))
+    (( need < SCRATCH_MIN_GIB )) && need=$SCRATCH_MIN_GIB
+    echo "$need"
+}
+
+# Sum of the image's layer sizes as its manifest states them (no download).
+# <ref> carries its transport: docker://… for the registry, oci:… for the
+# offline bundle. Prints nothing when the size cannot be read.
+image_compressed_bytes() {
+    timeout 120 skopeo inspect --retry-times 3 "$1" 2>/dev/null \
+        | jq -r '[.LayersData[]?.Size // 0] | add // empty' 2>/dev/null || true
+}
+
+# The deploy cannot start until the scratch can hold the image: refuse with
+# the numbers when the Windows drive has no room for it, rather than letting
+# three pulls and fisherman each run into "no space left on device".
+scratch_too_small() {  # <need GiB> <free bytes on the Windows drive>
+    local need=$1 free_gib=$(( $2 >> 30 ))
+    err "  [FAIL] ${IMAGE} needs about ${need} GiB of temporary space on the Windows drive"
+    err "         to unpack while it installs (freed again afterwards); the scratch is"
+    err "         $(( $(stat -c %s "$SCRATCH_IMG") >> 30 )) GiB and the drive has only ${free_gib} GiB free to grow it."
+    err "         Free up space on the Windows drive and run the installer again."
+    splash_set "Not enough free space on the Windows drive to unpack the system. Restarting into Windows - free up ${need} GB and try again."
+    sleep 5 2>/dev/null || true
+    if [[ "${DEBUG:-}" ]]; then exec /bin/bash; fi
+    exit 1
+}
+
+ensure_scratch_capacity() {  # <transport:ref>
+    local ref=$1 bytes need cur want grow free
+    bytes=$(image_compressed_bytes "$ref")
+    cur=$(stat -c %s "$SCRATCH_IMG")
+    if [[ -z "$bytes" ]]; then
+        err "  [WARN] could not read the size of ${ref}; keeping the $(( cur >> 30 )) GiB scratch"
+        return 0
+    fi
+    need=$(scratch_need_gib "$bytes")
+    want=$(( need << 30 ))
+    log "  scratch: image layers $(( bytes >> 20 )) MiB compressed -> needs ${need} GiB, have $(( cur >> 30 )) GiB"
+    (( cur >= want )) && return 0
+    grow=$(( want - cur ))
+    free=$(df -B1 --output=avail /mnt/ntfs 2>/dev/null | tail -1 | tr -d ' ' || true)
+    [[ "$free" =~ ^[0-9]+$ ]] || free=0
+    # Keep 1 GiB on the drive beyond the growth: Windows and the deployer's
+    # own logs still write there.
+    (( free >= grow + (1 << 30) )) || scratch_too_small "$need" "$free"
+    if ! truncate -s "${need}G" "$SCRATCH_IMG" || \
+       ! losetup -c "$SCRATCH_LOOP" || \
+       ! resize2fs "$SCRATCH_LOOP" >/dev/null 2>&1; then
+        err "  [FAIL] could not grow the scratch to ${need} GiB"
+        scratch_too_small "$need" "$free"
+        exit 1
+    fi
+    log "  scratch: grown to ${need} GiB ($(df -h /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $4" free"}'))"
+}
+
+# Pull $IMAGE into the local store ONCE, for whoever needs it first (ntfs-3g
+# injection, backend probe, btrfs preflight); fisherman's CheckImage then finds
+# it local and skips its own pull. podman keeps already-unpacked layers, so a
+# retry resumes instead of starting over. Every failure is logged with podman's
+# OWN stderr: the old `>/dev/null 2>&1` reported a full disk as
+# "(network/registry?)". A full scratch is fatal here — fisherman pulls into
+# the same store, so continuing only repeats the failure several more times.
+acquire_image() {  # <who is asking>
+    local who=$1 attempt pull_err
+    timeout 120 podman image exists "$IMAGE" 2>/dev/null && return 0
+    log "  ${who}: pulling ${IMAGE} first (not local yet)"
+    pull_err="${TMPDIR:-/tmp}/wootc-pull.err"
+    for attempt in 1 2 3; do
+        if timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>"$pull_err"; then
+            return 0
+        fi
+        err "  [WARN] pull ${attempt}/3 of ${IMAGE} failed: $(tail -c 600 "$pull_err" 2>/dev/null | tr '\n' ' ')"
+        if grep -qi 'no space left on device' "$pull_err" 2>/dev/null; then
+            err "  scratch: $(df -h /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3" used of "$2}')"
+            [[ "$attempt" -lt 3 ]] && continue
+            err "  [FAIL] ${IMAGE} does not fit in the deployer's scratch (no space left on device);"
+            err "         fisherman would pull it into the same store and fail the same way."
+            splash_set "Not enough free space to unpack the system. Restarting into Windows - free up disk space and try again."
+            sleep 5 2>/dev/null || true
+            if [[ "${DEBUG:-}" ]]; then exec /bin/bash; fi
+            exit 1
+        fi
+        [[ "$attempt" -lt 3 ]] && sleep $(( attempt * 10 ))
+    done
+    return 1
+}
+
 # ── Container storage scratch ───────────────────────────────────────────────
 # The initramfs root is ramfs: a multi-GB image pull there exhausts RAM.
 # fisherman does all heavy I/O under its scratch dir /var/fisherman-tmp
@@ -685,11 +792,17 @@ mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # of partial-image junk for everything downstream. The target disk still
 # holds only the ostree deployment.
 #
+# 20G is now only the FLOOR: ensure_scratch_capacity (below) grows the
+# scratch to fit the selected image once its size is known, because a fixed
+# 20G cannot hold every image. bazzite-deck:stable (6.3 GiB compressed,
+# 12.6 GiB unpacked, ~14.5 GiB in 4K blocks) ENOSPC'd every pull in it
+# (run 38804321935) while bazzite:stable (4.7 / 10.8 GiB) scraped through.
+#
 # Reuse an existing scratch: containers-storage inside it caches the pulled
 # image, turning the multi-minute pull into a digest check on retries.
 if [[ ! -f "$SCRATCH_IMG" ]] || [[ "$(blkid -o value -s TYPE "$SCRATCH_IMG" 2>/dev/null)" != "ext4" ]]; then
     log "Initializing new scratch filesystem..."
-    truncate -s 20G "$SCRATCH_IMG"
+    truncate -s "${SCRATCH_MIN_GIB}G" "$SCRATCH_IMG"
     mkfs.ext4 -q -F "$SCRATCH_IMG"
 else
     log "Reusing existing scratch (cached container storage)"
@@ -722,6 +835,8 @@ if [[ -f "$BUNDLE_OCI/index.json" ]]; then
     if [[ -n "$_bundle_ref" && "$_bundle_ref" == "$IMAGE" ]]; then
         phase "bundle-ingest"
         log "Offline bundle for ${IMAGE} found — ingesting the OCI layout (no network needed)..."
+        # The ingest is a pull too: size the scratch from the bundle's manifest.
+        ensure_scratch_capacity "oci:${BUNDLE_OCI}"
         if source /usr/libexec/wootc-offline-bundle.sh && \
             wootc_bundle_ingest /mnt/ntfs/wootc/bundle "$IMAGE"; then
             WOOTC_OFFLINE=1
@@ -790,6 +905,9 @@ if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
         if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
     fi
 fi
+# Before the first pull: grow the scratch to fit this image, or refuse with
+# the numbers. A fixed 20G scratch ENOSPC'd bazzite-deck on every pull.
+ensure_scratch_capacity "docker://${IMAGE}"
 fi
 
 # ── Attach the RAW image through losetup ───────────────────────────────────
@@ -975,11 +1093,9 @@ ensure_ntfs_support() {
     # went wrong. It only ever succeeded when the image happened to be cached,
     # which is why this looked intermittent. Same defect as the backend probe
     # (375ae2f), one function later.
-    if ! timeout 120 podman image exists "$IMAGE" 2>/dev/null; then
-        log "  ntfs-3g injection: pulling ${IMAGE} first (not local yet)"
-        if ! timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>&1; then
-            err "  [WARN] could not pull ${IMAGE} — the injection below will fail for that reason, not a repo one"
-        fi
+    # acquire_image logs "ntfs-3g injection: pulling …" and podman's reason.
+    if ! acquire_image "ntfs-3g injection"; then
+        err "  [WARN] could not pull ${IMAGE} — the injection below will fail for that reason, not a repo one"
     fi
     local attempt inj_err
     inj_err="${TMPDIR:-/tmp}/wootc-ntfs-inject.err"
@@ -1132,11 +1248,8 @@ if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
     # The announcement comes FIRST, so the next occurrence proves whether this
     # point was even reached rather than leaving it to inference.
     log "  backend probe: checking whether $IMAGE is already local"
-    if ! timeout 120 podman image exists "$IMAGE" 2>/dev/null; then
-        log "  backend probe: pulling $IMAGE (not local yet)"
-        if ! timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>&1; then
-            err "  [WARN] could not pull $IMAGE for backend detection (network/registry?)"
-        fi
+    if ! acquire_image "backend probe"; then
+        err "  [WARN] could not pull $IMAGE for backend detection (see the pull errors above)"
     fi
     log "  backend probe: image ready, inspecting"
     if ! DETECT="$(timeout 120 podman run --rm --network=host "$IMAGE" sh -c '
@@ -1245,10 +1358,7 @@ fi
 # signature to reject. Compare btrfs's signer against the signer of a module
 # that ships WITH the kernel, and only refuse on a positive mismatch.
 if [[ "$FILESYSTEM" == btrfs ]]; then
-    if ! timeout 120 podman image exists "$IMAGE" 2>/dev/null; then
-        log "  btrfs preflight: pulling $IMAGE (not local yet)"
-        timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>&1 || true
-    fi
+    acquire_image "btrfs preflight" || true
     BTRFS_PROBE="$(timeout 120 podman run --rm --network=host "$IMAGE" sh -c '
         KV=$(ls /usr/lib/modules 2>/dev/null | head -1)
         [ -n "$KV" ] || exit 0

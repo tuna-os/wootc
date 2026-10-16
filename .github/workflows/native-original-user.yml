@@ -15,6 +15,15 @@ on:
       - 'app/go.mod'
       - 'app/go.sum'
       - 'tests/native_original_user_controls.py'
+      - 'app/native_install_session*'
+      - 'app/native_install_progress*'
+      - 'tests/unit/fixtures/install-progress/**'
+      - 'app/native_maintenance*'
+      - 'tests/unit/fixtures/native-maintenance/**'
+      - 'app/native_vm*'
+      - 'tests/unit/fixtures/native-vm/**'
+      - 'app/native_install_plan.go'
+      - 'app/native_serve_windows.go'
       - '.github/workflows/native-original-user.yml'
 permissions:
   contents: read
@@ -43,6 +52,23 @@ jobs:
           $result = $LASTEXITCODE
           $ErrorActionPreference = 'Stop'
           if ($result -ne 0) { throw 'Actual token controls refused' }
+      - name: Drive the install session over the actual one-shot authority
+        # Package tests: real captured token, recording action only. Nothing
+        # here can start an install or write to a disk.
+        shell: powershell
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $assets = Join-Path 'app/frontend' 'dist'
+          if (Test-Path -LiteralPath $assets) { throw 'Refusing prebuilt assets' }
+          [IO.Directory]::CreateDirectory($assets) | Out-Null
+          [IO.File]::WriteAllText((Join-Path $assets 'index.html'), '<title>Unit-test embed placeholder</title>')
+          Push-Location app
+          try {
+            & go test -count=1 -v -timeout 120s -run '^TestNative(Install|Maintenance|VM)' .
+            if ($LASTEXITCODE -ne 0) { throw 'Install session controls failed' }
+          } finally { Pop-Location }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
