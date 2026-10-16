@@ -2777,6 +2777,13 @@ else { Write-Output "single-instance: 1 wootc.exe" }' 2>&1) || true
         return 1
     fi
 
+    # Evidence for the space preflight: the form sizes root.disk from C:'s
+    # free space minus the image's deployer scratch (app/install_space.go).
+    # A refusal or a deployer "[FAIL] … temporary space" is read against this.
+    local c_free_gib
+    c_free_gib=$(qga_powershell '[math]::Floor((Get-PSDrive C).Free / 1GB)' 2>/dev/null | tr -d '\r' | tail -1 || true)
+    info "  C: has ${c_free_gib:-?} GiB free before the install"
+
     step "Driving the REAL install through the live form (drive directive)..."
     local drive_directive_id drive_payload drive_ack
     drive_directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1

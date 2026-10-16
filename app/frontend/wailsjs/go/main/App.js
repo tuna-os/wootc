@@ -11,6 +11,10 @@ export function GetSystemInfo() {
   return window['go']['main']['App']['GetSystemInfo']();
 }
 
+export function GetInstallSpace(arg1) {
+  return window['go']['main']['App']['GetInstallSpace'](arg1);
+}
+
 export function GetBranding() {
   return window['go']['main']['App']['GetBranding']();
 }

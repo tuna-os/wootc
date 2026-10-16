@@ -492,6 +492,63 @@ test('disk size larger than C: can hold gates the install button', async ({ page
   await expect(page.locator('#install-hint')).toContainText('Free up some space');
 });
 
+// The deployer's container scratch lands on the same drive as root.disk and
+// grows with the image (3.5x its compressed layers + 4 GiB, floor 20 GiB):
+// bazzite-deck needs about 27 GiB of it. E2E run 38821484138 offered a 40 GB
+// disk on ~65 GB free, the install passed on Windows, and the deployer then
+// refused after the reboot. The form must leave room for the image's reserve.
+test('a large image lowers the largest disk the form offers', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 60 },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } } });
+  // 60 GB free - 29 GB reserve = 31 GB; the 40 GB default steps down to 30.
+  await expect(page.locator('#disk-size')).toHaveAttribute('max', '31');
+  await expect(page.locator('#disk-size')).toHaveValue('30');
+  await expect(page.locator('#disk-free-note')).toContainText('about 29 GB while it runs');
+  await expect(page.locator('#plan-note')).toContainText('30 GB');
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await expect(page.locator('#install-btn')).toBeEnabled();
+});
+
+test('no disk fits beside a large image: the hint names the working space', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 45 },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } } });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  // 45 - 29 = 16 GB, below the 20 GB minimum. Without the reserve the old
+  // 15 GB headroom would have offered 30 GB here.
+  await expect(page.locator('#install-btn')).toBeDisabled();
+  await expect(page.locator('#install-hint')).toContainText('about 29 GB of working space to unpack TunaOS');
+  await expect(page.locator('#install-hint')).toContainText('Free up some space');
+});
+
+// The BitLocker path carves a new volume for root.disk; the deployer's
+// scratch lands there too, so the carve must hold both or StartInstall
+// refuses the volume it was just given.
+test('BitLocker carve holds the Linux disk and the install reserve', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 214, bitLockerOn: true, bitLockerState: 'on', dataPartitions: [] },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } },
+    installSteps: INSTALL_STEPS });
+  // 214 GB free → the default 105 GB disk; + 29 GB reserve + 1 GB for NTFS.
+  await expect(page.getByText(/Shrinks C: by 135 GB/)).toBeVisible();
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect.poll(() => page.evaluate(() => window.__wootcCarveSizes)).toEqual([135]);
+});
+
 // A failed attempt must greet the user as a failed attempt — with the calm
 // truth — not with silence or "an existing installation was found".
 test('a failed last run is acknowledged on relaunch', async ({ page }) => {

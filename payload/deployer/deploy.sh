@@ -677,6 +677,9 @@ fi
 # bazzite-deck:stable 6.29 GiB -> 14.49 GiB (2.3x). 3.5x C covers staging plus
 # the worse ratio; +4 GiB covers ext4 metadata/journal, per-layer tar-split
 # files, the committed ntfs-3g layer and fisherman's own scratch files.
+# app/install_space.go applies the same formula on Windows, BEFORE the reboot,
+# so the installer refuses a drive this would refuse here;
+# TestScratchNeedMatchesDeployer runs this function to pin the two together.
 SCRATCH_MIN_GIB=20
 scratch_need_gib() {  # <compressed layer bytes> -> GiB the scratch must hold
     local bytes=$1 gib=$((1 << 30)) need

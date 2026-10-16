@@ -492,7 +492,8 @@ func normalizeBootloader(v string) (string, error) {
 }
 
 // validateInstallConfig is the install gate StartInstall applies before any
-// work: channel scenario policy, bootloader, encryption and platform checks.
+// work: channel scenario policy, bootloader, encryption, platform checks and
+// the free space root.disk plus the deployer scratch need (install_space.go).
 // It reads only and returns the normalized configuration. The native install
 // session runs it before it grants an install intent.
 func (a *App) validateInstallConfig(cfg InstallConfig) (InstallConfig, error) {
@@ -529,6 +530,15 @@ func (a *App) validateInstallConfig(cfg InstallConfig) (InstallConfig, error) {
 		return InstallConfig{}, fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
 	}
 	if err := validatePlatformConfig(cfg); err != nil {
+		return InstallConfig{}, err
+	}
+	// root.disk AND the deployer's scratch for this image must fit on the
+	// storage drive. The deployer checks too, but only after the reboot.
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := checkInstallSpace(ctx, cfg); err != nil {
 		return InstallConfig{}, err
 	}
 	return cfg, nil

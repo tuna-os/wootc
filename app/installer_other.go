@@ -117,3 +117,7 @@ func armOneShotFromPersistedGUID() error {
 	return fmt.Errorf("boot arming is only available on Windows")
 }
 func registerUninstallEntry() {}
+
+// The dev build has no Windows drives to measure: the space preflight is off.
+func storageFreeBytes(string) (uint64, bool) { return 0, false }
+func storageWootcDir(string) string          { return wootcDir() }

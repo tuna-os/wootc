@@ -141,6 +141,28 @@ func checkSystem() error {
 	return nil
 }
 
+// storageFreeBytes reads the free space the calling user can use on drive
+// letter (the volume root.disk and the deployer scratch land on).
+func storageFreeBytes(drive string) (uint64, bool) {
+	p, err := windows.UTF16PtrFromString(drive + `:\`)
+	if err != nil {
+		return 0, false
+	}
+	var available, total uint64
+	if err := windows.GetDiskFreeSpaceEx(p, &available, &total, nil); err != nil {
+		return 0, false
+	}
+	return available, true
+}
+
+// storageWootcDir is <drive>:\wootc; "" is the current storage drive.
+func storageWootcDir(drive string) string {
+	if drive == "" {
+		return wootcDir()
+	}
+	return drive + `:\wootc`
+}
+
 // ── Directories ───────────────────────────────────────────────────────────────
 
 func createDirectories() error {

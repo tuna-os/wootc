@@ -80,7 +80,17 @@ function makeApp(mock) {
     GetLookMigration: () => P(mock.look || null),
     ConvertCategory: () => P(),
     ImportBrowserData: () => P('ok'),
-    CreateDataPartition: () => P({ letter: 'D', label: 'wootc-data', freeGB: 60, encrypted: false }),
+    CreateDataPartition: (sizeGB) => {
+      window.__wootcCarveSizes = [...(window.__wootcCarveSizes || []), sizeGB];
+      return P({ letter: 'D', label: 'wootc-data', freeGB: 60, encrypted: false });
+    },
+    // What installing an image needs beside root.disk (app/install_space.go).
+    // Default: the smallest image's reserve (20 GiB scratch floor + 2).
+    // A scenario may answer per image ref.
+    GetInstallSpace: (ref) => {
+      const per = (mock.installSpace || {})[ref];
+      return P(per ? { imageRef: ref, ...per } : { imageRef: ref, compressedBytes: 0, sizeSource: 'default', scratchGiB: 20, bundleGiB: 0, reserveGiB: 22 });
+    },
     GetUninstallInfo: () => P(mock.uninstall || { found: false }),
     UninstallWith: () => P(),
     GetVMCapability: () => P(mock.vm || { available: false, reason: '' }),

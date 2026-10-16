@@ -324,10 +324,14 @@ func observeNativeStorageWithTiming(ctx context.Context, between func() error, q
 		if available > total || total > uint64(^uint64(0)>>1) {
 			return nil, fmt.Errorf("storage capacity refused")
 		}
+		// The volume must also hold the deployer's scratch (at least its
+		// 20 GiB floor, more for a large image; validateInstallConfig checks
+		// the chosen image), so never offer a disk only root.disk would fit.
 		size := available / (1 << 30)
-		if size < 20 {
+		if size < 20+minimumInstallReserveGiB {
 			continue
 		}
+		size -= minimumInstallReserveGiB
 		if size > 2048 {
 			size = 2048
 		}
