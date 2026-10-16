@@ -89,7 +89,9 @@ function makeApp(mock) {
     // A scenario may answer per image ref.
     GetInstallSpace: (ref) => {
       const per = (mock.installSpace || {})[ref];
-      return P(per ? { imageRef: ref, ...per } : { imageRef: ref, compressedBytes: 0, sizeSource: 'default', scratchGiB: 20, bundleGiB: 0, reserveGiB: 22 });
+      const answer = per ? { imageRef: ref, ...per } : { imageRef: ref, compressedBytes: 0, sizeSource: 'default', scratchGiB: 20, bundleGiB: 0, reserveGiB: 22 };
+      if (window.__wootcHoldInstallSpace) return new Promise((resolve) => { window.__wootcReleaseInstallSpace = () => resolve(answer); });
+      return P(answer);
     },
     GetUninstallInfo: () => P(mock.uninstall || { found: false }),
     UninstallWith: () => P(),

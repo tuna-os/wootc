@@ -530,6 +530,26 @@ test('no disk fits beside a large image: the hint names the working space', asyn
   await expect(page.locator('#install-hint')).toContainText('Free up some space');
 });
 
+// E2E run 38829556660: the drive clicked Install with the 35 GB the form
+// offered before bazzite-deck's 29 GB reserve arrived, and StartInstall
+// refused it. The button waits for the engine's answer.
+test('Install waits for the image reserve before it can start', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await page.addInitScript(() => { window.__wootcHoldInstallSpace = true; });
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 60 },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } } });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await expect(page.locator('#install-btn')).toBeDisabled();
+  await expect(page.locator('#install-hint')).toContainText('Checking how much space');
+  await page.evaluate(() => window.__wootcReleaseInstallSpace());
+  await expect(page.locator('#install-btn')).toBeEnabled();
+  await expect(page.locator('#disk-size')).toHaveValue('30');
+});
+
 // The BitLocker path carves a new volume for root.disk; the deployer's
 // scratch lands there too, so the carve must hold both or StartInstall
 // refuses the volume it was just given.

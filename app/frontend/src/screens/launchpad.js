@@ -460,7 +460,24 @@ export function refreshInstallSpace(imageRef) {
     if (!space || state.selected?.imageRef !== imageRef) return;
     state.installSpace = { ...space, imageRef };
     applyDiskLimit();
-  }).catch(() => {});
+  }).catch(() => {
+    // No answer (an old engine, a dev harness): fall back to the smallest
+    // image's reserve rather than holding the button forever. The engine
+    // still refuses in StartInstall what does not fit.
+    if (state.selected?.imageRef !== imageRef) return;
+    state.installSpace = { imageRef, reserveGiB: MIN_INSTALL_RESERVE_GB, sizeSource: 'unavailable' };
+    applyDiskLimit();
+  });
+}
+
+// Until the engine has answered for the selected image, the disk limit is
+// only the smallest image's: hold the button rather than let an install
+// start with a size the engine is about to refuse (E2E run 38829556660 —
+// the drive clicked Install with 35 GB before bazzite-deck's 29 GB reserve
+// arrived, and StartInstall rightly refused it).
+function installSpacePending() {
+  const ref = state.selected?.imageRef;
+  return Boolean(ref) && state.installSpace?.imageRef !== ref;
 }
 
 function applyDiskLimit() {
@@ -518,6 +535,8 @@ function refreshInstallValidity() {
   // Green-gate: block scenarios this channel has not proven (docs/RELEASING.md).
   else if (state.sysinfo?.bitLockerOn && state.policy && state.policy.bitlockerSupported === false)
     reason = `BitLocker encryption isn't supported in the ${state.policy.channel} yet — it's coming soon. For now, ${productName()} needs drive encryption turned off.`;
+  else if (state.sysinfo && installSpacePending())
+    reason = `Checking how much space ${distroName()} needs…`;
   else if (state.sysinfo && state.sysinfo.freeDiskGB > 0 && maxDiskSizeGB() < 20)
     reason = `C: has only ${Math.round(state.sysinfo.freeDiskGB)} GB free — not enough for Linux (20 GB) plus ${keptFreeReason()}. Free up some space first.`;
   else if (state.sysinfo && state.sysinfo.freeDiskGB > 0 && c.diskSizeGB > maxDiskSizeGB())
