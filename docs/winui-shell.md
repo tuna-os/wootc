@@ -129,6 +129,10 @@ Tests must include a standard user who supplies a different administrator's cred
 The data preview and exported data must still belong to the original person.
 Never use the administrator's browser profile as an automatic fallback.
 
+Decision, 2026-10-16: the first native release refuses an alternative administrator.
+A standard user who types another administrator's credentials gets the refusal, not an install.
+Support comes after that release, and only with the identity tests above.
+
 ## Disconnect, cancel, and recovery
 
 EOF or a crash of the shell must request cancellation. It cannot mean immediate process exit.
@@ -168,6 +172,10 @@ CSS is not a native theme contract; document which custom layouts lack support.
 The preview translates the palette and the existing `logo.svg` into native resources.
 Contrast must pass WCAG limits, and high contrast keeps the system palette.
 Each brand supplies its font as WOFF2. XAML cannot load that format, so the preview uses the system font.
+
+Decision, 2026-10-16: the native shell uses the Windows system font for every brand.
+No brand ships a font licence that allows redistribution in a desktop package.
+A brand can add a native font later only as TTF or OTF with its licence file.
 Gradients and radii from `theme.css` have no native equivalent.
 Use the distro config from the adoption work, with versioned extensions.
 
