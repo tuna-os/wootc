@@ -182,6 +182,11 @@ Publish the shell as a preview beside the current installer first.
 An Inno Setup wrapper can provide one download for an unpackaged self-contained bundle.
 Keep the Go engine beside the shell and retain the standalone headless asset.
 Package cleanup and Linux uninstall need separate, clearly named ownership.
+
+The install does not depend on the preview package after it arms.
+The recovery tasks run a copy of the engine in `install\wootc.exe` under the install directory.
+The Apps entry for the Linux install runs that copy too, so removal of the preview does not break that entry.
+The preview installer refuses an existing destination, so an upgrade also removes the preview first.
 Do not remove Linux data merely because a user removes the preview shell.
 
 Pin .NET, Windows App SDK, and build-tool versions before the package experiment.
@@ -233,6 +238,13 @@ The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, n
    A native run also needs a `native-shell` assertion, so the ledger never records a native green as a Wails one.
 
 This run does not prove an unelevated shell, interactive UAC consent, the Inno installer, or a standard user.
+
+The plan check has a known time risk.
+The shell waits 110 seconds for `PrepareNativeInstall`.
+In that time the engine reads the system once and observes the storage twice, with a limit of 40 seconds for each observation.
+The second observation also selects the state root again, and the grant contract needs it, so the check keeps both.
+Run 38857241312 passed, but it did not record the margin.
+If a slow disk causes a timeout, measure each part before you change a limit.
 
 ## Evidence before cutover
 
