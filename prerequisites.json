@@ -12,8 +12,8 @@
     "url": "https://github.com/tuna-os/wootc/issues/229"
   },
   "230": {
-    "state": "open",
-    "closedAt": null,
+    "state": "closed",
+    "closedAt": "2026-10-15T16:48:59Z",
     "bodySha256": "7085489e20945581a62e7217399c6abad18f9c774793f108b922662538aa1fa1",
     "url": "https://github.com/tuna-os/wootc/issues/230"
   },
@@ -48,8 +48,8 @@
     "url": "https://github.com/tuna-os/wootc/issues/203"
   },
   "178": {
-    "state": "open",
-    "closedAt": null,
+    "state": "closed",
+    "closedAt": "2026-10-15T18:33:43Z",
     "bodySha256": "d6bb2ea101ac27ed2eff29deeba6fd1e3719f873061419b335df15abb2fec83b",
     "url": "https://github.com/tuna-os/wootc/issues/178"
   },
