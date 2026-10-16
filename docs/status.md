@@ -130,7 +130,7 @@ re-runs since (dates on the affected rows).
 | `dakota` | composefs-native | ✅ | ✅ | 🔴 [#209](https://github.com/tuna-os/wootc/issues/209) | ⚪ | ⚪ |
 | `marlin` (Arch) / `flounder` (Debian) | ostree · xfs (unsealed) | ✅ | 🔴 | ⚪ | ⚪ | ⚪ |
 | `bazzite:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ✅ | ✅ | ✅ | ⚪ | ✅ ([38792319332](https://github.com/tuna-os/wootc/actions/runs/38792319332), 2026-10-15) |
-| `bazzite-deck:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ⚪ | ⚪ | ⚪ | ⚪ | 🟡 install and Phase-2 boot pass; user data not verified, Phase-2 guest agent silent ([38832644743](https://github.com/tuna-os/wootc/actions/runs/38832644743), 2026-10-16; [#633](https://github.com/tuna-os/wootc/pull/633)) |
+| `bazzite-deck:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ⚪ | ⚪ | ⚪ | ⚪ | ✅ ([38844455285](https://github.com/tuna-os/wootc/actions/runs/38844455285), 2026-10-16) |
 | `aurora:stable` (Aurora-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32613697020](https://github.com/tuna-os/wootc/actions/runs/32613697020), 2026-08-23) |
 | `bluefin:stable` (Bluefin-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32604804979](https://github.com/tuna-os/wootc/actions/runs/32604804979), 2026-08-22) |
 
@@ -145,16 +145,18 @@ Phase 3 was off, and the image download on Windows (`WOOTC_PRELOAD=0`) was off.
 
 The earlier green run was [32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098) on `4fd4bc8` (2026-08-24).
 On 2026-10-15, [38803985996](https://github.com/tuna-os/wootc/actions/runs/38803985996) also passed with the branded deployer menus of PR #610.
-`bazzite-deck:stable` has no green run, so the catalog keeps it `experimental`.
+`bazzite-deck:stable` has a green GUI run on 2026-10-16, [38844455285](https://github.com/tuna-os/wootc/actions/runs/38844455285), on `139c29a`, the head of PR #633.
+The GUI install, the deploy, MokManager under Secure Boot and Phase 2 passed.
+Linux read the Documents file from this run, and then Windows started again and `wootc.exe status` said healthy.
 
 On 2026-10-16, [38832644743](https://github.com/tuna-os/wootc/actions/runs/38832644743) ran on `main` with the scratch sizing of PR #629 (`97552e0`).
 The GUI install and the deploy passed. MokManager enrolled the key, and Phase 2 started under Secure Boot.
 Then Windows started again, and `wootc.exe status` said healthy.
-The run is inconclusive because the Phase-2 guest agent never answered, so the harness could not read the Documents file in Linux.
+That run was inconclusive because the Phase-2 guest agent never answered, so the harness could not read the Documents file in Linux.
 
 The deployer had also warned that `qemu-ga` was absent after the ntfs-3g injection.
 That warning was a probe defect: the image ships `/usr/bin/qemu-ga`, and the `bazzite:stable` run that passed logged the same warning.
-[#633](https://github.com/tuna-os/wootc/pull/633) fixes the probe and makes the next run print why the agent is silent.
+[#633](https://github.com/tuna-os/wootc/pull/633) fixes the probe. Its run above has the guest agent and the user-data check.
 Before that, [38804321935](https://github.com/tuna-os/wootc/actions/runs/38804321935) (2026-10-15) stopped when the deployer ran out of space.
 The [test record for the Bazzite brand](branded-walkthroughs.md#bazzite-brand-test-record) has each check.
 
