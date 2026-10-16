@@ -1088,6 +1088,29 @@ verify_injected_tools() {
     log "  [PASS] verified the deployed image's tools: ${summary}"
 }
 
+# The MOK certs a composefs image ships under /etc or /usr/share, as a tar on
+# stdout. The deployment tree cannot show them (composefs keeps image /etc out
+# of it), so the container image is asked instead.
+# shellcheck disable=SC2016  # expanded by the container's sh, not here
+MOK_CERT_PROBE='find /etc/pki/akmods/certs /usr/share/ublue-os -maxdepth 3 -type f -name "*.der" 2>/dev/null | head -8 | tar -cf - -T - 2>/dev/null'
+# Unpack the image's MOK certs into <stash>. This probe used to run podman
+# without host networking and threw its stderr away: the shape #633 showed
+# failing spuriously in the initramfs. A probe that could not run then looked
+# the same as an image with no certs.
+harvest_mok_certs_from_image() {  # <stash>
+    local stash="$1" tarball rc=0
+    tarball="${TMPDIR:-/tmp}/wootc-mok-certs.tar"
+    WOOTC_IMAGE_PROBE_TIMEOUT="${WOOTC_IMAGE_PROBE_TIMEOUT:-180}" \
+        probe_image "$MOK_CERT_PROBE" > "$tarball" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        err "  [WARN] MOK: could not inspect ${IMAGE} for certs (probe exit ${rc}): podman: $(tail -c 400 "$PROBE_ERR" 2>/dev/null | tr '\n' ' ')"
+        rm -f "$tarball"
+        return 1
+    fi
+    tar -xf "$tarball" -C "$stash" 2>/dev/null || true
+    rm -f "$tarball"
+}
+
 ensure_ntfs_support() {
     # Pull BEFORE probing. `podman run` on an image that is not local pulls it,
     # and a multi-GB image cannot pull inside a probe bound, so the probe used
@@ -3493,9 +3516,7 @@ GRUBEOF
         shopt -u nullglob
         if ! compgen -G "$MOK_CERT_STASH/*.der" >/dev/null; then
             err "  MOK: deployment tree carries no certs (composefs keeps image /etc out of it) — asking the container image"
-            timeout 180 podman run --rm "$IMAGE" sh -c \
-                'find /etc/pki/akmods/certs /usr/share/ublue-os -maxdepth 3 -type f -name "*.der" 2>/dev/null | head -8 | tar -cf - -T - 2>/dev/null' \
-                2>/dev/null | tar -xf - -C "$MOK_CERT_STASH" 2>/dev/null || true
+            harvest_mok_certs_from_image "$MOK_CERT_STASH" || true
             while IFS= read -r _c; do
                 err "  MOK: cert harvested from container image: ${_c#"$MOK_CERT_STASH"/}"
             done < <(find "$MOK_CERT_STASH" -type f -name '*.der' 2>/dev/null)
