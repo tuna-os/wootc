@@ -95,7 +95,7 @@ func TestE2EDriveSharedNativeGoldens(t *testing.T) {
 	if err := json.Unmarshal(install, &target); err != nil || target.StorageID == nil || *target.StorageID != "C:" {
 		t.Fatalf("directive-install.json must name storageId \"C:\" (err=%v)", err)
 	}
-	for _, name := range []string{"report-install-ready.json", "report-install-mismatch.json", "report-install-done.json", "report-install-unknown-target.json"} {
+	for _, name := range []string{"report-install-ready.json", "report-install-checking.json", "report-install-mismatch.json", "report-install-done.json", "report-install-unknown-target.json"} {
 		if !e2eBoundDriveReport(read(name), install) {
 			t.Errorf("%s is not bound to the install directive", name)
 		}

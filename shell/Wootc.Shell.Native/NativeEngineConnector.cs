@@ -41,7 +41,11 @@ public sealed class NativeEngineConnector : IBrandedEngineConnector
         void Observe(string stage, Exception? error = null, Process? engine = null) => scopedObserve(stage, error, engine);
         if (!ProtectedPackage.LowerHex(request.SessionId, 32)) return new(ConnectionOutcome.Incompatible, Reason: "Invalid native session identity");
         Observe("package");
-        var package = ProtectedPackage.Read(directory);
+        // Reading the package hashes every file of the self-contained bundle
+        // and inspects each ACL. That runs off the caller's thread: the
+        // window calls this on its UI thread, once at startup and again for
+        // each plan check, and must keep drawing and reporting meanwhile.
+        var package = await Task.Run(() => ProtectedPackage.Read(directory), cancellationToken);
         using var sourceProcess = Process.GetCurrentProcess();
         var source = WindowsPeer.Observe(sourceProcess);
         if (!string.Equals(Path.GetFullPath(source.ImagePath), Path.Combine(package.Directory, "Wootc.Shell.exe"), StringComparison.OrdinalIgnoreCase))

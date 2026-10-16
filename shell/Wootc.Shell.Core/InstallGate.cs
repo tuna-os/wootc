@@ -14,6 +14,7 @@ public sealed class InstallGate : IAsyncDisposable
     private static readonly Regex LowerHex32 = new("^[0-9a-f]{32}$", RegexOptions.CultureInvariant);
     private readonly IEngineConnector connector;
     private readonly string brandId;
+    private readonly TimeProvider time;
     private readonly SemaphoreSlim gate = new(1, 1);
     private IInstallEngineSession? session;
     private string sessionId = "";
@@ -27,12 +28,19 @@ public sealed class InstallGate : IAsyncDisposable
     public string Reason { get; private set; } = "";
     public NativeInstallGrant? Grant { get; private set; }
     public bool CanInstall => State == InstallGateState.Granted && Grant is not null;
+    private DateTimeOffset checkStarted;
+    // How long the engine has been checking the current plan, or null when no
+    // check runs. The check needs a second elevation and the engine's own
+    // observation of the system and storage, so it can take minutes; the
+    // window shows this time so the person sees the check is still running.
+    public TimeSpan? CheckElapsed => State == InstallGateState.Preparing ? time.GetUtcNow() - checkStarted : null;
 
-    public InstallGate(IEngineConnector connector, string brandId)
+    public InstallGate(IEngineConnector connector, string brandId, TimeProvider? time = null)
     {
         if (string.IsNullOrWhiteSpace(brandId)) throw new ArgumentException("Brand identity is required", nameof(brandId));
         this.connector = connector;
         this.brandId = brandId;
+        this.time = time ?? TimeProvider.System;
     }
 
     public async Task PrepareAsync(InstallConfig plan, CancellationToken cancellationToken = default)
@@ -44,6 +52,7 @@ public sealed class InstallGate : IAsyncDisposable
             if (State is not (InstallGateState.Idle or InstallGateState.Granted or InstallGateState.Refused or InstallGateState.Failed or InstallGateState.Cancelled)) return;
             await CloseSessionAsync();
             Progress = null;
+            checkStarted = time.GetUtcNow();
             State = InstallGateState.Preparing;
             Reason = "";
             sessionId = Guid.NewGuid().ToString("N");
@@ -228,5 +237,32 @@ public sealed class InstallGate : IAsyncDisposable
         await gate.WaitAsync();
         try { await CloseSessionAsync(); }
         finally { gate.Release(); }
+    }
+}
+
+// The words beside the install controls for each gate state.
+public static class InstallGateText
+{
+    public const string Checking = "Checking this plan with the engine";
+    public const string CheckingWait = "Windows asks for permission, then the engine reads this computer and its storage. This can take a few minutes. Nothing changes until you confirm.";
+
+    public static string Status(InstallGateState state, string reason, TimeSpan? checkElapsed = null) => state switch
+    {
+        InstallGateState.Preparing => checkElapsed is { } elapsed && elapsed >= TimeSpan.FromSeconds(1)
+            ? $"{Checking} ({Elapsed(elapsed)}). {CheckingWait}" : Checking,
+        InstallGateState.Granted => "The engine accepted this plan. Nothing changes until you confirm.",
+        InstallGateState.Refused or InstallGateState.Failed => reason,
+        InstallGateState.Confirming => "Starting the installation",
+        InstallGateState.Started => "The installation started. Keep this window open.",
+        InstallGateState.Cancelling => "Cancelling the installation",
+        InstallGateState.Cancelled => "The installation was cancelled.",
+        _ => "",
+    };
+
+    // "45 s", "1 min 05 s": whole seconds, so the text changes once a second.
+    public static string Elapsed(TimeSpan elapsed)
+    {
+        long seconds = Math.Max(0, (long)elapsed.TotalSeconds);
+        return seconds < 60 ? $"{seconds} s" : $"{seconds / 60} min {seconds % 60:00} s";
     }
 }

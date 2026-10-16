@@ -28,7 +28,9 @@ public interface IE2EDriveView
     // Fill the form from the directive through the configuration view-model.
     DriveMappingObservation MapInstall(E2EDriveDirective directive);
     // The install controls a person uses. True only when the engine accepted
-    // the confirmation and the install started.
+    // the confirmation and the install started. The plan check behind it can
+    // take minutes (a second elevation, then PrepareNativeInstall); the loop
+    // never awaits it inside a tick, so the window keeps reporting meanwhile.
     Task<bool> ClickInstallAsync();
     Task RebootAsync();
 }
@@ -38,7 +40,11 @@ public sealed class E2EDriveLoop
     public const int PollMilliseconds = 2000;
     private readonly IE2EDriveChannel channel;
     private readonly IE2EDriveView view;
+    // The Install click whose plan check or confirmation is still running.
+    private Task<bool>? pendingClick;
     public E2EDriveSession Session { get; } = new();
+    // True while the engine is still checking or confirming the clicked plan.
+    public bool InstallPending => pendingClick is not null;
 
     public E2EDriveLoop(IE2EDriveChannel channel, IE2EDriveView view)
     {
@@ -110,24 +116,8 @@ public sealed class E2EDriveLoop
             case DriveCommand.ClickInstall:
                 // Before the click: a click whose handler partly ran is never replayed.
                 Session.MarkInstallRequested();
-                bool started;
-                string? failure = null;
-                try { started = await view.ClickInstallAsync(); }
-                catch (Exception error) when (error is not OperationCanceledException) { started = false; failure = error.Message; }
-                if (started) Session.MarkInstallDriven();
-                else
-                {
-                    // The click is never replayed, so an install that did not
-                    // start ends this drive. Say why, or the harness sees a
-                    // disabled form with no error and waits for nothing
-                    // (native E2E run 38849303170).
-                    var after = view.Observe();
-                    string reason = !string.IsNullOrWhiteSpace(after.Error) ? after.Error
-                        : !string.IsNullOrWhiteSpace(failure) ? "The install could not start: " + failure
-                        : "The engine did not grant this plan, so the install did not start." +
-                          (string.IsNullOrWhiteSpace(after.Hint) ? "" : " " + after.Hint);
-                    Session.MarkRefused(reason);
-                }
+                try { pendingClick = view.ClickInstallAsync(); }
+                catch (Exception error) when (error is not OperationCanceledException) { pendingClick = Task.FromException<bool>(error); }
                 break;
             case DriveCommand.Reboot:
                 Session.MarkRebootDriven();
@@ -135,10 +125,39 @@ public sealed class E2EDriveLoop
                 catch (Exception error) when (error is not OperationCanceledException) { /* The report shows the done screen still up. */ }
                 break;
         }
-        string? report = Session.Report(directive, view.Observe());
+        // The click's outcome, once the engine answered. Until then the
+        // window reports what it shows, every tick, and the clicked control
+        // is neither offered nor refused (installBtnDisabled null): the plan
+        // check took about two minutes in native E2E runs 38923119161 and
+        // 38931058878, and a tick that awaited it wrote no report at all.
+        if (pendingClick is { IsCompleted: true } finished)
+        {
+            pendingClick = null;
+            Settle(finished);
+        }
+        var observed = view.Observe();
+        if (pendingClick is not null) observed = observed with { InstallButtonDisabled = null };
+        string? report = Session.Report(directive, observed);
         if (report is null) return;
         try { await channel.ReportAsync(report, cancellationToken); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch { /* The next tick reports again. */ }
+    }
+
+    private void Settle(Task<bool> click)
+    {
+        bool started = click.IsCompletedSuccessfully && click.Result;
+        if (started) { Session.MarkInstallDriven(); return; }
+        string? failure = click.IsFaulted ? click.Exception!.GetBaseException().Message
+            : click.IsCanceled ? "the click was cancelled" : null;
+        // The click is never replayed, so an install that did not start ends
+        // this drive. Say why, or the harness sees a disabled form with no
+        // error and waits for nothing (native E2E run 38849303170).
+        var after = view.Observe();
+        string reason = !string.IsNullOrWhiteSpace(after.Error) ? after.Error
+            : !string.IsNullOrWhiteSpace(failure) ? "The install could not start: " + failure
+            : "The engine did not grant this plan, so the install did not start." +
+              (string.IsNullOrWhiteSpace(after.Hint) ? "" : " " + after.Hint);
+        Session.MarkRefused(reason);
     }
 }

@@ -283,6 +283,41 @@ The second observation also selects the state root again, and the grant contract
 Run 38857241312 passed, but it did not record the margin.
 If a slow disk causes a timeout, measure each part before you change a limit.
 
+### Drive reports during the plan check
+
+In runs 38923119161 and 38931058878 the harness read no drive report for about two minutes.
+The silence started when the directive arrived and stopped at the progress screen (126 seconds for bluefin, 86 seconds for bazzite).
+The state file did not exist in that time, so the shell wrote no report at all.
+The engine and the window were not at fault:
+
+- The tick that clicked Install waited for the whole plan check, which is a second elevation and then `PrepareNativeInstall`.
+  The window starts no tick while one runs, so no tick reported until the install started.
+- Before the click, the drive channel does not wait behind `GetNativeInstallSpace`.
+  The configuration engine answers one request at a time, so the shell dropped the reports of those ticks.
+  This read is limited to 20 seconds for the registry.
+
+The drive loop now starts the click and does not wait for it.
+Each tick reports the form while the check runs, and the next tick after the answer records the outcome.
+During the check, `installBtnDisabled` is null: the engine has not accepted or refused the clicked plan yet.
+The hint gives the check's elapsed time, and the harness writes each new hint to the log.
+`report-install-checking.json` holds this report for the shell, the engine and the harness.
+
+A person also waits for the plan check.
+The window shows a busy bar and the elapsed time of the check, once each second.
+The shell now reads and hashes its package on a worker thread, not on the window thread, before each engine connection.
+
+### Hosted plan check
+
+On the hosted runner, the UI test of the installed preview checks a real plan with the engine.
+A plan needs space for the Linux disk (20 GB at least) and for the image's unpack area (22 GB at least) on one drive.
+The hosted runner had 28 GB free on C: (run 38908347372), and its other drive is not an eligible volume.
+So the test could not check a plan, and that check had no hosted coverage.
+
+`.github/scripts/free-windows-runner-space.ps1` now removes toolchains that the job does not use after the publish step.
+It then reads the free space on C: again, and it stops the job when C: has less than 50 GB free.
+When it passes, the test must check a plan, and a plan that does not come is a failure.
+The free space is real: the form, the engine and the test each read the drive.
+
 ## Evidence before cutover
 
 | Gate | Evidence |

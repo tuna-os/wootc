@@ -54,7 +54,8 @@
       <CheckBox x:Name="LinuxWindowsLook" Content="Use a familiar Windows appearance" Checked="ConfigurationChanged" Unchecked="ConfigurationChanged" AutomationProperties.AutomationId="LinuxWindowsLook" />
       <TextBlock x:Name="InstallBlockedReason" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallBlockedReason" />
       <Button x:Name="PrepareInstallButton" Content="Check this plan" Click="PrepareInstall_Click" IsEnabled="False" AutomationProperties.AutomationId="PrepareInstall" />
-      <TextBlock x:Name="InstallGateStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallGateStatus" />
+      <TextBlock x:Name="InstallGateStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallGateStatus" AutomationProperties.LiveSetting="Polite" />
+      <ProgressBar x:Name="InstallGateBusy" IsIndeterminate="True" Visibility="Collapsed" AutomationProperties.Name="Checking this plan" AutomationProperties.AutomationId="InstallGateBusy" />
       <Button x:Name="InstallButton" Content="Install Linux" Click="Install_Click" IsEnabled="False" AutomationProperties.AutomationId="InstallLinux" />
     </StackPanel>
     <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Spacing="10">

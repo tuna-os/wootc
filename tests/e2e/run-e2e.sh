@@ -2986,7 +2986,7 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
     # So: keep the last state we actually saw, log every screen transition, and
     # when reads come back empty, probe QGA liveness and say which one broke.
     local drive_deadline drive_state="" driven=false
-    local last_good="" last_screen="" empty_reads=0 total_empty=0 blocked_reads=0
+    local last_good="" last_screen="" last_hint="" empty_reads=0 total_empty=0 blocked_reads=0
     local dead_app_checks=0
     # One reconnect cycle per run, not per stall: the second time the channel
     # goes deaf we already know reopening is on the table, and the answer is a
@@ -3132,6 +3132,18 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         if [ -n "$screen" ] && [ "$screen" != "$last_screen" ]; then
             info "  GUI screen: ${last_screen:-<start>} -> $screen"
             last_screen="$screen"
+        fi
+        # What the form says before the install starts. The native shell's
+        # plan check can take minutes (runs 38923119161, 38931058878); its
+        # reports carry the check's elapsed time here, with installBtnDisabled
+        # null because the clicked plan is neither offered nor refused yet.
+        if [ "$driven" = false ]; then
+            local hint_now
+            hint_now=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hint"])')
+            if [ -n "$hint_now" ] && [ "$hint_now" != "$last_hint" ]; then
+                info "  GUI hint: $hint_now"
+            fi
+            last_hint="$hint_now"
         fi
         # Until both are proven: the shell at medium integrity and the
         # install-session engine elevated (no-op once both are recorded).

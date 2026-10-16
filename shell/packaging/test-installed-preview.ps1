@@ -90,7 +90,9 @@ try {
     $beforeStartup=StateHashes
     $stateRoot=Join-Path ([IO.Path]::GetPathRoot($destination)) 'wootc'
     if (Test-Path -LiteralPath (Join-Path $stateRoot 'disks/root.disk')) { throw 'Disposable packaging host unexpectedly has an installation disk' }
-    $null=Invoke-OwnedNative -Executable 'dotnet' -TimeoutSeconds 180 -Arguments @('test',(Join-Path $PSScriptRoot '../Wootc.Shell.UiTests'),'--configuration','Release','--filter','FullyQualifiedName~InstalledPreviewTests','--logger',"trx;LogFileName=installed-$BrandId.trx")
+    # The engine's plan check can take two minutes (a second elevation, then
+    # PrepareNativeInstall), so the test gets more than that on top of startup.
+    $null=Invoke-OwnedNative -Executable 'dotnet' -TimeoutSeconds 420 -Arguments @('test',(Join-Path $PSScriptRoot '../Wootc.Shell.UiTests'),'--configuration','Release','--filter','FullyQualifiedName~InstalledPreviewTests','--logger',"trx;LogFileName=installed-$BrandId.trx",'--logger','console;verbosity=normal')
     & (Join-Path $PSScriptRoot 'test-uac-refusal.ps1') -Executable $env:WOOTC_NATIVE_INSTALLED_EXE -BrandSource $env:WOOTC_NATIVE_BRAND_SOURCE -OutputDirectory $output -BrandId $BrandId
     if (@(Get-Process -Name 'wootc-engine' -ErrorAction SilentlyContinue).Count -ne 0) { throw 'An engine process survived the refused elevation' }
     $afterStartup=StateHashes

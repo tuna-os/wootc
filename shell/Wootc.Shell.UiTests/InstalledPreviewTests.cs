@@ -169,6 +169,12 @@ public sealed class InstalledPreviewTests
             // refusal must be the form's space refusal, stated against the
             // drive's actual free space; there is no honest plan to check.
             bool planReachable=prepareInstall.IsEnabled;
+            // The workflow freed real space on C: for this check
+            // (.github/scripts/free-windows-runner-space.ps1) and measured
+            // it. There the engine-side plan check is required, never skipped.
+            bool planRequired=Environment.GetEnvironmentVariable("WOOTC_NATIVE_REQUIRE_PLAN_CHECK")=="1";
+            if(!planReachable&&planRequired)
+                throw new InvalidOperationException($"The runner freed space for a plan check, but no observed image and volume made a complete plan; {Find("InstallBlockedReason").Name}; C: free={new DriveInfo("C").AvailableFreeSpace>>30} GB");
             if(!planReachable)
             {
                 string blocked=Find("InstallBlockedReason").Name;
@@ -191,7 +197,7 @@ public sealed class InstalledPreviewTests
             string gateStatus="";
             using(var refusalDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(150)))
             {
-                while((gateStatus=Find("InstallGateStatus").Name).Length==0||gateStatus=="Checking this plan with the engine")
+                while((gateStatus=Find("InstallGateStatus").Name).Length==0||gateStatus.StartsWith("Checking this plan with the engine",StringComparison.Ordinal))
                 {
                     if(refusalDeadline.IsCancellationRequested)throw new InvalidOperationException($"Install plan check did not finish; {Find("ConnectionStatus").Properties.HelpText.Value}");
                     await Task.Delay(100);

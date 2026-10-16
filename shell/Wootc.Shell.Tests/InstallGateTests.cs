@@ -63,6 +63,45 @@ public sealed class InstallGateTests
         }
     }
 
+    private sealed class FixedClock : TimeProvider
+    {
+        public DateTimeOffset Now = new(2026, 10, 16, 15, 43, 22, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    private sealed class HeldConnector : IEngineConnector
+    {
+        public readonly TaskCompletionSource<ConnectionAttempt> Answer = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<ConnectionAttempt> ConnectAsync(ConnectRequest request, CancellationToken token) => Answer.Task;
+    }
+
+    // Native E2E runs 38923119161 and 38931058878 spent about two minutes in
+    // the plan check. The window says how long the check has run, so the
+    // person sees it is still working; the time stops with the check.
+    [Fact]
+    public async Task ThePlanCheckShowsHowLongItHasRun()
+    {
+        var clock = new FixedClock();
+        var connector = new HeldConnector();
+        await using var gate = new InstallGate(connector, Brand, clock);
+        Assert.Null(gate.CheckElapsed);
+        var preparing = gate.PrepareAsync(Plan());
+        Assert.Equal(InstallGateState.Preparing, gate.State);
+        Assert.Equal(TimeSpan.Zero, gate.CheckElapsed);
+        Assert.Equal(InstallGateText.Checking, InstallGateText.Status(gate.State, gate.Reason, gate.CheckElapsed));
+        clock.Now += TimeSpan.FromSeconds(45.6);
+        Assert.StartsWith(InstallGateText.Checking + " (45 s). ", InstallGateText.Status(gate.State, gate.Reason, gate.CheckElapsed));
+        clock.Now += TimeSpan.FromSeconds(80);
+        string status = InstallGateText.Status(gate.State, gate.Reason, gate.CheckElapsed);
+        Assert.StartsWith(InstallGateText.Checking + " (2 min 05 s). ", status);
+        Assert.Contains("Nothing changes until you confirm.", status);
+        connector.Answer.SetResult(new ConnectionAttempt(ConnectionOutcome.PermissionDeclined, Reason: "Administrator permission was declined. You can retry."));
+        await preparing;
+        Assert.Equal(InstallGateState.Refused, gate.State);
+        Assert.Null(gate.CheckElapsed);
+        Assert.Equal("Administrator permission was declined. You can retry.", InstallGateText.Status(gate.State, gate.Reason, gate.CheckElapsed));
+    }
+
     [Fact]
     public async Task OnlyAMatchingEngineGrantEnablesInstall()
     {
