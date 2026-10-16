@@ -1,0 +1,1054 @@
+fast tier (bats + go)	Run fast tier and enforce Go coverage	﻿2026-09-27T15:27:46.4206662Z ##[group]Run bash tests/run.sh fast
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4206987Z ^[[36;1mbash tests/run.sh fast^[[0m
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4271190Z shell: /usr/bin/bash -e {0}
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4271467Z env:
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4271676Z   GOTOOLCHAIN: local
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4271995Z   WOOTC_COVERAGE_DIR: /home/runner/work/_temp/go-coverage
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4272458Z   WOOTC_COVERAGE_BASE_SHA: 8e1c93e5a157435000cd3402dc07abdc95213081
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4272850Z ##[endgroup]
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4429177Z ══ fast tier ═════════════════════════════════════════════════════════
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:46.4429839Z ── bats unit suites (tests/unit) ──
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:48.8163446Z 1..645
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.0499803Z ok 1 GNOME look-apply exits 0 and writes the marker with no pins
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.1950418Z ok 2 KDE look-apply exits 0 with no pins
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.3153401Z ok 3 unknown desktop still exits 0 and records the marker (mapped=none)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.4627131Z ok 4 the once-only marker suppresses a second apply
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.4888099Z ok 5 no slurp data is a clean exit 0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.6615971Z ok 6 GNOME dock favorites built from taskbar pins (refactor regression guard)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.8222582Z ok 7 KDE panel launchers built from the same pins, targeting the task-manager applet
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:49.9756157Z ok 8 KDE favorites fall back to a default group when no appletsrc exists
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.1008808Z ok 9 XFCE is retired (X11/out of scope) — clean exit, mapped=none
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.1792075Z ok 10 look turned OFF in the chooser is skipped
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.3278736Z ok 11 a BROKEN selection helper must NOT block the migration (fail open)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.4519736Z ok 12 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.5889286Z ok 13 keeps the N newest runs and prunes the rest
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.6722322Z ok 14 serial and logs from pruned runs are preserved as evidence
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.7247036Z ok 15 a failed evidence copy retains the complete source run
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.7770410Z ok 16 a successful exit without copied bytes cannot authorize deletion
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.8384915Z ok 17 failed run and evidence enumeration cannot delete old runs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.9064596Z ok 18 actual source deletion follows a verified complete text archive
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:50.9844604Z ok 19 the bulk (video) is NOT preserved — that is the point
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.0739229Z ok 20 the evidence directory is never itself pruned
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.1028389Z ok 21 an empty or missing artifacts dir is a clean no-op
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.1373824Z ok 22 fewer runs than the keep count prunes nothing
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.1655309Z ok 23 retention runs on startup so a run cannot be blocked by its predecessors
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.1911880Z ok 24 preflight demands headroom for two runs, not the bare minimum for one
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.2151207Z ok 25 a hosted runner's ~114 GiB clears the requirement
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.2372174Z ok 26 the requirement is overridable for unusual hosts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.2607103Z ok 27 the cached-ISO and reuse paths keep proportional headroom
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.2825330Z ok 28 the keep count is overridable
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.3114981Z ok 29 the README timelapse only publishes green runs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.3443489Z ok 30 per-distribution walkthrough cuts survive each publish
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.3719393Z ok 31 the timelapse gives viewers time to read: 5s cards and freeze-frames
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.4043991Z ok 32 brand runs drive the BRANDED installer
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.4363938Z ok 33 the exe pins its boot artifacts to its own release, never to latest
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.5569238Z ok 34 deployer accepts auto before image backend detection
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.5875520Z ok 35 E2E and Windows setup pass auto through by default
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.6268705Z ok 36 backend detection falls back to safe defaults when the probe fails or is ambiguous
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.6509589Z ok 37 current bootupd versioned EFI layout is recognized as ostree
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.6778958Z ok 38 ESP staging supports the current versioned shim and GRUB layout
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.7109221Z ok 39 ESP staging logs every selected source and fails closed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.7359314Z ok 40 initramfs regen KVER comes from the module tree that owns vmlinuz
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.7586400Z ok 41 deploy.sh uses no binaries absent from the initramfs closure
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.7856685Z ok 42 filesystem defaults: xfs unsealed, ext4 sealed (btrfs blocked on #35)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.8077823Z ok 43 dracut regen failures report dracut's own output
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.8376922Z ok 44 the backend probe acquires the image before inspecting it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.8618111Z ok 45 verification does not assume the ostree 3-partition layout
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.8834299Z ok 46 a composefs deployment root is not prepared as a chroot
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.9068992Z ok 47 an image with no NTFS driver fails the deploy, not Phase 2
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.9329474Z ok 48 Phase 2 never ships without an NTFS driver
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.9571104Z ok 49 no unbounded podman call in the deployer
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:51.9809778Z ok 50 a failed deploy puts its own log tail on the serial
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.0032662Z ok 51 the NTFS gate uses the same capability test as the injector
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.0249179Z ok 52 ntfs-3g injection acquires the image before running dnf in it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.0532795Z ok 53 ntfs-3g injection self-heals a broken rpmdb before escalating
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.0837116Z ok 54 an image without an NTFS driver is not refused when the deployer has one
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.1110803Z ok 55 no assignment in the deployer aborts on a non-matching grep or empty ls
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.1359535Z ok 56 teardown never turns a successful deploy into a failure
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.1608880Z ok 57 the deployer names the command that aborts it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.2174914Z ok 58 the launchpad sends windowsLook with the install config
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.2457857Z ok 59 Wi-Fi collection runs outside the WindowsLook gate
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.2825325Z ok 60 Wi-Fi ordering assertion rejects collection moved inside the look gate
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.4307077Z ok 61 the real tree lists every brand that has not been declined
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.5961681Z ok 62 a declined project's exe drops out of the release matrix
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.6626753Z ok 63 a brand with no recorded decision is an error, not a default yes
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.7186433Z ok 64 an unrecognised status is an error, never treated as buildable
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.7908704Z ok 65 WOOTC_REQUIRE_BLESSING tightens pending brands out without a code change
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.8713932Z ok 66 a pending brand still builds, and the log says it is unblessed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:52.9060272Z ok 67 the release workflow selects brands through the gate, not a bare glob
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.1265389Z ok 68 every brand renders a complete winget manifest set
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.1827349Z ok 69 a rendered manifest never claims a permission nobody has granted
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.2357209Z ok 70 the renderer refuses a brand with no record to offer
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.2675945Z ok 71 no branded package is auto-submitted to winget
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.2911423Z ok 72 the README table and the records cannot drift apart
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.3808799Z ok 73 btrfs deploys bake an early modules-load.d entry into the Phase-2 initramfs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.4095887Z ok 74 the attach hook clears the btrfs udev readiness gate without modprobe
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.4302785Z ok 75 the dracut module carries btrfs.ko and (optionally) btrfs-progs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.4641500Z ok 76 the filesystem axis reaches the deployer from every harness layer
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.5089994Z ok 77 a btrfs deploy is refused when the target kernel cannot load btrfs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.5350419Z ok 78 the Phase-2 emergency verdict reads the whole boot, and names the btrfs case
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.6457898Z ok 79 the Phase-2 → Windows reboot requires the guest to actually go down
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.6672378Z ok 80 ext4 stays the sealed default; btrfs works on supported kernels via opt-in
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.7424335Z ok 81 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.7663072Z ok 82 the ssh image is built BEFORE compose needs it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.7902933Z ok 83 a failed image build aborts instead of proceeding
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.8098807Z ok 84 the build is verified to have actually produced the image
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.8326129Z ok 85 compose_up_windows's return value is NOT ignored
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.8532760Z ok 86 container existence is verified even when compose reports success
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.8738217Z ok 87 the failure message names the actual cause and the fix
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.8963354Z ok 88 startup failure exits rather than falling through to the QEMU wait
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.9644978Z ok 89 the hook is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:53.9854843Z ok 90 the hook starts NO background job
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.0061148Z ok 91 no sleep-based watchdog remains in the code
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.0266580Z ok 92 no cancel_watchdog / WATCHDOG_PID machinery remains
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.0465733Z ok 93 the deployer exit status is still reported to kmsg
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.0666306Z ok 94 the failure path still reboots back to Windows
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.0853745Z ok 95 the removal is documented so it is not reintroduced
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.2028842Z ok 96 both scripts are syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.2279050Z ok 97 a kernel reboot is NOT treated as a successful deploy
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.2494214Z ok 98 a kernel reboot with no verification summary fails loudly
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.2704341Z ok 99 the kernel-reboot failure explains that Phase-2 setup never ran
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.2916285Z ok 100 Windows answering QGA without completion is a failure, not a wait
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.3113840Z ok 101 the streak resets when Windows is NOT answering
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.3313135Z ok 102 the failure prints the deployer's own log, not just a verdict
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.3523695Z ok 103 the post-fisherman verification stretch is instrumented
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.3748498Z ok 104 no staged binary is executed during the deploy any more
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.3964521Z ok 105 the dracut regen is bounded — it cannot hang the deploy forever
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.4184889Z ok 106 a regen timeout aborts rather than booting a stale initramfs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.4380625Z ok 107 the regen announces itself before starting
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.4592465Z ok 108 both dracut regeneration paths explicitly include OSTree prepare-root
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.4822873Z ok 109 the generated initramfs guard requires wired OSTree prepare-root
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.5031810Z ok 110 the OSTree wiring guard accepts lsinitrd symlink output
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.5301268Z ok 111 the deployed chroot has a valid sticky var tmp before dracut
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.5547808Z ok 112 ostree usr-local backing directory exists before bridge installation
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.5839201Z ok 113 post-install writes use the OSTree stateroot var visible at runtime
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.6095029Z ok 114 stateroot paths need no dirname binary in the minimal initramfs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.6436574Z ok 115 post-install payload is relabeled and Phase-3 label is verified
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.6663759Z ok 116 nonfatal Phase-2 checks are still collected into one verdict
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.6875803Z ok 117 the collected problems are reported as one summary
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.7072467Z ok 118 a clean Phase-2 setup says so explicitly
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.7300008Z ok 119 instrumentation brackets the dracut module copy and the closure
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.8142951Z ok 120 find_ldso locates the dynamic loader this deployer runs on
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.8784095Z ok 121 the closure resolves with neither ldd nor awk on PATH
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.9172393Z ok 122 the loader is preferred over ldd, so a broken ldd cannot break staging
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:54.9589273Z ok 123 a binary with no closure still reports none — no phantom loader
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.0412194Z ok 124 the fallback qemu-ga stages end-to-end with no ldd in the initramfs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.0680297Z ok 125 no call site pipes ldd into awk any more
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.1060756Z ok 126 best-effort stagers warn, they do not [FAIL]
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.1254479Z ok 127 the initramfs also carries ldd, as the second path
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.2091928Z ok 128 deploy.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.2372766Z ok 129 the premise holds: run-e2e.sh really does kill the deploy on [FAIL]
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.2629759Z ok 130 every [FAIL] in deploy.sh terminates the deploy
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.2945711Z ok 131 the scanner is not vacuous — a planted non-fatal [FAIL] is caught
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.3229625Z ok 132 a [FAIL] behind a return needs every call site to exit
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.3554897Z ok 133 the six sites this suite was written for stayed downgraded
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.5168222Z ok 134 E2E stages the GRUB configuration embedded by the application
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.5417909Z ok 135 docs point at the state file that actually exists
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.6211641Z ok 136 every C:\wootc path the docs name is one the code builds
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.6760819Z ok 137 the branded exe names the docs advertise are the ones brand.json builds
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.6990781Z ok 138 RELEASING does not claim a single published artifact
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.8839695Z ok 139 docs do not link to files that are not in the tree
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.9116187Z ok 140 no doc promises BitLocker works while the channel gate refuses it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.9343469Z ok 141 the documented default channel is the one the code defaults to
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.9612883Z ok 142 the image the docs call the alpha default is the one that gets selected
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:55.9884579Z ok 143 the free-space figure is the one the launchpad enforces
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.0150088Z ok 144 the first screen the docs quote is the one the build renders
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.0449186Z ok 145 the uninstall entry the docs name is the one the installer registers
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.0696662Z ok 146 the migration dashboard is called what the app calls it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.0982815Z ok 147 documented buttons and toggles exist in the frontend
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.1269302Z ok 148 no doc claims real-hardware verification before the ladder banks it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.1698027Z ok 149 every branded walkthrough has its four screenshots on disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.1971386Z ok 150 guide describes the explicit Windows-side Linux boot choice
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.2216778Z ok 151 guide discloses Firefox profile passwords instead of blanket secret exclusion
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.2477310Z ok 152 guide describes Windows removal as a plan without a consumer execution path
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.2807678Z ok 153 guide qualifies uninstall restoration and preserves old section anchors
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.3196074Z ok 154 release guide matches the tagged native graduation gate and its waiver
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.3465477Z ok 155 release user instructions disclose Install writes before reboot
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.3728864Z ok 156 release user instructions describe Windows return and explicit Linux boot
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.4003477Z ok 157 release user instructions qualify cleanup and disclose the data choice
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.4292348Z ok 158 getting started discloses preparation beyond a folder and boot entry
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.4574309Z ok 159 getting started qualifies cleanup and exposes its data choice
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.4868281Z ok 160 getting started qualifies reputation prompts instead of promising bypass
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.5128659Z ok 161 getting started distinguishes checksums from publisher identity
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.5422157Z ok 162 startup guides disclose the Windows WebView2 runtime dependency
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.5682608Z ok 163 roadmap separates native preview work from complete consumer proof
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.5941122Z ok 164 roadmap separates restoration requirement from current partial cleanup
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.6215863Z ok 165 roadmap requires a SmartScreen observation beyond a valid signature
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.6483704Z ok 166 README qualifies the VM goal against current desktop evidence
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.6774723Z ok 167 README exposes preparation settings and normal Windows return
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.7061179Z ok 168 README separates cleanup from restoration and Linux data removal
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.7333191Z ok 169 README matches release graduation and its manual waiver
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.7575489Z ok 170 README qualifies browser secrets instead of a blanket exclusion
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.7850111Z ok 171 README discloses runtime and distinguishes hashes from signed manifests
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.8097392Z ok 172 E2E architecture separates historical native diagrams from current acceptance
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.8457950Z ok 173 E2E architecture follows the actual sourced runner boundaries
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.8743276Z ok 174 E2E architecture does not claim an atomic deployer menu handoff
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.8991573Z ok 175 E2E architecture distinguishes a QGA service request from a working channel
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.9330037Z ok 176 release rollback distinguishes remote withdrawal from signed local cache
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.9660211Z ok 177 manual hardware guide discloses actual preparation outside the state folder
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:56.9947468Z ok 178 manual hardware guide separates requested return and cleanup from restoration
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:57.0179745Z ok 179 manual hardware guide qualifies the legacy path instead of claiming VM-first or WinUI proof
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:57.1070931Z ok 180 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:57.1333720Z ok 181 deadline_in returns an absolute epoch in the future
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:57.1663214Z ok 182 past_deadline is false before and true after the deadline
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.2036580Z ok 183 a deadline elapses in real time even when the loop body blocks
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.2298253Z ok 184 elapsed_min_since reports whole minutes of real time
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.2585646Z ok 185 no wait loop is bound by a tick counter
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.2815717Z ok 186 the long-running loops use past_deadline
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.3035072Z ok 187 progress lines report real minutes against the real budget
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.3293202Z ok 188 the deploy budget is calibrated against real wall-clock behaviour
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.3511320Z ok 189 every QGA call is bounded by a timeout
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.3760932Z ok 190 the QGA call timeout is overridable for slow hosts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.3981931Z ok 191 Phase-2 boot failure reports actual waited time, not the nominal budget
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.4272912Z ok 192 an abort before the full cleanup trap still stamps the run-state file
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.5943457Z ok 193 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.7008714Z ok 194 fail() records to the ledger, not just stderr
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.8049206Z ok 195 a fail inside a command substitution still reaches the ledger
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.9093964Z ok 196 a fail inside a pipeline still reaches the ledger
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:27:59.9778506Z ok 197 the success banner is gated on the ledger being empty
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.0469965Z ok 198 the gate exits non-zero and says TESTS FAILED when the ledger is non-empty
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.1123209Z ok 199 the user-data check records a failure — it is the North Star assertion
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.1826460Z ok 200 Phase-2 health failures preserve the firstboot unit result before reboot
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.2521501Z ok 201 a recovered ntfs3 mount error does not fail the run
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.3362765Z ok 202 a drm_panic handler registration is not a kernel panic
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.4033789Z ok 203 OEM payload transfers retry and report instead of aborting silently
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.4848269Z ok 204 a non-matching grep in a checked assignment cannot abort the run
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.5626003Z ok 205 a probe for something absent cannot print a [FAIL] that aborted nothing
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.6346962Z ok 206 log helpers do not mangle Windows paths
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.7090291Z ok 207 a locked OEM payload file is force-replaced, not just unheld
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.7783844Z ok 208 the serial arms the deployer-death detector, not just the heartbeat
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.8523924Z ok 209 an unreachable Phase-2 agent is inconclusive, not proof of data loss
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:00.9219818Z ok 210 drive mode can only install the image the directive named
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.0075282Z ok 211 flake auto-retry: only harness-classified flakes are ever re-dispatched
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.0780211Z ok 212 the North Star read polls the bridge, it does not race it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.1467434Z ok 213 the refresh is gated: no trust helper, no chain changes
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.1658654Z ok 214 only a vendor directory wootc owns is touched
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.1853381Z ok 215 shim is replaced LAST, after GRUB and MokManager
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.2078855Z ok 216 the current chain is archived before anything replaces it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.2317320Z ok 217 the candidate is graded against the firmware AND the installed SBAT
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.2781860Z ok 218 SBAT is read from the .sbat section, not the first matching string
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.3037928Z ok 219 the helper and the update trigger travel into the deployment
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.3812447Z ok 220 the verifier grades all four criteria
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.4040459Z ok 221 an unsigned binary fails instead of reading as 'nothing wrong'
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.4271098Z ok 222 a missing exe identity fails instead of passing by absence
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.4475129Z ok 223 the expected per-brand identity comes from brand.json, not a copy
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.4697394Z ok 224 an asset absent from SHA256SUMS fails rather than being skipped
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.4917087Z ok 225 a stale winget manifest fails even though the package resolved
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.5205789Z ok 226 the checklist cannot be talked into passing, and names its manual half
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.5406576Z ok 227 the elevation manifest is intact in the committed resource object
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.5666919Z ok 228 the release doc records signing blockers and per-brand resources
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.5857365Z ok 229 the PowerShell graders are actually run by the fast tier
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.7915135Z ok 230 E2E invokes go-native by absolute path under QGA's minimal PATH
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.8544319Z ok 231 go-native supplies sbin paths for GUI and QGA service environments
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:01.9279988Z ok 232 --phase3 provisions its dedicated blank target and handles none found
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.0009372Z ok 233 Phase-3 QGA uses the request-gated systemd boundary
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.0725360Z ok 234 Phase-3 dispatcher rechecks blank target before destructive gate
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.1445363Z ok 235 Phase-3 dispatcher runs NTFS shrink verification before migration
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.2302303Z ok 236 migrate --dual-boot on loopback describes the graduate stages and touches nothing
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.3582259Z ok 237 migrate --dual-boot with shrink fixture shows available space and safe defaults
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.4413788Z ok 238 migrate --dual-boot with dirty NTFS fixture shows the dirty-volume diagnostic
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.5298066Z ok 239 migrate --dual-boot with no-space NTFS fixture shows the nospace diagnostic
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.6069708Z ok 240 plan when already native says nothing to graduate
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.8414560Z ok 241 check reports loopback + counts converted folders, never touches disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.9237921Z ok 242 check verifies NTFS shrinkability when layout is discoverable
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:02.9971429Z ok 243 check warns on dirty NTFS but does not hard-block
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.0651986Z ok 244 migrate --reclaim REFUSES while still on loopback
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.1346034Z ok 245 migrate --reclaim REFUSES when no folders are verified native
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.2142480Z ok 246 migrate --execute REFUSES without WOOTC_GN_ALLOW_DESTRUCTIVE=1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.2802685Z ok 247 migrate with no mode REFUSES
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.3607159Z ok 248 migrate --dual-boot (no --execute) is a dry run that touches no disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.4392589Z ok 249 Phase-3 plan uses recorded registry origin, not deployer-local derived tag
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.5064321Z ok 250 Phase-3 native install supplies the deployer-selected filesystem
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.5693260Z ok 251 Phase-3 home migration selects a partition, never the whole target disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.6437272Z ok 252 Phase-3 schedules and positively verifies the native boot
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.7178885Z ok 253 migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.7849710Z ok 254 migrate REFUSES when the Windows disk cannot be located
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:03.9247133Z ok 255 status --json on loopback: canGraduate true, canReclaim false, touches nothing
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.0540553Z ok 256 status --json with shrink fixture reports ntfsShrinkable gate and safeGib
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.1786336Z ok 257 status --json native + converted folders: canReclaim true, folders listed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.2984413Z ok 258 status --json native but NO converted folders: canReclaim false (data-safety gate)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.3896115Z ok 259 migrate --to-disk REFUSES to install onto the Windows disk # skip no loop device
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.4675081Z ok 260 Phase-3 install uses fisherman podman-run mode with the origin image
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.5367834Z ok 261 Phase-3 post-install /etc writes target the deployment etc, not sysroot etc
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.6036042Z ok 262 Phase-3 recipe mirrors the running account into the native install
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.6724753Z ok 263 Phase-3 installs the /run userdata probe for the confined guest agent
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.7545005Z ok 264 the hook is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.7734324Z ok 265 say() writes to /dev/console (the only threshold-independent path)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.7919473Z ok 266 say() also emits an explicit low priority to kmsg for the journal
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.8163083Z ok 267 the hook announces entry before any early return
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.8375554Z ok 268 diagnostics never use dracut info()/warn(), which printk filters away
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.8573223Z ok 269 every failure exit states a reason
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.8777804Z ok 270 the hook reports what appeared after attach, not just that it attached
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.8981159Z ok 271 deployer log()/err() emit an explicit kmsg priority
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.9192703Z ok 272 deployer log()/err() do NOT also write to /dev/console
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.9383757Z ok 273 the low-volume Phase-2 hook DOES still write to /dev/console
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:04.9594248Z ok 274 the initramfs guard aborts the deploy when the attach service is unwired
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.0322309Z ok 275 every hosted workflow that runs containers wires in the runtime repair
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.0505461Z ok 276 the repair installs crun over /usr/bin, where podman actually looks
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.0706106Z ok 277 the repair proves a container can be created, not just that versions look right
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.0901053Z ok 278 the repair never touches self-hosted runners
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.1099378Z ok 279 the #71 arm gate defaults to empty so it can never gate the nightly
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.2312956Z ok 280 scan reports a Linux-safe username and the full name/email/locale
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.3094773Z ok 281 scan always reports the password as NOT migratable
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.3876902Z ok 282 scan finds the account picture
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.4888657Z ok 283 apply copies the account picture to ~/.face and AccountsService
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.5494889Z ok 284 apply with no account picture still succeeds (name only, no crash)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.6691719Z ok 285 scan finds the spare NTFS and the BitLocker disk, not the running disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.7418850Z ok 286 the running-disk (sda) partitions are excluded
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.8125926Z ok 287 BitLocker volume is flagged fs=bitlocker + locked=true
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.8830682Z ok 288 plain NTFS volume is fs=ntfs + locked=false, with its label
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:05.9539051Z ok 289 non-Windows filesystems (ext4) are not offered
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.0054103Z ok 290 empty disk list is a clean empty scan
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.1075845Z ok 291 deploy.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.1305435Z ok 292 wootc-firstboot-evidence is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.1579385Z ok 293 deploy.sh writes deployer-started.json and state.json = deploying right after ntfs-mounted
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.1830222Z ok 294 deploy.sh writes state.json = deployed after vstage verify-complete
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.2124991Z ok 295 deploy.sh cleanup writes state.json = failed with phase on non-zero exit
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.2453266Z ok 296 deployer metadata uses the descriptor-preserving atomic writer
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.2710038Z ok 297 wootc-firstboot-evidence exists and writes state.json = healthy atomically
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.2945630Z ok 298 wootc-firstboot-evidence.service is ordered after host-bind
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.3164248Z ok 299 firstboot service PATH includes the staged NTFS state writer
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.3904921Z ok 300 firstboot health writer publishes readable state and evidence
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.4264289Z ok 301 firstboot health writer fails when the private Windows mount is absent
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.4756298Z ok 302 firstboot does not publish its retry marker when the state write fails
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.5008915Z ok 303 first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.5341550Z ok 304 deployHasCompleted stops trusting journal file alone
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.5622162Z ok 305 state.go defines all six lifecycle states
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.6271389Z ok 306 lifecycle capture retains failing exit even when stdout claims healthy
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.6527583Z ok 307 lifecycle capture preserves successful output and separate empty stderr
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.7748240Z ok 308 public view is masked and read-only before publication
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.8349657Z ok 309 read-only failure never publishes the Windows view
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.8686838Z ok 310 privileged lifecycle and folder writers use the private mount
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.9128918Z ok 311 FUSE NTFS fallback keeps private writes available to root services
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:06.9671395Z ok 312 legacy kernel NTFS fallback keeps private writes available to root services
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:07.0369289Z ok 313 folder redirects cannot export installer state or the whole volume
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:07.0888076Z ok 314 a user-created folder symlink is never used as a bind destination
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:07.1476554Z ok 315 a case-sensitive uppercase installer directory is also masked
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:07.6785044Z ok 316 scan discovers present categories and defaults them ON
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:07.9783449Z ok 317 absent category is present=false and defaultOn=false
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:08.2496686Z ok 318 files category lists the actual folders found
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:08.5263266Z ok 319 wifi item reports the number of exported profiles
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:08.7978854Z ok 320 the Public profile is ignored by --all
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.0682806Z ok 321 scan with no discoverable data is a clean empty catalog (no crash)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.1494192Z ok 322 matrix covers Windows 10 and 11 Pro
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.1710076Z ok 323 Home rows are disabled until a Home-capable ISO fixture exists
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.1909115Z ok 324 matrix covers the BitLocker axis
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.2141669Z ok 325 matrix covers all three deployment backends
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.2396439Z ok 326 matrix has a phase3 case per backend flavor
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.2602116Z ok 327 host_worker threads the opts column through to run_case
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.2806743Z ok 328 phase3=on translates to --phase3 on the remote invocation
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.3049938Z ok 329 himachal has a hard ceiling of one concurrent VM
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.3323199Z ok 330 a case waits for a loaded host instead of piling onto it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.3607958Z ok 331 the matrix runs from an immutable snapshot of itself
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.3851757Z ok 332 remote cases are launched as systemd user units, not nohup
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.4054221Z ok 333 the poll reads systemd unit terminal state on abnormal death
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.4282370Z ok 334 --grep is a regex so an iteration loop can name distinct code paths
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.5151143Z ok 335 MokManager (mmx64.efi) travels with the signed boot chain
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.5541955Z ok 336 the deployer queues MOK enrollment for akmods images
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.5858293Z ok 337 MOK certs are harvested before the verify tree is unmounted
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.6220590Z ok 338 MokManager is driven from inside the Phase-2 wait, on its own serial marker
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.6436494Z ok 339 the GUI warns about the one-time MokManager screen for images that need it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.6658283Z ok 340 the enrolled kernel actually gets a boot: re-arm after MokManager lands in Windows
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.6912977Z ok 341 the Windows-return marker is scanned in the consumed span, not just fresh output
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.7804804Z ok 342 run-e2e accepts --instance= and derives disjoint state from it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.8083682Z ok 343 compose volumes and container name are instance-parameterized
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.8348570Z ok 344 matrix per-slot cleanup is scoped to its own instance
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.8585347Z ok 345 matrix sizes runners instead of assuming capacity
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.8827360Z ok 346 concurrent deployer builds are serialized, artifacts written atomically
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.9221761Z ok 347 GUI-driven install path: seeds, drives the live form, rejoins normal flow
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.9477296Z ok 348 matrix poll ssh cannot eat the case queue
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:09.9731452Z ok 349 fresh runs reclaim their own disposable disk before preflight
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.0024446Z ok 350 registry mirror is an opt-in, probed hint at every layer
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.0247559Z ok 351 post-deploy parsing survives no-match greps (pipefail)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.0485611Z ok 352 a failed run tears the VM down even under --keep
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.0764303Z ok 353 setup-wootc.ps1 is single-instance (mutex) — no fresh-install OEM race
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.1621781Z ok 354 the Phase-2 boot menu says the word Windows
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.1896756Z ok 355 the Linux entry is named for the product, and stays the default
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.2176555Z ok 356 product Phase-2 boots quiet; observed runs keep the verbose consoles
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.2370309Z ok 357 product tool output never scrolls over the splash
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.2619518Z ok 358 a verified deploy re-arms the next boot — but never under E2E observation
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.2817230Z ok 359 the final splash message is only 'starting Linux' when a Linux boot is armed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.3033166Z ok 360 efibootmgr ships in the deployer initramfs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.3289692Z ok 361 staged boot artifacts come with their manifest
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.3493838Z ok 362 something is on screen before the network is up
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.3731951Z ok 363 a wootc firmware entry can never survive in the permanent boot order
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.3965599Z ok 364 the one-shot arm retries as a unit — bootsequence included
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.4805557Z ok 365 a first-login welcome exists, is visible, and runs once
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.4991930Z ok 366 the welcome opens the migration dashboard, with a fallback that still says hello
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.5251526Z ok 367 the deployer stages the welcome as an autostart — tolerantly, and the initramfs ships it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.6216542Z ok 368 every migration payload deploy.sh stages is shipped in the initramfs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.6451352Z ok 369 every bridged home gets a Windows-drive bookmark
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.7424763Z ok 370 the Windows-drive bookmark also reaches KDE's Dolphin
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.7668665Z ok 371 the timelapse demo stages exist and can never fail a run
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:10.7953784Z ok 372 the NTFS-on-Linux doc cites code that still exists
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.5021184Z ok 373 NTFS state writer rejects forged descriptors and truncated records
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.5390113Z ok 374 firstboot never announces healthy when descriptor preservation fails
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.6266822Z ok 375 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.6456004Z ok 376 the run id is passed to the guest via wootc-config.txt
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.6700125Z ok 377 the guest stamps the run id into the completion marker, not a constant
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.6907250Z ok 378 the guest falls back safely when RunId is absent from the config
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.7114370Z ok 379 the barrier requires the marker to equal this run's id
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.7304858Z ok 380 an empty marker does NOT satisfy the barrier
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.7520119Z ok 381 the barrier no longer passes on a bare readable-file check
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.7756250Z ok 382 the OEM sync uses the CONTAINER's view of the mount, not a host path
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.7945848Z ok 383 C:\OEM is refreshed from the host before setup starts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.8172915Z ok 384 the OEM sync is unconditional, not limited to --skip-install
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.8417098Z ok 385 the refresh happens BEFORE the OEM script is launched
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.8624383Z ok 386 a barrier timeout distinguishes 'never completed' from 'stale marker'
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.9303499Z ok 387 the deploy hook fires without a network (settled + online, one guard)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.9587377Z ok 388 a staged OCI bundle is ingested before anything network-shaped runs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:18.9820738Z ok 389 with a bundle, the registry preflight is skipped; without one, the wait is bounded and names the fix
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.0028638Z ok 390 offline deploys skip the dnf injection instead of burning its timeouts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.0308532Z ok 391 the app pre-downloads with fail-closed digest verification
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.1813725Z ok 392 both hooks are syntactically valid and safe to SOURCE
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.2098042Z ok 393 the dracut module registers both hooks under the exact expected names
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.2538579Z ok 394 the early-cpio overlay carries both hooks, and refuses to build without them
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.3385265Z ok 395 the overlay completeness gate actually rejects a hookless overlay
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.3822431Z ok 396 behavioral: nothing is staged when the host NTFS is not mounted
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.4441883Z ok 397 behavioral: a Phase-2 boot stages an initramfs that systemd will pivot into
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.5152677Z ok 398 behavioral: an initramfs with no /shutdown arms nothing (fail-safe)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.5908270Z ok 399 behavioral: a staged tree carrying no umount hook is reverted
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.6352537Z ok 400 behavioral: staging is skipped rather than risking OOM on a low-memory box
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.6790767Z ok 401 behavioral: an already-populated /run/initramfs is left alone
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.7216850Z ok 402 behavioral: the volume is found at the path dracut's shutdown.sh leaves it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.8022221Z ok 403 behavioral: the other post-pivot spellings are found too
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.8405393Z ok 404 behavioral: a busy volume asks to be retried instead of being abandoned
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.8869724Z ok 405 behavioral: the final pass syncs and lazy-detaches rather than leaving it mounted
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:19.9198926Z ok 406 behavioral: a boot with no host NTFS mounted is a no-op, not an unmount
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.0343852Z ok 407 no early-cpio branch references the phantom /mnt/sysroot
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.0695384Z ok 408 all three prepend-cpio branches share one overlay implementation
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.0962948Z ok 409 the deployer-sourced fallback ships the loader and is exec-verified
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.1206880Z ok 410 the built Phase-2 initrd is verified by listing, not by size
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.1602293Z ok 411 a missing mountable installed root is fatal, with evidence (#45)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.2222951Z ok 412 behavioral: target ntfs-3g is staged with its libraries, symlinks intact
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.2896335Z ok 413 behavioral: fallback wrapper hardcodes the '@' argv[0] that survives switch-root
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.3731140Z ok 414 behavioral: a complete overlay + complete base initrd builds and verifies
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.4527150Z ok 415 behavioral: a base initrd without bash is REFUSED (mutation test)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.5150109Z ok 416 behavioral: an overlay with a missing wants edge is refused before packing
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.7239464Z ok 417 behavioral: a microcode early-cpio does not hide the real initrd (#76)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:20.9217410Z ok 418 behavioral: a real absence is still fatal behind an early-cpio
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.1002172Z ok 419 behavioral: a microcode-only image is unverifiable, not a failure
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.2357195Z ok 420 behavioral: an unlistable base initrd warns but does not fail the deploy
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.3412944Z ok 421 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.3664374Z ok 422 guest-ping is OS-agnostic, so it cannot stand alone as a down-detector
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.3948372Z ok 423 a positive Linux discriminator exists alongside the Windows one
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.4190584Z ok 424 no agent answering is read as 'down'
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.4430246Z ok 425 a Windows agent answering is read as 'windows', not as a live Phase 2
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.4673850Z ok 426 a Linux agent still answering is read as 'linux'
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.4914998Z ok 427 an agent that identifies as neither is read as 'unknown', never as Linux
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.5189040Z ok 428 the observation stops the moment Windows is seen, without draining the budget
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.5414784Z ok 429 system_reset in the Phase-2 return is reachable only from the 'linux' verdict
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.5722354Z ok 430 the verdict is computed before the reset, from p2_reboot_observe
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.5951613Z ok 431 the reboot request is bounded so it cannot eat the observation window
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.6159932Z ok 432 the Windows return is still asserted with the OS discriminator afterwards
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:21.6388568Z ok 433 the old ping-only shape really would have reset run 30710282779
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.6757208Z ok 434 mutation: a reboot that does nothing must fail the final Windows-return assertion
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.7578718Z ok 435 the script is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.7939755Z ok 436 picks the blank spare disk, never the Windows disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.8272833Z ok 437 REFUSES when the only non-root disk is the Windows disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.8602514Z ok 438 a whole-disk filesystem with no partition table is NOT blank
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.8907101Z ok 439 skips nbd/loop/sr/zram even when they look empty
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.9243936Z ok 440 picks the first blank disk when several exist
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.9551619Z ok 441 no disks at all fails closed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:22.9909430Z ok 442 a blank disk listed AFTER the Windows disk is still found
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:23.3207999Z ok 443 manifest discovers categories from prefilled profile
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:23.3571901Z ok 444 VS Code configuration is preserved in prefilled profile
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:23.3945257Z ok 445 MS Office custom dictionary and templates are present in profile
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:23.4524729Z ok 446 registry programs.json includes typical apps
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:24.6288663Z ok 447 the reconnect cycle reports a channel that came back
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:25.7175360Z ok 448 the reconnect cycle claims nothing when the channel stays deaf
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:27.8316200Z ok 449 the recovery path cannot itself kill the run under set -e
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.0694517Z ok 450 the verdict lands in BOTH the ledger and the machine-readable file
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.1505961Z ok 451 channel loss is classified, not waited out
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.2318238Z ok 452 the reconnect cycle runs ONCE, and only before the verdict
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.3149682Z ok 453 the reconnect cycle reaps stale clients before reopening
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.3945097Z ok 454 the verdict names the class and claims nothing about the product
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.5076411Z ok 455 the GUI timeout never treats live ping as a product verdict
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.5871576Z ok 456 a channel that comes back is not a failure
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.6665685Z ok 457 qga.py: a socket that will not open is TRANSPORT, not a guest exit code
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:28.7576954Z ok 458 qga.py: the reconnect cycle drains before it syncs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:37.7018682Z ok 459 the synthetic channel-kill test exists and runs in the fast tier
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:37.8252438Z ok 460 the staged agent is reachable from the booted root, not from /usr
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:37.8924047Z ok 461 the unit's ExecStart points at the file that was actually staged
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:37.9567138Z ok 462 the fallback stands down when the image ships its own agent
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.0083825Z ok 463 an unstageable closure fails loudly and leaves nothing half-installed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.0338233Z ok 464 the deployer no longer installs the agent into the shadowed /usr
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.0561907Z ok 465 the real-root stager is called from the post-install stage
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.1853730Z ok 466 all scripts are syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.2112775Z ok 467 Windows creates a PREALLOCATED raw image, not a VHDX
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.2352724Z ok 468 the image is physically allocated to prevent ntfs3 sparse I/O errors
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.2554319Z ok 469 the created size is verified, not assumed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.2758124Z ok 470 the deployer attaches with losetup --partscan
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.2996931Z ok 471 --partscan is present everywhere a loop device is attached
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.3222007Z ok 472 loop.max_part is set on the Phase-2 kernel cmdline, not just via modprobe
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.3435354Z ok 473 the verify attach is guarded like the main attach
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.3693262Z ok 474 detach uses losetup -d, not qemu-nbd --disconnect
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.3920677Z ok 475 no qemu-nbd remains in deployer CODE
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.4161490Z ok 476 the closure staging is gone entirely
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.4396325Z ok 477 the VHDX format check is gone
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.4602196Z ok 478 the boot hook attaches with losetup --partscan
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.4820860Z ok 479 the hook's failure message names losetup and the loop module
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.5062652Z ok 480 the hook calls no modprobe at all (Secure Boot lockdown), and never nbd
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.5267909Z ok 481 post-attach partitions are reported from the actual loop device
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.5488179Z ok 482 the attach mechanism is a systemd SERVICE, not just an initqueue hook
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.5772888Z ok 483 Phase-2 prefers the kernel ntfs3 mount and preserves FUSE fallback
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.5998103Z ok 484 the service is ordered before sysroot.mount and after udev
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.6217274Z ok 485 the service is WIRED into initrd-root-device.target, verified at build
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.6418931Z ok 486 module-setup falls back when systemdsystemunitdir is empty
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.6622122Z ok 487 the module depends on systemd so the unit dir exists
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.6863803Z ok 488 the initramfs guard checks the WIRED service, not the hook
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.7083509Z ok 489 the module installs losetup and the loop kernel module
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.7308317Z ok 490 the module stages NO foreign binary
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.7603589Z ok 491 the host-NTFS wait is wall-clock with an unconditional sleep
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.7845956Z ok 492 the EXIT device inventory cannot fall back to listing a directory
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.8522507Z ok 493 deploy.sh contains state writes for deploying, deployed, and failed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.8722949Z ok 494 deploy.sh contains fault injection hooks
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.8921352Z ok 495 setup-wootc.ps1 registers scheduled tasks and writes armed.json
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.9104349Z ok 496 app writes armed.json and registers recovery tasks in configureBCD
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.9288963Z ok 497 app unregisters recovery tasks on disarm and uninstall
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.9458187Z ok 498 uninstall_check asserts recovery scheduled tasks are unregistered
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:38.9683873Z ok 499 decision table covers all five verdicts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.0530400Z ok 500 matrix.tsv covers all 6 fault injection boundaries
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.0808095Z ok 501 matrix.tsv smoke tier includes critical recovery cells
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.0995804Z ok 502 run-matrix.sh threads fault= opts to --fault-inject and env var
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.1214610Z ok 503 run-e2e.sh accepts --fault-inject flag and handles recovery check
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.1460101Z ok 504 setup-wootc.ps1 supports -FaultInject parameter for all boundaries
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.1649849Z ok 505 setup-wootc.ps1 sweeps stale BCD entries for retry idempotency
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.1853475Z ok 506 deploy.sh reads wootc.fault and records failed state
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.2084283Z ok 507 assert-recovery.ps1 validates interrupted, retried, and uninstalled stages
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.2304146Z ok 508 run-recovery-matrix.sh is executable and accepts parameters
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.2508049Z ok 509 e2e-hosted.yml and e2e-matrix.yml support fault_inject
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.3068068Z ok 510 full releases hand the tag to winget-publish themselves
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.3783534Z ok 511 deploy.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.3969160Z ok 512 a dirty NTFS volume is still mountable via ntfs3 -o force
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.4254282Z ok 513 the plain read-only mount is still tried first
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.4448515Z ok 514 ntfs-3g is the last resort when the kernel driver is absent
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.4632313Z ok 515 an unmountable device is logged, never skipped silently
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.4818783Z ok 516 a mounted device without the vhdx is also logged
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.5001465Z ok 517 success reports which driver worked
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.5223502Z ok 518 the scan still fails closed when nothing carries the vhdx
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.6025585Z ok 519 the release stages a DUAL-signed shim, pinned by exact NVR
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.6236220Z ok 520 the build refuses to publish a shim that 2023-only firmware cannot launch
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.6542632Z ok 521 the exe is stamped from the extracted shim, never from a second copy of the pin
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.6753957Z ok 522 MokManager is NOT graded against the Microsoft CAs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.6983538Z ok 523 the harness proves the same shim the release ships
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.7472198Z ok 524 the extractor walks EVERY signature, not just the first
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.7698648Z ok 525 the extractor matches on the ISSUER, not the leaf subject
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.7953447Z ok 526 the preflight gates BEFORE anything is written, and only on a known mismatch
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.8186430Z ok 527 the db read is Windows-only and the dev stub gates nothing
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.9159206Z ok 528 no selection file at all → everything migrates (default on)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:39.9865418Z ok 529 category explicitly ON → migrates
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.0569353Z ok 530 category explicitly OFF → skipped (this is the bug that was unwired)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.1287693Z ok 531 turning one category off does not disable the others
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.1782135Z ok 532 unreadable/corrupt selection fails open (never blocks a migration)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.3400014Z ok 533 the GUI's own default selection keeps every discovered category on
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.4411240Z ok 534 an explicitly disabled item is skipped while sibling items stay on
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.5151179Z ok 535 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.5364081Z ok 536 snapshot_serial reports failure rather than swallowing it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.5550778Z ok 537 a sustained dead feed produces a warning
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.5736962Z ok 538 the dead-feed warning states that downstream checks are untrustworthy
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.5938503Z ok 539 consecutive failures are counted, and success resets the counter
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.6139840Z ok 540 the warning fires once, not on every poll
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.6395146Z ok 541 a stale PTY from a previous run is deleted before monitoring begins
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.6583645Z ok 542 the PTY-missing failure names the source it could not read
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.7418029Z ok 543 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.7610934Z ok 544 silence is measured against the serial file, not a counter
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.7815068Z ok 545 the silence threshold is generous enough for bootc install
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.8074263Z ok 546 guest CPU is sampled before any wedged verdict
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.8263015Z ok 547 high CPU during silence is reported as WORKING, not warned about
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.8449388Z ok 548 low CPU during silence is called out as wedged
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.8638365Z ok 549 a missing QEMU process is distinguished from a slow one
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.8826968Z ok 550 the CPU threshold is a real comparison, not a string test
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.9014513Z ok 551 the threshold is overridable for slow or busy hosts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.9252177Z ok 552 quiet-deploy heartbeat samples fisherman inside the guest through QGA
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.9455126Z ok 553 heartbeat is bounded and its thresholds are overridable
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.9682598Z ok 554 heartbeat cannot become success evidence or an automatic restart
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:40.9892247Z ok 555 unchanged workload counters require repeated samples before warning
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.0624025Z ok 556 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.0814597Z ok 557 the snapshot is disabled by default
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.1060471Z ok 558 the skip path still releases the OEM barrier
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.1302166Z ok 559 the skip happens BEFORE any freeze or copy
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.1487206Z ok 560 the skip is announced, not silent
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.1672569Z ok 561 it can still be re-enabled explicitly
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.1868683Z ok 562 there is still no restore path — the snapshot remains write-only
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.2467544Z ok 563 missing status CLI fails before VM setup
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.2802648Z ok 564 CLI checksum matches staged bytes and deleting binary fails again
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.3090667Z ok 565 guest checks CLI before partitioning and BCD arming
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.4079600Z ok 566 all generated step IDs, owners and labels are current
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:41.4467990Z ok 567 every phase the deployer announces is catalogued with the correct owner
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.4482747Z ok 568 real splash, firstboot and harness consumers reject label and stale-output mutations
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.5193767Z ok 569 the uninstall stage exists, opt-in, after Windows verifiably returned
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.5542096Z ok 570 every cleanup claim is asserted separately, and data preservation is one of them
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.5742645Z ok 571 the workflow can request the uninstall stage
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.6448531Z ok 572 getUninstallInfo detects partial install when wootc directory exists without root.disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.6634909Z ok 573 uninstallWith cleans up install, bundle, cache, and logs dirs on keep-root.disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.6806148Z ok 574 uninstallWith sweeps entire wootc folder when no root.disk exists or on deletion request
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.7052335Z ok 575 dedicated volume verification uses receipt policy and accepts only non-system basic NTFS partitions
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.7253812Z ok 576 partition reclaim refuses C and consumes only a receipt-bound target
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.7440397Z ok 577 uninstall verifies clean convergence and reports leftover artifacts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.7641367Z ok 578 headless uninstall command parses -delete-root-disk and -remove-partition flags
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.8488791Z ok 579 the power record is read BEFORE the folder holding it is removed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.8843122Z ok 580 the pre-install power state is mirrored where a hand-deleted folder cannot take it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.9087462Z ok 581 restoration re-enables only what was on, and reads values not substrings
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.9319072Z ok 582 only the FIRST install defines what 'prior' means
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.9527088Z ok 583 the field verifier exists and refuses to grade without a baseline
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.9753670Z ok 584 the verifier grades keep and delete against different end states
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:42.9982857Z ok 585 a missing power baseline fails the box instead of skipping it
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.0204590Z ok 586 the ESP check is two-sided: ours gone AND nothing else touched
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.0448834Z ok 587 the checklist cannot be talked into passing
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.0643714Z ok 588 the PowerShell grading logic is actually run by the fast tier
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.0895170Z ok 589 manual-testing documents the procedure the issue asks for
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.2057270Z ok 590 self-test passes
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.2548291Z ok 591 identity fields are pre-filled from the scan
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.3042494Z ok 592 prefill never carries a password field through
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.3527122Z ok 593 the password explanation is never blank
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.4013484Z ok 594 valid usernames are accepted, invalid ones explained
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.4497960Z ok 595 reserved system usernames are refused
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.4988007Z ok 596 passwords must meet the length floor and match their confirmation
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.5475157Z ok 597 validate reports every problem at once, not one at a time
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.6007313Z ok 598 the password NEVER reaches the saved account file
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.6503293Z ok 599 a future field added to the form cannot leak into the saved record
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.7018402Z ok 600 the password goes to chpasswd on stdin, never in argv
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.7510294Z ok 601 a chpasswd failure is surfaced, not silently swallowed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.8003463Z ok 602 set_password refuses empty credentials
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.8779338Z ok 603 the arm script vaults a Linux user matching the Windows profile name
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.9028110Z ok 604 user data is seeded before the deployer barrier is released
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.9267169Z ok 605 Phase-2 bridge check is a live QGA content read against RUN_ID
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.9526314Z ok 606 Phase-3 native persistence check reads the file from the native disk
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:43.9757036Z ok 607 vault user requests only the wheel group
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.0063647Z ok 608 passthrough is wanted by multi-user, after /var is mounted
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.0314707Z ok 609 Phase-3 reboot never rides the QGA channel
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.0523008Z ok 610 mount-user-dirs reports a bind verdict and flags a missing home
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.0745793Z ok 611 fisherman pins user homes into the stateroot var
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.0959298Z ok 612 emergency-shell diagnosis distinguishes attach from mount failure
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.2248986Z ok 613 WPA2-PSK profile becomes a wpa-psk NM keyfile with the passphrase
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.2925688Z ok 614 WPA3-SAE profile maps to key-mgmt=sae
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.3610439Z ok 615 open network imports with no wifi-security section
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.4225090Z ok 616 enterprise 802.1X profile is DETECTED but never copied
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.4828828Z ok 617 PSK profile with no cleartext key is skipped, not written keyless
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.5485566Z ok 618 the transient cleartext export is destroyed after import
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.6495270Z ok 619 state json records the imported/skipped counts for the dashboard
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.7153011Z ok 620 an existing NM connection is not clobbered
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.7436964Z ok 621 empty export dir is a clean no-op
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.8315711Z ok 622 picks Pro without matching Pro N or Pro Education
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.8605948Z ok 623 picks LTSC, which spells itself Enterprise LTSC
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.8894871Z ok 624 plain Enterprise never resolves to the LTSC image
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.9219921Z ok 625 an ambiguous list yields nothing rather than a coin flip
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.9513410Z ok 626 no match yields nothing, leaving Setup to decide
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:44.9788980Z ok 627 an unknown edition never guesses
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.0076922Z ok 628 surrounding whitespace in wiminfo output is tolerated
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.0403017Z ok 629 the in-run heal only fires when it can add information
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.0705196Z ok 630 the in-run heal waits for the download to settle before reading
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.1007176Z ok 631 the in-run heal never proceeds on an ambiguous list
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.1956820Z ok 632 run-e2e.sh is syntactically valid
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.2209035Z ok 633 the capture point is BEFORE any OEM/migration setup runs
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.2442959Z ok 634 prime captures via a CLEAN shutdown, never a live fsfreeze
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.2637776Z ok 635 prime waits for the guest to power off before converting
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.2886738Z ok 636 prime brings the container down before qemu-img convert
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.3081460Z ok 637 prime produces a compressed, standalone qcow2
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.3277981Z ok 638 prime refuses to combine with --skip-install
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.3501978Z ok 639 prime writes the correctness key AND dockur's install markers
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.3756388Z ok 640 restore keys on the SAME formula as ANSWER_SHA (folds in bitlocker)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.4012087Z ok 641 a key MISMATCH falls back to a full install, never fails the run
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.4278699Z ok 642 a successful restore forces the --skip-install reuse path
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.4488175Z ok 643 the hosted E2E pull is best-effort (a cache miss never gates a run)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.4726304Z ok 644 the prime workflow pushes to a per-axis GHCR tag via ORAS
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.4922282Z ok 645 the hosted workflow has packages:read to pull the base image
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.6961104Z ── python unit tests (tests/unit/test_*.py) ──
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.6962331Z    tests/unit/test_brand_adoption.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.9975204Z ....
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.9975809Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.9976433Z Ran 4 tests in 0.249s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.9976658Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:45.9976766Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:46.0065231Z    tests/unit/test_convert_directory_swap.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:46.5482198Z .....
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:46.5482821Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:46.5483383Z Ran 5 tests in 0.496s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:46.5483589Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:46.5483708Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:46.5574129Z    tests/unit/test_coverage_report.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1147556Z .........
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1148324Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1148923Z Ran 9 tests in 0.506s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1149137Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1149252Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1243846Z    tests/unit/test_deployer_splash.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1985476Z ....
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1985953Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1986475Z Ran 4 tests in 0.029s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1986710Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.1986821Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:28:47.2066328Z    tests/unit/test_e2e_adapters.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:05.9578626Z ................
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:05.9579474Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:05.9580099Z Ran 16 tests in 18.702s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:05.9580338Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:05.9580474Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:05.9671907Z    tests/unit/test_e2e_results.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:09.0816569Z ........[FAIL] Result evidence rejected: [Errno 17] File exists: '/tmp/tmpmyk84bo2/video/.passed.nln0ewnv' -> '/tmp/tmpmyk84bo2/video/.passed'
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.4787098Z ..........
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.4787914Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.4788374Z Ran 18 tests in 5.427s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.4788548Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.4788640Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.4941191Z    tests/unit/test_esp_chain_refresh.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.5937834Z test_a_refused_candidate_leaves_the_working_chain_in_place (__main__.ChainRefresh.test_a_refused_candidate_leaves_the_working_chain_in_place) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.6699736Z test_another_linuxs_vendor_directory_on_the_same_esp_is_never_touched (__main__.ChainRefresh.test_another_linuxs_vendor_directory_on_the_same_esp_is_never_touched) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.7079489Z test_identical_chain_is_a_no_op (__main__.ChainRefresh.test_identical_chain_is_a_no_op) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.7392146Z test_no_helper_means_the_chain_is_left_alone (__main__.ChainRefresh.test_no_helper_means_the_chain_is_left_alone) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.7440819Z test_no_wootc_owned_directory_means_nothing_is_touched (__main__.ChainRefresh.test_no_wootc_owned_directory_means_nothing_is_touched) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.8218648Z test_refreshes_all_three_when_the_candidate_is_accepted (__main__.ChainRefresh.test_refreshes_all_three_when_the_candidate_is_accepted) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.8941426Z test_shim_is_written_last (__main__.ChainRefresh.test_shim_is_written_last) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.9664189Z test_the_previous_chain_is_archived_before_replacement (__main__.ChainRefresh.test_the_previous_chain_is_archived_before_replacement) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.9665237Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.9665531Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.9666080Z Ran 8 tests in 0.426s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.9666287Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.9666400Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:11.9755828Z    tests/unit/test_gui_drive_receipt.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4244311Z ..E.......
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4244856Z ======================================================================
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4246305Z ERROR: test_actual_frontend_produces_bound_install_and_refuses_changed_identity (__main__.GuiDriveReceiptTests.test_actual_frontend_produces_bound_install_and_refuses_changed_identity)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4247904Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4248462Z Traceback (most recent call last):
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4249731Z   File "/home/runner/work/wootc/wootc/tests/unit/test_gui_drive_receipt.py", line 57, in test_actual_frontend_produces_bound_install_and_refuses_changed_identity
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4251211Z     receipt = json.loads(module.validate(raw, 'current', DIRECTIVE, IMAGE))
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4252455Z                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4253292Z   File "/home/runner/work/wootc/wootc/tests/e2e/gui-drive-receipt.py", line 30, in validate
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4254085Z     raise ValueError('invalid GUI fields')
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4254533Z ValueError: invalid GUI fields
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4254792Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4255043Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4255562Z Ran 10 tests in 0.399s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4255762Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4255888Z FAILED (errors=1)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:12.4341421Z    tests/unit/test_gui_observations.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:21.8587468Z ..............
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:21.8588493Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:21.8589077Z Ran 14 tests in 9.376s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:21.8589296Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:21.8589420Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:21.8684631Z    tests/unit/test_gui_session.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:24.8389193Z ................
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:24.8389701Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:24.8390212Z Ran 16 tests in 2.922s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:24.8390412Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:24.8390527Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:24.8490452Z    tests/unit/test_native_userdata_export.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.1136508Z ............
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.1137154Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.1138093Z Ran 12 tests in 0.219s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.1138352Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.1138486Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.1232189Z    tests/unit/test_optical_media_control.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.6983514Z ..........s.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.6984463Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.6985338Z Ran 12 tests in 0.522s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.6985792Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.6986203Z OK (skipped=1)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:25.7072650Z    tests/unit/test_phase3_observations.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:29.0764554Z .................................
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:29.0765276Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:29.0765898Z Ran 33 tests in 3.317s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:29.0766123Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:29.0766234Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:29.0875017Z    tests/unit/test_plugin_import_results.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:30.5286582Z .
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:30.5287232Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:30.5288132Z Ran 1 test in 1.394s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:30.5288386Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:30.5288532Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:30.5382170Z    tests/unit/test_plugin_manifest.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.5849906Z .......
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.5850587Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.5851621Z Ran 7 tests in 1.999s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.5851885Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.5852027Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.5945317Z    tests/unit/test_prefilled_profile.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.6347971Z PASS (14 checks)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:32.6397587Z    tests/unit/test_qga_reconnect.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:39.4904643Z QGA: cannot open /tmp/qga-channel-kill-bga2e5hk/not-here.sock: [Errno 2] No such file or directory
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:40.4934081Z QGA reconnect: attempt 1/2: timed out
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.4950846Z QGA reconnect: attempt 2/2: timed out
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.4952868Z QGA: channel still deaf after 2 reconnect attempts — qga-channel-lost
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.4957002Z PASS (10 checks)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5026090Z    tests/unit/test_qga_write.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5463766Z PASS (3 checks)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5524802Z    tests/unit/test_recovery_guard.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5962715Z ........
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5963272Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5963935Z Ran 8 tests in 0.002s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5964181Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.5964317Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.6036036Z    tests/unit/test_recovery_matrix.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.6498638Z ....
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.6499181Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.6499741Z Ran 4 tests in 0.002s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.6499956Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.6500082Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:41.6564951Z    tests/unit/test_safe_diagnostics.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3257962Z .........
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3258616Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3259147Z Ran 9 tests in 0.620s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3259331Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3259429Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3348151Z    tests/unit/test_shim_trust.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3852800Z test_accepts_when_the_authorities_intersect (__main__.Decision.test_accepts_when_the_authorities_intersect) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3855978Z test_refuses_a_candidate_the_firmware_does_not_trust (__main__.Decision.test_refuses_a_candidate_the_firmware_does_not_trust) ... [wootc-shim-trust] refusing cand.efi: signed by 2023, firmware trusts 2011. Installing it would stop this machine booting Linux.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3858253Z ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3860073Z test_refuses_a_candidate_with_no_microsoft_signature (__main__.Decision.test_refuses_a_candidate_with_no_microsoft_signature) ... [wootc-shim-trust] refusing cand.efi: no Microsoft UEFI CA signature. The firmware would not launch it.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3862209Z ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3864814Z test_refuses_when_secure_boot_is_on_and_the_db_is_unreadable (__main__.Decision.test_refuses_when_secure_boot_is_on_and_the_db_is_unreadable) ... [wootc-shim-trust] refusing cand.efi: Secure Boot is on and the firmware's trust store could not be read. The chain that boots today stays.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3866305Z ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3867711Z test_secure_boot_off_skips_the_trust_check_but_not_sbat (__main__.Decision.test_secure_boot_off_skips_the_trust_check_but_not_sbat) ... [wootc-shim-trust] refusing cand.efi: SBAT generation 3 is older than the installed 7. A downgrade is what revocation blocks.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3869015Z ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3869674Z test_a_non_pe_file_raises_rather_than_guessing (__main__.ParserSafety.test_a_non_pe_file_raises_rather_than_guessing) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3870798Z test_an_unsigned_pe_reports_no_authorities (__main__.ParserSafety.test_an_unsigned_pe_reports_no_authorities) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3871893Z test_no_efivarfs_means_unknown_not_untrusted (__main__.ParserSafety.test_no_efivarfs_means_unknown_not_untrusted) ... ok
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3873445Z test_reads_a_dual_signed_shim_as_dual_signed (__main__.RealBinaries.test_reads_a_dual_signed_shim_as_dual_signed) ... skipped 'no real shim fixtures available'
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3875004Z test_reads_the_sbat_generation_from_the_sbat_section (__main__.RealBinaries.test_reads_the_sbat_generation_from_the_sbat_section) ... skipped 'no real shim fixtures available'
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3875931Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3876129Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3876535Z Ran 10 tests in 0.001s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3876703Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3876807Z OK (skipped=2)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3877064Z ok cand.efi cas=2011,2023 sbat=4
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.3932724Z    tests/unit/test_soak_ledger.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.4661115Z .............
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.4661743Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.4662297Z Ran 13 tests in 0.014s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.4662571Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.4662681Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:42.4744774Z    tests/unit/test_step_catalogue.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.4734997Z ........
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.4735595Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.4736155Z Ran 8 tests in 0.951s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.4736373Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.4736490Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.4823699Z    tests/unit/test_uninstall_partial.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5003159Z ── test_uninstall_partial: verifying partial-state uninstall convergence ──
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5004352Z   [PASS] getUninstallInfo checks BCD firmware entries
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5005247Z   [PASS] getUninstallInfo checks ESP artifacts
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5006158Z   [PASS] getUninstallInfo checks Add/Remove registry key
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5007149Z   [PASS] uninstallWith invokes ownership-aware cleanupESP
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5008283Z   [PASS] uninstallWith verifies clean convergence
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5008946Z   [PASS] uninstallWith sweeps BCD entries
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5009545Z   [PASS] uninstallWith clears one-shot bootsequence
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5010430Z   [PASS] uninstallWith restores power state before directory removal
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5011514Z   [PASS] assessment requires protected persistent creation receipt
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5012608Z   [PASS] actual removal uses full identity and contents binding
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5013738Z   [PASS] removal consumes verified object rather than drive letter
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5014832Z   [PASS] backend requires positively observed deletion and extension
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5015855Z   [PASS] explicit removal intent survives partial uninstall
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5016567Z   [PASS] headless CLI dispatches to headlessUninstall
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5017257Z   [PASS] headlessUninstall supports -delete-root-disk flag
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5018188Z   [PASS] headlessUninstall supports -remove-partition flag
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5019132Z   [PASS] sysprobe_windows.go supports reading power state from registry mirror
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5020129Z   [PASS] sysprobe_windows.go mirrors WootcPriorHibernate in registry
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5021046Z   [PASS] sysprobe_windows.go mirrors WootcPriorHiberboot in registry
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5021549Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5021713Z ALL CHECKS PASSED
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.5039977Z    tests/unit/test_vm_first_host.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.6147124Z ..............
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.6148205Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.6149110Z Ran 14 tests in 0.038s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.6149372Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.6149584Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.6291222Z    tests/unit/test_vm_helper.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.8095108Z .......
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.8095742Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.8096411Z Ran 7 tests in 0.135s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.8096667Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.8096811Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.8184534Z    tests/unit/test_vm_runtime_bundle.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.9000232Z ...
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.9001319Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.9001897Z Ran 3 tests in 0.016s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.9002120Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.9002240Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:29:43.9102619Z    tests/unit/test_vm_start.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.3191109Z ...................
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.3191725Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.3192624Z Ran 19 tests in 17.359s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.3192838Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.3192959Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.3277089Z    tests/unit/test_windows_resources.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.4164284Z go: downloading github.com/tc-hib/go-winres v0.3.3
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.8315747Z go: downloading github.com/tc-hib/winres v0.2.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:01.8321694Z go: downloading github.com/urfave/cli/v2 v2.25.7
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:02.1116286Z go: downloading github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:02.1131553Z go: downloading golang.org/x/image v0.12.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:02.6207823Z go: downloading github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:02.6208751Z go: downloading github.com/cpuguy83/go-md2man/v2 v2.0.2
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:02.7430767Z go: downloading github.com/russross/blackfriday/v2 v2.1.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:07.7607241Z ...
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:07.7608040Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:07.7608569Z Ran 3 tests in 6.382s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:07.7608765Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:07.7608863Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:07.7703713Z    tests/unit/test_windows_restart.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.0993406Z .....................
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.0994089Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.0994654Z Ran 21 tests in 7.280s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.0994864Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.0994983Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.1088747Z    tests/unit/test_winget_brand.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.1678894Z .....
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.1679394Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.1680005Z Ran 5 tests in 0.012s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.1680262Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.1680398Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.1743492Z    tests/unit/test_wootc_package_consumer.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.9782979Z ............................
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.9783676Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.9784240Z Ran 28 tests in 0.728s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.9784502Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.9784615Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:15.9925899Z    tests/unit/test_workflow_safety.py
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:16.0855474Z ........
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:16.0856012Z ----------------------------------------------------------------------
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:16.0856564Z Ran 8 tests in 0.046s
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:16.0856774Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:16.0856883Z OK
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:16.0943932Z ── powershell lint (tests/lint-ps1.ps1) ──
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.4493308Z   ok app/partition-policy.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.4764845Z   ok app/partition-policy.tests.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.4854690Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-bootsector-run.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.4920437Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-disk-probe-run300.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.4985704Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-disk-probe-run900.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5052934Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-probe-run-userspaceirq.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5118804Z   ok docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-probe-run.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5186019Z   ok docs/experiments/evidence/2026-09-26-vm-runtime/gtk-interactive-probe.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5251456Z   ok docs/experiments/evidence/2026-09-26-vm-runtime/gtk-session0-probe.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5293073Z   ok docs/experiments/evidence/2026-09-26-vm-runtime/gtk-task.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5362728Z   ok docs/experiments/evidence/2026-09-26-vm-runtime/runtime-probe.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5384306Z   ok docs/experiments/evidence/2026-09-26-vm-runtime/windows-install.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5433213Z   ok docs/experiments/evidence/2026-09-27-artifact-auth/native-windows.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5525565Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5796447Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-diagnostics.tests.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.5932747Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-key.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6058044Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-key.tests.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6371210Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-protection.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6549618Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/fixture-bitlocker-protection.tests.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6636668Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/failed-direct-sources/lint-ps1.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6682437Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/hostless-probe.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6775306Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/native-invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6880280Z   ok docs/experiments/evidence/2026-09-27-bitlocker-activation-diagnostics/prior-ancestor-mask-native/native-invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.6904352Z   ok docs/experiments/evidence/2026-09-27-drive-receipt/native/install-command.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7006507Z   ok docs/experiments/evidence/2026-09-27-drive-receipt/native/invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7028454Z   ok docs/experiments/evidence/2026-09-27-drive-receipt/native/reboot-command.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7106233Z   ok docs/experiments/evidence/2026-09-27-gui-handover/native-invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7190471Z   ok docs/experiments/evidence/2026-09-27-gui-session/native-invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7288151Z   ok docs/experiments/evidence/2026-09-27-storage-root/wootc-storage-query-native-invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7324830Z   ok docs/experiments/evidence/2026-09-27-windows-restart/boot-query.literal.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7343918Z   ok docs/experiments/evidence/2026-09-27-windows-restart/restart-request.literal.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7491187Z   ok docs/experiments/evidence/2026-09-27-windows-restart/wootc-restart-native-invocation.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7538279Z   ok packaging/winget/verified-tool.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.7687478Z   ok tests/e2e/assert-recovery.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.8086698Z   ok tests/e2e/fixture-bitlocker-diagnostics.tests.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.8458322Z   ok tests/e2e/fixture-bitlocker-key.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.8575535Z   ok tests/e2e/fixture-bitlocker-key.tests.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.8744655Z   ok tests/e2e/fixture-bitlocker-protection.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.8907851Z   ok tests/e2e/fixture-bitlocker-protection.tests.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.9012419Z   ok tests/e2e/oem/run-wootc-e2e.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.9179838Z   ok tests/e2e/oem/seed-profile.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.9307304Z   ok tests/e2e/phase1/assert-phase1.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.9486899Z   ok tests/e2e/seed-profile.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.9890698Z   ok tests/e2e/setup-wootc.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:17.9957870Z   ok tests/e2e/stage-status-cli.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.0044784Z   ok tests/e2e/state-trust.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.0104911Z   ok tests/e2e/test-stage-status-cli.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.0224589Z   ok tests/e2e/test-state-trust.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.0248315Z   ok tests/e2e/windows-storage-root.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.0529473Z   ok tests/field/verify-fresh-machine.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.0871493Z   ok tests/field/verify-uninstall.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.0955473Z   ok tests/lint-ps1.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.1038266Z   ok tests/unit/test-verified-winget-tool.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.1231154Z   ok tests/unit/test-verify-fresh-machine.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.1395400Z   ok tests/unit/test-verify-uninstall.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.1402619Z PowerShell lint passed
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.1916081Z ── powershell unit tests (tests/unit/test-*.ps1) ──
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:18.1916983Z    tests/unit/test-verified-winget-tool.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:19.0443871Z PASS (8 checks)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:19.0815430Z    tests/unit/test-verify-fresh-machine.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:19.9513347Z PASS (54 checks)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:19.9904158Z    tests/unit/test-verify-uninstall.ps1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:20.8379625Z PASS (34 checks)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:20.8775409Z ── go test (fisherman TUI, cross-platform app) ──
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:20.8791042Z    (created placeholder app/frontend/dist for the go:embed)
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:20.9134868Z go: downloading github.com/wailsapp/wails/v2 v2.16.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:21.3082720Z go: downloading golang.org/x/crypto v0.57.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:21.3083679Z go: downloading golang.org/x/mod v0.41.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:21.3458947Z go: downloading github.com/leaanthony/slicer v1.6.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:21.3464779Z go: downloading github.com/leaanthony/u v1.1.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:21.3655328Z go: downloading github.com/leaanthony/go-ansi-parser v1.6.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:21.4231067Z go: downloading github.com/pkg/errors v0.9.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:21.5190474Z go: downloading github.com/rivo/uniseg v0.4.7
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6028918Z ok  	wootc	5.905s	coverage: 66.6% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6029934Z ok  	wootc/internal/artifactauth	0.014s	coverage: 96.2% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6030748Z ok  	wootc/internal/runtimebundle	0.037s	coverage: 82.9% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6031477Z ok  	wootc/tools/gendto	0.006s	coverage: 86.7% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6032200Z ok  	wootc/tools/signmanifest	0.008s	coverage: 69.8% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6589161Z go: downloading github.com/charmbracelet/bubbletea v1.3.10
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6589979Z go: downloading github.com/charmbracelet/bubbles v1.0.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.6590933Z go: downloading github.com/charmbracelet/huh v1.0.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7042485Z go: downloading github.com/charmbracelet/lipgloss v1.1.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7222162Z go: downloading github.com/charmbracelet/x/ansi v0.11.6
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7223059Z go: downloading github.com/charmbracelet/x/term v0.2.2
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7224295Z go: downloading github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7325200Z go: downloading github.com/muesli/cancelreader v0.2.2
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7449793Z go: downloading github.com/charmbracelet/harmonica v0.2.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7558073Z go: downloading github.com/lucasb-eyer/go-colorful v1.3.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7769226Z go: downloading github.com/muesli/termenv v0.16.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7876373Z go: downloading github.com/catppuccin/go v0.3.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.7877090Z go: downloading github.com/charmbracelet/x/cellbuf v0.0.15
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.8085450Z go: downloading github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.8168425Z go: downloading github.com/mitchellh/hashstructure/v2 v2.0.2
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.8202212Z go: downloading golang.org/x/sys v0.38.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.8466903Z go: downloading github.com/clipperhouse/displaywidth v0.9.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.8648936Z go: downloading github.com/clipperhouse/uax29/v2 v2.5.0
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.8997149Z go: downloading github.com/mattn/go-runewidth v0.0.19
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.9167021Z go: downloading github.com/dustin/go-humanize v1.0.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.9304368Z go: downloading github.com/atotto/clipboard v0.1.4
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.9403913Z go: downloading github.com/aymanbagabas/go-osc52/v2 v2.0.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.9503297Z go: downloading github.com/mattn/go-isatty v0.0.20
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.9525245Z go: downloading github.com/charmbracelet/colorprofile v0.4.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.9607096Z go: downloading github.com/clipperhouse/stringish v0.1.1
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:38.9656547Z go: downloading github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:43.1055435Z 	github.com/projectbluefin/fisherman/tui/cmd/bootc-installer-tui		coverage: 0.0% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:43.1056578Z ok  	github.com/projectbluefin/fisherman/tui/internal/config	0.012s	coverage: 90.5% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:43.1057280Z ok  	github.com/projectbluefin/fisherman/tui/internal/disks	0.004s	coverage: 38.9% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:43.1064165Z 	github.com/projectbluefin/fisherman/tui/internal/network		coverage: 0.0% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:43.1065963Z ok  	github.com/projectbluefin/fisherman/tui/internal/sshkeys	0.022s	coverage: 81.0% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:43.1157351Z 	github.com/projectbluefin/fisherman/tui/internal/tui		coverage: 0.0% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:44.1461121Z ok  	github.com/tuna-os/fisherman/cmd/fisherman	0.018s	coverage: 10.6% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:44.3259208Z 	github.com/tuna-os/fisherman/cmd/validate-overlay		coverage: 0.0% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:47.1126544Z ok  	github.com/tuna-os/fisherman/internal/disk	2.957s	coverage: 36.3% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:47.1127425Z 	github.com/tuna-os/fisherman/internal/images		coverage: 0.0% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.1650409Z ok  	github.com/tuna-os/fisherman/internal/install	3.949s	coverage: 60.9% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.1651681Z ok  	github.com/tuna-os/fisherman/internal/luks	0.004s	coverage: 75.6% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.1652827Z ok  	github.com/tuna-os/fisherman/internal/post	0.085s	coverage: 52.2% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.1653957Z ok  	github.com/tuna-os/fisherman/internal/progress	0.003s	coverage: 63.6% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.1655120Z ok  	github.com/tuna-os/fisherman/internal/recipe	0.012s	coverage: 82.5% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.1656270Z ok  	github.com/tuna-os/fisherman/internal/runner	0.007s	coverage: 87.2% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.1657398Z ok  	github.com/tuna-os/fisherman/internal/slurp	0.053s	coverage: 92.2% of statements
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2422908Z ## Measured Go coverage
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2423285Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2423549Z | Module | Covered statements | Total | Percent |
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2424141Z |---|---:|---:|---:|
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2424440Z | app | 2719 | 3976 | 68.39% |
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2424743Z | fisherman-tui | 43 | 742 | 5.80% |
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2425092Z | fisherman-core | 1806 | 3838 | 47.06% |
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2425358Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2425480Z Project: 53.39% (minimum 45%).
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2425668Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2426187Z Go statements compiled by the current OS in all configured fast-tier modules. Windows-only code is not measured by a Linux run.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2427018Z A passing report does not mean every subprocess was instrumented.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2427365Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2427840Z Changed instrumented lines: 84.63% (informational target 70%).
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2428474Z A changed instrumented line counts only if every block on it was hit.
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2428826Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2476219Z 
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2476970Z ✗ fast tier FAILED
+fast tier (bats + go)	Run fast tier and enforce Go coverage	2026-09-27T15:30:48.2496342Z ##[error]Process completed with exit code 1.

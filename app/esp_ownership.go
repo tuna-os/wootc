@@ -148,8 +148,8 @@ func guardESPDestinations(espPath string, relPaths []string) error {
 		// An unreadable manifest means we cannot prove ownership. Refusing is
 		// the safe direction: the cost of a false refusal is an error message,
 		// the cost of a false proceed is someone's bootloader.
-		return fmt.Errorf("cannot read the record of which EFI files belong to wootc (%w) — "+
-			"refusing to overwrite boot files we cannot prove are ours", err)
+		return fmt.Errorf("cannot read the record of which EFI files belong to %s (%w) — "+
+			"refusing to overwrite boot files we cannot prove are ours", productName(), err)
 	}
 	fedoraIsOurs := ownsFedoraNamespace(espPath)
 	for _, rel := range relPaths {
@@ -177,9 +177,9 @@ func guardESPDestinations(espPath string, relPaths []string) error {
 		if fresh, ferr := readESPOwnership(espPath); ferr == nil && fresh[normalizeESPPath(rel)] {
 			continue
 		}
-		return fmt.Errorf("this PC's EFI boot partition already contains %s, which wootc did not "+
+		return fmt.Errorf("this PC's EFI boot partition already contains %s, which %s did not "+
 			"put there — it belongs to another operating system. Installing would make that "+
-			"system unbootable, so wootc stopped before changing anything", rel)
+			"system unbootable, so %s stopped before changing anything", rel, productName(), productName())
 	}
 	return nil
 }
@@ -333,7 +333,7 @@ func manifestLanded(final, content string) bool {
 // outside the fixed set the installer stages.
 func stageESPFile(espPath, rel string, write func() error) error {
 	if err := recordESPOwnership(espPath, []string{rel}); err != nil {
-		return fmt.Errorf("recording that %s belongs to wootc: %w", rel, err)
+		return fmt.Errorf("recording that %s belongs to %s: %w", rel, productName(), err)
 	}
 	return write()
 }

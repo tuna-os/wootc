@@ -665,6 +665,116 @@ if [[ "$FAULT" == "deploy-failure" || "$FAULT" == "deploy" ]]; then
     exit 1
 fi
 
+# ── Scratch sizing and image acquisition helpers ────────────────────────────
+# Peak scratch use of ONE pull of an image whose layers total C compressed
+# bytes. containers/image stages every compressed blob as a temp file under
+# /var/tmp (bind-mounted onto the scratch below) and deletes the staging
+# directory only when the whole pull ends (storage_dest.go Close), while the
+# unpacked layers accumulate in the same filesystem. So the peak is
+#     C (staged blobs)  +  unpacked layers on ext4
+# Measured on the two images that bracket the failure (all layers streamed and
+# counted in 4K blocks): bazzite:stable 4.71 GiB -> 12.67 GiB (2.7x),
+# bazzite-deck:stable 6.29 GiB -> 14.49 GiB (2.3x). 3.5x C covers staging plus
+# the worse ratio; +4 GiB covers ext4 metadata/journal, per-layer tar-split
+# files, the committed ntfs-3g layer and fisherman's own scratch files.
+# app/install_space.go applies the same formula on Windows, BEFORE the reboot,
+# so the installer refuses a drive this would refuse here;
+# TestScratchNeedMatchesDeployer runs this function to pin the two together.
+SCRATCH_MIN_GIB=20
+scratch_need_gib() {  # <compressed layer bytes> -> GiB the scratch must hold
+    local bytes=$1 gib=$((1 << 30)) need
+    if [[ ! "$bytes" =~ ^[0-9]+$ ]] || (( bytes == 0 )); then
+        echo "$SCRATCH_MIN_GIB"
+        return 0
+    fi
+    need=$(( (bytes * 7 / 2 + gib - 1) / gib + 4 ))
+    (( need < SCRATCH_MIN_GIB )) && need=$SCRATCH_MIN_GIB
+    echo "$need"
+}
+
+# Sum of the image's layer sizes as its manifest states them (no download).
+# <ref> carries its transport: docker://… for the registry, oci:… for the
+# offline bundle. Prints nothing when the size cannot be read.
+image_compressed_bytes() {
+    timeout 120 skopeo inspect --retry-times 3 "$1" 2>/dev/null \
+        | jq -r '[.LayersData[]?.Size // 0] | add // empty' 2>/dev/null || true
+}
+
+# The deploy cannot start until the scratch can hold the image: refuse with
+# the numbers when the Windows drive has no room for it, rather than letting
+# three pulls and fisherman each run into "no space left on device".
+scratch_too_small() {  # <need GiB> <free bytes on the Windows drive>
+    local need=$1 free_gib=$(( $2 >> 30 ))
+    err "  [FAIL] ${IMAGE} needs about ${need} GiB of temporary space on the Windows drive"
+    err "         to unpack while it installs (freed again afterwards); the scratch is"
+    err "         $(( $(stat -c %s "$SCRATCH_IMG") >> 30 )) GiB and the drive has only ${free_gib} GiB free to grow it."
+    err "         Free up space on the Windows drive and run the installer again."
+    splash_set "Not enough free space on the Windows drive to unpack the system. Restarting into Windows - free up ${need} GB and try again."
+    sleep 5 2>/dev/null || true
+    if [[ "${DEBUG:-}" ]]; then exec /bin/bash; fi
+    exit 1
+}
+
+ensure_scratch_capacity() {  # <transport:ref>
+    local ref=$1 bytes need cur want grow free
+    bytes=$(image_compressed_bytes "$ref")
+    cur=$(stat -c %s "$SCRATCH_IMG")
+    if [[ -z "$bytes" ]]; then
+        err "  [WARN] could not read the size of ${ref}; keeping the $(( cur >> 30 )) GiB scratch"
+        return 0
+    fi
+    need=$(scratch_need_gib "$bytes")
+    want=$(( need << 30 ))
+    log "  scratch: image layers $(( bytes >> 20 )) MiB compressed -> needs ${need} GiB, have $(( cur >> 30 )) GiB"
+    (( cur >= want )) && return 0
+    grow=$(( want - cur ))
+    free=$(df -B1 --output=avail /mnt/ntfs 2>/dev/null | tail -1 | tr -d ' ' || true)
+    [[ "$free" =~ ^[0-9]+$ ]] || free=0
+    # Keep 1 GiB on the drive beyond the growth: Windows and the deployer's
+    # own logs still write there.
+    (( free >= grow + (1 << 30) )) || scratch_too_small "$need" "$free"
+    if ! truncate -s "${need}G" "$SCRATCH_IMG" || \
+       ! losetup -c "$SCRATCH_LOOP" || \
+       ! resize2fs "$SCRATCH_LOOP" >/dev/null 2>&1; then
+        err "  [FAIL] could not grow the scratch to ${need} GiB"
+        scratch_too_small "$need" "$free"
+        exit 1
+    fi
+    log "  scratch: grown to ${need} GiB ($(df -h /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $4" free"}'))"
+}
+
+# Pull $IMAGE into the local store ONCE, for whoever needs it first (ntfs-3g
+# injection, backend probe, btrfs preflight); fisherman's CheckImage then finds
+# it local and skips its own pull. podman keeps already-unpacked layers, so a
+# retry resumes instead of starting over. Every failure is logged with podman's
+# OWN stderr: the old `>/dev/null 2>&1` reported a full disk as
+# "(network/registry?)". A full scratch is fatal here — fisherman pulls into
+# the same store, so continuing only repeats the failure several more times.
+acquire_image() {  # <who is asking>
+    local who=$1 attempt pull_err
+    timeout 120 podman image exists "$IMAGE" 2>/dev/null && return 0
+    log "  ${who}: pulling ${IMAGE} first (not local yet)"
+    pull_err="${TMPDIR:-/tmp}/wootc-pull.err"
+    for attempt in 1 2 3; do
+        if timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>"$pull_err"; then
+            return 0
+        fi
+        err "  [WARN] pull ${attempt}/3 of ${IMAGE} failed: $(tail -c 600 "$pull_err" 2>/dev/null | tr '\n' ' ')"
+        if grep -qi 'no space left on device' "$pull_err" 2>/dev/null; then
+            err "  scratch: $(df -h /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3" used of "$2}')"
+            [[ "$attempt" -lt 3 ]] && continue
+            err "  [FAIL] ${IMAGE} does not fit in the deployer's scratch (no space left on device);"
+            err "         fisherman would pull it into the same store and fail the same way."
+            splash_set "Not enough free space to unpack the system. Restarting into Windows - free up disk space and try again."
+            sleep 5 2>/dev/null || true
+            if [[ "${DEBUG:-}" ]]; then exec /bin/bash; fi
+            exit 1
+        fi
+        [[ "$attempt" -lt 3 ]] && sleep $(( attempt * 10 ))
+    done
+    return 1
+}
+
 # ── Container storage scratch ───────────────────────────────────────────────
 # The initramfs root is ramfs: a multi-GB image pull there exhausts RAM.
 # fisherman does all heavy I/O under its scratch dir /var/fisherman-tmp
@@ -685,11 +795,17 @@ mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # of partial-image junk for everything downstream. The target disk still
 # holds only the ostree deployment.
 #
+# 20G is now only the FLOOR: ensure_scratch_capacity (below) grows the
+# scratch to fit the selected image once its size is known, because a fixed
+# 20G cannot hold every image. bazzite-deck:stable (6.3 GiB compressed,
+# 12.6 GiB unpacked, ~14.5 GiB in 4K blocks) ENOSPC'd every pull in it
+# (run 38804321935) while bazzite:stable (4.7 / 10.8 GiB) scraped through.
+#
 # Reuse an existing scratch: containers-storage inside it caches the pulled
 # image, turning the multi-minute pull into a digest check on retries.
 if [[ ! -f "$SCRATCH_IMG" ]] || [[ "$(blkid -o value -s TYPE "$SCRATCH_IMG" 2>/dev/null)" != "ext4" ]]; then
     log "Initializing new scratch filesystem..."
-    truncate -s 20G "$SCRATCH_IMG"
+    truncate -s "${SCRATCH_MIN_GIB}G" "$SCRATCH_IMG"
     mkfs.ext4 -q -F "$SCRATCH_IMG"
 else
     log "Reusing existing scratch (cached container storage)"
@@ -722,6 +838,8 @@ if [[ -f "$BUNDLE_OCI/index.json" ]]; then
     if [[ -n "$_bundle_ref" && "$_bundle_ref" == "$IMAGE" ]]; then
         phase "bundle-ingest"
         log "Offline bundle for ${IMAGE} found — ingesting the OCI layout (no network needed)..."
+        # The ingest is a pull too: size the scratch from the bundle's manifest.
+        ensure_scratch_capacity "oci:${BUNDLE_OCI}"
         if source /usr/libexec/wootc-offline-bundle.sh && \
             wootc_bundle_ingest /mnt/ntfs/wootc/bundle "$IMAGE"; then
             WOOTC_OFFLINE=1
@@ -790,6 +908,9 @@ if ! skopeo inspect --retry-times 3 "docker://${IMAGE}" >/dev/null; then
         if [[ "$DEBUG" ]]; then exec /bin/bash; else exit 1; fi
     fi
 fi
+# Before the first pull: grow the scratch to fit this image, or refuse with
+# the numbers. A fixed 20G scratch ENOSPC'd bazzite-deck on every pull.
+ensure_scratch_capacity "docker://${IMAGE}"
 fi
 
 # ── Attach the RAW image through losetup ───────────────────────────────────
@@ -913,14 +1034,96 @@ DISTRO_NAME=$(printf '%s' "$DISTRO_NAME" | tr -d '"$`\\')
 # inject ntfs-3g using the image's OWN repos (matching glibc) and persist it as
 # a local derived image (podman commit — the same layer remora persists). This
 # lets wootc boot arbitrary bootc images, not only ones that ship NTFS support.
+#
+# Every read-only look inside $IMAGE goes through probe_image, and the
+# capability tests are named strings so both call sites run the SAME test.
+#
+# Runs 38792319332 (bazzite:stable) and 38832644743 (bazzite-deck:stable) both
+# logged "ntfs-3g or qemu-guest-agent still absent ... after injection", yet
+# both images ship /usr/bin/ntfs-3g and /usr/bin/qemu-ga (their published
+# layers carry the files and the rpmdb lists both packages), and injection
+# should never have run: the image already had ntfs-3g. The two failing probes
+# were the only `podman run`s here WITHOUT --network=host, and the first one
+# also ran before the image was pulled, inside a 60s bound. Every probe that
+# passes uses --network=host on a local image. So a probe that could not RUN
+# was read as "the tool is absent". probe_image keeps the shape that works and
+# saves podman's stderr, so a probe that cannot run says so instead.
+NTFS_DRIVER_PROBE='command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
+ ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
+ grep -qxE "CONFIG_NTFS3_FS=[ym]" /usr/lib/modules/*/config 2>/dev/null'
+# Prints one "<tool>=<path>" line per tool, or "<tool>=ABSENT". PATH first, then
+# the directories packages put these binaries in. A unit's ExecStart names its
+# own absolute path, so an agent under /usr/libexec still runs. Then the rpmdb
+# view, which tells "never installed" apart from "installed, binary missing".
+# shellcheck disable=SC2016  # expanded by the container's sh, not here
+INJECTED_TOOLS_PROBE='for t in ntfs-3g qemu-ga; do
+  p=$(command -v "$t" 2>/dev/null) || p=""
+  if [ -z "$p" ]; then
+    for d in /usr/bin /usr/sbin /usr/libexec /usr/local/bin /usr/local/sbin; do
+      if [ -x "$d/$t" ]; then p="$d/$t"; break; fi
+    done
+  fi
+  echo "$t=${p:-ABSENT}"
+done
+echo "rpm=$(rpm -q ntfs-3g qemu-guest-agent 2>&1 | tr "\n" " ")"'
+PROBE_ERR="${TMPDIR:-/tmp}/wootc-probe.err"
+probe_image() {  # <script>
+    timeout "${WOOTC_IMAGE_PROBE_TIMEOUT:-300}" podman run --rm --network=host "$IMAGE" sh -c "$1" 2>"$PROBE_ERR"
+}
+# Check what injection left in $IMAGE. Every finding goes on ONE [WARN] line:
+# the E2E serial relay forwards only the last [WARN] line of each chunk, so
+# the evidence has to travel in that line or it never reaches the job log.
+verify_injected_tools() {
+    local out rc=0 summary
+    out=$(probe_image "$INJECTED_TOOLS_PROBE") || rc=$?
+    summary=$(printf '%s' "$out" | tr '\n' ' ')
+    if [[ "$rc" -ne 0 ]]; then
+        err "  [WARN] could not inspect ${IMAGE} after injection (probe exit ${rc}): podman: $(tail -c 400 "$PROBE_ERR" 2>/dev/null | tr '\n' ' ') ${summary}"
+        return 1
+    fi
+    if printf '%s\n' "$out" | grep -q '=ABSENT$'; then
+        err "  [WARN] ntfs-3g or qemu-guest-agent still absent from ${IMAGE} after injection: ${summary}"
+        return 1
+    fi
+    log "  [PASS] verified the deployed image's tools: ${summary}"
+}
+
+# The MOK certs a composefs image ships under /etc or /usr/share, as a tar on
+# stdout. The deployment tree cannot show them (composefs keeps image /etc out
+# of it), so the container image is asked instead.
+# shellcheck disable=SC2016  # expanded by the container's sh, not here
+MOK_CERT_PROBE='find /etc/pki/akmods/certs /usr/share/ublue-os -maxdepth 3 -type f -name "*.der" 2>/dev/null | head -8 | tar -cf - -T - 2>/dev/null'
+# Unpack the image's MOK certs into <stash>. This probe used to run podman
+# without host networking and threw its stderr away: the shape #633 showed
+# failing spuriously in the initramfs. A probe that could not run then looked
+# the same as an image with no certs.
+harvest_mok_certs_from_image() {  # <stash>
+    local stash="$1" tarball rc=0
+    tarball="${TMPDIR:-/tmp}/wootc-mok-certs.tar"
+    WOOTC_IMAGE_PROBE_TIMEOUT="${WOOTC_IMAGE_PROBE_TIMEOUT:-180}" \
+        probe_image "$MOK_CERT_PROBE" > "$tarball" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        err "  [WARN] MOK: could not inspect ${IMAGE} for certs (probe exit ${rc}): podman: $(tail -c 400 "$PROBE_ERR" 2>/dev/null | tr '\n' ' ')"
+        rm -f "$tarball"
+        return 1
+    fi
+    tar -xf "$tarball" -C "$stash" 2>/dev/null || true
+    rm -f "$tarball"
+}
+
 ensure_ntfs_support() {
-    if timeout 60 podman run --rm "$IMAGE" sh -c \
-        'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
-         ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
-         grep -qxE "CONFIG_NTFS3_FS=[ym]" /usr/lib/modules/*/config 2>/dev/null'; then
+    # Pull BEFORE probing. `podman run` on an image that is not local pulls it,
+    # and a multi-GB image cannot pull inside a probe bound, so the probe used
+    # to fail on every cold cache and injection ran against images that
+    # already had a driver. Offline there is nothing to pull from.
+    if [[ "${WOOTC_OFFLINE:-0}" != 1 ]] && ! acquire_image "NTFS probe"; then
+        err "  [WARN] could not pull ${IMAGE} for the NTFS probe (see the pull errors above)"
+    fi
+    if probe_image "$NTFS_DRIVER_PROBE"; then
         log "Image already has an NTFS driver (ntfs3 or ntfs-3g)."
         return 0
     fi
+    [[ -s "$PROBE_ERR" ]] && err "  NTFS probe: podman: $(tail -c 400 "$PROBE_ERR" | tr '\n' ' ')"
     # NOTE: the capability check above is NOT authoritative. It inspects only
     # target-owned artifacts (config, modules, binaries). /proc/filesystems is
     # deliberately excluded: inside a container it reflects the deployer's
@@ -975,11 +1178,9 @@ ensure_ntfs_support() {
     # went wrong. It only ever succeeded when the image happened to be cached,
     # which is why this looked intermittent. Same defect as the backend probe
     # (375ae2f), one function later.
-    if ! timeout 120 podman image exists "$IMAGE" 2>/dev/null; then
-        log "  ntfs-3g injection: pulling ${IMAGE} first (not local yet)"
-        if ! timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>&1; then
-            err "  [WARN] could not pull ${IMAGE} — the injection below will fail for that reason, not a repo one"
-        fi
+    # acquire_image logs "ntfs-3g injection: pulling …" and podman's reason.
+    if ! acquire_image "ntfs-3g injection"; then
+        err "  [WARN] could not pull ${IMAGE} — the injection below will fail for that reason, not a repo one"
     fi
     local attempt inj_err
     inj_err="${TMPDIR:-/tmp}/wootc-ntfs-inject.err"
@@ -1004,6 +1205,11 @@ ensure_ntfs_support() {
                dnf install -y ntfs-3g qemu-guest-agent; } || \
              microdnf install -y ntfs-3g qemu-guest-agent || rpm-ostree install ntfs-3g qemu-guest-agent' 2>"$inj_err"; then
             inj_ok=1
+            # Which rung succeeded, and what dnf said: "Nothing to do" on an
+            # image that already ships the packages reads very differently
+            # from a fresh install.
+            log "  injection output (tail): $(timeout 60 podman logs "$cname" 2>&1 | tail -8 | tr '\n' ' ')"
+            [ -s "$inj_err" ] && log "  injection stderr (tail): $(tail -c 600 "$inj_err" | tr '\n' ' ')"
             break
         fi
         err "  [WARN] ntfs-3g install attempt ${attempt}/3 failed in ${IMAGE}"
@@ -1035,11 +1241,7 @@ ensure_ntfs_support() {
     IMAGE="$derived"
     log "  [PASS] injected ntfs-3g; deploying ${IMAGE}"
     # Prove it actually landed rather than trusting the commit.
-    if ! timeout 60 podman run --rm "$IMAGE" sh -c 'command -v ntfs-3g >/dev/null && command -v qemu-ga >/dev/null'; then
-        err "  [WARN] ntfs-3g or qemu-guest-agent still absent from ${IMAGE} after injection"
-        return 1
-    fi
-    log "  [PASS] verified ntfs-3g + qemu-guest-agent present in the deployed image"
+    verify_injected_tools
 }
 # "Using the image's own NTFS support" must be CHECKED, not hoped for. When
 # injection fails on an image whose kernel has no ntfs3 — every EL-family image,
@@ -1060,11 +1262,7 @@ if ! ensure_ntfs_support; then
     # worked". A weaker probe here would refuse deploys that work.
     # (/proc/filesystems is deliberately excluded — it reflects the deployer's
     # kernel, not the image's. See #48 and docs/agent-lessons.md §8.)
-    if timeout 300 podman run --rm --network=host "$IMAGE" sh -c \
-        'command -v ntfs-3g >/dev/null 2>&1 || command -v mount.ntfs >/dev/null 2>&1 || \
-         ls /usr/lib/modules/*/kernel/fs/ntfs3/ntfs3.ko* >/dev/null 2>&1 || \
-         grep -qxE "CONFIG_NTFS3_FS=[ym]" /usr/lib/modules/*/config 2>/dev/null' \
-        >/dev/null 2>&1; then
+    if probe_image "$NTFS_DRIVER_PROBE" >/dev/null 2>&1; then
         log "  image provides its own NTFS driver — continuing without injection"
     elif command -v ntfs-3g >/dev/null 2>&1; then
         # The DEPLOYER ships ntfs-3g (its Containerfile) and both Phase-2 paths
@@ -1132,11 +1330,8 @@ if [[ "$COMPOSEFS" == auto || "$BOOTLOADER" == auto ]]; then
     # The announcement comes FIRST, so the next occurrence proves whether this
     # point was even reached rather than leaving it to inference.
     log "  backend probe: checking whether $IMAGE is already local"
-    if ! timeout 120 podman image exists "$IMAGE" 2>/dev/null; then
-        log "  backend probe: pulling $IMAGE (not local yet)"
-        if ! timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>&1; then
-            err "  [WARN] could not pull $IMAGE for backend detection (network/registry?)"
-        fi
+    if ! acquire_image "backend probe"; then
+        err "  [WARN] could not pull $IMAGE for backend detection (see the pull errors above)"
     fi
     log "  backend probe: image ready, inspecting"
     if ! DETECT="$(timeout 120 podman run --rm --network=host "$IMAGE" sh -c '
@@ -1245,10 +1440,7 @@ fi
 # signature to reject. Compare btrfs's signer against the signer of a module
 # that ships WITH the kernel, and only refuse on a positive mismatch.
 if [[ "$FILESYSTEM" == btrfs ]]; then
-    if ! timeout 120 podman image exists "$IMAGE" 2>/dev/null; then
-        log "  btrfs preflight: pulling $IMAGE (not local yet)"
-        timeout "${WOOTC_PROBE_PULL_TIMEOUT:-1800}" podman pull "$IMAGE" >/dev/null 2>&1 || true
-    fi
+    acquire_image "btrfs preflight" || true
     BTRFS_PROBE="$(timeout 120 podman run --rm --network=host "$IMAGE" sh -c '
         KV=$(ls /usr/lib/modules 2>/dev/null | head -1)
         [ -n "$KV" ] || exit 0
@@ -3371,9 +3563,7 @@ GRUBEOF
         shopt -u nullglob
         if ! compgen -G "$MOK_CERT_STASH/*.der" >/dev/null; then
             err "  MOK: deployment tree carries no certs (composefs keeps image /etc out of it) — asking the container image"
-            timeout 180 podman run --rm "$IMAGE" sh -c \
-                'find /etc/pki/akmods/certs /usr/share/ublue-os -maxdepth 3 -type f -name "*.der" 2>/dev/null | head -8 | tar -cf - -T - 2>/dev/null' \
-                2>/dev/null | tar -xf - -C "$MOK_CERT_STASH" 2>/dev/null || true
+            harvest_mok_certs_from_image "$MOK_CERT_STASH" || true
             while IFS= read -r _c; do
                 err "  MOK: cert harvested from container image: ${_c#"$MOK_CERT_STASH"/}"
             done < <(find "$MOK_CERT_STASH" -type f -name '*.der' 2>/dev/null)

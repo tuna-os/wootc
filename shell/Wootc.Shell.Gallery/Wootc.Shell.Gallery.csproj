@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Fixture engine for the screen gallery only. The shipped shell never
+       references this project: only a build with -p:NativeGallery=true does. -->
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Wootc.Shell.Core/Wootc.Shell.Core.csproj" /></ItemGroup>
+</Project>

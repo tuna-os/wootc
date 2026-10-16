@@ -6,7 +6,7 @@ import { el } from './ui.js';
 // ── Title bar ─────────────────────────────────────────────────────────────────
 
 export function renderTitleBar() {
-  const b = state.brand || { logoEmoji: '🐠', productName: 'wootc', version: '0.1.0' };
+  const b = state.brand || { logoEmoji: '🐠', productName: 'wootc', version: '' };
   const bar = el('div', 'titlebar');
   bar.innerHTML = `
     ${brandMark('titlebar-logo')}

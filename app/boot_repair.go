@@ -278,7 +278,7 @@ func planBootRepair(obs BootObservation) BootRepairReport {
 	for _, id := range r.BootSequence {
 		if !owned[id] {
 			foreignNext = true
-			find("the next boot goes to %s, which wootc does not own; it is left alone", id)
+			find("the next boot goes to %s, which %s does not own; it is left alone", id, productName())
 		}
 	}
 	winIdx := indexOf(r.DisplayOrder, windowsBootManagerID)
@@ -287,14 +287,14 @@ func planBootRepair(obs BootObservation) BootRepairReport {
 	wootcAhead := wootcInOrder && (winIdx < 0 || ownedIdx < winIdx)
 	for _, id := range r.DisplayOrder {
 		if owned[id] {
-			find("wootc entry %s is in the permanent boot order", id)
+			find("%s entry %s is in the permanent boot order", productName(), id)
 		}
 	}
 	if wootcAhead {
-		find("a wootc entry is ahead of Windows in the permanent boot order; the next normal boot would not start Windows")
+		find("a %s entry is ahead of Windows in the permanent boot order; the next normal boot would not start Windows", productName())
 	}
 	if len(r.DisplayOrder) > 0 && r.DisplayOrder[0] != windowsBootManagerID && !owned[r.DisplayOrder[0]] {
-		find("the first permanent boot entry is %s, not Windows; it is not wootc's and is left alone", r.DisplayOrder[0])
+		find("the first permanent boot entry is %s, not Windows; it is not %s's and is left alone", r.DisplayOrder[0], productName())
 	}
 
 	switch {
@@ -405,7 +405,7 @@ func restoreWindowsCommands(r BootRepairReport) ([][]string, error) {
 	if len(r.BootSequence) > 0 {
 		for _, id := range r.BootSequence {
 			if !owned[id] {
-				return nil, fmt.Errorf("next boot goes to %s, which wootc does not own", id)
+				return nil, fmt.Errorf("next boot goes to %s, which %s does not own", id, productName())
 			}
 		}
 		cmds = append(cmds, []string{"/deletevalue", "{fwbootmgr}", "bootsequence"})

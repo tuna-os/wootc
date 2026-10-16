@@ -275,7 +275,7 @@ func espChainProblems(efiPath string, staged, observed map[string]string) []stri
 		}
 	}
 	if !found {
-		problems = append(problems, fmt.Sprintf("boot loader %s is not a file wootc staged on the ESP", efiPath))
+		problems = append(problems, fmt.Sprintf("boot loader %s is not a file %s staged on the EFI system partition", efiPath, productName()))
 	}
 	rels := make([]string, 0, len(staged))
 	for rel := range staged {
@@ -311,7 +311,7 @@ func bootChainProblems(objs []bcdObject, txn BootTxn, observedESP map[string]str
 		problems = append(problems, fmt.Sprintf("entry %s is missing", txn.BcdGuid))
 	} else {
 		if d := entry.first("description"); !strings.EqualFold(d, "wootc") {
-			problems = append(problems, fmt.Sprintf("entry %s is described %q, not wootc", txn.BcdGuid, d))
+			problems = append(problems, fmt.Sprintf("entry %s is described %q, not %q", txn.BcdGuid, d, bootRepairDescription))
 		}
 		if p := entry.first("path"); !strings.EqualFold(p, txn.EfiPath) {
 			problems = append(problems, fmt.Sprintf("entry %s boots %q, not %s", txn.BcdGuid, p, txn.EfiPath))
@@ -319,7 +319,7 @@ func bootChainProblems(objs []bcdObject, txn BootTxn, observedESP map[string]str
 	}
 	for _, id := range wootcEntryIDs(objs, "") {
 		if !strings.EqualFold(id, txn.BcdGuid) {
-			problems = append(problems, fmt.Sprintf("stale wootc entry %s is still present", id))
+			problems = append(problems, fmt.Sprintf("stale %s entry %s is still present", productName(), id))
 		}
 	}
 	if containsID(fw.Fields["displayorder"], txn.BcdGuid) {

@@ -9,8 +9,8 @@ This revision corrects the transport and identity assumptions in the earlier des
 | Phase | Actual state | Remaining work |
 |---|---|---|
 | A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
-| B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks | Real UAC refusal, original-user collection, minimum OS, native brand assets, and preview release assets |
-| C: experience (#344) | A read-only startup view and UI Automation controls exist | Consumer screens, VM and migration flows, drive mode, accessibility, persistence, and the full journey |
+| B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent, original-user collection for an alternative administrator (#606), proof on build 17763, the native typeface, and preview release assets (#608) |
+| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, a screen gallery, and an E2E drive mode (`WOOTC_E2E_DRIVE=1`) that operates these views exist. The GUI E2E can install the native shell in the guest and drive it (`WOOTC_E2E_GUI_FRONTEND=native`, see [Native shell E2E](#native-shell-e2e)). [Run 38857241312](https://github.com/tuna-os/wootc/actions/runs/38857241312) drove a full Windows, deployer, Linux and Windows cycle through it | Consumer screens, VM and migration flows, an unelevated shell with interactive UAC, accessibility, persistence, and the full journey |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
 | E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
 
@@ -20,6 +20,10 @@ The adapter passed 30 tests. Both tests for the UI passed at startup. No test sk
 The [source and artifact record](experiments/evidence/2026-09-27-native-serving-readiness/hosted-7a/provenance.json) binds those checks.
 
 The tests used the same elevated user. They do not prove interactive UAC or installation.
+
+The UAC refusal test uses `ConsentPromptBehaviorUser=0` for a disposable standard user.
+Windows then returns `ERROR_ACCESS_DISABLED_BY_POLICY`, not the `ERROR_CANCELLED` of a No click.
+The shell shows both as a refusal. A No click on the secure desktop has no hosted test.
 The current Wails installer and release assets remain the default.
 
 The future preview and results follow the [migration extension plan](specs/migration-extensions.md). Those APIs do not exist in `serve` yet.
@@ -125,6 +129,10 @@ Tests must include a standard user who supplies a different administrator's cred
 The data preview and exported data must still belong to the original person.
 Never use the administrator's browser profile as an automatic fallback.
 
+Decision, 2026-10-16: the first native release refuses an alternative administrator.
+A standard user who types another administrator's credentials gets the refusal, not an install.
+Support comes after that release, and only with the identity tests above.
+
 ## Disconnect, cancel, and recovery
 
 EOF or a crash of the shell must request cancellation. It cannot mean immediate process exit.
@@ -160,6 +168,15 @@ UAC names the engine's publisher, so shell-only identity is insufficient.
 Bundle local assets for the brand after validation for startup and UAC refusal.
 Translate palette, typeface, logos, title, and support links into native resources.
 CSS is not a native theme contract; document which custom layouts lack support.
+
+The preview translates the palette and the existing `logo.svg` into native resources.
+Contrast must pass WCAG limits, and high contrast keeps the system palette.
+Each brand supplies its font as WOFF2. XAML cannot load that format, so the preview uses the system font.
+
+Decision, 2026-10-16: the native shell uses the Windows system font for every brand.
+No brand ships a font licence that allows redistribution in a desktop package.
+A brand can add a native font later only as TTF or OTF with its licence file.
+Gradients and radii from `theme.css` have no native equivalent.
 Use the distro config from the adoption work, with versioned extensions.
 
 Use standard Windows controls, light/dark themes, and a high-contrast fallback.
@@ -173,6 +190,11 @@ Publish the shell as a preview beside the current installer first.
 An Inno Setup wrapper can provide one download for an unpackaged self-contained bundle.
 Keep the Go engine beside the shell and retain the standalone headless asset.
 Package cleanup and Linux uninstall need separate, clearly named ownership.
+
+The install does not depend on the preview package after it arms.
+The recovery tasks run a copy of the engine in `install\wootc.exe` under the install directory.
+The Apps entry for the Linux install runs that copy too, so removal of the preview does not break that entry.
+The preview installer refuses an existing destination, so an upgrade also removes the preview first.
 Do not remove Linux data merely because a user removes the preview shell.
 
 Pin .NET, Windows App SDK, and build-tool versions before the package experiment.
@@ -190,6 +212,48 @@ Test Windows 10 and 11 before a change to the product requirements.
 MSIX, signatures, and winget changes need their own proven distribution path.
 A native UI does not remove SmartScreen or code-signature requirements.
 
+## Screen gallery
+
+The gallery is a separate build of the shell (`-p:NativeGallery=true`).
+It uses recorded fixtures in `shell/Wootc.Shell.Gallery` in place of the engine, and it starts no engine process.
+It cannot install, remove, repair, restart Windows, or run a VM.
+A confirmed install in the gallery only replays the recorded `install:progress` stream.
+The shipped preview never references the gallery project or its fixtures.
+
+The `native-build` job drives the gallery with UI Automation through each screen.
+The test reaches each screen and starts each action with the keyboard only.
+Each control that gets focus must have an accessible name.
+One screen is also shown with the Windows high-contrast setting on.
+The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, not in git.
+
+## Native shell E2E
+
+`run-e2e.sh --gui-install` with `WOOTC_E2E_GUI_FRONTEND=native` drives the native shell instead of the Wails app.
+`e2e-hosted.yml` takes it as `gui_frontend: native`. `e2e-gui.yml` and `e2e-nightly.yml` offer it as a dispatch input.
+
+1. A Windows job publishes the shell with the run's commit as `NativeBuildId` and the image's brand as `NativeBrandId`.
+   It is the preview build. Each step refuses the gallery build (`-p:NativeGallery=true`).
+2. The Linux E2E job builds `wootc-engine.exe` with the same build and brand identity.
+   The engine also carries the public half of the run's manifest key. The harness signs the staged `SHA256SUMS.sig` with that key.
+   `tests/e2e/native-package.py` then writes `native-package.json`, as `shell/packaging/write-manifest.ps1` does for the preview installer.
+3. The harness copies the package to `Program Files\wootc Native Preview\<brand>\bundle`, where `preview.iss` installs it.
+   The package inherits the Program Files ACLs, which the shell and the engine need.
+   The Inno installer itself is not run in the VM.
+4. `WOOTC_E2E_DRIVE=1` and `WOOTC_PRELOAD=0` are set machine-wide, because the engine starts through `runas` and need not inherit the shell's environment.
+   `ConsentPromptBehaviorAdmin=0` makes each engine elevation non-interactive: startup, then one install session per plan check.
+5. The shell starts like the Wails app: from a `/RL HIGHEST` task as the autologged administrator, so the shell itself runs elevated.
+   The single-instance check must find exactly one `Wootc.Shell.exe` from that package directory and no Wails app.
+   A native run also needs a `native-shell` assertion, so the ledger never records a native green as a Wails one.
+
+This run does not prove an unelevated shell, interactive UAC consent, the Inno installer, or a standard user.
+
+The plan check has a known time risk.
+The shell waits 110 seconds for `PrepareNativeInstall`.
+In that time the engine reads the system once and observes the storage twice, with a limit of 40 seconds for each observation.
+The second observation also selects the state root again, and the grant contract needs it, so the check keeps both.
+Run 38857241312 passed, but it did not record the margin.
+If a slow disk causes a timeout, measure each part before you change a limit.
+
 ## Evidence before cutover
 
 | Gate | Evidence |
@@ -197,7 +261,7 @@ A native UI does not remove SmartScreen or code-signature requirements.
 | Transport | Native authenticated-peer tests; refusal of wrong SID/session/process; cancellation during mutation |
 | Build | Windows CI builds and packages every eligible brand; generated DTOs remain current |
 | UI parity | Real controls, screenshots, accessible names, keyboard flow, truthful blocked reasons |
-| Drive contract | Existing `e2e-drive.json` directives operate view-models; image mismatch fails closed |
+| Drive contract | Existing `e2e-drive.json` directives operate view-models; image mismatch fails closed; an install directive must name its target volume (`storageId`: an engine storage id or a drive letter such as `C:`), and a missing, unknown or ambiguous target is refused as a drive error |
 | Migration | Same plan/result fixtures on native Windows and GTK; partial results and retry stay visible |
 | Deployment | Shell-driven Windows → deployer → Linux → Windows cycle, including offline and BitLocker cohorts |
 | Recovery | Kill shell at safe test points; cancel; restart; inspect durable state; repair; uninstall |
@@ -220,8 +284,11 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetReleaseNotice` | — | `ReleaseNotice` (optional newer release) |
 | `GetImages` | — | `[]Image` |
 | `GetInstallSteps` | — | `[]StepDefinition` |
+| `GetNativeConfiguration` | — | `NativeConfigurationSnapshot` |
 | `GetSessionCandidates` | — | as today |
 | `StartInstall` | `InstallConfig` | `null` or error |
+| `PrepareNativeInstall` | `InstallConfig` | `NativeInstallGrant` (install session only; one plan for each session) |
+| `ConfirmNativeInstall` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
 | `CancelInstall` | — | `null` |
 | `GetStatus` | — | `InstallStatus` |
 | `DefragDrive` | — | `null` |
@@ -229,12 +296,31 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `ExistingInstallFound` | — | `bool` |
 | `GetUninstallInfo` | — | `UninstallInfo` |
 | `UninstallWith` | `UninstallOptions` | `null` |
+| `InspectBoot` | — | `BootRepairReport` (install session only; saves an evidence bundle, changes no boot entry) |
+| `PrepareNativeMaintenance` | `NativeMaintenancePlan` | `NativeMaintenanceGrant` (install session only; one plan for each session) |
+| `ConfirmNativeMaintenance` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
+| `GetNativeVMStatus` | — | `NativeVMStatus` (install session only; no paths, process IDs or runtime hashes) |
+| `PrepareNativeVMAction` | `NativeVMPlan` | `NativeVMGrant` (install session only; one pending VM action at a time) |
+| `ConfirmNativeVMAction` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
 | `BootIntoLinux` | — | `null` |
 | `GetLastRun` | — | `LifecycleState` |
 | `GetRecoveryVerdict` | — | `RecoveryVerdict` |
-| `E2EDriveDirective` | — | `string` |
-| `E2EDriveReport` | `string` | `null` |
+| `GetInstallRecovery` | — | `InstallRecoverySummary` (class, safe actions and engine text; no evidence or step error) |
+| `E2EDriveDirective` | — | `string` (empty unless the engine runs with `WOOTC_E2E_DRIVE=1`; native shell: configuration session only) |
+| `E2EDriveReport` | `string` | `null` (written only when bound to the current directive; native shell: configuration session only) |
+| `E2EDriveReady` | `string` | `null` (first-render marker, bound to no directive; native shell: configuration session only) |
+| `GetVMCapability` | — | `VMCapability` | Signed runtime and persistent disk availability. |
+| `GetFreshVMCapability` | — | `VMCapability` | Signed runtime and helper availability. |
+| `GetVMState` | — | `VMState` | Durable disk lifecycle; desktop readiness requires independent evidence. |
+| `TryInVMFresh` | image string | — | Legacy call refuses preparation without account details. |
+| `InstallVMRuntime` | — | — | Acquire the signed runtime for this release; no native fallback or existing-runtime replacement. |
+| `PrepareVM` | `VMInstallConfig` | — | Prepare a persistent system with its Linux account, then launch its VM. |
+| `BootInVM` | — | — | Restart the same verified, stopped VM disk. |
+| `StopVM` | — | — | Request guest shutdown; preserve ownership until actual exit. |
+| `ForceStopVM` | — | — | Explicit forced stop; disk requires recovery before reuse. |
 | `Shutdown` | — | `null` (engine exits 0) |
 
 Notifications use `install:progress` and `vm:progress`.
-The VM methods still need a versioned native-shell contract.
+The native shell uses the versioned VM contract (`NativeVMStatus`, `NativeVMPlan` and `NativeVMGrant`) in an install session.
+Each VM action that changes state needs its own engine grant, and each grant is used once.
+The legacy VM methods stay for the legacy app.

@@ -184,11 +184,163 @@ A person must attach three screenshots, because a script cannot make them:
 
 ### Signatures and file identity
 
-**No release has a signature.** `release.yml` has no step that signs the
-files. [#229] is the choice and purchase of a signature method. This is a
-spend decision for the maintainer. [#230] adds that method to the pipeline.
-Until both issues are done, each signature box is ✘. SmartScreen shows the
-wall for unknown apps, and UAC shows "unknown publisher".
+**No release has a signature yet.** [#229] is the choice and purchase of a
+signature method. This is a spend decision for the maintainer. Until a
+credential exists, each signature box is ✘. SmartScreen shows the wall for
+unknown apps, and UAC shows "unknown publisher".
+
+The pipeline side ([#230]) is ready for any credential that #229 selects.
+The release step `Authenticode-sign the installers` runs
+`packaging/sign-exes.sh` after the build of the exes and before the
+step that writes `SHA256SUMS`. Authenticode changes the bytes of the file, so the
+checksums must come after the signature. `tests/unit/release-pipeline.bats`
+keeps this order.
+
+The script uses [jsign], which supports the Azure `TRUSTEDSIGNING` service, cloud HSM keys
+for EV certificates, and PKCS12 files. Repository variables select the
+credential:
+
+| Name | Kind | Value |
+|------|------|-------|
+| `WOOTC_SIGN_STORETYPE` | variable | jsign `--storetype`, for example `TRUSTEDSIGNING`. Empty means that signing is not configured |
+| `WOOTC_SIGN_KEYSTORE` | variable | jsign `--keystore`: the endpoint, the vault, or the file |
+| `WOOTC_SIGN_ALIAS` | variable | jsign `--alias`: the key, or `account/profile` for Trusted Signing |
+| `WOOTC_SIGN_PUBLISHER` | variable | the CN that the signer certificate must show |
+| `WOOTC_SIGN_TSAURL` | variable | optional RFC 3161 timestamp server |
+| `WOOTC_SIGN_STOREPASS` | secret | the token or password. jsign reads it from the environment. Not used with the Azure OIDC login |
+| `WOOTC_SIGN_CA_PEM` | variable | optional PEM roots for the check of the signature and the timestamp |
+| `WOOTC_SIGN_CERTCHAIN_PEM` | variable | optional PEM chain for jsign `--certfile`. Some HSM store types need it |
+| `AZURE_CLIENT_ID` | variable | the Entra application (client) ID for the OIDC login. Only with `TRUSTEDSIGNING` |
+| `AZURE_TENANT_ID` | variable | the Entra tenant (directory) ID |
+| `AZURE_SUBSCRIPTION_ID` | variable | the subscription of the Trusted Signing account |
+
+The check uses the Ubuntu CA bundle. That bundle has TLS roots only.
+The Azure `TRUSTEDSIGNING` certificates chain to a Microsoft root that is not in
+the bundle (`Microsoft Identity Verification Root Certificate Authority 2020`).
+The timestamp service `timestamp.acs.microsoft.com` chains to the same root.
+
+For `TRUSTEDSIGNING`, the script adds this root from the repository file
+`packaging/authenticode-roots/microsoft-identity-verification-root-2020.pem`.
+A file in the repository gets a review when it changes, and a variable does not.
+`tests/unit/release-pipeline.bats` pins its SHA-256 fingerprint. Use
+`WOOTC_SIGN_CA_PEM` only for other credentials.
+
+For `TRUSTEDSIGNING`, jsign uses an Azure access token as the store password.
+Such a token expires after about one hour, so a static secret does not work for
+a release. The release job gets the token with GitHub OIDC. Refer to the
+[Azure setup](#setting-up-azure-trusted-signing) below.
+
+The script signs copies of each exe. It then makes `osslsigncode verify`
+examine each copy for a valid chain, a timestamp, and the expected
+publisher. It replaces the exes only when all copies pass. The results are:
+
+- `signed`: all exes have a verified signature.
+- `unsigned`: `WOOTC_SIGN_STORETYPE` is empty. The release continues and the
+  notes say "Not code-signed".
+- `failed`: a tagged release stops. An auto or manual pre-release continues
+  with the unsigned exes, and its notes say that the signature step failed.
+  Thus an outage of the signature service does not stop the nightly
+  releases.
+
+When #229 is done, set the variables. Then cut a tagged
+release and do the fresh-machine check above.
+
+### Setting up Azure Trusted Signing
+
+For #229, the maintainer selected the Azure service `Trusted Signing`.
+Microsoft now calls it `Artifact Signing`, and the portal and the role
+names can show either name. The release workflow is ready. It does nothing
+until the variables below exist, and until then the releases ship unsigned.
+
+**How the release job signs.** Only the `build + publish` job has
+`id-token: write`, and it runs in the GitHub environment `release`.
+When `WOOTC_SIGN_STORETYPE` is `TRUSTEDSIGNING` and `AZURE_CLIENT_ID` is set,
+`azure/login` logs in with the OIDC token of the job. The repository keeps
+no secret for this login. Immediately before the first signature,
+`packaging/sign-exes.sh` gets an access token for `https://codesigning.azure.net`.
+
+jsign then signs each exe in the release assets: `wootc.exe` and each branded
+exe. The timestamp server is `http://timestamp.acs.microsoft.com`.
+`osslsigncode` examines each signature. If the login or the token fails, the
+result is `failed`. A tagged release stops, and a pre-release continues
+unsigned with a warning in its notes.
+
+The release job uses jsign on Linux, and not the Microsoft
+`azure/artifact-signing-action`, for these reasons:
+
+- The Microsoft action operates only on Windows runners.
+- The publish job is a Linux job. It holds the private key for the
+  `SHA256SUMS` signature of this release, and that key must not leave the job.
+  A Windows job would split the build, the signature, and the checksums
+  into three jobs.
+- jsign uses the same Azure service. The workflow pins the jsign download by
+  version and SHA-256.
+
+**Do these steps in Azure.** A person with the Owner role on the subscription
+must do them. The workflow does not create Azure resources.
+
+1. In the subscription, register the resource provider `Microsoft.CodeSigning`.
+2. Create an account of the service in a supported region. Record the
+   account name and the account URI, for example
+   `https://eus.codesigning.azure.net/`.
+3. On the account, give your own user the role
+   `Artifact Signing Identity Verifier`. Its old name is
+   `Trusted Signing Identity Verifier`.
+4. On the account, open **Identity validations** and request a **Public**
+   validation for the organization. Microsoft examines the legal documents.
+   The name that Microsoft validates becomes the `CN` and `O` of each
+   certificate. Wait until the status is `Completed`.
+5. On the account, create a certificate profile of the type **Public Trust**
+   and select the completed validation. Record the profile name.
+6. In Microsoft Entra ID, create an app registration, for example
+   `wootc-release-signing`. Record the application (client) ID and the
+   directory (tenant) ID.
+7. On that app registration, add a federated credential:
+   - Scenario: `GitHub Actions deploying Azure resources`.
+   - Organization `tuna-os`, repository `wootc`.
+   - Entity type **Environment**, name `release`.
+   - The subject must be `repo:tuna-os/wootc:environment:release`, the
+     issuer `https://token.actions.githubusercontent.com`, and the audience
+     `api://AzureADTokenExchange`.
+
+   A tag push, a dispatch, and the automatic channel each run under a
+   different ref. The environment gives one subject for all of them.
+8. Assign the role `Artifact Signing Certificate Profile Signer` to the
+   service principal of that app registration. Its old name is
+   `Trusted Signing Certificate Profile Signer`. Use the smallest scope:
+   the certificate profile.
+
+**Then set these repository variables** (Settings ▸ Secrets and variables ▸
+Actions ▸ Variables). Do not make secrets for them:
+
+| Variable | Value |
+|---|---|
+| `AZURE_CLIENT_ID` | the application (client) ID from step 6 |
+| `AZURE_TENANT_ID` | the directory (tenant) ID from step 6 |
+| `AZURE_SUBSCRIPTION_ID` | the subscription of the account |
+| `WOOTC_SIGN_STORETYPE` | `TRUSTEDSIGNING` |
+| `WOOTC_SIGN_KEYSTORE` | the host of the account URI, for example `eus.codesigning.azure.net` |
+| `WOOTC_SIGN_ALIAS` | `<account name>/<certificate profile name>` |
+| `WOOTC_SIGN_PUBLISHER` | the `CN` of the certificate: the validated name from step 4 |
+
+Do not set the secret `WOOTC_SIGN_STOREPASS` or the variable
+`WOOTC_SIGN_CA_PEM`. `WOOTC_SIGN_TSAURL` is optional.
+
+The first run of the publish job makes the environment `release` if it does
+not exist. If you add required reviewers to that environment, each release
+waits for a reviewer, and the automatic channel waits too.
+
+**Match the publisher name.** The UAC prompt shows the publisher from the
+certificate. The **Properties ▸ Details** tab shows `CompanyName` from the
+version resource of the exe. These two names must be the same.
+While a brand has no `blessed` record, its exe names the distributor
+`TunaOS` as its `CompanyName` (#604).
+If the validated name in step 4 is a different legal name, use that name.
+
+Change the distributor in `app/branding/ownership.json` and the `publisher`
+of the generic brands. A brand with a `blessed` record names its owner as
+its `CompanyName`, but the certificate still names the validated
+organization. Write that difference in the `blessing.json` of that brand.
 
 The release now builds a VERSIONINFO resource **per brand** through
 `packaging/build-windows.py`. It reads the product name, description,
@@ -220,6 +372,7 @@ Use the field verifier and attach screenshots for the published files.
 [#240]: https://github.com/tuna-os/wootc/issues/240
 [#229]: https://github.com/tuna-os/wootc/issues/229
 [#230]: https://github.com/tuna-os/wootc/issues/230
+[jsign]: https://ebourg.github.io/jsign/
 
 ## Narrative release notes
 

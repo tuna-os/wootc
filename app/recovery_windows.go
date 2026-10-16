@@ -98,7 +98,7 @@ func recoverBootTxnAtStartup(startedExists bool, ls LifecycleState) (bool, error
 		_ = os.Remove(verdictPath())
 		_ = unregisterRecoveryTasks()
 		writeState(StateFailed, StepInstallerMakingLinuxBootableOnYourMachine,
-			"setup stopped before the boot setup was finished; wootc removed its boot entry and Windows starts normally")
+			"setup stopped before the boot setup was finished; "+productName()+" removed its boot entry and Windows starts normally")
 		return true, nil
 	}
 	return false, nil
@@ -206,7 +206,7 @@ func tryAgainFromArmed(noReboot bool) error {
 	}
 
 	// Ensure recovery tasks are fresh
-	installExe := filepath.Join(wootcDir(), "install", "wootc.exe")
+	installExe := filepath.Join(wootcDir(), "install", stagedEngineName)
 	if _, err := os.Stat(installExe); err == nil {
 		_ = registerRecoveryTasks(installExe)
 	}
@@ -268,7 +268,7 @@ func repairBootFromArmed(noReboot bool) error {
 				_, _ = runBCDEdit(args...)
 			}
 		}
-		return fmt.Errorf("repair could not be verified, so wootc was taken out of the boot order again: %w", err)
+		return fmt.Errorf("repair could not be verified, so %s was taken out of the boot order again: %w", productName(), err)
 	}
 
 	// Reset lifecycle markers

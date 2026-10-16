@@ -1,0 +1,4 @@
+# Recorded engine streams are compared byte for byte on every platform.
+tests/unit/fixtures/install-progress/*.ndjson text eol=lf
+tests/unit/fixtures/native-maintenance/*.ndjson text eol=lf
+tests/unit/fixtures/native-vm/*.ndjson text eol=lf

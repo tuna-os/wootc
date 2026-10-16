@@ -1,0 +1,67 @@
+Verified SHA256 f19722d8de42b8e381bb72e5f062d0ce290d0f82c2b0e287452eb1ee6f238df7
+=== RUN   TestVMAccountInputIsPrivateTransientAndPreservesDisk
+--- PASS: TestVMAccountInputIsPrivateTransientAndPreservesDisk (0.02s)
+=== RUN   TestVMAccountValidationDoesNotEchoPassword
+--- PASS: TestVMAccountValidationDoesNotEchoPassword (0.00s)
+=== RUN   TestVMReceiptRequiresCreatedAccountIdentity
+--- PASS: TestVMReceiptRequiresCreatedAccountIdentity (0.01s)
+=== RUN   TestVMOwnedJobReapsChildOnClose
+--- PASS: TestVMOwnedJobReapsChildOnClose (0.17s)
+=== RUN   TestVMEnvironmentDoesNotInheritUserPluginPaths
+--- PASS: TestVMEnvironmentDoesNotInheritUserPluginPaths (0.00s)
+=== RUN   TestVMReceiptRejectsProxySuccess
+=== RUN   TestVMReceiptRejectsProxySuccess/good
+=== RUN   TestVMReceiptRejectsProxySuccess/only-marker
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-run
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-image
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-disk
+=== RUN   TestVMReceiptRejectsProxySuccess/no-efi
+=== RUN   TestVMReceiptRejectsProxySuccess/duplicate
+=== RUN   TestVMReceiptRejectsProxySuccess/late-error
+=== RUN   TestVMReceiptRejectsProxySuccess/early-marker
+--- PASS: TestVMReceiptRejectsProxySuccess (0.01s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/good (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/only-marker (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-run (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-image (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-disk (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/no-efi (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/duplicate (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/late-error (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/early-marker (0.00s)
+=== RUN   TestVMDurableStateAndNativeWriterGuard
+--- PASS: TestVMDurableStateAndNativeWriterGuard (0.04s)
+=== RUN   TestVMExecutionProbeChild
+--- PASS: TestVMExecutionProbeChild (0.00s)
+=== RUN   TestVMExecutionProbeNeedsActualSerial
+=== RUN   TestVMExecutionProbeNeedsActualSerial/guest
+=== RUN   TestVMExecutionProbeNeedsActualSerial/stdout
+=== RUN   TestVMExecutionProbeNeedsActualSerial/hung
+=== RUN   TestVMExecutionProbeNeedsActualSerial/exit
+--- PASS: TestVMExecutionProbeNeedsActualSerial (2.45s)
+    --- PASS: TestVMExecutionProbeNeedsActualSerial/guest (0.38s)
+    --- PASS: TestVMExecutionProbeNeedsActualSerial/stdout (1.01s)
+    --- PASS: TestVMExecutionProbeNeedsActualSerial/hung (1.01s)
+    --- PASS: TestVMExecutionProbeNeedsActualSerial/exit (0.04s)
+=== RUN   TestVMExecutionProbeRefusesStaleLog
+--- PASS: TestVMExecutionProbeRefusesStaleLog (0.00s)
+=== RUN   TestVMProbeBootSectorReproducible
+--- PASS: TestVMProbeBootSectorReproducible (0.00s)
+=== RUN   TestVMExecutionProbeRealQEMU
+    vm_probe_windows_test.go:38: Actual Windows QEMU q35/TCG execution: passed in 1.1519078s
+--- PASS: TestVMExecutionProbeRealQEMU (3.87s)
+=== RUN   TestManagedVMShutdownContract
+=== RUN   TestManagedVMShutdownContract/clean
+=== RUN   TestManagedVMShutdownContract/host
+=== RUN   TestManagedVMShutdownContract/crash
+=== RUN   TestManagedVMShutdownContract/hung
+--- PASS: TestManagedVMShutdownContract (0.60s)
+    --- PASS: TestManagedVMShutdownContract/clean (0.10s)
+    --- PASS: TestManagedVMShutdownContract/host (0.08s)
+    --- PASS: TestManagedVMShutdownContract/crash (0.08s)
+    --- PASS: TestManagedVMShutdownContract/hung (0.33s)
+=== RUN   TestQMPRejectsMissingGreetingPromptly
+--- PASS: TestQMPRejectsMissingGreetingPromptly (0.00s)
+=== RUN   TestVMRuntimeRequiresCompleteSignedClosure
+--- PASS: TestVMRuntimeRequiresCompleteSignedClosure (0.04s)
+PASS

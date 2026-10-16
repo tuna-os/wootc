@@ -53,9 +53,9 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { submodules: recursive }
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with: { go-version: '1.27', cache: false }
       # Before ~90 min of VM: a final tag without its narrative notes, or
       # with notes still marked draft, can never publish (#242).
@@ -93,6 +93,14 @@ jobs:
       contents: write
       packages: read
       actions: write             # dispatch winget-publish.yml for full releases
+      # GitHub OIDC for Azure Trusted Signing (#229). This job only: the
+      # token proves "the release job of tuna-os/wootc", and no other job
+      # needs to prove that. No Azure configuration = never requested.
+      id-token: write
+    # The federated credential's subject. Tag pushes, dispatches and the auto
+    # channel all run under different refs; the environment is one stable
+    # claim (repo:tuna-os/wootc:environment:release) for all of them.
+    environment: release
     needs: [tests, e2e-gate]
     if: >-
       ${{ always() && (
@@ -102,7 +110,7 @@ jobs:
       ) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           submodules: recursive
           # Auto channel: build the exact SHA the nightly proved, not
@@ -123,9 +131,9 @@ jobs:
           docker image prune -af 2>/dev/null || true
           echo "--- after cleanup ---"; df -h /
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with: { go-version: '1.27', cache: false }
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with: { node-version: '24' }
       - uses: ./.github/actions/podman-runtime
 
@@ -285,6 +293,78 @@ jobs:
           done <<< "$brands"
           ls -lh release-assets/
 
+      # ORDER IS LOAD-BEARING: sign after every exe is built and BEFORE the
+      # checksums. Authenticode rewrites the file, so SHA256SUMS written first
+      # would describe bytes nobody downloads and every install would die at
+      # the installer's fail-closed verification (#53). tests/unit/
+      # release-pipeline.bats pins this order.
+      # Azure Trusted Signing (#229): log in with the job's OIDC token, no
+      # stored secret. Skipped unless the store type is TRUSTEDSIGNING and
+      # AZURE_CLIENT_ID is set, so an unconfigured repo still ships unsigned.
+      # continue-on-error hands a failed login to sign-exes.sh, which applies
+      # the channel rule: a tagged release stops, a pre-release says so.
+      - name: Azure login for Trusted Signing (OIDC)
+        id: azure-login
+        if: ${{ vars.WOOTC_SIGN_STORETYPE == 'TRUSTEDSIGNING' && vars.AZURE_CLIENT_ID != '' }}
+        continue-on-error: true
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticode-sign the installers (#230)
+        id: authenticode
+        env:
+          CHANNEL: ${{ steps.chan.outputs.channel }}
+          # Trusted Signing over OIDC: sign-exes.sh fetches the access token
+          # itself, immediately before signing (it expires in about an hour),
+          # and uses it in place of WOOTC_SIGN_STOREPASS.
+          WOOTC_SIGN_AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          WOOTC_SIGN_AZURE_LOGIN: ${{ steps.azure-login.outcome }}
+          # The credential is #229's decision; jsign speaks all of them.
+          # Unset WOOTC_SIGN_STORETYPE = not configured = ships unsigned.
+          WOOTC_SIGN_STORETYPE: ${{ vars.WOOTC_SIGN_STORETYPE }}
+          WOOTC_SIGN_KEYSTORE: ${{ vars.WOOTC_SIGN_KEYSTORE }}
+          WOOTC_SIGN_ALIAS: ${{ vars.WOOTC_SIGN_ALIAS }}
+          WOOTC_SIGN_TSAURL: ${{ vars.WOOTC_SIGN_TSAURL }}
+          WOOTC_SIGN_PUBLISHER: ${{ vars.WOOTC_SIGN_PUBLISHER }}
+          WOOTC_SIGN_STOREPASS: ${{ secrets.WOOTC_SIGN_STOREPASS }}
+          # PEM text, not paths: a repository variable cannot name a file on
+          # the runner. CA_PEM adds the code-signing and timestamp roots to
+          # the verify trust store. The Ubuntu bundle holds TLS roots only;
+          # Trusted Signing chains to "Microsoft Identity Verification Root
+          # Certificate Authority 2020", which is not in it; sign-exes.sh adds
+          # that root from packaging/authenticode-roots/ for TRUSTEDSIGNING,
+          # so CA_PEM is for other credentials. CERTCHAIN_PEM is
+          # jsign --certfile, which some HSM store types need.
+          WOOTC_SIGN_CA_PEM: ${{ vars.WOOTC_SIGN_CA_PEM }}
+          WOOTC_SIGN_CERTCHAIN_PEM: ${{ vars.WOOTC_SIGN_CERTCHAIN_PEM }}
+          JSIGN_VERSION: '7.5'
+          JSIGN_SHA256: 602a51c3545a6dc4fb99bd2ea7152b26d1345916d0c93ddfbd5936cb735af91c
+        run: |
+          set -euo pipefail
+          if [ -n "$WOOTC_SIGN_STORETYPE" ]; then
+            sudo apt-get install -y -qq osslsigncode
+            jar="$RUNNER_TEMP/jsign.jar"
+            curl -fsSL -o "$jar" \
+              "https://github.com/ebourg/jsign/releases/download/$JSIGN_VERSION/jsign-$JSIGN_VERSION.jar"
+            echo "$JSIGN_SHA256  $jar" | sha256sum -c -
+            printf '#!/bin/sh\nexec java -jar %s "$@"\n' "$jar" > "$RUNNER_TEMP/jsign"
+            chmod +x "$RUNNER_TEMP/jsign"
+            export JSIGN="$RUNNER_TEMP/jsign"
+            if [ -n "$WOOTC_SIGN_CA_PEM" ]; then
+              cat /etc/ssl/certs/ca-certificates.crt > "$RUNNER_TEMP/sign-ca.pem"
+              printf '%s\n' "$WOOTC_SIGN_CA_PEM" >> "$RUNNER_TEMP/sign-ca.pem"
+              export WOOTC_SIGN_CAFILE="$RUNNER_TEMP/sign-ca.pem"
+            fi
+            if [ -n "$WOOTC_SIGN_CERTCHAIN_PEM" ]; then
+              printf '%s\n' "$WOOTC_SIGN_CERTCHAIN_PEM" > "$RUNNER_TEMP/sign-chain.pem"
+              export WOOTC_SIGN_CERTFILE="$RUNNER_TEMP/sign-chain.pem"
+            fi
+          fi
+          bash packaging/sign-exes.sh "$CHANNEL" release-assets
+
       - name: Checksums for the release assets
         # The installer's fail-closed verification (#53/#194) and the
         # getting-started doc both point users at a SHA256SUMS on the
@@ -308,6 +388,7 @@ jobs:
       - name: Record what gated this build
         env:
           RELEASE_TAG: ${{ steps.chan.outputs.tag }}
+          SIGNING: ${{ steps.authenticode.outputs.signing }}
         run: |
           {
             echo "## wootc $RELEASE_TAG"
@@ -328,6 +409,17 @@ jobs:
               echo "\`root.disk\`, then booted the graduated native disk."
               echo "Gate run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             fi
+            case "$SIGNING" in
+              signed) ;;
+              failed)
+                echo
+                echo "> ⚠️ **Not code-signed — signing FAILED for this build.** The exes are"
+                echo "> unsigned: SmartScreen and UAC will show an unknown publisher." ;;
+              *)
+                echo
+                echo "> ⚠️ **Not code-signed** (#229). SmartScreen and UAC will show an"
+                echo "> unknown publisher." ;;
+            esac
             echo
             echo "One installer per distribution — every exe is the same engine"
             echo "wearing its brand (docs/branding-and-distribution.md). The boot"
@@ -347,7 +439,7 @@ jobs:
           } > NOTES.md
           cat NOTES.md
 
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ steps.chan.outputs.tag }}
           target_commitish: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || (github.ref_type != 'tag' && github.sha || '') }}

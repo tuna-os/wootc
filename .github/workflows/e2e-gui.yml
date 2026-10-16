@@ -28,6 +28,11 @@ on:
         description: 'After the run returns to Windows: run the documented uninstaller and verify every cleanup claim (adds a Windows reboot; not for showcase cuts).'
         type: boolean
         default: false
+      gui_frontend:
+        description: 'Which GUI drives Phase 1: wails (the shipped installer) or native (the WinUI shell preview, #344). A native run never publishes the timelapse.'
+        type: choice
+        options: [wails, native]
+        default: wails
   schedule:
     # Nightly, offset from the headless canary so they do not contend for
     # the hosted runner pool.
@@ -56,6 +61,8 @@ jobs:
       require_podman_major: ${{ inputs.require_podman_major || '' }}
       # Same coercion-trap guard as phase3: scheduled runs never uninstall.
       uninstall_check: ${{ github.event_name != 'schedule' && inputs.uninstall_check || false }}
+      # Scheduled runs drive the shipped installer.
+      gui_frontend: ${{ inputs.gui_frontend || 'wails' }}
     # No secrets: block — e2e-hosted.yml only uses secrets.GITHUB_TOKEN, which
     # every job gets automatically. `secrets: inherit` exposed every repo
     # secret to this job for no reason; the other three callers of this
@@ -88,12 +95,13 @@ jobs:
       IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
       PHASE3: ${{ github.event_name == 'schedule' && 'true' || (inputs.phase3 && 'true' || 'false') }}
       UNCHK: ${{ github.event_name != 'schedule' && inputs.uninstall_check && 'true' || 'false' }}
+      FRONTEND: ${{ inputs.gui_frontend || 'wails' }}
       VERDICT: ${{ needs.run.outputs.flake_verdict }}
     steps:
       - run: |
           echo "Re-dispatching once: harness classified the failure as '$VERDICT'"
           gh workflow run e2e-gui.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" \
-            -f image="$IMAGE" -f phase3="$PHASE3" -f uninstall_check="$UNCHK" -f flake_retry=1
+            -f image="$IMAGE" -f phase3="$PHASE3" -f uninstall_check="$UNCHK" -f gui_frontend="$FRONTEND" -f flake_retry=1
 
   publish:
     permissions:
@@ -102,12 +110,14 @@ jobs:
     # Belt: only a passing run reaches here. Braces: the .passed gate below
     # is the real proof, so a run that "succeeded" without the marker still
     # cannot publish.
-    if: ${{ needs.run.result == 'success' }}
+    # The hero shows the installer users download today, so a native-shell
+    # run (a preview) never replaces it.
+    if: ${{ needs.run.result == 'success' && (inputs.gui_frontend || 'wails') == 'wails' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           # Must track e2e-hosted.yml's per-case upload name. This job passes no
           # case_name, so the reusable workflow uploads "e2e-run-<run_id>";

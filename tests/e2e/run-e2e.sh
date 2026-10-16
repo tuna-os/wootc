@@ -47,6 +47,8 @@ source "$SCRIPT_DIR/lib/results.sh"
 source "$SCRIPT_DIR/lib/result-runner.sh"
 # shellcheck source=tests/e2e/lib/snapshot-prime.sh
 source "$SCRIPT_DIR/lib/snapshot-prime.sh"
+# shellcheck source=tests/e2e/lib/offline-bundle.sh
+source "$SCRIPT_DIR/lib/offline-bundle.sh"
 trap 'wootc_report_abort "$?" "$BASH_COMMAND"' ERR
 # IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
 # blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
@@ -84,6 +86,13 @@ RECOVERY_CHECK=false
 # firmware trusts. Empty keeps Dockur's stock vars (both CAs). See
 # tests/e2e/firmware-db.py for the cells.
 FIRMWARE_DB="${WOOTC_E2E_FIRMWARE_DB:-}"
+# Which GUI --gui-install drives: the legacy Wails app (default) or the native
+# WinUI shell (#344). Native installs the protected package staged in
+# wootc-files/native-shell (shell + engine + native-package.json, assembled
+# by e2e-hosted.yml) and drives it; its directive also names the target
+# volume. See gui_native_stage_package.
+GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-wails}"
+OFFLINE=false
 for arg in "$@"; do
     case "$arg" in
         --skip-build)   SKIP_BUILD=true ;;
@@ -94,6 +103,7 @@ for arg in "$@"; do
         --uninstall-check) WOOTC_E2E_UNINSTALL=1 ;;  # after Windows returns: prove leaving works
         --fault-inject=*) FAULT_INJECT="${arg#--fault-inject=}" ; RECOVERY_CHECK=true ;;
         --recovery-check) RECOVERY_CHECK=true ;;
+        --offline)      OFFLINE=true ;;  # guest has no NIC; deploy from a pre-staged bundle (#217)
         # Concurrent-runner slot: gives this run its own container name and
         # storage dir so N VMs can share one host (run-matrix --jobs). Passed
         # as a =flag so it is visible in the process cmdline — the matrix
@@ -128,6 +138,32 @@ WOOTC_RESULT_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-results.$$.jsonl"
 RESULT_SCENARIO=full-cycle
 if [ "${RUN_PHASE3:-false}" = true ]; then RESULT_SCENARIO=native-cycle; fi
 if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
+# GUI_PROCESS is the frontend's process name in the guest: the single-instance
+# proof, the crash checks and the post-mortem all count THAT process, so a
+# native run in which the Wails app answered (or vice versa) cannot pass.
+NATIVE_PACKAGE_DIR="$SCRIPT_DIR/wootc-files/native-shell"
+case "$GUI_FRONTEND" in
+    wails) GUI_PROCESS=wootc GUI_OTHER_PROCESS=Wootc.Shell ;;
+    native)
+        GUI_PROCESS=Wootc.Shell GUI_OTHER_PROCESS=wootc
+        if [ "$GUI_INSTALL" != true ]; then
+            echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native needs --gui-install: only the GUI path launches a frontend" >&2
+            exit 1
+        fi
+        # Refuse before any VM work: no package, a package that differs from
+        # its manifest, or the screen gallery build (recorded fixtures, no
+        # engine) would each turn the run into a launch failure 30 min later.
+        if ! NATIVE_PACKAGE_IDENTITY=$(python3 "$SCRIPT_DIR/native-package.py" check "$NATIVE_PACKAGE_DIR"); then
+            echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native: no valid native shell package in $NATIVE_PACKAGE_DIR (assemble it as e2e-hosted.yml does)" >&2
+            exit 1
+        fi
+        NATIVE_BRAND=$(printf '%s' "$NATIVE_PACKAGE_IDENTITY" | sed -n 's/.* brandId=\([a-z]*\) .*/\1/p')
+        [ -n "$NATIVE_BRAND" ] || { echo "[FAIL] native package identity is unreadable: $NATIVE_PACKAGE_IDENTITY" >&2; exit 1; }
+        ;;
+    *)
+        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be wails or native, not '$GUI_FRONTEND'" >&2
+        exit 1 ;;
+esac
 case "$FIRMWARE_DB" in
     ""|2011|2023|both) ;;
     # Firmware that trusts neither third-party CA cannot launch any shim, so
@@ -144,7 +180,12 @@ case "$FIRMWARE_DB" in
 esac
 if [ -n "${WOOTC_E2E_SNAPSHOT_OUT:-}" ]; then RESULT_SCENARIO="snapshot-prime"; fi
 RESULT_REQUIRED=""
-if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ] && [ "$RESULT_SCENARIO" != secure-boot-refusal ]; then RESULT_REQUIRED=gui-install; fi
+if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ] && [ "$RESULT_SCENARIO" != secure-boot-refusal ]; then
+    RESULT_REQUIRED=gui-install
+    # A native run must prove which frontend drove it, or its green would
+    # read exactly like a Wails one.
+    if [ "$GUI_FRONTEND" = native ]; then RESULT_REQUIRED=gui-install,native-shell; fi
+fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
 trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
@@ -217,6 +258,26 @@ if [ -n "${WOOTC_E2E_INSTANCE:-}" ]; then
 fi
 export WOOTC_E2E_CONTAINER="$CONTAINER_NAME"
 export WOOTC_E2E_STORAGE_VOL="$STORAGE_DIR"
+
+# Offline axis (#217, spec docs/branding-and-distribution.md section 4 phase 4).
+# The guest gets NO network device for the whole run (Dockur NETWORK=N leaves
+# -nodefaults QEMU with no NIC), so nothing can mask a deployer that still
+# reaches for the network. The deployer must install from the OCI bundle that
+# offline_stage_bundle copies into C:\wootc\bundle over QGA. The GUI path
+# needs the guest network (WebView2 install, \\host.lan share) and BitLocker
+# moves the storage root off C:, so neither combines with this axis yet.
+OFFLINE_BUNDLE_DIR="$SCRIPT_DIR/wootc-files/offline-bundle-${WOOTC_E2E_INSTANCE:-0}"
+if [ "$OFFLINE" = true ]; then
+    if [ "$GUI_INSTALL" = true ]; then
+        echo "[FAIL] --offline cannot combine with --gui-install: the GUI path needs the guest network" >&2
+        exit 2
+    fi
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
+        echo "[FAIL] --offline cannot combine with WOOTC_E2E_BITLOCKER=on: the bundle is staged on C:" >&2
+        exit 2
+    fi
+    export WOOTC_E2E_GUEST_NETWORK=N
+fi
 # A second orchestrator can otherwise race QGA cleanup and recreate the
 # disposable root disk while the first run is booting the deployer.  Keep the
 # advisory lock open for the lifetime of this shell; it is released
@@ -533,6 +594,8 @@ qga_wait_windows() {
 # password and autologon configuration intact. Never change machine-wide policy.
 # shellcheck source=tests/e2e/lib/gui-session.sh
 source "$SCRIPT_DIR/lib/gui-session.sh"
+# shellcheck source=tests/e2e/lib/mok.sh
+source "$SCRIPT_DIR/lib/mok.sh"
 wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_restart_windows
 
 # Which drive holds the guest's \wootc tree. NOT always C:.
@@ -607,6 +670,51 @@ echo "phase=fisherman pid=$pid workers=$workers cpu_ticks=$cpu_ticks read_bytes=
 # deployer to the bind mount alone silently tests stale code.  QGA provides a
 # guest-file API that lets retries replace the payload without reinstalling
 # Windows or relying on its network stack.
+# Copy a host-built OCI bundle of IMAGE_REF into C:\wootc\bundle over QGA,
+# once the QEMU argv has proven the guest has no NIC. QGA is the only channel
+# into an offline guest, and it rides virtio-serial.
+offline_stage_bundle() {
+    step "Offline axis: staging the image bundle into the guest..."
+    local digest files bytes guest_bytes rel target ready
+    digest=$(wootc_offline_make_bundle "$IMAGE_REF" "$OFFLINE_BUNDLE_DIR") || {
+        infra_fail "Offline axis: could not build an OCI bundle of $IMAGE_REF on the host"
+        return 1
+    }
+    files=$(cd "$OFFLINE_BUNDLE_DIR" && find . -type f | sed 's|^\./||' | sort)
+    bytes=$(find "$OFFLINE_BUNDLE_DIR" -type f -printf '%s\n' | awk '{n += $1} END {print n + 0}')
+    info "  bundle: $IMAGE_REF @ $digest ($((bytes / 1048576)) MiB, $(printf '%s\n' "$files" | wc -l) files)"
+    # The state directory must exist with its trusted ACL before anything is
+    # written under it; setup-wootc.ps1 refuses a C:\wootc it did not secure.
+    ready=$(qga_powershell '$ErrorActionPreference = "Stop"
+. C:\OEM\state-trust.ps1
+Initialize-WootcStateDirectory -Path C:\wootc
+if (Test-Path C:\wootc\bundle) { Remove-Item -Recurse -Force C:\wootc\bundle }
+New-Item -ItemType Directory -Force -Path C:\wootc\bundle\oci\blobs\sha256 | Out-Null
+Write-Output "bundle-dir-ready"' 2>&1 || true)
+    printf '%s\n' "$ready" | sed 's/^/    stage: /'
+    case "$ready" in
+        *bundle-dir-ready*) ;;
+        *) infra_fail "Offline axis: could not prepare C:\wootc\bundle in the guest"; return 1 ;;
+    esac
+    # Blobs reach gigabytes; a per-file timeout of an hour bounds a stuck
+    # channel without cutting off a slow but progressing copy.
+    while IFS= read -r rel; do
+        target="C:\\wootc\\bundle\\${rel//\//\\}"
+        WOOTC_QGA_CALL_TIMEOUT=3600 qga_call write "/shared/$(basename "$OFFLINE_BUNDLE_DIR")/$rel" "$target" >/dev/null || {
+            infra_fail "Offline axis: QGA could not copy bundle file $rel into the guest"
+            return 1
+        }
+    done <<< "$files"
+    guest_bytes=$(qga_powershell '(Get-ChildItem -Recurse -File C:\wootc\bundle | Measure-Object -Property Length -Sum).Sum' 2>/dev/null | tr -dc '0-9')
+    if [ "${guest_bytes:-0}" != "$bytes" ]; then
+        infra_fail "Offline axis: guest bundle holds ${guest_bytes:-0} bytes, host bundle $bytes"
+        return 1
+    fi
+    infra_pass offline-bundle-staged "Offline axis: bundle staged in C:\wootc\bundle ($((bytes / 1048576)) MiB)"
+    # The guest now holds the only copy the run needs; free the runner disk.
+    rm -rf -- "$OFFLINE_BUNDLE_DIR"
+}
+
 qga_sync_oem() {
     step "Refreshing OEM payload in reused Windows guest..."
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\OEM\payload\grub | Out-Null'
@@ -627,7 +735,7 @@ qga_sync_oem() {
             qga_call write "/oem/$relative" "$target" && break
             if [ "$try" -lt 3 ]; then
                 warn "OEM payload write failed for $relative (attempt $try/3) — clearing holders and retrying"
-                qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+                qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
                 # Killing holders is NOT enough on the restore path: the file
                 # carries the PRIME image's attributes and ACLs, so the write
                 # still fails "Access is denied" with nothing holding it. The
@@ -670,7 +778,7 @@ qga_sync_oem() {
         warn "OEM config still carries RunId='${got:-<unreadable>}' (want '$want_run_id'); clearing holders and retrying ($attempt/5)"
         # Stop whatever is holding C:\OEM: the auto-relaunched OEM task and any
         # setup/run-wootc-e2e PowerShell left over from the primed image.
-        qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+        qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
         sleep 5
         # Killing holders was not enough: a snapshot-restored C:\OEM carries the
         # PRIME's file attributes/ACLs, so the write fails "Access is denied"
@@ -695,7 +803,7 @@ qga_sync_oem() {
 # process into the next attempt.  Do not remove C: or the Windows disk.
 reset_oem_attempt() {
     step "Resetting prior OEM handoff state..."
-    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
     # An interrupted OEM arm (killed above, or killed during the snapshot
     # PRIME) copies shimx64.efi/grubx64.efi into EFI\fedora before it writes
     # grub.cfg — setup-wootc.ps1 stages the binaries first — so the GUI arm
@@ -1246,7 +1354,8 @@ MIRROR_ADDR=""
 # into the console log of a run that had aborted nothing (run 30707067821).
 # The matrix reads the LAST [FAIL] as the verdict, so on any run whose real
 # failure is silent (a timeout) this line becomes the recorded reason.
-for ip in $({ ip -4 addr show tailscale0 2>/dev/null || true; } \
+# An offline guest cannot reach a mirror; do not stage a hint it can only fail.
+[ "$OFFLINE" = true ] || for ip in $({ ip -4 addr show tailscale0 2>/dev/null || true; } \
                 | awk '/inet /{sub(/\/.*/,"",$2); print $2}') \
           $({ ip -4 route get 1.1.1.1 2>/dev/null || true; } \
                 | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1); exit}'); do
@@ -1856,6 +1965,18 @@ if ! QEMU_CMD=$(wootc_vm_wait_argv 60 accelerated "$QEMU_CMD"); then
     capture_vm_diagnostics
     exit 1
 fi
+# Offline axis: the missing NIC is what the cell asserts, so read it from the
+# running QEMU argv, not from the NETWORK=N setting that should cause it.
+if [ "$OFFLINE" = true ]; then
+    if wootc_offline_qemu_has_no_nic "$QEMU_CMD"; then
+        infra_pass offline-no-nic "Offline axis: QEMU runs with no network device"
+    else
+        OFFLINE_NIC=$(printf '%s' "$QEMU_CMD" | grep -oE -- '-(netdev|nic) [^ ]+|-device [^ ]*net[^ ]*' | head -3 | tr '\n' ' ' || true)
+        infra_fail "Offline axis: QEMU still has a network device: ${OFFLINE_NIC:-<argv unreadable>}"
+        capture_vm_diagnostics
+        exit 1
+    fi
+fi
 QEMU_RAM_MB=$(awk '{
     for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+[MG]$/) {
         value = $(i + 1)
@@ -2058,7 +2179,7 @@ schtasks /Run /TN wootc-e2e-demo | Out-Null
 Write-Output "demo-task-scheduled"' >/dev/null 2>&1 || true
     sleep "${WOOTC_E2E_DEMO_DWELL:-40}"
     freeze_frame
-    qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-demo\" /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
+    qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-demo /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
     pass "Timelapse demo: Windows-untouched segment recorded"
 }
 
@@ -2377,6 +2498,8 @@ reset_oem_attempt
 # shellcheck source=tests/e2e/lib/gui-observations.sh
 source "$SCRIPT_DIR/lib/gui-observations.sh"
 wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
+# shellcheck source=tests/e2e/lib/gui-native.sh
+source "$SCRIPT_DIR/lib/gui-native.sh"
 
 # ── Firmware db cell 'none' (#322): the pass is a refusal ──────────────────
 # Firmware that trusts neither Microsoft third-party CA cannot launch any
@@ -2438,7 +2561,9 @@ gui_install_arm() {
     seed_user_data before-storage || true
 
     mark_phase phase1
-    step "GUI-driven Phase 1: staging wootc.exe and launching the installer..."
+    step "GUI-driven Phase 1: staging the $GUI_FRONTEND installer and launching it..."
+    # wootc.exe is staged for both frontends: the status/uninstall assertions
+    # after the deploy use it as the CLI.
     [ -f "$SCRIPT_DIR/wootc-files/wootc.exe" ] || {
         fail "wootc.exe missing from wootc-files/ — build it first (see tests/gui/run-cdp.sh step 1)"
         exit 1
@@ -2469,6 +2594,10 @@ gui_install_arm() {
     # single-connection: a long guest job must be launched detached and observed
     # through short reads, which is the same pattern the rest of this harness
     # already uses for anything slow.
+    # The native shell is WinUI, not WebView2: it needs no runtime install.
+    # (Not re-indented: the PowerShell here-string below must keep "@ at
+    # column 0.)
+    if [ "$GUI_FRONTEND" = wails ]; then
     info "  ensuring the WebView2 runtime is present (wails cannot render without it)..."
     local wv2_key='HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
     if qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1; then
@@ -2497,6 +2626,7 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
         qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1 \
             || warn "    WebView2 still absent after 7m — the GUI will stall on its install prompt"
     fi
+    fi  # wails: WebView2
 
     gui_settle_pending_servicing || { capture_vm_diagnostics; exit 1; }
 
@@ -2510,6 +2640,19 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
     fi
     gui_wait_interactive_session || { capture_vm_diagnostics; exit 1; }
 
+    # What launch-gui.cmd starts. The native shell must run from its protected
+    # package (ProtectedPackage refuses any other location), so its path is
+    # computed in the guest from the same Program Files root its install used.
+    local gui_launch_ps
+    # shellcheck disable=SC2016
+    gui_launch_ps='$launch = "C:\wootc\wootc.exe"'
+    if [ "$GUI_FRONTEND" = native ]; then
+        gui_native_stage_package || { capture_vm_diagnostics; exit 1; }
+        # shellcheck disable=SC2016
+        gui_launch_ps="$(gui_native_bundle_ps)"'
+$launch = [char]34 + (Join-Path $bundle "Wootc.Shell.exe") + [char]34'
+    fi
+
     qga_powershell '$ErrorActionPreference = "Stop"
 . "\\host.lan\Data\state-trust.ps1"
 Initialize-WootcStateDirectory -Path C:\wootc
@@ -2517,15 +2660,21 @@ New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 . "\\host.lan\Data\stage-status-cli.ps1"
 Copy-WootcStatusCLI -SourceDirectory "\\host.lan\Data" -Destination "C:\wootc\wootc.exe"
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig","shim-authorities.json") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
-Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
+Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json,C:\wootc\e2e-ready.json -Force -ErrorAction SilentlyContinue
+'"$gui_launch_ps"'
+Write-Output ("launch target: " + $launch)
 @"
 set WOOTC_E2E_DRIVE=1
 set WOOTC_PRELOAD=0
-start `"`" C:\wootc\wootc.exe
+start `"`" $launch
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
-Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
+Stop-Process -Name wootc,Wootc.Shell -Force -ErrorAction SilentlyContinue
 try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
-$start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
+# The trigger time is one minute in the PAST, so the ONCE trigger never fires
+# and /Run is the only launch. A trigger at now+1m launched a second app
+# (native run 38849303170 killed one before the directive). schtasks warns
+# that the task may not run and still creates it.
+$start = (Get-Date).AddMinutes(-1).ToString('\''HH:mm'\'')
 # /RU must name the account that is actually autologged on: Pro media use
 # "wootc", Enterprise/LTSC use "docker". A wrong name fails /Create outright
 # with "No mapping between account names and security IDs was done" (see
@@ -2533,9 +2682,15 @@ $start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
 $who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
 if (-not $who) { throw "autologon-no-session: interactive user disappeared before GUI scheduling" }
 Write-Output ("launching as: " + $who)
-$mk = schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR "C:\wootc\launch-gui.cmd" /RU $who /IT /RL HIGHEST /F 2>&1
-Write-Output ("schtasks /Create rc=" + $LASTEXITCODE + " :: " + ($mk -join " "))
-$rn = schtasks /Run /TN wootc-gui-e2e 2>&1
+# cmd.exe merges schtasks stderr into stdout. Under "Stop", PowerShell 5.1
+# turns any native stderr line into a terminating error, and /Create writes
+# its past-start-time WARNING there (native run 38853736862 aborted staging
+# on it). The exit code is the verdict.
+$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR C:\wootc\launch-gui.cmd /RU $who /IT /RL HIGHEST /F 2>&1"
+$mkRc = $LASTEXITCODE
+Write-Output ("schtasks /Create rc=" + $mkRc + " :: " + ($mk -join " "))
+if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }
+$rn = cmd.exe /d /c "schtasks /Run /TN wootc-gui-e2e 2>&1"
 Write-Output ("schtasks /Run rc=" + $LASTEXITCODE + " :: " + ($rn -join " "))
 Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
         fail "GUI staging failed before a trustworthy app launch"
@@ -2543,29 +2698,67 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
     }
     # The QGA powershell completing only proves the task was scheduled, not
     # that wootc.exe actually started.  Poll for the real readiness signal:
-    # e2e-drive-state.json (written by the drive loop every 2 s once the app
-    # renders the first screen).
+    # e2e-ready.json (written by the drive loop every 2 s once the app
+    # renders the first screen, with no directive required).
+    #
+    # Readiness deliberately does NOT wait for e2e-drive-state.json: a bound
+    # drive report requires the install directive, which is only written
+    # after launch is confirmed — waiting for it first is a deadlock (every
+    # GUI run since the drive loop landed burned 60 s here with a rendered
+    # app on screen). Progress authentication stays with the bound
+    # drive-state channel below.
     #
     # Staging took minutes, and schtasks /IT never runs without a session
     # `query user` can enumerate (GUI red 9/25-9/26: UserName said wootc,
     # query user empty, task 267011). Re-check the scheduler's own observable
     # now — waiting 60 s for a file an unrunnable task will never write is
     # blind. An empty answer skips straight to the classified failure below.
-    local sessions launch_deadline
+    # The native shell renders only after its first elevation, the engine's
+    # protected-package and peer checks and the startup assessment, so it
+    # gets longer than the Wails app.
+    local sessions launch_deadline ready_budget=60
+    [ "$GUI_FRONTEND" = native ] && ready_budget=180
     sessions=$(qga_powershell '(query user 2>&1) -join " | "' 2>/dev/null || true)
     if [[ -z "$sessions" || "$sessions" == *"No User exists"* ]]; then
         warn "query user shows no interactive session — skipping the launch wait (schtasks /IT cannot run)"
     else
-        launch_deadline=$(deadline_in 60)
+        launch_deadline=$(deadline_in "$ready_budget")
         while ! past_deadline "$launch_deadline"; do
-            if qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
+            if qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
                 break
             fi
             sleep 5
         done
     fi
-    if ! qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
-        fail "wootc.exe did not start within 60 s — e2e-drive-state.json never appeared"
+    if ! qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
+        fail "$GUI_PROCESS.exe did not render within $ready_budget s — e2e-ready.json never appeared"
+        if [ "$GUI_FRONTEND" = native ]; then
+            # The native shell writes readiness through its engine, so "no
+            # marker" can be the shell, the elevation, the package checks or
+            # the engine. Ask for each.
+            info "  native launch post-mortem (shell / engine / elevation / package):"
+            # shellcheck disable=SC2016
+            qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$s = @(Get-Process Wootc.Shell)
+Write-Output ("native shell processes: " + $s.Count + " " + (($s | ForEach-Object { $_.Path }) -join ", "))
+Write-Output ("native engine processes: " + @(Get-Process wootc-engine).Count)
+Write-Output ("wails app processes: " + @(Get-Process wootc).Count)
+Write-Output ("interactive sessions: " + ((query user 2>&1) -join " | "))
+$q = (schtasks /Query /TN wootc-gui-e2e /FO LIST /V 2>&1 | Select-String "Result|Status") -join "; "
+Write-Output ("task: " + $q)
+Write-Output ("launch-gui.cmd: " + ((Get-Content C:\wootc\launch-gui.cmd) -join " && "))
+$e = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+Write-Output ("machine env: WOOTC_E2E_DRIVE=" + $e.WOOTC_E2E_DRIVE + " WOOTC_PRELOAD=" + $e.WOOTC_PRELOAD)
+$u = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+Write-Output ("uac: ConsentPromptBehaviorAdmin=" + $u.ConsentPromptBehaviorAdmin + " EnableLUA=" + $u.EnableLUA)
+Get-WinEvent -FilterHashtable @{LogName="Application"; StartTime=(Get-Date).AddMinutes(-15)} -MaxEvents 200 |
+  Where-Object { $_.ProviderName -in @("Application Error",".NET Runtime","Windows Error Reporting","SideBySide") -and $_.Message -match "Wootc[.]Shell|wootc-engine" } |
+  Select-Object -First 4 | ForEach-Object { Write-Output ("event " + $_.ProviderName + " " + $_.Id + ": " + (($_.Message -split "`n" | Select-Object -First 6) -join " / ")) }
+Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption + " " + [Environment]::OSVersion.Version)
+' 2>&1 | sed 's/^/    /' || warn "    (post-mortem query failed)"
+            capture_vm_diagnostics
+            exit 1
+        fi
         # "It didn't start" is not a diagnosis: the task may never have run, the
         # process may have started and died, or the app may be unable to render
         # at all. wootc is a wails app, so it CANNOT start without the WebView2
@@ -2595,9 +2788,11 @@ Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption)
         capture_vm_diagnostics
         exit 1
     fi
-    pass "wootc.exe GUI launched in drive mode in the wootc session"
+    pass "$GUI_PROCESS.exe GUI launched in drive mode in the wootc session"
 
-    # The task that launched the app must not launch it a SECOND time.
+    # The task that launched the app must not launch it a SECOND time. The
+    # trigger is now set in the past, so it should never fire; the delete and
+    # the count below stay as the proof.
     # `/Create /SC ONCE /ST <now+1m>` leaves a live trigger behind and `/Run`
     # does not consume it, so Task Scheduler starts launch-gui.cmd again within
     # the minute — and nothing makes wootc.exe single-instance. The second app
@@ -2621,17 +2816,50 @@ Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption)
     # wootc.exe. Both happen BEFORE the directive is written, and no instance
     # can install until it exists — after this point a second launch is
     # impossible and any extra we killed provably never started an install.
+    #
+    # The delete itself was a silent no-op until 2026-10: it was written as
+    #     cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-gui-e2e\" /F >NUL 2>&1"
+    # but PowerShell has no backslash escape, so `\"` CLOSED the string and
+    # cmd.exe received two arguments ("schtasks.exe /Delete /TN \" and
+    # "wootc-gui-e2e\ /F >NUL 2>&1"). schtasks was asked to delete a task
+    # named `"`, failed into >NUL, and the ONCE trigger stayed armed. While
+    # launch confirmation took longer than the trigger's minute the extra app
+    # was up before the count and got killed; once e2e-ready.json made launch
+    # confirmation fast (PR 516), the count ran BEFORE the trigger fired, the
+    # trigger then started a second wootc.exe that drove the directive too, and
+    # its pipeline found the first one's root.disk: "Making room for Linux:
+    # root.disk already exists" in every image (runs 36450824541, 38735109866;
+    # the ESP at failure time held the other pipeline's complete deployer chain).
+    #
+    # So the delete is now verified from a SUCCESSFUL task listing (absence in
+    # a listing that failed proves nothing), and the run refuses to write the
+    # directive unless both the task is gone and exactly one wootc.exe runs.
     local single_out
     single_out=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
-cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-gui-e2e\" /F >NUL 2>&1" | Out-Null
+cmd.exe /d /c "schtasks.exe /Delete /TN wootc-gui-e2e /F >NUL 2>&1" | Out-Null
+cmd.exe /d /c "schtasks.exe /Query /TN wootc-gui-e2e >NUL 2>&1" | Out-Null
+$named = $LASTEXITCODE
+$tasks = @(schtasks.exe /Query /FO CSV /NH 2>$null)
+$listed = $LASTEXITCODE
+if ($named -eq 0) {
+    Write-Output "TASK-STILL-PRESENT: wootc-gui-e2e answers /Query after its delete; its ONCE trigger can launch a second installer"
+} elseif ($listed -ne 0) {
+    Write-Output ("TASK-STATE-UNKNOWN: schtasks /Query rc=" + $listed)
+} elseif (@($tasks | Where-Object { $_ -match "^.\\wootc-gui-e2e.," }).Count -gt 0) {
+    Write-Output "TASK-STILL-PRESENT: wootc-gui-e2e survived its delete; its ONCE trigger can launch a second installer"
+} else {
+    Write-Output "task-absent: wootc-gui-e2e"
+}
 # The delete can lose by a hair to a launch already in flight (launch-gui.cmd
 # started, wootc.exe not yet created), so settle before counting: a second app
 # that appears after the count would drive the directive we are about to write.
 # Bounded well inside the 60 s qga_call timeout: a client killed mid-command
 # poisons the single-connection socket for the rest of the run.
+# $gui is the frontend under test, $other the one that must not be running.
+'"\$gui = '$GUI_PROCESS'; \$other = '$GUI_OTHER_PROCESS'"'
 Start-Sleep -Seconds 4
 for ($round = 1; $round -le 2; $round++) {
-    $procs = @(Get-Process wootc -ErrorAction SilentlyContinue | Sort-Object StartTime)
+    $procs = @(Get-Process -Name $gui -ErrorAction SilentlyContinue | Sort-Object StartTime)
     Write-Output ("round " + $round + ": instances=" + $procs.Count)
     if ($procs.Count -le 1) { break }
     foreach ($p in $procs[1..($procs.Count - 1)]) {
@@ -2640,31 +2868,63 @@ for ($round = 1; $round -le 2; $round++) {
     }
     Start-Sleep -Seconds 4
 }
-$left = @(Get-Process wootc -ErrorAction SilentlyContinue)
-if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " wootc.exe running") }' 2>&1) || true
+$left = @(Get-Process -Name $gui -ErrorAction SilentlyContinue)
+$others = @(Get-Process -Name $other -ErrorAction SilentlyContinue)
+if ($others.Count -ne 0) { Write-Output ("OTHER-FRONTEND: " + $others.Count + " " + $other + ".exe running beside the frontend under test") }
+if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " " + $gui + ".exe running") }
+else {
+    Write-Output ("single-instance: 1 " + $gui + ".exe")
+    if ($gui -eq "Wootc.Shell") { Write-Output ("native-shell-path: " + $left[0].Path) }
+}' 2>&1) || true
     printf '%s\n' "$single_out" | sed 's/^/    gui-single: /'
     if printf '%s' "$single_out" | grep -q 'EXTRA-INSTANCE'; then
-        warn "a second wootc.exe had already been launched by the task trigger; killed it before the directive was written"
+        warn "a second $GUI_PROCESS.exe had already been launched by the task trigger; killed it before the directive was written"
     fi
-    if printf '%s' "$single_out" | grep -q 'SINGLE-INSTANCE-UNPROVEN'; then
-        warn "could not reduce the guest to a single wootc.exe — two install pipelines may race on the ESP"
+    # Positive evidence only (gui_single_instance_proven): an empty answer from
+    # a lost channel proves nothing and is refused like a surviving task.
+    # A native run must also show the one shell is the installed package's.
+    if [ "$GUI_FRONTEND" = native ] && ! gui_native_shell_path_proven "$single_out"; then
+        infra_fail "the running native shell is not the installed protected package's Wootc.Shell.exe — refusing to write the install directive"
+        capture_vm_diagnostics
+        return 1
     fi
+    if ! gui_single_instance_proven "$single_out" "$GUI_PROCESS.exe"; then
+        infra_fail "cannot prove a single installer: the launch task's trigger is not provably gone or wootc.exe is not exactly one process — refusing to write the install directive (two pipelines would race on root.disk and the ESP)"
+        capture_vm_diagnostics
+        return 1
+    fi
+
+    # Evidence for the space preflight: the form sizes root.disk from C:'s
+    # free space minus the image's deployer scratch (app/install_space.go).
+    # A refusal or a deployer "[FAIL] … temporary space" is read against this.
+    local c_free_gib
+    c_free_gib=$(qga_powershell '[math]::Floor((Get-PSDrive C).Free / 1GB)' 2>/dev/null | tr -d '\r' | tail -1 || true)
+    info "  C: has ${c_free_gib:-?} GiB free before the install"
 
     step "Driving the REAL install through the live form (drive directive)..."
     local drive_directive_id drive_payload drive_ack
     drive_directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
-    drive_payload=$(python3 - "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" <<'PYDRIVE'
-import base64, json, sys
-value = dict(schemaVersion=1, runId=sys.argv[1], directiveId=sys.argv[2],
-             action='install', image=sys.argv[3], username='wootc',
-             password='wootc-e2e-pass', hostname='wootc-test')
-print(base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode())
-PYDRIVE
-    ) || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # The native shell's directive names its target volume (storageId "C:");
+    # the Wails directive is unchanged. See gui-drive-directive.py.
+    drive_payload=$(python3 "$SCRIPT_DIR/gui-drive-directive.py" "$GUI_FRONTEND" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF") \
+        || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # BOM-LESS write, verified byte-exact. Set-Content -Encoding UTF8 on the
+    # guest's PowerShell 5.1 emits a UTF-8 BOM, and NEITHER consumer tolerates
+    # one: Go's encoding/json rejects a leading BOM (so E2EDriveDirective
+    # reads ""), and JS JSON.parse throws on it. The old writer produced
+    # exactly that file in runs 36399679919/36413017019/36420437461 — the
+    # readback still passed because Get-Content decodes and strips the BOM
+    # before comparing, while the app read raw bytes and saw no directive:
+    # ready marker written, zero drive-state reports, 30m silent timeout.
+    # [IO.File]::WriteAllText with UTF8Encoding($false) emits no BOM on any
+    # PowerShell version, and the byte readback below fails the run if one
+    # ever reappears instead of rediscovering this 30 minutes later.
     if ! drive_ack=$(qga_powershell "\$ErrorActionPreference='Stop'
 \$wanted=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$drive_payload'))
-Set-Content -LiteralPath C:\wootc\e2e-drive.json -Value \$wanted -Encoding UTF8
-\$actual=Get-Content -LiteralPath C:\wootc\e2e-drive.json -Raw
+[IO.File]::WriteAllText('C:\wootc\e2e-drive.json', \$wanted, [Text.UTF8Encoding]::new(\$false))
+\$bytes=[IO.File]::ReadAllBytes('C:\wootc\e2e-drive.json')
+if (\$bytes.Length -ge 3 -and \$bytes[0] -eq 0xEF -and \$bytes[1] -eq 0xBB -and \$bytes[2] -eq 0xBF) { throw 'Directive has UTF-8 BOM' }
+\$actual=[Text.Encoding]::UTF8.GetString(\$bytes)
 if (\$actual.TrimEnd([char]13,[char]10) -cne \$wanted) { throw 'Directive readback changed' }
 Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         infra_fail "GUI install directive write is unknown; install observation refused"
@@ -2693,7 +2953,7 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
     # goes deaf we already know reopening is on the table, and the answer is a
     # verdict rather than another round of dialling.
     local reconnect_tried=false
-    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-12}"
+    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-3}"
     drive_deadline=$(deadline_in 1800)
     while ! past_deadline "$drive_deadline"; do
         # Retry a single transient QGA read failure: a hosted runner's container
@@ -2702,11 +2962,20 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         # alive but reads came back empty, and the loop treated each as proof
         # the app had died, never recovering when reads resumed).
         drive_state=""
+        # Why the last validation failed, and how big the rejected file was.
+        # A present-but-rejected drive-state.json is a different failure from
+        # a missing one (run 36399679919: ~112 reads returned content, zero
+        # validated, and 2>/dev/null swallowed every reason). Kept, not
+        # discarded, and reported at the stall point and the final verdict.
+        drive_reject=""
+        drive_raw_len=0
         for _try in 1 2 3; do
             local drive_raw=""
             # Failed reads with plausible stdout and stale/malformed reports
             # remain unknown. Only the current directive's typed receipt counts.
             if drive_raw=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null); then
+                drive_raw_len=${#drive_raw}
+                drive_reject=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>&1 >/dev/null) || true
                 drive_state=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>/dev/null) || drive_state=""
             fi
             [ -n "$drive_state" ] && break
@@ -2724,24 +2993,63 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
             # that tests the CHANNEL and nothing else. A PowerShell round-trip
             # would conflate "agent is gone" with "exec failed for some guest-side
             # reason" — the same proxy mistake this diagnostic exists to avoid.
+            #
+            # This diagnostic must fire PERIODICALLY, not once. Run 36420437461
+            # tested the one-shot form (`-eq 3`): wootc.exe was alive at the
+            # ~1-minute mark, the block never fired again, and the loop sat
+            # silent for the remaining 29 minutes. First fire at 3 empties
+            # (~1 min), then every 30 empties (~10 min heartbeat), so the log
+            # is never silent for longer and a process that dies mid-wait is
+            # still caught with attribution instead of a bare 30m timeout.
+            local fire_diag=false
             if [ "$empty_reads" -eq 3 ]; then
+                fire_diag=true
+            elif [ "$empty_reads" -gt 3 ] && [ $(( (empty_reads - 3) % 30 )) -eq 0 ]; then
+                fire_diag=true
+            fi
+            if [ "$fire_diag" = true ]; then
                 if qga_probe; then
-                    warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    if [ "$drive_raw_len" -gt 0 ]; then
+                        warn "  drive-state.json IS present (${drive_raw_len} bytes) but the receipt rejects it: ${drive_reject:-unknown reason} — the app writes, the binding fails"
+                    else
+                        warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    fi
                     # If the app WAS writing state (last_good is non-empty) and
                     # then stopped, it has CRASHED. Do not burn the remaining
                     # 30 minutes waiting for a dead process. Check whether
                     # wootc.exe is still alive to confirm, then fail fast.
-                    if [ -n "$last_good" ]; then
+                    #
+                    # If it NEVER wrote (last_good empty), the process may have
+                    # died before the first write — e.g. a dead WebView2
+                    # renderer behind a black window (runs 36399679919,
+                    # 36413017019: ready marker written, zero reports after).
+                    # A dead process can never report, so fail fast; a live
+                    # one keeps the remaining budget.
+                    if [ -z "$last_good" ]; then
+                        local wootc_alive
+                        wootc_alive=$(qga_powershell "if (Get-Process $GUI_PROCESS -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }" 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        if [ "$wootc_alive" = "dead" ]; then
+                            infra_fail "$GUI_PROCESS.exe died before writing any drive report — completion cannot be observed"
+                            info "  last screen reached: ${last_screen:-<none>}"
+                            capture_vm_diagnostics
+                            exit 1
+                        fi
+                        # A live process that never wrote is the black-window
+                        # hang, not a verdict yet — but it must be VISIBLE.
+                        # Without this heartbeat the wait is silent until the
+                        # 30m deadline (run 36420437461).
+                        warn "  still no drive report after ${empty_reads} unreadable reads (~$((empty_reads / 3)) min), $GUI_PROCESS.exe process is '${wootc_alive}' — waiting on the remaining budget"
+                    else
                         dead_app_checks=$((dead_app_checks + 1))
                         local wootc_alive
-                        wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
-                        info "  app-crash check #${dead_app_checks}: wootc.exe process is '${wootc_alive}'"
+                        wootc_alive=$(qga_powershell "if (Get-Process $GUI_PROCESS -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }" 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        info "  app-crash check #${dead_app_checks}: $GUI_PROCESS.exe process is '${wootc_alive}'"
                         if [ "$dead_app_checks" -ge "$WOOTC_DRIVE_APP_DEAD_THRESHOLD" ]; then
                             infra_fail "Current GUI report is unavailable for ${dead_app_checks} consecutive samples; completion cannot be observed"
                             if [ "$wootc_alive" = "dead" ]; then
                                 info "  Process query returned dead; current report remains unavailable"
                             else
-                                info "  wootc.exe process observation: $wootc_alive"
+                                info "  $GUI_PROCESS.exe process observation: $wootc_alive"
                                 info "  No current run-bound report; product hang is not established"
                             fi
                             info "  last screen reached: ${last_screen:-<none>}"
@@ -2843,6 +3151,9 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         fi
         if [ "$screen" = "done" ]; then
             product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
+            if [ "$GUI_FRONTEND" = native ]; then
+                product_pass native-shell "The native shell drove the install to done: $(printf '%s\n' "$single_out" | tr -d '\r' | sed -n 's/^native-shell-path: //p'), no Wails app running"
+            fi
             # Let the done screen actually appear in a capture, then hold it.
             sleep 4; freeze_frame
             break
@@ -2894,6 +3205,9 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
         info "  last readable state: ${last_good:-<never read one>}"
         info "  unreadable reads: $total_empty of ~180"
+        if [ "$drive_raw_len" -gt 0 ]; then
+            info "  rejected content: ${drive_raw_len} bytes, last reason: ${drive_reject:-unknown reason}"
+        fi
         info "  QGA ping answers; this does not establish GUI identity or progress"
         capture_vm_diagnostics
         exit 1
@@ -2964,6 +3278,10 @@ step "Starting OEM setup through QGA..."
 # Explicitly handled: an incomplete OEM payload SHOULD end the run, but via a
 # stated verdict rather than a bare `set -e` abort with no message.
 qga_sync_oem || { fail "Cannot proceed: the guest's OEM payload could not be refreshed"; exit 1; }
+
+if [ "$OFFLINE" = true ]; then
+    offline_stage_bundle || { capture_vm_diagnostics; exit 1; }
+fi
 
 qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
@@ -3218,7 +3536,13 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         echo "$NEW_OUTPUT" | strings | grep -aE "\[wootc\]|fisherman|VERIFICATION_SUMMARY|\[FAIL\]" \
             | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
 
-        echo "$NEW_OUTPUT" | grep -q "\[wootc\]"               && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
+        # [fisherman] counts too: only the deployer runs fisherman. The first
+        # [wootc] line on the serial is whatever deploy.sh writes to stderr,
+        # and on bazzite-deck that used to be the ntfs-3g injection [WARN].
+        # Without injection, run 38839917797 pulled for six silent minutes,
+        # started fisherman ("[fisherman] version: dev" at t=385s), and was
+        # still failed as "Deployer did NOT start" at the 10-minute mark.
+        echo "$NEW_OUTPUT" | grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
         echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
@@ -3460,6 +3784,20 @@ done
     exit 1
 }
 
+# ── Assert the offline axis actually took effect (#217) ─────────────────────
+# The deploy can complete over the network after a bundle rejection, so a
+# green deploy alone says nothing about offline. Read the deployer's own lines.
+if [ "$OFFLINE" = true ]; then
+    OFFLINE_FINDINGS=$(wootc_offline_check_serial "$PTY" "$IMAGE_REF") && OFFLINE_OK=true || OFFLINE_OK=false
+    printf '%s\n' "$OFFLINE_FINDINGS" | sed 's/^/    offline: /'
+    if [ "$OFFLINE_OK" = true ]; then
+        product_pass offline-deploy "Offline: deployer installed $IMAGE_REF from the staged bundle with no network device"
+    else
+        product_fail "Offline: the deployer did not honour the offline bundle contract (see offline: lines above)"
+        exit 1
+    fi
+fi
+
 # ── Assert the BitLocker axis actually took effect (SPEC §3.5) ──────────────
 # setup-wootc.ps1 logs the observed C: state and where Linux was placed. On the
 # FDE case C: must be encrypted AND root.disk must live on a different,
@@ -3589,8 +3927,31 @@ if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | g
     exit 1
 fi
 pass "Phase 2 Linux boot scheduled through BCD one-shot entry (bootsequence verified)"
+# Whether the deployer queued a MOK enrollment is known from its serial
+# BEFORE the reboot, and it decides how the reboot is watched (see below).
+# A transient `podman cp` race must not abort the run under set -e: the
+# feed reports failure itself and warns after 12 consecutive misses.
+MOK_PENDING=false
+MOK_EXTRA=0
+snapshot_serial || true
+if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
+    MOK_PENDING=true
+    MOK_EXTRA=300
+fi
 qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-qga_wait_down "Phase 2 Linux boot" 300
+# MokManager shows a 10-second countdown, then boots GRUB and DELETES the
+# enrollment request: shim does not ask twice, and nothing on the Windows
+# side can queue it again. Runs 38755153727 and 38776066218 spent ~24 s in
+# this QGA departure wait, so the serial loop first looked after the
+# countdown had already run out, and Phase 2 could never boot (GRUB: "bad
+# shim signature"). With an enrollment pending, go straight to the serial
+# loop and poll it every second until MokManager is driven; the loop reads
+# the boot from the serial, so it needs no QGA departure proof.
+if [ "$MOK_PENDING" = true ]; then
+    wootc_phase_boundary
+else
+    qga_wait_down "Phase 2 Linux boot" 300
+fi
 
 # ── MokManager driver (#248) ─────────────────────────────────────────────────
 # When the deployer queued a MOK enrollment (custom-kernel images: the target
@@ -3613,7 +3974,6 @@ qga_wait_down "Phase 2 Linux boot" 300
 # (mis-timed keystroke), catch the next loop and try once more. Stray keys
 # still cannot land in GRUB ('e' — which the password contains — opens its
 # editor): the sequence fires only on the MokManager marker itself.
-MOK_EXTRA=0
 mok_sendkey() {
     $DOCKER exec "$CONTAINER_NAME" python3 -c \
         'import socket,time,sys; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(("sendkey %s\n" % sys.argv[1]).encode()); time.sleep(.3); s.recv(4096); s.close()' \
@@ -3651,15 +4011,12 @@ mok_sequence() {  # returns 0 only when the MokManager MENU was confirmed and dr
 # appeared AFTER the window closed, unanswered, while the watcher had
 # already concluded it was never coming. Here we only record whether an
 # enrollment is pending (and widen the boot budget for the extra reboots).
-MOK_PENDING=false
 MOK_SIGHTINGS=0
-# A transient `podman cp` race here (reboot moment) must not abort the run
-# under set -e: the feed reports failure itself and warns after 12
-# consecutive misses, and the MOK grep below tolerates a stale copy.
-snapshot_serial || true
-if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
-    MOK_PENDING=true
-    MOK_EXTRA=300
+# Re-arm Phase 2 once per driven sequence (MokManager reboots to the
+# firmware default, Windows), consumed by the re-arm itself.
+MOK_REARM_WANTED=false
+MOK_MISS_BYTE=""
+if [ "$MOK_PENDING" = true ]; then
     step "Deploy queued a MOK enrollment — the Phase-2 wait will drive MokManager when it appears"
 fi
 
@@ -3673,7 +4030,7 @@ fi
 # (run 32674246660 — sequence 1 driven, Windows booted 2s later, the re-arm
 # never fired, 9 idle minutes to timeout).
 mok_rearm_phase2() {
-    MOK_REARMED=true
+    MOK_REARM_WANTED=false
     info "Windows returned after the MokManager sequence (one-shot consumed) — re-arming Phase 2"
     # Soft wait: qga_wait's timeout branch writes the failure ledger, and
     # this re-arm must not be able to fail the run on its own — the boot
@@ -3710,6 +4067,18 @@ while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
+    # A MISSED countdown cannot be recovered from here: MokManager deleted
+    # the request when it booted on, and GRUB then refuses the untrusted
+    # kernel and parks at its menu (run 38755153727 waited out its budget;
+    # 38776066218 reset and re-armed, and MokManager never came back). Say so
+    # at once — positive evidence only, see mok_missed_boot_refused — and
+    # say whose fault it is: the harness was late, the product was not.
+    if [ "$MOK_PENDING" = true ] && [ -n "$MOK_MISS_BYTE" ] \
+        && mok_missed_boot_refused "$(tail -c +"$((MOK_MISS_BYTE + 1))" "$PTY" 2>/dev/null || true)"; then
+        PHASE2_DIAGNOSED=true
+        infra_fail "MokManager countdown expired before the harness answered it; shim consumed the enrollment request and GRUB refused the unenrolled kernel — this run has no verdict on Phase 2"
+        break
+    fi
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
             fail "Could not read serial output and persist its observed phase vocabulary"; exit 1;
@@ -3723,6 +4092,8 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         if [ "$MOK_PENDING" = true ] && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'Press any key to perform MOK management'; then
             if mok_sequence; then
                 MOK_SIGHTINGS=$((MOK_SIGHTINGS + 1))
+                MOK_REARM_WANTED=true
+                MOK_MISS_BYTE=""
                 info "MokManager driven (sequence $MOK_SIGHTINGS): Enroll MOK, password universalblue"
                 if [ "$MOK_SIGHTINGS" -ge 2 ]; then
                     warn "  two MokManager sequences sent — the boot verdict decides"
@@ -3731,6 +4102,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
                 BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
             else
                 info "MokManager sighted but its menu was not confirmed (countdown expired?) — catching the next cycle"
+                MOK_MISS_BYTE=$CURRENT_BYTE
             fi
             # Consume everything the sequence itself painted (menu redraws
             # repeat the marker) — or the next poll would re-trigger on our
@@ -3744,7 +4116,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
             snapshot_serial || true
             _mok_seq_tail=$(tail -c +"$((CURRENT_BYTE + 1))" "$PTY" 2>/dev/null || true)
             LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
-            if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+            if [ "$MOK_REARM_WANTED" = true ] \
                 && printf '%s\n' "$_mok_seq_tail" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
                 mok_rearm_phase2
                 snapshot_serial || true
@@ -3754,7 +4126,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         fi
         # The Windows-return line can also land in ordinary fresh output
         # (slower firmware, or a boot cycle later): same one-time re-arm.
-        if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+        if [ "$MOK_REARM_WANTED" = true ] \
             && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
             mok_rearm_phase2
             snapshot_serial || true
@@ -3816,7 +4188,8 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         fi
         LAST_BYTE=$CURRENT_BYTE
     fi
-    sleep 5
+    # MokManager's countdown is 10 s; poll every second until it is driven.
+    if [ "$MOK_PENDING" = true ] && [ "$MOK_SIGHTINGS" -eq 0 ]; then sleep 1; else sleep 5; fi
 done
 
 [ "$BOOT_SUCCESS" = true ] || {
@@ -4035,6 +4408,12 @@ USERDATA_PROBE=$(qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || t
 USERDATA_HOME=""
 _ud_deadline=$(deadline_in 120)
 while ! past_deadline "$_ud_deadline"; do
+    # The agent probe above is ONE shot taken the moment the passthrough scan
+    # ends. An agent that starts later in the window is still an agent that
+    # answered, so re-ask until it does (bounded: a dead agent must not eat
+    # the window 60s at a time).
+    printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK \
+        || USERDATA_PROBE=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || true)
     USERDATA_HOME=$(qga_call exec /bin/sh -c \
         'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
     printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID" && break
@@ -4044,6 +4423,17 @@ if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
     fail "Cannot verify user data: the Phase-2 guest agent never answered, so the bridge was NOT measured"
     info "  This is an INCONCLUSIVE check, not proof of data loss — the file may well be there."
     info "  Fix the agent in Phase 2 (is qemu-guest-agent present and enabled in this image?), then re-run."
+    # Say why from the one channel still open. The serial carries systemd's
+    # unit lines, so a failed, skipped or never-started agent shows up here;
+    # a silence here means the unit was never even queued.
+    _qga_serial=$(tail -c 4000000 "$PTY" 2>/dev/null \
+        | grep -aiE 'qemu-ga|qemu-guest-agent|guest_agent|virtio.ports|virtio_console' | tail -12 || true)
+    if [ -n "$_qga_serial" ]; then
+        info "  Serial lines about the guest agent (last 12):"
+        printf '%s\n' "$_qga_serial" | cut -c1-220 | sed 's/^/    /'
+    else
+        info "  The serial console never mentions the guest agent or its virtio port"
+    fi
 elif printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
     product_pass user-data "User data: Windows Documents file readable in /home/wootc with this run's ID"
 else

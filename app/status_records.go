@@ -43,6 +43,9 @@ func decodeStrictStatusRecord(data []byte, target any, fields map[string]string,
 		case "bool":
 			var flag bool
 			err = json.Unmarshal(value, &flag)
+		case "int":
+			var number int64
+			err = json.Unmarshal(value, &number)
 		case "strings":
 			var lines []string
 			err = json.Unmarshal(value, &lines)

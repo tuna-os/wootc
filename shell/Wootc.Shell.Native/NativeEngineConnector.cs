@@ -9,26 +9,36 @@ using Wootc.Shell.Core;
 
 namespace Wootc.Shell.Native;
 
-public sealed class NativeEngineConnector : IEngineConnector
+public sealed class NativeEngineConnector : IBrandedEngineConnector
 {
     private readonly string directory;
-    private readonly Action<string>? observe;
-    private NativeDiagnosticState diagnostic = new();
-    public NativeEngineConnector(string directory, Action<string>? observe = null) { this.directory = directory; this.observe = observe; }
+    private readonly Action<NativeDiagnosticObservation>? observe;
+    private long observationGeneration;
+    public NativeEngineConnector(string directory, Action<NativeDiagnosticObservation>? observe = null) { this.directory = directory; this.observe = observe; }
+    // The brand of the protected package the last session authenticated.
+    public string? AuthenticatedBrandId { get; private set; }
     internal static string DescribeFailure(Exception? error)
     {
         string kind = error switch { null => "none", OperationCanceledException => "deadline", Win32Exception => "win32", UnauthorizedAccessException => "access", InvalidDataException => "protocol", IOException => "io", _ => "unexpected" };
         return $"Failure:{kind}; HResult:{error?.HResult ?? 0}; NativeCode:{(error as Win32Exception)?.NativeErrorCode ?? 0}";
     }
-    private void Observe(string stage, Exception? error = null, Process? engine = null)
+    internal Action<string, Exception?, Process?> BeginObservation()
     {
-        observe?.Invoke(diagnostic.Project(stage, error, engine));
+        long generation = Interlocked.Increment(ref observationGeneration);
+        var diagnostic = new NativeDiagnosticState();
+        bool IsCurrent() => Interlocked.Read(ref observationGeneration) == generation;
+        return (stage, error, engine) =>
+        {
+            string projection = diagnostic.Project(stage, error, engine);
+            if (IsCurrent()) observe?.Invoke(new NativeDiagnosticObservation(projection, IsCurrent));
+        };
     }
 
     public async Task<ConnectionAttempt> ConnectAsync(ConnectRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        diagnostic = new();
+        var scopedObserve = BeginObservation();
+        void Observe(string stage, Exception? error = null, Process? engine = null) => scopedObserve(stage, error, engine);
         if (!ProtectedPackage.LowerHex(request.SessionId, 32)) return new(ConnectionOutcome.Incompatible, Reason: "Invalid native session identity");
         Observe("package");
         var package = ProtectedPackage.Read(directory);
@@ -36,11 +46,12 @@ public sealed class NativeEngineConnector : IEngineConnector
         var source = WindowsPeer.Observe(sourceProcess);
         if (!string.Equals(Path.GetFullPath(source.ImagePath), Path.Combine(package.Directory, "Wootc.Shell.exe"), StringComparison.OrdinalIgnoreCase))
             return new(ConnectionOutcome.Incompatible, Reason: "The shell is outside this protected preview package");
-        var start = RunasLaunch.Create(package.EnginePath, request.SessionId, sourceProcess.Id);
+        var start = RunasLaunch.Create(package.EnginePath, request.SessionId, sourceProcess.Id, request.Install);
         // Do not abandon a pending interactive consent request. Any returned
         // process remains our responsibility through disconnect completion.
         Observe("launch");
         var launched = await RunasLaunch.StartAsync(start, Process.Start);
+        if (launched.PolicyBlocked) return new(ConnectionOutcome.PermissionDeclined, Reason: "Windows policy on this computer does not let this account request administrator permission. Ask an administrator, then retry.");
         if (launched.Declined) return new(ConnectionOutcome.PermissionDeclined, Reason: "Administrator permission was declined. You can retry.");
         Process? engine = launched.Process;
         if (engine is null) return new(ConnectionOutcome.Unavailable, Reason: "Windows did not return the launched engine process");
@@ -79,7 +90,8 @@ public sealed class NativeEngineConnector : IEngineConnector
             await NativeProtocol.ReadStartupAsync(pipe, hello, phase => { stage = phase; Observe(stage, engine: engine); }, deadline.Token);
             WindowsPeer.VerifyPipeServer(pipe.SafePipeHandle, engine, source, package.EnginePath);
             Observe("authenticated", engine: engine);
-            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine)));
+            AuthenticatedBrandId = package.Manifest.BrandId;
+            return new(ConnectionOutcome.Connected, new NativeEngineSession(pipe, engine, (phase, error) => Observe(phase, error, engine), package.Manifest.BrandId, request.Install ? request.SessionId : null));
         }
         catch (Exception error)
         {
@@ -99,3 +111,6 @@ public sealed class NativeEngineConnector : IEngineConnector
     [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafePipeHandle CreateFile(string name, uint access, uint share, nint security, uint creation, uint flags, nint template);
 }
+
+// A queued UI delivery must recheck its connection scope when it executes.
+public sealed record NativeDiagnosticObservation(string Projection, Func<bool> IsCurrent);

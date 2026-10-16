@@ -5,12 +5,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func defaultBranding() Branding {
 	return Branding{
 		Name: "TunaOS", Tagline: "Bring Windows to Linux — keep everything.",
-		LogoEmoji: "🐠", Version: "0.1.0",
+		LogoEmoji: "🐠", Version: buildVersion(),
 		Accent: "#5b6ee1", AccentText: "#ffffff",
 		Background: "#0a0a0f", Card: "#13131e", Text: "#e8e8f0",
 		InstallVerb: "Install", ProductName: "wootc", ExeName: "wootc",
@@ -38,9 +39,25 @@ func effectiveBranding() Branding {
 	if b.FileDescription == "" {
 		b.FileDescription = b.ProductName
 	}
+	// The title bar shows the build, not a number from a config file: an
+	// embedded brand or a runtime overlay cannot report a version this
+	// binary is not.
+	b.Version = buildVersion()
 	b.WebsiteURL = safeBrandURL(b.WebsiteURL)
 	b.SupportURL = safeBrandURL(b.SupportURL)
 	return b
+}
+
+// buildVersion is the version this binary was cut as: the release tag
+// stamped with -ldflags "-X main.releaseTag=…" (packaging/build-windows.py
+// --version, RELEASE_TAG in release.yml), or "dev" for an unstamped local
+// build. It used to be a hard-coded "0.1.0" in every build, which the title
+// bar showed whatever the release.
+func buildVersion() string {
+	if tag := strings.TrimSpace(releaseTag); tag != "" {
+		return tag
+	}
+	return "dev"
 }
 
 func safeBrandURL(value string) string {
@@ -85,4 +102,50 @@ func mergeBranding(base *Branding, over Branding) {
 	set(&base.ThemeCSS, over.ThemeCSS)
 	base.HideCustomImage = base.HideCustomImage || over.HideCustomImage
 	base.PreloadImage = base.PreloadImage || over.PreloadImage
+}
+
+// productName is the installer's own name as the user knows it: "wootc" for
+// the generic build, "Bazzite Installer" for -X main.brandID=bazzite. Every
+// sentence the app shows a person goes through it, because a branded build
+// must never say a word its user was never told (docs/branding-and-
+// distribution.md §2). Internal paths (C:\wootc, EFI\wootc) are not names
+// and stay as they are.
+func productName() string {
+	if n := effectiveBranding().ProductName; n != "" {
+		return n
+	}
+	return "wootc"
+}
+
+// uninstallDisplayName is the Apps & features / Add/Remove Programs entry.
+// The generic build keeps its documented "TunaOS (wootc)" listing; a branded
+// build lists under the distribution's own name — a Bazzite user searching
+// Apps for "wootc" would find nothing, because nothing ever told them that
+// word.
+func uninstallDisplayName(b Branding) string {
+	if strings.EqualFold(b.ProductName, "wootc") {
+		return b.Name + " (wootc)"
+	}
+	return b.Name
+}
+
+// rebootMessage is the text Windows shows in its own restart notice.
+func rebootMessage(b Branding) string {
+	return b.ProductName + " is rebooting to start the installer"
+}
+
+// shouldPreloadImage decides whether the image is fetched on Windows before
+// the reboot (offline-first, §3): every branded build sets preloadImage,
+// because the deployer initramfs has no Wi-Fi. WOOTC_PRELOAD=1 opts the
+// generic build in; WOOTC_PRELOAD=0 force-disables it even for a branded
+// build — the E2E harness's switch while the offline axis (#217) is unproven.
+func shouldPreloadImage(b Branding) bool {
+	switch os.Getenv("WOOTC_PRELOAD") {
+	case "0":
+		return false
+	case "":
+		return b.PreloadImage
+	default:
+		return true
+	}
 }

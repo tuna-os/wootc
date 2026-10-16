@@ -283,7 +283,27 @@ setup() {
     # stay as they were.
     local E2E=tests/e2e/run-e2e.sh
     grep -q '_ud_deadline=$(deadline_in 120)' "$E2E"
-    grep -B3 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E" | grep -q 'while ! past_deadline "$_ud_deadline"'
+    grep -B10 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E" | grep -q 'while ! past_deadline "$_ud_deadline"'
     grep -q 'WOOTC_AGENT_OK' "$E2E"
     grep -q 'User data NOT visible in Phase 2' "$E2E"
+}
+
+@test "the agent-answered gate is re-asked across the poll window, not one shot" {
+    # bazzite-deck (run 38832644743) recorded "the Phase-2 guest agent never
+    # answered" from a single probe taken the moment the passthrough scan
+    # ended. An agent that starts later in the window answered too; the gate
+    # must keep asking inside the same bounded loop, and a silent agent must
+    # leave the serial's view of it in the job log.
+    local E2E=tests/e2e/run-e2e.sh
+    loop=$(sed -n '/^while ! past_deadline "\$_ud_deadline"; do/,/^done/p' "$E2E")
+    printf '%s\n' "$loop" | grep -q "USERDATA_PROBE=\$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK'"
+    grep -A12 'Fix the agent in Phase 2' "$E2E" | grep -q "qemu-guest-agent|guest_agent|virtio.ports"
+}
+
+@test "a fisherman line on the serial proves the deployer started" {
+    # Run 38839917797 (bazzite-deck): the deployer booted and fisherman ran at
+    # t=385s, but no [wootc] line reached the serial before the 10-minute
+    # deployer-start deadline, so the harness failed a deploy that was running.
+    local E2E=tests/e2e/run-e2e.sh
+    grep -F 'grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true' "$E2E"
 }

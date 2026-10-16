@@ -20,6 +20,7 @@ export const state = {
   look: null,
   converting: {},      // category id → percent while a conversion runs
   selected: null,      // selected Image
+  installSpace: null,  // GetInstallSpace answer for the selected image
   config: {
     diskSizeGB: 40,
     username: '',

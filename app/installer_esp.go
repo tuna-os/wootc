@@ -19,20 +19,7 @@ import (
 func writeGrubConfig(cfg InstallConfig) error {
 	installDir := filepath.Join(wootcDir(), "install")
 
-	grubInstall := fmt.Sprintf(`# wootc first-boot installer menu
-set default=0
-set timeout=5
-
-menuentry "Install wootc (automatic)" {
-    linux /wootc/install/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json quiet
-    initrd /wootc/install/deployer-initramfs.img
-}
-
-menuentry "Install wootc (debug)" {
-    linux /wootc/install/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json wootc.debug
-    initrd /wootc/install/deployer-initramfs.img
-}
-`, cfg.ImageRef, cfg.Hostname, cfg.ImageRef, cfg.Hostname)
+	grubInstall := deployerInstallMenu(bootMenuLabel(effectiveBranding()), cfg.ImageRef, cfg.Hostname)
 
 	if err := os.WriteFile(filepath.Join(installDir, "grub.install.cfg"), []byte(grubInstall), 0o644); err != nil {
 		return err
@@ -94,9 +81,9 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	// state must not be refused as a foreign Linux.
 	if data, err := os.ReadFile(grubCfg); err == nil {
 		if !strings.Contains(string(data), wootcGrubOwnership) {
-			return fmt.Errorf("this PC already has a Linux bootloader at EFI\\fedora — " +
-				"installing wootc would break it. Dual-boot alongside an existing " +
-				"Linux install is not supported yet")
+			return fmt.Errorf("this PC already has a Linux bootloader at EFI\\fedora — "+
+				"installing with %s would break it. Dual-boot alongside an existing "+
+				"Linux install is not supported yet", productName())
 		}
 	}
 
@@ -123,9 +110,9 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	redhatGrubCfg := filepath.Join(espPath, "EFI", "redhat", "grub.cfg")
 	if data, err := os.ReadFile(redhatGrubCfg); err == nil {
 		if !strings.Contains(string(data), wootcGrubOwnership) {
-			return fmt.Errorf("this PC already has a Linux bootloader at EFI\\redhat — " +
-				"installing wootc would break it. Dual-boot alongside an existing " +
-				"Linux install is not supported yet")
+			return fmt.Errorf("this PC already has a Linux bootloader at EFI\\redhat — "+
+				"installing with %s would break it. Dual-boot alongside an existing "+
+				"Linux install is not supported yet", productName())
 		}
 	}
 
@@ -151,8 +138,8 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 		const slack = 4 << 20
 		if int64(freeBytes) < need+slack {
 			return fmt.Errorf("the EFI system partition is too small: it has %d MB free but the "+
-				"Linux starter needs %d MB. This PC's boot partition cannot hold wootc",
-				freeBytes>>20, (need+slack)>>20)
+				"Linux starter needs %d MB. This PC's boot partition is too small for %s",
+				freeBytes>>20, (need+slack)>>20, productName())
 		}
 	}
 
@@ -246,20 +233,7 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	}
 
 	// Deployer menu at the signed GRUB's embedded prefix.
-	menu := fmt.Sprintf(`%s - one-shot Linux installation
-set default=0
-set timeout=5
-
-menuentry "Install wootc (automatic)" {
-    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json%s quiet
-    initrd /EFI/wootc/deployer-initramfs.img
-}
-
-menuentry "Install wootc (debug)" {
-    linux /EFI/wootc/deployer-vmlinuz wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json%s wootc.debug
-    initrd /EFI/wootc/deployer-initramfs.img
-}
-`, wootcGrubMarker, cfg.ImageRef, cfg.Hostname, luks+installMode, cfg.ImageRef, cfg.Hostname, luks+installMode)
+	menu := deployerGrubMenu(bootMenuLabel(effectiveBranding()), cfg.ImageRef, cfg.Hostname, luks+installMode)
 
 	// Same vendor-dir spread as setup-wootc.ps1 (EFI/{fedora,redhat,wootc}):
 	// different signed GRUB builds embed different prefixes; covering all
@@ -296,8 +270,8 @@ func setupSystemdBoot(espPath string, cfg InstallConfig) error {
 	loaderConf := filepath.Join(espPath, "loader", "loader.conf")
 	if data, err := os.ReadFile(loaderConf); err == nil {
 		if !strings.Contains(string(data), wootcGrubOwnership) {
-			return fmt.Errorf("this PC already has a systemd-boot installation — " +
-				"installing wootc would break it. Dual-boot is not supported yet")
+			return fmt.Errorf("this PC already has a systemd-boot installation — "+
+				"installing with %s would break it. Dual-boot is not supported yet", productName())
 		}
 	}
 	if err := guardESPDestinations(espPath, []string{
@@ -362,7 +336,7 @@ func setupSystemdBoot(espPath string, cfg InstallConfig) error {
 	if cfg.ComposeFS {
 		compose = " wootc.composefs=1"
 	}
-	entry := fmt.Sprintf("title wootc installer\nlinux /EFI/wootc/deployer-vmlinuz\ninitrd /EFI/wootc/deployer-initramfs.img\noptions wootc.image=%s wootc.hostname=%s wootc.vault=/wootc/install/vault.json wootc.bootloader=systemd%s%s quiet\n", cfg.ImageRef, cfg.Hostname, luksCmdline(cfg), compose)
+	entry := deployerLoaderEntry(bootMenuLabel(effectiveBranding()), cfg.ImageRef, cfg.Hostname, luksCmdline(cfg)+compose)
 	return os.WriteFile(filepath.Join(loaderEntries, "wootc-deployer.conf"), []byte(entry), 0o644)
 }
 
@@ -414,7 +388,7 @@ func systemdBootAsset() (systemdBootAssets, error) {
 		}
 		return systemdBootAssets{loader: path}, nil
 	}
-	return systemdBootAssets{}, fmt.Errorf("systemd-boot is not bundled; expected efi\\systemd-bootx64.efi beside wootc.exe")
+	return systemdBootAssets{}, fmt.Errorf("systemd-boot is not bundled; expected efi\\systemd-bootx64.efi beside %s.exe", effectiveBranding().ExeName)
 }
 
 // ── BCD configuration ─────────────────────────────────────────────────────────
@@ -503,7 +477,7 @@ func configureBCD(cfg InstallConfig) error {
 
 	// ── Arm-time recovery guard state & task registration (§2) ────────────────
 	// 1. Stage a copy of wootc.exe under install\ and compute its hash.
-	installExe := filepath.Join(wootcDir(), "install", "wootc.exe")
+	installExe := filepath.Join(wootcDir(), "install", stagedEngineName)
 	exeHash := ""
 	curExe, errExe := os.Executable()
 	if errExe == nil {
@@ -786,7 +760,7 @@ if (-not $letter) {
         if ($letter) { break }
     }
     # Tell the caller this run assigned the letter, so it is removed again
-    # when wootc is done with the ESP (#551).
+    # when the installer is done with the ESP (#551).
     if ($letter) { $letter = "ASSIGNED:$letter" }
 }
 Write-Output $letter
@@ -803,13 +777,13 @@ Write-Output $letter
 	// the length check below sees a 1-character "letter" that is really nothing.
 	letter, assignedByUs := parseESPDiscovery(out)
 	if letter == "WOOTC_NO_SYSTEM_DISK" {
-		return "", fmt.Errorf("could not determine which disk Windows starts from, so wootc cannot " +
-			"safely choose an EFI system partition. Refusing to guess")
+		return "", fmt.Errorf("could not determine which disk Windows starts from, so %s cannot "+
+			"safely choose an EFI system partition. Refusing to guess", productName())
 	}
 	if letter == "WOOTC_NO_ESP" {
-		return "", fmt.Errorf("no EFI System Partition was found on the disk Windows starts from. " +
-			"wootc will not write to another disk's boot partition, because the boot entry it " +
-			"creates always points at Windows' own disk")
+		return "", fmt.Errorf("no EFI System Partition was found on the disk Windows starts from. "+
+			"%s will not write to another disk's boot partition, because the boot entry it "+
+			"creates always points at Windows' own disk", productName())
 	}
 	if len(letter) != 1 {
 		return "", fmt.Errorf("ESP found but Windows never assigned it a drive letter within 15s (output: %q)", out)

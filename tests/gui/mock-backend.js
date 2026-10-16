@@ -6,6 +6,9 @@
 // window.runtime.EventsOn/EventsEmit — we implement exactly those.
 
 window.__wootcInstallEmitters = [];
+window.__wootcVMEmitters = [];
+window.__wootcVMCalls = [];
+window.__wootcE2EReports = [];
 
 function makeApp(mock) {
   const P = (v) => Promise.resolve(v);
@@ -15,7 +18,7 @@ function makeApp(mock) {
       if (mock.releaseNoticeFailure) reject(new Error('offline'));
       else resolve(mock.releaseNotice || { version: '', url: '' });
     }, mock.releaseNoticeDelay || 0)),
-    GetBranding: () => P(mock.brand || { name: 'TunaOS', productName: 'wootc', exeName: 'wootc', tagline: 'Bring Windows to Linux — keep everything.', logoEmoji: '🐠', version: '0.1.0', accent: '#5b6ee1', accentText: '#ffffff', background: '#0a0a0f', card: '#13131e', text: '#e8e8f0', installVerb: 'Install' }),
+    GetBranding: () => mock.brandFailure ? Promise.reject(new Error('no backend')) : P(mock.brand || { name: 'TunaOS', productName: 'wootc', exeName: 'wootc', tagline: 'Bring Windows to Linux — keep everything.', logoEmoji: '🐠', version: '0.1.0', accent: '#5b6ee1', accentText: '#ffffff', background: '#0a0a0f', card: '#13131e', text: '#e8e8f0', installVerb: 'Install' }),
     GetMode: () => P(mock.mode || 'installer'),
     GetImages: () => P(mock.images || []),
     GetSystemInfo: () => P(mock.sysinfo || {}),
@@ -77,12 +80,34 @@ function makeApp(mock) {
     GetLookMigration: () => P(mock.look || null),
     ConvertCategory: () => P(),
     ImportBrowserData: () => P('ok'),
-    CreateDataPartition: () => P({ letter: 'D', label: 'wootc-data', freeGB: 60, encrypted: false }),
+    CreateDataPartition: (sizeGB) => {
+      window.__wootcCarveSizes = [...(window.__wootcCarveSizes || []), sizeGB];
+      return P({ letter: 'D', label: 'wootc-data', freeGB: 60, encrypted: false });
+    },
+    // What installing an image needs beside root.disk (app/install_space.go).
+    // Default: the smallest image's reserve (20 GiB scratch floor + 2).
+    // A scenario may answer per image ref.
+    GetInstallSpace: (ref) => {
+      const per = (mock.installSpace || {})[ref];
+      const answer = per ? { imageRef: ref, ...per } : { imageRef: ref, compressedBytes: 0, sizeSource: 'default', scratchGiB: 20, bundleGiB: 0, reserveGiB: 22 };
+      if (window.__wootcHoldInstallSpace) return new Promise((resolve) => { window.__wootcReleaseInstallSpace = () => resolve(answer); });
+      return P(answer);
+    },
     GetUninstallInfo: () => P(mock.uninstall || { found: false }),
     UninstallWith: () => P(),
     GetVMCapability: () => P(mock.vm || { available: false, reason: '' }),
-    BootInVM: () => P(),
+    GetVMState: () => P(mock.vmState || { phase: 'absent', desktopReady: false }),
+    BootInVM: () => { window.__wootcVMCalls.push(['boot']); mock.vmState = { phase: 'running', desktopReady: false }; return P(); },
+    InstallVMRuntime: () => { window.__wootcVMCalls.push(['runtime']); setTimeout(() => { if (mock.runtimeError) { window.__wootcVMEmitters.forEach(cb => cb({ stage: 'error', message: mock.runtimeError })); } else { mock.freshVm = { available: true, probeStatus: 'passed' }; window.__wootcVMEmitters.forEach(cb => cb({ stage: 'runtime-ready', message: 'Checking this PC' })); } }, 20); return P(); },
+    PrepareVM: (cfg) => { window.__wootcVMCalls.push(['prepare', cfg]); mock.vmState = { phase: 'running', desktopReady: false }; setTimeout(() => window.__wootcVMEmitters.forEach(cb => cb({ stage: 'started', message: 'Guest not yet verified' })), 20); return P(); },
+    StopVM: () => { window.__wootcVMCalls.push(['stop']); mock.vmState = { phase: 'stopped', desktopReady: false }; return P(); },
+    ForceStopVM: () => { window.__wootcVMCalls.push(['force']); mock.vmState = { phase: 'needs_recovery', desktopReady: false }; return P(); },
     GetFreshVMCapability: () => P(mock.freshVm || { available: false, reason: '' }),
+    E2EDriveDirective: () => { window.__wootcE2EDirectiveReads = (window.__wootcE2EDirectiveReads || 0) + 1; return P(mock.driveDirective || ''); },
+    E2EDriveReport: (state) => {
+      try { window.__wootcE2EReports.push(JSON.parse(state)); } catch {}
+      return P();
+    },
     TryInVMFresh: () => P(),
     InstallPreviewForReal: () => P(),
     DefragDrive: () => { if (mock.defragError) return Promise.reject(mock.defragError); return P(); },
@@ -97,6 +122,7 @@ window.__wootcWindowCalls = [];
 window.runtime = {
   EventsOnMultiple: (name, cb) => {
     if (name === 'install:progress') window.__wootcInstallEmitters.push(cb);
+    if (name === 'vm:progress') window.__wootcVMEmitters.push(cb);
     return () => {};
   },
   EventsOn: (name, cb) => window.runtime.EventsOnMultiple(name, cb, -1),

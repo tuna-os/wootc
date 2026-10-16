@@ -109,7 +109,7 @@ Nightly green runs can cut automatic pre-releases from their tested commit.
 Required checks must pass before a normal release.
 
 The matrix in **[docs/status.md](docs/status.md)** records image families, Windows editions, filesystems, and encryption modes.
-Historical beta releases do not prove the current VM-first or native-shell journey.
+Earlier releases (`v0.1.0-alpha.1` and the automatic pre-releases) do not prove the current VM-first or native-shell journey.
 See the **[ROADMAP](ROADMAP.md)** for the version ladder and evidence gates.
 **[docs/philosophy.md](docs/philosophy.md)** explains the product goals.
 

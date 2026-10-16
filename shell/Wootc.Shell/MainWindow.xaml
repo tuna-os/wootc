@@ -1,14 +1,85 @@
 <Window x:Class="Wootc.Shell.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Grid Padding="32"><StackPanel Spacing="18" MaxWidth="640" HorizontalAlignment="Left">
-    <TextBlock x:Name="ProductName" AutomationProperties.AutomationId="ProductName" FontSize="28" FontWeight="SemiBold" />
-    <TextBlock x:Name="DistributionName" AutomationProperties.AutomationId="DistributionName" />
-    <TextBlock Text="Native installer preview" FontSize="20" FontWeight="SemiBold" />
-    <TextBlock Text="Review your computer before installing Linux." TextWrapping="Wrap" />
-    <TextBlock Text="This preview can read startup status through the authenticated engine. It cannot install Linux or change storage." TextWrapping="Wrap" AutomationProperties.AutomationId="PreviewStatus" />
+  <ScrollViewer>
+  <Grid x:Name="BrandRoot" Padding="32">
+  <Border x:Name="BrandCard" CornerRadius="8" Padding="24" MaxWidth="680" HorizontalAlignment="Left" VerticalAlignment="Top">
+  <StackPanel Spacing="18">
+    <StackPanel Orientation="Horizontal" Spacing="16">
+      <Image x:Name="BrandLogo" AutomationProperties.AutomationId="BrandLogo" Height="56" MaxWidth="96" Visibility="Collapsed" />
+      <TextBlock x:Name="BrandEmoji" AutomationProperties.AutomationId="BrandEmoji" FontSize="40" VerticalAlignment="Center" Visibility="Collapsed" />
+      <StackPanel VerticalAlignment="Center" Spacing="4">
+        <TextBlock x:Name="ProductName" AutomationProperties.AutomationId="ProductName" FontSize="28" FontWeight="SemiBold" />
+        <TextBlock x:Name="DistributionName" AutomationProperties.AutomationId="DistributionName" />
+      </StackPanel>
+    </StackPanel>
+    <TextBlock x:Name="PreviewHeading" Text="Native installer preview" FontSize="20" FontWeight="SemiBold" />
+    <TextBlock x:Name="PreviewIntro" Text="Review your computer before installing Linux." TextWrapping="Wrap" />
+    <TextBlock x:Name="PreviewStatus" Text="This preview reads your computer through the authenticated engine. It changes nothing until you confirm an installation." TextWrapping="Wrap" AutomationProperties.AutomationId="PreviewStatus" />
     <TextBlock x:Name="ConnectionStatus" Text="Offline" AutomationProperties.AutomationId="ConnectionStatus" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupRouteText" Text="Startup status has not been read" AutomationProperties.AutomationId="StartupRoute" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupObservations" Text="No authenticated startup observations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
-    <Button x:Name="ConnectButton" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
-    <Button x:Name="DisconnectButton" Content="Disconnect engine" Click="Disconnect_Click" IsEnabled="False" AutomationProperties.AutomationId="DisconnectEngine" />
-  </StackPanel></Grid>
+    <TextBlock x:Name="InstallRecoveryText" Visibility="Collapsed" AutomationProperties.AutomationId="InstallRecovery" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <Button x:Name="ConnectButton" Style="{StaticResource AccentButtonStyle}" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
+      <Button x:Name="DisconnectButton" Content="Disconnect engine" Click="Disconnect_Click" IsEnabled="False" AutomationProperties.AutomationId="DisconnectEngine" />
+    </StackPanel>
+    <StackPanel x:Name="MaintenancePanel" Visibility="Collapsed" Spacing="10" AutomationProperties.AutomationId="MaintenancePanel">
+      <StackPanel x:Name="MaintenanceLines" Spacing="6" />
+      <CheckBox x:Name="DeleteLinuxData" Visibility="Collapsed" AutomationProperties.AutomationId="DeleteLinuxData" />
+      <CheckBox x:Name="GiveSpaceBack" Visibility="Collapsed" AutomationProperties.AutomationId="GiveSpaceBack" />
+      <TextBlock x:Name="MaintenanceStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="MaintenanceStatus" />
+      <StackPanel x:Name="MaintenanceButtons" Spacing="8" />
+    </StackPanel>
+    <StackPanel x:Name="VMPanel" Visibility="Collapsed" Spacing="10" AutomationProperties.AutomationId="VMPanel">
+      <StackPanel x:Name="VMLines" Spacing="6" />
+      <ProgressBar x:Name="VMProgressBar" Minimum="0" Maximum="100" Visibility="Collapsed" AutomationProperties.AutomationId="VMProgressBar" />
+      <StackPanel x:Name="VMButtons" Spacing="8" />
+    </StackPanel>
+    <Button x:Name="ConfigurationButton" Content="Read Linux configuration" Click="Configuration_Click" IsEnabled="False" AutomationProperties.AutomationId="ReadConfiguration" />
+    <StackPanel x:Name="ConfigurationPanel" Visibility="Collapsed" Spacing="12">
+      <TextBlock Text="Linux configuration" FontSize="20" />
+      <TextBlock x:Name="ConfigurationObservation" AutomationProperties.AutomationId="ConfigurationObservation" TextWrapping="Wrap" />
+      <ComboBox x:Name="ImageChoice" AutomationProperties.Name="Linux image" Header="Linux image" DisplayMemberPath="Name" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="ImageChoice" />
+      <TextBlock x:Name="ImageFacts" TextWrapping="Wrap" AutomationProperties.AutomationId="ImageFacts" />
+      <ComboBox x:Name="StorageChoice" AutomationProperties.Name="Storage volume" Header="Storage volume" DisplayMemberPath="DriveLetter" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="StorageChoice" />
+      <TextBlock x:Name="StorageFacts" TextWrapping="Wrap" AutomationProperties.AutomationId="StorageFacts" />
+      <TextBox x:Name="LinuxUsername" AutomationProperties.Name="Linux Username" Header="Linux Username" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxUsername" />
+      <PasswordBox x:Name="LinuxPassword" AutomationProperties.Name="Password" Header="Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPassword" />
+      <PasswordBox x:Name="LinuxPasswordConfirmation" AutomationProperties.Name="Confirm Password" Header="Confirm Password" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxPasswordConfirmation" />
+      <TextBox x:Name="LinuxHostname" AutomationProperties.Name="Computer name" Header="Computer name" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxHostname" />
+      <NumberBox x:Name="LinuxDiskSize" AutomationProperties.Name="Linux disk size (GB)" Header="Linux disk size (GB)" Minimum="20" Maximum="2048" ValueChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxDiskSize" />
+      <ComboBox x:Name="LinuxEncryption" AutomationProperties.Name="Linux encryption" Header="Linux encryption" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxEncryption">
+        <ComboBoxItem Content="TPM auto-unlock" Tag="tpm2-luks" /><ComboBoxItem Content="Passphrase" Tag="luks-passphrase" /><ComboBoxItem Content="No encryption" Tag="none" />
+      </ComboBox>
+      <PasswordBox x:Name="LinuxLuksPassphrase" AutomationProperties.Name="LUKS Passphrase" Header="LUKS Passphrase" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxLuksPassphrase" />
+      <CheckBox x:Name="LinuxWindowsLook" Content="Use a familiar Windows appearance" Checked="ConfigurationChanged" Unchecked="ConfigurationChanged" AutomationProperties.AutomationId="LinuxWindowsLook" />
+      <TextBlock x:Name="InstallBlockedReason" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallBlockedReason" />
+      <Button x:Name="PrepareInstallButton" Content="Check this plan" Click="PrepareInstall_Click" IsEnabled="False" AutomationProperties.AutomationId="PrepareInstall" />
+      <TextBlock x:Name="InstallGateStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallGateStatus" />
+      <Button x:Name="InstallButton" Content="Install Linux" Click="Install_Click" IsEnabled="False" AutomationProperties.AutomationId="InstallLinux" />
+    </StackPanel>
+    <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Spacing="10">
+      <TextBlock x:Name="ProgressTitle" FontSize="20" FontWeight="SemiBold" AutomationProperties.AutomationId="ProgressTitle" />
+      <TextBlock x:Name="ProgressSubtitle" TextWrapping="Wrap" AutomationProperties.AutomationId="ProgressSubtitle" />
+      <TextBlock x:Name="ProgressStep" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.AutomationId="ProgressStep" />
+      <TextBlock x:Name="ProgressMessage" TextWrapping="Wrap" AutomationProperties.AutomationId="ProgressMessage" />
+      <ProgressBar x:Name="InstallProgressBar" Minimum="0" Maximum="100" AutomationProperties.AutomationId="InstallProgressBar" />
+      <StackPanel x:Name="ProgressNotes" Spacing="6" />
+      <StackPanel x:Name="ProgressSteps" Spacing="2" />
+      <Button x:Name="CancelInstallButton" Content="Cancel" Click="CancelInstall_Click" AutomationProperties.AutomationId="CancelInstall" />
+    </StackPanel>
+    <StackPanel x:Name="DonePanel" Visibility="Collapsed" Spacing="10">
+      <TextBlock x:Name="DoneTitle" FontSize="20" FontWeight="SemiBold" AutomationProperties.AutomationId="DoneTitle" />
+      <TextBlock x:Name="DoneBody" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneBody" />
+      <TextBlock x:Name="DoneSafety" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSafety" />
+      <TextBlock x:Name="DoneMok" TextWrapping="Wrap" Visibility="Collapsed" AutomationProperties.AutomationId="DoneMok" />
+      <TextBlock x:Name="DoneSaveWork" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSaveWork" />
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <Button x:Name="RebootLaterButton" Content="Reboot Later" Click="RebootLater_Click" AutomationProperties.AutomationId="RebootLater" />
+        <Button x:Name="RebootNowButton" Content="Reboot Now →" Style="{StaticResource AccentButtonStyle}" Click="RebootNow_Click" AutomationProperties.AutomationId="RebootNow" />
+      </StackPanel>
+    </StackPanel>
+  </StackPanel>
+  </Border>
+  </Grid>
+  </ScrollViewer>
 </Window>

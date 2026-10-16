@@ -76,7 +76,7 @@ func TestAssessmentRPCRejectsOtherMethodsBeforeParameterAndBackendWork(t *testin
 	server := NewAssessmentServer(&App{}, &synchronizedWriter{out: &bytes.Buffer{}})
 	methods := append(append([]string{}, ProtocolMethods...), "GetInstallSteps", "BootInVM", "GetVMCapability", "startinstall", "GetStatus.CancelInstall", "Unknown")
 	for _, method := range methods {
-		if method == "GetStatus" || method == "GetLastRun" || method == "GetRecoveryVerdict" {
+		if method == "GetStatus" || method == "GetLastRun" || method == "GetRecoveryVerdict" || method == "GetInstallRecovery" {
 			continue
 		}
 		_, failure := server.dispatch(context.Background(), jsonrpcRequest{Method: method, Params: json.RawMessage(`"malformed-cross-method-params"`)})

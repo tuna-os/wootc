@@ -1,0 +1,114 @@
+=== RUN   TestVMGuestIndependentAncestryConsumer
+=== RUN   TestVMGuestIndependentAncestryConsumer/wrong-gpt
+=== RUN   TestVMGuestIndependentAncestryConsumer/missing-parent
+=== RUN   TestVMGuestIndependentAncestryConsumer/wrong-current-root
+=== RUN   TestVMGuestIndependentAncestryConsumer/source-major-disagree
+=== RUN   TestVMGuestIndependentAncestryConsumer/workdir-only
+=== RUN   TestVMGuestIndependentAncestryConsumer/unresolved-lower
+=== RUN   TestVMGuestIndependentAncestryConsumer/btrfs-unobserved-members
+--- PASS: TestVMGuestIndependentAncestryConsumer (0.01s)
+    --- PASS: TestVMGuestIndependentAncestryConsumer/wrong-gpt (0.01s)
+    --- PASS: TestVMGuestIndependentAncestryConsumer/missing-parent (0.00s)
+    --- PASS: TestVMGuestIndependentAncestryConsumer/wrong-current-root (0.00s)
+    --- PASS: TestVMGuestIndependentAncestryConsumer/source-major-disagree (0.00s)
+    --- PASS: TestVMGuestIndependentAncestryConsumer/workdir-only (0.00s)
+    --- PASS: TestVMGuestIndependentAncestryConsumer/unresolved-lower (0.00s)
+    --- PASS: TestVMGuestIndependentAncestryConsumer/btrfs-unobserved-members (0.00s)
+=== RUN   TestVMGuestMeasuredProjectionAndMembers
+=== RUN   TestVMGuestMeasuredProjectionAndMembers/symlink-foreign
+=== RUN   TestVMGuestMeasuredProjectionAndMembers/unresolved
+=== RUN   TestVMGuestMeasuredProjectionAndMembers/duplicate-layer
+=== RUN   TestVMGuestMeasuredProjectionAndMembers/missing-upper
+=== RUN   TestVMGuestMeasuredProjectionAndMembers/deleted-loopfile
+=== RUN   TestVMGuestMeasuredProjectionAndMembers/loop-alias-mismatch
+=== RUN   TestVMGuestMeasuredProjectionAndMembers/projection-self
+--- PASS: TestVMGuestMeasuredProjectionAndMembers (0.00s)
+    --- PASS: TestVMGuestMeasuredProjectionAndMembers/symlink-foreign (0.00s)
+    --- PASS: TestVMGuestMeasuredProjectionAndMembers/unresolved (0.00s)
+    --- PASS: TestVMGuestMeasuredProjectionAndMembers/duplicate-layer (0.00s)
+    --- PASS: TestVMGuestMeasuredProjectionAndMembers/missing-upper (0.00s)
+    --- PASS: TestVMGuestMeasuredProjectionAndMembers/deleted-loopfile (0.00s)
+    --- PASS: TestVMGuestMeasuredProjectionAndMembers/loop-alias-mismatch (0.00s)
+    --- PASS: TestVMGuestMeasuredProjectionAndMembers/projection-self (0.00s)
+=== RUN   TestVMGuestReplyIdentityAndScope
+=== RUN   TestVMGuestReplyIdentityAndScope/sessionId
+=== RUN   TestVMGuestReplyIdentityAndScope/requestId
+=== RUN   TestVMGuestReplyIdentityAndScope/editorQualified
+=== RUN   TestVMGuestReplyIdentityAndScope/action
+=== RUN   TestVMGuestReplyIdentityAndScope/status
+=== RUN   TestVMGuestReplyIdentityAndScope/runId
+=== RUN   TestVMGuestReplyIdentityAndScope/serviceSha256
+=== RUN   TestVMGuestReplyIdentityAndScope/bootId
+=== RUN   TestVMGuestReplyIdentityAndScope/desktopQualified
+=== RUN   TestVMGuestReplyIdentityAndScope/schemaVersion
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-installId
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-diskId
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-username
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-bootId
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-desktopQualified
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-requestId
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-ancestrySha256
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-status
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-kernelRelease
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-editorQualified
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-root
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-sessionId
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-action
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-ordinarySession
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-schemaVersion
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-runId
+=== RUN   TestVMGuestReplyIdentityAndScope/missing-serviceSha256
+--- PASS: TestVMGuestReplyIdentityAndScope (0.01s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/sessionId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/requestId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/editorQualified (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/action (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/status (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/runId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/serviceSha256 (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/bootId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/desktopQualified (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/schemaVersion (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-installId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-diskId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-username (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-bootId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-desktopQualified (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-requestId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-ancestrySha256 (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-status (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-kernelRelease (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-editorQualified (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-root (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-sessionId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-action (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-ordinarySession (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-schemaVersion (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-runId (0.00s)
+    --- PASS: TestVMGuestReplyIdentityAndScope/missing-serviceSha256 (0.00s)
+=== RUN   TestVMGuestReplySessionAndRootRefusal
+=== RUN   TestVMGuestReplySessionAndRootRefusal/User
+=== RUN   TestVMGuestReplySessionAndRootRefusal/Name
+=== RUN   TestVMGuestReplySessionAndRootRefusal/Active
+=== RUN   TestVMGuestReplySessionAndRootRefusal/Remote
+=== RUN   TestVMGuestReplySessionAndRootRefusal/Type
+=== RUN   TestVMGuestReplySessionAndRootRefusal/LeaderStartTicks
+=== RUN   TestVMGuestReplySessionAndRootRefusal/State
+=== RUN   TestVMGuestReplySessionAndRootRefusal/diskId
+=== RUN   TestVMGuestReplySessionAndRootRefusal/currentRootVerified
+=== RUN   TestVMGuestReplySessionAndRootRefusal/measurements
+=== RUN   TestVMGuestReplySessionAndRootRefusal/target
+--- PASS: TestVMGuestReplySessionAndRootRefusal (0.02s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/User (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/Name (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/Active (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/Remote (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/Type (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/LeaderStartTicks (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/State (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/diskId (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/currentRootVerified (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/measurements (0.00s)
+    --- PASS: TestVMGuestReplySessionAndRootRefusal/target (0.00s)
+PASS
+ok  	wootc	0.061s

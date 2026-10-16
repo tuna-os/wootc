@@ -260,19 +260,27 @@ SH
     # the one a real user downloads — not the generic build. Brand derived
     # from the image under test; preload force-disabled in the guest until
     # the offline axis (#217) is green.
-    grep -q 'BRAND_ID="\$name"' .github/workflows/e2e-hosted.yml
+    # The derivation lives in tests/e2e/e2e-brand.sh, shared by the Wails
+    # build and the native shell's publish job.
+    grep -q 'BRAND_ID=$(bash tests/e2e/e2e-brand.sh "$WOOTC_TARGET_IMAGE")' .github/workflows/e2e-hosted.yml
     grep -q 'packaging/build-windows.py --brand "\$BRAND_ID"' .github/workflows/e2e-hosted.yml
-    grep -q 'app/branding/\$name' .github/workflows/e2e-hosted.yml
+    grep -q 'app/branding/\$name' tests/e2e/e2e-brand.sh
+    [ "$(bash tests/e2e/e2e-brand.sh ghcr.io/projectbluefin/bluefin:lts 2>/dev/null)" = bluefin ]
     grep -q 'set WOOTC_PRELOAD=0' tests/e2e/run-e2e.sh
-    grep -q 'os.Getenv("WOOTC_PRELOAD") == "0"' app/app.go
+    # The decision itself lives in shouldPreloadImage (branding_policy.go);
+    # TestBazziteBuild_PreloadsTheImageOnWindows holds its behaviour, this
+    # holds that the install pipeline still asks it.
+    grep -q 'case "0":' app/branding_policy.go
+    grep -q 'shouldPreloadImage(effectiveBranding())' app/app.go
     # An image without a brand directory of its own can still belong to a
     # brand's CATALOG — dakota ships inside the Bluefin installer, and a
     # real Dakota user downloads Bluefin's exe, so that is the installer the
     # walkthrough must show. The derivation falls through to the brand whose
     # brand.json lists the image id; generic only when no brand claims it.
-    grep -q 'brand.json' .github/workflows/e2e-hosted.yml
-    grep -q "its catalog carries" .github/workflows/e2e-hosted.yml
+    grep -q 'brand.json' tests/e2e/e2e-brand.sh
+    grep -q "its catalog carries" tests/e2e/e2e-brand.sh
     grep -q '"dakota"' app/branding/bluefin/brand.json
+    [ "$(bash tests/e2e/e2e-brand.sh ghcr.io/projectbluefin/dakota:latest 2>/dev/null)" = bluefin ]
 }
 
 @test "the exe pins its boot artifacts to its own release, never to latest" {

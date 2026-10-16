@@ -2,11 +2,13 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Core;
 
-public enum StartupRoute { Assessment, Progress, Manage, Recovery }
+public enum StartupRoute { Assessment, Progress, Manage, Recovery, Interrupted }
 public enum ConnectionState { Offline, RequestingPermission, Ready, PermissionDeclined, Unavailable, DisconnectPending }
 public enum ConnectionOutcome { Connected, PermissionDeclined, Incompatible, Unavailable }
-public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? Recovery, LifecycleState? LastRun = null);
-public sealed record ConnectRequest(string SessionId);
+public sealed record StartupSnapshot(InstallStatus Status, RecoveryVerdict? Recovery, LifecycleState? LastRun = null, InstallRecoverySummary? InstallRecovery = null);
+// Install selects a separate install-purpose engine session. The assessment
+// connection never becomes one; a new elevation and session are required.
+public sealed record ConnectRequest(string SessionId, bool Install = false);
 public sealed record ConnectionAttempt(ConnectionOutcome Outcome, IEngineSession? Session = null, string? Reason = null);
 
 // Implementations must authenticate the actual operating-system peer before
@@ -15,12 +17,46 @@ public interface IEngineConnector
 {
     Task<ConnectionAttempt> ConnectAsync(ConnectRequest request, CancellationToken cancellationToken);
 }
+// A connector that knows which package brand its sessions authenticated.
+public interface IBrandedEngineConnector : IEngineConnector
+{
+    string? AuthenticatedBrandId { get; }
+}
 public interface IEngineSession : IAsyncDisposable
 {
     Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken);
 }
 
-public sealed class StartupController : IAsyncDisposable
+// An install-purpose session: one plan, one confirmation. The engine grants
+// the intent; the shell never infers it from a complete form.
+public interface IInstallEngineSession : IEngineSession
+{
+    Task<NativeInstallGrant> PrepareInstallAsync(InstallConfig plan, CancellationToken cancellationToken);
+    Task ConfirmInstallAsync(NativeInstallGrant grant, CancellationToken cancellationToken);
+    // install:progress notifications of this session, validated, in order.
+    event Action<ProgressEvent>? ProgressReceived;
+    Task<InstallStatus> GetInstallStatusAsync(CancellationToken cancellationToken);
+    Task CancelInstallAsync(CancellationToken cancellationToken);
+    // The engine allows it only after this session's install finished.
+    Task RebootAsync(CancellationToken cancellationToken);
+}
+
+public interface IConfigurationEngineSession : IEngineSession
+{
+    Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null);
+}
+
+// The E2E drive channel of an assessment session. The engine answers only
+// when its own environment enables drive mode; otherwise the directive is
+// empty and reports are dropped.
+public interface IDriveEngineSession : IEngineSession
+{
+    Task<string> ReadDriveDirectiveAsync(CancellationToken cancellationToken);
+    Task ReportDriveAsync(string state, CancellationToken cancellationToken);
+    Task ReportDriveReadyAsync(string state, CancellationToken cancellationToken);
+}
+
+public sealed class StartupController : IAsyncDisposable, IE2EDriveChannel
 {
     private readonly IEngineConnector connector;
     private readonly SemaphoreSlim connectionGate = new(1, 1);
@@ -51,6 +87,12 @@ public sealed class StartupController : IAsyncDisposable
         if (verdict is "failed" or "interrupted" or "one-shot-never-booted") return StartupRoute.Recovery;
         if (verdict is not ("" or "healthy" or "deployed"))
             throw new InvalidDataException("The engine returned an unsupported recovery verdict");
+        // Same order as the legacy relaunch: a boot verdict first, then the
+        // install journal's classification (#287).
+        string install = snapshot.InstallRecovery?.Class ?? "none";
+        if (install is "resumable" or "failed" or "needs-repair") return StartupRoute.Interrupted;
+        if (install is not ("none" or "complete" or "in-progress"))
+            throw new InvalidDataException("The engine returned an unsupported install recovery class");
         // This route offers management. It does not assert a verified Linux boot.
         if (snapshot.Status.Existing) return StartupRoute.Manage;
         return StartupRoute.Assessment;
@@ -104,6 +146,41 @@ public sealed class StartupController : IAsyncDisposable
         }
         finally { connectionGate.Release(); }
     }
+
+    public async Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken = default, Action<long>? requestFlushed = null)
+    {
+        await connectionGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (Connection != ConnectionState.Ready || session is not IConfigurationEngineSession reader)
+                throw new InvalidOperationException("Authenticated configuration session is unavailable");
+            return await reader.ReadConfigurationAsync(cancellationToken, requestFlushed);
+        }
+        finally { connectionGate.Release(); }
+    }
+
+    // The drive loop never waits behind a connection or configuration read:
+    // a busy controller fails this tick, and the loop tries again.
+    private async Task<T> DriveAsync<T>(Func<IDriveEngineSession, Task<T>> call)
+    {
+        if (!await connectionGate.WaitAsync(0)) throw new InvalidOperationException("The engine connection is busy");
+        try
+        {
+            if (Connection != ConnectionState.Ready || session is not IDriveEngineSession drive)
+                throw new InvalidOperationException("Authenticated drive channel is unavailable");
+            return await call(drive);
+        }
+        finally { connectionGate.Release(); }
+    }
+
+    public Task<string> ReadDirectiveAsync(CancellationToken cancellationToken) =>
+        DriveAsync(drive => drive.ReadDriveDirectiveAsync(cancellationToken));
+
+    public Task ReportAsync(string state, CancellationToken cancellationToken) =>
+        DriveAsync(async drive => { await drive.ReportDriveAsync(state, cancellationToken); return true; });
+
+    public Task ReadyAsync(string state, CancellationToken cancellationToken) =>
+        DriveAsync(async drive => { await drive.ReportDriveReadyAsync(state, cancellationToken); return true; });
 
     private async Task DisconnectAsync()
     {

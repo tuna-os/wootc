@@ -1,4 +1,4 @@
-import { E2EDriveDirective, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
+import { E2EDriveDirective, E2EDriveReady, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
 
 // Wails' WebView cannot expose CDP, so GUI E2E drives the real form through
 // the same Go-to-JS bridge and DOM event handlers used by the application.
@@ -72,12 +72,57 @@ function driveInstall(directive, state) {
   }
 }
 
+async function drivePrepareVM(directive, state) {
+  if (window.__e2ePrepareVMRequested || state.screen !== 'launchpad') return;
+  await reportState(state, directive);
+
+  // Selecting a catalog card or applying a custom image re-renders the
+  // launchpad. Do that first, then look up fresh input elements so the
+  // remaining values are written into the controls the user can see.
+  if (directive.image) {
+    const currentRef = state.selected?.imageRef || '';
+    const card = [...document.querySelectorAll('.image-card')]
+      .find((candidate) => candidate.__imgRef === directive.image);
+    const imageInput = fieldByLabel('Custom supported OCI image');
+    if (card && currentRef !== directive.image) {
+      card.click();
+    } else if (!card && imageInput && currentRef !== directive.image) {
+      imageInput.value = directive.image;
+      if (imageInput.oninput) imageInput.oninput();
+    }
+  }
+
+  if (directive.image && state.selected?.imageRef === directive.image) {
+    await reportState(state, directive);
+  }
+
+  const username = fieldByLabel('Linux Username');
+  const passwords = document.querySelectorAll('input[type=password]');
+  if (!username || passwords.length < 2) return;
+
+  username.value = directive.username || '';
+  if (username.oninput) username.oninput();
+  for (const password of passwords) {
+    password.value = directive.password || '';
+    if (password.oninput) password.oninput();
+  }
+
+  if (directive.image && state.selected?.imageRef !== directive.image) return;
+  await reportState(state, directive);
+  const button = document.getElementById('vm-prepare-btn');
+  if (!button || button.disabled) return;
+
+  window.__e2ePrepareVMRequested = true;
+  button.click();
+  window.__e2ePrepareVMDriven = true;
+}
+
 async function reportState(state, directive) {
   // The harness reads imageMismatch to fail FAST when the directive's image
   // cannot be selected (see the integrity gate in driveInstall) — the
   // alternative is a silent install of the default image.
   const wantRef = window.__e2eWantImage || '';
-  await E2EDriveReport(JSON.stringify({
+  const report = {
     schemaVersion: 1,
     runId: directive.runId,
     directiveId: directive.directiveId,
@@ -91,24 +136,67 @@ async function reportState(state, directive) {
     selectedRef: state.selected?.imageRef || '',
     imageMismatch: !!(wantRef && state.screen === 'launchpad' &&
       !window.__e2eInstallDriven && state.selected?.imageRef !== wantRef),
-  }));
+  };
+  if (directive.action === 'prepare-vm') Object.assign(report, {
+    vmPrepareDriven: !!window.__e2ePrepareVMDriven,
+    freshVmAvailable: !!state.freshVmCapability?.available,
+    freshVmReason: state.freshVmCapability?.reason || '',
+    vmPrepareButtonVisible: !!document.getElementById('vm-prepare-btn'),
+    vmPrepareButtonDisabled: document.getElementById('vm-prepare-btn')?.disabled ?? null,
+    vmRuntimeButtonVisible: [...document.querySelectorAll('button')]
+      .some((button) => button.textContent.includes('Set up Linux in a window')),
+    vmImageMismatch: !!(window.__e2eWantVMImage && state.screen === 'launchpad' &&
+      !window.__e2ePrepareVMDriven && state.selected?.imageRef !== window.__e2eWantVMImage),
+    vmReady: !!state.vmReady,
+    vmProgressStage: state.vmProgress?.stage || '',
+  });
+  await E2EDriveReport(JSON.stringify(report));
 }
 
 export function startE2EDrive(state) {
   async function driveLoop() {
-    let raw = '';
+    // A missing binding throws SYNCHRONOUSLY (a non-E2E build has nothing
+    // to drive, so stop). A rejected promise is a TRANSIENT backend failure
+    // and must not stop the loop the same way: returning here killed all
+    // polling permanently on one bad read, leaving a live app that never
+    // reports again. Same split as main.js session candidates.
+    let call;
     try {
-      raw = await E2EDriveDirective();
+      call = E2EDriveDirective();
     } catch {
       return; // Optional binding is absent outside E2E builds.
     }
+    let raw = '';
+    try {
+      raw = await call;
+    } catch {
+      // Transient failure: fall through to the readiness signal and retry
+      // on the next poll.
+    }
+    // A UTF-8 BOM prefix is not JSON whitespace: JSON.parse throws on it.
+    // The harness wrote the install directive with a BOM through run
+    // 36420437461, so every poll died here and no report was ever written.
+    // The writer is fixed and Go strips it too; this keeps any BOM'd
+    // producer from silently disabling the loop again.
+    raw = (raw || '').replace(/^\uFEFF/, '');
 
     try {
+      if (!raw) {
+        // No directive yet: the harness is still waiting for first render,
+        // and a bound report is impossible without a directive to bind to.
+        // Signal readiness on its own channel so launch is observable before
+        // any directive exists. Diagnostic only; never breaks the app.
+        try {
+          await E2EDriveReady(JSON.stringify({ schemaVersion: 1, screen: state.screen || '' }));
+        } catch {
+          // Readiness is best-effort; the next poll retries.
+        }
+      }
       if (raw) {
         const directive = JSON.parse(raw);
         if (directive.schemaVersion !== 1 || typeof directive.runId !== 'string' ||
             !directive.runId || !/^[0-9a-f]{32}$/.test(directive.directiveId) ||
-            !['install', 'reboot'].includes(directive.action)) throw new Error('Invalid drive identity');
+            !['install', 'reboot', 'prepare-vm'].includes(directive.action)) throw new Error('Invalid drive identity');
         if (window.__e2eRunId && window.__e2eRunId !== directive.runId) throw new Error('Changed drive run');
         window.__e2eRunId = directive.runId;
         if (directive.action === 'install') {
@@ -120,6 +208,14 @@ export function startE2EDrive(state) {
         if (directive.action === 'install') {
           window.__e2eWantImage = directive.image || '';
           driveInstall(directive, state);
+        }
+        if (directive.action === 'prepare-vm') {
+          if (window.__e2ePrepareVMDirectiveId && window.__e2ePrepareVMDirectiveId !== directive.directiveId) {
+            throw new Error('Changed VM preparation directive');
+          }
+          window.__e2ePrepareVMDirectiveId = directive.directiveId;
+          window.__e2eWantVMImage = directive.image || '';
+          await drivePrepareVM(directive, state);
         }
         if (directive.action === 'reboot' && state.screen === 'done' && window.__e2eInstallDriven &&
             window.__e2eInstallDirectiveId === directive.directiveId && !window.__e2eRebootDriven) {
