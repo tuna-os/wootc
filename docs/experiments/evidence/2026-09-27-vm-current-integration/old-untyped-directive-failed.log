@@ -1,0 +1,39 @@
+[WebServer] (node:3168366) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:3168379) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:3168390) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 gui.spec.js:616:1 › E2E drive observes the VM-first button and prepares through the real launchpad form (5.7s)
+
+
+  1) gui.spec.js:616:1 › E2E drive observes the VM-first button and prepares through the real launchpad form 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Linux is starting' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Linux is starting' })
+
+
+      626 |   });
+      627 |
+    > 628 |   await expect(page.getByRole('heading', { name: 'Linux is starting' })).toBeVisible();
+          |                                                                          ^
+      629 |   const calls = await page.evaluate(() => window.__wootcVMCalls);
+      630 |   expect(calls.map(call => call[0])).toEqual(['prepare']);
+      631 |   expect(calls[0][1]).toEqual({ imageRef: image, username: 'alice', password });
+        at /tmp/wootc-vm-first-current-candidate/tests/gui/gui.spec.js:628:74
+
+    Error Context: .results/gui-E2E-drive-observes-the-392f9-ugh-the-real-launchpad-form/error-context.md
+
+  1 failed
+    gui.spec.js:616:1 › E2E drive observes the VM-first button and prepares through the real launchpad form 

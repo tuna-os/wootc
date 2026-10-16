@@ -73,6 +73,19 @@ async function boot(page, mock) {
 const shot = (page, id, name) =>
   page.screenshot({ path: path.join(SHOTS, id, `${name}.png`) });
 
+// The project name may appear only inside the on-disk contract — Windows
+// paths such as C:\wootc\disks\root.disk, which the deployer shares and
+// docs/branding-and-distribution.md §2 keeps. Everything else a person reads
+// in a branded build must be the brand's own words.
+const WINDOWS_PATH = /[A-Za-z]:\\[^\s,;)]*/g;
+function readableText(text) {
+  return text.replace(WINDOWS_PATH, '');
+}
+async function expectNoProjectName(page, where) {
+  const text = readableText(await page.locator('body').innerText());
+  expect(text, `${where} shows the project name`).not.toMatch(/wootc/i);
+}
+
 async function fillForm(page) {
   await page.locator('.field:has-text("Linux Username") input').fill('alice');
   const pw = page.locator('input[type=password]');
@@ -127,6 +140,7 @@ for (const id of fs.readdirSync(BRANDS_DIR).filter(f =>
         .toContainText(`Installing ${brand.name}`);
       await expect(page.locator('.progress-steps-list')).toContainText('Getting Linux prepared');
       await page.waitForTimeout(900);
+      if (branded) await expectNoProjectName(page, 'progress');
       await shot(page, id, '02-progress');
     });
 
@@ -138,7 +152,20 @@ for (const id of fs.readdirSync(BRANDS_DIR).filter(f =>
       await fillForm(page);
       await page.locator('#install-btn').click();
       await expect(page.locator('.done-title'))
-        .toContainText(`${brand.name} is ready`, { timeout: 5000 });
+        .toContainText(`${brand.name} setup is ready`, { timeout: 5000 });
+      await expect(page.getByText('Save any open work first', { exact: false })).toBeInViewport();
+      await expect(page.getByRole('button', { name: 'Reboot Now →' })).toBeInViewport();
+      await expect(page.locator('.done-hero')).toContainText('Linux has not finished installing yet');
+      await expect(page.locator('.done-hero')).not.toContainText('5–15 minutes');
+      // A custom-kernel image (Bazzite, #248) shows the one-time MokManager
+      // step and its password before the reboot, never after it.
+      const def = images.find(i => i.id === (brand.defaultImage || images[0]?.id));
+      if (def?.mokEnroll) {
+        await expect(page.locator('body')).toContainText(`Driver trust for ${def.name}`);
+        await expect(page.locator('body')).toContainText('Enroll MOK');
+        await expect(page.locator('body')).toContainText(def.mokEnroll);
+      }
+      if (branded) await expectNoProjectName(page, 'done');
       await shot(page, id, '03-done');
     });
 
@@ -149,7 +176,82 @@ for (const id of fs.readdirSync(BRANDS_DIR).filter(f =>
       await expect(page.locator('.screen-title')).toContainText(`Manage ${brand.name}`);
       await expect(page.getByRole('button', { name: `Restart into ${brand.name} →` })).toBeVisible();
       await expect(page.getByRole('button', { name: `Uninstall ${brand.name}` })).toBeVisible();
+      if (branded) await expectNoProjectName(page, 'manage');
       await shot(page, id, '04-manage');
+    });
+
+    if (!branded) return;
+
+    test('uninstall dialogs speak the brand', async ({ page }) => {
+      await boot(page, { mode: 'installer', images, sysinfo: SYSINFO, brand, existing: true,
+        uninstall: { found: true, deployed: true, storageDrive: 'C',
+          diskPath: 'C:\\wootc\\disks\\root.disk', diskSizeGB: 40 } });
+      const said = [];
+      page.on('dialog', async (d) => { said.push(d.message()); await d.accept(); });
+      await page.getByRole('button', { name: `Uninstall ${brand.name}` }).click();
+      await expect.poll(() => said.length).toBeGreaterThanOrEqual(2);
+      expect(said[0]).toContain(`Remove ${brand.name}?`);
+      expect(said[1]).toContain(`${brand.name} has been removed`);
+      for (const m of said) expect(readableText(m)).not.toMatch(/wootc/i);
+    });
+
+    test('an interrupted install speaks the brand', async ({ page }) => {
+      await boot(page, { mode: 'installer', images, sysinfo: SYSINFO, brand, installRecovery: {
+        class: 'resumable', cause: 'interrupted', imageRef: images[0].imageRef,
+        lastCompletedStep: 'Downloading Linux', stoppedAtStep: 'Downloading your Linux system',
+        title: 'Setup stopped unexpectedly',
+        message: `${brand.productName} closed or the computer lost power before setup finished.`,
+        actions: { resumeInstall: true, retryDeploy: false, repairBoot: false, remove: true },
+        recommended: 'resume', keepsVerifiedBlobs: 1, keepsVerifiedBytes: 1024 ** 3,
+        evidence: ['journal.json: outcome "running", process 4242 no longer running'] } });
+      const screen = page.locator('#interrupted-screen');
+      await expect(screen).toContainText(`How it ended: ${brand.productName} closed`);
+      await expect(screen).toContainText(`What ${brand.productName} found`);
+      await expectNoProjectName(page, 'interrupted');
+    });
+
+    for (const [bootState, words] of [
+      ['windows-only', `${brand.productName} is not in the boot order`],
+      ['wootc-default', `A startup entry from ${brand.productName}`],
+      ['foreign-next', `an entry ${brand.productName} does not own`],
+    ]) {
+      test(`recovery (${bootState}) speaks the brand`, async ({ page }) => {
+        await boot(page, { mode: 'installer', images, sysinfo: SYSINFO, brand,
+          recoveryVerdict: { verdict: 'failed', title: 'Setup stopped', message: 'Setup could not finish this time.',
+            untouched: true, canTryAgain: true, canRemove: true, canRepairBoot: true },
+          bootReport: { bootState, ownership: 'certain', canRestoreWindows: false, canRepairBoot: true } });
+        await expect(page.locator('body')).toContainText(words);
+        await expectNoProjectName(page, `recovery ${bootState}`);
+      });
+    }
+
+    test('a failed last run speaks the brand', async ({ page }) => {
+      await boot(page, { mode: 'installer', images, sysinfo: SYSINFO, brand,
+        lastRun: { state: 'failed', phase: 'Making room for Linux', error: 'disk full' } });
+      await expect(page.locator('body')).toContainText("didn't finish");
+      await expectNoProjectName(page, 'failed last run');
+    });
+
+    // brand.json's background/text/card are set inline and win anyway; the
+    // tokens below come only from theme.css. If the theme stopped covering
+    // them (or became conditional on the colour scheme), a light-mode
+    // Windows would get style.css's light palette under the brand's ground.
+    test('a light-mode Windows still gets the brand look', async ({ page }) => {
+      const read = () => page.evaluate(() => {
+        const cs = getComputedStyle(document.documentElement);
+        const names = ['--bg', '--bg-card', '--bg-input', '--bg-hover', '--border', '--text', '--text-muted', '--text-dim', '--accent'];
+        return Object.fromEntries(names.map(n => [n, cs.getPropertyValue(n).trim().toLowerCase()]));
+      });
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await boot(page, { mode: 'installer', images, sysinfo: SYSINFO, brand });
+      await expect(page.locator('.titlebar-name')).toContainText(brand.productName);
+      const dark = await read();
+      await page.emulateMedia({ colorScheme: 'light' });
+      expect(await page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches)).toBe(true);
+      const light = await read();
+      expect(light, 'light-mode tokens differ from the brand look').toEqual(dark);
+      expect(light['--bg']).toBe(brand.background.toLowerCase());
+      await shot(page, id, '05-light-mode');
     });
   });
 }

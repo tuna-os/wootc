@@ -1,0 +1,48 @@
+=== RUN   TestInstallAndPreserveExisting
+--- PASS: TestInstallAndPreserveExisting (0.13s)
+=== RUN   TestRejectArchiveAndPreserveParent
+=== RUN   TestRejectArchiveAndPreserveParent/absolute
+=== RUN   TestRejectArchiveAndPreserveParent/alternate_stream
+=== RUN   TestRejectArchiveAndPreserveParent/backslash
+=== RUN   TestRejectArchiveAndPreserveParent/device
+=== RUN   TestRejectArchiveAndPreserveParent/directory_case
+=== RUN   TestRejectArchiveAndPreserveParent/drive
+=== RUN   TestRejectArchiveAndPreserveParent/duplicate
+=== RUN   TestRejectArchiveAndPreserveParent/edited_payload
+=== RUN   TestRejectArchiveAndPreserveParent/extra_DLL
+=== RUN   TestRejectArchiveAndPreserveParent/file_case
+=== RUN   TestRejectArchiveAndPreserveParent/missing_DLL
+=== RUN   TestRejectArchiveAndPreserveParent/symlink
+=== RUN   TestRejectArchiveAndPreserveParent/trailing_dot
+=== RUN   TestRejectArchiveAndPreserveParent/traversal
+=== RUN   TestRejectArchiveAndPreserveParent/unmanifested_required
+--- PASS: TestRejectArchiveAndPreserveParent (0.36s)
+    --- PASS: TestRejectArchiveAndPreserveParent/absolute (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/alternate_stream (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/backslash (0.03s)
+    --- PASS: TestRejectArchiveAndPreserveParent/device (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/directory_case (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/drive (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/duplicate (0.03s)
+    --- PASS: TestRejectArchiveAndPreserveParent/edited_payload (0.03s)
+    --- PASS: TestRejectArchiveAndPreserveParent/extra_DLL (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/file_case (0.05s)
+    --- PASS: TestRejectArchiveAndPreserveParent/missing_DLL (0.03s)
+    --- PASS: TestRejectArchiveAndPreserveParent/symlink (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/trailing_dot (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/traversal (0.02s)
+    --- PASS: TestRejectArchiveAndPreserveParent/unmanifested_required (0.02s)
+=== RUN   TestOuterHashSignatureAndCancellation
+=== RUN   TestOuterHashSignatureAndCancellation/outer_hash
+=== RUN   TestOuterHashSignatureAndCancellation/signature
+=== RUN   TestOuterHashSignatureAndCancellation/cancel
+--- PASS: TestOuterHashSignatureAndCancellation (0.03s)
+    --- PASS: TestOuterHashSignatureAndCancellation/outer_hash (0.02s)
+    --- PASS: TestOuterHashSignatureAndCancellation/signature (0.00s)
+    --- PASS: TestOuterHashSignatureAndCancellation/cancel (0.00s)
+=== RUN   TestRejectExpansionBounds
+--- PASS: TestRejectExpansionBounds (0.00s)
+=== RUN   TestRealArchive
+    install_test.go:205: authenticated and installed 3284 runtime files
+--- PASS: TestRealArchive (37.84s)
+PASS

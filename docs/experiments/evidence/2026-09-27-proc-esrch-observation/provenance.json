@@ -1,0 +1,24 @@
+{
+  "base": "73456c6aaae77b6b73193a5979e213c98890d17b",
+  "scope": "test-only specific process disappearance observation; no production/runtime change",
+  "hostedFailure": {
+    "pr": 489,
+    "source": "84dcb7133e7062e360360cb0dbc857001a1e97f9",
+    "job": 108640392639,
+    "error": "ProcessLookupError errno3 while reading /proc stat after owned process cancellation"
+  },
+  "sourceSha256": "109d89e6b49d6d850fd45d01c6051849f7fc76ca957de11f0433bd93a1351082",
+  "consumerControls": 28,
+  "specificAbsenceErrors": [
+    "FileNotFoundError errno2",
+    "ProcessLookupError errno3"
+  ],
+  "permissionErrorStillFails": true,
+  "actualRemovedEsrchGuardFailed": true,
+  "evidenceHashes": {
+    "removed-esrch-guard-mutant.log": "fb82f957c13d028d06a96d99f09a99352e5ef28836557b09a0417e979db8b68a",
+    "countercontrols.json": "1f6d88accc0ec5ab1312bc64445c63bb34fe79babfaac0026604db8f3fb7ce80",
+    "hosted-failure.raw.log": "19069ade883e04fa022a6eb4a8db0c0579efbd857195d227c239e75858a442e4",
+    "consumer-controls.log": "626bd05c4906a0b871669d741238a93de404decd8ee35bf82188914234d29c67"
+  }
+}

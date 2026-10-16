@@ -28,5 +28,6 @@
   "suggestedHostname": "my-laptop",
   "suggestedUsername": "winuser",
   "trustedUefiAuthorities": null,
+  "uefiDbRead": false,
   "secureBootChainWarning": ""
 }

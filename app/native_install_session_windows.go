@@ -1,0 +1,115 @@
+//go:build windows
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"sync"
+)
+
+func (authorization *nativeInstallAuthorization) intentID() string { return authorization.intent }
+
+func (authorization *nativeInstallAuthorization) confirmIntent(data []byte, action func(InstallConfig) error) error {
+	return authorization.confirm(data, action)
+}
+
+// newWindowsNativeInstallPrepare builds the install-purpose plan check. It
+// runs the same validation as StartInstall, binds the plan to a volume and an
+// image the engine observed, and grants an intent only through
+// prepareNativeInstallAuthorization, whose revalidation re-observes that
+// volume before the plan is granted and again before it runs.
+func newWindowsNativeInstallPrepare(ctx context.Context, app *App, user *nativeOriginalUser, session, brand string, observe func(context.Context) (NativeConfigurationSnapshot, error), selection func(context.Context) error) nativeInstallPrepare {
+	return func(plan InstallConfig) (nativeInstallAuthority, NativeInstallGrant, error) {
+		if user == nil {
+			return nil, NativeInstallGrant{}, fmt.Errorf("native install preparation unavailable")
+		}
+		// One system read for the whole check: each read spawns several
+		// PowerShell queries, and this check validates twice and reports
+		// BitLocker, Fast Startup and Secure Boot within the shell's
+		// deadline (native E2E run 38849303170 overran it).
+		systemInfo := sync.OnceValue(getSystemInfo)
+		validated, err := app.validateInstallConfigWith(plan, systemInfo)
+		if err != nil {
+			return nil, NativeInstallGrant{}, err
+		}
+		readCtx, cancel := context.WithTimeout(ctx, nativeConfigurationBudget)
+		snapshot, err := observe(readCtx)
+		cancel()
+		if err != nil {
+			return nil, NativeInstallGrant{}, fmt.Errorf("the engine could not observe this computer's storage; try again")
+		}
+		binding, err := bindNativeInstallPlan(snapshot, validated)
+		if err != nil {
+			return nil, NativeInstallGrant{}, err
+		}
+		revalidate := func() error {
+			readCtx, cancel := context.WithTimeout(ctx, nativeConfigurationBudget)
+			defer cancel()
+			if err := selection(readCtx); err != nil {
+				return err
+			}
+			current, err := observe(readCtx)
+			if err != nil {
+				return err
+			}
+			return binding.unchangedIn(current, validated)
+		}
+		validate := func(config InstallConfig) error {
+			_, err := app.validateInstallConfigWith(config, systemInfo)
+			return err
+		}
+		authority, err := prepareNativeInstallAuthorization(user, session, brand, validated, validate, revalidate)
+		if err != nil {
+			return nil, NativeInstallGrant{}, err
+		}
+		info := systemInfo()
+		return authority, NativeInstallGrant{
+			SchemaVersion: 1, Session: session, BrandID: brand, IntentID: authority.intent,
+			ImageRef: validated.ImageRef, StorageDrive: validated.StorageDrive, DiskSizeGB: validated.DiskSizeGB, Encryption: validated.Encryption,
+			BitLockerOn: info.BitLockerOn, BitLockerRecoveryKeyWarning: info.BitLockerRecoveryKeyWarning,
+			FastStartupOn: info.FastStartupOn, SecureBootChainWarning: info.SecureBootChainWarning,
+		}, nil
+	}
+}
+
+// newWindowsNativeMaintenanceHost binds the Manage and Recovery actions to
+// the captured original user (#606) and to the engine's own observations.
+// Admission reads the boot configuration without writing a bundle; the
+// screen's boot check (InspectBoot) saves one, as the legacy screen does.
+func newWindowsNativeMaintenanceHost(app *App, user *nativeOriginalUser, session, brand string) *nativeMaintenanceHost {
+	return &nativeMaintenanceHost{
+		session: session, brand: brand,
+		running: func() bool { return app.GetStatus().Running },
+		info:    getUninstallInfo,
+		boot:    func() BootRepairReport { return planBootRepair(observeBoot()) },
+		inspect: app.InspectBoot,
+		verdict: app.GetRecoveryVerdict,
+		revalidateUser: func() error {
+			if user == nil {
+				return fmt.Errorf("native maintenance captured user unavailable")
+			}
+			return user.revalidateToken()
+		},
+		run: func(plan NativeMaintenancePlan) error { return runNativeMaintenance(app, plan) },
+	}
+}
+
+// newWindowsNativeVMHost binds the VM contract to the captured original user
+// and to the engine's own VM observations.
+func newWindowsNativeVMHost(app *App, user *nativeOriginalUser, session, brand string) *nativeVMHost {
+	return &nativeVMHost{
+		session: session, brand: brand,
+		installing: func() bool { return app.GetStatus().Running },
+		state:      app.GetVMState,
+		launch:     app.GetVMCapability,
+		prepare:    app.GetFreshVMCapability,
+		revalidateUser: func() error {
+			if user == nil {
+				return fmt.Errorf("native VM captured user unavailable")
+			}
+			return user.revalidateToken()
+		},
+		run: func(plan NativeVMPlan) error { return runNativeVMAction(app, plan) },
+	}
+}

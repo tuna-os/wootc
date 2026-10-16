@@ -87,6 +87,19 @@ This was the scripted native cycle with BitLocker off. It does not resolve
 the GUI failure in #399. An edit of Documents with BitLocker and Phase 1
 inside Windows still need evidence.
 
+## Native Windows preview components, 2026-09-27
+
+[Run 36328543336](https://github.com/tuna-os/wootc/actions/runs/36328543336) passed all nine native jobs on head `7aee354`.
+The tested merge and build identity was `68e6f452`.
+It observed RPC at startup after peer authentication.
+It did not create an installer root. ACLs stayed the same. It refused malformed records.
+
+Each package passed the startup check for its brand.
+These are component checks with the same elevated user.
+Interactive UAC, original-user collection, the minimum OS, and the full native journey remain open.
+[The source record](experiments/evidence/2026-09-27-native-serving-readiness/hosted-7a/provenance.json) retains the exact source, jobs, and artifact hashes.
+Wails remains the default. #343 and #344 remain open.
+
 ## Build/test matrix
 
 Red/green status per combination, from the KVM E2E rig (laptop runners) and
@@ -124,6 +137,44 @@ re-runs since (dates on the affected rows).
 | `bonito:gnome` / `:kde` / `:niri` (Fedora) | ostree · **xfs** (unsealed) | ✅ | ✅ | ✅ | ⚪ | ⚪ |
 | `dakota` | composefs-native | ✅ | ✅ | 🔴 [#209](https://github.com/tuna-os/wootc/issues/209) | ⚪ | ⚪ |
 | `marlin` (Arch) / `flounder` (Debian) | ostree · xfs (unsealed) | ✅ | 🔴 | ⚪ | ⚪ | ⚪ |
+| `bazzite:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ✅ | ✅ | ✅ | ⚪ | ✅ ([38792319332](https://github.com/tuna-os/wootc/actions/runs/38792319332), 2026-10-15) |
+| `bazzite-deck:stable` (Bazzite-branded GUI) | ostree · GRUB2, Universal Blue MOK | ⚪ | ⚪ | ⚪ | ⚪ | ✅ ([38844455285](https://github.com/tuna-os/wootc/actions/runs/38844455285), 2026-10-16) |
+| `aurora:stable` (Aurora-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32613697020](https://github.com/tuna-os/wootc/actions/runs/32613697020), 2026-08-23) |
+| `bluefin:stable` (Bluefin-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32604804979](https://github.com/tuna-os/wootc/actions/runs/32604804979), 2026-08-22) |
+
+`bazzite:stable` has a green GUI run on 2026-10-15, [38792319332](https://github.com/tuna-os/wootc/actions/runs/38792319332).
+It ran on `b102db9`, the head of PR #609, which also contains the launch fix of PR #516.
+The harness built the Bazzite-branded installer, and the GUI clicked Install.
+
+The deployer queued the MOK enrollment, and the harness drove MokManager.
+After the enrollment, Phase 2 started with the Bazzite kernel under Secure Boot.
+Linux read the Documents file from this run, and then Windows started again.
+Phase 3 was off, and the image download on Windows (`WOOTC_PRELOAD=0`) was off.
+
+The earlier green run was [32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098) on `4fd4bc8` (2026-08-24).
+On 2026-10-15, [38803985996](https://github.com/tuna-os/wootc/actions/runs/38803985996) also passed with the branded deployer menus of PR #610.
+`bazzite-deck:stable` has a green GUI run on 2026-10-16, [38844455285](https://github.com/tuna-os/wootc/actions/runs/38844455285), on `139c29a`, the head of PR #633.
+The GUI install, the deploy, MokManager under Secure Boot and Phase 2 passed.
+Linux read the Documents file from this run, and then Windows started again and `wootc.exe status` said healthy.
+
+On 2026-10-16, [38832644743](https://github.com/tuna-os/wootc/actions/runs/38832644743) ran on `main` with the scratch sizing of PR #629 (`97552e0`).
+The GUI install and the deploy passed. MokManager enrolled the key, and Phase 2 started under Secure Boot.
+Then Windows started again, and `wootc.exe status` said healthy.
+That run was inconclusive because the Phase-2 guest agent never answered, so the harness could not read the Documents file in Linux.
+
+The deployer had also warned that `qemu-ga` was absent after the ntfs-3g injection.
+That warning was a probe defect: the image ships `/usr/bin/qemu-ga`, and the `bazzite:stable` run that passed logged the same warning.
+[#633](https://github.com/tuna-os/wootc/pull/633) fixes the probe. Its run above has the guest agent and the user-data check.
+Before that, [38804321935](https://github.com/tuna-os/wootc/actions/runs/38804321935) (2026-10-15) stopped when the deployer ran out of space.
+The [test record for the Bazzite brand](branded-walkthroughs.md#bazzite-brand-test-record) has each check.
+
+The Aurora and Bluefin current runs installed their image through the GUI.
+Phase 2 started, and then Windows started again. Phase 3 was off.
+Both runs used the generic `wootc.exe`. The hosted job did not build the brand installer for each image before 2026-08-24.
+Thus they prove the image, not the Aurora or Bluefin installer.
+
+[#226](https://github.com/tuna-os/wootc/issues/226) needs a green GUI run of each `branded-*` cell in `tests/e2e/matrix.tsv`.
+None of the three cells has that run yet.
 
 `dakota` (composefs-native) went green on the failure-ledger harness —
 composefs full chain, run `30710282014` (2026-08-02);
@@ -148,6 +199,7 @@ ostree images that ship no `bootupd`.
 | Encryption: none | ✅ | |
 | Encryption: `tpm2-luks` | 🟡 | [#33](https://github.com/tuna-os/wootc/issues/33) fixed (`bffd284`, 2026-08-10) — Phase-2 dracut regen works; green cell re-verification pending under the failure-ledger harness |
 | BitLocker FDE (unencrypted-volume path) | ✅ | refusal path green 2026-08-22; full install path is the v0.3.0-beta gate — [#34](https://github.com/tuna-os/wootc/issues/34). Setup carves unencrypted volume E: for `root.disk` while C: stays encrypted |
+| Secure Boot `db`: 2011 / 2023 / both / none | ⚪ | harness cells landed for [#322](https://github.com/tuna-os/wootc/issues/322) (`firmware_db=` in `tests/e2e/matrix.tsv`). The VM firmware gets each `db`, and Windows reads it back before the run. 2011, 2023 and both must boot the dual-signed shim. The none cell has no third-party CA, so the app must refuse with nothing written. No hosted run yet |
 | Offline (`-nic none`, pre-downloaded image) | ⚪ | code path shipped (branded builds / `WOOTC_PRELOAD=1`); matrix axis tracked as [#217](https://github.com/tuna-os/wootc/issues/217) |
 
 The historical native chain passed on `bluefin:lts` through the script path

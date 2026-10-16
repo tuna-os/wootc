@@ -1,0 +1,69 @@
+{
+  "sourceCommit": "75a727f926f6c117a5f6202a0a8f87eccda3ef0b",
+  "scope": "Final thrown-click refusal and actual old-flag-order mutant, current-run host receipt, actual frontend7 DOM/bridge spies and portable Go with rebuilt production frontend. Inherit unchanged handover14/session15 only by exact source bytes below. Native8 remains exact unchanged command component proof, not browser/Windows/full acceptance.",
+  "acceptanceExecuted": false,
+  "sourceSha256": {
+    "app/app.go": "387ab151c2f7b7957ab8dadc00178cc01c13c36428c14287744d665f319a46c3",
+    "app/e2e_drive_receipt.go": "5da3832a63151ed7751ba7f3fc7351e57941a2d6167d48e1fcedc5270c4dd28c",
+    "app/e2e_drive_receipt_test.go": "da0734428b6adafd4f387159e3913bc9dfaf6f0abe8da24fe00631b06dee85ea",
+    "app/bridge_contract_test.go": "ab4f7932bb5bec139fc28fa51cd3c0cc58a83a4249b550cf17ff3e59dcafcdea",
+    "app/frontend/src/lib/e2e.js": "0efd4b49a5d8b6819e42999fe2271bd92356945394eb89c545945557b226959e",
+    "app/frontend/package-lock.json": "a5e6b3c6b9935ed7d3a72b4d608fb949e155f65836ed422bc38dd3b8f14a753d",
+    "tests/e2e/run-e2e.sh": "aa170cc3ad222fdd63182493eac652e5aa167b5c4a6cb4dc495c927207d7d492",
+    "tests/e2e/gui-drive-receipt.py": "b791144db47510eca70685c4c605af27e0d314f164e8993eb64f4eb012f8a337",
+    "tests/e2e/lib/gui-observations.sh": "ef73d99358015d94f84d249f4905d6361c079ed8ca4161c893cdca56c067611f",
+    "tests/unit/test_gui_drive_receipt.py": "4216d10615bc508a5d2246f6ca0bcc66a8cf0b521d97bbeeab65b1e2c77e28ca",
+    "tests/unit/test_gui_observations.py": "e084196cd8f239723795b6e44de0e131929f6a2296b97063c284212bcb4d9add",
+    "tests/unit/gui-drive-producer-controls.cjs": "1d0f50f339917cd51757ae1120af59bbe98a150be25a8fc4b7b4744b9cafda80"
+  },
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_drive_receipt.py"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-27T12:10:07.299796+00:00",
+      "completedAt": "2026-09-27T12:10:07.957307+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "cwd": "app",
+      "startedAt": "2026-09-27T12:10:07.957327+00:00",
+      "completedAt": "2026-09-27T12:10:16.417386+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "consumer-v3.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "consumer-v3.stderr.log": "aed5ab2420fb43885fb233b7399c3581df61d392c7de847401c4db0d8c127170",
+    "go-v3.stdout.log": "f66c223dcdcf2f3f17f5fed055d66c8f12409ff4810742ed35079def60b617e3",
+    "go-v3.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "inheritedProof": "provenance-v2.json",
+  "frontendBuild": {
+    "argv": [
+      "npm",
+      "ci",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "&&",
+      "npm",
+      "run",
+      "build"
+    ],
+    "exitCode": 0,
+    "bundleSha256": {
+      "app/frontend/dist/index.html": "1d086820865669098e030f462847913b68e4dd3c2aee364fbd46a03c0dcd1498",
+      "app/frontend/dist/assets/index-CEja8SdL.css": "069090154ed19adfd232e22186d78ebb82a5f2ab1d2a026de7ffef08d0e39918",
+      "app/frontend/dist/assets/index-hSlB6qsK.js": "732a99da68078acc471fa3838d49023bffebd5b7be37a664dea1ce5c16db40f9"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+
+docs/manual-testing.md  (45)
+  STE 3.1  sentence is 25 words; the limit is 20 for instructions
+         **Have a backup of anything you can't lose.** A successful VM test does not prove that your machine 
+  STE 3.1  sentence is 35 words; the limit is 20 for instructions
+         On the beta channel, BitLocker-encrypted systems are supported: the installer leaves fully encrypted
+  STE 4.1  "-ing" form ("capturing"); use a simple verb or a noun
+         On the beta channel, BitLocker-encrypted systems are supported: the installer leaves fully encrypted
+  STE 1.4  noun cluster of 4 words ("installer leaves fully encrypted"); use at most 3, and add prepositions
+         On the beta channel, BitLocker-encrypted systems are supported: the installer leaves fully encrypted
+  STE 3.1  sentence is 28 words; the limit is 20 for instructions
+         If firmware boot order changes trigger BitLocker recovery when booting back to Windows, entering you
+  STE 4.1  "-ing" form ("booting"); use a simple verb or a noun
+         If firmware boot order changes trigger BitLocker recovery when booting back to Windows, entering you
+  STE 4.1  "-ing" form ("entering"); use a simple verb or a noun
+         If firmware boot order changes trigger BitLocker recovery when booting back to Windows, entering you
+  STE 1.4  noun cluster of 4 words ("48-digit numerical recovery key"); use at most 3, and add prepositions
+         If firmware boot order changes trigger BitLocker recovery when booting back to Windows, entering you
+  STE 1.4  noun cluster of 4 words ("restores normal Windows startup"); use at most 3, and add prepositions
+         If firmware boot order changes trigger BitLocker recovery when booting back to Windows, entering you
+  STE 4.1  "-ing" form ("rebooting"); use a simple verb or a noun
+         Have the key *before* rebooting, not after.
+  STE 3.1  sentence is 40 words; the limit is 20 for instructions
+         **Plug in the power adapter.** The app opens on battery but will not let you start the install until
+  STE 3.1  sentence is 22 words; the limit is 20 for instructions
+         **Check free disk**: 35 GB+ free on   (20 GB minimum for Linux plus the 15 GB headroom the app reser
+  STE 1.4  noun cluster of 4 words ("Wired network beats Wi-Fi"); use at most 3, and add prepositions
+         **Wired network beats Wi-Fi** for the *generic*  : the deploy boot has no Wi-Fi.
+  STE 3.1  sentence is 31 words; the limit is 20 for instructions
+         On a Wi-Fi-only laptop use a **branded installer** (or set   before launching) — it downloads the wh
+  STE 4.1  "-ing" form ("launching"); use a simple verb or a noun
+         On a Wi-Fi-only laptop use a **branded installer** (or set   before launching) — it downloads the wh
+  STE 3.1  sentence is 25 words; the limit is 20 for instructions
+         **Let it manage Fast Startup and hibernation.** The app turns them off during install (and the unins
+  STE 1.5  "actually" adds nothing; delete it
+         The progress list narrates every step; the shield strip tells you what has actually changed at any m
+  STE 3.4  passive voice ("is forced"); say who or what does the action
+         Reboot when asked (save other work first — the restart is forced).
+  STE 3.1  sentence is 35 words; the limit is 20 for instructions
+         **The deploy boot**: a calm splash screen ("Your Windows and all of your files are safe"), progress 
+  STE 4.1  "-ing" form ("scrolling"); use a simple verb or a noun
+         No scrolling text — that only appears in debug/E2E runs.
+  STE 3.1  sentence is 35 words; the limit is 20 for instructions
+         Linux starts, you log in with the password you set, a welcome opens the "Bring over from Windows" da
+  STE 3.4  passive voice ("are bridged"); say who or what does the action
+         Linux starts, you log in with the password you set, a welcome opens the "Bring over from Windows" da
+  STE 1.4  noun cluster of 5 words ("detected deploy failure records diagnostics"); use at most 3, and add prepositions
+         A detected deploy failure records diagnostics and requests a reboot.
+  STE 3.2  sentence is 35 words; the limit is 25 for descriptive text
+         **Milestone**: #213 (v1.0.0) — criterion 1 **Tracking**: #236 **Goal**: Prove a person who has never
+  STE 4.1  "-ing" form ("Tracking"); use a simple verb or a noun
+         **Milestone**: #213 (v1.0.0) — criterion 1 **Tracking**: #236 **Goal**: Prove a person who has never
+  STE 1.4  noun cluster of 4 words ("Automated E2E tests prove"); use at most 3, and add prepositions
+         Automated E2E tests prove the software executes; developer runs prove it works for experts.
+  STE 3.1  sentence is 23 words; the limit is 20 for instructions
+         **Test environment**: A real Windows machine (Windows 10 or 11) with a normal user profile, existing
+  STE 3.1  sentence is 22 words; the limit is 20 for instructions
+         **The single briefing sentence**: Hand the participant the download URL and say only: > *"This insta
+  STE 4.1  "-ing" form ("briefing"); use a simple verb or a noun
+         **The single briefing sentence**: Hand the participant the download URL and say only: > *"This insta
+  STE 4.1  "-ing" form ("coaching"); use a simple verb or a noun
+         **No coaching or prompting**:
+  STE 4.1  "-ing" form ("prompting"); use a simple verb or a noun
+         **No coaching or prompting**:
+  STE 3.1  sentence is 38 words; the limit is 20 for instructions
+         If the participant asks for help (e.g. *"Is this safe?"*, *"What password do I enter?"*, *"How do I 
+  STE 3.1  sentence is 24 words; the limit is 20 for instructions
+         **Log every detail**: Note every hesitation ($\ge 5$ seconds), pause, confused expression, reread se
+  STE 1.5  "attempt" is not approved; use "try"
+         The participant must attempt and complete four core tasks unaided:
+  STE 1.4  noun cluster of 5 words ("complete four core tasks unaided"); use at most 3, and add prepositions
+         The participant must attempt and complete four core tasks unaided:
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         **Install**: Download the binary, launch it, navigate settings (distribution choice, password, disk 
+  STE 1.5  "initiate" is not approved; use "start"
+         **Install**: Download the binary, launch it, navigate settings (distribution choice, password, disk 
+  STE 3.1  sentence is 39 words; the limit is 20 for instructions
+         **Linux first boot & file access**: Boot into Linux, log in with the credentials they configured, en
+  STE 3.1  sentence is 31 words; the limit is 20 for instructions
+         **Removal discovery**: In Windows, find how they would remove wootc / uninstall Linux if they wanted
+  STE 3.4  passive voice ("is satisfied"); say who or what does the action
+         The fresh-eyes usability gate is satisfied when:
+  STE 3.1  sentence is 25 words; the limit is 20 for instructions
+         **Zero blockers remain**: Any issue that prevents a participant from completing the journey without 
+  STE 3.4  passive voice ("be fixed"); say who or what does the action
+         **Zero blockers remain**: Any issue that prevents a participant from completing the journey without 
+  STE 4.1  "-ing" form ("completing"); use a simple verb or a noun
+         **Zero blockers remain**: Any issue that prevents a participant from completing the journey without 
+  STE 4.1  "-ing" form ("confusing"); use a simple verb or a noun
+         **Every hesitation triaged**: Every noted hesitation, confusing copy passage, or awkward interaction
+  STE 1.4  noun cluster of 4 words ("linked GitHub issue filed"); use at most 3, and add prepositions
+         a linked GitHub issue filed to refine copy or workflow; or
+
+45 finding(s) across 1 file(s)

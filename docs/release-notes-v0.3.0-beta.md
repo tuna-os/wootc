@@ -1,8 +1,18 @@
+<!-- wootc-release-notes: draft -->
+
 # wootc v0.3.0-beta Release Notes — "The whole matrix, honestly"
+
+<!-- ste-disable-file: drafted release notes for v0.3.0-beta, kept as written until that release is cut; no v0.3.0-beta tag or release exists -->
+
+> **Draft. Not released.** No `v0.3.0-beta` tag or GitHub release exists.
+> The milestone issue #211 closed on 2026-09-02. These notes record the
+> milestone work. `release.yml` refuses to publish while the draft marker on
+> line 1 is present (`tools/release/check-notes.sh`). Remove the marker only
+> in the PR that cuts the release, after you check each claim below.
 
 **Release Milestone**: M3 (`v0.3.0-beta`)  
 **Tracking Issue**: [#211](https://github.com/tuna-os/wootc/issues/211)  
-**Status**: Shipped | **Date**: 2026-09-02  
+**Status**: Draft (not released) | **Milestone closed**: 2026-09-02  
 
 ---
 

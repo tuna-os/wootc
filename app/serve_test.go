@@ -176,10 +176,11 @@ func sampleDTOs() map[string]any {
 		"vm_capability": VMCapability{
 			Available:   true,
 			Reason:      "",
-			DiskPath:    `C:\wootc\preview.vhdx`,
-			Accelerator: "hyperv",
-			QEMUPath:    `C:\Program Files\qemu\qemu-system-x86_64.exe`,
+			DiskPath:    `C:\wootc\disks\root.disk`,
+			Accelerator: "whpx,kernel-irqchip=off",
+			QEMUPath:    `C:\wootc\qemu\qemu-system-x86_64.exe`,
 			Bundled:     true,
+			ProbeStatus: "passed",
 		},
 		"bundle_info": BundleInfo{
 			Image:      "ghcr.io/tuna-os/yellowfin:gnome",
@@ -522,6 +523,16 @@ func TestServeAllMethodsRoundTrip(t *testing.T) {
 		}
 		if string(res) != "null" {
 			t.Errorf("E2EDriveReport result = %s, want null", string(res))
+		}
+	})
+
+	t.Run("E2EDriveReady", func(t *testing.T) {
+		res, rpcErr := h.call(t, "E2EDriveReady", "ready", 17)
+		if rpcErr != nil {
+			t.Fatalf("unexpected error: %+v", rpcErr)
+		}
+		if string(res) != "null" {
+			t.Errorf("E2EDriveReady result = %s, want null", string(res))
 		}
 	})
 

@@ -1,0 +1,6 @@
+{
+  "mainSha256Restored": "8dde2abd1561484622cadee6c0a896a7c46bd78a39b8aa66dc46256d648253db",
+  "originalMainCallMutantRejected": true,
+  "restoredFocusedTestsPassed": true,
+  "scope": "actual production initialization statement isolated with private marker mutator; no application main or actual installer state mutation"
+}

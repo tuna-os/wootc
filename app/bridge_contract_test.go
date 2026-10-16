@@ -17,6 +17,7 @@ func removeE2EFiles(t *testing.T) {
 	t.Helper()
 	_ = os.Remove(e2eDrivePath("e2e-drive.json"))
 	_ = os.Remove(e2eDrivePath("e2e-drive-state.json"))
+	_ = os.Remove(e2eDrivePath("e2e-ready.json"))
 }
 
 // ── E2E drive mode ───────────────────────────────────────────────────────────
@@ -63,13 +64,18 @@ func TestE2EDriveReportWritesStateWhenEnabled(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
 	removeE2EFiles(t)
 	defer removeE2EFiles(t)
-	(&App{}).E2EDriveReport("installing")
+	directive := `{"schemaVersion":1,"runId":"current","directiveId":"1234567890abcdef1234567890abcdef","action":"install"}`
+	report := `{"schemaVersion":1,"runId":"current","directiveId":"1234567890abcdef1234567890abcdef","action":"install","screen":"progress","installDriven":true,"installBtnDisabled":null,"hint":"","progressStep":"","error":null,"selectedRef":"image","imageMismatch":false}`
+	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	(&App{}).E2EDriveReport(report)
 	data, err := os.ReadFile(e2eDrivePath("e2e-drive-state.json"))
 	if err != nil {
 		t.Fatalf("E2EDriveReport did not write state: %v", err)
 	}
-	if string(data) != "installing" {
-		t.Errorf("state file = %q, want installing", data)
+	if string(data) != report {
+		t.Errorf("state file = %q, want bound report", data)
 	}
 }
 
@@ -80,6 +86,58 @@ func TestE2EDriveReportNoopWhenDisabled(t *testing.T) {
 	(&App{}).E2EDriveReport("installing")
 	if _, err := os.Stat(e2eDrivePath("e2e-drive-state.json")); !os.IsNotExist(err) {
 		t.Error("E2EDriveReport wrote state while drive mode was off")
+	}
+}
+
+func TestE2EDriveReadyWritesMarkerWithoutDirective(t *testing.T) {
+	// The deadlock this fixes: readiness waited for a bound drive report,
+	// which needs the install directive, which is only written after launch
+	// is confirmed. The marker must appear with NO directive file present.
+	t.Setenv("WOOTC_E2E_DRIVE", "1")
+	removeE2EFiles(t)
+	defer removeE2EFiles(t)
+	ready := `{"schemaVersion":1,"screen":"launchpad"}`
+	(&App{}).E2EDriveReady(ready)
+	data, err := os.ReadFile(e2eDrivePath("e2e-ready.json"))
+	if err != nil {
+		t.Fatalf("E2EDriveReady did not write marker: %v", err)
+	}
+	if string(data) != ready {
+		t.Errorf("ready file = %q, want %q", data, ready)
+	}
+	if _, err := os.Stat(e2eDrivePath("e2e-drive-state.json")); !os.IsNotExist(err) {
+		t.Error("E2EDriveReady must not write the bound drive-state channel")
+	}
+}
+
+func TestE2EDriveReadyNoopWhenDisabled(t *testing.T) {
+	t.Setenv("WOOTC_E2E_DRIVE", "")
+	removeE2EFiles(t)
+	defer removeE2EFiles(t)
+	(&App{}).E2EDriveReady(`{"schemaVersion":1,"screen":"launchpad"}`)
+	if _, err := os.Stat(e2eDrivePath("e2e-ready.json")); !os.IsNotExist(err) {
+		t.Error("E2EDriveReady wrote marker while drive mode was off")
+	}
+}
+
+func TestE2EDriveReadyRejectsMalformed(t *testing.T) {
+	t.Setenv("WOOTC_E2E_DRIVE", "1")
+	for _, bad := range []string{
+		"",
+		"not json",
+		`{"schemaVersion":1}`,
+		`{"screen":"launchpad"}`,
+		`{"schemaVersion":2,"screen":"launchpad"}`,
+		`{"schemaVersion":1,"screen":""}`,
+		`{"schemaVersion":1,"screen":42}`,
+		`{"schemaVersion":1,"screen":"launchpad","extra":true}`,
+		`{"schemaVersion":1,"screen":"launchpad"}{"schemaVersion":1,"screen":"launchpad"}`,
+	} {
+		removeE2EFiles(t)
+		(&App{}).E2EDriveReady(bad)
+		if _, err := os.Stat(e2eDrivePath("e2e-ready.json")); !os.IsNotExist(err) {
+			t.Errorf("E2EDriveReady wrote marker for %q", bad)
+		}
 	}
 }
 

@@ -134,7 +134,11 @@ setup() {
     # covered in phase2-windows-return.bats.
     grep -q "systemctl reboot || systemctl reboot -ff" "$RUNNER"
     grep -q 'Phase 2 Linux is STILL answering QGA after the reboot request' "$RUNNER"
-    grep -q 'qga_linux_probe' "$RUNNER"
+    grep -Fq 'source "$SCRIPT_DIR/lib/qga-transport.sh"' "$RUNNER"
+    grep -Fq 'case "$(p2_reboot_observe)" in' "$RUNNER"
+    grep -Fq 'if qga_linux_probe; then echo linux; else echo unknown; fi' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh"
+    run python3 "$BATS_TEST_DIRNAME/test_e2e_adapters.py" AdapterTests.test_actual_return_observer_refuses_failed_linux_token
+    [ "$status" -eq 0 ]
     # The forced reset drains the HMP banner first (record-video.sh's proven
     # pattern), never a blind sendall.
     grep -q 's.recv(4096); s.sendall(b"system_reset' "$RUNNER"

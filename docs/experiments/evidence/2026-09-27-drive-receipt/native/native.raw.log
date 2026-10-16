@@ -1,0 +1,9 @@
+PASS native bound install directive matching
+PASS native bound install directive write-throw
+PASS native bound install directive read-throw
+PASS native bound install directive mismatch
+PASS native bound reboot directive matching
+PASS native bound reboot directive write-throw
+PASS native bound reboot directive read-throw
+PASS native bound reboot directive mismatch
+PASS actual PS 5.1.26100.9444 two captured scripts parsed and eight mock controls; public fixture only; no actual C paths

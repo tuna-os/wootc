@@ -1,0 +1,5 @@
+--- FAIL: TestStatusEntrypointActualMainWiring (0.36s)
+    status_entrypoint_test.go:97: actual main invoked status mutator: data="mutation observed" err=<nil>
+FAIL
+exit status 1
+FAIL	wootc	0.368s

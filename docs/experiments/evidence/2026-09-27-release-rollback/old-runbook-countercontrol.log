@@ -1,0 +1,4 @@
+1..1
+not ok 1 release rollback distinguishes remote withdrawal from signed local cache
+# (in test file tests/unit/docs-truth.bats, line 426)
+#   `grep -q 'local cache and offline bundle can remain usable' runbooks/rollback-a-bad-release.md' failed

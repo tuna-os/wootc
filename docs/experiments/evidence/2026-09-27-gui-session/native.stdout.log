@@ -1,0 +1,7 @@
+RECEIPT clean {"pending":[],"schemaVersion":1,"os":"Windows_NT"}
+RECEIPT servicing {"pending":["servicing"],"schemaVersion":1,"os":"Windows_NT"}
+RECEIPT update {"pending":["windows-update"],"schemaVersion":1,"os":"Windows_NT"}
+RECEIPT both {"pending":["servicing","windows-update"],"schemaVersion":1,"os":"Windows_NT"}
+PASS native servicing query throwing read refusal
+RECEIPT wrong-os {"pending":[],"schemaVersion":1,"os":"Other"}
+PASS native PS 5.1.26100.9444 exact query parser and six mock controls

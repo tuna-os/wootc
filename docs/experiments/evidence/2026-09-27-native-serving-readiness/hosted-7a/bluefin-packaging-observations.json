@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "buildId": "68e6f4520bbd57bd24854cc92d96561bcae92a61",
+  "brandId": "bluefin",
+  "toolSha256": "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f",
+  "toolSigner": "CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL",
+  "toolVersion": "7.1.0",
+  "peFileVersion": "0.0.0.0",
+  "installerSha256": "9A44BC93037950443FD56D80C1573BB4EAE08876A65D1DF43AEBC345F0FC0C32",
+  "manifestSha256": "E32BF5470C3F36BFE9C3DA3CCDD9FBFD2E3704384EE5BD6CC4A1BEDEC0AF4AEF",
+  "beforeStartup": {},
+  "afterStartup": {},
+  "afterUninstall": {},
+  "existingDestinationRefused": true,
+  "foreignFilesPreserved": true,
+  "actualInstalledStartupRpc": true,
+  "uninstallerRemovalObserved": true,
+  "uninstallerRemovalMilliseconds": 548,
+  "interactiveUacProved": false,
+  "offlineRuntimeProved": false,
+  "minimumOsProved": false
+}

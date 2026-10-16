@@ -1,0 +1,19 @@
+{
+  "base": "09f2698",
+  "consumerControls": 28,
+  "nativeRealProcessCountercontrols": [
+    "single-read FileNotFoundError accepted as observed absence",
+    "PermissionError still propagates as failure"
+  ],
+  "retainedFailureRawSha256": "363ebdcc838322e8486016c4289faf046e742283215cbf28a3f08bcda7a67c12",
+  "retainedFailureSource": "/tmp/wootc-450-bcd-fast.raw.log",
+  "schemaVersion": 1,
+  "scope": "test observation only; no production code or guest change",
+  "sourceHashes": {
+    "docs/experiments/evidence/2026-09-27-package-proc-observation/consumer-tests.log": "8adf73120feec72f494e69566ef6817f72c2ae0cf67d993563ba5a4029862a55",
+    "docs/experiments/evidence/2026-09-27-package-proc-observation/countercontrols.log": "94a5161f650bfd63e523003b921f44575b128d5ba64f24271b6b880fcea2e563",
+    "docs/experiments/evidence/2026-09-27-package-proc-observation/retained-failure-excerpt.log": "54b7913f54c966766fff68957a6885a19ce51cfa73f83819625b8a94e1adddab",
+    "tests/unit/test_wootc_package_consumer.py": "c0c0b200eeef2bd362d3023d7706daffd9c7566b1fa8b692f55308b979d5cc7a"
+  },
+  "testRepairCheckpoint": "b518f08"
+}

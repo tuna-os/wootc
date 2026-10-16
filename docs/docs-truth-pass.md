@@ -145,3 +145,122 @@ Linux data removal is a separate choice in Manage.
 Three checks in `tests/unit/docs-truth.bats` pin these corrections to current source.
 The release instructions no longer promise a fixed first-boot time.
 RC timing, package screenshots, hardware recovery, and signature acceptance remain open.
+
+## Release guide English pass — 2026-09-27, against `5354e42`
+
+The release guide now has no findings under the shared English checker.
+Its gates, artifact names, channel limits, and requirements remain the same.
+All 24 checks in `tests/unit/docs-truth.bats` pass.
+The count for the repository falls from 1671 to 1635. The budget follows that count.
+
+## Focused first-screen guide pass — 2026-09-27, against `5354e42`
+
+The first-screen guide still limited all preparation to a folder and a boot entry.
+Install also writes boot files to the EFI system partition and changes Windows startup settings.
+The guide promised restoration after uninstall. Cleanup can fail, and Linux data removal is a separate choice.
+
+The guide also guaranteed warnings and explained them only as a lack of downloads or a signature.
+Microsoft documents checks for file and publisher reputation, including negative reputation and policy limits.
+The guide now links that source and qualifies the prompts and continuation choices.
+A checksum match and publisher identity are separate facts. The app also checks a signature on the boot manifest.
+
+Four new docs-truth cases pin the corrections. The fresh-machine RC screenshots remain open.
+
+## Runtime dependency follow-up — 2026-09-27, against `119bbc0`
+
+The release guide said that the Wails installers have no runtime dependencies.
+The first-screen guide said there is nothing to install.
+The current Wails interface needs WebView2. The GUI path in E2E checks for that runtime and installs it if absent.
+Both guides now disclose that dependency. A fifth check pins it to the actual bootstrap command and registry check.
+
+## Roadmap claims and English pass — 2026-09-27, against `323b7ba`
+
+The roadmap still said phases B–E had not started. A draft native preview now
+has hosted component proof. Complete native consumer and VM journeys remain unproved.
+It also listed console flash as an active defect; maintainers closed issue #179.
+These status corrections do not certify the replacement shell.
+
+The history implied that current uninstall restores the machine. Cleanup can fail.
+Restoration remains a 1.0 requirement that needs evidence.
+The RC list also treated a signature as a guarantee against SmartScreen.
+The roadmap now needs a separate fresh-machine observation, as the startup guide does.
+The goal of a first launch through that gate remains unchanged.
+
+Three new docs-truth checks reject the previous roadmap claims.
+The roadmap has no findings under the shared English checker.
+Its milestone requirements, headings, links, tables and earlier issue references remain.
+
+The default shared scan does not include ROADMAP.md. Its count and budget stay at 1627.
+A direct scan of the roadmap falls from 68 findings to zero.
+RC, hardware, complete native journeys, signatures and the 30-day soak still need proof.
+
+## README claims and English pass — 2026-09-27, against `7a87f04`
+
+The README promised the complete Linux-inside-Windows journey, but current desktop evidence does not prove it.
+It now separates that product goal from the native install path.
+The old text also limited preparation to disk and boot setup and promised complete cleanup.
+It now describes startup settings, partial cleanup and separate data removal.
+
+The release description promised a Windows return after each normal tagged run.
+That workflow selects native graduation and ends in Linux. The manual waiver also exists.
+The caption and release text now describe that evidence boundary.
+The blanket exclusion of secrets conflicted with imports of complete Firefox profiles.
+The README now discloses saved passwords in that profile, the WebView2 dependency and signed manifest checks.
+
+Six new docs-truth checks reject the previous README claims.
+The revised README has no findings under the shared English checker.
+The total falls from 1627 to 1589; the budget follows that count.
+Headings, existing link targets, tables, executable names, commands and license terms remain.
+The native journey, real hardware, signatures, full restoration and the soak still need proof.
+
+## E2E architecture truth and English pass — 2026-09-27, against `8e696f3`
+
+The page called its whole description validated, although its diagrams recorded the Kanpur design from July.
+It now separates those historical diagrams from current modules and dated acceptance evidence.
+The complete VM journey and WinUI journey still need proof.
+
+The page said transport, host lifecycle and retention still needed separate modules.
+Main now has sourceable adapters for those operations and VM startup.
+The page now identifies their actual source files and preserves the open GUI and scenario boundaries in #383.
+Controlled checks do not replace fresh VM acceptance.
+
+The page also claimed an atomic menu handoff on the ESP.
+The deployer writes a separate `grub.cfg` for each of three directories.
+The page now discloses partial boot state after interruption and keeps transactional recovery as a separate gate.
+The argument for the kernel requests QGA; it does not prove an active service.
+Four new docs-truth checks reject the old claims.
+
+The architecture page falls from 28 English findings to zero.
+Its headings, tables and diagrams remain; earlier dated records remain.
+The shared count falls from 1589 to 1561, and the budget follows that count.
+RC, hardware, firmware, signatures, restoration and the soak still need proof.
+
+
+## Pass — 2026-09-27, manual native hardware trials
+
+Checked the preparation and recovery claims in `docs/manual-testing.md` against
+source `09f2698`. This is a static review, not a hardware run.
+`tests/unit/docs-truth.bats` pins the three corrections.
+
+| Result | Previous claim | Source and correction |
+|---|---|---|
+| ✘ | Everything lives in one folder; no repartitioning | `app/disk_windows.go` can resize Windows and create a data partition. `app/app.go` changes power settings and stages ESP files. The guide describes those changes. |
+| ✘ | Only the folder and one boot entry exist before reboot; failure returns Windows after 30 seconds; uninstall puts everything back | Preparation also changes the ESP, registry and power state. The deployer requests a reboot; that request does not prove a Windows return. `app/installer_windows.go` reports incomplete cleanup. The guide requires observed return and baseline comparison. |
+| Scope gap | The manual journey has no shell or VM boundary | The steps cover the legacy Wails native path. They do not prove the VM desktop or WinUI journey. Those gates need their own tests on hardware. |
+
+Code samples, tables and the participant protocol remain unchanged.
+Hardware, timings and firmware outcomes still need the RC walk.
+
+## Pass — 2026-10-15, release claims
+
+Checked the release claims in the docs against the GitHub tags and releases
+of `tuna-os/wootc`, at source `426705f`. The only tag that is not `auto-v*` is
+`v0.1.0-alpha.1`. No `v0.2.0` or `v0.3.0-beta` tag or release exists.
+`tests/unit/docs-truth.bats` pins the corrections. Its list of published
+releases holds `v0.1.0-alpha.1` only.
+
+| Result | Previous claim | Source and correction |
+|---|---|---|
+| ✘ | `ROADMAP.md`: v0.3.0-beta *"shipped 2026-09-03"* | The milestone issue #211 closed on 2026-09-02, but nobody cut the release. The roadmap now says that the release is planned and its notes are a draft. |
+| ✘ | `docs/release-notes-v0.3.0-beta.md`: *"Status: Shipped"* | The notes now carry the draft marker, so `check-notes.sh` refuses to publish them before a person checks them again. |
+| ✘ | `README.md` and `ROADMAP.md`: an existing beta release | The earlier releases are `v0.1.0-alpha.1` and the automatic pre-releases. |

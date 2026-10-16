@@ -20,11 +20,11 @@ jobs:
     name: lint (shellcheck + yamllint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           submodules: recursive
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: app/go.mod
 
@@ -37,11 +37,12 @@ jobs:
             payload/deployer/*.sh \
             platform/dracut/99wootc-boot/*.sh \
             tests/e2e/run-e2e.sh tests/e2e/lib/diagnostics.sh tests/e2e/lib/fixture-bitlocker.sh \
-            tests/e2e/steps.sh \
-            tests/e2e/phase-ledger.sh \
+            tests/e2e/steps.sh tests/e2e/e2e-brand.sh \
+            tests/e2e/phase-ledger.sh tests/e2e/phase3-snapshot.sh \
             tests/e2e/lib/results.sh \
+            tests/e2e/lib/qga-transport.sh tests/e2e/lib/host-runtime.sh tests/e2e/lib/retention.sh tests/e2e/lib/vm-start.sh tests/e2e/lib/gui-session.sh tests/e2e/lib/gui-observations.sh tests/e2e/lib/gui-native.sh tests/e2e/lib/mok.sh \
             tests/e2e/lib/result-runner.sh \
-            tests/e2e/lib/snapshot-prime.sh \
+            tests/e2e/lib/snapshot-prime.sh tests/e2e/lib/offline-bundle.sh \
             payload/steps.sh
 
       - name: ShellCheck migration scripts
@@ -56,6 +57,26 @@ jobs:
         run: |
           pip install --break-system-packages yamllint
           yamllint tests/e2e/compose.yml
+          # The release workflow holds the signing and OIDC wiring; a YAML or
+          # expression mistake there only shows on a tag push. Relaxed rules:
+          # its comments and long `if:` expressions are deliberate.
+          yamllint -d '{extends: relaxed, rules: {line-length: disable}}' \
+            .github/workflows/release.yml
+
+      - name: actionlint (release workflow)
+        env:
+          ACTIONLINT_VERSION: '1.7.12'
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+          # The same bar as the ShellCheck step above.
+          SHELLCHECK_OPTS: --severity=warning
+        run: |
+          set -euo pipefail
+          tgz="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$tgz" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" .github/workflows/release.yml
 
       - name: Validate autounattend.xml
         run: |

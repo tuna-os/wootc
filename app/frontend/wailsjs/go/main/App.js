@@ -11,6 +11,10 @@ export function GetSystemInfo() {
   return window['go']['main']['App']['GetSystemInfo']();
 }
 
+export function GetInstallSpace(arg1) {
+  return window['go']['main']['App']['GetInstallSpace'](arg1);
+}
+
 export function GetBranding() {
   return window['go']['main']['App']['GetBranding']();
 }
@@ -131,6 +135,10 @@ export function E2EDriveReport(arg1) {
   return window['go']['main']['App']['E2EDriveReport'](arg1);
 }
 
+export function E2EDriveReady(arg1) {
+  return window['go']['main']['App']['E2EDriveReady'](arg1);
+}
+
 export function GetSupportPolicy() {
   return window['go']['main']['App']['GetSupportPolicy']();
 }
@@ -143,8 +151,16 @@ export function BootIntoLinux() {
   return window['go']['main']['App']['BootIntoLinux']();
 }
 
+export function GetInstallRecovery() {
+  return window['go']['main']['App']['GetInstallRecovery']();
+}
+
 export function GetRecoveryVerdict() {
   return window['go']['main']['App']['GetRecoveryVerdict']();
+}
+
+export function PrepareResume() {
+  return window['go']['main']['App']['PrepareResume']();
 }
 
 export function TryAgain() {
@@ -155,6 +171,14 @@ export function RepairBoot() {
   return window['go']['main']['App']['RepairBoot']();
 }
 
+export function InspectBoot() {
+  return window['go']['main']['App']['InspectBoot']();
+}
+
+export function RestoreWindowsBoot() {
+  return window['go']['main']['App']['RestoreWindowsBoot']();
+}
+
 export function GetReleaseNotice() {
   return window['go']['main']['App']['GetReleaseNotice']();
 }
@@ -162,3 +186,10 @@ export function GetReleaseNotice() {
 export function GetInstallSteps() {
   return window['go']['main']['App']['GetInstallSteps']();
 }
+export function GetVMState() { return window['go']['main']['App']['GetVMState'](); }
+export function StopVM() { return window['go']['main']['App']['StopVM'](); }
+export function ForceStopVM() { return window['go']['main']['App']['ForceStopVM'](); }
+
+export function PrepareVM(config) { return window['go']['main']['App']['PrepareVM'](config); }
+
+export function InstallVMRuntime() { return window['go']['main']['App']['InstallVMRuntime'](); }

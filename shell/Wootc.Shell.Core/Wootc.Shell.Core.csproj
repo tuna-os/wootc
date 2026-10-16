@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup><Compile Include="../Wootc.Shell/Engine/Dto.cs" Link="Engine/Dto.cs" /></ItemGroup>
+</Project>

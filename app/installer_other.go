@@ -67,6 +67,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 func writeGrubConfig(cfg InstallConfig) error { return nil }
 func setupESP(cfg InstallConfig) error        { return nil }
 func configureBCD(cfg InstallConfig) error    { return nil }
+func armBootChain() error                     { return nil }
 
 func writeVault(cfg InstallConfig) error {
 	vault := map[string]string{
@@ -116,3 +117,7 @@ func armOneShotFromPersistedGUID() error {
 	return fmt.Errorf("boot arming is only available on Windows")
 }
 func registerUninstallEntry() {}
+
+// The dev build has no Windows drives to measure: the space preflight is off.
+func storageFreeBytes(string) (uint64, bool) { return 0, false }
+func storageWootcDir(string) string          { return wootcDir() }

@@ -30,6 +30,10 @@ on:
       # the guest a spare 40G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
       # Windows + root.disk stay untouched, so the run remains reversible.
       phase3: { type: boolean, default: false }
+      # Offline axis (#217): the guest VM gets no network device, and the
+      # deployer must install from an OCI bundle staged over QGA. Passes
+      # --offline. Script path only (run-e2e.sh refuses it with gui_install).
+      offline: { type: boolean, default: false }
       # Force the Phase-2 bootloader (grub2|systemd). Empty = run-e2e.sh's
       # per-image heuristic (EL→grub2, else→systemd). Ostree images (e.g.
       # bluefin) want grub2 (the proven attach path); composefs wants systemd.
@@ -48,6 +52,12 @@ on:
       gui_install: { type: boolean, default: false }
       # Ordinary-user editor acceptance, separate from the Windows installer GUI.
       gui_documents: { type: boolean, default: false }
+      # Which GUI gui_install drives: 'wails' (the shipped installer) or
+      # 'native' (the WinUI shell, #344). Native publishes the shell on a
+      # Windows runner (the XAML compiler needs Windows), then the E2E job
+      # builds the engine beside it with this run's manifest-signing key and
+      # installs the pair as a protected package in the guest.
+      gui_frontend: { type: string, default: 'wails' }
       # After a non-phase3 run returns to Windows: run the documented
       # uninstaller and hold it to its claims (boot entries gone, ESP clean,
       # root.disk preserved, Windows reboots cleanly). Adds a Windows reboot.
@@ -55,6 +65,10 @@ on:
       # Fault-injection axis (#288): injects simulated failure or cancellation
       # at an install boundary: "root-disk", "image-pull", "efi-staging", "bcd-arming", "pre-reboot", "deploy-failure".
       fault_inject: { type: string, default: '' }
+      # Firmware db axis (#322): which Microsoft third-party UEFI CA the VM's
+      # Secure Boot db holds — 2011, 2023, both, or none. Empty keeps
+      # Dockur's stock vars. "none" needs gui_install: its pass is a refusal.
+      firmware_db: { type: string, default: '' }
     outputs:
       # Non-empty ONLY when run-e2e.sh classified its own failure as a known
       # infrastructure flake (qga-channel-lost, serial-feed-lost). Callers may
@@ -69,13 +83,61 @@ permissions:
   packages: read                 # pull the pre-installed Windows base image
 
 jobs:
+  # The native shell for gui_frontend=native: the shipped preview build
+  # (never the -p:NativeGallery=true screen gallery, which replays recorded
+  # fixtures and starts no engine). Its build and brand identity are compiled
+  # in here; the engine the e2e job builds must carry the same two.
+  native-shell:
+    if: ${{ inputs.gui_install && inputs.gui_frontend == 'native' }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      brand: ${{ steps.brand.outputs.brand }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - id: brand
+        shell: bash
+        env:
+          WOOTC_TARGET_IMAGE: ${{ inputs.image }}
+        run: echo "brand=$(bash tests/e2e/e2e-brand.sh "$WOOTC_TARGET_IMAGE")" | tee -a "$GITHUB_OUTPUT"
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: shell/global.json
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('shell/global.json', 'shell/Directory.Build.props', 'shell/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Publish the native shell (preview build, never the gallery)
+        working-directory: shell
+        env:
+          BRAND: ${{ steps.brand.outputs.brand }}
+        run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} -p:NativeBrandId=${{ env.BRAND }} --output ../out/native-shell
+      - name: Refuse a gallery build
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -e out/native-shell/Fixtures ] || compgen -G 'out/native-shell/Wootc.Shell.Gallery.*' >/dev/null; then
+            echo "::error::the published shell is the screen gallery build; E2E never drives it"; exit 1
+          fi
+          ls -l out/native-shell/Wootc.Shell.exe out/native-shell/Branding/brand.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: e2e-native-shell-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
+          path: out/native-shell/
+          if-no-files-found: error
+          retention-days: 3
+
   e2e:
+    needs: native-shell
+    # Runs when native-shell succeeded or was skipped (every non-native cell).
+    if: ${{ !cancelled() && (needs.native-shell.result == 'success' || needs.native-shell.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 330          # under the 6 h hard cap, with headroom
     outputs:
       flake_verdict: ${{ steps.flake.outputs.verdict }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { submodules: recursive }
 
       - name: Confirm KVM is available
@@ -92,6 +154,17 @@ jobs:
           sudo usermod -aG kvm "$USER" || true
           sudo chmod 0666 /dev/kvm
           kvm-ok || true
+
+      # virt-fw-vars writes the firmware db cell into the OVMF vars (#322).
+      # Its own venv, linked onto PATH as a command: the harness's python3
+      # stays the system one, and the step costs nothing on other cells.
+      - name: Install virt-fw-vars for the firmware db axis
+        if: ${{ inputs.firmware_db != '' }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/virt-firmware"
+          "$RUNNER_TEMP/virt-firmware/bin/pip" install --quiet 'virt-firmware==26.9'
+          sudo ln -sf "$RUNNER_TEMP/virt-firmware/bin/virt-fw-vars" /usr/local/bin/virt-fw-vars
+          virt-fw-vars --help >/dev/null
 
       - name: Reclaim disk (hosted runners ship ~30 GB of toolchains)
         run: |
@@ -161,7 +234,7 @@ jobs:
       # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
       # loader tag, so this is a stock production build.
       - name: Set up Node for lifecycle CLI
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           # Disk reclaim removes the runner's preinstalled global Node modules.
           # GUI runs build the real Wails frontend, so explicitly restore a
@@ -169,11 +242,13 @@ jobs:
           node-version: '24'
 
       - name: Set up Go for lifecycle CLI
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
           go-version: '1.27.x'
+          # go.sum is in app/; the default (a root go.sum) caches nothing.
+          cache-dependency-path: app/go.sum
 
       - name: Build wootc.exe for lifecycle and GUI checks
         env:
@@ -182,33 +257,11 @@ jobs:
           set -euo pipefail
           sudo apt-get install -y -qq librsvg2-bin
           ( cd app/frontend && npm ci --silent && npm run build )
-          # Wear the brand that matches the image under test: a bluefin run
-          # drives the Bluefin-branded installer, exactly what a real user
-          # downloads — the walkthrough videos must show that installer, not
-          # the generic one. No matching brand directory → generic build.
-          # (Preload is separately forced off in the guest via
-          # WOOTC_PRELOAD=0 until the offline axis (#217) is green.)
-          image="$WOOTC_TARGET_IMAGE"
-          name=$(basename "${image%:*}")
-          BRAND_ID=wootc
-          if [ -d "app/branding/$name" ]; then
-            BRAND_ID="$name"
-            echo "building BRANDED installer: $name"
-          else
-            # An image can belong to a brand's catalog without a brand of
-            # its own — dakota ships inside the Bluefin installer. A real
-            # Dakota user downloads Bluefin's exe, so that is the installer
-            # the walkthrough must show. Find the brand whose catalog lists
-            # this image id; generic only when no brand claims it.
-            for b in app/branding/*/; do
-              if grep -Fq "\"$name\"" "$b/brand.json" 2>/dev/null; then
-                BRAND_ID="$(basename "$b")"
-                echo "building BRANDED installer: $(basename "$b") (its catalog carries '$name')"
-                break
-              fi
-            done
-            [ "$BRAND_ID" = wootc ] && echo "no brand claims '$name' — building the generic installer"
-          fi
+          # Wear the brand that matches the image under test (see the
+          # script). Preload is separately forced off in the guest via
+          # WOOTC_PRELOAD=0 until the offline axis (#217) is green.
+          BRAND_ID=$(bash tests/e2e/e2e-brand.sh "$WOOTC_TARGET_IMAGE")
+          echo "WOOTC_E2E_BRAND=$BRAND_ID" >> "$GITHUB_ENV"
           # Use the release build path so the walkthrough proves the same
           # icon, Windows metadata, elevation manifest, and runtime brand.
           # Omit --version: E2E uses the locally staged boot artifacts.
@@ -219,6 +272,35 @@ jobs:
               --manifest-public-key "$key_dir/public.hex" \
               --output tests/e2e/wootc-files/wootc.exe
           ls -lh tests/e2e/wootc-files/wootc.exe
+          echo "WOOTC_E2E_MANIFEST_PUBLIC=$key_dir/public.hex" >> "$GITHUB_ENV"
+
+      - name: Download the native shell
+        if: ${{ inputs.gui_install && inputs.gui_frontend == 'native' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: e2e-native-shell-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
+          path: tests/e2e/wootc-files/native-shell
+
+      # The engine is the same Go program as wootc.exe, built the way
+      # winui-preview.yml builds the preview engine, plus this run's
+      # manifest-signing public key (the staged SHA256SUMS.sig is signed with
+      # its seed, which never leaves this job). Its build and brand identity
+      # must equal the shell's or both peers refuse the session.
+      - name: Assemble the native package (shell + engine + manifest)
+        if: ${{ inputs.gui_install && inputs.gui_frontend == 'native' }}
+        env:
+          NATIVE_BRAND: ${{ needs.native-shell.outputs.brand }}
+        run: |
+          set -euo pipefail
+          [ "$NATIVE_BRAND" = "$WOOTC_E2E_BRAND" ] || { echo "::error::shell brand '$NATIVE_BRAND' differs from the e2e brand '$WOOTC_E2E_BRAND'"; exit 1; }
+          pkg=tests/e2e/wootc-files/native-shell
+          public=$(tr -d ' \n' < "$WOOTC_E2E_MANIFEST_PUBLIC")
+          ( cd app && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
+              -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }} -X main.brandID=$NATIVE_BRAND -X main.artifactPublicKey=$public" \
+              -o "../$pkg/wootc-engine.exe" . )
+          python3 tests/e2e/native-package.py write "$pkg" "${{ github.sha }}" "$NATIVE_BRAND" "app/branding/$NATIVE_BRAND/brand.json"
+          python3 tests/e2e/native-package.py check "$pkg"
+          du -sh "$pkg"
 
       - name: Run the E2E (restores base image if pulled, else full install)
         env:
@@ -255,6 +337,8 @@ jobs:
           # Drive mode gate for the app's E2E bindings (inert otherwise).
           WOOTC_E2E_GUI_DOCUMENTS: ${{ inputs.gui_documents && '1' || '0' }}
           WOOTC_E2E_DRIVE: ${{ inputs.gui_install && '1' || '' }}
+          # Which GUI the drive operates; run-e2e.sh refuses anything else.
+          WOOTC_E2E_GUI_FRONTEND: ${{ inputs.gui_frontend }}
           # Passed as a $-var, not interpolated into the run: block, so a
           # value containing "/`/$() in this attacker-influenceable
           # workflow_dispatch input cannot execute shell on the runner. See #154.
@@ -271,10 +355,12 @@ jobs:
           # introduced here by 2617aed (#159) on 2026-08-14.
           WOOTC_TARGET_IMAGE: ${{ inputs.image }}
           WOOTC_FAULT_INJECT: ${{ inputs.fault_inject }}
+          WOOTC_E2E_FIRMWARE_DB: ${{ inputs.firmware_db }}
         run: |
           cd tests/e2e
           FLAGS=()
           [ "${{ inputs.phase3 }}" = "true" ] && FLAGS+=(--phase3)
+          [ "${{ inputs.offline }}" = "true" ] && FLAGS+=(--offline)
           [ "${{ inputs.gui_install }}" = "true" ] && FLAGS+=(--gui-install)
           [ "${{ inputs.uninstall_check }}" = "true" ] && FLAGS+=(--uninstall-check)
           [ -n "$WOOTC_FAULT_INJECT" ] && FLAGS+=("--fault-inject=$WOOTC_FAULT_INJECT")
@@ -368,7 +454,7 @@ jobs:
         if: always()
         run: python3 tests/e2e/safe-log.py --tree /tmp/evidence
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always() && steps.safe_logs.outcome == 'success'
         with:
           # Per-CASE name. Every cell used to upload "e2e-nightly-<run_id>", so

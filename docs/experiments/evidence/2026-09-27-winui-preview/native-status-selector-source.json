@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "cc6fec000fbc138a890201f9c723c697c3781393",
+  "sha256": {
+    "app/status_location.go": "508c9f1e91c8494b99475bbadc53e404f50f08cceab39c5e1adfcf2e49b2dbed",
+    "app/status_location_windows.go": "2a799be7ee40725905fb86bde6a37c21b5a8d71be6333d7cf6e44017f9913116",
+    "app/status_location_other.go": "ae362e32c95492aada67a97f40aae785960d57292f8e2e8f20d381d84af28db5",
+    "app/status_location_test.go": "e1cb9191ae32ed55ac9103dcb25f8023836bd8c4108fc1dc82a7e9b48e0b99bd",
+    "app/status_location_windows_test.go": "a978a2655a0326d23b03625fe4c17f29de92459addaf22084b630f3dfce2ace4"
+  },
+  "scope": "Initial narrow unchanged reuse at 5acc8c9 of read-only unique trusted attempt discovery and refusal tests from draft #431. Later lifecycle/other-platform reader changes are bound by strict-records-pure-provenance.json and their hosted validation. Native session invokes discovery only after OS peer/package authentication. Existing main CLI remains unchanged; #458 runtime/main integration is separate."
+}

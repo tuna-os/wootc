@@ -43,6 +43,41 @@ def ownership(root):
     return read(root / 'app/branding/ownership.json')
 
 
+def owner_may_be_named(root, brand):
+    """Whether brand.json's publisher/copyright may name the mark's owner.
+
+    Only once that owner said yes (blessing.json status "blessed"), or when
+    the mark is this project's own (selfOwned and listed in ownership.json).
+    A missing or malformed record fails closed. app/branding_embed.go
+    ownerMayBeNamed is the same rule for the running exe.
+    """
+    try:
+        record = read(root / 'app/branding' / brand / 'blessing.json')
+        policy = ownership(root)
+    except (OSError, ValueError):
+        return False
+    if not isinstance(record, dict) or record.get('brand') != brand:
+        return False
+    if record.get('selfOwned') is True:
+        return brand in policy.get('selfOwnedBrands', [])
+    return record.get('status') == 'blessed'
+
+
+def effective_identity(root, brand, config):
+    """(publisher, copyright) an exe or package for this brand may carry.
+
+    Until the owner has granted it, the publisher is the distributor that
+    actually builds and ships the exe (ownership.json), and no copyright is
+    claimed in the owner's name.
+    """
+    if owner_may_be_named(root, brand):
+        return config.get('publisher') or config['name'], config.get('copyright') or ''
+    distributor = ownership(root).get('distributor')
+    require(isinstance(distributor, str) and distributor.strip(),
+            'app/branding/ownership.json names no distributor for unblessed brands')
+    return distributor, ''
+
+
 def validate(root, brand):
     identifier(brand)
     directory = root / 'app/branding' / brand

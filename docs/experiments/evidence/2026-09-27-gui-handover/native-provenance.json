@@ -1,0 +1,20 @@
+{
+  "sourceQuerySHA256": "adfe6a3d444bf22f35c4cbfb5f67ede89a4ab23d5cf65b16d7168b96fa673895",
+  "sourceBytes": 353,
+  "leadingLF": true,
+  "stagedQuerySHA256": "7262c507199ff8248371eee566bb4eb4c7404dab4ee383ef85eaa4dfaae985d2",
+  "invocationSHA256": "56616cba52f93f255d5c26b8b249ca078ba9d00206cf216c61c8b63f3b924883",
+  "scope": "Actual parser plus mocked Set-Content/Get-Content only; no C path reads/writes, registry/service/account/policy or reboot operations. Fresh private TEMP staging removed.",
+  "sourceCommit": "f793c0af416c4bbe1ccd467c9381a1d2d7ae8923",
+  "containingModuleSHA256": "7fa37c60ee2e454411843f2a092486e1635cde917d99a69b664460da7c7c26d5",
+  "nativePowerShellVersion": "5.1.26100.9444",
+  "nativeExitCode": 0,
+  "normalization": "Preserve the exact 353-byte Bash payload including leading LF; prepend UTF-8 BOM and replace each LF with CRLF for native PowerShell staging. Native executes the staged literal only, not the Bash module.",
+  "fileSha256": {
+    "native.stdout.log": "4eedf8c9235d4785f2252f189287430f6ec89f198974b4713d4dae4c41ad6d6f",
+    "native.stderr.log": "2ce70d6c8c9ad6726c794690c8b14a2b83673648cac88edf4ff1acc50ec46348",
+    "native-invocation.ps1": "56616cba52f93f255d5c26b8b249ca078ba9d00206cf216c61c8b63f3b924883"
+  },
+  "literalFirstCapturedFromCommit": "f91352f049b6be215e7682d518caf219c83ccd8b",
+  "containingModuleAtCaptureSHA256": "d32fdcd0c9ee89a67a98b72c836c2c41dcde8ee4216509ab3755499ad359b694"
+}

@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_actual_kvm_eacces_retains_independent_linux_observations (__main__.Qualification.test_actual_kvm_eacces_retains_independent_linux_observations)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/wootc-partial-host-old-counter.py", line 106, in test_actual_kvm_eacces_retains_independent_linux_observations
+    self.assertIn('/dev/kvm', calls)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+AssertionError: '/dev/kvm' not found in []
+
+----------------------------------------------------------------------
+Ran 1 test in 0.009s
+
+FAILED (failures=1)

@@ -72,9 +72,8 @@ func getSystemInfo() SystemInfo {
 	// firmware launches an unsigned loader too, and the db read costs a
 	// PowerShell spawn on a screen the user is waiting for.
 	if info.SecureBootOn {
-		info.TrustedUefiAuthorities = trustedUefiAuthorities()
-		if v := checkSecureBootChain(info.SecureBootOn, info.SecureBootKnown,
-			info.TrustedUefiAuthorities, stagedShimAuthorities()); v.Warn {
+		info.TrustedUefiAuthorities, info.UefiDbRead = trustedUefiAuthorities()
+		if v := secureBootChainVerdict(info); v.Warn {
 			info.SecureBootChainWarning = v.Message
 		}
 	}
@@ -124,22 +123,44 @@ func validatePlatformConfig(cfg InstallConfig) error {
 
 func checkSystem() error {
 	if !isAdmin() {
-		return fmt.Errorf("wootc must be run as Administrator")
+		return fmt.Errorf("%s must be run as Administrator", productName())
 	}
 	if !isUEFI() {
-		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — wootc needs UEFI. " +
-			"Most PCs made after 2012 support UEFI; it can usually be enabled in firmware setup")
+		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — %s needs UEFI. "+
+			"Most PCs made after 2012 support UEFI; it can usually be enabled in firmware setup", productName())
 	}
 	// SPEC §3.5: never touch a volume mid-(de)cryption — the partition
 	// table is unstable and a resize could corrupt it.
 	switch bitlockerState(`C:`) {
 	case "encrypting":
-		return fmt.Errorf("Windows is still encrypting drive C:. Wait for BitLocker to finish " +
-			"(you can check progress in the BitLocker control panel), then run wootc again")
+		return fmt.Errorf("Windows is still encrypting drive C:. Wait for BitLocker to finish "+
+			"(you can check progress in the BitLocker control panel), then run %s again", productName())
 	case "decrypting":
-		return fmt.Errorf("Windows is still decrypting drive C:. Wait for it to finish, then run wootc again")
+		return fmt.Errorf("Windows is still decrypting drive C:. Wait for it to finish, then run %s again", productName())
 	}
 	return nil
+}
+
+// storageFreeBytes reads the free space the calling user can use on drive
+// letter (the volume root.disk and the deployer scratch land on).
+func storageFreeBytes(drive string) (uint64, bool) {
+	p, err := windows.UTF16PtrFromString(drive + `:\`)
+	if err != nil {
+		return 0, false
+	}
+	var available, total uint64
+	if err := windows.GetDiskFreeSpaceEx(p, &available, &total, nil); err != nil {
+		return 0, false
+	}
+	return available, true
+}
+
+// storageWootcDir is <drive>:\wootc; "" is the current storage drive.
+func storageWootcDir(drive string) string {
+	if drive == "" {
+		return wootcDir()
+	}
+	return drive + `:\wootc`
 }
 
 // ── Directories ───────────────────────────────────────────────────────────────
@@ -273,6 +294,7 @@ func hasWootcESPArtifacts() bool {
 	if err != nil {
 		return false
 	}
+	defer releaseESPLetter()
 	owned, err := hasESPOwnedFiles(espPath)
 	// An unreadable or unsafe ownership record is unresolved cleanup evidence.
 	return owned || err != nil
@@ -291,6 +313,7 @@ func cleanupESP() error {
 	if err != nil {
 		return fmt.Errorf("locate EFI boot partition for cleanup: %w", err)
 	}
+	defer releaseESPLetter()
 	return cleanupESPOwnedFiles(espPath)
 }
 
@@ -322,7 +345,7 @@ func armOneShotFromPersistedGUID() error {
 		return fmt.Errorf("recorded boot entry id looks invalid (%q) — reinstalling repairs this", guid)
 	}
 	if out, err := runCmd("bcdedit", "/set", "{fwbootmgr}", "bootsequence", guid, "/addfirst"); err != nil {
-		return fmt.Errorf("could not arm the one-time TunaOS boot: %w (output: %s)", err, out)
+		return fmt.Errorf("could not arm the one-time %s boot: %w (output: %s)", installedSystemName(), err, out)
 	}
 	return nil
 }
@@ -388,6 +411,22 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	}
 	setStorageDrive(drive)
 
+	targetDrives := []string{drive}
+	if drive != "C" {
+		targetDrives = append(targetDrives, "C")
+	}
+	for _, d := range targetDrives {
+		disk := filepath.Join(d+`:\wootc`, "disks", "root.disk")
+		release, err := acquireVMLock(disk)
+		if err != nil {
+			return err
+		}
+		defer release()
+		if err := verifyVMDiskReleased(disk); err != nil {
+			return err
+		}
+	}
+
 	var errs []string
 
 	// 0. Put back what install changed outside its folder: hibernation /
@@ -408,9 +447,16 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	// 3. Remove the install dir, staged files, cache, and logs.
 	// Clean both the active storage drive and C: if distinct.
-	targetDrives := []string{drive}
-	if drive != "C" {
-		targetDrives = append(targetDrives, "C")
+	// The Apps entry runs the staged copy under install\, so step aside first.
+	var removedDirs []string
+	for _, d := range targetDrives {
+		removedDirs = append(removedDirs, d+`:\wootc\install`)
+		if opts.DeleteRootDisk || opts.RemovePartition {
+			removedDirs = append(removedDirs, d+`:\wootc`)
+		}
+	}
+	if err := moveRunningImageAside(removedDirs); err != nil {
+		errs = append(errs, err.Error())
 	}
 	for _, d := range targetDrives {
 		if opts.RemovePartition {
@@ -426,6 +472,11 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		wDir := d + `:\wootc`
 		if _, err := os.Stat(wDir); err != nil {
 			continue
+		}
+		// Scrub the staged credentials first (#279, #281): RemoveAll only
+		// unlinks them, and NTFS keeps a deleted file's clusters readable.
+		if failed := scrubInstallSecrets(filepath.Join(wDir, "install")); len(failed) > 0 {
+			errs = append(errs, fmt.Sprintf("could not scrub %v", failed))
 		}
 		// Always remove install, bundle, cache, logs, state.json, and metadata
 		for _, sub := range []string{"install", "bundle", "cache", "logs"} {
@@ -479,11 +530,11 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 	var errs []string
 
 	if hasWootcBCDEntry() {
-		errs = append(errs, "a wootc BCD firmware entry is still present")
+		errs = append(errs, "the "+productName()+" firmware boot entry is still present")
 	}
 
 	if hasWootcESPArtifacts() {
-		errs = append(errs, "wootc boot files are still present on the ESP")
+		errs = append(errs, productName()+" boot files are still present on the EFI system partition")
 	}
 
 	if hasUninstallRegistryEntry() {
@@ -522,25 +573,15 @@ func registerUninstallEntry() {
 	if err != nil {
 		return
 	}
-	// The generic build keeps its documented "TunaOS (wootc)" listing;
-	// branded builds list under the distribution's own name — a Bazzite user
-	// searching Apps for "wootc" would find nothing, because nothing ever
-	// told them that word.
-	b := effectiveBranding()
-	displayName := b.Name
-	if strings.EqualFold(b.ProductName, "wootc") {
-		displayName = b.Name + " (wootc)"
-	}
+	// The entry runs the staged copy under install\ (see uninstallEntryTarget),
+	// never a download or a preview package that can disappear first.
+	target := uninstallEntryTarget(filepath.Join(wootcDir(), "install", stagedEngineName), exe,
+		func(p string) bool { st, err := os.Stat(p); return err == nil && st.Mode().IsRegular() })
+	// uninstallDisplayName (branding_policy.go) owns the listing name.
+	values := uninstallEntryValues(effectiveBranding(), target, wootcDir())
 	// Brand names may contain quotes. PowerShell uses doubled apostrophes,
 	// not Go's backslash quoting, in a literal string.
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
-	values := map[string]string{
-		"DisplayName": displayName, "Publisher": b.Publisher,
-		"DisplayVersion": b.Version, "DisplayIcon": exe,
-		"URLInfoAbout": b.WebsiteURL, "HelpLink": b.SupportURL,
-		"InstallLocation": wootcDir(),
-		"UninstallString": fmt.Sprintf(`"%s" uninstall`, exe),
-	}
 	script := "New-Item -Path " + quote(uninstallRegKey) + " -Force | Out-Null; "
 	for name, value := range values {
 		script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name " + quote(name) + " -Value " + quote(value) + "; "
@@ -548,6 +589,30 @@ func registerUninstallEntry() {
 	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoModify -Value 1 -Type DWord; "
 	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoRepair -Value 1 -Type DWord"
 	_ = runPowerShell(script)
+}
+
+// moveRunningImageAside renames this program out of a directory uninstall is
+// about to delete. Windows refuses to delete a running image but allows it to
+// be renamed on the same volume; the renamed file is deleted at the next
+// restart.
+func moveRunningImageAside(removed []string) error {
+	self, err := os.Executable()
+	if err != nil || !uninstallRemovesImage(self, removed) {
+		return nil
+	}
+	volume := filepath.VolumeName(self)
+	dir := os.TempDir()
+	if !strings.EqualFold(filepath.VolumeName(dir), volume) {
+		dir = volume + `\`
+	}
+	aside := filepath.Join(dir, fmt.Sprintf("%s-uninstall-%d.exe", strings.TrimSuffix(stagedEngineName, ".exe"), os.Getpid()))
+	if err := os.Rename(self, aside); err != nil {
+		return fmt.Errorf("could not move the running uninstaller %s out of the install directory: %w", self, err)
+	}
+	if p, err := windows.UTF16PtrFromString(aside); err == nil {
+		_ = windows.MoveFileEx(p, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT)
+	}
+	return nil
 }
 
 func unregisterUninstallEntry() {
@@ -559,7 +624,7 @@ func unregisterUninstallEntry() {
 
 func rebootWindows() error {
 	_, err := runCmd("shutdown", "/r", "/t", "5", "/f",
-		"/c", effectiveBranding().ProductName+" is rebooting to start the installer")
+		"/c", rebootMessage(effectiveBranding()))
 	return err
 }
 

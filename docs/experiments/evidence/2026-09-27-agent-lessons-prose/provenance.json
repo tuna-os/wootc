@@ -1,0 +1,25 @@
+{
+  "baseCommit": "4ea4d46e443ee3450b62275450c59394eaebc019",
+  "changedDocument": "docs/agent-lessons.md",
+  "beforeFileFindings": 271,
+  "afterFileFindings": 228,
+  "beforeSharedBudget": 1561,
+  "afterSharedBudget": 1518,
+  "newExclusions": false,
+  "preserved": {
+    "allHeadings": true,
+    "defectInventoryTable": true,
+    "sections8OnwardVerbatim": true
+  },
+  "checks": {
+    "docsTruthBats": 42,
+    "sharedSteSummary": 1518,
+    "diffCheck": "pass"
+  },
+  "documentSha256": "70e228aa785ba80751c0812a491679c5ba5508a184cb3f3bddb1672b6d928ce3",
+  "sourceCommit": "4ec4d2a055b3b1ee03f472b0aa3ed9e20b9a402a",
+  "linterSources": {
+    "/tmp/stecheck/ste-lint.mjs": "6b956f1e9f2006b838fdde053516360cfac493b7f84c18615358369ada2e8ed3",
+    "/tmp/stecheck/ste-rules.mjs": "0ede0b8a8bad6935f4cec216d5c2cf60cb06e4a0b0ab73e7da09794f061fe795"
+  }
+}

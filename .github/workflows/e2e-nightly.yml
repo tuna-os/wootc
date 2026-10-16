@@ -11,6 +11,8 @@ on:
       gui_documents: { description: 'Require GNOME editor save and persistence proof (BitLocker on)', type: boolean, default: false }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
       use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
+      gui_install: { description: 'Run native install through the wootc.exe GUI', type: boolean, default: false }
+      gui_frontend: { description: 'GUI that gui_install drives: wails (shipped installer) | native (WinUI shell preview, #344)', type: choice, options: [wails, native], default: wails }
       phase3: { description: 'Run rung-3 graduate (full 1→2→3 onto a blank 2nd disk)', type: boolean, default: false }
       bootloader: { description: 'Force Phase-2 bootloader: grub2 (ostree) | systemd (composefs) | blank=auto', type: string, default: '' }
 
@@ -33,5 +35,8 @@ jobs:
       # full install with use_base_image=false.
       use_base_image: ${{ github.event.inputs.use_base_image != 'false' }}
       gui_documents: ${{ github.event.inputs.gui_documents == 'true' }}
+      gui_install: ${{ github.event.inputs.gui_install == 'true' }}
+      # Scheduled runs (no inputs) drive the shipped installer.
+      gui_frontend: ${{ github.event.inputs.gui_frontend || 'wails' }}
       phase3: ${{ github.event.inputs.phase3 == 'true' }}
       bootloader: ${{ github.event.inputs.bootloader || '' }}

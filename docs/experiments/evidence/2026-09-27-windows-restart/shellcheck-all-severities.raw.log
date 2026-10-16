@@ -1,0 +1,245 @@
+
+In tests/e2e/lib/qga-transport.sh line 191:
+    [[ "$before" =~ ^[1-9][0-9]{8,18}$ ]] && wootc_qga_valid_timeout "$budget" || {
+                                          ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In tests/e2e/lib/qga-transport.sh line 251:
+    os=$(WOOTC_QGA_CALL_TIMEOUT="$probe_timeout" qga_powershell '$env:OS' 2>/dev/null) || return 1
+                                                                ^-------^ SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 39:
+source "$SCRIPT_DIR/steps.sh"
+       ^--------------------^ SC1091 (info): Not following: tests/e2e/steps.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 41:
+source "$SCRIPT_DIR/phase-ledger.sh"
+       ^---------------------------^ SC1091 (info): Not following: tests/e2e/phase-ledger.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 43:
+source "$SCRIPT_DIR/lib/diagnostics.sh"
+       ^-- SC1091 (info): Not following: tests/e2e/lib/diagnostics.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 45:
+source "$SCRIPT_DIR/lib/results.sh"
+       ^--------------------------^ SC1091 (info): Not following: tests/e2e/lib/results.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 47:
+source "$SCRIPT_DIR/lib/result-runner.sh"
+       ^-- SC1091 (info): Not following: tests/e2e/lib/result-runner.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 49:
+source "$SCRIPT_DIR/lib/snapshot-prime.sh"
+       ^-- SC1091 (info): Not following: tests/e2e/lib/snapshot-prime.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 270:
+source "$SCRIPT_DIR/lib/retention.sh"
+       ^----------------------------^ SC1091 (info): Not following: tests/e2e/lib/retention.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 298:
+source "$SCRIPT_DIR/lib/host-runtime.sh"
+       ^-- SC1091 (info): Not following: tests/e2e/lib/host-runtime.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 551:
+    WOOTC_QGA_CALL_TIMEOUT="$WOOTC_E2E_HEARTBEAT_TIMEOUT_S" qga_call exec /bin/sh -c '
+                                                                                     ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 612:
+                qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+                               ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 655:
+        qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+                       ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 663:
+        qga_powershell '$p="C:\OEM\wootc-config.txt"; if (Test-Path $p) { try { attrib -r -s -h $p } catch {}; cmd.exe /d /c "takeown /f `"$p`" >NUL 2>&1 & icacls `"$p`" /grant *S-1-1-0:F >NUL 2>&1"; try { Remove-Item -LiteralPath $p -Force -ErrorAction Stop } catch { Write-Output ("REMOVE-FAILED: " + $_.Exception.Message) } }; if (Test-Path $p) { Write-Output ("STILL-PRESENT attrs=" + (Get-Item $p -Force).Attributes) } else { Write-Output "REMOVED-OK" }' 2>&1 | sed 's/^/    oem-config: /' || true
+                       ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 680:
+    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+                   ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 713:
+    esp_letter=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+                                ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 732:
+            sweep_out=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+                                       ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 733:
+$root = "'"$esp_letter"':\EFI"
+                       ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 764:
+    fw_sweep=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+                              ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 809:
+        found=$(qga_powershell '$u = (Get-CimInstance Win32_ComputerSystem).UserName
+                               ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 856:
+    qga_powershell '$tmp = "C:\OEM\e2e-snapshot-complete.txt.tmp"; "ok" | Set-Content -Path $tmp -Encoding ASCII; Move-Item -LiteralPath $tmp -Destination C:\OEM\e2e-snapshot-complete.txt -Force' >/dev/null
+                   ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 1481:
+        iso=$(ls -1 "$STORAGE_DIR"/windows.*.iso 2>/dev/null | head -1 || true)
+              ^-- SC2012 (info): Use find instead of ls to better handle non-alphanumeric filenames.
+
+
+In tests/e2e/run-e2e.sh line 1688:
+source "$SCRIPT_DIR/lib/vm-start.sh"
+       ^---------------------------^ SC1091 (info): Not following: tests/e2e/lib/vm-start.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 1793:
+    $DOCKER exec "$CONTAINER_NAME" sh -c '
+                                         ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 1846:
+        echo "storage-fs=$(stat -f -c '%T' /storage 2>/dev/null) tmp-fs=$(stat -f -c '%T' /tmp 2>/dev/null)"
+                                         ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+                                                                                        ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 1896:
+    qga_call exec /bin/sh -c '
+                             ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 1921:
+    qga_call exec /bin/sh -c '
+                             ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 1948:
+    qga_powershell '@"
+                   ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 1955:
+$start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
+                                                       ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 1996:
+    esp=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+                         ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2016:
+        printf '%s' "$esp" | grep -q 'WOOTCDIR=True'  && fail "Uninstall: EFI\\wootc survived on the ESP" || pass "Uninstall: EFI\\wootc removed from the ESP"
+                                                      ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In tests/e2e/run-e2e.sh line 2017:
+        printf '%s' "$esp" | grep -q 'FEDORAOURS=True' && fail "Uninstall: a wootc-owned EFI\\fedora survived on the ESP" || pass "Uninstall: no wootc-owned EFI\\fedora remains"
+                                                       ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In tests/e2e/run-e2e.sh line 2025:
+    printf '%s' "$files" | grep -q 'INSTALL=False' && pass "Uninstall: install state removed" || fail "Uninstall: C:\\wootc\\install survived"
+                                                   ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In tests/e2e/run-e2e.sh line 2026:
+    printf '%s' "$files" | grep -q 'ROOTDISK=True' && pass "Uninstall: root.disk preserved (documented default keeps the user's Linux data)" || fail "Uninstall: root.disk vanished — the default must never delete the user's Linux"
+                                                   ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In tests/e2e/run-e2e.sh line 2027:
+    printf '%s' "$files" | grep -q 'ARP=False'     && pass "Uninstall: Add/Remove Programs entry unregistered" || fail "Uninstall: Add/Remove Programs entry survived"
+                                                   ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In tests/e2e/run-e2e.sh line 2029:
+    tasks=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+                           ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2032:
+    printf '%s' "$tasks" | grep -q 'TASKS=False' && pass "Uninstall: recovery scheduled tasks unregistered" || fail "Uninstall: recovery scheduled tasks survived"
+                                                 ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In tests/e2e/run-e2e.sh line 2065:
+    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | sed 's/^/    retry: /' || true
+                   ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2256:
+source "$SCRIPT_DIR/lib/gui-observations.sh"
+       ^-- SC1091 (info): Not following: tests/e2e/lib/gui-observations.sh was not specified as input (see shellcheck -x).
+
+
+In tests/e2e/run-e2e.sh line 2338:
+    qga_powershell '$ErrorActionPreference = "Stop"
+                   ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2353:
+$start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
+                                                       ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2390:
+        qga_powershell '
+                       ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2439:
+    single_out=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+                                ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2636:
+            qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+                           ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 2738:
+qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
+               ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 3807:
+        'echo "host-bind: $(mountpoint -q /run/wootc/host && echo mounted || echo ABSENT)"; \
+        ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 3891:
+        'printf "UNAME=%s\n" "$(uname -s)"; printf "CMDLINE="; cat /proc/cmdline; printf "TARGET="; cat /etc/wootc/native-target 2>/dev/null || true' \
+        ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+
+In tests/e2e/run-e2e.sh line 3921:
+        'cat /run/wootc-e2e-native-userdata 2>/dev/null; \
+        ^-- SC2016 (info): Expressions don't expand in single quotes, use double quotes for that.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC1091 -- Not following: tests/e2e/lib/diag...
+  https://www.shellcheck.net/wiki/SC2012 -- Use find instead of ls to better ...
+  https://www.shellcheck.net/wiki/SC2015 -- Note that A && B || C is not if-t...

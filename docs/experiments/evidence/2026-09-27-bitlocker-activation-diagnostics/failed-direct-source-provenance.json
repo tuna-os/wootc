@@ -1,0 +1,46 @@
+{
+  "baseHead": "b4d4083cdeeba25c950bf4cdbca3f50a754c1949",
+  "modifiedSources": true,
+  "sourceFiles": [
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.ps1",
+      "rawSha256": "76127615cdc23adf18af64a1af3a08f117844bc50ba5a563d34049fc242b3cdc",
+      "stagedSha256": "bb5b9bf55b526135a18f45a72b854ee0a7cf732efd8b1a7906134e519d69e688",
+      "name": "wootc-activation-diagnostic-09be7dd218f949cc99b2d549a383adb0-0.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.ps1",
+      "rawSha256": "757f6df7ded7afeb6b3dffff1fdb1129dfca908d4438e477dc30fcc7f4d66738",
+      "stagedSha256": "7253120c3b6fcd0d22ffe67fd41aed9c32cf46b3bf611309b298c47dfe18ca4d",
+      "name": "wootc-activation-diagnostic-09be7dd218f949cc99b2d549a383adb0-1.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.tests.ps1",
+      "rawSha256": "d269b8272f88171bc2393874ff7d8364bc285738c4d4ffa5229f54cd988c7fd1",
+      "stagedSha256": "55f945081ad6564a6f8a584941424d7763f6a831a62308ed75ade434808e193c",
+      "name": "wootc-activation-diagnostic-09be7dd218f949cc99b2d549a383adb0-2.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.tests.ps1",
+      "rawSha256": "cf9e16d85ea6d842f72fb8d01d31c729f808af09d90ed8761b56642693820a94",
+      "stagedSha256": "08ee4ca5f93fc57118cceafa3ae60a9a5a9cb3e88ee78b061e0861fae4180a51",
+      "name": "wootc-activation-diagnostic-09be7dd218f949cc99b2d549a383adb0-3.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-diagnostics.tests.ps1",
+      "rawSha256": "d6d9490b569db5e493401c6a19676c551bcdd1d0473ea4e9eefcec29918ec0a3",
+      "stagedSha256": "d11e40488195976a65d156e38030baf89878902dc938a4d9bd50b98db2da6bd0",
+      "name": "wootc-activation-diagnostic-09be7dd218f949cc99b2d549a383adb0-4.ps1"
+    },
+    {
+      "source": "tests/lint-ps1.ps1",
+      "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8",
+      "name": "wootc-activation-diagnostic-09be7dd218f949cc99b2d549a383adb0-5.ps1"
+    }
+  ],
+  "invocationSha256": "ebbd35b718d915b079fb5c857d62f77ce6fb2ecddd5c27baa7d00cf49d04789c",
+  "qgaHelperSha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+  "executionPolicy": "Bypass command-line flag for this disposable PowerShell process only; no persisted policy/registry change",
+  "scope": "Only mocked BitLocker/TPM cmdlets and fresh protected TEMP files/transcripts/ACL; no actual volume/protector/policy/disk changes"
+}

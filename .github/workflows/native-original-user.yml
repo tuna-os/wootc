@@ -1,0 +1,78 @@
+name: Native original-user binding controls
+on:
+  push:
+    branches: ['fix/native-install-authorization']
+  pull_request:
+    paths:
+      - 'app/native_peer_windows.go'
+      - 'app/native_pipe_windows.go'
+      - 'app/native_original_user_windows*.go'
+      - 'app/native_knownfolders_windows.go'
+      - 'app/native_install_authorization_windows.go'
+      - 'app/install_contract.go'
+      - 'app/native_handshake.go'
+      - 'app/knownfolders*.go'
+      - 'app/go.mod'
+      - 'app/go.sum'
+      - 'tests/native_original_user_controls.py'
+      - 'app/native_install_session*'
+      - 'app/native_install_progress*'
+      - 'tests/unit/fixtures/install-progress/**'
+      - 'app/native_maintenance*'
+      - 'tests/unit/fixtures/native-maintenance/**'
+      - 'app/native_vm*'
+      - 'tests/unit/fixtures/native-vm/**'
+      - 'app/native_install_plan.go'
+      - 'app/native_serve_windows.go'
+      - '.github/workflows/native-original-user.yml'
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actual-token-binding:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+      - name: Observe actual token/profile and refusal controls
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $proof = Join-Path $env:RUNNER_TEMP 'wootc-original-user-proof'
+          $ErrorActionPreference = 'Continue'
+          python tests/native_original_user_controls.py $proof
+          $result = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+          if ($result -ne 0) { throw 'Actual token controls refused' }
+      - name: Drive the install session over the actual one-shot authority
+        # Package tests: real captured token, recording action only. Nothing
+        # here can start an install or write to a disk.
+        shell: powershell
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $assets = Join-Path 'app/frontend' 'dist'
+          if (Test-Path -LiteralPath $assets) { throw 'Refusing prebuilt assets' }
+          [IO.Directory]::CreateDirectory($assets) | Out-Null
+          [IO.File]::WriteAllText((Join-Path $assets 'index.html'), '<title>Unit-test embed placeholder</title>')
+          Push-Location app
+          try {
+            & go test -count=1 -v -timeout 120s -run '^TestNative(Install|Maintenance|VM)' .
+            if ($LASTEXITCODE -ne 0) { throw 'Install session controls failed' }
+          } finally { Pop-Location }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: native-original-user-runtime
+          path: '${{ runner.temp }}/wootc-original-user-proof/'
+          if-no-files-found: error
+          retention-days: 14

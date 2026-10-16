@@ -1,0 +1,205 @@
+{
+  "baseHead": "0d507fd7bcbf839aa97c850a0a66aaa192f8c5eb",
+  "modifiedSources": false,
+  "sourceFiles": [
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.ps1",
+      "rawSha256": "4552eb3b20abaf23b8652a075cb393ba481aa1a88df90c4a79fcd8e8fd1cb125",
+      "stagedSha256": "622bad1aa5b7224088c136558f36440f7ce6fde6180d55bc9c52ffcbf555d66e",
+      "name": "wootc-activation-diagnostic-f488c52470ce4993959c953ef8aeb774-0.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.ps1",
+      "rawSha256": "8973a28a75e18361822bf7b8b879b9527c9421b3d819ff115936aa060e8c9f4a",
+      "stagedSha256": "cbbdf64bcb2bfbd6cb4631a50f08dce4d2f3d2a5c66f93501178b3dfa7d3192c",
+      "name": "wootc-activation-diagnostic-f488c52470ce4993959c953ef8aeb774-1.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.tests.ps1",
+      "rawSha256": "36ea43ee821b01a055c07401adbf8140223711288a1f3e187565ab4598fdba6c",
+      "stagedSha256": "a526afb7e181c2e572b0212aaeabec96f99603c867a96d32ffb5670047e07be2",
+      "name": "wootc-activation-diagnostic-f488c52470ce4993959c953ef8aeb774-2.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-protection.tests.ps1",
+      "rawSha256": "c449029201f8982b6dc9385354bc2d27bc0c1a11b64c268994c3939f3e7fd156",
+      "stagedSha256": "ac3d013ff5d98fa7d81f8150656d210b5585adbbcbd378270090804d3d48507c",
+      "name": "wootc-activation-diagnostic-f488c52470ce4993959c953ef8aeb774-3.ps1"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-diagnostics.tests.ps1",
+      "rawSha256": "7bcb917de9d1f470962056df9edc7657ab0f1d01eac0df984976754f16144f01",
+      "stagedSha256": "9b86e2cdd3cdf38c525320106ec75443430755ee23c87275cfadcfdff50797a1",
+      "name": "wootc-activation-diagnostic-f488c52470ce4993959c953ef8aeb774-4.ps1"
+    },
+    {
+      "source": "tests/lint-ps1.ps1",
+      "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8",
+      "name": "wootc-activation-diagnostic-f488c52470ce4993959c953ef8aeb774-5.ps1"
+    }
+  ],
+  "invocationSha256": "2c2ee980705fcf4889b3dc2ba691bda0549b23fb2c496601f5e56c7a4ecc71bb",
+  "qgaHelperSha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+  "executionPolicy": "Bypass command-line flag for this disposable PowerShell process only; no persisted policy/registry change",
+  "scope": "Only mocked BitLocker/TPM cmdlets and fresh protected TEMP files/transcripts/ACL; no actual volume/protector/policy/disk changes",
+  "sourceCommit": "0d507fd7bcbf839aa97c850a0a66aaa192f8c5eb",
+  "guestExitCode": 0,
+  "nativePowerShellVersion": "5.1.26100.9444",
+  "fixture": "winbase-399",
+  "observations": [
+    "Ready JSON survives private boundary with no unnecessary enrollment/activation",
+    "15 stage/numeric/policy/cleanup/fallback refusal cases execute child mocks",
+    "Prefixed password, malformed JSON, unknown field, duplicate field and malformed receipt cannot cross parent transcript boundary",
+    "Inherited private leaf accepted; foreign ancestor DELETE_CHILD refuses before mutation",
+    "Mutation spies read matching before-stage/runId closed receipt first",
+    "Same-run CreateNew collision preserves prior receipt bytes",
+    "Parent transcript contains neither public recovery-password fixture nor sensitive marker",
+    "Receipt reads open regular/no-reparse files and check length before allocating at most16384 bytes; actual oversized receipt refuses",
+    "Actual unchanged fixture-bitlocker-receipt.py accepts native wrapper successful exact before+ready two-line output",
+    "Actual fresh ancestor ACE0x116 with no destructive rights accepts inherited private leaf; verbatim prior production audit body from eb1acbf refuses the same native object"
+  ],
+  "limitations": [
+    "Underlying actual activation failure operation remains unknown until a diagnostic-enabled acceptance",
+    "No real ProtectionOn/enrollment or full Windows/Linux acceptance proof",
+    "Existing policy tests execute core implementations; new private-boundary controls exercise public wrapper with child mocks"
+  ],
+  "counterexample": {
+    "guestExitCode": 1,
+    "description": "Exact saved pre-boundary source invocation rerun after final success: all14 diagnostic stage cases pass, actual transcript assertion fails. Original failed raw log was overwritten after a filename mismatch, so this retained raw log is the explicit superseding rerun. Source/staged hashes bind retained failed-direct-sources. public-direct-transcript is a separate second capture with case boundaries, decoded from stdout and retained; its original raw containing line was not retained. All data is public synthetic fixture material. Existing key.tests expected old-behavior warning/information mutant likewise uses only public fixture material."
+  },
+  "files": {
+    "qga-native-client.py": {
+      "sha256": "4648be1399d2643346dff1637b863c84dfa1f05c38977e3dbf5046b5c91958c3",
+      "bytes": 1424
+    },
+    "hostless-probe.raw.stderr": {
+      "sha256": "018966bf53cb60e3be45739d0b615e36ec0cd64fb2dc331e24320ce44f76ddff",
+      "bytes": 840
+    },
+    "failed-direct-invocation.ps1": {
+      "sha256": "ebbd35b718d915b079fb5c857d62f77ce6fb2ecddd5c27baa7d00cf49d04789c",
+      "bytes": 5094
+    },
+    "positive-receipt.txt": {
+      "sha256": "9e3d387746ca0fe50522f403add4531498e15e36969bebb9c597ebe4c0255526",
+      "bytes": 627
+    },
+    "native-invocation.ps1": {
+      "sha256": "2c2ee980705fcf4889b3dc2ba691bda0549b23fb2c496601f5e56c7a4ecc71bb",
+      "bytes": 5094
+    },
+    "failed-direct-source-provenance.json": {
+      "sha256": "607c424f33a16a3169123db0dd6e9b0adfac036bda8dccee04b8bfe2076c4b6a",
+      "bytes": 2554
+    },
+    "hosted-native.raw.log": {
+      "sha256": "92778a3801de7773ae95595ce9e2d4cb8a7235362dc26f369cacbee37a6805d6",
+      "bytes": 40842
+    },
+    "hostless-probe.ps1": {
+      "sha256": "adcf7645d2ff3ad88ad79ff57f41d6e1251000be66c90b3d881751b8fb8cdb65",
+      "bytes": 902
+    },
+    "hostless-probe.raw.log": {
+      "sha256": "1f6e56329a4d3727423a5532cab83c8eb4417cc676483dc55d10174169d449fe",
+      "bytes": 42
+    },
+    "native.raw.log": {
+      "sha256": "1208e40013dbbbfaabf93e37240fd805f6e66423f22ae913f7518b3db77fb9d2",
+      "bytes": 8055
+    },
+    ".gitattributes": {
+      "sha256": "e437fbd6e49172cf105332274805f641567e4e6e68317dd861b2866ffe23a45e",
+      "bytes": 88
+    },
+    "failed-direct.raw.stderr": {
+      "sha256": "064b1399eacf7654de6e4e40821ba94c1ce7673caa46c141d41ca32e28226a0b",
+      "bytes": 8638
+    },
+    "native.normalized.log": {
+      "sha256": "31d4c585d6886985f0ccb0ff0479c898279f39f06f6944c64bb9371148cafa0f",
+      "bytes": 7975
+    },
+    "native.raw.stderr": {
+      "sha256": "134c4d42141cdc1557b8293ecf1f34dbdecb1158f0af668955bb7b770dece903",
+      "bytes": 7844
+    },
+    "public-direct-transcript.txt": {
+      "sha256": "d86478fc4d06ca8b0a29ab2351fc5ed0ddd11f4aca72cea34eba0026573bb2bb",
+      "bytes": 19853
+    },
+    "hosted-native-api.json": {
+      "sha256": "e7274431d639658066d0a6809ec8f442a654558049605031844394af027d7a52",
+      "bytes": 1221
+    },
+    "hosted-native-provenance.json": {
+      "sha256": "c27a6fcce424ee4f9c0b2dbbc40bbdb3b35952948a725cd812971bfb571e99a0",
+      "bytes": 2627
+    },
+    "failed-direct.raw.log": {
+      "sha256": "cf619661d1ae69f986cdf5d2fa535083fce51710d8b11f75111a1e4e928f6745",
+      "bytes": 4663
+    },
+    "prior-ancestor-mask-native/provenance.json": {
+      "sha256": "2f7cc974cca28c164c1d9863a167d8dce481f32341d89f91a097439e7373e05d",
+      "bytes": 9041
+    },
+    "prior-ancestor-mask-native/native-invocation.ps1": {
+      "sha256": "ec99eb18a25483b62e05fee90a11eb7f561cefc1ba771bdfbe8d5b858074d434",
+      "bytes": 5094
+    },
+    "prior-ancestor-mask-native/native.raw.log": {
+      "sha256": "601ae81cb83d7b67f7bca5018ea72476aff0dde0ff0de7f7a9c30e793dec7eb6",
+      "bytes": 7108
+    },
+    "prior-ancestor-mask-native/native.normalized.log": {
+      "sha256": "e3d855dfdda65772bf1f7db70b822afa1fbc9420d06af123026d8da37fc6ce35",
+      "bytes": 7033
+    },
+    "prior-ancestor-mask-native/native.raw.stderr": {
+      "sha256": "66b4a74eaccaafa21473307a28ab800beeb6804ee5bc8825e4bc5c8a66db6f36",
+      "bytes": 7842
+    },
+    "failed-direct-sources/fixture-bitlocker-protection.tests.ps1": {
+      "sha256": "cf9e16d85ea6d842f72fb8d01d31c729f808af09d90ed8761b56642693820a94",
+      "bytes": 9122
+    },
+    "failed-direct-sources/fixture-bitlocker-key.ps1": {
+      "sha256": "76127615cdc23adf18af64a1af3a08f117844bc50ba5a563d34049fc242b3cdc",
+      "bytes": 6966
+    },
+    "failed-direct-sources/fixture-bitlocker-diagnostics.tests.ps1": {
+      "sha256": "d6d9490b569db5e493401c6a19676c551bcdd1d0473ea4e9eefcec29918ec0a3",
+      "bytes": 10994
+    },
+    "failed-direct-sources/lint-ps1.ps1": {
+      "sha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "bytes": 6090
+    },
+    "failed-direct-sources/fixture-bitlocker-protection.ps1": {
+      "sha256": "757f6df7ded7afeb6b3dffff1fdb1129dfca908d4438e477dc30fcc7f4d66738",
+      "bytes": 8308
+    },
+    "failed-direct-sources/fixture-bitlocker-key.tests.ps1": {
+      "sha256": "d269b8272f88171bc2393874ff7d8364bc285738c4d4ffa5229f54cd988c7fd1",
+      "bytes": 6371
+    }
+  },
+  "executionSourceState": "Exact sourceCommit source bytes verified against every executed raw source hash; native guest terminal exit0.",
+  "receiptValidatorSHA256": "03ccf24890ff4686f739de00fbdf651b2e101c1ffbf560ab53343447e1b89615",
+  "linuxChecks": {
+    "pythonBitLockerTests": 9,
+    "batsBitLockerTests": 3,
+    "gitDiffCheck": "pass"
+  },
+  "priorProof": "prior-ancestor-mask-native retains previous immutable helper proof; previous ancestor mask rejects harmless0x116 ACL as demonstrated by verbatim prior-production-body countercontrol in current tests.",
+  "receiptValidatorSourceCommit": "b4d4083",
+  "hostedCheckpoint": {
+    "headSHA": "35a80c1a82ae470c3d89a53c36308aa1a13593a0",
+    "actualCheckoutMergeSHA": "7cc55a58f8085ac0d30481c589188a6f426d529c",
+    "runId": 36317555514,
+    "outcome": "success",
+    "scope": "Native mocked component controls only; no actual protector/volume mutations or acceptance claim"
+  }
+}

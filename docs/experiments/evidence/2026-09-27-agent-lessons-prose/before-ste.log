@@ -1,0 +1,546 @@
+
+docs/agent-lessons.md  (271)
+  STE 4.1  "-ing" form ("working"); use a simple verb or a noun
+         Hard-won knowledge from working on wootc's boot chain and E2E harness.
+  STE 1.4  noun cluster of 4 words ("six distinct harness defects"); use at most 3, and add prepositions
+         Written after a session where **six distinct harness defects** made real failures unattributable, an
+  STE 4.1  "-ing" form ("touching"); use a simple verb or a noun
+         Read this before touching the E2E harness, the deployer, or the runners.
+  STE 1.5  "rather" adds nothing; delete it
+         **Status derived from a proxy rather than from an observable.**
+  STE 4.1  "-ing" form ("underlying"); use a simple verb or a noun
+         **Rule:** a check must fail when the underlying thing is absent.
+  STE 4.1  "-ing" form ("testing"); use a simple verb or a noun
+         Prove that by mutation-testing it — break the code and confirm the test goes red.
+  STE 1.4  noun cluster of 4 words ("Three liveness signals lied"); use at most 3, and add prepositions
+         Three liveness signals lied during this session:
+  STE 3.4  passive voice ("was launched"); say who or what does the action
+         ** ** is meaningless on a host where the run was launched with   rather than  .
+  STE 1.5  "rather" adds nothing; delete it
+         ** ** is meaningless on a host where the run was launched with   rather than  .
+  STE 3.4  passive voice ("was started"); say who or what does the action
+         Know how it was started.
+  STE 3.1  sentence is 22 words; the limit is 20 for instructions
+         **Log tail** lies when   (truncates) is combined with on the same file — old stderr survives into th
+  STE 3.4  passive voice ("is combined"); say who or what does the action
+         **Log tail** lies when   (truncates) is combined with on the same file — old stderr survives into th
+  STE 4.1  "-ing" form ("writing"); use a simple verb or a noun
+         **log mtime** ( ) — is the run writing?
+  STE 4.1  "-ing" form ("running"); use a simple verb or a noun
+         **the process tree** —   shows children; a   child means a poll loop is running, not a hang.
+  STE 4.1  "-ing" form ("extracting"); use a simple verb or a noun
+         produces **no serial output for 10+ minutes** while extracting layers.
+  STE 4.1  "-ing" form ("working"); use a simple verb or a noun
+         silence + high CPU (130–170%) → working normally
+  STE 1.5  "actually" adds nothing; delete it
+         silence + idle CPU → actually wedged
+  STE 4.1  "-ing" form ("concluding"); use a simple verb or a noun
+         Check CPU before concluding anything (#40).
+  STE 4.1  "-ing" form ("blocking"); use a simple verb or a noun
+         **Counter-based loops drift.**   next to   does not measure time — every blocking call in the loop b
+  STE 4.1  "-ing" form ("snapshotting"); use a simple verb or a noun
+         **Counter-based loops drift.**   next to   does not measure time — every blocking call in the loop b
+  STE 4.1  "-ing" form ("advancing"); use a simple verb or a noun
+         **Counter-based loops drift.**   next to   does not measure time — every blocking call in the loop b
+  STE 1.5  "really" adds nothing; delete it
+         Measured drift: **0.68× wall clock**, so "45 minutes" was really ~66.
+  STE 3.2  sentence is 38 words; the limit is 25 for descriptive text
+         *Recurred 2026-07-22* in  : a "60s" host-NTFS wait added 3s per iteration while   returned instantly
+  STE 3.4  passive voice ("was scanned"); say who or what does the action
+         *Recurred 2026-07-22* in  : a "60s" host-NTFS wait added 3s per iteration while   returned instantly
+  STE 1.4  noun cluster of 4 words ("host-NTFS wait added 3s"); use at most 3, and add prepositions
+         *Recurred 2026-07-22* in  : a "60s" host-NTFS wait added 3s per iteration while   returned instantly
+  STE 3.2  sentence is 27 words; the limit is 25 for descriptive text
+         **A wall-clock deadline cannot rescue a loop whose body never returns.** had no timeout, so a hung  
+  STE 1.4  noun cluster of 4 words ("wall-clock deadline cannot rescue"); use at most 3, and add prepositions
+         **A wall-clock deadline cannot rescue a loop whose body never returns.** had no timeout, so a hung  
+  STE 4.1  "-ing" form ("blocking"); use a simple verb or a noun
+         Every blocking external call needs its own .
+  STE 3.4  passive voice ("been calibrated"); say who or what does the action
+         **Corollary:** fixing the clock made budgets honest and revealed they had never been calibrated agai
+  STE 4.1  "-ing" form ("bearing"); use a simple verb or a noun
+         It was **accidentally load-bearing as a  **: it gave Windows OEM setup the time it needed to stage B
+  STE 1.4  noun cluster of 4 words ("gave Windows OEM setup"); use at most 3, and add prepositions
+         It was **accidentally load-bearing as a  **: it gave Windows OEM setup the time it needed to stage B
+  STE 4.1  "-ing" form ("Disabling"); use a simple verb or a noun
+         Disabling it (correctly — see §7) exposed a long-standing race where the barrier passed instantly on
+  STE 4.1  "-ing" form ("standing"); use a simple verb or a noun
+         Disabling it (correctly — see §7) exposed a long-standing race where the barrier passed instantly on
+  STE 4.1  "-ing" form ("masking"); use a simple verb or a noun
+         But when you remove a slow step, watch for races it was masking, and replace the delay with a **real
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         **Case-sensitive guards cover only what you thought of.** A regression test matching   reported gree
+  STE 3.1  sentence is 29 words; the limit is 20 for instructions
+         **A test can match its own documentation.** A guard grepping for matched the comment block explainin
+  STE 4.1  "-ing" form ("grepping"); use a simple verb or a noun
+         **A test can match its own documentation.** A guard grepping for matched the comment block explainin
+  STE 4.1  "-ing" form ("explaining"); use a simple verb or a noun
+         **A test can match its own documentation.** A guard grepping for matched the comment block explainin
+  STE 3.1  sentence is 31 words; the limit is 20 for instructions
+         **Never   on a host with a live run.** It killed three runs simultaneously, and separately deleted t
+  STE 4.1  "-ing" form ("pulling"); use a simple verb or a noun
+         **Never   on a host with a live run.** It killed three runs simultaneously, and separately deleted t
+  STE 4.1  "-ing" form ("passing"); use a simple verb or a noun
+         **Launch with  **, passing   and explicitly, or rootless podman resolves *root* storage paths and fa
+  STE 4.1  "-ing" form ("killing"); use a simple verb or a noun
+         **Check for a live run before any cleanup.** Disk pressure is real, but so is killing an hour of wor
+  STE 1.4  noun cluster of 4 words ("Prefer GitHub hosted runners"); use at most 3, and add prepositions
+         **Prefer GitHub hosted runners** ( , ubuntu-latest with ).
+  STE 3.4  passive voice ("is dropped"); say who or what does the action
+         writes   (level 4), but   sets   and printk prints only levels **strictly below** it — so warn is dr
+  STE 4.1  "-ing" form ("emitting"); use a simple verb or a noun
+         **Do not also write to   in high-volume paths** —   emitting every line three times saturated a 1152
+  STE 1.4  noun cluster of 4 words ("line three times saturated"); use at most 3, and add prepositions
+         **Do not also write to   in high-volume paths** —   emitting every line three times saturated a 1152
+  STE 1.4  noun cluster of 4 words ("Windows VSS freeze limits"); use at most 3, and add prepositions
+         **Windows VSS freeze limits.**   on Windows goes through VSS, which enforces ~10s for writers and ~6
+  STE 3.2  sentence is 28 words; the limit is 25 for descriptive text
+         A freeze held across a 20-minute copy is not honoured — the guest auto-thaws mid-copy, so the "crash
+  STE 3.4  passive voice ("is not honoured"); say who or what does the action
+         A freeze held across a 20-minute copy is not honoured — the guest auto-thaws mid-copy, so the "crash
+  STE 4.1  "-ing" form ("running"); use a simple verb or a noun
+         Test by actually running the binary in the target image.
+  STE 1.5  "actually" adds nothing; delete it
+         Test by actually running the binary in the target image.
+  STE 3.2  sentence is 32 words; the limit is 25 for descriptive text
+         **Cross-image binaries need their whole closure.** The target bootc image ships no  , so the deploye
+  STE 3.4  passive voice ("is assembled"); say who or what does the action
+         **Cross-image binaries need their whole closure.** The target bootc image ships no  , so the deploye
+  STE 4.1  "-ing" form ("failing"); use a simple verb or a noun
+         The binary lands and dies at runtime, failing exactly like a missing one.
+  STE 1.4  noun cluster of 6 words ("produced one wrong root cause already"); use at most 3, and add prepositions
+         This produced one wrong root cause already.
+  STE 3.2  sentence is 37 words; the limit is 25 for descriptive text
+         Wrong root causes reached confidently in one session: "EL10 lacks NTFS support", "multi-disk layout 
+  STE 4.1  "-ing" form ("killing"); use a simple verb or a noun
+         Wrong root causes reached confidently in one session: "EL10 lacks NTFS support", "multi-disk layout 
+  STE 1.4  noun cluster of 5 words ("Wrong root causes reached confidently"); use at most 3, and add prepositions
+         Wrong root causes reached confidently in one session: "EL10 lacks NTFS support", "multi-disk layout 
+  STE 1.4  noun cluster of 4 words ("multi-disk layout breaks Phase"); use at most 3, and add prepositions
+         Wrong root causes reached confidently in one session: "EL10 lacks NTFS support", "multi-disk layout 
+  STE 4.1  "-ing" form ("convincing"); use a simple verb or a noun
+         Each felt convincing.
+  STE 1.5  "actually" adds nothing; delete it
+         What actually worked:
+  STE 3.1  sentence is 25 words; the limit is 20 for instructions
+         **Reproduce outside the VM when possible.** The qemu-nbd library mismatch was diagnosed *and* its fi
+  STE 3.4  passive voice ("was diagnosed"); say who or what does the action
+         **Reproduce outside the VM when possible.** The qemu-nbd library mismatch was diagnosed *and* its fi
+  STE 3.4  passive voice ("be tested"); say who or what does the action
+         Always ask: can this be tested without booting?
+  STE 4.1  "-ing" form ("booting"); use a simple verb or a noun
+         Always ask: can this be tested without booting?
+  STE 4.1  "-ing" form ("asserting"); use a simple verb or a noun
+         **Check the discriminator before asserting.** Guest CPU for silence.
+  STE 4.1  "-ing" form ("blaming"); use a simple verb or a noun
+         **Compare against a known-good run** before blaming something new.
+  STE 4.1  "-ing" form ("damning"); use a simple verb or a noun
+         The netavark errors looked damning until they turned up in the morning's working runs too.
+  STE 4.1  "-ing" form ("morning"); use a simple verb or a noun
+         The netavark errors looked damning until they turned up in the morning's working runs too.
+  STE 4.1  "-ing" form ("working"); use a simple verb or a noun
+         The netavark errors looked damning until they turned up in the morning's working runs too.
+  STE 3.4  passive voice ("is established"); say who or what does the action
+         **State what is established vs claimed.**   keeps these separate deliberately.
+  STE 4.1  "-ing" form ("batching"); use a simple verb or a noun
+         **One deployer/initramfs change per run.** Every change costs 60–90 minutes; batching makes attribut
+  STE 3.4  passive voice ("was applied"); say who or what does the action
+         Three times a "fix" was applied to something that was not broken while introducing something that wa
+  STE 3.4  passive voice ("was not broken"); say who or what does the action
+         Three times a "fix" was applied to something that was not broken while introducing something that wa
+  STE 4.1  "-ing" form ("introducing"); use a simple verb or a noun
+         Three times a "fix" was applied to something that was not broken while introducing something that wa
+  STE 3.1  sentence is 23 words; the limit is 20 for instructions
+         **A fix for an observability gap is not free.** The   change was meant only to make failures visible
+  STE 3.1  sentence is 25 words; the limit is 20 for instructions
+         **Put the reasoning in the test, not just the commit.** Tests here carry the failure they prevent, s
+  STE 4.1  "-ing" form ("reasoning"); use a simple verb or a noun
+         **Put the reasoning in the test, not just the commit.** Tests here carry the failure they prevent, s
+  STE 1.5  "just" adds nothing; delete it
+         **Put the reasoning in the test, not just the commit.** Tests here carry the failure they prevent, s
+  STE 4.1  "-ing" form ("pruning"); use a simple verb or a noun
+         Without pruning, a successful run breaks the next one.
+  STE 3.4  passive voice ("was written"); say who or what does the action
+         The first half of this document was written mid-session.
+  STE 4.1  "-ing" form ("telling"); use a simple verb or a noun
+         The single highest-value technique of the entire session, and it came from the user telling me to st
+  STE 4.1  "-ing" form ("waiting"); use a simple verb or a noun
+         The single highest-value technique of the entire session, and it came from the user telling me to st
+  STE 4.1  "-ing" form ("producing"); use a simple verb or a noun
+         Four consecutive 90-minute runs failed without producing an attributable cause.
+  STE 4.1  "-ing" form ("running"); use a simple verb or a noun
+         The guest was not running the deployer at all.
+  STE 3.2  sentence is 32 words; the limit is 25 for descriptive text
+         **Post-hoc artifacts repeatedly failed** where live inspection worked: the deployer log could not be
+  STE 1.4  noun cluster of 4 words ("Post-hoc artifacts repeatedly failed"); use at most 3, and add prepositions
+         **Post-hoc artifacts repeatedly failed** where live inspection worked: the deployer log could not be
+  STE 1.5  "just" adds nothing; delete it
+         The deployer initramfs ships  , so this works during Phase 1 too, not just once Windows is back.
+  STE 4.1  "-ing" form ("internalising"); use a simple verb or a noun
+         Worth internalising as a class of mistake, not just a fact.
+  STE 1.5  "just" adds nothing; delete it
+         Worth internalising as a class of mistake, not just a fact.
+  STE 3.2  sentence is 26 words; the limit is 25 for descriptive text
+         For most of the session I debugged Phase 2 as though it were broken: the attach hook, the qemu-nbd c
+  STE 3.4  passive voice ("were broken"); say who or what does the action
+         For most of the session I debugged Phase 2 as though it were broken: the attach hook, the qemu-nbd c
+  STE 4.1  "-ing" form ("reasoning"); use a simple verb or a noun
+         All of it was reasoning about components **that were never installed**, because the deploy died befo
+  STE 4.1  "-ing" form ("staging"); use a simple verb or a noun
+         All of it was reasoning about components **that were never installed**, because the deploy died befo
+  STE 1.4  noun cluster of 4 words ("proof took one manual"); use at most 3, and add prepositions
+         The proof took one manual boot: force the BCD one-shot by hand and look at the GRUB menu.
+  STE 3.4  passive voice ("be entered"); say who or what does the action
+         **Lesson:** before debugging why a stage fails, verify the stage can be entered at all.
+  STE 3.1  sentence is 23 words; the limit is 20 for instructions
+         blocked in   for the full 45 minutes after the deployer returned, so Phase-2 setup never ran and the
+  STE 4.1  "-ing" form ("replacing"); use a simple verb or a noun
+         When the kill misses, that   blocks **forever** — a permanent hang replacing a 45-minute one.
+  STE 3.4  passive voice ("are involved"); say who or what does the action
+         on a pid you do not control is an unbounded block;   is unreliable the moment process groups or sess
+  STE 4.1  "-ing" form ("running"); use a simple verb or a noun
+         **  over ssh** matches the ssh command running it.
+  STE 4.1  "-ing" form ("Polling"); use a simple verb or a noun
+         **Polling  ** logs *your own command*, which then matches the grep.
+  STE 4.1  "-ing" form ("polling"); use a simple verb or a noun
+         The output was entirely my own polling.
+  STE 3.1  sentence is 34 words; the limit is 20 for instructions
+         **A test grepping for a string that appears in its own comment.** Happened three times: a preflight 
+  STE 4.1  "-ing" form ("grepping"); use a simple verb or a noun
+         **A test grepping for a string that appears in its own comment.** Happened three times: a preflight 
+  STE 4.1  "-ing" form ("quoting"); use a simple verb or a noun
+         **A test grepping for a string that appears in its own comment.** Happened three times: a preflight 
+  STE 4.1  "-ing" form ("explaining"); use a simple verb or a noun
+         **A test grepping for a string that appears in its own comment.** Happened three times: a preflight 
+  STE 4.1  "-ing" form ("grepping"); use a simple verb or a noun
+         Rule: when grepping for a pattern, exclude the searcher.
+  STE 3.2  sentence is 39 words; the limit is 25 for descriptive text
+         The cause is single and structural: **I changed code faster than a 20–90 minute feedback loop could 
+  STE 3.4  passive voice ("was diagnosed"); say who or what does the action
+         **Reproduce in a container first.** The qemu-nbd closure was diagnosed AND its fix verified in a con
+  STE 3.4  passive voice ("is validated"); say who or what does the action
+         **Round-robin the runners** (§17) so a fix is validated sooner.
+  STE 4.1  "-ing" form ("signalling"); use a simple verb or a noun
+         **Prefer designs that cannot fail the same way** — the flag-file watchdog over any amount of careful
+  STE 1.5  "actually" adds nothing; delete it
+         Mitigations that actually work, in order of value:
+  STE 3.4  passive voice ("is validated"); say who or what does the action
+         With three runners staggered by ~15 minutes, a fix is validated against whichever reaches the intere
+  STE 4.1  "-ing" form ("waiting"); use a simple verb or a noun
+         With three runners staggered by ~15 minutes, a fix is validated against whichever reaches the intere
+  STE 1.5  "rather" adds nothing; delete it
+         runner-a needs   rather than (#41); all hosts need  .
+  STE 3.4  passive voice ("was merely gated"); say who or what does the action
+         already existed forty lines away, did it correctly, and was merely gated on  .
+  STE 1.4  noun cluster of 5 words ("already existed forty lines away"); use at most 3, and add prepositions
+         already existed forty lines away, did it correctly, and was merely gated on  .
+  STE 4.1  "-ing" form ("writing"); use a simple verb or a noun
+         Before writing a helper, grep for one.
+  STE 4.1  "-ing" form ("passing"); use a simple verb or a noun
+         Before passing a path to something that runs in a container, ask whose filesystem that path is on.
+  STE 3.4  passive voice ("is populated"); say who or what does the action
+         is populated from the ISO at Windows install time.
+  STE 3.2  sentence is 36 words; the limit is 25 for descriptive text
+         Introducing a protocol change (the RunId barrier) without refreshing the guest deadlocked both sides
+  STE 4.1  "-ing" form ("Introducing"); use a simple verb or a noun
+         Introducing a protocol change (the RunId barrier) without refreshing the guest deadlocked both sides
+  STE 4.1  "-ing" form ("refreshing"); use a simple verb or a noun
+         Introducing a protocol change (the RunId barrier) without refreshing the guest deadlocked both sides
+  STE 3.2  sentence is 43 words; the limit is 25 for descriptive text
+         Sent through a boot transition, the retry is poison: a   the dying guest never consumed sat in the v
+  STE 4.1  "-ing" form ("effecting"); use a simple verb or a noun
+         Side-effecting commands must never ride a retried channel across a boot boundary.
+  STE 3.4  passive voice ("was skipped"); say who or what does the action
+         exited 0 with zero binds and an empty journal — each profile was skipped by a silent  .
+  STE 3.2  sentence is 28 words; the limit is 25 for descriptive text
+         The condition it skipped on ( ) was itself a deployment bug: fisherman's followed the deployment's  
+  STE 1.4  noun cluster of 4 words ("stateroot var mount masks"); use at most 3, and add prepositions
+         The condition it skipped on ( ) was itself a deployment bug: fisherman's followed the deployment's  
+  STE 3.2  sentence is 38 words; the limit is 25 for descriptive text
+         Two rules: every skip on an "impossible" condition logs an ERROR naming the bug, and every unit that
+  STE 3.2  sentence is 37 words; the limit is 25 for descriptive text
+         The failed run's whole story was recoverable offline:   the graduated qcow2 → native journal showed 
+  STE 3.2  sentence is 64 words; the limit is 25 for descriptive text
+         Two dead ends to skip next time: a   dies with its ssh session (do all reads in ONE session, or it r
+  STE 4.1  "-ing" form ("initializing"); use a simple verb or a noun
+         chroots — after initializing the HOST's PAM/SELinux stack.
+  STE 3.2  sentence is 30 words; the limit is 25 for descriptive text
+         From the deployer initramfs it worked for months; from booted Phase 2 it failed with "failure while 
+  STE 4.1  "-ing" form ("writing"); use a simple verb or a noun
+         From the deployer initramfs it worked for months; from booted Phase 2 it failed with "failure while 
+  STE 3.2  sentence is 28 words; the limit is 25 for descriptive text
+         Offline user tooling must run the TARGET's binaries via plain chroot; the flag that looks equivalent
+  STE 1.4  noun cluster of 5 words ("initramfs test bed cannot reveal"); use at most 3, and add prepositions
+         Offline user tooling must run the TARGET's binaries via plain chroot; the flag that looks equivalent
+  STE 3.2  sentence is 35 words; the limit is 25 for descriptive text
+         The debugging move that cracked it in minutes: while the failed Phase 2 was still running, reproduce
+  STE 4.1  "-ing" form ("running"); use a simple verb or a noun
+         The debugging move that cracked it in minutes: while the failed Phase 2 was still running, reproduce
+  STE 4.1  "-ing" form ("failing"); use a simple verb or a noun
+         The debugging move that cracked it in minutes: while the failed Phase 2 was still running, reproduce
+  STE 1.4  noun cluster of 5 words ("--root vs chroot vs --prefix"); use at most 3, and add prepositions
+         The debugging move that cracked it in minutes: while the failed Phase 2 was still running, reproduce
+  STE 1.4  noun cluster of 5 words ("evidence beats three relaunch cycles"); use at most 3, and add prepositions
+         One boot's evidence beats three relaunch cycles.
+  STE 3.4  passive voice ("are invoked"); say who or what does the action
+         But several run-e2e checks are invoked as  , so a **non-fatal** failure line looks identical in the 
+  STE 1.4  noun cluster of 4 words ("failure line looks identical"); use at most 3, and add prepositions
+         But several run-e2e checks are invoked as  , so a **non-fatal** failure line looks identical in the 
+  STE 3.2  sentence is 39 words; the limit is 25 for descriptive text
+         A cosmetic failure therefore ended the poll ~35 minutes early, recorded itself as the case's verdict
+  STE 4.1  "-ing" form ("hunting"); use a simple verb or a noun
+         A cosmetic failure therefore ended the poll ~35 minutes early, recorded itself as the case's verdict
+  STE 4.1  "-ing" form ("deploying"); use a simple verb or a noun
+         A cosmetic failure therefore ended the poll ~35 minutes early, recorded itself as the case's verdict
+  STE 1.4  noun cluster of 4 words ("cosmetic failure therefore ended"); use at most 3, and add prepositions
+         A cosmetic failure therefore ended the poll ~35 minutes early, recorded itself as the case's verdict
+  STE 3.2  sentence is 40 words; the limit is 25 for descriptive text
+         So   deployed **successfully**, passed both FDE assertions (C: still encrypted, Linux on unencrypted
+  STE 4.1  "-ing" form ("reading"); use a simple verb or a noun
+         So   deployed **successfully**, passed both FDE assertions (C: still encrypted, Linux on unencrypted
+  STE 4.1  "-ing" form ("reporting"); use a simple verb or a noun
+         The VDL extension had already silently skipped for the same reason, reporting only at INFO level.
+  STE 4.1  "-ing" form ("wearing"); use a simple verb or a noun
+         is a bug report wearing a progress message.
+  STE 1.4  noun cluster of 4 words ("OCI spec version crun"); use at most 3, and add prepositions
+         Podman 5 emits an OCI spec version crun 1.14 rejects ( ).
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         **Check the blast radius before diagnosing.** The same push turned the container test suite red, and
+  STE 4.1  "-ing" form ("diagnosing"); use a simple verb or a noun
+         **Check the blast radius before diagnosing.** The same push turned the container test suite red, and
+  STE 1.4  noun cluster of 4 words ("container test suite red"); use at most 3, and add prepositions
+         **Check the blast radius before diagnosing.** The same push turned the container test suite red, and
+  STE 4.1  "-ing" form ("appearing"); use a simple verb or a noun
+         A failure appearing in two unrelated workflows is environmental; one that appears in only one is you
+  STE 3.1  sentence is 23 words; the limit is 20 for instructions
+         This is what turned a wrong guess (AppArmor userns restrictions — the other cause of at create) into
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         A bare   reported 1.28 before *and* after installing 1.28, which nearly credited the fix to an unrel
+  STE 4.1  "-ing" form ("installing"); use a simple verb or a noun
+         A bare   reported 1.28 before *and* after installing 1.28, which nearly credited the fix to an unrel
+  STE 3.1  sentence is 39 words; the limit is 20 for instructions
+         **The hosted pool is mixed.** Jobs in the same run landed on podman 4.9.3 and 5.8.4, so an environme
+  STE 3.4  passive voice ("is mixed"); say who or what does the action
+         **The hosted pool is mixed.** Jobs in the same run landed on podman 4.9.3 and 5.8.4, so an environme
+  STE 4.1  "-ing" form ("reading"); use a simple verb or a noun
+         The damage was done on the way out, and it was visible in five lines of serial nobody had been readi
+  STE 1.4  noun cluster of 4 words ("symptom four reboots downstream"); use at most 3, and add prepositions
+         The QGA timeout was a *symptom four reboots downstream* of the actual bug.
+  STE 3.1  sentence is 28 words; the limit is 20 for instructions
+         **A boot stack that lives on the thing it must release cannot release it.** Phase-2   is a loop devi
+  STE 4.1  "-ing" form ("running"); use a simple verb or a noun
+         Nothing running inside that stack can unmount the volume.
+  STE 3.1  sentence is 27 words; the limit is 20 for instructions
+         The deployer already knew this —   has a whole block ending "a still-mounted rw NTFS would be flagge
+  STE 3.4  passive voice ("be flagged"); say who or what does the action
+         The deployer already knew this —   has a whole block ending "a still-mounted rw NTFS would be flagge
+  STE 1.5  "simply" adds nothing; delete it
+         The deployer already knew this —   has a whole block ending "a still-mounted rw NTFS would be flagge
+  STE 3.1  sentence is 23 words; the limit is 20 for instructions
+         On ostree/composefs that path does not exist,   no-ops, and systemd — which only pivots when   is ex
+  STE 4.1  "-ing" form ("Returning"); use a simple verb or a noun
+         No error, no warning, and the *absence* of "Returning to initrd..." in the log is the only tell.
+  STE 3.1  sentence is 30 words; the limit is 20 for instructions
+         **Corruption sorts by driver, and the passing cells were the clue.** Every cell mounting the host vo
+  STE 4.1  "-ing" form ("passing"); use a simple verb or a noun
+         **Corruption sorts by driver, and the passing cells were the clue.** Every cell mounting the host vo
+  STE 4.1  "-ing" form ("mounting"); use a simple verb or a noun
+         **Corruption sorts by driver, and the passing cells were the clue.** Every cell mounting the host vo
+  STE 3.1  sentence is 27 words; the limit is 20 for instructions
+         That correlation is what turned "flaky Fedora cell" into "structural teardown bug" — a green cell is
+  STE 4.1  "-ing" form ("diffing"); use a simple verb or a noun
+         That correlation is what turned "flaky Fedora cell" into "structural teardown bug" — a green cell is
+  STE 1.4  noun cluster of 4 words ("red one costs minutes"); use at most 3, and add prepositions
+         That correlation is what turned "flaky Fedora cell" into "structural teardown bug" — a green cell is
+  STE 3.1  sentence is 37 words; the limit is 20 for instructions
+         **Make the dangerous new path revert to the old one.** The fix arms a shutdown pivot that did not pr
+  STE 3.4  passive voice ("be tested"); say who or what does the action
+         **Make the dangerous new path revert to the old one.** The fix arms a shutdown pivot that did not pr
+  STE 1.5  "previously" is not approved; use "before"
+         **Make the dangerous new path revert to the old one.** The fix arms a shutdown pivot that did not pr
+  STE 3.1  sentence is 22 words; the limit is 20 for instructions
+         So every failure path in the staging hook ends by deleting   — without it systemd does not pivot, wh
+  STE 4.1  "-ing" form ("staging"); use a simple verb or a noun
+         So every failure path in the staging hook ends by deleting   — without it systemd does not pivot, wh
+  STE 4.1  "-ing" form ("deleting"); use a simple verb or a noun
+         So every failure path in the staging hook ends by deleting   — without it systemd does not pivot, wh
+  STE 4.1  "-ing" form ("staging"); use a simple verb or a noun
+         A partial or broken staging can only reproduce the bug it is fixing; it cannot invent a new one.
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         is a glibc-common *shell script*; no library dependency drags it in, nothing listed it, so it was ne
+  STE 3.1  sentence is 29 words; the limit is 20 for instructions
+         Reach for the thing whose presence is structurally guaranteed instead: the dynamic loader has to be 
+  STE 3.4  passive voice ("is structurally guaranteed"); say who or what does the action
+         Reach for the thing whose presence is structurally guaranteed instead: the dynamic loader has to be 
+  STE 3.1  sentence is 23 words; the limit is 20 for instructions
+         **Exit 127 names the wrong command.** Under   the ERR trap reported the   stage of a pipeline whose 
+  STE 3.1  sentence is 22 words; the limit is 20 for instructions
+         **  on the deployer serial is an API, not a severity.** greps the serial for   and ends the deploy o
+  STE 3.1  sentence is 24 words; the limit is 20 for instructions
+         The qga stager printed   for a condition its own caller absorbs with   — so a survivable best-effort
+  STE 1.4  noun cluster of 4 words ("survivable best-effort miss killed"); use at most 3, and add prepositions
+         The qga stager printed   for a condition its own caller absorbs with   — so a survivable best-effort
+  STE 3.1  sentence is 30 words; the limit is 20 for instructions
+         **The same rule bites the harness.**   also printed on every hosted cell, because propagates the ERR
+  STE 4.1  "-ing" form ("probing"); use a simple verb or a noun
+         **The same rule bites the harness.**   also printed on every hosted cell, because propagates the ERR
+  STE 3.1  sentence is 25 words; the limit is 20 for instructions
+         The matrix takes the *last*   as the verdict, so an optional probe was one silent timeout away from 
+  STE 4.1  "-ing" form ("becoming"); use a simple verb or a noun
+         The matrix takes the *last*   as the verdict, so an optional probe was one silent timeout away from 
+  STE 1.4  noun cluster of 4 words ("one silent timeout away"); use at most 3, and add prepositions
+         The matrix takes the *last*   as the verdict, so an optional probe was one silent timeout away from 
+  STE 4.1  "-ing" form ("happening"); use a simple verb or a noun
+         Every Linux assertion passed, §27's shutdown pivot worked ( ), and the serial shows the return happe
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         **A ping is not an identity.** The reboot step watched for   to *fail* and reset the VM if it never 
+  STE 3.1  sentence is 37 words; the limit is 20 for instructions
+         is  , which answers for whichever agent is up — so "Phase 2 has not rebooted" and "Windows is alread
+  STE 4.1  "-ing" form ("reading"); use a simple verb or a noun
+         is  , which answers for whichever agent is up — so "Phase 2 has not rebooted" and "Windows is alread
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         §1 again, in its purest form: the observable is *which* OS answers, and the code only ever sampled *
+  STE 1.5  "just" adds nothing; delete it
+         This loop just didn't.
+  STE 3.1  sentence is 24 words; the limit is 20 for instructions
+         **A destructive fallback needs positive evidence, not the absence of evidence.**   now returns one o
+  STE 3.1  sentence is 28 words; the limit is 20 for instructions
+         (a Windows agent pinging before PowerShell is up) deliberately does nothing: the cost of waiting is 
+  STE 4.1  "-ing" form ("pinging"); use a simple verb or a noun
+         (a Windows agent pinging before PowerShell is up) deliberately does nothing: the cost of waiting is 
+  STE 4.1  "-ing" form ("waiting"); use a simple verb or a noun
+         (a Windows agent pinging before PowerShell is up) deliberately does nothing: the cost of waiting is 
+  STE 4.1  "-ing" form ("guessing"); use a simple verb or a noun
+         (a Windows agent pinging before PowerShell is up) deliberately does nothing: the cost of waiting is 
+  STE 3.1  sentence is 27 words; the limit is 20 for instructions
+         **Blind time is where the state changes underneath you.** The request went out through an unbounded 
+  STE 3.1  sentence is 36 words; the limit is 20 for instructions
+         Against a guest that is busy dying that is ~110 seconds of not looking — long enough for Phase 2 to 
+  STE 4.1  "-ing" form ("looking"); use a simple verb or a noun
+         Against a guest that is busy dying that is ~110 seconds of not looking — long enough for Phase 2 to 
+  STE 3.1  sentence is 25 words; the limit is 20 for instructions
+         §4 says bound the blocking call; the corollary is that anything you do not watch is free to become i
+  STE 4.1  "-ing" form ("blocking"); use a simple verb or a noun
+         §4 says bound the blocking call; the corollary is that anything you do not watch is free to become i
+  STE 3.1  sentence is 33 words; the limit is 20 for instructions
+         **This is why §27 read as a partial fix.** That session saw Windows "show a desktop for ~26 s, reboo
+  STE 3.1  sentence is 27 words; the limit is 20 for instructions
+         The unclean unmount was real and worth fixing, but the reboot at ~26 s was this bug: the harness res
+  STE 4.1  "-ing" form ("resetting"); use a simple verb or a noun
+         The unclean unmount was real and worth fixing, but the reboot at ~26 s was this bug: the harness res
+  STE 3.1  sentence is 27 words; the limit is 20 for instructions
+         When a fix lands and the symptom shifts but survives, check whether you are now looking at a *second
+  STE 4.1  "-ing" form ("looking"); use a simple verb or a noun
+         When a fix lands and the symptom shifts but survives, check whether you are now looking at a *second
+  STE 1.5  "rather" adds nothing; delete it
+         When a fix lands and the symptom shifts but survives, check whether you are now looking at a *second
+  STE 3.4  passive voice ("was broken"); say who or what does the action
+         Nothing was broken.
+  STE 3.2  sentence is 28 words; the limit is 25 for descriptive text
+         read the two registry keys it is meant to read, both were set, and the preflight declined a machine 
+  STE 4.1  "-ing" form ("servicing"); use a simple verb or a noun
+         read the two registry keys it is meant to read, both were set, and the preflight declined a machine 
+  STE 3.1  sentence is 60 words; the limit is 20 for instructions
+         **A red cell is not automatically a bug in the thing under test.** The harness had handed the produc
+  STE 3.4  passive voice ("is supposed"); say who or what does the action
+         **A red cell is not automatically a bug in the thing under test.** The harness had handed the produc
+  STE 4.1  "-ing" form ("servicing"); use a simple verb or a noun
+         **A red cell is not automatically a bug in the thing under test.** The harness had handed the produc
+  STE 3.1  sentence is 35 words; the limit is 20 for instructions
+         The failing component was the *setup*, and the fix is to provision the guest into a state a real use
+  STE 4.1  "-ing" form ("failing"); use a simple verb or a noun
+         The failing component was the *setup*, and the fix is to provision the guest into a state a real use
+  STE 3.1  sentence is 32 words; the limit is 20 for instructions
+         **When the product tells the user what to do, the harness should do it.** reads the *same two keys* 
+  STE 3.1  sentence is 33 words; the limit is 20 for instructions
+         If a restart does not clear them, it says so and lets the app's refusal stand as the verdict: the ha
+  STE 3.1  sentence is 38 words; the limit is 20 for instructions
+         **Coming back is not being logged on.** QGA answers from session 0 long before autologon finishes, a
+  STE 3.4  passive voice ("being logged"); say who or what does the action
+         **Coming back is not being logged on.** QGA answers from session 0 long before autologon finishes, a
+  STE 3.4  passive voice ("is launched"); say who or what does the action
+         **Coming back is not being logged on.** QGA answers from session 0 long before autologon finishes, a
+  STE 1.5  "very" adds nothing; delete it
+         The diagnostics dump 300 ms later printed the very same PID with on it, at 0 s of CPU time.
+  STE 3.2  sentence is 26 words; the limit is 25 for descriptive text
+         Nothing was misconfigured: the harness read   while QEMU was still inside  , where is only partially
+  STE 3.4  passive voice ("was misconfigured"); say who or what does the action
+         Nothing was misconfigured: the harness read   while QEMU was still inside  , where is only partially
+  STE 3.4  passive voice ("been truncated"); say who or what does the action
+         Nothing was misconfigured: the harness read   while QEMU was still inside  , where is only partially
+  STE 3.1  sentence is 22 words; the limit is 20 for instructions
+         **A racy read is a proxy (§1).** The observable is the settled argv, not the first one that happens 
+  STE 3.1  sentence is 30 words; the limit is 20 for instructions
+         ,  , and   all sit late on a ~2 KB command line, so a short read fails *every* one of those assertio
+  STE 4.1  "-ing" form ("alarming"); use a simple verb or a noun
+         ,  , and   all sit late on a ~2 KB command line, so a short read fails *every* one of those assertio
+  STE 3.1  sentence is 39 words; the limit is 20 for instructions
+         **Poll until the assertion is satisfiable, then fail on a deadline.** The check re-samples for up to
+  STE 3.1  sentence is 23 words; the limit is 20 for instructions
+         The generic form: when polling for a *process*, the appearance of the process and the readability of
+  STE 4.1  "-ing" form ("polling"); use a simple verb or a noun
+         The generic form: when polling for a *process*, the appearance of the process and the readability of
+  STE 4.1  "-ing" form ("Waiting"); use a simple verb or a noun
+         Waiting for the first tells you nothing about the second.
+  STE 3.2  sentence is 28 words; the limit is 25 for descriptive text
+         One cell named  , the other   — two different members of the four files   copies, which is what read
+  STE 4.1  "-ing" form ("reading"); use a simple verb or a noun
+         One cell named  , the other   — two different members of the four files   copies, which is what read
+  STE 1.4  noun cluster of 4 words ("leftover state looks like"); use at most 3, and add prepositions
+         One cell named  , the other   — two different members of the four files   copies, which is what read
+  STE 1.4  noun cluster of 4 words ("drive letter assigned mid-process"); use at most 3, and add prepositions
+         (  reads the same run differently — that   was itself an unreliable print, because a drive letter as
+  STE 3.2  sentence is 40 words; the limit is 25 for descriptive text
+         The install mutex in   is per-process, so two pipelines raced onto one ESP — and because   runs only
+  STE 3.1  sentence is 22 words; the limit is 20 for instructions
+         **A manual start and a schedule are two launches.**   is not "run instead of the trigger"; it is "ru
+  STE 3.1  sentence is 39 words; the limit is 20 for instructions
+         **The bug was in the launch, not in the logs.** Two schtasks calls are two launches whatever the run
+  STE 3.4  passive voice ("be trusted"); say who or what does the action
+         **The bug was in the launch, not in the logs.** Two schtasks calls are two launches whatever the run
+  STE 4.1  "-ing" form ("running"); use a simple verb or a noun
+         **The bug was in the launch, not in the logs.** Two schtasks calls are two launches whatever the run
+  STE 3.1  sentence is 26 words; the limit is 20 for instructions
+         **Which file it blamed was the tell.** A random member of a set that one code path writes in Go map 
+  STE 3.1  sentence is 36 words; the limit is 20 for instructions
+         The harness now drops the task once the app is up and then *counts* before writing the directive — n
+  STE 4.1  "-ing" form ("writing"); use a simple verb or a noun
+         The harness now drops the task once the app is up and then *counts* before writing the directive — n
+  STE 4.1  "-ing" form ("Finding"); use a simple verb or a noun
+         el10-gnome-win11pro (run 32556250889) reported "install stalled at *Finding your files*" after waiti
+  STE 4.1  "-ing" form ("waiting"); use a simple verb or a noun
+         el10-gnome-win11pro (run 32556250889) reported "install stalled at *Finding your files*" after waiti
+  STE 1.4  noun cluster of 4 words ("full 30-minute drive deadline"); use at most 3, and add prepositions
+         el10-gnome-win11pro (run 32556250889) reported "install stalled at *Finding your files*" after waiti
+  STE 3.2  sentence is 31 words; the limit is 25 for descriptive text
+         A stalled installer and a dead channel produce the *same* observable — the drive-state file stops ch
+  STE 4.1  "-ing" form ("changing"); use a simple verb or a noun
+         A stalled installer and a dead channel produce the *same* observable — the drive-state file stops ch
+  STE 4.1  "-ing" form ("standing"); use a simple verb or a noun
+         A stalled installer and a dead channel produce the *same* observable — the drive-state file stops ch
+  STE 3.4  passive voice ("is even"); say who or what does the action
+         **Ask the discriminator first, not last.**   decides which verdict is even available, so it runs *be
+  STE 3.4  passive voice ("is written"); say who or what does the action
+         **Ask the discriminator first, not last.**   decides which verdict is even available, so it runs *be
+  STE 3.1  sentence is 24 words; the limit is 20 for instructions
+         Appending the channel state under a product verdict is the wrong order: the caveat does not retract 
+  STE 4.1  "-ing" form ("Appending"); use a simple verb or a noun
+         Appending the channel state under a product verdict is the wrong order: the caveat does not retract 
+  STE 1.5  "just" adds nothing; delete it
+         Appending the channel state under a product verdict is the wrong order: the caveat does not retract 
+  STE 4.1  "-ing" form ("Waiting"); use a simple verb or a noun
+         **Waiting longer cannot make a deaf socket talk.** The remaining ~28 minutes bought nothing except t
+  STE 3.1  sentence is 37 words; the limit is 20 for instructions
+         Once ping is dead, one bounded reconnect cycle — reap the clients that may still hold the single-cli
+  STE 1.4  noun cluster of 4 words ("one bounded reconnect cycle"); use at most 3, and add prepositions
+         Once ping is dead, one bounded reconnect cycle — reap the clients that may still hold the single-cli
+  STE 1.4  noun cluster of 4 words ("killed one left queued"); use at most 3, and add prepositions
+         Once ping is dead, one bounded reconnect cycle — reap the clients that may still hold the single-cli
+  STE 3.1  sentence is 21 words; the limit is 20 for instructions
+         **Say what you do not know.** The classification is   and it states that the run has *no* verdict on
+  STE 3.1  sentence is 31 words; the limit is 20 for instructions
+         **Name the class in the ledger.**   writes the machine-readable verdict the retry gate reads, and th
+  STE 3.1  sentence is 44 words; the limit is 20 for instructions
+         **Exit 1 from a socket that will not open was the same mistake in miniature.** connected outside its
+
+271 finding(s) across 1 file(s)

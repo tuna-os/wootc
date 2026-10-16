@@ -1,0 +1,40 @@
+1..39
+ok 1 run-e2e accepts --instance= and derives disjoint state from it
+ok 2 compose volumes and container name are instance-parameterized
+ok 3 matrix per-slot cleanup is scoped to its own instance
+ok 4 matrix sizes runners instead of assuming capacity
+ok 5 concurrent deployer builds are serialized, artifacts written atomically
+ok 6 GUI-driven install path: seeds, drives the live form, rejoins normal flow
+ok 7 matrix poll ssh cannot eat the case queue
+ok 8 fresh runs reclaim their own disposable disk before preflight
+ok 9 registry mirror is an opt-in, probed hint at every layer
+ok 10 post-deploy parsing survives no-match greps (pipefail)
+ok 11 a failed run tears the VM down even under --keep
+ok 12 setup-wootc.ps1 is single-instance (mutex) — no fresh-install OEM race
+ok 13 the reconnect cycle reports a channel that came back
+ok 14 the reconnect cycle claims nothing when the channel stays deaf
+ok 15 the recovery path cannot itself kill the run under set -e
+ok 16 the verdict lands in BOTH the ledger and the machine-readable file
+ok 17 channel loss is classified, not waited out
+ok 18 the reconnect cycle runs ONCE, and only before the verdict
+ok 19 the reconnect cycle reaps stale clients before reopening
+ok 20 the verdict names the class and claims nothing about the product
+ok 21 the 30-minute timeout leads with the channel, not with the product
+ok 22 a channel that comes back is not a failure
+ok 23 qga.py: a socket that will not open is TRANSPORT, not a guest exit code
+ok 24 qga.py: the reconnect cycle drains before it syncs
+ok 25 the synthetic channel-kill test exists and runs in the fast tier
+ok 26 run-e2e.sh is syntactically valid
+ok 27 guest-ping is OS-agnostic, so it cannot stand alone as a down-detector
+ok 28 a positive Linux discriminator exists alongside the Windows one
+ok 29 no agent answering is read as 'down'
+ok 30 a Windows agent answering is read as 'windows', not as a live Phase 2
+ok 31 a Linux agent still answering is read as 'linux'
+ok 32 an agent that identifies as neither is read as 'unknown', never as Linux
+ok 33 the observation stops the moment Windows is seen, without draining the budget
+ok 34 system_reset in the Phase-2 return is reachable only from the 'linux' verdict
+ok 35 the verdict is computed before the reset, from p2_reboot_observe
+ok 36 the reboot request is bounded so it cannot eat the observation window
+ok 37 the Windows return is still asserted with the OS discriminator afterwards
+ok 38 the old ping-only shape really would have reset run 30710282779
+ok 39 mutation: a reboot that does nothing must fail the final Windows-return assertion

@@ -1,0 +1,41 @@
+1..40
+ok 1 run-e2e.sh is syntactically valid
+ok 2 guest-ping is OS-agnostic, so it cannot stand alone as a down-detector
+ok 3 a positive Linux discriminator exists alongside the Windows one
+ok 4 no agent answering is read as 'down'
+ok 5 a Windows agent answering is read as 'windows', not as a live Phase 2
+ok 6 a Linux agent still answering is read as 'linux'
+ok 7 an agent that identifies as neither is read as 'unknown', never as Linux
+ok 8 the observation stops the moment Windows is seen, without draining the budget
+ok 9 system_reset in the Phase-2 return is reachable only from the 'linux' verdict
+ok 10 the verdict is computed before the reset, from p2_reboot_observe
+ok 11 the reboot request is bounded so it cannot eat the observation window
+ok 12 the Windows return is still asserted with the OS discriminator afterwards
+ok 13 the old ping-only shape really would have reset run 30710282779
+ok 14 mutation: a reboot that does nothing must fail the final Windows-return assertion
+ok 15 run-e2e.sh is syntactically valid
+ok 16 deadline_in returns an absolute epoch in the future
+ok 17 past_deadline is false before and true after the deadline
+ok 18 a deadline elapses in real time even when the loop body blocks
+ok 19 elapsed_min_since reports whole minutes of real time
+ok 20 no wait loop is bound by a tick counter
+ok 21 the long-running loops use past_deadline
+ok 22 progress lines report real minutes against the real budget
+ok 23 the deploy budget is calibrated against real wall-clock behaviour
+ok 24 every QGA call is bounded by a timeout
+ok 25 the QGA call timeout is overridable for slow hosts
+ok 26 Phase-2 boot failure reports actual waited time, not the nominal budget
+ok 27 an abort before the full cleanup trap still stamps the run-state file
+ok 28 the reconnect cycle reports a channel that came back
+ok 29 the reconnect cycle claims nothing when the channel stays deaf
+ok 30 the recovery path cannot itself kill the run under set -e
+ok 31 the verdict lands in BOTH the ledger and the machine-readable file
+ok 32 channel loss is classified, not waited out
+ok 33 the reconnect cycle runs ONCE, and only before the verdict
+ok 34 the reconnect cycle reaps stale clients before reopening
+ok 35 the verdict names the class and claims nothing about the product
+ok 36 the 30-minute timeout leads with the channel, not with the product
+ok 37 a channel that comes back is not a failure
+ok 38 qga.py: a socket that will not open is TRANSPORT, not a guest exit code
+ok 39 qga.py: the reconnect cycle drains before it syncs
+ok 40 the synthetic channel-kill test exists and runs in the fast tier

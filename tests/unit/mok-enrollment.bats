@@ -128,10 +128,13 @@ E2E=tests/e2e/run-e2e.sh
     # once and reboot when Windows comes back after a driven sequence.
     local E2E=tests/e2e/run-e2e.sh
     grep -q 'starting Boot.\* "Windows Boot Manager"' "$E2E"
-    grep -q 'MOK_REARMED=true' "$E2E"
-    # Gated on a driven sequence and once-only — a re-arm loop could bounce
-    # the machine forever.
-    grep -q 'MOK_SIGHTINGS" -gt 0 \] && \[ "${MOK_REARMED:-false}" = false' "$E2E"
+    # Gated on a driven sequence and consumed by the re-arm itself — a
+    # re-arm loop could bounce the machine forever. Bounded: at most two
+    # driven sequences can ask for one.
+    grep -q '^    MOK_REARM_WANTED=false$' "$E2E"
+    [ "$(grep -c 'if \[ "$MOK_REARM_WANTED" = true \] \\$' "$E2E")" -eq 2 ]
+    [ "$(grep -c '^ *MOK_REARM_WANTED=true$' "$E2E")" -eq 1 ]
+    ! grep -q 'MOK_REARMED' "$E2E"
     # The soft QGA wait cannot write the failure ledger (qga_wait's timeout
     # branch calls fail(); this must not be able to fail the run on its own).
     grep -q '_mok_qga_deadline=' "$E2E"
@@ -149,5 +152,5 @@ E2E=tests/e2e/run-e2e.sh
     [ "$(grep -c '^\( \)*mok_rearm_phase2$' "$E2E")" -ge 2 ]
     grep -q '_mok_seq_tail=' "$E2E"
     grep -B2 'grep -aq .starting Boot..\* "Windows Boot Manager"' "$E2E" | grep -q '_mok_seq_tail\|NEW_OUTPUT' || true
-    grep -q 'MOK_REARMED=true' "$E2E"
+    grep -q '^    MOK_REARM_WANTED=false$' "$E2E"
 }

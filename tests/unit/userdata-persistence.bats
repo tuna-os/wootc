@@ -33,6 +33,17 @@ setup() {
     grep -q "wootc-e2e-userdata \$RUN_ID" "$E2E"
 }
 
+@test "seed confirmation reads the canary file back, not script chatter" {
+    # Run 20260928T021246Z: seed-profile.ps1 prints "(RunId: ...)" in its
+    # banner, so grepping the bare RUN_ID passed without the canary file
+    # existing — and Phase 2 then found seed@host empty. The seed step must
+    # read the canary FILE back after either branch, and the PASS grep must
+    # match the canary's content format.
+    grep -q "seed-profile.ps1' -Username.*| Out-Null" "$E2E"
+    grep -q 'Get-Content' "$E2E"
+    grep -Fq 'grep -q "wootc-e2e-userdata $RUN_ID"' "$E2E"
+}
+
 @test "Phase-2 bridge check is a live QGA content read against RUN_ID" {
     grep -Fq "USERDATA_PATH='/home/wootc/Documents/wootc-e2e-userdata.txt'" "$E2E"
     grep -Fq "USERDATA_PATH='/home/wootc/Documents/From Windows/wootc-e2e-userdata.txt'" "$E2E"
@@ -40,14 +51,22 @@ setup() {
     # Failure diagnostics must localize the broken layer, not just say "no".
     grep -q 'host-bind:' "$E2E"
     grep -q 'home-bind:' "$E2E"
+    # ... including what the profile actually contains and whether the seed
+    # moved/renamed (run 20260928T035341Z: verified-present canary absent).
+    grep -q 'profile-ls:' "$E2E"
+    grep -q 'seed-anywhere:' "$E2E"
+    # The diag travels over QGA: one hiccup must not blank it
+    # (run 20260928T070749Z: every layer line empty). It retries.
+    grep -q 'for _ud_try in 1 2 3' "$E2E"
 }
 
 @test "Phase-3 native persistence check reads the file from the native disk" {
     grep -q 'Verifying seeded user data persisted onto the native disk' "$E2E"
-    grep -Fq 'printf '"'"'%s'"'"' "$P3_USERDATA" | grep -q "$RUN_ID"' "$E2E"
+    grep -Fq 'python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_PROOF_FILE" "$RUN_ID" "$P3_TARGET" "$P3_NATIVE_BOOT_ID"' "$E2E"
     # The confined guest agent cannot read user homes (run 20260723T0647):
     # the check must consume the boot-time /run export first.
-    grep -q '/run/wootc-e2e-native-userdata' "$E2E"
+    grep -Fq '"$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot userdata' "$E2E"
+    grep -q '/run/wootc-e2e-native-userdata' "$REPO_ROOT/tests/e2e/phase3-snapshot.sh"
     # And a failed persistence check is FATAL, not advisory.
     grep -A4 'did NOT persist onto the native disk' "$E2E" | grep -q 'exit 1'
 }

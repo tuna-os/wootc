@@ -1,0 +1,19 @@
+{
+  "runId": 36323803770,
+  "jobId": 108632587631,
+  "sourceCommit": "d4f50c1d1c0467a9099d2f4c2af316ad3247754d",
+  "runConclusion": "success",
+  "gate": "BitLocker fixture controls / Private before receipt and optical controls",
+  "sourceSHA256": {
+    "tests/e2e/qmp-optical-media.py": "534d2c8c24cba969bfe89419a8d21e4f3c05c31de4afafcf1c08c88eb451de84",
+    "tests/e2e/compose.yml": "960c99fc2fd46924716827e507fdc8219236a804c3484ce02963b28f7979e4ad",
+    "tests/e2e/build-ssh-image.sh": "9263c9be75a4c0e547c0f08b2c100ea48caea03f6ff309193345175dcc43fc9c",
+    "tests/unit/test_optical_media_control.py": "a774f2acbdaf9232c5c7c1544df44464c6da86eab8b21271db450896b2aec5e6"
+  },
+  "fullRawLogSHA256": "b1721735cbc73084f8eaf4430bbd2f134d4ceee87072e7271ee3434eb6b31fcb",
+  "retainedExcerpt": {
+    "file": "hosted-d4-optical.excerpt.log",
+    "sha256": "128c25f409f77e1c311de5787f849ead1bb7e60754b7da1c6bf0ed310cd79fbe"
+  },
+  "scope": "Source-equivalent helper, image wiring and12 controls run on hosted Linux with explicit QEMU binary/version and zero-skip guard; actual paused native QEMU8.2.2 control passes. This is not installed Windows/Linux runtime or E2E acceptance. Original full raw log/provenance retained by OEM at /tmp/wootc-optical-freshness-d4-hosted and GitHub job remains authority."
+}

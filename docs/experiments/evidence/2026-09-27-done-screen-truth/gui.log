@@ -1,0 +1,16 @@
+[WebServer] (node:3014891) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 7 tests using 1 worker
+
+(node:3014951) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 branded-walkthrough.spec.js:133:5 › walkthrough: aurora › done celebrates the brand (1.5s)
+  ✓  2 branded-walkthrough.spec.js:133:5 › walkthrough: bazzite › done celebrates the brand (1.4s)
+  ✓  3 branded-walkthrough.spec.js:133:5 › walkthrough: bluefin › done celebrates the brand (1.3s)
+  ✓  4 branded-walkthrough.spec.js:133:5 › walkthrough: tunaos › done celebrates the brand (1.2s)
+  ✓  5 branded-walkthrough.spec.js:133:5 › walkthrough: wootc › done celebrates the brand (1.0s)
+  ✓  6 gui.spec.js:72:1 › installer — done screen (1.2s)
+  ✓  7 gui.spec.js:93:1 › installer — session consent does not assert successful export (1.5s)
+
+  7 passed (14.3s)

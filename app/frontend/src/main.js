@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetInstallSteps, GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict } from '../wailsjs/go/main/App';
+import { GetInstallSteps, GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetVMState, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict, GetInstallRecovery } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { startE2EDrive } from './lib/e2e.js';
 import { state } from './lib/state.js';
@@ -13,11 +13,12 @@ import { renderDoneScreen } from './screens/done.js';
 import { renderControlPanel } from './screens/control.js';
 import { renderMigrateScreen, renderMigrateRows, refreshCategories } from './screens/migrate.js';
 import { renderRecoveryScreen } from './screens/recovery.js';
+import { renderInterruptedScreen, INTERRUPTED_CLASSES } from './screens/interrupted.js';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
-  try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'TunaOS', productName: 'wootc', tagline: '', logoEmoji: '🐠', version: '0.1.0', installVerb: 'Install' }); }
+  try { applyBranding(await GetBranding()); } catch { applyBranding({ name: 'TunaOS', productName: 'wootc', tagline: '', logoEmoji: '🐠', version: '', installVerb: 'Install' }); }
   setInstallSteps(await GetInstallSteps());
   // Listen for progress events from Go backend
   EventsOn('install:progress', (e) => {
@@ -42,11 +43,22 @@ async function init() {
 
   // Try-in-VM builder progress (§6.1). Drives the preview screen while the
   // headless builder pulls the image and installs it onto preview.raw.
-  EventsOn('vm:progress', (e) => {
+  EventsOn('vm:progress', async (e) => {
     state.vmProgress = { stage: e.stage, percent: e.percent || 0, message: e.message || '' };
-    if (e.stage === 'started' || e.stage === 'ready') state.vmReady = true;
+    state.vmReady = e.stage === 'started';
+    if (['stopped', 'needs_recovery'].includes(e.stage)) state.vmState = { phase: e.stage, error: e.message };
+    if (e.stage === 'needs_recovery') state.vmError = e.message;
     if (e.stage === 'error') state.vmError = e.message;
-    if (state.screen === 'vmpreview') render();
+    if (e.stage === 'runtime-ready') {
+      try { state.freshVmCapability = await GetFreshVMCapability(); } catch (e) { state.vmError = String(e); }
+      if (state.freshVmCapability?.available) state.screen = 'launchpad';
+      else state.vmError = state.vmError || state.freshVmCapability?.reason || 'The Linux window check did not finish.';
+      render(); return;
+    }
+    if (['stopped', 'needs_recovery', 'started'].includes(e.stage)) {
+      try { state.vmState = await GetVMState(); state.vmCapability = await GetVMCapability(); } catch {}
+    }
+    if (state.screen === 'vmpreview' || state.screen === 'control') render();
   });
 
   // Conversion progress events from the migration dashboard backend.
@@ -75,7 +87,7 @@ async function init() {
     return;
   }
 
-  const [images, sysinfo, existing, policy, sessionCandidates, lastRun, recoveryVerdict] = await Promise.all([
+  const [images, sysinfo, existing, policy, sessionCandidates, lastRun, recoveryVerdict, installRecovery] = await Promise.all([
     GetImages(),
     GetSystemInfo(),
     ExistingInstallFound(),
@@ -89,9 +101,12 @@ async function init() {
     Promise.resolve().then(GetLastRun).catch(() => null),
     // Recovery guard verdict (§2)
     Promise.resolve().then(GetRecoveryVerdict).catch(() => null),
+    // Interrupted-install classification from the durable journal (#287).
+    Promise.resolve().then(GetInstallRecovery).catch(() => null),
   ]);
   state.lastRun = lastRun && lastRun.state ? lastRun : null;
   state.recoveryVerdict = recoveryVerdict && recoveryVerdict.verdict && recoveryVerdict.verdict !== 'none' && recoveryVerdict.verdict !== 'healthy' && recoveryVerdict.verdict !== 'deployed' ? recoveryVerdict : null;
+  state.installRecovery = installRecovery && INTERRUPTED_CLASSES.includes(installRecovery.class) ? installRecovery : null;
 
   state.policy = policy;
   state.images = images || [];
@@ -124,6 +139,7 @@ async function init() {
     state.config.diskSizeGB = Math.min(200, Math.max(40, half));
   }
 
+  try { state.vmState = await GetVMState(); } catch { state.vmState = null; }
   if (existing) {
     try { state.uninstallInfo = await GetUninstallInfo(); } catch { state.uninstallInfo = {}; }
     try { state.vmCapability = await GetVMCapability(); } catch { state.vmCapability = null; }
@@ -132,6 +148,8 @@ async function init() {
   
   if (state.recoveryVerdict) {
     state.screen = 'recovery';
+  } else if (state.installRecovery) {
+    state.screen = 'interrupted';
   } else {
     state.screen = existing ? 'control' : 'launchpad';
   }
@@ -165,6 +183,7 @@ function render() {
     case 'migrate':   content.appendChild(renderMigrateScreen()); break;
     case 'vmpreview': content.appendChild(renderVMPreviewScreen()); break;
     case 'recovery':  content.appendChild(renderRecoveryScreen()); break;
+    case 'interrupted': content.appendChild(renderInterruptedScreen()); break;
     default:          content.innerHTML = '<div style="padding:40px;color:#666">Loading…</div>';
   }
 

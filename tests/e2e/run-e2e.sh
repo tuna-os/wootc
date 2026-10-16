@@ -49,6 +49,8 @@ source "$SCRIPT_DIR/lib/results.sh"
 source "$SCRIPT_DIR/lib/result-runner.sh"
 # shellcheck source=tests/e2e/lib/snapshot-prime.sh
 source "$SCRIPT_DIR/lib/snapshot-prime.sh"
+# shellcheck source=tests/e2e/lib/offline-bundle.sh
+source "$SCRIPT_DIR/lib/offline-bundle.sh"
 trap 'wootc_report_abort "$?" "$BASH_COMMAND"' ERR
 # IMAGE_REF is the first NON-FLAG positional (set in the parse loop below), not
 # blindly $1 — otherwise `run-e2e.sh --skip-install <image>` treats the flag as
@@ -82,6 +84,17 @@ SKIP_INSTALL=false
 GUI_INSTALL=false
 FAULT_INJECT="${WOOTC_E2E_FAULT_INJECT:-}"
 RECOVERY_CHECK=false
+# Firmware db axis (#322): which Microsoft third-party UEFI CA the VM's
+# firmware trusts. Empty keeps Dockur's stock vars (both CAs). See
+# tests/e2e/firmware-db.py for the cells.
+FIRMWARE_DB="${WOOTC_E2E_FIRMWARE_DB:-}"
+# Which GUI --gui-install drives: the legacy Wails app (default) or the native
+# WinUI shell (#344). Native installs the protected package staged in
+# wootc-files/native-shell (shell + engine + native-package.json, assembled
+# by e2e-hosted.yml) and drives it; its directive also names the target
+# volume. See gui_native_stage_package.
+GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-wails}"
+OFFLINE=false
 for arg in "$@"; do
     case "$arg" in
         --skip-build)   SKIP_BUILD=true ;;
@@ -92,6 +105,7 @@ for arg in "$@"; do
         --uninstall-check) WOOTC_E2E_UNINSTALL=1 ;;  # after Windows returns: prove leaving works
         --fault-inject=*) FAULT_INJECT="${arg#--fault-inject=}" ; RECOVERY_CHECK=true ;;
         --recovery-check) RECOVERY_CHECK=true ;;
+        --offline)      OFFLINE=true ;;  # guest has no NIC; deploy from a pre-staged bundle (#217)
         # Concurrent-runner slot: gives this run its own container name and
         # storage dir so N VMs can share one host (run-matrix --jobs). Passed
         # as a =flag so it is visible in the process cmdline — the matrix
@@ -126,9 +140,54 @@ WOOTC_RESULT_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-results.$$.jsonl"
 RESULT_SCENARIO=full-cycle
 if [ "${RUN_PHASE3:-false}" = true ]; then RESULT_SCENARIO=native-cycle; fi
 if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
+# GUI_PROCESS is the frontend's process name in the guest: the single-instance
+# proof, the crash checks and the post-mortem all count THAT process, so a
+# native run in which the Wails app answered (or vice versa) cannot pass.
+NATIVE_PACKAGE_DIR="$SCRIPT_DIR/wootc-files/native-shell"
+case "$GUI_FRONTEND" in
+    wails) GUI_PROCESS=wootc GUI_OTHER_PROCESS=Wootc.Shell ;;
+    native)
+        GUI_PROCESS=Wootc.Shell GUI_OTHER_PROCESS=wootc
+        if [ "$GUI_INSTALL" != true ]; then
+            echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native needs --gui-install: only the GUI path launches a frontend" >&2
+            exit 1
+        fi
+        # Refuse before any VM work: no package, a package that differs from
+        # its manifest, or the screen gallery build (recorded fixtures, no
+        # engine) would each turn the run into a launch failure 30 min later.
+        if ! NATIVE_PACKAGE_IDENTITY=$(python3 "$SCRIPT_DIR/native-package.py" check "$NATIVE_PACKAGE_DIR"); then
+            echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native: no valid native shell package in $NATIVE_PACKAGE_DIR (assemble it as e2e-hosted.yml does)" >&2
+            exit 1
+        fi
+        NATIVE_BRAND=$(printf '%s' "$NATIVE_PACKAGE_IDENTITY" | sed -n 's/.* brandId=\([a-z]*\) .*/\1/p')
+        [ -n "$NATIVE_BRAND" ] || { echo "[FAIL] native package identity is unreadable: $NATIVE_PACKAGE_IDENTITY" >&2; exit 1; }
+        ;;
+    *)
+        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be wails or native, not '$GUI_FRONTEND'" >&2
+        exit 1 ;;
+esac
+case "$FIRMWARE_DB" in
+    ""|2011|2023|both) ;;
+    # Firmware that trusts neither third-party CA cannot launch any shim, so
+    # the product must refuse before it writes anything. The refusal lives in
+    # the app's install gate, which only the real GUI (or headless CLI) runs;
+    # the scripted OEM path would arm regardless and prove nothing.
+    none)
+        if [ "$GUI_INSTALL" != true ]; then
+            echo "[FAIL] WOOTC_E2E_FIRMWARE_DB=none needs --gui-install: the refusal is the app's, not setup-wootc.ps1's" >&2
+            exit 2
+        fi
+        RESULT_SCENARIO=secure-boot-refusal ;;
+    *) echo "[FAIL] WOOTC_E2E_FIRMWARE_DB must be 2011|2023|both|none (got: $FIRMWARE_DB)" >&2; exit 2 ;;
+esac
 if [ -n "${WOOTC_E2E_SNAPSHOT_OUT:-}" ]; then RESULT_SCENARIO="snapshot-prime"; fi
 RESULT_REQUIRED=""
-if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ]; then RESULT_REQUIRED=gui-install; fi
+if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ] && [ "$RESULT_SCENARIO" != secure-boot-refusal ]; then
+    RESULT_REQUIRED=gui-install
+    # A native run must prove which frontend drove it, or its green would
+    # read exactly like a Wails one.
+    if [ "$GUI_FRONTEND" = native ]; then RESULT_REQUIRED=gui-install,native-shell; fi
+fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
 trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
@@ -201,6 +260,26 @@ if [ -n "${WOOTC_E2E_INSTANCE:-}" ]; then
 fi
 export WOOTC_E2E_CONTAINER="$CONTAINER_NAME"
 export WOOTC_E2E_STORAGE_VOL="$STORAGE_DIR"
+
+# Offline axis (#217, spec docs/branding-and-distribution.md section 4 phase 4).
+# The guest gets NO network device for the whole run (Dockur NETWORK=N leaves
+# -nodefaults QEMU with no NIC), so nothing can mask a deployer that still
+# reaches for the network. The deployer must install from the OCI bundle that
+# offline_stage_bundle copies into C:\wootc\bundle over QGA. The GUI path
+# needs the guest network (WebView2 install, \\host.lan share) and BitLocker
+# moves the storage root off C:, so neither combines with this axis yet.
+OFFLINE_BUNDLE_DIR="$SCRIPT_DIR/wootc-files/offline-bundle-${WOOTC_E2E_INSTANCE:-0}"
+if [ "$OFFLINE" = true ]; then
+    if [ "$GUI_INSTALL" = true ]; then
+        echo "[FAIL] --offline cannot combine with --gui-install: the GUI path needs the guest network" >&2
+        exit 2
+    fi
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
+        echo "[FAIL] --offline cannot combine with WOOTC_E2E_BITLOCKER=on: the bundle is staged on C:" >&2
+        exit 2
+    fi
+    export WOOTC_E2E_GUEST_NETWORK=N
+fi
 # A second orchestrator can otherwise race QGA cleanup and recreate the
 # disposable root disk while the first run is booting the deployer.  Keep the
 # advisory lock open for the lifetime of this shell; it is released
@@ -268,26 +347,9 @@ WOOTC_E2E_HEARTBEAT_STALE_SAMPLES="${WOOTC_E2E_HEARTBEAT_STALE_SAMPLES:-3}"
 WOOTC_E2E_FISHERMAN_GONE_SAMPLES="${WOOTC_E2E_FISHERMAN_GONE_SAMPLES:-10}"
 
 WOOTC_E2E_KEEP_RUNS="${WOOTC_E2E_KEEP_RUNS:-3}"
-prune_old_artifacts() {
-    local base="$STORAGE_DIR/artifacts" keep="$WOOTC_E2E_KEEP_RUNS"
-    [ -d "$base" ] || return 0
-    local evidence="$base/.evidence"
-    mkdir -p "$evidence"
-    # Newest first; skip the ones we keep, prune the tail. ls -t is the point
-    # here (mtime ordering) — a glob can't sort by time, and run dirs are
-    # timestamp-named ASCII so the SC2010 filename caveat doesn't apply.
-    # shellcheck disable=SC2010
-    ls -1dt "$base"/*/ 2>/dev/null | grep -v '/.evidence/$' | tail -n "+$((keep + 1))" | while read -r d; do
-        local name; name=$(basename "$d")
-        mkdir -p "$evidence/$name"
-        # Text-sized evidence only: serial + logs under 50 MiB.
-        find "$d" -maxdepth 1 -type f \( -name '*.log' -o -name 'qemu.pty' -o -name '*.txt' -o -name '*.json' -o -name '*.jsonl' \) \
-            -size -50M -exec cp {} "$evidence/$name/" \; 2>/dev/null || true
-        rm -rf "$d"
-    done
-    return 0
-}
-prune_old_artifacts
+# shellcheck source=tests/e2e/lib/retention.sh
+source "$SCRIPT_DIR/lib/retention.sh"
+prune_old_artifacts "$STORAGE_DIR" "$WOOTC_E2E_KEEP_RUNS" || { infra_fail "Artifact retention failed; old evidence was retained"; exit 1; }
 run_state() {
     local stage="$1" tmp="$RUN_STATE_FILE.tmp"
     {
@@ -313,70 +375,8 @@ uname -a > "$ARTIFACT_DIR/host-uname.txt" 2>&1 || true
 free -m > "$ARTIFACT_DIR/host-memory.txt" 2>&1 || true
 df -h "$STORAGE_DIR" > "$ARTIFACT_DIR/host-storage.txt" 2>&1 || true
 
-host_preflight() {
-    # Recalibrated after the pre-deployer snapshot was disabled (1c6d713).
-    #
-    # 65 GiB was the bare minimum for ONE run, so a run could pass preflight and
-    # die mid-deploy, leaving nothing for the next run — runners ratcheted
-    # toward full. That was raised to 120, but 120 assumed the snapshot's FULL
-    # byte copy of data.qcow2 (reflink is unavailable here, so it doubled an
-    # 18-28 GiB file). With the snapshot off, a run's resident footprint is
-    # ~45 GiB: data.qcow2 + windows.*.iso (7.4) + custom.iso (7.3) + artifacts.
-    #
-    # 90 GiB is still roughly two runs' worth on a persistent host, and it fits
-    # a GitHub hosted runner, which offers ~114 GiB after its cleanup step and
-    # was being rejected by the 120 figure. Override for unusual hosts.
-    local mem_available_kib disk_available_kib
-    local required_free_gib="${WOOTC_E2E_MIN_FREE_GIB:-90}"
-    mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
-    disk_available_kib=$(df -Pk "$STORAGE_DIR" | awk 'NR == 2 { print $4 }')
-
-    command -v podman >/dev/null || { infra_fail "podman is required"; return 1; }
-    command -v python3 >/dev/null || { infra_fail "python3 is required for QGA"; return 1; }
-    [ -r /dev/kvm ] && [ -w /dev/kvm ] || { infra_fail "/dev/kvm is not accessible"; return 1; }
-    [ -c /dev/net/tun ] || { infra_fail "/dev/net/tun is unavailable"; return 1; }
-    # Memory: a point-in-time MemAvailable sample on a host running sibling
-    # instances is transient — a neighbor's build spike or install phase can
-    # eat gigabytes for a few minutes. Wait for the dip to pass (10 min)
-    # before declaring the host too small. The requirement scales with the
-    # configured VM size when dockur's own clamp is disabled (RAM_CHECK=N);
-    # otherwise 6 GiB suffices to start a clamp-protected 4 GiB minimum VM.
-    local need_mem_mib=6144
-    if [ "${WOOTC_E2E_RAM_CHECK:-Y}" = "N" ]; then
-        need_mem_mib=$(( $(printf '%s' "${WOOTC_E2E_RAM_SIZE:-8G}" | tr -dc '0-9') * 1024 + 256 ))
-    fi
-    local mem_deadline; mem_deadline=$(deadline_in 600)
-    while [ $(( ${mem_available_kib:-0} / 1024 )) -lt "$need_mem_mib" ]; do
-        if past_deadline "$mem_deadline"; then
-            infra_fail "Only $((mem_available_kib / 1024)) MiB host RAM available after 10 min; need ${need_mem_mib} MiB before starting Windows"
-            return 1
-        fi
-        info "Waiting for host memory: $((mem_available_kib / 1024)) MiB available, want ${need_mem_mib} MiB..."
-        sleep 15
-        mem_available_kib=$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)
-    done
-    # These situational adjustments apply only when the caller did NOT set an
-    # explicit floor: WOOTC_E2E_MIN_FREE_GIB=45 from the matrix was silently
-    # RAISED back to 75 by the iso branch (a leftover windows.*.iso in the
-    # instance dir), failing a slot with plenty of room for its case.
-    if [ -z "${WOOTC_E2E_MIN_FREE_GIB:-}" ]; then
-        # Fresh installation needs room for the installer, pulls, and
-        # expanding qcow2. Fresh-run peak drops ~10 GiB when the Windows ISO
-        # is already cached (no re-download, custom.iso rebuild reuses the
-        # cached extraction).
-        if ls "$STORAGE_DIR"/windows.*.iso &>/dev/null; then
-            required_free_gib=75
-        fi
-        # A reuse run already has those and needs only its allocated-extent
-        # safety snapshot plus diagnostics.
-        [ "$SKIP_INSTALL" = false ] || required_free_gib=55
-    fi
-    if [ "${disk_available_kib:-0}" -lt $((required_free_gib * 1024 * 1024)) ]; then
-        infra_fail "Only $((disk_available_kib / 1024 / 1024)) GiB free under $STORAGE_DIR; need at least $required_free_gib GiB"
-        return 1
-    fi
-    pass "Host preflight: $((mem_available_kib / 1024)) MiB RAM available, $((disk_available_kib / 1024 / 1024)) GiB disk free, KVM/TUN ready"
-}
+# shellcheck source=tests/e2e/lib/host-runtime.sh
+source "$SCRIPT_DIR/lib/host-runtime.sh"
 # Reclaim this run's own disposable leftovers BEFORE measuring free disk: a
 # fresh run deletes data.qcow2/custom.iso anyway, but preflight used to run
 # first and count them against the budget — after one failed case a slot
@@ -388,7 +388,7 @@ if [ "$SKIP_INSTALL" = false ]; then
     rm -f "$STORAGE_DIR/data.qcow2" "$STORAGE_DIR/custom.iso"
 fi
 
-host_preflight || exit 1
+host_preflight "$STORAGE_DIR" "$SKIP_INSTALL" || exit 1
 # Keep the pristine Windows installer separate from Dockur's mutable working
 # directory.  Dockur can generate derived ISO images while preparing an answer
 # file, so it must receive a copy rather than the only cached source image.
@@ -401,21 +401,6 @@ WINDOWS_ISO_CACHE="${WOOTC_WINDOWS_ISO:-$ISO_CACHE_DIR/windows-${WIN_VERSION}.is
 # On a fresh runner the first run cannot do that — the media does not exist yet
 # when the answer file is written — so caching it is what makes the second run
 # able to. Cheap, and it also spares a multi-GB re-download.
-cache_downloaded_iso() {
-    [ -n "${ISO_CACHE_DIR:-}" ] || return 0
-    [ -f "$WINDOWS_ISO_CACHE" ] && return 0
-    local src
-    src=$(ls -1 "$STORAGE_DIR"/windows.*.iso 2>/dev/null | head -1 || true)
-    [ -n "$src" ] || return 0
-    mkdir -p "$ISO_CACHE_DIR" || return 0
-    if cp --reflink=auto --sparse=auto "$src" "$WINDOWS_ISO_CACHE.part" 2>/dev/null; then
-        mv -f "$WINDOWS_ISO_CACHE.part" "$WINDOWS_ISO_CACHE"
-        info "Cached the downloaded Windows ISO for future runs: $WINDOWS_ISO_CACHE"
-    else
-        rm -f "$WINDOWS_ISO_CACHE.part"
-    fi
-    return 0
-}
 
 QGA_CACHE_DIR="$SCRIPT_DIR/qga-cache"
 QGA_MSI="${WOOTC_QGA_MSI:-$QGA_CACHE_DIR/qemu-ga-x86_64.msi}"
@@ -431,7 +416,7 @@ cleanup() {
     # Whatever happened, keep the installer media: the next run on this host can
     # then read its image names before Setup starts (#58) and skips a multi-GB
     # re-download. Never let this affect the run's outcome.
-    cache_downloaded_iso 2>/dev/null || true
+    cache_downloaded_iso "$ISO_CACHE_DIR" "$WINDOWS_ISO_CACHE" "$STORAGE_DIR" 2>/dev/null || true
     if [ "$VIDEO_STARTED" = true ]; then
         WOOTC_CONTAINER_RUNTIME="$DOCKER" "$SCRIPT_DIR/record-video.sh" stop "$VIDEO_DIR" || true
     fi
@@ -450,15 +435,7 @@ cleanup() {
     if [ "$result" -ne 0 ] && [ "${WOOTC_E2E_KEEP_ALIVE:-0}" != "1" ]; then
         keep=false
     fi
-    if [ "$keep" = false ]; then
-        info "Cleaning up..."
-        $DOCKER exec "$CONTAINER_NAME" pkill -9 -f 'process=windows' 2>/dev/null || true
-        podman compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || \
-            docker compose -f "$SCRIPT_DIR/compose.yml" down --volumes 2>/dev/null || true
-        podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
-    else
-        info "Container kept (--keep): $CONTAINER_NAME"
-    fi
+    host_stop_vm "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR/compose.yml" "$keep"
     exit "$result"
 }
 trap cleanup EXIT
@@ -559,357 +536,69 @@ else
 fi
 $COMPOSE -f "$SCRIPT_DIR/compose.yml" config > "$ARTIFACT_DIR/compose-rendered.yml" 2>&1 || true
 
-# ── QEMU Guest Agent control plane ───────────────────────────────────────────
-# qga.py is copied into Dockur after QEMU starts. Keeping the client in the
-# container lets it reach the private Unix socket without exposing a port.
-# Every QGA call is bounded. Without this, a hung `podman exec` (guest agent
-# wedged, container unresponsive, socket never answering) blocks the calling
-# wait loop FOREVER — and because the loop body never returns, its deadline is
-# never evaluated. Observed: two runners sat "alive" for 20+ minutes with their
-# progress line frozen at "Waiting for QGA (5m of 45m)" while pgrep showed the
-# script running. A wall-clock deadline cannot help a loop that never iterates,
-# so the bound has to be here, on the blocking call itself.
-
-# qga_call — single attempt, no automatic retry. Use for side-effecting
-# commands (powershell, write, freeze) where a timeout (124) or guest exit
-# code must never replay the operation. Idempotent probes/reads should use
-# qga_call_retry instead (#40).
-qga_call() {
-    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT:-60}"
-    local rc=0
-    # `else rc=$?` is load-bearing (#39). Assigning rc AFTER the `fi`
-    # captures the exit status of the IF STATEMENT, not of the command —
-    # and an `if` whose condition failed with no else branch is itself
-    # status 0. So the old form returned SUCCESS once every retry had
-    # failed:
-    #     f(){ for i in 1 2; do if false; then return 0; fi; rc=$?; done; return $rc; }
-    #     f; echo $?   # -> 0
-    # That made qga_probe/qga_wait able to print "[PASS] QGA available"
-    # with no agent answering, and let failed PowerShell/file-write/exec
-    # requests look successful — the project's dominant failure class,
-    # status taken from a proxy instead of the real observable.
-    if timeout "$timeout_s" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"; then
-        return 0
-    else
-        rc=$?
-    fi
-    return $rc
-}
-
-# qga_call_retry — idempotent operations only (ping, info, read, thaw).
-# Retries on transport errors (exit 42 from qga.py) and timeouts (124),
-# but NEVER replays a returned guest exit code (#40).
-WOOTC_QGA_TRANSPORT_EXIT=42
-qga_call_retry() {
-    local timeout_s="${WOOTC_QGA_CALL_TIMEOUT:-60}"
-    local tries=3 rc=0 try
-    if [ "$timeout_s" -le 5 ]; then tries=1; fi
-    for try in $(seq 1 $tries); do
-        if timeout "$timeout_s" $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py "$@"; then
-            return 0
-        else
-            rc=$?
-        fi
-        # Only retry transport errors (QGA never received the request) and
-        # timeouts (ambiguous). Never retry a guest exit code — doing so
-        # would replay side-effecting commands like shutdown, reboot, or
-        # BCD mutation (#40).
-        if [ "$rc" -ne "$WOOTC_QGA_TRANSPORT_EXIT" ] && [ "$rc" -ne 124 ]; then
-            return $rc
-        fi
-        sleep 1
-    done
-    return $rc
-}
-
-qga_probe() {
-    WOOTC_QGA_CALL_TIMEOUT=5 qga_call_retry ping >/dev/null 2>&1 || return 1
-}
-
-# ── the QGA-channel-loss failure class (#220) ────────────────────────────────
-# A deaf virtio-serial channel and a stalled installer produce the SAME
-# observable — the drive-state file stops changing — and opposite verdicts.
-# guest-ping is the discriminator, and these two helpers are what the harness
-# does with the answer.
-#
-# qga_reconnect_cycle runs ONE bounded recovery attempt. The socket takes a
-# single client at a time, so a client our `timeout` wrapper killed on 124 can
-# still own it, with its unread reply queued behind — the next connection then
-# reads that reply as the answer to a question it never asked (agent-lessons
-# §20: a retried command is a second command). Reaping the stale clients and
-# reopening with a drained, 0xFF-delimited sync is the whole recovery.
-#
-# It is one cycle and not a loop on purpose. If a few clean reopens cannot get
-# a ping back, the channel is gone, and grinding away at it just re-buys the
-# 30-minute false verdict this exists to delete.
-WOOTC_QGA_RECONNECT_ATTEMPTS="${WOOTC_QGA_RECONNECT_ATTEMPTS:-3}"
-WOOTC_QGA_RECONNECT_SETTLE_S="${WOOTC_QGA_RECONNECT_SETTLE_S:-3}"
-qga_reconnect_cycle() {
-    local out rc=0
-    warn "  QGA channel is not answering — ONE bounded reconnect cycle before any verdict"
-    # Clients that outlived their `timeout` may still hold the single-client
-    # socket. Reaping them is a prerequisite for the reopen, not an extra.
-    $DOCKER exec "$CONTAINER_NAME" pkill -f '/tmp/qga.py' >/dev/null 2>&1 || true
-    sleep 1
-    out=$(timeout 60 $DOCKER exec "$CONTAINER_NAME" python3 /tmp/qga.py reconnect \
-        --attempts "$WOOTC_QGA_RECONNECT_ATTEMPTS" \
-        --settle "$WOOTC_QGA_RECONNECT_SETTLE_S" 2>&1) || rc=$?
-    # An `x && y` tail would be the last status of this block under `set -e`,
-    # and an empty $out would abort the whole run from inside the recovery path.
-    if [ -n "$out" ]; then
-        printf '%s\n' "$out" | sed 's/^/    reconnect: /'
-    fi
-    if [ "$rc" -eq 0 ]; then
-        pass "  QGA channel RECOVERED — the stall was the channel, and it is back"
-        return 0
-    fi
-    return 1
-}
-
-# qga_channel_lost writes the verdict for a channel that did not come back.
-# The WORDING is the deliverable, not decoration: run 32556250889 led with
-# "install stalled at Finding your files" and appended the dead-ping caveat
-# underneath, so the run read as a product red for a failure the harness had
-# no evidence about. Once the channel is deaf the harness knows nothing about
-# the install and must say exactly that. The ledger line NAMES the class, so
-# the re-dispatch decision needs no human to read the log.
-qga_channel_lost() {
-    local where="$1"
-    infra_fail "CLASSIFICATION: qga-channel-lost — the QGA channel died during $where"
-    infra_fail "  QGA does NOT answer ping, and one bounded reconnect cycle did not bring the channel back."
-    infra_fail "  This run has NO verdict on the product: the install may have finished, stalled or failed,"
-    infra_fail "  and with the channel deaf the harness cannot tell — so it does not guess."
-    note_flake "qga-channel-lost"
-}
-
-qga_wait() {
-    local label="$1" timeout="$2" elapsed=0
-    step "Waiting for QGA: $label..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if qga_probe; then
-            pass "QGA available: $label"
-            return 0
-        fi
-        sleep 10
-        elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA ($label)... ($(( elapsed / 60 ))m)"
-    done
-    infra_fail "QGA did not become available for $label within $((timeout / 60)) minutes"
-    return 1
-}
-
-qga_wait_down() {
-    local label="$1" timeout="${2:-120}" elapsed=0
-    info "Waiting for Windows QGA to go away before $label..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if ! qga_windows_probe; then
-            return 0
-        fi
-        sleep 5
-        elapsed=$((elapsed + 5))
-    done
-    infra_fail "Windows QGA did not go away before $label"
-    return 1
-}
-
-qga_wait_reboot() {
-    local label="$1"
-    qga_wait_down "$label" 120
-    qga_wait "$label" 600
-}
-
-# QGA is present in both the Windows guest and our deployer initramfs.  A
-# successful ping alone therefore does not prove that it is safe to launch a
-# Windows PowerShell payload.  Probe the Windows executable explicitly.
-qga_windows_probe() {
-    local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_powershell '$env:OS' 2>/dev/null | tr -d '\r\n' || true)
-    if [[ "$os" =~ Windows_NT ]]; then
-        # A phase observed in the Linux guest cannot describe a Windows action.
-        wootc_phase_boundary
-        return 0
-    fi
-    return 1
-}
-
-# The mirror of qga_windows_probe, and the missing half of the pair. Every
-# transition in this script is "one OS leaves, another arrives", and guest-ping
-# cannot tell those two apart: it answers for whichever agent is up. So the
-# only way to say "the guest is STILL the one I was talking to" is to ask the
-# guest what it is, positively. Run 30710282779 is what the negative form
-# costs — see p2_reboot_observe().
-qga_linux_probe() {
-    local os
-    os=$(WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'uname -s' 2>/dev/null | tr -d '\r\n' || true)
-    [[ "$os" == *Linux* ]]
-}
-
-# Classify what the guest is doing after a Phase-2 reboot request, from
-# observables only. Echoes exactly one of:
-#
-#   down     no agent answers — Phase 2 has left and the return is underway
-#   windows  the answering agent IS Windows — the return already completed
-#   linux    a LINUX agent still answers — the reboot request did nothing
-#   unknown  an agent answers but has not identified itself as either yet
-#
-# This function never resets anything. `linux` is the ONLY one of the four that
-# a QEMU system_reset is a correct answer to; every other value means the reset
-# would land on a Windows that is booting or already back, i.e. a hard power
-# cut to the exact thing this step exists to verify.
-#
-# Both knobs are env overrides rather than arguments so the only call site stays
-# argument-free: a budget passed positionally by tests but never by the script
-# is indistinguishable from a bug (SC2120), and the tests are the one caller
-# that needs to shrink it.
-p2_reboot_observe() {
-    local budget="${WOOTC_E2E_P2_REBOOT_TRIES:-9}" poll="${WOOTC_E2E_P2_REBOOT_POLL_S:-5}" i
-    for i in $(seq 1 "$budget"); do
-        if [ "$poll" -gt 0 ]; then sleep "$poll"; fi
-        qga_probe || { echo down; return 0; }
-        if qga_windows_probe; then echo windows; return 0; fi
-    done
-    if qga_linux_probe; then echo linux; else echo unknown; fi
-}
+# shellcheck source=tests/e2e/lib/qga-transport.sh
+source "$SCRIPT_DIR/lib/qga-transport.sh"
+wootc_qga_configure "$DOCKER" "$CONTAINER_NAME" /tmp/qga.py
+wootc_qga_boot_configure "$SCRIPT_DIR/windows-boot-receipt.py" || exit 1
 
 qga_wait_windows() {
-    local timeout="$1" elapsed=0 idle_hits=0 cpu
-    step "Waiting for QGA: Windows guest..."
-    local deadline; deadline=$(deadline_in "$timeout")
-    while ! past_deadline "$deadline"; do
-        if qga_windows_probe; then
-            pass "QGA available: Windows guest"
+    local budget="$1" started deadline remaining pause now cpu idle_hits=0 next_idle_check
+    wootc_qga_valid_timeout "$budget" || { infra_fail "Invalid Windows identity deadline"; return 2; }
+    wootc_phase_boundary
+    step "Waiting for positive Windows identity..."
+    started=$(date +%s)
+    deadline=$((started + budget))
+    next_idle_check=$((started + 900))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        remaining=$((deadline - $(date +%s)))
+        if qga_windows_probe "$remaining"; then
+            pass "Positive Windows identity observed"
             return 0
         fi
-        sleep 10
-        elapsed=$((elapsed + 10))
-        [ $((elapsed % 60)) -eq 0 ] && info "Waiting for QGA (Windows guest)... ($(( elapsed / 60 ))m of $((timeout/60))m)"
-        # IDLE-HANG DETECTOR. A Windows Setup parked on a prompt (e.g. the
-        # edition picker with "No images are available" when the answer file's
-        # product key matches no image in the ISO — see #58) burns this ENTIRE
-        # budget while the VM sits near 0% CPU. That cost several 45-90 minute
-        # runs today and was repeatedly misread as "slow runner", which sent us
-        # raising timeouts that could never help. A real install pegs the CPU;
-        # an idle guest is waiting for a human. Detect it, screenshot it, and
-        # fail in minutes with a verdict that names the actual condition.
-        if [ "$elapsed" -ge 900 ] && [ $((elapsed % 300)) -eq 0 ]; then
-            cpu=$($DOCKER exec "$CONTAINER_NAME" sh -c \
-                "ps -eo pcpu,args | grep '[q]emu-system' | head -1 | awk '{print \$1}'" 2>/dev/null | tr -d ' \r\n' || true)
-            if [ -n "$cpu" ] && awk -v c="$cpu" 'BEGIN{exit !(c < 10)}' 2>/dev/null; then
-                idle_hits=$((idle_hits + 1))
-                warn "  guest CPU ${cpu}% — Windows Setup may be waiting for input (${idle_hits}/3)"
-                if [ "$idle_hits" -ge 3 ]; then
-                    fail "Windows Setup appears WEDGED on a prompt: guest idle (<10% CPU) for ~15 min, not installing"
-                    fail "  A real install pegs the CPU. Check the screenshot in the artifacts (see #58)."
-                    # The overwhelmingly common cause is the EDITION PICKER: the
-                    # answer file's key matched several images in this ISO, or
-                    # none. By now Dockur has downloaded the media, so we can
-                    # finally READ what it actually contains and say so —
-                    # turning a 45-minute mystery into a named, actionable fix.
-                    local wedged_iso names
-                    wedged_iso=$(ls -1 "$STORAGE_DIR"/windows.*.iso "$STORAGE_DIR"/custom.iso 2>/dev/null | head -1 || true)
-                    if [ -n "$wedged_iso" ]; then
-                        names=$(list_win_image_names "$wedged_iso" | paste -sd'|' - 2>/dev/null || true)
-                        if [ -n "$names" ]; then
-                            fail "  this ISO contains: $names"
-                            fail "  if Setup is on the edition picker, re-run with"
-                            fail "  WOOTC_E2E_WIN_IMAGE_NAME set to the one you want (#58)."
-                        else
-                            fail "  (could not read the ISO's image list — install wimlib-utils + p7zip to have it named here)"
-                        fi
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        now=$(date +%s)
+        if [ "$now" -ge "$next_idle_check" ]; then
+            next_idle_check=$((now + 300))
+            [ "$remaining" -le 5 ] || remaining=5
+            # Failed process queries cannot contribute plausible CPU stdout.
+            if cpu=$(timeout "$remaining" "$DOCKER" exec "$CONTAINER_NAME" sh -c \
+                'ps -eo pcpu,args' 2>/dev/null); then
+                cpu=$(printf '%s\n' "$cpu" | awk '$2 ~ /qemu-system-/ {count++; value=$1} END {if(count==1) print value; else exit 1}') || cpu=""
+                if [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] && awk -v c="$cpu" 'BEGIN{exit !(c < 10)}'; then
+                    idle_hits=$((idle_hits + 1))
+                    warn "Windows identity unavailable; observed guest CPU ${cpu}% (${idle_hits}/3 samples)"
+                    if [ "$idle_hits" -ge 3 ]; then
+                        infra_fail "Windows identity unavailable with repeated low CPU; startup observation refused"
+                        return 1
                     fi
-                    cache_downloaded_iso
-                    capture_vm_diagnostics
-                    return 1
+                else
+                    idle_hits=0
                 fi
             else
                 idle_hits=0
+                warn "Guest CPU observation failed; Windows identity remains unknown"
             fi
         fi
+        remaining=$((deadline - $(date +%s)))
+        [ "$remaining" -gt 0 ] || break
+        pause=10
+        [ "$remaining" -ge "$pause" ] || pause="$remaining"
+        sleep "$pause"
     done
-    fail "Windows QGA did not become available within $((timeout / 60)) minutes"
+    infra_fail "Windows identity unavailable within the deadline"
     return 1
-}
-
-qga_powershell() {
-    qga_call powershell "$1" || return $?
-}
-
-qga_read() {
-    qga_call_retry read "$1" || return $?
 }
 
 # Cached Windows accounts age in real time. Run 36240171646's timelapse shows
 # "Your password has expired and must be changed" before any GUI launch (#399).
 # Provision only the configured local autologon fixture account; keep its
 # password and autologon configuration intact. Never change machine-wide policy.
-gui_prepare_account() {
-    local result
-    GUI_ACCOUNT_RESTART=false
-    # shellcheck disable=SC2016 # PowerShell variables are literal.
-    if ! result=$(qga_powershell '
-$ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
-New-Item -ItemType Directory -Force -Path C:\OEM | Out-Null
-$log = "C:\OEM\wootc-e2e.log"
-try {
-    $wl = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-    $name = [string]$wl.DefaultUserName
-    if ($wl.AutoAdminLogon -ne "1" -or $name -notin @("wootc", "Docker")) {
-        throw "autologon fixture account is missing or unexpected"
-    }
-    if ($wl.DefaultDomainName -and $wl.DefaultDomainName -notin @(".", $env:COMPUTERNAME)) {
-        throw "autologon fixture account is not local"
-    }
-    $user = Get-LocalUser -Name $name
-    if (-not $user.Enabled) { throw "autologon fixture account is disabled" }
-    $expired = $null -ne $user.PasswordExpires -and $user.PasswordExpires -le (Get-Date)
-    Add-Content -Path $log -Value "autologon: account=$name passwordExpired=$expired" -Encoding UTF8
-    Set-LocalUser -Name $name -PasswordNeverExpires $true
-    $user = Get-LocalUser -Name $name
-    if ($null -ne $user.PasswordExpires) { throw "fixture password still has an expiry date" }
-    Add-Content -Path $log -Value "autologon: fixture password expiry disabled; credentials unchanged" -Encoding UTF8
-    if ($expired) { Write-Output "autologon-account-ready restart=1" }
-    else { Write-Output "autologon-account-ready restart=0" }
-} catch {
-    Add-Content -Path $log -Value "autologon: provisioning failed: $_" -Encoding UTF8
-    throw
-}' 2>&1); then
-        printf '%s\n' "$result" >&2
-        fail "autologon-provisioning: could not prepare the local GUI fixture account (or write C:\\OEM\\wootc-e2e.log)"
-        return 1
-    fi
-    case "$(printf '%s' "$result" | tr -d '\r')" in
-        'autologon-account-ready restart=1') GUI_ACCOUNT_RESTART=true ;;
-        'autologon-account-ready restart=0') ;;
-        *) fail "autologon-provisioning: guest did not confirm the account policy"; return 1 ;;
-    esac
-}
-
-# Session-0 QGA liveness cannot satisfy schtasks /IT. A failed/empty probe must
-# never be promoted to a desktop, and the deadline must stop launch entirely.
-gui_wait_interactive_session() {
-    local deadline user
-    deadline=$(deadline_in 120)
-    while ! past_deadline "$deadline"; do
-        # shellcheck disable=SC2016 # PowerShell variables are literal.
-        if user=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_powershell '$ErrorActionPreference = "Stop"; $u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output "interactive-user=$u" }' 2>/dev/null); then
-            user=$(printf '%s' "$user" | tr -d '\r')
-            if [[ "$user" == interactive-user=*\\* ]]; then
-                pass "GUI interactive session ready: ${user#interactive-user=}"
-                return 0
-            fi
-        fi
-        sleep 5
-    done
-    # Deliberately not a retryable flake: another copy of the same expired or
-    # misconfigured snapshot cannot fix itself on a second hosted runner.
-    fail "autologon-no-session: no interactive Windows user within 120 s; GUI was not scheduled"
-    # shellcheck disable=SC2016 # PowerShell variables are literal.
-    qga_powershell 'Add-Content -Path C:\OEM\wootc-e2e.log -Value "autologon-no-session: GUI launch blocked" -Encoding UTF8; query user 2>&1' 2>&1 || true
-    return 1
-}
+# shellcheck source=tests/e2e/lib/gui-session.sh
+source "$SCRIPT_DIR/lib/gui-session.sh"
+# shellcheck source=tests/e2e/lib/mok.sh
+source "$SCRIPT_DIR/lib/mok.sh"
+wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_restart_windows
 
 # Observe actual Wails-rendered DOM after the installed Linux boot returns.
 # Expected facts come from the live Linux observer, never from a UI model.
@@ -919,8 +608,12 @@ verify_installed_boot_gui() {
     receipt="$ARTIFACT_DIR/control-panel-ui-state.json"
     launch_file="$ARTIFACT_DIR/launch-control-panel-proof.ps1"
     qga_windows_probe || { fail "Control-panel UI proof requires positive Windows identity"; return 1; }
-    jq -e --arg run "$RUN_ID" --arg nonce "$RUN_ID-ui-$RANDOM-$RANDOM" '
-      .current as $c | {action:"verify-installed-boot",runId:$run,nonce:$nonce,
+    # The app binds every report to schemaVersion, runId and a 32-hex
+    # directiveId (app/e2e_drive_receipt.go); the nonce scopes the UI receipt.
+    local directive_id
+    directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
+    jq -e --arg run "$RUN_ID" --arg id "$directive_id" --arg nonce "$RUN_ID-ui-$RANDOM-$RANDOM" '
+      .current as $c | {schemaVersion:1,runId:$run,directiveId:$id,action:"verify-installed-boot",nonce:$nonce,
         expected:{kernel:$c.kernel,sourceImageRef:$c.sourceImageRef,
           boundFolders:$c.bridge.boundFolders,matchedUsers:$c.bridge.matchedUsers}} |
       select((.expected.kernel|type)=="string" and (.expected.kernel|length)>0 and
@@ -1007,8 +700,7 @@ guest_wootc_root() {
 # success or restart the VM: the explicit serial/persistent-log markers below
 # remain the only completion evidence.
 qga_deployer_heartbeat() {
-    timeout "$WOOTC_E2E_HEARTBEAT_TIMEOUT_S" $DOCKER exec "$CONTAINER_NAME" \
-        python3 /tmp/qga.py exec /bin/sh -c '
+    WOOTC_QGA_CALL_TIMEOUT="$WOOTC_E2E_HEARTBEAT_TIMEOUT_S" qga_call exec /bin/sh -c '
 pid=""
 for comm_file in /proc/[0-9]*/comm; do
     IFS= read -r comm < "$comm_file" || continue
@@ -1049,6 +741,51 @@ echo "phase=fisherman pid=$pid workers=$workers cpu_ticks=$cpu_ticks read_bytes=
 # deployer to the bind mount alone silently tests stale code.  QGA provides a
 # guest-file API that lets retries replace the payload without reinstalling
 # Windows or relying on its network stack.
+# Copy a host-built OCI bundle of IMAGE_REF into C:\wootc\bundle over QGA,
+# once the QEMU argv has proven the guest has no NIC. QGA is the only channel
+# into an offline guest, and it rides virtio-serial.
+offline_stage_bundle() {
+    step "Offline axis: staging the image bundle into the guest..."
+    local digest files bytes guest_bytes rel target ready
+    digest=$(wootc_offline_make_bundle "$IMAGE_REF" "$OFFLINE_BUNDLE_DIR") || {
+        infra_fail "Offline axis: could not build an OCI bundle of $IMAGE_REF on the host"
+        return 1
+    }
+    files=$(cd "$OFFLINE_BUNDLE_DIR" && find . -type f | sed 's|^\./||' | sort)
+    bytes=$(find "$OFFLINE_BUNDLE_DIR" -type f -printf '%s\n' | awk '{n += $1} END {print n + 0}')
+    info "  bundle: $IMAGE_REF @ $digest ($((bytes / 1048576)) MiB, $(printf '%s\n' "$files" | wc -l) files)"
+    # The state directory must exist with its trusted ACL before anything is
+    # written under it; setup-wootc.ps1 refuses a C:\wootc it did not secure.
+    ready=$(qga_powershell '$ErrorActionPreference = "Stop"
+. C:\OEM\state-trust.ps1
+Initialize-WootcStateDirectory -Path C:\wootc
+if (Test-Path C:\wootc\bundle) { Remove-Item -Recurse -Force C:\wootc\bundle }
+New-Item -ItemType Directory -Force -Path C:\wootc\bundle\oci\blobs\sha256 | Out-Null
+Write-Output "bundle-dir-ready"' 2>&1 || true)
+    printf '%s\n' "$ready" | sed 's/^/    stage: /'
+    case "$ready" in
+        *bundle-dir-ready*) ;;
+        *) infra_fail "Offline axis: could not prepare C:\wootc\bundle in the guest"; return 1 ;;
+    esac
+    # Blobs reach gigabytes; a per-file timeout of an hour bounds a stuck
+    # channel without cutting off a slow but progressing copy.
+    while IFS= read -r rel; do
+        target="C:\\wootc\\bundle\\${rel//\//\\}"
+        WOOTC_QGA_CALL_TIMEOUT=3600 qga_call write "/shared/$(basename "$OFFLINE_BUNDLE_DIR")/$rel" "$target" >/dev/null || {
+            infra_fail "Offline axis: QGA could not copy bundle file $rel into the guest"
+            return 1
+        }
+    done <<< "$files"
+    guest_bytes=$(qga_powershell '(Get-ChildItem -Recurse -File C:\wootc\bundle | Measure-Object -Property Length -Sum).Sum' 2>/dev/null | tr -dc '0-9')
+    if [ "${guest_bytes:-0}" != "$bytes" ]; then
+        infra_fail "Offline axis: guest bundle holds ${guest_bytes:-0} bytes, host bundle $bytes"
+        return 1
+    fi
+    infra_pass offline-bundle-staged "Offline axis: bundle staged in C:\wootc\bundle ($((bytes / 1048576)) MiB)"
+    # The guest now holds the only copy the run needs; free the runner disk.
+    rm -rf -- "$OFFLINE_BUNDLE_DIR"
+}
+
 qga_sync_oem() {
     step "Refreshing OEM payload in reused Windows guest..."
     qga_powershell 'New-Item -ItemType Directory -Force -Path C:\OEM\payload\grub | Out-Null'
@@ -1069,7 +806,7 @@ qga_sync_oem() {
             qga_call write "/oem/$relative" "$target" && break
             if [ "$try" -lt 3 ]; then
                 warn "OEM payload write failed for $relative (attempt $try/3) — clearing holders and retrying"
-                qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+                qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
                 # Killing holders is NOT enough on the restore path: the file
                 # carries the PRIME image's attributes and ACLs, so the write
                 # still fails "Access is denied" with nothing holding it. The
@@ -1112,7 +849,7 @@ qga_sync_oem() {
         warn "OEM config still carries RunId='${got:-<unreadable>}' (want '$want_run_id'); clearing holders and retrying ($attempt/5)"
         # Stop whatever is holding C:\OEM: the auto-relaunched OEM task and any
         # setup/run-wootc-e2e PowerShell left over from the primed image.
-        qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
+        qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }' >/dev/null 2>&1 || true
         sleep 5
         # Killing holders was not enough: a snapshot-restored C:\OEM carries the
         # PRIME's file attributes/ACLs, so the write fails "Access is denied"
@@ -1137,7 +874,7 @@ qga_sync_oem() {
 # process into the next attempt.  Do not remove C: or the Windows disk.
 reset_oem_attempt() {
     step "Resetting prior OEM handoff state..."
-    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-setup\" /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
     # An interrupted OEM arm (killed above, or killed during the snapshot
     # PRIME) copies shimx64.efi/grubx64.efi into EFI\fedora before it writes
     # grub.cfg — setup-wootc.ps1 stages the binaries first — so the GUI arm
@@ -1295,8 +1032,16 @@ seed_user_data() {
     local seed_dir="${drive}\\Users\\${guser}\\Documents"
     for attempt in 1 2 3; do
         # Use seed-profile.ps1 if available in C:\OEM, otherwise seed directly via PowerShell
-        out=$(qga_powershell "if (Test-Path 'C:\OEM\seed-profile.ps1') { & 'C:\OEM\seed-profile.ps1' -Username '${guser}' -Drive '${drive}' -RunId '${RUN_ID}' } else { \$ErrorActionPreference='Stop'; \$d = '${drive}\\Users\\${guser}\\Documents'; if (-not (Test-Path \$d)) { New-Item -ItemType Directory -Path \$d -Force | Out-Null }; Set-Content -Path \"\$d\\wootc-e2e-userdata.txt\" -Value 'wootc-e2e-userdata $RUN_ID' -Encoding ASCII }; Get-Content \"\$d\\wootc-e2e-userdata.txt\"" 2>&1)
-        if printf '%s' "$out" | grep -q "$RUN_ID"; then
+        # The PASS below greps $RUN_ID: seed-profile.ps1 prints "(RunId: ...)"
+        # in its banner, so matching script chatter alone would pass without
+        # the canary existing (proxy status). Always read the canary FILE back
+        # after either branch; a silent script failure then fails honestly here
+        # instead of in Phase 2.
+        out=$(qga_powershell "if (Test-Path 'C:\OEM\seed-profile.ps1') { & 'C:\OEM\seed-profile.ps1' -Username '${guser}' -Drive '${drive}' -RunId '${RUN_ID}' | Out-Null }; \$ErrorActionPreference='Stop'; \$d = '${drive}\\Users\\${guser}\\Documents'; if (-not (Test-Path 'C:\OEM\seed-profile.ps1')) { if (-not (Test-Path \$d)) { New-Item -ItemType Directory -Path \$d -Force | Out-Null }; Set-Content -Path \"\$d\\wootc-e2e-userdata.txt\" -Value 'wootc-e2e-userdata $RUN_ID' -Encoding ASCII }; Get-Content \"\$d\\wootc-e2e-userdata.txt\"" 2>&1)
+        # Match the canary's exact content format, not the bare RUN_ID:
+        # seed-profile.ps1 echoes "(RunId: ...)" in its banner, which the old
+        # grep accepted as proof without the file existing.
+        if printf '%s' "$out" | grep -q "wootc-e2e-userdata $RUN_ID"; then
             pass "User data seeded: ${drive}\\Users\\${guser}\\Documents\\wootc-e2e-userdata.txt ($RUN_ID)"
             return 0
         fi
@@ -1586,6 +1331,20 @@ fi
     fail "wootc-files/SHA256SUMS is empty — no boot artifacts to checksum"
     exit 1
 }
+# Which Microsoft CA signed the shim we stage (#322), read off the binary the
+# way release.yml does. The app prefers a pre-staged install\shim-authorities.json
+# over its build stamp, and an E2E exe carries no stamp, so without this file
+# the Secure Boot preflight grades nothing and every firmware-db cell would
+# pass it vacuously. Written through a temp file: wootc-files/ is shared by
+# concurrent instances, and a reader must never see half a file.
+python3 "$REPO_ROOT/packaging/shim-authorities.py" --json \
+    "$SCRIPT_DIR/wootc-files/shimx64.efi" > "$SCRIPT_DIR/wootc-files/shim-authorities.json.$$" \
+    && mv -f "$SCRIPT_DIR/wootc-files/shim-authorities.json.$$" "$SCRIPT_DIR/wootc-files/shim-authorities.json" || {
+    rm -f "$SCRIPT_DIR/wootc-files/shim-authorities.json.$$"
+    fail "Could not read the staged shim's signing authorities (packaging/shim-authorities.py)"
+    exit 1
+}
+info "Staged shim authorities: $(tr -d ' \n' < "$SCRIPT_DIR/wootc-files/shim-authorities.json")"
 # GUI fixtures use the same signature verifier as releases, with a key whose
 # public half was embedded when this test executable was built. Never stage
 # the private seed into the guest or the artifact directory.
@@ -1679,7 +1438,8 @@ MIRROR_ADDR=""
 # into the console log of a run that had aborted nothing (run 30707067821).
 # The matrix reads the LAST [FAIL] as the verdict, so on any run whose real
 # failure is silent (a timeout) this line becomes the recorded reason.
-for ip in $({ ip -4 addr show tailscale0 2>/dev/null || true; } \
+# An offline guest cannot reach a mirror; do not stage a hint it can only fail.
+[ "$OFFLINE" = true ] || for ip in $({ ip -4 addr show tailscale0 2>/dev/null || true; } \
                 | awk '/inet /{sub(/\/.*/,"",$2); print $2}') \
           $({ ip -4 route get 1.1.1.1 2>/dev/null || true; } \
                 | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1); exit}'); do
@@ -1996,7 +1756,7 @@ heal_image_name_from_downloaded_iso() {
     info "  image: $derived"
     WIN_IMAGE_NAME="$derived"
     inject_image_name "$RENDERED_ANSWER" "$WIN_IMAGE_NAME"
-    cache_downloaded_iso
+    cache_downloaded_iso "$ISO_CACHE_DIR" "$WINDOWS_ISO_CACHE" "$STORAGE_DIR"
     # Dockur re-reads /custom.xml at start; the downloaded ISO stays in
     # /storage, so this costs a restart and not another multi-GB download.
     $DOCKER restart "$CONTAINER_NAME" >/dev/null 2>&1 || \
@@ -2159,102 +1919,73 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     rm -f "$STORAGE_DIR/phase3/data2.qcow2"
 fi
 
-# Self-healing container start. Rootless podman occasionally leaves a phantom
-# "podman0 already exists but is a Tun interface" in its network run-state
-# after a crashed run — netavark then refuses every bridge start until the
-# stale state is cleared. Detect that specific failure and auto-heal once so
-# the runner needs no manual host babysitting.
-# Avoid host-port clashes without killing anything. The compose file maps
-# noVNC/RDP/VNC/ssh purely for debug convenience (QGA is the real control
-# plane), so if a default port is already taken — e.g. gnome-remote-desktop
-# owns 3389, or a monitoring stack owns a port — pick a free alternative and
-# export the override the compose file reads. We never kill the holder: it may
-# be a legitimate service (the operator's own remote desktop).
-port_free() { ! { exec 3<>"/dev/tcp/127.0.0.1/$1"; } 2>/dev/null || { exec 3>&- 3<&-; return 1; }; }
-pick_free_ports() {
-    local var base p
-    for pair in "WOOTC_E2E_NOVNC_PORT:8006" "WOOTC_E2E_RDP_PORT:3389" \
-                "WOOTC_E2E_VNC_PORT:5900" "WOOTC_E2E_SSH_PORT:2222" \
-                "WOOTC_E2E_CDP_PORT:9222"; do
-        var="${pair%%:*}"; base="${pair##*:}"
-        p="${!var:-$base}"
-        if ! port_free "$p"; then
-            local alt
-            for alt in $(seq $((base + 10000)) $((base + 10050))); do
-                port_free "$alt" && { p="$alt"; break; }
-            done
-            warn "host port $base is in use — mapping $var=$p instead"
+# ── Firmware db axis (#322) ─────────────────────────────────────────────────
+# Dockur copies OVMF_VARS_4M.ms.fd to /storage/windows_secure.vars only when
+# that file is absent, and QEMU then writes Secure Boot state there. So the
+# axis is set up by writing that file before the container starts: from the
+# existing one when Windows already booted from it (keeping its boot
+# entries), else from the image's own template. A marker records that the
+# file is ours, so a later run on the same storage without the axis gets
+# Dockur's stock db back instead of inheriting a stripped one.
+seed_firmware_db() {
+    local vars="$STORAGE_DIR/windows_secure.vars" marker="$STORAGE_DIR/windows_secure.vars.firmware-db"
+    if [ -z "$FIRMWARE_DB" ]; then
+        if [ -e "$marker" ]; then
+            info "Firmware db axis off: discarding the $(cat "$marker" 2>/dev/null)-cell vars a previous run left"
+            rm -f "$vars" "$marker"
         fi
-        export "$var=$p"
-    done
-}
-
-# Rebuild the baked-in-sshd image if it went missing (e.g. `podman system
-# prune` reclaimed it). Compose then fails trying to pull it from localhost.
-rebuild_ssh_image_if_missing() {
-    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
-    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 1
-    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || return 1
-    warn "e2e ssh image missing — rebuilding via build-ssh-image.sh"
-    bash "$SCRIPT_DIR/build-ssh-image.sh"
-}
-
-# Build the e2e ssh image BEFORE compose needs it.
-#
-# compose.yml references localhost/wootc-e2e-windows-ssh:latest, which only ever
-# exists because build-ssh-image.sh made it locally. On any host that has never
-# built it — a fresh GitHub hosted runner, or a laptop after `podman system
-# prune -af` — compose interprets "localhost/..." as a REGISTRY and tries to
-# pull over HTTPS from localhost:443. Recovering after that failure works, but
-# recovering from a failure we can trivially prevent is the wrong order.
-ensure_ssh_image() {
-    local img="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
-    [[ "$img" == localhost/wootc-e2e-windows-ssh:latest ]] || return 0
-    $DOCKER image exists "$img" 2>/dev/null && return 0
-    [[ -x "$SCRIPT_DIR/build-ssh-image.sh" ]] || {
-        fail "e2e ssh image $img is missing and build-ssh-image.sh is not executable"
-        return 1
-    }
-    step "Building the e2e ssh image (absent on this host)..."
-    bash "$SCRIPT_DIR/build-ssh-image.sh" || { fail "build-ssh-image.sh failed"; return 1; }
-    $DOCKER image exists "$img" 2>/dev/null || { fail "build completed but $img still absent"; return 1; }
-    pass "e2e ssh image built"
-}
-
-compose_up_windows() {
-    ensure_ssh_image || return 1
-    pick_free_ports
-    $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-    local out
-    if out=$($COMPOSE -f compose.yml up -d windows 2>&1); then
-        printf '%s\n' "$out"
         return 0
     fi
-    printf '%s\n' "$out" >&2
-    # (1) netavark phantom bridge — clear stale rootless network run-state.
-    if printf '%s' "$out" | grep -q "already exists but is a Tun interface"; then
-        warn "netavark phantom bridge detected — clearing stale rootless network state and retrying"
-        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-        local netdir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/containers/networks"
-        rm -rf "${netdir:?}/"* 2>/dev/null || true
-        $DOCKER network reload --all 2>/dev/null || true
-        $COMPOSE -f compose.yml up -d windows
-        return $?
+    command -v virt-fw-vars >/dev/null || {
+        infra_fail "Firmware db axis needs virt-fw-vars: pip install virt-firmware"
+        return 1
+    }
+    if [ ! -s "$vars" ]; then
+        local image="${WOOTC_E2E_IMAGE:-localhost/wootc-e2e-windows-ssh:latest}"
+        "$DOCKER" run --rm --entrypoint cat "$image" /usr/share/OVMF/OVMF_VARS_4M.ms.fd > "$vars.tmp" \
+            && [ -s "$vars.tmp" ] && mv "$vars.tmp" "$vars" || {
+            rm -f "$vars.tmp"
+            infra_fail "Could not read OVMF_VARS_4M.ms.fd from $image for the firmware db axis"
+            return 1
+        }
     fi
-    # (2) the e2e ssh image was pruned — rebuild it, then retry.
-    if printf '%s' "$out" | grep -qiE "pinging container registry localhost|no such image|manifest unknown"; then
-        rebuild_ssh_image_if_missing && { $COMPOSE -f compose.yml up -d windows; return $?; }
-    fi
-    # (3) a port clashed after our pre-check (race) — re-pick and retry once.
-    if printf '%s' "$out" | grep -qi "address already in use"; then
-        warn "host port clash — re-selecting free ports and retrying"
-        $DOCKER rm -f "$CONTAINER_NAME" 2>/dev/null || true
-        pick_free_ports
-        $COMPOSE -f compose.yml up -d windows
-        return $?
-    fi
-    return 1
+    python3 "$SCRIPT_DIR/firmware-db.py" build --cell "$FIRMWARE_DB" "$vars" || {
+        infra_fail "Could not build the '$FIRMWARE_DB' firmware db"
+        return 1
+    }
+    printf '%s\n' "$FIRMWARE_DB" > "$marker"
+    info "Firmware db axis: cell '$FIRMWARE_DB' written to $vars (graded again from inside Windows)"
 }
+
+# The host-side build proves only that a file was written. What counts is the
+# db Windows reads at runtime: a vars file Dockur ignored, or a path it never
+# mounted, would otherwise pass every cell on the stock db.
+assert_firmware_db() {
+    [ -n "$FIRMWARE_DB" ] || return 0
+    local sb raw verdict
+    sb=$(qga_powershell 'try { Confirm-SecureBootUEFI -ErrorAction Stop } catch { "error" }' 2>/dev/null | tr -d '\r\n' || true)
+    if [ "$sb" != True ]; then
+        infra_fail "Firmware db axis: Secure Boot is not on in the guest (Confirm-SecureBootUEFI: '${sb:-<no answer>}')"
+        return 1
+    fi
+    raw=$(qga_powershell '$ErrorActionPreference = "Stop"; [Convert]::ToBase64String((Get-SecureBootUEFI -Name db).Bytes)' 2>/dev/null | tr -d '\r\n' || true)
+    if verdict=$(printf '%s' "$raw" | python3 "$SCRIPT_DIR/firmware-db.py" grade --cell "$FIRMWARE_DB"); then
+        infra_pass firmware-db "Firmware db axis: Windows reads $verdict"
+    else
+        infra_fail "Firmware db axis: the db Windows reads is not cell '$FIRMWARE_DB': ${verdict:-<no db read>}"
+        return 1
+    fi
+}
+
+# Start only the configured VM. Host network conflicts are infrastructure
+# failures; the adapter never removes unrelated network state.
+# shellcheck source=tests/e2e/lib/vm-start.sh
+source "$SCRIPT_DIR/lib/vm-start.sh"
+if [ "$COMPOSE" = podman-compose ]; then
+    wootc_vm_configure "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR" "$SCRIPT_DIR/compose.yml" podman-compose
+else
+    wootc_vm_configure "$DOCKER" "$CONTAINER_NAME" "$SCRIPT_DIR" "$SCRIPT_DIR/compose.yml" "$DOCKER" compose
+fi
 # Do NOT ignore the result, and do NOT trust it either.
 #
 # This call used to be bare, so when every recovery path failed the script still
@@ -2281,16 +2012,18 @@ while ! past_deadline "$RAM_WAIT_DEADLINE"; do
     sleep 15
 done
 
+seed_firmware_db || exit 1
+
 if ! compose_up_windows; then
-    fail "Could not start the Windows container (all recovery paths exhausted)"
-    fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
-    fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
-    fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
+    infra_fail "Could not start the Windows container (all recovery paths exhausted)"
+    infra_fail "  Common cause: the locally-built $CONTAINER_NAME image is absent and"
+    infra_fail "  compose tried to pull 'localhost/...' from a registry. Rebuild with:"
+    infra_fail "    bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
-if ! $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
-    fail "compose reported success but $CONTAINER_NAME does not exist"
-    fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
+if ! wootc_vm_call container exists "$CONTAINER_NAME" 2>/dev/null; then
+    infra_fail "compose reported success but $CONTAINER_NAME does not exist"
+    infra_fail "  Rebuild the e2e image: bash $SCRIPT_DIR/build-ssh-image.sh"
     exit 1
 fi
 info "Container $CONTAINER_NAME started"
@@ -2299,14 +2032,7 @@ info "Container $CONTAINER_NAME started"
 # A first run extracts the ISO, injects drivers, and rebuilds the installer
 # image — several minutes on slower disks — so poll long (up to 15 min) and
 # distinguish "QEMU never started" from a real acceleration failure.
-qemu_argv_sample() { $DOCKER exec "$CONTAINER_NAME" ps -ef 2>/dev/null | grep '[q]emu-system' || true; }
-QEMU_CMD=""
-for _ in $(seq 1 300); do
-    QEMU_CMD=$(qemu_argv_sample)
-    [ -n "$QEMU_CMD" ] && break
-    sleep 3
-done
-if [ -z "$QEMU_CMD" ]; then
+if ! QEMU_CMD=$(wootc_vm_wait_argv 900 started); then
     fail "QEMU did not start within 15 minutes (Dockur still preparing the image, or it crashed)"
     capture_vm_diagnostics
     exit 1
@@ -2322,22 +2048,23 @@ fi
 # /storage2/data2.qcow2), so a short read fails them all spuriously.
 # Re-sample until the argv shows acceleration, and only call it a real failure
 # once the process has had time to finish exec'ing.
-QEMU_ARGV_DEADLINE=$(deadline_in 60)
-until [[ ( "$QEMU_CMD" == *"-accel=kvm"* || "$QEMU_CMD" == *"accel=kvm"* ) && "$QEMU_CMD" == *"-enable-kvm"* ]]; do
-    if past_deadline "$QEMU_ARGV_DEADLINE"; then
-        fail "QEMU is not using KVM acceleration"
-        info "settled QEMU argv: ${QEMU_CMD:-<qemu no longer running>}"
+if ! QEMU_CMD=$(wootc_vm_wait_argv 60 accelerated "$QEMU_CMD"); then
+    fail "QEMU is not using KVM acceleration"
+    capture_vm_diagnostics
+    exit 1
+fi
+# Offline axis: the missing NIC is what the cell asserts, so read it from the
+# running QEMU argv, not from the NETWORK=N setting that should cause it.
+if [ "$OFFLINE" = true ]; then
+    if wootc_offline_qemu_has_no_nic "$QEMU_CMD"; then
+        infra_pass offline-no-nic "Offline axis: QEMU runs with no network device"
+    else
+        OFFLINE_NIC=$(printf '%s' "$QEMU_CMD" | grep -oE -- '-(netdev|nic) [^ ]+|-device [^ ]*net[^ ]*' | head -3 | tr '\n' ' ' || true)
+        infra_fail "Offline axis: QEMU still has a network device: ${OFFLINE_NIC:-<argv unreadable>}"
         capture_vm_diagnostics
         exit 1
     fi
-    sleep 2
-    NEXT_QEMU_CMD=$(qemu_argv_sample)
-    # An empty sample means QEMU exited; keep the last good line for the
-    # verdict rather than reporting an empty command line.
-    if [ -n "$NEXT_QEMU_CMD" ]; then
-        QEMU_CMD="$NEXT_QEMU_CMD"
-    fi
-done
+fi
 QEMU_RAM_MB=$(awk '{
     for (i = 1; i < NF; i++) if ($i == "-m" && $(i + 1) ~ /^[0-9]+[MG]$/) {
         value = $(i + 1)
@@ -2540,7 +2267,7 @@ schtasks /Run /TN wootc-e2e-demo | Out-Null
 Write-Output "demo-task-scheduled"' >/dev/null 2>&1 || true
     sleep "${WOOTC_E2E_DEMO_DWELL:-40}"
     freeze_frame
-    qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-e2e-demo\" /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
+    qga_powershell 'cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-demo /F >NUL 2>&1"; Remove-Item C:\wootc\e2e-demo.cmd -Force -ErrorAction SilentlyContinue' >/dev/null 2>&1 || true
     pass "Timelapse demo: Windows-untouched segment recorded"
 }
 
@@ -2616,10 +2343,23 @@ if ($null -ne $ts -and @($ts).Count -gt 0) { Write-Output "TASKS=True" } else { 
     # leftover #264 documented (a stale entry ahead of Windows) is exactly
     # what this reboot would expose.
     step "Uninstall: rebooting to prove Windows boots cleanly with no wootc chain..."
-    qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after uninstall" || true
-    qga_wait_windows 600
+    qga_restart_windows "Windows after uninstall" 600 || return 1
     pass "Uninstall: Windows rebooted cleanly on its own — the machine is restored"
+}
+
+# Copy the guest-side recovery evidence out before anything else can go wrong
+# (#288). Called on every exit path of recovery_check, not only the green one:
+# the failed VM's state is the evidence an offline diagnosis needs.
+recovery_evidence() {
+    local dir="$STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    mkdir -p "$dir" 2>/dev/null || true
+    qga_read 'C:\wootc\state.json' > "$dir/state.json" 2>/dev/null || true
+    qga_read 'C:\OEM\recovery-baseline.json' > "$dir/recovery-baseline.json" 2>/dev/null || true
+    qga_read 'C:\OEM\recovery-interrupted.json' > "$dir/recovery-interrupted.json" 2>/dev/null || true
+    qga_read 'C:\OEM\wootc-e2e.log' > "$dir/wootc-e2e.log" 2>/dev/null || true
+    qga_powershell 'bcdedit /enum all' > "$dir/bcdedit.txt" 2>/dev/null || true
+    qga_powershell 'Get-ChildItem C:\wootc\bundle\oci\blobs\sha256 -ErrorAction SilentlyContinue | Format-Table Name,Length,LastWriteTimeUtc -AutoSize | Out-String -Width 200' > "$dir/blobs.txt" 2>/dev/null || true
+    info "Recovery: evidence retained in $dir"
 }
 
 # Recovery / Fault-Injection check (#288): exercises cancellation, interruption,
@@ -2627,12 +2367,14 @@ if ($null -ne $ts -and @($ts).Count -gt 0) { Write-Output "TASKS=True" } else { 
 recovery_check() {
     [ -n "$FAULT_INJECT" ] || [ "${RECOVERY_CHECK:-false}" = true ] || return 0
     step "Recovery: Verifying fault-injection boundary ($FAULT_INJECT), idempotency & cleanup..."
+    local evidence="$STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    mkdir -p "$evidence" 2>/dev/null || true
 
     # 1. Interrupted assertions
     step "Recovery Stage 1: Asserting interrupted/cancelled system state..."
     local assert_out
     assert_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage interrupted -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
-    printf '%s\n' "$assert_out" | sed 's/^/    recovery: /'
+    printf '%s\n' "$assert_out" | tee "$evidence/stage1-interrupted.txt" | sed 's/^/    recovery: /'
     if printf '%s' "$assert_out" | grep -q 'RECOVERY-RESULT: PASS'; then
         product_pass recovery-interrupted "Recovery: Stage 1 (interrupted state) validated successfully"
     else
@@ -2641,48 +2383,48 @@ recovery_check() {
 
     # 2. Windows reboot test
     step "Recovery Stage 2: Rebooting Windows to verify clean boot without Automatic Repair..."
-    qga_powershell 'cmd.exe /c "shutdown.exe /r /t 1 /f"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after interruption" || true
-    qga_wait_windows 600
+    if ! qga_restart_windows "Windows after interruption" 600; then
+        product_fail "Recovery: Windows did not come back after the interruption (Automatic Repair or a hang)"
+        recovery_evidence
+        return 1
+    fi
     pass "Recovery: Windows booted normally without Automatic Repair"
 
     # 3. Retry test (Idempotency)
     step "Recovery Stage 3: Retrying setup to verify idempotent retry (no duplicate BCD/EFI)..."
-    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | sed 's/^/    retry: /' || true
+    qga_powershell '$c = "C:\OEM\wootc-config.txt"; if (Test-Path $c) { (Get-Content $c) | Where-Object { $_ -notmatch "^FaultInject=" } | Set-Content $c }; powershell.exe -ExecutionPolicy Bypass -File C:\OEM\setup-wootc.ps1' 2>&1 | tee "$evidence/stage3-retry-setup.txt" | sed 's/^/    retry: /' || true
 
     local retry_out
-    retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried' 2>&1 || true)
-    printf '%s\n' "$retry_out" | sed 's/^/    recovery-retry: /'
+    retry_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage retried -Fault "'"$FAULT_INJECT"'"' 2>&1 || true)
+    printf '%s\n' "$retry_out" | tee "$evidence/stage3-retried.txt" | sed 's/^/    recovery-retry: /'
     if printf '%s' "$retry_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        product_pass recovery-retry "Recovery: Stage 3 (idempotent retry) validated successfully — exactly 1 BCD entry, ESP valid"
+        product_pass recovery-retry "Recovery: Stage 3 (idempotent retry) validated successfully — one BCD entry, no duplicate ESP files, verified blobs reused"
     else
         product_fail "Recovery: Stage 3 (idempotent retry) assertion failed"
     fi
 
     # 4. Uninstall test
     step "Recovery Stage 4: Testing clean uninstall from interrupted/retried state..."
-    qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 | sed 's/^/    uninstall: /' || true
+    qga_powershell 'cmd.exe /d /c "C:\wootc\wootc.exe uninstall 2>&1"' 2>&1 | tee "$evidence/stage4-uninstall.txt" | sed 's/^/    uninstall: /' || true
     local un_out
     un_out=$(qga_powershell 'powershell.exe -ExecutionPolicy Bypass -File C:\OEM\assert-recovery.ps1 -Stage uninstalled' 2>&1 || true)
-    printf '%s\n' "$un_out" | sed 's/^/    recovery-uninstall: /'
+    printf '%s\n' "$un_out" | tee "$evidence/stage4-uninstalled.txt" | sed 's/^/    recovery-uninstall: /'
     if printf '%s' "$un_out" | grep -q 'RECOVERY-RESULT: PASS'; then
-        product_pass recovery-uninstall "Recovery: Stage 4 (uninstall from interrupted state) validated successfully"
+        product_pass recovery-uninstall "Recovery: Stage 4 (uninstall from interrupted state) validated successfully — boot order, ESP and power match the pre-install baseline"
     else
         product_fail "Recovery: Stage 4 (uninstall from interrupted state) assertion failed"
     fi
 
     # 5. Post-uninstall reboot
     step "Recovery Stage 5: Final reboot to verify Windows boots cleanly after uninstall..."
-    qga_powershell 'cmd.exe /c "shutdown.exe /r /t 1 /f"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after recovery uninstall" || true
-    qga_wait_windows 600
+    if ! qga_restart_windows "Windows after recovery uninstall" 600; then
+        product_fail "Recovery: Windows did not come back after the recovery uninstall"
+        recovery_evidence
+        return 1
+    fi
     product_pass recovery-windows "Recovery: Windows booted cleanly after recovery uninstall"
 
-    # Retain recovery evidence artifacts
-    mkdir -p "$STORAGE_DIR/artifacts/$RUN_ID/recovery" 2>/dev/null || true
-    qga_read 'C:\wootc\state.json' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/state.json" 2>/dev/null || true
-    qga_powershell 'bcdedit /enum all' > "$STORAGE_DIR/artifacts/$RUN_ID/recovery/bcdedit.txt" 2>/dev/null || true
-    pass "Recovery: Evidence artifacts retained in $STORAGE_DIR/artifacts/$RUN_ID/recovery"
+    recovery_evidence
 }
 
 # ── Step 3: Wait for Windows auto-install ────────────────────────────────────
@@ -2777,6 +2519,7 @@ DIRTY_CHECK=$(qga_powershell 'fsutil dirty query C:' 2>/dev/null | tr -d '\r\n' 
 if [ -n "$DIRTY_CHECK" ]; then
     info "[PREFLIGHT] Windows C: volume status: $DIRTY_CHECK"
 fi
+assert_firmware_db || { capture_vm_diagnostics; exit 1; }
 
 if [ "$SKIP_INSTALL" = false ] && [ -s "$STORAGE_DIR/data.qcow2" ]; then
     info "Saving pristine base Windows image to $STORAGE_DIR/data.qcow2.pristine..."
@@ -2833,57 +2576,6 @@ reset_oem_attempt
 # workaround — a user who follows the app's instruction arrives here too.
 # If a restart does not clear it, say so and leave the app's own refusal as
 # the verdict rather than pretending the machine is ready.
-gui_settle_pending_servicing() {
-    # Stop the update machinery FIRST, or "cleared" does not stay cleared:
-    # el10-gnome-win10pro (run 32556250889) restarted, probed clean
-    # ("Pending servicing cleared by a restart"), launched the GUI — and two
-    # minutes later the app refused with "(servicing)" because Windows
-    # Update had resumed post-reboot and staged fresh work between our probe
-    # and the app's. An E2E VM has no business updating mid-test; disabling
-    # wuauserv/UsoSvc makes the settle below stick. Best-effort per service
-    # (WaaSMedicSvc actively resists), logged, never fatal.
-    qga_powershell 'foreach ($svc in "wuauserv","UsoSvc","WaaSMedicSvc") {
-  try { Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue } catch {}
-  try { Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue } catch {}
-}
-Write-Output "update services stopped"' >/dev/null 2>&1 || true
-    info "    Windows Update services stopped+disabled for the test run (servicing state can no longer re-stage mid-run)"
-    # shellcheck disable=SC2016 # PowerShell variables must remain literal.
-    local probe='$r = @()
-if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") { $r += "servicing" }
-if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired") { $r += "windows-update" }
-Write-Output ($r -join ",")'
-    local pending
-    pending=$(qga_powershell "$probe" 2>/dev/null | tr -d '[:space:]' || true)
-    if [ -z "$pending" ]; then
-        info "    no pending servicing operation — the app's preflight has nothing to refuse"
-        return 0
-    fi
-    info "    Windows is mid-servicing ($pending) — restarting the guest, exactly as the app instructs a user to"
-    qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-    qga_wait_reboot "Windows after the pending-servicing restart"
-    # QGA answers from session 0 well before autologon completes, and the GUI
-    # is launched with `schtasks /IT` — which needs a real interactive session
-    # or it fails with "the system cannot find the file specified", the same
-    # opaque message el10-gnome-win11ent produced. Wait for the logged-on user
-    # to exist, positively, rather than assuming the agent implies a desktop.
-    local logon_deadline
-    logon_deadline=$(deadline_in 300)
-    while ! past_deadline "$logon_deadline"; do
-        # shellcheck disable=SC2016 # PowerShell variable, not a shell one.
-        if [ -n "$(qga_powershell '$u = (Get-CimInstance Win32_ComputerSystem).UserName; if ($u) { Write-Output $u }' 2>/dev/null | tr -d '[:space:]')" ]; then
-            break
-        fi
-        sleep 10
-    done
-    pending=$(qga_powershell "$probe" 2>/dev/null | tr -d '[:space:]' || true)
-    if [ -n "$pending" ]; then
-        warn "    still mid-servicing after the restart ($pending) — the app will refuse, and it will be right to"
-        return 0
-    fi
-    pass "Pending servicing cleared by a restart — the machine is migration-ready"
-}
-
 # ── GUI-driven Phase 1 (--gui-install) ──────────────────────────────────────
 # Arms the machine through the REAL wootc.exe GUI instead of the OEM
 # setup-wootc.ps1 script: stage the app + artifacts, launch it with a CDP
@@ -2891,6 +2583,65 @@ Write-Output ($r -join ",")'
 # context cannot render WebView2), then drive the actual install form from a
 # playwright container. The driver's last act is clicking "Reboot Now →",
 # which boots the deployer — the rest of the run verifies as normal.
+# shellcheck source=tests/e2e/lib/gui-observations.sh
+source "$SCRIPT_DIR/lib/gui-observations.sh"
+wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
+# shellcheck source=tests/e2e/lib/gui-native.sh
+source "$SCRIPT_DIR/lib/gui-native.sh"
+
+# ── Firmware db cell 'none' (#322): the pass is a refusal ──────────────────
+# Firmware that trusts neither Microsoft third-party CA cannot launch any
+# shim. The app has to say so while Windows is on screen, and must not have
+# written a thing — a refusal that leaves a root.disk or a one-shot behind is
+# the same broken reboot with a nicer sentence in front of it. Both halves
+# are required assertions of the secure-boot-refusal scenario.
+secure_boot_refusal_verdict() {
+    local err="$1" want missing="" evidence
+    for want in 'bad shim signature' 'Nothing has been changed' 'Allow Microsoft 3rd Party UEFI CA'; do
+        case "$err" in *"$want"*) ;; *) missing="$missing '$want'" ;; esac
+    done
+    if [ -n "$missing" ]; then
+        product_fail "Secure Boot refusal cell: the app stopped, but not with the Secure Boot refusal (missing:$missing)"
+        info "  the app says: $err"
+        capture_vm_diagnostics
+        exit 1
+    fi
+    # Hold the refusal on screen long enough for the recording to show it.
+    sleep 4; freeze_frame
+    product_pass secure-boot-refused "The GUI refused in words before the reboot: $err"
+
+    evidence=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$s = (& cmd.exe /d /c "C:\wootc\wootc.exe status" | Out-String).Trim()
+Write-Output ("status=" + $s)
+$fw = cmd.exe /d /c "bcdedit /enum {fwbootmgr}" | Out-String
+Write-Output ("bootsequence=" + [bool]($fw -match "bootsequence"))
+$all = cmd.exe /d /c "bcdedit /enum firmware" | Out-String
+Write-Output ("wootc-entry=" + [bool]($all -match "(?m)^description\s+wootc"))
+$disks = @(Get-PSDrive -PSProvider FileSystem | ForEach-Object { Join-Path $_.Root "wootc\disks\root.disk" } | Where-Object { Test-Path -LiteralPath $_ })
+Write-Output ("root-disk=" + ($disks -join ","))' 2>/dev/null | tr -d '\r' || true)
+    printf '%s\n' "$evidence" | sed 's/^/    untouched: /'
+    case "$evidence" in
+        *'status={"state":"absent"}'*) ;;
+        *) product_fail "Secure Boot refusal cell: wootc.exe status is not absent after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    case "$evidence" in
+        *bootsequence=False*) ;;
+        *) product_fail "Secure Boot refusal cell: a one-shot boot is armed after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    case "$evidence" in
+        *wootc-entry=False*) ;;
+        *) product_fail "Secure Boot refusal cell: a wootc firmware entry exists after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    case "$evidence" in
+        *"root-disk="|*"root-disk="$'\n'*) ;;
+        *) product_fail "Secure Boot refusal cell: a root.disk exists after the refusal"; capture_vm_diagnostics; exit 1 ;;
+    esac
+    product_pass secure-boot-untouched "Nothing written: status absent, no one-shot, no firmware entry, no root.disk"
+    wootc_result_finish "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$WOOTC_FAILURE_LEDGER" "" "$IMAGE_REF" || exit 1
+    pass "Secure Boot refusal cell PASSED: refused in words, nothing written"
+    exit 0
+}
+
 gui_install_arm() {
     # Seed while Windows is alive — the OEM path seeds inside
     # snapshot_before_deployer, which the GUI path never reaches, and the
@@ -2898,7 +2649,9 @@ gui_install_arm() {
     seed_user_data before-storage || true
 
     mark_phase phase1
-    step "GUI-driven Phase 1: staging wootc.exe and launching the installer..."
+    step "GUI-driven Phase 1: staging the $GUI_FRONTEND installer and launching it..."
+    # wootc.exe is staged for both frontends: the status/uninstall assertions
+    # after the deploy use it as the CLI.
     [ -f "$SCRIPT_DIR/wootc-files/wootc.exe" ] || {
         fail "wootc.exe missing from wootc-files/ — build it first (see tests/gui/run-cdp.sh step 1)"
         exit 1
@@ -2929,6 +2682,10 @@ gui_install_arm() {
     # single-connection: a long guest job must be launched detached and observed
     # through short reads, which is the same pattern the rest of this harness
     # already uses for anything slow.
+    # The native shell is WinUI, not WebView2: it needs no runtime install.
+    # (Not re-indented: the PowerShell here-string below must keep "@ at
+    # column 0.)
+    if [ "$GUI_FRONTEND" = wails ]; then
     info "  ensuring the WebView2 runtime is present (wails cannot render without it)..."
     local wv2_key='HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
     if qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1; then
@@ -2957,21 +2714,32 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
         qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1 \
             || warn "    WebView2 still absent after 7m — the GUI will stall on its install prompt"
     fi
+    fi  # wails: WebView2
 
-    gui_settle_pending_servicing
+    gui_settle_pending_servicing || { capture_vm_diagnostics; exit 1; }
 
     gui_prepare_account || { capture_vm_diagnostics; exit 1; }
     if [ "$GUI_ACCOUNT_RESTART" = true ]; then
         info "  expired fixture password repaired — restarting Windows to retry autologon"
         # Schedule one reboot through the non-retrying QGA path; never replay
         # a side effect across the guest-agent transition (lesson 20).
-        qga_powershell 'shutdown.exe /r /t 5 /f; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }' \
-            || { fail "autologon-restart: could not schedule Windows restart"; capture_vm_diagnostics; exit 1; }
-        qga_wait_reboot "Windows after fixture password expiry repair" \
+        qga_restart_windows "Windows after fixture password expiry repair" 600 \
             || { capture_vm_diagnostics; exit 1; }
-        qga_wait_windows 120 || { capture_vm_diagnostics; exit 1; }
     fi
     gui_wait_interactive_session || { capture_vm_diagnostics; exit 1; }
+
+    # What launch-gui.cmd starts. The native shell must run from its protected
+    # package (ProtectedPackage refuses any other location), so its path is
+    # computed in the guest from the same Program Files root its install used.
+    local gui_launch_ps
+    # shellcheck disable=SC2016
+    gui_launch_ps='$launch = "C:\wootc\wootc.exe"'
+    if [ "$GUI_FRONTEND" = native ]; then
+        gui_native_stage_package || { capture_vm_diagnostics; exit 1; }
+        # shellcheck disable=SC2016
+        gui_launch_ps="$(gui_native_bundle_ps)"'
+$launch = [char]34 + (Join-Path $bundle "Wootc.Shell.exe") + [char]34'
+    fi
 
     qga_powershell '$ErrorActionPreference = "Stop"
 . "\\host.lan\Data\state-trust.ps1"
@@ -2979,16 +2747,22 @@ Initialize-WootcStateDirectory -Path C:\wootc
 New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 . "\\host.lan\Data\stage-status-cli.ps1"
 Copy-WootcStatusCLI -SourceDirectory "\\host.lan\Data" -Destination "C:\wootc\wootc.exe"
-foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
-Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json -Force -ErrorAction SilentlyContinue
+foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig","shim-authorities.json") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
+Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json,C:\wootc\e2e-ready.json -Force -ErrorAction SilentlyContinue
+'"$gui_launch_ps"'
+Write-Output ("launch target: " + $launch)
 @"
 set WOOTC_E2E_DRIVE=1
 set WOOTC_PRELOAD=0
-start `"`" C:\wootc\wootc.exe
+start `"`" $launch
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
-Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
+Stop-Process -Name wootc,Wootc.Shell -Force -ErrorAction SilentlyContinue
 try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
-$start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
+# The trigger time is one minute in the PAST, so the ONCE trigger never fires
+# and /Run is the only launch. A trigger at now+1m launched a second app
+# (native run 38849303170 killed one before the directive). schtasks warns
+# that the task may not run and still creates it.
+$start = (Get-Date).AddMinutes(-1).ToString('\''HH:mm'\'')
 # /RU must name the account that is actually autologged on: Pro media use
 # "wootc", Enterprise/LTSC use "docker". A wrong name fails /Create outright
 # with "No mapping between account names and security IDs was done" (see
@@ -2996,9 +2770,15 @@ $start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
 $who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
 if (-not $who) { throw "autologon-no-session: interactive user disappeared before GUI scheduling" }
 Write-Output ("launching as: " + $who)
-$mk = schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR "C:\wootc\launch-gui.cmd" /RU $who /IT /RL HIGHEST /F 2>&1
-Write-Output ("schtasks /Create rc=" + $LASTEXITCODE + " :: " + ($mk -join " "))
-$rn = schtasks /Run /TN wootc-gui-e2e 2>&1
+# cmd.exe merges schtasks stderr into stdout. Under "Stop", PowerShell 5.1
+# turns any native stderr line into a terminating error, and /Create writes
+# its past-start-time WARNING there (native run 38853736862 aborted staging
+# on it). The exit code is the verdict.
+$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR C:\wootc\launch-gui.cmd /RU $who /IT /RL HIGHEST /F 2>&1"
+$mkRc = $LASTEXITCODE
+Write-Output ("schtasks /Create rc=" + $mkRc + " :: " + ($mk -join " "))
+if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }
+$rn = cmd.exe /d /c "schtasks /Run /TN wootc-gui-e2e 2>&1"
 Write-Output ("schtasks /Run rc=" + $LASTEXITCODE + " :: " + ($rn -join " "))
 Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
         fail "GUI staging failed before a trustworthy app launch"
@@ -3006,18 +2786,67 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
     }
     # The QGA powershell completing only proves the task was scheduled, not
     # that wootc.exe actually started.  Poll for the real readiness signal:
-    # e2e-drive-state.json (written by the drive loop every 2 s once the app
-    # renders the first screen).
-    local launch_deadline
-    launch_deadline=$(deadline_in 60)
-    while ! past_deadline "$launch_deadline"; do
-        if qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
-            break
+    # e2e-ready.json (written by the drive loop every 2 s once the app
+    # renders the first screen, with no directive required).
+    #
+    # Readiness deliberately does NOT wait for e2e-drive-state.json: a bound
+    # drive report requires the install directive, which is only written
+    # after launch is confirmed — waiting for it first is a deadlock (every
+    # GUI run since the drive loop landed burned 60 s here with a rendered
+    # app on screen). Progress authentication stays with the bound
+    # drive-state channel below.
+    #
+    # Staging took minutes, and schtasks /IT never runs without a session
+    # `query user` can enumerate (GUI red 9/25-9/26: UserName said wootc,
+    # query user empty, task 267011). Re-check the scheduler's own observable
+    # now — waiting 60 s for a file an unrunnable task will never write is
+    # blind. An empty answer skips straight to the classified failure below.
+    # The native shell renders only after its first elevation, the engine's
+    # protected-package and peer checks and the startup assessment, so it
+    # gets longer than the Wails app.
+    local sessions launch_deadline ready_budget=60
+    [ "$GUI_FRONTEND" = native ] && ready_budget=180
+    sessions=$(qga_powershell '(query user 2>&1) -join " | "' 2>/dev/null || true)
+    if [[ -z "$sessions" || "$sessions" == *"No User exists"* ]]; then
+        warn "query user shows no interactive session — skipping the launch wait (schtasks /IT cannot run)"
+    else
+        launch_deadline=$(deadline_in "$ready_budget")
+        while ! past_deadline "$launch_deadline"; do
+            if qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
+                break
+            fi
+            sleep 5
+        done
+    fi
+    if ! qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
+        fail "$GUI_PROCESS.exe did not render within $ready_budget s — e2e-ready.json never appeared"
+        if [ "$GUI_FRONTEND" = native ]; then
+            # The native shell writes readiness through its engine, so "no
+            # marker" can be the shell, the elevation, the package checks or
+            # the engine. Ask for each.
+            info "  native launch post-mortem (shell / engine / elevation / package):"
+            # shellcheck disable=SC2016
+            qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$s = @(Get-Process Wootc.Shell)
+Write-Output ("native shell processes: " + $s.Count + " " + (($s | ForEach-Object { $_.Path }) -join ", "))
+Write-Output ("native engine processes: " + @(Get-Process wootc-engine).Count)
+Write-Output ("wails app processes: " + @(Get-Process wootc).Count)
+Write-Output ("interactive sessions: " + ((query user 2>&1) -join " | "))
+$q = (schtasks /Query /TN wootc-gui-e2e /FO LIST /V 2>&1 | Select-String "Result|Status") -join "; "
+Write-Output ("task: " + $q)
+Write-Output ("launch-gui.cmd: " + ((Get-Content C:\wootc\launch-gui.cmd) -join " && "))
+$e = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+Write-Output ("machine env: WOOTC_E2E_DRIVE=" + $e.WOOTC_E2E_DRIVE + " WOOTC_PRELOAD=" + $e.WOOTC_PRELOAD)
+$u = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+Write-Output ("uac: ConsentPromptBehaviorAdmin=" + $u.ConsentPromptBehaviorAdmin + " EnableLUA=" + $u.EnableLUA)
+Get-WinEvent -FilterHashtable @{LogName="Application"; StartTime=(Get-Date).AddMinutes(-15)} -MaxEvents 200 |
+  Where-Object { $_.ProviderName -in @("Application Error",".NET Runtime","Windows Error Reporting","SideBySide") -and $_.Message -match "Wootc[.]Shell|wootc-engine" } |
+  Select-Object -First 4 | ForEach-Object { Write-Output ("event " + $_.ProviderName + " " + $_.Id + ": " + (($_.Message -split "`n" | Select-Object -First 6) -join " / ")) }
+Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption + " " + [Environment]::OSVersion.Version)
+' 2>&1 | sed 's/^/    /' || warn "    (post-mortem query failed)"
+            capture_vm_diagnostics
+            exit 1
         fi
-        sleep 5
-    done
-    if ! qga_read 'C:\wootc\e2e-drive-state.json' >/dev/null 2>&1; then
-        fail "wootc.exe did not start within 60 s — e2e-drive-state.json never appeared"
         # "It didn't start" is not a diagnosis: the task may never have run, the
         # process may have started and died, or the app may be unable to render
         # at all. wootc is a wails app, so it CANNOT start without the WebView2
@@ -3047,9 +2876,11 @@ Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption)
         capture_vm_diagnostics
         exit 1
     fi
-    pass "wootc.exe GUI launched in drive mode in the wootc session"
+    pass "$GUI_PROCESS.exe GUI launched in drive mode in the wootc session"
 
-    # The task that launched the app must not launch it a SECOND time.
+    # The task that launched the app must not launch it a SECOND time. The
+    # trigger is now set in the past, so it should never fire; the delete and
+    # the count below stay as the proof.
     # `/Create /SC ONCE /ST <now+1m>` leaves a live trigger behind and `/Run`
     # does not consume it, so Task Scheduler starts launch-gui.cmd again within
     # the minute — and nothing makes wootc.exe single-instance. The second app
@@ -3073,17 +2904,50 @@ Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption)
     # wootc.exe. Both happen BEFORE the directive is written, and no instance
     # can install until it exists — after this point a second launch is
     # impossible and any extra we killed provably never started an install.
+    #
+    # The delete itself was a silent no-op until 2026-10: it was written as
+    #     cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-gui-e2e\" /F >NUL 2>&1"
+    # but PowerShell has no backslash escape, so `\"` CLOSED the string and
+    # cmd.exe received two arguments ("schtasks.exe /Delete /TN \" and
+    # "wootc-gui-e2e\ /F >NUL 2>&1"). schtasks was asked to delete a task
+    # named `"`, failed into >NUL, and the ONCE trigger stayed armed. While
+    # launch confirmation took longer than the trigger's minute the extra app
+    # was up before the count and got killed; once e2e-ready.json made launch
+    # confirmation fast (PR 516), the count ran BEFORE the trigger fired, the
+    # trigger then started a second wootc.exe that drove the directive too, and
+    # its pipeline found the first one's root.disk: "Making room for Linux:
+    # root.disk already exists" in every image (runs 36450824541, 38735109866;
+    # the ESP at failure time held the other pipeline's complete deployer chain).
+    #
+    # So the delete is now verified from a SUCCESSFUL task listing (absence in
+    # a listing that failed proves nothing), and the run refuses to write the
+    # directive unless both the task is gone and exactly one wootc.exe runs.
     local single_out
     single_out=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
-cmd.exe /d /c "schtasks.exe /Delete /TN \"wootc-gui-e2e\" /F >NUL 2>&1" | Out-Null
+cmd.exe /d /c "schtasks.exe /Delete /TN wootc-gui-e2e /F >NUL 2>&1" | Out-Null
+cmd.exe /d /c "schtasks.exe /Query /TN wootc-gui-e2e >NUL 2>&1" | Out-Null
+$named = $LASTEXITCODE
+$tasks = @(schtasks.exe /Query /FO CSV /NH 2>$null)
+$listed = $LASTEXITCODE
+if ($named -eq 0) {
+    Write-Output "TASK-STILL-PRESENT: wootc-gui-e2e answers /Query after its delete; its ONCE trigger can launch a second installer"
+} elseif ($listed -ne 0) {
+    Write-Output ("TASK-STATE-UNKNOWN: schtasks /Query rc=" + $listed)
+} elseif (@($tasks | Where-Object { $_ -match "^.\\wootc-gui-e2e.," }).Count -gt 0) {
+    Write-Output "TASK-STILL-PRESENT: wootc-gui-e2e survived its delete; its ONCE trigger can launch a second installer"
+} else {
+    Write-Output "task-absent: wootc-gui-e2e"
+}
 # The delete can lose by a hair to a launch already in flight (launch-gui.cmd
 # started, wootc.exe not yet created), so settle before counting: a second app
 # that appears after the count would drive the directive we are about to write.
 # Bounded well inside the 60 s qga_call timeout: a client killed mid-command
 # poisons the single-connection socket for the rest of the run.
+# $gui is the frontend under test, $other the one that must not be running.
+'"\$gui = '$GUI_PROCESS'; \$other = '$GUI_OTHER_PROCESS'"'
 Start-Sleep -Seconds 4
 for ($round = 1; $round -le 2; $round++) {
-    $procs = @(Get-Process wootc -ErrorAction SilentlyContinue | Sort-Object StartTime)
+    $procs = @(Get-Process -Name $gui -ErrorAction SilentlyContinue | Sort-Object StartTime)
     Write-Output ("round " + $round + ": instances=" + $procs.Count)
     if ($procs.Count -le 1) { break }
     foreach ($p in $procs[1..($procs.Count - 1)]) {
@@ -3092,20 +2956,71 @@ for ($round = 1; $round -le 2; $round++) {
     }
     Start-Sleep -Seconds 4
 }
-$left = @(Get-Process wootc -ErrorAction SilentlyContinue)
-if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " wootc.exe running") }' 2>&1) || true
+$left = @(Get-Process -Name $gui -ErrorAction SilentlyContinue)
+$others = @(Get-Process -Name $other -ErrorAction SilentlyContinue)
+if ($others.Count -ne 0) { Write-Output ("OTHER-FRONTEND: " + $others.Count + " " + $other + ".exe running beside the frontend under test") }
+if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " " + $gui + ".exe running") }
+else {
+    Write-Output ("single-instance: 1 " + $gui + ".exe")
+    if ($gui -eq "Wootc.Shell") { Write-Output ("native-shell-path: " + $left[0].Path) }
+}' 2>&1) || true
     printf '%s\n' "$single_out" | sed 's/^/    gui-single: /'
     if printf '%s' "$single_out" | grep -q 'EXTRA-INSTANCE'; then
-        warn "a second wootc.exe had already been launched by the task trigger; killed it before the directive was written"
+        warn "a second $GUI_PROCESS.exe had already been launched by the task trigger; killed it before the directive was written"
     fi
-    if printf '%s' "$single_out" | grep -q 'SINGLE-INSTANCE-UNPROVEN'; then
-        warn "could not reduce the guest to a single wootc.exe — two install pipelines may race on the ESP"
+    # Positive evidence only (gui_single_instance_proven): an empty answer from
+    # a lost channel proves nothing and is refused like a surviving task.
+    # A native run must also show the one shell is the installed package's.
+    if [ "$GUI_FRONTEND" = native ] && ! gui_native_shell_path_proven "$single_out"; then
+        infra_fail "the running native shell is not the installed protected package's Wootc.Shell.exe — refusing to write the install directive"
+        capture_vm_diagnostics
+        return 1
+    fi
+    if ! gui_single_instance_proven "$single_out" "$GUI_PROCESS.exe"; then
+        infra_fail "cannot prove a single installer: the launch task's trigger is not provably gone or wootc.exe is not exactly one process — refusing to write the install directive (two pipelines would race on root.disk and the ESP)"
+        capture_vm_diagnostics
+        return 1
     fi
 
+    # Evidence for the space preflight: the form sizes root.disk from C:'s
+    # free space minus the image's deployer scratch (app/install_space.go).
+    # A refusal or a deployer "[FAIL] … temporary space" is read against this.
+    local c_free_gib
+    c_free_gib=$(qga_powershell '[math]::Floor((Get-PSDrive C).Free / 1GB)' 2>/dev/null | tr -d '\r' | tail -1 || true)
+    info "  C: has ${c_free_gib:-?} GiB free before the install"
+
     step "Driving the REAL install through the live form (drive directive)..."
-    qga_powershell "@'
-{\"action\":\"install\",\"image\":\"$IMAGE_REF\",\"username\":\"wootc\",\"password\":\"wootc-e2e-pass\",\"hostname\":\"wootc-test\"}
-'@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii" >/dev/null
+    local drive_directive_id drive_payload drive_ack
+    drive_directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
+    # The native shell's directive names its target volume (storageId "C:");
+    # the Wails directive is unchanged. See gui-drive-directive.py.
+    drive_payload=$(python3 "$SCRIPT_DIR/gui-drive-directive.py" "$GUI_FRONTEND" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF") \
+        || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # BOM-LESS write, verified byte-exact. Set-Content -Encoding UTF8 on the
+    # guest's PowerShell 5.1 emits a UTF-8 BOM, and NEITHER consumer tolerates
+    # one: Go's encoding/json rejects a leading BOM (so E2EDriveDirective
+    # reads ""), and JS JSON.parse throws on it. The old writer produced
+    # exactly that file in runs 36399679919/36413017019/36420437461 — the
+    # readback still passed because Get-Content decodes and strips the BOM
+    # before comparing, while the app read raw bytes and saw no directive:
+    # ready marker written, zero drive-state reports, 30m silent timeout.
+    # [IO.File]::WriteAllText with UTF8Encoding($false) emits no BOM on any
+    # PowerShell version, and the byte readback below fails the run if one
+    # ever reappears instead of rediscovering this 30 minutes later.
+    if ! drive_ack=$(qga_powershell "\$ErrorActionPreference='Stop'
+\$wanted=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$drive_payload'))
+[IO.File]::WriteAllText('C:\wootc\e2e-drive.json', \$wanted, [Text.UTF8Encoding]::new(\$false))
+\$bytes=[IO.File]::ReadAllBytes('C:\wootc\e2e-drive.json')
+if (\$bytes.Length -ge 3 -and \$bytes[0] -eq 0xEF -and \$bytes[1] -eq 0xBB -and \$bytes[2] -eq 0xBF) { throw 'Directive has UTF-8 BOM' }
+\$actual=[Text.Encoding]::UTF8.GetString(\$bytes)
+if (\$actual.TrimEnd([char]13,[char]10) -cne \$wanted) { throw 'Directive readback changed' }
+Write-Output 'gui-install-directive-written'" 2>/dev/null); then
+        infra_fail "GUI install directive write is unknown; install observation refused"
+        return 1
+    fi
+    [ "$(printf '%s' "$drive_ack" | tr -d '\r\n')" = gui-install-directive-written ] || {
+        infra_fail "GUI install directive has no typed readback"; return 1;
+    }
 
     # The app reports every 2s. Wait first for the form to be driven (proves
     # the bridge + validation), then for the real pipeline to reach done.
@@ -3126,7 +3041,7 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
     # goes deaf we already know reopening is on the table, and the answer is a
     # verdict rather than another round of dialling.
     local reconnect_tried=false
-    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-12}"
+    local WOOTC_DRIVE_APP_DEAD_THRESHOLD="${WOOTC_DRIVE_APP_DEAD_THRESHOLD:-3}"
     drive_deadline=$(deadline_in 1800)
     while ! past_deadline "$drive_deadline"; do
         # Retry a single transient QGA read failure: a hosted runner's container
@@ -3135,8 +3050,22 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # alive but reads came back empty, and the loop treated each as proof
         # the app had died, never recovering when reads resumed).
         drive_state=""
+        # Why the last validation failed, and how big the rejected file was.
+        # A present-but-rejected drive-state.json is a different failure from
+        # a missing one (run 36399679919: ~112 reads returned content, zero
+        # validated, and 2>/dev/null swallowed every reason). Kept, not
+        # discarded, and reported at the stall point and the final verdict.
+        drive_reject=""
+        drive_raw_len=0
         for _try in 1 2 3; do
-            drive_state=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null || true)
+            local drive_raw=""
+            # Failed reads with plausible stdout and stale/malformed reports
+            # remain unknown. Only the current directive's typed receipt counts.
+            if drive_raw=$(qga_read 'C:\wootc\e2e-drive-state.json' 2>/dev/null); then
+                drive_raw_len=${#drive_raw}
+                drive_reject=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>&1 >/dev/null) || true
+                drive_state=$(printf '%s' "$drive_raw" | python3 "$SCRIPT_DIR/gui-drive-receipt.py" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF" 2>/dev/null) || drive_state=""
+            fi
             [ -n "$drive_state" ] && break
             sleep 2
         done
@@ -3152,27 +3081,66 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
             # that tests the CHANNEL and nothing else. A PowerShell round-trip
             # would conflate "agent is gone" with "exec failed for some guest-side
             # reason" — the same proxy mistake this diagnostic exists to avoid.
+            #
+            # This diagnostic must fire PERIODICALLY, not once. Run 36420437461
+            # tested the one-shot form (`-eq 3`): wootc.exe was alive at the
+            # ~1-minute mark, the block never fired again, and the loop sat
+            # silent for the remaining 29 minutes. First fire at 3 empties
+            # (~1 min), then every 30 empties (~10 min heartbeat), so the log
+            # is never silent for longer and a process that dies mid-wait is
+            # still caught with attribution instead of a bare 30m timeout.
+            local fire_diag=false
             if [ "$empty_reads" -eq 3 ]; then
+                fire_diag=true
+            elif [ "$empty_reads" -gt 3 ] && [ $(( (empty_reads - 3) % 30 )) -eq 0 ]; then
+                fire_diag=true
+            fi
+            if [ "$fire_diag" = true ]; then
                 if qga_probe; then
-                    warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    if [ "$drive_raw_len" -gt 0 ]; then
+                        warn "  drive-state.json IS present (${drive_raw_len} bytes) but the receipt rejects it: ${drive_reject:-unknown reason} — the app writes, the binding fails"
+                    else
+                        warn "  drive state unreadable but QGA answers ping — the app stopped writing e2e-drive-state.json"
+                    fi
                     # If the app WAS writing state (last_good is non-empty) and
                     # then stopped, it has CRASHED. Do not burn the remaining
                     # 30 minutes waiting for a dead process. Check whether
                     # wootc.exe is still alive to confirm, then fail fast.
-                    if [ -n "$last_good" ]; then
+                    #
+                    # If it NEVER wrote (last_good empty), the process may have
+                    # died before the first write — e.g. a dead WebView2
+                    # renderer behind a black window (runs 36399679919,
+                    # 36413017019: ready marker written, zero reports after).
+                    # A dead process can never report, so fail fast; a live
+                    # one keeps the remaining budget.
+                    if [ -z "$last_good" ]; then
+                        local wootc_alive
+                        wootc_alive=$(qga_powershell "if (Get-Process $GUI_PROCESS -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }" 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        if [ "$wootc_alive" = "dead" ]; then
+                            infra_fail "$GUI_PROCESS.exe died before writing any drive report — completion cannot be observed"
+                            info "  last screen reached: ${last_screen:-<none>}"
+                            capture_vm_diagnostics
+                            exit 1
+                        fi
+                        # A live process that never wrote is the black-window
+                        # hang, not a verdict yet — but it must be VISIBLE.
+                        # Without this heartbeat the wait is silent until the
+                        # 30m deadline (run 36420437461).
+                        warn "  still no drive report after ${empty_reads} unreadable reads (~$((empty_reads / 3)) min), $GUI_PROCESS.exe process is '${wootc_alive}' — waiting on the remaining budget"
+                    else
                         dead_app_checks=$((dead_app_checks + 1))
                         local wootc_alive
-                        wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
-                        info "  app-crash check #${dead_app_checks}: wootc.exe process is '${wootc_alive}'"
+                        wootc_alive=$(qga_powershell "if (Get-Process $GUI_PROCESS -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }" 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        info "  app-crash check #${dead_app_checks}: $GUI_PROCESS.exe process is '${wootc_alive}'"
                         if [ "$dead_app_checks" -ge "$WOOTC_DRIVE_APP_DEAD_THRESHOLD" ]; then
-                            fail "wootc.exe GUI has STOPPED responding — the drive state was being written but is now unreadable for ${dead_app_checks} consecutive samples (~$((dead_app_checks * 12))s)"
+                            infra_fail "Current GUI report is unavailable for ${dead_app_checks} consecutive samples; completion cannot be observed"
                             if [ "$wootc_alive" = "dead" ]; then
-                                fail "  wootc.exe process is DEAD — the app crashed mid-install"
+                                info "  Process query returned dead; current report remains unavailable"
                             else
-                                fail "  wootc.exe process is still running but stopped writing e2e-drive-state.json"
-                                fail "  the app may be hung on a blocking operation or its JS bridge has disconnected"
+                                info "  $GUI_PROCESS.exe process observation: $wootc_alive"
+                                info "  No current run-bound report; product hang is not established"
                             fi
-                            fail "  last screen reached: ${last_screen:-<none>}"
+                            info "  last screen reached: ${last_screen:-<none>}"
                             capture_vm_diagnostics
                             exit 1
                         fi
@@ -3193,8 +3161,8 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
                         fi
                     fi
                     qga_channel_lost "the GUI-driven install"
-                    fail "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
-                    fail "  last readable state: ${last_good:-<never read one>}"
+                    info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
+                    info "  last readable state: ${last_good:-<never read one>}"
                     capture_vm_diagnostics
                     exit 1
                 fi
@@ -3209,7 +3177,7 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # Narrate progress: a 30-minute silent wait that ends in one verdict is
         # undiagnosable, whereas the screen sequence shows where it stopped.
         local screen
-        screen=$(printf '%s' "$drive_state" | sed -n 's/.*"screen":"\([^"]*\)".*/\1/p' | head -1)
+        screen=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["screen"])')
         if [ -n "$screen" ] && [ "$screen" != "$last_screen" ]; then
             info "  GUI screen: ${last_screen:-<start>} -> $screen"
             last_screen="$screen"
@@ -3222,16 +3190,16 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # one (run 32581422435: "bazzite" installed bluefin-lts and every
         # image-agnostic assertion passed). A persisting mismatch will never
         # resolve on its own, so fail now with the two refs side by side.
-        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"imageMismatch":true'; then
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["imageMismatch"] is True else 1)'; then
             local _sel
-            _sel=$(printf '%s' "$drive_state" | sed -n 's/.*"selectedRef":"\([^"]*\)".*/\1/p' | head -1)
+            _sel=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["selectedRef"])')
             fail "Drive mode cannot select the requested image: wanted $IMAGE_REF, form has '${_sel:-<none>}'"
             fail "  The image is likely gated out of the offered catalog — the drive loop refuses to install the default in its place."
             capture_vm_diagnostics
             exit 1
         fi
 
-        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"installDriven":true'; then
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["installDriven"] is True else 1)'; then
             driven=true
             pass "GUI form filled and Install clicked through the live bridge"
         fi
@@ -3242,11 +3210,11 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         # it refuses to install: "BitLocker encryption isn't supported in the
         # alpha yet". Waiting out a deadline to rediscover a refusal the app
         # states up front is pure waste — surface the app's own words and stop.
-        if [ "$driven" = false ] && printf '%s' "$drive_state" | grep -q '"installBtnDisabled":true'; then
+        if [ "$driven" = false ] && printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["installBtnDisabled"] is True else 1)'; then
             blocked_reads=$((blocked_reads + 1))
             if [ "$blocked_reads" -ge 6 ]; then
                 local hint
-                hint=$(printf '%s' "$drive_state" | sed -n 's/.*"hint":"\([^"]*\)".*/\1/p' | head -1)
+                hint=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hint"])')
                 fail "the GUI REFUSES this configuration — Install is disabled, so no install can be driven"
                 fail "  the app says: ${hint:-<no hint given>}"
                 fail "  this is the product declining, not a harness failure: fix the case or the product, not the timeout"
@@ -3256,13 +3224,29 @@ if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Coun
         else
             blocked_reads=0
         fi
-        if printf '%s' "$drive_state" | grep -q '"screen":"done"'; then
+        # Firmware db cell 'none' (#322): reaching done is the failure, and the
+        # refusal is the pass. Checked before the generic error branch, which
+        # would call the refusal a red.
+        if [ "$FIRMWARE_DB" = none ]; then
+            if [ "$screen" = "done" ]; then
+                product_fail "Secure Boot refusal cell: the install COMPLETED on firmware that cannot launch any shim — the reboot would end at 'bad shim signature'"
+                capture_vm_diagnostics
+                exit 1
+            fi
+            local refusal
+            refusal=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["error"] or "")')
+            [ -n "$refusal" ] && secure_boot_refusal_verdict "$refusal"
+        fi
+        if [ "$screen" = "done" ]; then
             product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
+            if [ "$GUI_FRONTEND" = native ]; then
+                product_pass native-shell "The native shell drove the install to done: $(printf '%s\n' "$single_out" | tr -d '\r' | sed -n 's/^native-shell-path: //p'), no Wails app running"
+            fi
             # Let the done screen actually appear in a capture, then hold it.
             sleep 4; freeze_frame
             break
         fi
-        if printf '%s' "$drive_state" | grep -q '"error":"'; then
+        if printf '%s' "$drive_state" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["error"] is not None else 1)'; then
             fail "GUI install pipeline surfaced an error:"
             printf '%s\n' "$drive_state" | head -3
             # ESP state at failure time, from a FRESH PowerShell (a reused
@@ -3288,7 +3272,7 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         fi
         sleep 10
     done
-    printf '%s' "$drive_state" | grep -q '"screen":"done"' || {
+    [ "${screen:-}" = "done" ] && [ -n "$drive_state" ] || {
         # WHICH failure this is depends on the channel, so ask BEFORE writing a
         # verdict. This used to lead with "did not reach the done screen in 30m"
         # and append the dead-ping caveat underneath — a product red on top of
@@ -3299,17 +3283,20 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         # class is claimed.
         if ! qga_probe && ! qga_reconnect_cycle; then
             qga_channel_lost "the GUI-driven install"
-            fail "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
-            fail "  last readable state: ${last_good:-<never read one>}"
-            fail "  unreadable reads: $total_empty of ~180"
+            info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
+            info "  last readable state: ${last_good:-<never read one>}"
+            info "  unreadable reads: $total_empty of ~180"
             capture_vm_diagnostics
             exit 1
         fi
-        fail "GUI-driven install did not reach the done screen in 30m"
-        fail "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
-        fail "  last readable state: ${last_good:-<never read one>}"
-        fail "  unreadable reads: $total_empty of ~180"
-        fail "  QGA answers ping — so this is the installer, not the channel"
+        infra_fail "GUI-driven completion was not observed within 30m"
+        info "  last screen reached: ${last_screen:-<none>} (install clicked: $driven)"
+        info "  last readable state: ${last_good:-<never read one>}"
+        info "  unreadable reads: $total_empty of ~180"
+        if [ "$drive_raw_len" -gt 0 ]; then
+            info "  rejected content: ${drive_raw_len} bytes, last reason: ${drive_reject:-unknown reason}"
+        fi
+        info "  QGA ping answers; this does not establish GUI identity or progress"
         capture_vm_diagnostics
         exit 1
     }
@@ -3332,53 +3319,27 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
 
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
-    qga_powershell '@"
-{"action":"reboot"}
-"@ | Set-Content -Path C:\wootc\e2e-drive.json -Encoding ascii' >/dev/null
-    pass "Reboot directive issued — deployer takes over"
+    local reboot_payload
+    reboot_payload=$(python3 - "$RUN_ID" "$drive_directive_id" <<'PYREBOOT'
+import base64, json, sys
+value = dict(schemaVersion=1, runId=sys.argv[1], directiveId=sys.argv[2], action='reboot')
+print(base64.b64encode(json.dumps(value, separators=(',', ':')).encode()).decode())
+PYREBOOT
+    ) || { infra_fail "Could not encode this run's reboot directive"; return 1; }
+    gui_write_reboot_directive "$reboot_payload" || { capture_vm_diagnostics; exit 1; }
+    info "Reboot directive written through the guest command"
 
-    # Verify the reboot ACTUALLY took effect before handing control to the
-    # deployer monitor. On a hosted runner the app's reboot handler can stall
-    # (e.g., if the WebView2 host process is wedged), leaving the VM sitting
-    # at the Windows desktop forever while Step 7 waits for a deployer that
-    # can never appear — the exact Mode-B signature (#71).
-    #
-    # Wait for Windows QGA to go DOWN, proving the guest is rebooting. If
-    # Windows keeps answering after a generous grace period, the reboot
-    # directive was consumed but did not take effect, and the deployer will
-    # never boot. Fail early with a clear signal instead of burning the
-    # 90-minute deploy budget on an impossible wait.
+    # A failed Windows probe is unknown identity, and ping loss is only a
+    # transport observation. Positive Linux or channel loss hands observation
+    # to the deployer monitor, which must still prove the actual boot and work.
     step "Waiting for Windows to reboot after GUI install..."
-    local reboot_deadline reboot_ok=false
-    reboot_deadline=$(deadline_in 180)
-    while ! past_deadline "$reboot_deadline"; do
-        if ! qga_probe; then
-            info "  Windows QGA is gone — reboot is underway"
-            reboot_ok=true
-            break
-        fi
-        if ! qga_windows_probe; then
-            info "  Windows agent no longer answers — reboot is underway"
-            reboot_ok=true
-            break
-        fi
-        sleep 10
-    done
-    if [ "$reboot_ok" = false ]; then
-        fail "Windows did NOT reboot within 3 minutes of the reboot directive"
-        fail "  The GUI app received the directive but the VM is still running Windows."
-        fail "  The deployer will never boot. Last screen reached: ${last_screen:-<none>}"
-        fail "  This is the Mode-B signature (#71): Phase 1 never handed over."
-        info "  Checking wootc.exe state for post-mortem:"
-        qga_powershell '
-$p = Get-Process wootc -ErrorAction SilentlyContinue
-Write-Output ("wootc.exe: " + $(if ($p) { "alive pid=" + $p.Id + " cpu=" + $p.CPU } else { "dead" }))
-Write-Output ("shutdown pending: " + (Get-WinEvent -LogName System -MaxEvents 20 -FilterXPath "*[System[EventID=1074 or EventID=6006 or EventID=6008]]" | Select-Object -First 3 | ForEach-Object { $_.TimeCreated.ToString("HH:mm:ss") + " " + $_.Message }) -join " | ")
-' 2>&1 | sed 's/^/    /' || true
-        capture_vm_diagnostics
-        exit 1
+    gui_wait_handover 180 || { capture_vm_diagnostics; exit 1; }
+    if [ "$WOOTC_GUI_HANDOVER_OBSERVATION" = linux ]; then
+        info "Positive Linux identity observed after the GUI reboot directive"
+    else
+        info "QGA transport unavailable after the GUI directive; deployer monitor must establish the actual boot"
     fi
-    pass "Windows reboot confirmed — deployer handover in progress"
+
 }
 
 if [ "$GUI_INSTALL" = true ]; then
@@ -3405,6 +3366,10 @@ step "Starting OEM setup through QGA..."
 # Explicitly handled: an incomplete OEM payload SHOULD end the run, but via a
 # stated verdict rather than a bare `set -e` abort with no message.
 qga_sync_oem || { fail "Cannot proceed: the guest's OEM payload could not be refreshed"; exit 1; }
+
+if [ "$OFFLINE" = true ]; then
+    offline_stage_bundle || { capture_vm_diagnostics; exit 1; }
+fi
 
 qga_powershell '@("C:\OEM\e2e-setup-complete.txt","C:\OEM\e2e-setup-failed.txt","C:\OEM\e2e-snapshot-complete.txt") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Remove-Item -LiteralPath $_ -Force }' >/dev/null
 qga_powershell "Start-Process -FilePath 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File','C:\\OEM\\run-wootc-e2e.ps1') -WindowStyle Hidden" >/dev/null
@@ -3452,7 +3417,9 @@ while ! past_deadline "$BARRIER_DEADLINE"; do
     if [ -n "$OEM_FAILURE" ]; then
         if [ -n "$FAULT_INJECT" ]; then
             info "Observed expected fault injection failure during Phase 1 ($FAULT_INJECT)"
-            recovery_check
+            # Every non-zero return already recorded a product_fail in the
+            # ledger, which the check below turns into a red result.
+            recovery_check || true
             if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
                 _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
                 fail "$_wootc_n failure(s) recorded in recovery run"
@@ -3621,7 +3588,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             if [ "$WINDOWS_BACK_STREAK" -ge 12 ]; then
                 if [ -n "$FAULT_INJECT" ]; then
                     info "Observed expected deploy failure and return to Windows ($FAULT_INJECT)"
-                    recovery_check
+                    recovery_check || true   # failures are in the ledger
                     if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
                         _wootc_n=$(wc -l < "$WOOTC_FAILURE_LEDGER" | tr -d '[:space:]')
                         fail "$_wootc_n failure(s) recorded in recovery run"
@@ -3657,7 +3624,13 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         echo "$NEW_OUTPUT" | strings | grep -aE "\[wootc\]|fisherman|VERIFICATION_SUMMARY|\[FAIL\]" \
             | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
 
-        echo "$NEW_OUTPUT" | grep -q "\[wootc\]"               && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
+        # [fisherman] counts too: only the deployer runs fisherman. The first
+        # [wootc] line on the serial is whatever deploy.sh writes to stderr,
+        # and on bazzite-deck that used to be the ntfs-3g injection [WARN].
+        # Without injection, run 38839917797 pulled for six silent minutes,
+        # started fisherman ("[fisherman] version: dev" at t=385s), and was
+        # still failed as "Deployer did NOT start" at the 10-minute mark.
+        echo "$NEW_OUTPUT" | grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
         echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
@@ -3882,6 +3855,15 @@ done
     _deploy_mins=$(elapsed_min_since "$DEPLOY_STARTED")
     if [ "${DEPLOYER_FATAL_SEEN:-false}" = true ]; then
         fail "Deployment FAILED after ${_deploy_mins}m — the deployer reported a fatal error (above); this is NOT a timeout"
+    elif [ "$DEPLOYER_REBOOT_SEEN" = true ]; then
+        # The deployer finished and asked for its reboot; any Windows QGA
+        # answer would have ended this loop. So the boot that hung is the
+        # RETURN TO WINDOWS, and Phase 2 was never scheduled. #209/#218 was
+        # filed as a "Phase-2 first-boot hang" because this branch said
+        # "deployment did not complete" — a proxy, not what happened.
+        fail "Deployer requested its reboot, but Windows never came back (no Windows QGA for ${_deploy_mins}m) — the post-deploy return boot hung; Phase 2 was never scheduled"
+        info "  Look for '[WARN] /mnt/ntfs still busy' and its 'holder:' lines below: a"
+        info "  lazily-detached NTFS goes back to Windows still mounted and dirty (#218)."
     else
         fail "Deployment did not complete within $((TIMEOUT/60)) minutes (waited ${_deploy_mins}m)"
     fi
@@ -3889,6 +3871,20 @@ done
     tail -30 "$PTY"
     exit 1
 }
+
+# ── Assert the offline axis actually took effect (#217) ─────────────────────
+# The deploy can complete over the network after a bundle rejection, so a
+# green deploy alone says nothing about offline. Read the deployer's own lines.
+if [ "$OFFLINE" = true ]; then
+    OFFLINE_FINDINGS=$(wootc_offline_check_serial "$PTY" "$IMAGE_REF") && OFFLINE_OK=true || OFFLINE_OK=false
+    printf '%s\n' "$OFFLINE_FINDINGS" | sed 's/^/    offline: /'
+    if [ "$OFFLINE_OK" = true ]; then
+        product_pass offline-deploy "Offline: deployer installed $IMAGE_REF from the staged bundle with no network device"
+    else
+        product_fail "Offline: the deployer did not honour the offline bundle contract (see offline: lines above)"
+        exit 1
+    fi
+fi
 
 # ── Assert the BitLocker axis actually took effect (SPEC §3.5) ──────────────
 # setup-wootc.ps1 logs the observed C: state and where Linux was placed. On the
@@ -3933,7 +3929,7 @@ fi
 # Only wait for the Windows return when it is not already up (deploy detected
 # purely from the serial console before the initramfs→Windows reboot settled).
 if ! qga_windows_probe; then
-    qga_wait_reboot "Windows after deployer"
+    qga_wait_windows 600 || exit 1
 fi
 
 # Keep native CLI output and transport errors separate. PowerShell 5.1 can
@@ -4026,8 +4022,31 @@ if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | g
     exit 1
 fi
 pass "Phase 2 Linux boot scheduled through BCD one-shot entry (bootsequence verified)"
+# Whether the deployer queued a MOK enrollment is known from its serial
+# BEFORE the reboot, and it decides how the reboot is watched (see below).
+# A transient `podman cp` race must not abort the run under set -e: the
+# feed reports failure itself and warns after 12 consecutive misses.
+MOK_PENDING=false
+MOK_EXTRA=0
+snapshot_serial || true
+if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
+    MOK_PENDING=true
+    MOK_EXTRA=300
+fi
 qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-qga_wait_down "Phase 2 Linux boot" 300
+# MokManager shows a 10-second countdown, then boots GRUB and DELETES the
+# enrollment request: shim does not ask twice, and nothing on the Windows
+# side can queue it again. Runs 38755153727 and 38776066218 spent ~24 s in
+# this QGA departure wait, so the serial loop first looked after the
+# countdown had already run out, and Phase 2 could never boot (GRUB: "bad
+# shim signature"). With an enrollment pending, go straight to the serial
+# loop and poll it every second until MokManager is driven; the loop reads
+# the boot from the serial, so it needs no QGA departure proof.
+if [ "$MOK_PENDING" = true ]; then
+    wootc_phase_boundary
+else
+    qga_wait_down "Phase 2 Linux boot" 300
+fi
 
 # ── MokManager driver (#248) ─────────────────────────────────────────────────
 # When the deployer queued a MOK enrollment (custom-kernel images: the target
@@ -4050,7 +4069,6 @@ qga_wait_down "Phase 2 Linux boot" 300
 # (mis-timed keystroke), catch the next loop and try once more. Stray keys
 # still cannot land in GRUB ('e' — which the password contains — opens its
 # editor): the sequence fires only on the MokManager marker itself.
-MOK_EXTRA=0
 mok_sendkey() {
     $DOCKER exec "$CONTAINER_NAME" python3 -c \
         'import socket,time,sys; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(("sendkey %s\n" % sys.argv[1]).encode()); time.sleep(.3); s.recv(4096); s.close()' \
@@ -4088,12 +4106,12 @@ mok_sequence() {  # returns 0 only when the MokManager MENU was confirmed and dr
 # appeared AFTER the window closed, unanswered, while the watcher had
 # already concluded it was never coming. Here we only record whether an
 # enrollment is pending (and widen the boot budget for the extra reboots).
-MOK_PENDING=false
 MOK_SIGHTINGS=0
-snapshot_serial
-if grep -aq 'MOK enrollment queued' "$PTY" 2>/dev/null; then
-    MOK_PENDING=true
-    MOK_EXTRA=300
+# Re-arm Phase 2 once per driven sequence (MokManager reboots to the
+# firmware default, Windows), consumed by the re-arm itself.
+MOK_REARM_WANTED=false
+MOK_MISS_BYTE=""
+if [ "$MOK_PENDING" = true ]; then
     step "Deploy queued a MOK enrollment — the Phase-2 wait will drive MokManager when it appears"
 fi
 
@@ -4107,7 +4125,7 @@ fi
 # (run 32674246660 — sequence 1 driven, Windows booted 2s later, the re-arm
 # never fired, 9 idle minutes to timeout).
 mok_rearm_phase2() {
-    MOK_REARMED=true
+    MOK_REARM_WANTED=false
     info "Windows returned after the MokManager sequence (one-shot consumed) — re-arming Phase 2"
     # Soft wait: qga_wait's timeout branch writes the failure ledger, and
     # this re-arm must not be able to fail the run on its own — the boot
@@ -4144,6 +4162,18 @@ while ! past_deadline "$BOOT_DEADLINE"; do
     snapshot_serial || true
     CURRENT_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
     if [ "$CURRENT_BYTE" -lt "$LAST_BYTE" ]; then LAST_BYTE=0; wootc_phase_boundary; fi
+    # A MISSED countdown cannot be recovered from here: MokManager deleted
+    # the request when it booted on, and GRUB then refuses the untrusted
+    # kernel and parks at its menu (run 38755153727 waited out its budget;
+    # 38776066218 reset and re-armed, and MokManager never came back). Say so
+    # at once — positive evidence only, see mok_missed_boot_refused — and
+    # say whose fault it is: the harness was late, the product was not.
+    if [ "$MOK_PENDING" = true ] && [ -n "$MOK_MISS_BYTE" ] \
+        && mok_missed_boot_refused "$(tail -c +"$((MOK_MISS_BYTE + 1))" "$PTY" 2>/dev/null || true)"; then
+        PHASE2_DIAGNOSED=true
+        infra_fail "MokManager countdown expired before the harness answered it; shim consumed the enrollment request and GRUB refused the unenrolled kernel — this run has no verdict on Phase 2"
+        break
+    fi
     if [ "$CURRENT_BYTE" -gt "$LAST_BYTE" ]; then
         wootc_phase_read_serial_chunk "$PTY" "$LAST_BYTE" "$CURRENT_BYTE" || {
             fail "Could not read serial output and persist its observed phase vocabulary"; exit 1;
@@ -4157,6 +4187,8 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         if [ "$MOK_PENDING" = true ] && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'Press any key to perform MOK management'; then
             if mok_sequence; then
                 MOK_SIGHTINGS=$((MOK_SIGHTINGS + 1))
+                MOK_REARM_WANTED=true
+                MOK_MISS_BYTE=""
                 info "MokManager driven (sequence $MOK_SIGHTINGS): Enroll MOK, password universalblue"
                 if [ "$MOK_SIGHTINGS" -ge 2 ]; then
                     warn "  two MokManager sequences sent — the boot verdict decides"
@@ -4165,6 +4197,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
                 BOOT_DEADLINE=$(deadline_in "$TIMEOUT")
             else
                 info "MokManager sighted but its menu was not confirmed (countdown expired?) — catching the next cycle"
+                MOK_MISS_BYTE=$CURRENT_BYTE
             fi
             # Consume everything the sequence itself painted (menu redraws
             # repeat the marker) — or the next poll would re-trigger on our
@@ -4178,7 +4211,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
             snapshot_serial || true
             _mok_seq_tail=$(tail -c +"$((CURRENT_BYTE + 1))" "$PTY" 2>/dev/null || true)
             LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
-            if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+            if [ "$MOK_REARM_WANTED" = true ] \
                 && printf '%s\n' "$_mok_seq_tail" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
                 mok_rearm_phase2
                 snapshot_serial || true
@@ -4188,7 +4221,7 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         fi
         # The Windows-return line can also land in ordinary fresh output
         # (slower firmware, or a boot cycle later): same one-time re-arm.
-        if [ "$MOK_SIGHTINGS" -gt 0 ] && [ "${MOK_REARMED:-false}" = false ] \
+        if [ "$MOK_REARM_WANTED" = true ] \
             && printf '%s\n' "$NEW_OUTPUT" | grep -aq 'starting Boot.* "Windows Boot Manager"'; then
             mok_rearm_phase2
             snapshot_serial || true
@@ -4250,7 +4283,8 @@ while ! past_deadline "$BOOT_DEADLINE"; do
         fi
         LAST_BYTE=$CURRENT_BYTE
     fi
-    sleep 5
+    # MokManager's countdown is 10 s; poll every second until it is driven.
+    if [ "$MOK_PENDING" = true ] && [ "$MOK_SIGHTINGS" -eq 0 ]; then sleep 1; else sleep 5; fi
 done
 
 [ "$BOOT_SUCCESS" = true ] || {
@@ -4473,6 +4507,12 @@ fi
 USERDATA_HOME=""
 _ud_deadline=$(deadline_in 120)
 while ! past_deadline "$_ud_deadline"; do
+    # The agent probe above is ONE shot taken the moment the passthrough scan
+    # ends. An agent that starts later in the window is still an agent that
+    # answered, so re-ask until it does (bounded: a dead agent must not eat
+    # the window 60s at a time).
+    printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK \
+        || USERDATA_PROBE=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || true)
     USERDATA_HOME=$(qga_call exec /bin/sh -c \
         "cat '$USERDATA_PATH' 2>/dev/null" 2>/dev/null || true)
     printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID" && break
@@ -4482,13 +4522,36 @@ if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
     fail "Cannot verify user data: the Phase-2 guest agent never answered, so the bridge was NOT measured"
     info "  This is an INCONCLUSIVE check, not proof of data loss — the file may well be there."
     info "  Fix the agent in Phase 2 (is qemu-guest-agent present and enabled in this image?), then re-run."
+    # Say why from the one channel still open. The serial carries systemd's
+    # unit lines, so a failed, skipped or never-started agent shows up here;
+    # a silence here means the unit was never even queued.
+    _qga_serial=$(tail -c 4000000 "$PTY" 2>/dev/null \
+        | grep -aiE 'qemu-ga|qemu-guest-agent|guest_agent|virtio.ports|virtio_console' | tail -12 || true)
+    if [ -n "$_qga_serial" ]; then
+        info "  Serial lines about the guest agent (last 12):"
+        printf '%s\n' "$_qga_serial" | cut -c1-220 | sed 's/^/    /'
+    else
+        info "  The serial console never mentions the guest agent or its virtio port"
+    fi
 elif printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
     product_pass user-data "User data: Windows Documents file readable at $USERDATA_PATH with this run's ID"
 else
-    USERDATA_DIAG=$(qga_call exec /bin/sh -c \
+    # The diagnostic travels over the same agent channel the check just used,
+    # and one hiccup blanks the most important evidence in the run
+    # (20260928T070749Z: every layer line empty). Retry a few times and keep
+    # the first non-empty answer before reporting.
+    USERDATA_DIAG=""
+    for _ud_try in 1 2 3; do
+        USERDATA_DIAG=$(qga_call exec /bin/sh -c \
         'echo "host-bind: $(mountpoint -q /run/wootc/host && echo mounted || echo ABSENT)"; \
          echo "profile:   $(find /run/wootc/host -maxdepth 5 -type d -path "*/Users/wootc" 2>/dev/null | head -1 || echo ABSENT)"; \
          echo "seed@host: $(find /run/wootc/host -maxdepth 7 -type f -name "wootc-e2e-userdata.txt" -exec cat {} + 2>/dev/null || echo ABSENT)"; \
+         echo "profile-ls: $(ls -la /run/wootc/host/Users/wootc/ 2>&1 | head -20 | tr "\n" "|")"; \
+         echo "docs-link: $(ls -lad /run/wootc/host/Users/wootc/Documents 2>&1)"; \
+         echo "seed-anywhere: $(find /run/wootc/host -xdev -name "*userdata*" 2>/dev/null | head -5 | tr "\n" "|")"; \
+         echo "users-ls: $(ls -la /run/wootc/host/Users/ 2>&1 | head -20 | tr "\n" "|")"; \
+         echo "host-mnt: $(findmnt -n -o SOURCE,TARGET,FSTYPE,OPTIONS /run/wootc/host 2>&1)"; \
+         echo "src-mnt: $(findmnt -n -o SOURCE,TARGET,FSTYPE /run/initramfs/wootc-host 2>&1)"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
          echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
          echo "linux-copy: $(cat "/home/wootc/Documents/From Windows/.wootc-import-complete" 2>/dev/null || echo ABSENT)"; \
@@ -4497,6 +4560,9 @@ else
          echo "ntfs-src:  $(findmnt -n /run/initramfs/wootc-host 2>/dev/null || echo ABSENT)"; \
          echo "passthru:  enabled=$(systemctl is-enabled wootc-passthrough 2>&1) active=$(systemctl is-active wootc-passthrough 2>&1)"; \
          journalctl -u wootc-passthrough --no-pager 2>/dev/null | tail -6' 2>/dev/null || true)
+        [ -n "$USERDATA_DIAG" ] && break
+        sleep 5
+    done
     product_fail "User data NOT visible in Phase 2 \$HOME (expected RUN_ID $RUN_ID)"
     printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
     PASSTHROUGH_OK=false
@@ -4629,6 +4695,7 @@ demo_linux_userdata
 
 # ── Step 10: boot the result, not merely its installer ─────────────────────
 if [ "${RUN_PHASE3:-false}" = true ]; then
+    wootc_phase_boundary
     step "Rebooting Phase 2 into the one-shot Phase 3 native install..."
     # NEVER send this reboot through QGA. Any attempt the dying Phase 2
     # fails to consume stays queued in the virtio-serial channel until the
@@ -4645,20 +4712,30 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # a Linux guest, letting a not-yet-rebooted Phase 2 answer the native wait.
     for _ in $(seq 1 24); do qga_probe || break; sleep 5; done
     qga_wait "Phase 3 native system" 600
-    P3_NATIVE_PROOF=$(qga_call exec /bin/sh -c \
-        'printf "UNAME=%s\n" "$(uname -s)"; printf "CMDLINE="; cat /proc/cmdline; printf "TARGET="; cat /etc/wootc/native-target 2>/dev/null || true' \
-        2>/dev/null || true)
+    # A failed guest command cannot establish facts even with plausible stdout.
+    if ! P3_SNAPSHOT_SCRIPT=$(cat "$SCRIPT_DIR/phase3-snapshot.sh"); then
+        infra_fail "Could not read Phase 3 observation script"
+        exit 1
+    fi
+    if ! P3_NATIVE_PROOF=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        "$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot native 2>/dev/null); then
+        infra_fail "Phase 3 native boot observation command failed"
+        exit 1
+    fi
     printf '%s\n' "$P3_NATIVE_PROOF"
-    if ! echo "$P3_NATIVE_PROOF" | grep -q '^UNAME=Linux$'; then
-        fail "Phase 3 target did not boot Linux"
+    P3_PROOF_STATUS=0
+    P3_NATIVE_BOOT_ID=$(printf '%s' "$P3_NATIVE_PROOF" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" "$P3_TARGET") \
+        || P3_PROOF_STATUS=$?
+    if [ "$P3_PROOF_STATUS" -eq 3 ]; then
+        product_fail "Phase 3 native boot observations do not match the graduated target"
+        exit 1
+    elif [ "$P3_PROOF_STATUS" -ne 0 ]; then
+        infra_fail "Phase 3 native boot observations are unavailable or invalid"
         exit 1
     fi
-    if echo "$P3_NATIVE_PROOF" | grep -qE '^CMDLINE=.*(^| )(loop|wootc\.rootdisk)='; then
-        product_fail "Phase 3 reboot returned to loopback Phase 2 instead of the native disk"
-        exit 1
-    fi
-    if ! echo "$P3_NATIVE_PROOF" | grep -q "^TARGET=$P3_TARGET$"; then
-        product_fail "Phase 3 boot lacks the native-target identity written during graduation"
+    P3_NATIVE_PROOF_FILE="$ARTIFACT_DIR/phase3-native-observation.log"
+    if ! printf '%s\n' "$P3_NATIVE_PROOF" > "$P3_NATIVE_PROOF_FILE"; then
+        infra_fail "Could not retain current Phase 3 native observations"
         exit 1
     fi
     product_pass native-boot "Phase 3 native system booted from the graduated install (non-loopback)"
@@ -4675,18 +4752,25 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # unconfined context; /run is proven agent-readable (the Phase-3
     # graduation result travels the same way). Direct read kept as fallback
     # for unconfined-agent images.
-    P3_USERDATA=$(qga_call exec /bin/sh -c \
-        'cat /run/wootc-e2e-native-userdata 2>/dev/null; \
-         f=$(ls /home/wootc/Documents/wootc-e2e-userdata.txt /var/home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null | head -1); \
-         [ -n "$f" ] && { printf "SRC=%s\n" "$(findmnt -no SOURCE "$(df -P "$f" | awk "NR==2{print \$6}")" 2>/dev/null)"; cat "$f"; }; :' \
-        2>/dev/null || true)
-    if printf '%s' "$P3_USERDATA" | grep -q "$RUN_ID"; then
+    if ! P3_USERDATA=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        "$P3_SNAPSHOT_SCRIPT" wootc-phase3-snapshot userdata 2>/dev/null); then
+        infra_fail "Phase 3 native user-data observation command failed"
+        exit 1
+    fi
+    P3_USERDATA_STATUS=0
+    printf '%s' "$P3_USERDATA" | python3 "$SCRIPT_DIR/phase3-native-receipt.py" --userdata "$P3_NATIVE_PROOF_FILE" "$RUN_ID" "$P3_TARGET" "$P3_NATIVE_BOOT_ID" \
+        || P3_USERDATA_STATUS=$?
+    if [ "$P3_USERDATA_STATUS" -ne 0 ] && [ "$P3_USERDATA_STATUS" -ne 3 ]; then
+        infra_fail "Phase 3 user-data identity or ancestry is unavailable or invalid"
+        exit 1
+    elif [ "$P3_USERDATA_STATUS" -eq 0 ]; then
         product_pass native-user-data "User data survived to the native disk: $(printf '%s' "$P3_USERDATA" | grep '^SRC=' | head -1)"
     else
         product_fail "Seeded user data did NOT persist onto the native disk (wanted RUN_ID $RUN_ID)"
         printf '%s\n' "$P3_USERDATA" | sed 's/^/  /'
         exit 1
     fi
+
 else
     step "Rebooting Phase 2 Linux and verifying return to Windows..."
     # A guest-exec RPC accepting the request only proves a process SPAWNED —

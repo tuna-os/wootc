@@ -1,0 +1,17 @@
+=== RUN   TestStagedManifestRequiresEmbeddedKeySignature
+--- PASS: TestStagedManifestRequiresEmbeddedKeySignature (0.01s)
+=== RUN   TestInvalidLocalManifestDoesNotFallBackToNetwork
+--- PASS: TestInvalidLocalManifestDoesNotFallBackToNetwork (0.00s)
+=== RUN   TestReleaseWithdrawalDoesNotRevokeCachedSignedManifest
+--- PASS: TestReleaseWithdrawalDoesNotRevokeCachedSignedManifest (0.01s)
+PASS
+ok  	wootc	0.033s
+testing: warning: no tests to run
+PASS
+ok  	wootc/internal/artifactauth	0.004s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	wootc/tools/gendto	0.007s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	wootc/tools/signmanifest	0.003s [no tests to run]

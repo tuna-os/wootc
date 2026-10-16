@@ -1,0 +1,89 @@
+{
+  "sourceCommit": "630f2256e7a5bb015948d41dab771d86b10a8258",
+  "integratedMain": "4ea4d46e443ee3450b62275450c59394eaebc019",
+  "sources": {
+    "tests/e2e/lib/qga-transport.sh": "f418c0d75eabeae5720b53cd38f14e911bd3b1329eef30714fa6f3c46f49c729",
+    "tests/e2e/lib/gui-session.sh": "5cebaba9baafcb91951ac98152431f6f9515fe8fac26b68456561a91982f036a",
+    "tests/e2e/run-e2e.sh": "69bde656b6b14a5becdd1ad4bb17c6ac42ab03cdf639f50a052eb47f08ee61c0",
+    "tests/e2e/windows-boot-receipt.py": "07d201107b7aaeb8bd27c06c8d44237f1656f64cc492257f455997d58af66b97",
+    "tests/unit/test_windows_restart.py": "06755cd406efaa4506a0fe2cd74fc3152ba27532dfc1ea43311310fbf871e8f0",
+    "tests/unit/test_gui_session.py": "c5e506eb827c75993ff2dc53c5a805fbc5b3c31f5b7f6096e8b36a30e46b355a",
+    "tests/unit/phase2-windows-return.bats": "7c3f303e984cbb58d7f5bca6adb6f06d7d3a877a1d6652b1ff91f448aadfb8b2"
+  },
+  "changedSinceOriginalHostProof": [
+    "tests/e2e/run-e2e.sh"
+  ],
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_windows_restart.py"
+      ],
+      "exitCode": 0,
+      "stdout": "restart-main4ea.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "restart-main4ea.stderr.log",
+      "stderrSha256": "508451b5c7c1072d5c22a43f0381a10e540efad003f5a9ac6ccfd9ad230db7be"
+    },
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_session.py"
+      ],
+      "exitCode": 0,
+      "stdout": "gui-session-main4ea.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "gui-session-main4ea.stderr.log",
+      "stderrSha256": "c579672b38750e526c5a4c29a80d1efebad4d5527175b530504fd33879ee8aba"
+    },
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_drive_receipt.py"
+      ],
+      "exitCode": 0,
+      "stdout": "drive-receipt-main4ea.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "drive-receipt-main4ea.stderr.log",
+      "stderrSha256": "c20b84e6056fd97fa20c46d1729fac19b547359426baedefe37e392ce79388f1"
+    },
+    {
+      "argv": [
+        "bats",
+        "tests/unit/qga-channel-lost.bats",
+        "tests/unit/e2e-failure-ledger.bats"
+      ],
+      "exitCode": 0,
+      "stdout": "legacy-consumers-main4ea.stdout.log",
+      "stdoutSha256": "4206d81c8ac8a4567ebf0f4516174410bae5ba3f54bb546a3b617b754ca97c70",
+      "stderr": "legacy-consumers-main4ea.stderr.log",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "shellcheck",
+        "--severity=warning",
+        "tests/e2e/run-e2e.sh",
+        "tests/e2e/lib/qga-transport.sh",
+        "tests/e2e/lib/gui-session.sh"
+      ],
+      "exitCode": 0,
+      "stdout": "lint-main4ea.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "lint-main4ea.stderr.log",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_e2e_adapters.py"
+      ],
+      "exitCode": 0,
+      "stdout": "adapter-main4ea.stdout.log",
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "adapter-main4ea.stderr.log",
+      "stderrSha256": "fdabab64fc83ddd7ab927a70ad9c6e7c34505e7db0f0bd2df8cae1bf4c05f06c"
+    }
+  ],
+  "nativeLiteralParity": "Both native-tested literals and containing qga-transport.sh byte-identical; main integration changes runner drive receipt consumer, verified separately. Original proof bindings retained unchanged."
+}

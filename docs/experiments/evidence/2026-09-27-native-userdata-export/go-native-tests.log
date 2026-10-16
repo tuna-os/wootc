@@ -1,0 +1,35 @@
+1..34
+ok 1 E2E invokes go-native by absolute path under QGA's minimal PATH
+ok 2 go-native supplies sbin paths for GUI and QGA service environments
+ok 3 --phase3 provisions its dedicated blank target and handles none found
+ok 4 Phase-3 QGA uses the request-gated systemd boundary
+ok 5 Phase-3 dispatcher rechecks blank target before destructive gate
+ok 6 Phase-3 dispatcher runs NTFS shrink verification before migration
+ok 7 migrate --dual-boot on loopback describes the graduate stages and touches nothing
+ok 8 migrate --dual-boot with shrink fixture shows available space and safe defaults
+ok 9 migrate --dual-boot with dirty NTFS fixture shows the dirty-volume diagnostic
+ok 10 migrate --dual-boot with no-space NTFS fixture shows the nospace diagnostic
+ok 11 plan when already native says nothing to graduate
+ok 12 check reports loopback + counts converted folders, never touches disk
+ok 13 check verifies NTFS shrinkability when layout is discoverable
+ok 14 check warns on dirty NTFS but does not hard-block
+ok 15 migrate --reclaim REFUSES while still on loopback
+ok 16 migrate --reclaim REFUSES when no folders are verified native
+ok 17 migrate --execute REFUSES without WOOTC_GN_ALLOW_DESTRUCTIVE=1
+ok 18 migrate with no mode REFUSES
+ok 19 migrate --dual-boot (no --execute) is a dry run that touches no disk
+ok 20 Phase-3 plan uses recorded registry origin, not deployer-local derived tag
+ok 21 Phase-3 native install supplies the deployer-selected filesystem
+ok 22 Phase-3 home migration selects a partition, never the whole target disk
+ok 23 Phase-3 schedules and positively verifies the native boot
+ok 24 migrate --reclaim dry run (native + converted) prints IRREVERSIBLE plan, no disk touched
+ok 25 migrate REFUSES when the Windows disk cannot be located
+ok 26 status --json on loopback: canGraduate true, canReclaim false, touches nothing
+ok 27 status --json with shrink fixture reports ntfsShrinkable gate and safeGib
+ok 28 status --json native + converted folders: canReclaim true, folders listed
+ok 29 status --json native but NO converted folders: canReclaim false (data-safety gate)
+ok 30 migrate --to-disk REFUSES to install onto the Windows disk # skip no loop device
+ok 31 Phase-3 install uses fisherman podman-run mode with the origin image
+ok 32 Phase-3 post-install /etc writes target the deployment etc, not sysroot etc
+ok 33 Phase-3 recipe mirrors the running account into the native install
+ok 34 Phase-3 installs the /run userdata probe for the confined guest agent

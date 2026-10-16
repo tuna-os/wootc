@@ -1,0 +1,16 @@
+{
+  "acquisitionPerformed": false,
+  "cpus": 2,
+  "failure": "actual host resource gate failed",
+  "failureType": "ValueError",
+  "freeBytes": 36735197184,
+  "memAvailableBytes": 1473519616,
+  "qualified": false,
+  "runtimeExecuted": false,
+  "schemaVersion": 1,
+  "tools": {
+    "genisoimage": null,
+    "qemu-img": "/usr/bin/qemu-img",
+    "qemu-system-x86_64": "/usr/bin/qemu-system-x86_64"
+  }
+}

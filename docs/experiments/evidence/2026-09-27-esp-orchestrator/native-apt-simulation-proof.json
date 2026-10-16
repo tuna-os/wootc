@@ -1,0 +1,70 @@
+{
+  "actualPackageInstallation": false,
+  "aptSha256": "eb53b3b66cbb7a90a370e26439e941b7cf146ddd91a5422063c761ce9e59c53b",
+  "aptVersion": "apt 2.8.3 (amd64)",
+  "captures": [
+    {
+      "command": [
+        "/usr/bin/apt-get",
+        "--simulate",
+        "-o",
+        "Dir::Etc::sourcelist=/dev/null",
+        "-o",
+        "Dir::Etc::sourceparts=-",
+        "-o",
+        "Dir::State::lists=<owned-private>/lists",
+        "-o",
+        "Dir::State::status=<owned-private>/status",
+        "-o",
+        "Dir::Cache=<owned-private>/cache",
+        "--no-download",
+        "--no-install-recommends",
+        "--allow-downgrades",
+        "--yes",
+        "install",
+        "<owned-private>/fixture-package_2_amd64.deb",
+        "<owned-private>/fixture-data_2_all.deb"
+      ],
+      "phase": "old",
+      "returncode": 0,
+      "statusBeforeSha256": "3e343676444858cfb3e1f1f5eeee172f8642a8bff68a8333b3c3d1bc43b0fd3b",
+      "statusUnchanged": true,
+      "stderr": "W: Unable to read /etc/apt/-/ - DirectoryExists (2: No such file or directory)\nW: Unable to read /dev/null - RealFileExists (2: No such file or directory)\n",
+      "stdout": "NOTE: This is only a simulation!\n      apt-get needs root privileges for real execution.\n      Keep also in mind that locking is deactivated,\n      so don't depend on the relevance to the real current situation!\nReading package lists...\nBuilding dependency tree...\nReading state information...\nThe following packages will be REMOVED:\n  initramfs-tools\nThe following packages will be upgraded:\n  fixture-data fixture-package\n2 upgraded, 0 newly installed, 1 to remove and 0 not upgraded.\nRemv initramfs-tools [1]\nInst fixture-data [1] (2 local-deb [all])\nInst fixture-package [1] (2 local-deb [amd64])\nConf fixture-data (2 local-deb [all])\nConf fixture-package (2 local-deb [amd64])\n"
+    },
+    {
+      "command": [
+        "/usr/bin/apt-get",
+        "--simulate",
+        "-o",
+        "Dir::Etc::sourcelist=/dev/null",
+        "-o",
+        "Dir::Etc::sourceparts=-",
+        "-o",
+        "Dir::State::lists=<owned-private>/lists",
+        "-o",
+        "Dir::State::status=<owned-private>/status",
+        "-o",
+        "Dir::Cache=<owned-private>/cache",
+        "--no-download",
+        "--no-install-recommends",
+        "--allow-downgrades",
+        "--yes",
+        "install",
+        "<owned-private>/fixture-package_3_amd64.deb",
+        "<owned-private>/fixture-data_3_all.deb"
+      ],
+      "phase": "new",
+      "returncode": 0,
+      "statusBeforeSha256": "db4683b2722d0c12a3afea092a441cd91b61ad1bd404ddfc4ff5f8cc31744269",
+      "statusUnchanged": true,
+      "stderr": "W: Unable to read /etc/apt/-/ - DirectoryExists (2: No such file or directory)\nW: Unable to read /dev/null - RealFileExists (2: No such file or directory)\n",
+      "stdout": "NOTE: This is only a simulation!\n      apt-get needs root privileges for real execution.\n      Keep also in mind that locking is deactivated,\n      so don't depend on the relevance to the real current situation!\nReading package lists...\nBuilding dependency tree...\nReading state information...\nThe following packages will be upgraded:\n  fixture-data fixture-package\n2 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.\nInst fixture-data [2] (3 local-deb [all])\nInst fixture-package [2] (3 local-deb [amd64])\nConf fixture-data (3 local-deb [all])\nConf fixture-package (3 local-deb [amd64])\n"
+    }
+  ],
+  "firmwareAcceptance": false,
+  "reproductionCommand": "python3 -m unittest discover -s tests/unit -p test_wootc_package_consumer.py",
+  "retainedSolverComparison": "both successful original outputs refuse redundant unchanged reinstalls; exact-change subsets pass complete mutation grammar including transient dependency annotations",
+  "schemaVersion": 1,
+  "scope": "native unsigned fixture archives and private read-only apt simulation; no actual package installation, OS or firmware acceptance"
+}

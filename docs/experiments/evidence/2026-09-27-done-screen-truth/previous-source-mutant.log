@@ -1,0 +1,109 @@
+[WebServer] (node:3016533) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:3016552) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 gui.spec.js:72:1 › installer — done screen (5.6s)
+(node:3016693) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 gui.spec.js:93:1 › installer — session consent does not assert successful export (6.0s)
+
+
+  1) gui.spec.js:72:1 › installer — done screen ────────────────────────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('.done-title')
+    Expected: "TunaOS setup is ready"
+    Received: "TunaOS is ready!"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('.done-title')
+        12 × locator resolved to <div class="done-title">TunaOS is ready!</div>
+           - unexpected value "TunaOS is ready!"
+
+
+      78 |   await pw.nth(1).fill('hunter2');
+      79 |   await page.locator('#install-btn').click();
+    > 80 |   await expect(page.locator('.done-title')).toHaveText('TunaOS setup is ready', { timeout: 5000 });
+         |                                             ^
+      81 |   await expect(page.locator('.done-body')).toContainText('begin the Linux installation');
+      82 |   await expect(page.locator('.done-hero')).toContainText('Linux has not finished installing yet');
+      83 |   await expect(page.locator('.done-hero')).toContainText('Windows Boot Manager');
+        at /tmp/wootc-done-screen-truth/tests/gui/gui.spec.js:80:45
+
+    Error Context: .results/gui-installer-—-done-screen/error-context.md
+
+  2) gui.spec.js:93:1 › installer — session consent does not assert successful export ──────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('.done-hero')
+    Timeout: 5000ms
+    - Expected substring  -  1
+    + Received string     + 19
+
+    - App sign-in on Linux
+    +
+    +     🎉
+    +     TunaOS is ready!
+    +     
+    +       Yellowfin GNOME has been configured.
+    +       Click Reboot Now to start the setup. The first boot takes 5–15 minutes
+    +       while it downloads and installs TunaOS. After that, starting Linux is fast.
+    +     
+    +     
+    +       🛡️This is a one-time setup boot. If anything at all goes wrong,
+    +       your PC simply starts Windows again as normal — Windows stays your default
+    +       until Linux has proven it works. Your files aren't touched either way.
+    +     
+    +     
+    +     
+    +     
+    +       🔐Session keys staged: your opted-in session keys are safely staged. On Linux, you'll sign in once to connect your apps.
+    +     
+    +   
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for locator('.done-hero')
+        14 × locator resolved to <div class="done-hero">…</div>
+           - unexpected value "
+        🎉
+        TunaOS is ready!
+        
+          Yellowfin GNOME has been configured.
+          Click Reboot Now to start the setup. The first boot takes 5–15 minutes
+          while it downloads and installs TunaOS. After that, starting Linux is fast.
+        
+        
+          🛡️This is a one-time setup boot. If anything at all goes wrong,
+          your PC simply starts Windows again as normal — Windows stays your default
+          until Linux has proven it works. Your files aren't touched either way.
+        
+        
+        
+        
+          🔐Session keys staged: your opted-in session keys are safely staged. On Linux, you'll sign in once to connect your apps.
+        
+      "
+
+
+      101 |   await pw.nth(0).fill('hunter2'); await pw.nth(1).fill('hunter2');
+      102 |   await page.locator('#install-btn').click();
+    > 103 |   await expect(page.locator('.done-hero')).toContainText('App sign-in on Linux');
+          |                                            ^
+      104 |   await expect(page.locator('.done-hero')).not.toContainText('Session keys staged');
+      105 |   await expect(page.locator('.done-hero')).not.toContainText('safely staged');
+      106 |   await expect(page.getByText('Save any open work first', { exact: false })).toBeInViewport();
+        at /tmp/wootc-done-screen-truth/tests/gui/gui.spec.js:103:44
+
+    Error Context: .results/gui-installer-—-session-co-99193-ot-assert-successful-export/error-context.md
+
+  2 failed
+    gui.spec.js:72:1 › installer — done screen ─────────────────────────────────────────────────────
+    gui.spec.js:93:1 › installer — session consent does not assert successful export ───────────────

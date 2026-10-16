@@ -228,7 +228,9 @@ setup() {
     # 2. ...reports the mismatch so the harness can see it...
     grep -q 'imageMismatch' app/frontend/src/lib/e2e.js
     # ...and the harness fails FAST with both refs instead of timing out.
-    grep -q '"imageMismatch":true' tests/e2e/run-e2e.sh
+    # The scenario consumes a validated field; text in hint/error cannot
+    # impersonate it. The actual consumer/parser countercontrols execute below.
+    grep -q 'json.load(sys.stdin)\["imageMismatch"\] is True' tests/e2e/run-e2e.sh
     grep -q 'Drive mode cannot select the requested image' tests/e2e/run-e2e.sh
     # 3. Drive mode un-gates experimental images (the harness exists to test
     # images BEFORE they are green), so the requested card is selectable.
@@ -254,8 +256,8 @@ setup() {
     #    qga-channel-lost only when QGA does NOT answer (a stall with a live
     #    channel is the installer's fault), serial-feed-lost only when dracut
     #    output proves the deployer's userspace was alive on the dead feed.
-    grep -q 'note_flake "qga-channel-lost"' "$E2E"
-    grep -B3 'note_flake "qga-channel-lost"' "$E2E" | grep -q 'QGA does NOT answer ping'
+    grep -q 'note_flake "qga-channel-lost"' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh"
+    grep -B3 'note_flake "qga-channel-lost"' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh" | grep -q 'QGA does NOT answer ping'
     grep -q 'note_flake "serial-feed-lost"' "$E2E"
     grep -B2 'note_flake "serial-feed-lost"' "$E2E" | grep -q "grep -aq 'dracut-initqueue'"
     # 3. The reusable workflow surfaces the verdict as an output...
@@ -281,7 +283,27 @@ setup() {
     # stay as they were.
     local E2E=tests/e2e/run-e2e.sh
     grep -q '_ud_deadline=$(deadline_in 120)' "$E2E"
-    grep -B3 'cat.*USERDATA_PATH' "$E2E" | grep -q 'while ! past_deadline "$_ud_deadline"'
+    grep -B10 'cat.*USERDATA_PATH' "$E2E" | grep -q 'while ! past_deadline "$_ud_deadline"'
     grep -q 'WOOTC_AGENT_OK' "$E2E"
     grep -q 'User data NOT visible in Phase 2' "$E2E"
+}
+
+@test "the agent-answered gate is re-asked across the poll window, not one shot" {
+    # bazzite-deck (run 38832644743) recorded "the Phase-2 guest agent never
+    # answered" from a single probe taken the moment the passthrough scan
+    # ended. An agent that starts later in the window answered too; the gate
+    # must keep asking inside the same bounded loop, and a silent agent must
+    # leave the serial's view of it in the job log.
+    local E2E=tests/e2e/run-e2e.sh
+    loop=$(sed -n '/^while ! past_deadline "\$_ud_deadline"; do/,/^done/p' "$E2E")
+    printf '%s\n' "$loop" | grep -q "USERDATA_PROBE=\$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK'"
+    grep -A12 'Fix the agent in Phase 2' "$E2E" | grep -q "qemu-guest-agent|guest_agent|virtio.ports"
+}
+
+@test "a fisherman line on the serial proves the deployer started" {
+    # Run 38839917797 (bazzite-deck): the deployer booted and fisherman ran at
+    # t=385s, but no [wootc] line reached the serial before the 10-minute
+    # deployer-start deadline, so the harness failed a deploy that was running.
+    local E2E=tests/e2e/run-e2e.sh
+    grep -F 'grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true' "$E2E"
 }

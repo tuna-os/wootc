@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-27T12:23:58.278103+00:00",
+  "sourceCommit": "8598a7ee7432cf41ca1845c11a1c926161615240",
+  "scope": "Source-only mocked orchestration and owned temporary blocking runtimes; logical deadline cases use a virtual clock. No VM, real Windows restart, registry, service, account, or disk mutation. Native PowerShell observations are separately bound in native-provenance.json.",
+  "sources": {
+    "tests/e2e/lib/qga-transport.sh": "f418c0d75eabeae5720b53cd38f14e911bd3b1329eef30714fa6f3c46f49c729",
+    "tests/e2e/lib/gui-session.sh": "5cebaba9baafcb91951ac98152431f6f9515fe8fac26b68456561a91982f036a",
+    "tests/e2e/run-e2e.sh": "c74e8f35bb1f6ee07ff814b58120252821d79ede131381a8993c576efac68f4a",
+    "tests/e2e/windows-boot-receipt.py": "07d201107b7aaeb8bd27c06c8d44237f1656f64cc492257f455997d58af66b97",
+    "tests/unit/test_windows_restart.py": "06755cd406efaa4506a0fe2cd74fc3152ba27532dfc1ea43311310fbf871e8f0",
+    "tests/unit/test_gui_session.py": "c5e506eb827c75993ff2dc53c5a805fbc5b3c31f5b7f6096e8b36a30e46b355a",
+    "tests/unit/phase2-windows-return.bats": "7c3f303e984cbb58d7f5bca6adb6f06d7d3a877a1d6652b1ff91f448aadfb8b2"
+  },
+  "checks": [
+    {
+      "name": "restart-controls",
+      "argv": [
+        "python3",
+        "tests/unit/test_windows_restart.py"
+      ],
+      "exitCode": 0,
+      "log": "restart-controls.raw.log",
+      "sha256": "ae48cf6fa851b2f6fcb39306d2a39a0ab1f6e0fde538a0b8ced7076d2d0b6b6b"
+    },
+    {
+      "name": "gui-session-controls",
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_session.py"
+      ],
+      "exitCode": 0,
+      "log": "gui-session-controls.raw.log",
+      "sha256": "30838a8e3d0b28d0d5dfb4850c2213d39633817e38a8ac50fbd3f1193bfa72c4"
+    },
+    {
+      "name": "adapter-controls",
+      "argv": [
+        "python3",
+        "tests/unit/test_e2e_adapters.py"
+      ],
+      "exitCode": 0,
+      "log": "adapter-controls.raw.log",
+      "sha256": "1a5f63fbdec892ff1a9e41137fc5292a8cf1f755736035f9915da8a8a1eedb8a"
+    },
+    {
+      "name": "wait-consumer-bats",
+      "argv": [
+        "bats",
+        "tests/unit/phase2-windows-return.bats",
+        "tests/unit/e2e-deadlines.bats",
+        "tests/unit/qga-channel-lost.bats"
+      ],
+      "exitCode": 0,
+      "log": "wait-consumer-bats.raw.log",
+      "sha256": "218ef9ed0957e7f1d49796422f4e9fa857d3b110a0a568a4edd1a4ef58b3fdd8"
+    },
+    {
+      "name": "syntax",
+      "argv": [
+        "bash",
+        "-n",
+        "tests/e2e/lib/qga-transport.sh",
+        "tests/e2e/lib/gui-session.sh",
+        "tests/e2e/run-e2e.sh"
+      ],
+      "exitCode": 0,
+      "log": "syntax.raw.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "shellcheck",
+      "argv": [
+        "shellcheck",
+        "--severity=warning",
+        "tests/e2e/lib/qga-transport.sh",
+        "tests/e2e/lib/gui-session.sh",
+        "tests/e2e/run-e2e.sh"
+      ],
+      "exitCode": 0,
+      "log": "shellcheck.raw.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "nonGatingAudit": {
+    "argv": [
+      "shellcheck",
+      "tests/e2e/lib/qga-transport.sh",
+      "tests/e2e/lib/gui-session.sh",
+      "tests/e2e/run-e2e.sh"
+    ],
+    "exitCode": 1,
+    "log": "shellcheck-all-severities.raw.log",
+    "sha256": "37e74adb8403895b43d0b598dd9aca4ceda13b5c528b922d1eca8f460799eee6",
+    "note": "Informational findings retained; required repository lint uses severity=warning and passes."
+  },
+  "integratedMain": "123ac7e696bbcdb0527881cac4eda9080f979eda",
+  "integratedSourceCommit": "786810beca30a9d791e36de97372664966df2dec",
+  "integrationParity": "All seven tested source files byte-identical after main integration."
+}

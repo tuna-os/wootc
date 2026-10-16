@@ -76,13 +76,13 @@ setup() {
 
 @test "quiet-deploy heartbeat samples fisherman inside the guest through QGA" {
     grep -q 'qga_deployer_heartbeat()' "$E2E"
-    grep -q "python3 /tmp/qga.py exec /bin/sh" "$E2E"
+    grep -q "qga_call exec /bin/sh" "$E2E"
     grep -q 'phase=fisherman pid=.*workers=.*cpu_ticks=.*read_bytes=.*write_bytes=' "$E2E"
     grep -q 'fisherman.*podman.*bootc.*skopeo.*conmon' "$E2E"
 }
 
 @test "heartbeat is bounded and its thresholds are overridable" {
-    grep -q 'timeout "$WOOTC_E2E_HEARTBEAT_TIMEOUT_S"' "$E2E"
+    grep -q 'WOOTC_QGA_CALL_TIMEOUT="$WOOTC_E2E_HEARTBEAT_TIMEOUT_S" qga_call exec' "$E2E"
     grep -q 'WOOTC_E2E_HEARTBEAT_STALE_SAMPLES' "$E2E"
 }
 

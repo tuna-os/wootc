@@ -1,0 +1,40 @@
+Verified SHA256 41673f179fc4e392b56bd759c8b983e6a7d1ff2f1c6f0daea465e5f056410695
+=== RUN   TestVMOwnedJobReapsChildOnClose
+--- PASS: TestVMOwnedJobReapsChildOnClose (0.05s)
+=== RUN   TestVMEnvironmentDoesNotInheritUserPluginPaths
+--- PASS: TestVMEnvironmentDoesNotInheritUserPluginPaths (0.00s)
+=== RUN   TestVMReceiptRejectsProxySuccess
+=== RUN   TestVMReceiptRejectsProxySuccess/good
+=== RUN   TestVMReceiptRejectsProxySuccess/only-marker
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-run
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-image
+=== RUN   TestVMReceiptRejectsProxySuccess/wrong-disk
+=== RUN   TestVMReceiptRejectsProxySuccess/no-efi
+=== RUN   TestVMReceiptRejectsProxySuccess/duplicate
+=== RUN   TestVMReceiptRejectsProxySuccess/late-error
+=== RUN   TestVMReceiptRejectsProxySuccess/early-marker
+--- PASS: TestVMReceiptRejectsProxySuccess (0.01s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/good (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/only-marker (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-run (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-image (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/wrong-disk (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/no-efi (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/duplicate (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/late-error (0.00s)
+    --- PASS: TestVMReceiptRejectsProxySuccess/early-marker (0.00s)
+=== RUN   TestVMDurableStateAndNativeWriterGuard
+--- PASS: TestVMDurableStateAndNativeWriterGuard (0.04s)
+=== RUN   TestManagedVMShutdownContract
+=== RUN   TestManagedVMShutdownContract/clean
+=== RUN   TestManagedVMShutdownContract/host
+=== RUN   TestManagedVMShutdownContract/crash
+=== RUN   TestManagedVMShutdownContract/hung
+--- PASS: TestManagedVMShutdownContract (0.84s)
+    --- PASS: TestManagedVMShutdownContract/clean (0.21s)
+    --- PASS: TestManagedVMShutdownContract/host (0.16s)
+    --- PASS: TestManagedVMShutdownContract/crash (0.16s)
+    --- PASS: TestManagedVMShutdownContract/hung (0.31s)
+=== RUN   TestVMRuntimeRequiresCompleteSignedClosure
+--- PASS: TestVMRuntimeRequiresCompleteSignedClosure (0.05s)
+PASS

@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "tests/unit/test_wootc_package_consumer.py", line 324, in test_owned_descendant_cannot_hold_status_pipe_past_deadline
+    state = status.read_text().split(') ')[1]
+            ~~~~~~~~~~~~~~~~^^
+  File "<stdin>", line 9, in observed
+ProcessLookupError: [Errno 3] controlled process disappeared

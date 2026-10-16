@@ -1,0 +1,9 @@
+1..8
+ok 1 run-e2e.sh is syntactically valid
+ok 2 the ssh image is built BEFORE compose needs it
+ok 3 a failed image build aborts instead of proceeding
+ok 4 the build is verified to have actually produced the image
+ok 5 compose_up_windows's return value is NOT ignored
+ok 6 container existence is verified even when compose reports success
+ok 7 the failure message names the actual cause and the fix
+ok 8 startup failure exits rather than falling through to the QEMU wait

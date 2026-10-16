@@ -1,0 +1,6 @@
+{"jsonrpc":"2.0","method":"vm:progress","params":{"stage":"pulling","percent":0,"message":"Preparing your persistent Linux system. Windows will remain available."}}
+{"jsonrpc":"2.0","method":"vm:progress","params":{"stage":"pulling","percent":10,"message":"Downloading the operating system image…"}}
+{"jsonrpc":"2.0","method":"vm:progress","params":{"stage":"installing","percent":60,"message":"Installing onto the Linux disk…"}}
+{"jsonrpc":"2.0","method":"vm:progress","params":{"stage":"finalizing","percent":95,"message":"Finishing up…"}}
+{"jsonrpc":"2.0","method":"vm:progress","params":{"stage":"started","percent":0,"message":"Your persistent Linux VM is running. Desktop and account readiness are not yet verified."}}
+{"jsonrpc":"2.0","method":"vm:progress","params":{"stage":"stopped","percent":0,"message":""}}

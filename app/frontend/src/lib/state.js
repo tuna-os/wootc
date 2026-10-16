@@ -20,6 +20,7 @@ export const state = {
   look: null,
   converting: {},      // category id → percent while a conversion runs
   selected: null,      // selected Image
+  installSpace: null,  // GetInstallSpace answer for the selected image
   config: {
     diskSizeGB: 40,
     username: '',
@@ -29,7 +30,10 @@ export const state = {
     // picks the chain. 'systemd-boot' is the only explicit override the UI
     // offers (Advanced → Force systemd-boot).
     bootloader: 'auto',
-    encryption: 'tpm2-luks',
+    // 'none' until TPM auto-unlock works end to end (#551, #33): the
+    // deployer cannot open a TPM-sealed root to verify it, and the user is
+    // never shown the recovery key.
+    encryption: 'none',
     luksPassphrase: '',
     // ON by default: everything safe to migrate comes along (wallpaper,
     // accent, keyboard layout, pins, shortcuts) — Advanced holds the

@@ -1,0 +1,81 @@
+NATIVE_POWERSHELL 5.1.26100.9444
+SOURCE tests/e2e/fixture-bitlocker-key.ps1 RAW_SHA256 fa9c9901ff3488e23e3e0b866ea8842af569404481074238e94ef0df161a9f45 STAGED_SHA256 7d70cbcf9d2f67470f86b9a42c9370ee375e0c4d1246048a2d337370ece38878
+SOURCE tests/e2e/fixture-bitlocker-protection.ps1 RAW_SHA256 8973a28a75e18361822bf7b8b879b9527c9421b3d819ff115936aa060e8c9f4a STAGED_SHA256 cbbdf64bcb2bfbd6cb4631a50f08dce4d2f3d2a5c66f93501178b3dfa7d3192c
+SOURCE tests/e2e/fixture-bitlocker-key.tests.ps1 RAW_SHA256 36ea43ee821b01a055c07401adbf8140223711288a1f3e187565ab4598fdba6c STAGED_SHA256 a526afb7e181c2e572b0212aaeabec96f99603c867a96d32ffb5670047e07be2
+SOURCE tests/e2e/fixture-bitlocker-protection.tests.ps1 RAW_SHA256 c449029201f8982b6dc9385354bc2d27bc0c1a11b64c268994c3939f3e7fd156 STAGED_SHA256 ac3d013ff5d98fa7d81f8150656d210b5585adbbcbd378270090804d3d48507c
+SOURCE tests/e2e/fixture-bitlocker-diagnostics.tests.ps1 RAW_SHA256 9910053784a6875f4f6f13a75888b120731c6c502ba0cfb78d57dfc96535bffb STAGED_SHA256 7343dc8c4841503fba57d3c5ba7be893f95828169f44db320e9df61cceedb78d
+SOURCE tests/lint-ps1.ps1 RAW_SHA256 6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf STAGED_SHA256 f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8
+  ok C:\WINDOWS\TEMP\wootc-activation-diagnostic-e962ceee40b04214a67003a90c48d8c1\wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-0.ps1
+  ok C:\WINDOWS\TEMP\wootc-activation-diagnostic-e962ceee40b04214a67003a90c48d8c1\wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-1.ps1
+  ok C:\WINDOWS\TEMP\wootc-activation-diagnostic-e962ceee40b04214a67003a90c48d8c1\wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-2.ps1
+  ok C:\WINDOWS\TEMP\wootc-activation-diagnostic-e962ceee40b04214a67003a90c48d8c1\wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-3.ps1
+  ok C:\WINDOWS\TEMP\wootc-activation-diagnostic-e962ceee40b04214a67003a90c48d8c1\wootc-activation-diagnostic-d6732cb6e31144e4b8eeac83a4d7b8cd-4.ps1
+PowerShell lint passed
+PASS synthetic recovery material suppressed from success/warning/information streams and transcript
+PASS missing protector created and private key verified
+PASS exported key is 55 canonical ASCII characters with seven separators and CRLF, no BOM
+PASS existing protector reused
+bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"create-recovery","failureKind":"operation-error","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+PASS creation failure stops and removes stale key
+bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"validate-recovery","failureKind":"policy-refusal","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+PASS refresh refuses missing protector
+bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"validate-recovery","failureKind":"policy-refusal","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+PASS malformed password refused
+bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"validate-volume","failureKind":"policy-refusal","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+PASS plaintext fixture refused
+bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"protect-key","failureKind":"operation-error","nativeExitCode":5,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+PASS permission failure stops and removes key
+PASS actual old-behavior mutant exposes synthetic warning through native transcript
+PASS six enrollment/activation paths including no existing protectors and already-on no mutation
+PASS 30 state/identity/TPM/export/enrollment/activation refusal controls; no secrets emitted
+PASS actual private pipeline resolves three BitLocker cmdlets and Get-Tpm from Windows system modules without invoking them
+BEGIN diagnostic case alreadyOn
+PUBLIC_READY_BEFORE bitlocker-fixture-metadata {"schemaVersion":1,"stage":"before","mountPoint":"C:","volumeStatus":"FullyEncrypted","percentage":100,"protection":"On","tpmPresent":true,"tpmReady":true,"protectors":[{"id":"11111111-1111-4111-8111-111111111111","type":"RecoveryPassword"},{"id":"22222222-2222-4222-8222-222222222222","type":"Tpm"}]}
+PUBLIC_READY_FINAL {"schemaVersion":1,"mountPoint":"C:","volumeStatus":"FullyEncrypted","percentage":100,"protection":"On","tpmPresent":true,"tpmReady":true,"protectors":[{"id":"11111111-1111-4111-8111-111111111111","type":"RecoveryPassword"},{"id":"22222222-2222-4222-8222-222222222222","type":"Tpm"}],"ready":true}
+PASS actual private boundary preserves observed ready JSON and zero unnecessary enrollment/activation
+BEGIN diagnostic case queryWin32
+PASS diagnostic case queryWin32
+BEGIN diagnostic case paused
+PASS diagnostic case paused
+BEGIN diagnostic case exportWin32
+PASS diagnostic case exportWin32
+BEGIN diagnostic case enrollWin32
+PASS diagnostic case enrollWin32
+BEGIN diagnostic case resumeCom
+PASS diagnostic case resumeCom
+BEGIN diagnostic case keyWrite
+PASS diagnostic case keyWrite
+BEGIN diagnostic case keyNativeExit
+PASS diagnostic case keyNativeExit
+BEGIN diagnostic case keyAclRead
+PASS diagnostic case keyAclRead
+BEGIN diagnostic case keyAclPolicy
+PASS diagnostic case keyAclPolicy
+BEGIN diagnostic case keyRead
+PASS diagnostic case keyRead
+BEGIN diagnostic case keyMismatch
+PASS diagnostic case keyMismatch
+BEGIN diagnostic case keyCleanup
+PASS diagnostic case keyCleanup
+BEGIN diagnostic case brokenDiagnostic
+PASS diagnostic case brokenDiagnostic
+BEGIN diagnostic case writerFailure
+PASS diagnostic case writerFailure
+BEGIN diagnostic case receiptOversized
+PASS hostless boundary rejects unsafe record receiptOversized
+BEGIN diagnostic case receiptMalformed
+PASS hostless boundary rejects unsafe record receiptMalformed
+BEGIN diagnostic case prefixSecret
+PASS hostless boundary rejects unsafe record prefixSecret
+BEGIN diagnostic case malformedRecord
+PASS hostless boundary rejects unsafe record malformedRecord
+BEGIN diagnostic case unknownRecord
+PASS hostless boundary rejects unsafe record unknownRecord
+BEGIN diagnostic case duplicateRecord
+PASS hostless boundary rejects unsafe record duplicateRecord
+BEGIN diagnostic case receiptRefusal
+PASS diagnostic case receiptRefusal
+PASS exclusive receipt creation refuses same-run collision and preserves original bytes
+PASS durable before receipts validated and untrusted receipt ACL refuses all mutations
+PASS actual transcript rejects public sensitive strings, key output, warnings, information, original errors and cleanup errors
+PASS native isolated activation failure diagnostics

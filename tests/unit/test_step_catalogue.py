@@ -99,9 +99,7 @@ if wootc_phase_record passed fisherman 'proxy completion'; then exit 6; fi
         self.assertEqual(self.generate().returncode, 0)
         ledger = self.root / 'chunk-ledger.jsonl'
         runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
-        start = runner.index('qga_windows_probe() {')
-        end = runner.index('\n}', start) + 2
-        probe = runner[start:end]
+        probe = 'source "' + str(ROOT / 'tests/e2e/lib/qga-transport.sh') + '"\n'
         script = r'''source "$1"; source "$2"
 WOOTC_PHASE_LEDGER="$3"; RUN_ID=test-run
 wootc_phase_observe_output $'[wootc] phase: fisherman\n' || exit 1
@@ -115,8 +113,8 @@ wootc_phase_boundary
 [ -z "$WOOTC_CURRENT_PHASE_ID$WOOTC_PHASE_CARRY" ] || exit 8
 wootc_phase_observe_output $'phase: firstboot-evidence\n' || exit 9
 [ "$WOOTC_CURRENT_PHASE_ID" = firstboot-evidence ] || exit 10
-qga_powershell() { printf '%s\n' Windows_NT; }
 ''' + probe + r'''
+qga_powershell() { printf '%s\n' Windows_NT; }
 qga_windows_probe || exit 11
 [ -z "$WOOTC_CURRENT_PHASE_ID$WOOTC_PHASE_CARRY" ] || exit 12
 wootc_phase_observe_output "$(printf '%4097s' x)" && exit 13

@@ -223,8 +223,12 @@ setup() {
     # and "making these failures fatal broke deploys that worked". The gate must
     # therefore test exactly what ensure_ntfs_support tests — including the
     # CONFIG_NTFS3_FS grep — or it will refuse deploys that work.
-    run grep -c 'CONFIG_NTFS3_FS=\[ym\]' "$DEPLOY"
-    [ "$output" -ge 2 ]
+    # One named test string, NTFS_DRIVER_PROBE, run by both call sites, so the
+    # two cannot drift apart (see tests/unit/deployer-injected-tools.bats).
+    grep -q '^NTFS_DRIVER_PROBE=.*' "$DEPLOY"
+    sed -n "/^NTFS_DRIVER_PROBE='/,/'\$/p" "$DEPLOY" | grep -q 'CONFIG_NTFS3_FS=\[ym\]'
+    run grep -c 'probe_image "\$NTFS_DRIVER_PROBE"' "$DEPLOY"
+    [ "$output" -eq 2 ]
 }
 
 @test "ntfs-3g injection acquires the image before running dnf in it" {

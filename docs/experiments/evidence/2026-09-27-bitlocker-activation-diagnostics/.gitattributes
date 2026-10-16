@@ -1,0 +1,3 @@
+*.raw.log -text -diff
+*.raw.stderr -text -diff
+public-direct-transcript.txt -text -diff

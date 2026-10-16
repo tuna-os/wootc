@@ -24,6 +24,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
+    MODULE="$REPO_ROOT/tests/e2e/lib/vm-start.sh"
 }
 
 @test "run-e2e.sh is syntactically valid" {
@@ -32,16 +33,16 @@ setup() {
 }
 
 @test "the ssh image is built BEFORE compose needs it" {
-    grep -q '^ensure_ssh_image()' "$E2E"
+    grep -q '^ensure_ssh_image()' "$MODULE"
     # called at the top of compose_up_windows, before pick_free_ports
     local body
-    body=$(sed -n '/^compose_up_windows()/,/^}/p' "$E2E")
+    body=$(sed -n '/^compose_up_windows()/,/^}/p' "$MODULE")
     echo "$body" | grep -q 'ensure_ssh_image || return 1'
 }
 
 @test "a failed image build aborts instead of proceeding" {
     local body
-    body=$(sed -n '/^ensure_ssh_image()/,/^}/p' "$E2E")
+    body=$(sed -n '/^ensure_ssh_image()/,/^}/p' "$MODULE")
     echo "$body" | grep -q 'build-ssh-image.sh failed'
     echo "$body" | grep -q 'return 1'
 }
@@ -49,7 +50,7 @@ setup() {
 @test "the build is verified to have actually produced the image" {
     # A build script exiting 0 without producing the image is the same class of
     # lie as compose exiting 0 without creating the container.
-    sed -n '/^ensure_ssh_image()/,/^}/p' "$E2E" | grep -q 'build completed but .* still absent'
+    sed -n '/^ensure_ssh_image()/,/^}/p' "$MODULE" | grep -q 'build completed but .* still absent'
 }
 
 @test "compose_up_windows's return value is NOT ignored" {
@@ -62,7 +63,7 @@ setup() {
 @test "container existence is verified even when compose reports success" {
     # podman-compose can exit 0 without creating the container, so the exit
     # status alone is not evidence.
-    grep -q 'container exists "\$CONTAINER_NAME"' "$E2E"
+    grep -q 'wootc_vm_call container exists "\$CONTAINER_NAME"' "$E2E"
     grep -q 'compose reported success but' "$E2E"
 }
 

@@ -104,7 +104,7 @@ setup() {
     # A wall-clock deadline cannot rescue a loop whose body never returns.
     # An unbounded `podman exec` froze two runners for 20+ minutes with their
     # progress line stuck, while the script still showed as running.
-    grep -q 'timeout "$timeout_s" $DOCKER exec' "$E2E"
+    grep -q 'timeout "$timeout_s".*WOOTC_QGA_RUNTIME.*exec' "$REPO_ROOT/tests/e2e/lib/qga-transport.sh"
 }
 
 @test "the QGA call timeout is overridable for slow hosts" {
@@ -124,7 +124,7 @@ setup() {
     # installed before host_preflight runs.
     local early_trap preflight_call full_trap
     early_trap=$(grep -nm1 "^trap '.*run_state \"exited" "$E2E" | cut -d: -f1)
-    preflight_call=$(grep -nm1 '^host_preflight || exit 1' "$E2E" | cut -d: -f1)
+    preflight_call=$(grep -nm1 '^host_preflight .* || exit 1' "$E2E" | cut -d: -f1)
     full_trap=$(grep -nm1 '^trap cleanup EXIT' "$E2E" | cut -d: -f1)
     [ -n "$early_trap" ] && [ -n "$preflight_call" ] && [ -n "$full_trap" ]
     [ "$early_trap" -lt "$preflight_call" ]

@@ -77,8 +77,33 @@ test('installer — done screen', async ({ page }) => {
   await pw.nth(0).fill('hunter2');
   await pw.nth(1).fill('hunter2');
   await page.locator('#install-btn').click();
-  await expect(page.locator('.done-title')).toContainText('ready', { timeout: 5000 });
+  await expect(page.locator('.done-title')).toHaveText('TunaOS setup is ready', { timeout: 5000 });
+  await expect(page.locator('.done-body')).toContainText('begin the Linux installation');
+  await expect(page.locator('.done-hero')).toContainText('Linux has not finished installing yet');
+  await expect(page.locator('.done-hero')).toContainText('Windows Boot Manager');
+  await expect(page.locator('.done-hero')).toContainText('keep its recovery key available');
+  await expect(page.locator('.done-hero')).not.toContainText('5–15 minutes');
+  await expect(page.locator('.done-hero')).not.toContainText('anything at all');
+  await expect(page.locator('.done-hero')).not.toContainText("Your files aren't touched");
+  await expect(page.getByRole('button', { name: 'Reboot Now →' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reboot Later' })).toBeVisible();
   await shot(page, '04-done');
+});
+
+test('installer — session consent does not assert successful export', async ({ page }) => {
+  const steps = [{ step: 'done', message: 'Preparation complete.', percent: 100, done: true }];
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps,
+    sessionCandidates: [{ app: 'firefox', portable: true, recommend: 'copy', note: 'Public fixture candidate' }] });
+  await page.locator('details:has-text("Advanced") summary').click();
+  await page.locator('label').filter({ hasText: 'Public fixture candidate' }).locator('input[type=checkbox]').check();
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2'); await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.done-hero')).toContainText('App sign-in on Linux');
+  await expect(page.locator('.done-hero')).not.toContainText('Session keys staged');
+  await expect(page.locator('.done-hero')).not.toContainText('safely staged');
+  await expect(page.getByText('Save any open work first', { exact: false })).toBeInViewport();
 });
 
 test('control panel — partition-aware uninstall options', async ({ page }) => {
@@ -194,17 +219,20 @@ test('installer — BitLocker offers unencrypted-partition path (no forced decry
   await shot(page, '08-bitlocker');
 });
 
-test('installer — LUKS encryption options (§2.6) with TPM recommended', async ({ page }) => {
+test('installer — LUKS encryption options (§2.6), TPM not offered yet', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
-  // Encryption defaults to TPM auto-unlock and is not a main-form question —
-  // the three radio options live under Advanced.
+  // Encryption defaults to none and is not a main-form question — the three
+  // radio options live under Advanced. TPM auto-unlock is shown but disabled
+  // until the install can verify a TPM-sealed disk (#551).
   await page.locator('details:has-text("Advanced") summary').click();
   await expect(page.getByText('Disk Encryption')).toBeVisible();
   await expect(page.getByText('No encryption')).toBeVisible();
   await expect(page.getByText('TPM auto-unlock')).toBeVisible();
   await expect(page.getByText('RECOMMENDED', { exact: true })).toBeVisible();
+  await expect(page.locator('input[name=encryption][value=none]')).toBeChecked();
+  await expect(page.locator('input[name=encryption][value=tpm2-luks]')).toBeDisabled();
   await expect(page.getByText('Passphrase')).toBeVisible();
-  // Default is TPM auto-unlock; no passphrase field shown.
+  // Default is no encryption; no passphrase field shown.
   const passCount = await page.locator('input[type="password"]').count();
   // There should be exactly 2 password fields: Password + Confirm (no LUKS passphrase)
   expect(passCount).toBe(2);
@@ -233,6 +261,20 @@ test('branding — partner re-skin applies theme + copy', async ({ page }) => {
     getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
   expect(accent).toBe('#e6007a');
   await shot(page, '07-branded');
+});
+
+test('title bar shows the build version the backend reports, never a made-up one', async ({ page }) => {
+  // The version is the release tag linked into the exe (buildVersion() in
+  // branding_policy.go). The frontend must print exactly that, and when the
+  // backend cannot answer it must print nothing rather than the old
+  // hard-coded "0.1.0".
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    brand: { name: 'TunaOS', productName: 'wootc', logoEmoji: '🐠', version: 'v0.4.0', installVerb: 'Install' } });
+  await expect(page.locator('.titlebar-version')).toHaveText('v0.4.0');
+
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, brandFailure: true });
+  await expect(page.locator('.titlebar-name')).toBeVisible();
+  await expect(page.locator('.titlebar-version')).toHaveText('');
 });
 
 test('branding — a brand build wears real assets, not the wootc name', async ({ page }) => {
@@ -345,7 +387,7 @@ test('installer — identity stays on the main form when it cannot be derived', 
 // The bare-minimum contract: the default form asks for nothing a Mac's
 // first-run setup would not ask — a password, full stop. Everything else is
 // a solid default (identity mirrored from the PC, disk sized from free
-// space, TPM encryption, Windows look and Wi-Fi brought along), stated in
+// space, no disk encryption, Windows look and Wi-Fi brought along), stated in
 // the plan note and adjustable under Advanced rather than asked up front.
 test('installer — the default form asks for a password and nothing else', async ({ page }) => {
   await boot(page, {
@@ -450,6 +492,83 @@ test('disk size larger than C: can hold gates the install button', async ({ page
   await expect(page.locator('#install-hint')).toContainText('Free up some space');
 });
 
+// The deployer's container scratch lands on the same drive as root.disk and
+// grows with the image (3.5x its compressed layers + 4 GiB, floor 20 GiB):
+// bazzite-deck needs about 27 GiB of it. E2E run 38821484138 offered a 40 GB
+// disk on ~65 GB free, the install passed on Windows, and the deployer then
+// refused after the reboot. The form must leave room for the image's reserve.
+test('a large image lowers the largest disk the form offers', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 60 },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } } });
+  // 60 GB free - 29 GB reserve = 31 GB; the 40 GB default steps down to 30.
+  await expect(page.locator('#disk-size')).toHaveAttribute('max', '31');
+  await expect(page.locator('#disk-size')).toHaveValue('30');
+  await expect(page.locator('#disk-free-note')).toContainText('about 29 GB while it runs');
+  await expect(page.locator('#plan-note')).toContainText('30 GB');
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await expect(page.locator('#install-btn')).toBeEnabled();
+});
+
+test('no disk fits beside a large image: the hint names the working space', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 45 },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } } });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  // 45 - 29 = 16 GB, below the 20 GB minimum. Without the reserve the old
+  // 15 GB headroom would have offered 30 GB here.
+  await expect(page.locator('#install-btn')).toBeDisabled();
+  await expect(page.locator('#install-hint')).toContainText('about 29 GB of working space to unpack TunaOS');
+  await expect(page.locator('#install-hint')).toContainText('Free up some space');
+});
+
+// E2E run 38829556660: the drive clicked Install with the 35 GB the form
+// offered before bazzite-deck's 29 GB reserve arrived, and StartInstall
+// refused it. The button waits for the engine's answer.
+test('Install waits for the image reserve before it can start', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await page.addInitScript(() => { window.__wootcHoldInstallSpace = true; });
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 60 },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } } });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await expect(page.locator('#install-btn')).toBeDisabled();
+  await expect(page.locator('#install-hint')).toContainText('Checking how much space');
+  await page.evaluate(() => window.__wootcReleaseInstallSpace());
+  await expect(page.locator('#install-btn')).toBeEnabled();
+  await expect(page.locator('#disk-size')).toHaveValue('30');
+});
+
+// The BitLocker path carves a new volume for root.disk; the deployer's
+// scratch lands there too, so the carve must hold both or StartInstall
+// refuses the volume it was just given.
+test('BitLocker carve holds the Linux disk and the install reserve', async ({ page }) => {
+  const ref = IMAGES[0].imageRef;
+  await boot(page, { mode: 'installer', images: IMAGES,
+    sysinfo: { ...SYSINFO, freeDiskGB: 214, bitLockerOn: true, bitLockerState: 'on', dataPartitions: [] },
+    installSpace: { [ref]: { compressedBytes: 6757057180, sizeSource: 'registry', scratchGiB: 27, bundleGiB: 0, reserveGiB: 29 } },
+    installSteps: INSTALL_STEPS });
+  // 214 GB free → the default 105 GB disk; + 29 GB reserve + 1 GB for NTFS.
+  await expect(page.getByText(/Shrinks C: by 135 GB/)).toBeVisible();
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect.poll(() => page.evaluate(() => window.__wootcCarveSizes)).toEqual([135]);
+});
+
 // A failed attempt must greet the user as a failed attempt — with the calm
 // truth — not with silence or "an existing installation was found".
 test('a failed last run is acknowledged on relaunch', async ({ page }) => {
@@ -457,6 +576,54 @@ test('a failed last run is acknowledged on relaunch', async ({ page }) => {
     lastRun: { state: 'failed', phase: 'Making room for Linux', error: 'disk full' } });
   await expect(page.locator('body')).toContainText("didn't finish");
   await expect(page.locator('body')).toContainText('Nothing outside the installation folder was changed');
+});
+
+// An interrupted attempt (#287) greets the relaunch with how it ended, the
+// last finished step, and only the actions the backend allowed.
+const PULL_INTERRUPTED = {
+  class: 'resumable', cause: 'interrupted', imageRef: IMAGES[1].imageRef,
+  lastCompletedStep: 'Downloading Linux', stoppedAtStep: 'Downloading your Linux system',
+  title: 'Setup stopped unexpectedly',
+  message: 'wootc closed or the computer lost power before setup finished.',
+  actions: { resumeInstall: true, retryDeploy: false, repairBoot: false, remove: true },
+  recommended: 'resume', discardsRootDisk: true, keepsVerifiedBlobs: 3, keepsVerifiedBytes: 3 * 1024 ** 3,
+  evidence: ['journal.json: outcome "running", process 4242 no longer running', '<img src=x onerror=window.evidenceInjected=true>'],
+};
+
+test('an interrupted install offers to continue from the kept download', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installRecovery: PULL_INTERRUPTED });
+  const screen = page.locator('#interrupted-screen');
+  await expect(screen).toContainText('Setup stopped unexpectedly');
+  await expect(screen).toContainText('wootc closed or the computer lost power');
+  await expect(screen).toContainText('Last finished step: Downloading Linux');
+  await expect(screen).toContainText('Stopped during: Downloading your Linux system');
+  await expect(screen).toContainText('Kept: 3.0 GB');
+  await expect(page.getByRole('button', { name: /Repair boot/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Try again/ })).toHaveCount(0);
+  expect(await page.evaluate(() => window.evidenceInjected)).toBeUndefined();
+  await page.getByRole('button', { name: /Continue setup/ }).click();
+  await expect(page.locator('#install-btn')).toBeVisible();
+  expect(await page.evaluate(() => window.__wootcPrepareResumeCalls)).toBe(1);
+});
+
+test('an install stopped inside the boot steps only offers removal', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installRecovery: {
+    ...PULL_INTERRUPTED, class: 'needs-repair', cause: 'cancelled',
+    lastCompletedStep: 'Preparing the startup menu', stoppedAtStep: 'Getting Linux prepared',
+    title: 'Setup stopped while changing the startup files',
+    actions: { resumeInstall: false, retryDeploy: false, repairBoot: false, remove: true },
+    recommended: 'remove' } });
+  await expect(page.locator('#interrupted-screen')).toContainText('How it ended: you cancelled it.');
+  await expect(page.getByRole('button', { name: /Remove/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Continue setup/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Repair boot/ })).toHaveCount(0);
+});
+
+test('a complete install never shows the interrupted screen', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    installRecovery: { class: 'complete', cause: 'awaiting-restart', actions: { remove: true } } });
+  await expect(page.locator('#install-btn')).toBeVisible();
+  await expect(page.locator('#interrupted-screen')).toHaveCount(0);
 });
 
 // Once the deployer has completed, the control panel closes the post-deploy
@@ -533,7 +700,8 @@ async function bootProofPanel(page) {
 }
 async function requestBootProof(page, expected = UI_BOOT_FACTS, nonce = 'fresh-ui-nonce') {
   await page.evaluate(({ expected, nonce }) => {
-    window.__WOOTC_MOCK.driveDirective = { action: 'verify-installed-boot', runId: 'current-run', nonce, expected };
+    window.__WOOTC_MOCK.driveDirective = { schemaVersion: 1, runId: 'current-run',
+      directiveId: '0123456789abcdef0123456789abcdef', action: 'verify-installed-boot', nonce, expected };
   }, { expected, nonce });
   await expect.poll(() => page.evaluate(() => window.__e2eLatestReport?.installedBootVerification?.nonce)).toBe(nonce);
   return page.evaluate(() => window.__e2eLatestReport.installedBootVerification);
@@ -609,4 +777,150 @@ test('last-run phase display uses its backend label safely', async ({ page }) =>
     lastRun: { state: 'failed', phaseId: id, phase: 'legacy diagnostic' } });
   await expect(page.locator('body')).toContainText(label);
   expect(await page.evaluate(() => window.phaseInjected)).toBeUndefined();
+});
+
+test('VM-first account flow uses only implemented choices and supports clean restart', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: true, probeStatus: 'passed' }, vm: { available: true } });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const password = page.locator('input[type=password]');
+  await password.nth(0).fill('temporary-test-password');
+  await password.nth(1).fill('different');
+  await expect(page.locator('#vm-prepare-btn')).toBeDisabled();
+  await password.nth(1).fill('temporary-test-password');
+  await expect(page.locator('#vm-prepare-btn')).toHaveClass(/btn-primary/);
+  await expect(page.locator('#plan-note')).toContainText('apply only to installation with a reboot');
+  await page.locator('#vm-prepare-btn').click();
+  await expect(page.getByRole('heading', { name: 'Linux is starting' })).toBeVisible();
+  const calls = await page.evaluate(() => window.__wootcVMCalls);
+  expect(calls[0][0]).toBe('prepare');
+  expect(calls[0][1].username).toBe('alice');
+  expect(calls[0][1].password).toBe('temporary-test-password');
+  expect(Object.keys(calls[0][1]).sort()).toEqual(['imageRef', 'password', 'username']);
+  await expect(page.locator('body')).not.toContainText('temporary-test-password');
+  await page.getByRole('button', { name: 'Shut down Linux', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Start Linux again' })).toBeVisible();
+  await page.getByRole('button', { name: 'Start Linux again' }).click();
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['prepare', 'stop', 'boot']);
+});
+
+test('VM-first action shows the next required account detail', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    freshVm: { available: true, probeStatus: 'passed' } });
+
+  const vmButton = page.locator('#vm-prepare-btn');
+  const vmHint = page.locator('#vm-prepare-hint');
+  await expect(vmButton).toBeInViewport();
+  await expect(vmButton).toBeDisabled();
+  await expect(vmButton).toHaveText(/Start .* in a window/);
+  await expect(vmButton).toHaveAttribute('aria-describedby', 'vm-prepare-hint');
+  await expect(vmHint).toHaveAttribute('role', 'status');
+  await expect(vmHint).toHaveAttribute('aria-live', 'polite');
+  await expect(vmHint).toHaveText('Enter a valid Linux username below');
+
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  await expect(vmHint).toHaveText('Set your Linux password below');
+  await shot(page, '15-vm-first-launchpad');
+  const password = page.locator('input[type=password]');
+  await password.nth(0).fill('temporary-guidance-password');
+  await expect(vmHint).toHaveText('Passwords do not match');
+  await password.nth(1).fill('temporary-guidance-password');
+  await expect(vmButton).toBeEnabled();
+  await expect(vmButton).toHaveText(/Start .* in a window/);
+  await expect(vmHint).toBeEmpty();
+});
+
+
+test('E2E drive observes the VM-first button and prepares through the real launchpad form', async ({ page }) => {
+  const password = 'temporary-vm-e2e-password';
+  const image = IMAGES[1].imageRef;
+  await boot(page, {
+    mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+    freshVm: { available: true, probeStatus: 'passed' },
+    driveDirective: JSON.stringify({
+      schemaVersion: 1, runId: 'vm-source-control', directiveId: 'a'.repeat(32),
+      action: 'prepare-vm', image,
+      username: 'alice', password,
+    }),
+  });
+
+  await expect(page.getByRole('heading', { name: 'Linux is starting' })).toBeVisible();
+  const calls = await page.evaluate(() => window.__wootcVMCalls);
+  expect(calls.map(call => call[0])).toEqual(['prepare']);
+  expect(calls[0][1]).toEqual({ imageRef: image, username: 'alice', password });
+  await expect(page.locator('body')).not.toContainText(password);
+
+  await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.some(report =>
+    report.screen === 'launchpad' && report.freshVmAvailable &&
+    report.vmPrepareButtonVisible && !report.vmPrepareButtonDisabled &&
+    !report.vmImageMismatch
+  ))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.some(report =>
+    report.schemaVersion === 1 && report.runId === 'vm-source-control' &&
+    report.directiveId === 'a'.repeat(32) && report.action === 'prepare-vm' && report.vmPrepareDriven &&
+    report.screen === 'vmpreview' && report.freshVmAvailable && report.vmReady &&
+    report.vmProgressStage === 'started'
+  ))).toBe(true);
+});
+
+
+test('signed runtime setup returns to account setup without starting an install', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true } });
+  await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
+  await expect(page.locator('#vm-prepare-btn')).toBeVisible();
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
+});
+
+test('a release without the runtime gives an explicit error without installing Linux', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, freshVm: { available: false, runtimeNeeded: true }, runtimeError: 'This release does not include the Linux window runtime yet. <img src=x onerror=alert(1)>' });
+  await page.getByRole('button', { name: 'Set up Linux in a window' }).click();
+  await expect(page.locator('body')).toContainText('This release does not include the Linux window runtime yet.');
+  await expect(page.locator('body')).toContainText('<img src=x onerror=alert(1)>');
+  await expect(page.locator('img[src=x]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__wootcVMCalls.map(call => call[0]))).toEqual(['runtime']);
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+});
+
+
+for (const missing of ['schemaVersion', 'runId', 'directiveId']) {
+  test(`VM preparation drive refuses a directive missing ${missing}`, async ({ page }) => {
+    const directive = { schemaVersion: 1, runId: 'vm-refusal-control', directiveId: 'b'.repeat(32),
+      action: 'prepare-vm', image: IMAGES[1].imageRef, username: 'alice', password: 'disposable-control-password' };
+    delete directive[missing];
+    await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO,
+      freshVm: { available: true, probeStatus: 'passed' }, driveDirective: JSON.stringify(directive) });
+    await expect.poll(() => page.evaluate(() => window.__wootcE2EDirectiveReads)).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => window.__wootcVMCalls)).toEqual([]);
+    expect(await page.evaluate(() => window.__wootcE2EReports)).toEqual([]);
+    await expect(page.locator('#vm-prepare-btn')).toBeVisible();
+  });
+}
+
+// Boot repair (#290): the recovery screen shows the OBSERVED boot state, and
+// the buttons that write to the boot configuration follow the report — not
+// the verdict file, which can be stale.
+const FAILED_VERDICT = { verdict: 'failed', title: 'Setup stopped', message: 'Setup could not finish this time.',
+  untouched: true, canTryAgain: true, canRemove: true, canRepairBoot: true };
+
+test('recovery — boot check enables Keep Windows only for a wootc one-shot', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, recoveryVerdict: FAILED_VERDICT,
+    bootReport: { bootState: 'one-shot-armed', ownership: 'certain', canRestoreWindows: true, canRepairBoot: true,
+      findings: ['lifecycle state is "failed"'], bundlePath: 'C:\\wootc\\install\\repair\\20261001T120000Z' },
+    bootReportAfterRestore: { bootState: 'windows-only', ownership: 'certain', canRestoreWindows: false, canRepairBoot: true } });
+  await expect(page.getByText('The next restart (only) goes to the Linux installer.')).toBeVisible();
+  await expect(page.getByText(/Details saved to C:\\wootc\\install\\repair/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Repair boot' })).toBeEnabled();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Keep Windows only' }).click();
+  await expect(page.getByText('Windows starts normally. wootc is not in the boot order.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeDisabled();
+});
+
+test('recovery — uncertain ownership disables every boot write', async ({ page }) => {
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, recoveryVerdict: FAILED_VERDICT,
+    bootReport: { bootState: 'one-shot-armed', ownership: 'uncertain', canRestoreWindows: false, canRepairBoot: false,
+      refusals: ['the boot entry recorded in armed.json is now described as "ubuntu", not "wootc"'] } });
+  await expect(page.getByText(/Not offered: the boot entry recorded in armed.json/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep Windows only' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Repair boot' })).toBeDisabled();
 });

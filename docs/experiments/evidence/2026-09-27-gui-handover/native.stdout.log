@@ -1,0 +1,5 @@
+PASS native reboot directive matching
+PASS native reboot directive write-throw
+PASS native reboot directive read-throw
+PASS native reboot directive mismatch
+PASS native PS 5.1.26100.9444 exact353-byte directive parser and four mocked controls; no real C path access

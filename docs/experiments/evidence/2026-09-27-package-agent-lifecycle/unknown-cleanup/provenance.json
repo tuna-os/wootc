@@ -1,0 +1,16 @@
+{
+  "historicalBeforeSource": "28833f0",
+  "integratedMain": "83071c429eb51a5094b64f629cea124a7cc79619",
+  "sourceHashes": {
+    "tests/e2e/package-runtime/bootstrap.py": "dc34711b46ef5bd664f6995632d01ea3141527127903ff8c6479927f8ebdfb86",
+    "tests/unit/test_linux_package_agent_command.py": "fa9f0a9f64e005e2b632006c6d978b4063f47b51548ebd7e3faea761220dc6ba",
+    "tests/unit/test_linux_package_agent_lifecycle.py": "a686b2705bfa977f8bd36758c2045d872cd220074867ef83acf8f61797a6224a",
+    "tests/unit/test_linux_package_bootstrap.py": "cea5397e7e4e7249e9943e001e1cd6c75274ebe93aa01f2c9ebfb5eb557fc58e"
+  },
+  "evidenceHashes": {
+    "before.raw.log": "67ad488b1a9f2ac2e6e3356839dc2482ff57c60d29b7e9b5b8975e01e5f4db7f",
+    "controls.raw.log": "e81e8ea6389a99a886762edd2018a3f47a722c6a2ac7aca42334dca4721d1123"
+  },
+  "controls": 130,
+  "scope": "Native child process lifecycle with induced observation failure after actual leader reap; service/device/process readiness leaves explicitly controlled. No guest lifecycle or QGA response acceptance."
+}

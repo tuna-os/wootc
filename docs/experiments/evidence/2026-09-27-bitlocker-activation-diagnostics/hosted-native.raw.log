@@ -1,0 +1,250 @@
+Native PS5.1 fixture controls	Set up job	﻿2026-09-27T12:01:02.6632007Z Current runner version: '2.337.0'
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6690574Z ##[group]Runner Image Provisioner
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6691898Z Hosted Compute Agent
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6692482Z Version: 20260828.587
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6694883Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6696638Z Build Date: 2026-08-28T16:44:25Z
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6697840Z Worker ID: {1a857f8d-c094-41f6-819a-d6d95bb1f2e6}
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6699176Z Azure Region: westcentralus
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6700256Z ##[endgroup]
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6702444Z ##[group]Operating System
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6703586Z Microsoft Windows Server 2025
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6704629Z 10.0.26100
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6705530Z Datacenter
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6706432Z ##[endgroup]
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6707373Z ##[group]Runner Image
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6708514Z Image: windows-2025-vs2026
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6709558Z Version: 20260922.246.2
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6711815Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6715716Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6717834Z ##[endgroup]
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6719774Z ##[group]GITHUB_TOKEN Permissions
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6722885Z Contents: read
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6724171Z Metadata: read
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6725135Z ##[endgroup]
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6728445Z Secret source: Actions
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6729969Z Cache mode: write
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.6731452Z Prepare workflow directory
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.7152322Z Prepare all required actions
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.7204290Z Getting action download info
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:02.9982693Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+Native PS5.1 fixture controls	Set up job	2026-09-27T12:01:03.2496532Z Complete job name: Native PS5.1 fixture controls
+Native PS5.1 fixture controls	Run actions/checkout@v4	﻿2026-09-27T12:01:03.3863786Z ##[group]Run actions/checkout@v4
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3865452Z with:
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3865965Z   repository: tuna-os/wootc
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3870260Z   token: ***
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3870668Z   ssh-strict: true
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3871079Z   ssh-user: git
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3871493Z   persist-credentials: true
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3871948Z   clean: true
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3872364Z   sparse-checkout-cone-mode: true
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3872870Z   fetch-depth: 1
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3873267Z   fetch-tags: false
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3873684Z   show-progress: true
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3874102Z   lfs: false
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3874732Z   submodules: false
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3875365Z   set-safe-directory: true
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3875850Z   allow-unsafe-pr-checkout: false
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.3876647Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.5524894Z Syncing repository: tuna-os/wootc
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.5528272Z ##[group]Getting Git version info
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.5529385Z Working directory is 'D:\a\wootc\wootc'
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:03.6623038Z [command]"C:\Program Files\Git\bin\git.exe" version
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.0358765Z git version 2.55.0.windows.5
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.0416151Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.0436958Z Temporarily overriding HOME='D:\a\_temp\2ff8f84e-152f-42a2-bf51-28b14dcb59a1' before making global git config changes
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.0438319Z Adding repository directory to the temporary git global config as a safe directory
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.0448387Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.1114995Z Deleting the contents of 'D:\a\wootc\wootc'
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.1121709Z ##[group]Initializing the repository
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.1130056Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.1953025Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.2005856Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.2636987Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.2641509Z ##[group]Disabling automatic garbage collection
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.2644911Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.2986327Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.2987566Z ##[group]Setting up auth
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.2997691Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:04.3319558Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:05.7542297Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:05.7874788Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:06.3519132Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:06.3841850Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:06.9718460Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:07.0053238Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:07.0053869Z ##[group]Fetching the repository
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:07.0065856Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +7cc55a58f8085ac0d30481c589188a6f426d529c:refs/remotes/pull/472/merge
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.5842431Z From https://github.com/tuna-os/wootc
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.5843452Z  * [new ref]         7cc55a58f8085ac0d30481c589188a6f426d529c -> pull/472/merge
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.5895035Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.5895919Z ##[group]Determining the checkout info
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.5896791Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.5907121Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.6385589Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.6708795Z ##[group]Checking out the ref
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.6719133Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/472/merge
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9545086Z Note: switching to 'refs/remotes/pull/472/merge'.
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9546414Z 
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9546746Z You are in 'detached HEAD' state. You can look around, make experimental
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9547399Z changes and commit them, and you can discard any commits you make in this
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9548038Z state without impacting any branches by switching back to a branch.
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9548552Z 
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9548838Z If you want to create a new branch to retain commits you create, you may
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9549412Z do so (now or later) by using -c with the switch command. Example:
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9549777Z 
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9549937Z   git switch -c <new-branch-name>
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9550157Z 
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9550277Z Or undo this operation with:
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9550473Z 
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9550572Z   git switch -
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9550736Z 
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9551040Z Turn off this advice by setting config variable advice.detachedHead to false
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9551452Z 
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9551984Z HEAD is now at 7cc55a5 Merge 35a80c1a82ae470c3d89a53c36308aa1a13593a0 into 9f03952a78618dceecf0c8dcc3476fcf25b8e775
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:08.9674100Z ##[endgroup]
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:09.0163182Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+Native PS5.1 fixture controls	Run actions/checkout@v4	2026-09-27T12:01:09.0464639Z 7cc55a58f8085ac0d30481c589188a6f426d529c
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	﻿2026-09-27T12:01:09.0924555Z ##[group]Run $ErrorActionPreference='Stop'
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0925825Z ^[[36;1m$ErrorActionPreference='Stop'^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0926346Z ^[[36;1mif ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Expected native Windows PowerShell 5.1' }^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0926866Z ^[[36;1m$originalTemp=$env:TEMP^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0927346Z ^[[36;1m$commonData=[Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0928040Z ^[[36;1m$directory=Join-Path $commonData "wootc-bitlocker-controls-$([guid]::NewGuid().ToString('N'))"^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0928699Z ^[[36;1mif (Test-Path -LiteralPath $directory) { throw 'Refusing existing temporary directory' }^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0929235Z ^[[36;1m[IO.Directory]::CreateDirectory($directory) | Out-Null^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0929766Z ^[[36;1m& icacls.exe $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' *> $null^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0930329Z ^[[36;1mif ($LASTEXITCODE -ne 0) { throw 'Private temporary ACL failed' }^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0930730Z ^[[36;1mtry {^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0930919Z ^[[36;1m  $env:TEMP=$directory^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0931750Z ^[[36;1m  $sources=@('fixture-bitlocker-key.ps1','fixture-bitlocker-protection.ps1','fixture-bitlocker-key.tests.ps1','fixture-bitlocker-protection.tests.ps1','fixture-bitlocker-diagnostics.tests.ps1')^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0933126Z ^[[36;1m  foreach ($source in $sources) {^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0933436Z ^[[36;1m    $original=Join-Path 'tests/e2e' $source^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0933753Z ^[[36;1m    $target=Join-Path $directory $source^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0934173Z ^[[36;1m    $text=[IO.File]::ReadAllText($original).Replace("`r`n","`n").Replace("`n","`r`n")^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0934695Z ^[[36;1m    [IO.File]::WriteAllText($target,$text,[Text.UTF8Encoding]::new($true))^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0935445Z ^[[36;1m    Write-Output "SOURCE $source RAW_SHA256 $((Get-FileHash -LiteralPath $original).Hash) STAGED_SHA256 $((Get-FileHash -LiteralPath $target).Hash)"^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0936080Z ^[[36;1m  }^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0936427Z ^[[36;1m  & ./tests/lint-ps1.ps1 -Files @($sources | ForEach-Object { Join-Path $directory $_ })^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0936940Z ^[[36;1m  if ($LASTEXITCODE -ne 0) { throw 'Native parser/lint failed' }^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0937508Z ^[[36;1m  . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $directory 'fixture-bitlocker-key.ps1'))))^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0938123Z ^[[36;1m  try { Assert-WootcFixtureReceiptDirectory -Directory $directory } catch {^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0938574Z ^[[36;1m    $ancestor=[IO.DirectoryInfo]::new($directory)^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0938881Z ^[[36;1m    while ($null -ne $ancestor) {^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0939161Z ^[[36;1m      $acl=$ancestor.GetAccessControl()^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0939673Z ^[[36;1m      $rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object {^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0940618Z ^[[36;1m        [pscustomobject]@{sid=$_.IdentityReference.Value;rights=[long]$_.FileSystemRights;type=[string]$_.AccessControlType;propagation=[int]$_.PropagationFlags}^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0941309Z ^[[36;1m      })^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0941996Z ^[[36;1m      [pscustomobject]@{path=$ancestor.FullName;owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value;rules=$rules} | ConvertTo-Json -Compress -Depth 4 | Write-Output^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0942834Z ^[[36;1m      $ancestor=$ancestor.Parent^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0943087Z ^[[36;1m    }^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0943324Z ^[[36;1m    throw 'Hosted private receipt ancestry refused'^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0943616Z ^[[36;1m  }^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0943884Z ^[[36;1m  & (Join-Path $directory 'fixture-bitlocker-key.tests.ps1')^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0944350Z ^[[36;1m  & (Join-Path $directory 'fixture-bitlocker-protection.tests.ps1')^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0944836Z ^[[36;1m  & (Join-Path $directory 'fixture-bitlocker-diagnostics.tests.ps1')^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0946905Z ^[[36;1m} finally {^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0947265Z ^[[36;1m  $env:TEMP=$originalTemp^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0947649Z ^[[36;1m  Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.0948031Z ^[[36;1m}^[[0m
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.1452980Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:09.1453615Z ##[endgroup]
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.0367954Z SOURCE fixture-bitlocker-key.ps1 RAW_SHA256 4950F58E313977FF4AAE40348364911F835752A9470744729221DCFB9E74EE95 STAGED_SHA256 622BAD1AA5B7224088C136558F36440F7CE6FDE6180D55BC9C52FFCBF555D66E
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.0435853Z SOURCE fixture-bitlocker-protection.ps1 RAW_SHA256 59B74D0B937020B90112F0DA27D333F5B2446D22413CF4F60EEF6227E2B255A8 STAGED_SHA256 CBBDF64BCB2BFBD6CB4631A50F08DCE4D2F3D2A5C66F93501178B3DFA7D3192C
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.0475231Z SOURCE fixture-bitlocker-key.tests.ps1 RAW_SHA256 18E951EB6B334608546BB201D381C3BDE429EBC43B40F09DE96960FCE8B8942B STAGED_SHA256 A526AFB7E181C2E572B0212AAEABEC96F99603C867A96D32FFB5670047E07BE2
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.0514390Z SOURCE fixture-bitlocker-protection.tests.ps1 RAW_SHA256 C1DAF5D627A0A5114FB820DDD0D88CC1F560A0882BAAD5D64515837A63034176 STAGED_SHA256 AC3D013FF5D98FA7D81F8150656D210B5585ADBBCBD378270090804D3D48507C
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.0556380Z SOURCE fixture-bitlocker-diagnostics.tests.ps1 RAW_SHA256 C8930EE4AFD9513D36C3170FA6368EC062F502374FD26A880ECDEE8C6D3D9D5A STAGED_SHA256 9B86E2CDD3CDF38C525320106EC75443430755EE23C87275CFADCFDFF50797A1
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.2030492Z   ok C:\ProgramData\wootc-bitlocker-controls-196e7919e15941128951ec071d0a5660\fixture-bitlocker-key.ps1
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.2219216Z   ok C:\ProgramData\wootc-bitlocker-controls-196e7919e15941128951ec071d0a5660\fixture-bitlocker-protection.ps1
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.2350309Z   ok C:\ProgramData\wootc-bitlocker-controls-196e7919e15941128951ec071d0a5660\fixture-bitlocker-key.tests.ps1
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.2531653Z   ok C:\ProgramData\wootc-bitlocker-controls-196e7919e15941128951ec071d0a5660\fixture-bitlocker-protection.tests.ps1
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.3452022Z   ok C:\ProgramData\wootc-bitlocker-controls-196e7919e15941128951ec071d0a5660\fixture-bitlocker-diagnostics.tests.ps1
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.3461510Z PowerShell lint passed
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.8148941Z PASS synthetic recovery material suppressed from success/warning/information streams and transcript
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.8157272Z PASS missing protector created and private key verified
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.8258352Z PASS exported key is 55 canonical ASCII characters with seven separators and CRLF, no BOM
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:12.8421939Z PASS existing protector reused
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6026412Z bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"create-recovery","failureKind":"operation-error","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6165451Z PASS creation failure stops and removes stale key
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6216060Z bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"validate-recovery","failureKind":"policy-refusal","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6232787Z PASS refresh refuses missing protector
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6259330Z bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"validate-recovery","failureKind":"policy-refusal","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6276910Z PASS malformed password refused
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6301386Z bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"validate-volume","failureKind":"policy-refusal","nativeExitCode":null,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6318628Z PASS plaintext fixture refused
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6360199Z bitlocker-fixture-failure {"schemaVersion":1,"scope":"recovery-export","stage":"protect-key","failureKind":"operation-error","nativeExitCode":5,"category":14,"errors":[{"exceptionType":"System.Management.Automation.RuntimeException","hresult":-2146233087,"nativeCode":null}]}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.6391060Z PASS permission failure stops and removes key
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:13.7751545Z PASS actual old-behavior mutant exposes synthetic warning through native transcript
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:14.0868171Z PASS six enrollment/activation paths including no existing protectors and already-on no mutation
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:14.2979578Z PASS 30 state/identity/TPM/export/enrollment/activation refusal controls; no secrets emitted
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.3998306Z PASS actual private pipeline resolves three BitLocker cmdlets and Get-Tpm from Windows system modules without invoking them
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.4426181Z PASS prior production audit refuses actual ancestor0x116; current audit accepts private child without destructive ancestor rights
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.4466563Z BEGIN diagnostic case alreadyOn
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.7310137Z PUBLIC_READY_BEFORE bitlocker-fixture-metadata {"schemaVersion":1,"stage":"before","mountPoint":"C:","volumeStatus":"FullyEncrypted","percentage":100,"protection":"On","tpmPresent":true,"tpmReady":true,"protectors":[{"id":"11111111-1111-4111-8111-111111111111","type":"RecoveryPassword"},{"id":"22222222-2222-4222-8222-222222222222","type":"Tpm"}]}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.7314639Z PUBLIC_READY_FINAL {"schemaVersion":1,"mountPoint":"C:","volumeStatus":"FullyEncrypted","percentage":100,"protection":"On","tpmPresent":true,"tpmReady":true,"protectors":[{"id":"11111111-1111-4111-8111-111111111111","type":"RecoveryPassword"},{"id":"22222222-2222-4222-8222-222222222222","type":"Tpm"}],"ready":true}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.7317242Z PASS actual private boundary preserves observed ready JSON and zero unnecessary enrollment/activation
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.7336616Z BEGIN diagnostic case ancestorSiblingRights
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.8684603Z PUBLIC_READY_BEFORE bitlocker-fixture-metadata {"schemaVersion":1,"stage":"before","mountPoint":"C:","volumeStatus":"FullyEncrypted","percentage":100,"protection":"On","tpmPresent":true,"tpmReady":true,"protectors":[{"id":"11111111-1111-4111-8111-111111111111","type":"RecoveryPassword"},{"id":"22222222-2222-4222-8222-222222222222","type":"Tpm"}]}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.8688543Z PUBLIC_READY_FINAL {"schemaVersion":1,"mountPoint":"C:","volumeStatus":"FullyEncrypted","percentage":100,"protection":"On","tpmPresent":true,"tpmReady":true,"protectors":[{"id":"11111111-1111-4111-8111-111111111111","type":"RecoveryPassword"},{"id":"22222222-2222-4222-8222-222222222222","type":"Tpm"}],"ready":true}
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.8689998Z PASS actual private boundary preserves observed ready JSON and zero unnecessary enrollment/activation
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.8707928Z BEGIN diagnostic case queryWin32
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.9852414Z PASS diagnostic case queryWin32
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:16.9872588Z BEGIN diagnostic case paused
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.0905685Z PASS diagnostic case paused
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.0932591Z BEGIN diagnostic case exportWin32
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.2318499Z PASS diagnostic case exportWin32
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.2339570Z BEGIN diagnostic case enrollWin32
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.5583938Z PASS diagnostic case enrollWin32
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.5606228Z BEGIN diagnostic case resumeCom
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.8430040Z PASS diagnostic case resumeCom
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:17.8481974Z BEGIN diagnostic case keyWrite
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.1393357Z PASS diagnostic case keyWrite
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.1413931Z BEGIN diagnostic case keyNativeExit
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.4505208Z PASS diagnostic case keyNativeExit
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.4535700Z BEGIN diagnostic case keyAclRead
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.6181256Z PASS diagnostic case keyAclRead
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.6205125Z BEGIN diagnostic case keyAclPolicy
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.8025895Z PASS diagnostic case keyAclPolicy
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:18.8052287Z BEGIN diagnostic case keyRead
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.0123228Z PASS diagnostic case keyRead
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.0146880Z BEGIN diagnostic case keyMismatch
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.2241242Z PASS diagnostic case keyMismatch
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.2265083Z BEGIN diagnostic case keyCleanup
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.3755348Z PASS diagnostic case keyCleanup
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.3778618Z BEGIN diagnostic case brokenDiagnostic
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.5386636Z PASS diagnostic case brokenDiagnostic
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.5409785Z BEGIN diagnostic case writerFailure
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.6901029Z PASS diagnostic case writerFailure
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.6928868Z BEGIN diagnostic case receiptOversized
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.8862642Z PASS hostless boundary rejects unsafe record receiptOversized
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:19.8898498Z BEGIN diagnostic case receiptMalformed
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.1766592Z PASS hostless boundary rejects unsafe record receiptMalformed
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.1792012Z BEGIN diagnostic case prefixSecret
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.4378423Z PASS hostless boundary rejects unsafe record prefixSecret
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.4418603Z BEGIN diagnostic case malformedRecord
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.6105755Z PASS hostless boundary rejects unsafe record malformedRecord
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.6133649Z BEGIN diagnostic case unknownRecord
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.7729785Z PASS hostless boundary rejects unsafe record unknownRecord
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.7757551Z BEGIN diagnostic case duplicateRecord
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.8992578Z PASS hostless boundary rejects unsafe record duplicateRecord
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:20.9034422Z BEGIN diagnostic case receiptRefusal
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:21.0723991Z PASS diagnostic case receiptRefusal
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:21.2082023Z PASS exclusive receipt creation refuses same-run collision and preserves original bytes
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:21.2084377Z PASS durable before receipts validated and untrusted receipt ACL refuses all mutations
+Native PS5.1 fixture controls	Stage exact sources and run mock-only controls	2026-09-27T12:01:21.2150296Z PASS actual transcript rejects public sensitive strings, key output, warnings, information, original errors and cleanup errors
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	﻿2026-09-27T12:01:21.3247927Z Post job cleanup.
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:21.5242619Z [command]"C:\Program Files\Git\bin\git.exe" version
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:21.5535636Z git version 2.55.0.windows.5
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:21.5609236Z Temporarily overriding HOME='D:\a\_temp\d59f76a4-a211-403a-8468-ff756cab4bc6' before making global git config changes
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:21.5610662Z Adding repository directory to the temporary git global config as a safe directory
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:21.5623069Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:21.5980226Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:21.6420067Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:22.2785776Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:22.3059555Z http.https://github.com/.extraheader
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:22.3115694Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:22.3502434Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:22.9286719Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+Native PS5.1 fixture controls	Post Run actions/checkout@v4	2026-09-27T12:01:22.9613292Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+Native PS5.1 fixture controls	Complete job	﻿2026-09-27T12:01:23.4988767Z Cleaning up orphan processes
+Native PS5.1 fixture controls	Complete job	2026-09-27T12:01:23.5895164Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

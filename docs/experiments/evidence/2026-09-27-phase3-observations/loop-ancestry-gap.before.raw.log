@@ -1,0 +1,10 @@
+SCHEMA=1
+UNAME=Linux
+CMDLINE=root=/dev/loop0p3 ro
+TARGET=/dev/sdb
+BOOT_ID=12345678-1234-1234-1234-123456789abc
+PRODUCT-PASS native-boot Phase 3 native system booted from the graduated install (non-loopback)
+SRC=/dev/loop0
+PRODUCT-PASS native-user-data User data survived to the native disk: SRC=/dev/loop0
+
+STDERR

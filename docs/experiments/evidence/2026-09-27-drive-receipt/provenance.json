@@ -1,0 +1,46 @@
+{
+  "sourceCommit": "89450a13e8cbd3608141a0d7e65a98330ad8b7d2",
+  "sourceSha256": {
+    "app/app.go": "387ab151c2f7b7957ab8dadc00178cc01c13c36428c14287744d665f319a46c3",
+    "app/e2e_drive_receipt.go": "5da3832a63151ed7751ba7f3fc7351e57941a2d6167d48e1fcedc5270c4dd28c",
+    "app/e2e_drive_receipt_test.go": "da0734428b6adafd4f387159e3913bc9dfaf6f0abe8da24fe00631b06dee85ea",
+    "app/bridge_contract_test.go": "ab4f7932bb5bec139fc28fa51cd3c0cc58a83a4249b550cf17ff3e59dcafcdea",
+    "app/frontend/src/lib/e2e.js": "0c9b3df45b2b5013f35c626b6157a890fc93de87fee69a4d99ef3b4833e962a2",
+    "tests/e2e/run-e2e.sh": "f1024e97a9e294179b35d7a8f67e18eada09af1a534ea179b920cf0e2987aaaa",
+    "tests/e2e/gui-drive-receipt.py": "b791144db47510eca70685c4c605af27e0d314f164e8993eb64f4eb012f8a337",
+    "tests/unit/test_gui_drive_receipt.py": "463a0f105e768bd8c981ec9412cd844767709dfe06b384b3aa2dfb3c92633b9e",
+    "tests/unit/gui-drive-producer-controls.cjs": "aef308ce20ad10dab75f50e85c5a05551b18fea9d12be67dc8a75e5bfc18d964"
+  },
+  "scope": "Actual component host parser, actual extracted runner read gate and removed-status guard mutant, actual frontend module with disposable DOM/bridge spies, actual portable Go package. Embedded frontend is an explicit test placeholder. No browser/Windows desktop/guest install/reboot/firmware/full acceptance. Pending #473 integration and native directive write controls.",
+  "acceptanceExecuted": false,
+  "checks": [
+    {
+      "argv": [
+        "python3",
+        "tests/unit/test_gui_drive_receipt.py"
+      ],
+      "cwd": ".",
+      "startedAt": "2026-09-27T11:54:57.911854+00:00",
+      "completedAt": "2026-09-27T11:54:58.419853+00:00",
+      "exitCode": 0
+    },
+    {
+      "argv": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "cwd": "app",
+      "startedAt": "2026-09-27T11:54:58.420216+00:00",
+      "completedAt": "2026-09-27T11:55:04.120982+00:00",
+      "exitCode": 0
+    }
+  ],
+  "fileSha256": {
+    "host-consumer.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "host-consumer.stderr.log": "ef5bc28e8130a48f61d9e5a33c7271bf155d96b2b6b53e4e01362981867f5e55",
+    "go.stdout.log": "a8f52d46067b1734129e600dcd048b7767c49b61debdb51214dd92ecdee5f78e",
+    "go.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

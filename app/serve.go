@@ -36,8 +36,12 @@ var ProtocolMethods = []string{
 	"GetBranding",
 	"GetReleaseNotice",
 	"GetImages",
+	"GetInstallSteps",
+	"GetNativeConfiguration",
 	"GetSessionCandidates",
 	"StartInstall",
+	"PrepareNativeInstall",
+	"ConfirmNativeInstall",
 	"CancelInstall",
 	"GetStatus",
 	"DefragDrive",
@@ -45,10 +49,28 @@ var ProtocolMethods = []string{
 	"ExistingInstallFound",
 	"GetUninstallInfo",
 	"UninstallWith",
+	"InspectBoot",
+	"PrepareNativeMaintenance",
+	"ConfirmNativeMaintenance",
+	"GetNativeVMStatus",
+	"PrepareNativeVMAction",
+	"ConfirmNativeVMAction",
 	"BootIntoLinux",
 	"GetLastRun",
+	"GetRecoveryVerdict",
+	"GetInstallRecovery",
 	"E2EDriveDirective",
 	"E2EDriveReport",
+	"E2EDriveReady",
+	"GetVMCapability",
+	"GetFreshVMCapability",
+	"GetVMState",
+	"TryInVMFresh",
+	"PrepareVM",
+	"InstallVMRuntime",
+	"BootInVM",
+	"StopVM",
+	"ForceStopVM",
 	"Shutdown",
 }
 
@@ -179,10 +201,15 @@ func unmarshalStringParam(raw json.RawMessage, target *string) error {
 // ── JSON-RPC 2.0 Server ─────────────────────────────────────────────────────
 
 type Server struct {
-	app      *App
-	writer   *synchronizedWriter
-	mu       sync.Mutex
-	shutdown bool
+	strictStartup     bool
+	startupValidate   func(context.Context) error
+	assessmentOnly    bool
+	configurationRead func(context.Context) (NativeConfigurationSnapshot, error)
+	installSession    *nativeInstallSession
+	app               *App
+	writer            *synchronizedWriter
+	mu                sync.Mutex
+	shutdown          bool
 }
 
 func NewServer(app *App, writer *synchronizedWriter) *Server {
@@ -192,8 +219,105 @@ func NewServer(app *App, writer *synchronizedWriter) *Server {
 	}
 }
 
+// NewAssessmentServer permits only the observed startup contract. The trusted
+// transport chooses this capability; no request or client field can upgrade it.
+// Native preview integration must choose this constructor; legacy Serve keeps
+// its separately authorized NewServer capability.
+func NewAssessmentServer(app *App, writer *synchronizedWriter) *Server {
+	server := NewServer(app, writer)
+	server.assessmentOnly = true
+	return server
+}
+
+// newNativeInstallServer serves a separate install-purpose session. Only the
+// authenticated native transport chooses it, after it captured the original
+// user; it permits status, cancellation and the one-shot plan and consent.
+func newNativeInstallServer(app *App, writer *synchronizedWriter, install *nativeInstallSession) *Server {
+	server := NewServer(app, writer)
+	server.installSession = install
+	return server
+}
+
+// Only the authenticated native transport may supply this read-only callback.
+// The original assessment constructor remains limited to three startup reads.
+func newConfigurationAssessmentServer(app *App, writer *synchronizedWriter, read func(context.Context) (NativeConfigurationSnapshot, error)) *Server {
+	server := NewAssessmentServer(app, writer)
+	server.configurationRead = read
+	return server
+}
+
 func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrpcError) {
+	if s.installSession != nil {
+		switch req.Method {
+		case "GetStatus", "CancelInstall":
+		case "Reboot":
+			if len(req.Params) != 0 && string(req.Params) != "null" {
+				return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "restart accepts no parameters"}
+			}
+			return s.installSession.restart(s.app.GetStatus())
+		case "GetUninstallInfo", "InspectBoot":
+			if s.startupValidate != nil {
+				if err := s.startupValidate(ctx); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+				}
+			}
+			return s.installSession.read(req.Method, req.Params)
+		case "GetNativeVMStatus":
+			if s.startupValidate != nil {
+				if err := s.startupValidate(ctx); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+				}
+			}
+			return s.installSession.vmStatus(req.Params)
+		case "PrepareNativeInstall", "ConfirmNativeInstall", "PrepareNativeMaintenance", "ConfirmNativeMaintenance", "PrepareNativeVMAction", "ConfirmNativeVMAction":
+			if s.startupValidate != nil {
+				if err := s.startupValidate(ctx); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+				}
+			}
+			return s.installSession.dispatch(req.Method, req.Params)
+		default:
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in install session"}
+		}
+	}
+	if s.assessmentOnly {
+		switch req.Method {
+		case "GetStatus", "GetLastRun", "GetRecoveryVerdict", "GetInstallRecovery":
+		case "GetNativeConfiguration":
+			if s.configurationRead == nil {
+				return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
+			}
+		case "E2EDriveDirective", "E2EDriveReport", "E2EDriveReady":
+			// The native shell's drive mode reads the harness directive and
+			// writes its reports through its authenticated configuration
+			// session, as the Wails frontend does through its bridge. All
+			// three stay inert unless WOOTC_E2E_DRIVE=1 is set in this
+			// engine's own environment; the shell cannot turn them on.
+			if s.configurationRead == nil {
+				return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
+			}
+		default:
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
+		}
+	}
 	switch req.Method {
+	case "GetNativeConfiguration":
+		if s.configurationRead == nil {
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in this session"}
+		}
+		if len(req.Params) != 0 && string(req.Params) != "null" {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "configuration observation accepts no parameters"}
+		}
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		snapshot, err := s.configurationRead(ctx)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native configuration observation refused", Data: nativeConfigurationFailureData(err)}
+		}
+		return snapshot, nil
 	case "GetSupportPolicy":
 		return s.app.GetSupportPolicy(), nil
 
@@ -244,6 +368,12 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return nil, nil
 
 	case "GetStatus":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+
 		return s.app.GetStatus(), nil
 
 	case "DefragDrive":
@@ -281,7 +411,69 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		return nil, nil
 
 	case "GetLastRun":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		if s.strictStartup {
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
+			}
+			state, err := readNativeStartupLifecycle(wootcDir())
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native lifecycle observation refused"}
+			}
+			return state, nil
+		}
 		return s.app.GetLastRun(), nil
+	case "GetRecoveryVerdict":
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		if s.strictStartup {
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
+			}
+			verdict, err := readNativeStartupRecovery(wootcDir())
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native recovery observation refused"}
+			}
+			return verdict, nil
+		}
+		return s.app.GetRecoveryVerdict(), nil
+
+	case "GetInstallRecovery":
+		if len(req.Params) != 0 && string(req.Params) != "null" {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "install recovery observation accepts no parameters"}
+		}
+		if s.startupValidate != nil {
+			if err := s.startupValidate(ctx); err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+			}
+		}
+		if s.strictStartup {
+			if s.startupValidate == nil {
+				if err := auditTrustedStateDirectory(wootcDir()); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+				}
+			}
+			if s.app.GetStatus().Running {
+				return summarizeInstallRecovery(InstallRecovery{Class: InstallClassInProgress}), nil
+			}
+			summary, err := readNativeInstallRecovery(wootcDir(), journalOwnerRunning)
+			if err != nil {
+				return nil, &jsonrpcError{Code: errCodeInternal, Message: "native install recovery observation refused"}
+			}
+			return summary, nil
+		}
+		return summarizeInstallRecovery(s.app.GetInstallRecovery()), nil
 
 	case "E2EDriveDirective":
 		return s.app.E2EDriveDirective(), nil
@@ -292,6 +484,58 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: fmt.Sprintf("invalid E2EDriveReport params: %v", err)}
 		}
 		s.app.E2EDriveReport(state)
+		return nil, nil
+
+	case "E2EDriveReady":
+		var state string
+		if err := unmarshalStringParam(req.Params, &state); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: fmt.Sprintf("invalid E2EDriveReady params: %v", err)}
+		}
+		s.app.E2EDriveReady(state)
+		return nil, nil
+
+	case "GetVMCapability":
+		return s.app.GetVMCapability(), nil
+	case "GetFreshVMCapability":
+		return s.app.GetFreshVMCapability(), nil
+	case "GetVMState":
+		return s.app.GetVMState(), nil
+	case "InstallVMRuntime":
+		if err := s.app.InstallVMRuntime(); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
+	case "PrepareVM":
+		var cfg VMInstallConfig
+		if err := unmarshalParams(req.Params, &cfg); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "invalid VM account parameters"}
+		}
+		if err := s.app.PrepareVM(cfg); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
+	case "TryInVMFresh":
+		var image string
+		if err := unmarshalStringParam(req.Params, &image); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: err.Error()}
+		}
+		if err := s.app.TryInVMFresh(image); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
+	case "BootInVM", "StopVM", "ForceStopVM":
+		var err error
+		switch req.Method {
+		case "BootInVM":
+			err = s.app.BootInVM()
+		case "StopVM":
+			err = s.app.StopVM()
+		case "ForceStopVM":
+			err = s.app.ForceStopVM()
+		}
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
 		return nil, nil
 
 	case "Shutdown":
@@ -309,12 +553,20 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 // responses and notifications to out. On shutdown it closes out when out is
 // an io.Closer, so a disconnected client cannot block installation cleanup.
 func Serve(ctx context.Context, app *App, in io.Reader, out io.Writer) error {
+	return serveRPC(ctx, app, in, out, false)
+}
+
+func serveRPC(ctx context.Context, app *App, in io.Reader, out io.Writer, strictStartup bool) error {
 	syncWriter := &synchronizedWriter{out: out}
 	emitter := newStdioEmitter(syncWriter)
 	app.SetEmitter(emitter)
 
 	srv := NewServer(app, syncWriter)
+	srv.strictStartup = strictStartup
+	return servePreparedRPC(ctx, app, in, syncWriter, srv)
+}
 
+func servePreparedRPC(ctx context.Context, app *App, in io.Reader, syncWriter *synchronizedWriter, srv *Server) error {
 	scanner := bufio.NewScanner(in)
 	buf := make([]byte, 1024*1024)
 	scanner.Buffer(buf, 10*1024*1024)
@@ -323,6 +575,7 @@ func Serve(ctx context.Context, app *App, in io.Reader, out io.Writer) error {
 		// Close the transport before waiting: a worker may be emitting progress
 		// to a shell that has already gone away.
 		syncWriter.stop()
+		app.shutdownVM()
 		app.stopInstall(30*time.Second, func() {
 			fmt.Fprintln(os.Stderr, "serve: installation is still stopping; waiting for disk/boot cleanup. Do not reboot.")
 		})

@@ -1,12 +1,12 @@
 import { installStepLabel } from './progress.js';
-import { StartInstall, CreateDataPartition, DefragDrive } from '../../wailsjs/go/main/App';
+import { StartInstall, CreateDataPartition, DefragDrive, GetInstallSpace } from '../../wailsjs/go/main/App';
 import { BrowserOpenURL, Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
 import { installVerb, distroName, productName } from '../lib/branding.js';
 import { el, btn, chip, warningBanner, inputField } from '../lib/ui.js';
 import { renderProgress } from './progress.js';
-import { tryInVM } from './vmpreview.js';
+import { tryInVM, installVMRuntime } from './vmpreview.js';
 
 const escapePhaseLabel = value => String(value).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -157,7 +157,7 @@ export function renderLaunchpad() {
   //
   // The default form asks for as little as a Mac's first-run setup would: a
   // password, nothing else. Everything else has a solid default — identity
-  // mirrored from this PC, disk sized from free space, TPM-backed encryption,
+  // mirrored from this PC, disk sized from free space, no disk encryption,
   // Windows look and Wi-Fi brought along — and every default is inspectable
   // and changeable under Advanced. A control only earns a place on the main
   // form when it is a question we genuinely cannot answer for the user
@@ -167,18 +167,21 @@ export function renderLaunchpad() {
   // Disk size slider. The slider must not offer sizes C: cannot hold: the
   // audit found a user with 30 GB free could drag to 500 GB and learn about
   // it from a raw allocation error mid-install. Cap the range at what fits
-  // (leaving DISK_HEADROOM_GB for Windows itself), and gate the button too.
+  // (leaving DISK_HEADROOM_GB for Windows itself, or the image's install
+  // reserve when that is larger), and gate the button too.
   const diskField = el('div', 'field');
   diskField.innerHTML = `<label>Virtual Disk Size</label>`;
   const sliderRow = el('div', 'slider-row');
   const slider = document.createElement('input');
   const maxFit = maxDiskSizeGB();
+  slider.id = 'disk-size';
   slider.type = 'range'; slider.min = '20'; slider.max = String(Math.max(20, Math.min(500, maxFit))); slider.step = '5';
   if (state.config.diskSizeGB > maxFit && maxFit >= 20) {
     state.config.diskSizeGB = Math.floor(maxFit / 5) * 5;
   }
   slider.value = String(state.config.diskSizeGB);
   const sliderVal = el('span', 'slider-val');
+  sliderVal.id = 'disk-size-val';
   sliderVal.textContent = `${state.config.diskSizeGB} GB`;
   slider.oninput = () => {
     state.config.diskSizeGB = Number(slider.value);
@@ -186,8 +189,9 @@ export function renderLaunchpad() {
     refreshInstallValidity();
   };
   const freeNote = el('div');
+  freeNote.id = 'disk-free-note';
   freeNote.style.cssText = 'font-size:11.5px;color:var(--text-muted);margin-top:3px';
-  freeNote.textContent = state.sysinfo ? `Available: ${Math.round(state.sysinfo.freeDiskGB)} GB on C:` : '';
+  freeNote.textContent = diskFreeNote();
   sliderRow.appendChild(slider);
   sliderRow.appendChild(sliderVal);
   diskField.appendChild(sliderRow);
@@ -233,19 +237,22 @@ export function renderLaunchpad() {
   encSection.appendChild(encLabel);
   const encOpts = el('div');
   encOpts.style.cssText = 'display:flex;flex-direction:column;gap:4px';
-  const encRadio = (value, title, sub, recommended) => {
+  const encRadio = (value, title, sub, recommended, disabled = false) => {
     const row = el('label');
     row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px';
+    if (disabled) row.style.cssText += ';cursor:not-allowed;opacity:0.55';
     const checked = state.config.encryption === value;
-    row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} style="margin-top:1px">
+    row.innerHTML = `<input type="radio" name="encryption" value="${value}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin-top:1px">
       <span><b>${title}${recommended ? ' <span style="color:var(--accent);font-size:10px;font-weight:500">RECOMMENDED</span>' : ''}</b><br><span style="color:var(--text-muted)">${sub}</span></span>`;
     row.querySelector('input').onchange = () => { state.config.encryption = value; refreshInstallValidity(); render(); };
     // Visual highlight for selected option
     if (checked) row.style.borderColor = 'var(--accent)';
     return row;
   };
-  encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', false));
-  encOpts.appendChild(encRadio('tpm2-luks', 'TPM auto-unlock', 'LUKS encryption that unlocks automatically via the TPM chip. No prompt at boot.', true));
+  encOpts.appendChild(encRadio('none', 'No encryption', 'Fastest. Anyone with physical access to the PC can read the Linux disk.', true));
+  // Not available yet (#551): the install cannot verify a TPM-sealed disk
+  // and would not show the recovery key. The backend refuses it too.
+  encOpts.appendChild(encRadio('tpm2-luks', 'TPM auto-unlock', 'Not available yet. LUKS encryption that unlocks automatically via the TPM chip.', false, true));
   encOpts.appendChild(encRadio('luks-passphrase', 'Passphrase', 'LUKS encryption that asks for your Linux password every boot.', false));
   encSection.appendChild(encOpts);
 
@@ -352,13 +359,27 @@ export function renderLaunchpad() {
 
   // Footer
   const footer = el('div', 'footer');
-  const installBtn = btn(`${installVerb()} →`, 'btn btn-primary', () => startInstall());
+  const installBtn = btn(`Advanced: ${installVerb()} with reboot`, 'btn btn-ghost', () => startInstall());
   installBtn.id = 'install-btn';
   footer.appendChild(btn('Cancel', 'btn btn-ghost', () => Quit()));
-  // Try-in-VM (§6.1): gated on fresh VM capability (deferred to post-1.0 per ADR 0001 / #231;
-  // available when builder artifacts are present in an offline bundle).
+  // VM-first is the normal path. Native installation remains an explicit action.
   if (state.freshVmCapability?.available && state.selected) {
-    footer.appendChild(btn('Try in VM', 'btn btn-ghost', () => tryInVM()));
+    const vmBtn = btn(`Start ${distroName()} in a window`, 'btn btn-primary', () => tryInVM());
+    vmBtn.id = 'vm-prepare-btn'; footer.appendChild(vmBtn);
+    const vmHint = el('div');
+    vmHint.id = 'vm-prepare-hint';
+    vmHint.setAttribute('role', 'status');
+    vmHint.setAttribute('aria-live', 'polite');
+    vmHint.style.cssText = 'font-size:12px;line-height:1.3;color:var(--text-dim);margin-right:auto;max-width:200px';
+    vmBtn.setAttribute('aria-describedby', vmHint.id);
+    footer.insertBefore(vmHint, footer.firstChild);
+  }
+  if (state.freshVmCapability?.runtimeNeeded) {
+    footer.appendChild(btn('Set up Linux in a window', 'btn btn-primary', () => installVMRuntime()));
+  }
+  if (!state.freshVmCapability?.available && state.freshVmCapability?.reason) {
+    const vmReason = el('div'); vmReason.style.cssText = 'font-size:12px;color:var(--text-muted)';
+    vmReason.textContent = state.freshVmCapability.reason; fields.appendChild(vmReason);
   }
   footer.appendChild(installBtn);
   // Defer validity to after mount so the hint element exists.
@@ -381,13 +402,99 @@ export function renderLaunchpad() {
 // number gates the slider range and the install button.
 const DISK_HEADROOM_GB = 15;
 
-// The largest root disk C: can actually hold, honoring the headroom. The
-// BitLocker carve path sizes from the same user choice, so one cap serves
-// both. Unknown free space (no sysinfo yet) imposes no cap.
+// What the install needs on the drive BESIDE root.disk until the deploy ends:
+// the deployer's container scratch (sized to the image: 3.5x its compressed
+// layers + 4 GiB, never under 20 GiB), the offline copy of the image when it
+// is pre-downloaded, and a little slack. The engine computes it
+// (GetInstallSpace, app/install_space.go) and refuses in StartInstall what
+// does not fit; this only keeps the form from offering it. Until the answer
+// arrives, assume the smallest image's reserve — the engine's
+// minimumInstallReserveGiB, which a Go test pins to this number.
+const MIN_INSTALL_RESERVE_GB = 22;
+
+function installReserveGB() {
+  const space = state.installSpace;
+  if (space && space.imageRef === state.selected?.imageRef && space.reserveGiB > 0) return space.reserveGiB;
+  return MIN_INSTALL_RESERVE_GB;
+}
+
+// The scratch is given back when the install ends, so it and Windows'
+// long-term headroom share the same free space: the larger one counts.
+function spaceKeptFreeGB() {
+  return Math.max(DISK_HEADROOM_GB, installReserveGB());
+}
+
+// Name the larger of the two in the reason the button is disabled.
+function keptFreeReason() {
+  const reserve = installReserveGB();
+  return reserve > DISK_HEADROOM_GB
+    ? `about ${reserve} GB of working space to unpack ${distroName()} during the install (given back when it finishes)`
+    : `the ${DISK_HEADROOM_GB} GB Windows needs to keep working`;
+}
+
+function diskFreeNote() {
+  if (!state.sysinfo) return '';
+  const free = Math.round(state.sysinfo.freeDiskGB);
+  const reserve = installReserveGB();
+  return reserve > DISK_HEADROOM_GB
+    ? `Available: ${free} GB on C: — the install also needs about ${reserve} GB while it runs`
+    : `Available: ${free} GB on C:`;
+}
+
+// The largest root disk C: can actually hold, honoring the headroom and the
+// install reserve. The BitLocker carve path sizes from the same user choice,
+// so one cap serves both. Unknown free space (no sysinfo yet) imposes no cap.
 function maxDiskSizeGB() {
   const free = state.sysinfo?.freeDiskGB;
   if (!free || free <= 0) return 500;
-  return Math.floor(free - DISK_HEADROOM_GB);
+  return Math.floor(free - spaceKeptFreeGB());
+}
+
+// Ask the engine what the selected image needs beside root.disk, then
+// tighten the slider in place: a late reply must not repaint the form under
+// the user's typing.
+export function refreshInstallSpace(imageRef) {
+  if (!imageRef || state.installSpace?.imageRef === imageRef) return;
+  state.installSpace = null;
+  Promise.resolve().then(() => GetInstallSpace(imageRef)).then((space) => {
+    if (!space || state.selected?.imageRef !== imageRef) return;
+    state.installSpace = { ...space, imageRef };
+    applyDiskLimit();
+  }).catch(() => {
+    // No answer (an old engine, a dev harness): fall back to the smallest
+    // image's reserve rather than holding the button forever. The engine
+    // still refuses in StartInstall what does not fit.
+    if (state.selected?.imageRef !== imageRef) return;
+    state.installSpace = { imageRef, reserveGiB: MIN_INSTALL_RESERVE_GB, sizeSource: 'unavailable' };
+    applyDiskLimit();
+  });
+}
+
+// Until the engine has answered for the selected image, the disk limit is
+// only the smallest image's: hold the button rather than let an install
+// start with a size the engine is about to refuse (E2E run 38829556660 —
+// the drive clicked Install with 35 GB before bazzite-deck's 29 GB reserve
+// arrived, and StartInstall rightly refused it).
+function installSpacePending() {
+  const ref = state.selected?.imageRef;
+  return Boolean(ref) && state.installSpace?.imageRef !== ref;
+}
+
+function applyDiskLimit() {
+  const maxFit = maxDiskSizeGB();
+  if (state.config.diskSizeGB > maxFit && maxFit >= 20) {
+    state.config.diskSizeGB = Math.floor(maxFit / 5) * 5;
+  }
+  const slider = document.getElementById('disk-size');
+  if (slider) {
+    slider.max = String(Math.max(20, Math.min(500, maxFit)));
+    slider.value = String(state.config.diskSizeGB);
+  }
+  const val = document.getElementById('disk-size-val');
+  if (val) val.textContent = `${state.config.diskSizeGB} GB`;
+  const note = document.getElementById('disk-free-note');
+  if (note) note.textContent = diskFreeNote();
+  refreshInstallValidity();
 }
 
 // Gate the Install button on a valid form and show the reason why not.
@@ -396,6 +503,19 @@ function refreshInstallValidity() {
   const hint = document.getElementById('install-hint');
   if (!btn) return;
   const c = state.config;
+  const vmBtn = document.getElementById('vm-prepare-btn');
+  if (vmBtn) {
+    let vmReason = '';
+    if (!state.selected) vmReason = 'Choose a Linux version above';
+    else if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(c.username) || c.username === 'root') vmReason = 'Enter a valid Linux username below';
+    else if (!c.password) vmReason = 'Set your Linux password below';
+    else if (c.password !== c.passwordConfirm) vmReason = 'Passwords do not match';
+    vmBtn.disabled = vmReason !== '';
+    vmBtn.textContent = `Start ${distroName()} in a window`;
+    vmBtn.title = vmReason;
+    const vmHint = document.getElementById('vm-prepare-hint');
+    if (vmHint) vmHint.textContent = vmReason;
+  }
   let reason = '';
   // Preflight safety gates (#63) come FIRST: these are conditions under which
   // starting at all risks the user's data or leaves the machine half-converted.
@@ -415,17 +535,21 @@ function refreshInstallValidity() {
   // Green-gate: block scenarios this channel has not proven (docs/RELEASING.md).
   else if (state.sysinfo?.bitLockerOn && state.policy && state.policy.bitlockerSupported === false)
     reason = `BitLocker encryption isn't supported in the ${state.policy.channel} yet — it's coming soon. For now, ${productName()} needs drive encryption turned off.`;
+  else if (state.sysinfo && installSpacePending())
+    reason = `Checking how much space ${distroName()} needs…`;
   else if (state.sysinfo && state.sysinfo.freeDiskGB > 0 && maxDiskSizeGB() < 20)
-    reason = `C: has only ${Math.round(state.sysinfo.freeDiskGB)} GB free — not enough for Linux (20 GB) plus the ${DISK_HEADROOM_GB} GB Windows needs to keep working. Free up some space first.`;
+    reason = `C: has only ${Math.round(state.sysinfo.freeDiskGB)} GB free — not enough for Linux (20 GB) plus ${keptFreeReason()}. Free up some space first.`;
   else if (state.sysinfo && state.sysinfo.freeDiskGB > 0 && c.diskSizeGB > maxDiskSizeGB())
-    reason = `C: has ${Math.round(state.sysinfo.freeDiskGB)} GB free, and Windows needs about ${DISK_HEADROOM_GB} GB of that to keep working. Choose ${maxDiskSizeGB()} GB or less — or free up space first.`;
+    reason = `C: has ${Math.round(state.sysinfo.freeDiskGB)} GB free, and ${keptFreeReason()} has to stay free beside the Linux disk. Choose ${maxDiskSizeGB()} GB or less — or free up space first.`;
   else if (!state.selected) reason = 'Choose a variant above.';
   else if (!c.username.trim()) reason = 'Enter a Linux username.';
   else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
   else if (!c.password) reason = 'Set a password.';
   else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
-  else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to TPM or no encryption.';
+  else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to no encryption.';
   else if (!state.selected?.imageRef || !/^ghcr\.io\/(tuna-os|ublue-os|projectbluefin)\//.test(state.selected.imageRef)) reason = 'Choose a supported TunaOS, Universal Blue, or Bluefin image.';
+  const carve = document.getElementById('carve-size');
+  if (carve) carve.textContent = String(carveSizeGB());
   btn.disabled = reason !== '';
   if (hint) {
     hint.textContent = reason;
@@ -441,6 +565,10 @@ function refreshPlanNote() {
   const note = document.getElementById('plan-note');
   if (!note) return;
   const c = state.config;
+  if (state.freshVmCapability?.available) {
+    note.textContent = `Linux starts in a window with the account “${c.username || 'your username'}”. Your Windows files stay where they are. The disk, encryption, appearance and computer-name options under Advanced apply only to installation with a reboot.`;
+    return;
+  }
   const disk = state.sysinfo?.bitLockerOn
     ? `${c.diskSizeGB} GB set aside for Linux`
     : `${c.diskSizeGB} GB for Linux (space is only used as you fill it)`;
@@ -453,6 +581,7 @@ function refreshPlanNote() {
 
 export function applyImageDefaults(image) {
   if (!image) return;
+  refreshInstallSpace(image.imageRef);
   // The deployer probes the image and detects its backend definitively
   // (bootupd-shipped signed grub → ostree/grub2; systemd-boot only →
   // composefs-native). The catalog's bootloader/composeFs fields are DISPLAY
@@ -483,11 +612,16 @@ async function startInstall() {
         state.progress.step = 'Creating space for Linux';
         state.progress.message = 'Making an unencrypted partition (C: stays encrypted)…';
         renderProgress();
-        const part = await CreateDataPartition(state.config.diskSizeGB + 5);
+        // The new volume holds root.disk AND the deployer's scratch (and the
+        // offline image copy): carve for all of it, or StartInstall refuses
+        // the volume we just made (+1 GB for NTFS metadata).
+        const part = await CreateDataPartition(carveSizeGB());
         storageDrive = part.letter;
       }
     }
 
+    // The progress screen names where the BitLocker key copy is stored.
+    state.progress.storageDrive = storageDrive;
     await StartInstall({
       imageRef:   state.selected.imageRef,
       diskSizeGB: state.config.diskSizeGB,
@@ -514,6 +648,10 @@ async function startInstall() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function carveSizeGB() {
+  return state.config.diskSizeGB + installReserveGB() + 1;
+}
+
 // BitLocker chooser: keep C: encrypted, put Linux on an unencrypted
 // volume — either an existing one or a new partition carved from C:.
 function renderBitlockerChooser() {
@@ -526,7 +664,7 @@ function renderBitlockerChooser() {
   const box = el('div');
   box.style.cssText = 'background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:8px;display:flex;flex-direction:column;gap:8px';
 
-  const existing = (state.sysinfo.dataPartitions || []).filter(p => !p.encrypted && p.freeGB >= state.config.diskSizeGB);
+  const existing = (state.sysinfo.dataPartitions || []).filter(p => !p.encrypted && p.freeGB >= state.config.diskSizeGB + installReserveGB());
   const opt = (id, title, sub, checked) => {
     const row = el('label');
     row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:12.5px';
@@ -547,7 +685,7 @@ function renderBitlockerChooser() {
   }
   box.appendChild(opt('create',
     'Create a new space for Linux (recommended)',
-    `Shrinks C: by ${state.config.diskSizeGB} GB and makes a new unencrypted drive just for Linux. C: stays BitLocker-protected.`,
+    `Shrinks C: by <span id="carve-size">${carveSizeGB()}</span> GB and makes a new unencrypted drive just for Linux. C: stays BitLocker-protected.`,
     !state.config.bitlockerMode || state.config.bitlockerMode === 'create' || !existing.length));
 
   wrap.appendChild(box);

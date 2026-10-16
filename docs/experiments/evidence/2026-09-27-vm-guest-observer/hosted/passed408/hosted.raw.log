@@ -1,0 +1,622 @@
+windows	Set up job	﻿2026-09-27T16:29:37.0186952Z Current runner version: '2.337.0'
+windows	Set up job	2026-09-27T16:29:37.0240131Z ##[group]Runner Image Provisioner
+windows	Set up job	2026-09-27T16:29:37.0241433Z Hosted Compute Agent
+windows	Set up job	2026-09-27T16:29:37.0242474Z Version: 20260828.587
+windows	Set up job	2026-09-27T16:29:37.0243476Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+windows	Set up job	2026-09-27T16:29:37.0244752Z Build Date: 2026-08-28T16:44:25Z
+windows	Set up job	2026-09-27T16:29:37.0245806Z Worker ID: {02b0101f-7c68-48fe-a9a1-9461eab30627}
+windows	Set up job	2026-09-27T16:29:37.0247080Z Azure Region: northcentralus
+windows	Set up job	2026-09-27T16:29:37.0248020Z ##[endgroup]
+windows	Set up job	2026-09-27T16:29:37.0250116Z ##[group]Operating System
+windows	Set up job	2026-09-27T16:29:37.0251214Z Microsoft Windows Server 2025
+windows	Set up job	2026-09-27T16:29:37.0252158Z 10.0.26100
+windows	Set up job	2026-09-27T16:29:37.0253161Z Datacenter
+windows	Set up job	2026-09-27T16:29:37.0254042Z ##[endgroup]
+windows	Set up job	2026-09-27T16:29:37.0254932Z ##[group]Runner Image
+windows	Set up job	2026-09-27T16:29:37.0256339Z Image: windows-2025-vs2026
+windows	Set up job	2026-09-27T16:29:37.0257403Z Version: 20260922.246.2
+windows	Set up job	2026-09-27T16:29:37.0259433Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260922.246/images/windows/Windows2025-VS2026-Readme.md
+windows	Set up job	2026-09-27T16:29:37.0263170Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260922.246
+windows	Set up job	2026-09-27T16:29:37.0265005Z ##[endgroup]
+windows	Set up job	2026-09-27T16:29:37.0266815Z ##[group]GITHUB_TOKEN Permissions
+windows	Set up job	2026-09-27T16:29:37.0269467Z Contents: read
+windows	Set up job	2026-09-27T16:29:37.0270342Z Metadata: read
+windows	Set up job	2026-09-27T16:29:37.0271179Z ##[endgroup]
+windows	Set up job	2026-09-27T16:29:37.0273993Z Secret source: Actions
+windows	Set up job	2026-09-27T16:29:37.0275825Z Cache mode: write
+windows	Set up job	2026-09-27T16:29:37.0276999Z Prepare workflow directory
+windows	Set up job	2026-09-27T16:29:37.0777862Z Prepare all required actions
+windows	Set up job	2026-09-27T16:29:37.0829229Z Getting action download info
+windows	Set up job	2026-09-27T16:29:37.3171113Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+windows	Set up job	2026-09-27T16:29:37.4429409Z Download action repository 'actions/setup-go@v7' (SHA:b7ad1dad31e06c5925ef5d2fc7ad053ef454303e)
+windows	Set up job	2026-09-27T16:29:37.7691129Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+windows	Set up job	2026-09-27T16:29:37.9332489Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+windows	Set up job	2026-09-27T16:29:38.1691596Z Complete job name: windows
+windows	Run actions/checkout@v7	﻿2026-09-27T16:29:38.3039709Z ##[group]Run actions/checkout@v7
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3041214Z with:
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3042018Z   repository: tuna-os/wootc
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3049665Z   token: ***
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3050482Z   ssh-strict: true
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3051339Z   ssh-user: git
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3052180Z   persist-credentials: true
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3053081Z   clean: true
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3053946Z   sparse-checkout-cone-mode: true
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3054960Z   fetch-depth: 1
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3055753Z   fetch-tags: false
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3057014Z   show-progress: true
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3057876Z   lfs: false
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3058679Z   submodules: false
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3059526Z   set-safe-directory: true
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3060549Z   allow-unsafe-pr-checkout: false
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.3061811Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.4532356Z Syncing repository: tuna-os/wootc
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.4534927Z ##[group]Getting Git version info
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.4536053Z Working directory is 'D:\a\wootc\wootc'
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.5493891Z [command]"C:\Program Files\Git\bin\git.exe" version
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.8589551Z git version 2.55.0.windows.5
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.8636214Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.8651526Z Temporarily overriding HOME='D:\a\_temp\04d320e4-98a9-4c10-9a23-b939d705bcec' before making global git config changes
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.8652542Z Adding repository directory to the temporary git global config as a safe directory
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.8661878Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.9185668Z Deleting the contents of 'D:\a\wootc\wootc'
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.9190628Z ##[group]Determining repository object format
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.9195326Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.9196769Z ##[group]Initializing the repository
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.9202608Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\wootc\wootc
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.9935079Z Initialized empty Git repository in D:/a/wootc/wootc/.git/
+windows	Run actions/checkout@v7	2026-09-27T16:29:38.9978118Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/tuna-os/wootc
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.0570810Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.0572486Z ##[group]Disabling automatic garbage collection
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.0581599Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.0899624Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.0900771Z ##[group]Setting up auth
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.0901414Z Removing SSH command configuration
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.0909996Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+windows	Run actions/checkout@v7	2026-09-27T16:29:39.1209623Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+windows	Run actions/checkout@v7	2026-09-27T16:29:40.4242365Z Removing HTTP extra header
+windows	Run actions/checkout@v7	2026-09-27T16:29:40.4254389Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+windows	Run actions/checkout@v7	2026-09-27T16:29:40.4566585Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.0178485Z Removing includeIf entries pointing to credentials config files
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.0188538Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.0489614Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.5607890Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.5904032Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git.path D:\a\_temp\git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.6191160Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D:\a\_temp\git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.6630575Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.6879576Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.7163314Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.7163739Z ##[group]Fetching the repository
+windows	Run actions/checkout@v7	2026-09-27T16:29:41.7173793Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7:refs/remotes/pull/500/merge
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0003263Z From https://github.com/tuna-os/wootc
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0005325Z  * [new ref]         b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7 -> pull/500/merge
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0056059Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0056666Z ##[group]Determining the checkout info
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0057459Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0070974Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0519073Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0857856Z ##[group]Checking out the ref
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.0869632Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/500/merge
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5470405Z Note: switching to 'refs/remotes/pull/500/merge'.
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5472980Z 
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5473488Z You are in 'detached HEAD' state. You can look around, make experimental
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5474353Z changes and commit them, and you can discard any commits you make in this
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5475378Z state without impacting any branches by switching back to a branch.
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5475874Z 
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5477055Z If you want to create a new branch to retain commits you create, you may
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5477622Z do so (now or later) by using -c with the switch command. Example:
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5477884Z 
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5478012Z   git switch -c <new-branch-name>
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5478216Z 
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5478314Z Or undo this operation with:
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5478470Z 
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5478602Z   git switch -
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5478720Z 
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5478922Z Turn off this advice by setting config variable advice.detachedHead to false
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5479221Z 
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5479554Z HEAD is now at b71d7b3 Merge 4085b9cfb228ffa1343fd329e8c974de1dc2414a into aa1784cad7a9ce4e9c095b1b863e20204bb0732c
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.5620020Z ##[endgroup]
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.6029441Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+windows	Run actions/checkout@v7	2026-09-27T16:29:43.6295104Z b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7
+windows	Run actions/setup-go@v7	﻿2026-09-27T16:29:43.6746851Z ##[group]Run actions/setup-go@v7
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.6747174Z with:
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.6747371Z   go-version-file: app/go.mod
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.6747599Z   cache: false
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.6747779Z   check-latest: false
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.6750138Z   token: ***
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.6750317Z ##[endgroup]
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.8209140Z Setup go version spec 1.26.0
+windows	Run actions/setup-go@v7	2026-09-27T16:29:43.8220484Z Attempting to download 1.26.0...
+windows	Run actions/setup-go@v7	2026-09-27T16:29:44.4324487Z matching 1.26.0...
+windows	Run actions/setup-go@v7	2026-09-27T16:29:44.4344685Z Acquiring 1.26.0 from https://github.com/actions/go-versions/releases/download/1.26.0-21889650668/go-1.26.0-win32-x64.zip
+windows	Run actions/setup-go@v7	2026-09-27T16:29:45.1519978Z Extracting Go...
+windows	Run actions/setup-go@v7	2026-09-27T16:29:45.2721616Z [command]"C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Unrestricted -Command "$ErrorActionPreference = 'Stop' ; try { Add-Type -AssemblyName System.IO.Compression.ZipFile } catch { } ; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('D:\a\_temp\go-1.26.0-win32-x64.zip', 'D:\a\_temp\5dde0afb-9c31-44e6-93fe-9a13cca05a29', $true) } catch { if (($_.Exception.GetType().FullName -eq 'System.Management.Automation.MethodException') -or ($_.Exception.GetType().FullName -eq 'System.Management.Automation.RuntimeException') ){ Expand-Archive -LiteralPath 'D:\a\_temp\go-1.26.0-win32-x64.zip' -DestinationPath 'D:\a\_temp\5dde0afb-9c31-44e6-93fe-9a13cca05a29' -Force } else { throw $_ } } ;"
+windows	Run actions/setup-go@v7	2026-09-27T16:29:50.3322509Z Successfully extracted go to D:\a\_temp\5dde0afb-9c31-44e6-93fe-9a13cca05a29
+windows	Run actions/setup-go@v7	2026-09-27T16:29:50.3322989Z Adding to the cache ...
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.5519320Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64 => D:\hostedtoolcache\windows\go\1.26.0\x64
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.5524039Z Created link C:\hostedtoolcache\windows\go\1.26.0\x64.complete => D:\hostedtoolcache\windows\go\1.26.0\x64.complete
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.5525376Z Successfully cached go to C:\hostedtoolcache\windows\go\1.26.0\x64
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.5531138Z Added go to the path
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.5532957Z Successfully set up Go version 1.26.0
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.8754108Z go version go1.26.0 windows/amd64
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.8754345Z 
+windows	Run actions/setup-go@v7	2026-09-27T16:30:01.8754607Z ##[group]go env
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3197424Z set AR=ar
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3197838Z set CC=gcc
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3198141Z set CGO_CFLAGS=-O2 -g
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3198480Z set CGO_CPPFLAGS=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3199119Z set CGO_CXXFLAGS=-O2 -g
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3199772Z set CGO_ENABLED=1
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3200063Z set CGO_FFLAGS=-O2 -g
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3200364Z set CGO_LDFLAGS=-O2 -g
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3200650Z set CXX=g++
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3200890Z set GCCGO=gccgo
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3201171Z set GO111MODULE=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3201433Z set GOAMD64=v1
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3201690Z set GOARCH=amd64
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3202195Z set GOAUTH=netrc
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3202531Z set GOBIN=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3202945Z set GOCACHE=C:\Users\runneradmin\AppData\Local\go-build
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3203438Z set GOCACHEPROG=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3203776Z set GODEBUG=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3204124Z set GOENV=C:\Users\runneradmin\AppData\Roaming\go\env
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3204648Z set GOEXE=.exe
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3204925Z set GOEXPERIMENT=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3205216Z set GOFIPS140=off
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3205487Z set GOFLAGS=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3206649Z set GOGCCFLAGS=-m64 -mthreads -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=C:\Users\RUNNER~1\AppData\Local\Temp\go-build3300518592=/tmp/go-build -gno-record-gcc-switches
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3207936Z set GOHOSTARCH=amd64
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3208268Z set GOHOSTOS=windows
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3208580Z set GOINSECURE=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3208844Z set GOMOD=NUL
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3209170Z set GOMODCACHE=C:\Users\runneradmin\go\pkg\mod
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3209587Z set GONOPROXY=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3209847Z set GONOSUMDB=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3210107Z set GOOS=windows
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3210437Z set GOPATH=C:\Users\runneradmin\go
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3213011Z set GOPRIVATE=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3213423Z set GOPROXY=https://proxy.golang.org,direct
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3213941Z set GOROOT=C:\hostedtoolcache\windows\go\1.26.0\x64
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3214401Z set GOSUMDB=sum.golang.org
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3214734Z set GOTELEMETRY=local
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3215210Z set GOTELEMETRYDIR=C:\Users\runneradmin\AppData\Roaming\go\telemetry
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3215750Z set GOTMPDIR=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3216025Z set GOTOOLCHAIN=local
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3216535Z set GOTOOLDIR=C:\hostedtoolcache\windows\go\1.26.0\x64\pkg\tool\windows_amd64
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3217095Z set GOVCS=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3217360Z set GOVERSION=go1.26.0
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3217650Z set GOWORK=
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3217918Z set PKG_CONFIG=pkg-config
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3218122Z 
+windows	Run actions/setup-go@v7	2026-09-27T16:30:04.3218536Z ##[endgroup]
+windows	Run actions/setup-node@v7	﻿2026-09-27T16:30:04.3556945Z ##[group]Run actions/setup-node@v7
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3557290Z with:
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3557472Z   node-version: 24
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3557661Z   check-latest: false
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3559977Z   token: ***
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3560174Z   package-manager-cache: true
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3560391Z env:
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3560552Z   GOTOOLCHAIN: local
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.3560735Z ##[endgroup]
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.5178273Z Found in cache @ C:\hostedtoolcache\windows\node\24.21.0\x64
+windows	Run actions/setup-node@v7	2026-09-27T16:30:04.5184354Z ##[group]Environment details
+windows	Run actions/setup-node@v7	2026-09-27T16:30:08.4966527Z node: v24.21.0
+windows	Run actions/setup-node@v7	2026-09-27T16:30:08.4966899Z npm: 11.19.0
+windows	Run actions/setup-node@v7	2026-09-27T16:30:08.4967148Z yarn: 1.22.22
+windows	Run actions/setup-node@v7	2026-09-27T16:30:08.4967778Z ##[endgroup]
+windows	Build actual frontend for engine embed	﻿2026-09-27T16:30:08.5257492Z ##[group]Run npm ci; if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }; npm run build; if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }
+windows	Build actual frontend for engine embed	2026-09-27T16:30:08.5258523Z ^[[36;1mnpm ci; if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }; npm run build; if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }^[[0m
+windows	Build actual frontend for engine embed	2026-09-27T16:30:08.5642565Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+windows	Build actual frontend for engine embed	2026-09-27T16:30:08.5643048Z env:
+windows	Build actual frontend for engine embed	2026-09-27T16:30:08.5643286Z   GOTOOLCHAIN: local
+windows	Build actual frontend for engine embed	2026-09-27T16:30:08.5643550Z ##[endgroup]
+windows	Build actual frontend for engine embed	2026-09-27T16:30:11.5105849Z 
+windows	Build actual frontend for engine embed	2026-09-27T16:30:11.5113045Z added 15 packages, and audited 16 packages in 2s
+windows	Build actual frontend for engine embed	2026-09-27T16:30:11.5113359Z 
+windows	Build actual frontend for engine embed	2026-09-27T16:30:11.5113550Z 8 packages are looking for funding
+windows	Build actual frontend for engine embed	2026-09-27T16:30:11.5113879Z   run `npm fund` for details
+windows	Build actual frontend for engine embed	2026-09-27T16:30:11.5120717Z 
+windows	Build actual frontend for engine embed	2026-09-27T16:30:11.5121099Z found 0 vulnerabilities
+windows	Build actual frontend for engine embed	2026-09-27T16:30:12.7637696Z 
+windows	Build actual frontend for engine embed	2026-09-27T16:30:12.7638891Z > frontend@0.0.0 build
+windows	Build actual frontend for engine embed	2026-09-27T16:30:12.7639379Z > vite build
+windows	Build actual frontend for engine embed	2026-09-27T16:30:12.7639930Z 
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.3602567Z ^[[36mvite v8.3.1 ^[[32mbuilding client environment for production...^[[36m^[[39m
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.3919455Z transforming...
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4323045Z ✓ 22 modules transformed.
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4488230Z rendering chunks...
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4595374Z computing gzip size...
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4609571Z dist/index.html                  0.41 kB │ gzip:  0.29 kB
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4610554Z dist/assets/index-CEja8SdL.css   7.35 kB │ gzip:  2.08 kB
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4611808Z dist/assets/index-DzZkEFqa.js   64.40 kB │ gzip: 18.82 kB
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4612579Z 
+windows	Build actual frontend for engine embed	2026-09-27T16:30:13.4616891Z ^[[32m✓ built in 100ms^[[39m
+windows	Actual bounded Windows pipe and strict reply controls	﻿2026-09-27T16:30:13.6354542Z ##[group]Run $ErrorActionPreference='Stop'
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6355061Z ^[[36;1m$ErrorActionPreference='Stop'^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6355476Z ^[[36;1m$receipt=Join-Path $env:RUNNER_TEMP 'vm-guest-pipe-controls.log'^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6356203Z ^[[36;1mWrite-Output "RUN $env:GITHUB_RUN_ID ATTEMPT $env:GITHUB_RUN_ATTEMPT SOURCE $env:GITHUB_SHA REF $env:GITHUB_REF" | Tee-Object -FilePath $receipt^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6356901Z ^[[36;1m& git rev-parse HEAD | Tee-Object -FilePath $receipt -Append^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6357305Z ^[[36;1m& go version | Tee-Object -FilePath $receipt -Append^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6357957Z ^[[36;1mGet-CimInstance Win32_OperatingSystem | Select-Object Version,BuildNumber | Out-String | Tee-Object -FilePath $receipt -Append^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6359315Z ^[[36;1mforeach ($file in @('app/vm_guest_pipe_windows.go','app/vm_guest_pipe_windows_test.go','app/vm_guest_protocol.go','app/vm_guest_protocol_test.go','payload/vm-observer/boot_probe.py','tests/e2e/phase3_ancestry.py','app/vm_qmp.go','app/vm_display.go','app/native_peer_windows.go')) {^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6360657Z ^[[36;1m  Write-Output "SOURCE $file SHA256 $((Get-FileHash -LiteralPath $file).Hash)" | Tee-Object -FilePath $receipt -Append^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6361184Z ^[[36;1m}^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6361374Z ^[[36;1m$ErrorActionPreference='Continue'^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6361815Z ^[[36;1m& go test -C app . -run '^TestVMGuest' -count=1 -v 2>&1 | Tee-Object -FilePath $receipt -Append^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6362248Z ^[[36;1m$testExit=$LASTEXITCODE^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6362487Z ^[[36;1m$ErrorActionPreference='Stop'^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6362842Z ^[[36;1mif ($testExit -ne 0) { throw 'Actual Windows pipe controls failed' }^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6363464Z ^[[36;1mif (Select-String -LiteralPath $receipt -Pattern '^\s*--- SKIP:' -Quiet) { throw 'Windows source controls skipped' }^[[0m
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6433253Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6433687Z env:
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6433856Z   GOTOOLCHAIN: local
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6434046Z   CGO_ENABLED: 0
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:13.6434233Z ##[endgroup]
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:15.9704288Z RUN 36333433660 ATTEMPT 1 SOURCE b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7 REF refs/pull/500/merge
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.0026108Z b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.0303219Z go version go1.26.0 windows/amd64
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.3215077Z 
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.3215696Z Version    BuildNumber
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.3216227Z -------    -----------
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.3216624Z 10.0.26100 26100      
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.3216793Z 
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.3216801Z 
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.3216808Z 
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4512319Z SOURCE app/vm_guest_pipe_windows.go SHA256 F32CD4A3019D8404466AE4C90E6EBD0A56E2DA0AE3EF14BF092B7ACC06251635
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4536320Z SOURCE app/vm_guest_pipe_windows_test.go SHA256 4FB80CF76006FD62CE39AC8E78441A8AFC1D1D28B18B13E5D84B8EAE9BC2E852
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4558668Z SOURCE app/vm_guest_protocol.go SHA256 20C5EF0FDC6E1CB28A106D77AE844352DEBBA4CBF7535DD5A08B19FB6BAEAEAE
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4586239Z SOURCE app/vm_guest_protocol_test.go SHA256 B3B00D649E3ABD2F77BBF020348196CB5A8C4C3C3BCAD30B2C8A985F446EAEC6
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4608549Z SOURCE payload/vm-observer/boot_probe.py SHA256 EC2CAB57DFECE41A69A00743E9CAA1A54E6BFBDA880CA6751CFDD33D57C966D8
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4630720Z SOURCE tests/e2e/phase3_ancestry.py SHA256 DFB1086111C8EAFBD18AFE2AED3F37D14A1EF3E48A4016ACDD032DE5CF009AFE
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4652136Z SOURCE app/vm_qmp.go SHA256 1D277F153508A18C832CA29EE8F508885B89E825816941AC33FA047AD309EC8A
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4673600Z SOURCE app/vm_display.go SHA256 9A03412ABE0B45276C17E57783C07BCFA18026779E9C72AB09C1ABBD2E354B0D
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.4696630Z SOURCE app/native_peer_windows.go SHA256 3C7BD546475B838F45911059E176647BB58CC19DE06E9EA2578FF8359E40EE8A
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6634687Z go.exe : go: downloading github.com/tredoe/osutil v1.5.0
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6635592Z At D:\a\_temp\a4d1e6e5-76af-4f3e-ad4b-4093deed2542.ps1:12 char:1
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6639281Z + & go test -C app . -run '^TestVMGuest' -count=1 -v 2>&1 | Tee-Object  ...
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6640350Z + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6641350Z     + CategoryInfo          : NotSpecified: (go: downloading...e/osutil v1.5.0:String) [], RemoteException
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6642305Z     + FullyQualifiedErrorId : NativeCommandError
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6642796Z  
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:16.6648592Z go: downloading github.com/wailsapp/wails/v2 v2.16.0
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:17.9248109Z go: downloading golang.org/x/mod v0.41.0
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:17.9254315Z go: downloading golang.org/x/crypto v0.57.0
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:17.9259258Z go: downloading golang.org/x/sys v0.48.0
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:20.6574411Z go: downloading github.com/leaanthony/u v1.1.1
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:20.6598761Z go: downloading github.com/leaanthony/slicer v1.6.0
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:20.7769776Z go: downloading github.com/leaanthony/go-ansi-parser v1.6.1
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:20.7770828Z go: downloading github.com/pkg/errors v0.9.1
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:20.7779203Z go: downloading github.com/wailsapp/go-webview2 v1.0.22
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:20.8252647Z go: downloading github.com/rivo/uniseg v0.4.7
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:44.5799451Z === RUN   TestVMGuestPipeChild
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:44.5800209Z --- PASS: TestVMGuestPipeChild (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:44.5801848Z === RUN   TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:44.5804730Z === RUN   TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/success
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:44.5990090Z === RUN   TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/blocked-read
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.1172118Z === RUN   TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/cancel
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.1860754Z === RUN   TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/death
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2035515Z === RUN   TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/expected-process-dead
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2231602Z     vm_guest_pipe_windows_test.go:152: actual retained expected process exit observed
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2232796Z === RUN   TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/foreign-peer
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2419714Z --- PASS: TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation (0.66s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2421727Z     --- PASS: TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/success (0.02s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2423523Z     --- PASS: TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/blocked-read (0.52s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2425212Z     --- PASS: TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/cancel (0.07s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2427221Z     --- PASS: TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/death (0.02s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2429179Z     --- PASS: TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/expected-process-dead (0.02s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2430972Z     --- PASS: TestVMGuestWindowsPipeActualPeerDeadlineAndCancellation/foreign-peer (0.02s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.2433591Z === RUN   TestVMGuestWindowsPipeActualBlockedWrite
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4086171Z     vm_guest_pipe_windows_test.go:227: actual write phase deadline observed before any reply read
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4108485Z --- PASS: TestVMGuestWindowsPipeActualBlockedWrite (0.17s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4111620Z === RUN   TestVMGuestReplyIdentityAndScope
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4117630Z === RUN   TestVMGuestReplyIdentityAndScope/serviceSha256
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4122132Z === RUN   TestVMGuestReplyIdentityAndScope/bootId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4128313Z === RUN   TestVMGuestReplyIdentityAndScope/desktopQualified
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4140443Z === RUN   TestVMGuestReplyIdentityAndScope/editorQualified
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4143058Z === RUN   TestVMGuestReplyIdentityAndScope/schemaVersion
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4145534Z === RUN   TestVMGuestReplyIdentityAndScope/action
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4147940Z === RUN   TestVMGuestReplyIdentityAndScope/runId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4150977Z === RUN   TestVMGuestReplyIdentityAndScope/requestId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4153013Z === RUN   TestVMGuestReplyIdentityAndScope/status
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4155952Z === RUN   TestVMGuestReplyIdentityAndScope/sessionId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4158935Z === RUN   TestVMGuestReplyIdentityAndScope/missing-editorQualified
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4160489Z === RUN   TestVMGuestReplyIdentityAndScope/missing-root
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4162894Z === RUN   TestVMGuestReplyIdentityAndScope/missing-bootId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4164677Z === RUN   TestVMGuestReplyIdentityAndScope/missing-runId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4167408Z === RUN   TestVMGuestReplyIdentityAndScope/missing-installId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4170415Z === RUN   TestVMGuestReplyIdentityAndScope/missing-diskId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4172339Z === RUN   TestVMGuestReplyIdentityAndScope/missing-serviceSha256
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4175040Z === RUN   TestVMGuestReplyIdentityAndScope/missing-ordinarySession
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4177263Z === RUN   TestVMGuestReplyIdentityAndScope/missing-requestId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4179152Z === RUN   TestVMGuestReplyIdentityAndScope/missing-status
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4180740Z === RUN   TestVMGuestReplyIdentityAndScope/missing-kernelRelease
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4182800Z === RUN   TestVMGuestReplyIdentityAndScope/missing-schemaVersion
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4185731Z === RUN   TestVMGuestReplyIdentityAndScope/missing-username
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4186648Z === RUN   TestVMGuestReplyIdentityAndScope/missing-action
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4189871Z === RUN   TestVMGuestReplyIdentityAndScope/missing-ancestrySha256
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4192447Z === RUN   TestVMGuestReplyIdentityAndScope/missing-sessionId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4194740Z === RUN   TestVMGuestReplyIdentityAndScope/missing-desktopQualified
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4197104Z --- PASS: TestVMGuestReplyIdentityAndScope (0.01s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4199784Z     --- PASS: TestVMGuestReplyIdentityAndScope/serviceSha256 (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4201559Z     --- PASS: TestVMGuestReplyIdentityAndScope/bootId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4204352Z     --- PASS: TestVMGuestReplyIdentityAndScope/desktopQualified (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4206302Z     --- PASS: TestVMGuestReplyIdentityAndScope/editorQualified (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4207610Z     --- PASS: TestVMGuestReplyIdentityAndScope/schemaVersion (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4210742Z     --- PASS: TestVMGuestReplyIdentityAndScope/action (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4212605Z     --- PASS: TestVMGuestReplyIdentityAndScope/runId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4215535Z     --- PASS: TestVMGuestReplyIdentityAndScope/requestId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4218146Z     --- PASS: TestVMGuestReplyIdentityAndScope/status (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4220216Z     --- PASS: TestVMGuestReplyIdentityAndScope/sessionId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4222860Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-editorQualified (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4224381Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-root (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4226688Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-bootId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4228640Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-runId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4230025Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-installId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4233149Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-diskId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4234563Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-serviceSha256 (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4236046Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-ordinarySession (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4238254Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-requestId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4240387Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-status (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4242886Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-kernelRelease (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4245175Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-schemaVersion (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4246636Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-username (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4249039Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-action (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4250588Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-ancestrySha256 (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4254081Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-sessionId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4256498Z     --- PASS: TestVMGuestReplyIdentityAndScope/missing-desktopQualified (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4257668Z === RUN   TestVMGuestReplySessionAndRootRefusal
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4261236Z === RUN   TestVMGuestReplySessionAndRootRefusal/State
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4263330Z === RUN   TestVMGuestReplySessionAndRootRefusal/User
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4265448Z === RUN   TestVMGuestReplySessionAndRootRefusal/Name
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4267306Z === RUN   TestVMGuestReplySessionAndRootRefusal/Active
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4269965Z === RUN   TestVMGuestReplySessionAndRootRefusal/Remote
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4271986Z === RUN   TestVMGuestReplySessionAndRootRefusal/Type
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4273450Z === RUN   TestVMGuestReplySessionAndRootRefusal/LeaderStartTicks
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4275714Z === RUN   TestVMGuestReplySessionAndRootRefusal/diskId
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4277600Z === RUN   TestVMGuestReplySessionAndRootRefusal/currentRootVerified
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4279168Z === RUN   TestVMGuestReplySessionAndRootRefusal/measurements
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4281171Z === RUN   TestVMGuestReplySessionAndRootRefusal/target
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4282957Z --- PASS: TestVMGuestReplySessionAndRootRefusal (0.01s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4284926Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/State (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4286764Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/User (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4289164Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/Name (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4291242Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/Active (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4293756Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/Remote (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4295303Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/Type (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4296963Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/LeaderStartTicks (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4299484Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/diskId (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4302008Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/currentRootVerified (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4304639Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/measurements (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4305764Z     --- PASS: TestVMGuestReplySessionAndRootRefusal/target (0.00s)
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4307956Z PASS
+windows	Actual bounded Windows pipe and strict reply controls	2026-09-27T16:30:45.4310445Z ok  	wootc	0.875s
+windows	Run actions/upload-artifact@v7	﻿2026-09-27T16:30:45.8833561Z ##[group]Run actions/upload-artifact@v7
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8833910Z with:
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8834129Z   name: vm-guest-pipe-controls-36333433660-1
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8834444Z   path: D:\a\_temp/vm-guest-pipe-controls.log
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8834733Z   if-no-files-found: error
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8834953Z   retention-days: 30
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8835148Z   compression-level: 6
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8835548Z   overwrite: false
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8835747Z   include-hidden-files: false
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8835960Z   archive: true
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8836129Z env:
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8836296Z   GOTOOLCHAIN: local
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:45.8836488Z ##[endgroup]
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.0548332Z With the provided path, there will be 1 file uploaded
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.0555374Z Artifact name is valid!
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.0556862Z Root directory input is valid!
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.3216325Z Uploading artifact: vm-guest-pipe-controls-36333433660-1.zip
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.3289334Z Beginning upload of artifact content to blob storage
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.4641450Z Uploaded bytes 2461
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.4945533Z Finished uploading artifact content to blob storage!
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.4947252Z SHA256 digest of uploaded artifact is 7e6469c9b6250d553168b6d2839d944589f5c2ead2c45efc1d71185ee6a3e654
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.4948296Z Finalizing artifact upload
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.7434486Z Artifact vm-guest-pipe-controls-36333433660-1 successfully finalized. Artifact ID 10936861473
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.7435696Z Artifact vm-guest-pipe-controls-36333433660-1 has been successfully uploaded! Final size is 2461 bytes. Artifact ID is 10936861473
+windows	Run actions/upload-artifact@v7	2026-09-27T16:30:46.7443024Z Artifact download URL: https://github.com/tuna-os/wootc/actions/runs/36333433660/artifacts/10936861473
+windows	Post Run actions/setup-node@v7	﻿2026-09-27T16:30:46.7810638Z Post job cleanup.
+windows	Post Run actions/setup-go@v7	﻿2026-09-27T16:30:46.9500334Z Post job cleanup.
+windows	Post Run actions/checkout@v7	﻿2026-09-27T16:30:47.1307472Z Post job cleanup.
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.3238726Z [command]"C:\Program Files\Git\bin\git.exe" version
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.3513932Z git version 2.55.0.windows.5
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.3580825Z Temporarily overriding HOME='D:\a\_temp\c00d890a-08b3-4f3d-a136-1be747e03b05' before making global git config changes
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.3582346Z Adding repository directory to the temporary git global config as a safe directory
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.3591157Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\wootc\wootc
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.3899292Z Removing SSH command configuration
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.3910464Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.4237294Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.9757839Z Removing HTTP extra header
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:47.9771681Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.0142739Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.5519508Z Removing includeIf entries pointing to credentials config files
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.5536348Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.5807253Z includeif.gitdir:D:/a/wootc/wootc/.git.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.5808050Z includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.5808727Z includeif.gitdir:/github/workspace/.git.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.5809372Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.5849802Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.6107189Z D:\a\_temp\git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.6150388Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git.path D\:\\a\\_temp\\git\-credentials\-1b5b2663\-6e6a\-4a2e\-8fd2\-bf2c982a6ba6\.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.6500055Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.6765255Z D:\a\_temp\git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.6807565Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/wootc/wootc/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-1b5b2663\-6e6a\-4a2e\-8fd2\-bf2c982a6ba6\.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.7110448Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.7366077Z /github/runner_temp/git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.7407630Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-1b5b2663\-6e6a\-4a2e\-8fd2\-bf2c982a6ba6\.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.7716373Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.7970044Z /github/runner_temp/git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.8012414Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-1b5b2663\-6e6a\-4a2e\-8fd2\-bf2c982a6ba6\.config
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:48.8310061Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+windows	Post Run actions/checkout@v7	2026-09-27T16:30:49.3708015Z Removing credentials config 'D:\a\_temp\git-credentials-1b5b2663-6e6a-4a2e-8fd2-bf2c982a6ba6.config'
+windows	Complete job	﻿2026-09-27T16:30:49.3902726Z Cleaning up orphan processes
+source	Set up job	﻿2026-09-27T16:29:37.9025595Z Current runner version: '2.337.0'
+source	Set up job	2026-09-27T16:29:37.9052995Z ##[group]Runner Image Provisioner
+source	Set up job	2026-09-27T16:29:37.9053844Z Hosted Compute Agent
+source	Set up job	2026-09-27T16:29:37.9054568Z Version: 20260828.587
+source	Set up job	2026-09-27T16:29:37.9055244Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+source	Set up job	2026-09-27T16:29:37.9056023Z Build Date: 2026-08-28T16:44:25Z
+source	Set up job	2026-09-27T16:29:37.9056736Z Worker ID: {e6e2587b-cad2-4645-9865-cf0313c180e9}
+source	Set up job	2026-09-27T16:29:37.9057442Z Azure Region: westus2
+source	Set up job	2026-09-27T16:29:37.9058521Z ##[endgroup]
+source	Set up job	2026-09-27T16:29:37.9060062Z ##[group]Operating System
+source	Set up job	2026-09-27T16:29:37.9060806Z Ubuntu
+source	Set up job	2026-09-27T16:29:37.9061343Z 24.04.5
+source	Set up job	2026-09-27T16:29:37.9061852Z LTS
+source	Set up job	2026-09-27T16:29:37.9062438Z ##[endgroup]
+source	Set up job	2026-09-27T16:29:37.9062989Z ##[group]Runner Image
+source	Set up job	2026-09-27T16:29:37.9063578Z Image: ubuntu-24.04
+source	Set up job	2026-09-27T16:29:37.9064217Z Version: 20260920.314.1
+source	Set up job	2026-09-27T16:29:37.9065281Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260920.314/images/ubuntu/Ubuntu2404-Readme.md
+source	Set up job	2026-09-27T16:29:37.9067073Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260920.314
+source	Set up job	2026-09-27T16:29:37.9068268Z ##[endgroup]
+source	Set up job	2026-09-27T16:29:37.9069463Z ##[group]GITHUB_TOKEN Permissions
+source	Set up job	2026-09-27T16:29:37.9071525Z Contents: read
+source	Set up job	2026-09-27T16:29:37.9072284Z Metadata: read
+source	Set up job	2026-09-27T16:29:37.9072841Z ##[endgroup]
+source	Set up job	2026-09-27T16:29:37.9074986Z Secret source: Actions
+source	Set up job	2026-09-27T16:29:37.9075922Z Cache mode: write
+source	Set up job	2026-09-27T16:29:37.9076990Z Prepare workflow directory
+source	Set up job	2026-09-27T16:29:37.9413148Z Prepare all required actions
+source	Set up job	2026-09-27T16:29:37.9463003Z Getting action download info
+source	Set up job	2026-09-27T16:29:38.3093402Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+source	Set up job	2026-09-27T16:29:38.5240932Z Complete job name: source
+source	Run actions/checkout@v7	﻿2026-09-27T16:29:38.6000599Z ##[group]Run actions/checkout@v7
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6001490Z with:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6001944Z   repository: tuna-os/wootc
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6005754Z   token: ***
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6006232Z   ssh-strict: true
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6006675Z   ssh-user: git
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6007119Z   persist-credentials: true
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6007608Z   clean: true
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6008259Z   sparse-checkout-cone-mode: true
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6008786Z   fetch-depth: 1
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6009214Z   fetch-tags: false
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6009651Z   show-progress: true
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6010102Z   lfs: false
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6010516Z   submodules: false
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6010966Z   set-safe-directory: true
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6011472Z   allow-unsafe-pr-checkout: false
+source	Run actions/checkout@v7	2026-09-27T16:29:38.6012247Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7015812Z Syncing repository: tuna-os/wootc
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7018675Z ##[group]Getting Git version info
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7019945Z Working directory is '/home/runner/work/wootc/wootc'
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7021642Z [command]/usr/bin/git version
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7151625Z git version 2.55.0
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7173344Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7184021Z Temporarily overriding HOME='/home/runner/work/_temp/50c77f9b-3134-4c0a-a056-bc0c09ba13ba' before making global git config changes
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7186454Z Adding repository directory to the temporary git global config as a safe directory
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7195588Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7244375Z Deleting the contents of '/home/runner/work/wootc/wootc'
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7248120Z ##[group]Determining repository object format
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7249792Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7251048Z ##[group]Initializing the repository
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7253830Z [command]/usr/bin/git init /home/runner/work/wootc/wootc
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7385915Z hint: Using 'master' as the name for the initial branch. This default branch name
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7388147Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7390821Z hint: to use in all of your new repositories, which will suppress this warning,
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7392796Z hint: call:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7393477Z hint:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7394332Z hint: 	git config --global init.defaultBranch <name>
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7395359Z hint:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7396334Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7398164Z hint: 'development'. The just-created branch can be renamed via this command:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7399463Z hint:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7400178Z hint: 	git branch -m <name>
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7400981Z hint:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7402038Z hint: Disable this message with "git config set advice.defaultBranchName false"
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7403881Z Initialized empty Git repository in /home/runner/work/wootc/wootc/.git/
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7412566Z [command]/usr/bin/git remote add origin https://github.com/tuna-os/wootc
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7474540Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7475905Z ##[group]Disabling automatic garbage collection
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7479311Z [command]/usr/bin/git config --local gc.auto 0
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7518208Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7519720Z ##[group]Setting up auth
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7520723Z Removing SSH command configuration
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7524338Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7564628Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7964602Z Removing HTTP extra header
+source	Run actions/checkout@v7	2026-09-27T16:29:38.7970304Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8005280Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8226123Z Removing includeIf entries pointing to credentials config files
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8230444Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8264511Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8489916Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8529309Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git.path /home/runner/work/_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8562981Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8601112Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8635588Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8667342Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8669105Z ##[group]Fetching the repository
+source	Run actions/checkout@v7	2026-09-27T16:29:38.8673881Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7:refs/remotes/pull/500/merge
+source	Run actions/checkout@v7	2026-09-27T16:29:39.3941995Z From https://github.com/tuna-os/wootc
+source	Run actions/checkout@v7	2026-09-27T16:29:39.3943312Z  * [new ref]         b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7 -> pull/500/merge
+source	Run actions/checkout@v7	2026-09-27T16:29:39.3947025Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:39.3948157Z ##[group]Determining the checkout info
+source	Run actions/checkout@v7	2026-09-27T16:29:39.3949478Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:39.3953905Z [command]/usr/bin/git sparse-checkout disable
+source	Run actions/checkout@v7	2026-09-27T16:29:39.4007568Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+source	Run actions/checkout@v7	2026-09-27T16:29:39.4041413Z ##[group]Checking out the ref
+source	Run actions/checkout@v7	2026-09-27T16:29:39.4045949Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/500/merge
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5315846Z Note: switching to 'refs/remotes/pull/500/merge'.
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5317171Z 
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5318526Z You are in 'detached HEAD' state. You can look around, make experimental
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5320430Z changes and commit them, and you can discard any commits you make in this
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5321975Z state without impacting any branches by switching back to a branch.
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5322933Z 
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5323750Z If you want to create a new branch to retain commits you create, you may
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5325405Z do so (now or later) by using -c with the switch command. Example:
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5326395Z 
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5326914Z   git switch -c <new-branch-name>
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5327564Z 
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5328217Z Or undo this operation with:
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5328931Z 
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5329513Z   git switch -
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5330268Z 
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5331559Z Turn off this advice by setting config variable advice.detachedHead to false
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5333415Z 
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5335071Z HEAD is now at b71d7b3 Merge 4085b9cfb228ffa1343fd329e8c974de1dc2414a into aa1784cad7a9ce4e9c095b1b863e20204bb0732c
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5339375Z ##[endgroup]
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5381663Z [command]/usr/bin/git log -1 --format=%H
+source	Run actions/checkout@v7	2026-09-27T16:29:39.5410860Z b71d7b3f32f9ba5eb7bd1dcdcb369c8fbcf990d7
+source	Read-only producer and actual pipe controls	﻿2026-09-27T16:29:39.5671853Z ##[group]Run python3 tests/unit/test_vm_guest_probe.py
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:39.5673544Z ^[[36;1mpython3 tests/unit/test_vm_guest_probe.py^[[0m
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:39.5983425Z shell: /usr/bin/bash -e {0}
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:39.5984556Z ##[endgroup]
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:44.9531213Z ...........
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:44.9532180Z ----------------------------------------------------------------------
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:44.9533008Z Ran 11 tests in 5.182s
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:44.9533446Z 
+source	Read-only producer and actual pipe controls	2026-09-27T16:29:44.9533798Z OK
+source	Post Run actions/checkout@v7	﻿2026-09-27T16:29:44.9878988Z Post job cleanup.
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0738947Z [command]/usr/bin/git version
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0783577Z git version 2.55.0
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0820261Z Temporarily overriding HOME='/home/runner/work/_temp/3d01ea82-6a3a-40f4-b7de-8f0127e2b1a8' before making global git config changes
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0822204Z Adding repository directory to the temporary git global config as a safe directory
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0825851Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wootc/wootc
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0858201Z Removing SSH command configuration
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0864823Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.0901434Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1159675Z Removing HTTP extra header
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1165442Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1205558Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1457010Z Removing includeIf entries pointing to credentials config files
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1458215Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1492642Z includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1493917Z includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1495449Z includeif.gitdir:/github/workspace/.git.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1496723Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1504056Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1533630Z /home/runner/work/_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1545159Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-a3e3516b\-faf4\-4e74\-b139\-2338466fa086\.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1604951Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1636244Z /home/runner/work/_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1646314Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/wootc/wootc/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-a3e3516b\-faf4\-4e74\-b139\-2338466fa086\.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1686668Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1713766Z /github/runner_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1721305Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-a3e3516b\-faf4\-4e74\-b139\-2338466fa086\.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1756904Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1782944Z /github/runner_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1792864Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-a3e3516b\-faf4\-4e74\-b139\-2338466fa086\.config
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.1831205Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+source	Post Run actions/checkout@v7	2026-09-27T16:29:45.2055091Z Removing credentials config '/home/runner/work/_temp/git-credentials-a3e3516b-faf4-4e74-b139-2338466fa086.config'
+source	Complete job	﻿2026-09-27T16:29:45.2201405Z Cleaning up orphan processes

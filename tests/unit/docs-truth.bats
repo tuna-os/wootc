@@ -41,6 +41,27 @@ setup() {
     ! grep -q 'C:\\wootc\\install\\state.json' docs/manual-testing.md
 }
 
+@test "the hardware report form asks for the state file that actually exists" {
+    # The form's evidence checklist named C:\wootc\install\state.json, the
+    # same wrong path the protocol once had. A reporter who follows it attaches
+    # nothing, and the triager learns that only after the machine is wiped.
+    local form=.github/ISSUE_TEMPLATE/manual-test-report.yml
+    grep -qE 'C:(\\)+wootc(\\)+state\.json' "$form"
+    ! grep -qE 'install(\\)+state\.json' "$form"
+}
+
+@test "the hardware report form has a box for each M2.2 journey step" {
+    # #216 grades a run on steps that the form had no box for: the Manage
+    # screen's restart into Linux, the welcome, the bookmark, the checklist.
+    local form=.github/ISSUE_TEMPLATE/manual-test-report.yml
+    grep -q 'no files copied to the machine first' "$form"
+    grep -q 'welcome opened' "$form"
+    grep -q 'Windows drive' "$form"
+    grep -q 'Restart into' "$form"
+    grep -q 'verify-uninstall checklist' "$form"
+    grep -q '^## The three-machine hardware set (M2.2)' docs/manual-testing.md
+}
+
 @test "every C:\\wootc path the docs name is one the code builds" {
     # The docs' whole reversibility promise is "it all lives in one folder", so
     # a path claim that has drifted undermines the claim it was making.
@@ -107,6 +128,68 @@ setup() {
     [ "$missing" -eq 0 ]
 }
 
+# ── releases ─────────────────────────────────────────────────────────────────
+
+# The versions that have a tag AND a published GitHub release. Add a version
+# here only in the PR after release.yml published it; check it first with
+#   gh api repos/tuna-os/wootc/releases/tags/<tag>
+# ROADMAP said v0.3.0-beta "shipped 2026-09-03" for six weeks while no such
+# tag existed (only v0.1.0-alpha.1 and the auto-v* pre-releases did). The
+# milestone issue had closed; nobody had cut the release. CI checks out no
+# tags, so this list is the record the docs are held to.
+PUBLISHED_RELEASES="v0.1.0-alpha.1"
+
+# A version is published when it is in the list, or is a milestone name that
+# a listed tag continues with "." (v0.1.0-alpha -> v0.1.0-alpha.1).
+release_published() {
+    local v=$1 tag
+    for tag in $PUBLISHED_RELEASES; do
+        [ "$v" = "$tag" ] && return 0
+        [[ "$tag" == "$v".* ]] && return 0
+    done
+    return 1
+}
+
+@test "no doc says a version shipped that has no published release" {
+    local line v bad=0
+    # Lines that say a version went out. Lines that say it did NOT (a draft,
+    # "not released", "no ... tag") are the honest wording, not a claim.
+    while IFS= read -r line; do
+        for v in $(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?' <<< "${line#*:*:}" | sort -u); do
+            release_published "$v" || { echo "claims $v shipped, but it has no release: $line"; bad=1; }
+        done
+    done < <(git ls-files 'README.md' 'ROADMAP.md' 'docs/*.md' ':!docs/experiments/evidence/*' |
+             xargs grep -n -i -E 'shipped|published|released' |
+             grep -v -i -E 'not released|unreleased|no [^.]*(tag|release) [^.]*exists|(^|[^a-z])draft([^a-z]|$)')
+    [ "$bad" -eq 0 ]
+}
+
+@test "release notes for an unpublished version stay a draft" {
+    # check-notes.sh refuses to publish a draft, so the marker also keeps a
+    # release from going out on notes nobody re-checked.
+    local notes tag
+    for notes in docs/release-notes-*.md; do
+        tag=${notes#docs/release-notes-}; tag=${tag%.md}
+        release_published "$tag" && continue
+        run bash tools/release/check-notes.sh "$tag" .
+        [ "$status" -eq 1 ] && [[ "$output" == *"still a draft"* ]] ||
+            { echo "$notes has no published release but is not a draft"; return 1; }
+        ! grep -qiE '\*\*Status\*\*: *(Shipped|Released|Published)' "$notes" ||
+            { echo "$notes says it shipped"; return 1; }
+    done
+}
+
+@test "every listed published release is a tag, when tags are present" {
+    # A full clone has the tags; CI's shallow checkout does not, and then the
+    # list above is the record. Keep the list honest wherever it can be checked.
+    [ -n "$(git tag -l 'v*' 2>/dev/null)" ] || skip "no tags in this checkout"
+    local tag
+    for tag in $PUBLISHED_RELEASES; do
+        git rev-parse -q --verify "refs/tags/$tag" >/dev/null ||
+            { echo "$tag is listed as published but is not a tag"; return 1; }
+    done
+}
+
 # ── channel behaviour ────────────────────────────────────────────────────────
 
 @test "no doc promises BitLocker works while the channel gate refuses it" {
@@ -162,7 +245,9 @@ setup() {
 
 @test "the uninstall entry the docs name is the one the installer registers" {
     # Generic build registers "<Name> (wootc)"; three docs send users to it.
-    grep -q 'displayName = b.Name + " (wootc)"' app/installer_windows.go
+    grep -q 'return b.Name + " (wootc)"' app/branding_policy.go
+    grep -q '"DisplayName": uninstallDisplayName(b)' app/uninstall_entry.go
+    grep -q 'uninstallEntryValues(effectiveBranding(), target' app/installer_windows.go
     local name
     name=$(jq -r '.name' app/branding/wootc/brand.json)
     grep -qF "$name (wootc)" docs/user-guide.md
@@ -275,4 +360,185 @@ setup() {
     grep -q 'cleanup can leave files or boot state behind' docs/RELEASING.md
     grep -q 'is a separate choice' docs/RELEASING.md
     ! grep -q 'Uninstalling is always' docs/RELEASING.md
+}
+
+@test "getting started discloses preparation beyond a folder and boot entry" {
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'Install.*button starts changes before you restart' docs/getting-started.md
+    grep -q 'copies boot files to the EFI system partition' docs/getting-started.md
+    grep -q 'changes Windows startup settings' docs/getting-started.md
+    ! grep -q 'Everything wootc does before the first reboot lives in one folder' docs/getting-started.md
+}
+
+@test "getting started qualifies cleanup and exposes its data choice" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'Cleanup can fail and leave files or boot state behind' docs/getting-started.md
+    grep -q 'Linux data removal is a separate choice in Manage' docs/getting-started.md
+    ! grep -q 'Uninstall.*puts things back' <(tr '\n' ' ' < docs/getting-started.md)
+}
+
+@test "getting started qualifies reputation prompts instead of promising bypass" {
+    grep -q 'Windows policy can prevent continuation' docs/getting-started.md
+    grep -q 'unknown or negative reputation' docs/getting-started.md
+    grep -q 'learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation' docs/getting-started.md
+    ! grep -q 'warnings you.*will' docs/getting-started.md
+    ! grep -q 'pre-register software with Microsoft' docs/getting-started.md
+    ! grep -q 'and nothing more' docs/getting-started.md
+}
+
+@test "getting started distinguishes checksums from publisher identity" {
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'It does not identify the publisher' docs/getting-started.md
+    grep -q 'checks hashes and a signed manifest for its boot artifacts' docs/getting-started.md
+    ! grep -q 'same verification on every boot artifact' docs/getting-started.md
+}
+
+@test "startup guides disclose the Windows WebView2 runtime dependency" {
+    grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
+    grep -q 'EdgeUpdate.*Clients' tests/e2e/run-e2e.sh
+    grep -q 'interface needs the WebView2 runtime' docs/RELEASING.md
+    grep -q 'interface needs the WebView2 runtime' docs/getting-started.md
+    ! grep -q 'no runtime depend' docs/RELEASING.md
+    ! grep -q 'There is nothing to "install"' docs/getting-started.md
+}
+
+@test "roadmap separates native preview work from complete consumer proof" {
+    grep -q 'JSON-RPC' app/serve.go
+    grep -q 'Phase B (#343) has a draft native preview and hosted component proof' ROADMAP.md
+    grep -q 'Phase C (#344) still needs the complete native consumer and VM journey' ROADMAP.md
+    ! grep -q 'Phases B.*not yet started' ROADMAP.md
+}
+
+@test "roadmap separates restoration requirement from current partial cleanup" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'Evidence must prove that uninstall restores the machine' ROADMAP.md
+    grep -q 'Uninstall tries cleanup; complete restoration still needs proof' ROADMAP.md
+    ! grep -q 'uninstall that restores machine state' ROADMAP.md
+}
+
+@test "roadmap requires a SmartScreen observation beyond a valid signature" {
+    grep -q 'Windows policy can prevent continuation' docs/getting-started.md
+    grep -q 'A valid signature alone does not guarantee' ROADMAP.md
+    grep -q 'fresh-machine SmartScreen behavior (#230)' ROADMAP.md
+    grep -q 'Signed binaries must pass the SmartScreen gate on a fresh machine' ROADMAP.md
+    ! grep -q 'kills the SmartScreen wall' ROADMAP.md
+}
+
+@test "README qualifies the VM goal against current desktop evidence" {
+    grep -q 'No complete Windows-hosted target desktop proof yet' docs/status.md
+    grep -q 'Current releases do not yet provide the complete Linux-inside-Windows journey' README.md
+    grep -q 'VM-first goal' README.md
+    ! grep -q 'Try before you reboot.*boot the result' <(tr '\n' ' ' < README.md)
+}
+
+@test "README exposes preparation settings and normal Windows return" {
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'changes Windows startup settings' README.md
+    grep -q 'Windows normally returns after deployment' README.md
+    grep -q 'Manage offers an explicit Linux boot choice' README.md
+    ! grep -q 'Nothing else on the machine is touched' README.md
+}
+
+@test "README separates cleanup from restoration and Linux data removal" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q "'Also delete my Linux data'" app/frontend/src/screens/control.js
+    grep -q 'Uninstall tries cleanup; it can leave files or boot state behind' README.md
+    grep -q 'Linux data removal is a separate choice' README.md
+    ! grep -q 'uninstall and leave no trace' README.md
+    ! grep -q 'uninstalling is deleting a folder' README.md
+}
+
+@test "README matches release graduation and its manual waiver" {
+    grep -q 'phase3: true' .github/workflows/release.yml
+    grep -q 'Emergency: publish WITHOUT the E2E gate' .github/workflows/release.yml
+    grep -q 'does not prove a Windows return after graduation' README.md
+    grep -q 'manual emergency waiver remains' README.md
+    ! grep -q 'returns to Windows cleanly' README.md
+}
+
+@test "README qualifies browser secrets instead of a blanket exclusion" {
+    grep -q 'Firefox passwords came across with the profile' payload/migration/wootc-import-browser
+    grep -q 'A complete Firefox profile can include saved passwords' README.md
+    ! grep -q 'passwords, keys, and tokens stay' README.md
+}
+
+@test "README discloses runtime and distinguishes hashes from signed manifests" {
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
+    grep -q 'checks hashes, and verifies a signed manifest' README.md
+    grep -q 'Wails interface needs the WebView2 runtime' README.md
+    grep -q 'Policy can prevent continuation' README.md
+}
+
+@test "E2E architecture separates historical native diagrams from current acceptance" {
+    grep -q 'They do not prove Linux inside Windows or the WinUI journey' docs/e2e-architecture.md
+    grep -q 'status.md#buildtest-matrix' docs/e2e-architecture.md
+    ! grep -q 'Everything here was validated live' docs/e2e-architecture.md
+}
+
+@test "E2E architecture follows the actual sourced runner boundaries" {
+    for module in qga-transport host-runtime retention vm-start; do
+        grep -q "source .*lib/$module.sh" tests/e2e/run-e2e.sh
+        grep -q "$module.sh" docs/e2e-architecture.md
+    done
+    grep -q 'Neither probe accepts a token when its command fails' docs/e2e-architecture.md
+    ! grep -q 'transport,.*still need separate modules' docs/e2e-architecture.md
+}
+
+@test "E2E architecture does not claim an atomic deployer menu handoff" {
+    grep -q 'for gd in "$TARGET_VENDOR" fedora wootc' payload/deployer/deploy.sh
+    grep -Fq '> "/mnt/esp/EFI/$gd/grub.cfg"' payload/deployer/deploy.sh
+    grep -q 'this is not an atomic handoff' docs/e2e-architecture.md
+    grep -q 'An interrupted update can leave partial boot state' docs/e2e-architecture.md
+    ! grep -q 'atomically with a successful deployment' docs/e2e-architecture.md
+}
+
+@test "E2E architecture distinguishes a QGA service request from a working channel" {
+    grep -Fq 'MGMT_KARG="systemd.wants=qemu-guest-agent.service"' payload/deployer/deploy.sh
+    grep -q 'That request alone does not prove the service exists or runs' docs/e2e-architecture.md
+    ! grep -q 'deployed system is given a control channel' docs/e2e-architecture.md
+}
+
+@test "release rollback distinguishes remote withdrawal from signed local cache" {
+    # The current engine authenticates local metadata first. Deleting a release
+    # cannot recall valid cached inputs, and preparation precedes downloads.
+    grep -q 'readLocalMetadata(path, artifactauth.MaxManifestSize)' app/artifact_manifest.go
+    grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
+    grep -q 'Remote asset removal cannot revoke' runbooks/rollback-a-bad-release.md ||
+        grep -q 'local cache and offline bundle can remain usable' runbooks/rollback-a-bad-release.md
+    grep -q 'SHA256SUMS.sig' runbooks/rollback-a-bad-release.md
+    grep -q 'removes its private seed after use' runbooks/rollback-a-bad-release.md
+    grep -q 'preparation occur before that stage' runbooks/rollback-a-bad-release.md
+    ! grep -q 'installs nothing' runbooks/rollback-a-bad-release.md
+    ! grep -q 'upload the matching regenerated' runbooks/rollback-a-bad-release.md
+}
+
+@test "manual hardware guide discloses actual preparation outside the state folder" {
+    grep -q 'Resize-Partition -DriveLetter C' app/disk_windows.go
+    grep -q 'New-Partition -DiskNumber' app/disk_windows.go
+    grep -q 'disableFastStartup()' app/app.go
+    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'boot files on the ESP' docs/manual-testing.md
+    grep -q 'may resize Windows' docs/manual-testing.md
+    ! grep -q 'no repartitioning' <(tr '\n' ' ' < docs/manual-testing.md)
+    ! grep -q 'Nothing before the reboot leaves more than' docs/manual-testing.md
+}
+
+@test "manual hardware guide separates requested return and cleanup from restoration" {
+    grep -q 'uninstall cleanup incomplete' app/installer_windows.go
+    grep -q 'reboot -ff' payload/deployer/deploy.sh
+    grep -q 'a reboot request does not prove a Windows return' docs/manual-testing.md
+    grep -q 'Uninstall tries cleanup; it can leave files or boot state behind' docs/manual-testing.md
+    ! grep -q 'Uninstall puts everything back' docs/manual-testing.md
+    ! grep -q 'after 30 seconds' docs/manual-testing.md
+}
+
+@test "manual hardware guide qualifies the legacy path instead of claiming VM-first or WinUI proof" {
+    [ -f docs/adr/0004-restore-vm-first-product.md ]
+    [ -f docs/winui-shell.md ]
+    grep -q 'legacy Wails path for native installation' docs/manual-testing.md
+    grep -q 'prove a Linux desktop inside Windows or the WinUI journey' docs/manual-testing.md
 }

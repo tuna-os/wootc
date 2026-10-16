@@ -38,6 +38,16 @@ export interface SessionCandidate {
   consentRequired: boolean;
 }
 
+/** What installing one image needs on the drive beside root.disk (install_space.go). */
+export interface InstallSpace {
+  imageRef: string;
+  compressedBytes: number;
+  sizeSource: 'bundle' | 'registry' | 'default';
+  scratchGiB: number;
+  bundleGiB: number;
+  reserveGiB: number;
+}
+
 export interface InstallStatus {
   running: boolean;
   done: boolean;
@@ -112,6 +122,7 @@ export function SetMigrationProfile(profile: string): Promise<void>;
 export function GetLookMigration(): Promise<LookMigration>;
 export function GetImages(): Promise<Image[]>;
 export function GetSystemInfo(): Promise<SystemInfo>;
+export function GetInstallSpace(imageRef: string): Promise<InstallSpace>;
 export function StartInstall(cfg: InstallConfig): Promise<void>;
 export function CancelInstall(): Promise<void>;
 export function GetStatus(): Promise<InstallStatus>;
@@ -129,12 +140,18 @@ export function E2EDriveDirective():Promise<string>;
 
 export function E2EDriveReport(arg1:string):Promise<void>;
 
+export function E2EDriveReady(arg1:string):Promise<void>;
+
 export function GetSupportPolicy():Promise<Record<string, any>>;
 export function GetLastRun():Promise<Record<string, any>>;
 export function BootIntoLinux():Promise<void>;
+export function GetInstallRecovery():Promise<Record<string, any>>;
 export function GetRecoveryVerdict():Promise<Record<string, any>>;
+export function PrepareResume():Promise<Record<string, any>>;
 export function TryAgain():Promise<void>;
 export function RepairBoot():Promise<void>;
+export function InspectBoot():Promise<Record<string, any>>;
+export function RestoreWindowsBoot():Promise<Record<string, any>>;
 
 export function GetReleaseNotice(): Promise<{version: string; url: string}>;
 

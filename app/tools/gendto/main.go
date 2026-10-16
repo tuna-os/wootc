@@ -16,6 +16,11 @@ import (
 
 // DTOStructs defines the ordered list of Go structs to export to C#.
 var DTOStructs = []string{
+	"NativeConfigurationSnapshot",
+	"NativeConfigurationImage",
+	"NativeConfigurationDefaults",
+	"NativeConfigurationBundle",
+	"NativeConfigurationStorage",
 	"SupportPolicy",
 	"SystemInfo",
 	"DataPartition",
@@ -26,6 +31,16 @@ var DTOStructs = []string{
 	"ProgressEvent",
 	"StepDefinition",
 	"RecoveryVerdict",
+	"InstallRecoverySummary",
+	"InstallRecoveryActions",
+	"NativeInstallGrant",
+	"NativeMaintenancePlan",
+	"NativeMaintenanceGrant",
+	"BootRepairReport",
+	"NativeVMCapability",
+	"NativeVMStatus",
+	"NativeVMPlan",
+	"NativeVMGrant",
 	"InstallStatus",
 	"UninstallInfo",
 	"LinuxBootEvidence",
@@ -40,6 +55,8 @@ var DTOStructs = []string{
 	"SessionExport",
 	"VMEvent",
 	"VMCapability",
+	"VMState",
+	"VMInstallConfig",
 	"BundleInfo",
 }
 
@@ -128,6 +145,8 @@ func goTypeToCSharp(f StructField) (string, string) {
 			return "int", ""
 		case "int64":
 			return "long", ""
+		case "uint64":
+			return "ulong", ""
 		case "float64":
 			return "double", ""
 		case "bool":
@@ -137,7 +156,7 @@ func goTypeToCSharp(f StructField) (string, string) {
 			if f.Omitempty {
 				return f.GoType + "?", ""
 			}
-			return f.GoType, ""
+			return f.GoType, " = new();"
 		}
 	}
 }
@@ -150,6 +169,8 @@ func mapBasicType(t string) string {
 		return "int"
 	case "int64":
 		return "long"
+	case "uint64":
+		return "ulong"
 	case "float64":
 		return "double"
 	case "bool":

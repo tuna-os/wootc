@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -81,8 +82,13 @@ type SystemInfo struct {
 	// machine's firmware holds in its db variable ("2011", "2023"), so the
 	// preflight can tell before the reboot whether the signed shim this
 	// build stages will be launched at all (#322). Empty means the db could
-	// not be read, which warns rather than refusing.
+	// not be read (UefiDbRead false), which warns rather than refusing, or
+	// that it was read and holds neither CA (UefiDbRead true), which refuses.
 	TrustedUefiAuthorities []string `json:"trustedUefiAuthorities"`
+	// UefiDbRead is true when the firmware's db was read and held at least
+	// one certificate, so an empty TrustedUefiAuthorities is a fact about
+	// the firmware rather than about our ability to ask (#322).
+	UefiDbRead bool `json:"uefiDbRead"`
 	// SecureBootChainWarning is set when Secure Boot is on but the db could
 	// not be read: honest disclosure that one check could not be made,
 	// shown before the user commits rather than after the restart.
@@ -220,11 +226,19 @@ type App struct {
 	// mu guards status, cancellation, completion, and shutdown. GetStatus() is polled from the frontend
 	// on a timer while the install goroutine mutates status concurrently —
 	// without the lock that is a data race the Go race detector flags.
-	mu          sync.Mutex
-	status      InstallStatus
-	cancel      context.CancelFunc
-	installDone chan struct{}
-	stopping    bool
+	mu            sync.Mutex
+	status        InstallStatus
+	cancel        context.CancelFunc
+	installDone   chan struct{}
+	stopping      bool
+	vmMu          sync.Mutex
+	vmSession     *vmSession
+	vmCancel      context.CancelFunc
+	vmPrepareDone chan struct{}
+	vmProbeMu     sync.Mutex
+	vmProbeKey    string
+	vmProbeResult vmExecutionProbeResult
+	vmProbeAt     time.Time
 }
 
 func NewApp() *App {
@@ -271,6 +285,7 @@ func (a *App) startup(ctx context.Context) {
 func previewMode() bool { return os.Getenv("WOOTC_UI_PREVIEW") == "1" }
 
 func (a *App) shutdown(ctx context.Context) {
+	a.shutdownVM()
 	a.mu.Lock()
 	cancel := a.cancel
 	a.mu.Unlock()
@@ -309,8 +324,14 @@ func supportChannel() string {
 
 // GetSupportPolicy returns the gating policy for the active channel.
 func (a *App) GetSupportPolicy() SupportPolicy {
+	return supportPolicyFor(supportChannel(), effectiveBranding(), os.Getenv("WOOTC_E2E_DRIVE") == "1")
+}
+
+// Shared policy calculation accepts observations from the caller. It performs
+// no filesystem discovery and does not authorize an operation.
+func supportPolicyFor(channel string, brand Branding, driveMode bool) SupportPolicy {
 	var pol SupportPolicy
-	switch supportChannel() {
+	switch channel {
 	case "beta":
 		// Full matrix green (the beta bar): everything is on the table; the
 		// axes that are still red stay explicitly false until their issue closes.
@@ -329,7 +350,7 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 	// A branded installer installs its own distribution: no custom OCI ref,
 	// on any channel. This is the backend side of the brand's
 	// hideCustomImage — the frontend hiding the field is not enforcement.
-	if effectiveBranding().HideCustomImage {
+	if brand.HideCustomImage {
 		pol.CustomImageAllowed = false
 	}
 	// The E2E harness exists precisely to test images BEFORE they are green;
@@ -338,7 +359,7 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 	// default instead (run 32581422435: "bazzite" installed bluefin-lts —
 	// the drive loop now also refuses on mismatch, this is the enabling
 	// half). Real users never run with this environment variable set.
-	if os.Getenv("WOOTC_E2E_DRIVE") == "1" {
+	if driveMode {
 		pol.ExperimentalImages = true
 	}
 	return pol
@@ -346,22 +367,29 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 
 // gateScenario refuses an install the active channel has not proven green.
 func (a *App) gateScenario(cfg InstallConfig) error {
+	return a.gateScenarioWith(cfg, getSystemInfo)
+}
+
+// gateScenarioWith reads the system once. Each read spawns several
+// PowerShell queries, and the native plan check validates a plan more than
+// once inside the shell's deadline (native E2E run 38849303170 overran it),
+// so it passes one memoized read for the whole check.
+func (a *App) gateScenarioWith(cfg InstallConfig, systemInfo func() SystemInfo) error {
 	pol := a.GetSupportPolicy()
+	si := systemInfo()
 	// BitLocker/FDE path is not green yet (#34).
 	if !pol.BitLockerSupported {
-		if getSystemInfo().BitLockerOn {
+		if si.BitLockerOn {
 			return fmt.Errorf("BitLocker drive encryption isn't supported in the %s yet — "+
 				"we're finishing testing so your files stay safe. It's coming soon; "+
-				"for now, wootc works on PCs where drive encryption is off", pol.Channel)
+				"for now, %s works on PCs where drive encryption is off", pol.Channel, productName())
 		}
 	}
 	// Secure Boot: can this firmware launch the shim we stage? (#322)
 	// Checked here, before a single byte is written, because the failure it
 	// prevents ("bad shim signature") happens after the reboot, where the
 	// user has no way to find out why Windows came back.
-	si := getSystemInfo()
-	if v := checkSecureBootChain(si.SecureBootOn, si.SecureBootKnown,
-		si.TrustedUefiAuthorities, stagedShimAuthorities()); v.Blocked {
+	if v := secureBootChainVerdict(si); v.Blocked {
 		return fmt.Errorf("%s", v.Message)
 	}
 	// Only offer images the channel permits. Enterprise images.json override
@@ -471,34 +499,71 @@ func normalizeBootloader(v string) (string, error) {
 	}
 }
 
+// validateInstallConfig is the install gate StartInstall applies before any
+// work: channel scenario policy, bootloader, encryption, platform checks and
+// the free space root.disk plus the deployer scratch need (install_space.go).
+// It reads only and returns the normalized configuration. The native install
+// session runs it before it grants an install intent.
+func (a *App) validateInstallConfig(cfg InstallConfig) (InstallConfig, error) {
+	return a.validateInstallConfigWith(cfg, getSystemInfo)
+}
+
+// validateInstallConfigWith validates against one system read (see
+// gateScenarioWith).
+func (a *App) validateInstallConfigWith(cfg InstallConfig, systemInfo func() SystemInfo) (InstallConfig, error) {
+	// Green-gate (docs/RELEASING.md): refuse scenarios the active channel has
+	// not proven, so an alpha user can never be walked into a known-red path.
+	// The frontend gates the UI too; this is the authoritative backstop.
+	if err := a.gateScenarioWith(cfg, systemInfo); err != nil {
+		return InstallConfig{}, err
+	}
+	bootloader, err := normalizeBootloader(cfg.Bootloader)
+	if err != nil {
+		return InstallConfig{}, err
+	}
+	cfg.Bootloader = bootloader
+	if cfg.Encryption == "" {
+		cfg.Encryption = "none"
+	}
+	switch cfg.Encryption {
+	case "none":
+	case "tpm2-luks":
+		// The deployer's verification step cannot open a TPM-sealed root
+		// (fisherman stages TPM enrollment for first boot and only emits a
+		// recovery key the deployer never captures), so every such install
+		// aborts at verification, and the user is never shown the key the
+		// first boot asks for (#551, #33). Refuse it until that path works.
+		return InstallConfig{}, fmt.Errorf("TPM auto-unlock is not available yet: the install cannot " +
+			"verify a TPM-sealed disk and would not show you its recovery key (#551). " +
+			"Choose no encryption, or a passphrase")
+	case "luks-passphrase":
+		if cfg.LuksPassphrase == "" {
+			return InstallConfig{}, fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
+		}
+	default:
+		return InstallConfig{}, fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
+	}
+	if err := validatePlatformConfig(cfg); err != nil {
+		return InstallConfig{}, err
+	}
+	// root.disk AND the deployer's scratch for this image must fit on the
+	// storage drive. The deployer checks too, but only after the reboot.
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := checkInstallSpace(ctx, cfg); err != nil {
+		return InstallConfig{}, err
+	}
+	return cfg, nil
+}
+
 // StartInstall begins the install pipeline in a goroutine. Progress events
 // are emitted via Wails runtime events (event: "install:progress").
 // Returns immediately — poll GetStatus() or listen to events.
 func (a *App) StartInstall(cfg InstallConfig) error {
-	// Green-gate (docs/RELEASING.md): refuse scenarios the active channel has
-	// not proven, so an alpha user can never be walked into a known-red path.
-	// The frontend gates the UI too; this is the authoritative backstop.
-	if err := a.gateScenario(cfg); err != nil {
-		return err
-	}
-	bootloader, err := normalizeBootloader(cfg.Bootloader)
+	cfg, err := a.validateInstallConfig(cfg)
 	if err != nil {
-		return err
-	}
-	cfg.Bootloader = bootloader
-	if cfg.Encryption == "" {
-		cfg.Encryption = "tpm2-luks"
-	}
-	switch cfg.Encryption {
-	case "none", "tpm2-luks":
-	case "luks-passphrase":
-		if cfg.LuksPassphrase == "" {
-			return fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
-		}
-	default:
-		return fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
-	}
-	if err := validatePlatformConfig(cfg); err != nil {
 		return err
 	}
 
@@ -524,13 +589,9 @@ func (a *App) StartInstall(cfg InstallConfig) error {
 			}
 		})
 		if err != nil && err != context.Canceled {
-			a.emit(ProgressEvent{
-				Step: "error", Message: err.Error(), Percent: 0, Error: err.Error(),
-			})
+			a.emit(installFailureEvent(err))
 		} else if err == nil {
-			a.emit(ProgressEvent{
-				Step: "done", Message: "Installation complete. Reboot to start TunaOS.", Percent: 100, Done: true,
-			})
+			a.emit(installDoneEvent())
 		}
 	})
 }
@@ -645,7 +706,12 @@ func (a *App) E2EDriveDirective() string {
 	if err != nil {
 		return ""
 	}
-	return string(b)
+	if _, err := e2eUniqueObject(b); err != nil {
+		return ""
+	}
+	// e2eUniqueObject tolerates a BOM for validation; the frontend's
+	// JSON.parse does not, so never hand one to it.
+	return string(bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")))
 }
 
 // E2EDriveReport persists the frontend's current state for the harness.
@@ -653,7 +719,16 @@ func (a *App) E2EDriveReport(state string) {
 	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
 		return
 	}
-	_ = os.WriteFile(e2eDrivePath("e2e-drive-state.json"), []byte(state), 0o644)
+	writeE2EDriveReport(state)
+}
+
+// E2EDriveReady persists the frontend's first-render signal for the harness.
+// It binds to no directive on purpose: see writeE2EReady.
+func (a *App) E2EDriveReady(state string) {
+	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
+		return
+	}
+	writeE2EReady(state)
 }
 
 // ── Existing install detection ────────────────────────────────────────────────
@@ -704,6 +779,11 @@ type UninstallInfo struct {
 // post-deploy loop (North Star audit): even when the deployer could not
 // re-arm itself, the user has a button that actually starts their Linux.
 func (a *App) BootIntoLinux() error {
+	release, err := acquireNativeInstallLease(wootcDir())
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := armOneShotFromPersistedGUID(); err != nil {
 		return err
 	}
@@ -777,10 +857,7 @@ func installPipelineSteps(ctx context.Context, cfg InstallConfig, emit func(Prog
 			// path has its own matrix axis (#217) — until that is green,
 			// the harness proves branding and deploy separately from
 			// preload. Real users never run with this variable set.
-			if os.Getenv("WOOTC_PRELOAD") == "0" {
-				return nil
-			}
-			if !effectiveBranding().PreloadImage && os.Getenv("WOOTC_PRELOAD") == "" {
+			if !shouldPreloadImage(effectiveBranding()) {
 				return nil
 			}
 			return stageImageBundle(ctx, cfg.ImageRef, func(done, total int64) {
@@ -888,7 +965,11 @@ func installPipelineSteps(ctx context.Context, cfg InstallConfig, emit func(Prog
 			registerUninstallEntry()
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)
-			return nil
+			// Commit point of the boot-chain transaction (#286): the one-shot
+			// is the LAST change before reboot. Until here the wootc entry is
+			// inert, so a cancel, failure, or power cut at any earlier step
+			// returns to Windows.
+			return armBootChain()
 		}},
 	}
 
@@ -902,12 +983,20 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 	if err := prepareInstallState(cfg.StorageDrive); err != nil {
 		return err
 	}
+	release, err := acquireNativeInstallLease(wootcDir())
+	if err != nil {
+		return err
+	}
+	defer release()
 	// GUI routing is advisory. Enforce data preservation for every backend
 	// caller before changing power settings, files, or firmware boot entries.
 	if err := requireNewInstallRootDisk(); err != nil {
 		return err
 	}
 	steps := installPipelineSteps(ctx, cfg, emit)
+	// Started only after the gates above, so a refused run never overwrites
+	// the journal of the attempt recovery still has to explain.
+	journal := newInstallJournalRecorder(journalPath(), cfg, nil)
 
 	fault := cfg.FaultInject
 	if fault == "" {
@@ -928,9 +1017,11 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 				disarmOneShot()
 			}
 			writeState(StateStaged, "cancelled", "")
+			journal.end(JournalCancelled, "")
 			return ctx.Err()
 		default:
 		}
+		journal.stepStarted(s.name)
 		emit(installStepProgress(s.name, s.percent))
 
 		if fault != "" {
@@ -940,38 +1031,46 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during root disk creation")
+				journal.end(JournalFailed, "fault-injection: simulated failure during root disk creation")
 				return fmt.Errorf("%s: fault-injection: simulated failure during root disk creation", displayStepLabel(s.name))
 			case (fault == "image-pull" || fault == "image-download") && (s.name == StepInstallerDownloadingLinux || s.name == StepInstallerDownloadingYourLinuxSystem):
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during image download")
+				journal.end(JournalFailed, "fault-injection: simulated failure during image download")
 				return fmt.Errorf("%s: fault-injection: simulated failure during image download", displayStepLabel(s.name))
 			case (fault == "efi-staging" || fault == "efi") && s.name == StepInstallerGettingLinuxPrepared:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during EFI staging")
+				journal.end(JournalFailed, "fault-injection: simulated failure during EFI staging")
 				return fmt.Errorf("%s: fault-injection: simulated failure during EFI staging", displayStepLabel(s.name))
 			case (fault == "bcd-arming" || fault == "bcd") && s.name == StepInstallerMakingLinuxBootableOnYourMachine:
 				if armed {
 					disarmOneShot()
 				}
 				writeState(StateFailed, s.name, "fault-injection: simulated failure during BCD arming")
+				journal.end(JournalFailed, "fault-injection: simulated failure during BCD arming")
 				return fmt.Errorf("%s: fault-injection: simulated failure during BCD arming", displayStepLabel(s.name))
 			}
 		}
 
+		// Set BEFORE the step runs: configureBCD can fail after it created an
+		// entry, and that partial chain must be rolled back too.
+		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
+			armed = true
+		}
 		if err := s.fn(); err != nil {
 			if armed {
 				disarmOneShot()
 			}
 			writeState(StateFailed, s.name, err.Error())
+			journal.end(JournalFailed, err.Error())
 			return fmt.Errorf("%s: %w", displayStepLabel(s.name), err)
 		}
-		if s.name == StepInstallerMakingLinuxBootableOnYourMachine {
-			armed = true
-		}
+		journal.stepDone(s.name)
 	}
 
 	if fault == "pre-reboot" {
@@ -979,10 +1078,16 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 			disarmOneShot()
 		}
 		writeState(StateStaged, "cancelled", "fault-injection: simulated cancellation before reboot")
+		journal.end(JournalCancelled, "fault-injection: simulated cancellation before reboot")
 		return fmt.Errorf("fault-injection: simulated cancellation before reboot")
 	}
 
-	return finishInstallPipeline(ctx, armed, disarmOneShot, writeState)
+	if err := finishInstallPipeline(ctx, armed, disarmOneShot, writeState); err != nil {
+		journal.end(JournalCancelled, "")
+		return err
+	}
+	journal.end(JournalArmed, "")
+	return nil
 }
 
 // A cancellation can arrive inside the final synchronous operation. There is
@@ -1025,9 +1130,25 @@ func (a *App) TryAgain() error {
 	return tryAgainFromArmed(false)
 }
 
-// RepairBoot re-stages ESP bootloader files, re-arms BCD, and reboots.
+// RepairBoot re-stages ESP bootloader files, re-arms BCD, and reboots. It
+// refuses when the boot chain cannot be attributed to this install.
 func (a *App) RepairBoot() error {
 	return repairBootFromArmed(false)
+}
+
+// InspectBoot reports the observed boot state, which entries are wootc's,
+// and which repair actions are safe. It changes nothing in BCD or on the ESP
+// and saves an evidence bundle under install\repair.
+func (a *App) InspectBoot() BootRepairReport {
+	report, _ := inspectBoot()
+	return report
+}
+
+// RestoreWindowsBoot takes wootc out of the boot order so Windows starts,
+// keeping the entry and files for a later retry. The returned report is a
+// fresh observation; err is set unless it shows a Windows-only boot.
+func (a *App) RestoreWindowsBoot() (BootRepairReport, error) {
+	return restoreWindowsBoot()
 }
 
 // VMEvent is a Try-in-VM progress event (frontend listens on "vm:progress").
@@ -1086,6 +1207,27 @@ func (a *App) runPreviewInstall(ctx context.Context) {
 		s.Done = true
 	})
 	a.emit(ProgressEvent{Step: "done", Message: "Installation complete (preview).", Percent: 100, Done: true})
+}
+
+// installDoneEvent and installFailureEvent are the last install:progress
+// events of a real run. The native shell's recorded progress streams
+// (tests/unit/fixtures/install-progress) are built from these constructors.
+func installDoneEvent() ProgressEvent {
+	return ProgressEvent{Step: "done", Message: "Installation complete. Reboot to start " + installedSystemName() + ".", Percent: 100, Done: true}
+}
+
+// installedSystemName is the distribution this build installs, from the
+// effective branding: a Bazzite build says "Bazzite", the generic build says
+// its default name. Only a brand that clears the name falls back to "Linux".
+func installedSystemName() string {
+	if n := strings.TrimSpace(effectiveBranding().Name); n != "" {
+		return n
+	}
+	return "Linux"
+}
+
+func installFailureEvent(err error) ProgressEvent {
+	return ProgressEvent{Step: "error", Message: err.Error(), Percent: 0, Error: err.Error()}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
