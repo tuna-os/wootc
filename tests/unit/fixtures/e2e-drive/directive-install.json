@@ -1,1 +1,1 @@
-{"schemaVersion":1,"runId":"20261015-native-fixture","directiveId":"0123456789abcdef0123456789abcdef","action":"install","image":"ghcr.io/tuna-os/yellowfin:gnome","username":"wootc","password":"wootc-e2e-pass","hostname":"wootc-test"}
+{"schemaVersion":1,"runId":"20261015-native-fixture","directiveId":"0123456789abcdef0123456789abcdef","action":"install","image":"ghcr.io/tuna-os/yellowfin:gnome","username":"wootc","password":"wootc-e2e-pass","hostname":"wootc-test","storageId":"C:"}

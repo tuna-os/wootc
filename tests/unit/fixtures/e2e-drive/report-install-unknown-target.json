@@ -1,0 +1,1 @@
+{"schemaVersion":1,"runId":"20261015-native-fixture","directiveId":"0123456789abcdef0123456789abcdef","action":"install","screen":"launchpad","installDriven":false,"installBtnDisabled":true,"hint":"Choose a variant above.","progressStep":"","error":"The install drive directive names target volume C:, which matches no observed storage.","selectedRef":"","imageMismatch":false}

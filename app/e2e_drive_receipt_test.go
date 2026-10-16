@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -84,7 +85,15 @@ func TestE2EDriveSharedNativeGoldens(t *testing.T) {
 		return raw
 	}
 	install, reboot := read("directive-install.json"), read("directive-reboot.json")
-	for _, name := range []string{"report-install-ready.json", "report-install-mismatch.json", "report-install-done.json"} {
+	// The native shell refuses an install directive that names no target
+	// volume, so the shared install golden must name one ("C:").
+	var target struct {
+		StorageID *string `json:"storageId"`
+	}
+	if err := json.Unmarshal(install, &target); err != nil || target.StorageID == nil || *target.StorageID != "C:" {
+		t.Fatalf("directive-install.json must name storageId \"C:\" (err=%v)", err)
+	}
+	for _, name := range []string{"report-install-ready.json", "report-install-mismatch.json", "report-install-done.json", "report-install-unknown-target.json"} {
 		if !e2eBoundDriveReport(read(name), install) {
 			t.Errorf("%s is not bound to the install directive", name)
 		}

@@ -54,6 +54,8 @@ public sealed class ConsumerConfiguration
     public ConfigurationImage? SelectedImage => selected;
     public ConfigurationStorage? SelectedStorage => storage;
     public IReadOnlyList<ConfigurationImage> Images => catalogue?.Images ?? Array.Empty<ConfigurationImage>();
+    // Null until the authenticated configuration has been read.
+    public IReadOnlyList<ConfigurationStorage>? ObservedStorage => catalogue?.Storage;
     // The configuration view cannot grant engine capabilities. A future
     // operation route must obtain and bind authorization separately.
     public bool CanInstall => false;
@@ -160,16 +162,17 @@ public sealed class ConsumerConfiguration
             ImageMismatch = true;
             return new(directive.RunId, directive.DirectiveId, false, true, false, InstallationBlockedReason);
         }
-        // The harness directive names no storage. It then maps only when the
-        // engine observed exactly one eligible volume; a choice between
-        // volumes is never made for the person or the harness.
-        var volumes = catalogue?.Storage ?? Array.Empty<ConfigurationStorage>();
-        var requestedStorage = directive.StorageId.Length == 0
-            ? (volumes.Count == 1 ? volumes[0] : null)
-            : volumes.SingleOrDefault(volume => volume.Id == directive.StorageId);
-        if (requestedStorage is null) return new(directive.RunId, directive.DirectiveId, false, false, false,
-            directive.StorageId.Length == 0 ? "The drive directive names no storage and the engine did not observe exactly one volume."
-                : "The requested storage identity has not been observed.");
+        // The directive must name its target volume; one observed volume is
+        // never taken as the answer (E2EDriveTarget).
+        ConfigurationStorage requestedStorage;
+        try
+        {
+            requestedStorage = E2EDriveTarget.Resolve(directive.StorageId, catalogue?.Storage ?? Array.Empty<ConfigurationStorage>());
+        }
+        catch (E2EDriveRefusal refusal)
+        {
+            return new(directive.RunId, directive.DirectiveId, false, false, false, refusal.Message);
+        }
         selected = requested;
         storage = requestedStorage;
         ImageMismatch = false;

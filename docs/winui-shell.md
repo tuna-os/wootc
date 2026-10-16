@@ -220,7 +220,7 @@ The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, n
 | Transport | Native authenticated-peer tests; refusal of wrong SID/session/process; cancellation during mutation |
 | Build | Windows CI builds and packages every eligible brand; generated DTOs remain current |
 | UI parity | Real controls, screenshots, accessible names, keyboard flow, truthful blocked reasons |
-| Drive contract | Existing `e2e-drive.json` directives operate view-models; image mismatch fails closed |
+| Drive contract | Existing `e2e-drive.json` directives operate view-models; image mismatch fails closed; an install directive must name its target volume (`storageId`: an engine storage id or a drive letter such as `C:`), and a missing, unknown or ambiguous target is refused as a drive error |
 | Migration | Same plan/result fixtures on native Windows and GTK; partial results and retry stay visible |
 | Deployment | Shell-driven Windows → deployer → Linux → Windows cycle, including offline and BitLocker cohorts |
 | Recovery | Kill shell at safe test points; cancel; restart; inspect durable state; repair; uninstall |

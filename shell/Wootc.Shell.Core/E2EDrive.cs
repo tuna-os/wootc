@@ -14,6 +14,12 @@ namespace Wootc.Shell.Core;
 // Nothing here talks to the engine or clicks a control. The view asks for the
 // next command, performs it through the same view-model a person uses, and
 // tells the session what happened.
+//
+// An install directive names its target volume in storageId. The shell never
+// falls back to "the only volume it sees": a directive without a target, or
+// one whose target matches no observed volume or more than one, is refused
+// and the refusal is reported as the drive error. Nothing is mapped and
+// Install is never clicked.
 
 public sealed class E2EDriveDirective
 {
@@ -106,15 +112,61 @@ public sealed class E2EDriveDirective
     public override string ToString() => $"E2E drive directive {Action} {DirectiveId} (private configuration omitted)";
 }
 
+// A drive directive the shell will not act on. The message is what the
+// report's error field carries.
+public sealed class E2EDriveRefusal : Exception
+{
+    public E2EDriveRefusal(string message) : base(message) { }
+}
+
+// Resolves an install directive's storageId against the engine's storage
+// observation. storageId names a volume either by the engine's storage id
+// (exact) or by its drive letter ("C", "c:", "C:" all name C:). The harness
+// cannot know engine-derived ids in advance, so the drive letter is allowed;
+// the match is still explicit and never inferred from what is on screen.
+public static class E2EDriveTarget
+{
+    public const string MissingTarget =
+        "The install drive directive names no target volume (storageId). The shell never picks one; name a volume ID or drive letter.";
+
+    public static ConfigurationStorage Resolve(string? storageId, IReadOnlyList<ConfigurationStorage> observed)
+    {
+        ArgumentNullException.ThrowIfNull(observed);
+        if (string.IsNullOrWhiteSpace(storageId)) throw new E2EDriveRefusal(MissingTarget);
+        string? letter = DriveLetterForm(storageId);
+        var matches = observed.Where(volume => volume is not null &&
+            (string.Equals(volume.Id, storageId, StringComparison.Ordinal) ||
+             (letter is not null && DriveLetterForm(volume.DriveLetter) == letter))).Distinct().ToArray();
+        // A huge storageId must not push the report past the engine's size cap.
+        // Messages avoid apostrophes and quotes, which the report writer escapes.
+        string named = storageId.Length <= 64 ? storageId : $"({storageId.Length} characters)";
+        return matches.Length switch
+        {
+            1 => matches[0],
+            0 => throw new E2EDriveRefusal($"The install drive directive names target volume {named}, which matches no observed storage."),
+            _ => throw new E2EDriveRefusal($"The install drive directive names target volume {named}, which matches more than one observed storage entry."),
+        };
+    }
+
+    // "C", "c", "C:" and "c:" all normalise to "C:"; anything else is not a drive letter.
+    public static string? DriveLetterForm(string? value) =>
+        value is { Length: 1 or 2 } && char.IsAsciiLetter(value[0]) && (value.Length == 1 || value[1] == ':')
+            ? char.ToUpperInvariant(value[0]) + ":" : null;
+}
+
 // Screen names the harness accepts (tests/e2e/gui-drive-receipt.py SCREENS).
 public enum DriveScreen { Loading, Launchpad, Progress, Done, Control, Recovery }
 
 // What the view observed on this poll. InstallButtonDisabled is null when
-// the Install control is not on screen.
+// the Install control is not on screen. Storage is the engine's storage
+// observation (ConsumerConfiguration.ObservedStorage), null until the
+// authenticated configuration has been read.
 public sealed record DriveObservation(DriveScreen Screen, bool? InstallButtonDisabled, string Hint,
-    string ProgressStep, string? Error, string SelectedRef);
+    string ProgressStep, string? Error, string SelectedRef, IReadOnlyList<ConfigurationStorage>? Storage = null);
 
-public enum DriveCommand { None, MapInstall, ClickInstall, Reboot }
+// Refuse: do nothing to the form; the session's DriveError says why and the
+// report carries it.
+public enum DriveCommand { None, MapInstall, ClickInstall, Reboot, Refuse }
 
 public sealed class E2EDriveSession
 {
@@ -125,6 +177,9 @@ public sealed class E2EDriveSession
     public bool InstallRequested { get; private set; }
     public bool InstallDriven { get; private set; }
     public bool RebootDriven { get; private set; }
+    // Why this session refused the install directive. Once set, the session
+    // never maps or clicks for this run, and every report carries it.
+    public string? DriveError { get; private set; }
 
     // One command per poll. The view performs it, then reports the outcome
     // with the matching Mark method. A changed run or a second install
@@ -142,8 +197,19 @@ public sealed class E2EDriveSession
                     throw new InvalidDataException("Changed install directive");
                 installDirectiveId = directive.DirectiveId;
                 wantImage = directive.Image;
+                if (DriveError is not null) return DriveCommand.Refuse;
+                // A directive without a target is refused on sight, whatever
+                // the screen or the number of volumes.
+                if (string.IsNullOrWhiteSpace(directive.StorageId)) return Refuse(E2EDriveTarget.MissingTarget);
                 if (InstallRequested || observed.Screen != DriveScreen.Launchpad) return DriveCommand.None;
-                if (mappedDirectiveId != directive.DirectiveId) return DriveCommand.MapInstall;
+                if (mappedDirectiveId != directive.DirectiveId)
+                {
+                    // Storage not read yet: wait, never guess.
+                    if (observed.Storage is null) return DriveCommand.None;
+                    try { E2EDriveTarget.Resolve(directive.StorageId, observed.Storage); }
+                    catch (E2EDriveRefusal refusal) { return Refuse(refusal.Message); }
+                    return DriveCommand.MapInstall;
+                }
                 // Integrity gate: install only the image the directive named.
                 if (directive.Image.Length != 0 && observed.SelectedRef != directive.Image) return DriveCommand.None;
                 return observed.InstallButtonDisabled == false ? DriveCommand.ClickInstall : DriveCommand.None;
@@ -156,7 +222,21 @@ public sealed class E2EDriveSession
         }
     }
 
+    private DriveCommand Refuse(string reason)
+    {
+        DriveError ??= reason;
+        return DriveCommand.Refuse;
+    }
+
     public void MarkMapped(E2EDriveDirective directive) => mappedDirectiveId = directive.DirectiveId;
+
+    // The view calls this when ConsumerConfiguration.ApplyDriveMapping refused
+    // the target volume, so that refusal is reported, not swallowed.
+    public void MarkRefused(string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("A drive refusal needs a reason");
+        DriveError ??= reason;
+    }
 
     // Call before the click: a click whose handler partly ran is never replayed.
     public void MarkInstallRequested() => InstallRequested = true;
@@ -168,8 +248,11 @@ public sealed class E2EDriveSession
     public string? Report(E2EDriveDirective directive, DriveObservation observed)
     {
         if (directive.Action is not ("install" or "reboot")) return null;
-        bool mismatch = wantImage.Length != 0 && observed.Screen == DriveScreen.Launchpad &&
+        // A refused target is the reason nothing was selected; it is reported
+        // as the error, not as an image the catalogue lacks.
+        bool mismatch = DriveError is null && wantImage.Length != 0 && observed.Screen == DriveScreen.Launchpad &&
             !InstallDriven && observed.SelectedRef != wantImage;
+        string? error = DriveError ?? (string.IsNullOrEmpty(observed.Error) ? null : observed.Error);
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer))
         {
@@ -184,8 +267,8 @@ public sealed class E2EDriveSession
             else writer.WriteNull("installBtnDisabled");
             writer.WriteString("hint", observed.Hint ?? "");
             writer.WriteString("progressStep", observed.ProgressStep ?? "");
-            if (string.IsNullOrEmpty(observed.Error)) writer.WriteNull("error");
-            else writer.WriteString("error", observed.Error);
+            if (error is null) writer.WriteNull("error");
+            else writer.WriteString("error", error);
             writer.WriteString("selectedRef", observed.SelectedRef ?? "");
             writer.WriteBoolean("imageMismatch", mismatch);
             writer.WriteEndObject();

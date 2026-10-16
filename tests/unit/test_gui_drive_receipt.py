@@ -183,9 +183,23 @@ class GuiDriveReceiptTests(unittest.TestCase):
         # shell/Wootc.Shell.Tests/E2EDriveTests.cs builds these bytes.
         fixtures = ROOT / 'tests/unit/fixtures/e2e-drive'
         directive = json.loads((fixtures / 'directive-install.json').read_text())
-        for name in ('report-install-ready.json', 'report-install-mismatch.json', 'report-install-done.json'):
+        # The native shell refuses an install directive without a target volume.
+        self.assertEqual(directive['storageId'], 'C:')
+        for name in ('report-install-ready.json', 'report-install-mismatch.json', 'report-install-done.json',
+                     'report-install-unknown-target.json'):
             raw = (fixtures / name).read_text()
             module.validate(raw, directive['runId'], directive['directiveId'], directive['image'])
+
+    def test_native_target_refusal_reaches_the_harness_as_an_error(self):
+        # The harness fails fast on a non-null error; a refused target must not
+        # read as an image mismatch or a silent wait.
+        fixtures = ROOT / 'tests/unit/fixtures/e2e-drive'
+        directive = json.loads((fixtures / 'directive-install.json').read_text())
+        raw = (fixtures / 'report-install-unknown-target.json').read_text()
+        state = json.loads(module.validate(raw, directive['runId'], directive['directiveId'], directive['image']))
+        self.assertIn('target volume C:', state['error'])
+        self.assertFalse(state['imageMismatch'])
+        self.assertFalse(state['installDriven'])
 
 
 if __name__ == '__main__':
