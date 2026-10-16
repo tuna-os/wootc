@@ -87,9 +87,10 @@ RECOVERY_CHECK=false
 # tests/e2e/firmware-db.py for the cells.
 FIRMWARE_DB="${WOOTC_E2E_FIRMWARE_DB:-}"
 # Which GUI --gui-install drives: the legacy Wails app (default) or the native
-# shell. Only the directive differs so far (the native one names its target
-# volume); the native shell's launch is not wired yet, so that value is
-# refused below rather than driving the Wails app and recording it as native.
+# WinUI shell (#344). Native installs the protected package staged in
+# wootc-files/native-shell (shell + engine + native-package.json, assembled
+# by e2e-hosted.yml) and drives it; its directive also names the target
+# volume. See gui_native_stage_package.
 GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-wails}"
 OFFLINE=false
 for arg in "$@"; do
@@ -137,11 +138,28 @@ WOOTC_RESULT_LEDGER="${TMPDIR:-/tmp}/wootc-e2e-results.$$.jsonl"
 RESULT_SCENARIO=full-cycle
 if [ "${RUN_PHASE3:-false}" = true ]; then RESULT_SCENARIO=native-cycle; fi
 if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
+# GUI_PROCESS is the frontend's process name in the guest: the single-instance
+# proof, the crash checks and the post-mortem all count THAT process, so a
+# native run in which the Wails app answered (or vice versa) cannot pass.
+NATIVE_PACKAGE_DIR="$SCRIPT_DIR/wootc-files/native-shell"
 case "$GUI_FRONTEND" in
-    wails) ;;
+    wails) GUI_PROCESS=wootc GUI_OTHER_PROCESS=Wootc.Shell ;;
     native)
-        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native: the harness cannot launch the native shell yet (#344); its directive is ready, its launch is not" >&2
-        exit 1 ;;
+        GUI_PROCESS=Wootc.Shell GUI_OTHER_PROCESS=wootc
+        if [ "$GUI_INSTALL" != true ]; then
+            echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native needs --gui-install: only the GUI path launches a frontend" >&2
+            exit 1
+        fi
+        # Refuse before any VM work: no package, a package that differs from
+        # its manifest, or the screen gallery build (recorded fixtures, no
+        # engine) would each turn the run into a launch failure 30 min later.
+        if ! NATIVE_PACKAGE_IDENTITY=$(python3 "$SCRIPT_DIR/native-package.py" check "$NATIVE_PACKAGE_DIR"); then
+            echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=native: no valid native shell package in $NATIVE_PACKAGE_DIR (assemble it as e2e-hosted.yml does)" >&2
+            exit 1
+        fi
+        NATIVE_BRAND=$(printf '%s' "$NATIVE_PACKAGE_IDENTITY" | sed -n 's/.* brandId=\([a-z]*\) .*/\1/p')
+        [ -n "$NATIVE_BRAND" ] || { echo "[FAIL] native package identity is unreadable: $NATIVE_PACKAGE_IDENTITY" >&2; exit 1; }
+        ;;
     *)
         echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be wails or native, not '$GUI_FRONTEND'" >&2
         exit 1 ;;
@@ -162,7 +180,12 @@ case "$FIRMWARE_DB" in
 esac
 if [ -n "${WOOTC_E2E_SNAPSHOT_OUT:-}" ]; then RESULT_SCENARIO="snapshot-prime"; fi
 RESULT_REQUIRED=""
-if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ] && [ "$RESULT_SCENARIO" != secure-boot-refusal ]; then RESULT_REQUIRED=gui-install; fi
+if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCENARIO" != snapshot-prime ] && [ "$RESULT_SCENARIO" != secure-boot-refusal ]; then
+    RESULT_REQUIRED=gui-install
+    # A native run must prove which frontend drove it, or its green would
+    # read exactly like a Wails one.
+    if [ "$GUI_FRONTEND" = native ]; then RESULT_REQUIRED=gui-install,native-shell; fi
+fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
 trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
@@ -2475,6 +2498,8 @@ reset_oem_attempt
 # shellcheck source=tests/e2e/lib/gui-observations.sh
 source "$SCRIPT_DIR/lib/gui-observations.sh"
 wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
+# shellcheck source=tests/e2e/lib/gui-native.sh
+source "$SCRIPT_DIR/lib/gui-native.sh"
 
 # ── Firmware db cell 'none' (#322): the pass is a refusal ──────────────────
 # Firmware that trusts neither Microsoft third-party CA cannot launch any
@@ -2536,7 +2561,9 @@ gui_install_arm() {
     seed_user_data before-storage || true
 
     mark_phase phase1
-    step "GUI-driven Phase 1: staging wootc.exe and launching the installer..."
+    step "GUI-driven Phase 1: staging the $GUI_FRONTEND installer and launching it..."
+    # wootc.exe is staged for both frontends: the status/uninstall assertions
+    # after the deploy use it as the CLI.
     [ -f "$SCRIPT_DIR/wootc-files/wootc.exe" ] || {
         fail "wootc.exe missing from wootc-files/ — build it first (see tests/gui/run-cdp.sh step 1)"
         exit 1
@@ -2567,6 +2594,10 @@ gui_install_arm() {
     # single-connection: a long guest job must be launched detached and observed
     # through short reads, which is the same pattern the rest of this harness
     # already uses for anything slow.
+    # The native shell is WinUI, not WebView2: it needs no runtime install.
+    # (Not re-indented: the PowerShell here-string below must keep "@ at
+    # column 0.)
+    if [ "$GUI_FRONTEND" = wails ]; then
     info "  ensuring the WebView2 runtime is present (wails cannot render without it)..."
     local wv2_key='HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
     if qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1; then
@@ -2595,6 +2626,7 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
         qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1 \
             || warn "    WebView2 still absent after 7m — the GUI will stall on its install prompt"
     fi
+    fi  # wails: WebView2
 
     gui_settle_pending_servicing || { capture_vm_diagnostics; exit 1; }
 
@@ -2608,6 +2640,19 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
     fi
     gui_wait_interactive_session || { capture_vm_diagnostics; exit 1; }
 
+    # What launch-gui.cmd starts. The native shell must run from its protected
+    # package (ProtectedPackage refuses any other location), so its path is
+    # computed in the guest from the same Program Files root its install used.
+    local gui_launch_ps
+    # shellcheck disable=SC2016
+    gui_launch_ps='$launch = "C:\wootc\wootc.exe"'
+    if [ "$GUI_FRONTEND" = native ]; then
+        gui_native_stage_package || { capture_vm_diagnostics; exit 1; }
+        # shellcheck disable=SC2016
+        gui_launch_ps="$(gui_native_bundle_ps)"'
+$launch = [char]34 + (Join-Path $bundle "Wootc.Shell.exe") + [char]34'
+    fi
+
     qga_powershell '$ErrorActionPreference = "Stop"
 . "\\host.lan\Data\state-trust.ps1"
 Initialize-WootcStateDirectory -Path C:\wootc
@@ -2616,12 +2661,14 @@ New-Item -ItemType Directory -Force -Path C:\wootc\install | Out-Null
 Copy-WootcStatusCLI -SourceDirectory "\\host.lan\Data" -Destination "C:\wootc\wootc.exe"
 foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx64.efi","mmx64.efi","wubildr.efi","mirror.txt","SHA256SUMS","SHA256SUMS.sig","shim-authorities.json") { if (Test-Path "\\host.lan\Data\$f") { Copy-Item "\\host.lan\Data\$f" "C:\wootc\install\$f" -Force } }
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json,C:\wootc\e2e-ready.json -Force -ErrorAction SilentlyContinue
+'"$gui_launch_ps"'
+Write-Output ("launch target: " + $launch)
 @"
 set WOOTC_E2E_DRIVE=1
 set WOOTC_PRELOAD=0
-start `"`" C:\wootc\wootc.exe
+start `"`" $launch
 "@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
-Stop-Process -Name wootc -Force -ErrorAction SilentlyContinue
+Stop-Process -Name wootc,Wootc.Shell -Force -ErrorAction SilentlyContinue
 try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
 $start = (Get-Date).AddMinutes(1).ToString('\''HH:mm'\'')
 # /RU must name the account that is actually autologged on: Pro media use
@@ -2656,12 +2703,16 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
     # query user empty, task 267011). Re-check the scheduler's own observable
     # now — waiting 60 s for a file an unrunnable task will never write is
     # blind. An empty answer skips straight to the classified failure below.
-    local sessions launch_deadline
+    # The native shell renders only after its first elevation, the engine's
+    # protected-package and peer checks and the startup assessment, so it
+    # gets longer than the Wails app.
+    local sessions launch_deadline ready_budget=60
+    [ "$GUI_FRONTEND" = native ] && ready_budget=180
     sessions=$(qga_powershell '(query user 2>&1) -join " | "' 2>/dev/null || true)
     if [[ -z "$sessions" || "$sessions" == *"No User exists"* ]]; then
         warn "query user shows no interactive session — skipping the launch wait (schtasks /IT cannot run)"
     else
-        launch_deadline=$(deadline_in 60)
+        launch_deadline=$(deadline_in "$ready_budget")
         while ! past_deadline "$launch_deadline"; do
             if qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
                 break
@@ -2670,7 +2721,34 @@ Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
         done
     fi
     if ! qga_read 'C:\wootc\e2e-ready.json' >/dev/null 2>&1; then
-        fail "wootc.exe did not render within 60 s — e2e-ready.json never appeared"
+        fail "$GUI_PROCESS.exe did not render within $ready_budget s — e2e-ready.json never appeared"
+        if [ "$GUI_FRONTEND" = native ]; then
+            # The native shell writes readiness through its engine, so "no
+            # marker" can be the shell, the elevation, the package checks or
+            # the engine. Ask for each.
+            info "  native launch post-mortem (shell / engine / elevation / package):"
+            # shellcheck disable=SC2016
+            qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+$s = @(Get-Process Wootc.Shell)
+Write-Output ("native shell processes: " + $s.Count + " " + (($s | ForEach-Object { $_.Path }) -join ", "))
+Write-Output ("native engine processes: " + @(Get-Process wootc-engine).Count)
+Write-Output ("wails app processes: " + @(Get-Process wootc).Count)
+Write-Output ("interactive sessions: " + ((query user 2>&1) -join " | "))
+$q = (schtasks /Query /TN wootc-gui-e2e /FO LIST /V 2>&1 | Select-String "Result|Status") -join "; "
+Write-Output ("task: " + $q)
+Write-Output ("launch-gui.cmd: " + ((Get-Content C:\wootc\launch-gui.cmd) -join " && "))
+$e = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+Write-Output ("machine env: WOOTC_E2E_DRIVE=" + $e.WOOTC_E2E_DRIVE + " WOOTC_PRELOAD=" + $e.WOOTC_PRELOAD)
+$u = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+Write-Output ("uac: ConsentPromptBehaviorAdmin=" + $u.ConsentPromptBehaviorAdmin + " EnableLUA=" + $u.EnableLUA)
+Get-WinEvent -FilterHashtable @{LogName="Application"; StartTime=(Get-Date).AddMinutes(-15)} -MaxEvents 200 |
+  Where-Object { $_.ProviderName -in @("Application Error",".NET Runtime","Windows Error Reporting","SideBySide") -and $_.Message -match "Wootc[.]Shell|wootc-engine" } |
+  Select-Object -First 4 | ForEach-Object { Write-Output ("event " + $_.ProviderName + " " + $_.Id + ": " + (($_.Message -split "`n" | Select-Object -First 6) -join " / ")) }
+Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption + " " + [Environment]::OSVersion.Version)
+' 2>&1 | sed 's/^/    /' || warn "    (post-mortem query failed)"
+            capture_vm_diagnostics
+            exit 1
+        fi
         # "It didn't start" is not a diagnosis: the task may never have run, the
         # process may have started and died, or the app may be unable to render
         # at all. wootc is a wails app, so it CANNOT start without the WebView2
@@ -2700,7 +2778,7 @@ Write-Output ("OS: " + (Get-CimInstance Win32_OperatingSystem).Caption)
         capture_vm_diagnostics
         exit 1
     fi
-    pass "wootc.exe GUI launched in drive mode in the wootc session"
+    pass "$GUI_PROCESS.exe GUI launched in drive mode in the wootc session"
 
     # The task that launched the app must not launch it a SECOND time.
     # `/Create /SC ONCE /ST <now+1m>` leaves a live trigger behind and `/Run`
@@ -2765,9 +2843,11 @@ if ($named -eq 0) {
 # that appears after the count would drive the directive we are about to write.
 # Bounded well inside the 60 s qga_call timeout: a client killed mid-command
 # poisons the single-connection socket for the rest of the run.
+# $gui is the frontend under test, $other the one that must not be running.
+'"\$gui = '$GUI_PROCESS'; \$other = '$GUI_OTHER_PROCESS'"'
 Start-Sleep -Seconds 4
 for ($round = 1; $round -le 2; $round++) {
-    $procs = @(Get-Process wootc -ErrorAction SilentlyContinue | Sort-Object StartTime)
+    $procs = @(Get-Process -Name $gui -ErrorAction SilentlyContinue | Sort-Object StartTime)
     Write-Output ("round " + $round + ": instances=" + $procs.Count)
     if ($procs.Count -le 1) { break }
     foreach ($p in $procs[1..($procs.Count - 1)]) {
@@ -2776,16 +2856,27 @@ for ($round = 1; $round -le 2; $round++) {
     }
     Start-Sleep -Seconds 4
 }
-$left = @(Get-Process wootc -ErrorAction SilentlyContinue)
-if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " wootc.exe running") }
-else { Write-Output "single-instance: 1 wootc.exe" }' 2>&1) || true
+$left = @(Get-Process -Name $gui -ErrorAction SilentlyContinue)
+$others = @(Get-Process -Name $other -ErrorAction SilentlyContinue)
+if ($others.Count -ne 0) { Write-Output ("OTHER-FRONTEND: " + $others.Count + " " + $other + ".exe running beside the frontend under test") }
+if ($left.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $left.Count + " " + $gui + ".exe running") }
+else {
+    Write-Output ("single-instance: 1 " + $gui + ".exe")
+    if ($gui -eq "Wootc.Shell") { Write-Output ("native-shell-path: " + $left[0].Path) }
+}' 2>&1) || true
     printf '%s\n' "$single_out" | sed 's/^/    gui-single: /'
     if printf '%s' "$single_out" | grep -q 'EXTRA-INSTANCE'; then
-        warn "a second wootc.exe had already been launched by the task trigger; killed it before the directive was written"
+        warn "a second $GUI_PROCESS.exe had already been launched by the task trigger; killed it before the directive was written"
     fi
     # Positive evidence only (gui_single_instance_proven): an empty answer from
     # a lost channel proves nothing and is refused like a surviving task.
-    if ! gui_single_instance_proven "$single_out"; then
+    # A native run must also show the one shell is the installed package's.
+    if [ "$GUI_FRONTEND" = native ] && ! gui_native_shell_path_proven "$single_out"; then
+        infra_fail "the running native shell is not the installed protected package's Wootc.Shell.exe — refusing to write the install directive"
+        capture_vm_diagnostics
+        return 1
+    fi
+    if ! gui_single_instance_proven "$single_out" "$GUI_PROCESS.exe"; then
         infra_fail "cannot prove a single installer: the launch task's trigger is not provably gone or wootc.exe is not exactly one process — refusing to write the install directive (two pipelines would race on root.disk and the ESP)"
         capture_vm_diagnostics
         return 1
@@ -2917,9 +3008,9 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
                     # one keeps the remaining budget.
                     if [ -z "$last_good" ]; then
                         local wootc_alive
-                        wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        wootc_alive=$(qga_powershell "if (Get-Process $GUI_PROCESS -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }" 2>/dev/null | tr -d '\r\n' || echo "unknown")
                         if [ "$wootc_alive" = "dead" ]; then
-                            infra_fail "wootc.exe died before writing any drive report — completion cannot be observed"
+                            infra_fail "$GUI_PROCESS.exe died before writing any drive report — completion cannot be observed"
                             info "  last screen reached: ${last_screen:-<none>}"
                             capture_vm_diagnostics
                             exit 1
@@ -2928,18 +3019,18 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
                         # hang, not a verdict yet — but it must be VISIBLE.
                         # Without this heartbeat the wait is silent until the
                         # 30m deadline (run 36420437461).
-                        warn "  still no drive report after ${empty_reads} unreadable reads (~$((empty_reads / 3)) min), wootc.exe process is '${wootc_alive}' — waiting on the remaining budget"
+                        warn "  still no drive report after ${empty_reads} unreadable reads (~$((empty_reads / 3)) min), $GUI_PROCESS.exe process is '${wootc_alive}' — waiting on the remaining budget"
                     else
                         dead_app_checks=$((dead_app_checks + 1))
                         local wootc_alive
-                        wootc_alive=$(qga_powershell 'if (Get-Process wootc -ErrorAction SilentlyContinue) { "alive" } else { "dead" }' 2>/dev/null | tr -d '\r\n' || echo "unknown")
-                        info "  app-crash check #${dead_app_checks}: wootc.exe process is '${wootc_alive}'"
+                        wootc_alive=$(qga_powershell "if (Get-Process $GUI_PROCESS -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }" 2>/dev/null | tr -d '\r\n' || echo "unknown")
+                        info "  app-crash check #${dead_app_checks}: $GUI_PROCESS.exe process is '${wootc_alive}'"
                         if [ "$dead_app_checks" -ge "$WOOTC_DRIVE_APP_DEAD_THRESHOLD" ]; then
                             infra_fail "Current GUI report is unavailable for ${dead_app_checks} consecutive samples; completion cannot be observed"
                             if [ "$wootc_alive" = "dead" ]; then
                                 info "  Process query returned dead; current report remains unavailable"
                             else
-                                info "  wootc.exe process observation: $wootc_alive"
+                                info "  $GUI_PROCESS.exe process observation: $wootc_alive"
                                 info "  No current run-bound report; product hang is not established"
                             fi
                             info "  last screen reached: ${last_screen:-<none>}"
@@ -3041,6 +3132,9 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         fi
         if [ "$screen" = "done" ]; then
             product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
+            if [ "$GUI_FRONTEND" = native ]; then
+                product_pass native-shell "The native shell drove the install to done: $(printf '%s\n' "$single_out" | tr -d '\r' | sed -n 's/^native-shell-path: //p'), no Wails app running"
+            fi
             # Let the done screen actually appear in a capture, then hold it.
             sleep 4; freeze_frame
             break

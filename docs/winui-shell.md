@@ -10,7 +10,7 @@ This revision corrects the transport and identity assumptions in the earlier des
 |---|---|---|
 | A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
 | B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent, original-user collection for an alternative administrator (#606), proof on build 17763, the native typeface, and preview release assets (#608) |
-| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, a screen gallery, and an E2E drive mode (`WOOTC_E2E_DRIVE=1`) that operates these views exist | Consumer screens, VM and migration flows, a harness launch of the native shell and a drive-mode run in a VM, accessibility, persistence, and the full journey |
+| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, a screen gallery, and an E2E drive mode (`WOOTC_E2E_DRIVE=1`) that operates these views exist. The GUI E2E can install the native shell in the guest and drive it (`WOOTC_E2E_GUI_FRONTEND=native`, see [Native shell E2E](#native-shell-e2e)) | Consumer screens, VM and migration flows, a passing native drive-mode run in a VM, accessibility, persistence, and the full journey |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
 | E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
 
@@ -212,6 +212,27 @@ The test reaches each screen and starts each action with the keyboard only.
 Each control that gets focus must have an accessible name.
 One screen is also shown with the Windows high-contrast setting on.
 The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, not in git.
+
+## Native shell E2E
+
+`run-e2e.sh --gui-install` with `WOOTC_E2E_GUI_FRONTEND=native` drives the native shell instead of the Wails app.
+`e2e-hosted.yml` takes it as `gui_frontend: native`, and `e2e-gui.yml` offers it as a dispatch input.
+
+1. A Windows job publishes the shell with the run's commit as `NativeBuildId` and the image's brand as `NativeBrandId`.
+   It is the preview build. The gallery build (`-p:NativeGallery=true`) is refused at every step.
+2. The Linux E2E job builds `wootc-engine.exe` with the same build and brand identity.
+   The engine also carries the public half of the run's manifest-signing key, because the staged `SHA256SUMS.sig` is signed with that key.
+   `tests/e2e/native-package.py` then writes `native-package.json`, as `shell/packaging/write-manifest.ps1` does for the preview installer.
+3. The harness copies the package to `Program Files\wootc Native Preview\<brand>\bundle`, where `preview.iss` installs it.
+   The package inherits the Program Files ACLs, which the shell and the engine require.
+   The Inno installer itself is not run in the VM.
+4. `WOOTC_E2E_DRIVE=1` and `WOOTC_PRELOAD=0` are set machine-wide, because the engine starts through `runas` and need not inherit the shell's environment.
+   `ConsentPromptBehaviorAdmin=0` makes each engine elevation non-interactive: startup, then one install session per plan check.
+5. The shell starts like the Wails app: from a `/RL HIGHEST` task as the autologged administrator, so the shell itself is elevated.
+   The single-instance check must find exactly one `Wootc.Shell.exe` from that package directory and no Wails app.
+   A native run also requires a `native-shell` assertion, so a native green is never recorded as a Wails one.
+
+This run does not prove an unelevated shell, interactive UAC consent, the Inno installer, or a standard user.
 
 ## Evidence before cutover
 

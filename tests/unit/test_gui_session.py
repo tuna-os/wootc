@@ -289,7 +289,7 @@ echo SCHEDULED
         # written after launch is confirmed — waiting for it first deadlocked
         # every GUI run. Launch must poll the unbound readiness marker.
         gui = SOURCE.split('gui_install_arm() {', 1)[1]
-        launch = gui.split('did not render within 60 s')[0]
+        launch = gui.split('did not render within $ready_budget s')[0]
         self.assertIn("qga_read 'C:\\wootc\\e2e-ready.json'", launch)
         self.assertNotIn("qga_read 'C:\\wootc\\e2e-drive-state.json'", launch)
 
@@ -308,8 +308,11 @@ echo SCHEDULED
         # /Run. The 60 s readiness poll must not run blind when schtasks
         # /IT provably cannot (9/25-9/26: task 267011, query user empty).
         gui = SOURCE.split('gui_install_arm() {', 1)[1]
-        self.assertLess(gui.index('query user 2>&1'), gui.index('deadline_in 60'))
-        self.assertLess(gui.index('deadline_in 60'), gui.index('did not render within 60 s'))
+        # 60 s for the Wails app; the native shell first elevates its engine.
+        self.assertIn('local sessions launch_deadline ready_budget=60', gui)
+        self.assertIn('[ "$GUI_FRONTEND" = native ] && ready_budget=180', gui)
+        self.assertLess(gui.index('query user 2>&1'), gui.index('deadline_in "$ready_budget"'))
+        self.assertLess(gui.index('deadline_in "$ready_budget"'), gui.index('did not render within $ready_budget s'))
 
     def test_dead_process_before_first_report_fails_fast(self):
         # Runs 36399679919/36413017019: ready marker written, zero reports

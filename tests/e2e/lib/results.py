@@ -19,7 +19,7 @@ REQUIRED = {
     # words AND proof that nothing was written, never a completed install.
     'secure-boot-refusal': {'secure-boot-refused', 'secure-boot-untouched'},
 }
-OPTIONAL = {'gui-install'}
+OPTIONAL = {'gui-install', 'native-shell'}
 DOMAINS = {'runner', 'infrastructure', 'product'}
 
 

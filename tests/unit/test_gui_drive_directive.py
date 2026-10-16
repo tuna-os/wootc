@@ -62,13 +62,21 @@ class GuiDriveDirectiveTests(unittest.TestCase):
 
     def test_runner_refuses_a_native_run_it_cannot_launch(self):
         # Driving the Wails app while recording a native run would be a green
-        # built on a proxy. The refusal comes before any VM work.
-        for value, words in (('native', 'cannot launch the native shell'), ('gtk', 'must be wails or native')):
+        # built on a proxy. Without a valid native package (or without the GUI
+        # path at all) the refusal comes before any VM work.
+        if (ROOT / 'tests/e2e/wootc-files/native-shell/native-package.json').exists():
+            self.skipTest('a native package is staged in this checkout')
+        for value, args, words in (('native', ['--gui-install'], 'no valid native shell package'),
+                                   ('native', [], 'needs --gui-install'),
+                                   ('gtk', ['--gui-install'], 'must be wails or native')):
             env = dict(os.environ, WOOTC_E2E_GUI_FRONTEND=value)
-            result = subprocess.run(['bash', str(RUNNER), '--gui-install'], env=env, text=True,
+            result = subprocess.run(['bash', str(RUNNER), *args], env=env, text=True,
                                     capture_output=True, timeout=60)
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn(words, result.stderr)
+
+    def test_runner_no_longer_refuses_native_outright(self):
+        self.assertNotIn('cannot launch the native shell', RUNNER.read_text())
 
 
 if __name__ == '__main__':

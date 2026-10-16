@@ -149,5 +149,6 @@ setup() {
         name=$(basename "${img%:*}")
         [ -f "$REPO_ROOT/app/branding/$name/brand.json" ] || { echo "no brand dir for $name"; return 1; }
     done
-    grep -q 'if \[ -d "app/branding/\$name" \]; then' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
+    grep -q 'tests/e2e/e2e-brand.sh' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
+    grep -q '\[ -d "$root/app/branding/$name" \]' "$REPO_ROOT/tests/e2e/e2e-brand.sh"
 }
