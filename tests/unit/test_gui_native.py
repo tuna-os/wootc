@@ -346,6 +346,22 @@ class ResultLedgerTests(unittest.TestCase):
             self.assertIn('native-shell', started['requiredAssertions'])
 
 
+class ResultContractTests(unittest.TestCase):
+    def test_every_optional_assertion_the_runner_requires_is_a_known_contract(self):
+        # run 38884385205 refused at startup: results.py rejected
+        # native-shell-unelevated as an unknown optional assertion.
+        runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        names = set()
+        for value in re.findall(r'RESULT_REQUIRED="?([^"\s;]+)"?', runner):
+            names.update(n for n in value.split(',') if n and not n.startswith('$'))
+        self.assertTrue({'gui-install', 'native-shell', 'native-shell-unelevated', 'native-engine-elevated'} <= names, names)
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(['python3', str(ROOT / 'tests/e2e/lib/results.py'), 'init', str(Path(tmp) / 'l.jsonl'),
+                                     'run-1', '--scenario', 'full-cycle', '--required', ','.join(sorted(names))],
+                                    text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
 class WorkflowTests(unittest.TestCase):
     def job(self, name):
         start = WORKFLOW.index(f'\n  {name}:\n')

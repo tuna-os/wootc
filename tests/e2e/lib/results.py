@@ -19,7 +19,9 @@ REQUIRED = {
     # words AND proof that nothing was written, never a completed install.
     'secure-boot-refusal': {'secure-boot-refused', 'secure-boot-untouched'},
 }
-OPTIONAL = {'gui-install', 'native-shell'}
+# native-shell-unelevated and native-engine-elevated: an unelevated native
+# run's integrity split (tests/e2e/lib/gui-native.sh).
+OPTIONAL = {'gui-install', 'native-shell', 'native-shell-unelevated', 'native-engine-elevated'}
 DOMAINS = {'runner', 'infrastructure', 'product'}
 
 
