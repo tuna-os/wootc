@@ -3074,7 +3074,10 @@ QGAEOF
                 }
             done
             if [[ "$COMPOSEFS" == 1 && "$BOOTLOADER" == systemd ]]; then
-                esp_assert_owned_or_absent /mnt/esp EFI/redhat/grub.cfg || exit 1
+                esp_assert_owned_or_absent /mnt/esp EFI/redhat/grub.cfg || {
+                    err "  [FAIL] ESP path belongs to another owner: EFI/redhat/grub.cfg"
+                    exit 1
+                }
             fi
             for owned_path in EFI/wootc/phase2-vmlinuz EFI/wootc/phase2-initramfs.img; do
                 esp_claim_before_write /mnt/esp "$owned_path" || exit 1

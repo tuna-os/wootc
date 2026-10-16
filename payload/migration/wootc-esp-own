@@ -39,11 +39,21 @@ esp_path_is_own_namespace() {
 # A grub.cfg carrying the "# wootc" marker family means wootc staged the
 # shared EFI/fedora tree: an installer that predates the manifest, and the
 # scripted Phase 1 (setup-wootc.ps1), stage it without claims. Same rule as
-# app/esp_ownership.go ownsFedoraNamespace; no other vendor tree gets it.
+# app/esp_ownership.go ownsFedoraNamespace. EFI/redhat gets only its grub.cfg,
+# and only when that file itself carries the marker: Phase 1 writes the
+# deployer menu there too (app installer_esp.go D1c, setup-wootc.ps1), while a
+# RHEL-family install's own grub.cfg never carries it.
 esp_fedora_tree_is_wootc() {
     local esp="$1"
     [[ -f "$esp/EFI/fedora/grub.cfg" && ! -L "$esp/EFI/fedora/grub.cfg" ]] &&
         grep -q '# wootc' "$esp/EFI/fedora/grub.cfg"
+}
+
+esp_redhat_config_is_wootc() {
+    local esp="$1" first=""
+    [[ -f "$esp/EFI/redhat/grub.cfg" && ! -L "$esp/EFI/redhat/grub.cfg" ]] || return 1
+    IFS= read -r first < "$esp/EFI/redhat/grub.cfg" || [[ -n "$first" ]] || return 1
+    [[ "${first%$'\r'}" == '# wootc'* ]]
 }
 
 # The deployer runs after a Phase 1 that may have written no manifest (see
@@ -65,6 +75,7 @@ esp_assert_owned_or_absent() {
     [[ ! -L "$esp/$relative" ]] || return 1
     esp_path_is_own_namespace "$relative" && return 0
     [[ "$normalized" == efi/fedora/* ]] && esp_fedora_tree_is_wootc "$esp" && return 0
+    [[ "$normalized" == efi/redhat/grub.cfg ]] && esp_redhat_config_is_wootc "$esp" && return 0
     esp_path_is_owned "$esp" "$relative"
 }
 

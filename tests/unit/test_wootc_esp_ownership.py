@@ -25,10 +25,18 @@ class OwnershipTests(unittest.TestCase):
         before=self.manifest.read_bytes();self.assertEqual(self.claim('EFI/fedora/grub.cfg').returncode,0)
         self.assertEqual(self.manifest.read_bytes(),before)
 
-    def test_foreign_config_marker_never_mints_ownership(self):
-        (self.esp/'EFI/redhat').mkdir();foreign=self.esp/'EFI/redhat/grub.cfg';foreign.write_text('# wootc foreign marker')
+    def test_redhat_config_needs_its_own_marker_and_grants_nothing_else(self):
+        # Phase 1 writes the deployer menu to EFI/redhat/grub.cfg unclaimed
+        # (app installer_esp.go D1c); a RHEL-family grub.cfg has no marker.
+        (self.esp/'EFI/redhat').mkdir();config=self.esp/'EFI/redhat/grub.cfg'
+        config.write_text('set default=0\n# wootc mentioned later\n')
         before=self.manifest.read_bytes();self.assertNotEqual(self.claim('EFI/redhat/grub.cfg').returncode,0)
-        self.assertEqual(self.manifest.read_bytes(),before);self.assertEqual(foreign.read_text(),'# wootc foreign marker')
+        self.assertEqual(self.manifest.read_bytes(),before)
+        (self.esp/'EFI/redhat/grubx64.efi').write_bytes(b'rhel grub')
+        config.write_text('# wootc deployer - one-shot Linux installation\n')
+        self.assertNotEqual(self.claim('EFI/redhat/grubx64.efi').returncode,0)
+        self.assertEqual(self.claim('EFI/redhat/grub.cfg').returncode,0)
+        self.assertIn(b'efi/redhat/grub.cfg',self.manifest.read_bytes())
 
     def test_new_absent_file_is_claimed_before_creation(self):
         relative='EFI/wootc/phase2-vmlinuz';self.assertEqual(self.claim(relative).returncode,0)
