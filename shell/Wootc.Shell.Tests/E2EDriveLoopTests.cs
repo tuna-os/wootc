@@ -32,6 +32,9 @@ public sealed class E2EDriveLoopTests
         public string ProgressStep { get; set; } = "";
         public string? Error { get; set; }
         public bool ClickStarts { get; set; } = true;
+        // The window asks the engine for the selected image's install space
+        // after each form change; null leaves that read unanswered.
+        public int? ReserveGb { get; set; } = ConsumerConfiguration.MinimumInstallReserveGb;
         public int Maps, Clicks, Reboots;
 
         public FakeView(params ConfigurationStorage[] volumes)
@@ -50,7 +53,15 @@ public sealed class E2EDriveLoopTests
         public DriveMappingObservation MapInstall(E2EDriveDirective directive)
         {
             Maps++;
-            return Model.ApplyDriveMapping(directive.ToInstallMapping(), directive.RunId);
+            var outcome = Model.ApplyDriveMapping(directive.ToInstallMapping(), directive.RunId);
+            AnswerInstallSpace();
+            return outcome;
+        }
+
+        public void AnswerInstallSpace()
+        {
+            if (ReserveGb is int reserve && Model.PendingInstallSpace is var (imageRef, drive))
+                Model.ApplyInstallSpace(new(imageRef, drive, reserve, "registry"));
         }
 
         public Task<bool> ClickInstallAsync() { Clicks++; return Task.FromResult(ClickStarts); }
@@ -59,6 +70,37 @@ public sealed class E2EDriveLoopTests
 
     private static ConfigurationStorage Volume(string id, string letter) => new(id, letter,
         "11111111-1111-1111-1111-111111111111", Guid.NewGuid().ToString(), "0123456789abcdef", 256L * 1024 * 1024 * 1024, 200);
+
+    // Native run 38902999307: the directive named no disk size, the form kept
+    // the catalogue's 40 GB on a drive with 58 GB free, and the engine
+    // refused the plan. The drive must wait for the image's install space,
+    // then click with the size the form lowered to fit.
+    [Fact]
+    public async Task TheDriveWaitsForTheInstallSpaceAndInstallsWhatFits()
+    {
+        const long gib = 1L << 30;
+        var channel = new FakeChannel();
+        var view = new FakeView(new ConfigurationStorage("observed-c", "C", "11111111-1111-1111-1111-111111111111",
+            Guid.NewGuid().ToString(), "0123456789abcdef", 58 * gib + gib / 2, 58)) { ReserveGb = null };
+        var directive = System.Text.Json.Nodes.JsonNode.Parse(Golden("directive-install.json"))!.AsObject();
+        directive.Remove("diskSizeGb");
+        channel.Directive = directive.ToJsonString();
+        var loop = new E2EDriveLoop(channel, view);
+        await loop.TickAsync();
+        Assert.Equal(1, view.Maps);
+        await loop.TickAsync();
+        await loop.TickAsync();
+        Assert.Equal(0, view.Clicks);
+        Assert.Contains("Checking how much working space", view.Observe().Hint);
+
+        view.ReserveGb = ConsumerConfiguration.MinimumInstallReserveGb;
+        view.AnswerInstallSpace();
+        Assert.Equal(35, view.Model.DiskSizeGb);
+        Assert.Empty(view.Model.FormProblem);
+        await loop.TickAsync();
+        Assert.Equal(1, view.Clicks);
+        Assert.Equal(35, view.Model.CreateDraft().DiskSizeGB);
+    }
 
     [Fact]
     public async Task WithoutADirectiveOnlyReadinessIsSignalled()

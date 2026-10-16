@@ -35,9 +35,22 @@ public sealed class InstallDriveMapping
 public sealed record DriveMappingObservation(string RunId, string DirectiveId, bool Mapped, bool ImageMismatch,
     bool InstallDriven, string BlockedReason);
 
+// What one image needs on one drive beside its Linux disk until the deploy
+// ends (the engine's InstallSpace, GetNativeInstallSpace). SizeSource
+// "unavailable" means the engine did not answer and the form assumes the
+// smallest image's reserve, as the Wails launchpad does.
+public sealed record ConfigurationInstallSpace(string ImageRef, string StorageDrive, int ReserveGb, string SizeSource);
+
 public sealed class ConsumerConfiguration
 {
+    // Windows keeps this much free on its drive after the Linux disk lands
+    // (the Wails launchpad's DISK_HEADROOM_GB).
+    public const int WindowsHeadroomGb = 15;
+    // The smallest image's reserve: the engine's minimumInstallReserveGiB and
+    // the launchpad's MIN_INSTALL_RESERVE_GB.
+    public const int MinimumInstallReserveGb = 22;
     private readonly string brandId;
+    private readonly Dictionary<(string ImageRef, string StorageDrive), ConfigurationInstallSpace> installSpaces = new();
     private ConfigurationCatalogue? catalogue;
     private ConfigurationImage? selected;
     private ConfigurationStorage? storage;
@@ -103,6 +116,7 @@ public sealed class ConsumerConfiguration
         storage = null;
         selected = null;
         ImageMismatch = false;
+        installSpaces.Clear();
     }
 
     public bool SelectImage(string id)
@@ -116,6 +130,47 @@ public sealed class ConsumerConfiguration
     {
         storage = catalogue?.Storage.SingleOrDefault(volume => volume.Id == id);
         return storage is not null;
+    }
+
+    // The image and drive whose install space the form still needs, or null.
+    public (string ImageRef, string StorageDrive)? PendingInstallSpace =>
+        selected is null || storage is null || InstallSpaceFor(selected, storage) is not null ? null : (selected.ImageRef, storage.DriveLetter);
+
+    private ConfigurationInstallSpace? InstallSpaceFor(ConfigurationImage image, ConfigurationStorage volume) =>
+        installSpaces.TryGetValue((image.ImageRef, volume.DriveLetter), out var space) ? space : null;
+
+    // The engine's answer for one image and drive, kept per pair so a late
+    // answer for an earlier choice never stands in for the current one. The
+    // disk size is lowered to fit, as the launchpad does.
+    public void ApplyInstallSpace(ConfigurationInstallSpace space)
+    {
+        if (space is null || catalogue is null || space.ReserveGb is < MinimumInstallReserveGb or > 4096 ||
+            !catalogue.Images.Any(image => image.ImageRef == space.ImageRef) ||
+            !catalogue.Storage.Any(volume => volume.DriveLetter == space.StorageDrive) ||
+            space.SizeSource is not ("bundle" or "registry" or "default" or "unavailable"))
+            throw new InvalidDataException("Install space observation is unsupported");
+        installSpaces[(space.ImageRef, space.StorageDrive)] = space;
+        FitDiskSize();
+    }
+
+    // No answer from the engine: assume the smallest image's reserve rather
+    // than hold the form forever. The engine still refuses what does not fit.
+    public void InstallSpaceUnavailable(string imageRef, string storageDrive) =>
+        ApplyInstallSpace(new(imageRef, storageDrive, MinimumInstallReserveGb, "unavailable"));
+
+    // What stays free beside the Linux disk: the reserve is given back when
+    // the install ends, so it and Windows' headroom share the same space.
+    public int? KeptFreeGb => selected is null || storage is null || InstallSpaceFor(selected, storage) is not { } space ? null
+        : Math.Max(WindowsHeadroomGb, space.ReserveGb);
+
+    // The largest Linux disk the selected drive can hold, or null until its
+    // install space is known.
+    public int? MaximumDiskSizeGb => KeptFreeGb is not int kept ? null
+        : (int)Math.Min(storage!.MaximumRootDiskSizeGb, storage.FreeBytes / (1L << 30) - kept);
+
+    private void FitDiskSize()
+    {
+        if (MaximumDiskSizeGb is int largest && DiskSizeGb > largest && largest >= 20) DiskSizeGb = largest / 5 * 5;
     }
 
     public string FormProblem
@@ -136,8 +191,22 @@ public sealed class ConsumerConfiguration
             if (Encryption == "luks-passphrase" && LuksPassphrase.Length == 0) return "Set a LUKS passphrase, or switch to TPM or no encryption.";
             if (storage is null) return "Choose an assessed storage location for Linux.";
             if (DiskSizeGb > storage.MaximumRootDiskSizeGb) return "The selected volume does not have enough available space.";
+            if (MaximumDiskSizeGb is not int largest) return $"Checking how much working space {selected.Name} needs while it installs.";
+            long freeGb = storage.FreeBytes / (1L << 30);
+            if (largest < 20)
+                return $"{storage.DriveLetter}: has {freeGb} GB free, and {KeptFreeReason()} has to stay free beside the Linux disk. Free up space first.";
+            if (DiskSizeGb > largest)
+                return $"{storage.DriveLetter}: has {freeGb} GB free, and {KeptFreeReason()} has to stay free beside the Linux disk. Choose {largest} GB or less, or free up space first.";
             return "";
         }
+    }
+
+    private string KeptFreeReason()
+    {
+        int reserve = InstallSpaceFor(selected!, storage!)!.ReserveGb;
+        return reserve > WindowsHeadroomGb
+            ? $"about {reserve} GB of working space to unpack {selected!.Name} during the install (given back when it finishes)"
+            : $"the {WindowsHeadroomGb} GB Windows needs to keep working";
     }
 
     public InstallConfig CreateDraft()
@@ -181,6 +250,9 @@ public sealed class ConsumerConfiguration
         PasswordConfirmation = directive.Password;
         Hostname = directive.Hostname;
         DiskSizeGb = directive.DiskSizeGb == 0 ? catalogue!.Defaults.DiskSizeGb : directive.DiskSizeGb;
+        // As a person's form: the size never exceeds what the drive can hold
+        // beside the image's install space, once that is known.
+        FitDiskSize();
         // As the Wails drive loop does (directive.encryption || 'none'): a
         // directive that names no encryption installs unencrypted.
         Encryption = directive.Encryption.Length == 0 ? "none" : directive.Encryption;

@@ -21,6 +21,7 @@ var DTOStructs = []string{
 	"NativeConfigurationDefaults",
 	"NativeConfigurationBundle",
 	"NativeConfigurationStorage",
+	"InstallSpace",
 	"SupportPolicy",
 	"SystemInfo",
 	"DataPartition",

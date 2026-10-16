@@ -145,6 +145,51 @@ public class NativeConfigurationStorage
 }
 
 /// <summary>
+/// InstallSpace is what installing one image needs on the storage drive in
+/// addition to root.disk. The launchpad lowers its largest offered disk size by
+/// ReserveGiB; validateInstallConfig refuses a plan that does not fit.
+/// </summary>
+public class InstallSpace
+{
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CompressedBytes is the image's layer total the reserve was sized from.
+    /// </summary>
+    [JsonPropertyName("compressedBytes")]
+    public long CompressedBytes { get; set; }
+
+    /// <summary>
+    /// SizeSource says where that number came from: "bundle" (an OCI layout
+    /// already staged for this image), "registry" (its manifest), or
+    /// "default" (scratchDefaultCompressedBytes, size unknown).
+    /// </summary>
+    [JsonPropertyName("sizeSource")]
+    public string SizeSource { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ScratchGiB is the deployer's scratch for this image (scratchNeedGiB).
+    /// </summary>
+    [JsonPropertyName("scratchGiB")]
+    public int ScratchGiB { get; set; }
+
+    /// <summary>
+    /// BundleGiB is the offline copy of the image still to be downloaded to
+    /// the drive before the reboot (0 when preload is off or already staged).
+    /// </summary>
+    [JsonPropertyName("bundleGiB")]
+    public int BundleGiB { get; set; }
+
+    /// <summary>
+    /// ReserveGiB = ScratchGiB + BundleGiB + slack + deployer artifacts: the
+    /// free space the drive must keep beside root.disk until the deploy ends.
+    /// </summary>
+    [JsonPropertyName("reserveGiB")]
+    public int ReserveGiB { get; set; }
+}
+
+/// <summary>
 /// SupportPolicy is what the current release channel allows. The frontend
 /// reads it to gate the UI to green-only scenarios (docs/RELEASING.md); the
 /// backend enforces the same rules in StartInstall (defense in depth).

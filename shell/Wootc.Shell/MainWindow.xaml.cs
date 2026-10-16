@@ -24,6 +24,8 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
+    // The image and drive whose install space is being read, if any.
+    private (string ImageRef, string Drive)? installSpaceRequested;
     private long configurationGeneration;
     private CancellationTokenSource? configurationRead;
     private bool closing;
@@ -267,10 +269,43 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         StorageFacts.Text = configuration.SelectedStorage is null ? "Choose an assessed volume; no drive is selected automatically" :
             $"{configuration.SelectedStorage.DriveLetter}: {configuration.SelectedStorage.FreeBytes} available bytes; partition: {configuration.SelectedStorage.PartitionGuid}; NTFS: {configuration.SelectedStorage.NtfsSerial}";
         InstallBlockedReason.Text = configuration.InstallationBlockedReason;
+        _ = ReadInstallSpaceAsync();
         RenderVM();
         // Any change to the plan on screen discards an earlier grant and its
         // install session; the new plan needs its own engine check.
         _ = DiscardInstallGrantAsync();
+    }
+
+    // What the selected image needs on the selected drive beside its Linux
+    // disk, from the engine (GetNativeInstallSpace). Until it answers the form
+    // says so and Install stays disabled; then the disk size is lowered to
+    // fit, as the Wails launchpad does. No answer falls back to the smallest
+    // image's reserve; the engine still refuses a plan that does not fit.
+    private async Task ReadInstallSpaceAsync()
+    {
+        var model = configuration;
+        if (model?.PendingInstallSpace is not (string imageRef, string drive) || installSpaceRequested == (imageRef, drive)) return;
+        installSpaceRequested = (imageRef, drive);
+        ConfigurationInstallSpace? space = null;
+        try { space = await controller.ReadInstallSpaceAsync(imageRef, drive); }
+        catch { /* Unavailable: the fallback below. */ }
+        if (installSpaceRequested == (imageRef, drive)) installSpaceRequested = null;
+        if (!ReferenceEquals(configuration, model))
+        {
+            // A newer configuration read replaced this form: ask for its own.
+            if (configuration is not null) RefreshConfiguration();
+            return;
+        }
+        try
+        {
+            if (space is null) model.InstallSpaceUnavailable(imageRef, drive);
+            else model.ApplyInstallSpace(space);
+        }
+        catch (InvalidDataException) { model.InstallSpaceUnavailable(imageRef, drive); }
+        updatingConfiguration = true;
+        try { LinuxDiskSize.Value = model.DiskSizeGb; }
+        finally { updatingConfiguration = false; }
+        RefreshConfiguration();
     }
 
     private async Task DiscardInstallGrantAsync()
