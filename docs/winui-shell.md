@@ -216,7 +216,7 @@ The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, n
 ## Native shell E2E
 
 `run-e2e.sh --gui-install` with `WOOTC_E2E_GUI_FRONTEND=native` drives the native shell instead of the Wails app.
-`e2e-hosted.yml` takes it as `gui_frontend: native`, and `e2e-gui.yml` offers it as a dispatch input.
+`e2e-hosted.yml` takes it as `gui_frontend: native`. `e2e-gui.yml` and `e2e-nightly.yml` offer it as a dispatch input.
 
 1. A Windows job publishes the shell with the run's commit as `NativeBuildId` and the image's brand as `NativeBrandId`.
    It is the preview build. Each step refuses the gallery build (`-p:NativeGallery=true`).
