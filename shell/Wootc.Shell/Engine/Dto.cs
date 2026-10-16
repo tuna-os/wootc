@@ -1158,13 +1158,13 @@ public class LinuxBootEvidence
     public string SourceImageRef { get; set; } = string.Empty;
 
     [JsonPropertyName("bootCurrent")]
-    public LinuxBootCurrent BootCurrent { get; set; }
+    public LinuxBootCurrent BootCurrent { get; set; } = new();
 
     [JsonPropertyName("rootDisk")]
-    public LinuxRootDisk RootDisk { get; set; }
+    public LinuxRootDisk RootDisk { get; set; } = new();
 
     [JsonPropertyName("bridge")]
-    public LinuxBridgeEvidence Bridge { get; set; }
+    public LinuxBridgeEvidence Bridge { get; set; } = new();
 
     [JsonPropertyName("secureBoot")]
     public bool SecureBoot { get; set; }
