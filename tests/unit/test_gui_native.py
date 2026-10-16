@@ -227,6 +227,21 @@ class OptionTests(unittest.TestCase):
         self.assertIn('/TR $launcher /RU $who /IT /RL $rl /F', runner)
         self.assertNotIn('/TR C:\\wootc\\launch-gui.cmd', runner)
 
+    def test_the_launcher_sets_drive_mode_to_exactly_1(self):
+        # cmd.exe keeps trailing spaces: "set WOOTC_E2E_DRIVE=1 && start ..."
+        # stores "1 ", and MainWindow compares the value with "1". The
+        # launcher must set each switch on its own line with nothing after it.
+        # (The launch post-mortem joins the file's lines with " && " only
+        # for display.)
+        runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        start = runner.index('Write-Output ("launcher: " + $launcher)\n@"\n')
+        body = runner[start:runner.index('"@ | Set-Content -Path $launcher -Encoding ascii', start)].split('\n')[2:]
+        self.assertEqual(body[:2], ['set WOOTC_E2E_DRIVE=1', 'set WOOTC_PRELOAD=0'])
+        self.assertTrue(body[2].startswith('start '), body)
+        self.assertFalse(any(line != line.rstrip() or '&&' in line for line in body), body)
+        main = (ROOT / 'shell/Wootc.Shell/MainWindow.xaml.cs').read_text()
+        self.assertIn('Environment.GetEnvironmentVariable("WOOTC_E2E_DRIVE") == "1"', main)
+
     def test_the_installer_is_the_one_for_this_build_and_brand(self):
         with tempfile.TemporaryDirectory() as tmp:
             call = 'gui_native_installer_file "$DIR" bluefin ' + BUILD
