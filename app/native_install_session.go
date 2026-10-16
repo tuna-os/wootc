@@ -56,9 +56,14 @@ type nativeInstallSession struct {
 	// one plan of either kind: an install or one maintenance action.
 	maintenance          *nativeMaintenanceHost
 	maintenanceAuthority *nativeMaintenanceAuthorization
-	prepared             bool
-	confirmed            bool
-	started              bool
+	// vm serves the VM contract. A session that used a VM grant takes no
+	// install or maintenance plan; one VM grant is pending at a time.
+	vm          *nativeVMHost
+	vmAuthority *nativeVMAuthorization
+	vmUsed      bool
+	prepared    bool
+	confirmed   bool
+	started     bool
 }
 
 // withReboot sets the restart action. A restart is offered only after this
@@ -76,6 +81,25 @@ func (session *nativeInstallSession) withMaintenance(host *nativeMaintenanceHost
 
 // read serves the two observations the Manage and Recovery screens need
 // before a plan: where the installation lives, and the boot check.
+// withVM sets the VM contract of this session.
+func (session *nativeInstallSession) withVM(host *nativeVMHost) *nativeInstallSession {
+	session.vm = host
+	return session
+}
+
+func (session *nativeInstallSession) vmStatus(params json.RawMessage) (any, *jsonrpcError) {
+	if len(params) != 0 && string(params) != "null" {
+		return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "this observation accepts no parameters"}
+	}
+	session.mu.Lock()
+	host := session.vm
+	session.mu.Unlock()
+	if !host.usable() {
+		return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in install session"}
+	}
+	return host.observe().status(), nil
+}
+
 func (session *nativeInstallSession) read(method string, params json.RawMessage) (any, *jsonrpcError) {
 	if len(params) != 0 && string(params) != "null" {
 		return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "this observation accepts no parameters"}
@@ -158,7 +182,7 @@ func (session *nativeInstallSession) dispatch(method string, params json.RawMess
 	case "PrepareNativeInstall":
 		session.mu.Lock()
 		defer session.mu.Unlock()
-		if session.prepared {
+		if session.prepared || session.vmUsed {
 			return nil, &jsonrpcError{Code: errCodeInternal, Message: "this install session already holds a plan; start a new session for a changed plan"}
 		}
 		session.prepared = true
@@ -202,7 +226,7 @@ func (session *nativeInstallSession) dispatch(method string, params json.RawMess
 	case "PrepareNativeMaintenance":
 		session.mu.Lock()
 		defer session.mu.Unlock()
-		if session.prepared {
+		if session.prepared || session.vmUsed {
 			return nil, &jsonrpcError{Code: errCodeInternal, Message: "this install session already holds a plan; start a new session for a changed plan"}
 		}
 		session.prepared = true
@@ -228,6 +252,40 @@ func (session *nativeInstallSession) dispatch(method string, params json.RawMess
 		session.mu.Unlock()
 		if already || authority == nil {
 			return nil, &jsonrpcError{Code: errCodeInternal, Message: "no maintenance intent is available in this session"}
+		}
+		if err := authority.confirm(params); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		return nil, nil
+	case "PrepareNativeVMAction":
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		if session.prepared {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "this install session already holds a plan; start a new session for the Linux window"}
+		}
+		plan, err := decodeNativeVMPlan(params)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: err.Error()}
+		}
+		if !session.vm.usable() {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native VM control unavailable"}
+		}
+		// A new action replaces an unconfirmed one: its intent can never run.
+		session.vmAuthority = nil
+		session.vmUsed = true
+		authority, grant, err := session.vm.grant(plan)
+		if err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}
+		}
+		session.vmAuthority = authority
+		return grant, nil
+	case "ConfirmNativeVMAction":
+		session.mu.Lock()
+		authority := session.vmAuthority
+		session.vmAuthority = nil
+		session.mu.Unlock()
+		if authority == nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "no VM intent is available in this session"}
 		}
 		if err := authority.confirm(params); err != nil {
 			return nil, &jsonrpcError{Code: errCodeInternal, Message: err.Error()}

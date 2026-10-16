@@ -171,7 +171,11 @@ internal static class NativeProtocol
                 return (T)(object)DecodeUninstallInfo(result);
             case "InspectBoot":
                 return (T)(object)DecodeBootReport(result);
-            case "ConfirmNativeInstall" or "CancelInstall" or "Reboot" or "ConfirmNativeMaintenance":
+            case "GetNativeVMStatus":
+                return (T)(object)DecodeVMStatus(result);
+            case "PrepareNativeVMAction":
+                return (T)(object)DecodeVMGrant(result, expectedBrand);
+            case "ConfirmNativeInstall" or "CancelInstall" or "Reboot" or "ConfirmNativeMaintenance" or "ConfirmNativeVMAction":
                 if (result.ValueKind != JsonValueKind.Null) throw new InvalidDataException("Install action returned an unexpected result");
                 return default!;
             default:
@@ -270,6 +274,56 @@ internal static class NativeProtocol
             result.GetProperty("recommended").GetString() is not ("" or "none" or "restore-windows" or "repair-boot" or "manual"))
             throw new InvalidDataException("Boot check classification is unsupported");
         return result.Deserialize<BootRepairReport>() ?? throw new InvalidDataException("Boot check is missing");
+    }
+
+    private static readonly string[] VMPhases = ["absent", "preparing", "ready", "starting", "running", "stopping", "stopped", "needs_recovery", "failed", "unavailable"];
+    private static readonly string[] VMActionNames = ["install-runtime", "prepare", "boot", "stop", "force-stop"];
+    private static readonly string[] VMCapabilityFields = ["available", "reason", "accelerator", "runtimeNeeded"];
+
+    private static void DecodeVMCapability(JsonElement capability)
+    {
+        Exactly(capability, "VM capability", VMCapabilityFields, []);
+        Require(capability, "available", JsonValueKind.True); Require(capability, "runtimeNeeded", JsonValueKind.True);
+        BoundedText(capability, "reason", 1024); BoundedText(capability, "accelerator", 64);
+    }
+
+    // The VM status is a projection: any path, process or run identity in it
+    // is an unsupported field and refuses the frame.
+    internal static NativeVMStatus DecodeVMStatus(JsonElement result)
+    {
+        Exactly(result, "VM status", ["schemaVersion", "phase", "image", "username", "desktopReady", "error", "launch", "prepare"], []);
+        BoundedText(result, "phase", 32); BoundedText(result, "image", 512); BoundedText(result, "username", 32); BoundedText(result, "error", 4096);
+        Require(result, "desktopReady", JsonValueKind.True);
+        DecodeVMCapability(result.GetProperty("launch")); DecodeVMCapability(result.GetProperty("prepare"));
+        if (!result.GetProperty("schemaVersion").TryGetInt32(out int schema) || schema != 1 || !VMPhases.Contains(result.GetProperty("phase").GetString()))
+            throw new InvalidDataException("VM status is unsupported");
+        return result.Deserialize<NativeVMStatus>() ?? throw new InvalidDataException("VM status is missing");
+    }
+
+    internal static NativeVMGrant DecodeVMGrant(JsonElement result, string? expectedBrand)
+    {
+        Exactly(result, "VM grant", ["schemaVersion", "session", "brandId", "intentId", "action", "imageRef", "username", "phase"], []);
+        foreach (var (field, limit) in new[] { ("session", 32), ("brandId", 64), ("intentId", 32), ("action", 32), ("imageRef", 512), ("username", 32), ("phase", 32) }) BoundedText(result, field, limit);
+        string Text(string field) => result.GetProperty(field).GetString()!;
+        if (!result.GetProperty("schemaVersion").TryGetInt32(out int schema) || schema != 1 ||
+            !ProtectedPackage.LowerHex(Text("session"), 32) || !ProtectedPackage.LowerHex(Text("intentId"), 32) ||
+            expectedBrand is null || Text("brandId") != expectedBrand || !VMActionNames.Contains(Text("action")) || !VMPhases.Contains(Text("phase")))
+            throw new InvalidDataException("VM grant is invalid");
+        return result.Deserialize<NativeVMGrant>() ?? throw new InvalidDataException("VM grant is missing");
+    }
+
+    // One vm:progress event. The stage can come from the builder guest, so it
+    // is matched as a bounded word, never shown as a label by itself.
+    internal static VMEvent DecodeVMProgress(JsonElement update)
+    {
+        Exactly(update, "VM progress", ["stage", "percent", "message"], []);
+        BoundedText(update, "stage", 64); BoundedText(update, "message", 4096);
+        string stage = update.GetProperty("stage").GetString()!;
+        if (stage.Length == 0 || stage.Any(c => c is not ((>= 'a' and <= 'z') or '-' or '_')))
+            throw new InvalidDataException("VM progress stage is invalid");
+        if (update.GetProperty("percent").ValueKind != JsonValueKind.Number || !update.GetProperty("percent").TryGetDouble(out double percent) || !double.IsFinite(percent))
+            throw new InvalidDataException("VM progress percent is invalid");
+        return update.Deserialize<VMEvent>() ?? throw new InvalidDataException("VM progress is missing");
     }
 
     private static readonly HashSet<string> ProgressFields = new(StringComparer.Ordinal) { "phaseId", "step", "message", "percent", "done", "error" };

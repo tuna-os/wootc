@@ -13,6 +13,8 @@ on:
       - 'tests/unit/fixtures/install-progress/**'
       - 'app/native_maintenance*'
       - 'tests/unit/fixtures/native-maintenance/**'
+      - 'app/native_vm*'
+      - 'tests/unit/fixtures/native-vm/**'
       - 'tests/unit/fixtures/install-recovery/**'
       - 'app/status_install_recovery*'
       - 'tests/native_configuration_flush_controls.py'

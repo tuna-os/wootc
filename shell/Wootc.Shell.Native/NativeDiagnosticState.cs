@@ -69,6 +69,9 @@ internal sealed class NativeDiagnosticState
         "rpc-boot-check-request" or "rpc-boot-check-response" or "rpc-boot-check-decode" or "rpc-boot-check-complete" or
         "rpc-maintenance-plan-request" or "rpc-maintenance-plan-response" or "rpc-maintenance-plan-decode" or "rpc-maintenance-plan-complete" or
         "rpc-maintenance-consent-request" or "rpc-maintenance-consent-response" or "rpc-maintenance-consent-decode" or "rpc-maintenance-consent-complete" or
+        "rpc-vm-status-request" or "rpc-vm-status-response" or "rpc-vm-status-decode" or "rpc-vm-status-complete" or
+        "rpc-vm-plan-request" or "rpc-vm-plan-response" or "rpc-vm-plan-decode" or "rpc-vm-plan-complete" or
+        "rpc-vm-consent-request" or "rpc-vm-consent-response" or "rpc-vm-consent-decode" or "rpc-vm-consent-complete" or
         "rpc-configuration-request" or "rpc-configuration-response" or "rpc-configuration-decode" or "rpc-configuration-complete" or
         "rpc-other-request" or "rpc-other-response" or "rpc-other-decode" or "rpc-other-complete" => stage,
         _ => "unknown"

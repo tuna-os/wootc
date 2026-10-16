@@ -52,6 +52,9 @@ var ProtocolMethods = []string{
 	"InspectBoot",
 	"PrepareNativeMaintenance",
 	"ConfirmNativeMaintenance",
+	"GetNativeVMStatus",
+	"PrepareNativeVMAction",
+	"ConfirmNativeVMAction",
 	"BootIntoLinux",
 	"GetLastRun",
 	"GetRecoveryVerdict",
@@ -258,7 +261,14 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 				}
 			}
 			return s.installSession.read(req.Method, req.Params)
-		case "PrepareNativeInstall", "ConfirmNativeInstall", "PrepareNativeMaintenance", "ConfirmNativeMaintenance":
+		case "GetNativeVMStatus":
+			if s.startupValidate != nil {
+				if err := s.startupValidate(ctx); err != nil {
+					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+				}
+			}
+			return s.installSession.vmStatus(req.Params)
+		case "PrepareNativeInstall", "ConfirmNativeInstall", "PrepareNativeMaintenance", "ConfirmNativeMaintenance", "PrepareNativeVMAction", "ConfirmNativeVMAction":
 			if s.startupValidate != nil {
 				if err := s.startupValidate(ctx); err != nil {
 					return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}

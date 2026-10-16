@@ -945,6 +945,104 @@ public class BootRepairReport
 }
 
 /// <summary>
+/// NativeVMCapability is what the shell may know about one VM path.
+/// </summary>
+public class NativeVMCapability
+{
+    [JsonPropertyName("available")]
+    public bool Available { get; set; }
+
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = string.Empty;
+
+    [JsonPropertyName("accelerator")]
+    public string Accelerator { get; set; } = string.Empty;
+
+    [JsonPropertyName("runtimeNeeded")]
+    public bool RuntimeNeeded { get; set; }
+}
+
+/// <summary>
+/// NativeVMStatus is the shell's view of the persistent VM system.
+/// </summary>
+public class NativeVMStatus
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("phase")]
+    public string Phase { get; set; } = string.Empty;
+
+    [JsonPropertyName("image")]
+    public string Image { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("desktopReady")]
+    public bool DesktopReady { get; set; }
+
+    [JsonPropertyName("error")]
+    public string Error { get; set; } = string.Empty;
+
+    [JsonPropertyName("launch")]
+    public NativeVMCapability Launch { get; set; } = new();
+
+    [JsonPropertyName("prepare")]
+    public NativeVMCapability Prepare { get; set; } = new();
+}
+
+/// <summary>
+/// NativeVMPlan is one VM action. Image, username and password belong to
+/// prepare only.
+/// </summary>
+public class NativeVMPlan
+{
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string? ImageRef { get; set; }
+
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    [JsonPropertyName("password")]
+    public string? Password { get; set; }
+}
+
+/// <summary>
+/// NativeVMGrant names the admitted action and what the engine observed. It
+/// never carries the password.
+/// </summary>
+public class NativeVMGrant
+{
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("session")]
+    public string Session { get; set; } = string.Empty;
+
+    [JsonPropertyName("brandId")]
+    public string BrandId { get; set; } = string.Empty;
+
+    [JsonPropertyName("intentId")]
+    public string IntentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("action")]
+    public string Action { get; set; } = string.Empty;
+
+    [JsonPropertyName("imageRef")]
+    public string ImageRef { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("phase")]
+    public string Phase { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// InstallStatus is the current state of a running or completed install.
 /// </summary>
 public class InstallStatus

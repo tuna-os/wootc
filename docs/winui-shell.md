@@ -244,6 +244,9 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `InspectBoot` | — | `BootRepairReport` (install session only; saves an evidence bundle, changes no boot entry) |
 | `PrepareNativeMaintenance` | `NativeMaintenancePlan` | `NativeMaintenanceGrant` (install session only; one plan for each session) |
 | `ConfirmNativeMaintenance` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
+| `GetNativeVMStatus` | — | `NativeVMStatus` (install session only; no paths, process IDs or runtime hashes) |
+| `PrepareNativeVMAction` | `NativeVMPlan` | `NativeVMGrant` (install session only; one pending VM action at a time) |
+| `ConfirmNativeVMAction` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
 | `BootIntoLinux` | — | `null` |
 | `GetLastRun` | — | `LifecycleState` |
 | `GetRecoveryVerdict` | — | `RecoveryVerdict` |
@@ -262,4 +265,6 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `Shutdown` | — | `null` (engine exits 0) |
 
 Notifications use `install:progress` and `vm:progress`.
-The VM methods still need a versioned native-shell contract.
+The native shell uses the versioned VM contract (`NativeVMStatus`, `NativeVMPlan` and `NativeVMGrant`) in an install session.
+Each VM action that changes state needs its own engine grant, and each grant is used once.
+The legacy VM methods stay for the legacy app.

@@ -88,3 +88,22 @@ func newWindowsNativeMaintenanceHost(app *App, user *nativeOriginalUser, session
 		run: func(plan NativeMaintenancePlan) error { return runNativeMaintenance(app, plan) },
 	}
 }
+
+// newWindowsNativeVMHost binds the VM contract to the captured original user
+// and to the engine's own VM observations.
+func newWindowsNativeVMHost(app *App, user *nativeOriginalUser, session, brand string) *nativeVMHost {
+	return &nativeVMHost{
+		session: session, brand: brand,
+		installing: func() bool { return app.GetStatus().Running },
+		state:      app.GetVMState,
+		launch:     app.GetVMCapability,
+		prepare:    app.GetFreshVMCapability,
+		revalidateUser: func() error {
+			if user == nil {
+				return fmt.Errorf("native VM captured user unavailable")
+			}
+			return user.revalidateToken()
+		},
+		run: func(plan NativeVMPlan) error { return runNativeVMAction(app, plan) },
+	}
+}

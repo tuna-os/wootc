@@ -15,5 +15,6 @@
     <None Include="../../tests/unit/fixtures/install-recovery/*.json" LinkBase="Fixtures/install-recovery" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../tests/unit/fixtures/install-progress/*.ndjson" LinkBase="Fixtures/install-progress" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../tests/unit/fixtures/native-maintenance/*.ndjson" LinkBase="Fixtures/native-maintenance" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../tests/unit/fixtures/native-vm/*.ndjson" LinkBase="Fixtures/native-vm" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

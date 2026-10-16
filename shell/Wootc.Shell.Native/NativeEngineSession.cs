@@ -7,7 +7,7 @@ using Wootc.Shell.Engine;
 
 namespace Wootc.Shell.Native;
 
-internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession, IMaintenanceEngineSession
+internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstallEngineSession, IMaintenanceEngineSession, IVMEngineSession
 {
     // Set only for an install-purpose session; an assessment session refuses
     // install calls locally as well as in the engine.
@@ -75,6 +75,12 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
                         var update = NativeProtocol.DecodeProgress(parameters);
                         try { ProgressReceived?.Invoke(update); } catch { /* A view failure must not end the engine session. */ }
                     }
+                    else if (installSession is not null && method.ValueKind == JsonValueKind.String && method.GetString() == "vm:progress")
+                    {
+                        if (!root.TryGetProperty("params", out var parameters)) throw new InvalidDataException("VM progress has no event");
+                        var update = NativeProtocol.DecodeVMProgress(parameters);
+                        try { VMProgressReceived?.Invoke(update); } catch { /* A view failure must not end the engine session. */ }
+                    }
                     continue;
                 }
                 if (!id.TryGetInt64(out long value)) throw new InvalidDataException("Invalid engine response identity");
@@ -104,7 +110,8 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
         "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration",
         "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", "CancelInstall" => "rpc-cancel", "Reboot" => "rpc-restart",
         "GetUninstallInfo" => "rpc-uninstall-info", "InspectBoot" => "rpc-boot-check",
-        "PrepareNativeMaintenance" => "rpc-maintenance-plan", "ConfirmNativeMaintenance" => "rpc-maintenance-consent", _ => "rpc-other"
+        "PrepareNativeMaintenance" => "rpc-maintenance-plan", "ConfirmNativeMaintenance" => "rpc-maintenance-consent",
+        "GetNativeVMStatus" => "rpc-vm-status", "PrepareNativeVMAction" => "rpc-vm-plan", "ConfirmNativeVMAction" => "rpc-vm-consent", _ => "rpc-other"
     };
 
     internal Task<T> CallAsync<T>(string method, CancellationToken token, Action<long>? requestFlushed = null) =>
@@ -228,6 +235,40 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
     {
         if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
         await CallAsync<object?>("ConfirmNativeMaintenance", new { kind = "confirm-maintenance", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId, action = grant.Action }, cancellationToken);
+    }
+
+    public event Action<VMEvent>? VMProgressReceived;
+
+    public async Task<NativeVMStatus> ReadVMStatusAsync(CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        // Reading whether a VM can be prepared may probe the runtime.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(120));
+        return await CallAsync<NativeVMStatus>("GetNativeVMStatus", deadline.Token);
+    }
+
+    // Only prepare carries the image and the Linux account; the password
+    // crosses this authenticated pipe once and never comes back in the grant.
+    public async Task<NativeVMGrant> PrepareVMActionAsync(NativeVMPlan plan, CancellationToken cancellationToken)
+    {
+        RequireInstallSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(240));
+        object parameters = plan.Action == VMActions.Prepare
+            ? new { action = plan.Action, imageRef = plan.ImageRef ?? "", username = plan.Username ?? "", password = plan.Password ?? "" }
+            : new { action = plan.Action };
+        var grant = await CallAsync<NativeVMGrant>("PrepareNativeVMAction", parameters, deadline.Token);
+        if (grant.Session != installSession) throw new InvalidDataException("The VM grant names another session");
+        return grant;
+    }
+
+    // Only the intent's identity is sent. A stop may take up to its engine
+    // bound of 90 seconds; the shell waits for the engine's answer.
+    public async Task ConfirmVMActionAsync(NativeVMGrant grant, CancellationToken cancellationToken)
+    {
+        if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
+        await CallAsync<object?>("ConfirmNativeVMAction", new { kind = "confirm-vm", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId, action = grant.Action }, cancellationToken);
     }
 
     public async Task<StartupSnapshot> ReadStartupAsync(CancellationToken cancellationToken)

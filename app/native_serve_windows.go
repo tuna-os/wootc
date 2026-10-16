@@ -160,7 +160,7 @@ func serveNativeSession(ctx context.Context, sourcePID uint32, session, purpose 
 		}
 		if purpose == nativePurposeInstall {
 			prepare := newWindowsNativeInstallPrepare(ctx, app, installUser, session, manifest.BrandID, observe, validateSelection)
-			dispatcher = newNativeInstallServer(app, syncWriter, newNativeInstallSession(prepare, app.StartInstall).withReboot(app.Reboot).withMaintenance(newWindowsNativeMaintenanceHost(app, installUser, session, manifest.BrandID)))
+			dispatcher = newNativeInstallServer(app, syncWriter, newNativeInstallSession(prepare, app.StartInstall).withReboot(app.Reboot).withMaintenance(newWindowsNativeMaintenanceHost(app, installUser, session, manifest.BrandID)).withVM(newWindowsNativeVMHost(app, installUser, session, manifest.BrandID)))
 		} else {
 			dispatcher = newConfigurationAssessmentServer(app, syncWriter, observe)
 		}
