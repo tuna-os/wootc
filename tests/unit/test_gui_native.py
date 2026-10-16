@@ -355,7 +355,7 @@ class WorkflowTests(unittest.TestCase):
     def test_the_installer_is_compiled_on_windows_around_the_e2e_engine(self):
         native = self.job('native-shell')
         self.assertIn('runs-on: windows-latest', native)
-        self.assertIn('wait-run-artifact.sh 3600 "$NATIVE_ENGINE_ARTIFACT"', native)
+        self.assertIn('wait-run-artifact.sh 14400 "$NATIVE_ENGINE_ARTIFACT"', native)
         self.assertIn('python tests/e2e/native-package.py check out/native-shell', native)
         self.assertIn('./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND', native)
         # Only an unavailable compiler may fall back, and it says so.

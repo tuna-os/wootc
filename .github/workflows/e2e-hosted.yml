@@ -105,7 +105,11 @@ jobs:
   native-shell:
     if: ${{ inputs.gui_install && inputs.gui_frontend == 'native' }}
     runs-on: windows-latest
-    timeout-minutes: 90
+    # Mostly waiting: the e2e job may sit in the runner queue long after this
+    # job starts, and its engine comes only after its own setup. A failed e2e
+    # job uploads a failure marker and a cancelled run cancels both jobs, so
+    # the wide budget is only ever spent on a queue.
+    timeout-minutes: 280
     env:
       NATIVE_SHELL_ARTIFACT: e2e-native-shell-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
       NATIVE_ENGINE_ARTIFACT: e2e-native-engine-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
@@ -151,7 +155,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/wait-run-artifact.sh 3600 "$NATIVE_ENGINE_ARTIFACT"
+        run: bash .github/scripts/wait-run-artifact.sh 14400 "$NATIVE_ENGINE_ARTIFACT"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ${{ env.NATIVE_ENGINE_ARTIFACT }}
