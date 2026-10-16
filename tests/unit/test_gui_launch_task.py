@@ -145,6 +145,18 @@ class SingleInstanceVerdictTests(unittest.TestCase):
         self.assertIn("$start = (Get-Date).AddMinutes(-1).ToString('\\''HH:mm'\\'')", SOURCE)
         self.assertNotIn("$start = (Get-Date).AddMinutes(1).ToString('\\''HH:mm'\\'')\n# /RU must name", SOURCE)
 
+    def test_schtasks_stderr_cannot_abort_the_launch(self):
+        # Under $ErrorActionPreference = "Stop", PowerShell 5.1 turns a native
+        # command's stderr line into a terminating error. /Create writes its
+        # past-start-time WARNING to stderr, which aborted staging in native
+        # run 38853736862. cmd.exe must merge the streams; the rc decides.
+        self.assertIn('$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start '
+                      '/TR C:\\wootc\\launch-gui.cmd /RU $who /IT /RL HIGHEST /F 2>&1"', SOURCE)
+        self.assertIn('if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }', SOURCE)
+        self.assertIn('$rn = cmd.exe /d /c "schtasks /Run /TN wootc-gui-e2e 2>&1"', SOURCE)
+        self.assertNotIn('$mk = schtasks /Create', SOURCE)
+        self.assertNotIn('$rn = schtasks /Run', SOURCE)
+
     def test_the_probe_counts_the_frontend_under_test(self):
         payload = single_instance_payload()
         self.assertIn("Get-Process -Name $gui", payload)

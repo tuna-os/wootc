@@ -2682,9 +2682,15 @@ $start = (Get-Date).AddMinutes(-1).ToString('\''HH:mm'\'')
 $who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
 if (-not $who) { throw "autologon-no-session: interactive user disappeared before GUI scheduling" }
 Write-Output ("launching as: " + $who)
-$mk = schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR "C:\wootc\launch-gui.cmd" /RU $who /IT /RL HIGHEST /F 2>&1
-Write-Output ("schtasks /Create rc=" + $LASTEXITCODE + " :: " + ($mk -join " "))
-$rn = schtasks /Run /TN wootc-gui-e2e 2>&1
+# cmd.exe merges schtasks stderr into stdout. Under "Stop", PowerShell 5.1
+# turns any native stderr line into a terminating error, and /Create writes
+# its past-start-time WARNING there (native run 38853736862 aborted staging
+# on it). The exit code is the verdict.
+$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR C:\wootc\launch-gui.cmd /RU $who /IT /RL HIGHEST /F 2>&1"
+$mkRc = $LASTEXITCODE
+Write-Output ("schtasks /Create rc=" + $mkRc + " :: " + ($mk -join " "))
+if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }
+$rn = cmd.exe /d /c "schtasks /Run /TN wootc-gui-e2e 2>&1"
 Write-Output ("schtasks /Run rc=" + $LASTEXITCODE + " :: " + ($rn -join " "))
 Write-Output "task-scheduled"' 2>&1 | sed 's/^/    stage: /' || {
         fail "GUI staging failed before a trustworthy app launch"
