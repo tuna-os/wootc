@@ -39,6 +39,37 @@ GUI_NATIVE_SHELL_UNELEVATED_PROVEN=false
 GUI_NATIVE_ENGINE_ELEVATED_PROVEN=false
 GUI_NATIVE_INTEGRITY_LAST=""
 
+# Where launch-gui.cmd lives. C:\wootc carries the installer-state ACL
+# (SYSTEM and Administrators only, tests/e2e/state-trust.ps1). A /RL LIMITED
+# token holds Administrators deny-only, so it cannot read a launcher there:
+# run 38888315334's task exited 1 (cmd.exe could not open the script) and
+# Wootc.Shell.exe never started. The unelevated launch reads its launcher from
+# a directory that Users can read and only SYSTEM and Administrators can change.
+gui_launcher_path() {
+    if [ "$(gui_task_runlevel)" = LIMITED ]; then
+        echo 'C:\ProgramData\wootc-e2e-launch\launch-gui.cmd'
+    else
+        echo 'C:\wootc\launch-gui.cmd'
+    fi
+}
+
+# PowerShell that sets $launcher and, for the unelevated launch, creates its
+# directory with that ACL before anything is written into it.
+gui_launcher_ps() {
+    local path
+    path=$(gui_launcher_path)
+    printf '%s\n' "\$launcher = '$path'"
+    if [ "$(gui_task_runlevel)" = LIMITED ]; then
+        # shellcheck disable=SC2016
+        printf '%s\n' '$launchDir = Split-Path -Parent $launcher' \
+            'if (Test-Path -LiteralPath $launchDir) { Remove-Item -LiteralPath $launchDir -Recurse -Force }' \
+            '$launchAcl = New-Object System.Security.AccessControl.DirectorySecurity' \
+            '$launchAcl.SetSecurityDescriptorSddlForm("O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)")' \
+            '[IO.Directory]::CreateDirectory($launchDir, $launchAcl) | Out-Null' \
+            'Write-Output ("launcher acl: " + (Get-Acl -LiteralPath $launchDir).Sddl)'
+    fi
+}
+
 # Validates the two native options. Prints nothing; returns 1 on a bad value.
 gui_native_options_valid() {
     case "${NATIVE_UNELEVATED:-}" in 0|1) ;; *) return 1 ;; esac

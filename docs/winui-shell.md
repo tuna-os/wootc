@@ -228,16 +228,33 @@ The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, n
 2. The Linux E2E job builds `wootc-engine.exe` with the same build and brand identity.
    The engine also carries the public half of the run's manifest key. The harness signs the staged `SHA256SUMS.sig` with that key.
    `tests/e2e/native-package.py` then writes `native-package.json`, as `shell/packaging/write-manifest.ps1` does for the preview installer.
-3. The harness copies the package to `Program Files\wootc Native Preview\<brand>\bundle`, where `preview.iss` installs it.
-   The package inherits the Program Files ACLs, which the shell and the engine need.
-   The Inno installer itself is not run in the VM.
-4. `WOOTC_E2E_DRIVE=1` and `WOOTC_PRELOAD=0` are set machine-wide, because the engine starts through `runas` and need not inherit the shell's environment.
+3. The Windows job compiles the real preview installer (`preview.iss`) for the brand around that engine and manifest.
+   It uses the pinned Inno compiler through `shell/packaging/compile-preview.ps1`, the same script `winui-preview.yml` uses.
+   The two jobs run side by side and pass the shell, the engine and the installer to each other as artifacts of the run.
+   So the signing seed never leaves the Linux job (`.github/scripts/wait-run-artifact.sh`).
+4. In the guest, the harness copies the installer, compares its digest, and runs it with `/VERYSILENT /SUPPRESSMSGBOXES`.
+   It installs to `Program Files\wootc Native Preview\<brand>\bundle` with the Program Files ACLs that the shell and the engine need.
+   The check requires the manifest file count, both binary digests, the Inno uninstall entry, and one uninstaller.
+   `WOOTC_E2E_NATIVE_INSTALLER=robocopy` copies the package instead.
+   The workflow selects it only when the runner cannot download the pinned compiler, and the run then shows a warning and names the method.
+5. `WOOTC_E2E_DRIVE=1` and `WOOTC_PRELOAD=0` are set machine-wide, because the engine starts through `runas` and need not inherit the shell's environment.
    `ConsentPromptBehaviorAdmin=0` makes each engine elevation non-interactive: startup, then one install session per plan check.
-5. The shell starts like the Wails app: from a `/RL HIGHEST` task as the autologged administrator, so the shell itself runs elevated.
+6. The shell starts unelevated: from a `/RL LIMITED` task as the autologged administrator (`WOOTC_E2E_NATIVE_UNELEVATED=1`, the default; `0` restores `/RL HIGHEST`).
+   A guest probe reads each token's integrity level and elevation.
+   The ledger then requires `native-shell-unelevated` (shell at medium, 0x2000, not elevated, from the package).
+   It also requires `native-engine-elevated` (the `--purpose install` engine at high, 0x3000, elevated, for the shell's own user, from the package).
    The single-instance check must find exactly one `Wootc.Shell.exe` from that package directory and no Wails app.
    A native run also needs a `native-shell` assertion, so the ledger never records a native green as a Wails one.
 
-This run does not prove an unelevated shell, interactive UAC consent, the Inno installer, or a standard user.
+`ConsentPromptBehaviorAdmin=0` elevates an administrator without a prompt.
+So this E2E does not prove interactive consent on the secure desktop, a No click, or a standard user who types an administrator's credentials.
+The alternative-administrator flow stays refused (decision above).
+
+[Run 38888315334](https://github.com/tuna-os/wootc/actions/runs/38888315334) ran the real installer for bluefin in the guest.
+It passed the handoff, the compile, the silent install and every check in step 4.
+Its unelevated launch then never started the shell.
+The task read its launcher from `C:\wootc`, whose state ACL allows only SYSTEM and Administrators, and a limited token holds Administrators deny-only.
+The unelevated launcher now lives in `C:\ProgramData\wootc-e2e-launch`, which Users can read and only SYSTEM and Administrators can change.
 
 The plan check has a known time risk.
 The shell waits 110 seconds for `PrepareNativeInstall`.

@@ -2688,11 +2688,13 @@ foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx6
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json,C:\wootc\e2e-ready.json -Force -ErrorAction SilentlyContinue
 '"$gui_launch_ps"'
 Write-Output ("launch target: " + $launch)
+'"$(gui_launcher_ps)"'
+Write-Output ("launcher: " + $launcher)
 @"
 set WOOTC_E2E_DRIVE=1
 set WOOTC_PRELOAD=0
 start `"`" $launch
-"@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
+"@ | Set-Content -Path $launcher -Encoding ascii
 Stop-Process -Name wootc,Wootc.Shell -Force -ErrorAction SilentlyContinue
 try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
 # The trigger time is one minute in the PAST, so the ONCE trigger never fires
@@ -2715,7 +2717,7 @@ Write-Output ("run level: " + $rl)
 # turns any native stderr line into a terminating error, and /Create writes
 # its past-start-time WARNING there (native run 38853736862 aborted staging
 # on it). The exit code is the verdict.
-$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR C:\wootc\launch-gui.cmd /RU $who /IT /RL $rl /F 2>&1"
+$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR $launcher /RU $who /IT /RL $rl /F 2>&1"
 $mkRc = $LASTEXITCODE
 Write-Output ("schtasks /Create rc=" + $mkRc + " :: " + ($mk -join " "))
 if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }
@@ -2775,7 +2777,7 @@ Write-Output ("wails app processes: " + @(Get-Process wootc).Count)
 Write-Output ("interactive sessions: " + ((query user 2>&1) -join " | "))
 $q = (schtasks /Query /TN wootc-gui-e2e /FO LIST /V 2>&1 | Select-String "Result|Status") -join "; "
 Write-Output ("task: " + $q)
-Write-Output ("launch-gui.cmd: " + ((Get-Content C:\wootc\launch-gui.cmd) -join " && "))
+Write-Output ("launch-gui.cmd: " + ((Get-Content '"'$(gui_launcher_path)'"') -join " && "))
 $e = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 Write-Output ("machine env: WOOTC_E2E_DRIVE=" + $e.WOOTC_E2E_DRIVE + " WOOTC_PRELOAD=" + $e.WOOTC_PRELOAD)
 $u = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
@@ -2802,7 +2804,7 @@ Write-Output ("wootc.exe running: " + [bool]$p)
 # very different reasons: the task program is missing, or /IT has no interactive
 # session to run in. el10-gnome-win11ent hit this and the message alone cannot
 # tell them apart — so check both. (Enterprise/LTSC media may not autologon.)
-Write-Output ("launch-gui.cmd present: " + (Test-Path C:\wootc\launch-gui.cmd))
+Write-Output ("launch-gui.cmd present: " + (Test-Path '"'$(gui_launcher_path)'"'))
 Write-Output ("wootc.exe present: " + (Test-Path C:\wootc\wootc.exe))
 Write-Output ("interactive sessions: " + ((query user 2>&1) -join " | "))
 $q = (schtasks /Query /TN wootc-gui-e2e /FO LIST /V 2>&1 | Select-String "Result|Status") -join "; "

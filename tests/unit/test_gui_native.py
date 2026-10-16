@@ -205,6 +205,28 @@ class OptionTests(unittest.TestCase):
             result = shell('gui_task_runlevel', GUI_FRONTEND=frontend, NATIVE_UNELEVATED=unelevated)
             self.assertEqual(result.stdout.strip(), want, (frontend, unelevated))
 
+    def test_an_unelevated_launcher_is_readable_without_administrators(self):
+        # Run 38888315334: the /RL LIMITED task could not read
+        # C:\\wootc\\launch-gui.cmd (SYSTEM and Administrators only, and a
+        # limited token holds Administrators deny-only), so it exited 1 and
+        # the shell never started.
+        state = (ROOT / 'tests/e2e/state-trust.ps1').read_text()
+        self.assertIn("'O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'", state)
+        limited = shell('gui_launcher_path', GUI_FRONTEND='native', NATIVE_UNELEVATED='1').stdout.strip()
+        self.assertFalse(limited.lower().startswith('c:\\wootc\\'), limited)
+        ps = shell('gui_launcher_ps', GUI_FRONTEND='native', NATIVE_UNELEVATED='1').stdout
+        self.assertIn(f"$launcher = '{limited}'", ps)
+        self.assertIn('(A;OICI;0x1200a9;;;BU)', ps)   # Users: read and execute only
+        self.assertNotIn(';;;BU)(', ps.replace('(A;OICI;0x1200a9;;;BU)', ''))
+        # The elevated launches keep their launcher where it was.
+        for frontend, unelevated in (('native', '0'), ('wails', '1')):
+            self.assertEqual(shell('gui_launcher_path', GUI_FRONTEND=frontend, NATIVE_UNELEVATED=unelevated).stdout.strip(),
+                             'C:\\wootc\\launch-gui.cmd')
+        runner = (ROOT / 'tests/e2e/run-e2e.sh').read_text()
+        self.assertIn('"@ | Set-Content -Path $launcher -Encoding ascii', runner)
+        self.assertIn('/TR $launcher /RU $who /IT /RL $rl /F', runner)
+        self.assertNotIn('/TR C:\\wootc\\launch-gui.cmd', runner)
+
     def test_the_installer_is_the_one_for_this_build_and_brand(self):
         with tempfile.TemporaryDirectory() as tmp:
             call = 'gui_native_installer_file "$DIR" bluefin ' + BUILD
