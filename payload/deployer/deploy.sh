@@ -2991,13 +2991,20 @@ QGAEOF
     # Phase-2 first-boot evidence and health marker (§2, §3): updates state.json to healthy.
     install -D -m644 /usr/libexec/wootc-steps.sh \
         "$DEPLOY_ROOT/var/usrlocal/lib/wootc/steps.sh"
+    # Its collector and the EFI decoder it imports, staged unconditionally:
+    # the signed-chain staging above may have skipped every helper.
+    install -D -m644 /usr/lib/wootc/migration/lib/wootc_boot_identity.py \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_boot_identity.py"
+    install -D -m644 /usr/lib/wootc/migration/lib/wootc_firstboot_evidence.py \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py"
     install -m755 /usr/lib/wootc/migration/wootc-firstboot-evidence \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-firstboot-evidence"
     install -m644 /usr/lib/wootc/migration/wootc-firstboot-evidence.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-firstboot-evidence.service"
     ln -sf ../wootc-firstboot-evidence.service \
         "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-firstboot-evidence.service"
-    if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-firstboot-evidence.service" ]]; then
+    if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-firstboot-evidence.service" \
+       && -f "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py" ]]; then
         log "  [PASS] wootc-firstboot-evidence.service installed"
     else
         err "  [WARN] wootc-firstboot-evidence.service install failed"

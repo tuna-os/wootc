@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 )
 
-func readStatusState() (LifecycleState, bool, error) {
+func readStatusState() (StatusReport, bool, error) {
 	state, root, found, err := selectWindowsStatusState(context.Background(), false)
-	if err == nil && found {
-		setStorageDrive(filepath.VolumeName(root)[:1])
+	if err != nil || !found {
+		return StatusReport{LifecycleState: state}, found, err
 	}
-	return state, found, err
+	setStorageDrive(filepath.VolumeName(root)[:1])
+	return statusReportAt(root, state), true, nil
 }
 
 // Selection never changes global storage context or repairs a tree.

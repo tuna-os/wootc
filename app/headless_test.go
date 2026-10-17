@@ -113,7 +113,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 func TestHeadlessStatusAbsentState(t *testing.T) {
 	out := captureStdout(t, func() {
-		if code := headlessStatusWithReader(func() (LifecycleState, bool, error) { return LifecycleState{}, false, nil }); code != 0 {
+		if code := headlessStatusWithReader(func() (StatusReport, bool, error) { return StatusReport{}, false, nil }); code != 0 {
 			t.Errorf("absent exit = %d", code)
 		}
 	})
@@ -124,8 +124,8 @@ func TestHeadlessStatusAbsentState(t *testing.T) {
 
 func TestHeadlessStatusPrintsStateJSON(t *testing.T) {
 	out := captureStdout(t, func() {
-		if code := headlessStatusWithReader(func() (LifecycleState, bool, error) {
-			return LifecycleState{State: StateDeployed, Phase: "deploy"}, true, nil
+		if code := headlessStatusWithReader(func() (StatusReport, bool, error) {
+			return StatusReport{LifecycleState: LifecycleState{State: StateDeployed, Phase: "deploy"}}, true, nil
 		}); code != 0 {
 			t.Errorf("present exit = %d", code)
 		}
@@ -137,8 +137,8 @@ func TestHeadlessStatusPrintsStateJSON(t *testing.T) {
 
 func TestHeadlessStatusRefusalNeverPrintsAbsent(t *testing.T) {
 	out := captureStdout(t, func() {
-		if code := headlessStatusWithReader(func() (LifecycleState, bool, error) {
-			return LifecycleState{}, false, errors.New("unsafe private path")
+		if code := headlessStatusWithReader(func() (StatusReport, bool, error) {
+			return StatusReport{}, false, errors.New("unsafe private path")
 		}); code != 1 {
 			t.Errorf("refusal exit = %d", code)
 		}

@@ -247,11 +247,37 @@ The harness asserts the file on the Phase-2 boot, replacing one of its own
 proxies with the product's evidence.
 
 ### Tasks
-- [ ] `wootc-firstboot-evidence` script + unit, installed by `deploy.sh` beside the bridge units
-- [ ] `BootCurrent` decode (Python, no new dependency; `efibootmgr -v` as the fallback source)
+- [x] `wootc-firstboot-evidence` script + unit, installed by `deploy.sh` beside the bridge units
+- [x] `BootCurrent` decode (Python, no new dependency; `efibootmgr -v` as the fallback source)
 - [ ] `deployHasCompleted` requires the evidence; `UninstallInfo` exposes it
 - [ ] control panel shows kernel/image/bridge from the evidence
-- [ ] harness asserts the evidence after Phase-2 boot; bats pins the unit ordering
+- [x] harness asserts the evidence after Phase-2 boot; bats pins the unit ordering
+
+### What #332 built
+
+The collector is `payload/migration/lib/wootc_firstboot_evidence.py`. It
+measures the boot. If a measurement fails, the unit writes nothing and runs
+again on the next boot. The unit never replaces an existing file. The record
+holds the kernel boot ID and a sequence number.
+
+Windows reads the file in `app/firstboot_evidence.go`. The limit is 16 KiB.
+The decoder refuses unknown, repeated and null fields. Windows then compares
+the record with its own install record:
+
+- The image must be the image in the install journal. A derived image is
+  correct when its recorded source is that image.
+- When the booted image is the image that Windows downloaded, the digests
+  must be equal.
+- The host UUID must be the serial number of the volume that holds
+  `root.disk`.
+
+`wootc status`, the install recovery screen and the startup guard report
+`healthy` only for a record that agrees. Before the record exists, they
+report `deployed`: the system is installed, and its first boot did not
+occur yet.
+
+Windows does not compare `bootCurrent` with the ESP that it staged. The
+control panel does not show the summary yet. These two items stay open.
 
 ## 4. Signed-chain refresh: keep the ESP bootable through updates
 

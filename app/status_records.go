@@ -72,11 +72,17 @@ func decodeStrictStatusRecord(data []byte, target any, fields map[string]string,
 }
 
 func readBoundedStatusRecord(path string) ([]byte, error) {
+	return readBoundedRecord(path, 64*1024)
+}
+
+// readBoundedRecord reads a regular file of at most limit bytes without
+// following links, refusing a file swapped between inspection and open.
+func readBoundedRecord(path string, limit int64) ([]byte, error) {
 	before, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
 	}
-	if !before.Mode().IsRegular() || before.Size() > 64*1024 {
+	if !before.Mode().IsRegular() || before.Size() > limit {
 		return nil, fmt.Errorf("status record is not a bounded regular file")
 	}
 	f, err := os.Open(path)
@@ -91,11 +97,11 @@ func readBoundedStatusRecord(path string) ([]byte, error) {
 	if !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
 		return nil, fmt.Errorf("status record identity changed")
 	}
-	data, err := io.ReadAll(io.LimitReader(f, 64*1024+1))
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > 64*1024 {
+	if int64(len(data)) > limit {
 		return nil, fmt.Errorf("status record exceeds size limit")
 	}
 	return data, nil
@@ -106,7 +112,12 @@ func readNativeStartupLifecycle(root string) (LifecycleState, error) {
 	if os.IsNotExist(err) && !hasInstallAttempt(root) {
 		return LifecycleState{}, nil
 	}
-	return state, err
+	if err != nil {
+		return state, err
+	}
+	// "healthy" reaches the engine only with matching first-boot evidence.
+	state, _ = verifiedLifecycleAt(root, state)
+	return state, nil
 }
 
 func readNativeStartupRecovery(root string) (RecoveryVerdict, error) {

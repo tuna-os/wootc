@@ -12,7 +12,9 @@ import (
 // `wootc.exe install --image ... --username ... --password ...` runs the
 // exact production pipeline without a display, so E2E can drive Phase 1
 // over QGA and enterprises get unattended installs. `wootc.exe status`
-// prints the lifecycle state for test assertions. No subcommand → GUI.
+// prints the lifecycle state for test assertions; "healthy" only once the
+// first-boot evidence matches this install (firstboot_evidence.go). No
+// subcommand → GUI.
 
 func isHeadlessInvocation(args []string) bool {
 	if len(args) < 2 {
@@ -136,7 +138,7 @@ func headlessStatus() int {
 	return headlessStatusWithReader(readStatusState)
 }
 
-func headlessStatusWithReader(read func() (LifecycleState, bool, error)) int {
+func headlessStatusWithReader(read func() (StatusReport, bool, error)) int {
 	s, ok, err := read()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "status: cannot safely read installation state")

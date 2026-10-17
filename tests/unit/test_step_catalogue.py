@@ -152,7 +152,10 @@ exit 0
                                                 'firstboot-evidence\tfirstboot\tChanged firstboot label'))
         self.assertEqual(self.generate().returncode, 0)
         host = self.root / 'host'
-        host.mkdir()
+        (host / 'wootc/install').mkdir(parents=True)
+        # The boot measurement has its own suite (test_wootc_firstboot_evidence.py).
+        collector = self.root / 'collector.py'
+        collector.write_text('import json\nprint(json.dumps({"state": "healthy", "phaseId": "firstboot-evidence"}))\n')
         fakebin = self.root / 'bin'
         fakebin.mkdir()
         (fakebin / 'mountpoint').write_text('#!/bin/sh\nexit 0\n')
@@ -162,7 +165,8 @@ exit 0
             fake.chmod(0o755)
         import os,json
         env = {**os.environ, 'WOOTC_STEPS_FILE': str(self.root / 'payload/steps.sh'),
-               'WOOTC_FIRSTBOOT_HOST': str(host), 'PATH': str(fakebin) + ':' + os.environ['PATH']}
+               'WOOTC_FIRSTBOOT_HOST': str(host), 'WOOTC_FIRSTBOOT_COLLECTOR': str(collector),
+               'PATH': str(fakebin) + ':' + os.environ['PATH']}
         result = subprocess.run(['bash', str(ROOT / 'payload/migration/wootc-firstboot-evidence')],
                                 env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -992,6 +992,9 @@ func runPipeline(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent
 	if err := requireNewInstallRootDisk(); err != nil {
 		return err
 	}
+	if err := discardStaleFirstBootEvidence(wootcDir()); err != nil {
+		return err
+	}
 	steps := installPipelineSteps(ctx, cfg, emit)
 	// Started only after the gates above, so a refused run never overwrites
 	// the journal of the attempt recovery still has to explain.
@@ -1107,7 +1110,7 @@ func finishInstallPipeline(ctx context.Context, armed bool, disarm func(), persi
 // on relaunch: a failed attempt must greet the user as a failed attempt,
 // not as "an existing TunaOS installation was found".
 func (a *App) GetLastRun() LifecycleState {
-	s, ok := readState()
+	s, ok := readVerifiedState()
 	if !ok {
 		return LifecycleState{}
 	}

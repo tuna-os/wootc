@@ -88,9 +88,9 @@ func TestStatusAuditPreservesPrivateBytesAndDescriptors(t *testing.T) {
 		return auditStatusTree(root, func(path string) error { return inspectStateObject(path, false) })
 	}
 	out := captureStdout(t, func() {
-		code := headlessStatusWithReader(func() (LifecycleState, bool, error) {
+		code := headlessStatusWithReader(func() (StatusReport, bool, error) {
 			state, _, found, err := discoverStatusState([]string{root}, audit)
-			return state, found, err
+			return StatusReport{LifecycleState: state}, found, err
 		})
 		if code != 0 {
 			t.Fatalf("status exit %d", code)
@@ -105,9 +105,9 @@ func TestStatusAuditPreservesPrivateBytesAndDescriptors(t *testing.T) {
 	applyTestDACL(t, path, "D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FW;;;BU)")
 	before = snapshot()
 	out = captureStdout(t, func() {
-		code := headlessStatusWithReader(func() (LifecycleState, bool, error) {
+		code := headlessStatusWithReader(func() (StatusReport, bool, error) {
 			state, _, found, err := discoverStatusState([]string{root}, audit)
-			return state, found, err
+			return StatusReport{LifecycleState: state}, found, err
 		})
 		if code != 1 {
 			t.Fatalf("unsafe status exit %d", code)

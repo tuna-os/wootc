@@ -2,8 +2,15 @@
 # wootc-firstboot-evidence — Phase-2 first-boot evidence and health marker.
 #
 # Runs as wootc-firstboot-evidence.service on the first successful boot into
-# Phase-2 Linux. Updates state.json on the Windows host NTFS to "healthy"
-# and writes the first-boot evidence file installed-linux-boot.json.
+# Phase-2 Linux. Measures that boot (kernel, booted image and digest, decoded
+# BootCurrent, root.disk identity, User Data Bridge, Secure Boot), then updates
+# state.json on the Windows host NTFS to "healthy" and writes the measurement
+# to \wootc\install\installed-linux-boot.json. Windows cross-checks that file
+# against its own record of the install before it reports "healthy".
+#
+# The evidence is written once per installation: an existing file is never
+# replaced, so a later boot cannot rewrite what the first one measured. The
+# record carries the kernel boot ID and a sequence number.
 #
 # Contract: docs/borrowed-from-libertix.md §2, §3
 
@@ -17,6 +24,7 @@ HOST="${WOOTC_FIRSTBOOT_HOST:-/run/initramfs/wootc-host}"
 INSTALL_DIR="$HOST/wootc/install"
 EVIDENCE_FINAL="$INSTALL_DIR/installed-linux-boot.json"
 STATE_FINAL="$HOST/wootc/state.json"
+COLLECTOR="${WOOTC_FIRSTBOOT_COLLECTOR:-/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py}"
 
 log() {
     local message="[wootc-firstboot] $*"
@@ -44,7 +52,23 @@ fi
 log "phase: firstboot-evidence"
 log "$(wootc_step_label firstboot-evidence)"
 
-mkdir -p "$INSTALL_DIR"
+if [[ -e "$EVIDENCE_FINAL" || -L "$EVIDENCE_FINAL" ]]; then
+    log "first-boot evidence already recorded; leaving it unchanged"
+    exit 0
+fi
+# Windows created this directory with its own ACL. A directory made here
+# would carry a Linux-side descriptor that Windows refuses to trust.
+if [[ ! -d "$INSTALL_DIR" || -L "$INSTALL_DIR" ]]; then
+    log "ERROR: $INSTALL_DIR is missing; the Windows install record is not on this volume"
+    exit 1
+fi
+
+# Measure before writing anything. A boot that cannot be measured must not
+# announce itself healthy; the unit runs again on the next boot.
+if ! EVIDENCE="$(python3 "$COLLECTOR" --host "$HOST")"; then
+    log "ERROR: could not measure this boot; first-boot evidence not written"
+    exit 1
+fi
 
 NOW=$(date -u +%FT%TZ 2>/dev/null || date)
 KERNEL_VER="$(uname -r 2>/dev/null || echo "unknown")"
@@ -52,7 +76,8 @@ KERNEL_VER="$(uname -r 2>/dev/null || echo "unknown")"
 # Update the lifecycle state before the evidence marker. The unit is gated on
 # the marker's absence; writing it last lets the service retry after a failed
 # state update on the next boot. The helper preserves the Windows ACL and
-# atomically replaces each record on the NTFS volume.
+# atomically replaces each record on the NTFS volume (temporary file, then
+# rename).
 wootc-ntfs-state-write "$STATE_FINAL" "$STATE_FINAL" <<JSONEOF
 {
   "state": "healthy",
@@ -61,14 +86,6 @@ wootc-ntfs-state-write "$STATE_FINAL" "$STATE_FINAL" <<JSONEOF
 }
 JSONEOF
 
-wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" <<JSONEOF
-{
-  "state": "healthy",
-  "phaseId": "firstboot-evidence",
-  "kernel": "$KERNEL_VER",
-  "writtenAt": "$NOW",
-  "updatedBy": "wootc-firstboot"
-}
-JSONEOF
+wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" <<<"$EVIDENCE"
 
-log "Phase-2 first-boot health reported: state.json -> healthy ($KERNEL_VER)"
+log "Phase-2 first-boot health reported: state.json -> healthy ($KERNEL_VER), evidence in installed-linux-boot.json"

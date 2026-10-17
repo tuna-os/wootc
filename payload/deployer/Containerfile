@@ -131,6 +131,8 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         { echo "FATAL: wootc polkit policy missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-e2e-phase3-dispatch" || \
         { echo "FATAL: Phase 3 dispatch script missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/lib/wootc_firstboot_evidence.py" || \
+        { echo "FATAL: first-boot evidence collector missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/systemd/systemd-cryptsetup" || \
         { echo "FATAL: systemd-cryptsetup missing from initramfs"; exit 1; }
 

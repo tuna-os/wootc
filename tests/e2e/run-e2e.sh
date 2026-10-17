@@ -3944,6 +3944,14 @@ step "Asserting deployer lifecycle state on Windows..."
 capture_lifecycle_status deployed
 if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"deployed"'; then
     product_pass deployed "wootc.exe status reports deployed after deployer finished"
+    # Before the installed system's first boot has written its evidence,
+    # status must say installed-and-waiting, never healthy (#332).
+    if echo "$_state_raw" | grep -q '"verdict"[[:space:]]*:[[:space:]]*"waiting"' \
+        && ! echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"'; then
+        product_pass firstboot-waiting "wootc.exe status reports installed, waiting for the first Linux boot (not healthy) before first-boot evidence exists"
+    else
+        product_fail "wootc.exe status did not report waiting for the first Linux boot before first-boot evidence existed (got: '$_state_raw')"
+    fi
 else
     capture_lifecycle_failure deployed
     product_fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
@@ -4561,6 +4569,11 @@ else
     exit 1
 fi
 
+# The kernel boot ID of this Phase-2 boot: the product's first-boot evidence
+# must name it (checked from Windows after the return, #332).
+P2_BOOT_ID=$(qga_call exec /bin/sh -c 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null | tr -d '[:space:]' || true)
+info "Phase-2 kernel boot ID: ${P2_BOOT_ID:-unobserved}"
+
 # Capture the actual unit result and both lifecycle files while Linux is still
 # running. The Windows status check after the reboot remains the acceptance
 # gate; this diagnostic tells us why a missing healthy state stayed deployed.
@@ -4719,10 +4732,28 @@ else
     # went down would satisfy a bare QGA wait instantly and fake the return.
     qga_wait_windows 600
     product_pass windows-return "One-shot Phase 2 boot consumed; Windows returned successfully"
+    # The product's own evidence of the Phase-2 boot, read back from the
+    # Windows volume (#332). An extra assertion beside the North Star file:
+    # the user-data proof above stays the harness's own observation.
+    step "Asserting the installed system's first-boot evidence on Windows..."
+    _ev_status=2
+    if _ev_root=$(guest_wootc_root) \
+        && qga_read "${_ev_root}\\wootc\\install\\installed-linux-boot.json" \
+            > "$ARTIFACT_DIR/installed-linux-boot.json" 2> "$ARTIFACT_DIR/installed-linux-boot.stderr"; then
+        _ev_status=0
+        python3 "$SCRIPT_DIR/firstboot-evidence-check.py" "$ARTIFACT_DIR/installed-linux-boot.json" \
+            "$IMAGE_REF" "${P2_BOOT_ID:-}" || _ev_status=$?
+    fi
+    case "$_ev_status" in
+        0) product_pass firstboot-evidence "installed-linux-boot.json names this Phase-2 boot and the selected image" ;;
+        3) product_fail "installed-linux-boot.json does not describe this Phase-2 boot of the selected image" ;;
+        *) product_fail "installed-linux-boot.json was not written to \\wootc\\install by the Phase-2 first boot (or is unreadable)" ;;
+    esac
     step "Asserting Phase-2 first boot lifecycle state on Windows..."
     # shellcheck disable=SC2016
     capture_lifecycle_status healthy
-    if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"'; then
+    if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"' \
+        && echo "$_state_raw" | grep -q '"verdict"[[:space:]]*:[[:space:]]*"verified"'; then
         product_pass healthy "wootc.exe status reports healthy after Phase-2 first boot"
     else
         capture_lifecycle_failure healthy
