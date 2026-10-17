@@ -76,7 +76,16 @@ phase2_second_boot_check() {
         2>/dev/null || true)
     printf '%s\n' "$diag" | sed 's/^/  /'
     if printf '%s' "$userdata" | grep -q "$RUN_ID"; then
-        product_pass user-data-second-boot "Second Phase 2 boot: Windows Documents file still readable in /home/wootc (the bridge unlocked C: again)"
+        # Say which path served the file. Only a bind from the unlocked
+        # BitLocker mapper exercises the recovery key; a fixture that seeds
+        # the profile on the unencrypted volume proves the second boot, not
+        # the key, and must not be reported as if it did.
+        if printf '%s' "$diag" | grep -q '^home-bind: /dev/mapper/wootc-bitlk-'; then
+            product_pass user-data-second-boot "Second Phase 2 boot: Windows Documents file still readable in /home/wootc, served from the unlocked BitLocker C:"
+        else
+            product_pass user-data-second-boot "Second Phase 2 boot: Windows Documents file still readable in /home/wootc"
+            warn "Second Phase 2 boot: the file was NOT served from the unlocked BitLocker C: ($(printf '%s' "$diag" | grep '^home-bind:' | head -1)) — this run did not exercise the recovery key"
+        fi
     else
         product_fail "Second Phase 2 boot: Windows Documents file NOT readable in /home/wootc (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
     fi
