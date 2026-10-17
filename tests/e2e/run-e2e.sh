@@ -211,6 +211,16 @@ if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCEN
         RESULT_REQUIRED="$RESULT_REQUIRED,native-shell-unelevated,native-engine-elevated"
     fi
 fi
+# The BitLocker cell boots Phase 2 twice: the bridge unlocks C: on every boot,
+# and a key that does not survive the first shutdown is invisible to one boot
+# (#279). The second read is required, so skipping it cannot read as a pass.
+if [ "$RESULT_SCENARIO" = full-cycle ] && [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
+    if [ -n "$RESULT_REQUIRED" ]; then
+        RESULT_REQUIRED="$RESULT_REQUIRED,user-data-second-boot"
+    else
+        RESULT_REQUIRED=user-data-second-boot
+    fi
+fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
 trap 'rc=$?; wootc_result_abort "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$rc" || rc=1; exit "$rc"' EXIT
@@ -621,6 +631,8 @@ qga_wait_windows() {
 source "$SCRIPT_DIR/lib/gui-session.sh"
 # shellcheck source=tests/e2e/lib/mok.sh
 source "$SCRIPT_DIR/lib/mok.sh"
+# shellcheck source=tests/e2e/lib/phase2-second-boot.sh
+source "$SCRIPT_DIR/lib/phase2-second-boot.sh"
 wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_restart_windows
 
 # Which drive holds the guest's \wootc tree. NOT always C:.
@@ -4715,6 +4727,17 @@ else
     else
         capture_lifecycle_failure healthy
         product_fail "wootc.exe status did not report healthy after Phase-2 first boot (got: '$_state_raw')"
+    fi
+    # BitLocker cell: the bridge must unlock C: again on the next boot (#279).
+    # The verdict is the required user-data-second-boot assertion; a return
+    # failure is recorded by the helper and must not skip the steps below.
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
+        WOOTC_GUEST_ROOT=""
+        if _second_root=$(guest_wootc_root); then
+            phase2_second_boot_check "$PHASE2_GUID" "$_second_root" phase2_monitor_reset || true
+        else
+            infra_fail "Second Phase 2 boot: cannot find the unique storage volume holding \\wootc"
+        fi
     fi
     # Windows is verifiably back — put the untouched machine on camera
     # (video-only, best-effort).

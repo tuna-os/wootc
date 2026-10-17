@@ -21,7 +21,10 @@ REQUIRED = {
 }
 # native-shell-unelevated and native-engine-elevated: an unelevated native
 # run's integrity split (tests/e2e/lib/gui-native.sh).
-OPTIONAL = {'gui-install', 'native-shell', 'native-shell-unelevated', 'native-engine-elevated'}
+# user-data-second-boot: the BitLocker cell's second Phase-2 boot, where the
+# bridge must unlock C: again with the recovery key (#279).
+OPTIONAL = {'gui-install', 'native-shell', 'native-shell-unelevated', 'native-engine-elevated',
+            'user-data-second-boot'}
 DOMAINS = {'runner', 'infrastructure', 'product'}
 
 
