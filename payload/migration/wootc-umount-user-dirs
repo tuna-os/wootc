@@ -5,7 +5,6 @@
 # cleanly afterward without "target is busy" from nested bind mounts.
 
 set -Eeuo pipefail
-HOST="${WOOTC_HOST:-/run/wootc/host}"
 
 FOLDERS=(Documents Pictures Downloads Music Videos Desktop)
 
@@ -26,16 +25,8 @@ for mapper in /dev/mapper/wootc-bitlk-*; do
     [[ -b "$mapper" ]] && cryptsetup close "$(basename "$mapper")" 2>/dev/null || true
 done
 
-# Credential hygiene: the BitLocker recovery key was only needed to unlock
-# the former Windows C: for profile discovery. The vault.json policy is
-# "no credentials persist on NTFS" (deploy.sh shreds it) — the recovery
-# key must not outlive the migration either. The volume is now locked, so
-# shred the key file from the storage drive (tuna-os/wootc#279).
-for key_file in \
-    "$HOST"/wootc/install/bitlocker-key.txt \
-    "$HOST"/*/wootc/install/bitlocker-key.txt; do
-    if [[ -f "$key_file" ]]; then
-        shred -u "$key_file" 2>/dev/null || rm -f "$key_file"
-        echo "[wootc] shredded BitLocker recovery key $key_file" >&2
-    fi
-done
+# The recovery key is NOT shredded here. This runs on every shutdown, and the
+# bridge unlocks C: again on every boot to bind the folders live, so a shred
+# here made every unconverted folder vanish on the second boot (#279). The
+# key lives in /etc/wootc/bitlocker-key (the deployer moved it off NTFS) and
+# wootc-convert-dir retires it once nothing is bridged from C: any more.

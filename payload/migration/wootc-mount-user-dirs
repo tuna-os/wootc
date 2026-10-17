@@ -37,13 +37,58 @@ fi
 # volume (E:), which holds root.disk but NOT the user profiles. Those live on
 # the encrypted C:, which the Phase-2 boot does not unlock by default.
 #
-# When the normal profile search finds nothing, look for a BitLocker recovery
-# key file (left by Phase 1 under \wootc\install\bitlocker-key.txt on the
-# same unencrypted volume) and attempt to unlock C: with cryptsetup bitlkOpen.
+# When the normal profile search finds nothing, look for the BitLocker recovery
+# key (Phase 1 writes it to \wootc\install\bitlocker-key.txt; the deployer
+# moves it to /etc/wootc/bitlocker-key) and unlock C: with cryptsetup bitlkOpen.
 # On success the bridge reads profiles from the unlocked volume; on failure
 # (missing key, no cryptsetup, wrong key) it logs a clear diagnostic so the
 # user knows WHY their data did not arrive.
 BITLOCKER_PROFILES=""
+WOOTC_ETC="${WOOTC_ETC:-/etc/wootc}"
+
+# Prints the recovery key file the bridge should use. The deployer moves the
+# key into the installed root (/etc/wootc/bitlocker-key, root 0600) and
+# shreds the NTFS copy, so the key survives every boot without staying on
+# NTFS (#279). The NTFS path is only a fallback for deployments made before
+# that move. Nothing here deletes the key: it is needed on every boot while
+# any folder is still bridged, and wootc-convert-dir retires it.
+bitlocker_key_file() {
+    local candidate
+    if [[ -f "$WOOTC_ETC/bitlocker-key" ]]; then
+        printf '%s\n' "$WOOTC_ETC/bitlocker-key"
+        return 0
+    fi
+    for candidate in "$HOST"/wootc/install/bitlocker-key.txt \
+                     "$HOST"/*/wootc/install/bitlocker-key.txt; do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Prints the recovery password in the only form cryptsetup's BITLK code
+# accepts as one: eight groups of six digits joined by hyphens (55 chars).
+# The 48 bare digits are a different passphrase that never unlocks the
+# recovery protector (cryptsetup: "No key available with this passphrase").
+# Phase 1 stores the digits without hyphens and the E2E fixture stores them
+# with, so both are read: keep only the digits, require exactly 48, check each
+# group the way BitLocker does (a multiple of 11 below 65536 * 11), and put the
+# hyphens back. Anything else is refused rather than guessed at.
+bitlocker_recovery_password() {
+    local digits group value i out=""
+    digits=$(tr -cd '0-9' < "$1" 2>/dev/null) || return 1
+    [[ ${#digits} -eq 48 ]] || return 1
+    for ((i = 0; i < 48; i += 6)); do
+        group=${digits:i:6}
+        value=$((10#$group))
+        (( value % 11 == 0 && value / 11 <= 65535 )) || return 1
+        out+="${out:+-}$group"
+    done
+    printf '%s' "$out"
+}
+
 find_bitlocker_profiles() {
     # Only proceed if the host mount itself has no Users/ (the BitLocker
     # signature). If Users exists, this is not the encrypted-C: path.
@@ -53,18 +98,19 @@ find_bitlocker_profiles() {
     command -v cryptsetup >/dev/null 2>&1 || { log "cryptsetup not available — cannot unlock BitLocker volumes"; return 0; }
     cryptsetup --help 2>&1 | grep -q bitlkOpen || { log "cryptsetup lacks bitlk support — cannot unlock BitLocker volumes"; return 0; }
 
-    # Find the recovery key file on the host mount.
-    local key_file="" candidate
-    for candidate in "$HOST"/wootc/install/bitlocker-key.txt \
-                     "$HOST"/*/wootc/install/bitlocker-key.txt; do
-        [[ -f "$candidate" ]] && { key_file="$candidate"; break; }
-    done
-    if [[ -z "$key_file" ]]; then
-        log "no BitLocker recovery key file found (expected \\wootc\\install\\bitlocker-key.txt on the host mount)"
+    # Find the recovery key: the deployment's copy first (#279), then the
+    # NTFS copy that deployments made before the deployer moved it.
+    local key_file=""
+    if ! key_file=$(bitlocker_key_file); then
+        log "no BitLocker recovery key found (expected ${WOOTC_ETC}/bitlocker-key, or \\wootc\\install\\bitlocker-key.txt on the host mount)"
         log "profiles are on an encrypted C: drive which cannot be unlocked without the recovery key"
         return 0
     fi
-    log "BitLocker recovery key found at ${key_file} — attempting encrypted C: unlock"
+    if [[ "$key_file" == "$WOOTC_ETC/"* ]]; then
+        log "BitLocker recovery key found at ${key_file} — attempting encrypted C: unlock"
+    else
+        log "BitLocker recovery key found at ${key_file} (legacy NTFS copy) — attempting encrypted C: unlock"
+    fi
 
     # Find BitLocker-encrypted volumes on the system.
     local bl_vol="" dev fstype
@@ -82,12 +128,10 @@ find_bitlocker_profiles() {
     fi
     log "found BitLocker-encrypted volume: ${bl_vol}"
 
-    # The numerical recovery password is 48 digits grouped as 8 blocks of 6.
-    # Read it from the key file, stripping whitespace and hyphens.
+    # cryptsetup accepts a recovery password only in its canonical form.
     local recovery_key
-    recovery_key=$(tr -d '[:space:]-' < "$key_file" 2>/dev/null || true)
-    if [[ -z "$recovery_key" || "${#recovery_key}" -lt 48 ]]; then
-        warn "BitLocker recovery key file is empty or too short (${#recovery_key} chars, need at least 48)"
+    if ! recovery_key=$(bitlocker_recovery_password "$key_file"); then
+        warn "BitLocker recovery key in ${key_file} is not a valid 48-digit recovery password — refusing unlock"
         return 0
     fi
 

@@ -13,6 +13,31 @@
 set -Eeuo pipefail
 
 log() { printf '[wootc-convert-dir] %s\n' "$*"; }
+WOOTC_ETC="${WOOTC_ETC:-/etc/wootc}"
+BITLK_MNT="${WOOTC_BITLK_MNT:-/run/wootc/bitlk-tmp}"
+
+# The BitLocker recovery key (/etc/wootc/bitlocker-key, moved there by the
+# deployer) is needed on every boot for as long as any folder is bind-mounted
+# from the unlocked Windows C:. Once the last one has been converted, nothing
+# needs C: any more, so the key is shredded (#279).
+#
+# "Nothing is bridged" is only trusted when THIS boot actually unlocked C:
+# (its mount is present): with no unlock there are no binds to count, and an
+# empty count would read as "all converted" when it means "never bridged".
+retire_bitlocker_key_if_unused() {
+    local key="$WOOTC_ETC/bitlocker-key" mounts
+    [[ -f "$key" ]] || return 0
+    mounts=$(findmnt -rn -o SOURCE,TARGET 2>/dev/null) || return 0
+    printf '%s\n' "$mounts" | awk -v m="$BITLK_MNT" '$2 == m { found = 1 } END { exit !found }' || {
+        log "BitLocker key kept: this boot did not unlock the Windows drive, so bridged folders cannot be counted"
+        return 0
+    }
+    if printf '%s\n' "$mounts" | awk -v m="$BITLK_MNT" '$1 ~ /^\/dev\/mapper\/wootc-bitlk-/ && $2 != m { found = 1 } END { exit !found }'; then
+        return 0
+    fi
+    shred -u "$key" 2>/dev/null || rm -f "$key"
+    log "all bridged folders are now native — BitLocker recovery key shredded from ${WOOTC_ETC} (#279)"
+}
 name="${1:?usage: wootc-convert-dir <username> <Folder>}"
 folder="${2:?usage: wootc-convert-dir <username> <Folder>}"
 
@@ -109,3 +134,7 @@ touch "$state_dir/converted-$folder"
 chown -R "$name:" "$state_dir"
 
 log "converted $folder for $name (${total_kb:-?} KB) — Windows copy untouched"
+
+# 4. If that was the last folder bridged from the encrypted Windows drive,
+#    the recovery key has no remaining use.
+retire_bitlocker_key_if_unused

@@ -942,6 +942,43 @@ fi
 udevadm settle --timeout=10 2>/dev/null || true
 log "Attached raw image ${DISK} as ${LOOP_DEV}"
 
+# ── BitLocker recovery key: NTFS → the installed root (#279) ────────────────
+# Phase 1 leaves the recovery password for the encrypted C: beside the vault.
+# The bridge needs it on EVERY Phase-2 boot: it unlocks C: and bind-mounts the
+# profile folders live, it never copies them. So the key cannot just be
+# shredded after first use (that made unconverted folders vanish on the second
+# boot). It moves instead: into the deployment's /etc/wootc (root:root 0600),
+# then the NTFS copy is shredded, so "no credentials persist on NTFS" holds.
+# wootc-convert-dir retires it once nothing is bridged from C: any more.
+#
+# The NTFS copy is shredded only after the deployment copy is verified
+# byte-for-byte. A failure keeps the NTFS copy, which the bridge still reads as
+# its legacy fallback: losing the user's folders is worse than a late shred.
+persist_bitlocker_key() {
+    local src="$1" root="$2" dst tmp
+    [[ -f "$src" ]] || return 0
+    dst="$root/etc/wootc/bitlocker-key"
+    tmp="$dst.partial"
+    rm -f "$tmp" 2>/dev/null || true
+    # Only binaries in the deployer's initramfs closure (module-setup.sh):
+    # no cmp, id or dirname there, so compare digests and use $EUID.
+    local want
+    want=$(sha256sum < "$src") || want=""
+    if [[ -n "$want" ]] && install -d -m 0755 "$root/etc/wootc" &&
+       ( umask 077 && install -m 0600 "$src" "$tmp" ) &&
+       { [[ $EUID -ne 0 ]] || chown 0:0 "$tmp"; } &&
+       [[ "$(sha256sum < "$tmp")" == "$want" ]] && mv -f "$tmp" "$dst" &&
+       [[ "$(sha256sum < "$dst")" == "$want" ]]; then
+        sync -f "$dst" 2>/dev/null || sync
+        shred -u "$src" 2>/dev/null || rm -f "$src"
+        log "  [PASS] BitLocker recovery key moved to /etc/wootc/bitlocker-key (root 0600); NTFS copy shredded (#279)"
+        return 0
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+    err "  could not move the BitLocker recovery key into the installed system — keeping the NTFS copy so the bridge can still unlock C: (#279)"
+    return 1
+}
+
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
 VAULT_PASSWORD_HASH=""
@@ -2220,6 +2257,13 @@ if [[ -n "$VERIFY_ROOT" ]]; then
             warn "  could not persist the profile map — the bridge will fall back to exact directory-name matches"
         fi
     fi
+
+    # DEPLOY_ROOT is resolved above for all three layouts that reach here
+    # (ostree deployment, composefs /state/deploy/<hash>, classic root); with
+    # no mounted root this block never runs and the key stays on NTFS, where
+    # the bridge's legacy fallback finds it. Best-effort: never fail a deploy.
+    _vault_ntfs="/mnt/ntfs${VAULT_PATH:-/wootc/install/vault.json}"
+    persist_bitlocker_key "${_vault_ntfs%/*}/bitlocker-key.txt" "$DEPLOY_ROOT" || true
 
     VERIFY_BOOT="${VERIFY_LOOP}p2"
     if [[ ! -b "$VERIFY_BOOT" ]]; then
