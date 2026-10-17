@@ -2237,7 +2237,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 chroot "$DEPLOY_ROOT" passwd --lock "$_secuser" >/dev/null 2>&1 || true
                 log "  [PASS] created locked account for Windows profile '${_secuser}' (no password set)"
             else
-                warn "  could not create an account for Windows profile '${_secuser}' — their files will not be bridged"
+                err "  could not create an account for Windows profile '${_secuser}' — their files will not be bridged"
             fi
         done <<< "$VAULT_SECONDARY_USERS"
     fi
@@ -2254,7 +2254,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
            printf '%s\n' "$VAULT_PROFILE_MAP" > "$DEPLOY_ROOT/etc/wootc/profile-map.tsv"; then
             log "  [PASS] persisted Windows→Linux profile map ($(printf '%s\n' "$VAULT_PROFILE_MAP" | wc -l) entr(y|ies)) to /etc/wootc/profile-map.tsv"
         else
-            warn "  could not persist the profile map — the bridge will fall back to exact directory-name matches"
+            err "  could not persist the profile map — the bridge will fall back to exact directory-name matches"
         fi
     fi
 
