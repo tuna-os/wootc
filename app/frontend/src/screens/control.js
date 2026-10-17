@@ -84,7 +84,7 @@ export function renderControlPanel() {
     return row;
   };
   opts.appendChild(checkbox('deleteRootDisk', 'Also delete my Linux data',
-    'Removes root.disk. Your Linux files are permanently deleted. Leave unchecked to keep them for later.', true));
+    'Removes root.disk. Your Linux files, and the sealed copy of a BitLocker recovery key, are permanently deleted. Leave unchecked to keep them for later.', true));
   if (u.onDedicatedVol && u.reclaimGB) {
     const label = u.volumeLabel || 'wootc-data';
     opts.appendChild(checkbox('removePartition', `Give the ${Math.round(u.reclaimGB)} GB back to Windows`,

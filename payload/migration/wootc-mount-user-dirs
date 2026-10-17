@@ -46,18 +46,22 @@ fi
 BITLOCKER_PROFILES=""
 WOOTC_ETC="${WOOTC_ETC:-/etc/wootc}"
 
-# Prints the recovery key file the bridge should use. The deployer moves the
-# key into the installed root (/etc/wootc/bitlocker-key, root 0600) and
-# shreds the NTFS copy, so the key survives every boot without staying on
-# NTFS (#279). The NTFS path is only a fallback for deployments made before
-# that move. Nothing here deletes the key: it is needed on every boot while
-# any folder is still bridged, and wootc-convert-dir retires it.
+# Prints the recovery key file the bridge should use, best first:
+#   /etc/wootc/bitlocker-key       plaintext: the deployer's copy before it is
+#                                  sealed, or one the user saved to recover
+#   /etc/wootc/bitlocker-key.cred  sealed to this machine (systemd-creds)
+#   \wootc\install\bitlocker-key.txt on NTFS: deployments made before the
+#                                  deployer moved the key (#279)
+# Nothing here deletes the key: it is needed on every boot while any folder
+# is still bridged, and wootc-convert-dir retires it.
 bitlocker_key_file() {
     local candidate
-    if [[ -f "$WOOTC_ETC/bitlocker-key" ]]; then
-        printf '%s\n' "$WOOTC_ETC/bitlocker-key"
-        return 0
-    fi
+    for candidate in "$WOOTC_ETC/bitlocker-key" "$WOOTC_ETC/bitlocker-key.cred"; do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
     for candidate in "$HOST"/wootc/install/bitlocker-key.txt \
                      "$HOST"/*/wootc/install/bitlocker-key.txt; do
         if [[ -f "$candidate" ]]; then
@@ -66,6 +70,47 @@ bitlocker_key_file() {
         fi
     done
     return 1
+}
+
+# Seals a plaintext key to this machine, then shreds the plaintext (#279).
+# --with-key=auto uses the TPM2 and the host key when a TPM2 is present, and
+# the host key alone otherwise. --tpm2-pcrs= binds to the TPM itself, not to
+# the boot state: a firmware or Secure Boot update must not lock the user out
+# of their own folders, while a copy of the disk still cannot be unsealed on
+# another machine. The plaintext goes only after the sealed copy decrypts to
+# the same bytes; on any failure it stays, and the next boot tries again.
+seal_bitlocker_key() {
+    local key="$WOOTC_ETC/bitlocker-key" cred="$WOOTC_ETC/bitlocker-key.cred" want
+    [[ -f "$key" ]] || return 0
+    if ! command -v systemd-creds >/dev/null 2>&1; then
+        log "systemd-creds not available — the BitLocker recovery key stays in ${key} (root only), not sealed"
+        return 0
+    fi
+    want=$(sha256sum < "$key") || return 0
+    rm -f "$cred.partial"
+    # Some systemd builds refuse an empty PCR list without a TPM; their
+    # default policy is the fallback, never the plaintext staying forever.
+    if { ( umask 077 && systemd-creds encrypt --with-key=auto --tpm2-pcrs= --name=bitlocker-key "$key" "$cred.partial" ) 2>/dev/null ||
+         ( umask 077 && systemd-creds encrypt --with-key=auto --name=bitlocker-key "$key" "$cred.partial" ) 2>/dev/null; } &&
+       [[ "$(systemd-creds decrypt --name=bitlocker-key "$cred.partial" - 2>/dev/null | sha256sum)" == "$want" ]] &&
+       mv -f "$cred.partial" "$cred"; then
+        shred -u "$key" 2>/dev/null || rm -f "$key"
+        log "BitLocker recovery key sealed to this machine (${cred}); plaintext copy shredded"
+        return 0
+    fi
+    rm -f "$cred.partial"
+    warn "could not seal the BitLocker recovery key — it stays in ${key} (root only); sealing is retried on the next boot"
+    return 0
+}
+
+# Prints the key file's contents. A sealed key is decrypted in memory; it is
+# never written back to disk.
+bitlocker_key_material() {
+    if [[ "$1" == *.cred ]]; then
+        systemd-creds decrypt --name=bitlocker-key "$1" - 2>/dev/null
+    else
+        cat -- "$1"
+    fi
 }
 
 # Prints the recovery password in the only form cryptsetup's BITLK code
@@ -78,7 +123,11 @@ bitlocker_key_file() {
 # hyphens back. Anything else is refused rather than guessed at.
 bitlocker_recovery_password() {
     local digits group value i out=""
-    digits=$(tr -cd '0-9' < "$1" 2>/dev/null) || return 1
+    if [[ "${1:--}" == - ]]; then
+        digits=$(tr -cd '0-9') || return 1
+    else
+        digits=$(tr -cd '0-9' < "$1" 2>/dev/null) || return 1
+    fi
     [[ ${#digits} -eq 48 ]] || return 1
     for ((i = 0; i < 48; i += 6)); do
         group=${digits:i:6}
@@ -98,15 +147,17 @@ find_bitlocker_profiles() {
     command -v cryptsetup >/dev/null 2>&1 || { log "cryptsetup not available — cannot unlock BitLocker volumes"; return 0; }
     cryptsetup --help 2>&1 | grep -q bitlkOpen || { log "cryptsetup lacks bitlk support — cannot unlock BitLocker volumes"; return 0; }
 
-    # Find the recovery key: the deployment's copy first (#279), then the
-    # NTFS copy that deployments made before the deployer moved it.
+    # Seal a plaintext copy first, then find the best copy (#279).
+    seal_bitlocker_key
     local key_file=""
     if ! key_file=$(bitlocker_key_file); then
         log "no BitLocker recovery key found (expected ${WOOTC_ETC}/bitlocker-key, or \\wootc\\install\\bitlocker-key.txt on the host mount)"
         log "profiles are on an encrypted C: drive which cannot be unlocked without the recovery key"
         return 0
     fi
-    if [[ "$key_file" == "$WOOTC_ETC/"* ]]; then
+    if [[ "$key_file" == *.cred ]]; then
+        log "BitLocker recovery key found sealed at ${key_file} — attempting encrypted C: unlock"
+    elif [[ "$key_file" == "$WOOTC_ETC/"* ]]; then
         log "BitLocker recovery key found at ${key_file} — attempting encrypted C: unlock"
     else
         log "BitLocker recovery key found at ${key_file} (legacy NTFS copy) — attempting encrypted C: unlock"
@@ -128,12 +179,25 @@ find_bitlocker_profiles() {
     fi
     log "found BitLocker-encrypted volume: ${bl_vol}"
 
+    # A sealed key that will not decrypt (the TPM was cleared, or the disk
+    # moved to another machine) must never look like missing folders. Say
+    # what happened and how the user gets their folders back.
+    local key_material
+    if ! key_material=$(bitlocker_key_material "$key_file"); then
+        warn "the saved BitLocker recovery key (${key_file}) cannot be unsealed on this machine — for example after the TPM was cleared"
+        warn "your Windows folders are still on the Windows drive: they are not lost"
+        warn "to reach them again, save your own 48-digit BitLocker recovery key as ${WOOTC_ETC}/bitlocker-key (readable by root only) and restart; it is sealed again on the next start"
+        return 0
+    fi
+
     # cryptsetup accepts a recovery password only in its canonical form.
     local recovery_key
-    if ! recovery_key=$(bitlocker_recovery_password "$key_file"); then
+    if ! recovery_key=$(printf '%s' "$key_material" | bitlocker_recovery_password -); then
+        unset key_material
         warn "BitLocker recovery key in ${key_file} is not a valid 48-digit recovery password — refusing unlock"
         return 0
     fi
+    unset key_material
 
     # Unlock and mount the BitLocker volume.
     local mapper="wootc-bitlk-$$"

@@ -274,7 +274,127 @@ canonical=013574-062458-099132-038016-086790-025795-074679-720885
 
 @test "the bridge never hands cryptsetup a password with its hyphens stripped" {
     sed -n '/^find_bitlocker_profiles() {/,/^}/p' "$MOUNT" > "$T/find.sh"
-    grep -q 'recovery_key=$(bitlocker_recovery_password "$key_file")' "$T/find.sh"
+    grep -q 'recovery_key=$(printf .%s. "$key_material" | bitlocker_recovery_password -)' "$T/find.sh"
     run grep -n "tr -d '\[:space:\]-'" "$T/find.sh"
     [ "$status" -ne 0 ]
+}
+
+# ── sealing the key to the machine ──────────────────────────────────────────
+# systemd-creds is stubbed: "sealing" prefixes the bytes, "unsealing" strips
+# the prefix. STUB_MODE picks a failure.
+
+creds_stub() {
+    cat > "$STUBDIR/systemd-creds" <<'STUB'
+#!/bin/bash
+mode="${STUB_MODE:-ok}"
+echo "$*" >> "${STUB_LOG:-/dev/null}"
+op="$1"; shift
+args=("$@"); n=${#args[@]}
+case "$op" in
+    encrypt)
+        [ "$mode" = encfail ] && exit 1
+        { printf 'SEALED:'; cat "${args[n-2]}"; } > "${args[n-1]}" ;;
+    decrypt)
+        [ "$mode" = decfail ] && exit 1
+        if [ "$mode" = mismatch ]; then echo garbage; exit 0; fi
+        content=$(cat "${args[n-2]}")
+        [[ "$content" == SEALED:* ]] || exit 1
+        printf '%s\n' "${content#SEALED:}" ;;
+esac
+STUB
+    chmod +x "$STUBDIR/systemd-creds"
+}
+
+seal_env() {
+    log() { echo "LOG $*"; }; warn() { echo "WARN $*"; }
+    load_fn "$MOUNT" seal_bitlocker_key
+    load_fn "$MOUNT" bitlocker_key_material
+    load_fn "$MOUNT" bitlocker_key_file
+    WOOTC_ETC="$T/etc/wootc"; HOST="$T/host"
+    mkdir -p "$WOOTC_ETC" "$HOST"
+    printf '%s\n' "$key48" > "$WOOTC_ETC/bitlocker-key"
+    creds_stub
+}
+
+@test "the bridge seals the plaintext key with --with-key=auto, then shreds the plaintext" {
+    seal_env
+    STUB_LOG="$T/creds.log" PATH="$STUBDIR:$PATH" run seal_bitlocker_key
+    [ "$status" -eq 0 ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key" ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key.cred.partial" ]
+    [ "$(stat -c %a "$WOOTC_ETC/bitlocker-key.cred")" = 600 ]
+    grep -q -- 'encrypt --with-key=auto --tpm2-pcrs= --name=bitlocker-key' "$T/creds.log"
+    PATH="$STUBDIR:$PATH" run bitlocker_key_material "$WOOTC_ETC/bitlocker-key.cred"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$key48" ]
+}
+
+@test "a failed seal keeps the plaintext key and leaves no partial file" {
+    seal_env
+    STUB_MODE=encfail PATH="$STUBDIR:$PATH" run seal_bitlocker_key
+    [ "$status" -eq 0 ]
+    [ "$(cat "$WOOTC_ETC/bitlocker-key")" = "$key48" ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key.cred" ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key.cred.partial" ]
+    [[ "$output" == *"retried on the next boot"* ]]
+}
+
+@test "a sealed copy that does not decrypt to the same bytes is discarded" {
+    seal_env
+    STUB_MODE=mismatch PATH="$STUBDIR:$PATH" run seal_bitlocker_key
+    [ "$(cat "$WOOTC_ETC/bitlocker-key")" = "$key48" ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key.cred" ]
+}
+
+@test "without systemd-creds the key stays plaintext in /etc (root only)" {
+    seal_env
+    rm -f "$STUBDIR/systemd-creds"
+    PATH="$STUBDIR" run seal_bitlocker_key
+    [ "$status" -eq 0 ]
+    [ "$(cat "$WOOTC_ETC/bitlocker-key")" = "$key48" ]
+    [[ "$output" == *"not sealed"* ]]
+}
+
+@test "a plaintext key wins over a sealed one, so a user can recover after a TPM clear" {
+    seal_env
+    echo stale > "$WOOTC_ETC/bitlocker-key.cred"
+    run bitlocker_key_file
+    [ "$output" = "$WOOTC_ETC/bitlocker-key" ]
+    rm "$WOOTC_ETC/bitlocker-key"
+    mkdir -p "$HOST/wootc/install"; echo ntfs > "$HOST/wootc/install/bitlocker-key.txt"
+    run bitlocker_key_file
+    [ "$output" = "$WOOTC_ETC/bitlocker-key.cred" ]
+}
+
+@test "a sealed key that cannot be unsealed fails loudly instead of returning nothing" {
+    seal_env
+    PATH="$STUBDIR:$PATH" seal_bitlocker_key >/dev/null
+    STUB_MODE=decfail PATH="$STUBDIR:$PATH" run bitlocker_key_material "$WOOTC_ETC/bitlocker-key.cred"
+    [ "$status" -ne 0 ]
+    [ -z "$output" ]
+    # The bridge turns that into a message telling the user the folders are
+    # safe and how to give the key back, never a silent empty home.
+    sed -n '/^find_bitlocker_profiles() {/,/^}/p' "$MOUNT" > "$T/find.sh"
+    grep -q 'cannot be unsealed on this machine' "$T/find.sh"
+    grep -q 'your Windows folders are still on the Windows drive' "$T/find.sh"
+    grep -q 'save your own 48-digit BitLocker recovery key as ${WOOTC_ETC}/bitlocker-key' "$T/find.sh"
+}
+
+@test "the bridge seals before it picks a key" {
+    sed -n '/^find_bitlocker_profiles() {/,/^}/p' "$MOUNT" > "$T/find.sh"
+    local seal pick
+    seal=$(grep -n '^    seal_bitlocker_key$' "$T/find.sh" | cut -d: -f1)
+    pick=$(grep -n 'key_file=$(bitlocker_key_file)' "$T/find.sh" | cut -d: -f1)
+    [ -n "$seal" ] && [ -n "$pick" ] && [ "$seal" -lt "$pick" ]
+}
+
+@test "converting the last bridged folder shreds the sealed key too" {
+    log() { echo "LOG $*"; }
+    load_fn "$CONVERT" retire_bitlocker_key_if_unused
+    WOOTC_ETC="$T/etc/wootc"; export BITLK_MNT=/run/wootc/bitlk-tmp
+    mkdir -p "$WOOTC_ETC"; echo sealed > "$WOOTC_ETC/bitlocker-key.cred"
+    findmnt_stub '/dev/vda3 /' '/dev/mapper/wootc-bitlk-812 /run/wootc/bitlk-tmp'
+    PATH="$STUBDIR:$PATH" run retire_bitlocker_key_if_unused
+    [ "$status" -eq 0 ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key.cred" ]
 }

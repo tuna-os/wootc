@@ -69,6 +69,7 @@ phase2_second_boot_check() {
     diag=$(qga_call exec /bin/sh -c \
         'echo "boot-id: $(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"; \
          echo "etc-key: $(stat -c "%a %U:%G" /etc/wootc/bitlocker-key 2>&1)"; \
+         echo "sealed-key: $(stat -c "%a %U:%G %s bytes" /etc/wootc/bitlocker-key.cred 2>&1)"; \
          echo "ntfs-key: $(ls /run/initramfs/wootc-host/wootc/install/bitlocker-key.txt 2>/dev/null || echo absent)"; \
          echo "home-bind: $(findmnt -n -o SOURCE /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
          journalctl -b -u wootc-passthrough --no-pager 2>/dev/null | grep -aiE "bitlocker|recovery key" | tail -6' \

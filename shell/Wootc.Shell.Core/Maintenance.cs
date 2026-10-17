@@ -216,7 +216,7 @@ public static class MaintenanceText
     public static string RestartInto(Branding brand) => $"Restart into {brand.Name} →";
     public static string RestartFailed(Branding brand, string error) => $"Could not arm the {brand.Name} boot: " + error;
     public const string DeleteData = "Also delete my Linux data";
-    public const string DeleteDataDetail = "Removes root.disk. Your Linux files are permanently deleted. Leave unchecked to keep them for later.";
+    public const string DeleteDataDetail = "Removes root.disk. Your Linux files, and the sealed copy of a BitLocker recovery key, are permanently deleted. Leave unchecked to keep them for later.";
     public static bool OffersPartition(UninstallInfo info) => info.OnDedicatedVol && info.ReclaimGB != 0;
     private static string Label(string? label) => string.IsNullOrEmpty(label) ? "wootc-data" : label;
     public static string GiveBack(UninstallInfo info) => $"Give the {Round(info.ReclaimGB)} GB back to Windows";
