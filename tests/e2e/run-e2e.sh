@@ -218,7 +218,7 @@ if [ "$RESULT_SCENARIO" = full-cycle ] && [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]
     if [ -n "$RESULT_REQUIRED" ]; then
         RESULT_REQUIRED="$RESULT_REQUIRED,user-data-second-boot"
     else
-        RESULT_REQUIRED=user-data-second-boot
+        RESULT_REQUIRED="user-data-second-boot"
     fi
 fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
