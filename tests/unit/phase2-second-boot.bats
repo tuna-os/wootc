@@ -29,7 +29,7 @@ drive() {
         CALLS="$2"; SEEN="$3"; USERDATA="$4"; BCD="${5:-yes}"; STUCK="${6:-no}"
         RUN_ID=run-2nd-boot
         rec() { printf "%s\n" "$*" >> "$CALLS"; }
-        step() { :; }; pass() { :; }; info() { :; }
+        step() { :; }; pass() { :; }; info() { :; }; warn() { rec "warn $*"; }
         product_pass() { rec "product_pass $1"; }
         product_fail() { rec "product_fail $*"; }
         infra_fail() { rec "infra_fail $*"; }
@@ -51,6 +51,7 @@ drive() {
         qga_call() {
             case "$*" in
                 *wootc-e2e-userdata.txt*) printf "%s" "$USERDATA" ;;
+                *home-bind*) printf "home-bind: %s\n" "${BIND:-/dev/sda4[/Users/wootc/Documents]}" ;;
                 *"systemctl reboot"*) rec "linux-reboot" ;;
             esac
             return 0
@@ -73,6 +74,18 @@ drive() {
     grep -q '^arm .*bootsequence {guid-1}' "$CALLS"
     grep -qx 'windows-reboot' "$CALLS"
     grep -qx 'wait-windows' "$CALLS"
+}
+
+@test "a file served from the unencrypted volume is not reported as a recovery-key unlock" {
+    drive linux "wootc-e2e-userdata run-2nd-boot"
+    grep -qx 'product_pass user-data-second-boot' "$CALLS"
+    grep -q '^warn .*did not exercise the recovery key' "$CALLS"
+}
+
+@test "a file served from the unlocked BitLocker mapper says so, with no warning" {
+    BIND='/dev/mapper/wootc-bitlk-812[/Users/wootc/Documents]' drive linux "wootc-e2e-userdata run-2nd-boot"
+    grep -qx 'product_pass user-data-second-boot' "$CALLS"
+    absent -q '^warn' "$CALLS"
 }
 
 @test "an empty Documents on the second boot is a product failure, never a pass" {
