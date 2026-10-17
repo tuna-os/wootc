@@ -261,3 +261,22 @@ PY
     grep -q 'StateHealthy.*= "healthy"' "$STATE_GO"
     grep -q 'StateFailed.*= "failed"' "$STATE_GO"
 }
+
+@test "collector reads the repeated root.disk arguments of the real Phase-2 grub entry" {
+    # E2E 38996488933 (bluefin:lts, #647): the Phase-2 grub.cfg copies the BLS
+    # options, which already carry loop= and wootc.host_uuid=, then appends
+    # both again. The collector refused that as a duplicate ("missing or
+    # duplicate boot argument: loop"), so the first boot never reported.
+    grep -qF "wootc.host_uuid='\"\$HOST_UUID\"' loop=/wootc/disks/root.disk|' \"\$entry\"" "$DEPLOY"
+    grep -qF 'linux /EFI/wootc/phase2-vmlinuz ${ROOT_OPTIONS} loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID}' "$DEPLOY"
+    cmdline='root=UUID=0b3c rw ostree=/ostree/boot.1/default/abc/0 wootc.host_uuid=1234567890ABCDEF loop=/wootc/disks/root.disk loop=/wootc/disks/root.disk wootc.host_uuid=1234567890ABCDEF console=ttyS0,115200'
+    run python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import wootc_firstboot_evidence as f; t = sys.argv[2].split(); print(f.cmdline_argument(t, "loop"), f.cmdline_argument(t, "wootc.host_uuid"))' \
+        "$REPO_ROOT/payload/migration/lib" "$cmdline"
+    [ "$status" -eq 0 ]
+    [ "$output" = "/wootc/disks/root.disk 1234567890ABCDEF" ]
+    # Two different values stay ambiguous.
+    run python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import wootc_firstboot_evidence as f; f.cmdline_argument(sys.argv[2].split(), "loop")' \
+        "$REPO_ROOT/payload/migration/lib" "loop=/wootc/disks/root.disk loop=/wootc/disks/old.disk"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"conflicting boot arguments: loop"* ]]
+}

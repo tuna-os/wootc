@@ -112,6 +112,23 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(record['writtenAt'], '2026-10-17T05:00:00Z')
         self.assertEqual(record['updatedBy'], 'wootc-firstboot')
 
+    def test_phase2_grub_entry_repeats_the_root_disk_arguments(self):
+        # E2E 38996488933 (bluefin:lts): the Phase-2 grub.cfg line is
+        # ${ROOT_OPTIONS} (BLS options, already carrying both arguments) plus
+        # loop= and wootc.host_uuid= again (deploy.sh). The collector refused
+        # it as a duplicate and the first boot never reported healthy.
+        (self.proc / 'cmdline').write_text(
+            'BOOT_IMAGE=(hd0,gpt1)/EFI/wootc/phase2-vmlinuz root=UUID=0b3c rw '
+            'ostree=/ostree/boot.1/default/abc/0 wootc.host_uuid=1234567890ABCDEF '
+            'loop=/wootc/disks/root.disk loop=/wootc/disks/root.disk '
+            'wootc.host_uuid=1234567890ABCDEF console=tty1 console=ttyS0,115200\n')
+        self.assertEqual(self.collect()['rootDisk'], {'path': '/wootc/disks/root.disk', 'hostUuid': HOST_UUID})
+
+    def test_fuse_ntfs_host_mount_is_accepted(self):
+        self.mounts[0] = f'1 0 0:52 / {self.host} rw - fuseblk.lowntfs-3g /dev/vda3 rw'
+        self.write_mounts()
+        self.assertEqual(self.collect()['rootDisk']['hostUuid'], HOST_UUID)
+
     def test_bitlocker_profiles_count_as_bridged(self):
         self.mounts += ['7 0 253:0 / /run/wootc/bitlk-tmp ro - ntfs3 /dev/mapper/bitlk rw',
                         '8 0 253:0 /Users/dana/Documents /var/home/dana/Documents rw - ntfs3 /dev/mapper/bitlk rw']
@@ -135,7 +152,9 @@ class CollectorTests(unittest.TestCase):
             'root.disk not attached': lambda: (self.sys / 'block/loop1/loop/backing_file').write_text('/nowhere\n'),
             'root.disk missing': lambda: self.disk.unlink(),
             'wrong loop path': lambda: (self.proc / 'cmdline').write_text('loop=/wootc/disks/x.disk wootc.host_uuid=1234567890ABCDEF'),
-            'duplicate host uuid': lambda: (self.proc / 'cmdline').write_text('loop=/wootc/disks/root.disk wootc.host_uuid=1234567890ABCDEF wootc.host_uuid=1234567890ABCDEF'),
+            'conflicting host uuid': lambda: (self.proc / 'cmdline').write_text('loop=/wootc/disks/root.disk wootc.host_uuid=1234567890ABCDEF wootc.host_uuid=FEDCBA0987654321'),
+            'conflicting loop': lambda: (self.proc / 'cmdline').write_text('loop=/wootc/disks/root.disk loop=/wootc/disks/x.disk wootc.host_uuid=1234567890ABCDEF'),
+            'missing loop': lambda: (self.proc / 'cmdline').write_text('wootc.host_uuid=1234567890ABCDEF'),
             'no bootc': lambda: setattr(self, 'status', None),
             'no digest': lambda: self.status['status']['booted']['image'].pop('imageDigest'),
             'bad digest': lambda: self.status['status']['booted']['image'].update(imageDigest='sha256:xyz'),

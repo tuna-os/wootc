@@ -42,9 +42,17 @@ def text_field(value, name, limit=512):
 
 
 def cmdline_argument(tokens, name):
-    values = [token.split('=', 1)[1] for token in tokens if token.startswith(name + '=')]
-    require(len(values) == 1, 'missing or duplicate boot argument: ' + name)
-    return values[0]
+    """One boot argument as the attach hook reads it.
+
+    The Phase-2 GRUB entry repeats loop= and wootc.host_uuid=: it copies the
+    BLS options (which deploy.sh already gave both) and appends them again.
+    The attach hook takes the value either way, so a repeat of the same value
+    is one argument. Two different values are ambiguous and refused.
+    """
+    values = {token.split('=', 1)[1] for token in tokens if token.startswith(name + '=')}
+    require(values, 'missing boot argument: ' + name)
+    require(len(values) == 1, 'conflicting boot arguments: ' + name)
+    return values.pop()
 
 
 def boot_current(efivars, run=command):
@@ -101,7 +109,9 @@ def root_disk(tokens, host, rows, sysfs, run=command):
     require(path == ROOT_DISK and re.fullmatch('[0-9A-F]{16}', host_uuid),
             'unsupported root.disk identity on the kernel command line')
     mounts = [row for row in rows if row['target'] == str(host)]
-    require(len(mounts) == 1 and mounts[0]['type'] in NTFS_TYPES,
+    # ntfs3 in the kernel, or ntfs-3g/lowntfs-3g over FUSE (fuseblk, which
+    # mountinfo may print with the driver as a subtype).
+    require(len(mounts) == 1 and mounts[0]['type'].split('.', 1)[0] in NTFS_TYPES,
             'the Windows host is not one NTFS mount')
     observed = run('blkid', '-s', 'UUID', '-o', 'value', mounts[0]['source']).strip().upper()
     require(observed == host_uuid, 'mounted NTFS UUID differs from the kernel command line')
