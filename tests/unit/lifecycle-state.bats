@@ -280,3 +280,40 @@ PY
     [ "$status" -ne 0 ]
     [[ "$output" == *"conflicting boot arguments: loop"* ]]
 }
+
+@test "collector finds root.disk attached by the initramfs over fuse-ntfs-3g (E2E 38999840752 layout)" {
+    # The real collector, end to end, on the layout of that run: host NTFS on
+    # fuse-ntfs-3g, root.disk attached by the initramfs, so the loop backing
+    # path does not resolve from the real root; the grub entry repeats the
+    # root.disk arguments. Before the fix the unit failed with "root.disk is
+    # not attached as a loop device" and never reported healthy.
+    t="$BATS_TEST_TMPDIR"
+    mkdir -p "$t/host/wootc/disks" "$t/proc/self" "$t/proc/sys/kernel/random" "$t/etc/wootc" \
+        "$t/sys/block/loop0/loop" "$t/sys/firmware/efi/efivars" "$t/bin"
+    head -c 8192 /dev/zero > "$t/host/wootc/disks/root.disk"
+    printf 'root=UUID=0b3c rw ostree=/ostree/boot.1/default/abc/0 wootc.host_uuid=1234567890ABCDEF loop=/wootc/disks/root.disk loop=/wootc/disks/root.disk wootc.host_uuid=1234567890ABCDEF\n' > "$t/proc/cmdline"
+    printf '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0\n' > "$t/proc/sys/kernel/random/boot_id"
+    printf '6.12.0-55.el10.x86_64\n' > "$t/proc/sys/kernel/osrelease"
+    printf '1 0 0:52 / %s rw - fuseblk /dev/sda3 rw\n2 0 7:3 / /sysroot rw - xfs /dev/loop0p3 rw\n' "$t/host" > "$t/proc/self/mountinfo"
+    printf '/run/initramfs/wootc-host/wootc/disks/root.disk\n' > "$t/sys/block/loop0/loop/backing_file"
+    printf '16\n' > "$t/sys/block/loop0/size"
+    printf 'HOST_ESP_UUID=1234-5678\nSOURCE_IMAGE_REF=ghcr.io/projectbluefin/bluefin:lts\n' > "$t/etc/wootc/host-esp.conf"
+    cat > "$t/bin/bootc" <<'SH'
+#!/bin/sh
+printf '{"status":{"booted":{"image":{"image":{"image":"localhost/wootc-ntfs-injected:latest"},"imageDigest":"sha256:%s"}}}}\n' "$(printf 'a%.0s' $(seq 64))"
+SH
+    printf '#!/bin/sh\n[ "$5" = /dev/sda3 ] && echo 1234567890ABCDEF\n' > "$t/bin/blkid"
+    printf '#!/bin/sh\nexit 0\n' > "$t/bin/systemctl"
+    printf '#!/bin/sh\nexit 1\n' > "$t/bin/efibootmgr"
+    chmod +x "$t/bin/"*
+    run env PATH="$t/bin:$PATH" python3 "$REPO_ROOT/payload/migration/lib/wootc_firstboot_evidence.py" \
+        --host "$t/host" --proc "$t/proc" --sys "$t/sys" --etc "$t/etc"
+    [ "$status" -eq 0 ]
+    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); assert r["rootDisk"]=={"path":"/wootc/disks/root.disk","hostUuid":"1234567890ABCDEF"}, r; assert r["image"]["sourceRef"]=="ghcr.io/projectbluefin/bluefin:lts"' "$output"
+    # A loop device of another size under the same name is not this root.disk.
+    printf '32\n' > "$t/sys/block/loop0/size"
+    run env PATH="$t/bin:$PATH" python3 "$REPO_ROOT/payload/migration/lib/wootc_firstboot_evidence.py" \
+        --host "$t/host" --proc "$t/proc" --sys "$t/sys" --etc "$t/etc"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"loop backing files: loop0=/run/initramfs/wootc-host/wootc/disks/root.disk"* ]]
+}

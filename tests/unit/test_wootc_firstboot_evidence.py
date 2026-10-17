@@ -55,6 +55,8 @@ class CollectorTests(unittest.TestCase):
         self.write_mounts()
         (self.sys / 'block/loop0/loop/backing_file').write_text(str(self.host / 'wootc/disks/other.disk') + '\n')
         (self.sys / 'block/loop1/loop/backing_file').write_text(str(self.disk) + '\n')
+        (self.sys / 'block/loop0/size').write_text('1\n')
+        (self.sys / 'block/loop1/size').write_text('1\n')
         self.efi = self.sys / 'firmware/efi/efivars'
         (self.efi / ('BootCurrent-' + EFI_GUID)).write_bytes(bytes(4) + struct.pack('<H', 4))
         (self.efi / ('Boot0004-' + EFI_GUID)).write_bytes(option())
@@ -123,6 +125,24 @@ class CollectorTests(unittest.TestCase):
             'loop=/wootc/disks/root.disk loop=/wootc/disks/root.disk '
             'wootc.host_uuid=1234567890ABCDEF console=tty1 console=ttyS0,115200\n')
         self.assertEqual(self.collect()['rootDisk'], {'path': '/wootc/disks/root.disk', 'hostUuid': HOST_UUID})
+
+    def test_initramfs_backing_path_that_does_not_resolve_in_the_real_root(self):
+        # E2E 38999840752 (bluefin:lts, fuse-ntfs-3g): root.disk was attached
+        # by the initramfs, and the backing path it reports did not lead to
+        # this root.disk from the real root. Path suffix plus size identify it.
+        self.disk.write_bytes(b'\0' * 4096)
+        (self.sys / 'block/loop1/loop/backing_file').write_text('/run/initramfs/wootc-host/wootc/disks/root.disk\n')
+        (self.sys / 'block/loop1/size').write_text('8\n')
+        self.assertEqual(self.collect()['rootDisk']['path'], '/wootc/disks/root.disk')
+        # Another file of another size under that name is not this root.disk.
+        (self.sys / 'block/loop1/size').write_text('16\n')
+        with self.assertRaisesRegex(ValueError, 'loop backing files: loop0=.*loop1=/run/initramfs'):
+            self.collect()
+        # Nor is a deleted file.
+        (self.sys / 'block/loop1/size').write_text('8\n')
+        (self.sys / 'block/loop1/loop/backing_file').write_text('/run/initramfs/wootc-host/wootc/disks/root.disk (deleted)\n')
+        with self.assertRaises(ValueError):
+            self.collect()
 
     def test_fuse_ntfs_host_mount_is_accepted(self):
         self.mounts[0] = f'1 0 0:52 / {self.host} rw - fuseblk.lowntfs-3g /dev/vda3 rw'

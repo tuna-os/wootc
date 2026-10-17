@@ -90,17 +90,38 @@ def secure_boot(efivars):
 
 
 def loop_attached(disk, sysfs):
-    """True when a loop device is backed by this very root.disk inode."""
+    """The loop device that backs this root.disk, as (name, backing path).
+
+    The initramfs attaches root.disk through its own NTFS mount before the
+    switch to the real root (wootc-attach-loop.sh), and the kernel reports
+    the backing path as that mount saw it. In the real root the path may not
+    resolve, or may resolve through another mount of the same volume (E2E
+    38999840752, fuse-ntfs-3g). So a loop device qualifies when its backing
+    file is this root.disk by identity, or when its backing path ends in
+    /wootc/disks/root.disk and its size is this root.disk's size.
+    """
     want = os.stat(disk)
+    seen = []
     for backing in sorted((sysfs / 'block').glob('loop*/loop/backing_file')):
         name = read(backing, 4096).decode('utf-8', errors='replace').strip()
+        device = backing.parent.parent
+        seen.append('%s=%s' % (device.name, name))
+        if not name or name.endswith(' (deleted)'):
+            continue
         try:
             got = os.stat(name)
+            if (got.st_dev, got.st_ino) == (want.st_dev, want.st_ino):
+                return device.name, name
         except OSError:
+            pass
+        try:
+            sectors = int(read(device / 'size', 64).decode().strip())
+        except (OSError, ValueError):
             continue
-        if (got.st_dev, got.st_ino) == (want.st_dev, want.st_ino):
-            return True
-    return False
+        if name.lower().endswith(ROOT_DISK) and sectors * 512 == want.st_size:
+            return device.name, name
+    raise ValueError('root.disk is not attached as a loop device (loop backing files: %s)'
+                     % (', '.join(seen) or 'none'))
 
 
 def root_disk(tokens, host, rows, sysfs, run=command):
@@ -117,7 +138,7 @@ def root_disk(tokens, host, rows, sysfs, run=command):
     require(observed == host_uuid, 'mounted NTFS UUID differs from the kernel command line')
     disk = host / path.lstrip('/')
     require(disk.is_file() and not disk.is_symlink(), 'root.disk is absent from the host volume')
-    require(loop_attached(disk, sysfs), 'root.disk is not attached as a loop device')
+    loop_attached(disk, sysfs)
     return {'path': path, 'hostUuid': observed}
 
 
