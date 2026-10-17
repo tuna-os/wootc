@@ -61,6 +61,36 @@ class BootIdentityTests(unittest.TestCase):
         self.assertEqual(record['loaderVendor'],'fedora');self.assertEqual(record['bootCurrent']['espPartitionGuid'],GUID)
         self.assertEqual(record['hostEspUuid'],'1234-5678');self.assertEqual(record['imageDigest'],'sha256:'+'a'*64)
 
+    def test_phase2_grub_entry_repeats_the_root_disk_arguments(self):
+        # The Phase-2 grub.cfg line is ${ROOT_OPTIONS} (the BLS options,
+        # which deploy.sh already gave both arguments) followed by loop= and
+        # wootc.host_uuid= again. E2E 38996488933 (bluefin:lts) booted with
+        # that shape; the exactly-one check refused it.
+        (self.proc/'cmdline').write_text(
+            'BOOT_IMAGE=(hd0,gpt1)/EFI/wootc/phase2-vmlinuz root=UUID=0b3c rw '
+            'ostree=/ostree/boot.1/default/abc/0 wootc.host_uuid=1234567890ABCDEF '
+            'loop=/wootc/disks/root.disk loop=/wootc/disks/root.disk '
+            'wootc.host_uuid=1234567890ABCDEF console=tty1 console=ttyS0,115200\n')
+        record=self.observe()
+        self.assertEqual(record['rootDiskPath'],'/wootc/disks/root.disk')
+        self.assertEqual(record['hostUuid'],'1234567890ABCDEF')
+
+    def test_conflicting_or_missing_root_disk_arguments_refuse(self):
+        for cmdline,message in (
+                ('loop=/wootc/disks/root.disk loop=/wootc/disks/old.disk wootc.host_uuid=1234567890ABCDEF','conflicting boot arguments: loop'),
+                ('loop=/wootc/disks/root.disk wootc.host_uuid=1234567890ABCDEF wootc.host_uuid=FEDCBA0987654321','conflicting boot arguments: wootc.host_uuid'),
+                ('loop=/wootc/disks/root.disk','missing boot argument: wootc.host_uuid')):
+            with self.subTest(cmdline):
+                (self.proc/'cmdline').write_text(cmdline)
+                with self.assertRaisesRegex(ValueError,message):self.observe()
+
+    def test_one_rule_for_both_readers(self):
+        sys.path.insert(0,str(ROOT/'payload/migration/lib'))
+        import wootc_firstboot_evidence as f
+        self.assertIs(f.cmdline_argument,b.boot_argument)
+        self.assertEqual(b.boot_argument(['loop=/a','x=1','loop=/a'],'loop'),'/a')
+        self.assertEqual(b.boot_argument(['rd.loop=/b','loop=/a'],'loop'),'/a')
+
     def test_classic_deployment_requires_observed_current_root(self):
         original=self.command
         def missing(*args):

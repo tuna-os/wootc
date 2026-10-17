@@ -23,8 +23,8 @@ import sys
 import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from wootc_boot_identity import (EFI_GUID, command, decode_boot_option,  # noqa: E402
-                                 decode_efibootmgr, mount_rows, read, require)
+from wootc_boot_identity import (EFI_GUID, boot_argument, command,  # noqa: E402
+                                 decode_boot_option, decode_efibootmgr, mount_rows, read, require)
 
 SCHEMA = 1
 ROOT_DISK = '/wootc/disks/root.disk'
@@ -41,18 +41,8 @@ def text_field(value, name, limit=512):
     return value
 
 
-def cmdline_argument(tokens, name):
-    """One boot argument as the attach hook reads it.
-
-    The Phase-2 GRUB entry repeats loop= and wootc.host_uuid=: it copies the
-    BLS options (which deploy.sh already gave both) and appends them again.
-    The attach hook takes the value either way, so a repeat of the same value
-    is one argument. Two different values are ambiguous and refused.
-    """
-    values = {token.split('=', 1)[1] for token in tokens if token.startswith(name + '=')}
-    require(values, 'missing boot argument: ' + name)
-    require(len(values) == 1, 'conflicting boot arguments: ' + name)
-    return values.pop()
+# One rule for every reader of the root.disk boot arguments.
+cmdline_argument = boot_argument
 
 
 def boot_current(efivars, run=command):

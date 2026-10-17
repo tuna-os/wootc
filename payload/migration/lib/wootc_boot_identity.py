@@ -28,6 +28,20 @@ def command(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True,
                           timeout=30).stdout
 
+def boot_argument(tokens, name):
+    """One kernel command line argument, read the way the attach hook reads it.
+
+    The Phase-2 GRUB entry repeats loop= and wootc.host_uuid=: deploy.sh
+    copies the BLS options, which already carry both, and appends them again
+    (E2E 38996488933). The initramfs attach hook takes the value either way,
+    so repeats of one value are one argument. Different values are ambiguous
+    and refused, as is an absent argument.
+    """
+    values = {token.split('=', 1)[1] for token in tokens if token.startswith(name + '=')}
+    require(values, 'missing boot argument: ' + name)
+    require(len(values) == 1, 'conflicting boot arguments: ' + name)
+    return values.pop()
+
 def decode_boot_option(data):
     """Decode EFI_LOAD_OPTION after efivarfs's four attribute bytes."""
     require(len(data) >= 12, 'truncated Boot option')
@@ -143,16 +157,12 @@ def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
                            sysroot=Path('/sys'), run=command):
     esp, host = Path(esp), Path(host)
     tokens = read(proc / 'cmdline').decode().split()
-    def argument(name):
-        values = [value.split('=', 1)[1] for value in tokens if value.startswith(name + '=')]
-        require(len(values) == 1, 'missing/duplicate loop boot argument: ' + name)
-        return values[0]
     # Native graduation currently retains old host-esp.conf (#286). Positively
     # require this mounted root's loop ancestry before touching the Windows ESP.
     require(any(value.startswith('loop=') for value in tokens),
             'native/unknown root cannot refresh the previous Windows ESP')
-    disk_path = argument('loop')
-    host_uuid = argument('wootc.host_uuid').upper()
+    disk_path = boot_argument(tokens, 'loop')
+    host_uuid = boot_argument(tokens, 'wootc.host_uuid').upper()
     require(disk_path == '/wootc/disks/root.disk' and re.fullmatch('[0-9A-F]{16}', host_uuid),
             'unsupported root.disk identity')
     mounts = mount_rows(proc)
