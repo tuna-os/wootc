@@ -7,6 +7,7 @@ import importlib.util
 import re
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -501,6 +502,95 @@ losetup() { if [ "$1" = --json ]; then printf '%s' "$LOOP_JSON"; fi; }
             self.assertNotEqual(result.returncode,0)
             self.assertIn('INFRA',result.stdout)
             self.assertNotIn('PRODUCT-PASS',result.stdout)
+
+
+def load_e2e(name, filename):
+    spec=importlib.util.spec_from_file_location(name, ROOT/'tests/e2e'/filename)
+    module=importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(ROOT/'tests/e2e'))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.remove(str(ROOT/'tests/e2e'))
+    return module
+
+
+ancestry=load_e2e('phase3_ancestry_under_test','phase3_ancestry.py')
+receipt=load_e2e('phase3_receipt_under_test','phase3-native-receipt.py')
+# The native snapshot lines from hosted run 39007144179 (job 117321813725),
+# timestamps stripped. binfmt_misc had been triggered, so findmnt lists the
+# systemd autofs and the real binfmt_misc on /proc/sys/fs/binfmt_misc.
+REAL_SNAPSHOT=ROOT/'tests/unit/fixtures/phase3-native/run-39007144179.snapshot'
+BINFMT='/proc/sys/fs/binfmt_misc'
+
+
+class StackedMountTargets(unittest.TestCase):
+    def real(self):
+        return receipt.parse(REAL_SNAPSHOT.read_text())
+
+    def with_mounts(self, fields, edit):
+        value=json.loads(base64.b64decode(fields['MOUNTS']))
+        edit(value['filesystems'])
+        return dict(fields, MOUNTS=encode(value))
+
+    def test_real_native_snapshot_with_stacked_binfmt_misc_parses(self):
+        fields=self.real()
+        graph=ancestry.Ancestry(fields,'/dev/sdb')
+        self.assertEqual(graph.stacked,{BINFMT})
+        self.assertEqual(graph.mount('/')['source'],'composefs')
+        self.assertEqual(graph.mount('/sysroot')['maj:min'],'8:19')
+        self.assertEqual(graph.mount('/boot')['source'],'/dev/sdb2')
+        # Real ancestry through the strict /var row still reaches only /dev/sdb.
+        graph.verify_data('/dev/sdb3[/ostree/deploy/default/var]','8:19','/var')
+        with self.assertRaisesRegex(ValueError,'Ambiguous mount target'):
+            graph.mount(BINFMT)
+
+    def test_stacked_dependency_target_in_real_snapshot_still_refuses(self):
+        fields=self.real()
+        def stack(target):
+            def edit(rows):
+                rows.append(dict(next(row for row in self.walk(rows) if row['target']==target), children=None))
+            return edit
+        for target in ['/', '/sysroot', '/boot', '/var']:
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError,'Ambiguous mount target'):
+                ancestry.Ancestry(self.with_mounts(fields, stack(target)),'/dev/sdb')
+
+    @staticmethod
+    def walk(rows):
+        for row in rows:
+            yield row
+            yield from StackedMountTargets.walk(row.get('children') or [])
+
+    def test_stacked_unrelated_target_is_tolerated_end_to_end(self):
+        autofs=mount(BINFMT,'systemd-1','0:33','autofs')
+        autofs['children']=[mount(BINFMT,'binfmt_misc','0:72','binfmt_misc')]
+        mounts={'filesystems':[mount('/'),mount('/var'),autofs]}
+        proof=native(mounts=mounts)
+        r=Phase3Tests.consumer(self, PROOF=proof, DATA=userdata(proof=proof))
+        self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+        self.assertIn('PRODUCT-PASS native-boot',r.stdout)
+        self.assertIn('PRODUCT-PASS native-user-data',r.stdout)
+
+    def test_stacked_data_mount_refuses_end_to_end(self):
+        mounts={'filesystems':[mount('/'),mount('/srv'),mount('/srv')]}
+        proof=native(mounts=mounts)
+        r=Phase3Tests.consumer(self, PROOF=proof, DATA=userdata(target='/srv',proof=proof))
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('PRODUCT-PASS native-boot',r.stdout)
+        self.assertIn('INFRA',r.stdout)
+        self.assertNotIn('PRODUCT-PASS native-user-data',r.stdout)
+
+    def test_projection_on_stacked_target_refuses_not_parent_fallback(self):
+        # /run/cfs is stacked; resolving the lower layer must not fall back to
+        # the parent '/sysroot' row (which is on the target) and pass.
+        options='ro,lowerdir=/sysroot/run/cfs'
+        mounts={'filesystems':[mount('/','composefs','0:51','overlay',options),mount('/var'),mount('/sysroot'),
+                               mount('/sysroot/run/cfs','/dev/sda3','8:3'),mount('/sysroot/run/cfs')]}
+        graph={'blockdevices':BLOCKS['blockdevices']+[node('/dev/sda','8:0','disk',[node('/dev/sda3','8:3','part')])]}
+        r=Phase3Tests.consumer(self, PROOF=native(graph,mounts))
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn('INFRA',r.stdout)
+        self.assertNotIn('PRODUCT-PASS',r.stdout)
 
 
 if __name__ == '__main__':
