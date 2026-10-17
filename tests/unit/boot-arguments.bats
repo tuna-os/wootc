@@ -36,3 +36,22 @@ setup() {
     run grep -rlE "startswith\(name \+ '='\)" "$REPO_ROOT/payload" --include='*.py'
     [ "$output" = "$LIB/wootc_boot_identity.py" ]
 }
+
+@test "the ESP controller recognises root.disk from an initramfs fuse-ntfs-3g attach (E2E 39007144179)" {
+    # That run's real root read loop0/loop/backing_file as
+    # "/wootc/disks/root.disk" (relative to the initramfs FUSE mount), and
+    # wootc-esp-control refused: "installed root is not this root.disk".
+    t="$BATS_TEST_TMPDIR"
+    mkdir -p "$t/host/wootc/disks" "$t/sys/devices/loop0/loop" "$t/sys/devices/loop0/loop0p3" "$t/sys/dev/block"
+    head -c 8192 /dev/zero > "$t/host/wootc/disks/root.disk"
+    printf '/wootc/disks/root.disk\n' > "$t/sys/devices/loop0/loop/backing_file"
+    printf '16\n' > "$t/sys/devices/loop0/size"
+    printf '3\n' > "$t/sys/devices/loop0/loop0p3/partition"
+    ln -s "$t/sys/devices/loop0/loop0p3" "$t/sys/dev/block/7:3"
+    probe='import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); import wootc_boot_identity as b; t = Path(sys.argv[2]); print(b.backed_by_root_disk(t / "sys/dev/block/7:3", t / "host/wootc/disks/root.disk", "/wootc/disks/root.disk"))'
+    run python3 -c "$probe" "$LIB" "$t"
+    [ "$output" = True ]
+    printf '32\n' > "$t/sys/devices/loop0/size"
+    run python3 -c "$probe" "$LIB" "$t"
+    [ "$output" = False ]
+}

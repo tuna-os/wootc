@@ -24,7 +24,8 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from wootc_boot_identity import (EFI_GUID, boot_argument, command,  # noqa: E402
-                                 decode_boot_option, decode_efibootmgr, mount_rows, read, require)
+                                 decode_boot_option, decode_efibootmgr, loop_backing_name,
+                                 loop_backs_file, mount_rows, read, require)
 
 SCHEMA = 1
 ROOT_DISK = '/wootc/disks/root.disk'
@@ -80,36 +81,14 @@ def secure_boot(efivars):
 
 
 def loop_attached(disk, sysfs):
-    """The loop device that backs this root.disk, as (name, backing path).
-
-    The initramfs attaches root.disk through its own NTFS mount before the
-    switch to the real root (wootc-attach-loop.sh), and the kernel reports
-    the backing path as that mount saw it. In the real root the path may not
-    resolve, or may resolve through another mount of the same volume (E2E
-    38999840752, fuse-ntfs-3g). So a loop device qualifies when its backing
-    file is this root.disk by identity, or when its backing path ends in
-    /wootc/disks/root.disk and its size is this root.disk's size.
-    """
-    want = os.stat(disk)
+    """The loop device backed by this root.disk, by the rule the ESP
+    controller also uses (wootc_boot_identity.loop_backs_file)."""
     seen = []
     for backing in sorted((sysfs / 'block').glob('loop*/loop/backing_file')):
-        name = read(backing, 4096).decode('utf-8', errors='replace').strip()
-        device = backing.parent.parent
-        seen.append('%s=%s' % (device.name, name))
-        if not name or name.endswith(' (deleted)'):
-            continue
-        try:
-            got = os.stat(name)
-            if (got.st_dev, got.st_ino) == (want.st_dev, want.st_ino):
-                return device.name, name
-        except OSError:
-            pass
-        try:
-            sectors = int(read(device / 'size', 64).decode().strip())
-        except (OSError, ValueError):
-            continue
-        if name.lower().endswith(ROOT_DISK) and sectors * 512 == want.st_size:
-            return device.name, name
+        loop = backing.parent.parent
+        seen.append('%s=%s' % (loop.name, loop_backing_name(loop)))
+        if loop_backs_file(loop, disk, ROOT_DISK):
+            return loop.name
     raise ValueError('root.disk is not attached as a loop device (loop backing files: %s)'
                      % (', '.join(seen) or 'none'))
 

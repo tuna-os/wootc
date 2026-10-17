@@ -75,6 +75,29 @@ class BootIdentityTests(unittest.TestCase):
         self.assertEqual(record['rootDiskPath'],'/wootc/disks/root.disk')
         self.assertEqual(record['hostUuid'],'1234567890ABCDEF')
 
+    def test_fuse_backing_path_relative_to_the_initramfs_mount(self):
+        # E2E 39007144179 (bluefin:lts, fuse-ntfs-3g): the initramfs attached
+        # root.disk through its own FUSE mount and the real root read
+        # loop0/loop/backing_file as "/wootc/disks/root.disk". The controller
+        # refused: "installed root is not this root.disk".
+        (self.host/'wootc/disks/root.disk').write_bytes(b'\0'*4096)
+        self.backing.write_text('/wootc/disks/root.disk\n')
+        size=self.sys/'devices/loop0/size'
+        size.write_text('8\n')
+        self.assertEqual(self.observe()['rootDiskPath'],'/wootc/disks/root.disk')
+        size.write_text('16\n')
+        with self.assertRaisesRegex(ValueError,'not this root.disk'):self.observe()
+        size.write_text('8\n')
+        self.backing.write_text('/wootc/disks/root.disk (deleted)\n')
+        with self.assertRaisesRegex(ValueError,'not this root.disk'):self.observe()
+        self.backing.write_text('/wootc/disks/old-root.disk\n')
+        with self.assertRaisesRegex(ValueError,'not this root.disk'):self.observe()
+
+    def test_one_loop_rule_for_controller_and_collector(self):
+        sys.path.insert(0,str(ROOT/'payload/migration/lib'))
+        import wootc_firstboot_evidence as f
+        self.assertIs(f.loop_backs_file,b.loop_backs_file)
+
     def test_conflicting_or_missing_root_disk_arguments_refuse(self):
         for cmdline,message in (
                 ('loop=/wootc/disks/root.disk loop=/wootc/disks/old.disk wootc.host_uuid=1234567890ABCDEF','conflicting boot arguments: loop'),

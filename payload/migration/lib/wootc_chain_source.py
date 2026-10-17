@@ -102,7 +102,7 @@ def freeze_classic_sources(destination, observation, esp, host,
     """
     import hashlib
     import datetime
-    from wootc_boot_identity import command, mount_rows, loop_backings, read, require
+    from wootc_boot_identity import command, mount_rows, backed_by_root_disk, read, require
     run=command if run is None else run
     require(observation.get('deploymentKind')=='classic', 'classic source requires observed classic root')
     mounts=mount_rows(proc)
@@ -132,7 +132,8 @@ def freeze_classic_sources(destination, observation, esp, host,
     require(source_mount['type'] in ('vfat','msdos') or
             source_mount['device']==observation['rootDevice'],
             'classic source is neither an internal FAT nor the measured root filesystem')
-    require(loop_backings(sysroot/'dev/block'/source_mount['device'])==[str(host)+observation['rootDiskPath']],
+    require(backed_by_root_disk(sysroot/'dev/block'/source_mount['device'],
+                                Path(str(host)+observation['rootDiskPath']),observation['rootDiskPath']),
             'classic source is outside installed root.disk')
     source_uuid=run('blkid','-s','UUID','-o','value',source_mount['source']).strip()
     require(bool(source_uuid), 'missing classic source filesystem UUID')
@@ -208,7 +209,8 @@ def freeze_classic_sources(destination, observation, esp, host,
             'classic payload selection changed while freezing')
     require(mount_rows(proc)==mounts, 'classic mount identity changed while freezing')
     require(Path(os_release).resolve(strict=True)==release_path, 'classic os-release selection changed while freezing')
-    require(loop_backings(sysroot/'dev/block'/source_mount['device'])==[str(host)+observation['rootDiskPath']],
+    require(backed_by_root_disk(sysroot/'dev/block'/source_mount['device'],
+                                Path(str(host)+observation['rootDiskPath']),observation['rootDiskPath']),
             'classic source loop ancestry changed while freezing')
     require(classic_os_release(release_path)==release, 'classic OS facts changed while freezing')
     # Re-query owners, versions and file metadata, closing an upgrade race.
