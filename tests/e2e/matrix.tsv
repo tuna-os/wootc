@@ -57,6 +57,12 @@ full	el10-gnome-win11pro-phase3	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFG
 full	bluefin-dakota-win11pro-phase3	ghcr.io/projectbluefin/dakota:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
 full	bluefin-dakota-win10pro	ghcr.io/projectbluefin/dakota:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	bluefin-lts-win10pro	ghcr.io/projectbluefin/bluefin:lts	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+# Green catalog image coverage (Windows 10/11 Pro). The full dispatch includes
+# smoke rows, so each green image still needs an ordinary (no axis knob) cell
+# for both claimed Pro versions. The validator below keeps catalog status from
+# silently outrunning the evidence plan.
+full	fedora-gnome-win10pro	ghcr.io/tuna-os/bonito:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+
 # ── image axis (Win 11 Pro) — every family/bootloader/desktop ──
 full	el10-kde-win11pro	ghcr.io/tuna-os/yellowfin:kde	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	el10-xfce-win11pro	ghcr.io/tuna-os/yellowfin:xfce	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
@@ -82,6 +88,9 @@ full	debian-gnome-win11pro	ghcr.io/tuna-os/flounder:gnome	11	pro	W269N-WFGWX-YVC
 full	branded-bazzite-win11pro	ghcr.io/ublue-os/bazzite:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	branded-aurora-win11pro	ghcr.io/ublue-os/aurora:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	branded-bluefin-stable-win11pro	ghcr.io/projectbluefin/bluefin:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	branded-bazzite-win10pro	ghcr.io/ublue-os/bazzite:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	branded-aurora-win10pro	ghcr.io/ublue-os/aurora:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	branded-bluefin-stable-win10pro	ghcr.io/projectbluefin/bluefin:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── Windows axis (baseline EL10 GNOME image) — editions & versions ──
 # disabled(home-media): el10-gnome-win11home	ghcr.io/tuna-os/yellowfin:gnome	11	home	YTMG3-N6DKC-DKB77-7M9GH-8HVX7
 full	el10-gnome-win11ent	ghcr.io/tuna-os/yellowfin:gnome	11e	enterprise	NPPR9-FWDCX-D2C8J-H872K-2YT43
