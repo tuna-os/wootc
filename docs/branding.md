@@ -10,9 +10,9 @@ Three override files, all read at runtime from `C:\wootc\`:
 
 ## `brand.json` — look and copy
 
-Drop a `brand.json` next to the installer (or push it via MDM to
-`C:\wootc\brand.json`). Any field you omit falls back to the wootc
-default; you only specify what you want to change.
+Write `C:\wootc\brand.json` (for example through MDM) before launch. The
+executable directory is not an override location. Any field you omit falls
+back to the wootc default; you only specify what you want to change.
 
 ```json
 {
@@ -77,8 +77,9 @@ the built-in list:
 ]
 ```
 
-`imageRef` is passed opaquely to the deployer — it is never inspected by
-the installer, so any OCI reference your provisioner understands works.
+For a catalog entry, `imageRef` is passed opaquely to the deployer. User-typed
+custom references are a separate path: channel policy and the supported
+registry syntax still gate them.
 
 ## Locked-down single-image onramp
 

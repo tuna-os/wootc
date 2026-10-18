@@ -1,15 +1,15 @@
 # Branding, releases, and offline-first distribution
 
-Status: SPEC + phase-1 implementation (2026-08-22). Owner intent (maintainer,
-verbatim requirements): automated GitHub releases; an un-branded **wootc**
-build plus branded builds for **TunaOS**, the **Bluefin family**
-(bluefin / dakota / bluefin-lts), **Aurora**, and **Bazzite**; branding via a
-per-brand config + assets override; branded installers do not use the wootc
-name (wootc is the generic project name only); branded distributions
-pre-bundle or pre-download the bootc image **on Windows**, because the
-deployer stage must never rely on the internet — laptops on Wi-Fi have no
-networking in the initramfs, and the E2E VM's virtio ethernet has been
-masking that.
+Status: release and branding implementation is on `main`; offline E2E proof
+remains open (checked 2026-10-18). Owner intent (maintainer, verbatim
+requirements): automated GitHub releases; an un-branded **wootc** build plus
+branded builds for **TunaOS**, the **Bluefin family** (bluefin / dakota /
+bluefin-lts), **Aurora**, and **Bazzite**; branding via a per-brand config +
+assets override; branded installers do not use the wootc name (wootc is the
+generic project name only); branded distributions pre-bundle or pre-download
+the bootc image **on Windows**, because the deployer stage must never rely on
+the internet — laptops on Wi-Fi have no networking in the initramfs, and the
+E2E VM's virtio ethernet has been masking that.
 
 ---
 
@@ -24,11 +24,12 @@ masking that.
   the release is cut from the exact SHA the nightly proved. No green nightly,
   no auto release.
 
-**Assets.** Every release ships, for each brand (see §2):
+**Assets.** Every release ships, for each **buildable** brand selected by
+`packaging/brands.sh` (see §2):
 
 | Asset | Source |
 |---|---|
-| `<Product>-Setup.exe` (e.g. `wootc.exe`, `TunaOS-Installer.exe`) | per-brand app build |
+| `<exeName>.exe` (for example `wootc.exe`, `TunaOS-Installer.exe`) | per-brand app build |
 | `deployer-vmlinuz`, `deployer-initramfs.img` | deployer image build (`payload/deployer/Containerfile`) |
 | `shimx64.efi`, `grubx64.efi` | signed Fedora chain (same extraction the E2E uses) |
 | `wubildr.efi` | wubildr build |
@@ -208,7 +209,7 @@ images (the deployer stays brand-neutral).
 
 1. **Releases** — DELIVERED: `release.yml` carries both channels (tag `v*`
    E2E-gated; `workflow_run` after a green nightly GUI E2E → `auto-v*`
-   pre-release from the proven SHA), builds one exe per `app/branding/*`
+   pre-release from the proven SHA), builds one exe per **buildable** brand
    via `-X main.brandID`, and ships the shared boot artifacts (deployer
    kernel/initramfs, signed shim+GRUB, wubildr) + SHA256SUMS.
 2. **Branding** — DELIVERED: five brands with real assets (logo.svg,
