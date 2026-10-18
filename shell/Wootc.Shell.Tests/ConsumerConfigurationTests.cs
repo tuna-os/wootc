@@ -21,11 +21,120 @@ public sealed class ConsumerConfigurationTests
         model.Password = "public fixture password";
         model.PasswordConfirmation = "public fixture password";
         model.Hostname = "linux-pc";
+        model.ApplyInstallSpace(new(Reference, "F", ConsumerConfiguration.MinimumInstallReserveGb, "registry"));
         return model;
     }
     private static InstallDriveMapping Directive(string imageRef = Reference, string run = "hosted-current", string id = "1234567890abcdef1234567890abcdef") =>
         new() { SchemaVersion = 1, RunId = run, DirectiveId = id, Action = "install", ImageRef = imageRef,
             Username = "fixture", Password = "public fixture password", Hostname = "fixture-pc", DiskSizeGb = 48, Encryption = "", StorageId = StorageId };
+
+    private static ConsumerConfiguration OnDrive(long freeGib, int maximumRootGb)
+    {
+        var model = new ConsumerConfiguration("wootc");
+        model.ApplyCatalogue(Catalogue() with { Storage = new[] { Catalogue().Storage[0] with { FreeBytes = freeGib << 30, MaximumRootDiskSizeGb = maximumRootGb } } });
+        Assert.True(model.SelectImage("yellowfin"));
+        Assert.True(model.SelectStorage(StorageId));
+        model.Username = "linux_user";
+        model.Password = model.PasswordConfirmation = "public fixture password";
+        return model;
+    }
+
+    [Fact]
+    public void InstallWaitsForTheImagesInstallSpace()
+    {
+        var model = OnDrive(128, 100);
+        Assert.Equal((Reference, "F"), model.PendingInstallSpace);
+        Assert.Null(model.MaximumDiskSizeGb);
+        Assert.Equal("Checking how much working space Yellowfin GNOME needs while it installs.", model.FormProblem);
+        Assert.Throws<InvalidOperationException>(() => model.CreateDraft());
+        model.ApplyInstallSpace(new(Reference, "F", 22, "registry"));
+        Assert.Null(model.PendingInstallSpace);
+        Assert.Empty(model.FormProblem);
+    }
+
+    // Native run 38902999307: 58 GB free, a 22 GB reserve, and the catalogue's
+    // 40 GB default. The launchpad would have offered 35 GB; so does the form.
+    [Fact]
+    public void TheDefaultIsLoweredToWhatTheDriveHoldsBesideTheReserve()
+    {
+        var model = OnDrive(58, 58);
+        Assert.Equal(40, model.DiskSizeGb);
+        model.ApplyInstallSpace(new(Reference, "F", 22, "registry"));
+        Assert.Equal(36, model.MaximumDiskSizeGb);
+        Assert.Equal(35, model.DiskSizeGb);
+        Assert.Empty(model.FormProblem);
+        Assert.Equal(35, model.CreateDraft().DiskSizeGB);
+    }
+
+    [Fact]
+    public void ADirectiveWithoutASizeGetsTheFittedDefault()
+    {
+        var model = OnDrive(58, 58);
+        model.ApplyInstallSpace(new(Reference, "F", 22, "registry"));
+        var result = model.ApplyDriveMapping(new InstallDriveMapping { SchemaVersion = 1, RunId = "hosted-current",
+            DirectiveId = "1234567890abcdef1234567890abcdef", Action = "install", ImageRef = Reference, Username = "fixture",
+            Password = "public fixture password", StorageId = StorageId }, "hosted-current");
+        Assert.True(result.Mapped);
+        Assert.Equal(35, model.DiskSizeGb);
+        Assert.Empty(model.FormProblem);
+    }
+
+    [Fact]
+    public void ASizeAboveTheFitIsRefusedWithTheLaunchpadsWords()
+    {
+        var model = OnDrive(58, 58);
+        model.ApplyInstallSpace(new(Reference, "F", 29, "registry"));
+        Assert.Equal(25, model.DiskSizeGb);
+        model.DiskSizeGb = 30;
+        Assert.Equal("F: has 58 GB free, and about 29 GB of working space to unpack Yellowfin GNOME during the install (given back when it finishes) has to stay free beside the Linux disk. Choose 29 GB or less, or free up space first.", model.FormProblem);
+        var small = OnDrive(40, 40);
+        small.ApplyInstallSpace(new(Reference, "F", 22, "registry"));
+        Assert.Equal(40, small.DiskSizeGb);
+        Assert.StartsWith("F: has 40 GB free", small.FormProblem);
+        Assert.EndsWith("Free up space first.", small.FormProblem);
+    }
+
+    [Fact]
+    public void WindowsHeadroomCountsWhenItIsLargerThanTheReserve()
+    {
+        var model = OnDrive(128, 100);
+        model.ApplyInstallSpace(new(Reference, "F", 22, "registry"));
+        Assert.Equal(100, model.MaximumDiskSizeGb);
+        model.InstallSpaceUnavailable(Reference, "F");
+        Assert.Equal(22, model.KeptFreeGb);
+        Assert.Equal(Math.Max(ConsumerConfiguration.WindowsHeadroomGb, 22), model.KeptFreeGb);
+    }
+
+    [Fact]
+    public void AnInstallSpaceOutsideTheObservationIsRefused()
+    {
+        var model = OnDrive(128, 100);
+        foreach (var space in new ConfigurationInstallSpace[] { new("ghcr.io/example/other:1", "F", 22, "registry"),
+            new(Reference, "C", 22, "registry"), new(Reference, "F", 21, "registry"), new(Reference, "F", 22, "guess") })
+            Assert.Throws<InvalidDataException>(() => model.ApplyInstallSpace(space));
+        Assert.NotNull(model.PendingInstallSpace);
+        // Another drive's or image's answer never satisfies the selected pair.
+        Assert.Contains("Checking how much working space", model.FormProblem);
+    }
+
+    [Fact]
+    public void ALateAnswerForAnotherChoiceNeverReplacesTheCurrentOne()
+    {
+        var two = new ConfigurationStorage("other-volume", "G", "33333333-3333-3333-3333-333333333333",
+            "44444444-4444-4444-4444-444444444444", "fedcba9876543210", 58L << 30, 58);
+        var model = new ConsumerConfiguration("wootc");
+        model.ApplyCatalogue(Catalogue() with { Storage = new[] { Catalogue().Storage[0], two } });
+        model.SelectImage("yellowfin");
+        model.SelectStorage("other-volume");
+        model.ApplyInstallSpace(new(Reference, "G", 22, "registry"));
+        Assert.Equal(36, model.MaximumDiskSizeGb);
+        model.ApplyInstallSpace(new(Reference, "F", 29, "registry"));
+        Assert.Equal(36, model.MaximumDiskSizeGb);
+        model.ApplyCatalogue(Catalogue() with { Storage = new[] { Catalogue().Storage[0], two } });
+        model.SelectImage("yellowfin");
+        model.SelectStorage("other-volume");
+        Assert.NotNull(model.PendingInstallSpace);
+    }
 
     [Fact]
     public void DraftDoesNotGrantInstallationAuthorization()

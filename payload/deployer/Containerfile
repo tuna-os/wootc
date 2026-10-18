@@ -36,11 +36,20 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /wootc-ntfs-state-write /src/ntfs
 WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
 
+# The verifier uses its own ELF closure. Target images need not share this ABI.
+FROM docker.io/library/ubuntu@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944 AS verifierbuilder
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    autoconf automake gcc make binutils-dev libssl-dev uuid-dev gnu-efi \
+    pkg-config git help2man ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY packaging/build-sbverify.sh packaging/sbpehash.c /src/
+RUN /src/build-sbverify.sh /out/sbverify
+
 # ── Copy fisherman into the initramfs builder ───────────────────────────────
 FROM builder
 COPY --from=gobuilder /fisherman /usr/bin/fisherman
 COPY --from=gobuilder /wootc-json-check /usr/bin/wootc-json-check
 COPY --from=gobuilder /wootc-ntfs-state-write /usr/bin/wootc-ntfs-state-write
+COPY --from=verifierbuilder /out/sbverify /usr/lib/wootc/sbverify
 
 # ── Deployer script ─────────────────────────────────────────────────────────
 COPY payload/steps.sh /usr/libexec/wootc-steps.sh
@@ -102,6 +111,10 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
+    for binary in sbverify sbpehash ld-linux-x86-64.so.2 libcrypto.so.3 libc.so.6; do \
+        lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/sbverify/${binary}$" || \
+            { echo "FATAL: verifier closure ${binary} missing"; exit 1; }; \
+    done && \
     lsinitrd /out/deployer-initramfs.img | grep -qE "xfs.ko" || \
         { echo "FATAL: xfs kernel module missing from initramfs (unsealed images format xfs)"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "etc/pki/tls/certs/ca-bundle.crt" || \
@@ -120,6 +133,8 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         { echo "FATAL: wootc polkit policy missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-e2e-phase3-dispatch" || \
         { echo "FATAL: Phase 3 dispatch script missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/lib/wootc_firstboot_evidence.py" || \
+        { echo "FATAL: first-boot evidence collector missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/systemd/systemd-cryptsetup" || \
         { echo "FATAL: systemd-cryptsetup missing from initramfs"; exit 1; }
 

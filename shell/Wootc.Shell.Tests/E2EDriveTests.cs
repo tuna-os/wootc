@@ -87,6 +87,9 @@ public sealed class E2EDriveTests
         Assert.True(mapped.Mapped);
         Assert.Equal(Reference, model.SelectedImage!.ImageRef);
         Assert.Equal("C", model.SelectedStorage!.DriveLetter);
+        // Install stays disabled until the engine says what the image needs.
+        Assert.Contains("Checking how much working space", model.FormProblem);
+        model.ApplyInstallSpace(new(Reference, "C", ConsumerConfiguration.MinimumInstallReserveGb, "registry"));
         Assert.Empty(model.FormProblem);
 
         // This preview cannot authorize installation, so the drive does not click.

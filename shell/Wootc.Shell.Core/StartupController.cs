@@ -44,6 +44,9 @@ public interface IInstallEngineSession : IEngineSession
 public interface IConfigurationEngineSession : IEngineSession
 {
     Task<NativeConfigurationSnapshot> ReadConfigurationAsync(CancellationToken cancellationToken, Action<long>? requestFlushed = null);
+    // What one image of that observation needs on one of its drives beside
+    // the Linux disk (GetNativeInstallSpace).
+    Task<ConfigurationInstallSpace> ReadInstallSpaceAsync(string imageRef, string storageDrive, CancellationToken cancellationToken);
 }
 
 // The E2E drive channel of an assessment session. The engine answers only
@@ -155,6 +158,18 @@ public sealed class StartupController : IAsyncDisposable, IE2EDriveChannel
             if (Connection != ConnectionState.Ready || session is not IConfigurationEngineSession reader)
                 throw new InvalidOperationException("Authenticated configuration session is unavailable");
             return await reader.ReadConfigurationAsync(cancellationToken, requestFlushed);
+        }
+        finally { connectionGate.Release(); }
+    }
+
+    public async Task<ConfigurationInstallSpace> ReadInstallSpaceAsync(string imageRef, string storageDrive, CancellationToken cancellationToken = default)
+    {
+        await connectionGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (Connection != ConnectionState.Ready || session is not IConfigurationEngineSession reader)
+                throw new InvalidOperationException("Authenticated configuration session is unavailable");
+            return await reader.ReadInstallSpaceAsync(imageRef, storageDrive, cancellationToken);
         }
         finally { connectionGate.Release(); }
     }

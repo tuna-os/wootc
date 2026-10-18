@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "9c4bdb6",
+  "firmwareAcceptance": false,
+  "classicOsBootAcceptance": false,
+  "providersImplemented": [
+    "debian",
+    "ubuntu",
+    "classic-rpm"
+  ],
+  "sourceFormatsRemaining": [
+    "other-distro-package-contracts",
+    "RPM copies from versioned package layouts"
+  ],
+  "scope": "Real public signatures and transaction. Root, mount and OS are explicit fixtures. Ubuntu installed-package status is a fixture. RPM queries execute against an actual installed database with explicit path translation.",
+  "queryToolBuilder": "docker.io/library/ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3",
+  "rpmInstallFlags": [
+    "--nodeps",
+    "--noscripts",
+    "--notriggers",
+    "--noplugins"
+  ],
+  "packages": [
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-signed/shim-signed_1.51~1+deb13u1+16.1-2~deb13u1_amd64.deb",
+      "sha256": "3c802fa303c0e6bf126adee74028d1042e3120360d159c2c05181dc9b2f61005",
+      "size": 346976,
+      "control": "Package: shim-signed\nVersion: 1.51~1+deb13u1+16.1-2~deb13u1\nArchitecture: amd64",
+      "officialWebsiteHashChecked": true
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-helpers-amd64-signed/shim-helpers-amd64-signed_1+16.1+2~deb13u1_amd64.deb",
+      "sha256": "7e950d75d5a40ecc0a99f727452ce35780b47a04d9a2cc3b1ff7c2bb316c033e",
+      "size": 301476,
+      "control": "Package: shim-helpers-amd64-signed\nVersion: 1+16.1+2~deb13u1\nArchitecture: amd64",
+      "officialWebsiteHashChecked": true
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.12+9+deb13u2_amd64.deb",
+      "sha256": "da8bb31308a3682a7d9343fc42bf7f603ad85bb5483eeb3ece23e2f1be2e9bbd",
+      "size": 1363392,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1+2.12+9+deb13u2\nArchitecture: amd64",
+      "officialWebsiteHashChecked": false
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-signed/shim-signed_1.51~1+deb12u1+16.1-2~deb12u1_amd64.deb",
+      "sha256": "c2acf5e559664bbadb7ce5789f9a321f39754a34854d3097b8cc0369df513b3b",
+      "size": 350384,
+      "control": "Package: shim-signed\nVersion: 1.51~1+deb12u1+16.1-2~deb12u1\nArchitecture: amd64"
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/s/shim-helpers-amd64-signed/shim-helpers-amd64-signed_1+16.1+2~deb12u1_amd64.deb",
+      "sha256": "26acac35133946c1642a09f3fda353ee3b849e5fc643fadb97a8dfec9e2b55fb",
+      "size": 304636,
+      "control": "Package: shim-helpers-amd64-signed\nVersion: 1+16.1+2~deb12u1\nArchitecture: amd64"
+    },
+    {
+      "url": "https://deb.debian.org/debian/pool/main/g/grub-efi-amd64-signed/grub-efi-amd64-signed_1+2.06+13+deb12u2_amd64.deb",
+      "sha256": "fbe2b28166a6dca8111bbf6a30d52d4781973c3a0440d8080f901e039b1f83f2",
+      "size": 1253404,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1+2.06+13+deb12u2\nArchitecture: amd64"
+    },
+    {
+      "url": "https://snapshot.debian.org/file/bd84f58124602b15d7609c6cd740d226e9c2b9df",
+      "sha256": "2854085908185cc3ed4f611d31f927bce572d3e3394a1a173771e994e85ef81e",
+      "size": 1363472,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1+2.12+9\nArchitecture: amd64",
+      "snapshotContentSha1": "bd84f58124602b15d7609c6cd740d226e9c2b9df"
+    },
+    {
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/s/shim-signed/shim-signed_1.58+15.8-0ubuntu1_amd64.deb",
+      "sha256": "ba9b5d80e5d886c30664f2bebfb5c2fcce3b9b40f16fc46cba49c19a91c8059c",
+      "size": 664576,
+      "control": "Package: shim-signed\nVersion: 1.58+15.8-0ubuntu1\nArchitecture: amd64"
+    },
+    {
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/grub2-signed/grub-efi-amd64-signed_1.202.5+2.12-1ubuntu7.3_amd64.deb",
+      "sha256": "8bd5cd99c3af82aab23af0f15f54c91799f343416412e122df661ef36a44a511",
+      "size": 1393400,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1.202.5+2.12-1ubuntu7.3\nArchitecture: amd64"
+    },
+    {
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/grub2-signed/grub-efi-amd64-signed_1.202+2.12-1ubuntu7_amd64.deb",
+      "sha256": "996cd4abdfb922594341a3ed82d73afb15bd7a6decca445108027821a9d25bda",
+      "size": 1391500,
+      "control": "Package: grub-efi-amd64-signed\nVersion: 1.202+2.12-1ubuntu7\nArchitecture: amd64"
+    }
+  ],
+  "rpmPackages": [
+    {
+      "url": "https://kitten.repo.almalinux.org/10-kitten/BaseOS/x86_64/os/Packages/grub2-efi-x64-2.12-55.el10.alma.1.x86_64.rpm",
+      "sha256": "7ce610d3f89170f4ba3be033afac9109bc17e9b49559db61bb7f99b49ef52813"
+    },
+    {
+      "url": "https://kitten.repo.almalinux.org/10-kitten/BaseOS/x86_64/os/Packages/shim-x64-15.8-5.el10.alma.1.x86_64.rpm",
+      "sha256": "805f7f4bf23bd06bfba23d413834f26cee7e1731b168d608be29a691fc77bdf3"
+    }
+  ],
+  "sourceHashes": {
+    "payload/migration/lib/wootc_boot_identity.py": "895042a2b5c7cd22bfb5c60596e1fd486db3343f0594cd208fbc7ba6374bd83c",
+    "payload/migration/lib/wootc_chain_source.py": "a0da3628395013c5353c9e6783a68058c7b4adf61f9b58a5a243999c353b4746",
+    "payload/migration/lib/wootc_esp_transaction.py": "d1d2ebbb1cb1aad9f1face828c9056238920669138eed0feb89067a7518ac959",
+    "payload/migration/wootc-esp-control": "36a863f086f6ac0d1f959b3135eee0d38f22cee3fb2b1cc7236e65bb22069515",
+    "payload/migration/wootc-esp-sync": "00ea74c673063ea32f5aab2bb13ae1a8efc955efb3b41c15d59f7d258053e666",
+    "payload/migration/wootc-esp-sync.path": "528d306ed246fce40ac04b1bb484da4d28ce3a59ded2d411d711ca914a7d41d0",
+    "tests/unit/test_wootc_classic_source.py": "d4c0cc6e9b59c7d193a8784c7e4947b21fa83b1596a3bf3ee840bc7edb03f630",
+    "tests/unit/test_wootc_boot_identity.py": "69ad0031b82e7eebd7132c78f58d87ba4e3f1f9c779c4f0918dd8ae221105afa",
+    "tests/unit/test_wootc_esp_transaction.py": "be61a6a49f97b358a1ff5c0590e756eae1c9bec82de7e7fa2cb11d9c7c17845b",
+    "tests/probe-classic-providers-real.py": "5e8b6140b8728da65a15b2c69bceb0f95ef5da7ee2d8dab7ae69f6235c2a1768",
+    "tests/audit-classic-chain-provenance.py": "5b1add8784af40b9fa9ccb3b4506b4f92e44d845f8cc41d3bd1249dc15a679eb"
+  },
+  "assetHashes": {
+    "ubuntu-trio/grubx64.efi": "a831af01e4fb5e3c9457120e1d08ea13d98a0a47b62728c284b7f502d535965c",
+    "ubuntu-trio/mmx64.efi": "d2fa8e52fddc99dad94a0009fee23cb2478c28373b777d50b2f784eb4e96f88e",
+    "ubuntu-trio/shimx64.efi": "6fe6e1bcbe6cf6baec8e056d40361ca1aa715cc04ddcc2855351de060b84350b",
+    "ubuntu-previous-trio/grubx64.efi": "076ceb4824b4bc71e898aaf10cefb738f4eb15efc5e6e951c150c1a265a47d36",
+    "ubuntu-previous-trio/mmx64.efi": "d2fa8e52fddc99dad94a0009fee23cb2478c28373b777d50b2f784eb4e96f88e",
+    "ubuntu-previous-trio/shimx64.efi": "6fe6e1bcbe6cf6baec8e056d40361ca1aa715cc04ddcc2855351de060b84350b",
+    "ubuntu-efivars/db-d719b2cb-3d3a-4596-a3bc-dad00e67656f": "84b54691991e429fb519d8e6ca5ef854b370f7e7f534584166c607c272619e11",
+    "ubuntu-efivars/SbatLevelRT-605dab50-e046-4300-abb6-3dd810dd8b23": "96dd8f020b4904896559fd69233ad693e823348ce0a6c796fef56c2397ffa1ac",
+    "ubuntu-efivars/dbx-d719b2cb-3d3a-4596-a3bc-dad00e67656f": "e8613f5a5bc9f9feeda32a8e7c80b69dd4878e47b6a91723fb15eb84236b6a2b",
+    "ubuntu-efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c": "e16ab60aa1eeb7074ca590e8a95bc4ce6264aa74f4f79359e580ede60b892bbe",
+    "ubuntu-efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c": "0dbc8b6d87c4c741a7ada41a96fad8ee7e477cbd168acf57fb3a33fac26cb7c6",
+    "almalinux-old-trio/shimx64.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a",
+    "almalinux-old-trio/mmx64.efi": "131d46438c761c722630bc37b3238299473cce36580ef5aa196c67af84fa758a",
+    "almalinux-old-trio/grubx64.efi": "3bd7b0783a7fdbc972aea42aea73a9997266cd19305df9895eaa70ace828295f",
+    "rpm-closure/rpm": "732ba564c92a0033ac79a1d1da22aee095c684216bc0416d9166ccc56a8cbb83",
+    "rpm-closure/ld-linux-x86-64.so.2": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+    "rpm-closure/libzstd.so.1": "0a2128bc10841fb29e76d08d945864dfb0b6a66da5df6df5d8299197439e54bb",
+    "rpm-closure/libz.so.1": "86200da370f20476a2507e9097a789b5ef97269b4ca8d5e164ad82dab9d99892",
+    "rpm-closure/libsqlite3.so.0": "85265a9d4afca6f4b325ceb078b669c754fb881abed4cafe91ccebe9d625d975",
+    "rpm-closure/librpmio.so.9": "9af871fc8bca1302f717251dda2a40a89b89b00f43f579731c74ba0344c3512d",
+    "rpm-closure/librpm.so.9": "6a5ebacdcdf4ec59e9e5305b138a1a24e7e4ba0232453deee813442ed603d8cb",
+    "rpm-closure/libpopt.so.0": "4081d1d73ba5bc1d033cfea56023f609fcc976001769ff34af41a3889605a311",
+    "rpm-closure/libm.so.6": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0",
+    "rpm-closure/liblzma.so.5": "696e868dd0700a19a6d65fc01608ec2d70d3cb91f65710e89180cd2e688f30cb",
+    "rpm-closure/liblua5.3.so.0": "caf70022099185c4e06079a4185c602141a6109fa4322865341bc500c469a3c1",
+    "rpm-closure/libgpg-error.so.0": "6cb18a007bfcb623029f4528a36b46578fea7dc34c2b505b8e6e0d99e6348cd1",
+    "rpm-closure/libgcrypt.so.20": "6ad6d7007ee1ad8319eb18ba9a512cf09dda49396a303774c68b47477020bad4",
+    "rpm-closure/libcap.so.2": "6ac6abc86ac891c6e13486470e26f1d939f47fda9e6b5d5508a7f5ec881adc84",
+    "rpm-closure/libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+    "rpm-closure/libbz2.so.1.0": "cc08c9f50a8009ffd6391e0116a100369b11ca9238fa52392c019e6645b122a1",
+    "rpm-query-root/root/.rpmdb/rpmdb.sqlite": "679f786ab38b4d0d913d8556b54cd5fe66e0a189f9927014c15ef4a1bfc14f16",
+    "rpm-config/rpmrc": "39ee060d255ffbdd96bc8c1ba92bb1b91611fb2f3689f53f2ad31f2f25070c38",
+    "rpm-config/macros": "5cb4fb32e42f0dd5484d5dee0b867d9a70597265757dab769b4b970243fcb7c9",
+    "rpm-query-root/boot/efi/EFI/almalinux/BOOTX64.CSV": "925ba4a07b1d4afec315b8c26e179ff3dc73715bb1bbf97276d4138810c29f62",
+    "rpm-query-root/boot/efi/EFI/almalinux/grubx64.efi": "9065143af150a85e2354b153c0ab39cdb0dcf843ef5ac27c256c53be14275c70",
+    "rpm-query-root/boot/efi/EFI/almalinux/mmx64.efi": "131d46438c761c722630bc37b3238299473cce36580ef5aa196c67af84fa758a",
+    "rpm-query-root/boot/efi/EFI/almalinux/shim.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a",
+    "rpm-query-root/boot/efi/EFI/almalinux/shimx64-almalinux.efi": "6bc4deb1d4da0d617c78fde96ea8c9e4499f8fc4389882d320df663a6845f1fd",
+    "rpm-query-root/boot/efi/EFI/almalinux/shimx64.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a"
+  },
+  "verifierClosureHashes": {
+    "COPYING": "7f424707cdb69df658b7b66ea1f9c9ab3ea0a0988999ecba3dad10a811db654f",
+    "SHA256SUMS": "5a41bc4839d3e915cd2a835a701b0d38578cced7177ffdc7e1774acad38b520b",
+    "ld-linux-x86-64.so.2": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da",
+    "ldd.txt": "11cc2af38a08de1a85982c1ad26304abf877318e2ba4f98c8247b16468769d58",
+    "libc.so.6": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf",
+    "libcrypto.so.3": "6a66c3ba6b3749aacc9497973fff00f6ba61c703ba7015d0d7ab3fd9510974b6",
+    "sbpehash": "6c16744c9c10995598cc9c0d1a6f6186b59ec4a19a3754b769a24faf1f882a87",
+    "sbverify": "e345c0797b7b1f2b655cacfcc0d5d8f3ac1095140e2019726cf6ffb8da61df17",
+    "source-revisions.txt": "a86dd2a7870af034e8f3686ec6777cb57bd535c32ddd12096cb5ee5ad4fe05e6"
+  },
+  "resultHashes": {
+    "providers-source-transaction-result.json": "537058f876b6c653ab96f520313ead34609ea087106161ceafa0a475d3dfe1d4",
+    "ubuntu-signature-result.json": "05faa87599b2a4aa00457fed3e6407e6bd291417f300ad7179a65f0d75ea412a",
+    "debian-source-transaction-current.json": "0be0b32877cb8356fc1e1dab7cea68d4c179002eeb6ec6ca3fab2343e580ba86"
+  }
+}

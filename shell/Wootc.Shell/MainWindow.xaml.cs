@@ -24,6 +24,8 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
+    // The image and drive whose install space is being read, if any.
+    private (string ImageRef, string Drive)? installSpaceRequested;
     private long configurationGeneration;
     private CancellationTokenSource? configurationRead;
     private bool closing;
@@ -36,6 +38,8 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     private E2EDriveLoop? drive;
     private DispatcherQueueTimer? driveTimer;
     private bool driveTicking, driveConnectRequested, driveConfigurationRequested;
+    // Refreshes the plan check's elapsed time once a second while it runs.
+    private DispatcherQueueTimer? checkTimer;
 
     public MainWindow()
     {
@@ -71,7 +75,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
 #endif
         // Closing the window disconnects both sessions; the engine treats that
         // as a cancellation request for any running install.
-        Closed += async (_, _) => { closing=true; driveTimer?.Stop(); InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); if (vmGate is not null) await vmGate.DisposeAsync(); await controller.DisposeAsync(); };
+        Closed += async (_, _) => { closing=true; driveTimer?.Stop(); checkTimer?.Stop(); InvalidateConfigurationRead(); if (installGate is not null) await installGate.DisposeAsync(); if (maintenanceGate is not null) await maintenanceGate.DisposeAsync(); if (vmGate is not null) await vmGate.DisposeAsync(); await controller.DisposeAsync(); };
     }
     // Local, validated brand assets render before any elevation request and
     // stay visible after a refusal. High contrast keeps the system palette.
@@ -267,10 +271,43 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         StorageFacts.Text = configuration.SelectedStorage is null ? "Choose an assessed volume; no drive is selected automatically" :
             $"{configuration.SelectedStorage.DriveLetter}: {configuration.SelectedStorage.FreeBytes} available bytes; partition: {configuration.SelectedStorage.PartitionGuid}; NTFS: {configuration.SelectedStorage.NtfsSerial}";
         InstallBlockedReason.Text = configuration.InstallationBlockedReason;
+        _ = ReadInstallSpaceAsync();
         RenderVM();
         // Any change to the plan on screen discards an earlier grant and its
         // install session; the new plan needs its own engine check.
         _ = DiscardInstallGrantAsync();
+    }
+
+    // What the selected image needs on the selected drive beside its Linux
+    // disk, from the engine (GetNativeInstallSpace). Until it answers the form
+    // says so and Install stays disabled; then the disk size is lowered to
+    // fit, as the Wails launchpad does. No answer falls back to the smallest
+    // image's reserve; the engine still refuses a plan that does not fit.
+    private async Task ReadInstallSpaceAsync()
+    {
+        var model = configuration;
+        if (model?.PendingInstallSpace is not (string imageRef, string drive) || installSpaceRequested == (imageRef, drive)) return;
+        installSpaceRequested = (imageRef, drive);
+        ConfigurationInstallSpace? space = null;
+        try { space = await controller.ReadInstallSpaceAsync(imageRef, drive); }
+        catch { /* Unavailable: the fallback below. */ }
+        if (installSpaceRequested == (imageRef, drive)) installSpaceRequested = null;
+        if (!ReferenceEquals(configuration, model))
+        {
+            // A newer configuration read replaced this form: ask for its own.
+            if (configuration is not null) RefreshConfiguration();
+            return;
+        }
+        try
+        {
+            if (space is null) model.InstallSpaceUnavailable(imageRef, drive);
+            else model.ApplyInstallSpace(space);
+        }
+        catch (InvalidDataException) { model.InstallSpaceUnavailable(imageRef, drive); }
+        updatingConfiguration = true;
+        try { LinuxDiskSize.Value = model.DiskSizeGb; }
+        finally { updatingConfiguration = false; }
+        RefreshConfiguration();
     }
 
     private async Task DiscardInstallGrantAsync()
@@ -285,19 +322,27 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         bool busy = state is InstallGateState.Preparing or InstallGateState.Confirming or InstallGateState.Started;
         PrepareInstallButton.IsEnabled = !busy && configuration is { FormProblem.Length: 0 } && controller.Connection == ConnectionState.Ready;
         InstallButton.IsEnabled = installGate?.CanInstall == true;
-        InstallGateStatus.Text = state switch
+        RenderInstallGateStatus();
+        // The plan check can take minutes. The window stays responsive and
+        // shows that the check is still running, with its elapsed time.
+        bool checking = state is InstallGateState.Preparing or InstallGateState.Confirming;
+        InstallGateBusy.Visibility = checking ? Visibility.Visible : Visibility.Collapsed;
+        if (state == InstallGateState.Preparing)
         {
-            InstallGateState.Preparing => "Checking this plan with the engine",
-            InstallGateState.Granted => "The engine accepted this plan. Nothing changes until you confirm.",
-            InstallGateState.Refused or InstallGateState.Failed => installGate!.Reason,
-            InstallGateState.Confirming => "Starting the installation",
-            InstallGateState.Started => "The installation started. Keep this window open.",
-            InstallGateState.Cancelling => "Cancelling the installation",
-            InstallGateState.Cancelled => "The installation was cancelled.",
-            _ => "",
-        };
+            if (checkTimer is null)
+            {
+                checkTimer = DispatcherQueue.CreateTimer();
+                checkTimer.Interval = TimeSpan.FromSeconds(1);
+                checkTimer.Tick += (_, _) => { if (closing || installGate?.State != InstallGateState.Preparing) checkTimer?.Stop(); else RenderInstallGateStatus(); };
+            }
+            if (!checkTimer.IsRunning) checkTimer.Start();
+        }
+        else checkTimer?.Stop();
         RenderInstallProgress(state);
     }
+
+    private void RenderInstallGateStatus() =>
+        InstallGateStatus.Text = InstallGateText.Status(installGate?.State ?? InstallGateState.Idle, installGate?.Reason ?? "", installGate?.CheckElapsed);
 
     // The legacy progress and done screens, word for word, from this
     // session's own install:progress events.
@@ -700,7 +745,11 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         };
         // The Install action is two controls here: check the plan, then Install.
         bool? disabled = screen == DriveScreen.Launchpad ? !(PrepareInstallButton.IsEnabled || InstallButton.IsEnabled) : null;
-        string hint = disabled == true ? (string.IsNullOrEmpty(error) ? InstallBlockedReason.Text : error) : "";
+        // While the engine checks or confirms the clicked plan, the hint is
+        // what the window says about that check, elapsed time included.
+        bool checking = state is InstallGateState.Preparing or InstallGateState.Confirming;
+        string hint = checking ? InstallGateStatus.Text
+            : disabled == true ? (string.IsNullOrEmpty(error) ? InstallBlockedReason.Text : error) : "";
         return new(screen, disabled, hint, progress?.Step ?? "", screen == DriveScreen.Done ? null : error,
             configuration?.SelectedImage?.ImageRef ?? "", configuration?.ObservedStorage);
     }

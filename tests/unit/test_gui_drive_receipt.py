@@ -185,10 +185,23 @@ class GuiDriveReceiptTests(unittest.TestCase):
         directive = json.loads((fixtures / 'directive-install.json').read_text())
         # The native shell refuses an install directive without a target volume.
         self.assertEqual(directive['storageId'], 'C:')
-        for name in ('report-install-ready.json', 'report-install-mismatch.json', 'report-install-done.json',
-                     'report-install-unknown-target.json'):
+        for name in ('report-install-ready.json', 'report-install-checking.json', 'report-install-mismatch.json',
+                     'report-install-done.json', 'report-install-unknown-target.json'):
             raw = (fixtures / name).read_text()
             module.validate(raw, directive['runId'], directive['directiveId'], directive['image'])
+
+    def test_a_plan_check_in_flight_is_neither_offered_nor_refused(self):
+        # Native runs 38923119161 and 38931058878 spent about two minutes in
+        # the plan check. The shell reports through it; the harness must read
+        # those reports as pending, never as a disabled Install (a refusal).
+        fixtures = ROOT / 'tests/unit/fixtures/e2e-drive'
+        directive = json.loads((fixtures / 'directive-install.json').read_text())
+        raw = (fixtures / 'report-install-checking.json').read_text()
+        state = json.loads(module.validate(raw, directive['runId'], directive['directiveId'], directive['image']))
+        self.assertIsNone(state['installBtnDisabled'])
+        self.assertIsNone(state['error'])
+        self.assertFalse(state['installDriven'])
+        self.assertTrue(state['hint'].startswith('Checking this plan with the engine ('))
 
     def test_native_target_refusal_reaches_the_harness_as_an_error(self):
         # The harness fails fast on a non-null error; a refused target must not

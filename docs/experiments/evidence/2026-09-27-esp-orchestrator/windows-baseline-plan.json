@@ -1,0 +1,65 @@
+{
+  "status": "source-only proposal; no baseline VM created or fixture changed",
+  "mainSource": "b273443f6408d9aa5b567997b66b4470bb0a9e72",
+  "sourceHashes": {
+    "tests/e2e/autounattend.xml": "29515d230aecaf09673930e55f50a2644c02b039787062fdce04eed79eb80217",
+    "tests/e2e/oem/install.bat": "001add288fe2a124e4f08ce69190f9a0f98ff420b2ff7293504eeda916b92707",
+    "tests/e2e/oem/run-wootc-e2e.ps1": "b4bfda218e16b622002a21118720a0f6849a3bbbe2f5cecbd648e7a644bd55f7",
+    "tests/e2e/qga.py": "39d8a3990a5620e60ba7d7ad347d1776114aebcbbfb3f47398262496838c9d28",
+    "tests/e2e/compose.yml": "1845b5cb9459662b81374b1a89d779e93e6567d00a3176873b0b67f652a16f05"
+  },
+  "scope": "Fresh dedicated Windows11 Pro + QGA baseline, positively unprotected/decrypted, before any wootc preparation. Existing winbase399 and b4 protected acceptance are ineligible. Deployer #471 currently proves only no-TPM launch; TPM/UEFI-preserving clone remains a prerequisite, not an inference.",
+  "findings": [
+    "Current OEM install.bat installs/starts QGA only; run-wootc-e2e.ps1 is the distinct destructive setup entrypoint dispatched later by runner. Do not invoke run-e2e.sh for this checkpoint.",
+    "Current answerfile schedules the bootstrap at logon and prevents automatic device encryption before OOBE. Presence of that policy is not evidence of actual FullyDecrypted/Off/0.",
+    "Current answerfile product key/image selection must not stand in for Edition identity. Require media-selected Professional image and observed Professional edition/client build>=22000."
+  ],
+  "recipe": [
+    {
+      "step": 1,
+      "action": "Allocate new scratch UUID/name, disk, private TPM state and independent NVRAM only after reserve/admission. Pin ISO/QGA MSI/OVMF code+initial vars/template hashes. Preserve all existing VM/disks/fixtures.",
+      "gate": "Not executable via no-TPM #471 launcher; matching TPM/NVRAM support and actual new backing paths required."
+    },
+    {
+      "step": 2,
+      "action": "Prepare explicit baseline answerfile with GPT EFI512MiB/MSR16MiB/NTFS Windows, observed media Professional image selection, UAC default, PreventDeviceEncryption before OOBE, and one-shot QGA-only SYSTEM bootstrap. OEM allowlist contains only pinned QGA MSI and bootstrap; exclude wootc exe/setup/payload/config/handoff.",
+      "gate": "Parse XML and native PS/batch source checks; effective package inventory proves no setup entrypoint. Bootstrap MSI exit/restart handling and task removal must be verified; no guessed success."
+    },
+    {
+      "step": 3,
+      "action": "Install Windows from fresh media/new disk. Observe QGA Windows_NT, actual OS client/Professional/build, QGA service Running/binary hash/version.",
+      "gate": "Positive OS identity, not guest-ping/logo. No wootc setup dispatch."
+    },
+    {
+      "step": 4,
+      "action": "Read-only guest probe with fixed whitelist: actual SystemDrive C, C BitLocker FullyDecrypted/ProtectionOff/EncryptionPercentage0, typed TPM flags, SecureBoot API result, SMBIOS UUID, every disk unique GPT GUID and partition GUID/type/size/offset/filesystem, actual full64-bit NTFS serial, firmware/BCD identifiers/device/path/bootsequence.",
+      "gate": "Missing/error/unknown encryption or edition observations refuse. Never serialize full BitLocker volume/protector object or recovery password. Firmware/SBAT unavailable is explicitly unknown."
+    },
+    {
+      "step": 5,
+      "action": "Independently enumerate local storage/ESP and BCD to prove no root.disk, installation.json, armed state, product EFI payload or wootc boot arm. Retain source+probe hash, run correlation, nonsecret observations and raw bounded firmware enumeration.",
+      "gate": "Enumeration failure is not absence. Absence of a description substring is not authoritative ownership/arm absence; require identifiers and actual loader paths plus empty new-disk product inventory."
+    },
+    {
+      "step": 6,
+      "action": "Only this new baseline may be gracefully shut down to obtain coherent offline disk+NVRAM+persistent TPM state. Record actual domain UUID, TPM backend/version/state, OVMF hashes, NVRAM and disk hashes/sizes/GPT identities together; make backing immutable and overlays independent.",
+      "gate": "Do not copy only disk, share live TPM/NVRAM, reset original or infer state fidelity. Snapshot export lacking any required matching state blocks clone."
+    },
+    {
+      "step": 7,
+      "action": "A disposable clone must independently boot Windows_NT and re-observe same edition/GPT/NTFS/firmware identities and FullyDecrypted/Off/0 before it can be called a usable pre-wootc baseline.",
+      "gate": "This is later runtime acceptance, unproved by the source recipe or a saved file."
+    }
+  ],
+  "queuedSourceArtifacts": [
+    "Separate baseline autounattend/QGA-only one-shot bootstrap",
+    "Read-only bounded whitelist baseline probe with full NTFS FSCTL serial and typed GPT/firmware observations",
+    "Host checkpoint manifest that binds disk+TPM+NVRAM+UUID/hashes and rejects incomplete state"
+  ],
+  "notPerformed": [
+    "No VM creation/restart/configuration",
+    "No actual registry/account/policy/BitLocker/TPM mutation or state export",
+    "No preserved fixture/backing modification",
+    "No baseline or SecureBoot/SBAT runtime proof"
+  ]
+}

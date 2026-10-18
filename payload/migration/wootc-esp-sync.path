@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh the Windows ESP when a bootc upgrade stages a new boot chain
+Description=Refresh the Windows ESP when an OS update stages a new boot chain
 # bootupd rewrites its staged payload when `bootc upgrade` lands. Watching it
 # means an updated shim reaches the ESP on the boot that staged it, rather
 # than one boot later — which matters when the reason for the update is an
@@ -8,6 +8,30 @@ ConditionPathExists=/etc/wootc/host-esp.conf
 
 [Path]
 PathChanged=/usr/lib/bootupd/updates/EFI.json
+PathChanged=/boot/efi/EFI/debian/shimx64.efi
+PathChanged=/boot/efi/EFI/debian/grubx64.efi
+PathChanged=/boot/efi/EFI/debian/mmx64.efi
+PathChanged=/boot/efi/EFI/ubuntu/shimx64.efi
+PathChanged=/boot/efi/EFI/ubuntu/grubx64.efi
+PathChanged=/boot/efi/EFI/ubuntu/mmx64.efi
+PathChanged=/boot/efi/EFI/fedora/shimx64.efi
+PathChanged=/boot/efi/EFI/fedora/grubx64.efi
+PathChanged=/boot/efi/EFI/fedora/mmx64.efi
+PathChanged=/boot/efi/EFI/almalinux/shimx64.efi
+PathChanged=/boot/efi/EFI/almalinux/grubx64.efi
+PathChanged=/boot/efi/EFI/almalinux/mmx64.efi
+PathChanged=/boot/efi/EFI/rocky/shimx64.efi
+PathChanged=/boot/efi/EFI/rocky/grubx64.efi
+PathChanged=/boot/efi/EFI/rocky/mmx64.efi
+PathChanged=/boot/efi/EFI/centos/shimx64.efi
+PathChanged=/boot/efi/EFI/centos/grubx64.efi
+PathChanged=/boot/efi/EFI/centos/mmx64.efi
+PathChanged=/boot/efi/EFI/redhat/shimx64.efi
+PathChanged=/boot/efi/EFI/redhat/grubx64.efi
+PathChanged=/boot/efi/EFI/redhat/mmx64.efi
+PathChanged=/var/lib/rpm
+PathChanged=/usr/lib/sysimage/rpm
+PathChanged=/var/lib/dpkg/status
 Unit=wootc-esp-sync.service
 
 [Install]

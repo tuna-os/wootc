@@ -108,6 +108,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
     {
         "GetStatus" => "rpc-status", "GetLastRun" => "rpc-lifecycle",
         "GetRecoveryVerdict" => "rpc-recovery", "GetInstallRecovery" => "rpc-install", "GetNativeConfiguration" => "rpc-configuration",
+        "GetNativeInstallSpace" => "rpc-install-space",
         "PrepareNativeInstall" => "rpc-plan", "ConfirmNativeInstall" => "rpc-consent", "CancelInstall" => "rpc-cancel", "Reboot" => "rpc-restart",
         "GetUninstallInfo" => "rpc-uninstall-info", "InspectBoot" => "rpc-boot-check",
         "PrepareNativeMaintenance" => "rpc-maintenance-plan", "ConfirmNativeMaintenance" => "rpc-maintenance-consent",
@@ -290,6 +291,18 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
         // engine's typed storage diagnostic and not a shell-side timeout.
         deadline.CancelAfter(TimeSpan.FromSeconds(50));
         return await CallAsync<NativeConfigurationSnapshot>("GetNativeConfiguration", deadline.Token, requestFlushed);
+    }
+
+    // The engine may read the image's size from its registry (20 s limit in
+    // app/install_space.go), so the wait allows a little more.
+    public async Task<ConfigurationInstallSpace> ReadInstallSpaceAsync(string imageRef, string storageDrive, CancellationToken cancellationToken)
+    {
+        RequireAssessmentSession();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        var space = await CallAsync<InstallSpace>("GetNativeInstallSpace", new { imageRef, storageDrive }, deadline.Token);
+        if (space.ImageRef != imageRef) throw new InvalidDataException("Install space names another image");
+        return new(imageRef, storageDrive, space.ReserveGiB, space.SizeSource);
     }
 
     // The drive channel belongs to the assessment session only; the engine

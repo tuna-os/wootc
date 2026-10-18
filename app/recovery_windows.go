@@ -31,7 +31,9 @@ func runRecoverStartup() error {
 	_, startedErr := os.Stat(deployerStartedPath())
 	startedExists := startedErr == nil
 
-	ls, ok := readState()
+	// A healthy claim without matching first-boot evidence is still waiting
+	// for its first boot, and must not retire the armed record.
+	ls, ok := readVerifiedState()
 
 	// An install that never reached its commit point (the one-shot) is
 	// rolled back before anything else looks at the machine (#286).

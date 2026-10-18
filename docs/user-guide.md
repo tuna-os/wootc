@@ -142,6 +142,21 @@ The experimental storage plan can put Linux on an unencrypted volume while Windo
 It can use another volume or propose a new partition.
 A partition change needs a separate safety review; it does not have the same scope as a disk-file install.
 
+**Your BitLocker recovery key.** Linux uses your recovery key to open the Windows drive on each start.
+It needs the key to show your Windows folders until you convert them to Linux folders.
+The installer writes a copy to the installer folder, which only administrators can read.
+The Linux installer moves that copy into the Linux disk and erases the copy on the Windows side.
+
+At the first Linux start, Linux seals the copy to this PC with its TPM.
+A PC with no TPM uses a key that it keeps on the PC.
+A copy of the Linux disk cannot open your Windows drive on a different PC.
+When you convert the last Windows folder, Linux erases the key.
+If you delete your Linux data when you uninstall, the uninstaller erases the key too.
+
+If the sealed copy fails, for example after a TPM clear, Linux writes a message to the system log.
+Your Windows folders stay on the Windows drive.
+To show them again, save your recovery key as `/etc/wootc/bitlocker-key`, readable only by root, and restart.
+
 Linux disk encryption is a separate choice:
 
 - **TPM auto-unlock:** LUKS uses your PC's TPM to unlock the Linux disk at boot.

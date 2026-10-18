@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "verified": true,
+  "current": {
+    "shimx64.efi": "6fe6e1bcbe6cf6baec8e056d40361ca1aa715cc04ddcc2855351de060b84350b",
+    "grubx64.efi": "076ceb4824b4bc71e898aaf10cefb738f4eb15efc5e6e951c150c1a265a47d36",
+    "mmx64.efi": "d2fa8e52fddc99dad94a0009fee23cb2478c28373b777d50b2f784eb4e96f88e"
+  },
+  "candidate": {
+    "shimx64.efi": "6fe6e1bcbe6cf6baec8e056d40361ca1aa715cc04ddcc2855351de060b84350b",
+    "grubx64.efi": "a831af01e4fb5e3c9457120e1d08ea13d98a0a47b62728c284b7f502d535965c",
+    "mmx64.efi": "d2fa8e52fddc99dad94a0009fee23cb2478c28373b777d50b2f784eb4e96f88e"
+  }
+}

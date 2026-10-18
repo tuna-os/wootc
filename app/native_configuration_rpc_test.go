@@ -101,3 +101,62 @@ func TestNativeConfigurationTimingAttributesWholeObservedCall(t *testing.T) {
 		t.Fatal("observed phase timing inconsistent")
 	}
 }
+
+// GetNativeInstallSpace gives the native form the reserve the Wails launchpad
+// reads with GetInstallSpace (#629). Native run 38902999307 offered the
+// catalogue's 40 GB default on a drive with 58 GB free, and the engine
+// rightly refused it at the plan check. It answers only in a configuration
+// session, only after that session observed the configuration, and only for
+// an image and a drive that observation listed.
+func TestNativeInstallSpaceIsBoundToTheObservedConfiguration(t *testing.T) {
+	snapshot := NativeConfigurationSnapshot{
+		Images:  []NativeConfigurationImage{{Image: Image{ImageRef: "ghcr.io/example/linux:lts"}}},
+		Storage: []NativeConfigurationStorage{{DriveLetter: "C"}},
+	}
+	server := newConfigurationAssessmentServer(&App{}, &synchronizedWriter{out: &bytes.Buffer{}}, func(context.Context) (NativeConfigurationSnapshot, error) {
+		return snapshot, nil
+	})
+	var asked []string
+	server.installSpaceRead = func(_ context.Context, imageRef, drive string) InstallSpace {
+		asked = append(asked, imageRef+"@"+drive)
+		return newInstallSpace(imageRef, 1<<30, "registry", false)
+	}
+	request := func(params string) (any, *jsonrpcError) {
+		return server.dispatch(context.Background(), jsonrpcRequest{Method: "GetNativeInstallSpace", Params: json.RawMessage(params)})
+	}
+	if _, failure := request(`{"imageRef":"ghcr.io/example/linux:lts","storageDrive":"C"}`); failure == nil {
+		t.Fatal("install space answered before the configuration was observed")
+	}
+	if _, failure := server.dispatch(context.Background(), jsonrpcRequest{Method: "GetNativeConfiguration"}); failure != nil {
+		t.Fatal(failure.Message)
+	}
+	for _, params := range []string{``, `null`, `{}`, `{"imageRef":"ghcr.io/example/other:1","storageDrive":"C"}`,
+		`{"imageRef":"ghcr.io/example/linux:lts","storageDrive":"D"}`, `{"imageRef":"ghcr.io/example/linux:lts","storageDrive":"c"}`,
+		`{"imageRef":"ghcr.io/example/linux:lts","storageDrive":"C","diskSizeGB":40}`} {
+		if _, failure := request(params); failure == nil || failure.Code != errCodeInvalidParams {
+			t.Fatalf("refused request was answered: %s", params)
+		}
+	}
+	if len(asked) != 0 {
+		t.Fatal("a refused request sized an image")
+	}
+	result, failure := request(`{"imageRef":"ghcr.io/example/linux:lts","storageDrive":"C"}`)
+	if failure != nil {
+		t.Fatal(failure.Message)
+	}
+	space := result.(InstallSpace)
+	if space.ReserveGiB != minimumInstallReserveGiB || len(asked) != 1 || asked[0] != "ghcr.io/example/linux:lts@C" {
+		t.Fatalf("install space = %+v, asked %v", space, asked)
+	}
+	server.startupValidate = func(context.Context) error { return fmt.Errorf("changed") }
+	if _, failure := request(`{"imageRef":"ghcr.io/example/linux:lts","storageDrive":"C"}`); failure == nil || len(asked) != 1 {
+		t.Fatal("a changed startup reached the install space reader")
+	}
+	app := &App{}
+	writer := &synchronizedWriter{out: &bytes.Buffer{}}
+	for _, other := range []*Server{NewAssessmentServer(app, writer), NewServer(app, writer), newNativeInstallServer(app, writer, &nativeInstallSession{})} {
+		if _, failure := other.dispatch(context.Background(), jsonrpcRequest{Method: "GetNativeInstallSpace", Params: json.RawMessage(`{"imageRef":"ghcr.io/example/linux:lts","storageDrive":"C"}`)}); failure == nil || failure.Code != errCodeMethodNotFound {
+			t.Fatal("another session answered install space")
+		}
+	}
+}

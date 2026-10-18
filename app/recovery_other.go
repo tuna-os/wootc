@@ -20,7 +20,7 @@ func runRecoverStartup() error {
 	_, startedErr := os.Stat(deployerStartedPath())
 	startedExists := startedErr == nil
 
-	ls, ok := readState()
+	ls, ok := readVerifiedState()
 	if !ok {
 		ls = LifecycleState{State: StateArmed}
 	}

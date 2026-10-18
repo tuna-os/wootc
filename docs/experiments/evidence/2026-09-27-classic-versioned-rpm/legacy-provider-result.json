@@ -1,0 +1,107 @@
+{
+  "firmwareAcceptance": false,
+  "classicOsBootAcceptance": false,
+  "rootAndMountObservations": "explicit fixtures",
+  "results": [
+    {
+      "provider": "ubuntu",
+      "vendor": "ubuntu",
+      "proof": {
+        "schemaVersion": 1,
+        "verified": true,
+        "current": {
+          "shimx64.efi": "6fe6e1bcbe6cf6baec8e056d40361ca1aa715cc04ddcc2855351de060b84350b",
+          "grubx64.efi": "076ceb4824b4bc71e898aaf10cefb738f4eb15efc5e6e951c150c1a265a47d36",
+          "mmx64.efi": "d2fa8e52fddc99dad94a0009fee23cb2478c28373b777d50b2f784eb4e96f88e"
+        },
+        "candidate": {
+          "shimx64.efi": "6fe6e1bcbe6cf6baec8e056d40361ca1aa715cc04ddcc2855351de060b84350b",
+          "grubx64.efi": "a831af01e4fb5e3c9457120e1d08ea13d98a0a47b62728c284b7f502d535965c",
+          "mmx64.efi": "d2fa8e52fddc99dad94a0009fee23cb2478c28373b777d50b2f784eb4e96f88e"
+        }
+      },
+      "packageObservations": "explicit installed-package observation fixtures from public package control headers",
+      "wholeOldArchiveVerified": true,
+      "receiptSourceEFI": {
+        "components": {
+          "grubx64.efi": "a831af01e4fb5e3c9457120e1d08ea13d98a0a47b62728c284b7f502d535965c",
+          "mmx64.efi": "d2fa8e52fddc99dad94a0009fee23cb2478c28373b777d50b2f784eb4e96f88e",
+          "shimx64.efi": "6fe6e1bcbe6cf6baec8e056d40361ca1aa715cc04ddcc2855351de060b84350b"
+        },
+        "kernelRelease": "6.12.0-public-fixture",
+        "os": {
+          "ID": "ubuntu",
+          "VERSION_ID": "24.04"
+        },
+        "packageManager": "dpkg",
+        "packages": {
+          "grub-efi-amd64-signed": {
+            "architecture": "amd64",
+            "version": "1.202.5+2.12-1ubuntu7.3"
+          },
+          "shim-signed": {
+            "architecture": "amd64",
+            "version": "1.58+15.8-0ubuntu1"
+          }
+        },
+        "rootFsUuid": "real-root-uuid",
+        "schemaVersion": 1,
+        "sourceFsUuid": "ABCD-1234",
+        "sourceKind": "classic",
+        "timestamp": "2026-09-27T09:48:36.655649Z",
+        "version": "classic-sha256:5af1c4de579000cca96b9160618b4600a88e137a8d0b4091372183a963502eb6"
+      },
+      "tamperedGrubRefusedWithEspUnchanged": true
+    },
+    {
+      "provider": "rpm",
+      "vendor": "almalinux",
+      "proof": {
+        "schemaVersion": 1,
+        "verified": true,
+        "current": {
+          "shimx64.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a",
+          "grubx64.efi": "3bd7b0783a7fdbc972aea42aea73a9997266cd19305df9895eaa70ace828295f",
+          "mmx64.efi": "131d46438c761c722630bc37b3238299473cce36580ef5aa196c67af84fa758a"
+        },
+        "candidate": {
+          "shimx64.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a",
+          "grubx64.efi": "9065143af150a85e2354b153c0ab39cdb0dcf843ef5ac27c256c53be14275c70",
+          "mmx64.efi": "131d46438c761c722630bc37b3238299473cce36580ef5aa196c67af84fa758a"
+        }
+      },
+      "packageObservations": "real RPM database after public RPM installation with scripts and triggers disabled; explicit root path translation",
+      "wholeOldArchiveVerified": true,
+      "receiptSourceEFI": {
+        "components": {
+          "grubx64.efi": "9065143af150a85e2354b153c0ab39cdb0dcf843ef5ac27c256c53be14275c70",
+          "mmx64.efi": "131d46438c761c722630bc37b3238299473cce36580ef5aa196c67af84fa758a",
+          "shimx64.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a"
+        },
+        "kernelRelease": "6.12.0-public-fixture",
+        "os": {
+          "ID": "almalinux",
+          "VERSION_ID": "10"
+        },
+        "packageManager": "rpm",
+        "packages": {
+          "grub2-efi-x64": {
+            "architecture": "x86_64",
+            "version": "1:2.12-55.el10.alma.1"
+          },
+          "shim-x64": {
+            "architecture": "x86_64",
+            "version": "0:15.8-5.el10.alma.1"
+          }
+        },
+        "rootFsUuid": "real-root-uuid",
+        "schemaVersion": 1,
+        "sourceFsUuid": "ABCD-1234",
+        "sourceKind": "classic",
+        "timestamp": "2026-09-27T09:48:38.222635Z",
+        "version": "classic-sha256:97345598fd03356305f603dd2983c5e8ca46e3b15d9bceb017ac3e4e3579e024"
+      },
+      "tamperedGrubRefusedWithEspUnchanged": true
+    }
+  ]
+}

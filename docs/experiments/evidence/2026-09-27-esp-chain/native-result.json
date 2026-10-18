@@ -1,0 +1,48 @@
+[
+  {
+    "case": "real-three-role-upgrade-preflight",
+    "proof": {
+      "schemaVersion": 1,
+      "verified": true,
+      "current": {
+        "shimx64.efi": "fd7928a115d3409ce92d207167a9bff0a15f2fc9d9192551b9a0a21b9e89b69a",
+        "grubx64.efi": "3bd7b0783a7fdbc972aea42aea73a9997266cd19305df9895eaa70ace828295f",
+        "mmx64.efi": "131d46438c761c722630bc37b3238299473cce36580ef5aa196c67af84fa758a"
+      },
+      "candidate": {
+        "shimx64.efi": "ce4d765fc7d7b4ddc18f0946a6d37fd5f1aef6c18c631bc30ae26d4bdd7a085a",
+        "grubx64.efi": "9065143af150a85e2354b153c0ab39cdb0dcf843ef5ac27c256c53be14275c70",
+        "mmx64.efi": "37946aa246a1256e7f540279530d2ca3d341f9cf627970bb6c6764871f25c7fd"
+      }
+    }
+  },
+  {
+    "case": "real-upgrade-powerloss-after-grubx64.efi",
+    "killedExit": 73,
+    "wholeOldTrioRestored": true
+  },
+  {
+    "case": "real-upgrade-powerloss-after-mmx64.efi",
+    "killedExit": 73,
+    "wholeOldTrioRestored": true
+  },
+  {
+    "case": "real-upgrade-powerloss-after-shimx64.efi",
+    "killedExit": 73,
+    "wholeOldTrioRestored": true
+  },
+  {
+    "case": "real-upgrade-publication",
+    "wholeNewTrioPublished": true,
+    "receiptVerified": true
+  },
+  {
+    "case": "production-control-real-signed-kernel-and-trio",
+    "freshBootObservation": "explicit fixture; no hardware claim",
+    "receiptVerified": true
+  },
+  {
+    "case": "production-control-owned-artifact-publication",
+    "receiptVerified": true
+  }
+]

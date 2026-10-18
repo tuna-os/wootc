@@ -447,6 +447,7 @@ func observeInstallAt(dir string, alive func(pid int) bool) InstallObservation {
 		}
 	}
 	if s, ok := readStateFrom(filepath.Join(dir, "state.json")); ok {
+		s, _ = verifiedLifecycleAt(dir, s)
 		o.State = &s
 	}
 	o.ArmedFile = pathExists(filepath.Join(install, "armed.json"))

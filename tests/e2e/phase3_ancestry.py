@@ -8,6 +8,17 @@ class Mismatch(ValueError):
     """Successfully observed backing is outside the native target."""
 
 
+# Targets whose backing the native checks depend on. More than one mount on
+# any of these is refused outright, before any lookup: which row is on top is
+# not something findmnt's tree states, and guessing would let a lower mount
+# speak for the one actually serving the path. Stacking anywhere else (for
+# example the systemd autofs automount under the real binfmt_misc at
+# /proc/sys/fs/binfmt_misc) is tolerated, but every lookup that lands on a
+# stacked target still refuses; see Ancestry.mount.
+STRICT_MOUNT_TARGETS = frozenset({'/', '/sysroot', '/boot', '/boot/efi', '/etc', '/usr',
+                                  '/var', '/home', '/var/home'})
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
@@ -66,8 +77,9 @@ class Ancestry:
         self.target = self.aliases.get(target)
         if not self.target or self.nodes[self.target]['type'] != 'disk':
             raise ValueError('Expected whole target is not measured')
-        self.mounts = {}
+        self.mounts, self.stacked, count = {}, set(), 0
         def mounts(rows, depth=0):
+            nonlocal count
             if not isinstance(rows, list):
                 raise ValueError('Invalid mount observations')
             if depth > 64:
@@ -81,11 +93,18 @@ class Ancestry:
                 path = row['target']
                 if not re.fullmatch(r'[0-9]+:[0-9]+', row['maj:min']):
                     raise ValueError('Invalid measured mount identity')
-                if not isinstance(path, str) or not path.startswith('/') or path in self.mounts:
-                    raise ValueError('Ambiguous mount target')
-                if len(self.mounts) >= 4096:
+                if not isinstance(path, str) or not path.startswith('/'):
+                    raise ValueError('Invalid mount target')
+                if count >= 4096:
                     raise ValueError('Mount observations exceed bound')
-                self.mounts[path] = row
+                count += 1
+                if path in self.mounts or path in self.stacked:
+                    if path in STRICT_MOUNT_TARGETS:
+                        raise ValueError('Ambiguous mount target')
+                    self.mounts.pop(path, None)
+                    self.stacked.add(path)
+                else:
+                    self.mounts[path] = row
                 if row.get('children'):
                     mounts(row['children'], depth+1)
         mounts(decode(fields['MOUNTS'])['filesystems'])
@@ -112,14 +131,23 @@ class Ancestry:
                 raise ValueError('Invalid registered Btrfs identity')
             self.btrfs[values[0]] = (values[1], values[2].split(','))
 
+    def mount(self, target):
+        """The one mount row on target; None if unmounted, refused if stacked."""
+        if target in self.stacked:
+            raise ValueError('Ambiguous mount target')
+        return self.mounts.get(target)
+
     def mount_for(self, path):
         path = self.paths.get(path)
         if not isinstance(path, str) or not path.startswith('/') or '..' in path.split('/'):
             raise ValueError('Invalid observed projection path')
-        candidates = [target for target in self.mounts if target == '/' or path == target or path.startswith(target+'/')]
+        # Stacked targets stay candidates: if one is the deepest match, the
+        # path resolves there and must refuse, not fall back to a parent mount.
+        candidates = [target for target in (*self.mounts, *self.stacked)
+                      if target == '/' or path == target or path.startswith(target+'/')]
         if not candidates:
             raise ValueError('Projection mount unavailable')
-        return self.mounts[max(candidates, key=len)]
+        return self.mount(max(candidates, key=len))
 
     def disk_ancestors(self, major, projected=False, seen=None):
         seen = set() if seen is None else set(seen)
@@ -172,7 +200,7 @@ class Ancestry:
             raise Mismatch('Observed backing is outside expected whole target')
 
     def verify_root(self):
-        row = self.mounts.get('/')
+        row = self.mount('/')
         if not row:
             raise ValueError('Current root mount unavailable')
         if row['fstype'] != 'overlay':
@@ -218,7 +246,7 @@ class Ancestry:
             self.require_target(self.mount_ancestors(backing, backing['fstype'] == 'erofs'))
 
     def verify_data(self, source, major, target):
-        row = self.mounts.get(target)
+        row = self.mount(target)
         if not row or row['source'] != source or row['maj:min'] != major:
             raise ValueError('Exported source does not match current mount row')
         self.require_target(self.mount_ancestors(row))

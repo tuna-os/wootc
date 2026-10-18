@@ -9,8 +9,8 @@ This revision corrects the transport and identity assumptions in the earlier des
 | Phase | Actual state | Remaining work |
 |---|---|---|
 | A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
-| B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent, original-user collection for an alternative administrator (#606), proof on build 17763, the native typeface, and preview release assets (#608) |
-| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, a screen gallery, and an E2E drive mode (`WOOTC_E2E_DRIVE=1`) that operates these views exist. The GUI E2E can install the native shell in the guest and drive it (`WOOTC_E2E_GUI_FRONTEND=native`, see [Native shell E2E](#native-shell-e2e)). [Run 38857241312](https://github.com/tuna-os/wootc/actions/runs/38857241312) drove a full Windows, deployer, Linux and Windows cycle through it | Consumer screens, VM and migration flows, an unelevated shell with interactive UAC, accessibility, persistence, and the full journey |
+| B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent on the secure desktop, proof on build 17763, and preview release assets (#608). The native E2E now installs the real preview installer in the guest ([run 38888315334](https://github.com/tuna-os/wootc/actions/runs/38888315334)) |
+| C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, a screen gallery, and an E2E drive mode (`WOOTC_E2E_DRIVE=1`) that operates these views exist. The GUI E2E can install the native shell in the guest and drive it (`WOOTC_E2E_GUI_FRONTEND=native`, see [Native shell E2E](#native-shell-e2e)). [Run 38857241312](https://github.com/tuna-os/wootc/actions/runs/38857241312) drove a full Windows, deployer, Linux and Windows cycle through it | Consumer screens, VM and migration flows, interactive UAC consent, accessibility, persistence, and the full journey. An unelevated shell with an elevated install engine, installed by the real preview installer, drove a full cycle ([run 38923119161](https://github.com/tuna-os/wootc/actions/runs/38923119161)) |
 | D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
 | E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
 
@@ -236,16 +236,47 @@ The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, n
 2. The Linux E2E job builds `wootc-engine.exe` with the same build and brand identity.
    The engine also carries the public half of the run's manifest key. The harness signs the staged `SHA256SUMS.sig` with that key.
    `tests/e2e/native-package.py` then writes `native-package.json`, as `shell/packaging/write-manifest.ps1` does for the preview installer.
-3. The harness copies the package to `Program Files\wootc Native Preview\<brand>\bundle`, where `preview.iss` installs it.
-   The package inherits the Program Files ACLs, which the shell and the engine need.
-   The Inno installer itself is not run in the VM.
-4. `WOOTC_E2E_DRIVE=1` and `WOOTC_PRELOAD=0` are set machine-wide, because the engine starts through `runas` and need not inherit the shell's environment.
+3. The Windows job compiles the real preview installer (`preview.iss`) for the brand around that engine and manifest.
+   It uses the pinned Inno compiler through `shell/packaging/compile-preview.ps1`, the same script `winui-preview.yml` uses.
+   The two jobs run at the same time. They give the shell, the engine and the installer to each other as run artifacts.
+   Thus the seed of the manifest key stays in the Linux job (`.github/scripts/wait-run-artifact.sh`).
+4. In the guest, the harness copies the installer, compares its digest, and runs it with `/VERYSILENT /SUPPRESSMSGBOXES`.
+   It installs to `Program Files\wootc Native Preview\<brand>\bundle` with the Program Files ACLs that the shell and the engine need.
+   The check needs the manifest file count, both binary digests, the Inno uninstall entry, and one uninstaller.
+   `WOOTC_E2E_NATIVE_INSTALLER=robocopy` copies the package instead.
+   The workflow selects it only when the runner cannot download the pinned compiler.
+   The run then shows a warning and names the method.
+5. `WOOTC_E2E_DRIVE=1` and `WOOTC_PRELOAD=0` are set machine-wide, because the engine starts through `runas` and need not inherit the shell's environment.
    `ConsentPromptBehaviorAdmin=0` makes each engine elevation non-interactive: startup, then one install session per plan check.
-5. The shell starts like the Wails app: from a `/RL HIGHEST` task as the autologged administrator, so the shell itself runs elevated.
+6. The shell starts unelevated: from a `/RL LIMITED` task as the autologged administrator (`WOOTC_E2E_NATIVE_UNELEVATED=1`, the default; `0` restores `/RL HIGHEST`).
+   A guest probe reads each token's integrity level and elevation.
+   The ledger then needs `native-shell-unelevated` (shell at medium, 0x2000, not elevated, from the package).
+   It also needs `native-engine-elevated` (the `--purpose install` engine at high, 0x3000, elevated, for the shell's own user, from the package).
    The single-instance check must find exactly one `Wootc.Shell.exe` from that package directory and no Wails app.
    A native run also needs a `native-shell` assertion, so the ledger never records a native green as a Wails one.
 
-This run does not prove an unelevated shell, interactive UAC consent, the Inno installer, or a standard user.
+`ConsentPromptBehaviorAdmin=0` elevates an administrator without a prompt.
+So this E2E does not prove interactive consent on the secure desktop, a No click, or a standard user who types an administrator's credentials.
+The alternative-administrator flow stays refused (decision above).
+
+[Run 38888315334](https://github.com/tuna-os/wootc/actions/runs/38888315334) ran the real installer for bluefin in the guest.
+It passed the handoff, the compile, the silent install and every check in step 4.
+Its unelevated launch then never started the shell.
+The task read its launcher from `C:\wootc`, whose state ACL allows only SYSTEM and Administrators, and a limited token holds Administrators deny-only.
+The unelevated launcher now lives in `C:\ProgramData\wootc-e2e-launch`, which Users can read and only SYSTEM and Administrators can change.
+
+[Run 38902999307](https://github.com/tuna-os/wootc/actions/runs/38902999307) proved the unelevated split for bluefin.
+The shell ran unelevated at medium integrity (0x2000).
+The configuration engine and the install engine ran at high integrity (0x3000), elevated through `runas`, for the same user.
+The plan check then refused the plan. The form kept the 40 GB default on a drive with 58 GB free, beside a 22 GB reserve.
+The form now reads that reserve with `GetNativeInstallSpace` and lowers the disk size to fit, as the Wails launchpad does.
+
+[Run 38923119161](https://github.com/tuna-os/wootc/actions/runs/38923119161) passed a full Windows, deployer, Linux and Windows cycle for bluefin with all three proofs.
+The shell came from the real preview installer and started unelevated from a `/RL LIMITED` task.
+The install engine ran elevated through `runas` for the same user.
+[Run 38931058878](https://github.com/tuna-os/wootc/actions/runs/38931058878) passed the same cycle for bazzite, with the same three proofs.
+MokManager enrolled the key, and the form chose a 35 GB disk on 59 GB free.
+The form lowered the 40 GB default to 35 GB beside the 22 GB reserve on a drive with 58 GB free.
 
 The plan check has a known time risk.
 The shell waits 110 seconds for `PrepareNativeInstall`.
@@ -254,6 +285,47 @@ The second observation also selects the state root again, and the grant contract
 Run 38857241312 passed, but it did not record the margin.
 If a slow disk causes a timeout, measure each part before you change a limit.
 
+### Drive reports during the plan check
+
+In runs 38923119161 and 38931058878 the harness read no drive report for about two minutes.
+The silence started when the directive arrived and stopped at the progress screen (126 seconds for bluefin, 86 seconds for bazzite).
+The state file did not exist in that time, so the shell wrote no report at all.
+The engine and the window were not at fault:
+
+- The tick that clicked Install waited for the whole plan check, which is a second elevation and then `PrepareNativeInstall`.
+  The window starts no tick while one runs, so no tick reported until the install started.
+- Before the click, the drive channel does not wait behind `GetNativeInstallSpace`.
+  The configuration engine answers one request at a time, so the shell dropped the reports of those ticks.
+  This read is limited to 20 seconds for the registry.
+
+The drive loop now starts the click and does not wait for it.
+Each tick reports the form while the check runs, and the next tick after the answer records the outcome.
+During the check, `installBtnDisabled` is null: the engine has not accepted or refused the clicked plan yet.
+The hint gives the check's elapsed time, and the harness writes each new hint to the log.
+`report-install-checking.json` holds this report for the shell, the engine and the harness.
+
+A person also waits for the plan check.
+The window shows a busy bar and the elapsed time of the check, once each second.
+The shell now reads and hashes its package on a worker thread, not on the window thread, before each engine connection.
+
+### Hosted plan check
+
+On the hosted runner, the UI test of the installed preview tries each image on each volume that the engine observes.
+A plan needs space for the Linux disk (20 GB at least) and for the image's unpack area (22 GB at least) on one drive.
+The engine offers only an NTFS basic-data partition on a GPT disk.
+The hosted runner had 28 GB free on C: (run 38908347372), and no other volume gave a plan.
+So the test cannot check a plan with the engine there.
+It checks the form's space refusal against the drive's real free space, and it logs the observed volumes.
+
+`test-installed-preview.ps1` also logs each fixed volume with its file system, partition style and free space.
+
+Only the native VM E2E (`gui_frontend: native`) exercises the engine plan check.
+The test does not change the free space or the reserve.
+If a runner gives a volume that holds a plan, the test checks that plan with the engine automatically.
+
+The job does not free space on C:.
+In a trial, the job removed the toolchains that it does not use. That took about seven minutes, and C: then had 49 GB free.
+That time is too much for each branded package job.
 ## Evidence before cutover
 
 | Gate | Evidence |
@@ -285,6 +357,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetImages` | — | `[]Image` |
 | `GetInstallSteps` | — | `[]StepDefinition` |
 | `GetNativeConfiguration` | — | `NativeConfigurationSnapshot` |
+| `GetNativeInstallSpace` | image and drive of the last configuration read | `InstallSpace` (configuration session only; the space the image needs beside its disk) |
 | `GetSessionCandidates` | — | as today |
 | `StartInstall` | `InstallConfig` | `null` or error |
 | `PrepareNativeInstall` | `InstallConfig` | `NativeInstallGrant` (install session only; one plan for each session) |

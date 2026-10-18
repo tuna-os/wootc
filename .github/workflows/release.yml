@@ -39,6 +39,7 @@ on:
 permissions:
   contents: read
   packages: read                 # granted through to the reusable e2e-hosted (base-image pull)
+  actions: read                  # e2e-hosted's native jobs list this run's artifacts
 
 concurrency:
   group: release-${{ github.event_name == 'workflow_run' && 'auto' || github.ref }}

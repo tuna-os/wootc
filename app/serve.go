@@ -38,6 +38,7 @@ var ProtocolMethods = []string{
 	"GetImages",
 	"GetInstallSteps",
 	"GetNativeConfiguration",
+	"GetNativeInstallSpace",
 	"GetSessionCandidates",
 	"StartInstall",
 	"PrepareNativeInstall",
@@ -205,11 +206,18 @@ type Server struct {
 	startupValidate   func(context.Context) error
 	assessmentOnly    bool
 	configurationRead func(context.Context) (NativeConfigurationSnapshot, error)
-	installSession    *nativeInstallSession
-	app               *App
-	writer            *synchronizedWriter
-	mu                sync.Mutex
-	shutdown          bool
+	// installSpaceRead sizes what an image needs beside root.disk on a drive
+	// (installSpaceAt). Only a configuration session has it, and it answers
+	// only for an image and a drive that session's last configuration
+	// observation listed.
+	installSpaceRead func(ctx context.Context, imageRef, drive string) InstallSpace
+	observedMu       sync.Mutex
+	observed         *NativeConfigurationSnapshot
+	installSession   *nativeInstallSession
+	app              *App
+	writer           *synchronizedWriter
+	mu               sync.Mutex
+	shutdown         bool
 }
 
 func NewServer(app *App, writer *synchronizedWriter) *Server {
@@ -243,7 +251,56 @@ func newNativeInstallServer(app *App, writer *synchronizedWriter, install *nativ
 func newConfigurationAssessmentServer(app *App, writer *synchronizedWriter, read func(context.Context) (NativeConfigurationSnapshot, error)) *Server {
 	server := NewAssessmentServer(app, writer)
 	server.configurationRead = read
+	server.installSpaceRead = func(ctx context.Context, imageRef, drive string) InstallSpace {
+		return installSpaceAt(ctx, storageWootcDir(drive), imageRef)
+	}
 	return server
+}
+
+// nativeInstallSpaceRequest names one image and one drive of the last
+// configuration observation.
+type nativeInstallSpaceRequest struct {
+	ImageRef     string `json:"imageRef"`
+	StorageDrive string `json:"storageDrive"`
+}
+
+// installSpace answers GetNativeInstallSpace: the reserve the native form
+// keeps free beside the Linux disk, as GetInstallSpace does for the Wails
+// launchpad. validateInstallConfig still refuses a plan that does not fit.
+func (s *Server) installSpace(ctx context.Context, params json.RawMessage) (any, *jsonrpcError) {
+	if s.installSpaceRead == nil {
+		return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in this session"}
+	}
+	var request nativeInstallSpaceRequest
+	decoder := json.NewDecoder(bytes.NewReader(bytes.TrimSpace(params)))
+	decoder.DisallowUnknownFields()
+	if len(bytes.TrimSpace(params)) == 0 || decoder.Decode(&request) != nil || decoder.More() ||
+		request.ImageRef == "" || len(request.ImageRef) > 512 || len(request.StorageDrive) != 1 ||
+		request.StorageDrive[0] < 'A' || request.StorageDrive[0] > 'Z' {
+		return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "install space needs one observed image and drive"}
+	}
+	if s.startupValidate != nil {
+		if err := s.startupValidate(ctx); err != nil {
+			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native startup observation refused"}
+		}
+	}
+	s.observedMu.Lock()
+	observed := s.observed
+	s.observedMu.Unlock()
+	if observed == nil {
+		return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "read the Linux configuration before its install space"}
+	}
+	imageFound, driveFound := false, false
+	for _, image := range observed.Images {
+		imageFound = imageFound || image.Image.ImageRef == request.ImageRef
+	}
+	for _, volume := range observed.Storage {
+		driveFound = driveFound || volume.DriveLetter == request.StorageDrive
+	}
+	if !imageFound || !driveFound {
+		return nil, &jsonrpcError{Code: errCodeInvalidParams, Message: "the image or drive is not in the observed configuration"}
+	}
+	return s.installSpaceRead(ctx, request.ImageRef, request.StorageDrive), nil
 }
 
 func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrpcError) {
@@ -283,7 +340,7 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 	if s.assessmentOnly {
 		switch req.Method {
 		case "GetStatus", "GetLastRun", "GetRecoveryVerdict", "GetInstallRecovery":
-		case "GetNativeConfiguration":
+		case "GetNativeConfiguration", "GetNativeInstallSpace":
 			if s.configurationRead == nil {
 				return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in assessment session"}
 			}
@@ -317,7 +374,15 @@ func (s *Server) dispatch(ctx context.Context, req jsonrpcRequest) (any, *jsonrp
 		if err != nil {
 			return nil, &jsonrpcError{Code: errCodeInternal, Message: "native configuration observation refused", Data: nativeConfigurationFailureData(err)}
 		}
+		s.observedMu.Lock()
+		s.observed = &snapshot
+		s.observedMu.Unlock()
 		return snapshot, nil
+	case "GetNativeInstallSpace":
+		if s.configurationRead == nil {
+			return nil, &jsonrpcError{Code: errCodeMethodNotFound, Message: "method unavailable in this session"}
+		}
+		return s.installSpace(ctx, req.Params)
 	case "GetSupportPolicy":
 		return s.app.GetSupportPolicy(), nil
 

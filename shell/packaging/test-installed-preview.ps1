@@ -68,24 +68,11 @@ try {
     & (Join-Path $PSScriptRoot 'test-manifest.ps1')
     & (Join-Path $PSScriptRoot 'test-uninstaller-removal.ps1')
     & (Join-Path $PSScriptRoot 'write-manifest.ps1') -PackageDirectory $package -BuildId $BuildId -BrandId $BrandId
-    $tool=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'inno-tool.json') -Raw | ConvertFrom-Json
-    $download=Join-Path $private 'inno-pinned.exe'
-    Invoke-WebRequest -Uri $tool.browser_download_url -OutFile $download
-    $toolHash=(Get-FileHash -LiteralPath $download).Hash.ToLowerInvariant()
-    if ($toolHash -cne $tool.digest.Substring(7) -or (Get-Item -LiteralPath $download).Length -ne $tool.size) { throw 'Pinned compiler installer digest/size mismatch' }
-    $signature=Get-AuthenticodeSignature -LiteralPath $download
-    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Pyrsys B[.]V[.]') { throw 'Pinned compiler installer signer mismatch' }
-    $toolDirectory=Join-Path $private 'compiler'
-    $null=Invoke-OwnedNative -Executable $download -Arguments @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/NOICONS',"/DIR=$toolDirectory")
-    $compiler=Join-Path $toolDirectory 'ISCC.exe'
-    $version=[Diagnostics.FileVersionInfo]::GetVersionInfo($compiler)
-    $compilerVersion=(& $compiler --version | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $compilerVersion -cne '7.1.0') { throw 'Compiler engine version differs from pinned release' }
-    [ordered]@{toolSha256=$toolHash;signer=$signature.SignerCertificate.Subject;peFileVersion=$version.FileVersion;compilerEngineVersion=$compilerVersion} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'compiler-observations.json') -Encoding utf8
+    $compiled=& (Join-Path $PSScriptRoot 'compile-preview.ps1') -BrandId $BrandId -BuildId $BuildId -PackageDirectory $package -OutputDirectory $output -ScratchDirectory $private
+    $installer=$compiled.Installer
+    $toolHash=$compiled.ToolSha256
+    $compilerVersion=$compiled.CompilerVersion
     $brandPath=Join-Path $PSScriptRoot "../../app/branding/$BrandId/brand.json"
-    $brand=Get-Content -LiteralPath $brandPath -Raw | ConvertFrom-Json
-    $null=Invoke-OwnedNative -Executable $compiler -TimeoutSeconds 300 -Arguments @("/DSourceDir=$package","/DOutputDir=$output","/DBrandId=$BrandId","/DProductName=$($brand.productName)","/DPublisher=$($brand.publisher)","/DBuildId=$BuildId",(Join-Path $PSScriptRoot 'preview.iss'))
-    $installer=Join-Path $output "$BrandId-native-preview-$BuildId.exe"
     $arguments=@('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',"/DIR=$destination","/GROUP=wootc Preview Test $unique")
     # A real installer refusal must preserve an existing foreign destination.
     [IO.Directory]::CreateDirectory($destination) | Out-Null
@@ -103,7 +90,19 @@ try {
     $beforeStartup=StateHashes
     $stateRoot=Join-Path ([IO.Path]::GetPathRoot($destination)) 'wootc'
     if (Test-Path -LiteralPath (Join-Path $stateRoot 'disks/root.disk')) { throw 'Disposable packaging host unexpectedly has an installation disk' }
-    $null=Invoke-OwnedNative -Executable 'dotnet' -TimeoutSeconds 180 -Arguments @('test',(Join-Path $PSScriptRoot '../Wootc.Shell.UiTests'),'--configuration','Release','--filter','FullyQualifiedName~InstalledPreviewTests','--logger',"trx;LogFileName=installed-$BrandId.trx")
+    # Which fixed volumes the engine can offer for a plan: it lists only NTFS
+    # basic-data partitions on GPT disks. Recorded so a runner without room
+    # for a plan says why (docs/winui-shell.md, Hosted plan check).
+    foreach ($volume in @(Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter })) {
+        try {
+            $part=Get-Partition -DriveLetter $volume.DriveLetter -ErrorAction Stop
+            $style=(Get-Disk -Number $part.DiskNumber -ErrorAction Stop).PartitionStyle
+            Write-Output "volume $($volume.DriveLetter): $($volume.FileSystem), disk $style, partition type $($part.GptType), $([math]::Floor($volume.SizeRemaining/1GB)) GB free"
+        } catch { Write-Output "volume $($volume.DriveLetter): not observed ($($_.Exception.Message))" }
+    }
+    # The engine's plan check can take two minutes (a second elevation, then
+    # PrepareNativeInstall), so the test gets more than that on top of startup.
+    $null=Invoke-OwnedNative -Executable 'dotnet' -TimeoutSeconds 420 -Arguments @('test',(Join-Path $PSScriptRoot '../Wootc.Shell.UiTests'),'--configuration','Release','--filter','FullyQualifiedName~InstalledPreviewTests','--logger',"trx;LogFileName=installed-$BrandId.trx",'--logger','console;verbosity=normal')
     & (Join-Path $PSScriptRoot 'test-uac-refusal.ps1') -Executable $env:WOOTC_NATIVE_INSTALLED_EXE -BrandSource $env:WOOTC_NATIVE_BRAND_SOURCE -OutputDirectory $output -BrandId $BrandId
     if (@(Get-Process -Name 'wootc-engine' -ErrorAction SilentlyContinue).Count -ne 0) { throw 'An engine process survived the refused elevation' }
     $afterStartup=StateHashes
@@ -121,7 +120,7 @@ try {
     foreach ($path in @($foreignRoot,$foreignBundle)) { if ((Get-FileHash -LiteralPath $path).Hash -cne $foreignHash) { throw 'Preview uninstall changed foreign bytes' } }
     $afterUninstall=StateHashes
     if (($afterStartup | ConvertTo-Json -Compress) -cne ($afterUninstall | ConvertTo-Json -Compress)) { throw 'Preview uninstall changed engine installation state' }
-    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$signature.SignerCertificate.Subject;toolVersion=$compilerVersion;peFileVersion=$version.FileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;actualUacRefusal=$true;uninstallerRemovalObserved=$true;uninstallerRemovalMilliseconds=$uninstallerRemovalMs;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
+    $record=[ordered]@{schemaVersion=1;buildId=$BuildId;brandId=$BrandId;toolSha256=$toolHash;toolSigner=$compiled.Signer;toolVersion=$compilerVersion;peFileVersion=$compiled.PeFileVersion;installerSha256=(Get-FileHash -LiteralPath $installer).Hash;manifestSha256=(Get-FileHash -LiteralPath (Join-Path $package 'native-package.json')).Hash;beforeStartup=$beforeStartup;afterStartup=$afterStartup;afterUninstall=$afterUninstall;existingDestinationRefused=$true;foreignFilesPreserved=$true;actualInstalledStartupRpc=$true;actualUacRefusal=$true;uninstallerRemovalObserved=$true;uninstallerRemovalMilliseconds=$uninstallerRemovalMs;interactiveUacProved=$false;offlineRuntimeProved=$false;minimumOsProved=$false}
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'packaging-observations.json') -Encoding utf8
     $verifiedUninstall=$true
 } finally {

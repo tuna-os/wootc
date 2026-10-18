@@ -51,6 +51,8 @@ public sealed class GalleryEngineTests
         form.SelectStorage(snapshot.Storage[0].Id);
         form.Username = "gallery_user"; form.Password = form.PasswordConfirmation = "public gallery password";
         form.Hostname = "gallery-pc"; form.DiskSizeGb = 20; form.Encryption = "none";
+        var (imageRef, drive) = form.PendingInstallSpace!.Value;
+        form.ApplyInstallSpace(await ((IConfigurationEngineSession)opened.Session).ReadInstallSpaceAsync(imageRef, drive, CancellationToken.None));
         Assert.Equal("", form.FormProblem);
         var gate = new InstallGate(opened.Connector, snapshot.BrandId);
         await gate.PrepareAsync(form.CreateDraft());

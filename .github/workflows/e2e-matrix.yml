@@ -30,6 +30,7 @@ on:
 permissions:
   contents: read
   packages: read
+  actions: read                  # e2e-hosted's native jobs list this run's artifacts
 
 jobs:
   plan:

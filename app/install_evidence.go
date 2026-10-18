@@ -20,6 +20,7 @@ func hasInstallAttempt(root string) bool {
 		"install/prior-power.txt", "install/vault.json", "install/grub.install.cfg",
 		"install/bcd-before.bak", "install/bcd-guid.txt", "install/armed.json", "install/boot-txn.json",
 		"install/deployer-started.json", "install/recovery-verdict.json",
+		"install/" + firstBootEvidenceName,
 		"logs/deployer.log", "logs/deployer-last-journal.log",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(relative))); err == nil || !os.IsNotExist(err) {

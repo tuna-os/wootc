@@ -75,7 +75,7 @@ public static class InstallProgressText
     public const string Cancel = "Cancel";
 
     public static string BitLockerKeyCopy(string storageDrive, Branding brand) =>
-        $"A copy of your recovery key is stored at {(storageDrive.Length != 0 ? storageDrive : "C")}:\\wootc\\install, readable only by administrators, so Linux can reach your files on every boot. Uninstalling {brand.ProductName} erases it.";
+        $"A copy of your recovery key is stored at {(storageDrive.Length != 0 ? storageDrive : "C")}:\\wootc\\install, readable only by administrators, until Linux first starts. Linux then moves it into its own disk and seals it to this PC, so it can reach your files on every boot. Deleting your Linux data when you uninstall {brand.ProductName} erases it.";
 
     public static string ErrorLine(string error) => "✖ " + error;
 

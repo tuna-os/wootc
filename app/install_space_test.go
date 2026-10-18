@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -333,5 +334,34 @@ func TestLaunchpadMinimumReserveMatchesEngine(t *testing.T) {
 	}
 	if got := newInstallSpace("", 1, "registry", false).ReserveGiB; got != minimumInstallReserveGiB {
 		t.Errorf("smallest image reserve = %d, want minimumInstallReserveGiB %d", got, minimumInstallReserveGiB)
+	}
+}
+
+// The native form uses the same two numbers as the launchpad, and its
+// decoder checks the reserve as the sum newInstallSpace makes.
+func TestNativeFormSpaceConstantsMatchEngine(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "shell", "Wootc.Shell.Core", "ConsumerConfiguration.cs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]int{"MinimumInstallReserveGb": minimumInstallReserveGiB, "WindowsHeadroomGb": 15} {
+		m := regexp.MustCompile(`public const int ` + name + ` = (\d+);`).FindSubmatch(src)
+		if m == nil {
+			t.Fatalf("ConsumerConfiguration.cs no longer defines %s", name)
+		}
+		if n, _ := strconv.Atoi(string(m[1])); n != want {
+			t.Errorf("ConsumerConfiguration.%s=%d, want %d", name, n, want)
+		}
+	}
+	launchpad, err := os.ReadFile(filepath.Join("frontend", "src", "screens", "launchpad.js"))
+	if err != nil || !regexp.MustCompile(`(?m)^const DISK_HEADROOM_GB = 15;`).Match(launchpad) {
+		t.Error("launchpad.js DISK_HEADROOM_GB is no longer 15")
+	}
+	decoder, err := os.ReadFile(filepath.Join("..", "shell", "Wootc.Shell.Native", "NativeProtocol.cs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(decoder, []byte(fmt.Sprintf("space.ReserveGiB != space.ScratchGiB + space.BundleGiB + %d", scratchDriveSlackGiB+deployerArtifactsGiB))) {
+		t.Error("NativeProtocol.DecodeInstallSpace no longer checks the engine's reserve sum")
 	}
 }

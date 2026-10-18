@@ -1,0 +1,33 @@
+{
+  "firmwareAcceptance": false,
+  "classicOsBootAcceptance": false,
+  "results": [
+    {
+      "case": "classic-package-bound-real-signed-source",
+      "proof": {
+        "schemaVersion": 1,
+        "verified": true,
+        "current": {
+          "shimx64.efi": "e103c5d02657879f141b086ed703584d28bb9e2721b423333be085ee1b4d397b",
+          "grubx64.efi": "75ad88b7673a108be35a753602088a16f4c419352c4905974d8e8b860360ae6f",
+          "mmx64.efi": "30ea13138310f0819c1d875fcf3a6cdce8a1607cfd7578053a2df894a41630ae"
+        },
+        "candidate": {
+          "shimx64.efi": "e103c5d02657879f141b086ed703584d28bb9e2721b423333be085ee1b4d397b",
+          "grubx64.efi": "425ffb5b84e8738084815d9df4a33c0e5f64409c7aadeb3dd3bcf60357551c5a",
+          "mmx64.efi": "30ea13138310f0819c1d875fcf3a6cdce8a1607cfd7578053a2df894a41630ae"
+        }
+      },
+      "observations": "explicit root/mount/package fixtures"
+    },
+    {
+      "case": "classic-real-signed-upgrade-publication",
+      "wholeOldArchiveVerified": true,
+      "receiptSourceVersion": "classic-sha256:b30b22070807baf9e8157aed1c5bdc2065675afee74443c4380a67f7638c9ec4"
+    },
+    {
+      "case": "tampered-classic-grub-refused",
+      "allEspTrioHashesUnchanged": true
+    }
+  ]
+}

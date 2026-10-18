@@ -32,6 +32,9 @@ public sealed class E2EDriveLoopTests
         public string ProgressStep { get; set; } = "";
         public string? Error { get; set; }
         public bool ClickStarts { get; set; } = true;
+        // The window asks the engine for the selected image's install space
+        // after each form change; null leaves that read unanswered.
+        public int? ReserveGb { get; set; } = ConsumerConfiguration.MinimumInstallReserveGb;
         public int Maps, Clicks, Reboots;
 
         public FakeView(params ConfigurationStorage[] volumes)
@@ -44,21 +47,130 @@ public sealed class E2EDriveLoopTests
         }
 
         public DriveObservation Observe() => Screen == DriveScreen.Launchpad
-            ? new(Screen, Model.FormProblem.Length != 0, Model.FormProblem, "", Error, Model.SelectedImage?.ImageRef ?? "", Model.ObservedStorage)
+            ? new(Screen, Model.FormProblem.Length != 0 || Checking,
+                Checking ? InstallGateText.Status(InstallGateState.Preparing, "", TimeSpan.FromSeconds(45)) : Model.FormProblem,
+                "", Error, Model.SelectedImage?.ImageRef ?? "", Model.ObservedStorage)
             : new(Screen, null, "", ProgressStep, Error, Model.SelectedImage?.ImageRef ?? "", Model.ObservedStorage);
 
         public DriveMappingObservation MapInstall(E2EDriveDirective directive)
         {
             Maps++;
-            return Model.ApplyDriveMapping(directive.ToInstallMapping(), directive.RunId);
+            var outcome = Model.ApplyDriveMapping(directive.ToInstallMapping(), directive.RunId);
+            AnswerInstallSpace();
+            return outcome;
         }
 
-        public Task<bool> ClickInstallAsync() { Clicks++; return Task.FromResult(ClickStarts); }
+        public void AnswerInstallSpace()
+        {
+            if (ReserveGb is int reserve && Model.PendingInstallSpace is var (imageRef, drive))
+                Model.ApplyInstallSpace(new(imageRef, drive, reserve, "registry"));
+        }
+
+        // Set to hold the click in the engine's plan check until the test answers.
+        public TaskCompletionSource<bool>? PlanCheck { get; set; }
+        // Clicked, and the engine has not answered: both controls are disabled.
+        private bool Checking => Clicks > 0 && PlanCheck is { Task.IsCompleted: false };
+        public Task<bool> ClickInstallAsync() { Clicks++; return PlanCheck?.Task ?? Task.FromResult(ClickStarts); }
         public Task RebootAsync() { Reboots++; return Task.CompletedTask; }
     }
 
     private static ConfigurationStorage Volume(string id, string letter) => new(id, letter,
         "11111111-1111-1111-1111-111111111111", Guid.NewGuid().ToString(), "0123456789abcdef", 256L * 1024 * 1024 * 1024, 200);
+
+    // Native run 38902999307: the directive named no disk size, the form kept
+    // the catalogue's 40 GB on a drive with 58 GB free, and the engine
+    // refused the plan. The drive must wait for the image's install space,
+    // then click with the size the form lowered to fit.
+    [Fact]
+    public async Task TheDriveWaitsForTheInstallSpaceAndInstallsWhatFits()
+    {
+        const long gib = 1L << 30;
+        var channel = new FakeChannel();
+        var view = new FakeView(new ConfigurationStorage("observed-c", "C", "11111111-1111-1111-1111-111111111111",
+            Guid.NewGuid().ToString(), "0123456789abcdef", 58 * gib + gib / 2, 58)) { ReserveGb = null };
+        var directive = System.Text.Json.Nodes.JsonNode.Parse(Golden("directive-install.json"))!.AsObject();
+        directive.Remove("diskSizeGb");
+        channel.Directive = directive.ToJsonString();
+        var loop = new E2EDriveLoop(channel, view);
+        await loop.TickAsync();
+        Assert.Equal(1, view.Maps);
+        await loop.TickAsync();
+        await loop.TickAsync();
+        Assert.Equal(0, view.Clicks);
+        Assert.Contains("Checking how much working space", view.Observe().Hint);
+
+        view.ReserveGb = ConsumerConfiguration.MinimumInstallReserveGb;
+        view.AnswerInstallSpace();
+        Assert.Equal(35, view.Model.DiskSizeGb);
+        Assert.Empty(view.Model.FormProblem);
+        await loop.TickAsync();
+        Assert.Equal(1, view.Clicks);
+        Assert.Equal(35, view.Model.CreateDraft().DiskSizeGB);
+    }
+
+    // Native E2E runs 38923119161 and 38931058878: the tick that clicked
+    // Install awaited the whole plan check (a second elevation, then
+    // PrepareNativeInstall), so no tick ran and no report was written for
+    // about two minutes. The click now runs beside the loop: every tick
+    // still reports, the clicked control is neither offered nor refused,
+    // and the outcome is settled once the engine answers.
+    [Fact]
+    public async Task APlanCheckInFlightNeverStopsTheReports()
+    {
+        var channel = new FakeChannel { Directive = Golden("directive-install.json") };
+        var view = new FakeView { PlanCheck = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var loop = new E2EDriveLoop(channel, view);
+        await Tick(loop); // maps the form
+        await Tick(loop); // clicks Install; the plan check starts
+        Assert.Equal(1, view.Clicks);
+        Assert.True(loop.InstallPending);
+        int before = channel.Reports.Count;
+        for (int tick = 0; tick < 3; tick++) await Tick(loop);
+        Assert.Equal(before + 3, channel.Reports.Count);
+        Assert.Equal(1, view.Clicks);
+        // The window disables both install controls while the check runs;
+        // the report says the check is pending, not that Install is refused.
+        Assert.True(view.Observe().InstallButtonDisabled);
+        Assert.Equal(Golden("report-install-checking.json"), channel.Reports[^1]);
+
+        view.PlanCheck.SetResult(true);
+        view.Screen = DriveScreen.Progress;
+        await Tick(loop);
+        Assert.False(loop.InstallPending);
+        Assert.True(loop.Session.InstallDriven);
+        Assert.Contains("\"installDriven\":true", channel.Reports[^1]);
+        Assert.Equal(1, view.Clicks);
+    }
+
+    // A plan check that ends without an install is the drive error, as when
+    // the click answered at once, and Install is never clicked again.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task APlanCheckThatEndsWithoutAnInstallIsTheDriveError(bool faults)
+    {
+        var channel = new FakeChannel { Directive = Golden("directive-install.json") };
+        var view = new FakeView { PlanCheck = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var loop = new E2EDriveLoop(channel, view);
+        for (int tick = 0; tick < 3; tick++) await Tick(loop);
+        Assert.Null(loop.Session.DriveError);
+        if (faults) view.PlanCheck.SetException(new IOException("engine went away"));
+        else view.PlanCheck.SetResult(false);
+        await Tick(loop);
+        await Tick(loop);
+        Assert.Equal(1, view.Clicks);
+        Assert.False(loop.InstallPending);
+        Assert.Contains(faults ? "\"error\":\"The install could not start: engine went away\"" : "\"error\":\"The engine did not grant this plan", channel.Reports[^1]);
+    }
+
+    // A tick that waits on the engine is the bug these tests reproduce: fail
+    // it in seconds rather than hang the run.
+    private static async Task Tick(E2EDriveLoop loop)
+    {
+        var tick = loop.TickAsync();
+        Assert.True(ReferenceEquals(tick, await Task.WhenAny(tick, Task.Delay(TimeSpan.FromSeconds(5)))), "A drive tick waited on the engine");
+        await tick;
+    }
 
     [Fact]
     public async Task WithoutADirectiveOnlyReadinessIsSignalled()

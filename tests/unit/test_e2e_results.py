@@ -146,6 +146,26 @@ false
         self.assertIn('gui-install', self.rows()[-1]['missingAssertions'])
         self.assertFalse(self.marker.exists())
 
+    def test_bitlocker_cell_cannot_pass_on_one_phase2_boot(self):
+        # #279: the recovery key used to be shredded at the first shutdown, so
+        # one boot passed and the second came up empty. The second read is a
+        # required assertion; the first boot's user-data cannot stand in.
+        self.ledger.unlink()
+        self.assertEqual(self.call('init', '--required', 'user-data-second-boot').returncode, 0)
+        self.assertions()
+        self.assertNotEqual(self.finish().returncode, 0)
+        self.assertEqual(self.rows()[-1]['missingAssertions'], ['user-data-second-boot'])
+        self.assertFalse(self.marker.exists())
+
+    def test_bitlocker_cell_passes_after_the_second_boot_read(self):
+        self.ledger.unlink()
+        self.assertEqual(self.call('init', '--required', 'user-data-second-boot').returncode, 0)
+        self.assertions()
+        self.assertEqual(self.call('record', '--kind', 'assertion', '--domain', 'product',
+                                   '--assertion', 'user-data-second-boot', '--message', 'observed').returncode, 0)
+        self.assertEqual(self.finish().returncode, 0)
+        self.assertEqual(self.rows()[-1]['verdict'], 'passed')
+
     def test_native_mode_cannot_substitute_windows_return_for_native_boot(self):
         self.ledger.unlink()
         self.assertEqual(self.call('init', '--scenario', 'native-cycle').returncode, 0)

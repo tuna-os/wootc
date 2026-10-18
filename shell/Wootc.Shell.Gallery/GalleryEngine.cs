@@ -88,6 +88,10 @@ internal sealed class GallerySession(GalleryConnector gallery, ConnectRequest re
         return Task.FromResult(JsonSerializer.Deserialize<NativeConfigurationSnapshot>(gallery.Read("native-gallery", "configuration.json"))!);
     }
 
+    // Recorded: the smallest image's reserve, from the registry.
+    public Task<ConfigurationInstallSpace> ReadInstallSpaceAsync(string imageRef, string storageDrive, CancellationToken cancellationToken) =>
+        Task.FromResult(new ConfigurationInstallSpace(imageRef, storageDrive, ConsumerConfiguration.MinimumInstallReserveGb, "registry"));
+
     public event Action<ProgressEvent>? ProgressReceived;
     // The gallery runs no VM, so it raises no VM progress.
     public event Action<VMEvent>? VMProgressReceived { add { } remove { } }

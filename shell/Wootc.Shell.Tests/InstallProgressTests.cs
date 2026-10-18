@@ -60,7 +60,7 @@ public sealed class InstallProgressTests
         var notes = InstallProgressText.Notes(atBitLocker, "D", Brand);
         Assert.Equal(new[]
         {
-            "A copy of your recovery key is stored at D:\\wootc\\install, readable only by administrators, so Linux can reach your files on every boot. Uninstalling Fixture Installer erases it.",
+            "A copy of your recovery key is stored at D:\\wootc\\install, readable only by administrators, until Linux first starts. Linux then moves it into its own disk and seals it to this PC, so it can reach your files on every boot. Deleting your Linux data when you uninstall Fixture Installer erases it.",
             InstallProgressText.Calm(true, Brand),
         }, notes);
         var finished = Run("success.ndjson");

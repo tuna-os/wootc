@@ -145,7 +145,12 @@ public sealed class InstalledPreviewTests
                 sizeText.Text="20";sizeText.Focus();FlaUI.Core.Input.Keyboard.Type(FlaUI.Core.WindowsAPI.VirtualKeyShort.TAB);
             }
             var storageChoice=Find("StorageChoice").AsComboBox();
-            storageChoice.Expand();int volumes=storageChoice.Items.Length;storageChoice.Collapse();
+            storageChoice.Expand();int volumes=storageChoice.Items.Length;
+            // The engine's eligible volumes (GPT basic data, NTFS, fixed, unencrypted),
+            // with each drive's real free space, for the log of this run.
+            string observedVolumes=string.Join(", ",storageChoice.Items.Select(item=>{string letter=item.Text.TrimEnd(':');try{return $"{letter}: {new DriveInfo(letter).AvailableFreeSpace>>30} GB free";}catch(ArgumentException){return letter;}}));
+            storageChoice.Collapse();
+            Console.WriteLine($"Observed storage volumes: {observedVolumes}");
             Assert.True(volumes>0,"No observed storage volume");
             int imageCount=images.Items.Length;
             for(int image=0;image<imageCount&&!prepareInstall.IsEnabled;image++)
@@ -154,11 +159,36 @@ public sealed class InstalledPreviewTests
                 for(int volume=0;volume<volumes&&!prepareInstall.IsEnabled;volume++)
                 {
                     storageChoice.Expand();storageChoice.Select(volume);storageChoice.Collapse();
+                    // The engine may read the image's size from its registry
+                    // (GetNativeInstallSpace, up to 30 s) before the form can judge the plan.
+                    using(var answered=new CancellationTokenSource(TimeSpan.FromSeconds(35)))
+                        while(Find("InstallBlockedReason").Name.StartsWith("Checking how much working space",StringComparison.Ordinal)&&!answered.IsCancellationRequested)await Task.Delay(100);
                     using var offered=new CancellationTokenSource(TimeSpan.FromSeconds(2));
                     while(!prepareInstall.IsEnabled&&!offered.IsCancellationRequested)await Task.Delay(50);
                 }
             }
-            if(!prepareInstall.IsEnabled)throw new InvalidOperationException($"No observed image and volume made a complete plan; {Find("InstallBlockedReason").Name}; size={(diskSize.Patterns.RangeValue.IsSupported?diskSize.Patterns.RangeValue.Pattern.Value.Value:double.NaN)}");
+            // The form keeps the image's working space (GetNativeInstallSpace)
+            // free beside the Linux disk, as the Wails launchpad does. A runner
+            // whose drives cannot hold the smallest disk beside it gets no plan
+            // from any image (C: had 28 GB free in run 38908347372). Then the
+            // refusal must be the form's space refusal, stated against the
+            // drive's actual free space; there is no honest plan to check.
+            bool planReachable=prepareInstall.IsEnabled;
+            if(!planReachable)
+            {
+                string blocked=Find("InstallBlockedReason").Name;
+                var space=System.Text.RegularExpressions.Regex.Match(blocked,
+                    "^([A-Z]): has (\\d+) GB free, and (?:about (\\d+) GB of working space to unpack .+ during the install \\(given back when it finishes\\)|the 15 GB Windows needs to keep working) has to stay free beside the Linux disk\\. Free up space first\\.$");
+                if(!space.Success)throw new InvalidOperationException($"No observed image and volume made a complete plan; {blocked}; size={(diskSize.Patterns.RangeValue.IsSupported?diskSize.Patterns.RangeValue.Pattern.Value.Value:double.NaN)}");
+                long statedFree=long.Parse(space.Groups[2].Value,System.Globalization.CultureInfo.InvariantCulture);
+                long kept=space.Groups[3].Success?Math.Max(15,long.Parse(space.Groups[3].Value,System.Globalization.CultureInfo.InvariantCulture)):15;
+                long actualFree=new DriveInfo(space.Groups[1].Value).AvailableFreeSpace>>30;
+                Assert.True(Math.Abs(actualFree-statedFree)<=2,$"The form's free space ({statedFree} GB) is not the drive's ({actualFree} GB)");
+                Assert.True(statedFree-kept<20,$"The form refused a drive that holds a 20 GB disk beside {kept} GB: {blocked}");
+                Console.WriteLine($"Install plan check unreachable on this runner: {blocked} (observed volumes: {observedVolumes})");
+            }
+            if(planReachable)
+            {
             Assert.False(Find("InstallLinux").IsEnabled);
             string stateRoot=Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!,"wootc");
             bool stateRootBefore=Directory.Exists(stateRoot);
@@ -166,7 +196,7 @@ public sealed class InstalledPreviewTests
             string gateStatus="";
             using(var refusalDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(150)))
             {
-                while((gateStatus=Find("InstallGateStatus").Name).Length==0||gateStatus=="Checking this plan with the engine")
+                while((gateStatus=Find("InstallGateStatus").Name).Length==0||gateStatus.StartsWith("Checking this plan with the engine",StringComparison.Ordinal))
                 {
                     if(refusalDeadline.IsCancellationRequested)throw new InvalidOperationException($"Install plan check did not finish; {Find("ConnectionStatus").Properties.HelpText.Value}");
                     await Task.Delay(100);
@@ -180,6 +210,7 @@ public sealed class InstalledPreviewTests
             Assert.Null(window.FindFirstDescendant(cf=>cf.ByAutomationId("InstallConfirmation")));
             Assert.Equal(stateRootBefore,Directory.Exists(stateRoot));
             Console.WriteLine($"Install plan check outcome: {gateStatus}");
+            }
             // Drive a real second configuration RPC, then disconnect while its
             // consumer is pending. A late response must not restore the form.
             var secondRead=Find("ReadConfiguration").AsButton();

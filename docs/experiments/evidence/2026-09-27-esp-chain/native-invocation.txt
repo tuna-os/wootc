@@ -1,0 +1,23 @@
+Base: main 08f1af167a3315b676363cc65b2c38b6415818c5.
+python3 -m unittest discover -s tests/unit -p 'test_wootc*.py': 67 tests pass.
+python3 tests/unit/test_esp_chain_refresh.py: 5 tests pass.
+python3 tests/unit/test_shim_trust.py: 4 tests pass.
+bats tests/unit/esp-chain-refresh.bats tests/unit/step-catalogue.bats
+  tests/unit/backend-detection.bats tests/unit/btrfs-phase2.bats
+  tests/unit/deployer-dso-closure.bats tests/unit/lifecycle-state.bats
+  tests/unit/north-star-boot.bats tests/unit/north-star-landing.bats
+  tests/unit/offline-first.bats tests/unit/phase2-clean-ntfs-umount.bats
+  tests/unit/raw-loopback.bats: 129 tests pass.
+ShellCheck -S warning and bash -n: changed Bash files pass.
+node /tmp/wootc-ste-lint/ste-lint.mjs: 1722 total findings; new document zero.
+python3 tests/probe-esp-chain-real.py /dev/shm/wootc-333-audit: native-result.json.
+Removing mixed-trio compatibility or approved kernel hash binding makes
+its respective native control fail; recorded in mutation-controls.log.
+An earlier broad unittest discovery attempt ran 147 cases and hit one
+import error from existing script test_uninstall_partial.py calling sys.exit(0).
+Its 20 assertions passed. That command is not a final aggregate gate.
+No full image build, hosted EFI boot or actual power-cut acceptance in this probe.
+Migration consumer repair: cached Fedora45 container, 69+6+6+12 (93) passed, zero failed; process exit 0.
+Actual shell routing uses an explicit controlled adapter; measured-root refusal
+uses the actual installed controller. Neither proves firmware acceptance.
+Compact audit: python3 tests/audit-esp-chain-provenance.py REPOSITORY --assets PUBLIC_ASSET_DIRECTORY.

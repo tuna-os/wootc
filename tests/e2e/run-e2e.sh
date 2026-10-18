@@ -160,7 +160,27 @@ case "$GUI_FRONTEND" in
             exit 1
         fi
         NATIVE_BRAND=$(printf '%s' "$NATIVE_PACKAGE_IDENTITY" | sed -n 's/.* brandId=\([a-z]*\) .*/\1/p')
-        [ -n "$NATIVE_BRAND" ] || { echo "[FAIL] native package identity is unreadable: $NATIVE_PACKAGE_IDENTITY" >&2; exit 1; }
+        NATIVE_BUILD=$(printf '%s' "$NATIVE_PACKAGE_IDENTITY" | sed -n 's/^buildId=\([0-9a-f]*\) .*/\1/p')
+        [ -n "$NATIVE_BRAND" ] && [ -n "$NATIVE_BUILD" ] || { echo "[FAIL] native package identity is unreadable: $NATIVE_PACKAGE_IDENTITY" >&2; exit 1; }
+        # shellcheck source=tests/e2e/lib/gui-native.sh
+        source "$SCRIPT_DIR/lib/gui-native.sh"
+        # How the package is installed (inno: the real preview installer, the
+        # default; robocopy: only when the runner had no Inno compiler) and
+        # whether the shell starts unelevated (1, the default). See gui-native.sh.
+        NATIVE_INSTALLER="${WOOTC_E2E_NATIVE_INSTALLER:-inno}"
+        NATIVE_UNELEVATED="${WOOTC_E2E_NATIVE_UNELEVATED:-1}"
+        if ! gui_native_options_valid; then
+            echo "[FAIL] WOOTC_E2E_NATIVE_INSTALLER must be inno|robocopy and WOOTC_E2E_NATIVE_UNELEVATED 0|1 (got '$NATIVE_INSTALLER', '$NATIVE_UNELEVATED')" >&2
+            exit 1
+        fi
+        if [ "$NATIVE_INSTALLER" = inno ]; then
+            if ! NATIVE_INSTALLER_FILE=$(gui_native_installer_file "$SCRIPT_DIR/wootc-files/native-installer" "$NATIVE_BRAND" "$NATIVE_BUILD"); then
+                echo "[FAIL] WOOTC_E2E_NATIVE_INSTALLER=inno: wootc-files/native-installer must hold exactly $NATIVE_BRAND-native-preview-$NATIVE_BUILD.exe (build it with shell/packaging/compile-preview.ps1, or set WOOTC_E2E_NATIVE_INSTALLER=robocopy to copy the package instead)" >&2
+                exit 1
+            fi
+        else
+            echo "[WARN] WOOTC_E2E_NATIVE_INSTALLER=robocopy: the package is copied, NOT installed by the preview installer; this run cannot prove the installer" >&2
+        fi
         ;;
     *)
         echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be wails or native, not '$GUI_FRONTEND'" >&2
@@ -187,6 +207,21 @@ if [ "$GUI_INSTALL" = true ] && [ "$RECOVERY_CHECK" = false ] && [ "$RESULT_SCEN
     # A native run must prove which frontend drove it, or its green would
     # read exactly like a Wails one.
     if [ "$GUI_FRONTEND" = native ]; then RESULT_REQUIRED=gui-install,native-shell; fi
+    # An unelevated native run must prove both integrity levels, or its green
+    # would read exactly like an elevated-shell one.
+    if [ "$GUI_FRONTEND" = native ] && [ "$NATIVE_UNELEVATED" = 1 ]; then
+        RESULT_REQUIRED="$RESULT_REQUIRED,native-shell-unelevated,native-engine-elevated"
+    fi
+fi
+# The BitLocker cell boots Phase 2 twice: the bridge unlocks C: on every boot,
+# and a key that does not survive the first shutdown is invisible to one boot
+# (#279). The second read is required, so skipping it cannot read as a pass.
+if [ "$RESULT_SCENARIO" = full-cycle ] && [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
+    if [ -n "$RESULT_REQUIRED" ]; then
+        RESULT_REQUIRED="$RESULT_REQUIRED,user-data-second-boot"
+    else
+        RESULT_REQUIRED="user-data-second-boot"
+    fi
 fi
 wootc_result_init "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$RESULT_SCENARIO" "$RESULT_REQUIRED" || exit 2
 export WOOTC_RESULT_LEDGER
@@ -598,6 +633,8 @@ qga_wait_windows() {
 source "$SCRIPT_DIR/lib/gui-session.sh"
 # shellcheck source=tests/e2e/lib/mok.sh
 source "$SCRIPT_DIR/lib/mok.sh"
+# shellcheck source=tests/e2e/lib/phase2-second-boot.sh
+source "$SCRIPT_DIR/lib/phase2-second-boot.sh"
 wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_restart_windows
 
 # Observe actual Wails-rendered DOM after the installed Linux boot returns.
@@ -2751,11 +2788,13 @@ foreach ($f in "deployer-vmlinuz","deployer-initramfs.img","shimx64.efi","grubx6
 Remove-Item C:\wootc\e2e-drive.json,C:\wootc\e2e-drive-state.json,C:\wootc\e2e-ready.json -Force -ErrorAction SilentlyContinue
 '"$gui_launch_ps"'
 Write-Output ("launch target: " + $launch)
+'"$(gui_launcher_ps)"'
+Write-Output ("launcher: " + $launcher)
 @"
 set WOOTC_E2E_DRIVE=1
 set WOOTC_PRELOAD=0
 start `"`" $launch
-"@ | Set-Content -Path C:\wootc\launch-gui.cmd -Encoding ascii
+"@ | Set-Content -Path $launcher -Encoding ascii
 Stop-Process -Name wootc,Wootc.Shell -Force -ErrorAction SilentlyContinue
 try { schtasks /Delete /TN wootc-gui-e2e /F 2>$null | Out-Null } catch {}
 # The trigger time is one minute in the PAST, so the ONCE trigger never fires
@@ -2770,11 +2809,15 @@ $start = (Get-Date).AddMinutes(-1).ToString('\''HH:mm'\'')
 $who = (Get-CimInstance Win32_ComputerSystem).UserName -replace "^.*\\",""
 if (-not $who) { throw "autologon-no-session: interactive user disappeared before GUI scheduling" }
 Write-Output ("launching as: " + $who)
+# The run level: HIGHEST elevates the Wails app; LIMITED starts the native
+# shell at medium integrity, as a real user does (gui_task_runlevel).
+'"\$rl = '$(gui_task_runlevel)'"'
+Write-Output ("run level: " + $rl)
 # cmd.exe merges schtasks stderr into stdout. Under "Stop", PowerShell 5.1
 # turns any native stderr line into a terminating error, and /Create writes
 # its past-start-time WARNING there (native run 38853736862 aborted staging
 # on it). The exit code is the verdict.
-$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR C:\wootc\launch-gui.cmd /RU $who /IT /RL HIGHEST /F 2>&1"
+$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start /TR $launcher /RU $who /IT /RL $rl /F 2>&1"
 $mkRc = $LASTEXITCODE
 Write-Output ("schtasks /Create rc=" + $mkRc + " :: " + ($mk -join " "))
 if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }
@@ -2834,7 +2877,7 @@ Write-Output ("wails app processes: " + @(Get-Process wootc).Count)
 Write-Output ("interactive sessions: " + ((query user 2>&1) -join " | "))
 $q = (schtasks /Query /TN wootc-gui-e2e /FO LIST /V 2>&1 | Select-String "Result|Status") -join "; "
 Write-Output ("task: " + $q)
-Write-Output ("launch-gui.cmd: " + ((Get-Content C:\wootc\launch-gui.cmd) -join " && "))
+Write-Output ("launch-gui.cmd: " + ((Get-Content '"'$(gui_launcher_path)'"') -join " && "))
 $e = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 Write-Output ("machine env: WOOTC_E2E_DRIVE=" + $e.WOOTC_E2E_DRIVE + " WOOTC_PRELOAD=" + $e.WOOTC_PRELOAD)
 $u = Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
@@ -2861,7 +2904,7 @@ Write-Output ("wootc.exe running: " + [bool]$p)
 # very different reasons: the task program is missing, or /IT has no interactive
 # session to run in. el10-gnome-win11ent hit this and the message alone cannot
 # tell them apart — so check both. (Enterprise/LTSC media may not autologon.)
-Write-Output ("launch-gui.cmd present: " + (Test-Path C:\wootc\launch-gui.cmd))
+Write-Output ("launch-gui.cmd present: " + (Test-Path '"'$(gui_launcher_path)'"'))
 Write-Output ("wootc.exe present: " + (Test-Path C:\wootc\wootc.exe))
 Write-Output ("interactive sessions: " + ((query user 2>&1) -join " | "))
 $q = (schtasks /Query /TN wootc-gui-e2e /FO LIST /V 2>&1 | Select-String "Result|Status") -join "; "
@@ -2982,6 +3025,14 @@ else {
         return 1
     fi
 
+    # The unelevated native shell: its integrity is observable now; the
+    # install-session engine appears only once the plan check starts, so the
+    # drive loop below keeps sampling until both are proven.
+    if [ "$GUI_FRONTEND" = native ] && [ "$NATIVE_UNELEVATED" = 1 ]; then
+        info "  native elevation (shell and engines, before the directive):"
+        gui_native_observe_integrity
+    fi
+
     # Evidence for the space preflight: the form sizes root.disk from C:'s
     # free space minus the image's deployer scratch (app/install_space.go).
     # A refusal or a deployer "[FAIL] … temporary space" is read against this.
@@ -3035,7 +3086,7 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
     # So: keep the last state we actually saw, log every screen transition, and
     # when reads come back empty, probe QGA liveness and say which one broke.
     local drive_deadline drive_state="" driven=false
-    local last_good="" last_screen="" empty_reads=0 total_empty=0 blocked_reads=0
+    local last_good="" last_screen="" last_hint="" empty_reads=0 total_empty=0 blocked_reads=0
     local dead_app_checks=0
     # One reconnect cycle per run, not per stall: the second time the channel
     # goes deaf we already know reopening is on the table, and the answer is a
@@ -3182,6 +3233,23 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
             info "  GUI screen: ${last_screen:-<start>} -> $screen"
             last_screen="$screen"
         fi
+        # What the form says before the install starts. The native shell's
+        # plan check can take minutes (runs 38923119161, 38931058878); its
+        # reports carry the check's elapsed time here, with installBtnDisabled
+        # null because the clicked plan is neither offered nor refused yet.
+        if [ "$driven" = false ]; then
+            local hint_now
+            hint_now=$(printf '%s' "$drive_state" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hint"])')
+            if [ -n "$hint_now" ] && [ "$hint_now" != "$last_hint" ]; then
+                info "  GUI hint: $hint_now"
+            fi
+            last_hint="$hint_now"
+        fi
+        # Until both are proven: the shell at medium integrity and the
+        # install-session engine elevated (no-op once both are recorded).
+        if [ "$GUI_FRONTEND" = native ] && [ "$NATIVE_UNELEVATED" = 1 ]; then
+            gui_native_observe_integrity
+        fi
 
         # INTEGRITY: the drive loop refuses to click Install when the
         # directive's image is not the one actually selected on the form
@@ -3240,7 +3308,10 @@ Write-Output 'gui-install-directive-written'" 2>/dev/null); then
         if [ "$screen" = "done" ]; then
             product_pass gui-install "GUI-driven install completed — real pipeline reached the done screen"
             if [ "$GUI_FRONTEND" = native ]; then
-                product_pass native-shell "The native shell drove the install to done: $(printf '%s\n' "$single_out" | tr -d '\r' | sed -n 's/^native-shell-path: //p'), no Wails app running"
+                product_pass native-shell "The native shell drove the install to done: $(printf '%s\n' "$single_out" | tr -d '\r' | sed -n 's/^native-shell-path: //p'), no Wails app running; installed by $NATIVE_INSTALLER, launched with run level $(gui_task_runlevel)"
+                if [ "$NATIVE_UNELEVATED" = 1 ] && { [ "$GUI_NATIVE_SHELL_UNELEVATED_PROVEN" = false ] || [ "$GUI_NATIVE_ENGINE_ELEVATED_PROVEN" = false ]; }; then
+                    warn "  done, but the elevation split is unproven (shell medium: $GUI_NATIVE_SHELL_UNELEVATED_PROVEN, install engine elevated: $GUI_NATIVE_ENGINE_ELEVATED_PROVEN); the result ledger requires both"
+                fi
             fi
             # Let the done screen actually appear in a capture, then hold it.
             sleep 4; freeze_frame
@@ -3961,6 +4032,14 @@ step "Asserting deployer lifecycle state on Windows..."
 capture_lifecycle_status deployed
 if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"deployed"'; then
     product_pass deployed "wootc.exe status reports deployed after deployer finished"
+    # Before the installed system's first boot has written its evidence,
+    # status must say installed-and-waiting, never healthy (#332).
+    if echo "$_state_raw" | grep -q '"verdict"[[:space:]]*:[[:space:]]*"waiting"' \
+        && ! echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"'; then
+        product_pass firstboot-waiting "wootc.exe status reports installed, waiting for the first Linux boot (not healthy) before first-boot evidence exists"
+    else
+        product_fail "wootc.exe status did not report waiting for the first Linux boot before first-boot evidence existed (got: '$_state_raw')"
+    fi
 else
     capture_lifecycle_failure deployed
     product_fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
@@ -4634,6 +4713,11 @@ else
     exit 1
 fi
 
+# The kernel boot ID of this Phase-2 boot: the product's first-boot evidence
+# must name it (checked from Windows after the return, #332).
+P2_BOOT_ID=$(qga_call exec /bin/sh -c 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null | tr -d '[:space:]' || true)
+info "Phase-2 kernel boot ID: ${P2_BOOT_ID:-unobserved}"
+
 # Capture the actual unit result and both lifecycle files while Linux is still
 # running. The Windows status check after the reboot remains the acceptance
 # gate; this diagnostic tells us why a missing healthy state stayed deployed.
@@ -4823,10 +4907,28 @@ else
     # went down would satisfy a bare QGA wait instantly and fake the return.
     qga_wait_windows 600
     product_pass windows-return "One-shot Phase 2 boot consumed; Windows returned successfully"
+    # The product's own evidence of the Phase-2 boot, read back from the
+    # Windows volume (#332). An extra assertion beside the North Star file:
+    # the user-data proof above stays the harness's own observation.
+    step "Asserting the installed system's first-boot evidence on Windows..."
+    _ev_status=2
+    if _ev_root=$(guest_wootc_root) \
+        && qga_read "${_ev_root}\\wootc\\install\\installed-linux-boot.json" \
+            > "$ARTIFACT_DIR/installed-linux-boot.json" 2> "$ARTIFACT_DIR/installed-linux-boot.stderr"; then
+        _ev_status=0
+        python3 "$SCRIPT_DIR/firstboot-evidence-check.py" "$ARTIFACT_DIR/installed-linux-boot.json" \
+            "$IMAGE_REF" "${P2_BOOT_ID:-}" || _ev_status=$?
+    fi
+    case "$_ev_status" in
+        0) product_pass firstboot-evidence "installed-linux-boot.json names this Phase-2 boot and the selected image" ;;
+        3) product_fail "installed-linux-boot.json does not describe this Phase-2 boot of the selected image" ;;
+        *) product_fail "installed-linux-boot.json was not written to \\wootc\\install by the Phase-2 first boot (or is unreadable)" ;;
+    esac
     step "Asserting Phase-2 first boot lifecycle state on Windows..."
     # shellcheck disable=SC2016
     capture_lifecycle_status healthy
-    if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"'; then
+    if [[ "$_state_exit" -eq 0 ]] && echo "$_state_raw" | grep -q '"state"[[:space:]]*:[[:space:]]*"healthy"' \
+        && echo "$_state_raw" | grep -q '"verdict"[[:space:]]*:[[:space:]]*"verified"'; then
         product_pass healthy "wootc.exe status reports healthy after Phase-2 first boot"
     else
         capture_lifecycle_failure healthy
@@ -4843,11 +4945,11 @@ else
         # the ordinary user's edit before returning to Windows a second time.
         step "Rebooting the installed BitLocker environment to prove the saved copy persists..."
         # Shutdown removes the temporary bridge key. Refresh it from Windows
-        # for this deliberate second migration check; never print its value.
+        # for this deliberate second BitLocker migration check; never print its value.
         # shellcheck disable=SC2016
         WOOTC_GUEST_ROOT=""
         _refresh_root=$(guest_wootc_root) || { infra_fail "Cannot refresh the bridge key without unique actual storage"; exit 1; }
-        if ! qga_powershell '$ErrorActionPreference="Stop"; . "C:\OEM\fixture-bitlocker-key.ps1"; Export-WootcFixtureBitLockerKey -Destination '"'${_refresh_root}\wootc\install\bitlocker-key.txt'"'' >/dev/null; then
+        if ! qga_powershell '$ErrorActionPreference="Stop"; . "C:\\OEM\\fixture-bitlocker-key.ps1"; Export-WootcFixtureBitLockerKey -Destination '"'"'${_refresh_root}\\wootc\\install\\bitlocker-key.txt'"'"'' >/dev/null; then
             fail "Could not refresh the protected recovery key for the second BitLocker boot"
             exit 1
         fi
@@ -4887,7 +4989,7 @@ else
             pass "GUI Documents: real editor reopened the same saved bytes after restart"
         fi
         SECOND_SOURCE=$(qga_call exec /bin/sh -c \
-            'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
+            'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\\r" < "$f"' \
             2>/dev/null || true)
         if printf '%s' "$SECOND_SOURCE" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
             && ! printf '%s' "$SECOND_SOURCE" | grep -Fq "$EDIT_MARKER"; then
@@ -4908,7 +5010,6 @@ else
         qga_wait_windows 600
         pass "Windows returned after the BitLocker persistence reboot"
     fi
-
     # Windows is verifiably back — put the untouched machine on camera
     # (video-only, best-effort).
     demo_windows_untouched

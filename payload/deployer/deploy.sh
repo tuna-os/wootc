@@ -942,6 +942,43 @@ fi
 udevadm settle --timeout=10 2>/dev/null || true
 log "Attached raw image ${DISK} as ${LOOP_DEV}"
 
+# ── BitLocker recovery key: NTFS → the installed root (#279) ────────────────
+# Phase 1 leaves the recovery password for the encrypted C: beside the vault.
+# The bridge needs it on EVERY Phase-2 boot: it unlocks C: and bind-mounts the
+# profile folders live, it never copies them. So the key cannot just be
+# shredded after first use (that made unconverted folders vanish on the second
+# boot). It moves instead: into the deployment's /etc/wootc (root:root 0600),
+# then the NTFS copy is shredded, so "no credentials persist on NTFS" holds.
+# wootc-convert-dir retires it once nothing is bridged from C: any more.
+#
+# The NTFS copy is shredded only after the deployment copy is verified
+# byte-for-byte. A failure keeps the NTFS copy, which the bridge still reads as
+# its legacy fallback: losing the user's folders is worse than a late shred.
+persist_bitlocker_key() {
+    local src="$1" root="$2" dst tmp
+    [[ -f "$src" ]] || return 0
+    dst="$root/etc/wootc/bitlocker-key"
+    tmp="$dst.partial"
+    rm -f "$tmp" 2>/dev/null || true
+    # Only binaries in the deployer's initramfs closure (module-setup.sh):
+    # no cmp, id or dirname there, so compare digests and use $EUID.
+    local want
+    want=$(sha256sum < "$src") || want=""
+    if [[ -n "$want" ]] && install -d -m 0755 "$root/etc/wootc" &&
+       ( umask 077 && install -m 0600 "$src" "$tmp" ) &&
+       { [[ $EUID -ne 0 ]] || chown 0:0 "$tmp"; } &&
+       [[ "$(sha256sum < "$tmp")" == "$want" ]] && mv -f "$tmp" "$dst" &&
+       [[ "$(sha256sum < "$dst")" == "$want" ]]; then
+        sync -f "$dst" 2>/dev/null || sync
+        shred -u "$src" 2>/dev/null || rm -f "$src"
+        log "  [PASS] BitLocker recovery key moved to /etc/wootc/bitlocker-key (root 0600); NTFS copy shredded (#279)"
+        return 0
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+    err "  could not move the BitLocker recovery key into the installed system — keeping the NTFS copy so the bridge can still unlock C: (#279)"
+    return 1
+}
+
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
 VAULT_PASSWORD_HASH=""
@@ -2200,7 +2237,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
                 chroot "$DEPLOY_ROOT" passwd --lock "$_secuser" >/dev/null 2>&1 || true
                 log "  [PASS] created locked account for Windows profile '${_secuser}' (no password set)"
             else
-                warn "  could not create an account for Windows profile '${_secuser}' — their files will not be bridged"
+                err "  could not create an account for Windows profile '${_secuser}' — their files will not be bridged"
             fi
         done <<< "$VAULT_SECONDARY_USERS"
     fi
@@ -2217,9 +2254,16 @@ if [[ -n "$VERIFY_ROOT" ]]; then
            printf '%s\n' "$VAULT_PROFILE_MAP" > "$DEPLOY_ROOT/etc/wootc/profile-map.tsv"; then
             log "  [PASS] persisted Windows→Linux profile map ($(printf '%s\n' "$VAULT_PROFILE_MAP" | wc -l) entr(y|ies)) to /etc/wootc/profile-map.tsv"
         else
-            warn "  could not persist the profile map — the bridge will fall back to exact directory-name matches"
+            err "  could not persist the profile map — the bridge will fall back to exact directory-name matches"
         fi
     fi
+
+    # DEPLOY_ROOT is resolved above for all three layouts that reach here
+    # (ostree deployment, composefs /state/deploy/<hash>, classic root); with
+    # no mounted root this block never runs and the key stays on NTFS, where
+    # the bridge's legacy fallback finds it. Best-effort: never fail a deploy.
+    _vault_ntfs="/mnt/ntfs${VAULT_PATH:-/wootc/install/vault.json}"
+    persist_bitlocker_key "${_vault_ntfs%/*}/bitlocker-key.txt" "$DEPLOY_ROOT" || true
 
     VERIFY_BOOT="${VERIFY_LOOP}p2"
     if [[ ! -b "$VERIFY_BOOT" ]]; then
@@ -2890,15 +2934,46 @@ QGAEOF
         log "  Staged Wi-Fi profiles for first-boot import"
     fi
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
-    # after OS updates (variant-agnostic — BLS and classic layouts).
+    # after bootc updates of the installed loop-root deployment.
+    # Keep the verifier's loader and libraries together on every target ABI.
+    # The authenticated signed-chain controller only goes in when its helpers
+    # and verifier run in the installed image. Without it the install still
+    # completes: wootc-esp-sync then refreshes the kernel pair and grub.cfg
+    # directly and leaves the signed chain alone, as before the controller.
+    esp_control_ready=1
+    mkdir -p "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify"
+    if ! install -m644 /usr/lib/wootc/sbverify/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/" ||
+       ! chmod 755 "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2" \
+            "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbverify" \
+            "$DEPLOY_ROOT/var/usrlocal/lib/wootc/sbverify/sbpehash" ||
+       ! install -m644 /usr/lib/wootc/migration/lib/*.py "$DEPLOY_ROOT/var/usrlocal/lib/wootc/"; then
+        err "  [WARN] signed-chain helpers could not be staged into the installed image"
+        esp_control_ready=0
+    fi
+    if [[ "$esp_control_ready" == 1 ]] && ! chroot "$DEPLOY_ROOT" /usr/bin/python3 -c \
+        'import sys; sys.path.insert(0, "/var/usrlocal/lib/wootc"); import wootc_boot_identity, wootc_esp_transaction, wootc_chain_source'; then
+        err "  [WARN] signed-chain Python helpers cannot run in installed image"
+        esp_control_ready=0
+    fi
+    if [[ "$esp_control_ready" == 1 ]] && ! chroot "$DEPLOY_ROOT" /var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2 \
+        --library-path /var/usrlocal/lib/wootc/sbverify \
+        /var/usrlocal/lib/wootc/sbverify/sbverify --version; then
+        err "  [WARN] signed-chain verifier closure cannot run in installed image"
+        esp_control_ready=0
+    fi
+    if [[ "$esp_control_ready" == 1 ]]; then
+        install -m755 /usr/lib/wootc/migration/wootc-esp-control \
+            "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-control"
+    else
+        rm -f "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-control"
+        err "  [WARN] wootc-esp-sync will refresh the kernel pair and grub.cfg without signed-chain refresh"
+    fi
     install -m755 /usr/lib/wootc/migration/wootc-esp-sync \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-esp-sync"
     install -m644 /usr/lib/wootc/migration/wootc-esp-sync.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync.service"
-    # Signed-chain refresh (#333): grades a candidate shim against the
-    # firmware's trust store and the installed SBAT generation before it is
-    # allowed onto the ESP. Without this helper wootc-esp-sync leaves the
-    # signed chain alone, which is the pre-#333 behaviour.
+    # Diagnostic CLI shares the same complete-trio signature/policy verifier.
+    # The controller, when installed, refuses refresh if that closure cannot run.
     mig_opt 755 wootc-shim-trust "$DEPLOY_ROOT/var/usrlocal/bin/wootc-shim-trust"
     if [[ -f /usr/lib/wootc/migration/wootc-esp-sync.path ]]; then
         install -m644 /usr/lib/wootc/migration/wootc-esp-sync.path \
@@ -2934,13 +3009,20 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-collect-firstboot.py"
     install -D -m644 /usr/libexec/wootc-steps.sh \
         "$DEPLOY_ROOT/var/usrlocal/lib/wootc/steps.sh"
+    # Its collector and the EFI decoder it imports, staged unconditionally:
+    # the signed-chain staging above may have skipped every helper.
+    install -D -m644 /usr/lib/wootc/migration/lib/wootc_boot_identity.py \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_boot_identity.py"
+    install -D -m644 /usr/lib/wootc/migration/lib/wootc_firstboot_evidence.py \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py"
     install -m755 /usr/lib/wootc/migration/wootc-firstboot-evidence \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-firstboot-evidence"
     install -m644 /usr/lib/wootc/migration/wootc-firstboot-evidence.service \
         "$DEPLOY_ROOT/etc/systemd/system/wootc-firstboot-evidence.service"
     ln -sf ../wootc-firstboot-evidence.service \
         "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-firstboot-evidence.service"
-    if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-firstboot-evidence.service" ]]; then
+    if [[ -f "$DEPLOY_ROOT/etc/systemd/system/wootc-firstboot-evidence.service" \
+       && -f "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py" ]]; then
         log "  [PASS] wootc-firstboot-evidence.service installed"
     else
         err "  [WARN] wootc-firstboot-evidence.service install failed"
@@ -3044,6 +3126,31 @@ QGAEOF
     else
         mkdir -p /mnt/esp
         if mount -t vfat "$ESP_DEV" /mnt/esp 2>/dev/null; then
+            # shellcheck source=payload/migration/wootc-esp-own
+            source /usr/lib/wootc/migration/wootc-esp-own
+            esp_ensure_manifest /mnt/esp || {
+                err "  [FAIL] ESP ownership manifest EFI/wootc/wootc-owned.txt is not a regular file"
+                exit 1
+            }
+            # Refuse foreign contents BEFORE deleting/copying any ESP payload.
+            for owned_path in EFI/wootc/deployer-vmlinuz EFI/wootc/deployer-initramfs.img \
+                EFI/wootc/phase2-vmlinuz EFI/wootc/phase2-initramfs.img \
+                EFI/fedora/grub.cfg EFI/wootc/grub.cfg loader/entries/wootc.conf \
+                EFI/fedora/shimx64.efi EFI/fedora/grubx64.efi EFI/fedora/mmx64.efi; do
+                esp_assert_owned_or_absent /mnt/esp "$owned_path" || {
+                    err "  [FAIL] ESP path belongs to another owner: $owned_path"
+                    exit 1
+                }
+            done
+            if [[ "$COMPOSEFS" == 1 && "$BOOTLOADER" == systemd ]]; then
+                esp_assert_owned_or_absent /mnt/esp EFI/redhat/grub.cfg || {
+                    err "  [FAIL] ESP path belongs to another owner: EFI/redhat/grub.cfg"
+                    exit 1
+                }
+            fi
+            for owned_path in EFI/wootc/phase2-vmlinuz EFI/wootc/phase2-initramfs.img; do
+                esp_claim_before_write /mnt/esp "$owned_path" || exit 1
+            done
             mkdir -p /mnt/esp/EFI/wootc
             # The deployer kernel+initramfs (~153M) are dead weight on the
             # ESP after deployment, and a 256M ESP cannot hold both them and
@@ -3181,6 +3288,7 @@ SMODSH
                 fi
                 # Keep root=UUID + composefs=<hash>; drop unresolved \$vars + quiet.
                 cfs_opts=$(printf '%s' "$cfs_opts" | tr ' ' '\n' | grep -v '\$' | grep -vE '^(quiet|rhgb)$' | tr '\n' ' ' || true)
+                esp_claim_before_write /mnt/esp loader/entries/wootc.conf || exit 1
                 mkdir -p /mnt/esp/loader/entries
                 cat > /mnt/esp/loader/entries/wootc.conf <<BLSEOF
 title ${DISTRO_NAME}
@@ -3197,6 +3305,7 @@ BLSEOF
                 # The Phase-2 initrd is the patched UKI initrd (cpio prepend).
                 PHASE2_LINUX="/EFI/wootc/deployer-vmlinuz ${cfs_opts} loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID} ${PHASE2_CONSOLE_FULL} ${PHASE2_KARGS}"
                 for _gd in /mnt/esp/EFI/fedora /mnt/esp/EFI/redhat /mnt/esp/EFI/wootc; do
+                    esp_claim_before_write /mnt/esp "${_gd#/mnt/esp/}/grub.cfg" || exit 1
                     mkdir -p "$_gd"
                     # "Windows" must be on this menu by name: the dual-boot
                     # contract ("you're always one reboot away from Windows")
@@ -3265,6 +3374,7 @@ GRUBCFGEOF
 
                     ROOT_OPTIONS=$(grep '^options ' "${BLS_DIR:-$DEPLOY_ROOT/boot/loader/entries}"/*.conf 2>/dev/null | head -1 | sed 's/^options *//')
                     ROOT_OPTIONS=$(printf '%s' "$ROOT_OPTIONS" | tr ' ' '\n' | grep -v '\$' | grep -v -E '^(quiet|rhgb)$' | tr '\n' ' ' || true)
+                    esp_claim_before_write /mnt/esp loader/entries/wootc.conf || exit 1
                     mkdir -p /mnt/esp/loader/entries
                     cat > /mnt/esp/loader/entries/wootc.conf <<BLSEOF
 title ${DISTRO_NAME}
@@ -3360,6 +3470,9 @@ BLSEOF
                 # grubx64.efi from that same dir. Overwrite both with the
                 # target-signed pair (deployment is done — this ESP now boots
                 # Phase-2, not the deployer).
+                for owned_path in EFI/fedora/shimx64.efi EFI/fedora/grubx64.efi EFI/fedora/mmx64.efi; do
+                    esp_claim_before_write /mnt/esp "$owned_path" || exit 1
+                done
                 cp "$TARGET_SHIM" /mnt/esp/EFI/fedora/shimx64.efi
                 cp "$TARGET_GRUB" /mnt/esp/EFI/fedora/grubx64.efi
                 TARGET_MM="$DEPLOY_ROOT/usr/lib/bootupd/updates/EFI/$TARGET_VENDOR/mmx64.efi"
@@ -3419,6 +3532,7 @@ menuentry "Windows" {
 GRUBEOF
 )
                 for gd in "$TARGET_VENDOR" fedora wootc; do
+                    esp_claim_before_write /mnt/esp "EFI/$gd/grub.cfg" || exit 1
                     mkdir -p "/mnt/esp/EFI/$gd"
                     printf '%s\n' "$PHASE2_GRUB_CFG" > "/mnt/esp/EFI/$gd/grub.cfg"
                 done
@@ -3447,6 +3561,9 @@ GRUBEOF
             fi
             fi
             fi   # close CFS_HANDLED guard (generic ostree/BLS staging path)
+            install -D -m644 /mnt/esp/EFI/wootc/wootc-owned.txt \
+                "$DEPLOY_ROOT/etc/wootc/esp-manifest"
+            sync -f "$DEPLOY_ROOT/etc/wootc/esp-manifest"
             umount /mnt/esp 2>/dev/null || err "  [WARN] could not unmount /mnt/esp (busy?) — continuing"
         else
             err "  [WARN] Could not mount ESP ${ESP_DEV}; Phase-2 boot will fail"

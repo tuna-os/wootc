@@ -167,6 +167,8 @@ internal static class NativeProtocol
                 return (T)(object)DecodeInstallGrant(result, expectedBrand);
             case "PrepareNativeMaintenance":
                 return (T)(object)DecodeMaintenanceGrant(result, expectedBrand);
+            case "GetNativeInstallSpace":
+                return (T)(object)DecodeInstallSpace(result);
             case "GetUninstallInfo":
                 return (T)(object)DecodeUninstallInfo(result);
             case "InspectBoot":
@@ -189,6 +191,34 @@ internal static class NativeProtocol
             default:
                 return DecodeStartup<T>(method, result);
         }
+    }
+
+    private static readonly string[] InstallSpaceFields = { "imageRef", "compressedBytes", "sizeSource", "scratchGiB", "bundleGiB", "reserveGiB" };
+
+    // The engine's InstallSpace, exactly: its reserve is what the form keeps
+    // free beside the Linux disk, so a reserve below the smallest image's or
+    // one that is not the sum of its parts is refused.
+    internal static InstallSpace DecodeInstallSpace(JsonElement result)
+    {
+        if (result.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Install space must be an object");
+        RejectDuplicates(result);
+        if (result.EnumerateObject().Count() != InstallSpaceFields.Length || InstallSpaceFields.Any(field => !result.TryGetProperty(field, out _)))
+            throw new InvalidDataException("Install space has an unsupported field set");
+        Require(result, "imageRef", JsonValueKind.String);
+        Require(result, "sizeSource", JsonValueKind.String);
+        foreach (string field in new[] { "compressedBytes", "scratchGiB", "bundleGiB", "reserveGiB" }) Require(result, field, JsonValueKind.Number);
+        var space = new InstallSpace
+        {
+            ImageRef = result.GetProperty("imageRef").GetString()!, SizeSource = result.GetProperty("sizeSource").GetString()!,
+            CompressedBytes = result.GetProperty("compressedBytes").GetInt64(), ScratchGiB = result.GetProperty("scratchGiB").GetInt32(),
+            BundleGiB = result.GetProperty("bundleGiB").GetInt32(), ReserveGiB = result.GetProperty("reserveGiB").GetInt32(),
+        };
+        if (space.ImageRef.Length is 0 or > 512 || space.SizeSource is not ("bundle" or "registry" or "default") ||
+            space.CompressedBytes < 0 || space.ScratchGiB < 20 || space.BundleGiB < 0 ||
+            space.ReserveGiB < Wootc.Shell.Core.ConsumerConfiguration.MinimumInstallReserveGb || space.ReserveGiB > 4096 ||
+            space.ReserveGiB != space.ScratchGiB + space.BundleGiB + 2)
+            throw new InvalidDataException("Install space is outside its contract");
+        return space;
     }
 
     // A grant names one session, brand and single-use intent, and the plan the

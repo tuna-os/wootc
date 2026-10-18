@@ -151,7 +151,8 @@ class SingleInstanceVerdictTests(unittest.TestCase):
         # past-start-time WARNING to stderr, which aborted staging in native
         # run 38853736862. cmd.exe must merge the streams; the rc decides.
         self.assertIn('$mk = cmd.exe /d /c "schtasks /Create /TN wootc-gui-e2e /SC ONCE /ST $start '
-                      '/TR C:\\wootc\\launch-gui.cmd /RU $who /IT /RL HIGHEST /F 2>&1"', SOURCE)
+                      '/TR $launcher /RU $who /IT /RL $rl /F 2>&1"', SOURCE)
+        self.assertIn("'\"\\$rl = '$(gui_task_runlevel)'\"'", SOURCE)
         self.assertIn('if ($mkRc -ne 0) { throw ("schtasks /Create failed rc=" + $mkRc) }', SOURCE)
         self.assertIn('$rn = cmd.exe /d /c "schtasks /Run /TN wootc-gui-e2e 2>&1"', SOURCE)
         self.assertNotIn('$mk = schtasks /Create', SOURCE)

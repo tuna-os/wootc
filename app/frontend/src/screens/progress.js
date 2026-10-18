@@ -64,7 +64,7 @@ function renderProgressInner() {
   // Disclosure, not surprise: the BitLocker key step stores a copy on disk,
   // and the audit found that never said anywhere on screen.
   const bitlockerNote = state.progress.step === StepInstallerSavingYourBitLockerRecoveryKey
-    ? `A copy of your recovery key is stored at ${state.progress.storageDrive || 'C'}:\\wootc\\install, readable only by administrators, so Linux can reach your files on every boot. Uninstalling ${productName()} erases it.`
+    ? `A copy of your recovery key is stored at ${state.progress.storageDrive || 'C'}:\\wootc\\install, readable only by administrators, until Linux first starts. Linux then moves it into its own disk and seals it to this PC, so it can reach your files on every boot. Deleting your Linux data when you uninstall ${productName()} erases it.`
     : '';
 
   const track = el('div', 'progress-bar-track');

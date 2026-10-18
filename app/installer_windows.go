@@ -478,6 +478,9 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		if failed := scrubInstallSecrets(filepath.Join(wDir, "install")); len(failed) > 0 {
 			errs = append(errs, fmt.Sprintf("could not scrub %v", failed))
 		}
+		// The first-boot record vouches for this install; it goes first, so a
+		// partial RemoveAll below can never leave it describing a removed one.
+		_ = os.Remove(firstBootEvidencePath(wDir))
 		// Always remove install, bundle, cache, logs, state.json, and metadata
 		for _, sub := range []string{"install", "bundle", "cache", "logs"} {
 			_ = os.RemoveAll(filepath.Join(wDir, sub))
@@ -545,6 +548,9 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 		installPath := d + `:\wootc\install`
 		if _, err := os.Stat(installPath); err == nil {
 			errs = append(errs, fmt.Sprintf("%s was not removed", installPath))
+		}
+		if evidence := firstBootEvidencePath(d + `:\wootc`); pathExists(evidence) {
+			errs = append(errs, fmt.Sprintf("%s was not removed", evidence))
 		}
 	}
 
