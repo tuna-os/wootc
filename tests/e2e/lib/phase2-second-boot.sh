@@ -106,7 +106,7 @@ phase2_second_boot_check() {
             fi
         fi
     else
-        product_fail "Second Phase 2 boot: imported Documents copy NOT readable at $userdata_path (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
+        product_fail "Second Phase 2 boot: Windows Documents file NOT readable at $userdata_path (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
     fi
 
     # Back to Windows, with the first return's rules: a bounded request, and a
