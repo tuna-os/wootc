@@ -1128,12 +1128,20 @@ mode (dedicated D: partition):
 
 wootc's defining feature is **transparent passthrough**: instead of
 immediately copying everything, the installed system uses Windows
-resources directly. Documents, Pictures, Downloads, Steam libraries,
-and browser profiles are accessible from day one via bind mounts into
-the Linux home directory. No long initial copy. No "where are my files?"
+resources directly on an ordinary unencrypted host. Documents, Pictures,
+Downloads, Steam libraries, and browser profiles are accessible from day one
+via bind mounts into the Linux home directory. No long initial copy. No
+"where are my files?"
 
-Weeks or months later, the user can choose to convert to native Linux
-storage — one category at a time, at their own pace.
+BitLocker C: is an explicit safety exception. The bridge unlocks and mounts
+that volume read-only, then copies Windows Documents once into the persistent
+Linux workspace at `~/Documents/From Windows`. This copy is editable, is never
+refreshed over Linux edits, and never writes through to the encrypted source.
+If the copy cannot be completed, wootc keeps the source read-only instead of
+silently enabling encrypted writes.
+
+Weeks or months later, the user can choose to convert ordinary passthrough
+categories to native Linux storage — one category at a time, at their own pace.
 
 ### 4.1 Transparent Passthrough (Day One)
 
@@ -1175,9 +1183,14 @@ are torn down (`ExecStop`) **before** `wootc-host-bind.service` unmounts
 /host/Users/<name>/Desktop      →  /home/<name>/Desktop
 ```
 
-The user sees their Windows files immediately inside their Linux home
-directory. No copy. No import wizard. Files are writable from Linux
-(via the rw NTFS mount).
+On an ordinary unencrypted host, the user sees Windows files immediately
+inside the Linux home directory. No copy or import wizard is required, and
+the rw NTFS mount makes those passthrough files writable from Linux.
+
+On a BitLocker host, the source bind is read-only. Documents instead appear
+in the editable native workspace `~/Documents/From Windows`; the copy's
+completion marker and user-facing notice make the no-refresh boundary
+explicit. The Windows source remains unchanged.
 
 **Steam libraries** are detected and reused in-place:
 
@@ -1216,8 +1229,11 @@ individual categories to native Linux storage:
 └──────────────────────────────────────────────────┘
 ```
 
-Each stage is independent and reversible (before deletion):
+The following table describes ordinary unencrypted passthrough. A BitLocker
+Documents import is already a one-time native copy and is not a write-through
+conversion stage.
 
+Each stage is independent and reversible (before deletion):
 | Stage | Action | Reversible? |
 |---|---|---|
 | 1. Use Windows Documents | Bind-mount into `$HOME` | Yes (undo bind mount) |

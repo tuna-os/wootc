@@ -1,12 +1,9 @@
 # shellcheck shell=bash
 # Source-only: the BitLocker cell's second Phase-2 boot (#279).
-#
-# The bridge never copies the Windows folders. On every Phase-2 boot it
-# unlocks the encrypted C: with the recovery key and bind-mounts the folders
-# live. The key used to be shredded by the bridge's own ExecStop, so the first
-# boot passed every check and the SECOND boot came up with an empty Documents.
-# One boot cannot see that bug. This boots Phase 2 a second time and reads the
-# seeded file again.
+# The bridge unlocks encrypted C: read-only on every Phase-2 boot and imports
+# Documents into the persistent Linux workspace. A single boot cannot prove
+# that the recovery key survives shutdown or that the editable copy survives
+# restart, so this helper checks both before returning to Windows.
 #
 # Callers provide the run's QGA helpers (qga-transport.sh), the result API
 # (result-runner.sh) and RUN_ID, with Windows booted and identified. Sourcing
@@ -19,7 +16,8 @@
 # Records user-data-second-boot on success. Returns non-zero when the second
 # boot could not be completed and Windows could not be brought back.
 phase2_second_boot_check() {
-    local guid="$1" root="$2" reset="$3" disk size deadline seen userdata diag
+    local guid="$1" root="$2" reset="$3" disk size deadline seen userdata diag source_doc userdata_path
+    userdata_path="${USERDATA_PATH:-/home/wootc/Documents/wootc-e2e-userdata.txt}"
     step "BitLocker: booting Phase 2 a second time — the bridge must still unlock C: (#279)"
 
     # Same preparation as the first boot. Phase 2 may have written root.disk
@@ -62,7 +60,7 @@ phase2_second_boot_check() {
     deadline=$(deadline_in 180)
     while ! past_deadline "$deadline"; do
         userdata=$(qga_call exec /bin/sh -c \
-            'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
+            "cat '$userdata_path' 2>/dev/null" 2>/dev/null || true)
         printf '%s' "$userdata" | grep -q "$RUN_ID" && break
         sleep 5
     done
@@ -74,20 +72,41 @@ phase2_second_boot_check() {
          echo "home-bind: $(findmnt -n -o SOURCE /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
          journalctl -b -u wootc-passthrough --no-pager 2>/dev/null | grep -aiE "bitlocker|recovery key" | tail -6' \
         2>/dev/null || true)
+    source_doc=$(qga_call exec /bin/sh -c \
+        'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
+        2>/dev/null || true)
     printf '%s\n' "$diag" | sed 's/^/  /'
     if printf '%s' "$userdata" | grep -q "$RUN_ID"; then
-        # Say which path served the file. Only a bind from the unlocked
-        # BitLocker mapper exercises the recovery key; a fixture that seeds
-        # the profile on the unencrypted volume proves the second boot, not
-        # the key, and must not be reported as if it did.
-        if printf '%s' "$diag" | grep -q '^home-bind: /dev/mapper/wootc-bitlk-'; then
-            product_pass user-data-second-boot "Second Phase 2 boot: Windows Documents file still readable in /home/wootc, served from the unlocked BitLocker C:"
+        if printf '%s' "$diag" | grep -q '^home-bind: /dev/mapper/wootc-bitlk-' \
+            || printf '%s' "$diag" | grep -qiE 'unlocked.*BitLocker|BitLocker.*unlocked'; then
+            product_pass user-data-second-boot "Second Phase 2 boot: imported Documents copy survived, with the BitLocker C: unlock observed"
         else
-            product_pass user-data-second-boot "Second Phase 2 boot: Windows Documents file still readable in /home/wootc"
-            warn "Second Phase 2 boot: the file was NOT served from the unlocked BitLocker C: ($(printf '%s' "$diag" | grep '^home-bind:' | head -1)) — this run did not exercise the recovery key"
+            product_pass user-data-second-boot "Second Phase 2 boot: imported Documents copy survived"
+            warn "Second Phase 2 boot: BitLocker unlock was not observed ($(printf '%s' "$diag" | grep -iE 'home-bind:|bitlocker|recovery key' | tail -1))"
+            if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+                product_fail "GUI Documents: second boot did not prove that the recovery key unlocked the Windows source"
+            fi
+        fi
+        if ! printf '%s' "$source_doc" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
+            || { [ -n "${EDIT_MARKER:-}" ] && printf '%s' "$source_doc" | grep -Fq "$EDIT_MARKER"; }; then
+            product_fail "BitLocker Documents: Windows source changed or could not be verified after restart"
+        else
+            pass "BitLocker Documents: Windows source stayed unchanged after restart"
+        fi
+        if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+            if ! python3 "$SCRIPT_DIR/gui-document-proof.py" reopen --runtime "$DOCKER" \
+                --container "$CONTAINER_NAME" --path "$userdata_path" --run-id "$RUN_ID" \
+                --output "$ARTIFACT_DIR/gui-documents/second-boot" \
+                > "$ARTIFACT_DIR/gui-documents-second.json"; then
+                product_fail "GUI Documents: editor could not reopen saved bytes after the environment restart"
+            elif [ "$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-second.json")" != "${GUI_EDIT_SHA:-}" ]; then
+                product_fail "GUI Documents: saved bytes changed across the environment restart"
+            else
+                pass "GUI Documents: real editor reopened the same saved bytes after restart"
+            fi
         fi
     else
-        product_fail "Second Phase 2 boot: Windows Documents file NOT readable in /home/wootc (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
+        product_fail "Second Phase 2 boot: imported Documents copy NOT readable at $userdata_path (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
     fi
 
     # Back to Windows, with the first return's rules: a bounded request, and a

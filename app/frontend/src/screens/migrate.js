@@ -55,8 +55,17 @@ export function renderMigrateScreen() {
   wrap.style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
   const screen = el('div', 'screen');
 
+  const bitlockerDocumentsCopy = state.categories.some(c =>
+    c.id === 'Documents' && c.description?.startsWith('Writable Linux copy'));
   const hdr = el('div');
-  hdr.innerHTML = `
+  hdr.innerHTML = bitlockerDocumentsCopy ? `
+    <div class="screen-title">Your Windows files are ready</div>
+    <div class="screen-subtitle">
+      Most folders are available straight from Windows. BitLocker Documents are
+      in an editable Linux workspace so saving never writes through to Windows.
+      Move other folders to Linux at your own pace.
+    </div>
+  ` : `
     <div class="screen-title">Your Windows files are already here</div>
     <div class="screen-subtitle">
       Everything below is available right now, straight from Windows — no copying needed.
@@ -67,7 +76,9 @@ export function renderMigrateScreen() {
 
   const reassure = el('div', 'warning-banner');
   reassure.style.cssText = 'background:rgba(74,222,128,0.07);border-color:rgba(74,222,128,0.3);color:var(--text-dim)';
-  reassure.innerHTML = `<span>🛡️</span><span>Moving something to Linux never deletes it from Windows. Until you choose to remove Windows entirely, your files exist safely in both places.</span>`;
+  reassure.innerHTML = bitlockerDocumentsCopy
+    ? `<span>🛡️</span><span>BitLocker Documents are an editable Linux copy. Saves stay on Linux; the Windows source remains read-only and unchanged.</span>`
+    : `<span>🛡️</span><span>Moving something to Linux never deletes it from Windows. Until you choose to remove Windows entirely, your files exist safely in both places.</span>`;
   screen.appendChild(reassure);
 
   const scroll = el('div');
@@ -363,7 +374,9 @@ function migrateAction(c) {
       break;
     }
     case 'native':
-      holder.appendChild(chip('✓ On Linux', false));
+      holder.appendChild(chip(
+        c.id === 'Documents' && c.description?.startsWith('Writable Linux copy')
+          ? '✓ Editable Linux copy' : '✓ On Linux', false));
       break;
     case 'available': {
       if (c.id === 'browser') {

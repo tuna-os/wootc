@@ -105,13 +105,23 @@ setup() {
     [ "$status" -ne 0 ]
 }
 
-@test "mount-user-dirs reports a bind verdict and flags a missing home" {
-    # Run 20260723T0423: the unit "succeeded" with zero binds and an empty
-    # journal — undiagnosable from the outside. It must always log a summary,
-    # and a matching user whose home is absent is a named deployment bug.
+@test "mount-user-dirs reports bind and BitLocker copy verdicts" {
+    # A successful unit needs an observable summary even when no profile
+    # matched. BitLocker Documents are copied into editable Linux storage,
+    # never written through to the encrypted Windows source.
     local mud="$REPO_ROOT/payload/migration/wootc-mount-user-dirs"
-    grep -q 'summary: \$bound folder binds across \$matched matching user' "$mud"
+    grep -q 'summary: \$bound folder binds and \$copied persistent copies across \$matched matching user' "$mud"
+    grep -q 'wootc-copy-windows-documents' "$mud"
     grep -q 'no home directory' "$mud"
+}
+
+@test "BitLocker Documents copy helper is carried into the initramfs and installed system" {
+    grep -q 'inst /usr/lib/wootc/migration/wootc-copy-windows-documents' \
+        "$REPO_ROOT/payload/deployer/module-setup.sh"
+    grep -Fq 'install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents' \
+        "$REPO_ROOT/payload/deployer/deploy.sh"
+    grep -Fq 'wootc-copy-windows-documents$' \
+        "$REPO_ROOT/payload/deployer/Containerfile"
 }
 
 @test "fisherman pins user homes into the stateroot var" {
