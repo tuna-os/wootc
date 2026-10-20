@@ -981,18 +981,18 @@ if ($u) { Write-Output ($u -replace "^.*\\","") }' 2>/dev/null | tr -d '[:space:
 
 seed_user_data() {
     step "Seeding user data in the Windows profile (Documents, browsers, Office, apps)..."
-    # On BitLocker runs C: is encrypted and the deployer mounts the carved
-    # unencrypted volume (e.g. E:) instead.  Seeding on C: guarantees the
-    # deployer can never read the marker, so ask the guest where the wootc
-    # tree lives — that is exactly the volume the deployer will mount — and
-    # create Users\wootc\Documents there.  The User Data Bridge then finds the
-    # profile through the same path the deployer sees at /run/wootc/host.
-    # (run 20260728T002802Z: el10-gnome-win11pro-bitlocker failed twice because
-    # the seed landed on the encrypted C: while the deployer mounted the empty
-    # carved E:, so wootc-mount-user-dirs found no profile anywhere.)
+    # A real BitLocker fixture must put the profile on encrypted C:. The
+    # recovery key and root.disk stay on the carved unencrypted volume;
+    # Phase 2 must unlock C: and copy Documents into its persistent Linux
+    # workspace. Seeding on E: only tested an ordinary NTFS profile.
     local drive out attempt
-    drive=$(qga_current_storage_root 2>/dev/null)
-    case "$drive" in [A-Za-z]) drive="${drive}:" ;; *) drive="C:" ;; esac
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+        drive="C:"
+        info "BitLocker fixture: seeding the Windows profile on encrypted C:"
+    else
+        drive=$(qga_current_storage_root 2>/dev/null)
+        case "$drive" in [A-Za-z]) drive="${drive}:" ;; *) drive="C:" ;; esac
+    fi
     local guser; guser=$(guest_windows_user)
     local seed_dir="${drive}\\Users\\${guser}\\Documents"
     for attempt in 1 2 3; do
@@ -1742,6 +1742,10 @@ PYEOF
         ;;
     *) fail "WOOTC_E2E_BITLOCKER must be on|off (got: $E2E_BITLOCKER)"; exit 1 ;;
 esac
+if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ] && [ "$E2E_BITLOCKER" != on ]; then
+    fail "GUI Documents proof requires the real BitLocker on fixture"
+    exit 1
+fi
 export WOOTC_E2E_BITLOCKER="$E2E_BITLOCKER"
 printf '[INFO] BitLocker axis: %s (C: %s)\n' "$E2E_BITLOCKER" \
     "$([ "$E2E_BITLOCKER" = on ] && echo 'auto-encrypted → root.disk needs an unencrypted volume' || echo 'plaintext')" >&2
@@ -4484,6 +4488,10 @@ USERDATA_PROBE=$(qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || t
 # Documents bind. A real user reaches their desktop minutes after boot; the
 # honest assertion is "visible once the bridge has run", bounded here at
 # two minutes.
+USERDATA_PATH='/home/wootc/Documents/wootc-e2e-userdata.txt'
+if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+    USERDATA_PATH='/home/wootc/Documents/From Windows/wootc-e2e-userdata.txt'
+fi
 USERDATA_HOME=""
 _ud_deadline=$(deadline_in 120)
 while ! past_deadline "$_ud_deadline"; do
@@ -4494,7 +4502,7 @@ while ! past_deadline "$_ud_deadline"; do
     printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK \
         || USERDATA_PROBE=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || true)
     USERDATA_HOME=$(qga_call exec /bin/sh -c \
-        'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
+        "cat '$USERDATA_PATH' 2>/dev/null" 2>/dev/null || true)
     printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID" && break
     sleep 5
 done
@@ -4514,7 +4522,7 @@ if ! printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK; then
         info "  The serial console never mentions the guest agent or its virtio port"
     fi
 elif printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID"; then
-    product_pass user-data "User data: Windows Documents file readable in /home/wootc with this run's ID"
+    product_pass user-data "User data: Windows Documents file readable at $USERDATA_PATH with this run's ID"
 else
     # The diagnostic travels over the same agent channel the check just used,
     # and one hiccup blanks the most important evidence in the run
@@ -4534,6 +4542,7 @@ else
          echo "src-mnt: $(findmnt -n -o SOURCE,TARGET,FSTYPE /run/initramfs/wootc-host 2>&1)"; \
          echo "user:      $(id wootc 2>&1 | head -1)"; \
          echo "home-bind: $(findmnt -n /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
+         echo "linux-copy: $(cat '/home/wootc/Documents/From Windows/.wootc-import-complete' 2>/dev/null || echo ABSENT)"; \
          echo "unit:      enabled=$(systemctl is-enabled wootc-host-bind 2>&1) active=$(systemctl is-active wootc-host-bind 2>&1)"; \
          systemctl status wootc-host-bind --no-pager 2>&1 | tail -4; \
          echo "ntfs-src:  $(findmnt -n /run/initramfs/wootc-host 2>/dev/null || echo ABSENT)"; \
@@ -4546,6 +4555,50 @@ else
     printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
     PASSTHROUGH_OK=false
 fi
+if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+    # Exercise the writable Linux workspace and prove that the encrypted
+    # Windows source remains read-only. The GUI lane uses the real GNOME
+    # editor; the ordinary BitLocker matrix keeps a direct-user smoke check.
+    if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+        EDIT_MARKER="wootc-e2e-gui-edit-$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"
+        step "Editing Documents through the ordinary user's GNOME editor..."
+        if ! python3 "$SCRIPT_DIR/gui-document-proof.py" edit --runtime "$DOCKER" \
+            --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
+            --output "$ARTIFACT_DIR/gui-documents/first-boot" \
+            > "$ARTIFACT_DIR/gui-documents-first.json"; then
+            fail "GUI Documents: editor open, edit, save, close, and reopen proof failed"
+            exit 1
+        fi
+        GUI_EDIT_SHA=$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-first.json")
+        pass "GUI Documents: ordinary user saved, closed, and reopened the imported file"
+    else
+        EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
+        step "Editing the imported Windows Documents copy as Linux user wootc..."
+        EDIT_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/sh -c \
+            "printf '%s\\n' '$EDIT_MARKER' >> '$USERDATA_PATH' && cat '$USERDATA_PATH'" \
+            2>/dev/null || true)
+        REOPEN_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" \
+            2>/dev/null || true)
+        if printf '%s' "$EDIT_OUTPUT" | grep -Fq "$EDIT_MARKER" \
+            && printf '%s' "$REOPEN_OUTPUT" | grep -Fq "$EDIT_MARKER"; then
+            pass "BitLocker Documents: ordinary Linux user saved and reopened an edit"
+        else
+            fail "BitLocker Documents: ordinary Linux user could not save and reopen an edit"
+            info "  write/read output: ${REOPEN_OUTPUT:-<empty>}"
+        fi
+    fi
+    ORIGINAL_DOC=$(qga_call exec /bin/sh -c \
+        'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
+        2>/dev/null || true)
+    if printf '%s' "$ORIGINAL_DOC" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
+        && ! printf '%s' "$ORIGINAL_DOC" | grep -Fq "$EDIT_MARKER"; then
+        pass "BitLocker Documents: encrypted Windows original stayed unchanged"
+    else
+        fail "BitLocker Documents: Windows original changed or could not be verified"
+        info "  encrypted source readback: ${ORIGINAL_DOC:-<empty>}"
+    fi
+fi
+
 
 # ── HARD GATE: prove Phase 2 actually ran ───────────────────────────────────
 # Everything above passes on the ABSENCE of error strings, and the reboot step
