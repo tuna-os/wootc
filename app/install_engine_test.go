@@ -11,6 +11,7 @@ type recordingInstallPlatform struct {
 	prepared  bool
 	released  bool
 	pipeline  []installPipelineStep
+	run       []string
 	failure   error
 	states    []string
 	disarmCnt int
