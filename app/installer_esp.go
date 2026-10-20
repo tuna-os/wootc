@@ -478,19 +478,22 @@ func configureBCD(cfg InstallConfig) error {
 	// ── Arm-time recovery guard state & task registration (§2) ────────────────
 	// 1. Stage a copy of wootc.exe under install\ and compute its hash.
 	installExe := filepath.Join(wootcDir(), "install", stagedEngineName)
-	exeHash := ""
-	curExe, errExe := os.Executable()
-	if errExe == nil {
-		if !strings.EqualFold(curExe, installExe) {
-			if inData, errRead := os.ReadFile(curExe); errRead == nil {
-				_ = os.WriteFile(installExe, inData, 0o755)
-			}
+	curExe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolving the recovery executable: %w", err)
+	}
+	if !strings.EqualFold(curExe, installExe) {
+		inData, err := os.ReadFile(curExe)
+		if err != nil {
+			return fmt.Errorf("reading the recovery executable: %w", err)
 		}
-		if h, errHash := hashFile(installExe); errHash == nil {
-			exeHash = h
-		} else if h2, errHash2 := hashFile(curExe); errHash2 == nil {
-			exeHash = h2
+		if err := os.WriteFile(installExe, inData, 0o755); err != nil {
+			return fmt.Errorf("staging the recovery executable: %w", err)
 		}
+	}
+	exeHash, err := hashFile(installExe)
+	if err != nil {
+		return fmt.Errorf("hashing the staged recovery executable: %w", err)
 	}
 
 	// 2. Read prior power state.
@@ -528,9 +531,12 @@ func configureBCD(cfg InstallConfig) error {
 
 	// 3. Register the recovery tasks BEFORE the first BCD write, so a power
 	// cut from here on is rolled back by `recover --startup` on the next
-	// Windows start (bootTxnStartupAction).
+	// Windows start (bootTxnStartupAction). A task conflict or an
+	// unobservable registration is fatal: continuing would create a boot
+	// chain with no trusted recovery guard.
 	if err := registerRecoveryTasks(installExe); err != nil {
-		fmt.Printf("warning: could not register recovery tasks: %v\n", err)
+		_ = unregisterRecoveryTasks()
+		return fmt.Errorf("registering recovery tasks before boot transaction: %w", err)
 	}
 
 	_, err = beginBootChainTxn(windowsBootChainEnv(espPath, armed), efiRelPath, staged)
