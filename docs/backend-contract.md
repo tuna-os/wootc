@@ -30,6 +30,10 @@ evidence of a composefs backend.
 This matches the maintainers' ground truth (2026-07-23): bluefin stable/lts
 are ostree backend; dakota is definitely composefs backend.
 
+The current catalog uses `ghcr.io/projectbluefin/bluefin-lts:stable`, the
+reference shared with bootc-migrate. The table retains the exact historical
+reference that was measured; release gates test the current reference.
+
 ## Reproduce the measurement
 
 ```bash

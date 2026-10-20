@@ -39,6 +39,16 @@ the cross-platform Go packages. Windows-tagged Go (`app/*_windows.go`) only
 builds on Windows by design, so this tier covers the platform-independent
 code.
 
+When changing `app/data/images.json`, compare every shared image against
+bootc-migrate's reviewed catalog:
+
+```bash
+just catalog-check
+```
+
+The check reads `bootc-migrate/catalog/sources.json` and fails when a shared
+image reference or backend differs. CI runs it on every pull request.
+
 Containerized integration tests (User Data Bridge, WSL, go-native gates) run
 in a privileged Fedora container and need `podman`:
 
