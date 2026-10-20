@@ -478,8 +478,8 @@ func TestRunPipelineJournalsCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := runPipeline(ctx, InstallConfig{ImageRef: "img"}, func(ProgressEvent) {}); err != context.Canceled {
-		t.Fatalf("runPipeline = %v, want context.Canceled", err)
+	if err := newInstallEngine().Run(ctx, InstallConfig{ImageRef: "img"}, func(ProgressEvent) {}); err != context.Canceled {
+		t.Fatalf("install engine = %v, want context.Canceled", err)
 	}
 	j, ok, err := readJournalAt(path)
 	if err != nil || !ok {
