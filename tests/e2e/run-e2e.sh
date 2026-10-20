@@ -4495,14 +4495,16 @@ fi
 USERDATA_HOME=""
 _ud_deadline=$(deadline_in 120)
 while ! past_deadline "$_ud_deadline"; do
-    # The agent probe above is ONE shot taken the moment the passthrough scan
-    # ends. An agent that starts later in the window is still an agent that
-    # answered, so re-ask until it does (bounded: a dead agent must not eat
-    # the window 60s at a time).
+    # Keep agent retry and path probe bounded together.
     printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK \
         || USERDATA_PROBE=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || true)
-    USERDATA_HOME=$(qga_call exec /bin/sh -c \
-        "cat '$USERDATA_PATH' 2>/dev/null" 2>/dev/null || true)
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
+        USERDATA_HOME=$(qga_call exec /bin/sh -c \
+            "cat '$USERDATA_PATH' 2>/dev/null" 2>/dev/null || true)
+    else
+        USERDATA_HOME=$(qga_call exec /bin/sh -c \
+            'cat /home/wootc/Documents/wootc-e2e-userdata.txt 2>/dev/null' 2>/dev/null || true)
+    fi
     printf '%s' "$USERDATA_HOME" | grep -q "$RUN_ID" && break
     sleep 5
 done
