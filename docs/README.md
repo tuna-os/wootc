@@ -8,16 +8,16 @@ instructions.
 
 ## Start here
 
-- [Getting started](getting-started.md) — download and open wootc.
+- [Start here](getting-started.md) — download and open wootc.
 - [User guide](user-guide.md) — use the migrated system and return to Windows.
-- [Manual testing](manual-testing.md) — pre-flight checks for real hardware.
+- [Manual tests](manual-testing.md) — pre-flight checks for real hardware.
 - [Verification status](status.md) — proven matrix cells and their evidence.
 - [Philosophy](philosophy.md) — product goals and decision rules.
 
 ## Product and architecture
 
 - [Specification](SPEC.md) — complete product and protocol requirements.
-- [Architecture boundary](architecture-boundary.md) — generic migration versus bootc-specific code.
+- [Architecture boundary](architecture-boundary.md) — separates generic migration from bootc-specific code.
 - [Backend contract](backend-contract.md) — measured deployment-backend interface.
 - [Deployer experience](deployer-experience.md) — deployer screens, states, and recovery behavior.
 - [GUI and Phase 1 architecture](gui-phase1-architecture.md) — Windows installer flow.
@@ -26,11 +26,11 @@ instructions.
 - [Plugin architecture](plugin-architecture.md) — program-migrator plugin design.
 - [Session migration](session-migration.md) — copy, relink, and sign-in boundaries.
 - [Managed VM](managed-vm.md) — Windows VM lifecycle and ownership.
-- [E2E architecture](e2e-architecture.md) — hosted test control plane and boot chain.
+- [E2E architecture](e2e-architecture.md) — test control plane for hosted runs and boot chain.
 - [Non-bootc adoption](non-bootc-adoption.md) — support boundaries for other Linux systems.
-- [Distro adoption](distro-adoption.md) — adapting the installer for another distribution.
-- [Branding](branding.md) — product identity and re-skinned builds.
-- [Branding and distribution](branding-and-distribution.md) — branded installers and offline distribution.
+- [Distro adoption](distro-adoption.md) — installer adaptation for another distribution.
+- [Brand identity](branding.md) — product names and re-skinned builds.
+- [Brand distribution](branding-and-distribution.md) — branded installers and offline packages.
 - [Branded walkthroughs](branded-walkthroughs.md) — automated visual walkthroughs for each brand.
 
 ## Trust, storage, and recovery
@@ -38,8 +38,8 @@ instructions.
 - [Artifact authentication](artifact-authentication.md) — boot-artifact verification.
 - [Destructive paths](destructive-paths.md) — inventory of operations that can remove or alter data.
 - [NTFS on Linux](ntfs-on-linux.md) — filesystem hazards and mitigations.
-- [systemd-boot](systemd-boot.md) — packaging and trust policy.
-- [Windows state trust](windows-state-trust.md) — evidence required before changing Windows state.
+- [systemd-boot](systemd-boot.md) — package and trust policy.
+- [Windows state trust](windows-state-trust.md) — evidence required before Windows state changes.
 - [VHDX exploration](vhdx-exploration.md) — dynamic root-disk investigation.
 - [Borrowed from Libertix](borrowed-from-libertix.md) — adopted boot-chain and recovery designs.
 - [Upstream blessings](upstream-blessings.md) — upstream provenance and permissions.
@@ -48,16 +48,16 @@ instructions.
 
 - [Verification ladder](milestones.md) — phase-by-phase evidence gates.
 - [Release instructions](RELEASING.md) — green-gated release process.
-- [Alpha adopter program](alpha-adopter-program.md) — structured early-adopter testing.
-- [Pre-filled profile testing](prefilled-profile-testing.md) — migration tests with an existing Windows profile.
-- [Native GUI soak](soak.md) — long-running shell stability ledger.
+- [Alpha adopter program](alpha-adopter-program.md) — structured early-adopter tests.
+- [Pre-filled profiles](prefilled-profile-testing.md) — migration tests with an existing Windows profile.
+- [Native GUI soak](soak.md) — shell stability ledger for long runs.
 - [Agent lessons](agent-lessons.md) — operational traps from E2E work.
 - [Docs truth pass](docs-truth-pass.md) — dated documentation-versus-build checks.
 
 ## Plans and historical records
 
 - [Implementation plan](plan.md) — remaining specification coverage.
-- [Finishing plan](finish-plan.md) — dakota, btrfs, and matrix work.
+- [Completion plan](finish-plan.md) — dakota, btrfs, and matrix work.
 - [Project review](project-review-2026-09-26.md) — review snapshot from 2026-09-26.
 - [dakota return-boot RCA](dakota-return-boot-rca.md) — **historical** Phase-2 hang investigation.
 - [Phase-2 attach postmortem](phase2-attach-postmortem.md) — **historical** debugging record.
@@ -72,8 +72,6 @@ instructions.
 - [`experiments/`](experiments/) — dated research notes and implementation experiments.
 - [`evidence/`](evidence/) — checked-in evidence summaries.
 - [`experiments/evidence/`](experiments/evidence/) — experiment artifacts and provenance.
-- [`screenshots/`](screenshots/) — captured UI walkthrough images.
+- [`screenshots/`](screenshots/) — UI walkthrough images.
 
-Use [status.md](status.md) and [RELEASING.md](RELEASING.md) for current
-verification and release decisions; use dated plans and investigations for
-context, not as a substitute for those sources.
+- Use [status.md](status.md) and [release instructions](RELEASING.md) for current verification and release decisions. Use dated plans and investigations for context, not as substitutes for those sources.
