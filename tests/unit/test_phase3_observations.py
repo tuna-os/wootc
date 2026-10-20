@@ -65,12 +65,13 @@ class Phase3Tests(unittest.TestCase):
         start = source.index('    # A failed guest command cannot establish facts even with plausible stdout.')
         body = source[start:source.index('\nelse\n    step "Rebooting Phase 2 Linux', start)]
         prefix = '''set -Eeuo pipefail
-P3_TARGET=/dev/sdb; RUN_ID=current-run
+P3_TARGET=/dev/sdb; RUN_ID=current-run; P3_HEALTH_BASELINE=SCHEMA=1
 step() { :; }; fail() { echo "FAIL $*"; }
 infra_fail() { echo "INFRA $*"; }
 product_fail() { echo "PRODUCT-FAIL $*"; }
 product_pass() { echo "PRODUCT-PASS $*"; }
 qga_call() {
+ if [[ "$*" == *"wootc-phase3-health check"* ]]; then printf 'OK: healthy'; return 0; fi
  if [[ "${!#}" == native ]]; then printf '%s' "$PROOF"; return "$PROOF_RC"; fi
  printf '%s' "$DATA"; return "$DATA_RC"
 }
