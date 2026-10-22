@@ -67,6 +67,10 @@ try {
     # keeps setup-wootc.ps1's default (the deployer decides).
     if ($cfg.ContainsKey("Filesystem") -and $cfg.Filesystem -and $cfg.Filesystem -ne "auto") { $setupArgs.Filesystem = $cfg.Filesystem }
     if ($cfg.ContainsKey("RootDiskGiB") -and $cfg.RootDiskGiB) { $setupArgs.DiskSizeGB = [int]$cfg.RootDiskGiB }
+    if ($cfg.ContainsKey("SetupAsset") -and $cfg.SetupAsset) {
+        $setupArgs.SetupExe = Join-Path $oemDir "payload\$($cfg.SetupAsset)"
+        if ($cfg.ContainsKey("SetupBrand") -and $cfg.SetupBrand) { $setupArgs.SetupBrand = $cfg.SetupBrand }
+    }
     if ($cfg.ContainsKey("FaultInject") -and $cfg.FaultInject) {
         $setupArgs.FaultInject = $cfg.FaultInject
         # Recovery cells (#288) grade "nothing changed" and "everything

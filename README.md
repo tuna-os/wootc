@@ -22,10 +22,8 @@
 ---
 
 wootc installs a real Linux desktop from a [bootc](https://github.com/containers/bootc)
-image into `root.disk`, a file beside your Windows files. The native path adds a boot entry.
-Current releases do not yet provide the complete Linux-inside-Windows journey.
-The [verification status](docs/status.md) describes the evidence and limits.
-The [roadmap](ROADMAP.md) keeps VM-first use and complete restoration as release requirements.
+image into `root.disk`, a file beside your Windows files. The native WinUI shell is the primary Windows release surface.
+[Verification status](docs/status.md) describes the evidence and limits.
 
 The setup form asks for **a password**. The app suggests your username and
 computer name from your PC. It sizes the disk from available space and selects TPM encryption by default.
@@ -48,18 +46,23 @@ Never post account credentials or API keys in issues or pull requests.
 ## Get it
 
 **[⬇ Download the latest release](https://github.com/tuna-os/wootc/releases/latest)**
-— run the exe as Administrator. It fetches boot artifacts, checks hashes, and verifies a signed manifest.
-The current Wails interface needs the WebView2 runtime. Windows may prompt you to install it.
+— run `wootc-Installer-Setup.exe` as Administrator. The Inno setup installs
+the native WinUI shell and protected engine, fetches boot artifacts, checks hashes, and verifies a signed manifest.
+The native shell does not require WebView2.
+
+This release keeps the Wails compatibility build as `wootc-legacy.exe`.
+Use it only when you need the legacy Wails UI.
 
 ```
 winget install TunaOS.wootc
 ```
-*(winget availability lands with the first accepted submission.)*
+*(winget follows the generic setup for the native app.)*
 
-Every release also ships **branded installers** — `Bazzite-Installer.exe`,
-`Bluefin-Installer.exe`, `Aurora-Installer.exe`, `TunaOS-Installer.exe` — the
-same engine with each distribution's identity and preselected images.
-They can pre-download the OS on Windows for deployment without a network after reboot.
+Every release also ships **branded installers** —
+`Bazzite-Installer-Setup.exe`, `Bluefin-Installer-Setup.exe`,
+`Aurora-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe` — the same engine
+with each distribution's identity and preselected images. They can
+pre-download the OS on Windows for deployment without a network after reboot.
 
 > The binaries are not yet code-signed. Windows may show SmartScreen or an
 > "unknown publisher" prompt. Policy can prevent continuation.
@@ -71,7 +74,7 @@ They can pre-download the OS on Windows for deployment without a network after r
 ## How it works
 
 ```
-Windows 11  →  wootc.exe (arms the system)  →  reboot
+Windows 11  →  wootc-Installer-Setup.exe → native WinUI shell → reboot
             →  signed shim → GRUB → deployer initramfs
             →  fisherman: bootc install into root.disk
             →  reboot → Windows → Manage: choose Linux boot

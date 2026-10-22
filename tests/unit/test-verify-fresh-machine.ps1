@@ -56,21 +56,21 @@ Assert-True (-not $r.Pass) 'Valid with no signer must not pass'
 
 $manifest = @'
 # published with the release
-aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111  wootc.exe
-bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222  Bazzite-Installer.exe
+aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111  wootc-legacy.exe
+bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222  Bazzite-Installer-Setup.exe
 cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333 *deployer-vmlinuz
 '@
 
-$r = Test-Sha256Manifest -Manifest $manifest -FileName 'wootc.exe' `
+$r = Test-Sha256Manifest -Manifest $manifest -FileName 'wootc-legacy.exe' `
     -ActualHash 'AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111'
 Assert-True $r.Pass 'a matching hash passes, case-insensitively (Get-FileHash returns upper)'
 
-$r = Test-Sha256Manifest -Manifest $manifest -FileName 'wootc.exe' -ActualHash 'deadbeef'
+$r = Test-Sha256Manifest -Manifest $manifest -FileName 'wootc-legacy.exe' -ActualHash 'deadbeef'
 Assert-True (-not $r.Pass) 'a mismatched hash fails'
 Assert-True ($r.Detail -match 'hash mismatch') 'the mismatch is named'
 
 # An asset nobody published a hash for is the one worth noticing, not skipping.
-$r = Test-Sha256Manifest -Manifest $manifest -FileName 'Aurora-Installer.exe' -ActualHash 'abc'
+$r = Test-Sha256Manifest -Manifest $manifest -FileName 'Aurora-Installer-Setup.exe' -ActualHash 'abc'
 Assert-True (-not $r.Pass) 'an unlisted file fails rather than passing by absence'
 Assert-True ($r.Detail -match 'not listed') 'the reason is that it is unlisted'
 
@@ -130,7 +130,11 @@ $wrong = @{ ProductName = 'Aurora Installer'; FileDescription = 'Aurora Installe
 $r = Test-BrandIdentity -VersionInfo $wrong -ExpectedProduct 'Bazzite Installer' -Branded
 Assert-True (-not $r.Pass) 'the wrong brand identity must fail'
 
-# ── winget ───────────────────────────────────────────────────────────────────
+# A native setup's filename carries the release brand identity.
+$r = Test-NativeSetupIdentity -FileName 'Bazzite-Installer-Setup.exe' -ExpectedExeName 'Bazzite-Installer'
+Assert-True $r.Pass 'a setup package with the matching brand name passes'
+$r = Test-NativeSetupIdentity -FileName 'Bluefin-Installer-Setup.exe' -ExpectedExeName 'Bazzite-Installer'
+Assert-True (-not $r.Pass) 'a setup package with the wrong brand name fails'
 
 $show = @'
 Found wootc [TunaOS.wootc]
@@ -159,13 +163,13 @@ Assert-True (-not $r.Pass) 'no expected version must fail'
 # ── winget install: resolving is not installing ─────────────────────────────
 
 $good = 'aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233'
-$installSums = "$good  wootc.exe`n"
-$r = Test-WingetInstall -ExitCode 0 -InstalledPath 'C:\pkg\wootc.exe' -ActualHash $good.ToUpperInvariant() -Manifest $installSums
-Assert-True $r.Pass 'an install that lands this release''s wootc.exe passes'
+$installSums = "$good  wootc-Installer-Setup.exe`n"
+$r = Test-WingetInstall -ExitCode 0 -InstalledPath 'C:\Program Files\wootc Native\wootc\bundle\Wootc.Shell.exe' -ActualHash $good.ToUpperInvariant() -Manifest $installSums
+Assert-True $r.Pass 'an install that lands this release''s native setup passes'
 
-$r = Test-WingetInstall -ExitCode 0 -InstalledPath 'C:\pkg\wootc.exe' -ActualHash ('0' * 64) -Manifest $installSums
+$r = Test-WingetInstall -ExitCode 0 -InstalledPath 'C:\Program Files\wootc Native\wootc\bundle\Wootc.Shell.exe' -ActualHash ('0' * 64) -Manifest $installSums
 Assert-True (-not $r.Pass) 'an install of a different binary must fail even though winget succeeded'
-Assert-True ($r.Detail -match 'not this release') 'the wrong binary is named as such'
+Assert-True ($r.Detail -match 'native manifest') 'the wrong published setup is named as such'
 
 $r = Test-WingetInstall -ExitCode 0 -InstalledPath '' -ActualHash '' -Manifest $installSums
 Assert-True (-not $r.Pass) 'success with nothing on disk must fail, not pass by absence'
@@ -197,9 +201,9 @@ $explicit = Resolve-ReleaseTag -RequestedTag 'v1.0.0'
 Assert-True ($explicit -eq 'v1.0.0' -and $script:releaseLookups -eq 1) 'explicit tags need no API lookup'
 function Invoke-WebRequest {
     param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
-    Assert-True ($Uri -eq 'https://github.com/tuna-os/wootc/releases/download/v2.0.0/wootc.exe') 'asset download uses the resolved tag'
+    Assert-True ($Uri -eq 'https://github.com/tuna-os/wootc/releases/download/v2.0.0/wootc-Installer-Setup.exe') 'asset download uses the resolved tag'
 }
-Get-ReleaseAsset -Tag $resolved -Name 'wootc.exe' -Destination $here | Out-Null
+Get-ReleaseAsset -Tag $resolved -Name 'wootc-Installer-Setup.exe' -Destination $here | Out-Null
 function Invoke-RestMethod { return @{} }
 $rejected = $false
 try { Resolve-ReleaseTag | Out-Null } catch { $rejected = $true }

@@ -1,9 +1,11 @@
 name: E2E GUI-driven (publish timelapse)
 
-# The GUI-driven three-phase run: Phase 1 armed by the REAL wootc.exe over
-# drive mode, then deploy → Phase 2 → Phase 3. On a GREEN run this publishes
-# the walkthrough timelapse to the README/Pages hero — so the timelapse shown
-# there is always a GUI-driven pass, never a headless or red run.
+# The GUI-driven three-phase run: Phase 1 is armed by the shipped native WinUI
+# shell in the default path (the one-release Wails compatibility build remains
+# an explicit option), then deploy → Phase 2 → Phase 3. On a GREEN run this
+# publishes the walkthrough timelapse to the README/Pages hero — so the
+# timelapse shown there is always a GUI-driven pass, never a headless or red
+# run.
 
 on:
   workflow_dispatch:
@@ -29,10 +31,10 @@ on:
         type: boolean
         default: false
       gui_frontend:
-        description: 'Which GUI drives Phase 1: wails (the shipped installer) or native (the WinUI shell preview, #344). A native run never publishes the timelapse.'
+        description: 'Which GUI drives Phase 1: native (the shipped WinUI shell) or wails (the one-release compatibility build).'
         type: choice
-        options: [wails, native]
-        default: wails
+        options: [native, wails]
+        default: native
   schedule:
     # Nightly, offset from the headless canary so they do not contend for
     # the hosted runner pool.
@@ -63,7 +65,7 @@ jobs:
       # Same coercion-trap guard as phase3: scheduled runs never uninstall.
       uninstall_check: ${{ github.event_name != 'schedule' && inputs.uninstall_check || false }}
       # Scheduled runs drive the shipped installer.
-      gui_frontend: ${{ inputs.gui_frontend || 'wails' }}
+      gui_frontend: ${{ inputs.gui_frontend || 'native' }}
     # No secrets: block — e2e-hosted.yml only uses secrets.GITHUB_TOKEN, which
     # every job gets automatically. `secrets: inherit` exposed every repo
     # secret to this job for no reason; the other three callers of this
@@ -96,7 +98,7 @@ jobs:
       IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
       PHASE3: ${{ github.event_name == 'schedule' && 'true' || (inputs.phase3 && 'true' || 'false') }}
       UNCHK: ${{ github.event_name != 'schedule' && inputs.uninstall_check && 'true' || 'false' }}
-      FRONTEND: ${{ inputs.gui_frontend || 'wails' }}
+      FRONTEND: ${{ inputs.gui_frontend || 'native' }}
       VERDICT: ${{ needs.run.outputs.flake_verdict }}
     steps:
       - run: |
@@ -111,9 +113,9 @@ jobs:
     # Belt: only a passing run reaches here. Braces: the .passed gate below
     # is the real proof, so a run that "succeeded" without the marker still
     # cannot publish.
-    # The hero shows the installer users download today, so a native-shell
-    # run (a preview) never replaces it.
-    if: ${{ needs.run.result == 'success' && (inputs.gui_frontend || 'wails') == 'wails' }}
+    # The hero shows the installer users download today. Native is the
+    # primary release surface; Wails remains an explicit compatibility run.
+    if: ${{ needs.run.result == 'success' && (inputs.gui_frontend || 'native') == 'native' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

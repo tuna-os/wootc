@@ -44,8 +44,11 @@ You do not need a bootable USB for this path.
 
 ## 2. Install Linux
 
-Download the installer for your distribution and run it.
-The generic app is `wootc.exe`. The Launchpad shows the plan:
+Download the generic native setup `wootc-Installer-Setup.exe`, or the
+distribution-specific setup package, and run it as Administrator. The setup
+installs the WinUI shell and protected engine. `wootc-legacy.exe` is the
+one-release Wails compatibility build; it needs WebView2 and is not the
+primary installer.
 
 ![Launchpad](screenshots/01-launchpad.png)
 
@@ -191,7 +194,7 @@ Keep both systems until you have verified your work and a separate backup.
 ## 9. Uninstall
 
 Open **Settings → Apps → Installed apps** and choose **TunaOS (wootc)**.
-You can also run `wootc.exe` again as Administrator and choose **Uninstall** on the Manage screen.
+You can also open the installed **TunaOS (wootc)** app as Administrator and choose **Uninstall** on the Manage screen.
 
 The uninstaller tries to:
 

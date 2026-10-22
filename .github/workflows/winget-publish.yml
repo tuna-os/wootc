@@ -33,18 +33,28 @@ jobs:
         shell: pwsh
         env:
           RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           $tag = $env:RELEASE_TAG
           if ($tag -cnotmatch '\Av?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\z') {
             throw 'Expected a release tag such as v1.2.3 or v1.2.3-rc.1'
           }
           $version = $tag -replace '^v',''
-          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/wootc.exe"
+          $asset = 'wootc-Installer-Setup.exe'
+          $assetReady = $false
+          for ($attempt = 1; $attempt -le 60; $attempt++) {
+            $names = @(gh release view $tag --repo "${{ github.repository }}" --json assets --jq '.assets[].name' 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $names -contains $asset) { $assetReady = $true; break }
+            Write-Host "waiting for native release asset $asset ($attempt/60)"
+            Start-Sleep -Seconds 30
+          }
+          if (-not $assetReady) { throw "Release $tag never received $asset from the native packaging workflow" }
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$asset"
           Write-Host "tag=$tag version=$version"
           Write-Host "url=$url"
-          # Hash the ACTUAL published bytes — never trust a locally rebuilt exe.
-          Invoke-WebRequest -Uri $url -OutFile wootc.exe
-          $sha = (Get-FileHash wootc.exe -Algorithm SHA256).Hash
+          # Hash the ACTUAL native setup bytes — never trust a locally rebuilt exe.
+          Invoke-WebRequest -Uri $url -OutFile $asset
+          $sha = (Get-FileHash $asset -Algorithm SHA256).Hash
           Write-Host "sha256=$sha"
           $out = "rendered/manifests/t/TunaOS/wootc/$version"
           New-Item -ItemType Directory -Force -Path $out | Out-Null

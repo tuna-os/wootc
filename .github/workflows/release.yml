@@ -12,11 +12,9 @@ name: Release
 # No green nightly, no auto release. wootc writes to a stranger's only
 # computer — "the unit tests passed" is not a sufficient bar to ship on.
 #
-# Every release ships the FULL artifact set — one exe per brand plus the
-# shared boot artifacts (deployer kernel/initramfs, signed shim+GRUB,
-# wubildr) and a SHA256SUMS the installer's fail-closed verification (#53)
-# requires. Publishing wootc.exe alone left deployerBaseURL() pointing at
-# assets that never existed (#196): a plain online install could never work.
+# Every release ships the shared boot chain, the native WinUI setup assets,
+# and one Wails compatibility executable. Earlier releases published wootc.exe
+# alone, leaving deployerBaseURL() pointing at assets that never existed (#196).
 
 on:
   push:
@@ -79,12 +77,13 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' && !inputs.skip_e2e }}
     uses: ./.github/workflows/e2e-hosted.yml
     with:
-      # Gate on the alpha image, driven through the REAL GUI — the release is
-      # proven the way a user installs it (docs/RELEASING.md).
+      # Gate on the shipped WinUI shell, not the one-release Wails fallback.
+      # This is the same real GUI path that the setup assets will expose.
       image: ghcr.io/projectbluefin/bluefin:lts
       win_version: '11'
       bitlocker: 'off'
       gui_install: true
+      gui_frontend: native
       phase3: true
 
   # ── 3. publish — only reachable when a gate passed (or was waived) ────────
@@ -93,7 +92,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-      actions: write             # dispatch winget-publish.yml for full releases
+      actions: write             # dispatch native packaging and winget
       # GitHub OIDC for Azure Trusted Signing (#229). This job only: the
       # token proves "the release job of tuna-os/wootc", and no other job
       # needs to prove that. No Azure configuration = never requested.
@@ -244,55 +243,26 @@ jobs:
           (cd app && go run ./tools/signmanifest generate "$key_dir/seed" "$key_dir/public.hex")
           echo "WOOTC_SIGNING_DIR=$key_dir" >> "$GITHUB_ENV"
 
-      - name: Build brand installers (one exe per blessed brand)
+      - name: Build brand installers (Wails compatibility asset)
         env:
           RELEASE_TAG: ${{ steps.chan.outputs.tag }}
-        # Subshells for every directory change: the first run interleaved a
-        # failed `cd`/build chain with a loop that then globbed from the
-        # wrong directory. Nothing here moves the step's own cwd.
-        #
-        # WHICH brands is no longer "whatever directories exist". Every exe
-        # here wears somebody's mark, so packaging/brands.sh reads the
-        # recorded decision (app/branding/*/blessing.json, #227) and answers:
-        # a declined project's exe drops from this matrix, a brand with no
-        # record at all is a hard error, and a pending one builds but says so.
+        # Phase D makes the native setup package the branded release asset.
+        # Keep exactly one Wails build for rollback and one-release migration;
+        # do not publish a second set of branded Wails frontends.
         run: |
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq librsvg2-bin
           (cd app/frontend && npm ci && npm run build)
           mkdir -p release-assets
-          bash packaging/brands.sh explain
-          # Capture, THEN loop. `done < <(brands.sh list)` would swallow a
-          # non-zero exit from the selector — a tree with one unusable record
-          # would build the brands printed before it died and pass. The same
-          # silent-skip the selector refuses internally.
-          brands=$(bash packaging/brands.sh list)
-          [ -n "$brands" ] || { echo "::error::no brand is buildable"; exit 1; }
-          # Each exe carries which Microsoft UEFI CA generations signed the
-          # shim this release stages, so the preflight can refuse a machine
-          # whose firmware trusts neither (#322) without a network round trip.
-          # Read from the shim that was actually extracted a step earlier —
-          # never a second copy of the pin, which is how a stamp starts
-          # describing a binary nobody is shipping.
-          # Pin the exe to the release it is cut from (#335). The installer
-          # and its boot artifacts ship together and are gated by one E2E
-          # run; an exe that fetches from `latest` would run a deployer it
-          # was never tested with, and SHA256SUMS cannot catch that — the
-          # manifest comes from the same moved release.
           [ -n "$RELEASE_TAG" ] || { echo "::error::no release tag to pin the boot artifacts to"; exit 1; }
-          echo "pinning boot artifacts to $RELEASE_TAG"
           SHIM_AUTHORITIES=$(python3 -c "import json;print(','.join(json.load(open('release-assets/shim-authorities.json'))['shimx64.efi']))")
           [ -n "$SHIM_AUTHORITIES" ] || { echo "::error::the staged shim carries no Microsoft UEFI CA"; exit 1; }
-          echo "staging a shim signed by the Microsoft UEFI CA(s): $SHIM_AUTHORITIES"
-          while IFS=$'\t' read -r brand exe; do
-            python3 packaging/build-windows.py --brand "$brand" \
-              --output "release-assets/$exe.exe" --version "$RELEASE_TAG" \
-              --tags desktop,production \
-              --manifest-public-key "$WOOTC_SIGNING_DIR/public.hex" \
-              --ldflags="-X main.shimAuthorities=$SHIM_AUTHORITIES"
-            echo "built $exe.exe (brand: $brand)"
-          done <<< "$brands"
-          ls -lh release-assets/
+          python3 packaging/build-windows.py --brand wootc \
+            --output release-assets/wootc-legacy.exe --version "$RELEASE_TAG" \
+            --tags desktop,production \
+            --manifest-public-key "$WOOTC_SIGNING_DIR/public.hex" \
+            --ldflags="-X main.shimAuthorities=$SHIM_AUTHORITIES"
+          ls -lh release-assets/wootc-legacy.exe
 
       # ORDER IS LOAD-BEARING: sign after every exe is built and BEFORE the
       # checksums. Authenticode rewrites the file, so SHA256SUMS written first
@@ -422,10 +392,11 @@ jobs:
                 echo "> unknown publisher." ;;
             esac
             echo
-            echo "One installer per distribution — every exe is the same engine"
-            echo "wearing its brand (docs/branding-and-distribution.md). The boot"
-            echo "artifacts (deployer kernel/initramfs, signed shim+GRUB) are"
-            echo "shared by all of them."
+            echo "Native WinUI setup assets are the primary branded downloads:"
+            echo "\`<Product>-Installer-Setup.exe\` for every eligible brand."
+            echo "The WinUI packaging workflow attaches them with native-SHA256SUMS."
+            echo "The Wails compatibility build remains for this release only as"
+            echo "\`wootc-legacy.exe\`, so a rollback has a named, non-primary path."
             echo
             echo "Walkthrough: https://tuna-os.github.io/wootc/e2e/latest/"
             # The narrative (#242): docs/release-notes-<tag>.md when it
@@ -448,6 +419,18 @@ jobs:
           files: release-assets/*
           body_path: NOTES.md
           draft: false
+
+      - name: Dispatch native setup packaging
+        # The release has to exist before winui-preview.yml can fetch the
+        # public half of artifact-public-key.hex. It builds and attaches the
+        # setup assets at this exact tag; winget waits for the primary generic
+        # setup below.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.chan.outputs.tag }}
+        run: |
+          gh workflow run winui-preview.yml --repo "${{ github.repository }}" \
+            --ref "$RELEASE_TAG" -f release_tag="$RELEASE_TAG"
 
       - name: Dispatch winget submission (full releases only)
         # winget-publish.yml listens on release:published, but releases cut

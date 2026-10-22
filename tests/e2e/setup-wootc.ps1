@@ -37,6 +37,13 @@ param(
     # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
     # makes setup self-contained and avoids requiring SMB/WinRM to be ready.
     [string]$PayloadDir = "",
+    # Optional Phase-D path: install the native setup package silently before
+    # the scripted boot handoff. The installed engine is copied into the
+    # trusted recovery location; the package, not a loose wootc.exe, is the
+    # staged GUI artifact.
+    [string]$SetupExe = "",
+    [ValidateSet("wootc", "tunaos", "aurora", "bazzite", "bluefin")]
+    [string]$SetupBrand = "wootc",
     # Fault-injection axis (#288): injects simulated failure or cancellation
     # at an install boundary: "root-disk", "image-pull", "efi-staging", "bcd-arming", "pre-reboot".
     [ValidateSet("root-disk", "image-pull", "efi-staging", "bcd-arming", "pre-reboot", "")]
@@ -61,12 +68,29 @@ if (-not $gotMutex) {
     exit 0
 }
 
-# Reserve trusted state before partitioning or reading any pre-staged files.
+# Reserve trusted state and stage the verified status CLI before partitioning
+# or reading any pre-staged files.
 Initialize-WootcStateDirectory -Path 'C:\wootc'
 . (Join-Path $PSScriptRoot 'stage-status-cli.ps1')
 $cliSource = $PayloadDir
 if (-not $cliSource) { $cliSource = '\\host.lan\Data' }
 Copy-WootcStatusCLI -SourceDirectory $cliSource -Destination 'C:\wootc\wootc.exe'
+if (-not $SetupExe) {
+    $genericSetup = Join-Path $cliSource 'wootc-Installer-Setup.exe'
+    if (Test-Path -LiteralPath $genericSetup -PathType Leaf) { $SetupExe = $genericSetup }
+}
+if ($SetupExe) {
+    $setupPath = [IO.Path]::GetFullPath($SetupExe)
+    if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) { throw "Native setup executable is missing: $setupPath" }
+    Write-Host "[wootc] Installing the native setup package silently: $setupPath"
+    $setup = Start-Process -FilePath $setupPath -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru
+    if ($setup.ExitCode -ne 0) { throw "Native setup package refused with exit $($setup.ExitCode)" }
+    $programFiles = $env:ProgramW6432
+    if (-not $programFiles) { $programFiles = $env:ProgramFiles }
+    $engine = Join-Path $programFiles "wootc Native\$SetupBrand\bundle\wootc-engine.exe"
+    if (-not (Test-Path -LiteralPath $engine -PathType Leaf)) { throw "Native setup installed no engine at $engine" }
+    Write-Host "[wootc] Native setup installed; the verified status CLI remains staged for recovery"
+}
 
 # Extra deployer kargs for the bootloader/composefs axes of the test matrix.
 # Both default to "auto": the deployer probes the image and picks the backend
@@ -684,7 +708,9 @@ Write-Host "[wootc] BCD configured and verified successfully."
 # ── Step 8b: Register Recovery Guard and armed.json (§2) ────────────────────
 Write-Host "[wootc] Arming recovery guard..."
 $exeCopy = "$installDir\wootc.exe"
-if ($PayloadDir -and (Test-Path "$PayloadDir\wootc.exe")) {
+if ($SetupExe -and (Test-Path "C:\wootc\wootc.exe")) {
+    Copy-Item -Force "C:\wootc\wootc.exe" $exeCopy
+} elseif ($PayloadDir -and (Test-Path "$PayloadDir\wootc.exe")) {
     Copy-Item -Force "$PayloadDir\wootc.exe" $exeCopy
 } elseif (Test-Path "C:\wootc\wootc.exe") {
     Copy-Item -Force "C:\wootc\wootc.exe" $exeCopy
