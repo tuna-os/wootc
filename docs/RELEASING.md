@@ -132,6 +132,12 @@ tools/release/matrix-evidence.py check --sha <rc-sha> \
     --snapshot matrix-evidence.json
 ```
 
+The matrix plan runs `tests/e2e/validate-matrix.py` before it fans out. This
+keeps `app/data/images.json` as an evidence output rather than a source for
+case generation, while failing early if a green catalog image lacks ordinary
+Windows 10 or 11 Pro coverage. Axis-specific rows (BitLocker, filesystem,
+offline, recovery, firmware-db, and Phase 3) do not satisfy that primary-image
+gate.
 The tool reads `tests/e2e/matrix.tsv` at the RC SHA and expects each
 full-tier cell that the hosted plan runs. GUI mode expects only the cells that
 the `gui_install` guard drives. The BitLocker, `filesystem=`, and offline cells

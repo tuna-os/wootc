@@ -152,3 +152,8 @@ setup() {
     grep -q 'tests/e2e/e2e-brand.sh' "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
     grep -q '\[ -d "$root/app/branding/$name" \]' "$REPO_ROOT/tests/e2e/e2e-brand.sh"
 }
+
+@test "full-tier plan covers every green catalog image on Windows 10 and 11 Pro" {
+    run python3 "$REPO_ROOT/tests/e2e/validate-matrix.py"
+    [ "$status" -eq 0 ]
+}
