@@ -56,7 +56,7 @@ with `DISK_HEADROOM_GB = 15`, i.e. **35 GB**; `user-guide.md` and
 
 **Channel behaviour** — default channel `alpha`; alpha offers green images
 only, no custom OCI refs, no BitLocker; the alpha image is
-`ghcr.io/projectbluefin/bluefin:lts`; `images.json` carries
+`ghcr.io/projectbluefin/bluefin-lts:stable`; `images.json` carries
 `"status": "green" | "experimental"` as `RELEASING.md` describes.
 
 **On-screen strings** — "Restart into &lt;distro&gt; →", "Also delete my Linux

@@ -39,7 +39,9 @@ Windows is a good outcome; a walked-into-red user with a broken boot is not.
 
 ## Alpha (now)
 
-- **Image:** `ghcr.io/projectbluefin/bluefin:lts`. This combination passed the full cycle, including a run through the GUI.
+- **Image:** `ghcr.io/projectbluefin/bluefin-lts:stable`. This canonical
+  Bluefin LTS reference is shared with bootc-migrate; the release gate verifies
+  the exact reference through the GUI before publishing.
 - **Encryption:** off only. `tpm2-luks` (Phase-2 regen, [#33](https://github.com/tuna-os/wootc/issues/33))
   and BitLocker FDE ([#34](https://github.com/tuna-os/wootc/issues/34)) remain unavailable in alpha.
   The app detects BitLocker and tells the user about that limit. It refuses to continue into a known failure.
@@ -97,7 +99,7 @@ The release notes disclose that waiver.
 
 ```
 git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
-# → tests → E2E gate (real Windows VM, bluefin:lts, GUI-driven) → build + publish
+# → tests → E2E gate (real Windows VM, bluefin-lts:stable, GUI-driven) → build + publish
 ```
 
 Every release ships the **full artifact set** from `release.yml`.

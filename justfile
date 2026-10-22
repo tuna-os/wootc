@@ -35,6 +35,10 @@ test:
 # Alias for the fast tier.
 test-fast: test
 
+# Compare shared image references and backend metadata with bootc-migrate.
+catalog-check source="https://raw.githubusercontent.com/tuna-os/bootc-migrate/main/catalog/sources.json":
+    python3 tools/catalog/check-drift.py --source "{{ source }}"
+
 # Containerized integration (User Data Bridge, WSL, go-native gates). Needs podman.
 test-slow:
     bash tests/run.sh slow

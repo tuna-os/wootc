@@ -6,7 +6,7 @@
     "base": "Universal Blue (Fedora)",
     "desktop": "gnome",
     "desktopName": "GNOME",
-    "imageRef": "ghcr.io/projectbluefin/bluefin:lts",
+    "imageRef": "ghcr.io/projectbluefin/bluefin-lts:stable",
     "description": "A calm, reliable cloud-native desktop on the long-term-support base. The most-tested choice.",
     "bootloader": "grub2",
     "composeFs": false,
