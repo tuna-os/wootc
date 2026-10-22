@@ -542,3 +542,59 @@ release_published() {
     grep -q 'legacy Wails path for native installation' docs/manual-testing.md
     grep -q 'prove a Linux desktop inside Windows or the WinUI journey' docs/manual-testing.md
 }
+
+@test "README states the shipping Linux-disk encryption default" {
+    grep -q "encryption: 'none'" app/frontend/src/lib/state.js
+    grep -q 'uses no.*Linux disk encryption by default' README.md
+    ! grep -q 'TPM encryption by default' README.md
+}
+
+@test "release guide mirrors the catalog status and current alpha gate" {
+    local green
+    green=$(jq -r '.[] | select(.status == "green") | .id' app/data/images.json)
+    for id in $green; do
+        grep -qF "\`$id\`" docs/RELEASING.md
+    done
+    [ -n "$(jq -r '.[] | select(.status == "experimental") | .id' app/data/images.json)" ]
+    grep -q 'remaining catalog entries are still.*experimental' docs/RELEASING.md
+    ! grep -q 'yellowfin / bonito / marlin / flounder full three-phase' docs/RELEASING.md
+}
+
+@test "release instructions do not invent an application TPM requirement" {
+    grep -q 'UEFI + Secure Boot' docs/RELEASING.md
+    ! grep -q 'TPM 2\.0' docs/RELEASING.md
+    grep -q 'pick Bluefin LTS, set a password' docs/RELEASING.md
+    ! grep -q 'set a username + password' docs/RELEASING.md
+}
+
+@test "runtime branding docs name the actual overlay location" {
+    grep -q 'filepath.Join(wootcDir(), "brand.json")' app/branding_policy.go
+    grep -q 'C:\\wootc\\brand.json' docs/branding.md
+    ! grep -q 'next to the installer' docs/branding.md
+}
+
+@test "release branding docs follow the buildable-brand selector" {
+    grep -q 'packaging/brands.sh' .github/workflows/release.yml
+    grep -q 'buildable.*brand' docs/branding-and-distribution.md
+    grep -q 'declined.*drops' docs/branding-and-distribution.md
+    ! grep -q 'one installer per brand directory' docs/RELEASING.md
+}
+
+@test "user guide describes fresh VM provisioning instead of a prepared disk" {
+    grep -q 'provisions one persistent raw disk' app/vm_windows.go
+    grep -q 'provisions a persistent Linux disk' docs/user-guide.md
+    ! grep -q 'needs a prepared Linux disk' docs/user-guide.md
+}
+
+@test "manual hardware guide does not present unmeasured timings as proof" {
+    grep -q 'record the observed duration' docs/manual-testing.md
+    ! grep -q '5–15 minutes' docs/manual-testing.md
+    ! grep -q '30–60 minutes' docs/manual-testing.md
+    grep -q 'full install path as the v0.3.0-beta gate' docs/manual-testing.md
+    ! grep -q 'On the beta channel, BitLocker-encrypted systems are supported' docs/manual-testing.md
+}
+
+@test "branded screenshots state their evidence boundary" {
+    grep -q 'deterministic mock-GUI captures, not proof of an RC' docs/branded-walkthroughs.md
+    grep -q 'record the exact RC SHA' docs/branded-walkthroughs.md
+}

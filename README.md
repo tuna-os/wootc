@@ -28,8 +28,9 @@ The [verification status](docs/status.md) describes the evidence and limits.
 The [roadmap](ROADMAP.md) keeps VM-first use and complete restoration as release requirements.
 
 The setup form asks for **a password**. The app suggests your username and
-computer name from your PC. It sizes the disk from available space and selects TPM encryption by default.
-Advanced lets you change those choices. Supported migration helpers can carry files,
+computer name from your PC. It sizes the disk from available space and uses no
+Linux disk encryption by default. Advanced lets you change those choices;
+TPM auto-unlock is not available yet. Supported migration helpers can carry files,
 Wi-Fi networks, wallpaper, and taskbar choices. Results depend on the image and helper.
 
 <!-- hive-contribute-plea: donated-compute appeal, keep in sync across repos -->

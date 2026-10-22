@@ -17,17 +17,21 @@ Keep a backup before you test alpha boot software.
 1. **Have a backup of anything you can't lose.** A successful VM test does
    not prove that your machine or files will survive an installation failure.
 2. **Know your BitLocker recovery key** (Settings ▸ Privacy & security ▸
-   Device encryption, or `manage-bde -protectors C: -get`). On the beta
-   channel, BitLocker-encrypted systems are supported: the installer leaves
-   `C:` fully encrypted and sets up Linux on an unencrypted partition (or
-   another volume), capturing the numerical recovery key to unlock `C:`
-   read-only during profile migration. If firmware boot order changes
-   trigger BitLocker recovery when booting back to Windows, entering your
-   48-digit numerical recovery key once unlocks the drive and restores normal
-   Windows startup. Have the key *before* rebooting, not after.
+   Device encryption, or `manage-bde -protectors C: -get`). The beta policy
+   contains the BitLocker path, but the current matrix records the refusal path
+   as green and keeps the full install path as the v0.3.0-beta gate. Do not
+   describe this checkout's beta code path as accepted hardware support until
+   that row is green. On alpha, an encrypted `C:` drive is refused before
+   installation. If the accepted beta path is under test, it leaves `C:`
+   encrypted and uses an unencrypted partition or another volume, capturing
+   the numerical recovery key for read-only profile migration. If firmware
+   boot order changes trigger BitLocker recovery when booting back to Windows,
+   entering the 48-digit numerical recovery key once unlocks the drive. Have
+   the key *before* rebooting, not after.
 3. **Plug in the power adapter.** The app opens on battery but will not let
-   you start the install until you plug in ("Plug in the power adapter
-   first"); the deploy boot can take 30–60 minutes on a slow connection. A
+   you start the install until you plug in ("Plug in the power adapter first").
+   A slow deploy can take a long time; record the observed duration in the
+   report rather than treating this planning estimate as a pass criterion. A
    desktop with no battery at all is never blocked by this.
 4. **Check free disk**: 35 GB+ free on `C:` (20 GB minimum for Linux plus
    the 15 GB headroom the app reserves for Windows). The slider won't offer
@@ -38,8 +42,9 @@ Keep a backup before you test alpha boot software.
    while still on Windows, and the deploy boot then needs no network at
    all.
 6. **Let it manage Fast Startup and hibernation.** The app turns them off
-   during install (and the uninstaller restores your original setting) —
-   don't re-enable them mid-test.
+   during install and attempts to restore the recorded values during
+   uninstall. Do not re-enable them mid-test; verify the result against the
+   baseline below.
 
 ## What a good run looks like
 
@@ -48,9 +53,9 @@ Keep a backup before you test alpha boot software.
    actually changed at any moment. Reboot when asked (save other work
    first — the restart is forced).
 2. **The deploy boot**: a calm splash screen ("Your Windows and all of your
-   files are safe"), progress bar, 5–15 minutes on a fast line (the splash
-   says so honestly if it will be longer). No scrolling text — that only
-   appears in debug/E2E runs. It ends with "All set!" and reboots.
+   files are safe") and a progress bar. Record the duration and any change
+   from the expected splash text. No scrolling text — that only appears in
+   debug/E2E runs. It ends with "All set!" and reboots.
 3. **First Linux boot**: the boot menu shows your distribution *and*
    Windows. Linux starts, you log in with the password you set, a welcome
    opens the "Bring over from Windows" dashboard, and your Windows folders
