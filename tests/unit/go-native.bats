@@ -479,3 +479,26 @@ NTFSINFO
     [[ "$block" == *'e2e-native-probe.sh'* ]]
     [[ "$block" == *'multi-user.target.wants/wootc-e2e-native-probe.service'* ]]
 }
+
+@test "Phase-3 installs the /run root probe, ordered before the guest agent" {
+    # The confined agent cannot search /sysroot/ostree (run 39007144179:
+    # readlink -e failed for the composefs datadir), and the composefs image
+    # mount is detached. The export must exist before the agent answers, and
+    # the unit stays active so its invocation id remains observable.
+    local block unit
+    # Heredoc bodies are skipped: the probe script has its own "    fi".
+    block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }
+        heredoc && $0 == heredoc { heredoc=""; next }
+        heredoc { next }
+        active { print }
+        active && match($0, /<<.[A-Z]+.$/) { heredoc=substr($0, RSTART+3, RLENGTH-4) }
+        active && /^    fi$/ { exit }' "$GN")
+    [[ "$block" == *'e2e-native-root-probe.sh'* ]]
+    [[ "$block" == *'multi-user.target.wants/wootc-e2e-native-root-probe.service'* ]]
+    unit=$(awk '/wootc-e2e-native-root-probe.service" <<.UNIT.$/ { active=1; next }
+        active && /^UNIT$/ { exit }
+        active { print }' "$GN")
+    [[ "$unit" == *'Before=qemu-guest-agent.service'* ]]
+    [[ "$unit" == *'RemainAfterExit=yes'* ]]
+    [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh'* ]]
+}
