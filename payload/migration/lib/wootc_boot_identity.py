@@ -25,9 +25,71 @@ def read(path, limit=1048576):
     require(len(data) <= limit, 'oversized source: ' + str(path))
     return data
 
+# `bootc status` takes the ostree sysroot lock, and waits ("Waiting for
+# sysroot lock...", on stderr) while another bootc or ostree operation holds
+# it. On bluefin:stable the first boot runs bootc-unified-storage.service
+# (`bootc image set-unified`), which copies the booted image into
+# containers-storage under that lock. E2E 39874539856: the ESP controller and
+# the first-boot collector both started behind it, and both gave up when the
+# 30 s bound every other command gets ran out (00:49:18 -> 00:49:52 and
+# 00:49:24 -> 00:49:57). Waiting is not trusting: the answer, when it comes,
+# is still measured and validated, and no answer is still a refusal.
+BOOTC_STATUS = ('bootc', 'status', '--json')
+BOOTC_STATUS_TIMEOUT = 900
+
+
 def command(*args):
+    timeout = BOOTC_STATUS_TIMEOUT if args == BOOTC_STATUS else 30
     return subprocess.run(args, check=True, capture_output=True, text=True,
-                          timeout=30).stdout
+                          timeout=timeout).stdout
+
+
+def _stderr_tail(error):
+    tail = getattr(error, 'stderr', None) or b''
+    if isinstance(tail, bytes):
+        tail = tail.decode('utf-8', errors='replace')
+    tail = ' '.join(tail.split())[-200:]
+    return ' (bootc: %s)' % tail if tail else ''
+
+
+def bootc_status(run=command):
+    """`bootc status --json`, parsed. FileNotFoundError (no bootc) passes
+    through, because its meaning is the caller's; every other failure to get
+    an answer is a ValueError that says why."""
+    try:
+        output = run(*BOOTC_STATUS)
+    except FileNotFoundError:
+        raise
+    except subprocess.TimeoutExpired as error:
+        raise ValueError('bootc status did not answer within %ss%s'
+                         % (error.timeout, _stderr_tail(error))) from error
+    except subprocess.CalledProcessError as error:
+        raise ValueError('bootc status exited %s%s'
+                         % (error.returncode, _stderr_tail(error))) from error
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError('bootc status could not run: %s' % error) from error
+    try:
+        return json.loads(output)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise ValueError('bootc status printed no JSON document') from error
+
+
+def booted_image(status):
+    """(reference, digest) of the booted bootc deployment, or ValueError.
+
+    The one reading of bootc's status schema (org.containers.bootc/v1:
+    status.booted.image.image.image and status.booted.image.imageDigest)
+    for the ESP controller and the first-boot collector alike.
+    """
+    try:
+        image = status['status']['booted']['image']
+        ref, digest = image['image']['image'], image['imageDigest']
+    except (KeyError, TypeError) as error:
+        raise ValueError('bootc status names no booted image') from error
+    require(isinstance(ref, str) and ref and
+            isinstance(digest, str) and re.fullmatch('sha256:[0-9a-f]{64}', digest),
+            'missing actual booted deployment identity')
+    return ref, digest
 
 def boot_argument(tokens, name):
     """One kernel command line argument, read the way the attach hook reads it.
@@ -217,11 +279,11 @@ def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
     observed_host = run('blkid', '-s', 'UUID', '-o', 'value', private[0]['source']).strip().upper()
     require(observed_host == host_uuid, 'mounted NTFS UUID differs from cmdline')
     try:
-        status = json.loads(run('bootc', 'status', '--json'))
+        status = bootc_status(run)
     except FileNotFoundError:
         status = None
-    except (subprocess.SubprocessError, json.JSONDecodeError) as error:
-        raise ValueError('cannot measure installed bootc deployment') from error
+    except ValueError as error:
+        raise ValueError('cannot measure installed bootc deployment: %s' % error) from error
     root_target = '/sysroot' if status is not None else '/'
     roots = [row for row in mounts if row['target'] == root_target]
     require(len(roots) == 1, 'missing installed root mount')
@@ -253,10 +315,6 @@ def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
         observed.update(deploymentKind='classic', rootDevice=roots[0]['device'],
                         rootFsUuid=root_uuid, rootFsType=roots[0]['type'])
         return observed
-    booted = status['status']['booted']
-    image = booted['image']['image']['image']
-    image_digest = booted['image']['imageDigest']
-    require(isinstance(image, str) and image and
-            re.fullmatch('sha256:[0-9a-f]{64}', image_digest), 'missing actual booted deployment identity')
+    image, image_digest = booted_image(status)
     observed.update(deploymentKind='bootc', imageRef=image, imageDigest=image_digest)
     return observed

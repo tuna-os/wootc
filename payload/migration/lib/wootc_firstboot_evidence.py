@@ -23,8 +23,9 @@ import sys
 import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from wootc_boot_identity import (EFI_GUID, boot_argument, command,  # noqa: E402
-                                 decode_boot_option, decode_efibootmgr, loop_backing_name,
+from wootc_boot_identity import (EFI_GUID, boot_argument, booted_image,  # noqa: E402
+                                 bootc_status, command, decode_boot_option,
+                                 decode_efibootmgr, loop_backing_name,
                                  loop_backs_file, mount_rows, read, require)
 
 SCHEMA = 1
@@ -135,15 +136,15 @@ def failed_units(run=command):
 
 
 def image(etc, run=command):
+    # The same reading of bootc as the ESP controller (wootc_boot_identity),
+    # except that here no bootc is a refusal too: this record is for bootc
+    # installs only.
     try:
-        status = json.loads(run('bootc', 'status', '--json'))
-        booted = status['status']['booted']['image']
-        ref, digest = booted['image']['image'], booted['imageDigest']
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError,
-            KeyError, TypeError) as error:
-        raise ValueError('cannot measure the booted bootc image') from error
+        ref, digest = booted_image(bootc_status(run))
+    except (OSError, ValueError) as error:
+        raise ValueError('cannot measure the booted bootc image: %s' % error) from error
     text_field(ref, 'booted image reference')
-    require(isinstance(digest, str) and DIGEST.fullmatch(digest), 'invalid booted image digest')
+    require(DIGEST.fullmatch(digest), 'invalid booted image digest')
     result = {'ref': ref, 'digest': digest}
     # The deployer may install a locally derived image; the reference the
     # user chose is what it recorded for day-2 updates.

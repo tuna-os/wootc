@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 import json
+import os
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'payload/migration/lib'))
 import wootc_boot_identity as b
@@ -172,6 +175,105 @@ class BootIdentityTests(unittest.TestCase):
     def test_other_loader_not_accepted(self):
         self.boot.write_bytes(option(loader='\\EFI\\Microsoft\\Boot\\bootmgfw.efi'))
         with self.assertRaisesRegex(ValueError,'not a vendor shim'):self.observe()
+
+
+# The shape `bootc status --json` prints for a booted ostree-backed install
+# (org.containers.bootc/v1), here for ghcr.io/projectbluefin/bluefin:stable as
+# published 2026-09-17 (the image E2E 39874539856 ran).
+STABLE_DIGEST='sha256:a50af2d633f72b549b395d0973a2cc317654e4e4ad679543b9c52c63c34a0d61'
+STABLE_STATUS={
+    'apiVersion':'org.containers.bootc/v1','kind':'BootcHost','metadata':{'name':'host'},
+    'spec':{'bootOrder':'default','image':{'image':'ghcr.io/projectbluefin/bluefin:stable','transport':'registry'}},
+    'status':{'staged':None,'rollback':None,'rollbackQueued':False,'type':'bootcHost',
+              'booted':{'image':{'image':{'image':'ghcr.io/projectbluefin/bluefin:stable','transport':'registry'},
+                                 'version':'44.20260917.0','timestamp':'2026-09-17T06:33:23Z',
+                                 'imageDigest':STABLE_DIGEST,'architecture':'amd64'},
+                        'cachedUpdate':None,'incompatible':False,'pinned':False,'store':'ostreeContainer',
+                        'ostree':{'checksum':'feddb8baa299a2ff28bb449609ba4d8ab085c895cf92edef486ad97b93330757',
+                                  'deploySerial':0,'stateroot':'default'}}}}
+
+
+class BootcStatusTests(unittest.TestCase):
+    """E2E 39874539856 (bluefin:stable): the first boot's
+    bootc-unified-storage.service (`bootc image set-unified`) held the ostree
+    sysroot lock. `bootc status` waits for that lock, printing "Waiting for
+    sysroot lock..." on stderr; the ESP controller gave it the 30 s every other
+    command gets and refused "cannot measure installed bootc deployment"
+    (wootc-esp-sync 00:49:18 -> 00:49:52), as did the first-boot collector."""
+
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.bin=Path(self.temp.name)
+        self.path=os.environ.get('PATH','')
+        os.environ['PATH']=str(self.bin)+os.pathsep+self.path
+        self.timeout=b.BOOTC_STATUS_TIMEOUT
+
+    def tearDown(self):
+        os.environ['PATH']=self.path;b.BOOTC_STATUS_TIMEOUT=self.timeout;self.temp.cleanup()
+
+    def bootc(self,body):
+        tool=self.bin/'bootc'
+        tool.write_text('#!/bin/sh\n'+body);tool.chmod(0o755)
+
+    def test_status_waits_for_the_sysroot_lock_and_is_then_measured(self):
+        (self.bin/'status.json').write_text(json.dumps(STABLE_STATUS))
+        self.bootc('[ "$*" = "status --json" ] || exit 64\n'
+                   'echo "Waiting for sysroot lock..." >&2\nsleep 1\n'
+                   'cat "$(dirname "$0")/status.json"\n')
+        b.BOOTC_STATUS_TIMEOUT=30
+        self.assertEqual(b.booted_image(b.bootc_status()),
+                         ('ghcr.io/projectbluefin/bluefin:stable',STABLE_DIGEST))
+
+    def test_status_still_waiting_at_the_bound_is_a_refusal_that_says_why(self):
+        self.bootc('echo "Waiting for sysroot lock..." >&2\nexec sleep 30\n')
+        b.BOOTC_STATUS_TIMEOUT=1
+        with self.assertRaisesRegex(ValueError,r'did not answer within 1s \(bootc: Waiting for sysroot lock\.\.\.\)'):
+            b.bootc_status()
+
+    def test_failing_or_silent_bootc_is_a_refusal(self):
+        self.bootc('echo "error: Not booted into a bootc deployment" >&2\nexit 1\n')
+        with self.assertRaisesRegex(ValueError,'exited 1 \\(bootc: error: Not booted'):b.bootc_status()
+        self.bootc('echo "Waiting for sysroot lock..."\n')
+        with self.assertRaisesRegex(ValueError,'no JSON document'):b.bootc_status()
+
+    def test_only_bootc_status_gets_the_long_bound(self):
+        seen=[]
+        def fake(args,**kw):
+            seen.append((args,kw['timeout']))
+            return subprocess.CompletedProcess(args,0,'{}','')
+        with mock.patch.object(b.subprocess,'run',fake):
+            b.command('bootc','status','--json');b.command('blkid','-s','UUID','-o','value','/dev/vda3')
+        self.assertEqual(seen,[(('bootc','status','--json'),b.BOOTC_STATUS_TIMEOUT),
+                               (('blkid','-s','UUID','-o','value','/dev/vda3'),30)])
+        self.assertGreaterEqual(b.BOOTC_STATUS_TIMEOUT,600)
+
+    def test_controller_refusal_names_the_unanswered_status(self):
+        case=BootIdentityTests('test_fresh_positive_identity_includes_observed_ancestry_and_bootid')
+        case.setUp();self.addCleanup(case.tearDown)
+        original=case.command
+        def blocked(*args):
+            if args==('bootc','status','--json'):
+                raise subprocess.TimeoutExpired(args,900,stderr='Waiting for sysroot lock...\n')
+            return original(*args)
+        case.command=blocked
+        with self.assertRaisesRegex(ValueError,'^cannot measure installed bootc deployment: bootc status did not '
+                                    'answer within 900s \\(bootc: Waiting for sysroot lock...\\)$'):case.observe()
+
+    def test_booted_image_reads_the_v1_schema_strictly(self):
+        self.assertEqual(b.booted_image(STABLE_STATUS),('ghcr.io/projectbluefin/bluefin:stable',STABLE_DIGEST))
+        for name,mutate in (
+                ('not booted',lambda s:s['status'].update(booted=None)),
+                ('no image',lambda s:s['status']['booted'].update(image=None)),
+                ('no digest',lambda s:s['status']['booted']['image'].pop('imageDigest')),
+                ('bad digest',lambda s:s['status']['booted']['image'].update(imageDigest='sha256:xyz')),
+                ('empty ref',lambda s:s['status']['booted']['image']['image'].update(image='')),
+                ('no status',lambda s:s.pop('status'))):
+            with self.subTest(name):
+                status=json.loads(json.dumps(STABLE_STATUS));mutate(status)
+                with self.assertRaises(ValueError):b.booted_image(status)
+
+    def test_collector_reads_bootc_through_the_same_helpers(self):
+        import wootc_firstboot_evidence as f
+        self.assertIs(f.booted_image,b.booted_image);self.assertIs(f.bootc_status,b.bootc_status)
 
 
 if __name__=='__main__':unittest.main()
