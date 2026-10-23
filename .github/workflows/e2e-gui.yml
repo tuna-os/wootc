@@ -11,7 +11,7 @@ on:
       image:
         description: 'bootc image to install'
         type: string
-        default: 'ghcr.io/projectbluefin/bluefin:lts'
+        default: 'ghcr.io/projectbluefin/bluefin:stable'
       require_podman_major:
         description: '#71 triage: only run if the runner drew this podman major (e.g. 5). Empty = any.'
         type: string
@@ -51,7 +51,7 @@ jobs:
   run:
     uses: ./.github/workflows/e2e-hosted.yml
     with:
-      image: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
+      image: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:stable' }}
       gui_install: true
       # Scheduled nightlies always graduate; a dispatch may turn Phase 3 off
       # for showcase cuts (the run then ends back in Windows on camera).
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
+      IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:stable' }}
       PHASE3: ${{ github.event_name == 'schedule' && 'true' || (inputs.phase3 && 'true' || 'false') }}
       UNCHK: ${{ github.event_name != 'schedule' && inputs.uninstall_check && 'true' || 'false' }}
       FRONTEND: ${{ inputs.gui_frontend || 'wails' }}
@@ -128,7 +128,7 @@ jobs:
 
       - name: Publish the GUI-driven timelapse (green runs only)
         env:
-          WOOTC_TARGET_IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:lts' }}
+          WOOTC_TARGET_IMAGE: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:stable' }}
         run: |
           set -euo pipefail
           # run-e2e.sh writes .passed into the video dir ONLY on ALL TESTS
@@ -145,7 +145,7 @@ jobs:
           fi
           # One walkthrough PER DISTRIBUTION, plus "latest" for the README
           # hero. Slug from the image that actually ran: bazzite:stable →
-          # bazzite, bluefin:lts → bluefin-lts (a stable/latest tag adds
+          # bazzite, yellowfin:gnome → yellowfin-gnome (a stable/latest tag adds
           # nothing; any other tag disambiguates).
           image="$WOOTC_TARGET_IMAGE"
           name=$(basename "${image%:*}")
