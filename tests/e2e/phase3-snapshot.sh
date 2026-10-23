@@ -53,20 +53,14 @@ btrfs_members=$(
 )
 # The confined guest agent cannot search /sysroot/ostree or see the detached
 # composefs image; the root probe made those observations at boot from init's
-# context (wootc-go-native). Pass on, as observed, who owns the export and
-# which run of the probe unit systemd recorded; the receipt decides. Absent,
-# the receipt refuses a root that needs them.
+# context (wootc-go-native). Pass on, as observed, who owns the export; the
+# receipt decides. Absent, the receipt refuses a root that needs them.
 root_probe=""
 root_export=/run/wootc-e2e-native-root
-root_unit=/run/systemd/units/invocation:wootc-e2e-native-root-probe.service
 if [ -f "$root_export" ] && [ ! -L "$root_export" ]; then
     root_owner=$(stat -c '%u:%g:%a' -- "$root_export")
-    root_invocation=""
-    if [ -L "$root_unit" ]; then
-        root_invocation=$(readlink -- "$root_unit")
-    fi
     root_body=$(cat -- "$root_export")
-    root_probe=$(printf 'FILE=%s\nUNIT=%s\n%s' "$root_owner" "$root_invocation" "$root_body")
+    root_probe=$(printf 'FILE=%s\n%s' "$root_owner" "$root_body")
 fi
 blocks64=$(printf '%s' "$blocks" | base64 -w0)
 mounts64=$(printf '%s' "$mounts" | base64 -w0)

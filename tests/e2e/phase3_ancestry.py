@@ -40,8 +40,6 @@ def plain_path(value):
             and not any(c.isspace() or c == '\\' for c in value))
 
 
-ROOT_PROBE_UNIT = 'wootc-e2e-native-root-probe.service'
-
 
 def root_probe(raw, boot_id):
     """Boot-time root observations made from init's context (wootc-go-native).
@@ -49,30 +47,34 @@ def root_probe(raw, boot_id):
     The confined guest agent cannot search /sysroot/ostree, and a composefs
     metadata image is mounted detached, so these are the only observations of
     the root's layer paths and its ostree deployment. The snapshot prefixes
-    the export with its observed owner and mode (FILE) and the invocation id
-    systemd recorded for the probe unit (UNIT); the export carries the id of
-    the run that wrote it. Anything else, or any mismatch, is refused.
+    the export with its observed owner and mode (FILE). Only root writes
+    /run; the export must name the observed boot and describe the live root
+    mount, and every path it reports is checked against the agent's own
+    mount observations (verify_composefs_metadata), so it can add only what
+    the agent cannot see, never contradict what it does. systemd's record
+    of the unit run (/run/systemd/units/invocation:*) is not a usable
+    witness: the confined agent cannot read it (run 39886118219 observed an
+    empty UNIT for an export the unit had written). ROOT_INVOCATION stays
+    as the probe's proof that it ran under a systemd unit at all.
+    Anything else, or any mismatch, is refused.
     """
     if not raw:
         return None
     lines = raw.split('\n')
-    if len(lines) < 6 or len(lines) > 64:
+    if len(lines) < 5 or len(lines) > 64:
         raise ValueError('Invalid root probe')
     if lines[0] != 'FILE=0:0:644':
         raise ValueError('Root probe export is not a root-owned 0644 file')
-    unit = lines[1][len('UNIT='):] if lines[1].startswith('UNIT=') else ''
-    if not re.fullmatch(r'[0-9a-f]{32}', unit):
-        raise ValueError('Root probe unit invocation unobserved')
-    if lines[2] != 'ROOT_SCHEMA=1':
+    if lines[1] != 'ROOT_SCHEMA=1':
         raise ValueError('Invalid root probe')
-    if not boot_id or lines[3] != 'ROOT_BOOT_ID='+boot_id:
+    if not boot_id or lines[2] != 'ROOT_BOOT_ID='+boot_id:
         raise ValueError('Root probe is not from the observed boot')
-    if lines[4] != 'ROOT_INVOCATION='+unit:
-        raise ValueError('Root probe was not written by the current probe unit run')
-    if not lines[5].startswith('ROOT_OPTIONS=') or not lines[5][len('ROOT_OPTIONS='):]:
+    if not re.fullmatch(r'ROOT_INVOCATION=[0-9a-f]{32}', lines[3]):
+        raise ValueError('Root probe was not written by a systemd unit run')
+    if not lines[4].startswith('ROOT_OPTIONS=') or not lines[4][len('ROOT_OPTIONS='):]:
         raise ValueError('Root probe has no root options')
-    probe = {'options': lines[5][len('ROOT_OPTIONS='):], 'layers': {}, 'deploy': None, 'image': None}
-    for line in lines[6:]:
+    probe = {'options': lines[4][len('ROOT_OPTIONS='):], 'layers': {}, 'deploy': None, 'image': None}
+    for line in lines[5:]:
         key, sep, value = line.partition('=')
         values = value.split('\t')
         if key == 'LAYER' and sep and len(values) == 3 and values[2] in {'empty', 'populated'}:

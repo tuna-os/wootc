@@ -2,6 +2,10 @@
 Description=wootc Phase-2 first-boot evidence and health marker
 DefaultDependencies=no
 After=wootc-host-bind.service wootc-passthrough.service local-fs.target
+# The measurement reads `bootc status`, which waits on the sysroot lock that
+# bluefin:stable's first-boot `bootc image set-unified` holds (E2E
+# 39874539856). Ordering only: a no-op where the unit does not exist.
+After=bootc-unified-storage.service
 Requires=wootc-host-bind.service
 ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json
 

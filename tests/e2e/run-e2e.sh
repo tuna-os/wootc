@@ -4594,7 +4594,12 @@ FIRSTBOOT_DIAG=$(qga_call exec /bin/sh -c '
     echo "--- lifecycle state ---"
     cat /run/initramfs/wootc-host/wootc/state.json 2>&1 || true
     echo "--- firstboot marker ---"
-    cat /run/initramfs/wootc-host/wootc/install/installed-linux-boot.json 2>&1 || true' 2>/dev/null || true)
+    cat /run/initramfs/wootc-host/wootc/install/installed-linux-boot.json 2>&1 || true
+    echo "--- esp-sync unit (runs the ESP controller every Phase-2 boot) ---"
+    systemctl show wootc-esp-sync.service -p ActiveState -p Result -p ExecMainStatus 2>&1 || true
+    journalctl -b -u wootc-esp-sync.service --no-pager -n 30 2>&1 || true
+    echo "--- loop backing files ---"
+    for f in /sys/block/loop*/loop/backing_file; do [ -r "$f" ] && printf "%s=%s\n" "$f" "$(cat "$f")"; done' 2>/dev/null || true)
 if [ -n "$FIRSTBOOT_DIAG" ]; then
     # QGA journal is a separate source; never join it to a torn serial line.
     wootc_phase_boundary

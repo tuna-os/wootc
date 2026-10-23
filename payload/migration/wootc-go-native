@@ -439,10 +439,14 @@ EOF
         # boots fine but the harness's QGA probe times out and the run reports
         # "did not boot Linux". Mirror the same unfiltered config the deployer
         # writes into Phase 2 (this branch is E2E-only, dispatcher-gated).
-        mkdir -p "$etcroot/sysconfig" "$etcroot/qemu"
-        cp -a /etc/sysconfig/qemu-ga "$etcroot/sysconfig/qemu-ga" 2>/dev/null || true
-        cp -a /etc/qemu/qemu-ga.conf "$etcroot/qemu/qemu-ga.conf" 2>/dev/null || true
-        cp -a /etc/qemu-ga.conf "$etcroot/qemu-ga.conf" 2>/dev/null || true
+        # Content only, never Phase 2's SELinux label: the deployer initramfs
+        # wrote these unlabeled, which permissive Phase 2 never notices but
+        # the enforcing native system does. Fedora's qemu-ga (virt_qemu_ga_t)
+        # reads /etc/qemu/qemu-ga.conf and exits when it cannot, so that file
+        # (whose [main] keys qemu-ga ignores anyway) is not copied at all
+        # (run 39874539856: bluefin:stable reached GDM, QGA never answered).
+        mkdir -p "$etcroot/sysconfig"
+        cp /etc/sysconfig/qemu-ga "$etcroot/sysconfig/qemu-ga" 2>/dev/null || true
         # The confined guest agent (virt_qemu_ga_t) cannot read user homes at
         # all — run 20260723T0647: the seed file WAS on the native disk and
         # the harness's direct cat was denied, failing the run on a file that
@@ -518,9 +522,9 @@ trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
 plain() { [[ "$1" == /* && "$1" != *[[:space:]\\]* ]]; }
 read -r boot < /proc/sys/kernel/random/boot_id
 [[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
-# systemd's id for this run of the unit; the harness matches it against
-# /run/systemd/units/invocation:wootc-e2e-native-root-probe.service, so an
-# export that this unit did not write is refused.
+# systemd's id for this run of the unit: the probe runs only as a systemd
+# unit. (The harness cannot cross-check it: the confined agent cannot read
+# /run/systemd/units, run 39886118219.)
 invocation=${INVOCATION_ID:-}
 [[ "$invocation" =~ ^[0-9a-f]{32}$ ]]
 options=$(findmnt --noheadings --raw --output OPTIONS --mountpoint /)
@@ -587,7 +591,10 @@ Before=qemu-guest-agent.service
 
 [Service]
 Type=oneshot
-# Stay active so systemd keeps this run's invocation id under /run.
+# A oneshot has no start timeout by default; a hung probe must not hold
+# the guest agent (ordered after it) back forever.
+TimeoutStartSec=60
+# Stay active so a later start in the same boot does not run it again.
 RemainAfterExit=yes
 ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh
 
