@@ -193,3 +193,43 @@ func TestInstallationIdentityIsFreshAndComplete(t *testing.T) {
 		t.Fatal("accepted truncated serial")
 	}
 }
+
+// The scripted OEM install (tests/e2e/setup-wootc.ps1) writes
+// installation.json but no engine journal, and an online pull leaves no
+// bundle: E2E 39931657846 reported "no record of the selected image" for a
+// first boot that matched the installation in every field.
+func TestFirstBootSelectionComesFromTheInstallationIdentity(t *testing.T) {
+	identity := evidenceIdentity()
+	scripted := func(t *testing.T, evidence string, p *InstallationIdentity) string {
+		root := boundInstall(t, evidence, p)
+		os.Remove(filepath.Join(root, "install", "journal.json"))
+		os.RemoveAll(filepath.Join(root, "bundle"))
+		return root
+	}
+	derived := boundEvidence(func(v map[string]any) {
+		nested(v, "image")["ref"] = "localhost/wootc-ntfs-injected:latest"
+		nested(v, "image")["digest"] = "sha256:" + strings.Repeat("b", 64)
+	})
+	if got := assessFirstBootAt(scripted(t, derived, &identity)); got.Verdict != FirstBootVerified ||
+		got.SourceImageRef != evidenceImage || got.ImageRef != "localhost/wootc-ntfs-injected:latest" {
+		t.Fatalf("scripted install not verified: %+v", got)
+	}
+	// Another selection is still a mismatch, and no record at all is still
+	// unverifiable: the identity replaces the journal, not the check.
+	other := boundEvidence(func(v map[string]any) { nested(v, "image")["sourceRef"] = "ghcr.io/tuna-os/bonito:gnome" })
+	if got := assessFirstBootAt(scripted(t, other, &identity)); got.Verdict != FirstBootMismatch {
+		t.Fatalf("another selection: %+v", got)
+	}
+	if got := assessFirstBootAt(scripted(t, evidenceFixture(nil), nil)); got.Verdict != FirstBootUnverifiable ||
+		got.Reason != "no record of the selected image" {
+		t.Fatalf("no selection record: %+v", got)
+	}
+	// A journal and an identity that name different images cannot both be
+	// this installation's record.
+	conflicting := evidenceIdentity()
+	conflicting.ImageRef = "ghcr.io/tuna-os/bonito:gnome"
+	if got := assessFirstBootAt(boundInstall(t, boundEvidence(nil), &conflicting)); got.Verdict != FirstBootUnverifiable ||
+		!strings.Contains(got.Reason, "installation identity") {
+		t.Fatalf("conflicting records: %+v", got)
+	}
+}

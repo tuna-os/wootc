@@ -468,6 +468,19 @@ func expectFirstBootIdentity(root string) (firstBootExpectation, error) {
 	if found {
 		exp.imageRef = journal.ImageRef
 	}
+	// installation.json is the selection every install path records: the
+	// engine (configureBCD) and the scripted OEM install alike. The journal
+	// exists only for engine installs, the bundle only when this PC
+	// downloaded the image. When two records name the selection they must
+	// agree; a conflict is unverifiable, never a pass.
+	if exp.identity != nil {
+		if exp.imageRef != "" && sourceImage(exp.imageRef) != sourceImage(exp.identity.ImageRef) {
+			return exp, fmt.Errorf("install journal selects %s, installation identity %s", exp.imageRef, exp.identity.ImageRef)
+		}
+		if exp.imageRef == "" {
+			exp.imageRef = exp.identity.ImageRef
+		}
+	}
 	bundle := readBundleInfoAt(filepath.Join(root, "bundle"))
 	if exp.imageRef == "" && bundle != nil {
 		exp.imageRef = bundle.Image
