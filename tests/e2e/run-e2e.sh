@@ -1600,7 +1600,11 @@ mkdir -p "$QGA_CACHE_DIR"
 if [ ! -s "$QGA_MSI" ]; then
     step "Caching QEMU Guest Agent MSI..."
     tmp_msi="$QGA_MSI.tmp.$$"
-    curl --fail --location --retry 3 --output "$tmp_msi" "$QGA_MSI_URL"
+    # Bounded: an unbounded fetch from a slow mirror hung runs until curl
+    # gave up (exit 28) before any test body (39931657846, 39952662292).
+    curl --fail --location --connect-timeout 30 --max-time 600 \
+        --retry 5 --retry-delay 10 --retry-all-errors \
+        --output "$tmp_msi" "$QGA_MSI_URL"
     mv "$tmp_msi" "$QGA_MSI"
 fi
 [ -s "$QGA_MSI" ] || { fail "QGA MSI is empty: $QGA_MSI"; exit 1; }
