@@ -732,9 +732,9 @@ verify_installed_boot_gui() {
     # directive exists, with the GUI install launch's markers
     # (gui_single_instance_proven): absence from a successful task listing,
     # and one wootc.exe after a settle.
-    local single_out
+    local proof_single
     # shellcheck disable=SC2016
-    single_out=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+    proof_single=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
 cmd.exe /d /c "schtasks.exe /Delete /TN wootc-control-proof /F >NUL 2>&1" | Out-Null
 cmd.exe /d /c "schtasks.exe /Query /TN wootc-control-proof >NUL 2>&1" | Out-Null
 $named = $LASTEXITCODE
@@ -748,9 +748,9 @@ Start-Sleep -Seconds 4
 $procs = @(Get-Process -Name wootc -ErrorAction SilentlyContinue)
 if ($procs.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $procs.Count + " wootc.exe running") }
 else { Write-Output "single-instance: 1 wootc.exe" }' 2>&1) || true
-    printf '%s\n' "$single_out" >> "$ARTIFACT_DIR/control-panel-ui-launch.log"
-    if ! gui_single_instance_proven "$single_out" wootc.exe wootc-control-proof; then
-        fail "Control-panel proof: cannot prove one control panel and no launch task ($(printf '%s' "$single_out" | tr -d '\r' | tr '\n' ' '))"
+    printf '%s\n' "$proof_single" >> "$ARTIFACT_DIR/control-panel-ui-launch.log"
+    if ! gui_single_instance_proven "$proof_single" wootc.exe wootc-control-proof; then
+        fail "Control-panel proof: cannot prove one control panel and no launch task ($(printf '%s' "$proof_single" | tr -d '\r' | tr '\n' ' '))"
         return 1
     fi
     $DOCKER cp "$directive" "$CONTAINER_NAME:/tmp/control-proof-directive.json" &&
