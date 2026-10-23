@@ -635,6 +635,45 @@ source "$SCRIPT_DIR/lib/gui-session.sh"
 source "$SCRIPT_DIR/lib/mok.sh"
 # shellcheck source=tests/e2e/lib/phase2-second-boot.sh
 source "$SCRIPT_DIR/lib/phase2-second-boot.sh"
+
+# Run by phase2_second_boot_check while the BitLocker cell's second Phase-2
+# boot is up: the edit the ordinary user saved to the Documents copy on the
+# first boot survived the restart, and the encrypted original did not change.
+bitlocker_documents_second_boot() {
+    PERSISTED_EDIT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" 2>/dev/null || true)
+    if printf '%s' "$PERSISTED_EDIT" | grep -Fq "$EDIT_MARKER"; then
+        pass "BitLocker Documents: saved Linux edit survived the environment restart"
+    else
+        fail "BitLocker Documents: saved Linux edit did not survive the environment restart"
+        info "  second-boot readback: ${PERSISTED_EDIT:-<empty>}"
+        exit 1
+    fi
+    if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+        if ! python3 "$SCRIPT_DIR/gui-document-proof.py" reopen --runtime "$DOCKER" \
+            --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
+            --output "$ARTIFACT_DIR/gui-documents/second-boot" \
+            > "$ARTIFACT_DIR/gui-documents-second.json"; then
+            fail "GUI Documents: editor could not reopen saved bytes after the environment restart"
+            exit 1
+        fi
+        if [ "$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-second.json")" != "$GUI_EDIT_SHA" ]; then
+            fail "GUI Documents: saved bytes changed across the environment restart"
+            exit 1
+        fi
+        pass "GUI Documents: real editor reopened the same saved bytes after restart"
+    fi
+    SECOND_SOURCE=$(qga_call exec /bin/sh -c \
+        'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\\r" < "$f"' \
+        2>/dev/null || true)
+    if printf '%s' "$SECOND_SOURCE" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
+        && ! printf '%s' "$SECOND_SOURCE" | grep -Fq "$EDIT_MARKER"; then
+        pass "BitLocker Documents: Windows source is still unchanged after restart"
+    else
+        fail "BitLocker Documents: Windows source changed or is unavailable after restart"
+        info "  encrypted source readback: ${SECOND_SOURCE:-<empty>}"
+        exit 1
+    fi
+}
 wootc_gui_configure "$SCRIPT_DIR" qga_powershell qga_windows_probe qga_restart_windows
 
 # Observe actual Wails-rendered DOM after the installed Linux boot returns.
@@ -4958,77 +4997,20 @@ else
     step "Verifying the real Windows control-panel first-boot summary..."
     verify_installed_boot_gui || { capture_vm_diagnostics; exit 1; }
 
-    if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
-        # A visible copy is only useful if it survives stopping and starting
-        # the installed environment. Return to Windows, re-arm the exact
-        # one-shot Phase-2 entry, boot the same root.disk again, and read back
-        # the ordinary user's edit before returning to Windows a second time.
-        step "Rebooting the installed BitLocker environment to prove the saved copy persists..."
-        # Shutdown removes the temporary bridge key. Refresh it from Windows
-        # for this deliberate second BitLocker migration check; never print its value.
-        # shellcheck disable=SC2016
+    # BitLocker cell: the bridge must unlock C: again on the next boot, with
+    # the recovery key it sealed to this machine (#279). The verdict is the
+    # required user-data-second-boot assertion; a return failure is recorded
+    # by the helper and must not skip the steps below. While that second boot
+    # is up, the ordinary user's edit of the Documents copy must still be
+    # there and the encrypted Windows original must still be unchanged.
+    if [ "${WOOTC_E2E_BITLOCKER:-off}" = on ]; then
         WOOTC_GUEST_ROOT=""
-        _refresh_root=$(guest_wootc_root) || { infra_fail "Cannot refresh the bridge key without unique actual storage"; exit 1; }
-        if ! qga_powershell '$ErrorActionPreference="Stop"; . "C:\\OEM\\fixture-bitlocker-key.ps1"; Export-WootcFixtureBitLockerKey -Destination '"'"'${_refresh_root}\\wootc\\install\\bitlocker-key.txt'"'"'' >/dev/null; then
-            fail "Could not refresh the protected recovery key for the second BitLocker boot"
-            exit 1
-        fi
-        qga_powershell "bcdedit --% /set {fwbootmgr} bootsequence $PHASE2_GUID /addfirst" >/dev/null
-        if ! qga_powershell "bcdedit --% /enum {fwbootmgr}" 2>/dev/null | tr -d '\r' | grep -qiF "$PHASE2_GUID"; then
-            fail "Could not re-arm Phase 2 for the BitLocker Documents persistence check"
-            exit 1
-        fi
-        qga_powershell 'cmd.exe /c "shutdown.exe /a >NUL 2>&1 & shutdown.exe /r /t 1 /f >NUL 2>&1"' >/dev/null 2>&1 || true
-        qga_wait_down "BitLocker Documents persistence boot" 300
-        qga_wait "BitLocker Documents persistence boot" 600
-        if ! qga_linux_probe; then
-            fail "The second one-shot boot did not positively identify Phase-2 Linux"
-            exit 1
-        fi
-        pass "Second boot reached the installed Phase-2 Linux system"
-        PERSISTED_EDIT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" 2>/dev/null || true)
-        if printf '%s' "$PERSISTED_EDIT" | grep -Fq "$EDIT_MARKER"; then
-            pass "BitLocker Documents: saved Linux edit survived the environment restart"
+        if _second_root=$(guest_wootc_root); then
+            phase2_second_boot_check "$PHASE2_GUID" "$_second_root" phase2_monitor_reset \
+                "$USERDATA_PATH" bitlocker_documents_second_boot || true
         else
-            fail "BitLocker Documents: saved Linux edit did not survive the environment restart"
-            info "  second-boot readback: ${PERSISTED_EDIT:-<empty>}"
-            exit 1
+            infra_fail "Second Phase 2 boot: cannot find the unique storage volume holding \\wootc"
         fi
-        if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
-            if ! python3 "$SCRIPT_DIR/gui-document-proof.py" reopen --runtime "$DOCKER" \
-                --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
-                --output "$ARTIFACT_DIR/gui-documents/second-boot" \
-                > "$ARTIFACT_DIR/gui-documents-second.json"; then
-                fail "GUI Documents: editor could not reopen saved bytes after the environment restart"
-                exit 1
-            fi
-            if [ "$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-second.json")" != "$GUI_EDIT_SHA" ]; then
-                fail "GUI Documents: saved bytes changed across the environment restart"
-                exit 1
-            fi
-            pass "GUI Documents: real editor reopened the same saved bytes after restart"
-        fi
-        SECOND_SOURCE=$(qga_call exec /bin/sh -c \
-            'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\\r" < "$f"' \
-            2>/dev/null || true)
-        if printf '%s' "$SECOND_SOURCE" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
-            && ! printf '%s' "$SECOND_SOURCE" | grep -Fq "$EDIT_MARKER"; then
-            pass "BitLocker Documents: Windows source is still unchanged after restart"
-        else
-            fail "BitLocker Documents: Windows source changed or is unavailable after restart"
-            info "  encrypted source readback: ${SECOND_SOURCE:-<empty>}"
-            exit 1
-        fi
-        WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec /bin/sh -c 'systemctl reboot || systemctl reboot -ff' 2>/dev/null || true
-        case "$(p2_reboot_observe)" in
-            down|windows) ;;
-            linux)
-                $DOCKER exec "$CONTAINER_NAME" python3 -c 'import socket,time; s=socket.socket(socket.AF_UNIX); s.connect("/run/shm/monitor.sock"); time.sleep(.2); s.recv(4096); s.sendall(b"system_reset\n"); time.sleep(.4); s.recv(4096); s.close()' || true
-                ;;
-            *) info "Phase-2 return identity was inconclusive; waiting without a reset" ;;
-        esac
-        qga_wait_windows 600
-        pass "Windows returned after the BitLocker persistence reboot"
     fi
     # Windows is verifiably back — put the untouched machine on camera
     # (video-only, best-effort).

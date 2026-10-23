@@ -203,7 +203,7 @@ find_bitlocker_profiles() {
     mkdir -p "$mnt"
     local unlock_rc=0
     printf '%s' "$recovery_key" | cryptsetup bitlkOpen "$bl_vol" "$mapper" --key-file=- 2>/dev/null || unlock_rc=$?
-    unset recovery_key key_lines key_groups
+    unset recovery_key
     if (( unlock_rc != 0 )); then
         # Exit status is public; the recovery password and tool input are not.
         # Do not label a validated key stale without decryptor evidence.

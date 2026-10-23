@@ -1,4 +1,7 @@
 #!/usr/bin/env bats
+# The bridge's BitLocker unlock stanza (payload/migration/wootc-mount-user-dirs),
+# run as written with cryptsetup replaced by a recorder. The recovery password
+# reaches cryptsetup only in canonical form, and never reaches the log.
 
 setup() {
     ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -7,15 +10,15 @@ setup() {
     # Public synthetic format fixture; never capture a real machine key.
     PASSWORD=$(printf '%s-' 000011 000022 000033 000044 000055 000066 000077 000088)
     PASSWORD=${PASSWORD%-}
-    printf '%s\r\n' "$PASSWORD" > "$WORK/host/wootc/install/bitlocker-key.txt"
-    export ROOT WORK
+    KEY="$WORK/host/wootc/install/bitlocker-key.txt"
+    printf '%s\r\n' "$PASSWORD" > "$KEY"
+    export ROOT WORK KEY
 }
 
 run_password_stanza() {
     run bash -c '
 set -euo pipefail
-HOST="$WORK/host"
-key_file="$HOST/wootc/install/bitlocker-key.txt"
+key_file="$KEY"
 bl_vol=/dev/sda3
 log() { printf "%s\n" "$*"; }
 warn() { printf "%s\n" "$*" >&2; }
@@ -25,8 +28,11 @@ cryptsetup() {
     python3 -c "import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes(sys.stdin.buffer.read())" "$WORK/submitted-key"
     return "${UNLOCK_RC:-2}"
 }
+eval "$(sed -n "/^bitlocker_recovery_password() {/,/^}/p" "$ROOT/payload/migration/wootc-mount-user-dirs")"
 probe() {
-    eval "$(sed -n "/^    # cryptsetup recognizes recovery/,/^    log \"BitLocker volume/p" "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    local key_material
+    key_material=$(cat "$key_file")
+    eval "$(sed -n "/^    # cryptsetup accepts a recovery password only/,/^    log \"BitLocker volume/p" "$ROOT/payload/migration/wootc-mount-user-dirs")"
 }
 probe
 '
@@ -41,26 +47,44 @@ probe
     [[ "$output" != *"$PASSWORD"* ]]
 }
 
-@test "BitLocker consumer rejects stripped digits, BOM, extra lines and invalid groups before unlock" {
-    for kind in stripped bom extra_line bad_checksum excessive_group; do
+@test "BitLocker consumer canonicalises the stored forms it accepts" {
+    # Phase 1 stores the 48 digits without hyphens; a BOM or a trailing
+    # non-digit line is not part of the password. Each reaches cryptsetup as
+    # the same canonical 55-character password.
+    for kind in stripped bom non_digit_line; do
         case "$kind" in
-            stripped) printf '%s\n' "${PASSWORD//-/}" > "$WORK/host/wootc/install/bitlocker-key.txt" ;;
-            bom) printf '\357\273\277%s\n' "$PASSWORD" > "$WORK/host/wootc/install/bitlocker-key.txt" ;;
-            extra_line) printf '%s\nextra\n' "$PASSWORD" > "$WORK/host/wootc/install/bitlocker-key.txt" ;;
-            bad_checksum) printf '%s\n' "000012-${PASSWORD#*-}" > "$WORK/host/wootc/install/bitlocker-key.txt" ;;
-            excessive_group) printf '%s\n' "720896-${PASSWORD#*-}" > "$WORK/host/wootc/install/bitlocker-key.txt" ;;
+            stripped) printf '%s\n' "${PASSWORD//-/}" > "$KEY" ;;
+            bom) printf '\357\273\277%s\n' "$PASSWORD" > "$KEY" ;;
+            non_digit_line) printf '%s\nextra\n' "$PASSWORD" > "$KEY" ;;
         esac
         rm -f "$WORK/submitted-key"
         run_password_stanza
         [ "$status" -eq 0 ]
-        [[ "$output" == *"format invalid"* ]]
+        [ "$(cat "$WORK/submitted-key")" = "$PASSWORD" ]
+        [[ "$output" == *"password format validated"* ]]
+        [[ "$output" != *"$PASSWORD"* ]]
+    done
+}
+
+@test "BitLocker consumer rejects extra digits and invalid groups before unlock" {
+    for kind in extra_digits short bad_checksum excessive_group; do
+        case "$kind" in
+            extra_digits) printf '%s\n000099\n' "$PASSWORD" > "$KEY" ;;
+            short) printf '%s\n' "${PASSWORD%-*}" > "$KEY" ;;
+            bad_checksum) printf '%s\n' "000012-${PASSWORD#*-}" > "$KEY" ;;
+            excessive_group) printf '%s\n' "720896-${PASSWORD#*-}" > "$KEY" ;;
+        esac
+        rm -f "$WORK/submitted-key"
+        run_password_stanza
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"not a valid 48-digit recovery password"* ]]
         [ ! -e "$WORK/submitted-key" ]
         [[ "$output" != *"$PASSWORD"* ]]
     done
 }
 
 @test "BitLocker consumer accepts valid maximum groups and a line without an ending newline" {
-    printf '%s' "720885-${PASSWORD#*-}" > "$WORK/host/wootc/install/bitlocker-key.txt"
+    printf '%s' "720885-${PASSWORD#*-}" > "$KEY"
     run_password_stanza
     [ "$status" -eq 0 ]
     [ "$(wc -c < "$WORK/submitted-key")" -eq 55 ]

@@ -161,8 +161,10 @@ setup() {
 
 @test "fresh and restored fixtures receive the same private key helper" {
     grep -Fq '"$OEM_DIR/fixture-bitlocker-key.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-key.ps1"' "$E2E"
-    grep -Fq '. "C:\OEM\fixture-bitlocker-key.ps1"; Export-WootcFixtureBitLockerKey' "$E2E"
-    # The second boot must reuse the existing protector, not create another.
-    run grep 'qga_powershell.*Export-WootcFixtureBitLockerKey.*EnsureProtector' "$E2E"
+    # The second boot must reuse the existing protector, not create another,
+    # and must not refresh a plaintext key onto the Windows volume: the bridge
+    # keeps the key sealed to the machine (#279), and a fresh NTFS copy would
+    # both leave the recovery key in the clear and hide a lost sealed key.
+    run grep 'qga_powershell.*Export-WootcFixtureBitLockerKey' "$E2E"
     [ "$status" -ne 0 ]
 }
