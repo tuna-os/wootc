@@ -201,8 +201,9 @@ def bridge(host, rows, run=command):
             # A bind exposes one folder, never the whole Windows volume or
             # the installer's own records on it.
             require(row['root'] != '/', 'bridge exposes the whole Windows volume')
-            require('wootc' not in [part.lower() for part in row['root'].split('/')],
-                    'bridge exposes installer metadata')
+            # \wootc at the volume root holds the installer's records. A
+            # Windows profile may itself be named wootc (the E2E user is).
+            require(row['root'].split('/')[1].lower() != 'wootc', 'bridge exposes installer metadata')
             targets[target] = {'source': roots[row['device']].rstrip('/') + row['root'],
                                'target': target, 'user': match[1]}
     bindings = [targets[target] for target in sorted(targets)]

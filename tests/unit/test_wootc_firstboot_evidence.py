@@ -200,7 +200,7 @@ class CollectorTests(unittest.TestCase):
             self.collect()
 
     def test_bridge_never_exposes_the_volume_or_installer_records(self):
-        for root in ('/', '/wootc/install', '/Users/alice/WOOTC'):
+        for root in ('/', '/wootc/install', '/WOOTC'):
             with self.subTest(root=root):
                 self.tearDown()
                 self.setUp()
@@ -208,6 +208,12 @@ class CollectorTests(unittest.TestCase):
                 self.write_mounts()
                 with self.assertRaisesRegex(ValueError, 'bridge exposes'):
                     self.collect()
+
+    def test_a_profile_named_wootc_is_an_ordinary_profile(self):
+        self.mounts.append('10 0 8:3 /Users/wootc/Documents /var/home/wootc/Documents rw - ntfs3 /dev/vda3 rw')
+        self.write_mounts()
+        self.assertIn({'source': f'{self.host}/Users/wootc/Documents', 'target': '/home/wootc/Documents',
+                       'user': 'wootc'}, self.collect()['bridge']['bindings'])
 
     def test_bridge_units_must_have_completed(self):
         for unit in ('wootc-host-bind.service', 'wootc-passthrough.service'):
