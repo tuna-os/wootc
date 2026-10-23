@@ -2833,6 +2833,8 @@ QGAEOF
     install -d -m755 "$DEPLOY_ROOT/var/usrlocal/bin"
     install -m755 /usr/lib/wootc/migration/wootc-mount-user-dirs \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-mount-user-dirs"
+    install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents \
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-copy-windows-documents"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-umount-user-dirs"
     # Extra bridge categories (SPEC §4.1–4.2): Steam, browser import, and
