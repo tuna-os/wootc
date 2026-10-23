@@ -47,7 +47,8 @@ The record also lists the units that failed. Linux does not refuse the boot for 
 The service publishes `installed-linux-boot.json` before `state.json = healthy`.
 It then publishes a local summary and the completion marker.
 A failure leaves the service eligible to retry on the next boot.
-When the record exists without the marker, the service does not measure again: it completes the publication.
+When the record of this installation exists without the marker, the service does not measure again: it completes the publication.
+The service measures again over the record of another installation.
 The NTFS writer preserves the Windows ACL on each record.
 
 ## Windows and the UI
