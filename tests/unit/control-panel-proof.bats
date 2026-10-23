@@ -47,3 +47,67 @@ load_ui_gate() {
     run grep -nE '^[^#]*\bqga_wait_reboot\b' "$runner"
     [ "$status" -ne 0 ]
 }
+
+# The gate after the session check, with every guest operation stubbed.
+# READY: whether e2e-ready.json appears; SINGLE: the single-instance answer.
+drive_ui_gate() {
+    load_ui_gate
+    # shellcheck source=tests/e2e/lib/gui-session.sh
+    source "$ROOT/tests/e2e/lib/gui-session.sh"
+    SCRIPT_DIR="$ROOT/tests/e2e"; DOCKER=true; CONTAINER_NAME=c
+    GUI_ACCOUNT_RESTART=false
+    qga_windows_probe() { return 0; }
+    gui_prepare_account() { return 0; }
+    gui_wait_interactive_session() { return 0; }
+    qga_call() { [[ "$*" == *e2e-drive.json* ]] && touch "$BATS_TEST_TMPDIR/directive-written"; return 0; }
+    qga_powershell() {
+        case "$1" in
+            *launch-control-panel-proof*) echo control-panel-task-run ;;
+            *wootc-control-proof*) printf '%s\n' "$SINGLE" ;;
+        esac
+    }
+    qga_read() { [[ "$1" == *e2e-ready.json ]] && [ "$READY" = yes ]; }
+    deadline_in() { echo 2; }
+    T=0; past_deadline() { T=$((T + 1)); [ "$T" -gt "$1" ]; }
+    sleep() { :; }
+    printf '{"current":{"kernel":"6.12","image":{"sourceRef":"ghcr.io/x/y:z"},"bridge":{"boundFolders":1,"matchedUsers":1}}}' \
+        > "$FIRSTBOOT_RECORD_FILE"
+    run verify_installed_boot_gui
+}
+
+@test "a control panel that never renders is a named failure before any directive" {
+    READY=no SINGLE='' drive_ui_gate
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Control-panel proof: wootc.exe did not render within 90 s"* ]]
+    [ ! -e "$BATS_TEST_TMPDIR/directive-written" ]
+}
+
+@test "a second control panel or a surviving launch task is a named failure before any directive" {
+    # E2E 39961283836: two wootc.exe after the ONCE trigger fired; the run
+    # ended with no [FAIL] line.
+    for single in $'task-absent: wootc-control-proof\nSINGLE-INSTANCE-UNPROVEN: 2 wootc.exe running' \
+                  $'TASK-STILL-PRESENT: wootc-control-proof survived its delete\nsingle-instance: 1 wootc.exe' \
+                  $'task-absent: wootc-gui-e2e\nsingle-instance: 1 wootc.exe' ''; do
+        rm -f "$BATS_TEST_TMPDIR/directive-written"
+        READY=yes SINGLE="$single" drive_ui_gate
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"Control-panel proof: cannot prove one control panel"* ]]
+        [ ! -e "$BATS_TEST_TMPDIR/directive-written" ]
+    done
+    # One proven control panel proceeds to the directive.
+    READY=yes SINGLE=$'task-absent: wootc-control-proof\nsingle-instance: 1 wootc.exe' drive_ui_gate
+    [ -e "$BATS_TEST_TMPDIR/directive-written" ]
+}
+
+@test "the control-panel gate has no unnamed exit and launches without a future trigger" {
+    local body
+    body=$(sed -n '/^verify_installed_boot_gui() {/,/^}/p' "$ROOT/tests/e2e/run-e2e.sh")
+    # Every `return 1` follows a fail on its own line or the line before it.
+    printf '%s\n' "$body" | awk '/return 1/ && !/fail / && prev !~ /fail / { print "unnamed exit: " $0; bad=1 } { prev=$0 } END { exit bad }'
+    # Readiness is the directive-free channel, not the bound drive report.
+    [[ "$body" == *"e2e-ready.json"* ]]
+    local ps1="$ROOT/tests/e2e/launch-control-panel-proof.ps1"
+    grep -q "AddMinutes(-1)" "$ps1"
+    run grep -q "AddMinutes(1)" "$ps1"
+    [ "$status" -ne 0 ]
+}

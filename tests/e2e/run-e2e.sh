@@ -687,7 +687,7 @@ verify_installed_boot_gui() {
     # The app binds every report to schemaVersion, runId and a 32-hex
     # directiveId (app/e2e_drive_receipt.go); the nonce scopes the UI receipt.
     local directive_id
-    directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
+    directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || { fail "Control-panel proof: no directive ID"; return 1; }
     jq -e --arg run "$RUN_ID" --arg id "$directive_id" --arg nonce "$RUN_ID-ui-$RANDOM-$RANDOM" '
       .current as $c | {schemaVersion:1,runId:$run,directiveId:$id,action:"verify-installed-boot",nonce:$nonce,
         expected:{kernel:$c.kernel,sourceImageRef:$c.image.sourceRef,
@@ -696,48 +696,79 @@ verify_installed_boot_gui() {
         (.expected.sourceImageRef|type)=="string" and (.expected.sourceImageRef|length)>0 and
         (.expected.boundFolders|type)=="number" and (.expected.matchedUsers|type)=="number")
     ' "$FIRSTBOOT_RECORD_FILE" > "$directive" || { fail "Independent first-boot UI facts unavailable"; return 1; }
-    gui_prepare_account || return 1
+    # Every exit below names its cause: a bare `return 1` here once ended a
+    # run with no [FAIL] line at all (E2E 39961283836, failureCount 0).
+    gui_prepare_account || { fail "Control-panel proof: the Windows UI fixture account could not be prepared"; return 1; }
     if [ "$GUI_ACCOUNT_RESTART" = true ]; then
         # One observed restart: boot baseline, a single request, then a new
         # boot (qga_restart_windows). A bare shutdown plus qga_wait_reboot
         # has no baseline and is refused (E2E 39931657846).
-        qga_restart_windows "Windows UI fixture account repair" 600 || return 1
-        qga_wait_windows 120 || return 1
+        qga_restart_windows "Windows UI fixture account repair" 600 || { fail "Control-panel proof: the account-repair restart was not observed"; return 1; }
+        qga_wait_windows 120 || { fail "Control-panel proof: Windows did not answer after the account-repair restart"; return 1; }
     fi
-    gui_wait_interactive_session || return 1
+    gui_wait_interactive_session || { fail "Control-panel proof: no interactive Windows session"; return 1; }
     # PS5.1 consumes only BOM/CRLF fixture scripts. Stage after Windows identity.
     printf '\xEF\xBB\xBF' > "$launch_file"
     sed 's/$/\r/' "$SCRIPT_DIR/launch-control-panel-proof.ps1" >> "$launch_file"
-    $DOCKER cp "$launch_file" "$CONTAINER_NAME:/tmp/control-proof.ps1" || return 1
-    qga_call write /tmp/control-proof.ps1 'C:\OEM\launch-control-panel-proof.ps1' || return 1
+    $DOCKER cp "$launch_file" "$CONTAINER_NAME:/tmp/control-proof.ps1" &&
+        qga_call write /tmp/control-proof.ps1 'C:\OEM\launch-control-panel-proof.ps1' ||
+        { fail "Control-panel proof: could not stage the launch script in the guest"; return 1; }
     qga_powershell '& C:\OEM\launch-control-panel-proof.ps1' > "$ARTIFACT_DIR/control-panel-ui-launch.log" 2>&1 || {
         fail "Actual Windows control-panel launch failed (see launch evidence)"; return 1;
     }
+    # Readiness is e2e-ready.json, which the drive loop writes once the app
+    # renders with no directive. e2e-drive-state.json is written only for a
+    # bound directive (#474), so waiting for it before the directive always
+    # timed out (E2E 39961283836 waited its full 90 s for it).
     deadline=$(deadline_in 90)
     while ! past_deadline "$deadline"; do
-        if qga_read 'C:\wootc\e2e-drive-state.json' > "$receipt" 2>/dev/null; then break; fi
+        if qga_read 'C:\wootc\e2e-ready.json' > /dev/null 2>&1; then break; fi
         sleep 3
     done
-    # Remove the ONCE trigger before sending any directive and prove one UI.
+    qga_read 'C:\wootc\e2e-ready.json' > /dev/null 2>&1 || {
+        fail "Control-panel proof: wootc.exe did not render within 90 s — e2e-ready.json never appeared"; return 1;
+    }
+    # Remove the launch task and prove exactly one control panel before any
+    # directive exists, with the GUI install launch's markers
+    # (gui_single_instance_proven): absence from a successful task listing,
+    # and one wootc.exe after a settle.
+    local single_out
     # shellcheck disable=SC2016
-    qga_powershell '$ErrorActionPreference="Stop"
-schtasks.exe /Delete /TN wootc-control-proof /F | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "control-panel task trigger removal failed" }
+    single_out=$(qga_powershell '$ErrorActionPreference = "SilentlyContinue"
+cmd.exe /d /c "schtasks.exe /Delete /TN wootc-control-proof /F >NUL 2>&1" | Out-Null
+cmd.exe /d /c "schtasks.exe /Query /TN wootc-control-proof >NUL 2>&1" | Out-Null
+$named = $LASTEXITCODE
+$tasks = @(schtasks.exe /Query /FO CSV /NH 2>$null)
+$listed = $LASTEXITCODE
+if ($named -eq 0) { Write-Output "TASK-STILL-PRESENT: wootc-control-proof answers /Query after its delete" }
+elseif ($listed -ne 0) { Write-Output ("TASK-STATE-UNKNOWN: schtasks /Query rc=" + $listed) }
+elseif (@($tasks | Where-Object { $_ -match "^.\\wootc-control-proof.," }).Count -gt 0) { Write-Output "TASK-STILL-PRESENT: wootc-control-proof survived its delete" }
+else { Write-Output "task-absent: wootc-control-proof" }
 Start-Sleep -Seconds 4
-if (@(Get-Process wootc -ErrorAction SilentlyContinue).Count -ne 1) { throw "control-panel UI process count is not one" }
-' >> "$ARTIFACT_DIR/control-panel-ui-launch.log" 2>&1 || return 1
-    $DOCKER cp "$directive" "$CONTAINER_NAME:/tmp/control-proof-directive.json" || return 1
-    qga_call write /tmp/control-proof-directive.json 'C:\wootc\e2e-drive.json' || return 1
+$procs = @(Get-Process -Name wootc -ErrorAction SilentlyContinue)
+if ($procs.Count -ne 1) { Write-Output ("SINGLE-INSTANCE-UNPROVEN: " + $procs.Count + " wootc.exe running") }
+else { Write-Output "single-instance: 1 wootc.exe" }' 2>&1) || true
+    printf '%s\n' "$single_out" >> "$ARTIFACT_DIR/control-panel-ui-launch.log"
+    if ! gui_single_instance_proven "$single_out" wootc.exe wootc-control-proof; then
+        fail "Control-panel proof: cannot prove one control panel and no launch task ($(printf '%s' "$single_out" | tr -d '\r' | tr '\n' ' '))"
+        return 1
+    fi
+    $DOCKER cp "$directive" "$CONTAINER_NAME:/tmp/control-proof-directive.json" &&
+        qga_call write /tmp/control-proof-directive.json 'C:\wootc\e2e-drive.json' ||
+        { fail "Control-panel proof: could not write the UI directive"; return 1; }
     deadline=$(deadline_in 120)
     while ! past_deadline "$deadline"; do
         if qga_read 'C:\wootc\e2e-drive-state.json' > "$receipt" 2>/dev/null &&
             python3 "$SCRIPT_DIR/verify-control-panel-receipt.py" "$directive" "$receipt" 2> "$ARTIFACT_DIR/control-panel-ui-check.stderr"; then
             # Fresh framebuffer is accompanying evidence, never the verdict.
-            $DOCKER exec "$CONTAINER_NAME" rm -f /tmp/snap.ppm /tmp/wootc-screen.png || return 1
-            $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/control-proof-screenshot.py" || return 1
-            timeout 30 $DOCKER exec "$CONTAINER_NAME" python3 /tmp/control-proof-screenshot.py || return 1
-            $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" "$ARTIFACT_DIR/control-panel-ui.png" || return 1
-            $DOCKER cp "$CONTAINER_NAME:/tmp/snap.ppm" "$ARTIFACT_DIR/control-panel-ui.ppm" || return 1
+            if ! { $DOCKER exec "$CONTAINER_NAME" rm -f /tmp/snap.ppm /tmp/wootc-screen.png &&
+                   $DOCKER cp "$SCRIPT_DIR/screenshot.py" "$CONTAINER_NAME:/tmp/control-proof-screenshot.py" &&
+                   timeout 30 $DOCKER exec "$CONTAINER_NAME" python3 /tmp/control-proof-screenshot.py &&
+                   $DOCKER cp "$CONTAINER_NAME:/tmp/wootc-screen.png" "$ARTIFACT_DIR/control-panel-ui.png" &&
+                   $DOCKER cp "$CONTAINER_NAME:/tmp/snap.ppm" "$ARTIFACT_DIR/control-panel-ui.ppm"; }; then
+                fail "Control-panel proof: the receipt passed but its framebuffer could not be captured"
+                return 1
+            fi
             pass "Actual Windows control panel renders this boot's kernel, source image and bridge counts"
             return 0
         fi
