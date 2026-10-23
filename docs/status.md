@@ -196,8 +196,9 @@ ostree images that ship no `bootupd`.
 
 The historical native chain passed on `bluefin:lts` through the script path
 (29/29) and the real GUI. It checked the seeded file after native deployment,
-Phase-2 boot, and Phase-3 graduation. The release gate exercises
-that native chain. It does not establish the Windows-hosted Phase-1 journey.
+Phase-2 boot, and Phase-3 graduation. Upstream discontinued `bluefin:lts`, so the
+release gate now exercises that native chain on `bluefin:stable`. It does not
+establish the Windows-hosted Phase-1 journey.
 
 ## Running the E2E yourself
 

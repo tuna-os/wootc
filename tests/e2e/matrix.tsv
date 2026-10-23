@@ -30,7 +30,6 @@
 smoke	el10-gnome-win11pro	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	fedora-gnome-win11pro	ghcr.io/tuna-os/bonito:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 smoke	bluefin-dakota-win11pro	ghcr.io/projectbluefin/dakota:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
-smoke	bluefin-lts-win11pro	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # Offline axis (#217): the proven el10 baseline with NO guest network device.
 # The deployer must ingest the pre-staged bundle, skip the registry pre-flight
 # and finish fisherman from local storage. Green here gates preloadImage
@@ -52,11 +51,11 @@ smoke	el10-gnome-win10pro	ghcr.io/tuna-os/yellowfin:gnome	10	pro	W269N-WFGWX-YVC
 # ostree backend (yellowfin/bonito/bluefin — bluefin has a sealed rootfs,
 # still ostree BACKEND), composefs-native (dakota). See docs/backend-contract.md.
 # Each backend must also prove Phase 3.
-full	bluefin-lts-win11pro-phase3	ghcr.io/projectbluefin/bluefin:lts	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
+full	bluefin-stable-win11pro-phase3	ghcr.io/projectbluefin/bluefin:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
 full	el10-gnome-win11pro-phase3	ghcr.io/tuna-os/yellowfin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
 full	bluefin-dakota-win11pro-phase3	ghcr.io/projectbluefin/dakota:stable	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX	phase3=on
 full	bluefin-dakota-win10pro	ghcr.io/projectbluefin/dakota:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
-full	bluefin-lts-win10pro	ghcr.io/projectbluefin/bluefin:lts	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	bluefin-stable-win10pro	ghcr.io/projectbluefin/bluefin:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── image axis (Win 11 Pro) — every family/bootloader/desktop ──
 full	el10-kde-win11pro	ghcr.io/tuna-os/yellowfin:kde	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	el10-xfce-win11pro	ghcr.io/tuna-os/yellowfin:xfce	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX

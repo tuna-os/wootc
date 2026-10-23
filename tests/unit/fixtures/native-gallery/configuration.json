@@ -43,26 +43,6 @@
   "images": [
     {
       "image": {
-        "id": "bluefin-lts",
-        "name": "Bluefin LTS",
-        "emoji": "🐟",
-        "base": "Universal Blue (Fedora)",
-        "desktop": "gnome",
-        "desktopName": "GNOME",
-        "imageRef": "ghcr.io/projectbluefin/bluefin:lts",
-        "description": "A calm, reliable cloud-native desktop on the long-term-support base. The most-tested choice.",
-        "bootloader": "grub2",
-        "composeFs": false,
-        "family": "fedora",
-        "status": "green"
-      },
-      "admitted": true,
-      "admissionBlockedReason": "",
-      "requiresMokEnrollment": false,
-      "contentVerified": false
-    },
-    {
-      "image": {
         "id": "bluefin",
         "name": "Bluefin",
         "emoji": "🐟",

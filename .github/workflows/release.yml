@@ -81,7 +81,7 @@ jobs:
     with:
       # Gate on the alpha image, driven through the REAL GUI — the release is
       # proven the way a user installs it (docs/RELEASING.md).
-      image: ghcr.io/projectbluefin/bluefin:lts
+      image: ghcr.io/projectbluefin/bluefin:stable
       win_version: '11'
       bitlocker: 'off'
       gui_install: true
