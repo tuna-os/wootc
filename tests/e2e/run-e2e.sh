@@ -698,8 +698,10 @@ verify_installed_boot_gui() {
     ' "$FIRSTBOOT_RECORD_FILE" > "$directive" || { fail "Independent first-boot UI facts unavailable"; return 1; }
     gui_prepare_account || return 1
     if [ "$GUI_ACCOUNT_RESTART" = true ]; then
-        qga_powershell 'shutdown.exe /r /t 5 /f' >/dev/null || return 1
-        qga_wait_reboot "Windows UI fixture account repair" || return 1
+        # One observed restart: boot baseline, a single request, then a new
+        # boot (qga_restart_windows). A bare shutdown plus qga_wait_reboot
+        # has no baseline and is refused (E2E 39931657846).
+        qga_restart_windows "Windows UI fixture account repair" 600 || return 1
         qga_wait_windows 120 || return 1
     fi
     gui_wait_interactive_session || return 1

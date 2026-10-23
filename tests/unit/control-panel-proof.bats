@@ -35,3 +35,15 @@ load_ui_gate() {
     [ ! -e "$BATS_TEST_TMPDIR/fixture-mutated" ]
     [ ! -e "$BATS_TEST_TMPDIR/guest-write" ]
 }
+
+@test "the control-panel proof restarts Windows only through the observed-restart helper" {
+    # E2E 39931657846: the account-repair restart called qga_wait_reboot with
+    # no pre-request boot observation, which the transport refuses.
+    local runner="$BATS_TEST_DIRNAME/../e2e/run-e2e.sh" body
+    body=$(sed -n '/^verify_installed_boot_gui() {/,/^}/p' "$runner")
+    [[ "$body" == *'qga_restart_windows "Windows UI fixture account repair"'* ]]
+    [[ "$body" != *'shutdown.exe /r'* ]]
+    # Every restart wait in the runner carries a baseline: none is called directly.
+    run grep -nE '^[^#]*\bqga_wait_reboot\b' "$runner"
+    [ "$status" -ne 0 ]
+}
