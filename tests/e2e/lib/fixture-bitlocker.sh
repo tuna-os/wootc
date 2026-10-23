@@ -67,6 +67,24 @@ bitlocker_prepare_fixture() {
     case "$root" in [A-Za-z]) root="${root}:" ;; *) infra_fail "BitLocker fixture storage root unavailable or ambiguous"; return 1 ;; esac
     remaining=$((deadline - $(date +%s)))
     [ "$remaining" -gt 0 ] || return 1
+    # The activation exports the recovery key to the product's handoff path,
+    # \wootc\install\bitlocker-key.txt, as its verified receipt. That path is
+    # consumed before this runs: the deployer moved the key into the installed
+    # system and shredded the handoff (persist_bitlocker_key, #279). Record
+    # whether a handoff is still there: only the deployer's own kept copy
+    # (persistence failed, so the bridge still needs it) may outlive the
+    # activation. A copy the activation writes after deploy is removed below,
+    # or it stays in plaintext on the unencrypted volume for good
+    # (E2E 39974443063: "ntfs-key: .../wootc/install/bitlocker-key.txt").
+    local handoff="$root\wootc\install\bitlocker-key.txt" handoff_before
+    handoff_before=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_powershell "\$ErrorActionPreference='Stop'; # wootc-fixture-key-handoff
+if (Test-Path -LiteralPath '$handoff' -PathType Leaf) { 'handoff=present' } else { 'handoff=absent' }" 2>/dev/null | tr -d '\r') || handoff_before=""
+    case "$handoff_before" in
+        handoff=present|handoff=absent) ;;
+        *) infra_fail "BitLocker fixture: cannot tell whether the recovery key handoff is still on the storage volume"; return 1 ;;
+    esac
+    remaining=$((deadline - $(date +%s)))
+    [ "$remaining" -gt 0 ] || return 1
     activation="$ARTIFACT_DIR/bitlocker-activation.txt"
     printf '%s\n' "$RUN_ID" > "$ARTIFACT_DIR/bitlocker-activation-run-id.txt" || return 1
     # A timeout/failure does not replay enrollment. This command is called once.
@@ -76,6 +94,29 @@ bitlocker_prepare_fixture() {
         infra_fail "BitLocker fixture activation failed or timed out; enrollment will not be replayed"; return 1
     fi
     python3 "$SCRIPT_DIR/fixture-bitlocker-receipt.py" "$activation" || { infra_fail "BitLocker fixture activation has no valid current receipt"; return 1; }
+    remaining=$((deadline - $(date +%s)))
+    [ "$remaining" -gt 0 ] || { infra_fail "BitLocker fixture activation exceeded its deadline"; return 1; }
+    if [ "$handoff_before" = handoff=absent ]; then
+        # Zero, then delete, then prove absence: the same scrub the product
+        # applies to its install secrets (app/secret_scrub.go).
+        local retired
+        retired=$(WOOTC_QGA_CALL_TIMEOUT="$remaining" qga_powershell "\$ErrorActionPreference='Stop'; # wootc-fixture-key-retire
+\$p = '$handoff'
+if (Test-Path -LiteralPath \$p -PathType Leaf) {
+    \$n = (Get-Item -LiteralPath \$p).Length
+    [IO.File]::WriteAllBytes(\$p, (New-Object byte[] \$n))
+    Remove-Item -LiteralPath \$p -Force
+}
+if (Test-Path -LiteralPath \$p) { throw 'recovery key copy survived its removal' }
+'fixture-key-retired'" 2>/dev/null | tr -d '\r') || retired=""
+        if [ "$retired" != fixture-key-retired ]; then
+            infra_fail "BitLocker fixture: the activation's recovery key copy could not be removed from the unencrypted storage volume"
+            return 1
+        fi
+        info "BitLocker fixture: activation's recovery key copy removed from $handoff (the installed system holds its own)"
+    else
+        info "BitLocker fixture: the deployer left its recovery key handoff in place; kept for the bridge"
+    fi
     remaining=$((deadline - $(date +%s)))
     [ "$remaining" -gt 0 ] || { infra_fail "BitLocker fixture activation exceeded its deadline"; return 1; }
     # No activation receipt substitutes for an independent ProtectionOn readback.

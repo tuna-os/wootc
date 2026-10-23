@@ -107,6 +107,17 @@ qga_powershell() {
    # Model C: staging plus F: actual disk from the real issued predicate.
    [[ "$1" == *'-PathType Leaf'* && "$1" == *'wootc\disks\root.disk'* ]] || { echo CF; return; }
    if [ "$case_name" = ambiguous-root ]; then echo CF; else echo F; fi
+ elif [[ "$1" == *wootc-fixture-key-handoff* ]]; then
+   [[ "$1" == *"'F:\wootc\install\bitlocker-key.txt'"* ]] || return 98
+   case "$case_name" in
+     handoff-present) echo handoff=present ;; handoff-unknown) echo 'guest-ping alive' ;; *) echo handoff=absent ;;
+   esac
+ elif [[ "$1" == *wootc-fixture-key-retire* ]]; then
+   [ -e "$ARTIFACT_DIR/activated" ] || return 97
+   [[ "$1" == *"'F:\wootc\install\bitlocker-key.txt'"* && "$1" == *WriteAllBytes* && "$1" == *Remove-Item* ]] || return 98
+   printf '%s\n' retired >> "$ARTIFACT_DIR/retired"
+   if [ "$case_name" = retire-fails ]; then return 1; fi
+   echo fixture-key-retired
  elif [[ "$1" == *Initialize-WootcFixtureBitLockerProtection* ]]; then
    printf '%s\n' called >> "$ARTIFACT_DIR/activated"
    if [ "$case_name" = activation-timeout ]; then echo 120 > "$ARTIFACT_DIR/now"; return 124; fi
@@ -129,6 +140,25 @@ echo SCHEDULED
         self.assertEqual(files['reads'].strip(), '3')
         self.assertIn("-RecoveryKeyPath 'F:\\wootc\\install\\bitlocker-key.txt'", files['calls'])
         self.assertEqual(files['bitlocker-activation-run-id.txt'].strip(), 'current-run')
+        # E2E 39974443063: the activation's copy of the recovery key outlived
+        # it on the unencrypted volume. It is removed once, after activation.
+        self.assertEqual(files['retired'].splitlines(), ['retired'])
+
+    def test_the_deployers_own_handoff_is_kept(self):
+        # A handoff present before activation is the deployer's kept copy
+        # (persistence failed): the bridge still needs it.
+        result, files = self.run_case('handoff-present')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('SCHEDULED', result.stdout)
+        self.assertNotIn('retired', files)
+
+    def test_an_unremovable_or_unknown_key_copy_never_schedules_linux(self):
+        result, files = self.run_case('retire-fails')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('SCHEDULED', result.stdout)
+        result, files = self.run_case('handoff-unknown')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('activated', files)
 
     def test_counterexamples_never_schedule_or_replay_activation(self):
         for case in ['wrong-identity', 'ambiguous-root', 'conversion-late', 'activation-timeout',
