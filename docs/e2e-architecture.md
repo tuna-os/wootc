@@ -206,19 +206,18 @@ Design notes:
 
 ## Phase-3 native post-boot health gate
 
-The native-cycle runner captures a small baseline in Phase 2, graduates onto
-the dedicated blank disk, and sends `tests/e2e/phase3-health.sh` to the native
-guest through QGA. The probe waits for systemd to finish booting, diagnoses
-unexpected failed units, checks the system bus and logind, requires the
-configured display manager to remain active, resolves every account declared
-by the image's `sysusers.d`, and checks SELinux for unlabeled-file denials or
-new label drift under `/etc` and `/var/home`.
+The runner records a Phase-2 baseline. It then boots the native system on the
+blank disk and runs `tests/e2e/phase3-health.sh` through QGA. The probe checks:
 
-The complete output is retained as `phase3-health.log`. Any `FAIL:` line is a
-product failure even if the guest process returns zero; a non-zero QGA command
-without a `FAIL:` observation is infrastructure-unknown. `native-health` is a
-required native-cycle assertion, so ancestry and user-data evidence cannot
-substitute for a generally healthy system.
+- systemd state and failed units;
+- the system bus and logind;
+- the display manager;
+- users and groups from `sysusers.d`;
+- SELinux denials and new labels under `/etc` and `/var/home`.
+
+The runner writes all output to `phase3-health.log`. A `FAIL:` line fails the
+product check. A QGA error without a `FAIL:` line is an infrastructure error.
+The `native-health` result is required. Other evidence cannot replace it.
 
 ## Result boundary (#383)
 
