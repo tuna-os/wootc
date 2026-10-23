@@ -222,12 +222,39 @@ PY
         FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
         PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"already recorded"* ]]
+    [[ "$output" == *"completing its publication"* ]]
     cmp "$tmp/recorded" "$tmp/host/wootc/install/installed-linux-boot.json"
     cmp "$tmp/recorded" "$tmp/host/wootc/install/installed-linux-boot.complete"
     python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["state"] == "healthy"' "$tmp/host/wootc/state.json"
     [ "$(sed -n '1p' "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
     [ "$(wc -l < "$tmp/helper-calls")" -eq 2 ]
+    rm -rf "$tmp"
+}
+
+@test "firstboot measures anew over a record of a previous installation" {
+    tmp=$(mktemp -d)
+    make_firstboot_fakes "$tmp"
+    printf '{"state":"deployed"}\n' > "$tmp/host/wootc/state.json"
+    # Windows keeps the old record for diagnosis when it arms a new attempt.
+    printf '{"installationId":"%s"}\n' "$(printf 'f%.0s' $(seq 32))" > "$tmp/host/wootc/install/installation.json"
+    WOOTC_FIRSTBOOT_HOST="$tmp/host" python3 "$tmp/collector.py" --host "$tmp/host" \
+        > "$tmp/host/wootc/install/installed-linux-boot.json"
+
+    run env FIRSTBOOT_MOUNT_PRESENT=1 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"names a previous installation"* ]]
+    [ "$(sed -n '1p' "$tmp/helper-calls")" = "$tmp/host/wootc/install/installed-linux-boot.json" ]
+    [ "$(wc -l < "$tmp/helper-calls")" -eq 3 ]
+    # The same record under the current installation ID is never re-measured.
+    printf '{"installationId":"%s"}\n' "$(printf '0%.0s' $(seq 32))" > "$tmp/host/wootc/install/installation.json"
+    rm "$tmp/host/wootc/install/installed-linux-boot.complete" "$tmp/helper-calls"
+    run env FIRSTBOOT_MOUNT_PRESENT=1 FIRSTBOOT_COLLECT_FAIL=1 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"completing its publication"* ]]
     rm -rf "$tmp"
 }
 

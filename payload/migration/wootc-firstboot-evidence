@@ -11,8 +11,9 @@
 # again. Windows cross-checks the record against its own record of the
 # install before it reports "healthy".
 #
-# The evidence is written once per installation: an existing file is never
-# replaced, so a later boot cannot rewrite what the first one measured. The
+# The evidence is written once per installation: an existing record of this
+# installation is never replaced, so a later boot cannot rewrite what the
+# first one measured. The
 # record carries the kernel boot ID and a sequence number.
 #
 # Contract: docs/borrowed-from-libertix.md §2, §3
@@ -64,26 +65,61 @@ fi
 
 EVIDENCE_TEMP=$(mktemp)
 trap 'rm -f "$EVIDENCE_TEMP"' EXIT
+RECORDED=absent
 if [[ -e "$EVIDENCE_FINAL" || -L "$EVIDENCE_FINAL" ]]; then
-    # Never re-measure or replace what an earlier boot recorded. A record
-    # without the completion marker is an interrupted publication: finish it
-    # from that record, but only when it is one this collector wrote.
-    log "first-boot evidence already recorded; leaving it unchanged"
-    if [[ -L "$EVIDENCE_FINAL" ]] || ! python3 - "$EVIDENCE_FINAL" > "$EVIDENCE_TEMP" <<'PYTHON'
+    # Never re-measure or replace what an earlier boot of THIS installation
+    # recorded. A record without the completion marker is an interrupted
+    # publication: finish it from that record, but only when this collector
+    # wrote it. A record naming another installation (Windows keeps the old
+    # one for diagnosis when it arms a new attempt) is measured anew.
+    RECORDED=kept
+    if [[ ! -L "$EVIDENCE_FINAL" ]]; then
+        rc=0
+        python3 - "$EVIDENCE_FINAL" "$INSTALL_DIR/installation.json" > "$EVIDENCE_TEMP" <<'PYTHON' || rc=$?
 import json
 import sys
-with open(sys.argv[1], 'rb') as stream:
-    data = stream.read(65537)
-record = json.loads(data.decode('utf-8-sig')) if len(data) <= 65536 else None
+
+
+def load(path):
+    with open(path, 'rb') as stream:
+        data = stream.read(65537)
+    if len(data) > 65536:
+        raise ValueError('oversized record')
+    return data.decode('utf-8-sig'), json.loads(data.decode('utf-8-sig'))
+
+
+try:
+    text, record = load(sys.argv[1])
+except (OSError, ValueError):
+    sys.exit(1)
 if not (isinstance(record, dict) and record.get('state') == 'healthy'
         and record.get('updatedBy') == 'wootc-firstboot'):
     sys.exit(1)
-sys.stdout.write(data.decode('utf-8-sig'))
+try:
+    _, plan = load(sys.argv[2])
+    current = plan.get('installationId') if isinstance(plan, dict) else None
+except (OSError, ValueError):
+    current = None
+if current and record.get('installationId') != current:
+    sys.exit(3)
+sys.stdout.write(text)
 PYTHON
-    then
+        case "$rc" in
+            0) RECORDED=resume ;;
+            3) RECORDED=stale ;;
+        esac
+    fi
+    if [[ "$RECORDED" == kept ]]; then
+        log "first-boot evidence already recorded; leaving it unchanged"
         exit 0
     fi
-else
+    if [[ "$RECORDED" == resume ]]; then
+        log "first-boot evidence already recorded; completing its publication"
+    else
+        log "first-boot evidence names a previous installation; measuring this one"
+    fi
+fi
+if [[ "$RECORDED" != resume ]]; then
     # Measure before writing anything. A boot that cannot be measured must not
     # announce itself healthy; the unit runs again on the next boot. The
     # collector refuses a boot of another installation, ESP, image, Windows
