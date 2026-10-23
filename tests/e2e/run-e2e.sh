@@ -651,7 +651,7 @@ verify_installed_boot_gui() {
     directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
     jq -e --arg run "$RUN_ID" --arg id "$directive_id" --arg nonce "$RUN_ID-ui-$RANDOM-$RANDOM" '
       .current as $c | {schemaVersion:1,runId:$run,directiveId:$id,action:"verify-installed-boot",nonce:$nonce,
-        expected:{kernel:$c.kernel,sourceImageRef:$c.sourceImageRef,
+        expected:{kernel:$c.kernel,sourceImageRef:$c.image.sourceRef,
           boundFolders:$c.bridge.boundFolders,matchedUsers:$c.bridge.matchedUsers}} |
       select((.expected.kernel|type)=="string" and (.expected.kernel|length)>0 and
         (.expected.sourceImageRef|type)=="string" and (.expected.sourceImageRef|length)>0 and
@@ -4757,10 +4757,15 @@ fi
 # Compare the persisted product record with facts collected from this running
 # installed Linux. Neither a lifecycle word nor a previous record proves this boot.
 FIRSTBOOT_RECORD_FILE="$ARTIFACT_DIR/installed-linux-boot-check.json"
+# The product collector is re-run here, now, and every identity field must
+# agree with what the first boot recorded. writtenAt is the measurement time;
+# failedUnits is reported, not identity, but no wootc unit may have failed at
+# either reading.
 if qga_call exec /usr/bin/python3 -c '
-import importlib.util,json,pathlib
+import importlib.util,json,pathlib,sys
 host=pathlib.Path("/run/initramfs/wootc-host")
-helper=pathlib.Path("/var/usrlocal/bin/wootc-collect-firstboot.py")
+sys.path.insert(0,"/var/usrlocal/lib/wootc")
+helper=pathlib.Path("/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py")
 spec=importlib.util.spec_from_file_location("firstboot_observer",helper)
 module=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -4771,8 +4776,11 @@ with path.open(encoding="utf-8-sig") as stream:
 if len(raw)>65536: raise ValueError("oversized firstboot record")
 persisted=json.loads(raw)
 for key in current:
-    if key != "writtenAt" and persisted.get(key) != current[key]:
+    if key not in ("writtenAt","failedUnits") and persisted.get(key) != current[key]:
         raise ValueError("persisted firstboot record differs from current boot: "+key)
+for record in (persisted,current):
+    failed=[unit for unit in record.get("failedUnits",[]) if unit.startswith("wootc-")]
+    if failed: raise ValueError("wootc units failed: "+", ".join(failed))
 state=json.loads((host/"wootc/state.json").read_text(encoding="utf-8-sig"))
 if state.get("state") != "healthy": raise ValueError("firstboot state is not healthy")
 if not (host/"wootc/install/installed-linux-boot.complete").is_file():
@@ -4929,7 +4937,7 @@ else
             > "$ARTIFACT_DIR/installed-linux-boot.json" 2> "$ARTIFACT_DIR/installed-linux-boot.stderr"; then
         _ev_status=0
         python3 "$SCRIPT_DIR/firstboot-evidence-check.py" "$ARTIFACT_DIR/installed-linux-boot.json" \
-            "$IMAGE_REF" "${P2_BOOT_ID:-}" || _ev_status=$?
+            "$IMAGE_REF" "${P2_BOOT_ID:-}" "${WOOTC_E2E_BITLOCKER:-off}" || _ev_status=$?
     fi
     case "$_ev_status" in
         0) product_pass firstboot-evidence "installed-linux-boot.json names this Phase-2 boot and the selected image" ;;

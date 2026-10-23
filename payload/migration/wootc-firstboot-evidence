@@ -3,10 +3,13 @@
 #
 # Runs as wootc-firstboot-evidence.service on the first successful boot into
 # Phase-2 Linux. Measures that boot (kernel, booted image and digest, decoded
-# BootCurrent, root.disk identity, User Data Bridge, Secure Boot), then updates
-# state.json on the Windows host NTFS to "healthy" and writes the measurement
-# to \wootc\install\installed-linux-boot.json. Windows cross-checks that file
-# against its own record of the install before it reports "healthy".
+# BootCurrent, root.disk identity, User Data Bridge, Secure Boot) against the
+# installation Windows staged, writes the measurement to
+# \wootc\install\installed-linux-boot.json, updates state.json on the Windows
+# host NTFS to "healthy", publishes the control panels' summary and finally
+# writes installed-linux-boot.complete, which stops the unit from running
+# again. Windows cross-checks the record against its own record of the
+# install before it reports "healthy".
 #
 # The evidence is written once per installation: an existing file is never
 # replaced, so a later boot cannot rewrite what the first one measured. The
@@ -52,10 +55,6 @@ fi
 log "phase: firstboot-evidence"
 log "$(wootc_step_label firstboot-evidence)"
 
-if [[ -e "$EVIDENCE_FINAL" || -L "$EVIDENCE_FINAL" ]]; then
-    log "first-boot evidence already recorded; leaving it unchanged"
-    exit 0
-fi
 # Windows created this directory with its own ACL. A directory made here
 # would carry a Linux-side descriptor that Windows refuses to trust.
 if [[ ! -d "$INSTALL_DIR" || -L "$INSTALL_DIR" ]]; then
@@ -63,43 +62,43 @@ if [[ ! -d "$INSTALL_DIR" || -L "$INSTALL_DIR" ]]; then
     exit 1
 fi
 
-# Measure before writing anything. A boot that cannot be measured must not
-# announce itself healthy; the unit runs again on the next boot.
-if ! EVIDENCE="$(python3 "$COLLECTOR" --host "$HOST")"; then
-    log "ERROR: could not measure this boot; first-boot evidence not written"
-    exit 1
-fi
-
-# Collect every required fact before publishing anything. The collector refuses
-# a boot of another ESP, image, Windows volume, or root.disk.
-COLLECTOR="${WOOTC_FIRSTBOOT_COLLECTOR:-/var/usrlocal/bin/wootc-collect-firstboot.py}"
 EVIDENCE_TEMP=$(mktemp)
 trap 'rm -f "$EVIDENCE_TEMP"' EXIT
-python3 "$COLLECTOR" --host "$HOST" > "$EVIDENCE_TEMP"
-# The catalogue phase describes this observed collection/publication. Add it to
-# the verified record; the lifecycle state retains its separate vocabulary.
-python3 - "$EVIDENCE_TEMP" <<'PYTHON'
+if [[ -e "$EVIDENCE_FINAL" || -L "$EVIDENCE_FINAL" ]]; then
+    # Never re-measure or replace what an earlier boot recorded. A record
+    # without the completion marker is an interrupted publication: finish it
+    # from that record, but only when it is one this collector wrote.
+    log "first-boot evidence already recorded; leaving it unchanged"
+    if [[ -L "$EVIDENCE_FINAL" ]] || ! python3 - "$EVIDENCE_FINAL" > "$EVIDENCE_TEMP" <<'PYTHON'
 import json
-from pathlib import Path
 import sys
-path = Path(sys.argv[1])
-with path.open('rb') as stream:
+with open(sys.argv[1], 'rb') as stream:
     data = stream.read(65537)
-if len(data) > 65536:
-    raise ValueError('first-boot evidence exceeds 64 KiB')
-record = json.loads(data)
-if not isinstance(record, dict):
-    raise ValueError('first-boot evidence must be an object')
-record['phaseId'] = 'firstboot-evidence'
-data = (json.dumps(record, indent=2) + '\n').encode()
-if len(data) > 65536:
-    raise ValueError('first-boot evidence exceeds 64 KiB after phase annotation')
-path.write_bytes(data)
+record = json.loads(data.decode('utf-8-sig')) if len(data) <= 65536 else None
+if not (isinstance(record, dict) and record.get('state') == 'healthy'
+        and record.get('updatedBy') == 'wootc-firstboot'):
+    sys.exit(1)
+sys.stdout.write(data.decode('utf-8-sig'))
 PYTHON
+    then
+        exit 0
+    fi
+else
+    # Measure before writing anything. A boot that cannot be measured must not
+    # announce itself healthy; the unit runs again on the next boot. The
+    # collector refuses a boot of another installation, ESP, image, Windows
+    # volume or root.disk.
+    if ! python3 "$COLLECTOR" --host "$HOST" > "$EVIDENCE_TEMP"; then
+        log "ERROR: could not measure this boot; first-boot evidence not written"
+        exit 1
+    fi
+    # The helper preserves the Windows ACL and atomically replaces the record
+    # on the NTFS volume (temporary file, then rename).
+    wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" < "$EVIDENCE_TEMP"
+fi
 
 # Publish evidence before healthy. Only the final completion marker suppresses
 # retries, so a failed descriptor-preserving state write is retried next boot.
-wootc-ntfs-state-write "$STATE_FINAL" "$EVIDENCE_FINAL" < "$EVIDENCE_TEMP"
 NOW=$(date -u +%FT%TZ)
 wootc-ntfs-state-write "$STATE_FINAL" "$STATE_FINAL" <<JSONEOF
 {
@@ -109,9 +108,10 @@ wootc-ntfs-state-write "$STATE_FINAL" "$STATE_FINAL" <<JSONEOF
 }
 JSONEOF
 # Publish only the facts useful to the local control panel; the private
-# Windows UUID, paths and profile mappings remain on the protected NTFS tree.
-python3 "${WOOTC_FIRSTBOOT_PUBLISHER:-/var/usrlocal/bin/wootc-collect-firstboot.py}" --publish-summary "$EVIDENCE_TEMP" \
+# installation ID, paths and profile mappings remain on the protected NTFS tree.
+python3 "$COLLECTOR" --publish-summary "$EVIDENCE_TEMP" \
     --summary-dir "${WOOTC_FIRSTBOOT_SUMMARY_DIR:-/var/lib/wootc}"
 wootc-ntfs-state-write "$STATE_FINAL" "$INSTALL_DIR/installed-linux-boot.complete" < "$EVIDENCE_TEMP"
 
-log "Phase-2 first-boot health reported: evidence verified and state.json -> healthy"
+KERNEL_VER="$(uname -r 2>/dev/null || echo "unknown")"
+log "Phase-2 first-boot health reported: state.json -> healthy ($KERNEL_VER), evidence in installed-linux-boot.json"

@@ -154,8 +154,19 @@ exit 0
         host = self.root / 'host'
         (host / 'wootc/install').mkdir(parents=True)
         # The boot measurement has its own suite (test_wootc_firstboot_evidence.py).
+        # --publish-summary is the real collector's own summary writer.
         collector = self.root / 'collector.py'
-        collector.write_text('import json\nprint(json.dumps({"state": "healthy", "phaseId": "firstboot-evidence"}))\n')
+        collector.write_text(
+            'import json,sys\n'
+            'if sys.argv[1:2] == ["--publish-summary"]:\n'
+            '    sys.path.insert(0, %r)\n'
+            '    import wootc_firstboot_evidence\n'
+            '    sys.exit(wootc_firstboot_evidence.main(sys.argv[1:]))\n'
+            'print(json.dumps({"state": "healthy", "phaseId": "firstboot-evidence", "updatedBy": "wootc-firstboot",\n'
+            '                  "kernel": "6.1", "writtenAt": "2026-10-23T00:00:00Z",\n'
+            '                  "image": {"ref": "x", "digest": "sha256:" + "a" * 64},\n'
+            '                  "bridge": {"boundFolders": 0, "matchedUsers": 0}}))\n'
+            % str(ROOT / 'payload/migration/lib'))
         fakebin = self.root / 'bin'
         fakebin.mkdir()
         (fakebin / 'mountpoint').write_text('#!/bin/sh\nexit 0\n')
@@ -163,14 +174,11 @@ exit 0
         writer.write_text('#!/usr/bin/env python3\nimport pathlib,sys\npathlib.Path(sys.argv[2]).write_text(sys.stdin.read())\n')
         for fake in fakebin.iterdir():
             fake.chmod(0o755)
-        collector = self.root / 'catalogue-collector.py'
-        collector.write_text('import json\nprint(json.dumps({"state":"healthy"}))\n')
-        publisher = self.root / 'catalogue-publisher.py'
-        publisher.write_text('import json,pathlib,sys\nrecord=json.loads(pathlib.Path(sys.argv[2]).read_text())\nassert record["phaseId"] == "firstboot-evidence"\n')
         import os,json
         env = {**os.environ, 'WOOTC_STEPS_FILE': str(self.root / 'payload/steps.sh'),
                'WOOTC_FIRSTBOOT_HOST': str(host), 'WOOTC_FIRSTBOOT_COLLECTOR': str(collector),
-               'WOOTC_FIRSTBOOT_PUBLISHER': str(publisher), 'PATH': str(fakebin) + ':' + os.environ['PATH']}
+               'WOOTC_FIRSTBOOT_SUMMARY_DIR': str(self.root / 'summary'),
+               'PATH': str(fakebin) + ':' + os.environ['PATH']}
         result = subprocess.run(['bash', str(ROOT / 'payload/migration/wootc-firstboot-evidence')],
                                 env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

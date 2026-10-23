@@ -768,9 +768,9 @@ type UninstallInfo struct {
 	Orphaned bool `json:"orphaned"`
 	// Deployed is true only when the installed boot record matches this
 	// installation, the staged loader and the current ESP and host volume.
-	Deployed     bool               `json:"deployed"`
-	BootPending  bool               `json:"bootPending"`
-	BootEvidence *LinuxBootEvidence `json:"bootEvidence,omitempty"`
+	Deployed     bool                 `json:"deployed"`
+	BootPending  bool                 `json:"bootPending"`
+	BootEvidence *FirstBootAssessment `json:"bootEvidence,omitempty"`
 }
 
 // BootIntoLinux arms ONE more one-shot boot of the existing wootc entry and

@@ -64,40 +64,62 @@ type FirstBootBridge struct {
 	BitlockerUnlocked bool `json:"bitlockerUnlocked"`
 }
 
+// FirstBootBinding is one folder the bridge bound into a Linux home. It names
+// Windows paths, so it stays in the record on the protected NTFS tree and is
+// never repeated in status output.
+type FirstBootBinding struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	User   string `json:"user"`
+}
+
+// FirstBootBridgeRecord is the bridge as the record carries it: the counts
+// every reader shows, plus the bindings they were counted from.
+type FirstBootBridgeRecord struct {
+	FirstBootBridge
+	Bindings []FirstBootBinding `json:"bindings,omitempty"`
+}
+
 // FirstBootEvidence is the parsed installed-linux-boot.json.
 type FirstBootEvidence struct {
-	Schema               int               `json:"schema"`
-	State                string            `json:"state"`
-	PhaseID              string            `json:"phaseId,omitempty"`
-	Sequence             int               `json:"sequence"`
-	BootID               string            `json:"bootId"`
-	Kernel               string            `json:"kernel"`
-	Image                FirstBootImage    `json:"image"`
-	BootCurrent          FirstBootCurrent  `json:"bootCurrent"`
-	RootDisk             FirstBootRootDisk `json:"rootDisk"`
-	Bridge               FirstBootBridge   `json:"bridge"`
-	SecureBoot           bool              `json:"secureBoot"`
-	FailedUnits          []string          `json:"failedUnits,omitempty"`
-	WrittenAt            string            `json:"writtenAt"`
-	UpdatedBy            string            `json:"updatedBy"`
-	modern               bool
-	modernInstallationID string
+	Schema int `json:"schema"`
+	// InstallationID names the attempt Windows staged (install\installation.json).
+	// Records written before that file existed carry none.
+	InstallationID string                `json:"installationId,omitempty"`
+	State          string                `json:"state"`
+	PhaseID        string                `json:"phaseId,omitempty"`
+	Sequence       int                   `json:"sequence"`
+	BootID         string                `json:"bootId"`
+	Kernel         string                `json:"kernel"`
+	Image          FirstBootImage        `json:"image"`
+	BootCurrent    FirstBootCurrent      `json:"bootCurrent"`
+	RootDisk       FirstBootRootDisk     `json:"rootDisk"`
+	Bridge         FirstBootBridgeRecord `json:"bridge"`
+	SecureBoot     bool                  `json:"secureBoot"`
+	FailedUnits    []string              `json:"failedUnits,omitempty"`
+	WrittenAt      string                `json:"writtenAt"`
+	UpdatedBy      string                `json:"updatedBy"`
+	// hasBindings: the record listed its bindings (an empty list included).
+	hasBindings bool
 }
 
 // FirstBootAssessment is what status and the installed views report. It never
 // carries a "state" key: the E2E harness reads the lifecycle state from the
 // top-level "state" of `status` output.
 type FirstBootAssessment struct {
-	Verdict     string           `json:"verdict"`
-	Message     string           `json:"message"`
-	Reason      string           `json:"reason,omitempty"`
-	Kernel      string           `json:"kernel,omitempty"`
-	ImageRef    string           `json:"imageRef,omitempty"`
-	ImageDigest string           `json:"imageDigest,omitempty"`
-	BootID      string           `json:"bootId,omitempty"`
-	SecureBoot  *bool            `json:"secureBoot,omitempty"`
-	Bridge      *FirstBootBridge `json:"bridge,omitempty"`
-	WrittenAt   string           `json:"writtenAt,omitempty"`
+	Verdict     string `json:"verdict"`
+	Message     string `json:"message"`
+	Reason      string `json:"reason,omitempty"`
+	Kernel      string `json:"kernel,omitempty"`
+	ImageRef    string `json:"imageRef,omitempty"`
+	ImageDigest string `json:"imageDigest,omitempty"`
+	// SourceImageRef is the image the user selected, as the deployer recorded
+	// it for updates; ImageRef may be its local derivative.
+	SourceImageRef string           `json:"sourceImageRef,omitempty"`
+	BootID         string           `json:"bootId,omitempty"`
+	SecureBoot     *bool            `json:"secureBoot,omitempty"`
+	Bridge         *FirstBootBridge `json:"bridge,omitempty"`
+	WrittenAt      string           `json:"writtenAt,omitempty"`
 }
 
 func firstBootEvidencePath(root string) string {
@@ -114,6 +136,7 @@ const (
 	strictInt
 	strictStrings
 	strictObject
+	strictObjects // a list of objects, each checked against object
 )
 
 type strictField struct {
@@ -123,12 +146,13 @@ type strictField struct {
 }
 
 var firstBootEvidenceSchema = map[string]strictField{
-	"schema":   {kind: strictInt, required: true},
-	"state":    {kind: strictString, required: true},
-	"phaseId":  {kind: strictString},
-	"sequence": {kind: strictInt, required: true},
-	"bootId":   {kind: strictString, required: true},
-	"kernel":   {kind: strictString, required: true},
+	"schema":         {kind: strictInt, required: true},
+	"installationId": {kind: strictString},
+	"state":          {kind: strictString, required: true},
+	"phaseId":        {kind: strictString},
+	"sequence":       {kind: strictInt, required: true},
+	"bootId":         {kind: strictString, required: true},
+	"kernel":         {kind: strictString, required: true},
 	"image": {kind: strictObject, required: true, object: map[string]strictField{
 		"ref":       {kind: strictString, required: true},
 		"digest":    {kind: strictString, required: true},
@@ -148,6 +172,11 @@ var firstBootEvidenceSchema = map[string]strictField{
 		"boundFolders":      {kind: strictInt, required: true},
 		"matchedUsers":      {kind: strictInt, required: true},
 		"bitlockerUnlocked": {kind: strictBool, required: true},
+		"bindings": {kind: strictObjects, object: map[string]strictField{
+			"source": {kind: strictString, required: true},
+			"target": {kind: strictString, required: true},
+			"user":   {kind: strictString, required: true},
+		}},
 	}},
 	"secureBoot":  {kind: strictBool, required: true},
 	"failedUnits": {kind: strictStrings},
@@ -185,6 +214,20 @@ func checkStrictObject(decoder *json.Decoder, schema map[string]strictField, pat
 		seen[key] = true
 		if field.kind == strictObject {
 			if err := checkStrictObject(decoder, field.object, path+key+"."); err != nil {
+				return err
+			}
+			continue
+		}
+		if field.kind == strictObjects {
+			if token, err := decoder.Token(); err != nil || token != json.Delim('[') {
+				return fmt.Errorf("field %q must be a list", path+key)
+			}
+			for decoder.More() {
+				if err := checkStrictObject(decoder, field.object, path+key+"[]."); err != nil {
+					return err
+				}
+			}
+			if _, err := decoder.Token(); err != nil {
 				return err
 			}
 			continue
@@ -272,58 +315,20 @@ func parseFirstBootEvidence(data []byte) (FirstBootEvidence, error) {
 		return ev, fmt.Errorf("record exceeds %d bytes", firstBootEvidenceMaxBytes)
 	}
 	data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
-	var shape map[string]json.RawMessage
-	if err := json.Unmarshal(data, &shape); err == nil {
-		if _, modern := shape["schemaVersion"]; modern {
-			return parseModernFirstBootEvidence(data)
-		}
-	}
 	if err := checkStrictJSON(data, firstBootEvidenceSchema); err != nil {
 		return ev, err
 	}
+	var listed struct {
+		Bridge struct {
+			Bindings json.RawMessage `json:"bindings"`
+		} `json:"bridge"`
+	}
+	if err := json.Unmarshal(data, &listed); err != nil {
+		return ev, err
+	}
+	ev.hasBindings = listed.Bridge.Bindings != nil
 	if err := json.Unmarshal(data, &ev); err != nil {
 		return FirstBootEvidence{}, err
-	}
-	return ev, validateFirstBootEvidence(ev)
-}
-
-// parseModernFirstBootEvidence adapts the stricter installed-linux record
-// used by the Windows-side installer to the status report's stable shape.
-// The modern record has already measured the full boot identity; status only
-// needs the common lifecycle and public summary fields here.
-func parseModernFirstBootEvidence(data []byte) (FirstBootEvidence, error) {
-	var modern LinuxBootEvidence
-	if err := json.Unmarshal(data, &modern); err != nil {
-		return FirstBootEvidence{}, err
-	}
-	if modern.SchemaVersion != 1 || !firstBootInstallationIDPattern.MatchString(modern.InstallationID) {
-		return FirstBootEvidence{}, fmt.Errorf("invalid modern first-boot identity")
-	}
-	var envelope struct {
-		PhaseID string `json:"phaseId"`
-		BootID  string `json:"bootId"`
-	}
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return FirstBootEvidence{}, err
-	}
-	ev := FirstBootEvidence{
-		Schema: 1, State: modern.State, PhaseID: envelope.PhaseID, Sequence: 1,
-		BootID: envelope.BootID, Kernel: modern.Kernel,
-		Image: FirstBootImage{Ref: modern.Image, Digest: modern.ImageDigest, SourceRef: modern.SourceImageRef},
-		BootCurrent: FirstBootCurrent{
-			BootNumber:       modern.BootCurrent.BootNumber,
-			ESPPartitionGUID: modern.BootCurrent.EspPartitionGuid,
-			LoaderPath:       modern.BootCurrent.LoaderPath,
-			Source:           "unavailable",
-		},
-		RootDisk: FirstBootRootDisk{Path: modern.RootDisk.Path, HostUUID: modern.RootDisk.HostUUID},
-		Bridge: FirstBootBridge{
-			BoundFolders: modern.Bridge.BoundFolders, MatchedUsers: modern.Bridge.MatchedUsers,
-			BitlockerUnlocked: modern.Bridge.BitlockerUnlocked,
-		},
-		SecureBoot: modern.SecureBoot, FailedUnits: modern.FailedUnits,
-		WrittenAt: modern.WrittenAt, UpdatedBy: modern.UpdatedBy,
-		modern: true, modernInstallationID: modern.InstallationID,
 	}
 	return ev, validateFirstBootEvidence(ev)
 }
@@ -338,10 +343,10 @@ func validateFirstBootEvidence(ev FirstBootEvidence) error {
 		return fmt.Errorf("unsupported phase")
 	case ev.Sequence < 1 || ev.Sequence > 1<<20:
 		return fmt.Errorf("invalid sequence")
-	case !ev.modern && !firstBootUUIDPattern.MatchString(ev.BootID):
+	case !firstBootUUIDPattern.MatchString(ev.BootID):
 		return fmt.Errorf("invalid boot ID")
-	case ev.modern && ev.BootID != "" && !firstBootUUIDPattern.MatchString(ev.BootID):
-		return fmt.Errorf("invalid modern boot ID")
+	case ev.InstallationID != "" && !firstBootInstallationIDPattern.MatchString(ev.InstallationID):
+		return fmt.Errorf("invalid installation ID")
 	case !firstBootText(ev.Kernel, 128):
 		return fmt.Errorf("invalid kernel release")
 	case !firstBootText(ev.Image.Ref, 512):
@@ -370,6 +375,9 @@ func validateFirstBootEvidence(ev FirstBootEvidence) error {
 			return fmt.Errorf("invalid failed unit name")
 		}
 	}
+	if err := validateFirstBootBindings(ev); err != nil {
+		return err
+	}
 	bc := ev.BootCurrent
 	switch bc.Source {
 	case "efivarfs", "efibootmgr", "unavailable":
@@ -380,6 +388,34 @@ func validateFirstBootEvidence(ev FirstBootEvidence) error {
 		(bc.ESPPartitionGUID != "" && !firstBootUUIDPattern.MatchString(bc.ESPPartitionGUID)) ||
 		(bc.LoaderPath != "" && (!firstBootText(bc.LoaderPath, 260) || !strings.HasPrefix(bc.LoaderPath, `\EFI\`))) {
 		return fmt.Errorf("invalid BootCurrent")
+	}
+	return nil
+}
+
+// validateFirstBootBindings: a record bound to an installation lists the
+// folders its counts came from, and the counts must be those of the list.
+func validateFirstBootBindings(ev FirstBootEvidence) error {
+	if !ev.hasBindings {
+		if ev.InstallationID != "" {
+			return fmt.Errorf("bridge bindings are missing")
+		}
+		return nil
+	}
+	if len(ev.Bridge.Bindings) != ev.Bridge.BoundFolders {
+		return fmt.Errorf("bridge folder count differs from its bindings")
+	}
+	users, targets := map[string]bool{}, map[string]bool{}
+	for _, b := range ev.Bridge.Bindings {
+		if !firstBootText(b.User, 64) || strings.Contains(b.User, "/") ||
+			!firstBootText(b.Source, 1024) || !strings.HasPrefix(b.Source, "/") ||
+			!firstBootText(b.Target, 1024) || !strings.HasPrefix(b.Target, "/home/"+b.User+"/") ||
+			targets[b.Target] {
+			return fmt.Errorf("invalid bridge binding")
+		}
+		users[b.User], targets[b.Target] = true, true
+	}
+	if len(users) != ev.Bridge.MatchedUsers {
+		return fmt.Errorf("bridge user count differs from its bindings")
 	}
 	return nil
 }
@@ -400,10 +436,12 @@ type volumeSerial struct {
 var firstBootVolumeSerial = platformVolumeSerial
 
 type firstBootExpectation struct {
-	imageRef       string
-	imageDigest    string // "" when this PC did not download the image itself
-	volume         volumeSerial
-	installationID string
+	imageRef    string
+	imageDigest string // "" when this PC did not download the image itself
+	volume      volumeSerial
+	// identity is the attempt Windows staged; nil for installs made before
+	// install\installation.json existed.
+	identity *InstallationIdentity
 }
 
 // expectFirstBootIdentity reads what this PC recorded about the install under
@@ -419,7 +457,7 @@ func expectFirstBootIdentity(root string) (firstBootExpectation, error) {
 		if err := validateInstallationIdentity(identity); err != nil {
 			return exp, fmt.Errorf("installation identity: %w", err)
 		}
-		exp.installationID = identity.InstallationID
+		exp.identity = &identity
 	} else if !os.IsNotExist(identityErr) {
 		return exp, fmt.Errorf("installation identity: %w", identityErr)
 	}
@@ -455,8 +493,8 @@ func expectFirstBootIdentity(root string) (firstBootExpectation, error) {
 
 // checkFirstBootEvidence compares a valid record with this installation.
 func checkFirstBootEvidence(ev FirstBootEvidence, exp firstBootExpectation) error {
-	if ev.modern && (exp.installationID == "" || ev.modernInstallationID != exp.installationID) {
-		return fmt.Errorf("first boot does not match this installation identity")
+	if err := checkFirstBootInstallation(ev, exp.identity); err != nil {
+		return err
 	}
 	// The deployer may install a locally derived image (an NTFS driver added),
 	// so the booted reference can differ from the selection; the reference it
@@ -489,6 +527,47 @@ func checkFirstBootEvidence(ev FirstBootEvidence, exp firstBootExpectation) erro
 	return nil
 }
 
+// checkFirstBootInstallation binds a record to the attempt Windows staged: a
+// fresh installation ID, a boot after it was armed, the staged ESP and loader
+// (when the firmware entry could be decoded), the host volume and root.disk,
+// and the selected image. A failed wootc unit is a broken install, not a
+// healthy one; other failed units are reported, not judged.
+func checkFirstBootInstallation(ev FirstBootEvidence, p *InstallationIdentity) error {
+	if p == nil {
+		if ev.InstallationID != "" {
+			return fmt.Errorf("first boot names installation %s, which this PC has no record of", ev.InstallationID)
+		}
+		return nil
+	}
+	if ev.InstallationID != p.InstallationID {
+		return fmt.Errorf("first boot belongs to installation %q, not this one (%s)", ev.InstallationID, p.InstallationID)
+	}
+	armed, _ := time.Parse(time.RFC3339, p.ArmedAt)
+	if written, _ := time.Parse(time.RFC3339, ev.WrittenAt); written.Before(armed) {
+		return fmt.Errorf("first boot record predates this installation")
+	}
+	bc := ev.BootCurrent
+	if bc.ESPPartitionGUID != "" || bc.LoaderPath != "" {
+		if canonicalGUID(bc.ESPPartitionGUID) != canonicalGUID(p.EspPartitionGuid) ||
+			canonicalLoader(bc.LoaderPath) != canonicalLoader(p.LoaderPath) {
+			return fmt.Errorf("first boot started from %s on ESP %s, not the staged %s on %s",
+				bc.LoaderPath, bc.ESPPartitionGUID, p.LoaderPath, p.EspPartitionGuid)
+		}
+	}
+	if ev.RootDisk.Path != p.RootDiskPath || !strings.EqualFold(ev.RootDisk.HostUUID, p.HostUUID) {
+		return fmt.Errorf("first boot used %s on volume %s, not this installation's root.disk", ev.RootDisk.Path, ev.RootDisk.HostUUID)
+	}
+	if ev.Image.SourceRef == "" || sourceImage(ev.Image.SourceRef) != sourceImage(p.ImageRef) {
+		return fmt.Errorf("first boot was installed from %q, not this installation's %s", ev.Image.SourceRef, p.ImageRef)
+	}
+	for _, unit := range ev.FailedUnits {
+		if strings.HasPrefix(unit, "wootc-") {
+			return fmt.Errorf("first boot reports a failed installer unit: %s", unit)
+		}
+	}
+	return nil
+}
+
 // assessFirstBootAt reads and cross-checks the evidence under an audited root.
 func assessFirstBootAt(root string) FirstBootAssessment {
 	name := installedSystemName()
@@ -517,11 +596,12 @@ func assessFirstBootAt(root string) FirstBootAssessment {
 		return FirstBootAssessment{Verdict: FirstBootMismatch, Reason: err.Error(),
 			Message: fmt.Sprintf("%s is installed, but the report from its first boot does not match this installation.", name)}
 	}
-	secure, bridge := ev.SecureBoot, ev.Bridge
+	secure, bridge := ev.SecureBoot, ev.Bridge.FirstBootBridge
 	return FirstBootAssessment{
 		Verdict: FirstBootVerified,
 		Message: fmt.Sprintf("%s started and reported that it is healthy.", name),
-		Kernel:  ev.Kernel, ImageRef: ev.Image.Ref, ImageDigest: ev.Image.Digest, BootID: ev.BootID,
+		Kernel:  ev.Kernel, ImageRef: ev.Image.Ref, ImageDigest: ev.Image.Digest,
+		SourceImageRef: ev.Image.SourceRef, BootID: ev.BootID,
 		SecureBoot: &secure, Bridge: &bridge, WrittenAt: ev.WrittenAt,
 	}
 }

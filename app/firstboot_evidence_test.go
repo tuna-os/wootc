@@ -95,22 +95,6 @@ func TestFirstBootEvidenceParsesTheCollectorRecord(t *testing.T) {
 	}
 }
 
-func TestFirstBootEvidenceParsesModernCollectorRecord(t *testing.T) {
-	_, modern := bootEvidenceFixture()
-	data, err := json.Marshal(modern)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ev, err := parseFirstBootEvidence(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ev.modern || ev.Image.Ref != modern.Image || ev.Image.Digest != modern.ImageDigest ||
-		ev.RootDisk.HostUUID != modern.RootDisk.HostUUID || ev.Bridge.BoundFolders != modern.Bridge.BoundFolders {
-		t.Fatalf("modern record adapted incorrectly: %+v", ev)
-	}
-}
-
 func TestFirstBootEvidenceRefusesUntrustedShapes(t *testing.T) {
 	good := evidenceFixture(nil)
 	cases := map[string]string{

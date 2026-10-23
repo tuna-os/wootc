@@ -41,21 +41,28 @@ cat > "$target"
 SH
     # Stand-in for the measured boot: the real collector has its own suite
     # (tests/unit/test_wootc_firstboot_evidence.py).
+    # --publish-summary is the real collector's own summary writer.
     cat > "$tmp/collector.py" <<'PY'
 import json, os, sys
+if sys.argv[1:2] == ['--publish-summary']:
+    sys.path.insert(0, os.environ['FIRSTBOOT_LIB'])
+    import wootc_firstboot_evidence
+    sys.exit(wootc_firstboot_evidence.main(sys.argv[1:]))
 assert sys.argv[1:3] == ['--host', os.environ['WOOTC_FIRSTBOOT_HOST']], sys.argv
 if os.environ.get('FIRSTBOOT_COLLECT_FAIL') == '1':
     print('first-boot evidence unavailable: injected', file=sys.stderr)
     sys.exit(1)
-print(json.dumps({'schemaVersion': 1, 'state': 'healthy', 'kernel': '6.1',
-                  'sourceImageRef': 'example/image:tag',
-                  'imageDigest': 'sha256:' + 'a' * 64,
+print(json.dumps({'schema': 1, 'installationId': '0' * 32, 'state': 'healthy',
+                  'kernel': '6.1',
+                  'image': {'ref': 'example/image:tag', 'digest': 'sha256:' + 'a' * 64},
+                  'bridge': {'boundFolders': 0, 'matchedUsers': 0, 'bitlockerUnlocked': False,
+                             'bindings': []},
                   'writtenAt': '2026-09-27T00:00:00Z',
-                  'bridge': {'boundFolders': 0, 'matchedUsers': 0}}, indent=2))
+                  'updatedBy': 'wootc-firstboot'}, indent=2))
 PY
     chmod +x "$tmp/bin/mountpoint" "$tmp/bin/wootc-ntfs-state-write"
     export WOOTC_FIRSTBOOT_COLLECTOR="$tmp/collector.py"
-    export WOOTC_FIRSTBOOT_PUBLISHER="$REPO_ROOT/payload/migration/wootc-collect-firstboot.py"
+    export FIRSTBOOT_LIB="$REPO_ROOT/payload/migration/lib"
     export WOOTC_FIRSTBOOT_SUMMARY_DIR="$tmp/summary"
     FIRSTBOOT_MOUNT_PRESENT=1 "$tmp/bin/mountpoint"
 }
@@ -107,7 +114,7 @@ PY
     grep -q 'installed-linux-boot.json' "$FIRSTBOOT_SCRIPT"
     grep -q '"state": "healthy"' "$FIRSTBOOT_SCRIPT"
     grep -q 'state.json' "$FIRSTBOOT_SCRIPT"
-    [ "$(grep -c '^wootc-ntfs-state-write ' "$FIRSTBOOT_SCRIPT")" -eq 3 ]
+    [ "$(grep -c '^ *wootc-ntfs-state-write ' "$FIRSTBOOT_SCRIPT")" -eq 3 ]
 }
 
 @test "wootc-firstboot-evidence.service is ordered after host-bind" {
@@ -164,8 +171,9 @@ PY
     [ "$status" -eq 0 ]
     WOOTC_FIRSTBOOT_HOST="$tmp/host" python3 "$tmp/collector.py" --host "$tmp/host" > "$tmp/expected"
     cmp "$tmp/expected" "$tmp/host/wootc/install/installed-linux-boot.json"
-    # Both records go through the descriptor-preserving temp-and-rename writer.
-    [ "$(wc -l < "$tmp/helper-calls")" -eq 2 ]
+    # Evidence, state and the completion marker all go through the
+    # descriptor-preserving temp-and-rename writer.
+    [ "$(wc -l < "$tmp/helper-calls")" -eq 3 ]
     rm -rf "$tmp"
 }
 
@@ -199,6 +207,27 @@ PY
     [ "$(cat "$tmp/host/wootc/install/installed-linux-boot.json")" = 'first boot' ]
     [ "$(cat "$tmp/host/wootc/state.json")" = '{"state":"deployed"}' ]
     [ ! -e "$tmp/helper-calls" ]
+    rm -rf "$tmp"
+}
+
+@test "firstboot finishes an interrupted publication from the recorded evidence without re-measuring" {
+    tmp=$(mktemp -d)
+    make_firstboot_fakes "$tmp"
+    printf '{"state":"deployed"}\n' > "$tmp/host/wootc/state.json"
+    WOOTC_FIRSTBOOT_HOST="$tmp/host" python3 "$tmp/collector.py" --host "$tmp/host" \
+        > "$tmp/host/wootc/install/installed-linux-boot.json"
+    cp "$tmp/host/wootc/install/installed-linux-boot.json" "$tmp/recorded"
+
+    run env FIRSTBOOT_MOUNT_PRESENT=1 FIRSTBOOT_COLLECT_FAIL=1 WOOTC_FIRSTBOOT_HOST="$tmp/host" \
+        FIRSTBOOT_HELPER_CALLS="$tmp/helper-calls" \
+        PATH="$tmp/bin:$PATH" bash "$FIRSTBOOT_SCRIPT"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"already recorded"* ]]
+    cmp "$tmp/recorded" "$tmp/host/wootc/install/installed-linux-boot.json"
+    cmp "$tmp/recorded" "$tmp/host/wootc/install/installed-linux-boot.complete"
+    python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["state"] == "healthy"' "$tmp/host/wootc/state.json"
+    [ "$(sed -n '1p' "$tmp/helper-calls")" = "$tmp/host/wootc/state.json" ]
+    [ "$(wc -l < "$tmp/helper-calls")" -eq 2 ]
     rm -rf "$tmp"
 }
 
@@ -271,8 +300,10 @@ PY
 @test "first-boot evidence payload is staged by deploy.sh and shipped in module-setup.sh" {
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence' "$MODULE_SETUP"
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence.service' "$MODULE_SETUP"
-    grep -q 'inst_simple /usr/lib/wootc/migration/wootc-collect-firstboot.py' "$MODULE_SETUP"
-    grep -q 'var/usrlocal/bin/wootc-collect-firstboot.py' "$DEPLOY"
+    # One collector: the deployer proves the target's Python loads it.
+    grep -q 'import wootc_firstboot_evidence' "$DEPLOY"
+    run grep -rl 'wootc-collect-firstboot' "$REPO_ROOT/payload"
+    [ "$status" -ne 0 ]
     grep -q 'wootc-firstboot-evidence.service' "$DEPLOY"
     grep -q 'etc/systemd/system/multi-user.target.wants/wootc-firstboot-evidence.service' "$DEPLOY"
     # The collector and the EFI decoder it imports reach the installed image
@@ -325,9 +356,16 @@ PY
     # root.disk arguments. Before the fix the unit failed with "root.disk is
     # not attached as a loop device" and never reported healthy.
     t="$BATS_TEST_TMPDIR"
-    mkdir -p "$t/host/wootc/disks" "$t/proc/self" "$t/proc/sys/kernel/random" "$t/etc/wootc" \
-        "$t/sys/block/loop0/loop" "$t/sys/firmware/efi/efivars" "$t/bin"
+    mkdir -p "$t/host/wootc/disks" "$t/host/wootc/install" "$t/proc/self" "$t/proc/sys/kernel/random" "$t/etc/wootc" \
+        "$t/sys/block/loop0/loop" "$t/sys/block/loop0/loop0p3" "$t/sys/dev/block" "$t/sys/firmware/efi/efivars" "$t/bin"
     head -c 8192 /dev/zero > "$t/host/wootc/disks/root.disk"
+    # The attempt Windows staged, and a boot that started after it.
+    printf '{"schemaVersion":1,"installationId":"0123456789abcdef0123456789abcdef","armedAt":"2026-01-01T00:00:00Z","imageRef":"ghcr.io/projectbluefin/bluefin:lts","espPartitionGuid":"12345678-1234-5678-abcd-123456789abc","loaderPath":"\\\\EFI\\\\fedora\\\\shimx64.efi","hostUuid":"1234567890ABCDEF","rootDiskPath":"/wootc/disks/root.disk"}\n' \
+        > "$t/host/wootc/install/installation.json"
+    printf '60.00 100.00\n' > "$t/proc/uptime"
+    printf 'localhost/wootc-ntfs-injected:latest\n' > "$t/etc/wootc/installed-image-ref"
+    : > "$t/sys/block/loop0/loop0p3/partition"
+    ln -s ../../block/loop0/loop0p3 "$t/sys/dev/block/7:3"
     printf 'root=UUID=0b3c rw ostree=/ostree/boot.1/default/abc/0 wootc.host_uuid=1234567890ABCDEF loop=/wootc/disks/root.disk loop=/wootc/disks/root.disk wootc.host_uuid=1234567890ABCDEF\n' > "$t/proc/cmdline"
     printf '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0\n' > "$t/proc/sys/kernel/random/boot_id"
     printf '6.12.0-55.el10.x86_64\n' > "$t/proc/sys/kernel/osrelease"
@@ -340,7 +378,7 @@ PY
 printf '{"status":{"booted":{"image":{"image":{"image":"localhost/wootc-ntfs-injected:latest"},"imageDigest":"sha256:%s"}}}}\n' "$(printf 'a%.0s' $(seq 64))"
 SH
     printf '#!/bin/sh\n[ "$5" = /dev/sda3 ] && echo 1234567890ABCDEF\n' > "$t/bin/blkid"
-    printf '#!/bin/sh\nexit 0\n' > "$t/bin/systemctl"
+    printf '#!/bin/sh\n[ "$1" = show ] && printf "ActiveState=active\\nSubState=exited\\nResult=success\\n"\nexit 0\n' > "$t/bin/systemctl"
     printf '#!/bin/sh\nexit 1\n' > "$t/bin/efibootmgr"
     chmod +x "$t/bin/"*
     run env PATH="$t/bin:$PATH" python3 "$REPO_ROOT/payload/migration/lib/wootc_firstboot_evidence.py" \

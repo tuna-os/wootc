@@ -28,6 +28,7 @@ PY
 @test "E2E compares product firstboot record to current observed Linux facts" {
     local runner="$BATS_TEST_DIRNAME/../e2e/run-e2e.sh"
     grep -q 'current=module.collect(host)' "$runner"
+    grep -q 'wootc_firstboot_evidence.py' "$runner"
     grep -q 'persisted.get(key) != current\[key\]' "$runner"
     grep -q 'Installed Linux first-boot record is absent, incomplete or differs from this boot' "$runner"
 }

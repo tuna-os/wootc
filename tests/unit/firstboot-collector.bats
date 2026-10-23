@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 @test "firstboot collector proves EFI and actual root identity and rejects mismatches" {
-    run python3 "$BATS_TEST_DIRNAME/test_firstboot_collector.py"
+    run python3 "$BATS_TEST_DIRNAME/test_wootc_firstboot_evidence.py"
     [ "$status" -eq 0 ]
 }
 
@@ -28,22 +28,23 @@
 
 @test "collector is staged as data and excluded from dracut's executable dependency pass" {
     local root="$BATS_TEST_DIRNAME/../.."
-    local initdir="$BATS_TEST_TMPDIR/initramfs"
-    local collector_source="$root/payload/migration/wootc-collect-firstboot.py"
-    inst_simple() { install -D -m755 "$collector_source" "$initdir/$1"; }
-    # Run the real staging stanza. A reverted inst or missing chmod leaves
-    # no payload or an executable Python script, and the test must go red.
-    local stanza
-    stanza=$(sed -n '/^    inst_simple .*wootc-collect-firstboot.py/,/^    chmod .*wootc-collect-firstboot.py/p' "$root/payload/deployer/module-setup.sh")
-    [ -n "$stanza" ]
-    eval "$stanza"
-    local staged="$initdir/usr/lib/wootc/migration/wootc-collect-firstboot.py"
-    cmp "$collector_source" "$staged"
+    local initdir="$BATS_TEST_TMPDIR/initramfs" verifier="$BATS_TEST_TMPDIR/verifier"
+    mkdir -p "$verifier"
+    for file in sbverify sbpehash ld-linux-x86-64.so.2 libcrypto.so.3 libc.so.6; do
+        printf 'stand-in\n' > "$verifier/$file"
+    done
+    inst_simple() { install -D -m755 "$1" "$initdir/$2"; }
+    # Run the real staging function. A reverted chmod leaves an executable
+    # Python script, and the test must go red.
+    eval "$(sed -n '/^stage_signed_chain_payloads()/,/^}/p' "$root/payload/deployer/module-setup.sh")"
+    stage_signed_chain_payloads "$verifier" "$root/payload/migration/lib"
+    local staged="$initdir/usr/lib/wootc/migration/lib/wootc_firstboot_evidence.py"
+    cmp "$root/payload/migration/lib/wootc_firstboot_evidence.py" "$staged"
     [ "$(stat -c %a "$staged")" = 644 ]
     # This is dracut's real lazy-pass selection. inst_simple alone is not
     # enough: any executable payload is still scanned for its shebang.
-    run find "$initdir" -type f \( -perm /0111 -or -name '*.so*' \) -not -name '*.ko*' -print
+    run find "$initdir" -type f \( -perm /0111 -or -name '*.so*' \) -not -name '*.ko*' -not -path '*/sbverify/*' -print
     [ "$status" -eq 0 ]
     [ -z "$output" ]
-    grep -q 'first-boot collector payload missing from initramfs' "$root/payload/deployer/Containerfile"
+    grep -q 'first-boot evidence collector missing from initramfs' "$root/payload/deployer/Containerfile"
 }

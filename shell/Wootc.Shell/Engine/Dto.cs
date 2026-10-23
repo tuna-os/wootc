@@ -1174,79 +1174,55 @@ public class UninstallInfo
     public bool BootPending { get; set; }
 
     [JsonPropertyName("bootEvidence")]
-    public LinuxBootEvidence? BootEvidence { get; set; }
+    public FirstBootAssessment? BootEvidence { get; set; }
 }
 
 /// <summary>
-/// LinuxBootEvidence records observed Linux boot identity, not deployer progress.
+/// FirstBootAssessment is what status and the installed views report. It never
+/// carries a "state" key: the E2E harness reads the lifecycle state from the
+/// top-level "state" of `status` output.
 /// </summary>
-public class LinuxBootEvidence
+public class FirstBootAssessment
 {
-    [JsonPropertyName("schemaVersion")]
-    public int SchemaVersion { get; set; }
+    [JsonPropertyName("verdict")]
+    public string Verdict { get; set; } = string.Empty;
 
-    [JsonPropertyName("installationId")]
-    public string InstallationId { get; set; } = string.Empty;
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
 
-    [JsonPropertyName("state")]
-    public string State { get; set; } = string.Empty;
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
 
     [JsonPropertyName("kernel")]
-    public string Kernel { get; set; } = string.Empty;
+    public string? Kernel { get; set; }
 
-    [JsonPropertyName("image")]
-    public string Image { get; set; } = string.Empty;
+    [JsonPropertyName("imageRef")]
+    public string? ImageRef { get; set; }
 
     [JsonPropertyName("imageDigest")]
-    public string ImageDigest { get; set; } = string.Empty;
+    public string? ImageDigest { get; set; }
 
+    /// <summary>
+    /// SourceImageRef is the image the user selected, as the deployer recorded
+    /// it for updates; ImageRef may be its local derivative.
+    /// </summary>
     [JsonPropertyName("sourceImageRef")]
-    public string SourceImageRef { get; set; } = string.Empty;
+    public string? SourceImageRef { get; set; }
 
-    [JsonPropertyName("bootCurrent")]
-    public LinuxBootCurrent BootCurrent { get; set; } = new();
-
-    [JsonPropertyName("rootDisk")]
-    public LinuxRootDisk RootDisk { get; set; } = new();
-
-    [JsonPropertyName("bridge")]
-    public LinuxBridgeEvidence Bridge { get; set; } = new();
+    [JsonPropertyName("bootId")]
+    public string? BootId { get; set; }
 
     [JsonPropertyName("secureBoot")]
-    public bool SecureBoot { get; set; }
+    public bool? SecureBoot { get; set; }
 
-    [JsonPropertyName("failedUnits")]
-    public List<string> FailedUnits { get; set; } = new();
+    [JsonPropertyName("bridge")]
+    public FirstBootBridge? Bridge { get; set; }
 
     [JsonPropertyName("writtenAt")]
-    public string WrittenAt { get; set; } = string.Empty;
-
-    [JsonPropertyName("updatedBy")]
-    public string UpdatedBy { get; set; } = string.Empty;
+    public string? WrittenAt { get; set; }
 }
 
-public class LinuxBootCurrent
-{
-    [JsonPropertyName("bootNumber")]
-    public string BootNumber { get; set; } = string.Empty;
-
-    [JsonPropertyName("espPartitionGuid")]
-    public string EspPartitionGuid { get; set; } = string.Empty;
-
-    [JsonPropertyName("loaderPath")]
-    public string LoaderPath { get; set; } = string.Empty;
-}
-
-public class LinuxRootDisk
-{
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
-
-    [JsonPropertyName("hostUuid")]
-    public string HostUuid { get; set; } = string.Empty;
-}
-
-public class LinuxBridgeEvidence
+public class FirstBootBridge
 {
     [JsonPropertyName("boundFolders")]
     public int BoundFolders { get; set; }
@@ -1256,36 +1232,6 @@ public class LinuxBridgeEvidence
 
     [JsonPropertyName("bitlockerUnlocked")]
     public bool BitlockerUnlocked { get; set; }
-
-    [JsonPropertyName("bindings")]
-    public List<LinuxBridgeBinding> Bindings { get; set; } = new();
-
-    [JsonPropertyName("matchedProfiles")]
-    public List<LinuxMatchedProfile> MatchedProfiles { get; set; } = new();
-}
-
-public class LinuxBridgeBinding
-{
-    [JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
-
-    [JsonPropertyName("target")]
-    public string Target { get; set; } = string.Empty;
-
-    [JsonPropertyName("user")]
-    public string User { get; set; } = string.Empty;
-}
-
-public class LinuxMatchedProfile
-{
-    [JsonPropertyName("windowsProfile")]
-    public string WindowsProfile { get; set; } = string.Empty;
-
-    [JsonPropertyName("linuxUser")]
-    public string LinuxUser { get; set; } = string.Empty;
-
-    [JsonPropertyName("profileRoot")]
-    public string ProfileRoot { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -19,31 +19,47 @@ The 32-bit serial from `GetVolumeInformation` cannot match the UUID Linux reads.
 
 ## Linux observations
 
+One collector writes the record: `payload/migration/lib/wootc_firstboot_evidence.py`.
+The record is the schema-1 record of `wootc status` (#332).
 The service runs after the private host mount and profile bridge complete.
-Its Python collector reads the current EFI boot number, GPT partition GUID,
-loader path, Secure Boot variable and kernel. It gets the image ref and digest
-from bootc, and the UUID of the mounted NTFS volume. It follows the installed root device to the
-loop file and checks the kernel arguments against the installation identity.
-It records the real mounts of folders, matched Windows profiles and Linux users,
-BitLocker mount status, failed units, and time.
 
-If EFI files cannot be read, `efibootmgr -v` can supply the complete boot path.
-Invalid EFI data stops the check without that fallback. Secure Boot still needs its EFI variable.
-The collector refuses incomplete or mismatched facts and any failed unit.
-The deployer records the ref of the installed image, which can be a local derivative.
-It also keeps the selected source from the registry.
+The collector reads the kernel, the boot ID and the Secure Boot variable.
+It reads the image ref and digest from bootc, after the sysroot lock.
+It decodes the current EFI boot entry, or it uses `efibootmgr -v`.
+It follows `/sysroot` to the loop device of `root.disk`, by the rule of the ESP controller.
+It reads the UUID of the mounted NTFS volume.
+
+The collector then compares the boot with `install/installation.json`.
+The boot must start after the arm time.
+The kernel arguments must name the root disk and host UUID of the identity.
+The recorded source image must be the selected image.
+The booted image must be the image that the deployer installed, which can be a local derivative.
+
+A decoded boot entry must be the staged ESP and loader.
+When the firmware does not let Linux decode the entry, the collector writes `unavailable`.
+
+The record lists each folder bind with its source, target and Linux user.
+A bind of the whole Windows volume or of the `wootc` records stops the check.
+The collector sets `bitlockerUnlocked` only for the bridge mapping of an actual BITLK volume.
+Both bridge units must complete.
+The record also lists the units that failed. Linux does not refuse the boot for them.
 
 The service publishes `installed-linux-boot.json` before `state.json = healthy`.
 It then publishes a local summary and the completion marker.
 A failure leaves the service eligible to retry on the next boot.
+When the record exists without the marker, the service does not measure again: it completes the publication.
 The NTFS writer preserves the Windows ACL on each record.
 
 ## Windows and the UI
 
-Windows checks the fresh ID, selected source, timestamp, current host UUID,
-current ESP GUID and recorded loader. A missing or invalid record cannot set
-`UninstallInfo.deployed` or remove recovery controls. The CLI refuses a
-healthy claim it cannot verify. A staged system can still offer its first boot.
+Windows reads the record as untrusted strict JSON.
+Windows checks the installation ID, the arm time, the selected source,
+the host volume, the root disk and a decoded ESP GUID and loader.
+A failed `wootc-` unit makes the boot unhealthy.
+
+`UninstallInfo.deployed` also needs the current ESP GUID and the current host UUID.
+A missing or invalid record cannot set `deployed` or remove recovery controls.
+The CLI refuses a healthy claim that it cannot verify. A staged system can still offer its first boot.
 
 The control panel shows the verified kernel, selected image and bridge counts.
 The native-move done screen shows those facts as the verified boot before the move.
@@ -61,7 +77,7 @@ and [source hashes](experiments/evidence/2026-09-27-firstboot-record/native-go-p
 OEM tests also passed on Windows. A mutation that kept the stale marker for completion failed.
 A mutation that skipped the check of the current ESP failed its Go test.
 
-Tests in Python check truncated and ambiguous EFI paths, wrong volumes and images,
+Tests in Python check truncated and ambiguous EFI paths, wrong installations, volumes and images,
 bridge observations, fallback rules, and summary privacy.
 
 [Issue #332](https://github.com/tuna-os/wootc/issues/332) remains open.

@@ -5,7 +5,6 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -39,7 +38,11 @@ func ntfsHostUUID(drive string) (string, error) {
 	return fmt.Sprintf("%016X", binary.LittleEndian.Uint64(data[:8])), nil
 }
 
-func installedLinuxEvidence(drive string) (*LinuxBootEvidence, error) {
+// installedLinuxEvidence is the verified first boot of this installation: the
+// same cross-check status uses (assessFirstBootAt), plus the facts only a
+// running Windows can observe now: the staged ESP is still this PC's ESP and
+// the host volume is still the one Linux reported.
+func installedLinuxEvidence(drive string) (*FirstBootAssessment, error) {
 	if drive == "" {
 		return nil, fmt.Errorf("host drive is absent")
 	}
@@ -55,21 +58,24 @@ func installedLinuxEvidence(drive string) (*LinuxBootEvidence, error) {
 	if err := readBootRecord(filepath.Join(root, "install", "installation.json"), &plan); err != nil {
 		return nil, err
 	}
-	var e LinuxBootEvidence
-	if err := readBootRecord(filepath.Join(root, "install", "installed-linux-boot.json"), &e); err != nil {
+	if err := validateInstallationIdentity(plan); err != nil {
 		return nil, err
+	}
+	assessment := assessFirstBootAt(root)
+	if assessment.Verdict != FirstBootVerified {
+		return nil, fmt.Errorf("first boot is %s: %s", assessment.Verdict, assessment.Reason)
+	}
+	if canonicalGUID(findESPPartitionGuid()) != canonicalGUID(plan.EspPartitionGuid) {
+		return nil, fmt.Errorf("the staged ESP is no longer this PC's ESP")
 	}
 	currentHost, err := ntfsHostUUID(drive)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateLinuxBootEvidence(e, plan, findESPPartitionGuid(), currentHost); err != nil {
-		return nil, err
+	if !strings.EqualFold(currentHost, plan.HostUUID) {
+		return nil, fmt.Errorf("the host volume is no longer the installation's volume")
 	}
-	if st, err := os.Stat(filepath.Join(root, "disks", "root.disk")); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("Linux root disk is absent")
-	}
-	return &e, nil
+	return &assessment, nil
 }
 
 func verifyReportedLinuxHealth() error {
