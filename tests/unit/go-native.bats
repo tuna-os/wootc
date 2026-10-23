@@ -484,7 +484,7 @@ NTFSINFO
     # The confined agent cannot search /sysroot/ostree (run 39007144179:
     # readlink -e failed for the composefs datadir), and the composefs image
     # mount is detached. The export must exist before the agent answers, and
-    # the unit stays active so its invocation id remains observable.
+    # the unit stays active so it runs once per boot.
     local block unit
     # Heredoc bodies are skipped: the probe script has its own "    fi".
     block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }
@@ -501,4 +501,20 @@ NTFSINFO
     [[ "$unit" == *'Before=qemu-guest-agent.service'* ]]
     [[ "$unit" == *'RemainAfterExit=yes'* ]]
     [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh'* ]]
+}
+
+@test "Phase-3 copies the QGA sysconfig without Phase 2's label, and not qemu-ga.conf" {
+    # Run 39874539856: the native bluefin:stable system reached GDM but QGA
+    # never answered. The deployer writes these configs unlabeled; cp -a
+    # carried that onto the enforcing native system, and Fedora's qemu-ga
+    # exits when it cannot read /etc/qemu/qemu-ga.conf.
+    run grep -nE '^[^#]*cp -a [^ ]*qemu-ga' "$GN"
+    [ "$status" -ne 0 ]
+    run grep -nE '^[^#]*qemu-ga\.conf' "$GN"
+    [ "$status" -ne 0 ]
+    grep -qE '^[^#]*cp /etc/sysconfig/qemu-ga "\$etcroot/sysconfig/qemu-ga"' "$GN"
+    unit=$(awk '/wootc-e2e-native-root-probe.service" <<.UNIT.$/ { active=1; next }
+        active && /^UNIT$/ { exit }
+        active { print }' "$GN")
+    [[ "$unit" == *'TimeoutStartSec=60'* ]]
 }

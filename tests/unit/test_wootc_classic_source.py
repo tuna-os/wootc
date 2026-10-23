@@ -21,6 +21,10 @@ class ClassicSourceTests(unittest.TestCase):
         (self.sys/'devices/loop0/loop0p1/partition').write_text('1')
         (self.sys/'dev/block/7:1').symlink_to(self.sys/'devices/loop0/loop0p1')
         (self.sys/'devices/loop0/loop/backing_file').write_text(str(self.host)+'/wootc/disks/root.disk')
+        # The ancestry check compares the loop's backing file with the actual
+        # root.disk (wootc_boot_identity.loop_backs_file), which must exist.
+        (self.host/'wootc/disks').mkdir(parents=True);(self.host/'wootc/disks/root.disk').write_bytes(b'\0'*1024)
+        (self.sys/'devices/loop0/size').write_text('2')
         self.release=self.install/'etc/os-release';self.release.write_text('ID=debian\nVERSION_ID="13"\n')
         self.mountinfo=self.proc/'self/mountinfo'
         self.mountinfo.write_text(f'1 0 7:3 / {self.install} rw - ext4 /dev/loop0p3 rw\n'
