@@ -484,7 +484,7 @@ NTFSINFO
     # The confined agent cannot search /sysroot/ostree (run 39007144179:
     # readlink -e failed for the composefs datadir), and the composefs image
     # mount is detached. The export must exist before the agent answers, and
-    # the unit stays active so its invocation id remains observable.
+    # the unit stays active so it runs once per boot.
     local block unit
     # Heredoc bodies are skipped: the probe script has its own "    fi".
     block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }

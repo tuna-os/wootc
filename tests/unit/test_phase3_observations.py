@@ -626,9 +626,9 @@ def probe_body(boot=None, invocation=INVOCATION, options=REAL_OPTIONS, layers=No
     return '\n'.join(lines)
 
 
-def root_field(body=None, owner='0:0:644', unit=INVOCATION):
-    """The snapshot's ROOT value: observed owner/mode and unit invocation, then the export."""
-    return 'FILE='+owner+'\nUNIT='+unit+'\n'+(probe_body() if body is None else body)
+def root_field(body=None, owner='0:0:644'):
+    """The snapshot's ROOT value: the export's observed owner/mode, then the export."""
+    return 'FILE='+owner+'\n'+(probe_body() if body is None else body)
 
 
 def real_proof(root=None, **fields):
@@ -687,9 +687,8 @@ class ComposefsRootProbe(unittest.TestCase):
                 self.refused(real_proof(raw))
 
     def test_export_not_written_by_the_probe_unit_refuses(self):
-        for root in [root_field(owner='1000:1000:644'), root_field(owner='0:0:666'), root_field(unit=''),
-                     root_field(unit='f'*32), root_field(probe_body(invocation='f'*32)),
-                     root_field(probe_body(invocation=''),unit=''),
+        for root in [root_field(owner='1000:1000:644'), root_field(owner='0:0:666'),
+                     root_field(probe_body(invocation='')), root_field(probe_body(invocation='f'*31)),
                      root_field().replace('FILE=0:0:644\n','')]:
             with self.subTest(root=root[:40]):
                 self.refused(real_proof(root))
@@ -731,18 +730,15 @@ class ComposefsRootProbe(unittest.TestCase):
         paths='\n'.join([LOWER+'\t'+LOWER, OBJECTS+'\t/sysroot/ostree/elsewhere'])
         self.refused(real_proof(root_field(),PATHS=base64.b64encode(paths.encode()).decode()))
 
-    def snapshot(self, export=None, mode=0o644, unit=INVOCATION, symlink=False):
+    def snapshot(self, export=None, mode=0o644, symlink=False):
         with tempfile.TemporaryDirectory() as tmp:
-            base=Path(tmp); out=base/'export'; link=base/'invocation'
+            base=Path(tmp); out=base/'export'
             if export is not None:
                 target=base/'real-export' if symlink else out
                 target.write_text(export); target.chmod(mode)
                 if symlink:
                     out.symlink_to(target)
-            if unit:
-                link.symlink_to(unit)
             script=((ROOT/'tests/e2e/phase3-snapshot.sh').read_text()
-                    .replace('/run/systemd/units/invocation:wootc-e2e-native-root-probe.service',str(link))
                     .replace('/run/wootc-e2e-native-root',str(out)).replace('/sys/fs/btrfs',str(base/'no-btrfs')))
             env={**os.environ,'BOOT':REAL['BOOT_ID'],'CMDLINE':REAL['CMDLINE'],'ROOT_OPTIONS':REAL_OPTIONS,
                  'BLOCK_JSON':base64.b64decode(REAL['BLOCKS']).decode(),'MOUNT_JSON':base64.b64decode(REAL['MOUNTS']).decode(),
@@ -756,7 +752,6 @@ class ComposefsRootProbe(unittest.TestCase):
             self.skipTest('the owner observation needs a root-owned export')
         self.accepted(self.snapshot(probe_body()))
         self.refused(self.snapshot(None))
-        self.refused(self.snapshot(probe_body(),unit=None))
         self.refused(self.snapshot(probe_body(),mode=0o666))
         self.refused(self.snapshot(probe_body(),symlink=True))
 
@@ -798,7 +793,7 @@ class RootProbeScript(unittest.TestCase):
             f'DEPLOY=/ostree/boot.1/default/csum/0\t{self.deploy}',
             f'IMAGE={self.image}\t{os.major(info.st_dev)}:{os.minor(info.st_dev)}'])+'\n')
         self.assertEqual(self.out.stat().st_mode & 0o777,0o644)
-        parsed=ancestry.root_probe('FILE=0:0:644\nUNIT='+INVOCATION+'\n'+self.out.read_text().rstrip('\n'),REAL['BOOT_ID'])
+        parsed=ancestry.root_probe('FILE=0:0:644\n'+self.out.read_text().rstrip('\n'),REAL['BOOT_ID'])
         self.assertEqual(parsed['deploy'],('/ostree/boot.1/default/csum/0',str(self.deploy)))
 
     def refused(self, **env):
@@ -821,6 +816,49 @@ class RootProbeScript(unittest.TestCase):
     def test_ambiguous_deployment_no_export(self):
         (self.base/'cmdline').write_text('ostree=/ostree/boot.1/default/csum/0 ostree=/ostree/boot.1/default/csum/0\n')
         self.refused()
+
+
+
+# The native snapshot from hosted run 39886118219 (bluefin:stable, composefs
+# root), timestamps stripped. The confined agent could not read systemd's
+# unit invocation record, so the snapshot carried an empty UNIT line under
+# the old protocol; the probe's own export was complete.
+REAL_STABLE=ROOT/'tests/unit/fixtures/phase3-native/run-39886118219.snapshot'
+
+
+def stable_fields():
+    return dict(line.split('=',1) for line in REAL_STABLE.read_text().splitlines())
+
+
+class RealStableRootProbe(unittest.TestCase):
+    def proof(self, root):
+        fields=stable_fields()
+        fields['ROOT']=base64.b64encode(root.encode()).decode()
+        return ''.join(key+'='+value+'\n' for key,value in fields.items())
+
+    def root(self):
+        # Drop the old protocol's UNIT line; the rest is the run's own export.
+        lines=base64.b64decode(stable_fields()['ROOT']).decode().split('\n')
+        self.assertEqual(lines[1],'UNIT=')
+        return '\n'.join(lines[:1]+lines[2:])
+
+    def test_real_composefs_root_of_the_run_passes(self):
+        fields=stable_fields()
+        r=receipt_status(self.proof(self.root()))
+        self.assertEqual((r.returncode,r.stdout.strip()),(0,fields['BOOT_ID']),r.stderr)
+
+    def test_real_run_still_refuses_a_foreign_deployment_or_device(self):
+        root=self.root()
+        deploy=next(l for l in root.split('\n') if l.startswith('DEPLOY='))
+        for bad in [root.replace(deploy,deploy.replace('fe8e62ad','0e8e62ad')),
+                    root.replace('/.ostree.cfs\t8:19','/.ostree.cfs\t8:3'),
+                    root.replace('FILE=0:0:644','FILE=0:0:666'),
+                    '\n'.join(l for l in root.split('\n') if not l.startswith('IMAGE='))]:
+            with self.subTest(bad=bad[-80:]):
+                r=receipt_status(self.proof(bad))
+                self.assertNotEqual(r.returncode,0,r.stdout)
+                self.assertNotIn(stable_fields()['BOOT_ID'],r.stdout)
+
 
 if __name__ == '__main__':
     unittest.main()

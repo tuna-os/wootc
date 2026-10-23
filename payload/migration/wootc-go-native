@@ -522,9 +522,9 @@ trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
 plain() { [[ "$1" == /* && "$1" != *[[:space:]\\]* ]]; }
 read -r boot < /proc/sys/kernel/random/boot_id
 [[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
-# systemd's id for this run of the unit; the harness matches it against
-# /run/systemd/units/invocation:wootc-e2e-native-root-probe.service, so an
-# export that this unit did not write is refused.
+# systemd's id for this run of the unit: the probe runs only as a systemd
+# unit. (The harness cannot cross-check it: the confined agent cannot read
+# /run/systemd/units, run 39886118219.)
 invocation=${INVOCATION_ID:-}
 [[ "$invocation" =~ ^[0-9a-f]{32}$ ]]
 options=$(findmnt --noheadings --raw --output OPTIONS --mountpoint /)
@@ -594,7 +594,7 @@ Type=oneshot
 # A oneshot has no start timeout by default; a hung probe must not hold
 # the guest agent (ordered after it) back forever.
 TimeoutStartSec=60
-# Stay active so systemd keeps this run's invocation id under /run.
+# Stay active so a later start in the same boot does not run it again.
 RemainAfterExit=yes
 ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh
 
