@@ -34,6 +34,10 @@ param(
     # wootc.filesystem= so the matrix can exercise btrfs.
     [ValidateSet("xfs", "ext4", "btrfs", "auto")]
     [string]$Filesystem = "auto",
+    # MOK axis (#248): adds wootc.mok=enroll, the flag the app sets for
+    # catalog entries with mokEnroll, so the deployer queues the image's
+    # Secure Boot key exactly as it does on the GUI path.
+    [switch]$MokEnroll,
     # In the E2E image, Dockur copies /oem to C:\OEM. Supplying this path
     # makes setup self-contained and avoids requiring SMB/WinRM to be ready.
     [string]$PayloadDir = "",
@@ -163,6 +167,7 @@ Copy-WootcStatusCLI -SourceDirectory $cliSource -Destination 'C:\wootc\wootc.exe
 $WootcKargs = "wootc.bootloader=$Bootloader"
 if ($ComposeFs) { $WootcKargs += " wootc.composefs=1" }
 if ($Filesystem -ne "auto") { $WootcKargs += " wootc.filesystem=$Filesystem" }
+if ($MokEnroll) { $WootcKargs += " wootc.mok=enroll" }
 # ── BitLocker / FDE (SPEC §3.5) ─────────────────────────────────────────────
 # The deployer mounts the host NTFS from Linux; on a BitLocker-protected C: it
 # would see FVE ciphertext, so root.disk cannot live there. We never force a

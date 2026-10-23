@@ -337,7 +337,7 @@ test('installer — custom OCI ref defaults to auto backend detection', async ({
   // run 30710282014), so the GUI's job is to say 'auto' and stay out of it.
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO });
   await page.locator('details:has-text("Advanced") summary').click();
-  await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:lts');
+  await page.locator('input[placeholder="ghcr.io/ublue-os/image:tag"]').fill('ghcr.io/projectbluefin/bluefin:stable');
   const sel = await page.evaluate(() => window.__WOOTC_STATE?.selected || null);
   if (sel) {
     expect(sel.bootloader).toBe('auto');

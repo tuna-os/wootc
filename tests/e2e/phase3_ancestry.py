@@ -35,6 +35,65 @@ def decode(value):
         raise ValueError('Observation nesting exceeds bound') from exc
 
 
+def plain_path(value):
+    return (isinstance(value, str) and value.startswith('/') and '..' not in value.split('/')
+            and not any(c.isspace() or c == '\\' for c in value))
+
+
+
+def root_probe(raw, boot_id):
+    """Boot-time root observations made from init's context (wootc-go-native).
+
+    The confined guest agent cannot search /sysroot/ostree, and a composefs
+    metadata image is mounted detached, so these are the only observations of
+    the root's layer paths and its ostree deployment. The snapshot prefixes
+    the export with its observed owner and mode (FILE). Only root writes
+    /run; the export must name the observed boot and describe the live root
+    mount, and every path it reports is checked against the agent's own
+    mount observations (verify_composefs_metadata), so it can add only what
+    the agent cannot see, never contradict what it does. systemd's record
+    of the unit run (/run/systemd/units/invocation:*) is not a usable
+    witness: the confined agent cannot read it (run 39886118219 observed an
+    empty UNIT for an export the unit had written). ROOT_INVOCATION stays
+    as the probe's proof that it ran under a systemd unit at all.
+    Anything else, or any mismatch, is refused.
+    """
+    if not raw:
+        return None
+    lines = raw.split('\n')
+    if len(lines) < 5 or len(lines) > 64:
+        raise ValueError('Invalid root probe')
+    if lines[0] != 'FILE=0:0:644':
+        raise ValueError('Root probe export is not a root-owned 0644 file')
+    if lines[1] != 'ROOT_SCHEMA=1':
+        raise ValueError('Invalid root probe')
+    if not boot_id or lines[2] != 'ROOT_BOOT_ID='+boot_id:
+        raise ValueError('Root probe is not from the observed boot')
+    if not re.fullmatch(r'ROOT_INVOCATION=[0-9a-f]{32}', lines[3]):
+        raise ValueError('Root probe was not written by a systemd unit run')
+    if not lines[4].startswith('ROOT_OPTIONS=') or not lines[4][len('ROOT_OPTIONS='):]:
+        raise ValueError('Root probe has no root options')
+    probe = {'options': lines[4][len('ROOT_OPTIONS='):], 'layers': {}, 'deploy': None, 'image': None}
+    for line in lines[5:]:
+        key, sep, value = line.partition('=')
+        values = value.split('\t')
+        if key == 'LAYER' and sep and len(values) == 3 and values[2] in {'empty', 'populated'}:
+            if values[0] in probe['layers'] or not plain_path(values[0]) or not plain_path(values[1]):
+                raise ValueError('Invalid or duplicate root probe layer')
+            probe['layers'][values[0]] = (values[1], values[2])
+        elif key == 'DEPLOY' and sep and len(values) == 2 and probe['deploy'] is None:
+            if not plain_path(values[0]) or not plain_path(values[1]):
+                raise ValueError('Invalid root probe deployment')
+            probe['deploy'] = tuple(values)
+        elif key == 'IMAGE' and sep and len(values) == 2 and probe['image'] is None:
+            if not plain_path(values[0]) or not re.fullmatch(r'[0-9]+:[0-9]+', values[1]):
+                raise ValueError('Invalid root probe image')
+            probe['image'] = tuple(values)
+        else:
+            raise ValueError('Invalid or duplicate root probe observation')
+    return probe
+
+
 def text(value):
     if len(value) > 2_000_000:
         raise ValueError('Observation exceeds bound')
@@ -130,6 +189,10 @@ class Ancestry:
             if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', values[0]) or values[1] not in {'0', '1'}:
                 raise ValueError('Invalid registered Btrfs identity')
             self.btrfs[values[0]] = (values[1], values[2].split(','))
+        self.cmdline = fields.get('CMDLINE')
+        self.probe = root_probe(text(fields.get('ROOT', '')), fields.get('BOOT_ID'))
+        if self.probe and (not self.mounts.get('/') or self.mounts['/']['options'] != self.probe['options']):
+            raise ValueError('Root probe describes another root mount')
 
     def mount(self, target):
         """The one mount row on target; None if unmounted, refused if stacked."""
@@ -137,10 +200,25 @@ class Ancestry:
             raise ValueError('Ambiguous mount target')
         return self.mounts.get(target)
 
-    def mount_for(self, path):
-        path = self.paths.get(path)
-        if not isinstance(path, str) or not path.startswith('/') or '..' in path.split('/'):
+    def resolve(self, path):
+        """The observed canonical path. The agent's own '-' (it could not
+        resolve the path) may be filled in only by the boot-time probe's
+        observation of the same path; two observations must agree."""
+        measured = self.paths.get(path)
+        probed = (self.probe['layers'].get(path) or (None,))[0] if self.probe else None
+        if measured == '-':
+            measured = None
+        if measured is not None and probed is not None and measured != probed:
+            raise ValueError('Resolved path observations disagree')
+        resolved = measured if measured is not None else probed
+        if not isinstance(resolved, str) or not resolved.startswith('/') or '..' in resolved.split('/'):
             raise ValueError('Invalid observed projection path')
+        return resolved
+
+    def mount_for(self, path):
+        return self.mount_containing(self.resolve(path))
+
+    def mount_containing(self, path):
         # Stacked targets stay candidates: if one is the deepest match, the
         # path resolves there and must refuse, not fall back to a parent mount.
         candidates = [target for target in (*self.mounts, *self.stacked)
@@ -195,6 +273,47 @@ class Ancestry:
             raise ValueError('Mount source and block identity disagree')
         return self.disk_ancestors(major, projected, seen)
 
+    def block_backed(self, row):
+        return row['fstype'] in {'btrfs', 'erofs'} or row['source'].split('[', 1)[0] in self.aliases
+
+    def verify_composefs_metadata(self, path, backing):
+        """A composefs metadata layer whose erofs mount was detached.
+
+        Nothing in the kernel names a detached file-backed erofs mount's
+        backing file (its sysfs node is only the anonymous device), so the
+        layer is accepted only on this measured chain: the boot command
+        line's ostree= deployment, resolved on /sysroot; the kernel's /etc
+        bind row naming that same deployment; and that deployment's
+        .ostree.cfs as a regular file whose device is the /sysroot
+        filesystem, which must trace to the target alone.
+
+        ASSUMPTION (ostree-prepare-root): the initramfs mounts the composefs
+        image <deployment>/.ostree.cfs of the same deployment whose /etc it
+        binds. That is ostree's contract, not something observed here.
+        """
+        probe = self.probe
+        if not probe or not probe['deploy'] or not probe['image']:
+            raise ValueError('Detached composefs metadata layer has no observed image')
+        resolved, state = probe['layers'].get(path, (None, None))
+        if resolved != self.resolve(path) or state != 'empty' or backing['target'] == resolved:
+            raise ValueError('Composefs metadata layer is not a detached mount point')
+        karg, deploy = probe['deploy']
+        kargs = [token[len('ostree='):] for token in (self.cmdline or '').split() if token.startswith('ostree=')]
+        if kargs != [karg]:
+            raise ValueError('Root probe deployment is not this boot')
+        sysroot = self.mount('/sysroot')
+        if not sysroot or not deploy.startswith('/sysroot/') or self.mount_containing(deploy) is not sysroot:
+            raise ValueError('Deployment is not on the observed physical root')
+        base, _, subpath = sysroot['source'].partition('[')
+        expected = base+'['+subpath.rstrip(']')+deploy[len('/sysroot'):]+'/etc]'
+        etc = self.mount('/etc')
+        if not etc or etc['source'] != expected or etc['maj:min'] != sysroot['maj:min']:
+            raise ValueError('Booted /etc is not the observed deployment')
+        image, device = probe['image']
+        if image != deploy+'/.ostree.cfs' or self.mount_containing(image) is not sysroot or device != sysroot['maj:min']:
+            raise ValueError('Composefs image is not on the observed physical root')
+        self.require_target(self.mount_ancestors(sysroot))
+
     def require_target(self, ancestors):
         if ancestors != {self.target}:
             raise Mismatch('Observed backing is outside expected whole target')
@@ -219,6 +338,7 @@ class Ancestry:
                 layers[key] = value
         if 'lowerdir' not in layers or ('upperdir' in layers) != ('workdir' in layers):
             raise ValueError('Complete active root content layers unavailable')
+        metadata, data_only = set(), 'datadir' in layers
         for key, value in layers.items():
             if key == 'lowerdir' and '::' in value:
                 if value.count('::') != 1:
@@ -227,8 +347,12 @@ class Ancestry:
                 if not lower or not data:
                     raise ValueError('Missing metadata or data lower layer')
                 parts = lower.split(':')+data.split(':')
+                metadata.update(lower.split(':'))
+                data_only = True
             else:
                 parts = value.split(':')
+                if key == 'lowerdir':
+                    metadata.update(parts)
             if any(not path for path in parts) or (key in {'upperdir', 'workdir'} and len(parts) != 1):
                 raise ValueError('Empty or invalid active layer path')
             paths.extend(parts)
@@ -243,6 +367,9 @@ class Ancestry:
             backing = self.mount_for(path)
             if backing is row:
                 raise ValueError('Projection cannot resolve through itself')
+            if data_only and path in metadata and not self.block_backed(backing):
+                self.verify_composefs_metadata(path, backing)
+                continue
             self.require_target(self.mount_ancestors(backing, backing['fstype'] == 'erofs'))
 
     def verify_data(self, source, major, target):

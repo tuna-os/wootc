@@ -142,6 +142,12 @@ re-runs since (dates on the affected rows).
 | `aurora:stable` (Aurora-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32613697020](https://github.com/tuna-os/wootc/actions/runs/32613697020), 2026-08-23) |
 | `bluefin:stable` (Bluefin-branded GUI) | ostree · GRUB2 | ✅ | ✅ | ✅ | ⚪ | 🟡 generic exe only ([32604804979](https://github.com/tuna-os/wootc/actions/runs/32604804979), 2026-08-22) |
 
+`bluefin:stable` and `aurora:stable` now queue the MOK enrollment of the Universal Blue key too (`mokEnroll` in `app/data/images.json`).
+Their kernel is Fedora-signed, but both ship akmods modules signed by `/etc/pki/akmods/certs/akmods-ublue.der`.
+In hosted run [39886118219](https://github.com/tuna-os/wootc/actions/runs/39886118219) (`bluefin:stable`, Secure Boot on), the deployer skipped the enrollment, and the kernel refused `v4l2loopback`, so Phase-2 `systemd-modules-load.service` failed.
+The green cells above predate that change; no run with the enrollment has been made for either image yet.
+`dakota` ships no akmods cert, and this change does not touch it.
+
 `bazzite:stable` has a green GUI run on 2026-10-15, [38792319332](https://github.com/tuna-os/wootc/actions/runs/38792319332).
 It ran on `b102db9`, the head of PR #609, which also contains the launch fix of PR #516.
 The harness built the Bazzite-branded installer, and the GUI clicked Install.
@@ -204,8 +210,9 @@ ostree images that ship no `bootupd`.
 
 The historical native chain passed on `bluefin:lts` through the script path
 (29/29) and the real GUI. It checked the seeded file after native deployment,
-Phase-2 boot, and Phase-3 graduation. The release gate exercises
-that native chain. It does not establish the Windows-hosted Phase-1 journey.
+Phase-2 boot, and Phase-3 graduation. Upstream discontinued `bluefin:lts`, so the
+release gate now exercises that native chain on `bluefin:stable`. It does not
+establish the Windows-hosted Phase-1 journey.
 
 ## Running the E2E yourself
 

@@ -18,8 +18,47 @@ import (
 
 // ── System info ───────────────────────────────────────────────────────────────
 
+// readPlanSystemInfo reads only the facts an install plan check uses: the
+// channel gate (BitLocker, the Secure Boot chain) and the grant's
+// disclosures (BitLocker, Fast Startup, the Secure Boot chain warning). The
+// native plan check runs inside the shell's deadline, so it must not wait on
+// the advisory probes getSystemInfo adds for the launchpad, above all the
+// whole-volume fragmentation analysis (defrag.exe /A), whose time grows with
+// the volume and has no bound.
+func readPlanSystemInfo() SystemInfo {
+	var info SystemInfo
+	// BitLocker: detailed C: state (SPEC §3.5).
+	info.BitLockerState = bitlockerState(`C:`)
+	info.BitLockerOn = info.BitLockerState == "on" || info.BitLockerState == "encrypting"
+
+	// Fast Startup: HKLM\...\Power HiberbootEnabled != 0
+	info.FastStartupOn = fastStartupEnabled()
+
+	// Secure Boot
+	info.SecureBootOn, info.SecureBootKnown = secureBootState()
+
+	// Which Microsoft UEFI CA generation does this firmware trust? (#322)
+	// Only worth asking when Secure Boot is actually on — with it off the
+	// firmware launches an unsigned loader too, and the db read costs a
+	// PowerShell spawn on a screen the user is waiting for.
+	if info.SecureBootOn {
+		info.TrustedUefiAuthorities, info.UefiDbRead = trustedUefiAuthorities()
+		if v := secureBootChainVerdict(info); v.Warn {
+			info.SecureBootChainWarning = v.Message
+		}
+	}
+
+	// BitLocker recovery-key warning: honest disclosure (#63). When C: is
+	// BitLocker-protected, the user should record their recovery key before
+	// any migration step, regardless of whether we unlock C: or carve a
+	// separate volume (#61).
+	info.BitLockerRecoveryKeyWarning = info.BitLockerState == "on"
+	return info
+}
+
 func getSystemInfo() SystemInfo {
-	info := SystemInfo{IsUEFI: isUEFI()}
+	info := readPlanSystemInfo()
+	info.IsUEFI = isUEFI()
 
 	// Carry the machine's existing identity across the migration (#174): the
 	// user already knows this name. Sanitised because Windows computer names
@@ -54,29 +93,8 @@ func getSystemInfo() SystemInfo {
 	info.FreeDiskGB = float64(freeBytesAvail) / (1 << 30)
 	info.TotalDiskGB = float64(totalBytes) / (1 << 30)
 
-	// BitLocker: detailed C: state (SPEC §3.5).
-	info.BitLockerState = bitlockerState(`C:`)
-	info.BitLockerOn = info.BitLockerState == "on" || info.BitLockerState == "encrypting"
-
 	// Candidate data partitions for the BitLocker (auto/manual) path.
 	info.DataPartitions = listDataPartitions()
-
-	// Fast Startup: HKLM\...\Power HiberbootEnabled != 0
-	info.FastStartupOn = fastStartupEnabled()
-
-	// Secure Boot
-	info.SecureBootOn, info.SecureBootKnown = secureBootState()
-
-	// Which Microsoft UEFI CA generation does this firmware trust? (#322)
-	// Only worth asking when Secure Boot is actually on — with it off the
-	// firmware launches an unsigned loader too, and the db read costs a
-	// PowerShell spawn on a screen the user is waiting for.
-	if info.SecureBootOn {
-		info.TrustedUefiAuthorities, info.UefiDbRead = trustedUefiAuthorities()
-		if v := secureBootChainVerdict(info); v.Warn {
-			info.SecureBootChainWarning = v.Message
-		}
-	}
 
 	// Advisory NTFS fragmentation analysis (SPEC §3.6). Failure to analyze
 	// must not block installation.
@@ -90,12 +108,6 @@ func getSystemInfo() SystemInfo {
 	info.Hibernated = hibernated()
 	info.RAMGB = totalRAMGB()
 	info.Is64Bit = runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"
-
-	// BitLocker recovery-key warning: honest disclosure (#63). When C: is
-	// BitLocker-protected, the user should record their recovery key before
-	// any migration step, regardless of whether we unlock C: or carve a
-	// separate volume (#61).
-	info.BitLockerRecoveryKeyWarning = info.BitLockerState == "on"
 
 	return info
 }

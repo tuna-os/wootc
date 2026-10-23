@@ -176,6 +176,7 @@ class CollectorTests(unittest.TestCase):
             'conflicting loop': lambda: (self.proc / 'cmdline').write_text('loop=/wootc/disks/root.disk loop=/wootc/disks/x.disk wootc.host_uuid=1234567890ABCDEF'),
             'missing loop': lambda: (self.proc / 'cmdline').write_text('wootc.host_uuid=1234567890ABCDEF'),
             'no bootc': lambda: setattr(self, 'status', None),
+            'not booted': lambda: self.status['status'].update(booted=None),
             'no digest': lambda: self.status['status']['booted']['image'].pop('imageDigest'),
             'bad digest': lambda: self.status['status']['booted']['image'].update(imageDigest='sha256:xyz'),
             'bad boot id': lambda: (self.proc / 'sys/kernel/random/boot_id').write_text('not-a-uuid'),
@@ -188,6 +189,28 @@ class CollectorTests(unittest.TestCase):
                 mutate()
                 with self.assertRaises((ValueError, OSError)):
                     self.collect()
+
+    def test_bootc_blocked_on_the_sysroot_lock_refuses_and_says_why(self):
+        # E2E 39874539856 (bluefin:stable): `bootc status` was still waiting
+        # behind the first boot's `bootc image set-unified` when the bound ran
+        # out, and the unit logged only "cannot measure the booted bootc image".
+        original = self.run_command
+
+        def blocked(*args):
+            if args == ('bootc', 'status', '--json'):
+                raise subprocess.TimeoutExpired(args, 900, stderr=b'Waiting for sysroot lock...\n')
+            return original(*args)
+        self.run_command = blocked
+        with self.assertRaisesRegex(ValueError, r'^cannot measure the booted bootc image: bootc status did not '
+                                    r'answer within 900s \(bootc: Waiting for sysroot lock\.\.\.\)$'):
+            self.collect()
+
+    def test_bootc_on_bluefin_stable_is_measured(self):
+        self.status['status']['booted']['image'] = {
+            'image': {'image': 'ghcr.io/projectbluefin/bluefin:stable', 'transport': 'registry'},
+            'version': '44.20260917.0', 'imageDigest': DIGEST, 'architecture': 'amd64'}
+        self.status['status']['booted']['store'] = 'ostreeContainer'
+        self.assertEqual(self.collect()['image']['ref'], 'ghcr.io/projectbluefin/bluefin:stable')
 
     def test_cli_prints_json_or_fails_without_output(self):
         script = ROOT / 'payload/migration/lib/wootc_firstboot_evidence.py'

@@ -446,7 +446,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('native-package.py write', WORKFLOW)
 
     def test_brands_match_the_workflow_choice(self):
-        for image, brand in (('ghcr.io/projectbluefin/bluefin:lts', 'bluefin'),
+        for image, brand in (('ghcr.io/projectbluefin/bluefin:stable', 'bluefin'),
                              ('ghcr.io/projectbluefin/dakota:latest', 'bluefin'),
                              ('ghcr.io/example/unclaimed:latest', 'wootc')):
             result = subprocess.run(['bash', str(BRAND_SCRIPT), image], text=True, capture_output=True)

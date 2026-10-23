@@ -121,6 +121,14 @@ PY
     grep -q 'ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.complete' "$FIRSTBOOT_SERVICE"
 }
 
+@test "first-boot evidence and the ESP controller measure after bootc's unified-storage onboarding" {
+    # E2E 39874539856 (bluefin:stable): both started behind the first boot's
+    # `bootc image set-unified`, which holds the sysroot lock `bootc status`
+    # waits on, and both refused "cannot measure" after 30 s.
+    grep -q '^After=bootc-unified-storage.service$' "$FIRSTBOOT_SERVICE"
+    grep -q '^After=bootc-unified-storage.service$' "$REPO_ROOT/payload/migration/wootc-esp-sync.service"
+}
+
 @test "firstboot service PATH includes the staged NTFS state writer" {
     grep -q '^Environment=PATH=/var/usrlocal/bin:' "$FIRSTBOOT_SERVICE"
     grep -q '^ExecStart=/var/usrlocal/bin/wootc-firstboot-evidence$' "$FIRSTBOOT_SERVICE"

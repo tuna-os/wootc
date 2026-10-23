@@ -166,8 +166,8 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	// every report of it look like a different bug.
 	for _, s := range []struct {
 		name, rel string
-		// mmx64.efi (MokManager) rides beside shim so custom-kernel images
-		// (Bazzite, #248) can complete the MOK enrollment the deployer
+		// mmx64.efi (MokManager) rides beside shim so images signed with
+		// their distribution's key (#248) can complete the MOK enrollment the deployer
 		// queues. Optional: releases before it shipped have no copy, and a
 		// non-akmods install never launches it.
 		optional bool
@@ -214,11 +214,13 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	if cfg.ComposeFS {
 		installMode += " wootc.composefs=1"
 	}
-	// MOK enrollment is OPT-IN per image (#248): only kernels the Fedora
-	// shim cannot verify (Bazzite's fsync) need the one-time MokManager
-	// step, and images with Fedora-signed kernels (aurora, bluefin) must
-	// never be handed a firmware prompt they do not need. The deployer only
-	// queues the enrollment when this flag rides the cmdline.
+	// MOK enrollment is OPT-IN per image (#248): catalog entries whose image
+	// carries the distribution's signing key (mokEnroll) need the one-time
+	// MokManager step — for a kernel the Fedora shim cannot verify
+	// (Bazzite's fsync) or for akmods-signed modules a Fedora-signed kernel
+	// refuses under lockdown (bluefin's v4l2loopback, run 39886118219).
+	// Images without such a key are never handed a firmware prompt. The
+	// deployer only queues the enrollment when this flag rides the cmdline.
 	if imageNeedsMok(cfg.ImageRef) {
 		installMode += " wootc.mok=enroll"
 	}
