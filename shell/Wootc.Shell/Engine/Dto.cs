@@ -599,8 +599,9 @@ public class Image
     public string Status { get; set; } = string.Empty;
 
     /// <summary>
-    /// MokEnroll is the MokManager password for images whose custom kernel
-    /// needs the distribution's MOK key enrolled under Secure Boot (#248).
+    /// MokEnroll is the MokManager password for images that need the
+    /// distribution's MOK key enrolled under Secure Boot (#248): a kernel
+    /// signed by that key, or akmods-built modules signed by it.
     /// Non-empty means: the deployer queues the enrollment, and the GUI warns
     /// the user about the one-time blue MokManager screen with this password.
     /// </summary>
