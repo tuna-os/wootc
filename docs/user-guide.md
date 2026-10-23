@@ -163,7 +163,8 @@ Linux disk encryption is a separate choice:
 - **Passphrase:** you enter a password at boot.
 - **None:** anyone with access to the disk can read its contents.
 
-**One-time MOK enrollment.** Some distributions, such as Bazzite, use their own kernel key.
+**One-time MOK enrollment.** Some distributions sign their kernel or drivers with their own key.
+Universal Blue images such as Bazzite, Bluefin and Aurora do, so Secure Boot rejects those drivers until the key is enrolled.
 The installer's final screen tells you if the chosen image needs enrollment.
 The blue **MOK management** screen asks for that key's approval:
 **Enroll MOK** → **Continue** → **Yes**.

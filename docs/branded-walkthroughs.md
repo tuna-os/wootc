@@ -74,7 +74,7 @@ Gaps that this page does not close:
   They stay because the code that finds them matches **by that name**, not by a stable identifier:
   - The firmware entry's description *is* its identity. `wootcEntryIDs` and `bootChainProblems` (`boot_txn.go`), `planBootRepair` (`boot_repair.go`), `hasWootcBCDEntry` (`installer_windows.go`), the uninstall sweep, `setup-wootc.ps1`, and `run-e2e.sh` all match `description wootc`. If a branded description such as "Bazzite" were matched there, cleanup could claim a user's real Bazzite entry. It needs a GUID-first lookup that also accepts the legacy name, and an E2E run.
   - `wootc-data` is part of the partition-removal gate (`partition-policy.ps1` `Get-WootcPartitionRemovalBinding`, together with the receipt GUIDs). Orphan detection in `installer_windows.go` and the Phase-1 E2E assertion also find the volume by that label. Weakening a gate that guards `Remove-Partition` needs its own change and an E2E run.
-- `matrix.tsv` has no Bazzite cell. The script path (`setup-wootc.ps1`) does not queue the MOK enrollment, so only the GUI path can prove Bazzite.
+- `matrix.tsv` has no Bazzite cell. The script path (`setup-wootc.ps1`) queues the MOK enrollment only since the `MokEnroll` axis: `run-e2e.sh` reads the catalog's `mokEnroll` for the target image and passes `-MokEnroll`, which adds the same `wootc.mok=enroll` the app sets. No script-path cell has proved it yet, so the GUI runs above remain the Bazzite evidence.
 
 ## Bluefin — "The next generation Linux workstation"
 

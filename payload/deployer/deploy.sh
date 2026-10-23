@@ -3691,11 +3691,14 @@ VERIFY_LOOP=""
 # ║ PROVISIONER: bootc/fisherman — ENDS here. Generic teardown follows.
 # ╚═══════════════════════════════════════════════════════════════════════════
 
-# ── MOK enrollment for custom-kernel images (#248) ──────────────────────────
-# Some images (Bazzite and other Universal Blue akmods consumers) ship a
-# kernel signed by the distribution's OWN key, which Fedora's shim does not
-# trust — under Secure Boot Phase 2 dies at GRUB with "bad shim signature"
-# (run 32588754680). Upstream's own answer is enrolling their MOK key
+# ── MOK enrollment for Universal Blue images (#248) ─────────────────────────
+# Universal Blue images sign code with the distribution's OWN key, which
+# Fedora's shim and the kernel's built-in keyring do not trust. Some (Bazzite)
+# sign the kernel itself — under Secure Boot Phase 2 dies at GRUB with "bad
+# shim signature" (run 32588754680). Others (Bluefin, Aurora) boot a
+# Fedora-signed kernel but ship akmods-built modules signed by the same key,
+# which lockdown refuses to load (run 39886118219, below). Upstream's own
+# answer is enrolling their MOK key
 # (`ujust enroll-secure-boot-key`, password "universalblue"); the deployer
 # queues that same enrollment here, so the user's only job is the one-time
 # MokManager confirmation on the next boot. Best-effort by design: a
@@ -3705,10 +3708,17 @@ VERIFY_LOOP=""
 MOK_QUEUED=0
 queue_mok_enrollment() {
     # OPT-IN per image: the app sets wootc.mok=enroll only for catalog
-    # entries whose kernel needs it (mokEnroll in images.json). Images with
-    # Fedora-signed kernels (aurora, bluefin) also carry akmods certs, and
-    # enrolling on cert-presence alone would hand their users a firmware
-    # prompt their boot does not need.
+    # entries with mokEnroll in images.json — every Universal Blue image that
+    # ships akmods-signed modules, not only those whose KERNEL needs the key.
+    # Bluefin and Aurora boot a Fedora-signed kernel, which once looked like
+    # reason enough to leave them out, but they also ship akmods modules
+    # signed by the ublue key (/etc/pki/akmods/certs/akmods-ublue.der,
+    # CN=ublue kernel). Under Secure Boot lockdown the kernel refuses them:
+    # in run 39886118219 (bluefin:stable) Phase-2 systemd-modules-load.service
+    # failed with "Loading of module with unavailable key is rejected" for
+    # v4l2loopback, which bluefin loads from usr/lib/modules-load.d, because
+    # this function logged "MOK: not requested; skipping". Images that ship
+    # no such certs stay without the flag and never see a firmware prompt.
     #
     # Every line here goes through err(), not log(): under `quiet` only
     # stderr reaches the serial console, and the E2E's MokManager driver

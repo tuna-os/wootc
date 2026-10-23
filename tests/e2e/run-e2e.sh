@@ -1428,8 +1428,15 @@ E2E_COMPOSEFS="${WOOTC_E2E_COMPOSEFS:-auto}"
 # ext4 sealed); WOOTC_E2E_FILESYSTEM=btrfs forces wootc.filesystem=btrfs so the
 # matrix can prove the btrfs Phase-2 path.
 E2E_FILESYSTEM="${WOOTC_E2E_FILESYSTEM:-auto}"
+# MOK enrollment axis (#248): the GUI path gets wootc.mok=enroll from the app's
+# catalog (imageNeedsMok); the script path asks the SAME catalog field here so
+# setup-wootc.ps1 queues the enrollment for the same images. Keyed on the
+# catalog, never on an image or brand name — the MokManager driver below is
+# already gated only on the deployer's "MOK enrollment queued" serial marker.
+E2E_MOK_ENROLL="$(mok_catalog_enroll "$REPO_ROOT/app/data/images.json" "$IMAGE_REF")"
 {
     printf 'ImageRef=%s\n'   "$IMAGE_REF"
+    [ -n "$E2E_MOK_ENROLL" ] && printf 'MokEnroll=1\n'
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
     printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
     printf 'Filesystem=%s\n' "$E2E_FILESYSTEM"
@@ -1453,8 +1460,8 @@ E2E_FILESYSTEM="${WOOTC_E2E_FILESYSTEM:-auto}"
         printf 'RootDiskGiB=%s\n' "${WOOTC_E2E_ROOT_DISK_GIB:-35}"
     fi
 } > "$OEM_DIR/wootc-config.txt"
-printf '[INFO] Deployer config: image=%s bootloader=%s composefs=%s filesystem=%s\n' \
-    "$IMAGE_REF" "$E2E_BOOTLOADER" "$E2E_COMPOSEFS" "$E2E_FILESYSTEM" >&2
+printf '[INFO] Deployer config: image=%s bootloader=%s composefs=%s filesystem=%s mok=%s\n' \
+    "$IMAGE_REF" "$E2E_BOOTLOADER" "$E2E_COMPOSEFS" "$E2E_FILESYSTEM" "${E2E_MOK_ENROLL:-none}" >&2
 
 # ── Step 1: Check prerequisites ──────────────────────────────────────────────
 step "Checking prerequisites..."

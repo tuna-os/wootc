@@ -157,8 +157,9 @@ for (const id of fs.readdirSync(BRANDS_DIR).filter(f =>
       await expect(page.getByRole('button', { name: 'Reboot Now →' })).toBeInViewport();
       await expect(page.locator('.done-hero')).toContainText('Linux has not finished installing yet');
       await expect(page.locator('.done-hero')).not.toContainText('5–15 minutes');
-      // A custom-kernel image (Bazzite, #248) shows the one-time MokManager
-      // step and its password before the reboot, never after it.
+      // An image that needs the distribution's MOK key (mokEnroll, #248)
+      // shows the one-time MokManager step and its password before the
+      // reboot, never after it.
       const def = images.find(i => i.id === (brand.defaultImage || images[0]?.id));
       if (def?.mokEnroll) {
         await expect(page.locator('body')).toContainText(`Driver trust for ${def.name}`);
