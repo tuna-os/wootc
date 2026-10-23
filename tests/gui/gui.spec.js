@@ -700,11 +700,11 @@ async function bootProofPanel(page) {
 }
 async function requestBootProof(page, expected = UI_BOOT_FACTS, nonce = 'fresh-ui-nonce') {
   await page.evaluate(({ expected, nonce }) => {
-    window.__WOOTC_MOCK.driveDirective = { schemaVersion: 1, runId: 'current-run',
-      directiveId: '0123456789abcdef0123456789abcdef', action: 'verify-installed-boot', nonce, expected };
+    window.__WOOTC_MOCK.driveDirective = JSON.stringify({ schemaVersion: 1, runId: 'current-run',
+      directiveId: '0123456789abcdef0123456789abcdef', action: 'verify-installed-boot', nonce, expected });
   }, { expected, nonce });
-  await expect.poll(() => page.evaluate(() => window.__e2eLatestReport?.installedBootVerification?.nonce)).toBe(nonce);
-  return page.evaluate(() => window.__e2eLatestReport.installedBootVerification);
+  await expect.poll(() => page.evaluate(() => window.__wootcE2EReports.at(-1)?.installedBootVerification?.nonce)).toBe(nonce);
+  return page.evaluate(() => window.__wootcE2EReports.at(-1).installedBootVerification);
 }
 
 test('first-boot UI receipt observes visible literal DOM and a fresh directive', async ({ page }) => {
