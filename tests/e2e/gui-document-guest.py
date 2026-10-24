@@ -471,11 +471,19 @@ class Accessibility:
                     if text:
                         content = self.string("atspi_text_get_text", text, 0, -1)
                         if seed in content and len(content) <= 8192:
+                            grab = None
                             if focus:
+                                # GTK4 does not implement AT-SPI Component.GrabFocus,
+                                # so a refused request is recorded, not fatal. Keys are
+                                # still sent only after the host observes this exact
+                                # buffer reporting the FOCUSED state.
                                 component = self.lib.atspi_accessible_get_component_iface(node)
-                                if not component or not self.call("atspi_component_grab_focus", component):
-                                    raise RuntimeError("Editor buffer could not receive keyboard focus")
-                            candidates.append({"process": p, "buffer": content, "ancestors": ancestors + [name], **flags})
+                                try:
+                                    grab = bool(component) and bool(self.call("atspi_component_grab_focus", component))
+                                except RuntimeError as error:
+                                    grab = f"refused: {error}"
+                            candidates.append({"process": p, "buffer": content, "ancestors": ancestors + [name],
+                                               **flags, **({"grabFocus": grab} if focus else {})})
                 children = min(self.call("atspi_accessible_get_child_count", node), 64)
                 queue += [(self.call("atspi_accessible_get_child_at_index", node, i), ancestors + [name]) for i in range(children)]
         if len(candidates) != 1:
