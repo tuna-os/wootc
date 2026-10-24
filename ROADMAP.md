@@ -15,7 +15,7 @@ Ask of every decision: *can a person understand this on Windows and keep their w
 This is the product goal. Current releases do not yet provide the complete VM-first journey;
 [verification status](docs/status.md) records what the evidence proves.
 
-wootc is the org's **conversion front door**. It complements bootc-installer / tuna-installer on Windows and uses [fisherman](https://github.com/projectbluefin/fisherman). One engine ships as five installers: generic **wootc**, **TunaOS**, **Bluefin**, **Aurora**, and **Bazzite** (`docs/branding-and-distribution.md`).
+wootc is the org's **conversion front door**. It complements bootc-installer / tuna-installer on Windows and uses [fisherman](https://github.com/tuna-os/fisherman). One engine ships as five installers: generic **wootc**, **TunaOS**, **Bluefin**, **Aurora**, and **Bazzite** (`docs/branding-and-distribution.md`).
 
 ## What 1.0 means
 
