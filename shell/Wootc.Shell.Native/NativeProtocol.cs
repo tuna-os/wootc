@@ -388,7 +388,7 @@ internal static class NativeProtocol
         return update.Deserialize<VMEvent>() ?? throw new InvalidDataException("VM progress is missing");
     }
 
-    private static readonly HashSet<string> ProgressFields = new(StringComparer.Ordinal) { "phaseId", "step", "message", "percent", "done", "error" };
+    private static readonly HashSet<string> ProgressFields = new(StringComparer.Ordinal) { "phaseId", "step", "message", "percent", "done", "error", "warnings" };
 
     // One install:progress event: the engine's ProgressEvent fields only, each
     // once, bounded, with a finite percent. Step IDs are matched, never trusted
@@ -402,6 +402,12 @@ internal static class NativeProtocol
         foreach (string field in new[] { "step", "message" }) Require(update, field, JsonValueKind.String);
         Require(update, "done", JsonValueKind.True);
         OptionalString(update, "phaseId"); OptionalString(update, "error");
+        if (update.TryGetProperty("warnings", out var warnings))
+        {
+            if (warnings.ValueKind != JsonValueKind.Array || warnings.GetArrayLength() > 32 ||
+                warnings.EnumerateArray().Any(warning => warning.ValueKind != JsonValueKind.String || warning.GetString()!.Length > 4096))
+                throw new InvalidDataException("Install progress warnings are invalid");
+        }
         if (!update.TryGetProperty("percent", out var percent) || percent.ValueKind != JsonValueKind.Number || !percent.TryGetDouble(out double value) || !double.IsFinite(value))
             throw new InvalidDataException("Install progress percent is invalid");
         foreach (var (field, limit) in new[] { ("phaseId", 256), ("step", 256), ("message", 4096), ("error", 4096) })

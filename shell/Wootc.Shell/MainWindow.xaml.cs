@@ -387,6 +387,17 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         {
             DoneTitle.Text = InstallProgressText.DoneTitle(brand);
             DoneBody.Text = InstallProgressText.DoneBody(image, brand);
+            DoneWarnings.Children.Clear();
+            for (int index = 0; index < progress.Warnings.Count; index++)
+            {
+                var warning = new TextBlock
+                {
+                    Text = "Hardware compatibility warning: " + progress.Warnings[index],
+                    TextWrapping = TextWrapping.Wrap
+                };
+                AutomationProperties.SetAutomationId(warning, $"DoneWarning{index}");
+                DoneWarnings.Children.Add(warning);
+            }
             DoneSafety.Text = InstallProgressText.DoneSafety;
             string? mok = InstallProgressText.MokEnrollment(image);
             DoneMok.Text = mok ?? "";
