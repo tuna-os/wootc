@@ -244,6 +244,26 @@ class GuestIdentityTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 guest.editor_identity(60, 1000)
 
+    def test_ancestors_stop_at_an_unreadable_manager(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        proxy = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
+        wrapper = {'pid': 30, 'startTicks': '30', 'uid': 1000, 'exe': '/usr/bin/bwrap', 'command': 'bwrap'}
+        parents = {40: 30, 30: 20}
+        def fake_process(pid):
+            if pid == 20:
+                raise PermissionError(13, 'Permission denied', f'/proc/{pid}/exe')
+            return {40: proxy, 30: wrapper}[pid]
+        status = lambda pid: f"PPid:\t{parents[pid]}\n"
+        with patch.object(guest, 'process', side_effect=fake_process), \
+                patch.object(guest, 'verify_process'), \
+                patch.object(guest.Path, 'read_text', autospec=True, side_effect=lambda self: status(int(self.parts[2]))):
+            self.assertEqual([p['pid'] for p in guest.ancestors(40)], [40, 30])
+        with patch.object(guest, 'process', side_effect=PermissionError(13, 'Permission denied')):
+            with self.assertRaises(PermissionError):
+                guest.ancestors(40)
+
     def test_rejected_peer_records_why_without_relaxing(self):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)

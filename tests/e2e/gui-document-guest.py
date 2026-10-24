@@ -102,7 +102,16 @@ def ancestors(pid):
     for _ in range(32):
         if pid <= 1:
             break
-        item = process(pid)
+        try:
+            item = process(pid)
+        except PermissionError:
+            # A process that changed credentials (the user's systemd manager,
+            # started as root) is not dumpable, so its exe is unreadable.
+            # Stop there: the chain above it can only remove shared sandbox
+            # wrappers, never supply one, so the identity check stays strict.
+            if not result:
+                raise
+            break
         result.append(item)
         status = Path(f"/proc/{pid}/status").read_text()
         verify_process(item)
