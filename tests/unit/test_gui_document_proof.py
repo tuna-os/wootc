@@ -244,22 +244,34 @@ class GuestIdentityTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 guest.editor_identity(60, 1000)
 
-    def test_ancestors_stop_at_an_unreadable_manager(self):
+    def test_unreadable_ancestor_keeps_an_exact_opaque_identity(self):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
         proxy = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
-        wrapper = {'pid': 30, 'startTicks': '30', 'uid': 1000, 'exe': '/usr/bin/bwrap', 'command': 'bwrap'}
-        parents = {40: 30, 30: 20}
+        inner = {'pid': 30, 'startTicks': '30', 'uid': 1000, 'exe': '/usr/bin/bwrap', 'command': 'bwrap'}
+        outer = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': None, 'name': 'bwrap'}
+        editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
+        parents = {40: 30, 30: 20, 20: 1, 60: 50, 50: 20}
+        readable = {40: proxy, 30: inner, 60: editor, 50: {**inner, 'pid': 50, 'startTicks': '50'}}
         def fake_process(pid):
-            if pid == 20:
+            if pid not in readable:
                 raise PermissionError(13, 'Permission denied', f'/proc/{pid}/exe')
-            return {40: proxy, 30: wrapper}[pid]
-        status = lambda pid: f"PPid:\t{parents[pid]}\n"
+            return readable[pid]
+        status = lambda self: f"PPid:\t{parents[int(self.parts[2])]}\n"
         with patch.object(guest, 'process', side_effect=fake_process), \
-                patch.object(guest, 'verify_process'), \
-                patch.object(guest.Path, 'read_text', autospec=True, side_effect=lambda self: status(int(self.parts[2]))):
-            self.assertEqual([p['pid'] for p in guest.ancestors(40)], [40, 30])
+                patch.object(guest, 'opaque_process', side_effect=lambda pid: outer if pid == 20 else None), \
+                patch.object(guest.Path, 'read_text', autospec=True, side_effect=status):
+            self.assertEqual([p['pid'] for p in guest.ancestors(40)], [40, 30, 20])
+            with patch.object(guest, 'editor_processes', return_value=[editor]), \
+                    patch.object(guest, 'flatpak_app', return_value='org.gnome.TextEditor'):
+                match = guest.editor_identity(40, 1000)
+                self.assertEqual(match['pid'], 60)
+                self.assertIn((20, '20'), match['sharedWrapperIdentities'])
+            reused = {**outer, 'startTicks': 'reused'}
+            with patch.object(guest, 'opaque_process', side_effect=[outer, reused]):
+                with self.assertRaisesRegex(RuntimeError, 'changed during'):
+                    guest.ancestors(30)
         with patch.object(guest, 'process', side_effect=PermissionError(13, 'Permission denied')):
             with self.assertRaises(PermissionError):
                 guest.ancestors(40)

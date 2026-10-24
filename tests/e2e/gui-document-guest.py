@@ -75,7 +75,24 @@ def process(pid):
     return value
 
 
+def opaque_process(pid):
+    path = Path(f"/proc/{pid}")
+    started = (path / "stat").read_text().rsplit(")", 1)[1].split()[19]
+    name = next(line.split(None, 1)[1].strip() for line in (path / "status").read_text().splitlines()
+                if line.startswith("Name:"))
+    return {"pid": pid, "uid": path.stat().st_uid, "startTicks": started, "exe": None, "name": name}
+
+
+def process_name(snapshot):
+    return Path(snapshot["exe"]).name if snapshot.get("exe") else snapshot.get("name", "")
+
+
 def verify_process(snapshot):
+    if snapshot.get("exe") is None and "name" in snapshot:
+        current = opaque_process(snapshot["pid"])
+        if any(current[key] != snapshot[key] for key in ("pid", "uid", "startTicks", "name")):
+            raise RuntimeError("Editor process exited or changed during observation")
+        return
     current = process(snapshot["pid"])
     if any(current[key] != snapshot[key] for key in ("pid", "uid", "startTicks", "exe")):
         raise RuntimeError("Editor process exited or changed during observation")
@@ -105,13 +122,13 @@ def ancestors(pid):
         try:
             item = process(pid)
         except PermissionError:
-            # A process that changed credentials (the user's systemd manager,
-            # started as root) is not dumpable, so its exe is unreadable.
-            # Stop there: the chain above it can only remove shared sandbox
-            # wrappers, never supply one, so the identity check stays strict.
+            # A non-dumpable ancestor (a sandbox wrapper, or the user's
+            # systemd manager, which dropped root) hides its exe. Its pid,
+            # start time, owner and name stay readable, and a shared wrapper
+            # is matched on the exact (pid, start time) instance anyway.
             if not result:
                 raise
-            break
+            item = opaque_process(pid)
         result.append(item)
         status = Path(f"/proc/{pid}/status").read_text()
         verify_process(item)
@@ -142,7 +159,7 @@ def editor_identity(peer_pid, uid, why=None):
     # Flatpak accessibility connections belong to its D-Bus proxy. Require
     # the real editor in the same specific sandbox wrapper, never merely a
     # shared systemd/session ancestor or an application name in the tree.
-    wrappers = {(p["pid"], p["startTicks"]) for p in ancestors(peer_pid) if Path(p["exe"]).name in ("flatpak", "bwrap")}
+    wrappers = {(p["pid"], p["startTicks"]) for p in ancestors(peer_pid) if process_name(p) in ("flatpak", "bwrap")}
     matches = []
     editors = editor_processes()
     if not editors:
