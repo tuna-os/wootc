@@ -217,6 +217,7 @@ class GuestIdentityTests(unittest.TestCase):
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
         guest.unix_socket_peers = lambda a, b, why=None: []
+        guest.proxy_serves_editor_a11y_bus = lambda a, b, why=None: []
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
         wrapper = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
@@ -250,6 +251,7 @@ class GuestIdentityTests(unittest.TestCase):
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
         guest.unix_socket_peers = lambda a, b, why=None: []
+        guest.proxy_serves_editor_a11y_bus = lambda a, b, why=None: []
         proxy = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         inner = {'pid': 30, 'startTicks': '30', 'uid': 1000, 'exe': '/usr/bin/bwrap', 'command': 'bwrap'}
         outer = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': None, 'name': 'bwrap'}
@@ -314,11 +316,46 @@ class GuestIdentityTests(unittest.TestCase):
                     patch.object(guest, 'unix_socket_peers', return_value=[(9001, 9002)]):
                 self.assertIsNone(guest.editor_identity(40, 1000))
 
+    def test_proxy_bound_by_the_editor_a11y_bus_socket_file(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        net_unix = "\n".join([
+            'Num       RefCount Protocol Flags    Type St Inode Path',
+            '0000000000000000: 00000002 00000000 00010000 0001 01 27690 /run/user/1000/.dbus-proxy/a11y-bus-proxy-AB',
+            '0000000000000000: 00000002 00000000 00010000 0001 01 27691 /run/user/1000/.dbus-proxy/session-bus-proxy-CD',
+            '0000000000000000: 00000002 00000000 00010000 0001 01 30000 /run/user/1000/.dbus-proxy/a11y-bus-proxy-ZZ'])
+        class St:
+            def __init__(self, dev, ino): self.st_dev, self.st_ino = dev, ino
+        files = {'/proc/60/root/run/flatpak/at-spi-bus': St(5, 111),
+                 '/proc/40/root/run/user/1000/.dbus-proxy/a11y-bus-proxy-AB': St(5, 111),
+                 '/proc/40/root/run/user/1000/.dbus-proxy/session-bus-proxy-CD': St(5, 222),
+                 '/proc/40/root/run/user/1000/.dbus-proxy/a11y-bus-proxy-ZZ': St(5, 111)}
+        def read_text(self):
+            return net_unix
+        env = {b'AT_SPI_BUS_ADDRESS': b'unix:path=/run/flatpak/at-spi-bus'}
+        with patch.object(guest, 'environ', return_value=env), \
+                patch.object(guest.os, 'stat', side_effect=lambda path: files[path]), \
+                patch.object(guest.Path, 'read_text', autospec=True, side_effect=read_text):
+            with patch.object(guest, 'socket_inodes', return_value={27690, 27691}):
+                self.assertEqual(guest.proxy_serves_editor_a11y_bus(60, 40),
+                                 ['/run/user/1000/.dbus-proxy/a11y-bus-proxy-AB'])
+            # the matching file is bound by a socket this proxy does not hold
+            with patch.object(guest, 'socket_inodes', return_value={27691}):
+                why = []
+                self.assertEqual(guest.proxy_serves_editor_a11y_bus(60, 40, why), [])
+                self.assertIn('listens on', why[0])
+        with patch.object(guest, 'environ', return_value={}):
+            why = []
+            self.assertEqual(guest.proxy_serves_editor_a11y_bus(60, 40, why), [])
+            self.assertIn('not a unix path', why[0])
+
     def test_rejected_peer_records_why_without_relaxing(self):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
         guest.unix_socket_peers = lambda a, b, why=None: []
+        guest.proxy_serves_editor_a11y_bus = lambda a, b, why=None: []
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         shell = {**peer, 'exe': '/usr/bin/gnome-shell'}
         why = []

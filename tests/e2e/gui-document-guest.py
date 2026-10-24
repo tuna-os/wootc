@@ -185,6 +185,45 @@ def unix_socket_peers(pid_a, pid_b, why=None):
     return sorted(pairs)
 
 
+def environ(pid):
+    return dict(item.split(b"=", 1) for item in Path(f"/proc/{pid}/environ").read_bytes().split(b"\0") if b"=" in item)
+
+
+def proxy_serves_editor_a11y_bus(editor_pid, proxy_pid, why=None):
+    """The editor's AT-SPI bus socket file is one the proxy is listening on.
+
+    Flatpak bind-mounts the a11y proxy's listening socket into the sandbox
+    at the path the editor's AT_SPI_BUS_ADDRESS names. Prove it: a socket
+    the proxy holds (its /proc/<pid>/fd) is bound to a path whose file is
+    the same (device, inode) as the editor's bus path, each resolved inside
+    its own process's root.
+    """
+    address = environ(editor_pid).get(b"AT_SPI_BUS_ADDRESS", b"").decode()
+    match = re.fullmatch(r"unix:path=([^,;]+)", address)
+    if not match:
+        if why is not None:
+            why.append(f"editor AT_SPI_BUS_ADDRESS {address!r} is not a unix path")
+        return []
+    target = os.stat(f"/proc/{editor_pid}/root{match.group(1)}")
+    held = socket_inodes(proxy_pid)
+    bound = []
+    for line in Path(f"/proc/{proxy_pid}/net/unix").read_text().splitlines()[1:]:
+        fields = line.split()
+        if len(fields) < 8 or not fields[6].isdigit() or int(fields[6]) not in held or not fields[7].startswith("/"):
+            continue
+        try:
+            st = os.stat(f"/proc/{proxy_pid}/root{fields[7]}")
+        except OSError:
+            continue
+        bound.append(fields[7])
+        if (st.st_dev, st.st_ino) == (target.st_dev, target.st_ino):
+            return [fields[7]]
+    if why is not None:
+        why.append(f"editor bus {match.group(1)} is ({target.st_dev}, {target.st_ino}); proxy {proxy_pid} "
+                   f"listens on {bound[:8]}")
+    return []
+
+
 def editor_identity(peer_pid, uid, why=None):
     # why, when given, collects the reason a peer is rejected. It is
     # diagnostic only: it never relaxes a check.
@@ -215,14 +254,17 @@ def editor_identity(peer_pid, uid, why=None):
             note(f"editor pid {candidate['pid']} has flatpak app {app!r}")
             continue
         shared = wrappers.intersection((p["pid"], p["startTicks"]) for p in ancestors(candidate["pid"]))
-        try:
-            sockets = [] if shared else unix_socket_peers(candidate["pid"], peer_pid, why)
-        except OSError as error:
-            sockets = []
-            note(f"editor pid {candidate['pid']} or proxy sockets unreadable: {type(error).__name__}: {error}")
-        if shared or sockets:
+        sockets, bus = [], []
+        if not shared:
+            try:
+                sockets = unix_socket_peers(candidate["pid"], peer_pid, why)
+                bus = [] if sockets else proxy_serves_editor_a11y_bus(candidate["pid"], peer_pid, why)
+            except OSError as error:
+                note(f"editor pid {candidate['pid']} or proxy sockets unreadable: {type(error).__name__}: {error}")
+        if shared or sockets or bus:
             matches.append({**candidate, "accessibilityPeer": peer, "flatpakApp": "org.gnome.TextEditor",
-                            "sharedWrapperIdentities": sorted(shared), "proxySocketPairs": sockets[:8]})
+                            "sharedWrapperIdentities": sorted(shared), "proxySocketPairs": sockets[:8],
+                            "proxyA11yBusSocket": bus})
     if len(matches) != 1:
         note(f"proxy peer wrappers {sorted(wrappers)} and socket pairs matched {len(matches)} editor sandboxes")
         return None
