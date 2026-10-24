@@ -24,7 +24,8 @@ class FakeDesktop:
     def observe(self, action):
         self.events.append(action)
         if action == 'tooling':
-            native = self.defect not in ('tooling-editor', 'install', 'install-fails', 'install-lies')
+            native = self.defect not in ('tooling-editor', 'install', 'install-fails', 'install-lies',
+                                         'install-running', 'install-fails-listed')
             return {'nativeEditor': native, 'installedFlatpaks': ['org.gnome.TextEditor'] if self.installed else [],
                     'libatspi': self.defect != 'tooling-accessibility'}
         if action == 'provision':
@@ -32,9 +33,13 @@ class FakeDesktop:
             return {'started': True}
         if action == 'provisioned':
             # 'install-lies' reports success while flatpak still lists nothing.
-            self.installed = self.defect == 'install'
+            # 'install-running' lists the app while the transaction still runs.
+            self.polls = getattr(self, 'polls', 0) + 1
+            if self.defect == 'install-running' and self.polls < 3:
+                return {'finished': False, 'installed': True, 'unit': {'Result': 'success', 'ActiveState': 'activating'}}
+            self.installed = self.defect in ('install', 'install-running', 'install-fails-listed')
             return {'finished': True, 'installed': self.installed or self.defect == 'install-lies',
-                    'unit': {'Result': 'success' if self.defect != 'install-fails' else 'exit-code'}}
+                    'unit': {'Result': 'exit-code' if self.defect in ('install-fails', 'install-fails-listed') else 'success'}}
         if action == 'prepare':
             return {'prepared': True}
         if action == 'desktop':
@@ -126,8 +131,16 @@ class GateTests(unittest.TestCase):
         self.assertIn('fixture-editor-finished', evidence)
         self.assertIn('saved-file-reopened', evidence)
 
+    def test_launch_waits_for_the_install_unit_not_the_listing(self):
+        desktop = FakeDesktop('install-running')
+        with tempfile.TemporaryDirectory() as directory:
+            proof = module.Proof(desktop, SEED, MARKER, Path(directory) / 'evidence.jsonl', lambda s: None, lambda: 0)
+            proof.run('edit')
+        self.assertEqual(desktop.polls, 3)
+        self.assertLess(desktop.events.index('provisioned'), desktop.events.index('launch'))
+
     def test_failed_or_unconfirmed_install_fails_the_gate(self):
-        for defect in ('install-fails', 'install-lies', 'tooling-editor'):
+        for defect in ('install-fails', 'install-fails-listed', 'install-lies', 'tooling-editor'):
             with self.subTest(defect=defect), self.assertRaisesRegex(RuntimeError, 'could not install'):
                 self.exercise(FakeDesktop(defect))
 

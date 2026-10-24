@@ -30,11 +30,14 @@ class Proof:
         # /usr, so the fixture installs it as a system Flatpak. The result is
         # observed, never assumed: the gate fails unless tooling then reports it.
         self.record("fixture-editor-install", self.transport.observe("provision"))
-        done = self.wait("fixture-editor-finished", "provisioned",
-                         lambda value: value.get("finished") or value.get("installed"), 1200)
+        # Wait for the install unit itself to finish. The app id is listed as
+        # installed before the transaction completes, and an editor launched
+        # mid-transaction never comes up.
+        done = self.wait("fixture-editor-finished", "provisioned", lambda value: value.get("finished"), 1200)
         tools = self.transport.observe("tooling")
         self.record("actual-guest-tooling-after-install", tools)
-        if not done.get("installed") or not self.has_editor(tools):
+        if (not done.get("installed") or done.get("unit", {}).get("Result") != "success"
+                or not self.has_editor(tools)):
             raise RuntimeError(f"Fixture could not install GNOME Text Editor: {done.get('unit')}")
         self.fixture_installed = True
         return tools
