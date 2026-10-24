@@ -216,7 +216,7 @@ class GuestIdentityTests(unittest.TestCase):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
-        guest.unix_socket_peers = lambda a, b: []
+        guest.unix_socket_peers = lambda a, b, why=None: []
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
         wrapper = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
@@ -249,7 +249,7 @@ class GuestIdentityTests(unittest.TestCase):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
-        guest.unix_socket_peers = lambda a, b: []
+        guest.unix_socket_peers = lambda a, b, why=None: []
         proxy = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         inner = {'pid': 30, 'startTicks': '30', 'uid': 1000, 'exe': '/usr/bin/bwrap', 'command': 'bwrap'}
         outer = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': None, 'name': 'bwrap'}
@@ -283,24 +283,20 @@ class GuestIdentityTests(unittest.TestCase):
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
         table = "\n".join([
-            'u_str ESTAB 0 0 * 9001 * 9002 users:(("gnome-text-edit",pid=60,fd=7))',
+            # editor end hidden in its netns: only the proxy end, with its peer inode
             'u_str ESTAB 0 0 /run/user/1000/.dbus-proxy/a11y-bus-proxy-X 9002 * 9001 users:(("xdg-dbus-proxy",pid=40,fd=12))',
-            'u_str ESTAB 0 0 * 9003 * 9004 users:(("gnome-shell",pid=70,fd=3))',
-            'u_str ESTAB 0 0 * 9004 * 9003 users:(("xdg-dbus-proxy",pid=40,fd=13))',
+            # both ends listed, no process attribution at all
+            'u_str ESTAB 0 0 * 9003 * 9004',
+            'u_str ESTAB 0 0 * 9004 * 9003',
             'u_str LISTEN 0 0 /run/user/1000/bus 8000 * 0 users:(("dbus-broker",pid=9,fd=3))'])
-        with patch.object(guest, 'run', return_value=table), patch.object(guest, 'socket_inodes', return_value=set()):
+        held = {60: {9001, 5}, 61: {9003}, 40: {9002, 9004, 7}, 70: {9100}}
+        with patch.object(guest, 'run', return_value=table), \
+                patch.object(guest, 'socket_inodes', side_effect=lambda pid: held[pid]):
             self.assertEqual(guest.unix_socket_peers(60, 40), [(9001, 9002)])
-            self.assertEqual(guest.unix_socket_peers(70, 40), [(9003, 9004)])
-            self.assertEqual(guest.unix_socket_peers(61, 40), [])
-            self.assertEqual(guest.unix_socket_peers(60, 70), [])
-        # Sandboxed editor: its end is in a private netns, so only the proxy
-        # end is in the table; the editor must hold that exact peer inode.
-        hidden = 'u_str ESTAB 0 0 /run/user/1000/.dbus-proxy/a11y-bus-proxy-X 9102 * 9101 users:(("xdg-dbus-proxy",pid=40,fd=14))'
-        with patch.object(guest, 'run', return_value=hidden):
-            with patch.object(guest, 'socket_inodes', return_value={9101, 5}):
-                self.assertEqual(guest.unix_socket_peers(60, 40), [(9101, 9102)])
-            with patch.object(guest, 'socket_inodes', return_value={9100}):
-                self.assertEqual(guest.unix_socket_peers(60, 40), [])
+            self.assertEqual(guest.unix_socket_peers(61, 40), [(9003, 9004)])
+            why = []
+            self.assertEqual(guest.unix_socket_peers(70, 40, why), [])
+            self.assertIn('ss rows touching them', why[0])
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
         own = {'pid': 39, 'startTicks': '39', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
@@ -322,7 +318,7 @@ class GuestIdentityTests(unittest.TestCase):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
-        guest.unix_socket_peers = lambda a, b: []
+        guest.unix_socket_peers = lambda a, b, why=None: []
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         shell = {**peer, 'exe': '/usr/bin/gnome-shell'}
         why = []
