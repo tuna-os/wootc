@@ -4745,6 +4745,7 @@ if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
             exit 1
         fi
         GUI_EDIT_SHA=$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-first.json")
+        info "GUI Documents: editor source $(jq -r '.editorSource' "$ARTIFACT_DIR/gui-documents-first.json")"
         pass "GUI Documents: ordinary user saved, closed, and reopened the imported file"
     else
         EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
