@@ -155,6 +155,38 @@ def editor_identity(peer_pid, uid, why=None):
     return matches[0]
 
 
+def a11y_context():
+    """Diagnostic facts for a probe that found no editor on the AT-SPI desktop."""
+    uid = pwd.getpwnam(USER).pw_uid
+    facts = {"proxies": [], "editors": []}
+    for path in Path("/proc").iterdir():
+        if not path.name.isdigit():
+            continue
+        try:
+            if path.stat().st_uid != uid:
+                continue
+            argv = (path / "cmdline").read_bytes().split(b"\0")
+            name = Path(argv[0].decode(errors="replace")).name
+        except OSError:
+            continue
+        if name == "xdg-dbus-proxy":
+            facts["proxies"].append([a.decode(errors="replace") for a in argv if b"a11y" in a or b"at-spi" in a or a.startswith(b"unix:")][:6])
+        elif name == "gnome-text-editor":
+            entry = {"pid": int(path.name)}
+            try:
+                env = dict(item.split(b"=", 1) for item in (path / "environ").read_bytes().split(b"\0") if b"=" in item)
+                entry.update({key: env.get(key.encode(), b"").decode(errors="replace")
+                              for key in ("AT_SPI_BUS_ADDRESS", "GTK_A11Y", "NO_AT_BRIDGE", "DBUS_SESSION_BUS_ADDRESS")})
+            except OSError as error:
+                entry["environ"] = f"{type(error).__name__}: {error}"
+            try:
+                entry["flatpakApp"] = flatpak_app(int(path.name))
+            except OSError as error:
+                entry["flatpakApp"] = f"{type(error).__name__}: {error}"
+            facts["editors"].append(entry)
+    return facts
+
+
 def tooling():
     apps = run(user_command(["flatpak", "list", "--app", "--columns=application"])) if shutil.which("flatpak") else ""
     try:
@@ -330,7 +362,7 @@ class Accessibility:
                 queue += [(self.call("atspi_accessible_get_child_at_index", node, i), ancestors + [name]) for i in range(children)]
         if len(candidates) != 1:
             raise RuntimeError(f"Expected one visible editable document buffer; found {len(candidates)}; "
-                               f"tree={summary}; rejected={rejected[:16]}")
+                               f"tree={summary}; rejected={rejected[:16]}; context={a11y_context()}")
         verify_process(candidates[0]["process"])
         if "accessibilityPeer" in candidates[0]["process"]:
             verify_process(candidates[0]["process"]["accessibilityPeer"])
