@@ -75,6 +75,7 @@ class Proof:
         return observed
 
     def focus(self):
+        self.record("shell-overview", self.transport.observe("leave-overview"))
         self.record("focus-request", self.transport.observe("focus"))
         self.wait("focused-buffer", "probe", lambda value: value.get("focused") and
                   value.get("process", {}).get("pid") == self.pid and

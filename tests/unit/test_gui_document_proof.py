@@ -42,6 +42,8 @@ class FakeDesktop:
                     'unit': {'Result': 'exit-code' if self.defect in ('install-fails', 'install-fails-listed') else 'success'}}
         if action == 'prepare':
             return {'prepared': True}
+        if action == 'leave-overview':
+            return {'before': True, 'after': False}
         if action == 'desktop':
             return {'Active': 'no' if self.defect == 'desktop' else 'yes', 'Type': 'wayland',
                     'Name': 'wootc', 'uid': 1000}
@@ -138,6 +140,8 @@ class GateTests(unittest.TestCase):
             proof.run('edit')
         self.assertEqual(desktop.polls, 3)
         self.assertLess(desktop.events.index('provisioned'), desktop.events.index('launch'))
+        first_keys = next(i for i, event in enumerate(desktop.events) if isinstance(event, tuple) and event[0] == 'keys')
+        self.assertLess(desktop.events.index('leave-overview'), first_keys)
 
     def test_failed_or_unconfirmed_install_fails_the_gate(self):
         for defect in ('install-fails', 'install-fails-listed', 'install-lies', 'tooling-editor'):

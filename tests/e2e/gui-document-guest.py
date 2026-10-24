@@ -360,6 +360,32 @@ def provisioned():
             "finished": state.get("ActiveState") in ("active", "failed")}
 
 
+def overview_active():
+    out = run(user_command(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path",
+                            "/org/gnome/Shell", "--method", "org.freedesktop.DBus.Properties.Get",
+                            "org.gnome.Shell", "OverviewActive"]))
+    return "true" in out
+
+
+def leave_overview():
+    """GNOME starts the session in the Activities overview, whose search
+    entry holds keyboard focus, so a newly opened window is not focused.
+    Close the overview through the Shell's own OverviewActive property; the
+    host still requires the editor buffer to report FOCUSED afterwards."""
+    before = overview_active()
+    result = {"before": before}
+    if before:
+        try:
+            run(user_command(["gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path",
+                              "/org/gnome/Shell", "--method", "org.freedesktop.DBus.Properties.Set",
+                              "org.gnome.Shell", "OverviewActive", "<false>"]))
+        except subprocess.CalledProcessError as error:
+            result["error"] = str(error)
+        time.sleep(1)
+    result["after"] = overview_active()
+    return result
+
+
 def launch(path):
     desktop()
     if editor_processes():
@@ -510,6 +536,7 @@ def main():
     parser.add_argument("--seed", required=True)
     args = parser.parse_args()
     actions = {"tooling": tooling, "provision": provision, "provisioned": provisioned, "prepare": prepare, "desktop": desktop, "launch": lambda: launch(args.path),
+               "leave-overview": leave_overview,
                "disk": lambda: disk(args.path), "closed": lambda: {"processes": editor_processes()},
                "probe": lambda: Accessibility().inspect(args.seed), "focus": lambda: Accessibility().inspect(args.seed, True)}
     print(json.dumps(actions[args.action]()))
