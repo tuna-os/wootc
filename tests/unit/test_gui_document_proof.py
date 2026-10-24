@@ -244,6 +244,23 @@ class GuestIdentityTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 guest.editor_identity(60, 1000)
 
+    def test_rejected_peer_records_why_without_relaxing(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
+        shell = {**peer, 'exe': '/usr/bin/gnome-shell'}
+        why = []
+        with patch.object(guest, 'process', return_value=shell):
+            self.assertIsNone(guest.editor_identity(40, 1000, why))
+        self.assertIn('neither the editor nor xdg-dbus-proxy', why[0])
+        why = []
+        with patch.object(guest, 'process', return_value=peer), patch.object(guest, 'editor_processes', return_value=[]), \
+                patch.object(guest, 'ancestors', return_value=[peer]):
+            self.assertIsNone(guest.editor_identity(40, 1000, why))
+        self.assertTrue(any('no readable gnome-text-editor' in reason for reason in why))
+        self.assertTrue(any('matched 0 editor sandboxes' in reason for reason in why))
+
 
 
 if __name__ == '__main__':

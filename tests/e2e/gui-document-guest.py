@@ -116,28 +116,39 @@ def flatpak_app(pid):
     return info.get("Application", "name", fallback="")
 
 
-def editor_identity(peer_pid, uid):
+def editor_identity(peer_pid, uid, why=None):
+    # why, when given, collects the reason a peer is rejected. It is
+    # diagnostic only: it never relaxes a check.
+    note = why.append if why is not None else (lambda _reason: None)
     peer = process(peer_pid)
     if peer["uid"] != uid:
+        note(f"peer uid {peer['uid']} is not {uid}")
         return None
     if Path(peer["exe"]).name == "gnome-text-editor":
         verify_process(peer)
         return peer
     if Path(peer["exe"]).name != "xdg-dbus-proxy":
+        note(f"peer exe {peer['exe']} is neither the editor nor xdg-dbus-proxy")
         return None
     # Flatpak accessibility connections belong to its D-Bus proxy. Require
     # the real editor in the same specific sandbox wrapper, never merely a
     # shared systemd/session ancestor or an application name in the tree.
     wrappers = {(p["pid"], p["startTicks"]) for p in ancestors(peer_pid) if Path(p["exe"]).name in ("flatpak", "bwrap")}
     matches = []
-    for candidate in editor_processes():
-        if candidate["uid"] != uid or flatpak_app(candidate["pid"]) != "org.gnome.TextEditor":
+    editors = editor_processes()
+    if not editors:
+        note("proxy peer, but no readable gnome-text-editor process for the desktop user")
+    for candidate in editors:
+        app = flatpak_app(candidate["pid"])
+        if candidate["uid"] != uid or app != "org.gnome.TextEditor":
+            note(f"editor pid {candidate['pid']} has flatpak app {app!r}")
             continue
         shared = wrappers.intersection((p["pid"], p["startTicks"]) for p in ancestors(candidate["pid"]))
         if shared:
             matches.append({**candidate, "accessibilityPeer": peer,
                             "flatpakApp": "org.gnome.TextEditor", "sharedWrapperIdentities": sorted(shared)})
     if len(matches) != 1:
+        note(f"proxy peer wrappers {sorted(wrappers)} matched {len(matches)} editor sandboxes")
         return None
     verify_process(peer)
     verify_process(matches[0])
@@ -281,17 +292,19 @@ class Accessibility:
         uid = os.getuid()
         if not uid or uid != pwd.getpwnam(USER).pw_uid:
             raise RuntimeError("Accessibility probe is not the ordinary desktop user")
-        candidates, summary = [], []
+        candidates, summary, rejected = [], [], []
         deadline = time.monotonic() + 15
         apps = min(self.call("atspi_accessible_get_child_count", root), 64)
         for index in range(apps):
             app = self.call("atspi_accessible_get_child_at_index", root, index)
             pid = self.call("atspi_accessible_get_process_id", app)
+            why = []
             try:
-                p = editor_identity(pid, uid)
-            except (OSError, ProcessLookupError):
-                continue
+                p = editor_identity(pid, uid, why)
+            except (OSError, ProcessLookupError) as error:
+                p, why = None, why + [f"{type(error).__name__}: {error}"]
             if not p:
+                rejected.append({"app": self.string("atspi_accessible_get_name", app), "pid": pid, "why": why})
                 continue
             queue = [(app, [])]
             visited = 0
@@ -316,7 +329,8 @@ class Accessibility:
                 children = min(self.call("atspi_accessible_get_child_count", node), 64)
                 queue += [(self.call("atspi_accessible_get_child_at_index", node, i), ancestors + [name]) for i in range(children)]
         if len(candidates) != 1:
-            raise RuntimeError(f"Expected one visible editable document buffer; found {len(candidates)}; tree={summary}")
+            raise RuntimeError(f"Expected one visible editable document buffer; found {len(candidates)}; "
+                               f"tree={summary}; rejected={rejected[:16]}")
         verify_process(candidates[0]["process"])
         if "accessibilityPeer" in candidates[0]["process"]:
             verify_process(candidates[0]["process"]["accessibilityPeer"])
