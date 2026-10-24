@@ -1164,12 +1164,74 @@ public class UninstallInfo
     public bool Orphaned { get; set; }
 
     /// <summary>
-    /// Deployed: the deployer has completed at least once (its staged journal
-    /// exists, or the lifecycle state says deployed/healthy) — so this PC has
-    /// a bootable TunaOS and the control panel can offer to restart into it.
+    /// Deployed is true only when the installed boot record matches this
+    /// installation, the staged loader and the current ESP and host volume.
     /// </summary>
     [JsonPropertyName("deployed")]
     public bool Deployed { get; set; }
+
+    [JsonPropertyName("bootPending")]
+    public bool BootPending { get; set; }
+
+    [JsonPropertyName("bootEvidence")]
+    public FirstBootAssessment? BootEvidence { get; set; }
+}
+
+/// <summary>
+/// FirstBootAssessment is what status and the installed views report. It never
+/// carries a "state" key: the E2E harness reads the lifecycle state from the
+/// top-level "state" of `status` output.
+/// </summary>
+public class FirstBootAssessment
+{
+    [JsonPropertyName("verdict")]
+    public string Verdict { get; set; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    [JsonPropertyName("kernel")]
+    public string? Kernel { get; set; }
+
+    [JsonPropertyName("imageRef")]
+    public string? ImageRef { get; set; }
+
+    [JsonPropertyName("imageDigest")]
+    public string? ImageDigest { get; set; }
+
+    /// <summary>
+    /// SourceImageRef is the image the user selected, as the deployer recorded
+    /// it for updates; ImageRef may be its local derivative.
+    /// </summary>
+    [JsonPropertyName("sourceImageRef")]
+    public string? SourceImageRef { get; set; }
+
+    [JsonPropertyName("bootId")]
+    public string? BootId { get; set; }
+
+    [JsonPropertyName("secureBoot")]
+    public bool? SecureBoot { get; set; }
+
+    [JsonPropertyName("bridge")]
+    public FirstBootBridge? Bridge { get; set; }
+
+    [JsonPropertyName("writtenAt")]
+    public string? WrittenAt { get; set; }
+}
+
+public class FirstBootBridge
+{
+    [JsonPropertyName("boundFolders")]
+    public int BoundFolders { get; set; }
+
+    [JsonPropertyName("matchedUsers")]
+    public int MatchedUsers { get; set; }
+
+    [JsonPropertyName("bitlockerUnlocked")]
+    public bool BitlockerUnlocked { get; set; }
 }
 
 /// <summary>

@@ -71,6 +71,12 @@ func e2eBoundDriveReport(report, directive []byte) bool {
 		return false
 	}
 	names := []string{"schemaVersion", "runId", "directiveId", "action", "screen", "installDriven", "installBtnDisabled", "hint", "progressStep", "error", "selectedRef", "imageMismatch"}
+	// The installed-boot proof carries exactly one more field: the rendered
+	// control-panel receipt that verify-control-panel-receipt.py checks.
+	var action string
+	if json.Unmarshal(r["action"], &action) == nil && action == "verify-installed-boot" {
+		names = append(names, "installedBootVerification")
+	}
 	if len(r) != len(names) {
 		return false
 	}
@@ -92,7 +98,7 @@ func e2eBoundDriveReport(report, directive []byte) bool {
 		if name == "directiveId" && !e2eDirectiveID.MatchString(observed) {
 			return false
 		}
-		if name == "action" && observed != "install" && observed != "reboot" {
+		if name == "action" && observed != "install" && observed != "reboot" && observed != "verify-installed-boot" {
 			return false
 		}
 	}

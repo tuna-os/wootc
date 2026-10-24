@@ -6,8 +6,8 @@ After=wootc-host-bind.service wootc-passthrough.service local-fs.target
 # bluefin:stable's first-boot `bootc image set-unified` holds (E2E
 # 39874539856). Ordering only: a no-op where the unit does not exist.
 After=bootc-unified-storage.service
-Requires=wootc-host-bind.service
-ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.json
+Requires=wootc-host-bind.service wootc-passthrough.service
+ConditionPathExists=!/run/initramfs/wootc-host/wootc/install/installed-linux-boot.complete
 
 [Service]
 Type=oneshot

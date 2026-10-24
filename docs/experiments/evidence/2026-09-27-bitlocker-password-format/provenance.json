@@ -1,0 +1,11 @@
+{
+  "upstreamCommit": "4030da727e8323297b4ed1172138494d4926f905",
+  "upstreamArchiveUrl": "https://raw.githubusercontent.com/mbroz/cryptsetup/4030da727e8323297b4ed1172138494d4926f905/tests/bitlk-images.tar.xz",
+  "archiveSha256": "68bf5669f777668112d497234ebe2166b5feaf0e33b206b095b917f82937bd30",
+  "fixtureImage": "bitlk-images/bitlk-aes-xts-128.img",
+  "fixtureImageSha256": "7e371aa37bdada572013768da2663f7378e4f49e2bda1e4e6c2d011a6ff6a128",
+  "upstreamTestScriptSha256": "da6aaac93ff958821ca5de828205c4f8bb3b313dd78d185bf20f967fd10f8346",
+  "affectedHostedRun": "https://github.com/tuna-os/wootc/actions/runs/36298918499",
+  "affectedSourceSha": "7e39e5770f6bb84ca7663a606426231dd160574f",
+  "scope": "Public upstream fixture; read-only --test-passphrase, no mapping, no Windows fixture key, no proof of real VM Documents migration"
+}

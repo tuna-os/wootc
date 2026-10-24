@@ -20,6 +20,9 @@ BOOT_ID = '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0'
 LOADER = '\\EFI\\fedora\\shimx64.efi'
 HOST_UUID = '1234567890ABCDEF'
 DIGEST = 'sha256:' + 'a' * 64
+INSTALLATION_ID = '0123456789abcdef0123456789abcdef'
+SOURCE = 'ghcr.io/projectbluefin/bluefin:lts'
+INJECTED = 'localhost/wootc-ntfs-injected:latest'
 
 
 def option(guid=GUID, loader=LOADER):
@@ -36,8 +39,17 @@ class CollectorTests(unittest.TestCase):
         self.host, self.proc, self.sys, self.etc = [self.root / x for x in ('host', 'proc', 'sys', 'etc')]
         for p in (self.host / 'wootc/disks', self.proc / 'self', self.proc / 'sys/kernel/random',
                   self.sys / 'firmware/efi/efivars', self.sys / 'block/loop0/loop', self.sys / 'block/loop1/loop',
-                  self.etc / 'wootc', self.host / 'Users/alice/Documents'):
+                  self.sys / 'dev/block', self.etc / 'wootc', self.host / 'wootc/install',
+                  self.host / 'Users/alice/Documents'):
             p.mkdir(parents=True)
+        # What Windows staged for this attempt (app/boot_evidence.go).
+        self.plan = {'schemaVersion': 1, 'installationId': INSTALLATION_ID, 'armedAt': '2026-10-17T04:00:00Z',
+                     'imageRef': SOURCE, 'espPartitionGuid': GUID, 'loaderPath': LOADER,
+                     'hostUuid': HOST_UUID, 'rootDiskPath': '/wootc/disks/root.disk'}
+        self.write_plan()
+        (self.proc / 'uptime').write_text('600.00 1100.00\n')
+        (self.etc / 'wootc/installed-image-ref').write_text(INJECTED + '\n')
+        (self.sys / 'dev/block/7:1').symlink_to('../../block/loop1')
         self.disk = self.host / 'wootc/disks/root.disk'
         self.disk.write_bytes(b'root disk')
         (self.host / 'wootc/disks/other.disk').write_bytes(b'not this one')
@@ -51,6 +63,7 @@ class CollectorTests(unittest.TestCase):
             '4 0 8:3 /Users/alice/Pictures /var/home/alice/Pictures rw - ntfs3 /dev/vda3 rw',
             '5 0 8:3 /Users/bob/Music /var/home/bob/Music rw - ntfs3 /dev/vda3 rw',
             '6 0 0:44 / /var/home/carol/Documents rw - tmpfs tmpfs rw',
+            '9 0 7:1 / /sysroot ro - xfs /dev/loop1 ro',
         ]
         self.write_mounts()
         (self.sys / 'block/loop0/loop/backing_file').write_text(str(self.host / 'wootc/disks/other.disk') + '\n')
@@ -66,10 +79,16 @@ class CollectorTests(unittest.TestCase):
                                                        'imageDigest': DIGEST}}}}
         self.host_uuid = HOST_UUID
         self.failed = 'bad.service loaded failed failed Bad\n'
+        self.units = {'wootc-host-bind.service': 'ActiveState=active\nSubState=exited\nResult=success\n',
+                      'wootc-passthrough.service': 'ActiveState=active\nSubState=exited\nResult=success\n'}
+        self.cryptsetup = 'type:    BITLK\ncipher:  aes-xts-plain64\n'
         self.efibootmgr = None
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def write_plan(self):
+        (self.host / 'wootc/install/installation.json').write_text(json.dumps(self.plan))
 
     def write_mounts(self):
         (self.proc / 'self/mountinfo').write_text('\n'.join(self.mounts) + '\n')
@@ -82,8 +101,13 @@ class CollectorTests(unittest.TestCase):
         if args[0] == 'blkid':
             self.assertEqual(args[-1], '/dev/vda3')
             return self.host_uuid + '\n'
+        if args[:2] == ('systemctl', 'show'):
+            return self.units[args[2]]
         if args[0] == 'systemctl':
             return self.failed
+        if args[:2] == ('cryptsetup', 'status'):
+            self.assertTrue(args[2].startswith('/dev/mapper/wootc-bitlk-'))
+            return self.cryptsetup
         if args == ('efibootmgr', '-v'):
             if self.efibootmgr is None:
                 raise subprocess.CalledProcessError(1, args)
@@ -97,18 +121,21 @@ class CollectorTests(unittest.TestCase):
     def test_complete_record_is_measured_from_the_running_boot(self):
         record = self.collect()
         self.assertEqual(record['schema'], 1)
+        self.assertEqual(record['installationId'], INSTALLATION_ID)
         self.assertEqual(record['state'], 'healthy')
         self.assertEqual(record['sequence'], 1)
         self.assertEqual(record['bootId'], BOOT_ID)
         self.assertEqual(record['kernel'], '6.12.0-55.el10.x86_64')
-        self.assertEqual(record['image'], {'ref': 'localhost/wootc-ntfs-injected:latest', 'digest': DIGEST,
-                                           'sourceRef': 'ghcr.io/projectbluefin/bluefin:lts'})
+        self.assertEqual(record['image'], {'ref': INJECTED, 'digest': DIGEST, 'sourceRef': SOURCE})
         self.assertEqual(record['bootCurrent'], {'bootNumber': '0004', 'source': 'efivarfs',
                                                  'espPartitionGuid': GUID, 'loaderPath': LOADER})
         self.assertEqual(record['rootDisk'], {'path': '/wootc/disks/root.disk', 'hostUuid': HOST_UUID})
         # /home/alice/Documents and /var/home/alice/Documents are one folder;
         # carol's tmpfs is not the Windows volume.
-        self.assertEqual(record['bridge'], {'boundFolders': 3, 'matchedUsers': 2, 'bitlockerUnlocked': False})
+        self.assertEqual(record['bridge'], {'boundFolders': 3, 'matchedUsers': 2, 'bitlockerUnlocked': False, 'bindings': [
+            {'source': f'{self.host}/Users/alice/Documents', 'target': '/home/alice/Documents', 'user': 'alice'},
+            {'source': f'{self.host}/Users/alice/Pictures', 'target': '/home/alice/Pictures', 'user': 'alice'},
+            {'source': f'{self.host}/Users/bob/Music', 'target': '/home/bob/Music', 'user': 'bob'}]})
         self.assertTrue(record['secureBoot'])
         self.assertEqual(record['failedUnits'], ['bad.service'])
         self.assertEqual(record['writtenAt'], '2026-10-17T05:00:00Z')
@@ -150,10 +177,135 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(self.collect()['rootDisk']['hostUuid'], HOST_UUID)
 
     def test_bitlocker_profiles_count_as_bridged(self):
-        self.mounts += ['7 0 253:0 / /run/wootc/bitlk-tmp ro - ntfs3 /dev/mapper/bitlk rw',
-                        '8 0 253:0 /Users/dana/Documents /var/home/dana/Documents rw - ntfs3 /dev/mapper/bitlk rw']
+        self.mounts += ['7 0 253:0 / /run/wootc/bitlk-tmp ro - ntfs3 /dev/mapper/wootc-bitlk-42 rw',
+                        '8 0 253:0 /Users/dana/Pictures /var/home/dana/Pictures rw - ntfs3 /dev/mapper/wootc-bitlk-42 rw']
         self.write_mounts()
-        self.assertEqual(self.collect()['bridge'], {'boundFolders': 4, 'matchedUsers': 3, 'bitlockerUnlocked': True})
+        bridge = self.collect()['bridge']
+        self.assertEqual((bridge['boundFolders'], bridge['matchedUsers'], bridge['bitlockerUnlocked']), (4, 3, True))
+        self.assertIn({'source': '/run/wootc/bitlk-tmp/Users/dana/Pictures', 'target': '/home/dana/Pictures',
+                       'user': 'dana'}, bridge['bindings'])
+
+    def test_bitlocker_unlock_is_the_bridge_mapping_of_an_actual_bitlk_volume(self):
+        self.mounts.append('7 0 253:0 / /run/wootc/bitlk-tmp ro - ntfs3 /dev/mapper/wootc-bitlk-42 rw')
+        self.write_mounts()
+        self.assertTrue(self.collect()['bridge']['bitlockerUnlocked'])
+        # A LUKS or plain mapping mounted there is not an unlocked C:.
+        self.cryptsetup = 'type:    LUKS2\n'
+        with self.assertRaisesRegex(ValueError, 'not an unlocked BitLocker volume'):
+            self.collect()
+        # Nor is anything that is not the bridge's own mapping.
+        self.mounts[-1] = '7 0 253:0 / /run/wootc/bitlk-tmp ro - ntfs3 /dev/mapper/other rw'
+        self.write_mounts()
+        with self.assertRaisesRegex(ValueError, 'unexpected BitLocker profile source'):
+            self.collect()
+
+    def test_bridge_never_exposes_the_volume_or_installer_records(self):
+        for root in ('/', '/wootc/install', '/WOOTC'):
+            with self.subTest(root=root):
+                self.tearDown()
+                self.setUp()
+                self.mounts.append(f'10 0 8:3 {root} /var/home/alice/Desktop rw - ntfs3 /dev/vda3 rw')
+                self.write_mounts()
+                with self.assertRaisesRegex(ValueError, 'bridge exposes'):
+                    self.collect()
+
+    def test_a_profile_named_wootc_is_an_ordinary_profile(self):
+        self.mounts.append('10 0 8:3 /Users/wootc/Documents /var/home/wootc/Documents rw - ntfs3 /dev/vda3 rw')
+        self.write_mounts()
+        self.assertIn({'source': f'{self.host}/Users/wootc/Documents', 'target': '/home/wootc/Documents',
+                       'user': 'wootc'}, self.collect()['bridge']['bindings'])
+
+    def test_bridge_units_must_have_completed(self):
+        for unit in ('wootc-host-bind.service', 'wootc-passthrough.service'):
+            for state in ('ActiveState=failed\nSubState=failed\nResult=exit-code\n',
+                          'ActiveState=inactive\nSubState=dead\nResult=success\n'):
+                with self.subTest(unit=unit, state=state):
+                    self.tearDown()
+                    self.setUp()
+                    self.units[unit] = state
+                    with self.assertRaisesRegex(ValueError, 'did not complete: ' + unit):
+                        self.collect()
+
+    def test_record_is_bound_to_this_installation_attempt(self):
+        cases = {
+            'missing installation identity': lambda: (self.host / 'wootc/install/installation.json').unlink(),
+            'missing installation identity ': lambda: (self.plan.update(installationId='XYZ'), self.write_plan()),
+            'armed in the future': lambda: (self.plan.update(armedAt='2026-10-17T06:00:00Z'), self.write_plan()),
+            'predates this installation': lambda: (self.proc / 'uptime').write_text('7200.00 1.00\n'),
+            'root.disk kernel argument does not match': lambda: (self.plan.update(rootDiskPath='/wootc/disks/x.disk'), self.write_plan()),
+            'host UUID kernel argument does not match': lambda: (self.plan.update(hostUuid='FEDCBA0987654321'), self.write_plan()),
+            'source image does not match': lambda: (self.plan.update(imageRef='ghcr.io/ublue-os/aurora:stable'), self.write_plan()),
+            'BootCurrent does not match': lambda: (self.plan.update(espPartitionGuid='87654321-1234-5678-abcd-123456789abc'), self.write_plan()),
+            'BootCurrent does not match ': lambda: (self.plan.update(loaderPath='\\EFI\\systemd\\shimx64.efi'), self.write_plan()),
+            'booted image does not match installed image': lambda: (self.etc / 'wootc/installed-image-ref').write_text('ghcr.io/other/image:tag\n'),
+            'missing installed image reference': lambda: (self.etc / 'wootc/installed-image-ref').unlink(),
+            'booted image does not match installed image ': lambda: (self.etc / 'wootc/installed-image-ref').write_text(INJECTED + '@sha256:' + 'b' * 64 + '\n'),
+            'pinned install ': lambda: (self.status['status']['booted']['image']['image'].update(image=INJECTED + '@sha256:' + 'b' * 64),
+                                        (self.etc / 'wootc/installed-image-ref').write_text(INJECTED + '@sha256:' + 'b' * 64 + '\n')),
+            'installed sysroot is not this root.disk': lambda: ((self.sys / 'dev/block/7:1').unlink(),
+                                                                (self.sys / 'dev/block/7:1').symlink_to('../../block/loop0')),
+            'missing installed sysroot mount': lambda: (self.mounts.pop(), self.write_mounts()),
+        }
+        for message, mutate in cases.items():
+            with self.subTest(message):
+                self.tearDown()
+                self.setUp()
+                mutate()
+                with self.assertRaisesRegex(ValueError, message.strip()):
+                    self.collect()
+
+    def test_docker_transport_and_digest_pin_of_the_same_image_match(self):
+        self.plan['imageRef'] = 'docker://' + SOURCE
+        self.write_plan()
+        (self.etc / 'wootc/installed-image-ref').write_text('docker://' + INJECTED + '@' + DIGEST + '\n')
+        self.status['status']['booted']['image']['image']['image'] = INJECTED + '@' + DIGEST
+        record = self.collect()
+        self.assertEqual(record['image']['sourceRef'], SOURCE)
+
+    def test_undecodable_boot_entry_is_reported_not_matched(self):
+        # Windows does not gate on an entry the firmware would not let us
+        # decode (boot_current); a decoded one must be the staged ESP/loader.
+        (self.efi / ('Boot0004-' + EFI_GUID)).write_bytes(b'\0' * 8)
+        self.plan['espPartitionGuid'] = '87654321-1234-5678-abcd-123456789abc'
+        self.write_plan()
+        self.assertEqual(self.collect()['bootCurrent'], {'source': 'unavailable', 'bootNumber': '0004'})
+
+    def test_luks_sysroot_follows_device_mapper_ancestry(self):
+        dm = self.sys / 'block/dm-0'
+        (dm / 'slaves').mkdir(parents=True)
+        (dm / 'slaves/loop1').symlink_to('../../loop1')
+        (self.sys / 'dev/block/253:1').symlink_to('../../block/dm-0')
+        self.mounts[-1] = '9 0 253:1 / /sysroot ro - xfs /dev/mapper/root ro'
+        self.write_mounts()
+        self.assertEqual(self.collect()['rootDisk']['path'], '/wootc/disks/root.disk')
+
+    def test_summary_publishes_only_public_facts(self):
+        record = self.collect()
+        evidence = self.root / 'evidence.json'
+        evidence.write_text(json.dumps(record))
+        summary_dir = self.root / 'summary'
+        f.publish_summary(evidence, summary_dir)
+        summary = json.loads((summary_dir / 'installed-linux-boot-summary.json').read_text())
+        self.assertEqual(summary, {'kernel': record['kernel'], 'sourceImageRef': SOURCE, 'imageDigest': DIGEST,
+                                   'writtenAt': record['writtenAt'], 'boundFolders': 3, 'matchedUsers': 2})
+        self.assertEqual((summary_dir / 'installed-linux-boot-summary.json').stat().st_mode & 0o777, 0o644)
+        text = (summary_dir / 'installed-linux-boot-summary.json').read_text()
+        for private in (INSTALLATION_ID, HOST_UUID, str(self.host), GUID):
+            self.assertNotIn(private, text)
+
+    def test_summary_refuses_an_untrusted_directory(self):
+        evidence = self.root / 'evidence.json'
+        evidence.write_text(json.dumps(self.collect()))
+        summary_dir = self.root / 'summary'
+        summary_dir.mkdir()
+        summary_dir.chmod(0o777)
+        with self.assertRaisesRegex(ValueError, 'not writable by other users'):
+            f.publish_summary(evidence, summary_dir)
+        self.assertFalse((summary_dir / 'installed-linux-boot-summary.json').exists())
+        evidence.write_text(json.dumps({'state': 'deployed'}))
+        summary_dir.chmod(0o755)
+        with self.assertRaisesRegex(ValueError, 'not a first-boot evidence record'):
+            f.publish_summary(evidence, summary_dir)
 
     def test_undecodable_boot_option_falls_back_then_reports_unavailable(self):
         (self.efi / ('Boot0004-' + EFI_GUID)).write_bytes(b'\0' * 8)
@@ -210,6 +362,7 @@ class CollectorTests(unittest.TestCase):
             'image': {'image': 'ghcr.io/projectbluefin/bluefin:stable', 'transport': 'registry'},
             'version': '44.20260917.0', 'imageDigest': DIGEST, 'architecture': 'amd64'}
         self.status['status']['booted']['store'] = 'ostreeContainer'
+        (self.etc / 'wootc/installed-image-ref').write_text('ghcr.io/projectbluefin/bluefin:stable\n')
         self.assertEqual(self.collect()['image']['ref'], 'ghcr.io/projectbluefin/bluefin:stable')
 
     def test_cli_prints_json_or_fails_without_output(self):

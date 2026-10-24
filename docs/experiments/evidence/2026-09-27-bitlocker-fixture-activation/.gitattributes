@@ -1,0 +1,2 @@
+*.raw.log -text
+*.raw.stderr -text

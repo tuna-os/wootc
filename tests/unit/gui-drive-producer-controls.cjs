@@ -3,7 +3,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert/strict');
-const source = fs.readFileSync(process.argv[2], 'utf8').replace(/^import .*;\n/, '').replace('export function startE2EDrive', 'function startE2EDrive');
+const source = fs.readFileSync(process.argv[2], 'utf8').replace(/^import .*;\n/gm, '').replace('export function startE2EDrive', 'function startE2EDrive');
 const image = 'ghcr.io/tuna-os/yellowfin:gnome';
 const identity = {schemaVersion: 1, runId: 'current', directiveId: '1234567890abcdef1234567890abcdef'};
 let directive = {...identity, action: 'install', image, username: 'wootc', hostname: 'test', password: 'public-test'};
@@ -28,6 +28,8 @@ const context = {
  E2EDriveDirective: async () => JSON.stringify(directive),
  E2EDriveReport: async raw => reports.push(JSON.parse(raw)),
  Reboot: () => { reboots++; },
+ // The installed-boot UI observer has its own controls (control-panel-proof.bats).
+ verifyInstalledBootUI: d => ({action: 'verify-installed-boot', runId: d.runId, nonce: d.nonce, passed: true, errors: []}),
  setTimeout(callback) { scheduled = callback; },
 };
 vm.runInNewContext(source, context);
@@ -67,6 +69,17 @@ async function settle() { await new Promise(resolve => setImmediate(resolve)); }
  const prepareReceipt = prepareReports.at(-1);
  assert.equal(prepareReceipt.vmPrepareDriven, true);
  fieldsEqual(prepareReceipt, [...installFields, ...vmFields]);
+ // Only the installed-boot proof report carries the rendered receipt.
+ const verifyReports = [];
+ const verifyContext = {...context, window: {},
+  E2EDriveDirective: async () => JSON.stringify({...identity, action: 'verify-installed-boot', nonce: 'n-1'}),
+  E2EDriveReport: async raw => verifyReports.push(JSON.parse(raw)),
+ };
+ vm.runInNewContext(source, verifyContext);
+ verifyContext.startE2EDrive({...state, screen: 'control'}); await settle();
+ assert.equal(verifyReports.length, 1);
+ fieldsEqual(verifyReports[0], [...installFields, 'installedBootVerification']);
+ assert.equal(verifyReports[0].installedBootVerification.nonce, 'n-1');
  // A click that throws never reports installDriven and is not replayed.
  const failedReports = []; let failedScheduled, failedClicks = 0;
  const failedContext = {...context, window: {},

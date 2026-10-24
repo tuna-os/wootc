@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Check the product's first-boot evidence against what the harness observed.
 
-Usage: firstboot-evidence-check.py EVIDENCE_JSON SELECTED_IMAGE PHASE2_BOOT_ID
+Usage: firstboot-evidence-check.py EVIDENCE_JSON SELECTED_IMAGE PHASE2_BOOT_ID [BITLOCKER]
 
 The harness reads installed-linux-boot.json back from Windows after the
 Phase-2 boot and compares it with its own observations: the image it asked
 for, and the kernel boot ID it read from the Phase-2 guest. A record left by
 any other boot or install fails. An empty PHASE2_BOOT_ID (the guest could not
-be asked) skips only that comparison, and says so.
+be asked) skips only that comparison, and says so. BITLOCKER=on (the
+encrypted-C: cell) also requires the record to say the bridge reached the
+profiles through an unlocked BitLocker C:, which the collector only reports
+for the bridge's own mapping of an actual BITLK volume.
 
 Exit 0: matches. Exit 3: readable but describes something else. Exit 2:
 missing, oversized or malformed.
@@ -16,14 +19,15 @@ import json
 import re
 import sys
 
-LIMIT = 16 * 1024
+LIMIT = 64 * 1024
 
 
 def main(argv):
-    if len(argv) != 4:
+    if len(argv) not in (4, 5) or (len(argv) == 5 and argv[4] not in ('on', 'off')):
         print(__doc__, file=sys.stderr)
         return 2
     path, image, boot_id = argv[1], argv[2], argv[3].strip().lower()
+    bitlocker = len(argv) == 5 and argv[4] == 'on'
     try:
         with open(path, 'rb') as stream:
             data = stream.read(LIMIT + 1)
@@ -38,8 +42,10 @@ def main(argv):
     except (OSError, ValueError, KeyError, TypeError) as error:
         print('[evidence] unreadable first-boot evidence: %s' % error)
         return 2
-    print('[evidence] kernel=%s image=%s digest=%s sourceRef=%s bootId=%s host=%s boundFolders=%s secureBoot=%s'
-          % (shape[3], shape[4], shape[5], record['image'].get('sourceRef', ''), shape[2], shape[7], shape[8], shape[9]))
+    print('[evidence] kernel=%s image=%s digest=%s sourceRef=%s bootId=%s host=%s boundFolders=%s secureBoot=%s '
+          'bitlockerUnlocked=%s'
+          % (shape[3], shape[4], shape[5], record['image'].get('sourceRef', ''), shape[2], shape[7], shape[8], shape[9],
+             record['bridge'].get('bitlockerUnlocked')))
     problems = []
     if shape[0] != 1 or shape[1] != 'healthy':
         problems.append('schema/state is %r/%r' % shape[:2])
@@ -50,6 +56,8 @@ def main(argv):
         problems.append('digest %r is not a sha256 digest' % shape[5])
     if shape[6] != '/wootc/disks/root.disk' or not re.fullmatch('[0-9A-F]{16}', str(shape[7])):
         problems.append('root.disk identity %r/%r' % shape[6:8])
+    if bitlocker and record['bridge'].get('bitlockerUnlocked') is not True:
+        problems.append('the bridge did not reach the profiles through an unlocked BitLocker C:')
     if boot_id:
         if shape[2] != boot_id:
             problems.append('written by boot %s, not the observed Phase-2 boot %s' % (shape[2], boot_id))

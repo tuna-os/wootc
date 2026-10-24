@@ -1,0 +1,22 @@
+MODULE C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules\BitLocker\BitLocker.psm1
+SHA256 FDBAB85ED698FE2FB6364BE3CCB7335099C11F04407259A979E263AA87B3D210
+LINE 282             Write-Host $Message -NoNewLine
+LINE 284             Write-Host $ConfirmMessage -NoNewLine
+LINE 300             Write-Host $NotMatchMessage
+LINE 828 function Resume-BitLocker
+LINE 866                 $EnableKeyProtectorsResult  =  Invoke-CimMethod -InputObject $Win32EncryptableVolume -MethodName EnableKeyProtectors
+LINE 868                 if ($EnableKeyProtectorsResult.ReturnValue -ne 0)
+LINE 870                     $ExceptionForHr = Get-ExceptionForHrInternal -HrUInt32 $EnableKeyProtectorsResult.ReturnValue
+LINE 1271 function Add-RecoveryPasswordProtectorInternal
+LINE 1322             Write-Warning $Message
+LINE 1460         $AddKeyProtectorResult = Invoke-CimMethod -InputObject $Win32EncryptableVolume -MethodName ProtectKeyWithTPM -Arguments @{FriendlyName = $null; PlatformValidationProfile = $null}
+LINE 1540         $AddKeyProtectorResult = Invoke-CimMethod -InputObject $Win32EncryptableVolume -MethodName ProtectKeyWithTPMAndPin -Arguments @{FriendlyName = $null; PlatformValidationProfile = $null; PIN = $ClearTextPin}
+LINE 1613         $AddKeyProtectorResult = Invoke-CimMethod -InputObject $Win32EncryptableVolume -MethodName ProtectKeyWithTPMAndStartupKey -Arguments @{ExternalKey = $null; FriendlyName = $null; PlatformValidationProfile = $null}
+LINE 1713         $AddKeyProtectorResult = Invoke-CimMethod -InputObject $Win32EncryptableVolume -MethodName ProtectKeyWithTPMAndPinAndStartupKey -Arguments @{ExternalKey = $null; FriendlyName = $null; PIN = $ClearTextPin; PlatformValidationProfile = $null}
+LINE 3324             Write-Warning $Message
+LINE 3331             Write-Warning $Message
+LINE 3338             Write-Warning $Message
+LINE 3345             Write-Warning $Message
+LINE 3352             Write-Warning $Message
+LINE 3357             Write-Warning $Message
+LINE 3647             Write-Warning $stringTable.WarningUsedSpaceOnlyAndHardwareEncryption

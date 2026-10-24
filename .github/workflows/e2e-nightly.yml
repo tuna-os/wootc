@@ -8,6 +8,7 @@ on:
     inputs:
       image:       { description: bootc image, default: 'ghcr.io/tuna-os/yellowfin:gnome' }
       win_version: { description: 'Dockur version (11, 10, 11e, 11l)', default: '11' }
+      gui_documents: { description: 'Require GNOME editor save and persistence proof (BitLocker on)', type: boolean, default: false }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
       use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
       gui_install: { description: 'Run native install through the wootc.exe GUI', type: boolean, default: false }
@@ -34,6 +35,7 @@ jobs:
       # Default true for scheduled runs (inputs null); a manual run can force a
       # full install with use_base_image=false.
       use_base_image: ${{ github.event.inputs.use_base_image != 'false' }}
+      gui_documents: ${{ github.event.inputs.gui_documents == 'true' }}
       gui_install: ${{ github.event.inputs.gui_install == 'true' }}
       # Scheduled runs (no inputs) drive the shipped installer.
       gui_frontend: ${{ github.event.inputs.gui_frontend || 'wails' }}
