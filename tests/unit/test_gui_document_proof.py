@@ -18,13 +18,23 @@ class FakeDesktop:
     def __init__(self, defect=None):
         self.defect, self.text, self.buffer = defect, SEED + '\n', ''
         self.open, self.focused, self.opens = False, False, 0
+        self.installed, self.installs = False, 0
         self.events = []
 
     def observe(self, action):
         self.events.append(action)
         if action == 'tooling':
-            return {'nativeEditor': self.defect != 'tooling-editor', 'installedFlatpaks': [],
+            native = self.defect not in ('tooling-editor', 'install', 'install-fails', 'install-lies')
+            return {'nativeEditor': native, 'installedFlatpaks': ['org.gnome.TextEditor'] if self.installed else [],
                     'libatspi': self.defect != 'tooling-accessibility'}
+        if action == 'provision':
+            self.installs += 1
+            return {'started': True}
+        if action == 'provisioned':
+            # 'install-lies' reports success while flatpak still lists nothing.
+            self.installed = self.defect == 'install'
+            return {'finished': True, 'installed': self.installed or self.defect == 'install-lies',
+                    'unit': {'Result': 'success' if self.defect != 'install-fails' else 'exit-code'}}
         if action == 'prepare':
             return {'prepared': True}
         if action == 'desktop':
@@ -104,6 +114,29 @@ class GateTests(unittest.TestCase):
         self.assertIn('restart-file-reopened', restart_evidence)
         self.assertFalse(any(isinstance(event, tuple) and event[0] == 'keys' and 'ctrl-s' in event[1]
                              for event in restarted.events))
+
+    def test_missing_editor_is_installed_then_held_to_every_observation(self):
+        desktop = FakeDesktop('install')
+        with tempfile.TemporaryDirectory() as directory:
+            proof = module.Proof(desktop, SEED, MARKER, Path(directory) / 'evidence.jsonl', lambda s: None, lambda: 0)
+            proof.run('edit')
+            evidence = (Path(directory) / 'evidence.jsonl').read_text()
+        self.assertEqual(proof.editor_source, 'fixture-flatpak')
+        self.assertEqual(desktop.installs, 1)
+        self.assertIn('fixture-editor-finished', evidence)
+        self.assertIn('saved-file-reopened', evidence)
+
+    def test_failed_or_unconfirmed_install_fails_the_gate(self):
+        for defect in ('install-fails', 'install-lies', 'tooling-editor'):
+            with self.subTest(defect=defect), self.assertRaisesRegex(RuntimeError, 'could not install'):
+                self.exercise(FakeDesktop(defect))
+
+    def test_restart_never_reinstalls_a_lost_editor(self):
+        desktop = FakeDesktop('install')
+        desktop.text += MARKER
+        with self.assertRaisesRegex(RuntimeError, 'lacks an installed GNOME Text Editor'):
+            self.exercise(desktop, 'reopen')
+        self.assertEqual(desktop.installs, 0)
 
     def test_disabled_save_fails_even_when_buffer_contains_edit(self):
         with self.assertRaisesRegex(RuntimeError, 'saved-file'):

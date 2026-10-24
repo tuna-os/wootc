@@ -156,6 +156,49 @@ def tooling():
             "gdm": Path("/etc/gdm").is_dir()}
 
 
+EDITOR_APP = "org.gnome.TextEditor"
+EDITOR_REMOTE = "flathub"
+INSTALL_UNIT = "wootc-e2e-editor-install"
+
+
+def system_flatpaks():
+    return run(["flatpak", "list", "--system", "--app", "--columns=application"]).splitlines()
+
+
+def provision():
+    """Install GNOME Text Editor as a system Flatpak when the image ships none.
+
+    The catalog GNOME images that reach Phase 2 ship no editor in /usr; their
+    own system-flatpaks list names this app, but nothing installs it on a
+    bootc install. This only provides the dependency: every observation the
+    gate makes afterwards is unchanged.
+    """
+    if Path("/usr/bin/gnome-text-editor").is_file():
+        return {"started": False, "source": "image"}
+    if not shutil.which("flatpak"):
+        raise RuntimeError("Guest has no flatpak; the editor cannot be installed")
+    if EDITOR_APP in system_flatpaks():
+        return {"started": False, "source": "flatpak"}
+    remotes = run(["flatpak", "remotes", "--system", "--columns=name"]).splitlines()
+    if EDITOR_REMOTE not in remotes:
+        raise RuntimeError(f"Guest has no system {EDITOR_REMOTE} remote; the editor cannot be installed")
+    # A oneshot unit started without blocking: the download outlives one
+    # guest-agent request, and its result stays observable afterwards.
+    run(["systemd-run", "--no-block", f"--unit={INSTALL_UNIT}", "--property=Type=oneshot",
+         "--property=RemainAfterExit=yes",
+         "flatpak", "install", "--system", "--noninteractive", "--assumeyes", EDITOR_REMOTE, EDITOR_APP])
+    return {"started": True, "unit": INSTALL_UNIT, "remote": EDITOR_REMOTE, "app": EDITOR_APP}
+
+
+def provisioned():
+    state = dict(line.split("=", 1) for line in run([
+        "systemctl", "show", INSTALL_UNIT, "-p", "ActiveState", "-p", "SubState", "-p", "Result",
+        "-p", "ExecMainStatus"
+    ]).splitlines() if "=" in line)
+    return {"unit": state, "installed": EDITOR_APP in system_flatpaks(),
+            "finished": state.get("ActiveState") in ("active", "failed")}
+
+
 def launch(path):
     desktop()
     if editor_processes():
@@ -290,11 +333,11 @@ def disk(path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["tooling", "prepare", "desktop", "launch", "probe", "focus", "disk", "closed"])
+    parser.add_argument("action", choices=["tooling", "provision", "provisioned", "prepare", "desktop", "launch", "probe", "focus", "disk", "closed"])
     parser.add_argument("--path", required=True)
     parser.add_argument("--seed", required=True)
     args = parser.parse_args()
-    actions = {"tooling": tooling, "prepare": prepare, "desktop": desktop, "launch": lambda: launch(args.path),
+    actions = {"tooling": tooling, "provision": provision, "provisioned": provisioned, "prepare": prepare, "desktop": desktop, "launch": lambda: launch(args.path),
                "disk": lambda: disk(args.path), "closed": lambda: {"processes": editor_processes()},
                "probe": lambda: Accessibility().inspect(args.seed), "focus": lambda: Accessibility().inspect(args.seed, True)}
     print(json.dumps(actions[args.action]()))

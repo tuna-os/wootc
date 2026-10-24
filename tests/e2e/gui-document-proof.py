@@ -19,6 +19,25 @@ class Proof:
         self.transport, self.seed, self.marker = transport, seed, marker
         self.evidence, self.pause, self.clock = evidence, pause, clock
         self.pid, self.start_ticks = None, None
+        self.fixture_installed, self.editor_source = False, None
+
+    @staticmethod
+    def has_editor(tools):
+        return tools.get("nativeEditor") or "org.gnome.TextEditor" in tools.get("installedFlatpaks", [])
+
+    def install_editor(self):
+        # No catalog GNOME image that reaches Phase 2 ships the editor in
+        # /usr, so the fixture installs it as a system Flatpak. The result is
+        # observed, never assumed: the gate fails unless tooling then reports it.
+        self.record("fixture-editor-install", self.transport.observe("provision"))
+        done = self.wait("fixture-editor-finished", "provisioned",
+                         lambda value: value.get("finished") or value.get("installed"), 1200)
+        tools = self.transport.observe("tooling")
+        self.record("actual-guest-tooling-after-install", tools)
+        if not done.get("installed") or not self.has_editor(tools):
+            raise RuntimeError(f"Fixture could not install GNOME Text Editor: {done.get('unit')}")
+        self.fixture_installed = True
+        return tools
 
     def record(self, stage, value):
         with self.evidence.open("a") as output:
@@ -67,8 +86,14 @@ class Proof:
     def run(self, phase):
         tools = self.transport.observe("tooling")
         self.record("actual-guest-tooling", tools)
-        if not tools.get("nativeEditor") and "org.gnome.TextEditor" not in tools.get("installedFlatpaks", []):
-            raise RuntimeError("Guest lacks an installed GNOME Text Editor; GUI acceptance dependency missing")
+        if not self.has_editor(tools):
+            if phase != "edit":
+                # The editor the first boot used must still be there after the
+                # restart; installing it again would hide that it was lost.
+                raise RuntimeError("Guest lacks an installed GNOME Text Editor; GUI acceptance dependency missing")
+            tools = self.install_editor()
+        self.editor_source = "image" if tools.get("nativeEditor") else (
+            "fixture-flatpak" if self.fixture_installed else "flatpak")
         if not tools.get("libatspi"):
             raise RuntimeError("Guest lacks libatspi; GUI accessibility dependency missing")
         self.record("prepare", self.transport.observe("prepare"))
@@ -193,7 +218,8 @@ def main():
         except Exception as capture_error:
             proof.record("failure-screenshot-error", str(capture_error))
         raise
-    print(json.dumps({"phase": args.phase, "marker": marker, "sha256": digest, "guiProof": True}))
+    print(json.dumps({"phase": args.phase, "marker": marker, "sha256": digest, "guiProof": True,
+                      "editorSource": proof.editor_source}))
 
 
 if __name__ == "__main__":
