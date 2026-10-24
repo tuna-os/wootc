@@ -143,11 +143,25 @@ def flatpak_app(pid):
     return info.get("Application", "name", fallback="")
 
 
+def socket_inodes(pid):
+    inodes = set()
+    for fd in Path(f"/proc/{pid}/fd").iterdir():
+        try:
+            match = re.fullmatch(r"socket:\[(\d+)\]", os.readlink(fd))
+        except OSError:
+            continue
+        if match:
+            inodes.add(int(match.group(1)))
+    return inodes
+
+
 def unix_socket_peers(pid_a, pid_b):
     """Connected Unix socket pairs with one end in pid_a and the other in pid_b.
 
-    Read from the kernel's socket table (`ss -xpn`), so a pair is a real
-    established connection between those two exact processes.
+    The kernel socket table (`ss -xpn`) gives each socket's owner and peer
+    inode. A sandboxed editor's own sockets live in its private network
+    namespace, so they may be absent from the table; its end is then proved
+    by the editor holding that exact inode in /proc/<pid_a>/fd.
     """
     owners, peer_of = {}, {}
     for line in run(["ss", "-xpnH"]).splitlines():
@@ -158,8 +172,12 @@ def unix_socket_peers(pid_a, pid_b):
         if peer:
             peer_of[inode] = peer
         owners[inode] = {int(m) for m in re.findall(r"pid=(\d+)", " ".join(fields[8:]))}
-    return sorted((inode, peer) for inode, peer in peer_of.items()
-                  if pid_a in owners.get(inode, ()) and pid_b in owners.get(peer, ()))
+    held = socket_inodes(pid_a)
+    pairs = set()
+    for inode, peer in peer_of.items():
+        if pid_b in owners.get(inode, ()) and (peer in held or pid_a in owners.get(peer, ())):
+            pairs.add((peer, inode))
+    return sorted(pairs)
 
 
 def editor_identity(peer_pid, uid, why=None):
@@ -193,6 +211,12 @@ def editor_identity(peer_pid, uid, why=None):
             continue
         shared = wrappers.intersection((p["pid"], p["startTicks"]) for p in ancestors(candidate["pid"]))
         sockets = [] if shared else unix_socket_peers(candidate["pid"], peer_pid)
+        if not shared and not sockets:
+            try:
+                note(f"editor pid {candidate['pid']} holds {len(socket_inodes(candidate['pid']))} sockets, "
+                     f"none paired with proxy pid {peer_pid}")
+            except OSError as error:
+                note(f"editor pid {candidate['pid']} sockets unreadable: {type(error).__name__}: {error}")
         if shared or sockets:
             matches.append({**candidate, "accessibilityPeer": peer, "flatpakApp": "org.gnome.TextEditor",
                             "sharedWrapperIdentities": sorted(shared), "proxySocketPairs": sockets[:8]})

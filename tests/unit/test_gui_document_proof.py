@@ -288,11 +288,19 @@ class GuestIdentityTests(unittest.TestCase):
             'u_str ESTAB 0 0 * 9003 * 9004 users:(("gnome-shell",pid=70,fd=3))',
             'u_str ESTAB 0 0 * 9004 * 9003 users:(("xdg-dbus-proxy",pid=40,fd=13))',
             'u_str LISTEN 0 0 /run/user/1000/bus 8000 * 0 users:(("dbus-broker",pid=9,fd=3))'])
-        with patch.object(guest, 'run', return_value=table):
+        with patch.object(guest, 'run', return_value=table), patch.object(guest, 'socket_inodes', return_value=set()):
             self.assertEqual(guest.unix_socket_peers(60, 40), [(9001, 9002)])
             self.assertEqual(guest.unix_socket_peers(70, 40), [(9003, 9004)])
             self.assertEqual(guest.unix_socket_peers(61, 40), [])
             self.assertEqual(guest.unix_socket_peers(60, 70), [])
+        # Sandboxed editor: its end is in a private netns, so only the proxy
+        # end is in the table; the editor must hold that exact peer inode.
+        hidden = 'u_str ESTAB 0 0 /run/user/1000/.dbus-proxy/a11y-bus-proxy-X 9102 * 9101 users:(("xdg-dbus-proxy",pid=40,fd=14))'
+        with patch.object(guest, 'run', return_value=hidden):
+            with patch.object(guest, 'socket_inodes', return_value={9101, 5}):
+                self.assertEqual(guest.unix_socket_peers(60, 40), [(9101, 9102)])
+            with patch.object(guest, 'socket_inodes', return_value={9100}):
+                self.assertEqual(guest.unix_socket_peers(60, 40), [])
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
         own = {'pid': 39, 'startTicks': '39', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
