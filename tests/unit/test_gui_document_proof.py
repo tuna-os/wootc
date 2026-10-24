@@ -216,6 +216,7 @@ class GuestIdentityTests(unittest.TestCase):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
+        guest.unix_socket_peers = lambda a, b: []
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
         wrapper = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
@@ -248,6 +249,7 @@ class GuestIdentityTests(unittest.TestCase):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
+        guest.unix_socket_peers = lambda a, b: []
         proxy = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         inner = {'pid': 30, 'startTicks': '30', 'uid': 1000, 'exe': '/usr/bin/bwrap', 'command': 'bwrap'}
         outer = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': None, 'name': 'bwrap'}
@@ -276,10 +278,43 @@ class GuestIdentityTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 guest.ancestors(40)
 
+    def test_proxy_bound_by_an_established_socket_pair(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        table = "\n".join([
+            'u_str ESTAB 0 0 * 9001 * 9002 users:(("gnome-text-edit",pid=60,fd=7))',
+            'u_str ESTAB 0 0 /run/user/1000/.dbus-proxy/a11y-bus-proxy-X 9002 * 9001 users:(("xdg-dbus-proxy",pid=40,fd=12))',
+            'u_str ESTAB 0 0 * 9003 * 9004 users:(("gnome-shell",pid=70,fd=3))',
+            'u_str ESTAB 0 0 * 9004 * 9003 users:(("xdg-dbus-proxy",pid=40,fd=13))',
+            'u_str LISTEN 0 0 /run/user/1000/bus 8000 * 0 users:(("dbus-broker",pid=9,fd=3))'])
+        with patch.object(guest, 'run', return_value=table):
+            self.assertEqual(guest.unix_socket_peers(60, 40), [(9001, 9002)])
+            self.assertEqual(guest.unix_socket_peers(70, 40), [(9003, 9004)])
+            self.assertEqual(guest.unix_socket_peers(61, 40), [])
+            self.assertEqual(guest.unix_socket_peers(60, 70), [])
+        peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
+        editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
+        own = {'pid': 39, 'startTicks': '39', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
+        other = {'pid': 59, 'startTicks': '59', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
+        with patch.object(guest, 'process', side_effect=lambda pid: peer if pid == 40 else editor), \
+                patch.object(guest, 'editor_processes', return_value=[editor]), \
+                patch.object(guest, 'ancestors', side_effect=lambda pid: [peer, own] if pid == 40 else [editor, other]):
+            with patch.object(guest, 'flatpak_app', return_value='org.gnome.TextEditor'):
+                with patch.object(guest, 'unix_socket_peers', return_value=[(9001, 9002)]):
+                    match = guest.editor_identity(40, 1000)
+                    self.assertEqual((match['pid'], match['proxySocketPairs']), (60, [(9001, 9002)]))
+                with patch.object(guest, 'unix_socket_peers', return_value=[]):
+                    self.assertIsNone(guest.editor_identity(40, 1000))
+            with patch.object(guest, 'flatpak_app', return_value='org.example.Other'), \
+                    patch.object(guest, 'unix_socket_peers', return_value=[(9001, 9002)]):
+                self.assertIsNone(guest.editor_identity(40, 1000))
+
     def test_rejected_peer_records_why_without_relaxing(self):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
+        guest.unix_socket_peers = lambda a, b: []
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         shell = {**peer, 'exe': '/usr/bin/gnome-shell'}
         why = []

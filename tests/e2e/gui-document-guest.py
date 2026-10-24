@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import shutil
 import subprocess
 import time
@@ -142,6 +143,25 @@ def flatpak_app(pid):
     return info.get("Application", "name", fallback="")
 
 
+def unix_socket_peers(pid_a, pid_b):
+    """Connected Unix socket pairs with one end in pid_a and the other in pid_b.
+
+    Read from the kernel's socket table (`ss -xpn`), so a pair is a real
+    established connection between those two exact processes.
+    """
+    owners, peer_of = {}, {}
+    for line in run(["ss", "-xpnH"]).splitlines():
+        fields = line.split()
+        if len(fields) < 8 or not fields[5].isdigit() or not fields[7].isdigit():
+            continue
+        inode, peer = int(fields[5]), int(fields[7])
+        if peer:
+            peer_of[inode] = peer
+        owners[inode] = {int(m) for m in re.findall(r"pid=(\d+)", " ".join(fields[8:]))}
+    return sorted((inode, peer) for inode, peer in peer_of.items()
+                  if pid_a in owners.get(inode, ()) and pid_b in owners.get(peer, ()))
+
+
 def editor_identity(peer_pid, uid, why=None):
     # why, when given, collects the reason a peer is rejected. It is
     # diagnostic only: it never relaxes a check.
@@ -157,8 +177,10 @@ def editor_identity(peer_pid, uid, why=None):
         note(f"peer exe {peer['exe']} is neither the editor nor xdg-dbus-proxy")
         return None
     # Flatpak accessibility connections belong to its D-Bus proxy. Require
-    # the real editor in the same specific sandbox wrapper, never merely a
-    # shared systemd/session ancestor or an application name in the tree.
+    # the real editor bound to that exact proxy: either both inside the same
+    # specific sandbox wrapper instance, or the editor holding an established
+    # Unix socket whose other end is the proxy. Never merely a shared
+    # systemd/session ancestor or an application name in the tree.
     wrappers = {(p["pid"], p["startTicks"]) for p in ancestors(peer_pid) if process_name(p) in ("flatpak", "bwrap")}
     matches = []
     editors = editor_processes()
@@ -170,11 +192,12 @@ def editor_identity(peer_pid, uid, why=None):
             note(f"editor pid {candidate['pid']} has flatpak app {app!r}")
             continue
         shared = wrappers.intersection((p["pid"], p["startTicks"]) for p in ancestors(candidate["pid"]))
-        if shared:
-            matches.append({**candidate, "accessibilityPeer": peer,
-                            "flatpakApp": "org.gnome.TextEditor", "sharedWrapperIdentities": sorted(shared)})
+        sockets = [] if shared else unix_socket_peers(candidate["pid"], peer_pid)
+        if shared or sockets:
+            matches.append({**candidate, "accessibilityPeer": peer, "flatpakApp": "org.gnome.TextEditor",
+                            "sharedWrapperIdentities": sorted(shared), "proxySocketPairs": sockets[:8]})
     if len(matches) != 1:
-        note(f"proxy peer wrappers {sorted(wrappers)} matched {len(matches)} editor sandboxes")
+        note(f"proxy peer wrappers {sorted(wrappers)} and socket pairs matched {len(matches)} editor sandboxes")
         return None
     verify_process(peer)
     verify_process(matches[0])
