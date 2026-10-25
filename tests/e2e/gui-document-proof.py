@@ -11,7 +11,13 @@ import time
 
 
 def normalized(text):
-    return text.replace("\r\n", "\n")
+    # Compare the editor buffer with the bytes on disk. CRLF from the
+    # Windows-origin file counts as LF, and GNOME Text Editor's buffer uses
+    # GtkSourceView's implicit trailing newline: the file's one final newline
+    # is not in the buffer but is written back on save. Drop exactly that one
+    # newline, never other whitespace, so any real difference still fails.
+    text = text.replace("\r\n", "\n")
+    return text[:-1] if text.endswith("\n") else text
 
 
 class Proof:
@@ -19,6 +25,28 @@ class Proof:
         self.transport, self.seed, self.marker = transport, seed, marker
         self.evidence, self.pause, self.clock = evidence, pause, clock
         self.pid, self.start_ticks = None, None
+        self.fixture_installed, self.editor_source = False, None
+
+    @staticmethod
+    def has_editor(tools):
+        return tools.get("nativeEditor") or "org.gnome.TextEditor" in tools.get("installedFlatpaks", [])
+
+    def install_editor(self):
+        # No catalog GNOME image that reaches Phase 2 ships the editor in
+        # /usr, so the fixture installs it as a system Flatpak. The result is
+        # observed, never assumed: the gate fails unless tooling then reports it.
+        self.record("fixture-editor-install", self.transport.observe("provision"))
+        # Wait for the install unit itself to finish. The app id is listed as
+        # installed before the transaction completes, and an editor launched
+        # mid-transaction never comes up.
+        done = self.wait("fixture-editor-finished", "provisioned", lambda value: value.get("finished"), 1200)
+        tools = self.transport.observe("tooling")
+        self.record("actual-guest-tooling-after-install", tools)
+        if (not done.get("installed") or done.get("unit", {}).get("Result") != "success"
+                or not self.has_editor(tools)):
+            raise RuntimeError(f"Fixture could not install GNOME Text Editor: {done.get('unit')}")
+        self.fixture_installed = True
+        return tools
 
     def record(self, stage, value):
         with self.evidence.open("a") as output:
@@ -53,10 +81,32 @@ class Proof:
         return observed
 
     def focus(self):
+        self.record("shell-overview", self.transport.observe("leave-overview"))
         self.record("focus-request", self.transport.observe("focus"))
         self.wait("focused-buffer", "probe", lambda value: value.get("focused") and
                   value.get("process", {}).get("pid") == self.pid and
                   value.get("process", {}).get("startTicks") == self.start_ticks and self.seed in value.get("buffer", ""))
+
+    def save(self, before):
+        """Ctrl+S, and wait for the edit to reach the disk.
+
+        A synthetic key can be dropped (run 40160225888: the title kept its
+        unsaved dot and nothing was written). If the file has not changed
+        after 20 s, check again that this exact buffer still has focus and
+        press Ctrl+S once more, recorded. The file still has to change
+        through the editor's own Save.
+        """
+        def written(value):
+            return (self.seed in value.get("text", "") and self.marker in value.get("text", "") and
+                    value.get("sha256") != before["sha256"])
+        self.transport.keys(["ctrl-s"])
+        try:
+            return self.wait("saved-file", "disk", written, 20)
+        except RuntimeError:
+            self.record("save-retry", {"reason": "file unchanged 20 s after Ctrl+S"})
+            self.focus()
+            self.transport.keys(["ctrl-s"])
+            return self.wait("saved-file", "disk", written, 60)
 
     def close(self, stage):
         self.focus()
@@ -67,8 +117,14 @@ class Proof:
     def run(self, phase):
         tools = self.transport.observe("tooling")
         self.record("actual-guest-tooling", tools)
-        if not tools.get("nativeEditor") and "org.gnome.TextEditor" not in tools.get("installedFlatpaks", []):
-            raise RuntimeError("Guest lacks an installed GNOME Text Editor; GUI acceptance dependency missing")
+        if not self.has_editor(tools):
+            if phase != "edit":
+                # The editor the first boot used must still be there after the
+                # restart; installing it again would hide that it was lost.
+                raise RuntimeError("Guest lacks an installed GNOME Text Editor; GUI acceptance dependency missing")
+            tools = self.install_editor()
+        self.editor_source = "image" if tools.get("nativeEditor") else (
+            "fixture-flatpak" if self.fixture_installed else "flatpak")
         if not tools.get("libatspi"):
             raise RuntimeError("Guest lacks libatspi; GUI accessibility dependency missing")
         self.record("prepare", self.transport.observe("prepare"))
@@ -92,10 +148,7 @@ class Proof:
             if unsaved["sha256"] != before["sha256"]:
                 raise RuntimeError("Document changed before the GUI Save action")
             self.transport.screenshot("unsaved-buffer")
-            self.transport.keys(["ctrl-s"])
-            saved = self.wait("saved-file", "disk", lambda value:
-                              self.seed in value.get("text", "") and self.marker in value.get("text", "") and
-                              value.get("sha256") != before["sha256"])
+            saved = self.save(before)
             buffer = self.wait("saved-editor-buffer", "probe", lambda value:
                                normalized(value.get("buffer", "")) == normalized(saved["text"]))
             self.record("saved-buffer-match", buffer)
@@ -193,7 +246,8 @@ def main():
         except Exception as capture_error:
             proof.record("failure-screenshot-error", str(capture_error))
         raise
-    print(json.dumps({"phase": args.phase, "marker": marker, "sha256": digest, "guiProof": True}))
+    print(json.dumps({"phase": args.phase, "marker": marker, "sha256": digest, "guiProof": True,
+                      "editorSource": proof.editor_source}))
 
 
 if __name__ == "__main__":
