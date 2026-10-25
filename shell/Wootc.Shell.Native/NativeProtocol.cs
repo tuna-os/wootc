@@ -280,10 +280,34 @@ internal static class NativeProtocol
         return result.Deserialize<NativeMaintenanceGrant>() ?? throw new InvalidDataException("Maintenance grant is missing");
     }
 
+    private static readonly string[] FirstBootVerdicts = ["waiting", "verified", "mismatch", "invalid", "unverifiable"];
+
+    // The verified first-boot summary the engine attaches to a deployed
+    // installation (app/firstboot_evidence.go FirstBootAssessment): counts and
+    // public facts only, never the record's Windows paths.
+    private static void DecodeBootEvidence(JsonElement evidence)
+    {
+        Exactly(evidence, "First-boot summary", ["verdict", "message"],
+            ["reason", "kernel", "imageRef", "imageDigest", "sourceImageRef", "bootId", "secureBoot", "bridge", "writtenAt"]);
+        BoundedText(evidence, "verdict", 32); BoundedText(evidence, "message", 1024);
+        foreach (var (field, limit) in new[] { ("reason", 1024), ("kernel", 128), ("imageRef", 512), ("imageDigest", 80), ("sourceImageRef", 512), ("bootId", 36), ("writtenAt", 64) })
+            BoundedText(evidence, field, limit, optional: true);
+        if (!FirstBootVerdicts.Contains(evidence.GetProperty("verdict").GetString()))
+            throw new InvalidDataException("First-boot summary carries an unknown verdict");
+        if (evidence.TryGetProperty("secureBoot", out _)) Require(evidence, "secureBoot", JsonValueKind.True);
+        if (!evidence.TryGetProperty("bridge", out var bridge)) return;
+        Exactly(bridge, "First-boot bridge summary", ["boundFolders", "matchedUsers", "bitlockerUnlocked"], []);
+        Require(bridge, "bitlockerUnlocked", JsonValueKind.True);
+        foreach (string field in new[] { "boundFolders", "matchedUsers" })
+            if (!bridge.GetProperty(field).TryGetInt32(out int count) || count is < 0 or > 4096)
+                throw new InvalidDataException("First-boot bridge summary carries an invalid count");
+    }
+
     internal static UninstallInfo DecodeUninstallInfo(JsonElement result)
     {
-        Exactly(result, "Installation details", ["found", "storageDrive", "diskPath", "diskSizeGB", "onDedicatedVol", "reclaimGB", "orphaned", "deployed"], ["partitionRemovalReason", "volumeLabel"]);
-        foreach (string field in new[] { "found", "onDedicatedVol", "orphaned", "deployed" }) Require(result, field, JsonValueKind.True);
+        Exactly(result, "Installation details", ["found", "storageDrive", "diskPath", "diskSizeGB", "onDedicatedVol", "reclaimGB", "orphaned", "deployed", "bootPending"], ["partitionRemovalReason", "volumeLabel", "bootEvidence"]);
+        foreach (string field in new[] { "found", "onDedicatedVol", "orphaned", "deployed", "bootPending" }) Require(result, field, JsonValueKind.True);
+        if (result.TryGetProperty("bootEvidence", out var evidence)) DecodeBootEvidence(evidence);
         BoundedText(result, "storageDrive", 1); BoundedText(result, "diskPath", 1024);
         BoundedText(result, "partitionRemovalReason", 1024, optional: true); BoundedText(result, "volumeLabel", 256, optional: true);
         foreach (string field in new[] { "diskSizeGB", "reclaimGB" })

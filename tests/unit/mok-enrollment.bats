@@ -1,9 +1,12 @@
 #!/usr/bin/env bats
 # mok-enrollment.bats — the custom-kernel Secure Boot contract (#248).
 #
-# Bazzite (and other Universal Blue akmods consumers) ship a kernel signed by
-# the distribution's OWN key: under Secure Boot, Fedora's shim rejects it with
-# "bad shim signature" and Phase 2 never boots (run 32588754680). The fix has
+# Bazzite ships a kernel signed by the distribution's OWN key: under Secure
+# Boot, Fedora's shim rejects it with "bad shim signature" and Phase 2 never
+# boots (run 32588754680). Bluefin and Aurora boot a Fedora-signed kernel but
+# ship akmods modules signed by the same key, which lockdown refuses
+# (run 39886118219: v4l2loopback, "Loading of module with unavailable key is
+# rejected"), so every Universal Blue image with akmods certs opts in. The fix has
 # three legs that must all hold: MokManager travels with the boot artifacts,
 # the deployer queues the enrollment, and the harness can drive the one-time
 # MokManager confirmation a real user does by hand.
@@ -25,9 +28,9 @@ E2E=tests/e2e/run-e2e.sh
 
 @test "the deployer queues MOK enrollment for akmods images" {
     # OPT-IN per image: only the cmdline flag the app sets from the catalog's
-    # mokEnroll field triggers the queue. Aurora/bluefin carry akmods certs
-    # too but boot on Fedora-signed kernels — cert-presence alone would hand
-    # their users a firmware prompt they do not need.
+    # mokEnroll field triggers the queue. Every Universal Blue image that
+    # ships akmods certs carries the field (bluefin and aurora included: their
+    # akmods modules need the key even though their kernel does not).
     grep -q 'wootc.mok=enroll' app/installer_esp.go
     # Search the package, not one file: which file in package main holds this
     # is a layout choice, and pinning it makes a pure move look like a
@@ -153,4 +156,55 @@ E2E=tests/e2e/run-e2e.sh
     grep -q '_mok_seq_tail=' "$E2E"
     grep -B2 'grep -aq .starting Boot..\* "Windows Boot Manager"' "$E2E" | grep -q '_mok_seq_tail\|NEW_OUTPUT' || true
     grep -q '^    MOK_REARM_WANTED=false$' "$E2E"
+}
+
+@test "every Universal Blue image with akmods certs opts in, bluefin and aurora included" {
+    # Run 39886118219 (bluefin:stable, Secure Boot): the deployer logged
+    # "MOK: not requested; skipping" and Phase-2 systemd-modules-load failed on
+    # v4l2loopback, signed by /etc/pki/akmods/certs/akmods-ublue.der.
+    run python3 -I -c '
+import json, sys
+want = {"bluefin", "aurora", "bazzite", "bazzite-deck"}
+got = {i["id"] for i in json.load(open("app/data/images.json")) if i.get("mokEnroll") == "universalblue"}
+sys.exit(0 if got == want else "mokEnroll set on %s, want %s" % (sorted(got), sorted(want)))
+'
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    # The deployer comment carries the new rationale, not the old exclusion.
+    grep -q '39886118219' "$DEPLOY"
+    ! grep -q 'Images with$' "$DEPLOY"
+    ! grep -q 'Fedora-signed kernels (aurora, bluefin) also carry akmods certs' "$DEPLOY"
+}
+
+@test "the MokManager driver is gated on the deployer's marker, never on an image or brand" {
+    # MOK_PENDING is set in exactly one place, from the serial marker.
+    [ "$(grep -c '^ *MOK_PENDING=true$' "$E2E")" -eq 1 ]
+    grep -B3 '^ *MOK_PENDING=true$' "$E2E" | grep -q "grep -aq 'MOK enrollment queued'"
+    # No image or brand name decides anything in the MOK code paths.
+    run grep -nE 'MOK_[A-Z_]*=.*(bazzite|bluefin|aurora|universalblue)|(bazzite|bluefin|aurora).*MOK_PENDING' "$E2E"
+    [ "$status" -ne 0 ]
+    ! grep -vE '^[[:space:]]*#' tests/e2e/lib/mok.sh | grep -qiE 'bazzite|bluefin|aurora'
+}
+
+@test "the script path asks the catalog for the MOK flag the GUI path gets from the app" {
+    # setup-wootc.ps1 used to never set wootc.mok, so a script-path run of an
+    # opted-in image deployed without the key — the GUI path's parity broke
+    # the day bluefin opted in.
+    grep -q 'E2E_MOK_ENROLL="$(mok_catalog_enroll "$REPO_ROOT/app/data/images.json" "$IMAGE_REF")"' "$E2E"
+    grep -q "printf 'MokEnroll=1" "$E2E"
+    grep -q 'setupArgs.MokEnroll = $true' tests/e2e/oem/run-wootc-e2e.ps1
+    grep -q '\[switch\]$MokEnroll' tests/e2e/setup-wootc.ps1
+    grep -q 'if ($MokEnroll) { $WootcKargs += " wootc.mok=enroll" }' tests/e2e/setup-wootc.ps1
+    # The lookup itself: real catalog, both directions, and a missing catalog.
+    # shellcheck source=/dev/null
+    source tests/e2e/lib/mok.sh
+    [ "$(mok_catalog_enroll app/data/images.json ghcr.io/projectbluefin/bluefin:stable)" = universalblue ]
+    [ "$(mok_catalog_enroll app/data/images.json ghcr.io/ublue-os/aurora:stable)" = universalblue ]
+    [ "$(mok_catalog_enroll app/data/images.json ghcr.io/ublue-os/bazzite:stable)" = universalblue ]
+    [ -z "$(mok_catalog_enroll app/data/images.json ghcr.io/projectbluefin/dakota:stable)" ]
+    [ -z "$(mok_catalog_enroll app/data/images.json ghcr.io/tuna-os/yellowfin:gnome)" ]
+    [ -z "$(mok_catalog_enroll app/data/images.json ghcr.io/example/not-in-catalog:latest)" ]
+    [ -z "$(mok_catalog_enroll "$BATS_TEST_TMPDIR/missing.json" ghcr.io/projectbluefin/bluefin:stable)" ]
+    printf 'not json' > "$BATS_TEST_TMPDIR/broken.json"
+    run mok_catalog_enroll "$BATS_TEST_TMPDIR/broken.json" ghcr.io/projectbluefin/bluefin:stable
+    [ "$status" -eq 0 ] && [ -z "$output" ]
 }

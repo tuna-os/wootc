@@ -1,0 +1,5 @@
+--- FAIL: TestStatusDiscoveryRejectsCompetingInstallations (0.00s)
+    status_location_test.go:50: competing roots selected: /tmp/TestStatusDiscoveryRejectsCompetingInstallations3630286219/002 true <nil>
+FAIL
+FAIL	command-line-arguments	0.006s
+FAIL

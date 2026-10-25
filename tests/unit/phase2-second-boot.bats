@@ -21,6 +21,14 @@ absent() {
     if grep "$@"; then echo "unexpected match: $*" >&2; return 1; fi
 }
 
+# What the bridge journals and the key files look like after #644 sealed the key.
+SEALED='etc-key: stat: cannot statx '"'"'/etc/wootc/bitlocker-key'"'"': No such file or directory
+sealed-key: 600 root:root 120 bytes
+ntfs-key: absent
+bitlk-mount: /dev/mapper/wootc-bitlk-812
+Oct 23 wootc-mount-user-dirs: BitLocker recovery key found sealed at /etc/wootc/bitlocker-key.cred — attempting encrypted C: unlock
+Oct 23 wootc-mount-user-dirs: BitLocker volume /dev/vda3 unlocked as /dev/mapper/wootc-bitlk-812'
+
 # drive <linux|windows|none> <userdata> [bcd-verified=yes] [still-linux-after-reboot=no]
 drive() {
     run bash -c '
@@ -29,7 +37,7 @@ drive() {
         CALLS="$2"; SEEN="$3"; USERDATA="$4"; BCD="${5:-yes}"; STUCK="${6:-no}"
         RUN_ID=run-2nd-boot
         rec() { printf "%s\n" "$*" >> "$CALLS"; }
-        step() { :; }; pass() { :; }; info() { :; }; warn() { rec "warn $*"; }
+        step() { :; }; pass() { rec "pass $*"; }; info() { :; }; warn() { rec "warn $*"; }
         product_pass() { rec "product_pass $1"; }
         product_fail() { rec "product_fail $*"; }
         infra_fail() { rec "infra_fail $*"; }
@@ -50,16 +58,18 @@ drive() {
         qga_windows_probe() { [ "$SEEN" = windows ]; }
         qga_call() {
             case "$*" in
-                *wootc-e2e-userdata.txt*) printf "%s" "$USERDATA" ;;
-                *home-bind*) printf "home-bind: %s\n" "${BIND:-/dev/sda4[/Users/wootc/Documents]}" ;;
+                *bitlk-tmp/Users*) printf "%s" "${ORIGINAL-$USERDATA}" ;;
+                *wootc-e2e-userdata.txt*) rec "read $*"; printf "%s" "$USERDATA" ;;
+                *home-bind*) printf "home-bind: %s\n%s" "${BIND:-/dev/sda4[/Users/wootc/Documents]}" "${DIAG_EXTRA:-}" ;;
                 *"systemctl reboot"*) rec "linux-reboot" ;;
             esac
             return 0
         }
         p2_reboot_observe() { [ "$STUCK" = yes ] && echo linux || echo windows; }
         reset_guest() { rec "reset"; }
+        while_up() { rec "while-up"; }
         qga_wait_windows() { rec "wait-windows"; }
-        phase2_second_boot_check "{guid-1}" "E:" reset_guest
+        phase2_second_boot_check "{guid-1}" "E:" reset_guest "${P2_PATH:-}" "${P2_HOOK:-}"
         echo "rc=$?"
     ' adapter "$LIB" "$CALLS" "$@"
 }
@@ -83,9 +93,45 @@ drive() {
 }
 
 @test "a file served from the unlocked BitLocker mapper says so, with no warning" {
-    BIND='/dev/mapper/wootc-bitlk-812[/Users/wootc/Documents]' drive linux "wootc-e2e-userdata run-2nd-boot"
+    BIND='/dev/mapper/wootc-bitlk-812[/Users/wootc/Documents]' DIAG_EXTRA="$SEALED" drive linux "wootc-e2e-userdata run-2nd-boot"
     grep -qx 'product_pass user-data-second-boot' "$CALLS"
     absent -q '^warn' "$CALLS"
+    absent -q '^product_fail' "$CALLS"
+}
+
+@test "the editable Documents copy proves the key by the original read on the unlocked C:" {
+    BIND=ABSENT DIAG_EXTRA="$SEALED" P2_PATH='/home/wootc/Documents/From Windows/wootc-e2e-userdata.txt' \
+        drive linux "wootc-e2e-userdata run-2nd-boot"
+    grep -qx 'product_pass user-data-second-boot' "$CALLS"
+    grep -q "^read .*From Windows/wootc-e2e-userdata.txt" "$CALLS"
+    absent -q '^warn' "$CALLS"
+    absent -q '^product_fail' "$CALLS"
+    grep -q '^pass Second Phase 2 boot: C: unlocked with the recovery key sealed to this machine' "$CALLS"
+}
+
+@test "an unlocked C: without the seeded original does not count as the key" {
+    BIND=ABSENT DIAG_EXTRA="$SEALED" ORIGINAL='' drive linux "wootc-e2e-userdata run-2nd-boot"
+    grep -q '^warn .*did not exercise the recovery key' "$CALLS"
+    absent -q 'sealed to this machine' "$CALLS"
+}
+
+@test "a plaintext key left behind, or an unlock without the sealed copy, is a product failure" {
+    for extra in "${SEALED/ntfs-key: absent/ntfs-key: /run/initramfs/wootc-host/wootc/install/bitlocker-key.txt}" \
+                 "${SEALED/etc-key: stat: cannot statx*directory/etc-key: 600 root:root}" \
+                 "${SEALED/found sealed at \/etc\/wootc\/bitlocker-key.cred/found at /etc/wootc/bitlocker-key}"; do
+        : > "$CALLS"
+        BIND='/dev/mapper/wootc-bitlk-812[/Users/wootc/Pictures]' DIAG_EXTRA="$extra" \
+            drive linux "wootc-e2e-userdata run-2nd-boot"
+        grep -qx 'product_pass user-data-second-boot' "$CALLS"
+        grep -q '^product_fail Second Phase 2 boot: C: was not unlocked with a sealed recovery key' "$CALLS"
+    done
+}
+
+@test "the while-up checks run during the second boot, before Windows is brought back" {
+    P2_HOOK=while_up drive linux "wootc-e2e-userdata run-2nd-boot"
+    hook=$(grep -nx 'while-up' "$CALLS" | cut -d: -f1)
+    back=$(grep -nx 'linux-reboot' "$CALLS" | cut -d: -f1)
+    [ -n "$hook" ] && [ -n "$back" ] && [ "$hook" -lt "$back" ]
 }
 
 @test "an empty Documents on the second boot is a product failure, never a pass" {

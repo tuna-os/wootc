@@ -23,8 +23,9 @@ type Image struct {
 	// Empty is treated as "experimental" (fail safe — never surface an
 	// unproven image to an alpha user by omission).
 	Status string `json:"status"`
-	// MokEnroll is the MokManager password for images whose custom kernel
-	// needs the distribution's MOK key enrolled under Secure Boot (#248).
+	// MokEnroll is the MokManager password for images that need the
+	// distribution's MOK key enrolled under Secure Boot (#248): a kernel
+	// signed by that key, or akmods-built modules signed by it.
 	// Non-empty means: the deployer queues the enrollment, and the GUI warns
 	// the user about the one-time blue MokManager screen with this password.
 	MokEnroll string `json:"mokEnroll,omitempty"`

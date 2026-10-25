@@ -21,7 +21,7 @@ func downloadDeployer(ctx context.Context, progress func(float64)) error {
 
 func downloadDeployerTo(ctx context.Context, installDir string, progress func(float64)) error {
 	// The signed shim+grub pair carries the Secure Boot chain; mmx64.efi
-	// (MokManager) lets shim complete the MOK enrollment that custom-kernel
+	// (MokManager) lets shim complete the MOK enrollment that Universal Blue
 	// images queue during deploy (#248); wubildr.efi remains only for the
 	// legacy NTFS fallback path.
 	files := []string{"deployer-vmlinuz", "deployer-initramfs.img", "shimx64.efi", "grubx64.efi", "mmx64.efi", "wubildr.efi"}
