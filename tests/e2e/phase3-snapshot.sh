@@ -51,17 +51,29 @@ btrfs_members=$(
         printf '%s\t%s\t%s\n' "$fsid" "$valid" "$majors"
     done
 )
+# The confined guest agent cannot search /sysroot/ostree or see the detached
+# composefs image; the root probe made those observations at boot from init's
+# context (wootc-go-native). Pass on, as observed, who owns the export; the
+# receipt decides. Absent, the receipt refuses a root that needs them.
+root_probe=""
+root_export=/run/wootc-e2e-native-root
+if [ -f "$root_export" ] && [ ! -L "$root_export" ]; then
+    root_owner=$(stat -c '%u:%g:%a' -- "$root_export")
+    root_body=$(cat -- "$root_export")
+    root_probe=$(printf 'FILE=%s\n%s' "$root_owner" "$root_body")
+fi
 blocks64=$(printf '%s' "$blocks" | base64 -w0)
 mounts64=$(printf '%s' "$mounts" | base64 -w0)
 loops64=$(printf '%s' "$loops" | base64 -w0)
 paths64=$(printf '%s' "$resolved_paths" | base64 -w0)
 btrfs64=$(printf '%s' "$btrfs_members" | base64 -w0)
+root64=$(printf '%s' "$root_probe" | base64 -w0)
 if [ "$action" = native ]; then
     cmdline=$(cat /proc/cmdline)
     target=$(cat /etc/wootc/native-target)
     after=$(cat /proc/sys/kernel/random/boot_id)
     [ "$boot_id" = "$after" ]
-    printf 'SCHEMA=1\nUNAME=%s\nCMDLINE=%s\nTARGET=%s\nBOOT_ID=%s\nBLOCKS=%s\nMOUNTS=%s\nLOOPS=%s\nPATHS=%s\nBTRFS=%s\n' "$os" "$cmdline" "$target" "$boot_id" "$blocks64" "$mounts64" "$loops64" "$paths64" "$btrfs64"
+    printf 'SCHEMA=1\nUNAME=%s\nCMDLINE=%s\nTARGET=%s\nBOOT_ID=%s\nBLOCKS=%s\nMOUNTS=%s\nLOOPS=%s\nPATHS=%s\nBTRFS=%s\nROOT=%s\n' "$os" "$cmdline" "$target" "$boot_id" "$blocks64" "$mounts64" "$loops64" "$paths64" "$btrfs64" "$root64"
 else
     printf 'SCHEMA=1\nUNAME=%s\nBOOT_ID=%s\nBLOCKS=%s\nMOUNTS=%s\nLOOPS=%s\nPATHS=%s\nBTRFS=%s\n' "$os" "$boot_id" "$blocks64" "$mounts64" "$loops64" "$paths64" "$btrfs64"
     if [ -r /run/wootc-e2e-native-userdata ]; then

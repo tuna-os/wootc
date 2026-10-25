@@ -197,7 +197,7 @@ public sealed class MaintenanceScreenTests
         await using var gate = await Opened();
         var after = MaintenanceScreen.For(StartupRoute.Manage, Snapshot(), gate, Brand, id => id)!;
         Assert.Equal(@"D:\wootc\disks\root.disk (64 GB)", Line(after, "ManageCardTitle"));
-        Assert.Equal("Fixture OS is installed", Line(after, "ManageInstalledTitle"));
+        Assert.Equal("Fixture OS boot verified", Line(after, "ManageInstalledTitle"));
         Assert.True(Enabled(after, "UninstallLinux"));
         Assert.True(Enabled(after, "RestartIntoLinux"));
         Assert.False(Enabled(after, "ReadInstallation"));
@@ -290,7 +290,16 @@ public sealed class MaintenanceTextTests
         Assert.Contains("const sizeStr = u.diskSizeGB ? ` (${Math.round(u.diskSizeGB)} GB)` : '';", Legacy("control.js"));
         Assert.Equal("@PATH@ (1 GB)", MaintenanceText.DiskLine(info));
         Same("control.js", MaintenanceText.DiskBody(Brand));
-        Same("control.js", MaintenanceText.InstalledTitle(Brand));
+        Same("control.js", MaintenanceText.VerifiedTitle(Brand));
+        Same("control.js", MaintenanceText.FirstBootTitle(Brand));
+        // control.js builds the summary from DOM nodes; its literal pieces are these.
+        foreach (string piece in new[] { "summary.append('Linux ', fact('kernel', evidence.kernel), ' · ',",
+                                         "fact('source-image', evidence.sourceImageRef), ' · ',",
+                                         "fact('bound-folders', evidence.bridge.boundFolders), ' folders connected for ',",
+                                         "fact('matched-users', evidence.bridge.matchedUsers), ' users');" })
+            Assert.Contains(piece, Legacy("control.js"));
+        Assert.Equal("Linux 6.12 · ghcr.io/x/y:z · 3 folders connected for 1 users", MaintenanceText.BootSummary(
+            new FirstBootAssessment { Kernel = "6.12", SourceImageRef = "ghcr.io/x/y:z", Bridge = new FirstBootBridge { BoundFolders = 3, MatchedUsers = 1 } }));
         Same("control.js", MaintenanceText.InstalledBody);
         Same("control.js", MaintenanceText.RestartInto(Brand));
         Assert.Contains("alert(`Could not arm the ${distroName()} boot: ` + e)", Legacy("control.js"));

@@ -439,10 +439,14 @@ EOF
         # boots fine but the harness's QGA probe times out and the run reports
         # "did not boot Linux". Mirror the same unfiltered config the deployer
         # writes into Phase 2 (this branch is E2E-only, dispatcher-gated).
-        mkdir -p "$etcroot/sysconfig" "$etcroot/qemu"
-        cp -a /etc/sysconfig/qemu-ga "$etcroot/sysconfig/qemu-ga" 2>/dev/null || true
-        cp -a /etc/qemu/qemu-ga.conf "$etcroot/qemu/qemu-ga.conf" 2>/dev/null || true
-        cp -a /etc/qemu-ga.conf "$etcroot/qemu-ga.conf" 2>/dev/null || true
+        # Content only, never Phase 2's SELinux label: the deployer initramfs
+        # wrote these unlabeled, which permissive Phase 2 never notices but
+        # the enforcing native system does. Fedora's qemu-ga (virt_qemu_ga_t)
+        # reads /etc/qemu/qemu-ga.conf and exits when it cannot, so that file
+        # (whose [main] keys qemu-ga ignores anyway) is not copied at all
+        # (run 39874539856: bluefin:stable reached GDM, QGA never answered).
+        mkdir -p "$etcroot/sysconfig"
+        cp /etc/sysconfig/qemu-ga "$etcroot/sysconfig/qemu-ga" 2>/dev/null || true
         # The confined guest agent (virt_qemu_ga_t) cannot read user homes at
         # all — run 20260723T0647: the seed file WAS on the native disk and
         # the harness's direct cat was denied, failing the run on a file that
@@ -499,6 +503,106 @@ WantedBy=multi-user.target
 UNIT
         ln -sf ../wootc-e2e-native-probe.service \
             "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-probe.service"
+        # The same confinement stops the agent from searching /sysroot/ostree:
+        # run 39007144179's native snapshot got no answer from readlink -e for
+        # the composefs datadir /sysroot/ostree/repo/objects. The composefs
+        # metadata image is mounted detached, so the mount table cannot show
+        # where it comes from either. Resolve the root's layers and its
+        # ostree deployment from init's context, before the agent starts.
+        cat > "$etcroot/wootc/e2e-native-root-probe.sh" <<'ROOTPROBE'
+#!/bin/bash
+# Runs from init's unconfined context at boot; the confined guest agent
+# reads only the /run export. Every value is an observation: one that cannot
+# be made fails the whole export, and the harness then refuses.
+set -Eeuo pipefail
+out=/run/wootc-e2e-native-root
+rm -f -- "$out"
+temp=""
+trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
+plain() { [[ "$1" == /* && "$1" != *[[:space:]\\]* ]]; }
+read -r boot < /proc/sys/kernel/random/boot_id
+[[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+# systemd's id for this run of the unit: the probe runs only as a systemd
+# unit. (The harness cannot cross-check it: the confined agent cannot read
+# /run/systemd/units, run 39886118219.)
+invocation=${INVOCATION_ID:-}
+[[ "$invocation" =~ ^[0-9a-f]{32}$ ]]
+options=$(findmnt --noheadings --raw --output OPTIONS --mountpoint /)
+[[ -n "$options" && "$options" != *[[:space:]\\]* ]]
+lines=()
+IFS=, read -ra parts <<< "$options"
+for part in "${parts[@]}"; do
+    case "${part%%=*}" in lowerdir|lowerdir+|datadir|datadir+|upperdir|workdir) ;; *) continue ;; esac
+    [[ "$part" == *=?* ]]
+    value=${part#*=}
+    IFS=: read -ra layers <<< "${value//::/:}"
+    for layer in "${layers[@]}"; do
+        plain "$layer"
+        resolved=$(readlink -e -- "$layer")
+        plain "$resolved"
+        [[ -d "$resolved" ]]
+        entry=$(find "$resolved" -mindepth 1 -maxdepth 1 -print -quit)
+        if [[ -z "$entry" ]]; then state=empty; else state=populated; fi
+        lines+=("LAYER=$layer"$'\t'"$resolved"$'\t'"$state")
+    done
+done
+read -r cmdline < /proc/cmdline
+read -ra tokens <<< "$cmdline"
+karg=""
+for token in "${tokens[@]}"; do
+    [[ "$token" == ostree=* ]] || continue
+    [[ -z "$karg" ]]
+    karg=${token#ostree=}
+    plain "$karg"
+done
+if [[ -n "$karg" ]]; then
+    deploy=$(readlink -e -- "/sysroot$karg")
+    plain "$deploy"
+    [[ -d "$deploy" ]]
+    lines+=("DEPLOY=$karg"$'\t'"$deploy")
+    image="$deploy/.ostree.cfs"
+    if [[ -e "$image" || -L "$image" ]]; then
+        [[ -f "$image" && ! -L "$image" ]]
+        device=$(stat -c '%Hd:%Ld' -- "$image")
+        [[ "$device" =~ ^[0-9]+:[0-9]+$ ]]
+        lines+=("IMAGE=$image"$'\t'"$device")
+    fi
+fi
+temp=$(mktemp "${out}.XXXXXX")
+{
+    printf 'ROOT_SCHEMA=1\nROOT_BOOT_ID=%s\nROOT_INVOCATION=%s\nROOT_OPTIONS=%s\n' "$boot" "$invocation" "$options"
+    [[ ${#lines[@]} -eq 0 ]] || printf '%s\n' "${lines[@]}"
+} > "$temp"
+chmod 0644 "$temp"
+read -r current < /proc/sys/kernel/random/boot_id
+[[ "$current" == "$boot" ]]
+mv -T -- "$temp" "$out"
+temp=""
+ROOTPROBE
+        chmod +x "$etcroot/wootc/e2e-native-root-probe.sh"
+        # Before= the agent: the harness snapshots as soon as the agent
+        # answers, so the export must already exist. A failed probe still
+        # lets the agent start; the missing export then refuses the run.
+        cat > "$etcroot/systemd/system/wootc-e2e-native-root-probe.service" <<'UNIT'
+[Unit]
+Description=wootc E2E: export native root layer observations to /run
+After=local-fs.target
+Before=qemu-guest-agent.service
+
+[Service]
+Type=oneshot
+# A oneshot has no start timeout by default; a hung probe must not hold
+# the guest agent (ordered after it) back forever.
+TimeoutStartSec=60
+# Stay active so a later start in the same boot does not run it again.
+RemainAfterExit=yes
+ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+        ln -sf ../wootc-e2e-native-root-probe.service \
+            "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-root-probe.service"
     fi
     sync; umount "$mnt" 2>/dev/null || true
 

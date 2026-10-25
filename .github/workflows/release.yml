@@ -79,7 +79,8 @@ jobs:
     with:
       # Gate on the shipped WinUI shell, not the one-release Wails fallback.
       # This is the same real GUI path that the setup assets will expose.
-      image: ghcr.io/projectbluefin/bluefin:lts
+      # The alpha image is proven through the REAL GUI before publishing.
+      image: ghcr.io/projectbluefin/bluefin:stable
       win_version: '11'
       bitlocker: 'off'
       gui_install: true

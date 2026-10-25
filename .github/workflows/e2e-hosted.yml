@@ -50,8 +50,13 @@ on:
       # install (both boot to the autologged desktop). The walkthrough timelapse
       # from a GUI-driven run is the one the README publishes.
       gui_install: { type: boolean, default: false }
+      # Ordinary-user editor acceptance, separate from the Windows installer GUI.
+      gui_documents: { type: boolean, default: false }
       # Which GUI gui_install drives: 'native' (the shipped WinUI shell) or
-      # 'wails' (the one-release compatibility build).
+      # 'wails' (the one-release compatibility build). Native publishes the shell
+      # on a Windows runner (the XAML compiler needs Windows), then the E2E job
+      # builds the engine beside it with this run's manifest-signing key and
+      # installs the pair as a protected package in the guest.
       gui_frontend: { type: string, default: 'native' }
       # Native only: start the shell unelevated (a /RL LIMITED task) so the
       # engine's own runas elevation is what the run proves. false restores
@@ -276,6 +281,46 @@ jobs:
           ln -s /mnt/wootc-iso     tests/e2e/iso-cache
           df -h /mnt
 
+      # The QEMU guest agent MSI comes from fedorapeople.org. Fetched fresh on
+      # every run with no timeout, a slow mirror killed runs before any test
+      # body (39931657846, 39952662292: curl exit 28). Keep a weekly copy in
+      # the Actions cache and fall back to the last one when the mirror is
+      # down; run-e2e.sh still hashes whatever it ships into the guest.
+      - name: Week of the QEMU guest agent cache
+        id: qga-week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Restore the QEMU guest agent MSI
+        id: qga-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tests/e2e/qga-cache
+          key: qga-msi-${{ runner.os }}-${{ steps.qga-week.outputs.week }}
+          restore-keys: qga-msi-${{ runner.os }}-
+      - name: Fetch the QEMU guest agent MSI
+        if: steps.qga-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p tests/e2e/qga-cache
+          msi=tests/e2e/qga-cache/qemu-ga-x86_64.msi
+          if curl --fail --location --connect-timeout 30 --max-time 600 \
+                --retry 5 --retry-delay 10 --retry-all-errors \
+                --output "$msi.tmp" \
+                https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-qemu-ga/qemu-ga-x86_64.msi; then
+            mv "$msi.tmp" "$msi"
+          elif [ -s "$msi" ]; then
+            rm -f "$msi.tmp"
+            echo "::warning::fedorapeople.org unreachable; using the last cached QEMU guest agent MSI"
+          else
+            echo "::error::QEMU guest agent MSI unavailable: fedorapeople.org unreachable and no cached copy"
+            exit 1
+          fi
+      - name: Save the QEMU guest agent MSI
+        if: steps.qga-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tests/e2e/qga-cache
+          key: qga-msi-${{ runner.os }}-${{ steps.qga-week.outputs.week }}
+
       # Ahead of every podman call: the runner's podman is newer than its crun,
       # which makes container CREATE fail (see the action for the full story).
       - uses: ./.github/actions/podman-runtime
@@ -492,6 +537,7 @@ jobs:
           WOOTC_E2E_FILESYSTEM: ${{ inputs.filesystem }}
           # WOOTC_E2E_SNAPSHOT_IN is set by the pull step above on a cache hit.
           # Drive mode gate for the app's E2E bindings (inert otherwise).
+          WOOTC_E2E_GUI_DOCUMENTS: ${{ inputs.gui_documents && '1' || '0' }}
           WOOTC_E2E_DRIVE: ${{ inputs.gui_install && '1' || '' }}
           # Which GUI the drive operates; run-e2e.sh refuses anything else.
           WOOTC_E2E_GUI_FRONTEND: ${{ inputs.gui_frontend }}

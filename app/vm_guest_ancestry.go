@@ -39,12 +39,25 @@ type vmGuestGraph struct {
 	aliases      map[string]string
 	parents      map[string]map[string]bool
 	mounts       map[string]vmGuestMount
+	stacked      map[string]bool
 	loops, paths map[string]string
 	btrfs        map[string][]string
 	target       string
 }
 
 var vmGuestMajor = regexp.MustCompile(`^[0-9]+:[0-9]+$`)
+
+// vmGuestStrictMountTargets are the targets whose backing the root check
+// depends on. More than one mount row on any of them is refused while the
+// inventory is read: findmnt's tree does not say which row serves the path.
+// Stacking elsewhere (the systemd autofs automount under a triggered
+// binfmt_misc at /proc/sys/fs/binfmt_misc) is tolerated, but any lookup that
+// lands on a stacked target still refuses; see vmGuestGraph.mountAt. This is
+// the rule tests/e2e/phase3_ancestry.py applies to the same findmnt output.
+var vmGuestStrictMountTargets = map[string]bool{
+	"/": true, "/sysroot": true, "/boot": true, "/boot/efi": true, "/etc": true, "/usr": true,
+	"/var": true, "/home": true, "/var/home": true,
+}
 
 func vmGuestGraphText(encoded string) ([]byte, error) {
 	b, e := base64.StdEncoding.DecodeString(encoded)
@@ -64,7 +77,7 @@ func vmGuestGraphJSON(encoded string, target any) error {
 	return json.Unmarshal(b, target)
 }
 func verifyVMGuestRoot(root vmGuestProbeRoot, diskID string) error {
-	g := vmGuestGraph{nodes: map[string]vmGuestBlock{}, aliases: map[string]string{}, parents: map[string]map[string]bool{}, mounts: map[string]vmGuestMount{}, loops: map[string]string{}, paths: map[string]string{}, btrfs: map[string][]string{}}
+	g := vmGuestGraph{nodes: map[string]vmGuestBlock{}, aliases: map[string]string{}, parents: map[string]map[string]bool{}, mounts: map[string]vmGuestMount{}, stacked: map[string]bool{}, loops: map[string]string{}, paths: map[string]string{}, btrfs: map[string][]string{}}
 	var blocks struct {
 		Rows []vmGuestBlock `json:"blockdevices"`
 	}
@@ -138,6 +151,7 @@ func verifyVMGuestRoot(root vmGuestProbeRoot, diskID string) error {
 	if len(selected) != 1 || !selected[g.target] || g.nodes[g.target].Type != "disk" {
 		return fmt.Errorf("unique selected GPT disk not measured")
 	}
+	mountRows := 0
 	var mountVisit func([]vmGuestMount, int) error
 	mountVisit = func(rows []vmGuestMount, depth int) error {
 		if rows == nil || depth > 32 {
@@ -147,10 +161,19 @@ func verifyVMGuestRoot(root vmGuestProbeRoot, diskID string) error {
 			if !vmGuestAbsolute(r.Target) || r.Source == "" || r.FSType == "" || r.Options == "" || !vmGuestMajor.MatchString(r.Major) {
 				return fmt.Errorf("incomplete mount observation")
 			}
-			if _, ok := g.mounts[r.Target]; ok || len(g.mounts) >= 4096 {
-				return fmt.Errorf("ambiguous mount inventory")
+			if mountRows >= 4096 {
+				return fmt.Errorf("mount inventory bound")
 			}
-			g.mounts[r.Target] = r
+			mountRows++
+			if _, ok := g.mounts[r.Target]; ok || g.stacked[r.Target] {
+				if vmGuestStrictMountTargets[r.Target] {
+					return fmt.Errorf("ambiguous mount inventory")
+				}
+				delete(g.mounts, r.Target)
+				g.stacked[r.Target] = true
+			} else {
+				g.mounts[r.Target] = r
+			}
 			if r.Children != nil {
 				if e := mountVisit(r.Children, depth+1); e != nil {
 					return e
@@ -224,18 +247,36 @@ func (g *vmGuestGraph) mountFor(p string) (vmGuestMount, error) {
 	if !ok || !vmGuestAbsolute(resolved) {
 		return vmGuestMount{}, fmt.Errorf("resolved projection unavailable")
 	}
+	// Stacked targets stay candidates: when one is the deepest match the path
+	// resolves there and must refuse, never fall back to a parent mount.
 	best := ""
-	for t := range g.mounts {
-		if t == "/" || t == resolved || strings.HasPrefix(resolved, t+"/") {
-			if len(t) > len(best) {
-				best = t
-			}
+	consider := func(t string) {
+		if (t == "/" || t == resolved || strings.HasPrefix(resolved, t+"/")) && len(t) > len(best) {
+			best = t
 		}
+	}
+	for t := range g.mounts {
+		consider(t)
+	}
+	for t := range g.stacked {
+		consider(t)
 	}
 	if best == "" {
 		return vmGuestMount{}, fmt.Errorf("projection mount unavailable")
 	}
-	return g.mounts[best], nil
+	return g.mountAt(best)
+}
+
+// mountAt is the one mount row on target; a stacked target is refused.
+func (g *vmGuestGraph) mountAt(target string) (vmGuestMount, error) {
+	if g.stacked[target] {
+		return vmGuestMount{}, fmt.Errorf("ambiguous mount inventory")
+	}
+	row, ok := g.mounts[target]
+	if !ok {
+		return vmGuestMount{}, fmt.Errorf("mount unavailable")
+	}
+	return row, nil
 }
 func (g *vmGuestGraph) disk(major string, projected bool, seen map[string]bool) (map[string]bool, error) {
 	if seen[major] {
@@ -332,9 +373,9 @@ func (g *vmGuestGraph) require(row vmGuestMount) error {
 	return nil
 }
 func (g *vmGuestGraph) verifyRoot() error {
-	row, ok := g.mounts["/"]
-	if !ok {
-		return fmt.Errorf("current root unavailable")
+	row, e := g.mountAt("/")
+	if e != nil {
+		return fmt.Errorf("current root unavailable: %w", e)
 	}
 	if row.FSType != "overlay" {
 		return g.require(row)

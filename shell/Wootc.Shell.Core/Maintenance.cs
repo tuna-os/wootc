@@ -211,7 +211,13 @@ public static class MaintenanceText
     public static string DiskLine(UninstallInfo info) =>
         (info.DiskPath.Length != 0 ? info.DiskPath : "C:\\wootc\\disks\\root.disk") + (info.DiskSizeGB != 0 ? $" ({Round(info.DiskSizeGB)} GB)" : "");
     public static string DiskBody(Branding brand) => $"Your {brand.Name} installation lives here. Removing it leaves Windows completely intact.";
-    public static string InstalledTitle(Branding brand) => $"{brand.Name} is installed";
+    // The installed card says "verified" only for a first boot Windows has
+    // cross-checked (UninstallInfo.Deployed); a staged install still offers
+    // its first boot.
+    public static string VerifiedTitle(Branding brand) => $"{brand.Name} boot verified";
+    public static string FirstBootTitle(Branding brand) => $"{brand.Name} is ready for its first boot";
+    public static string BootSummary(FirstBootAssessment evidence) =>
+        $"Linux {evidence.Kernel} · {evidence.SourceImageRef} · {evidence.Bridge?.BoundFolders ?? 0} folders connected for {evidence.Bridge?.MatchedUsers ?? 0} users";
     public const string InstalledBody = "Restart to boot into it once. Windows stays your default — from Linux, the boot menu lists Windows too.";
     public static string RestartInto(Branding brand) => $"Restart into {brand.Name} →";
     public static string RestartFailed(Branding brand, string error) => $"Could not arm the {brand.Name} boot: " + error;
@@ -357,10 +363,11 @@ public static class MaintenanceScreen
                     lines.Add(new("ManageCardTitle", MaintenanceText.DiskLine(info)));
                     lines.Add(new("ManageCardBody", MaintenanceText.DiskBody(brand)));
                 }
-                if (info.Deployed)
+                if (info.Deployed || info.BootPending)
                 {
-                    lines.Add(new("ManageInstalledTitle", MaintenanceText.InstalledTitle(brand)));
+                    lines.Add(new("ManageInstalledTitle", info.Deployed ? MaintenanceText.VerifiedTitle(brand) : MaintenanceText.FirstBootTitle(brand)));
                     lines.Add(new("ManageInstalledBody", MaintenanceText.InstalledBody));
+                    if (info.BootEvidence is not null) lines.Add(new("ManageBootEvidence", MaintenanceText.BootSummary(info.BootEvidence)));
                     buttons.Add(new("RestartIntoLinux", MaintenanceText.RestartInto(brand), open));
                 }
                 offerDelete = open;

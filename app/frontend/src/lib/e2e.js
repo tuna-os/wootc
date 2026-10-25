@@ -1,3 +1,4 @@
+import { verifyInstalledBootUI } from './installed-boot-ui-proof.js';
 import { E2EDriveDirective, E2EDriveReady, E2EDriveReport, Reboot } from '../../wailsjs/go/main/App';
 
 // Wails' WebView cannot expose CDP, so GUI E2E drives the real form through
@@ -137,6 +138,11 @@ async function reportState(state, directive) {
     imageMismatch: !!(wantRef && state.screen === 'launchpad' &&
       !window.__e2eInstallDriven && state.selected?.imageRef !== wantRef),
   };
+  // The installed-boot proof is the one report that carries a rendered
+  // receipt; every other action keeps the exact base schema.
+  if (directive.action === 'verify-installed-boot') {
+    report.installedBootVerification = window.__e2eInstalledBootVerification || null;
+  }
   if (directive.action === 'prepare-vm') Object.assign(report, {
     vmPrepareDriven: !!window.__e2ePrepareVMDriven,
     freshVmAvailable: !!state.freshVmCapability?.available,
@@ -196,7 +202,7 @@ export function startE2EDrive(state) {
         const directive = JSON.parse(raw);
         if (directive.schemaVersion !== 1 || typeof directive.runId !== 'string' ||
             !directive.runId || !/^[0-9a-f]{32}$/.test(directive.directiveId) ||
-            !['install', 'reboot', 'prepare-vm'].includes(directive.action)) throw new Error('Invalid drive identity');
+            !['install', 'reboot', 'prepare-vm', 'verify-installed-boot'].includes(directive.action)) throw new Error('Invalid drive identity');
         if (window.__e2eRunId && window.__e2eRunId !== directive.runId) throw new Error('Changed drive run');
         window.__e2eRunId = directive.runId;
         if (directive.action === 'install') {
@@ -204,6 +210,9 @@ export function startE2EDrive(state) {
             throw new Error('Changed install directive');
           }
           window.__e2eInstallDirectiveId = directive.directiveId;
+        }
+        if (directive.action === 'verify-installed-boot') {
+          window.__e2eInstalledBootVerification = verifyInstalledBootUI(directive);
         }
         if (directive.action === 'install') {
           window.__e2eWantImage = directive.image || '';

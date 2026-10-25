@@ -66,6 +66,9 @@ try {
     # Filesystem axis (#35): only pass an explicit value through; "auto"/absent
     # keeps setup-wootc.ps1's default (the deployer decides).
     if ($cfg.ContainsKey("Filesystem") -and $cfg.Filesystem -and $cfg.Filesystem -ne "auto") { $setupArgs.Filesystem = $cfg.Filesystem }
+    # MOK axis (#248): run-e2e.sh writes MokEnroll=1 from the catalog's
+    # mokEnroll field, the same field the app reads for wootc.mok=enroll.
+    if ($cfg.ContainsKey("MokEnroll") -and $cfg.MokEnroll -eq "1") { $setupArgs.MokEnroll = $true }
     if ($cfg.ContainsKey("RootDiskGiB") -and $cfg.RootDiskGiB) { $setupArgs.DiskSizeGB = [int]$cfg.RootDiskGiB }
     if ($cfg.ContainsKey("SetupAsset") -and $cfg.SetupAsset) {
         $setupArgs.SetupExe = Join-Path $oemDir "payload\$($cfg.SetupAsset)"
