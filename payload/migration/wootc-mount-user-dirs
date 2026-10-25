@@ -189,7 +189,6 @@ find_bitlocker_profiles() {
         warn "to reach them again, save your own 48-digit BitLocker recovery key as ${WOOTC_ETC}/bitlocker-key (readable by root only) and restart; it is sealed again on the next start"
         return 0
     fi
-
     # cryptsetup accepts a recovery password only in its canonical form.
     local recovery_key
     if ! recovery_key=$(printf '%s' "$key_material" | bitlocker_recovery_password -); then
@@ -198,13 +197,17 @@ find_bitlocker_profiles() {
         return 0
     fi
     unset key_material
-
     # Unlock and mount the BitLocker volume.
     local mapper="wootc-bitlk-$$"
     local mnt="/run/wootc/bitlk-tmp"
     mkdir -p "$mnt"
-    if ! printf '%s' "$recovery_key" | cryptsetup bitlkOpen "$bl_vol" "$mapper" --key-file=- 2>/dev/null; then
-        warn "cryptsetup bitlkOpen failed for ${bl_vol} — recovery key may be stale or volume is not BitLocker"
+    local unlock_rc=0
+    printf '%s' "$recovery_key" | cryptsetup bitlkOpen "$bl_vol" "$mapper" --key-file=- 2>/dev/null || unlock_rc=$?
+    unset recovery_key
+    if (( unlock_rc != 0 )); then
+        # Exit status is public; the recovery password and tool input are not.
+        # Do not label a validated key stale without decryptor evidence.
+        warn "cryptsetup bitlkOpen failed for ${bl_vol} (exit $unlock_rc; password format validated)"
         rmdir "$mnt" 2>/dev/null || true
         return 0
     fi
@@ -381,9 +384,11 @@ bind_profile() {
             warn "refusing symlink folder destination: $dst"
             continue
         fi
-        # BitLocker C: is intentionally mounted read-only. Copy Documents into the
-        # user's persistent Linux home once so it can be edited without ever writing
-        # through to the encrypted Windows source. Other folders remain passthroughs.
+
+        # BitLocker C: is intentionally mounted read-only. Copy Documents into
+        # the user's persistent Linux home once so it can be edited without
+        # ever writing through to the encrypted Windows source. Other known
+        # folders keep their existing read-only passthrough behavior.
         if [[ "$folder" == Documents && -n "$BITLOCKER_PROFILES" && "$src" == "$BITLOCKER_PROFILES"/* ]]; then
             copy_helper=""
             if [[ -x /var/usrlocal/bin/wootc-copy-windows-documents ]]; then
@@ -397,6 +402,7 @@ bind_profile() {
             fi
             warn "Documents copy was not completed for $luser; keeping the original read-only"
         fi
+
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"

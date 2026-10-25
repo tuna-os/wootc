@@ -9,15 +9,24 @@
 # (result-runner.sh) and RUN_ID, with Windows booted and identified. Sourcing
 # this file performs no guest or host action.
 
-# phase2_second_boot_check <bcd-guid> <storage-root> <reset-command>
+# phase2_second_boot_check <bcd-guid> <storage-root> <reset-command> [<userdata-path>] [<while-up>]
 #   <bcd-guid>       the wootc Phase-2 firmware entry, e.g. {xxxxxxxx-...}
 #   <storage-root>   the volume holding \wootc, e.g. E:
 #   <reset-command>  how to power-cycle a Linux guest that ignores a reboot
+#   <userdata-path>  where the seeded Documents file is in the Linux home;
+#                    the BitLocker bridge copies Documents to "From Windows"
+#   <while-up>       a command run while this second boot is still up, after
+#                    the user-data and key checks (e.g. the Documents edit
+#                    persistence checks)
 # Records user-data-second-boot on success. Returns non-zero when the second
 # boot could not be completed and Windows could not be brought back.
+#
+# The recovery key is kept for every boot and sealed to the machine (#279):
+# this second boot must unlock C: with the sealed copy, and no plaintext copy
+# may remain on the installed system or on the Windows volume.
 phase2_second_boot_check() {
-    local guid="$1" root="$2" reset="$3" disk size deadline seen userdata diag source_doc userdata_path
-    userdata_path="${USERDATA_PATH:-/home/wootc/Documents/wootc-e2e-userdata.txt}"
+    local guid="$1" root="$2" reset="$3" path="${4:-/home/wootc/Documents/wootc-e2e-userdata.txt}" while_up="${5:-}"
+    local disk size deadline seen userdata diag original served_from_bitlocker=false
     step "BitLocker: booting Phase 2 a second time — the bridge must still unlock C: (#279)"
 
     # Same preparation as the first boot. Phase 2 may have written root.disk
@@ -60,7 +69,7 @@ phase2_second_boot_check() {
     deadline=$(deadline_in 180)
     while ! past_deadline "$deadline"; do
         userdata=$(qga_call exec /bin/sh -c \
-            "cat '$userdata_path' 2>/dev/null" 2>/dev/null || true)
+            "cat '$path' 2>/dev/null" 2>/dev/null || true)
         printf '%s' "$userdata" | grep -q "$RUN_ID" && break
         sleep 5
     done
@@ -70,16 +79,30 @@ phase2_second_boot_check() {
          echo "sealed-key: $(stat -c "%a %U:%G %s bytes" /etc/wootc/bitlocker-key.cred 2>&1)"; \
          echo "ntfs-key: $(ls /run/initramfs/wootc-host/wootc/install/bitlocker-key.txt 2>/dev/null || echo absent)"; \
          echo "home-bind: $(findmnt -n -o SOURCE /home/wootc/Documents 2>/dev/null || echo ABSENT)"; \
-         journalctl -b -u wootc-passthrough --no-pager 2>/dev/null | grep -aiE "bitlocker|recovery key" | tail -6' \
+         echo "bitlk-mount: $(findmnt -n -o SOURCE /run/wootc/bitlk-tmp 2>/dev/null || echo ABSENT)"; \
+         journalctl -b -u wootc-passthrough --no-pager 2>/dev/null | grep -aiE "bitlocker|recovery key" | tail -12' \
         2>/dev/null || true)
     source_doc=$(qga_call exec /bin/sh -c \
         'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
         2>/dev/null || true)
     printf '%s\n' "$diag" | sed 's/^/  /'
+    # The seeded original, read on the encrypted C: as this boot unlocked it.
+    original=$(qga_call exec /bin/sh -c \
+        'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit 2>/dev/null); [ -n "$f" ] && tr -d "\r" < "$f"' \
+        2>/dev/null || true)
+    # Say which path served the file. Only C: unlocked through the BitLocker
+    # mapper exercises the recovery key: either Documents is bound from it,
+    # or (the editable copy) this boot read the seeded original on it. A
+    # fixture that seeds the profile on the unencrypted volume proves the
+    # second boot, not the key, and must not be reported as if it did.
+    if printf '%s' "$diag" | grep -q '^home-bind: /dev/mapper/wootc-bitlk-' ||
+        { printf '%s' "$diag" | grep -q '^bitlk-mount: /dev/mapper/wootc-bitlk-' &&
+          printf '%s' "$original" | grep -q "$RUN_ID"; }; then
+        served_from_bitlocker=true
+    fi
     if printf '%s' "$userdata" | grep -q "$RUN_ID"; then
-        if printf '%s' "$diag" | grep -q '^home-bind: /dev/mapper/wootc-bitlk-' \
-            || printf '%s' "$diag" | grep -qiE 'unlocked.*BitLocker|BitLocker.*unlocked'; then
-            product_pass user-data-second-boot "Second Phase 2 boot: imported Documents copy survived, with the BitLocker C: unlock observed"
+        if [ "$served_from_bitlocker" = true ]; then
+            product_pass user-data-second-boot "Second Phase 2 boot: Windows Documents file still readable in /home/wootc, served from the unlocked BitLocker C:"
         else
             product_pass user-data-second-boot "Second Phase 2 boot: imported Documents copy survived"
             warn "Second Phase 2 boot: BitLocker unlock was not observed ($(printf '%s' "$diag" | grep -iE 'home-bind:|bitlocker|recovery key' | tail -1))"
@@ -107,6 +130,24 @@ phase2_second_boot_check() {
         fi
     else
         product_fail "Second Phase 2 boot: Windows Documents file NOT readable at $userdata_path (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
+    fi
+
+    # The key that unlocked C: on this boot is the copy sealed to this
+    # machine: the bridge says which file it used, and neither plaintext copy
+    # (/etc/wootc/bitlocker-key, \wootc\install\bitlocker-key.txt) remains.
+    if [ "$served_from_bitlocker" = true ]; then
+        if printf '%s' "$diag" | grep -q 'recovery key found sealed at /etc/wootc/bitlocker-key.cred' &&
+            printf '%s' "$diag" | grep -q '^sealed-key: 600 root:root ' &&
+            printf '%s' "$diag" | grep -q '^etc-key: .*No such file' &&
+            printf '%s' "$diag" | grep -qx 'ntfs-key: absent'; then
+            pass "Second Phase 2 boot: C: unlocked with the recovery key sealed to this machine; no plaintext copy remains"
+        else
+            product_fail "Second Phase 2 boot: C: was not unlocked with a sealed recovery key, or a plaintext copy remains (see the key lines above)"
+        fi
+    fi
+
+    if [ -n "$while_up" ]; then
+        "$while_up"
     fi
 
     # Back to Windows, with the first return's rules: a bounded request, and a

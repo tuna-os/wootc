@@ -6,6 +6,7 @@ This module reads the current boot. It never reads a cached success record.
 """
 from pathlib import Path
 import json
+import os
 import re
 import struct
 import subprocess
@@ -24,9 +25,85 @@ def read(path, limit=1048576):
     require(len(data) <= limit, 'oversized source: ' + str(path))
     return data
 
+# `bootc status` takes the ostree sysroot lock, and waits ("Waiting for
+# sysroot lock...", on stderr) while another bootc or ostree operation holds
+# it. On bluefin:stable the first boot runs bootc-unified-storage.service
+# (`bootc image set-unified`), which copies the booted image into
+# containers-storage under that lock. E2E 39874539856: the ESP controller and
+# the first-boot collector both started behind it, and both gave up when the
+# 30 s bound every other command gets ran out (00:49:18 -> 00:49:52 and
+# 00:49:24 -> 00:49:57). Waiting is not trusting: the answer, when it comes,
+# is still measured and validated, and no answer is still a refusal.
+BOOTC_STATUS = ('bootc', 'status', '--json')
+BOOTC_STATUS_TIMEOUT = 900
+
+
 def command(*args):
+    timeout = BOOTC_STATUS_TIMEOUT if args == BOOTC_STATUS else 30
     return subprocess.run(args, check=True, capture_output=True, text=True,
-                          timeout=30).stdout
+                          timeout=timeout).stdout
+
+
+def _stderr_tail(error):
+    tail = getattr(error, 'stderr', None) or b''
+    if isinstance(tail, bytes):
+        tail = tail.decode('utf-8', errors='replace')
+    tail = ' '.join(tail.split())[-200:]
+    return ' (bootc: %s)' % tail if tail else ''
+
+
+def bootc_status(run=command):
+    """`bootc status --json`, parsed. FileNotFoundError (no bootc) passes
+    through, because its meaning is the caller's; every other failure to get
+    an answer is a ValueError that says why."""
+    try:
+        output = run(*BOOTC_STATUS)
+    except FileNotFoundError:
+        raise
+    except subprocess.TimeoutExpired as error:
+        raise ValueError('bootc status did not answer within %ss%s'
+                         % (error.timeout, _stderr_tail(error))) from error
+    except subprocess.CalledProcessError as error:
+        raise ValueError('bootc status exited %s%s'
+                         % (error.returncode, _stderr_tail(error))) from error
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError('bootc status could not run: %s' % error) from error
+    try:
+        return json.loads(output)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise ValueError('bootc status printed no JSON document') from error
+
+
+def booted_image(status):
+    """(reference, digest) of the booted bootc deployment, or ValueError.
+
+    The one reading of bootc's status schema (org.containers.bootc/v1:
+    status.booted.image.image.image and status.booted.image.imageDigest)
+    for the ESP controller and the first-boot collector alike.
+    """
+    try:
+        image = status['status']['booted']['image']
+        ref, digest = image['image']['image'], image['imageDigest']
+    except (KeyError, TypeError) as error:
+        raise ValueError('bootc status names no booted image') from error
+    require(isinstance(ref, str) and ref and
+            isinstance(digest, str) and re.fullmatch('sha256:[0-9a-f]{64}', digest),
+            'missing actual booted deployment identity')
+    return ref, digest
+
+def boot_argument(tokens, name):
+    """One kernel command line argument, read the way the attach hook reads it.
+
+    The Phase-2 GRUB entry repeats loop= and wootc.host_uuid=: deploy.sh
+    copies the BLS options, which already carry both, and appends them again
+    (E2E 38996488933). The initramfs attach hook takes the value either way,
+    so repeats of one value are one argument. Different values are ambiguous
+    and refused, as is an absent argument.
+    """
+    values = {token.split('=', 1)[1] for token in tokens if token.startswith(name + '=')}
+    require(values, 'missing boot argument: ' + name)
+    require(len(values) == 1, 'conflicting boot arguments: ' + name)
+    return values.pop()
 
 def decode_boot_option(data):
     """Decode EFI_LOAD_OPTION after efivarfs's four attribute bytes."""
@@ -125,34 +202,74 @@ def mount_rows(proc):
                      'source': unescape(fields[split + 2])})
     return rows
 
+def loop_ancestors(device, seen=None):
+    """The loop devices (sysfs directories) a block device is built on."""
+    seen = set() if seen is None else seen
+    device = device.resolve(strict=True)
+    require(device not in seen, 'cyclic root block-device ancestry')
+    seen.add(device)
+    if (device / 'partition').is_file():
+        device = device.parent
+    if (device / 'loop/backing_file').is_file():
+        return [device]
+    slaves = list((device / 'slaves').iterdir()) if (device / 'slaves').is_dir() else []
+    require(slaves, 'sysroot has no loop block-device ancestor')
+    return [loop for slave in slaves for loop in loop_ancestors(slave, seen)]
+
+
+def loop_backing_name(loop):
+    return read(loop / 'loop/backing_file', 4096).decode('utf-8', errors='replace').strip()
+
+
 def loop_backings(device, seen=None):
-        seen = set() if seen is None else seen
-        device = device.resolve(strict=True)
-        require(device not in seen, 'cyclic root block-device ancestry')
-        seen.add(device)
-        if (device / 'partition').is_file():
-            device = device.parent
-        if (device / 'loop/backing_file').is_file():
-            return [read(device / 'loop/backing_file').decode().strip()]
-        slaves = list((device / 'slaves').iterdir()) if (device / 'slaves').is_dir() else []
-        require(slaves, 'sysroot has no loop block-device ancestor')
-        return [backing for slave in slaves for backing in loop_backings(slave, seen)]
+    return [loop_backing_name(loop) for loop in loop_ancestors(device, seen)]
+
+
+def loop_backs_file(loop, disk, relative):
+    """Whether a loop device (its sysfs directory) is backed by this file.
+
+    The initramfs attaches root.disk through its own NTFS mount before the
+    switch to the real root. Over fuse-ntfs-3g the kernel then reports the
+    backing path relative to that mount: E2E 39007144179 read
+    "/wootc/disks/root.disk". So the file qualifies by identity (same device
+    and inode) or, when the reported path does not lead to it, by its path
+    ending in the root.disk path on the volume plus an equal size. A deleted
+    backing file never qualifies.
+    """
+    name = loop_backing_name(loop)
+    if not name or name.endswith(' (deleted)'):
+        return False
+    want = os.stat(disk)
+    try:
+        got = os.stat(name)
+        if (got.st_dev, got.st_ino) == (want.st_dev, want.st_ino):
+            return True
+    except OSError:
+        pass
+    try:
+        sectors = int(read(loop / 'size', 64).decode().strip())
+    except (OSError, ValueError):
+        return False
+    return (name.lower().endswith('/' + relative.strip('/').lower()) and
+            sectors * 512 == want.st_size)
+
+
+def backed_by_root_disk(device, disk, relative):
+    """True when a block device sits on exactly one loop device over disk."""
+    loops = loop_ancestors(device)
+    return len(loops) == 1 and loop_backs_file(loops[0], disk, relative)
 
 
 def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
                            sysroot=Path('/sys'), run=command):
     esp, host = Path(esp), Path(host)
     tokens = read(proc / 'cmdline').decode().split()
-    def argument(name):
-        values = [value.split('=', 1)[1] for value in tokens if value.startswith(name + '=')]
-        require(len(values) == 1, 'missing/duplicate loop boot argument: ' + name)
-        return values[0]
     # Native graduation currently retains old host-esp.conf (#286). Positively
     # require this mounted root's loop ancestry before touching the Windows ESP.
     require(any(value.startswith('loop=') for value in tokens),
             'native/unknown root cannot refresh the previous Windows ESP')
-    disk_path = argument('loop')
-    host_uuid = argument('wootc.host_uuid').upper()
+    disk_path = boot_argument(tokens, 'loop')
+    host_uuid = boot_argument(tokens, 'wootc.host_uuid').upper()
     require(disk_path == '/wootc/disks/root.disk' and re.fullmatch('[0-9A-F]{16}', host_uuid),
             'unsupported root.disk identity')
     mounts = mount_rows(proc)
@@ -162,17 +279,18 @@ def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
     observed_host = run('blkid', '-s', 'UUID', '-o', 'value', private[0]['source']).strip().upper()
     require(observed_host == host_uuid, 'mounted NTFS UUID differs from cmdline')
     try:
-        status = json.loads(run('bootc', 'status', '--json'))
+        status = bootc_status(run)
     except FileNotFoundError:
         status = None
-    except (subprocess.SubprocessError, json.JSONDecodeError) as error:
-        raise ValueError('cannot measure installed bootc deployment') from error
+    except ValueError as error:
+        raise ValueError('cannot measure installed bootc deployment: %s' % error) from error
     root_target = '/sysroot' if status is not None else '/'
     roots = [row for row in mounts if row['target'] == root_target]
     require(len(roots) == 1, 'missing installed root mount')
-    backings = loop_backings(sysroot / 'dev/block' / roots[0]['device'])
-    require(backings == [str(host) + disk_path], 'installed root is not this root.disk')
     require((host / disk_path.lstrip('/')).is_file(), 'actual root.disk absent')
+    require(backed_by_root_disk(sysroot / 'dev/block' / roots[0]['device'],
+                                host / disk_path.lstrip('/'), disk_path),
+            'installed root is not this root.disk')
     mounted_esp = [row for row in mounts if row['target'] == str(esp)]
     require(len(mounted_esp) == 1 and mounted_esp[0]['type'] in ('vfat', 'msdos'),
             'refresh destination is not one FAT ESP mount')
@@ -197,10 +315,6 @@ def observe_installed_boot(esp, host, expected_esp_uuid, proc=Path('/proc'),
         observed.update(deploymentKind='classic', rootDevice=roots[0]['device'],
                         rootFsUuid=root_uuid, rootFsType=roots[0]['type'])
         return observed
-    booted = status['status']['booted']
-    image = booted['image']['image']['image']
-    image_digest = booted['image']['imageDigest']
-    require(isinstance(image, str) and image and
-            re.fullmatch('sha256:[0-9a-f]{64}', image_digest), 'missing actual booted deployment identity')
+    image, image_digest = booted_image(status)
     observed.update(deploymentKind='bootc', imageRef=image, imageDigest=image_digest)
     return observed

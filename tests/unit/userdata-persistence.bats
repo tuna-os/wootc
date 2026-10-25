@@ -45,7 +45,8 @@ setup() {
 }
 
 @test "Phase-2 bridge check is a live QGA content read against RUN_ID" {
-    grep -q 'cat /home/wootc/Documents/wootc-e2e-userdata.txt' "$E2E"
+    grep -Fq "USERDATA_PATH='/home/wootc/Documents/wootc-e2e-userdata.txt'" "$E2E"
+    grep -Fq "USERDATA_PATH='/home/wootc/Documents/From Windows/wootc-e2e-userdata.txt'" "$E2E"
     grep -Fq 'printf '"'"'%s'"'"' "$USERDATA_HOME" | grep -q "$RUN_ID"' "$E2E"
     # Failure diagnostics must localize the broken layer, not just say "no".
     grep -q 'host-bind:' "$E2E"
@@ -115,6 +116,13 @@ setup() {
     grep -q 'no home directory' "$mud"
 }
 
+@test "BitLocker E2E seeds encrypted C: and proves an editable persistent Linux copy" {
+    grep -q 'WOOTC_E2E_BITLOCKER.*on' "$E2E"
+    grep -q 'drive="C:"' "$E2E"
+    grep -q 'ordinary Linux user saved and reopened an edit' "$E2E"
+    grep -q 'saved Linux edit survived the environment restart' "$E2E"
+    grep -q 'encrypted Windows original stayed unchanged' "$E2E"
+}
 @test "BitLocker Documents copy helper is carried into the initramfs and installed system" {
     grep -q 'inst /usr/lib/wootc/migration/wootc-copy-windows-documents' \
         "$REPO_ROOT/payload/deployer/module-setup.sh"
@@ -142,4 +150,23 @@ setup() {
     # marker before assigning blame.
     grep -q 'attached raw root.disk .\* as /dev/loop' "$E2E"
     grep -q 'ATTACHED but sysroot.mount failed' "$E2E"
+}
+
+@test "BitLocker fixture prepares a recovery protector before arming BCD" {
+    local capture arm
+    capture=$(grep -nm1 'Export-WootcFixtureBitLockerKey.*EnsureProtector' "$PS1" | cut -d: -f1)
+    arm=$(grep -nm1 'bcdedit /copy' "$PS1" | cut -d: -f1)
+    [ -n "$capture" ] && [ -n "$arm" ] && [ "$capture" -lt "$arm" ]
+    run grep -F 'bridge will not unlock C:' "$PS1"
+    [ "$status" -ne 0 ]
+}
+
+@test "fresh and restored fixtures receive the same private key helper" {
+    grep -Fq '"$OEM_DIR/fixture-bitlocker-key.ps1" "$SCRIPT_DIR/wootc-files/fixture-bitlocker-key.ps1"' "$E2E"
+    # The second boot must reuse the existing protector, not create another,
+    # and must not refresh a plaintext key onto the Windows volume: the bridge
+    # keeps the key sealed to the machine (#279), and a fresh NTFS copy would
+    # both leave the recovery key in the clear and hide a lost sealed key.
+    run grep 'qga_powershell.*Export-WootcFixtureBitLockerKey' "$E2E"
+    [ "$status" -ne 0 ]
 }

@@ -2,12 +2,23 @@ name: E2E nightly
 
 # Nightly canary: runs the shared hosted-KVM E2E (see e2e-hosted.yml). The full
 # image x edition x bitlocker matrix stays on the laptop runners.
+#
+# The scheduled run is the GUI Documents cell: BitLocker on, and the ordinary
+# user's GNOME Text Editor must save, close and reopen a Documents file, then
+# reopen the same bytes after a reboot. The image ships no editor in /usr, so
+# the gate installs GNOME Text Editor from the image's own Flathub remote and
+# records that as editorSource=fixture-flatpak. A manual dispatch runs the
+# plain canary unless gui_documents is set.
 
 on:
+  schedule:
+    # Offset from the GUI nightly (07:00) and the CI nightlies.
+    - cron: '11 5 * * *'
   workflow_dispatch:
     inputs:
       image:       { description: bootc image, default: 'ghcr.io/tuna-os/yellowfin:gnome' }
       win_version: { description: 'Dockur version (11, 10, 11e, 11l)', default: '11' }
+      gui_documents: { description: 'Require GNOME editor save and persistence proof (BitLocker on)', type: boolean, default: false }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
       gui_documents: { description: 'Require GNOME editor save and persistence proof (BitLocker on)', type: boolean, default: false }
       use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
@@ -31,11 +42,13 @@ jobs:
     with:
       image:       ${{ inputs.image       || 'ghcr.io/tuna-os/yellowfin:gnome' }}
       win_version: ${{ inputs.win_version || '11' }}
-      bitlocker:   ${{ inputs.bitlocker   || 'off' }}
-      gui_documents: ${{ github.event.inputs.gui_documents == 'true' }}
+      # The GUI Documents gate needs the real BitLocker fixture, so it forces
+      # BitLocker on; run-e2e.sh refuses the gate without it.
+      bitlocker:   ${{ (github.event_name == 'schedule' || github.event.inputs.gui_documents == 'true') && 'on' || inputs.bitlocker || 'off' }}
       # Default true for scheduled runs (inputs null); a manual run can force a
       # full install with use_base_image=false.
       use_base_image: ${{ github.event.inputs.use_base_image != 'false' }}
+      gui_documents: ${{ github.event_name == 'schedule' || github.event.inputs.gui_documents == 'true' }}
       gui_install: ${{ github.event.inputs.gui_install == 'true' }}
       # Scheduled runs (no inputs) drive the shipped installer.
       gui_frontend: ${{ github.event.inputs.gui_frontend || 'wails' }}

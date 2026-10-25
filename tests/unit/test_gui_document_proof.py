@@ -18,15 +18,32 @@ class FakeDesktop:
     def __init__(self, defect=None):
         self.defect, self.text, self.buffer = defect, SEED + '\n', ''
         self.open, self.focused, self.opens = False, False, 0
+        self.installed, self.installs = False, 0
         self.events = []
 
     def observe(self, action):
         self.events.append(action)
         if action == 'tooling':
-            return {'nativeEditor': self.defect != 'tooling-editor', 'installedFlatpaks': [],
+            native = self.defect not in ('tooling-editor', 'install', 'install-fails', 'install-lies',
+                                         'install-running', 'install-fails-listed')
+            return {'nativeEditor': native, 'installedFlatpaks': ['org.gnome.TextEditor'] if self.installed else [],
                     'libatspi': self.defect != 'tooling-accessibility'}
+        if action == 'provision':
+            self.installs += 1
+            return {'started': True}
+        if action == 'provisioned':
+            # 'install-lies' reports success while flatpak still lists nothing.
+            # 'install-running' lists the app while the transaction still runs.
+            self.polls = getattr(self, 'polls', 0) + 1
+            if self.defect == 'install-running' and self.polls < 3:
+                return {'finished': False, 'installed': True, 'unit': {'Result': 'success', 'ActiveState': 'activating'}}
+            self.installed = self.defect in ('install', 'install-running', 'install-fails-listed')
+            return {'finished': True, 'installed': self.installed or self.defect == 'install-lies',
+                    'unit': {'Result': 'exit-code' if self.defect in ('install-fails', 'install-fails-listed') else 'success'}}
         if action == 'prepare':
             return {'prepared': True}
+        if action == 'leave-overview':
+            return {'before': True, 'after': False}
         if action == 'desktop':
             return {'Active': 'no' if self.defect == 'desktop' else 'yes', 'Type': 'wayland',
                     'Name': 'wootc', 'uid': 1000}
@@ -64,6 +81,9 @@ class FakeDesktop:
             if key == 'ctrl-end':
                 continue
             if key == 'ctrl-s':
+                self.saves = getattr(self, 'saves', 0) + 1
+                if self.defect == 'save-dropped-once' and self.saves == 1:
+                    continue
                 if self.defect != 'save':
                     self.text = self.buffer
             elif key == 'ctrl-q':
@@ -105,6 +125,45 @@ class GateTests(unittest.TestCase):
         self.assertFalse(any(isinstance(event, tuple) and event[0] == 'keys' and 'ctrl-s' in event[1]
                              for event in restarted.events))
 
+    def test_missing_editor_is_installed_then_held_to_every_observation(self):
+        desktop = FakeDesktop('install')
+        with tempfile.TemporaryDirectory() as directory:
+            proof = module.Proof(desktop, SEED, MARKER, Path(directory) / 'evidence.jsonl', lambda s: None, lambda: 0)
+            proof.run('edit')
+            evidence = (Path(directory) / 'evidence.jsonl').read_text()
+        self.assertEqual(proof.editor_source, 'fixture-flatpak')
+        self.assertEqual(desktop.installs, 1)
+        self.assertIn('fixture-editor-finished', evidence)
+        self.assertIn('saved-file-reopened', evidence)
+
+    def test_launch_waits_for_the_install_unit_not_the_listing(self):
+        desktop = FakeDesktop('install-running')
+        with tempfile.TemporaryDirectory() as directory:
+            proof = module.Proof(desktop, SEED, MARKER, Path(directory) / 'evidence.jsonl', lambda s: None, lambda: 0)
+            proof.run('edit')
+        self.assertEqual(desktop.polls, 3)
+        self.assertLess(desktop.events.index('provisioned'), desktop.events.index('launch'))
+        first_keys = next(i for i, event in enumerate(desktop.events) if isinstance(event, tuple) and event[0] == 'keys')
+        self.assertLess(desktop.events.index('leave-overview'), first_keys)
+
+    def test_failed_or_unconfirmed_install_fails_the_gate(self):
+        for defect in ('install-fails', 'install-fails-listed', 'install-lies', 'tooling-editor'):
+            with self.subTest(defect=defect), self.assertRaisesRegex(RuntimeError, 'could not install'):
+                self.exercise(FakeDesktop(defect))
+
+    def test_restart_never_reinstalls_a_lost_editor(self):
+        desktop = FakeDesktop('install')
+        desktop.text += MARKER
+        with self.assertRaisesRegex(RuntimeError, 'lacks an installed GNOME Text Editor'):
+            self.exercise(desktop, 'reopen')
+        self.assertEqual(desktop.installs, 0)
+
+    def test_one_dropped_save_keystroke_is_retried_and_recorded(self):
+        desktop = FakeDesktop('save-dropped-once')
+        digest, evidence = self.exercise(desktop)
+        self.assertEqual(desktop.saves, 2)
+        self.assertIn('save-retry', evidence)
+        self.assertIn('saved-file-reopened', evidence)
     def test_disabled_save_fails_even_when_buffer_contains_edit(self):
         with self.assertRaisesRegex(RuntimeError, 'saved-file'):
             self.exercise(FakeDesktop('save'))
@@ -183,6 +242,8 @@ class GuestIdentityTests(unittest.TestCase):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
         guest_spec.loader.exec_module(guest)
+        guest.unix_socket_peers = lambda a, b, why=None: []
+        guest.proxy_serves_editor_a11y_bus = lambda a, b, why=None: []
         peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
         editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
         wrapper = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
@@ -210,6 +271,146 @@ class GuestIdentityTests(unittest.TestCase):
         with patch.object(guest, 'process', side_effect=[native, FileNotFoundError('exited')]):
             with self.assertRaises(FileNotFoundError):
                 guest.editor_identity(60, 1000)
+
+    def test_unreadable_ancestor_keeps_an_exact_opaque_identity(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        guest.unix_socket_peers = lambda a, b, why=None: []
+        guest.proxy_serves_editor_a11y_bus = lambda a, b, why=None: []
+        proxy = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
+        inner = {'pid': 30, 'startTicks': '30', 'uid': 1000, 'exe': '/usr/bin/bwrap', 'command': 'bwrap'}
+        outer = {'pid': 20, 'startTicks': '20', 'uid': 1000, 'exe': None, 'name': 'bwrap'}
+        editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
+        parents = {40: 30, 30: 20, 20: 1, 60: 50, 50: 20}
+        readable = {40: proxy, 30: inner, 60: editor, 50: {**inner, 'pid': 50, 'startTicks': '50'}}
+        def fake_process(pid):
+            if pid not in readable:
+                raise PermissionError(13, 'Permission denied', f'/proc/{pid}/exe')
+            return readable[pid]
+        status = lambda self: f"PPid:\t{parents[int(self.parts[2])]}\n"
+        with patch.object(guest, 'process', side_effect=fake_process), \
+                patch.object(guest, 'opaque_process', side_effect=lambda pid: outer if pid == 20 else None), \
+                patch.object(guest.Path, 'read_text', autospec=True, side_effect=status):
+            self.assertEqual([p['pid'] for p in guest.ancestors(40)], [40, 30, 20])
+            with patch.object(guest, 'editor_processes', return_value=[editor]), \
+                    patch.object(guest, 'flatpak_app', return_value='org.gnome.TextEditor'):
+                match = guest.editor_identity(40, 1000)
+                self.assertEqual(match['pid'], 60)
+                self.assertIn((20, '20'), match['sharedWrapperIdentities'])
+            reused = {**outer, 'startTicks': 'reused'}
+            with patch.object(guest, 'opaque_process', side_effect=[outer, reused]):
+                with self.assertRaisesRegex(RuntimeError, 'changed during'):
+                    guest.ancestors(30)
+        with patch.object(guest, 'process', side_effect=PermissionError(13, 'Permission denied')):
+            with self.assertRaises(PermissionError):
+                guest.ancestors(40)
+
+    def test_proxy_bound_by_an_established_socket_pair(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        table = "\n".join([
+            # editor end hidden in its netns: only the proxy end, with its peer inode
+            'u_str ESTAB 0 0 /run/user/1000/.dbus-proxy/a11y-bus-proxy-X 9002 * 9001 users:(("xdg-dbus-proxy",pid=40,fd=12))',
+            # both ends listed, no process attribution at all
+            'u_str ESTAB 0 0 * 9003 * 9004',
+            'u_str ESTAB 0 0 * 9004 * 9003',
+            'u_str LISTEN 0 0 /run/user/1000/bus 8000 * 0 users:(("dbus-broker",pid=9,fd=3))'])
+        held = {60: {9001, 5}, 61: {9003}, 40: {9002, 9004, 7}, 70: {9100}}
+        with patch.object(guest, 'run', return_value=table), \
+                patch.object(guest, 'socket_inodes', side_effect=lambda pid: held[pid]):
+            self.assertEqual(guest.unix_socket_peers(60, 40), [(9001, 9002)])
+            self.assertEqual(guest.unix_socket_peers(61, 40), [(9003, 9004)])
+            why = []
+            self.assertEqual(guest.unix_socket_peers(70, 40, why), [])
+            self.assertIn('ss rows touching them', why[0])
+        peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
+        editor = {'pid': 60, 'startTicks': '60', 'uid': 1000, 'exe': '/app/bin/gnome-text-editor', 'command': 'gnome-text-editor'}
+        own = {'pid': 39, 'startTicks': '39', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
+        other = {'pid': 59, 'startTicks': '59', 'uid': 1000, 'exe': '/usr/bin/bwrap'}
+        with patch.object(guest, 'process', side_effect=lambda pid: peer if pid == 40 else editor), \
+                patch.object(guest, 'editor_processes', return_value=[editor]), \
+                patch.object(guest, 'ancestors', side_effect=lambda pid: [peer, own] if pid == 40 else [editor, other]):
+            with patch.object(guest, 'flatpak_app', return_value='org.gnome.TextEditor'):
+                with patch.object(guest, 'unix_socket_peers', return_value=[(9001, 9002)]):
+                    match = guest.editor_identity(40, 1000)
+                    self.assertEqual((match['pid'], match['proxySocketPairs']), (60, [(9001, 9002)]))
+                with patch.object(guest, 'unix_socket_peers', return_value=[]):
+                    self.assertIsNone(guest.editor_identity(40, 1000))
+            with patch.object(guest, 'flatpak_app', return_value='org.example.Other'), \
+                    patch.object(guest, 'unix_socket_peers', return_value=[(9001, 9002)]):
+                self.assertIsNone(guest.editor_identity(40, 1000))
+
+    def test_proxy_bound_by_the_editor_a11y_bus_socket_file(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        net_unix = "\n".join([
+            'Num       RefCount Protocol Flags    Type St Inode Path',
+            '0000000000000000: 00000002 00000000 00010000 0001 01 27690 /run/user/1000/.dbus-proxy/a11y-bus-proxy-AB',
+            '0000000000000000: 00000002 00000000 00010000 0001 01 27691 /run/user/1000/.dbus-proxy/session-bus-proxy-CD',
+            '0000000000000000: 00000002 00000000 00010000 0001 01 30000 /run/user/1000/.dbus-proxy/a11y-bus-proxy-ZZ'])
+        class St:
+            def __init__(self, dev, ino): self.st_dev, self.st_ino = dev, ino
+        files = {'/proc/60/root/run/flatpak/at-spi-bus': St(5, 111),
+                 '/proc/40/root/run/user/1000/.dbus-proxy/a11y-bus-proxy-AB': St(5, 111),
+                 '/proc/40/root/run/user/1000/.dbus-proxy/session-bus-proxy-CD': St(5, 222),
+                 '/proc/40/root/run/user/1000/.dbus-proxy/a11y-bus-proxy-ZZ': St(5, 111)}
+        def read_text(self):
+            return net_unix
+        env = {b'AT_SPI_BUS_ADDRESS': b'unix:path=/run/flatpak/at-spi-bus'}
+        with patch.object(guest, 'environ', return_value=env), \
+                patch.object(guest.os, 'stat', side_effect=lambda path: files[path]), \
+                patch.object(guest.Path, 'read_text', autospec=True, side_effect=read_text):
+            with patch.object(guest, 'socket_inodes', return_value={27690, 27691}):
+                self.assertEqual(guest.proxy_serves_editor_a11y_bus(60, 40),
+                                 ['/run/user/1000/.dbus-proxy/a11y-bus-proxy-AB'])
+            # the matching file is bound by a socket this proxy does not hold
+            with patch.object(guest, 'socket_inodes', return_value={27691}):
+                why = []
+                self.assertEqual(guest.proxy_serves_editor_a11y_bus(60, 40, why), [])
+                self.assertIn('listens on', why[0])
+        with patch.object(guest, 'environ', return_value={}):
+            why = []
+            self.assertEqual(guest.proxy_serves_editor_a11y_bus(60, 40, why), [])
+            self.assertIn('not a unix path', why[0])
+
+    def test_every_observed_action_is_accepted_by_the_guest(self):
+        import re
+        proof = SOURCE.read_text()
+        guest = SOURCE.with_name('gui-document-guest.py').read_text()
+        observed = set(re.findall(r'observe\("([a-z-]+)"\)', proof)) | set(re.findall(r'self\.wait\("[^"]+", "([a-z-]+)"', proof))
+        choices = set(re.findall(r'"([a-z-]+)"', re.search(r'add_argument\("action", choices=\[([^\]]+)\]', guest).group(1)))
+        self.assertTrue(observed)
+        self.assertLessEqual(observed, choices, f"guest rejects {sorted(observed - choices)}")
+
+    def test_normalized_ignores_only_crlf_and_one_implicit_final_newline(self):
+        n = module.normalized
+        self.assertEqual(n('seed\r\nmark\r\n'), n('seed\nmark'))
+        self.assertEqual(n('seed\nmark\n'), n('seed\nmark'))
+        self.assertNotEqual(n('seed\r\nmark\r\n\r\n'), n('seed\nmark'))
+        self.assertNotEqual(n('seed\nmark \n'), n('seed\nmark'))
+        self.assertNotEqual(n('seed\nmar\n'), n('seed\nmark'))
+
+    def test_rejected_peer_records_why_without_relaxing(self):
+        guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
+        guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(guest)
+        guest.unix_socket_peers = lambda a, b, why=None: []
+        guest.proxy_serves_editor_a11y_bus = lambda a, b, why=None: []
+        peer = {'pid': 40, 'startTicks': '40', 'uid': 1000, 'exe': '/usr/bin/xdg-dbus-proxy', 'command': 'proxy'}
+        shell = {**peer, 'exe': '/usr/bin/gnome-shell'}
+        why = []
+        with patch.object(guest, 'process', return_value=shell):
+            self.assertIsNone(guest.editor_identity(40, 1000, why))
+        self.assertIn('neither the editor nor xdg-dbus-proxy', why[0])
+        why = []
+        with patch.object(guest, 'process', return_value=peer), patch.object(guest, 'editor_processes', return_value=[]), \
+                patch.object(guest, 'ancestors', return_value=[peer]):
+            self.assertIsNone(guest.editor_identity(40, 1000, why))
+        self.assertTrue(any('no readable gnome-text-editor' in reason for reason in why))
+        self.assertTrue(any('matched 0 editor sandboxes' in reason for reason in why))
 
 
 if __name__ == '__main__':

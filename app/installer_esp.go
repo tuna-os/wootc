@@ -166,8 +166,8 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	// every report of it look like a different bug.
 	for _, s := range []struct {
 		name, rel string
-		// mmx64.efi (MokManager) rides beside shim so custom-kernel images
-		// (Bazzite, #248) can complete the MOK enrollment the deployer
+		// mmx64.efi (MokManager) rides beside shim so images signed with
+		// their distribution's key (#248) can complete the MOK enrollment the deployer
 		// queues. Optional: releases before it shipped have no copy, and a
 		// non-akmods install never launches it.
 		optional bool
@@ -214,11 +214,13 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	if cfg.ComposeFS {
 		installMode += " wootc.composefs=1"
 	}
-	// MOK enrollment is OPT-IN per image (#248): only kernels the Fedora
-	// shim cannot verify (Bazzite's fsync) need the one-time MokManager
-	// step, and images with Fedora-signed kernels (aurora, bluefin) must
-	// never be handed a firmware prompt they do not need. The deployer only
-	// queues the enrollment when this flag rides the cmdline.
+	// MOK enrollment is OPT-IN per image (#248): catalog entries whose image
+	// carries the distribution's signing key (mokEnroll) need the one-time
+	// MokManager step — for a kernel the Fedora shim cannot verify
+	// (Bazzite's fsync) or for akmods-signed modules a Fedora-signed kernel
+	// refuses under lockdown (bluefin's v4l2loopback, run 39886118219).
+	// Images without such a key are never handed a firmware prompt. The
+	// deployer only queues the enrollment when this flag rides the cmdline.
 	if imageNeedsMok(cfg.ImageRef) {
 		installMode += " wootc.mok=enroll"
 	}
@@ -514,8 +516,26 @@ func configureBCD(cfg InstallConfig) error {
 		storageDrive = "C"
 	}
 
+	espPartitionGuid := findESPPartitionGuid()
+	// Retain the expected installation identity after recovery removes armed.json.
+	// An unverifiable volume/ESP must not produce a boot-ready installation.
+	hostUUID, err := ntfsHostUUID(storageDrive)
+	if err != nil {
+		return fmt.Errorf("recording installation host volume: %w", err)
+	}
+	identity, err := newInstallationIdentity(cfg.ImageRef, espPartitionGuid, efiRelPath, hostUUID)
+	if err != nil {
+		return fmt.Errorf("recording installation identity: %w", err)
+	}
+	if err := marshalJSONToFile(filepath.Join(wootcDir(), "install", "installation.json"), identity); err != nil {
+		return fmt.Errorf("persisting installation identity: %w", err)
+	}
+	if err := os.Remove(filepath.Join(wootcDir(), "install", "installed-linux-boot.complete")); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("resetting first-boot completion: %w", err)
+	}
+
 	armed := ArmedState{
-		EspPartitionGuid: findESPPartitionGuid(),
+		EspPartitionGuid: espPartitionGuid,
 		EspFiles:         espFiles,
 		EspFileHashes:    staged,
 		PriorPowerState:  powerState,

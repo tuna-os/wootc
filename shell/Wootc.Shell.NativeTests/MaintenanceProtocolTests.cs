@@ -53,6 +53,32 @@ public sealed class MaintenanceProtocolTests
         Assert.Equal("wootc-data", grant.VolumeLabel);
     }
 
+    // What GetUninstallInfo attaches once Windows verified the first boot.
+    private static JsonObject Evidence(Action<JsonObject>? change = null)
+    {
+        var evidence = new JsonObject
+        {
+            ["verdict"] = "verified", ["message"] = "Fixture OS started and reported that it is healthy.",
+            ["kernel"] = "6.12.0", ["imageRef"] = "localhost/wootc-ntfs-injected:latest",
+            ["imageDigest"] = "sha256:" + new string('a', 64), ["sourceImageRef"] = "ghcr.io/tuna-os/yellowfin:gnome",
+            ["bootId"] = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0", ["secureBoot"] = true,
+            ["bridge"] = new JsonObject { ["boundFolders"] = 3, ["matchedUsers"] = 1, ["bitlockerUnlocked"] = true },
+            ["writtenAt"] = "2026-10-23T05:00:00Z",
+        };
+        change?.Invoke(evidence);
+        return evidence;
+    }
+
+    [Fact]
+    public void VerifiedBootSummaryDecodes()
+    {
+        var info = Decode<UninstallInfo>("GetUninstallInfo", Mutated(Recorded()[0].Result, node => node["bootEvidence"] = Evidence()));
+        Assert.Equal("verified", info.BootEvidence!.Verdict);
+        Assert.Equal("ghcr.io/tuna-os/yellowfin:gnome", info.BootEvidence.SourceImageRef);
+        Assert.Equal(3, info.BootEvidence.Bridge!.BoundFolders);
+        Assert.False(info.BootPending);
+    }
+
     [Fact]
     public void ForeignShapesAreRefused()
     {
@@ -61,6 +87,13 @@ public sealed class MaintenanceProtocolTests
         foreach (var refused in new[]
         {
             Mutated(info, node => node["rootDiskKey"] = "secret"), Mutated(info, node => node.Remove("deployed")), Mutated(info, node => node["found"] = "true"),
+            Mutated(info, node => node.Remove("bootPending")), Mutated(info, node => node["bootPending"] = "false"),
+            Mutated(info, node => node["bootEvidence"] = "verified"),
+            Mutated(info, node => node["bootEvidence"] = Evidence(e => e["bindings"] = new JsonArray())),
+            Mutated(info, node => node["bootEvidence"] = Evidence(e => e["verdict"] = "healthy")),
+            Mutated(info, node => node["bootEvidence"] = Evidence(e => e["kernel"] = new string('k', 129))),
+            Mutated(info, node => node["bootEvidence"] = Evidence(e => e["bridge"]!["boundFolders"] = -1)),
+            Mutated(info, node => node["bootEvidence"] = Evidence(e => e["bridge"]!["source"] = "C:\\Users")),
             Mutated(info, node => node["storageDrive"] = "DD"), Mutated(info, node => node["diskSizeGB"] = -1), Mutated(info, node => node["diskPath"] = new string('x', 1025)),
         })
             Assert.Throws<InvalidDataException>(() => Decode<UninstallInfo>("GetUninstallInfo", refused));
