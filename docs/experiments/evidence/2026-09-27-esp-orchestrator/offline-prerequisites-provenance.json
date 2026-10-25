@@ -29,7 +29,7 @@
   "schemaVersion": 1,
   "scope": "isolated consumer and authenticated metadata prerequisite; earlier source stack is not included",
   "sourceHashes": {
-    ".github/workflows/ci-tests.yml": "1a70e2402a80bef22203ed53dce670297310a106d056c717eaf7875a5eed019e",
+    ".github/workflows/ci-tests.yml": "138d31d5e1ccc3a4ca29a8e695e5ce56c3678dac81d49489ce9a71f8c5b9ff01",
     "docs/experiments/classic-offline-prerequisites.md": "58bc586050ca348d7b8a37dc2a70016b805e3e85a83885ad6cbbc809c64823e5",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/authenticated-dependencies/archive-key-11.asc": "0b7dc94b880f0b63e2093394b113cafd870badb86e020a35614f49b9d83beb1e",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/authenticated-dependencies/archive-key-12.asc": "c2a9a16fde95e037bafd0fa6b7e31f41b4ff1e85851de5558f19a2a2f0e955e2",
