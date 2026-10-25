@@ -57,7 +57,7 @@ from the first pixel with no sidecar file.
 branding/
   wootc/brand.json          # generic (default; current strings)
   tunaos/brand.json
-  bluefin/brand.json        # covers bluefin, dakota, bluefin-lts via catalog
+  bluefin/brand.json        # covers bluefin, dakota via catalog
   aurora/brand.json
   bazzite/brand.json
   <brand>/logo.svg          # the REAL mark (→ LogoDataURI); emoji only
@@ -101,7 +101,7 @@ fields:
 
 - `catalog`: image ids from `app/data/images.json` this brand offers.
   Empty = full catalog (wootc generic). The Bluefin brand lists
-  `["bluefin", "dakota", "bluefin-lts"]`.
+  `["bluefin", "dakota"]`. Its default is `bluefin`.
 - `defaultImage`: pre-selected card.
 - `hideCustomImage`: branded builds hide the custom-OCI field regardless of
   support policy.

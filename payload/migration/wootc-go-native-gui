@@ -95,6 +95,31 @@ class GoNativeEngine:
         return self._run_root("migrate --reclaim --execute")
 
 
+def firstboot_summary(path="/var/lib/wootc/installed-linux-boot-summary.json"):
+    """Read only the root-published summary; never expose private host records."""
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = stream.read(8193)
+        if len(data) > 8192:
+            return None
+        record = json.loads(data)
+        for field in ("kernel", "sourceImageRef", "imageDigest", "writtenAt"):
+            if not isinstance(record.get(field), str) or not record[field]:
+                return None
+        for field in ("boundFolders", "matchedUsers"):
+            if type(record.get(field)) is not int or record[field] < 0:
+                return None
+        return record
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def firstboot_summary_text(record):
+    return (f"Verified boot before this move: Linux {record['kernel']} · "
+            f"{record['sourceImageRef']} · {record['boundFolders']} connected folders "
+            f"for {record['matchedUsers']} users ({record['writtenAt']})")
+
+
 def self_test():
     """Exercise the engine parsers against the WOOTC_GN_* fixtures — no GUI."""
     eng = GoNativeEngine(pkexec=False)
@@ -288,6 +313,12 @@ def build_gui():
         def done(self, ok, msg):
             if ok:
                 p = self._page("Done", "Reboot to run from your native install." )
+                record = firstboot_summary()
+                if record:
+                    summary = Gtk.Label(label=firstboot_summary_text(record),
+                                        xalign=0, wrap=True, selectable=True)
+                    summary.add_css_class("dim-label")
+                    p.append(summary)
                 r = Gtk.Button(label="Close")
                 r.connect("clicked", lambda *_: self.close())
                 p.append(r)

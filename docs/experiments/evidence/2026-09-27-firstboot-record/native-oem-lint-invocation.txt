@@ -1,0 +1,39 @@
+$ErrorActionPreference='Stop'
+$ProgressPreference='SilentlyContinue'
+if ($env:OS -ne 'Windows_NT') { throw 'Expected Windows fixture' }
+$temporaryName=[Guid]::NewGuid().ToString('N')
+$temporaryDir=Join-Path $env:TEMP "wootc-oem-lint-$temporaryName"
+if (Test-Path -LiteralPath $temporaryDir) { throw 'Refusing existing directory' }
+[IO.Directory]::CreateDirectory($temporaryDir) | Out-Null
+& icacls $temporaryDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Failed private temporary ACL' }
+try {
+ Write-Output 'BASE_HEAD e4796dc4e8a20dcc36ed595446e1d5b744ad2d70 (working-tree setup and native test modifications included)'
+ $archivePath=Join-Path $temporaryDir 'source.zip'
+ Invoke-WebRequest -UseBasicParsing -Uri 'http://10.104.210.10:8080/wootc-oem-lint-723d28d0d0714269a7cab33e6f1f95da.zip' -OutFile $archivePath
+ if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne '96b46898b73b83816a0caeae12dc7d292f54131932cd35db7bdab91b7b4b39bb') { throw 'Archive checksum mismatch' }
+ $repo=Join-Path $temporaryDir 'repo'
+ Expand-Archive -LiteralPath $archivePath -DestinationPath $repo
+ $entries=Get-Content -Raw -LiteralPath (Join-Path $repo 'audit-files.json') | ConvertFrom-Json
+ $files=@()
+ foreach ($entry in $entries) {
+  $file=Join-Path $repo $entry.source
+  if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.stagedSha256) { throw "Source checksum mismatch: $file" }
+  Write-Output "SOURCE $($entry.source) RAW_SHA256 $($entry.rawSha256) STAGED_SHA256 $($entry.stagedSha256)"
+  $files += $file
+ }
+ $setupPath=Join-Path $repo 'tests/e2e/setup-wootc.ps1'
+ $testPath=Join-Path $repo 'tests/unit/oem-installation-identity.ps1'
+ & ([ScriptBlock]::Create([IO.File]::ReadAllText($testPath))) -SetupPath $setupPath
+ Write-Output 'PASS OEM native identity suite'
+ $lintPath=Join-Path $repo 'tests/lint-ps1.ps1'
+ # Child scope keeps the linter's exit from terminating this audit's cleanup.
+ $quotedFiles = @($files | ForEach-Object { "'" + $_.Replace("'", "''") + "'" })
+ $fileArguments = $quotedFiles -join ','
+ $escapedLintPath = $lintPath.Replace("'", "''")
+ $lintCommand = "& '$escapedLintPath' -Files @($fileArguments)"
+ $encodedLint = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($lintCommand))
+ & "$PSHOME\powershell.exe" '-NoProfile' '-NonInteractive' '-ExecutionPolicy' 'Bypass' '-EncodedCommand' $encodedLint
+ if ($LASTEXITCODE -ne 0) { throw "Native PowerShell lint failed: $LASTEXITCODE" }
+ Write-Output 'PASS all tracked PowerShell source lint on Windows 5.1'
+} finally { Remove-Item -LiteralPath $temporaryDir -Recurse -Force }
