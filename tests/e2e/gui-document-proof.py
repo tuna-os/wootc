@@ -11,7 +11,13 @@ import time
 
 
 def normalized(text):
-    return text.replace("\r\n", "\n")
+    # Compare the editor buffer with the bytes on disk. CRLF from the
+    # Windows-origin file counts as LF, and GNOME Text Editor's buffer uses
+    # GtkSourceView's implicit trailing newline: the file's one final newline
+    # is not in the buffer but is written back on save. Drop exactly that one
+    # newline, never other whitespace, so any real difference still fails.
+    text = text.replace("\r\n", "\n")
+    return text[:-1] if text.endswith("\n") else text
 
 
 class Proof:

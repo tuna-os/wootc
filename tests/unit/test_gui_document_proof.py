@@ -376,6 +376,14 @@ class GuestIdentityTests(unittest.TestCase):
         self.assertTrue(observed)
         self.assertLessEqual(observed, choices, f"guest rejects {sorted(observed - choices)}")
 
+    def test_normalized_ignores_only_crlf_and_one_implicit_final_newline(self):
+        n = module.normalized
+        self.assertEqual(n('seed\r\nmark\r\n'), n('seed\nmark'))
+        self.assertEqual(n('seed\nmark\n'), n('seed\nmark'))
+        self.assertNotEqual(n('seed\r\nmark\r\n\r\n'), n('seed\nmark'))
+        self.assertNotEqual(n('seed\nmark \n'), n('seed\nmark'))
+        self.assertNotEqual(n('seed\nmar\n'), n('seed\nmark'))
+
     def test_rejected_peer_records_why_without_relaxing(self):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
