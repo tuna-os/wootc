@@ -81,6 +81,9 @@ class FakeDesktop:
             if key == 'ctrl-end':
                 continue
             if key == 'ctrl-s':
+                self.saves = getattr(self, 'saves', 0) + 1
+                if self.defect == 'save-dropped-once' and self.saves == 1:
+                    continue
                 if self.defect != 'save':
                     self.text = self.buffer
             elif key == 'ctrl-q':
@@ -154,6 +157,13 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'lacks an installed GNOME Text Editor'):
             self.exercise(desktop, 'reopen')
         self.assertEqual(desktop.installs, 0)
+
+    def test_one_dropped_save_keystroke_is_retried_and_recorded(self):
+        desktop = FakeDesktop('save-dropped-once')
+        digest, evidence = self.exercise(desktop)
+        self.assertEqual(desktop.saves, 2)
+        self.assertIn('save-retry', evidence)
+        self.assertIn('saved-file-reopened', evidence)
 
     def test_disabled_save_fails_even_when_buffer_contains_edit(self):
         with self.assertRaisesRegex(RuntimeError, 'saved-file'):

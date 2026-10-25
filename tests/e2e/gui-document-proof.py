@@ -87,6 +87,27 @@ class Proof:
                   value.get("process", {}).get("pid") == self.pid and
                   value.get("process", {}).get("startTicks") == self.start_ticks and self.seed in value.get("buffer", ""))
 
+    def save(self, before):
+        """Ctrl+S, and wait for the edit to reach the disk.
+
+        A synthetic key can be dropped (run 40160225888: the title kept its
+        unsaved dot and nothing was written). If the file has not changed
+        after 20 s, check again that this exact buffer still has focus and
+        press Ctrl+S once more, recorded. The file still has to change
+        through the editor's own Save.
+        """
+        def written(value):
+            return (self.seed in value.get("text", "") and self.marker in value.get("text", "") and
+                    value.get("sha256") != before["sha256"])
+        self.transport.keys(["ctrl-s"])
+        try:
+            return self.wait("saved-file", "disk", written, 20)
+        except RuntimeError:
+            self.record("save-retry", {"reason": "file unchanged 20 s after Ctrl+S"})
+            self.focus()
+            self.transport.keys(["ctrl-s"])
+            return self.wait("saved-file", "disk", written, 60)
+
     def close(self, stage):
         self.focus()
         self.transport.keys(["ctrl-q"])
@@ -127,10 +148,7 @@ class Proof:
             if unsaved["sha256"] != before["sha256"]:
                 raise RuntimeError("Document changed before the GUI Save action")
             self.transport.screenshot("unsaved-buffer")
-            self.transport.keys(["ctrl-s"])
-            saved = self.wait("saved-file", "disk", lambda value:
-                              self.seed in value.get("text", "") and self.marker in value.get("text", "") and
-                              value.get("sha256") != before["sha256"])
+            saved = self.save(before)
             buffer = self.wait("saved-editor-buffer", "probe", lambda value:
                                normalized(value.get("buffer", "")) == normalized(saved["text"]))
             self.record("saved-buffer-match", buffer)
