@@ -531,7 +531,7 @@ def disk(path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["tooling", "provision", "provisioned", "prepare", "desktop", "launch", "probe", "focus", "disk", "closed"])
+    parser.add_argument("action", choices=["tooling", "provision", "provisioned", "prepare", "desktop", "launch", "leave-overview", "probe", "focus", "disk", "closed"])
     parser.add_argument("--path", required=True)
     parser.add_argument("--seed", required=True)
     args = parser.parse_args()

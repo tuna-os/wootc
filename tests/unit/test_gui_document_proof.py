@@ -367,6 +367,15 @@ class GuestIdentityTests(unittest.TestCase):
             self.assertEqual(guest.proxy_serves_editor_a11y_bus(60, 40, why), [])
             self.assertIn('not a unix path', why[0])
 
+    def test_every_observed_action_is_accepted_by_the_guest(self):
+        import re
+        proof = SOURCE.read_text()
+        guest = SOURCE.with_name('gui-document-guest.py').read_text()
+        observed = set(re.findall(r'observe\("([a-z-]+)"\)', proof)) | set(re.findall(r'self\.wait\("[^"]+", "([a-z-]+)"', proof))
+        choices = set(re.findall(r'"([a-z-]+)"', re.search(r'add_argument\("action", choices=\[([^\]]+)\]', guest).group(1)))
+        self.assertTrue(observed)
+        self.assertLessEqual(observed, choices, f"guest rejects {sorted(observed - choices)}")
+
     def test_rejected_peer_records_why_without_relaxing(self):
         guest_spec = importlib.util.spec_from_file_location('gui_document_guest', SOURCE.with_name('gui-document-guest.py'))
         guest = importlib.util.module_from_spec(guest_spec)
