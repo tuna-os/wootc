@@ -37,13 +37,27 @@ PY
     [[ "$output" == *"not the selected"* ]]
 }
 
+@test "the BitLocker cell requires the bridge to have reached an unlocked BitLocker C:" {
+    run python3 "$CHECK" "$EV" ghcr.io/projectbluefin/bluefin:lts "$BOOT" off
+    [ "$status" -eq 0 ]
+    run python3 "$CHECK" "$EV" ghcr.io/projectbluefin/bluefin:lts "$BOOT" on
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"unlocked BitLocker C:"* ]]
+    python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); r["bridge"]["bitlockerUnlocked"]=True; json.dump(r,open(sys.argv[1],"w"))' "$EV"
+    run python3 "$CHECK" "$EV" ghcr.io/projectbluefin/bluefin:lts "$BOOT" on
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"bitlockerUnlocked=True"* ]]
+    run python3 "$CHECK" "$EV" ghcr.io/projectbluefin/bluefin:lts "$BOOT" maybe
+    [ "$status" -eq 2 ]
+}
+
 @test "missing, malformed and oversized evidence is unreadable, not a pass" {
     run python3 "$CHECK" "$BATS_TEST_TMPDIR/absent.json" ghcr.io/projectbluefin/bluefin:lts "$BOOT"
     [ "$status" -eq 2 ]
     printf '{"state":"healthy"}' > "$EV"
     run python3 "$CHECK" "$EV" ghcr.io/projectbluefin/bluefin:lts "$BOOT"
     [ "$status" -eq 2 ]
-    head -c 20000 /dev/zero | tr '\0' ' ' > "$EV"
+    head -c 70000 /dev/zero | tr '\0' ' ' > "$EV"
     run python3 "$CHECK" "$EV" ghcr.io/projectbluefin/bluefin:lts "$BOOT"
     [ "$status" -eq 2 ]
 }

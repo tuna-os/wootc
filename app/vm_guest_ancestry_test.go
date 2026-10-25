@@ -117,3 +117,48 @@ func TestVMGuestMeasuredProjectionAndMembers(t *testing.T) {
 		}
 	}
 }
+
+// A triggered binfmt_misc leaves two findmnt rows on one target: the systemd
+// autofs automount and the real filesystem on top (hosted run 39007144179).
+// That must not refuse a guest whose root is on the selected disk, while a
+// second row on a target the root check uses still refuses.
+func TestVMGuestStackedMountTargets(t *testing.T) {
+	req, _ := guestProbeFixture()
+	blocks := `{"blockdevices":[{"name":"/dev/vdb","kname":"/dev/vdb","type":"disk","maj:min":"8:16","ptuuid":"12345678-1234-1234-1234-123456789abc","children":[{"name":"/dev/vdb3","kname":"/dev/vdb3","type":"part","maj:min":"8:19"}]},{"name":"/dev/vda","kname":"/dev/vda","type":"disk","maj:min":"8:0","children":[{"name":"/dev/vda3","kname":"/dev/vda3","type":"part","maj:min":"8:3"}]}]}`
+	verify := func(mounts, paths string) error {
+		m := map[string]string{}
+		for k, v := range map[string]string{"BLOCKS": blocks, "MOUNTS": mounts, "LOOPS": `{"loopdevices":[]}`, "PATHS": paths, "BTRFS": ""} {
+			m[k] = base64.StdEncoding.EncodeToString([]byte(v))
+		}
+		return verifyVMGuestRoot(vmGuestProbeRoot{Target: "/dev/vdb", DiskID: req.DiskID, CurrentRootVerified: true, Measurements: m}, req.DiskID)
+	}
+	row := func(target, source, major, fstype, children string) string {
+		return `{"target":"` + target + `","source":"` + source + `","maj:min":"` + major + `","fstype":"` + fstype + `","options":"rw"` + children + `}`
+	}
+	binfmt := row("/proc/sys/fs/binfmt_misc", "systemd-1", "0:33", "autofs",
+		`,"children":[`+row("/proc/sys/fs/binfmt_misc", "binfmt_misc", "0:72", "binfmt_misc", "")+`]`)
+	root := row("/", "/dev/vdb3", "8:19", "ext4", "")
+	if e := verify(`{"filesystems":[`+root+`,`+row("/proc", "proc", "0:24", "proc", `,"children":[`+binfmt+`]`)+`]}`, ""); e != nil {
+		t.Fatalf("stacked unrelated target refused: %v", e)
+	}
+	for _, target := range []string{"/", "/sysroot", "/boot", "/var", "/etc"} {
+		t.Run("strict"+target, func(t *testing.T) {
+			twice := row(target, "/dev/vdb3", "8:19", "ext4", "")
+			mounts := `{"filesystems":[` + root + `,` + twice + `,` + twice + `,` + binfmt + `]}`
+			if target == "/" {
+				mounts = `{"filesystems":[` + root + `,` + root + `]}`
+			}
+			if e := verify(mounts, ""); e == nil || !strings.Contains(e.Error(), "ambiguous mount inventory") {
+				t.Fatalf("stacked %s accepted or refused for another reason: %v", target, e)
+			}
+		})
+	}
+	// The overlay's lower layer sits on a stacked target. Falling back to the
+	// parent /var row (on the selected disk) would accept it.
+	overlay := `{"target":"/","source":"overlay","maj:min":"0:55","fstype":"overlay","options":"ro,lowerdir=/var/lower"}`
+	lower := `{"filesystems":[` + overlay + `,` + row("/var", "/dev/vdb3", "8:19", "ext4", "") + `,` +
+		row("/var/lower", "/dev/vda3", "8:3", "ext4", "") + `,` + row("/var/lower", "/dev/vdb3", "8:19", "ext4", "") + `]}`
+	if e := verify(lower, "/var/lower\t/var/lower"); e == nil || !strings.Contains(e.Error(), "ambiguous mount inventory") {
+		t.Fatalf("projection on a stacked target accepted or refused for another reason: %v", e)
+	}
+}

@@ -44,6 +44,8 @@ var DTOStructs = []string{
 	"NativeVMGrant",
 	"InstallStatus",
 	"UninstallInfo",
+	"FirstBootAssessment",
+	"FirstBootBridge",
 	"UninstallOptions",
 	"LifecycleState",
 	"SessionCandidate",

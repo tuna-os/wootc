@@ -113,7 +113,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 func TestHeadlessStatusAbsentState(t *testing.T) {
 	out := captureStdout(t, func() {
-		if code := headlessStatusWithReader(func() (StatusReport, bool, error) { return StatusReport{}, false, nil }); code != 0 {
+		if code := headlessStatusWithReader(func() (StatusReport, bool, error) { return StatusReport{}, false, nil }, noBootVerification); code != 0 {
 			t.Errorf("absent exit = %d", code)
 		}
 	})
@@ -126,7 +126,7 @@ func TestHeadlessStatusPrintsStateJSON(t *testing.T) {
 	out := captureStdout(t, func() {
 		if code := headlessStatusWithReader(func() (StatusReport, bool, error) {
 			return StatusReport{LifecycleState: LifecycleState{State: StateDeployed, Phase: "deploy"}}, true, nil
-		}); code != 0 {
+		}, noBootVerification); code != 0 {
 			t.Errorf("present exit = %d", code)
 		}
 	})
@@ -139,12 +139,27 @@ func TestHeadlessStatusRefusalNeverPrintsAbsent(t *testing.T) {
 	out := captureStdout(t, func() {
 		if code := headlessStatusWithReader(func() (StatusReport, bool, error) {
 			return StatusReport{}, false, errors.New("unsafe private path")
-		}); code != 1 {
+		}, noBootVerification); code != 1 {
 			t.Errorf("refusal exit = %d", code)
 		}
 	})
 	if out != "" {
 		t.Fatalf("refusal printed guessed status: %q", out)
+	}
+}
+
+func noBootVerification() error { return nil }
+
+func TestHeadlessStatusRefusesUnverifiedHealthy(t *testing.T) {
+	out := captureStdout(t, func() {
+		if code := headlessStatusWithReader(func() (StatusReport, bool, error) {
+			return StatusReport{LifecycleState: LifecycleState{State: StateHealthy}}, true, nil
+		}, func() error { return errors.New("no first-boot record") }); code != 1 {
+			t.Errorf("unverified healthy exit = %d", code)
+		}
+	})
+	if out != "" {
+		t.Fatalf("unverified healthy state was printed: %q", out)
 	}
 }
 

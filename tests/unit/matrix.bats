@@ -28,13 +28,13 @@ setup() {
     # ostree backend (incl. sealed-rootfs bluefin), composefs-native (dakota).
     # Measured contract: docs/backend-contract.md
     grep -v '^#' "$MATRIX" | grep -q 'tuna-os/yellowfin'
-    grep -v '^#' "$MATRIX" | grep -q 'projectbluefin/bluefin:lts'
+    grep -v '^#' "$MATRIX" | grep -q 'projectbluefin/bluefin:stable'
     grep -v '^#' "$MATRIX" | grep -q 'projectbluefin/dakota'
 }
 
 @test "matrix has a phase3 case per backend flavor" {
     grep -v '^#' "$MATRIX" | grep 'phase3=on' | grep -q 'yellowfin'
-    grep -v '^#' "$MATRIX" | grep 'phase3=on' | grep -q 'bluefin:lts'
+    grep -v '^#' "$MATRIX" | grep 'phase3=on' | grep -q 'bluefin:stable'
     grep -v '^#' "$MATRIX" | grep 'phase3=on' | grep -q 'dakota'
 }
 

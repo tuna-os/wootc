@@ -13,10 +13,9 @@
   "installVerb": "Install",
   "catalog": [
     "bluefin",
-    "dakota",
-    "bluefin-lts"
+    "dakota"
   ],
-  "defaultImage": "bluefin-lts",
+  "defaultImage": "bluefin",
   "hideCustomImage": true,
   "preloadImage": true,
   "publisher": "Universal Blue",

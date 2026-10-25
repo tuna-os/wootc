@@ -38,6 +38,8 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     E2E="${E2E:-$REPO_ROOT/tests/e2e/run-e2e.sh}"
+    # The BitLocker cell's second Linux return (lib/phase2-second-boot.sh).
+    P2_SECOND_BOOT="${P2_SECOND_BOOT:-$REPO_ROOT/tests/e2e/lib/phase2-second-boot.sh}"
 }
 
 extract_fn() {
@@ -167,10 +169,36 @@ observe_with() {
     # window the observation needs — which is how the observation ended up
     # looking at Windows in the first place.
     local t
-    t=$(return_block | grep -E "WOOTC_QGA_CALL_TIMEOUT=[0-9]+ qga_call exec .*systemctl reboot" \
+    t=$({ return_block; cat "$P2_SECOND_BOOT"; } | grep -E "WOOTC_QGA_CALL_TIMEOUT=[0-9]+ qga_call exec .*systemctl reboot" \
         | grep -oE 'WOOTC_QGA_CALL_TIMEOUT=[0-9]+' | grep -oE '[0-9]+$')
-    [ -n "$t" ]
-    [ "$t" -le 5 ]
+    [ "$(printf '%s\n' "$t" | grep -c .)" -eq 2 ]
+    # The BitLocker cell performs a second Linux return. Every request,
+    # including that later boot, must leave time for the observation.
+    while IFS= read -r timeout_seconds; do
+        [ "$timeout_seconds" -le 5 ] || return 1
+    done <<< "$t"
+}
+
+@test "each actual Linux return rejects an oversized reboot request" {
+    # Run the preceding check against separate mutations of both requests.
+    # A scalar first-match check would miss the later second-boot return.
+    local altered="$BATS_TEST_TMPDIR/unbounded.sh" source variable
+    for variable in E2E P2_SECOND_BOOT; do
+        source="${!variable}"
+        python3 - "$source" "$altered" <<'PYTHON'
+from pathlib import Path
+import re
+import sys
+source = Path(sys.argv[1]).read_text()
+positions = [m.start() for m in re.finditer(r'WOOTC_QGA_CALL_TIMEOUT=5 qga_call exec [^\n]*systemctl reboot', source)]
+assert len(positions) == 1
+index = positions[0]
+Path(sys.argv[2]).write_text(source[:index] + source[index:].replace('WOOTC_QGA_CALL_TIMEOUT=5', 'WOOTC_QGA_CALL_TIMEOUT=10', 1))
+PYTHON
+        run env "$variable=$altered" bats --filter '^the reboot request is bounded' "$BATS_TEST_FILENAME"
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"not ok"* ]]
+    done
 }
 
 @test "the Windows return is still asserted with the OS discriminator afterwards" {

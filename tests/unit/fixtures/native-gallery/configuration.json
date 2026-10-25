@@ -4,7 +4,7 @@
   "rootBinding": "",
   "rootScope": "none",
   "catalogueSource": "embedded",
-  "catalogueMetadataSha256": "3ecb8150350ceaaef125af6ea4d9ec4240b5162745e54fc46beff46aaa81f919",
+  "catalogueMetadataSha256": "0bc0607f4ce2fb085985a3cabf4264fbbedfc0bd3d0451d5a21244a8c80f496a",
   "policySource": "default",
   "policy": {
     "channel": "alpha",
@@ -43,26 +43,6 @@
   "images": [
     {
       "image": {
-        "id": "bluefin-lts",
-        "name": "Bluefin LTS",
-        "emoji": "🐟",
-        "base": "Universal Blue (Fedora)",
-        "desktop": "gnome",
-        "desktopName": "GNOME",
-        "imageRef": "ghcr.io/projectbluefin/bluefin:lts",
-        "description": "A calm, reliable cloud-native desktop on the long-term-support base. The most-tested choice.",
-        "bootloader": "grub2",
-        "composeFs": false,
-        "family": "fedora",
-        "status": "green"
-      },
-      "admitted": true,
-      "admissionBlockedReason": "",
-      "requiresMokEnrollment": false,
-      "contentVerified": false
-    },
-    {
-      "image": {
         "id": "bluefin",
         "name": "Bluefin",
         "emoji": "🐟",
@@ -74,11 +54,12 @@
         "bootloader": "grub2",
         "composeFs": false,
         "family": "fedora",
-        "status": "green"
+        "status": "green",
+        "mokEnroll": "universalblue"
       },
       "admitted": true,
       "admissionBlockedReason": "",
-      "requiresMokEnrollment": false,
+      "requiresMokEnrollment": true,
       "contentVerified": false
     },
     {
@@ -154,11 +135,12 @@
         "bootloader": "grub2",
         "composeFs": false,
         "family": "fedora",
-        "status": "green"
+        "status": "green",
+        "mokEnroll": "universalblue"
       },
       "admitted": true,
       "admissionBlockedReason": "",
-      "requiresMokEnrollment": false,
+      "requiresMokEnrollment": true,
       "contentVerified": false
     },
     {
