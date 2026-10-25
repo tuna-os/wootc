@@ -39,9 +39,9 @@ Windows is a good outcome; a walked-into-red user with a broken boot is not.
 
 ## Alpha (now)
 
-- **Image:** `ghcr.io/projectbluefin/bluefin-lts:stable`. This canonical
-  Bluefin LTS reference is shared with bootc-migrate; the release gate verifies
-  the exact reference through the GUI before publishing.
+- **Image:** `ghcr.io/projectbluefin/bluefin-lts:stable`. This Bluefin LTS
+  reference is the one used by bootc-migrate. The release gate checks the exact
+  reference through the GUI before it publishes.
 - **Encryption:** off only. `tpm2-luks` (Phase-2 regen, [#33](https://github.com/tuna-os/wootc/issues/33))
   and BitLocker FDE ([#34](https://github.com/tuna-os/wootc/issues/34)) remain unavailable in alpha.
   The app detects BitLocker and tells the user about that limit. It refuses to continue into a known failure.
