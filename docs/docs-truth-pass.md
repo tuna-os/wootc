@@ -280,7 +280,7 @@ release exists from which to take RC screenshots.
 | ✘ → ✔ | Release steps required an application TPM 2.0 check and manual username entry | The shipping flow checks Windows/UEFI/Secure Boot/BitLocker and derives suggested identity values before the user confirms them. |
 | ✘ → ✔ | Branding docs allowed `brand.json` beside the installer and accepted any custom OCI reference | `app/branding_policy.go` reads `C:\wootc\brand.json`; the launchpad and channel policy separately constrain user-entered custom references. |
 | ✘ → ✔ | VM docs required a prepared Linux disk | `app/vm_windows.go` provisions a persistent raw disk from the selected OCI image and needs the bundled runtime assets. |
-| ✘ → ✔ | Manual testing presented beta BitLocker support and fixed durations as shipped facts | `docs/status.md` keeps the full install path as the v0.3.0-beta gate; the guide now requires observed duration and matrix evidence. |
+| ✘ → ✔ | Manual testing presented beta BitLocker support and fixed durations as released facts | `docs/status.md` keeps the full install path behind a beta gate; the guide now requires observed duration and matrix evidence. |
 | ✘ → ✔ | Release docs promised one installer for every brand directory | `packaging/brands.sh` selects buildable brands and omits declined or pending brands. |
 
 `tests/unit/docs-truth.bats` now checks these source-to-document contracts.
