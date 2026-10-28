@@ -67,14 +67,15 @@ The gates for each axis open as their issues close.
 
 The [roadmap](../ROADMAP.md#native-shell-sequence-and-evidence-357) puts the
 WinUI default change before 1.0. Phase B packages remain preview assets.
-Phase C must prove the native consumer journey, the VM journey, and full cycles.
-Phase D changes the default only after those gates pass. Keep the legacy
-artifact for one release. Phase E follows a clean native release and the docs audit.
+Phase C proved the native consumer journey, the VM journey, and full cycles.
+Phase D now makes the native setup the primary release path and keeps the Wails
+build once as `wootc-legacy.exe`. Phase E follows a clean native release and
+the docs audit.
 
 A release cannot use old Wails passes as native UI or setup proof. Carry only
 component evidence whose engine code and contract did not change. Re-run the
 native hardware journeys, branded walks, accessibility checks, and matrix cells.
-A new artifact needs fresh signature checks and offline tests of its package.
+A new setup artifact needs fresh signature checks and offline tests of its package.
 
 The 1.0 soak needs phase D and all RC prerequisites complete, then a recorded
 start date. Each eligible row must name the native shell, source SHA, artifact
@@ -86,7 +87,7 @@ list alone or from dates before these gates pass.
 ## Cutting a release
 
 Releases are **E2E-gated**. The tagged gate uses Windows 11, Bluefin LTS,
-BitLocker off, GUI install, and `phase3: true` on a hosted runner.
+BitLocker off, the native GUI install, and `phase3: true` on a hosted runner.
 It ends in graduated Linux and checks this run's file from Windows Documents.
 That final boot does not prove a Windows return after graduation.
 
@@ -97,19 +98,26 @@ The release notes disclose that waiver.
 
 ```
 git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
-# → tests → E2E gate (real Windows VM, bluefin:stable, GUI-driven) → build + publish
+# → tests → native E2E gate (real Windows VM, bluefin:stable) → build + publish
 ```
 
-Every release ships the **full artifact set** from `release.yml`.
-It includes one installer per brand directory: `wootc.exe`,
-`TunaOS-Installer.exe`, `Bluefin-Installer.exe`, `Bazzite-Installer.exe`, and
-`Aurora-Installer.exe`. These use Wails with Go and a web UI. Their Windows interface needs the WebView2 runtime.
+Every release ships the **full artifact set** from `release.yml` and the
+workflow for native packages. The primary GUI downloads are one Inno setup per eligible
+brand: `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`,
+`Bluefin-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`, and
+`Aurora-Installer-Setup.exe`. Each setup installs the WinUI shell beside its
+protected Go engine and carries the release's public verification key.
+
+This cut-over release publishes the Wails build once as `wootc-legacy.exe`.
+It is a compatibility fallback, not a branded primary installer. It needs
+WebView2.
 
 The shared boot artifacts are `deployer-vmlinuz`, `deployer-initramfs.img`,
 `shimx64.efi`, `grubx64.efi`, and `mmx64.efi`.
 The set also includes `wubildr.efi` when its build succeeds.
-`SHA256SUMS` lists hashes for all these files. `skip_e2e` exists for emergencies and
-documents itself in the release notes.
+`SHA256SUMS` lists the boot artifacts and `wootc-legacy.exe`.
+`native-SHA256SUMS` lists the setup assets that the workflow attaches.
+`skip_e2e` exists for emergencies and documents itself in the release notes.
 
 ## Full-matrix evidence at the RC SHA (v1.0 criterion 3)
 
@@ -172,10 +180,10 @@ It exits with a non-zero code if a box fails:
 | Box | How it is decided |
 |---|---|
 | winget serves the release | `winget show TunaOS.wootc` resolves **and** reports the version under test — a manifest that resolves to last month's alpha is a quieter failure than no package at all |
-| winget installs the release | `winget install TunaOS.wootc` exits 0, and the exe it puts on disk has the `SHA256SUMS` hash of this release's `wootc.exe`. A winget success that installs a different file is a fail |
-| each asset matches `SHA256SUMS` | `Get-FileHash` against the published manifest; an asset the manifest does not list fails rather than being skipped |
-| each exe is Authenticode-signed | `Get-AuthenticodeSignature` must be `Valid` *and* name a signer. `HashMismatch` is called out separately — that is a tampered download, not an unsigned one |
-| each branded exe shows its own identity | the exe's VERSIONINFO `ProductName`/`FileDescription`/`CompanyName` match that brand and contain no "wootc" |
+| winget installs the release | `winget install TunaOS.wootc` exits 0, and the setup it installs has the release's `native-SHA256SUMS` hash. A winget success that installs a different file is a fail |
+| each published asset matches its manifest | `Get-FileHash` against `SHA256SUMS` for boot/legacy assets and `native-SHA256SUMS` for setup assets; an asset neither manifest lists fails rather than being skipped |
+| each Windows executable is Authenticode-signed | `Get-AuthenticodeSignature` must be `Valid` *and* name a signer when signing is enabled. `HashMismatch` is called out separately — that is a tampered download, not an unsigned one |
+| each branded setup shows its own identity | the installed shell's brand configuration and setup path match the selected brand; the generic setup remains `wootc` |
 
 A person must attach three screenshots, because a script cannot make them:
 - The UAC prompt.
@@ -259,8 +267,11 @@ When `WOOTC_SIGN_STORETYPE` is `TRUSTEDSIGNING` and `AZURE_CLIENT_ID` is set,
 no secret for this login. Immediately before the first signature,
 `packaging/sign-exes.sh` gets an access token for `https://codesigning.azure.net`.
 
-jsign then signs each exe in the release assets: `wootc.exe` and each branded
-exe. The timestamp server is `http://timestamp.acs.microsoft.com`.
+jsign signs the Wails compatibility asset `wootc-legacy.exe` in the release
+assets. The workflow for native setups embeds the public release key in each
+protected engine. It publishes the setup hashes as `native-SHA256SUMS`.
+MSIX signatures remain gated on #229/#230. The timestamp server is
+`http://timestamp.acs.microsoft.com`.
 `osslsigncode` examines each signature. If the login or the token fails, the
 result is `failed`. A tagged release stops, and a pre-release continues
 unsigned with a warning in its notes.
@@ -354,11 +365,12 @@ The build uses the brand's `icon.ico` when present. Otherwise, it converts
 icon fallback. A conversion error stops the build. The release job installs
 `rsvg-convert`, so brands with a logo get their own icon.
 
-The helper builds from a temporary copy of the app. It does not change the resource file in the source tree. To build a brand after the frontend build:
+The helper builds the one-release Wails compatibility asset from a temporary
+copy of the app. It does not change the resource file in the source tree:
 
 ```sh
-python3 packaging/build-windows.py --brand bazzite \
-    --version v1.2.3 --output /tmp/Bazzite-Installer.exe
+python3 packaging/build-windows.py --brand wootc \
+    --version v1.2.3 --output /tmp/wootc-legacy.exe
 ```
 
 The resource tool keeps the administrator manifest, Windows compatibility,
@@ -423,12 +435,12 @@ sets the decision order and verification steps for a bad release.
 
 ## User instructions (shipped in the release notes)
 
-1. Download `wootc.exe`. It is not code-signed yet (alpha) — SmartScreen will
-   warn; *More info → Run anyway*.
-2. The app checks for Windows 10/11 64-bit, UEFI + Secure Boot, TPM 2.0, and **BitLocker off** (alpha).
-   It also needs at least 35 GB free on `C:`.
-   This reserves 20 GB for Linux and 15 GB for Windows.
-3. Run it, pick Bluefin, set a username + password, and click Install.
+1. Download `wootc-Installer-Setup.exe` (or the branded setup for your
+   distribution). It is not code-signed yet (alpha) — SmartScreen will warn;
+   *More info → Run anyway*. The native shell does not need WebView2.
+2. The setup checks for Windows 10/11 64-bit, UEFI + Secure Boot, TPM 2.0,
+   and **BitLocker off** (alpha). It also needs at least 35 GB free on `C:`.
+3. Run the setup, pick Bluefin, set a username + password, and click Install.
    Install creates the Linux disk file and changes the boot setup before you
    click **Reboot Now**. Save your work before you restart.
 4. The one-time deployer boot prepares Linux. Windows normally returns after

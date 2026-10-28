@@ -3,6 +3,7 @@
 
 RELEASE=.github/workflows/release.yml
 WINGET=.github/workflows/winget-publish.yml
+WINUI=.github/workflows/winui-preview.yml
 
 @test "full releases hand the tag to winget-publish themselves" {
     # winget-publish.yml listens on release:published, but every release this
@@ -19,6 +20,34 @@ WINGET=.github/workflows/winget-publish.yml
     # hand-off dispatches into a workflow that cannot use it.
     grep -q 'workflow_dispatch' "$WINGET"
     grep -q "inputs.tag" "$WINGET"
+}
+
+@test "phase D publishes native setup assets and one Wails fallback" {
+    grep -q 'gui_frontend: native' "$RELEASE"
+    grep -q 'wootc-legacy.exe' "$RELEASE"
+    grep -q 'gh workflow run winui-preview.yml' "$RELEASE"
+    grep -q '<Product>-Installer-Setup.exe' "$RELEASE"
+    grep -q 'native-SHA256SUMS' "$RELEASE"
+    grep -q -- '-Mode release' "$WINUI"
+    grep -q "'setup.iss'" shell/packaging/compile-preview.ps1
+    grep -q 'artifact-public-key.hex' "$WINUI"
+    grep -q 'Install and remove the production setup smoke package' "$WINUI"
+    grep -q 'wootc-Installer-Setup.exe' "$WINGET"
+    grep -q 'InstallerType: inno' packaging/winget/TunaOS.wootc.installer.yaml.in
+    grep -q 'InstallerType: inno' packaging/winget/brand/installer.yaml.in
+    ! grep -q 'releases/download/\$tag/wootc.exe' "$WINGET"
+}
+
+@test "Phase D removes the obsolete CDP GUI job and stages setup E2E" {
+    ! grep -q 'gui-cdp-windows' .github/workflows/ci.yml
+    ! grep -q 'gui-cdp-windows' tests/ci-gate.sh
+    grep -q 'SetupExe' tests/e2e/setup-wootc.ps1
+    grep -q '/VERYSILENT' tests/e2e/setup-wootc.ps1
+    grep -q 'wootc Native' tests/e2e/setup-wootc.ps1
+    grep -q 'SetupAsset' tests/e2e/run-e2e.sh
+    grep -q 'WOOTC_E2E_SETUP_EXE' .github/workflows/e2e-hosted.yml
+    grep -q 'wootc-Installer-Setup.exe' tests/e2e/setup-wootc.ps1
+    grep -q -- '-Mode release' .github/workflows/e2e-hosted.yml
 }
 
 # ── narrative release notes gate (#242) ─────────────────────────────────────

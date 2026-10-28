@@ -36,8 +36,8 @@ Each brand has the same journey:
 
 ### Bazzite brand test record
 
-This record is for the `-X main.brandID=bazzite` build (`Bazzite-Installer.exe`).
-Each row has one check, the result, and the evidence.
+This record is for the native `-X main.brandID=bazzite` setup package
+(`Bazzite-Installer-Setup.exe`). Each row has one check, the result, and the evidence.
 A unit test or a mock GUI test is not proof that the product works on a computer.
 Only the hosted E2E rows show that.
 
@@ -58,7 +58,7 @@ Only the hosted E2E rows show that.
 | Windows-side errors (BitLocker busy, legacy BIOS, VM viewer, ESP guards, boot repair, uninstall check, unsafe-state dialog) never say "wootc" | ✅ | `TestUserFacingStringsNeverHardcodeWootc` (source scan: every string literal in `app/` that says "wootc" is an identifier or marker on an explicit list) |
 | Launchpad, progress, done, manage, uninstall dialogs, interrupted, recovery and failed-run screens never say "wootc" | ✅ | `tests/gui/branded-walkthrough.spec.js`. Windows paths such as `C:\wootc\disks` are the on-disk contract, so the test ignores them |
 | The done screen shows the MokManager step and its password | ✅ | walkthrough test "done celebrates the brand" |
-| Exe version resource: product "Bazzite Installer", file `Bazzite-Installer.exe`, company "TunaOS", no copyright | ✅ | local `packaging/build-windows.py --brand bazzite --version v0.4.0` build, read with `pefile` (2026-10-15). The company is the distributor, not Universal Blue, while `blessing.json` is pending: `TestUnblessedBrandsNeverClaimTheOwnerAsPublisher`, `tests/unit/test_windows_resources.py` |
+| Exe version resource: product "Bazzite Installer", file `Bazzite-Installer-Setup.exe`, company "TunaOS", no copyright | ✅ | local native packaging build, read with `pefile` (2026-10-15). The company is the distributor, not Universal Blue, while `blessing.json` is pending: `TestUnblessedBrandsNeverClaimTheOwnerAsPublisher`, `tests/unit/test_windows_resources.py` |
 | Add/Remove publisher and winget draft publisher are "TunaOS" while unblessed | ✅ | `TestBazziteBuild_PublisherIsTheDistributorWhileUnblessed`; `tests/unit/test_winget_brand.py`; `tests/unit/brand-blessings.bats` |
 | The release builds the exe, and the log names it as unblessed | ✅ | `tests/unit/brand-blessings.bats`; `packaging/brands.sh explain` |
 | winget manifests render into `Bazzite.Installer` and are not submitted | ✅ | `tests/unit/brand-blessings.bats`; `packaging/winget/render-brand.sh bazzite` |

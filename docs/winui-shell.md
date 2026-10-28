@@ -186,30 +186,42 @@ Target 1366×768 and low-memory machines as explicit test cohorts.
 
 ## Packaging and offline proof
 
-Publish the shell as a preview beside the current installer first.
-An Inno Setup wrapper can provide one download for an unpackaged self-contained bundle.
+Phase D makes the native shell setup the primary release artifact. The workflow
+publishes each eligible brand as `<Product>-Installer-Setup.exe` through the
+Inno wrapper. The generic package is `wootc-Installer-Setup.exe`.
+For this release only, `release.yml` keeps one Wails download:
+`wootc-legacy.exe`.
+
 Keep the Go engine beside the shell and retain the standalone headless asset.
+The native package embeds the public key for release verification. The package
+workflow attaches `native-SHA256SUMS` beside the setup assets.
 Package cleanup and Linux uninstall need separate, clearly named ownership.
 
-The install does not depend on the preview package after it arms.
-The recovery tasks run a copy of the engine in `install\wootc.exe` under the install directory.
-The Apps entry for the Linux install runs that copy too, so removal of the preview does not break that entry.
-The preview installer refuses an existing destination, so an upgrade also removes the preview first.
-Do not remove Linux data merely because a user removes the preview shell.
+The install does not depend on an external runtime after it arms.
+Recovery tasks run the protected engine from the installed native bundle.
+The Apps entry for the Linux install uses that bundle too. Shell removal does
+not remove Linux data or silently change headless ownership.
+The setup installer refuses an existing destination; an upgrade must remove
+the prior native package first. Do not remove Linux data merely because a
+user removes the shell.
 
-Pin .NET, Windows App SDK, and build-tool versions before the package experiment.
+Pin .NET, Windows App SDK, and build-tool versions before you change the package.
 The self-contained settings for .NET and Windows App SDK are separate.
 
-A guide from Microsoft describes support for single files in specific configurations.
-Another guide still describes limitations. Do not make an unconditional single-file promise.
-Prove the chosen artifact on a clean offline VM with neither runtime preinstalled.
+A guide from Microsoft describes support for single files in specific
+configurations. Another guide still describes limitations. Do not make an
+unconditional single-file promise.
+Prove the chosen setup artifact on a clean offline VM with neither runtime
+preinstalled.
 See the [unpackaged guide](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/unpackage-winui-app)
 and [self-contained deployment](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/self-contained-deploy/deploy-self-contained-apps).
 
 Derive the Windows minimum from the chosen SDK, .NET runtime, and project configuration.
 Do not infer it only from the minimum for Windows App SDK.
 Test Windows 10 and 11 before a change to the product requirements.
-MSIX, signatures, and winget changes need their own proven distribution path.
+
+MSIX still needs a proven distribution path. Code signatures need one too.
+winget now consumes the Inno setup manifest.
 A native UI does not remove SmartScreen or code-signature requirements.
 
 ## Screen gallery
@@ -236,16 +248,26 @@ The screenshots and `gallery.json` are in the `winui-native-gallery` artifact, n
 2. The Linux E2E job builds `wootc-engine.exe` with the same build and brand identity.
    The engine also carries the public half of the run's manifest key. The harness signs the staged `SHA256SUMS.sig` with that key.
    `tests/e2e/native-package.py` then writes `native-package.json`, as `shell/packaging/write-manifest.ps1` does for the preview installer.
-3. The Windows job compiles the real preview installer (`preview.iss`) for the brand around that engine and manifest.
-   It uses the pinned Inno compiler through `shell/packaging/compile-preview.ps1`, the same script `winui-preview.yml` uses.
-   The two jobs run at the same time. They give the shell, the engine and the installer to each other as run artifacts.
-   Thus the seed of the manifest key stays in the Linux job (`.github/scripts/wait-run-artifact.sh`).
-4. In the guest, the harness copies the installer, compares its digest, and runs it with `/VERYSILENT /SUPPRESSMSGBOXES`.
-   It installs to `Program Files\wootc Native Preview\<brand>\bundle` with the Program Files ACLs that the shell and the engine need.
-   The check needs the manifest file count, both binary digests, the Inno uninstall entry, and one uninstaller.
-   `WOOTC_E2E_NATIVE_INSTALLER=robocopy` copies the package instead.
-   The workflow selects it only when the runner cannot download the pinned compiler.
-   The run then shows a warning and names the method.
+3. The Windows job compiles both Inno packages around that engine and manifest.
+   The production `setup.iss` output is `<Product>-Installer-Setup.exe`.
+   The `preview.iss` output remains the disposable GUI-package proof. It uses
+   the pinned compiler through `shell/packaging/compile-preview.ps1`, the same
+   script that `winui-preview.yml` uses. The two jobs run at the same time.
+   They give the shell, engine, and both installers to each other as artifacts.
+   Thus the seed of the manifest key stays in the Linux job
+   (`.github/scripts/wait-run-artifact.sh`).
+4. Before reboot, `setup-wootc.ps1` silently runs the production setup from
+   the OEM payload. It stages the protected engine for recovery and status.
+   The GUI path copies the preview installer separately. It compares the digest
+   and runs the installer with `/VERYSILENT /SUPPRESSMSGBOXES`.
+   It installs to `Program Files\wootc Native Preview\<brand>\bundle` with
+   the Program Files ACLs that the shell and the engine need. The check needs
+   the manifest file count, both binary digests, the Inno uninstall entry, and
+   one uninstaller.
+   `WOOTC_E2E_NATIVE_INSTALLER=robocopy` copies the preview package instead.
+   The workflow selects this fallback if the runner cannot download the pinned
+   compiler. We do not claim the production setup in that fallback. The run
+   then shows a warning and names the method.
 5. `WOOTC_E2E_DRIVE=1` and `WOOTC_PRELOAD=0` are set machine-wide, because the engine starts through `runas` and need not inherit the shell's environment.
    `ConsentPromptBehaviorAdmin=0` makes each engine elevation non-interactive: startup, then one install session per plan check.
 6. The shell starts unelevated: from a `/RL LIMITED` task as the autologged administrator (`WOOTC_E2E_NATIVE_UNELEVATED=1`, the default; `0` restores `/RL HIGHEST`).

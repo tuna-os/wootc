@@ -3,9 +3,7 @@
 # .github/workflows/winget-publish.yml from the GitHub release being published.
 PackageIdentifier: TunaOS.wootc
 PackageVersion: "{{VERSION}}"
-InstallerType: portable
-Commands:
-  - wootc
+InstallerType: inno
 Installers:
   - Architecture: x64
     InstallerUrl: "{{URL}}"

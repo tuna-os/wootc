@@ -49,7 +49,6 @@ declare -A GATES=(
 
 # ── NOT gates (run elsewhere or on-demand) ──────────────────────────────────
 NOT_GATES=(
-    "gui-cdp-windows:CDP-driven real wootc.exe tests (opt-in, requires Windows VM)"
     "e2e-matrix:E2E matrix on hosted KVM runners (workflow_dispatch)"
     "e2e-kvm:E2E on self-hosted KVM (long-running, per-branch)"
     "e2e-nightly:Nightly E2E canary (scheduled)"
