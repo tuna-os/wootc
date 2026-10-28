@@ -37,7 +37,7 @@ WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
 
 # The verifier uses its own ELF closure. Target images need not share this ABI.
-FROM docker.io/library/ubuntu@sha256:19fcd1bf268f02b60aca3bd30bd8a6d9a11759a430e32921833e65f16d87348a AS verifierbuilder
+FROM docker.io/library/ubuntu@sha256:0e73b71479e7bc5f006bca872e25c3cd680dc052a0116f90d63ae363537db0dd AS verifierbuilder
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     autoconf automake gcc make binutils-dev libssl-dev uuid-dev gnu-efi \
     pkg-config git help2man ca-certificates && rm -rf /var/lib/apt/lists/*
