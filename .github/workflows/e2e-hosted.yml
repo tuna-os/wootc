@@ -332,7 +332,7 @@ jobs:
           # Disk reclaim removes the runner's preinstalled global Node modules.
           # GUI runs build the real Wails frontend, so explicitly restore a
           # supported Node toolchain before invoking npm.
-          node-version: '24'
+          node-version: '26'
 
       - name: Set up Go for lifecycle CLI
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
