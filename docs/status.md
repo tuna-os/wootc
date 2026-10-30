@@ -204,7 +204,7 @@ ostree images that ship no `bootupd`.
 | Root filesystem: `btrfs` (sealed) | ✅ | green cell on bonito via `wootc.filesystem=btrfs` (2026-08-22); blocked on EL10 kernels whose out-of-tree btrfs kmod is rejected under Secure Boot |
 | Encryption: none | ✅ | |
 | Encryption: `tpm2-luks` | 🟡 | [#33](https://github.com/tuna-os/wootc/issues/33) fixed (`bffd284`, 2026-08-10) — Phase-2 dracut regen works; green cell re-verification pending under the failure-ledger harness |
-| BitLocker FDE (unencrypted-volume path) | ✅ | refusal path green 2026-08-22; full install path is the v0.3.0-beta gate — [#34](https://github.com/tuna-os/wootc/issues/34). Setup carves unencrypted volume E: for `root.disk` while C: stays encrypted |
+| BitLocker FDE (unencrypted-volume path) | ✅ | refusal path green 2026-08-22; full install path is the v0.3.0-beta gate — [#34](https://github.com/tuna-os/wootc/issues/34). Setup carves unencrypted volume E: for `root.disk` while C: stays encrypted. The read-only-source + editable-Linux-copy Documents policy is implemented; the real GNOME save/reopen/restart acceptance lane remains pending in [#427](https://github.com/tuna-os/wootc/issues/427) |
 | Secure Boot `db`: 2011 / 2023 / both / none | ⚪ | harness cells landed for [#322](https://github.com/tuna-os/wootc/issues/322) (`firmware_db=` in `tests/e2e/matrix.tsv`). The VM firmware gets each `db`, and Windows reads it back before the run. 2011, 2023 and both must boot the dual-signed shim. The none cell has no third-party CA, so the app must refuse with nothing written. No hosted run yet |
 | Offline (`-nic none`, pre-downloaded image) | ⚪ | code path shipped (branded builds / `WOOTC_PRELOAD=1`); matrix axis tracked as [#217](https://github.com/tuna-os/wootc/issues/217) |
 

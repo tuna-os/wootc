@@ -304,7 +304,6 @@ def a11y_context():
             facts["editors"].append(entry)
     return facts
 
-
 def tooling():
     apps = run(user_command(["flatpak", "list", "--app", "--columns=application"])) if shutil.which("flatpak") else ""
     try:
@@ -384,7 +383,6 @@ def leave_overview():
         time.sleep(1)
     result["after"] = overview_active()
     return result
-
 
 def launch(path):
     desktop()

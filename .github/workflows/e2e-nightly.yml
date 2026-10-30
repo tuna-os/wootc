@@ -20,6 +20,7 @@ on:
       win_version: { description: 'Dockur version (11, 10, 11e, 11l)', default: '11' }
       gui_documents: { description: 'Require GNOME editor save and persistence proof (BitLocker on)', type: boolean, default: false }
       bitlocker:   { description: 'BitLocker/FDE axis (on|off)', default: 'off' }
+      gui_documents: { description: 'Require GNOME editor save and persistence proof (BitLocker on)', type: boolean, default: false }
       use_base_image: { description: 'Restore cached Windows base image (false = full install)', type: boolean, default: true }
       gui_install: { description: 'Run native install through the wootc.exe GUI', type: boolean, default: false }
       gui_frontend: { description: 'GUI that gui_install drives: wails (shipped installer) | native (WinUI shell preview, #344)', type: choice, options: [wails, native], default: wails }

@@ -128,3 +128,34 @@ func TestReadSessionExportsFromFailClosed(t *testing.T) {
 		t.Errorf("malformed exports file = %#v, want empty map", got)
 	}
 }
+
+func TestBitlockerDocumentsCopy(t *testing.T) {
+	home := t.TempDir()
+	docs := filepath.Join(home, "Documents")
+	destination := filepath.Join(docs, "From Windows")
+	stateDir := filepath.Join(home, ".local", "state", "wootc")
+	if err := os.MkdirAll(destination, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(stateDir, "bitlocker-documents-import-v2-test")
+	if err := os.WriteFile(marker, []byte("state=complete\ndestination="+destination+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := bitlockerDocumentsCopy(home, stateDir); !ok || got != destination {
+		t.Fatalf("bitlockerDocumentsCopy = (%q, %t), want (%q, true)", got, ok, destination)
+	}
+
+	outside := filepath.Join(t.TempDir(), "outside")
+	if err := os.Mkdir(outside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(marker, []byte("state=complete\ndestination="+outside+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := bitlockerDocumentsCopy(home, stateDir); ok || got != "" {
+		t.Fatalf("bitlockerDocumentsCopy accepted destination outside Documents: (%q, %t)", got, ok)
+	}
+}

@@ -36,6 +36,7 @@ drive() {
         source "$1"
         CALLS="$2"; SEEN="$3"; USERDATA="$4"; BCD="${5:-yes}"; STUCK="${6:-no}"
         RUN_ID=run-2nd-boot
+        USERDATA_PATH="/home/wootc/Documents/From Windows/wootc-e2e-userdata.txt"
         rec() { printf "%s\n" "$*" >> "$CALLS"; }
         step() { :; }; pass() { rec "pass $*"; }; info() { :; }; warn() { rec "warn $*"; }
         product_pass() { rec "product_pass $1"; }
@@ -86,10 +87,10 @@ drive() {
     grep -qx 'wait-windows' "$CALLS"
 }
 
-@test "a file served from the unencrypted volume is not reported as a recovery-key unlock" {
+@test "a file without an unlock observation is not reported as a recovery-key proof" {
     drive linux "wootc-e2e-userdata run-2nd-boot"
     grep -qx 'product_pass user-data-second-boot' "$CALLS"
-    grep -q '^warn .*did not exercise the recovery key' "$CALLS"
+    grep -q '^warn .*BitLocker unlock was not observed' "$CALLS"
 }
 
 @test "a file served from the unlocked BitLocker mapper says so, with no warning" {
