@@ -71,6 +71,7 @@
     <StackPanel x:Name="DonePanel" Visibility="Collapsed" Spacing="10">
       <TextBlock x:Name="DoneTitle" FontSize="20" FontWeight="SemiBold" AutomationProperties.AutomationId="DoneTitle" />
       <TextBlock x:Name="DoneBody" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneBody" />
+      <StackPanel x:Name="DoneWarnings" Spacing="6" AutomationProperties.AutomationId="DoneWarnings" />
       <TextBlock x:Name="DoneSafety" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSafety" />
       <TextBlock x:Name="DoneMok" TextWrapping="Wrap" Visibility="Collapsed" AutomationProperties.AutomationId="DoneMok" />
       <TextBlock x:Name="DoneSaveWork" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSaveWork" />

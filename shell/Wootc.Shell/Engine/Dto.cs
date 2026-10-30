@@ -706,6 +706,14 @@ public class ProgressEvent
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+
+    /// <summary>
+    /// Warnings persist on the progress screen after the pipeline advances.
+    /// They disclose degraded or incomplete compatibility checks without
+    /// turning uncertainty into a refusal.
+    /// </summary>
+    [JsonPropertyName("warnings")]
+    public List<string>? Warnings { get; set; }
 }
 
 public class StepDefinition

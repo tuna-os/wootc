@@ -1,0 +1,156 @@
+[
+  {
+    "name": "intel-vmd-storage-driver-missing",
+    "host": {
+      "complete": true,
+      "devices": [
+        {
+          "bus": "pci",
+          "id": "Intel Volume Management Device",
+          "modalias": "pci:v00008086d00009A0Bsv00001028sd00000A5Dbc01sc04i00",
+          "pciClass": 66560
+        }
+      ]
+    },
+    "target": {
+      "kversion": "6.17.1",
+      "modules": ["simpledrm"],
+      "aliases": []
+    },
+    "wantSeverity": "blocking"
+  },
+  {
+    "name": "broadcom-wireless-driver-missing",
+    "host": {
+      "complete": true,
+      "devices": [
+        {
+          "bus": "pci",
+          "id": "Broadcom 802.11ac Network Adapter",
+          "modalias": "pci:v000014E4d000043A0sv0000106Bsd00000134bc02sc80i00",
+          "pciClass": 163840
+        }
+      ]
+    },
+    "target": {
+      "kversion": "6.17.1",
+      "modules": [],
+      "aliases": []
+    },
+    "wantSeverity": "blocking"
+  },
+  {
+    "name": "nvidia-falls-back-to-nouveau",
+    "host": {
+      "complete": true,
+      "devices": [
+        {
+          "bus": "pci",
+          "id": "NVIDIA GeForce RTX 3090",
+          "modalias": "pci:v000010DEd00002204sv00001458sd0000403Abc03sc00i00",
+          "module": "nvidia",
+          "outOfTree": true,
+          "pciClass": 196608
+        }
+      ],
+      "modules": {
+        "nvidia": {"outOfTree": true}
+      }
+    },
+    "target": {
+      "kversion": "6.17.1",
+      "modules": ["nouveau", "simpledrm"],
+      "aliases": [
+        ["pci:v000010DEd00002204sv*sd*bc03sc00i00", "nouveau"]
+      ]
+    },
+    "wantSeverity": "warning"
+  },
+  {
+    "name": "display-has-firmware-framebuffer-only",
+    "host": {
+      "complete": true,
+      "devices": [
+        {
+          "bus": "pci",
+          "id": "Display adapter",
+          "modalias": "pci:v00001234d00001111sv00000000sd00000000bc03sc00i00",
+          "module": "bochs",
+          "pciClass": 196608
+        }
+      ]
+    },
+    "target": {
+      "kversion": "6.17.1",
+      "builtin": ["simpledrm"]
+    },
+    "wantSeverity": "warning"
+  },
+  {
+    "name": "all-wireless-firmware-missing",
+    "host": {
+      "complete": true,
+      "devices": [
+        {
+          "bus": "pci",
+          "id": "Intel Wi-Fi 6E AX211",
+          "modalias": "pci:v00008086d00007AF0sv00008086sd00000090bc02sc80i00",
+          "module": "iwlwifi",
+          "pciClass": 163840
+        }
+      ],
+      "modules": {
+        "iwlwifi": {
+          "firmwarePresent": ["iwlwifi-so-a0-gf-a0-89.ucode", "iwlwifi-so-a0-gf-a0-90.ucode"]
+        }
+      }
+    },
+    "target": {
+      "kversion": "6.17.1",
+      "modules": ["iwlwifi"],
+      "firmware": []
+    },
+    "wantSeverity": "blocking"
+  },
+  {
+    "name": "partial-target-never-blocks",
+    "host": {
+      "complete": true,
+      "devices": [
+        {
+          "bus": "pci",
+          "id": "Intel Volume Management Device",
+          "modalias": "pci:v00008086d00009A0Bsv00001028sd00000A5Dbc01sc04i00",
+          "pciClass": 66560
+        }
+      ]
+    },
+    "target": {
+      "kversion": "6.17.1",
+      "layersSkipped": 1
+    },
+    "wantSeverity": "warning"
+  },
+  {
+    "name": "target-alias-supports-device",
+    "host": {
+      "complete": true,
+      "devices": [
+        {
+          "bus": "pci",
+          "id": "Intel Volume Management Device",
+          "modalias": "pci:v00008086d00009A0Bsv00001028sd00000A5Dbc01sc04i00",
+          "pciClass": 66560
+        }
+      ]
+    },
+    "target": {
+      "kversion": "6.17.1",
+      "modules": ["vmd"],
+      "aliases": [
+        ["pci:v00008086d00009A0Bsv*sd*bc01sc04i*", "vmd"]
+      ]
+    },
+    "wantSeverity": "none"
+  }
+]

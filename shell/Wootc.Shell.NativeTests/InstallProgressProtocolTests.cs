@@ -66,6 +66,8 @@ public sealed class InstallProgressProtocolTests
             Mutate(node => node["done"] = "false"),
             Mutate(node => node["message"] = new string('x', 4097)),
             Mutate(node => node["error"] = 7),
+            Mutate(node => node["warnings"] = "not-an-array"),
+            Mutate(node => node["warnings"] = new JsonArray(JsonValue.Create(7))),
             Frames("success.ndjson")[0].Split("\"params\":")[1].TrimEnd('}').Replace("\"done\":false", "\"done\":false,\"done\":true") + "}",
             "[]",
         })

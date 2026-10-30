@@ -37,7 +37,14 @@ Keep a backup before you test alpha boot software.
    (or set `WOOTC_PRELOAD=1` before launching) — it downloads the whole OS
    while still on Windows, and the deploy boot then needs no network at
    all.
-6. **Let it manage Fast Startup and hibernation.** The app turns them off
+6. **Read the hardware compatibility result before restarting.** After the
+   image download, the installer compares this PC's active PCI and USB PnP
+   IDs with the target kernel's module aliases. A missing storage, network,
+   wireless, display or USB-controller driver stops the install. Degraded
+   graphics (for example NVIDIA falling back to nouveau or simpledrm) and an
+   incomplete image/device inventory remain visible as warnings while the
+   install continues. Capture the exact finding in the test report.
+7. **Let it manage Fast Startup and hibernation.** The app turns them off
    during install (and the uninstaller restores your original setting) —
    don't re-enable them mid-test.
 
