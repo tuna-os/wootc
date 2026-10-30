@@ -264,3 +264,28 @@ releases holds `v0.1.0-alpha.1` only.
 | ✘ | `ROADMAP.md`: v0.3.0-beta *"shipped 2026-09-03"* | The milestone issue #211 closed on 2026-09-02, but nobody cut the release. The roadmap now says that the release is planned and its notes are a draft. |
 | ✘ | `docs/release-notes-v0.3.0-beta.md`: *"Status: Shipped"* | The notes now carry the draft marker, so `check-notes.sh` refuses to publish them before a person checks them again. |
 | ✘ | `README.md` and `ROADMAP.md`: an existing beta release | The earlier releases are `v0.1.0-alpha.1` and the automatic pre-releases. |
+
+## Pass — 2026-10-18, current-main truth recheck
+
+Checked the scoped user and release documents against `upstream/main`
+`50024380` and the current source tree. This was a static source review, not
+the requested RC VM or native-hardware run. The upstream release list still
+contains `v0.1.0-alpha.1` and automatic pre-releases only; no RC tag or
+release exists from which to take RC screenshots.
+
+| Result | Claim corrected | Evidence |
+|---|---|---|
+| ✘ → ✔ | README said TPM encryption was the default | `app/frontend/src/lib/state.js` defaults `encryption` to `none`; the launchpad exposes **No encryption**. |
+| ✘ → ✔ | Release guide called a stale image matrix green | `app/data/images.json` is the source of truth for green and experimental catalog entries. |
+| ✘ → ✔ | Release steps required an application TPM 2.0 check and manual username entry | The shipping flow checks Windows/UEFI/Secure Boot/BitLocker and derives suggested identity values before the user confirms them. |
+| ✘ → ✔ | Branding docs allowed `brand.json` beside the installer and accepted any custom OCI reference | `app/branding_policy.go` reads `C:\wootc\brand.json`; the launchpad and channel policy separately constrain user-entered custom references. |
+| ✘ → ✔ | VM docs required a prepared Linux disk | `app/vm_windows.go` provisions a persistent raw disk from the selected OCI image and needs the bundled runtime assets. |
+| ✘ → ✔ | Manual testing presented beta BitLocker support and fixed durations as released facts | `docs/status.md` keeps the full install path behind a beta gate; the guide now requires observed duration and matrix evidence. |
+| ✘ → ✔ | Release docs promised one installer for every brand directory | `packaging/brands.sh` selects buildable brands and omits declined or pending brands. |
+
+`tests/unit/docs-truth.bats` now checks these source-to-document contracts.
+The RC-only items remain open and are deliberately not marked green: an actual
+RC VM/native-hardware walk, measured timings, post-signing SmartScreen
+behavior, Add/Remove Programs rendering, and screenshot capture pinned to an
+RC SHA. The Playwright capture command was attempted here but the host lacks
+`libglib-2.0.so.0`; no new screenshot provenance is claimed.

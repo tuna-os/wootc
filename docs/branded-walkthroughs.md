@@ -10,7 +10,10 @@ compiles in.
 The test drives the real frontend bundle through the four
 journey screens. On each screen, it asserts that the build shows its own
 name, mark and look. A branded build must never show the word "wootc".
-When you run the Playwright suite again, it refreshes each image below.
+These checked-in PNGs are deterministic mock-GUI captures, not proof of an RC
+or a Windows installation; replace them and record the exact RC SHA when that
+build exists. When you run the Playwright suite again, it refreshes each image
+below.
 
 **Live video walkthroughs:** each distribution that passed a full
 GUI-driven E2E has its own timelapse in the gallery at

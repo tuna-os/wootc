@@ -109,12 +109,17 @@ Keep your own backup. Do not assume a repeat import will preserve your later edi
 
 The intended Phase 1 runs Linux inside Windows before native boot.
 Current standard releases do not yet provide that complete journey.
-The existing VM option needs a prepared Linux disk, QEMU, firmware, and an accelerator.
+The current VM option provisions a persistent Linux disk from the selected OCI
+image, then opens it in a window. It needs the signed QEMU runtime, firmware,
+builder kernel/initramfs, and a host accelerator; the release must bundle those
+assets before the capability is available.
 The main install path still uses the deployer after a reboot.
 
-Do not treat “Boot in VM” as proof that no earlier reboot is necessary.
-[ADR 0004](adr/0004-restore-vm-first-product.md) tracks the required VM-first path.
-It must preserve your installed system and work when you later choose native boot.
+Treat the VM preview and native install as separate lifecycles. A successful
+preview does not prove that the later native boot or migration path is ready.
+[ADR 0004](adr/0004-restore-vm-first-product.md) tracks the required VM-first
+path. It must preserve your installed system and work when you later choose
+native boot.
 
 ## 6. Import from another disk or a backup
 

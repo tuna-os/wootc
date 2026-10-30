@@ -51,13 +51,17 @@ Windows is a good outcome; a walked-into-red user with a broken boot is not.
 
 Each item opens a gate when its matrix row passes:
 
-- [x] yellowfin / bonito / marlin / flounder full three-phase → `status: green`
-- [x] composefs-native (dakota) Phase-2/3
-- [x] Windows 10 + Home/Enterprise/LTSC editions
-- [x] BitLocker FDE path (#34) → `BitLockerSupported: true`
+- [x] Current catalog green entries: `bluefin-lts`, `bluefin`, `dakota`,
+  `yellowfin-gnome`, `bonito-gnome`, `aurora`, and `bazzite` have
+  `"status": "green"` in `app/data/images.json`.
+- [ ] The remaining catalog entries are still `"status": "experimental"`;
+  they do not open the alpha catalog gate until their matrix evidence is green.
+- [ ] BitLocker FDE path (#34) → `BitLockerSupported: true`; the refusal path
+  is green, but the full install path remains the v0.3.0-beta gate.
 - [ ] tpm2-luks root (#33) → offer encryption
 - [ ] btrfs sealed Phase-2 (#35) → offer btrfs
-- [x] custom OCI refs (once the deploy path is family-agnostic green) → `CustomImageAllowed: true`
+- [x] custom OCI refs → `CustomImageAllowed: true` on beta and stable; branded
+  builds still hide the custom field.
 
 When the **whole matrix** passes, `beta` becomes the default channel.
 The catalog then offers all images and lets users select custom references.
@@ -101,9 +105,11 @@ git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
 ```
 
 Every release ships the **full artifact set** from `release.yml`.
-It includes one installer per brand directory: `wootc.exe`,
-`TunaOS-Installer.exe`, `Bluefin-Installer.exe`, `Bazzite-Installer.exe`, and
-`Aurora-Installer.exe`. These use Wails with Go and a web UI. Their Windows interface needs the WebView2 runtime.
+It includes one installer for each brand that `packaging/brands.sh` reports as
+buildable: currently `wootc.exe`, `TunaOS-Installer.exe`,
+`Bluefin-Installer.exe`, `Bazzite-Installer.exe`, and
+`Aurora-Installer.exe`. These use Wails with Go and a web UI. Their Windows
+interface needs the WebView2 runtime.
 
 The shared boot artifacts are `deployer-vmlinuz`, `deployer-initramfs.img`,
 `shimx64.efi`, `grubx64.efi`, and `mmx64.efi`.
@@ -425,14 +431,16 @@ sets the decision order and verification steps for a bad release.
 
 1. Download `wootc.exe`. It is not code-signed yet (alpha) — SmartScreen will
    warn; *More info → Run anyway*.
-2. The app checks for Windows 10/11 64-bit, UEFI + Secure Boot, TPM 2.0, and **BitLocker off** (alpha).
-   It also needs at least 35 GB free on `C:`.
+2. The app checks for Windows 10/11 64-bit, UEFI + Secure Boot, and
+   **BitLocker off** (alpha). It also needs at least 35 GB free on `C:`.
    This reserves 20 GB for Linux and 15 GB for Windows.
-3. Run it, pick Bluefin, set a username + password, and click Install.
+3. Run it, pick Bluefin LTS, set a password, and click Install. The app
+   suggests the username and computer name; review them under Advanced.
    Install creates the Linux disk file and changes the boot setup before you
    click **Reboot Now**. Save your work before you restart.
 4. The one-time deployer boot prepares Linux. Windows normally returns after
-   that boot. Open Manage and choose **Restart into Bluefin** to start Linux.
+   that one-time boot. Open Manage and choose
+   **Restart into Bluefin LTS** to start Linux.
 
 Uninstall tries to remove the installed files and boot setup. An incomplete
 cleanup can leave files or boot state behind. In Manage, **Also delete my Linux
