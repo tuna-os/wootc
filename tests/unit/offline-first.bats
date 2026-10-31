@@ -62,7 +62,7 @@ HOOK="payload/deployer/deploy-hook.sh"
     grep -q 'refusing corrupted or tampered content' app/ocipull.go
     grep -q 'refusing tampered content' app/ocipull.go
     grep -q '{StepInstallerDownloadingYourLinuxSystem,' app/install_engine.go
-    grep -q 'return stageImageBundle(ctx, cfg.ImageRef,' app/install_engine.go
+    grep -q 'if err := stageImageBundle(ctx, cfg.ImageRef,' app/install_engine.go
     grep -q 'setInstallSteps(await GetInstallSteps())' app/frontend/src/main.js
     grep -q 'stepLabels.set(step.id, step.label)' app/frontend/src/screens/progress.js
     # A pre-downloaded bundle records its provenance so it never pins the

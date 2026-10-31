@@ -46,6 +46,13 @@ export function renderDoneScreen() {
       <span>🔐</span><span><strong>App sign-in on Linux:</strong> apps you selected may still need you to sign in again.</span>
     </div>` : ''}
   `;
+  if (Array.isArray(state.progress.warnings)) {
+    for (const warning of state.progress.warnings) {
+      const warningDiv = el('div', 'warning-banner hardware-warning');
+      warningDiv.textContent = 'Hardware compatibility warning: ' + warning;
+      hero.appendChild(warningDiv);
+    }
+  }
   screen.appendChild(hero);
   wrap.appendChild(screen);
 
