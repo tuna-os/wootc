@@ -66,3 +66,15 @@ sync mechanics, state.json, reboot — is orchestration and stays.
   not speculatively before.
 - The GUI catalog schema may grow a `provisioner` field then; today the
   implicit value is `bootc`.
+
+## Application boundary
+
+The Wails backend is an adapter, not the install engine. `app/app.go` owns
+frontend method names, lifecycle, serialized status, and event translation.
+`app/install_engine.go` owns ordered install execution through `installRunner`
+and `installPlatform`; `windowsInstallPlatform` is the operating-system
+adapter for disk, ESP, BCD, persistence, and boot-chain effects.
+
+Keep new frontends on the `installRunner` contract. Keep Windows effects in
+the platform adapter so engine tests can exercise ordering, cancellation, and
+rollback without constructing a Wails `App` or reaching Windows globals.
