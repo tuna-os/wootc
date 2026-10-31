@@ -1126,22 +1126,20 @@ mode (dedicated D: partition):
 | Deployed Host | Click "Launch VM" | → Minimize to tray | QEMU via WHPX on root.disk |
 | Deployed Host | Click "Uninstall wootc" | → Screen 4 (Uninstaller) | Disk geometry reversion + BCD purge |
 
-wootc's defining feature is **transparent passthrough**: instead of
-immediately copying everything, the installed system uses Windows
-resources directly on an ordinary unencrypted host. Documents, Pictures,
-Downloads, Steam libraries, and browser profiles are accessible from day one
-via bind mounts into the Linux home directory. No long initial copy. No
-"where are my files?"
+wootc's main feature is **transparent passthrough**: instead of a full
+copy, the installed system uses Windows resources directly on an ordinary
+unencrypted host. Documents, Pictures, Downloads, Steam libraries, and browser
+profiles are available from day one through bind mounts into the Linux home
+directory. No long initial copy. No "where are my files?"
 
 BitLocker C: is an explicit safety exception. The bridge unlocks and mounts
 that volume read-only, then copies Windows Documents once into the persistent
 Linux workspace at `~/Documents/From Windows`. This copy is editable, is never
 refreshed over Linux edits, and never writes through to the encrypted source.
-If the copy cannot be completed, wootc keeps the source read-only instead of
-silently enabling encrypted writes.
+If the copy fails, wootc keeps the source read-only and does not enable
+encrypted writes.
 
-Weeks or months later, the user can choose to convert ordinary passthrough
-categories to native Linux storage — one category at a time, at their own pace.
+Later, users can move these categories to native Linux storage, one at a time.
 
 ### 4.1 Transparent Passthrough (Day One)
 
@@ -1202,7 +1200,7 @@ The system writes a `libraryfolders.vdf` that points to the Windows
 Steam library. Games appear immediately — no re-download. Proton handles
 compatibility automatically.
 
-**Browser profiles** are detected and offered for import:
+wootc detects profiles from browsers and offers them for import:
 
 | Windows browser | Linux equivalent | What migrates |
 |---|---|---|
@@ -1229,9 +1227,8 @@ individual categories to native Linux storage:
 └──────────────────────────────────────────────────┘
 ```
 
-The following table describes ordinary unencrypted passthrough. A BitLocker
-Documents import is already a one-time native copy and is not a write-through
-conversion stage.
+The table below shows ordinary unencrypted passthrough. BitLocker Documents
+use a one-time native copy, not a write-through conversion stage.
 
 Each stage is independent and reversible (before deletion):
 | Stage | Action | Reversible? |

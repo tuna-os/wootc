@@ -133,20 +133,22 @@ This separate import path does not open the alpha's encrypted-PC install gate.
 
 **Not yet available in the alpha:** installation on an encrypted Windows drive.
 
-The BitLocker migration policy is deliberately **read-only source plus a
-writable Linux copy**. When a supported channel unlocks `C:`, the bridge mounts
-it read-only, copies Documents once into `~/Documents/From Windows`, and writes
-an `ABOUT-WINDOWS-COPY.txt` notice there. The ordinary Linux user edits and
-saves that copy; changes never write through to Windows. Later boots preserve
-the Linux copy and do not refresh it from Windows. If the destination is not
-writable or there is not enough space, wootc leaves the Windows source
-read-only rather than silently enabling encrypted-volume writes.
+Editable Documents: not proven green yet.
+
+The BitLocker migration policy is **read-only source plus a writable Linux
+copy**. When a supported channel unlocks `C:`, the bridge mounts it read-only,
+copies Documents once into `~/Documents/From Windows`, and writes an
+`ABOUT-WINDOWS-COPY.txt` notice there. Linux users can edit and save this copy.
+Changes never write through to Windows. Later boots preserve the Linux copy and
+do not refresh it from Windows. If the destination is not writable or space is
+insufficient, wootc keeps the Windows source read-only and does not enable
+encrypted-volume writes.
 
 The alpha still refuses to install on a BitLocker-protected Windows drive.
-The real BitLocker fixture acceptance gate opens a seeded document as the
-ordinary user, edits and saves it, closes and reopens it, then verifies the
-same bytes after an installed-environment restart and confirms the Windows
-source is unchanged. See [current status](status.md), [issue #34](https://github.com/tuna-os/wootc/issues/34), and [#427](https://github.com/tuna-os/wootc/issues/427).
+The BitLocker fixture test opens a seeded document as the ordinary user. The
+user edits, saves, closes, and reopens the document. The test checks the same
+bytes after an installed-environment restart. It also checks that Windows kept
+the source bytes. See [current status](status.md), [issue #34](https://github.com/tuna-os/wootc/issues/34), and [#427](https://github.com/tuna-os/wootc/issues/427).
 
 The experimental storage plan can put Linux on an unencrypted volume while Windows retains BitLocker.
 It can use another volume or propose a new partition.
