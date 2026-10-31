@@ -171,7 +171,7 @@ false
         self.assertEqual(self.call('init', '--scenario', 'native-cycle').returncode, 0)
         self.assertions()
         self.assertNotEqual(self.finish().returncode, 0)
-        self.assertEqual(self.rows()[-1]['missingAssertions'], ['native-boot', 'native-user-data'])
+        self.assertEqual(self.rows()[-1]['missingAssertions'], ['native-boot', 'native-health', 'native-user-data'])
         self.assertFalse(self.marker.exists())
 
     def test_recovery_mode_commits_only_after_recovery_assertions(self):

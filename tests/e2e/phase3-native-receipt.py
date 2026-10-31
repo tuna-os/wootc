@@ -9,10 +9,10 @@ def parse(raw):
     fields = {}
     for line in raw.splitlines():
         key, sep, value = line.partition('=')
-        if not sep or key in fields or (not value and key not in {'PATHS', 'BTRFS'}) or '\x00' in value:
+        if not sep or key in fields or (not value and key not in {'PATHS', 'BTRFS', 'ROOT'}) or '\x00' in value:
             raise ValueError('Invalid or duplicate field')
         fields[key] = value
-    if set(fields) != {'SCHEMA', 'UNAME', 'CMDLINE', 'TARGET', 'BOOT_ID', 'BLOCKS', 'MOUNTS', 'LOOPS', 'PATHS', 'BTRFS'}:
+    if set(fields) != {'SCHEMA', 'UNAME', 'CMDLINE', 'TARGET', 'BOOT_ID', 'BLOCKS', 'MOUNTS', 'LOOPS', 'PATHS', 'BTRFS', 'ROOT'}:
         raise ValueError('Missing or unknown field')
     if fields['SCHEMA'] != '1' or not re.fullmatch(r'[a-zA-Z0-9_-]+', fields['UNAME']):
         raise ValueError('Invalid schema or identity')

@@ -2,6 +2,10 @@
 Description=Sync Phase-2 kernel to the Windows ESP after OS updates
 # Needs /boot (deployment kernels) and udev by-uuid links settled.
 After=local-fs.target systemd-udev-settle.service wootc-host-bind.service
+# bluefin:stable's first boot runs `bootc image set-unified` here, holding the
+# sysroot lock that `bootc status` (the controller's measurement) waits on
+# (E2E 39874539856). Ordering only: a no-op where the unit does not exist.
+After=bootc-unified-storage.service
 Requires=wootc-host-bind.service
 ConditionPathExists=/etc/wootc/host-esp.conf
 

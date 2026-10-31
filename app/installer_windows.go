@@ -18,8 +18,47 @@ import (
 
 // ── System info ───────────────────────────────────────────────────────────────
 
+// readPlanSystemInfo reads only the facts an install plan check uses: the
+// channel gate (BitLocker, the Secure Boot chain) and the grant's
+// disclosures (BitLocker, Fast Startup, the Secure Boot chain warning). The
+// native plan check runs inside the shell's deadline, so it must not wait on
+// the advisory probes getSystemInfo adds for the launchpad, above all the
+// whole-volume fragmentation analysis (defrag.exe /A), whose time grows with
+// the volume and has no bound.
+func readPlanSystemInfo() SystemInfo {
+	var info SystemInfo
+	// BitLocker: detailed C: state (SPEC §3.5).
+	info.BitLockerState = bitlockerState(`C:`)
+	info.BitLockerOn = info.BitLockerState == "on" || info.BitLockerState == "encrypting"
+
+	// Fast Startup: HKLM\...\Power HiberbootEnabled != 0
+	info.FastStartupOn = fastStartupEnabled()
+
+	// Secure Boot
+	info.SecureBootOn, info.SecureBootKnown = secureBootState()
+
+	// Which Microsoft UEFI CA generation does this firmware trust? (#322)
+	// Only worth asking when Secure Boot is actually on — with it off the
+	// firmware launches an unsigned loader too, and the db read costs a
+	// PowerShell spawn on a screen the user is waiting for.
+	if info.SecureBootOn {
+		info.TrustedUefiAuthorities, info.UefiDbRead = trustedUefiAuthorities()
+		if v := secureBootChainVerdict(info); v.Warn {
+			info.SecureBootChainWarning = v.Message
+		}
+	}
+
+	// BitLocker recovery-key warning: honest disclosure (#63). When C: is
+	// BitLocker-protected, the user should record their recovery key before
+	// any migration step, regardless of whether we unlock C: or carve a
+	// separate volume (#61).
+	info.BitLockerRecoveryKeyWarning = info.BitLockerState == "on"
+	return info
+}
+
 func getSystemInfo() SystemInfo {
-	info := SystemInfo{IsUEFI: isUEFI()}
+	info := readPlanSystemInfo()
+	info.IsUEFI = isUEFI()
 
 	// Carry the machine's existing identity across the migration (#174): the
 	// user already knows this name. Sanitised because Windows computer names
@@ -54,29 +93,8 @@ func getSystemInfo() SystemInfo {
 	info.FreeDiskGB = float64(freeBytesAvail) / (1 << 30)
 	info.TotalDiskGB = float64(totalBytes) / (1 << 30)
 
-	// BitLocker: detailed C: state (SPEC §3.5).
-	info.BitLockerState = bitlockerState(`C:`)
-	info.BitLockerOn = info.BitLockerState == "on" || info.BitLockerState == "encrypting"
-
 	// Candidate data partitions for the BitLocker (auto/manual) path.
 	info.DataPartitions = listDataPartitions()
-
-	// Fast Startup: HKLM\...\Power HiberbootEnabled != 0
-	info.FastStartupOn = fastStartupEnabled()
-
-	// Secure Boot
-	info.SecureBootOn, info.SecureBootKnown = secureBootState()
-
-	// Which Microsoft UEFI CA generation does this firmware trust? (#322)
-	// Only worth asking when Secure Boot is actually on — with it off the
-	// firmware launches an unsigned loader too, and the db read costs a
-	// PowerShell spawn on a screen the user is waiting for.
-	if info.SecureBootOn {
-		info.TrustedUefiAuthorities, info.UefiDbRead = trustedUefiAuthorities()
-		if v := secureBootChainVerdict(info); v.Warn {
-			info.SecureBootChainWarning = v.Message
-		}
-	}
 
 	// Advisory NTFS fragmentation analysis (SPEC §3.6). Failure to analyze
 	// must not block installation.
@@ -90,12 +108,6 @@ func getSystemInfo() SystemInfo {
 	info.Hibernated = hibernated()
 	info.RAMGB = totalRAMGB()
 	info.Is64Bit = runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"
-
-	// BitLocker recovery-key warning: honest disclosure (#63). When C: is
-	// BitLocker-protected, the user should record their recovery key before
-	// any migration step, regardless of whether we unlock C: or carve a
-	// separate volume (#61).
-	info.BitLockerRecoveryKeyWarning = info.BitLockerState == "on"
 
 	return info
 }
@@ -215,7 +227,12 @@ func getUninstallInfo() UninstallInfo {
 				StorageDrive: d,
 				DiskPath:     p,
 				DiskSizeGB:   float64(st.Size()) / (1 << 30),
-				Deployed:     deployHasCompleted(d),
+				BootPending:  linuxBootPending(d),
+			}
+			if !info.Orphaned {
+				info.BootEvidence, _ = installedLinuxEvidence(d)
+				info.Deployed = info.BootEvidence != nil
+				info.BootPending = info.BootPending && !info.Deployed
 			}
 			if d != "C" {
 				fillDedicatedPartitionInfo(&info, d)
@@ -236,8 +253,8 @@ func getUninstallInfo() UninstallInfo {
 				Found:        true,
 				StorageDrive: d,
 				Orphaned:     true,
-				Deployed:     deployHasCompleted(d),
 			}
+
 			if d != "C" {
 				fillDedicatedPartitionInfo(&info, d)
 				if info.OnDedicatedVol {
@@ -312,20 +329,18 @@ func cleanupESP() error {
 	return cleanupESPOwnedFiles(espPath)
 }
 
-// deployHasCompleted reports whether the deployer has finished at least once
-// on this machine based on lifecycle state in state.json (written by deploy.sh
-// on completion as "deployed", or by first boot as "healthy").
+// deployHasCompleted requires an observed installed Linux boot whose identity
+// matches this installation and the current Windows host volume and ESP.
 func deployHasCompleted(drive string) bool {
-	if s, ok := readState(); ok && (s.State == StateDeployed || s.State == StateHealthy) {
-		return true
-	}
-	if drive != "" {
-		p := filepath.Join(drive+`:\wootc`, "state.json")
-		if s, ok := readStateFrom(p); ok && (s.State == StateDeployed || s.State == StateHealthy) {
-			return true
-		}
-	}
-	return false
+	_, err := installedLinuxEvidence(drive)
+	return err == nil
+}
+
+// The first installed boot is still available before proof exists. This is a
+// staging state, not an installed/healthy claim.
+func linuxBootPending(drive string) bool {
+	s, ok := readStateFrom(filepath.Join(drive+`:\wootc`, "state.json"))
+	return ok && (s.State == StateDeployed || s.State == StateHealthy)
 }
 
 // armOneShotFromPersistedGUID re-arms the existing wootc firmware entry for
@@ -426,12 +441,17 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	var errs []string
 
-	// 0. Put back what install changed outside its folder: hibernation /
-	// Fast Startup (read the marker / registry BEFORE the install dir and
+	// 0. Recovery tasks are the last executable path into the install. Refuse
+	// to delete their target when ownership or removal cannot be confirmed.
+	if err := unregisterRecoveryTasks(); err != nil {
+		return fmt.Errorf("uninstall refused before deleting install state: %w", err)
+	}
+
+	// Restore what install changed outside its folder: hibernation / Fast
+	// Startup (read the marker / registry BEFORE the install dir and
 	// Add/Remove key are removed). "Windows is unchanged" must be true.
 	restorePriorPowerState()
 	unregisterUninstallEntry()
-	_ = unregisterRecoveryTasks()
 
 	// 1. Remove all wootc BCD entries and disarm one-shot bootsequence.
 	deleteWootcBCDEntries()

@@ -27,8 +27,10 @@ func newWindowsNativeInstallPrepare(ctx context.Context, app *App, user *nativeO
 		// One system read for the whole check: each read spawns several
 		// PowerShell queries, and this check validates twice and reports
 		// BitLocker, Fast Startup and Secure Boot within the shell's
-		// deadline (native E2E run 38849303170 overran it).
-		systemInfo := sync.OnceValue(getSystemInfo)
+		// deadline (native E2E run 38849303170 overran it). The read takes
+		// only the facts the check uses; the launchpad's advisory probes,
+		// such as the unbounded defrag analysis of C:, stay out of it.
+		systemInfo := sync.OnceValue(readPlanSystemInfo)
 		validated, err := app.validateInstallConfigWith(plan, systemInfo)
 		if err != nil {
 			return nil, NativeInstallGrant{}, err

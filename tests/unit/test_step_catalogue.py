@@ -154,8 +154,19 @@ exit 0
         host = self.root / 'host'
         (host / 'wootc/install').mkdir(parents=True)
         # The boot measurement has its own suite (test_wootc_firstboot_evidence.py).
+        # --publish-summary is the real collector's own summary writer.
         collector = self.root / 'collector.py'
-        collector.write_text('import json\nprint(json.dumps({"state": "healthy", "phaseId": "firstboot-evidence"}))\n')
+        collector.write_text(
+            'import json,sys\n'
+            'if sys.argv[1:2] == ["--publish-summary"]:\n'
+            '    sys.path.insert(0, %r)\n'
+            '    import wootc_firstboot_evidence\n'
+            '    sys.exit(wootc_firstboot_evidence.main(sys.argv[1:]))\n'
+            'print(json.dumps({"state": "healthy", "phaseId": "firstboot-evidence", "updatedBy": "wootc-firstboot",\n'
+            '                  "kernel": "6.1", "writtenAt": "2026-10-23T00:00:00Z",\n'
+            '                  "image": {"ref": "x", "digest": "sha256:" + "a" * 64},\n'
+            '                  "bridge": {"boundFolders": 0, "matchedUsers": 0}}))\n'
+            % str(ROOT / 'payload/migration/lib'))
         fakebin = self.root / 'bin'
         fakebin.mkdir()
         (fakebin / 'mountpoint').write_text('#!/bin/sh\nexit 0\n')
@@ -166,6 +177,7 @@ exit 0
         import os,json
         env = {**os.environ, 'WOOTC_STEPS_FILE': str(self.root / 'payload/steps.sh'),
                'WOOTC_FIRSTBOOT_HOST': str(host), 'WOOTC_FIRSTBOOT_COLLECTOR': str(collector),
+               'WOOTC_FIRSTBOOT_SUMMARY_DIR': str(self.root / 'summary'),
                'PATH': str(fakebin) + ':' + os.environ['PATH']}
         result = subprocess.run(['bash', str(ROOT / 'payload/migration/wootc-firstboot-evidence')],
                                 env=env, capture_output=True, text=True)

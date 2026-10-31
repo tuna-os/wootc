@@ -3,7 +3,7 @@
 Status: SPEC + phase-1 implementation (2026-08-22). Owner intent (maintainer,
 verbatim requirements): automated GitHub releases; an un-branded **wootc**
 build plus branded builds for **TunaOS**, the **Bluefin family**
-(bluefin / dakota / bluefin-lts), **Aurora**, and **Bazzite**; branding via a
+(bluefin / dakota), **Aurora**, and **Bazzite**; branding via a
 per-brand config + assets override; branded installers do not use the wootc
 name (wootc is the generic project name only); branded distributions
 pre-bundle or pre-download the bootc image **on Windows**, because the
@@ -56,7 +56,7 @@ from the first pixel with no sidecar file.
 branding/
   wootc/brand.json          # generic (default; current strings)
   tunaos/brand.json
-  bluefin/brand.json        # covers bluefin, dakota, bluefin-lts via catalog
+  bluefin/brand.json        # covers bluefin, dakota via catalog
   aurora/brand.json
   bazzite/brand.json
   <brand>/logo.svg          # the REAL mark (→ LogoDataURI); emoji only
@@ -100,7 +100,7 @@ fields:
 
 - `catalog`: image ids from `app/data/images.json` this brand offers.
   Empty = full catalog (wootc generic). The Bluefin brand lists
-  `["bluefin", "dakota", "bluefin-lts"]`.
+  `["bluefin", "dakota"]`. Its default is `bluefin`.
 - `defaultImage`: pre-selected card.
 - `hideCustomImage`: branded builds hide the custom-OCI field regardless of
   support policy.

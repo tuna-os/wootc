@@ -21,3 +21,26 @@ mok_missed_boot_refused() {
     fi
     return 0
 }
+
+# Prints the catalog's mokEnroll value for <image-ref> (empty when the image
+# needs no enrollment, is absent, or the catalog cannot be read). This is the
+# field the app's imageNeedsMok reads to put wootc.mok=enroll on the deployer
+# cmdline, so the script path (setup-wootc.ps1) asks for enrollment for
+# exactly the images the GUI path does. Keyed on the catalog, never on an
+# image or brand name: run 39886118219 (bluefin:stable) showed a non-bazzite
+# image needing the key too.
+mok_catalog_enroll() {  # <catalog.json> <image-ref>
+    local catalog="$1" ref="$2"
+    [ -r "$catalog" ] || return 0
+    "${PYTHON_BIN:-python3}" -I -c '
+import json, sys
+try:
+    entries = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+for entry in entries if isinstance(entries, list) else []:
+    if isinstance(entry, dict) and entry.get("imageRef") == sys.argv[2]:
+        print(entry.get("mokEnroll") or "")
+        break
+' "$catalog" "$ref" 2>/dev/null || true
+}

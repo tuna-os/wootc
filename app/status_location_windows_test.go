@@ -91,7 +91,7 @@ func TestStatusAuditPreservesPrivateBytesAndDescriptors(t *testing.T) {
 		code := headlessStatusWithReader(func() (StatusReport, bool, error) {
 			state, _, found, err := discoverStatusState([]string{root}, audit)
 			return StatusReport{LifecycleState: state}, found, err
-		})
+		}, noBootVerification)
 		if code != 0 {
 			t.Fatalf("status exit %d", code)
 		}
@@ -108,7 +108,7 @@ func TestStatusAuditPreservesPrivateBytesAndDescriptors(t *testing.T) {
 		code := headlessStatusWithReader(func() (StatusReport, bool, error) {
 			state, _, found, err := discoverStatusState([]string{root}, audit)
 			return StatusReport{LifecycleState: state}, found, err
-		})
+		}, noBootVerification)
 		if code != 1 {
 			t.Fatalf("unsafe status exit %d", code)
 		}

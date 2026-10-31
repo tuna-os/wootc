@@ -166,8 +166,8 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	// every report of it look like a different bug.
 	for _, s := range []struct {
 		name, rel string
-		// mmx64.efi (MokManager) rides beside shim so custom-kernel images
-		// (Bazzite, #248) can complete the MOK enrollment the deployer
+		// mmx64.efi (MokManager) rides beside shim so images signed with
+		// their distribution's key (#248) can complete the MOK enrollment the deployer
 		// queues. Optional: releases before it shipped have no copy, and a
 		// non-akmods install never launches it.
 		optional bool
@@ -214,11 +214,13 @@ func setupSignedChain(espPath string, cfg InstallConfig) error {
 	if cfg.ComposeFS {
 		installMode += " wootc.composefs=1"
 	}
-	// MOK enrollment is OPT-IN per image (#248): only kernels the Fedora
-	// shim cannot verify (Bazzite's fsync) need the one-time MokManager
-	// step, and images with Fedora-signed kernels (aurora, bluefin) must
-	// never be handed a firmware prompt they do not need. The deployer only
-	// queues the enrollment when this flag rides the cmdline.
+	// MOK enrollment is OPT-IN per image (#248): catalog entries whose image
+	// carries the distribution's signing key (mokEnroll) need the one-time
+	// MokManager step — for a kernel the Fedora shim cannot verify
+	// (Bazzite's fsync) or for akmods-signed modules a Fedora-signed kernel
+	// refuses under lockdown (bluefin's v4l2loopback, run 39886118219).
+	// Images without such a key are never handed a firmware prompt. The
+	// deployer only queues the enrollment when this flag rides the cmdline.
 	if imageNeedsMok(cfg.ImageRef) {
 		installMode += " wootc.mok=enroll"
 	}
@@ -478,19 +480,22 @@ func configureBCD(cfg InstallConfig) error {
 	// ── Arm-time recovery guard state & task registration (§2) ────────────────
 	// 1. Stage a copy of wootc.exe under install\ and compute its hash.
 	installExe := filepath.Join(wootcDir(), "install", stagedEngineName)
-	exeHash := ""
-	curExe, errExe := os.Executable()
-	if errExe == nil {
-		if !strings.EqualFold(curExe, installExe) {
-			if inData, errRead := os.ReadFile(curExe); errRead == nil {
-				_ = os.WriteFile(installExe, inData, 0o755)
-			}
+	curExe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolving the recovery executable: %w", err)
+	}
+	if !strings.EqualFold(curExe, installExe) {
+		inData, err := os.ReadFile(curExe)
+		if err != nil {
+			return fmt.Errorf("reading the recovery executable: %w", err)
 		}
-		if h, errHash := hashFile(installExe); errHash == nil {
-			exeHash = h
-		} else if h2, errHash2 := hashFile(curExe); errHash2 == nil {
-			exeHash = h2
+		if err := os.WriteFile(installExe, inData, 0o755); err != nil {
+			return fmt.Errorf("staging the recovery executable: %w", err)
 		}
+	}
+	exeHash, err := hashFile(installExe)
+	if err != nil {
+		return fmt.Errorf("hashing the staged recovery executable: %w", err)
 	}
 
 	// 2. Read prior power state.
@@ -514,8 +519,26 @@ func configureBCD(cfg InstallConfig) error {
 		storageDrive = "C"
 	}
 
+	espPartitionGuid := findESPPartitionGuid()
+	// Retain the expected installation identity after recovery removes armed.json.
+	// An unverifiable volume/ESP must not produce a boot-ready installation.
+	hostUUID, err := ntfsHostUUID(storageDrive)
+	if err != nil {
+		return fmt.Errorf("recording installation host volume: %w", err)
+	}
+	identity, err := newInstallationIdentity(cfg.ImageRef, espPartitionGuid, efiRelPath, hostUUID)
+	if err != nil {
+		return fmt.Errorf("recording installation identity: %w", err)
+	}
+	if err := marshalJSONToFile(filepath.Join(wootcDir(), "install", "installation.json"), identity); err != nil {
+		return fmt.Errorf("persisting installation identity: %w", err)
+	}
+	if err := os.Remove(filepath.Join(wootcDir(), "install", "installed-linux-boot.complete")); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("resetting first-boot completion: %w", err)
+	}
+
 	armed := ArmedState{
-		EspPartitionGuid: findESPPartitionGuid(),
+		EspPartitionGuid: espPartitionGuid,
 		EspFiles:         espFiles,
 		EspFileHashes:    staged,
 		PriorPowerState:  powerState,
@@ -528,9 +551,12 @@ func configureBCD(cfg InstallConfig) error {
 
 	// 3. Register the recovery tasks BEFORE the first BCD write, so a power
 	// cut from here on is rolled back by `recover --startup` on the next
-	// Windows start (bootTxnStartupAction).
+	// Windows start (bootTxnStartupAction). A task conflict or an
+	// unobservable registration is fatal: continuing would create a boot
+	// chain with no trusted recovery guard.
 	if err := registerRecoveryTasks(installExe); err != nil {
-		fmt.Printf("warning: could not register recovery tasks: %v\n", err)
+		_ = unregisterRecoveryTasks()
+		return fmt.Errorf("registering recovery tasks before boot transaction: %w", err)
 	}
 
 	_, err = beginBootChainTxn(windowsBootChainEnv(espPath, armed), efiRelPath, staged)

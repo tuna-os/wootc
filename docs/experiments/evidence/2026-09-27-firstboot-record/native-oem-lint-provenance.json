@@ -1,0 +1,151 @@
+{
+  "baseHead": "e4796dc4e8a20dcc36ed595446e1d5b744ad2d70",
+  "workingTreeStatus": " M tests/unit/oem-installation-identity.ps1\n",
+  "archiveSha256": "96b46898b73b83816a0caeae12dc7d292f54131932cd35db7bdab91b7b4b39bb",
+  "archiveName": "wootc-oem-lint-723d28d0d0714269a7cab33e6f1f95da.zip",
+  "sourceFiles": [
+    {
+      "source": "docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-bootsector-run.ps1",
+      "rawSha256": "98daff6526d7cb5287e967c65515b405afdaea2423b305fddff6f67d880532f7",
+      "stagedSha256": "c319009efe6bcb79356181964b9631d5fee432626f93542696281132558e3447"
+    },
+    {
+      "source": "docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-disk-probe-run300.ps1",
+      "rawSha256": "abeae39f2ffbff30eec640ced624aaffba661b6e382a80be5e94392f43dd4eef",
+      "stagedSha256": "17f61961d9bc4db6e1a57c9af4f0056da090eedc67fd13302d8a0b4f5f4b6a6d"
+    },
+    {
+      "source": "docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-disk-probe-run900.ps1",
+      "rawSha256": "6e66b5d2e33942d259302a24924f27f5f3f4358384c9af4837374fb931b85317",
+      "stagedSha256": "4467c2e0a7ce358cf2034677ab4780e3f3bab8dd49dcd0e4f4255d67f4b25ea0"
+    },
+    {
+      "source": "docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-probe-run-userspaceirq.ps1",
+      "rawSha256": "ff7e190aec8c55003bec76cecb4a2aac88e276adafa12883f0bbd25d5f6c6468",
+      "stagedSha256": "a7760773174ca653bb4a4cd61c0564a91acfb4425c6748bc32a90505203b3de6"
+    },
+    {
+      "source": "docs/experiments/evidence/2026-09-26-vm-first/windows-whpx/wootc-phase1-probe-run.ps1",
+      "rawSha256": "bea42789d7c0a558d6db761a141667c0d81caf0fef87564201e1f26f15dee716",
+      "stagedSha256": "d3e5ce5fbcb38bcaed983d26c1472607e543b6aa81effdce597129e8aaa27619"
+    },
+    {
+      "source": "docs/experiments/evidence/2026-09-27-artifact-auth/native-windows.ps1",
+      "rawSha256": "44bdb69577769351c14c64c482f2b4dc3e1ffddd99f7efeb0f7605d0f63b0d8b",
+      "stagedSha256": "6624bc69f2028b5e1358a3c75881625eca8a9bc7ac7dead5bf9bcfe2f62d59b6"
+    },
+    {
+      "source": "docs/experiments/evidence/2026-09-27-firstboot-record/native-go-invocation.ps1",
+      "rawSha256": "38ea8d5af65f734e84aec0d12398486fe8b5175444a499c3b6b9805afba1838d",
+      "stagedSha256": "877e629bcfc7c26239a609b7b58b44abcc9d542790e06fe43499c6c6e9bdcb9c"
+    },
+    {
+      "source": "docs/experiments/evidence/2026-09-27-firstboot-record/native-oem-invocation.ps1",
+      "rawSha256": "06575123779b369a172d0362e1c4fb7714687ecd78e661a78baf781302706755",
+      "stagedSha256": "6b21141c7c328c0c79eaab6bf271aa1a55c5edba7e1f4817a25bb1eecc7227d6"
+    },
+    {
+      "source": "packaging/winget/verified-tool.ps1",
+      "rawSha256": "622f0cd3ad3b4d77102cc2d69d69f499fcbbf3bc7357d812a3b32d6bec3cde35",
+      "stagedSha256": "7f796c91d35c86b27f4d06cb7f9bb4b0e9c81ecacbcf3d6ab74a41c168d3039c"
+    },
+    {
+      "source": "tests/e2e/assert-recovery.ps1",
+      "rawSha256": "ba7358d55bffa4ee11d2bf322c90497418f3d39e558016722059a9fd3dd1e241",
+      "stagedSha256": "b4310d7b0a6e68c9dcae9884d9bf3bc67b51cbcbfe6f19c6bacc1ee0bd491f3c"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.ps1",
+      "rawSha256": "53f159f7c9aaf7d5015a0e59915791a4536abf16d9f720863960d2ad4b1e7707",
+      "stagedSha256": "53af46b855703adbe00d823517f60a88b7000c54a3732102b5b24ffd9b62109e"
+    },
+    {
+      "source": "tests/e2e/fixture-bitlocker-key.tests.ps1",
+      "rawSha256": "669415c7f20944d85d7926686def26b0aa2bf7042022fc0d675d92902eeca2c0",
+      "stagedSha256": "c84ca4535a35c38c1f5e980cfb989f210982029bb7c9e474d5a967dab72f7156"
+    },
+    {
+      "source": "tests/e2e/oem/run-wootc-e2e.ps1",
+      "rawSha256": "b4bfda218e16b622002a21118720a0f6849a3bbbe2f5cecbd648e7a644bd55f7",
+      "stagedSha256": "91390ebdf9a900146637c77502bfae00fef22d44edfbe076a462f06071f34c34"
+    },
+    {
+      "source": "tests/e2e/oem/seed-profile.ps1",
+      "rawSha256": "84d54de7b0880ff6660e764a67f181b319cc3ef53716ab91ecb6973a1b0305ca",
+      "stagedSha256": "1eb19772e779682d7f379055e95debc58fb144e4dc031736456f30aec4176220"
+    },
+    {
+      "source": "tests/e2e/phase1/assert-phase1.ps1",
+      "rawSha256": "57d0e231cdd3a0eb8a2e328ab69cd3b47cb7a3852c367309b8b779336e1a4a0f",
+      "stagedSha256": "ee9784623b5f55936c58d7fe041d1b91094e90ea4df4e811bf52e48e8f493447"
+    },
+    {
+      "source": "tests/e2e/seed-profile.ps1",
+      "rawSha256": "84d54de7b0880ff6660e764a67f181b319cc3ef53716ab91ecb6973a1b0305ca",
+      "stagedSha256": "1eb19772e779682d7f379055e95debc58fb144e4dc031736456f30aec4176220"
+    },
+    {
+      "source": "tests/e2e/setup-wootc.ps1",
+      "rawSha256": "f864540f826e3dbddae87364776ca4b986bbbfd947c375984802f9db39935d0f",
+      "stagedSha256": "3d235287fedeb1474799693d67a59ede2476a83daae09d6cbf04c7aeb8166575"
+    },
+    {
+      "source": "tests/e2e/stage-status-cli.ps1",
+      "rawSha256": "16251654576d197e2ccddb047f7850f79c1133b2dbc60f4e8bc6ac52febc0555",
+      "stagedSha256": "b6ec074405f3b242790f76311fff1532767175bb08a281eec70e0cab5944db88"
+    },
+    {
+      "source": "tests/e2e/state-trust.ps1",
+      "rawSha256": "b044306dfc76707b7d45157c42cfc0ca1f00add789b6b44fa07119c6872fa304",
+      "stagedSha256": "710a328776076f7e2bd2fa1d00431e58317ecc30de9c3f93bca37fe444bb8f19"
+    },
+    {
+      "source": "tests/e2e/test-stage-status-cli.ps1",
+      "rawSha256": "cc186c2c6ed2a741441bd41e8203c9762ddd76516f771334010cd3ae16ebfd63",
+      "stagedSha256": "6953e0da2863a50e726c6d3678574458236b165672b4561f05a26b58607822d7"
+    },
+    {
+      "source": "tests/e2e/test-state-trust.ps1",
+      "rawSha256": "e11f24d56450981f6c35126816bd3bd476f2a2cd78ecb1ff1ec6f8fbef355388",
+      "stagedSha256": "1855f0c841afc23d3a75de0caed8ae071f71dd496a278bd3ebcf28cb71e2a387"
+    },
+    {
+      "source": "tests/field/verify-fresh-machine.ps1",
+      "rawSha256": "afbe7dee22269e2fca1b3718ecb6e8c11a547b1b5bfcfa412d0aaaf778928fdf",
+      "stagedSha256": "2c4b9cc5e657751c71ad440f518f310fb5f02f73969a894cb0943ab7c7d7121b"
+    },
+    {
+      "source": "tests/field/verify-uninstall.ps1",
+      "rawSha256": "3392954fa2e1726a9e481f4537f89db0b1e6c15d84c23cbf5a394b533a93a59a",
+      "stagedSha256": "553e35d1e5f7d427166ded875760858d08f26eda299dd71b161395caf94620b7"
+    },
+    {
+      "source": "tests/lint-ps1.ps1",
+      "rawSha256": "6f2083b9ed30d7747c6fc3868c3359413cbed2e75c884a7509bdf31af2fef3bf",
+      "stagedSha256": "f122b8a52d07e877082950d9adfd87726232dddb998b17dcdd1fd0cc990b03b8"
+    },
+    {
+      "source": "tests/unit/oem-installation-identity.ps1",
+      "rawSha256": "4fe06a81ffa2f3964842f7e198e696e2cbb1f3460c2c88e3fde5276af4ec0874",
+      "stagedSha256": "7f19e97d8581250f42b5125f1d37526ce1f129a1e3b087e00b63585b9f668a50"
+    },
+    {
+      "source": "tests/unit/test-verified-winget-tool.ps1",
+      "rawSha256": "cb985c840752950399e1f8f88609b8812aafb58a81859dba3e90bf1df9e67cb8",
+      "stagedSha256": "90229bc2eb3b90777446fc3133be52a002c13df333a1067f0556dccadb163202"
+    },
+    {
+      "source": "tests/unit/test-verify-fresh-machine.ps1",
+      "rawSha256": "5ca94166930398bfad87e86b7d078f2bd0ae91a39e17d5433de8b1677f1039ad",
+      "stagedSha256": "17a072cb1a272a5ceb5db575fb33ff0085a54f153ab743b7759469dd77d6bb4b"
+    },
+    {
+      "source": "tests/unit/test-verify-uninstall.ps1",
+      "rawSha256": "f541e16656c0e29b89365f5954e64341f8480b3d967a62ff07dcef18fcd3962c",
+      "stagedSha256": "0afca4b3febe6d356bf1b2ba8637a901969f840a4c537128e18fd64fc5a09f5d"
+    }
+  ],
+  "guestExitCode": 0,
+  "lintScope": "All 28 tracked PowerShell files at the captured working-tree snapshot, staged UTF-8 BOM + CRLF; lint-ps1.ps1 ran under native Windows PowerShell 5.1",
+  "nativeBehaviorScope": "Full setup parser; independent fsutil cross-check of full 64-bit FSCTL serial; isolated installation identity function with fresh/rearmed identity, stale completion reset, old-record preservation, invalid and multiple-output UUID refusal"
+}
