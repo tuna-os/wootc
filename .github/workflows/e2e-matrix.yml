@@ -40,8 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: plan
-        name: Parse matrix.tsv into a job matrix
+        name: Validate and parse matrix.tsv into a job matrix
         run: |
+          python3 tests/e2e/validate-matrix.py
           python3 - "$TIER" "$GREP" <<'EOF' >> "$GITHUB_OUTPUT"
           import json, sys, os
           tier, want = sys.argv[1], sys.argv[2]
@@ -104,7 +105,7 @@ jobs:
     strategy:
       fail-fast: false
       # Be a decent neighbor on the shared runner pool; the matrix is not
-      # latency-sensitive. 26 full-tier cases still clear in ~3 waves.
+      # latency-sensitive. The full tier clears in several waves.
       max-parallel: 8
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     name: ${{ matrix.name }}
