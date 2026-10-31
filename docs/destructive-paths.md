@@ -2,18 +2,17 @@
 
 Reviewed source: `5002438059bd747146f61e3f3763461fbc1968ca` (2026-10-18).
 This inventory supports [#234](https://github.com/tuna-os/wootc/issues/234).
-It records source gates, failure behavior, tests, and evidence limits. It is
-not the RC execution review required by
-[#237](https://github.com/tuna-os/wootc/issues/237); that issue still needs an
-RC SHA and a full-tier run.
+It records source gates, failure behavior, tests, and evidence limits. It is not
+the execution review for [#237](https://github.com/tuna-os/wootc/issues/237).
+That issue still needs an RC SHA and a full-tier run.
 
 ## Review method and status
 
 The review walked `app/` and `payload/`, enumerated the relevant mutation
 primitives, and reconciled them with the tests and field-report entry points.
-The pinned `fisherman` submodule is recorded separately because this checkout
-does not initialize submodules; its selected-data path is tied to the pinned
-commit rather than a moving branch.
+The pinned `fisherman` submodule has a separate row. This checkout does not
+initialize submodules. Its selected-data path follows the pinned commit, not a
+branch.
 
 For each mutation, the inventory records:
 
@@ -21,9 +20,9 @@ For each mutation, the inventory records:
 - what remains reversible, retained, or retryable after a failure; and
 - the test or live evidence and the boundary that evidence does not cross.
 
-`Open` is a finding, not a clearance. A row is green only after both its gate
-and its reversal are observed on the release candidate. Temporary files,
-mocked commands, or an empty issue search do not prove user-data safety.
+`Open` marks an unresolved item, not clearance. A row turns green only after its
+gate and reversal pass on the release candidate. Temporary files, mocked
+commands, or an empty issue search do not prove user-data safety.
 
 The table includes product data deletion inside the storage directory because
 it can destroy user work even when no external path changes.
@@ -105,10 +104,10 @@ cross-checks returned no submitted field report:
 | None found | Not applicable | No open filed report describes lost or corrupted user data. An empty corpus does not prove zero loss. | The corpus is empty; no report can be triaged to green, fixed, or filed. |
 
 Issue #216's current closure evidence is #525, which adds the three-machine
-protocol but says the real runs still require people with the machines. Issue
-#210 is closed without individual report IDs in its body or comments. The open
-#302 cohort and #237 RC verification therefore remain the evidence path; this
-audit does not turn the absence of reports into a no-loss claim.
+protocol but says the real runs still need people with the machines. Issue #210
+has no individual report IDs in its body or comments. The open #302 cohort and
+#237 RC verification remain the evidence path. This audit does not turn the
+absence of reports into a no-loss claim.
 
 The report form itself remains the authoritative intake path:
 `.github/ISSUE_TEMPLATE/manual-test-report.yml`.
@@ -120,15 +119,15 @@ review. It does not claim release-candidate clearance. Rows marked `Open`
 remain actionable findings: their gates, reversal behavior, or evidence have
 not crossed the boundary stated in the row.
 
-No current-head mutation site found in `app/` or `payload/` is left without an
-inventory row. The native shell's install and maintenance consent boundaries
-are explicit above; the ESP direct and controlled refresh paths stay separate.
-The pinned fisherman selected-data path remains a separate row because an
-in-memory partial copy must not precede partitioning.
+The inventory covers every current-head mutation site in `app/` and `payload/`.
+The native shell's install and maintenance consent boundaries are explicit
+above. The ESP direct and controlled refresh paths stay separate.
+The selected-data path for pinned `fisherman` remains a separate row because an
+in-memory partial copy must not come before the partition step.
 
-The next required evidence is an RC-dated run for every named unit-only gate,
-the real Windows partition and boot interruption counterexamples, the missing
-importer collision controls, and durable selected-data migration. Those are
-tracked by #197, #237, #279, #285, #286, #333, #370, #427, and the related
-hardware/cohort gates. A later RC review must diff its source SHA against this
-inventory before calling the rows green.
+The next required evidence includes an RC-dated run for every named unit-only
+gate. It also includes the real Windows partition and boot interruption
+counterexamples, importer collision controls, and durable selected-data
+migration. Issues #197, #237, #279, #285, #286, #333, #370, #427, and the
+related hardware/cohort gates track these items. A later RC review must diff its
+source SHA against this inventory before it marks the rows green.
