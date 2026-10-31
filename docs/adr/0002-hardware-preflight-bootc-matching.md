@@ -2,16 +2,16 @@
 
 ## Status
 Superseded for driver matching by the live target-image inventory in #574.
-The GREEN/AMBER/RED product policy remains historical context; image catalog
-metadata is no longer treated as evidence that a specific kernel supports the
-PC in front of the installer.
+The GREEN/AMBER/RED product policy stays as historical context. wootc no longer
+uses image catalog metadata as evidence that a kernel supports this PC.
 
 ## Context
 Issue #38 proposed hardware declarations in the image catalog. Issue #574
-replaces that proxy with observations: after downloading the selected OCI image
-while Windows still works, wootc reads its kernel module aliases and firmware
-inventory, translates active Windows PnP IDs to Linux modaliases, and refuses
-known-critical driver gaps before changing the boot configuration.
+replaces that proxy with observations. wootc downloads the selected OCI image
+while Windows still works. Then it reads the module aliases and the firmware
+list of the image kernel. It translates the PnP IDs of the active Windows
+devices to Linux modaliases. Before it changes the boot configuration, it
+refuses an install that has no driver for an important device.
 
 ---
 
@@ -29,7 +29,7 @@ Every hardware feature evaluation produces one of three honest verdicts:
 
 ## 2. Hardware Capability Catalog Metadata (superseded)
 
-The original proposal declared constraints alongside image catalog metadata:
+The original proposal put the constraints in the image catalog metadata:
 
 ```json
 {
