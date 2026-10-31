@@ -70,6 +70,10 @@ try {
     # mokEnroll field, the same field the app reads for wootc.mok=enroll.
     if ($cfg.ContainsKey("MokEnroll") -and $cfg.MokEnroll -eq "1") { $setupArgs.MokEnroll = $true }
     if ($cfg.ContainsKey("RootDiskGiB") -and $cfg.RootDiskGiB) { $setupArgs.DiskSizeGB = [int]$cfg.RootDiskGiB }
+    if ($cfg.ContainsKey("SetupAsset") -and $cfg.SetupAsset) {
+        $setupArgs.SetupExe = Join-Path $oemDir "payload\$($cfg.SetupAsset)"
+        if ($cfg.ContainsKey("SetupBrand") -and $cfg.SetupBrand) { $setupArgs.SetupBrand = $cfg.SetupBrand }
+    }
     if ($cfg.ContainsKey("FaultInject") -and $cfg.FaultInject) {
         $setupArgs.FaultInject = $cfg.FaultInject
         # Recovery cells (#288) grade "nothing changed" and "everything

@@ -1484,6 +1484,21 @@ export WOOTC_E2E_OEM_VOL="$OEM_DIR"
 OEM_PAYLOAD="$OEM_DIR/payload"
 mkdir -p "$OEM_PAYLOAD/grub"
 cp "$SCRIPT_DIR/wootc-files/wootc.exe" "$SCRIPT_DIR/wootc-files/wootc.exe.sha256" "$OEM_PAYLOAD/"
+NATIVE_SETUP_ASSET="${WOOTC_E2E_SETUP_EXE:-}"
+NATIVE_SETUP_BRAND="${WOOTC_E2E_SETUP_BRAND:-wootc}"
+if [ -n "$NATIVE_SETUP_ASSET" ]; then
+    case "$NATIVE_SETUP_ASSET" in
+        */*|*\\*) fail "WOOTC_E2E_SETUP_EXE must be a filename in wootc-files/" ; exit 1 ;;
+    esac
+    case "$NATIVE_SETUP_BRAND" in
+        wootc|tunaos|aurora|bazzite|bluefin) ;;
+        *) fail "WOOTC_E2E_SETUP_BRAND must name a supported brand"; exit 1 ;;
+    esac
+    setup_source="$SCRIPT_DIR/wootc-files/$NATIVE_SETUP_ASSET"
+    [ -s "$setup_source" ] || { fail "Native setup asset missing: $setup_source"; exit 1; }
+    cp "$setup_source" "$OEM_PAYLOAD/$NATIVE_SETUP_ASSET"
+    info "Native setup asset staged for OEM setup: $NATIVE_SETUP_ASSET ($NATIVE_SETUP_BRAND)"
+fi
 # Convert to CRLF line endings: PowerShell 5.1 on Windows misparses LF-only
 # files (Get-Content -Raw and the internal script parser both corrupt them).
 printf '\xEF\xBB\xBF' > "$OEM_DIR/setup-wootc.ps1"
@@ -1596,6 +1611,8 @@ E2E_MOK_ENROLL="$(mok_catalog_enroll "$REPO_ROOT/app/data/images.json" "$IMAGE_R
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
     printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
     printf 'Filesystem=%s\n' "$E2E_FILESYSTEM"
+    [ -n "$NATIVE_SETUP_ASSET" ] && printf 'SetupAsset=%s\n' "$NATIVE_SETUP_ASSET"
+    [ -n "$NATIVE_SETUP_ASSET" ] && printf 'SetupBrand=%s\n' "$NATIVE_SETUP_BRAND"
     [ -n "$FAULT_INJECT" ] && printf 'FaultInject=%s\n' "$FAULT_INJECT"
     # RunId lets the OEM barrier prove the completion marker came from THIS run.
     # Without it the barrier passes on a stale marker left by a previous run —

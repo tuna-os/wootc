@@ -1,9 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: {{IDENTIFIER}}
 PackageVersion: {{VERSION}}
-InstallerType: portable
-Commands:
-  - {{COMMAND}}
+InstallerType: inno
 Installers:
   - Architecture: x64
     InstallerUrl: {{URL}}
