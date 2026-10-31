@@ -349,8 +349,8 @@ release_published() {
 }
 
 @test "release user instructions disclose Install writes before reboot" {
-    grep -q 'createRootDisk(cfg.DiskSizeGB)' app/app.go
-    grep -q 'configureBCD(cfg)' app/app.go
+    grep -q 'createRootDisk(cfg.DiskSizeGB)' app/install_engine.go
+    grep -q 'configureBCD(cfg)' app/install_engine.go
     grep -q 'Install creates the Linux disk file and changes the boot setup before you' docs/RELEASING.md
     ! grep -q 'Nothing on.*your PC changes until' <(tr '\n' ' ' < docs/RELEASING.md)
 }
@@ -371,8 +371,8 @@ release_published() {
 }
 
 @test "getting started discloses preparation beyond a folder and boot entry" {
-    grep -q 'disableFastStartup()' app/app.go
-    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'disableFastStartup()' app/install_engine.go
+    grep -q 'setupESP(cfg)' app/install_engine.go
     grep -q 'Install.*button starts changes before you restart' docs/getting-started.md
     grep -q 'copies boot files to the EFI system partition' docs/getting-started.md
     grep -q 'changes Windows startup settings' docs/getting-started.md
@@ -444,8 +444,8 @@ release_published() {
 }
 
 @test "README exposes preparation settings and normal Windows return" {
-    grep -q 'disableFastStartup()' app/app.go
-    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'disableFastStartup()' app/install_engine.go
+    grep -q 'setupESP(cfg)' app/install_engine.go
     grep -q 'changes Windows startup settings' README.md
     grep -q 'Windows normally returns after deployment' README.md
     grep -q 'Manage offers an explicit Linux boot choice' README.md
@@ -531,8 +531,8 @@ release_published() {
 @test "manual hardware guide discloses actual preparation outside the state folder" {
     grep -q 'Resize-Partition -DriveLetter C' app/disk_windows.go
     grep -q 'New-Partition -DiskNumber' app/disk_windows.go
-    grep -q 'disableFastStartup()' app/app.go
-    grep -q 'setupESP(cfg)' app/app.go
+    grep -q 'disableFastStartup()' app/install_engine.go
+    grep -q 'setupESP(cfg)' app/install_engine.go
     grep -q 'boot files on the ESP' docs/manual-testing.md
     grep -q 'may resize Windows' docs/manual-testing.md
     ! grep -q 'no repartitioning' <(tr '\n' ' ' < docs/manual-testing.md)
