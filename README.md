@@ -133,6 +133,7 @@ See the **[ROADMAP](ROADMAP.md)** for the version ladder and evidence gates.
 
 | | |
 |---|---|
+| [Documentation index](docs/README.md) | all current guides, engineering references, and historical collections |
 | [Getting started](docs/getting-started.md) | download → first boot, screen by screen |
 | [User guide](docs/user-guide.md) | living in the migrated system, and the way back |
 | [Philosophy](docs/philosophy.md) | the North Star, the Wubi heritage, why a file |
