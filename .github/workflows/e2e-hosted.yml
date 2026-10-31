@@ -42,22 +42,22 @@ on:
       # Empty/auto = the deployer's own default (xfs unsealed, ext4 sealed).
       # The btrfs matrix cell uses this to prove #35.
       filesystem: { type: string, default: '' }
-      # Arm Phase 1 through the REAL wootc.exe GUI (drive mode) instead of the
-      # OEM setup-wootc.ps1 script. Needs no host GUI — the app is staged +
-      # driven over QGA via a directive file (CDP is impossible in stock
-      # wails). Works on either the base-image restore or a full install
-      # (both boot to the autologged desktop; drive mode never touches
-      # C:\OEM). The walkthrough timelapse from a GUI-driven run is the one
-      # the README publishes.
+      # The GUI arm of Phase 1 uses the shipped Windows shell (drive mode);
+      # setup-wootc.ps1 still owns the OEM boot-chain handoff and, on native
+      # runs, silently stages the production setup before reboot. The shell is
+      # staged + driven over QGA via a directive file, so its drive mode never
+      # touches C:\OEM. This works on either the base-image restore or a full
+      # install (both boot to the autologged desktop). The walkthrough timelapse
+      # from a GUI-driven run is the one the README publishes.
       gui_install: { type: boolean, default: false }
       # Ordinary-user editor acceptance, separate from the Windows installer GUI.
       gui_documents: { type: boolean, default: false }
-      # Which GUI gui_install drives: 'wails' (the shipped installer) or
-      # 'native' (the WinUI shell, #344). Native publishes the shell on a
-      # Windows runner (the XAML compiler needs Windows), then the E2E job
+      # Which GUI gui_install drives: 'native' (the shipped WinUI shell) or
+      # 'wails' (the one-release compatibility build). Native publishes the shell
+      # on a Windows runner (the XAML compiler needs Windows), then the E2E job
       # builds the engine beside it with this run's manifest-signing key and
       # installs the pair as a protected package in the guest.
-      gui_frontend: { type: string, default: 'wails' }
+      gui_frontend: { type: string, default: 'native' }
       # Native only: start the shell unelevated (a /RL LIMITED task) so the
       # engine's own runas elevation is what the run proves. false restores
       # the elevated-shell launch.
@@ -99,9 +99,9 @@ jobs:
   # this run's artifacts, because the handoff goes both ways: the shell goes
   # to e2e, which builds the engine with the run's manifest-signing key (its
   # seed never leaves that job) and writes native-package.json; the engine and
-  # manifest come back here, where the real Inno preview installer is
-  # compiled for the brand, as winui-preview.yml compiles it; the installer
-  # goes back to e2e, which installs it in the guest. Each side uploads a
+  # manifest come back here, where the real Inno production setup and
+  # preview installers are compiled for the brand, as winui-preview.yml
+  # compiles them; both go back to e2e for the OEM and GUI paths. Each side
   # status-only artifact under the name the other waits for if it fails
   # first, so neither waits out its budget for a job that has stopped.
   native-shell:
@@ -177,7 +177,7 @@ jobs:
           identity=$(python tests/e2e/native-package.py check out/native-shell)
           echo "$identity"
           [ "${identity%% files=*}" = "buildId=${{ github.sha }} brandId=$BRAND" ] || { echo "::error::the package identity is not this run's build and brand"; exit 1; }
-      - name: Compile the preview installer for the brand (pinned Inno Setup)
+      - name: Compile the preview and production setup installers for the brand (pinned Inno Setup)
         shell: pwsh
         env:
           BRAND: ${{ steps.brand.outputs.brand }}
@@ -185,9 +185,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force out/native-installer | Out-Null
           $scratch = Join-Path $env:RUNNER_TEMP 'wootc-native-inno'
+          $previewScratch = Join-Path $scratch 'preview'
+          $releaseScratch = Join-Path $scratch 'release'
           try {
-            $compiled = ./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/native-shell -OutputDirectory out/native-installer -ScratchDirectory $scratch
-            Get-Item -LiteralPath $compiled.Installer | Format-List FullName, Length
+            $preview = ./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/native-shell -OutputDirectory out/native-installer -ScratchDirectory $previewScratch
+            Get-Item -LiteralPath $preview.Installer | Format-List FullName, Length
+            $releaseTag = 'e2e-${{ github.sha }}'
+            $production = ./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/native-shell -OutputDirectory out/native-installer -ScratchDirectory $releaseScratch -Mode release -ReleaseTag $releaseTag
+            Get-Item -LiteralPath $production.Installer | Format-List FullName, Length
             Set-Content -LiteralPath out/native-installer/status.txt -Value 'inno' -Encoding ascii
           } catch {
             if ($_.Exception.Message -notlike 'INNO-UNAVAILABLE:*') { throw }
@@ -457,23 +462,24 @@ jobs:
             echo "No base image ${PKG}:${TAG}; run-e2e.sh will do a full install"
           fi
 
-      - name: Wait for the native preview installer
+      - name: Wait for the native installers
         if: ${{ env.NATIVE == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/wait-run-artifact.sh 3600 "$NATIVE_INSTALLER_ARTIFACT"
 
-      - name: Download the native preview installer
+      - name: Download the native installers
         if: ${{ env.NATIVE == 'true' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: ${{ env.NATIVE_INSTALLER_ARTIFACT }}
           path: ${{ runner.temp }}/native-installer
 
-      # inno: the guest runs the real installer. inno-unavailable: the runner
-      # could not download the pinned compiler, so the guest gets a robocopy
-      # of the package, loudly. Anything else stops the run.
-      - name: Stage the native preview installer
+      # inno: the guest runs the production setup silently from the OEM payload
+      # and the preview installer from the native GUI path. inno-unavailable:
+      # the runner gets a robocopy of the package, loudly. Anything else stops
+      # the run.
+      - name: Stage the native setup and preview installers
         if: ${{ env.NATIVE == 'true' }}
         run: |
           set -euo pipefail
@@ -481,16 +487,21 @@ jobs:
           status=$(tr -d '\r\n' < "$got/status.txt")
           case "$status" in
             inno)
+              setup_name="$(jq -er 'if .exeName == "wootc" then "wootc-Installer-Setup.exe" else (.exeName + "-Setup.exe") end' "app/branding/$WOOTC_E2E_BRAND/brand.json")"
+              [ -s "$got/$setup_name" ] || { echo "::error::native-shell job did not produce $setup_name"; exit 1; }
               mkdir -p tests/e2e/wootc-files/native-installer
+              cp "$got/$setup_name" tests/e2e/wootc-files/
               cp "$got/$WOOTC_E2E_BRAND-native-preview-${{ github.sha }}.exe" tests/e2e/wootc-files/native-installer/
-              ls -l tests/e2e/wootc-files/native-installer
+              ls -l tests/e2e/wootc-files/"$setup_name" tests/e2e/wootc-files/native-installer
               cat "$got/compiler-observations.json" || true
+              echo "WOOTC_E2E_SETUP_EXE=$setup_name" >> "$GITHUB_ENV"
+              echo "WOOTC_E2E_SETUP_BRAND=$WOOTC_E2E_BRAND" >> "$GITHUB_ENV"
               echo "WOOTC_E2E_NATIVE_INSTALLER=inno" >> "$GITHUB_ENV" ;;
             inno-unavailable)
-              echo "::warning::the pinned Inno compiler was unavailable; this run copies the package with robocopy and does NOT prove the preview installer"
+              echo "::warning::the pinned Inno compiler was unavailable; this run copies the package with robocopy and does NOT prove the setup or preview installers"
               echo "WOOTC_E2E_NATIVE_INSTALLER=robocopy" >> "$GITHUB_ENV" ;;
             *)
-              echo "::error::the native-shell job did not produce the preview installer (status: $status)"; exit 1 ;;
+              echo "::error::the native-shell job did not produce the preview installer or production setup (status: $status)"; exit 1 ;;
           esac
 
       - name: Run the E2E (restores base image if pulled, else full install)

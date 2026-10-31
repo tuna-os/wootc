@@ -106,6 +106,50 @@ jobs:
           brands=$(printf '%s\n' "${picked[@]}" | jq -Rsc 'split("\n") | map(select(. != ""))')
           echo "brands=$brands" | tee -a "$GITHUB_OUTPUT"
 
+  # A release's native engine must carry the public half of the exact key that
+  # signs that release's SHA256SUMS. Preview and scheduled builds deliberately
+  # leave this empty; their engine is only a component/packaging proof.
+  release-context:
+    name: Resolve native release metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      production: ${{ steps.release.outputs.production }}
+      tag: ${{ steps.release.outputs.tag }}
+      artifact_public_key: ${{ steps.release.outputs.artifact_public_key }}
+    steps:
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-$INPUT_TAG}"
+          if [ -z "$tag" ]; then
+            {
+              echo 'production=false'
+              echo 'tag='
+              echo 'artifact_public_key='
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [[ "$tag" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,99}$ ]] || {
+            echo "::error::Refusing release tag '$tag'"; exit 1;
+          }
+          mkdir -p "$RUNNER_TEMP/wootc-release-key"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern artifact-public-key.hex --dir "$RUNNER_TEMP/wootc-release-key"
+          key=$(tr -d '[:space:]' < "$RUNNER_TEMP/wootc-release-key/artifact-public-key.hex")
+          [[ "$key" =~ ^[0-9a-fA-F]{64}$ ]] || {
+            echo "::error::release artifact-public-key.hex is not 32-byte hex"; exit 1;
+          }
+          {
+            echo 'production=true'
+            echo "tag=$tag"
+            echo "artifact_public_key=$key"
+          } >> "$GITHUB_OUTPUT"
+
   # The Windows leg of the core contract runs inside native-build, which
   # already has .NET on a Windows runner: one runner instead of two.
   core:
@@ -250,8 +294,8 @@ jobs:
           if-no-files-found: error
 
   preview-packaging:
-    name: Branded preview package (${{ matrix.brand }})
-    needs: plan
+    name: Branded native package (${{ matrix.brand }})
+    needs: [plan, release-context]
     runs-on: windows-latest
     timeout-minutes: 20
     strategy:
@@ -275,32 +319,70 @@ jobs:
           go-version-file: app/go.mod
           # go.sum is in app/; the default (a root go.sum) caches nothing.
           cache-dependency-path: app/go.sum
-      - name: Publish the selected preview brand and exact engine
+      - name: Publish the selected native brand and exact engine
         shell: pwsh
+        env:
+          PRODUCTION: ${{ needs.release-context.outputs.production }}
+          RELEASE_TAG: ${{ needs.release-context.outputs.tag }}
+          ARTIFACT_PUBLIC_KEY: ${{ needs.release-context.outputs.artifact_public_key }}
         run: |
           dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} -p:NativeBrandId=${{ matrix.brand }} --output out/branded-preview
           if ($LASTEXITCODE -ne 0) { throw 'Branded native publish refused' }
           New-Item -ItemType Directory -Force app/frontend/dist | Out-Null
           Set-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
+          $ldflags = "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}"
+          if ($env:ARTIFACT_PUBLIC_KEY) { $ldflags += " -X main.artifactPublicKey=$env:ARTIFACT_PUBLIC_KEY" }
+          if ($env:RELEASE_TAG) { $ldflags += " -X main.releaseTag=$env:RELEASE_TAG" }
           Push-Location app
-          try { go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
+          try { go build -ldflags "-H windowsgui $ldflags" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
           if ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }
-      - name: Compile, install, observe and remove only the preview package
+      - name: Compile, install, observe and remove the preview package
         shell: pwsh
         run: ./shell/packaging/test-installed-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer
+      - name: Compile the production setup asset for a release
+        if: ${{ needs.release-context.outputs.production == 'true' }}
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ needs.release-context.outputs.tag }}
+        run: |
+          New-Item -ItemType Directory -Force out/release-installer | Out-Null
+          $scratch = Join-Path $env:RUNNER_TEMP 'wootc-release-inno'
+          $compiled = ./shell/packaging/compile-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/release-installer -ScratchDirectory $scratch -Mode release -ReleaseTag $env:RELEASE_TAG
+          Get-Item -LiteralPath $compiled.Installer | Format-List FullName, Length
+      - name: Install and remove the production setup smoke package
+        if: ${{ needs.release-context.outputs.production == 'true' }}
+        shell: pwsh
+        run: |
+          $brand = Get-Content -LiteralPath 'app/branding/${{ matrix.brand }}/brand.json' -Raw | ConvertFrom-Json
+          $setupName = if ($brand.exeName -eq 'wootc') { 'wootc-Installer-Setup.exe' } else { "$($brand.exeName)-Setup.exe" }
+          $installer = Join-Path (Resolve-Path out/release-installer) $setupName
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Production setup is missing: $installer" }
+          $p = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Production setup exited with $($p.ExitCode)" }
+          $programFiles = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
+          $installRoot = Join-Path $programFiles 'wootc Native\${{ matrix.brand }}'
+          foreach ($file in @('bundle\Wootc.Shell.exe', 'bundle\wootc-engine.exe', 'bundle\native-package.json')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $installRoot $file) -PathType Leaf)) { throw "Production setup omitted $file" }
+          }
+          $uninstaller = Get-ChildItem -LiteralPath $installRoot -Filter 'unins*.exe' -File | Select-Object -First 1
+          if (-not $uninstaller) { throw "Production setup registered no uninstaller in $installRoot" }
+          $u = Start-Process -FilePath $uninstaller.FullName -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "Production uninstaller exited with $($u.ExitCode)" }
+          if (Test-Path -LiteralPath (Join-Path $installRoot 'bundle')) { throw "Production uninstaller left the native bundle behind" }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: winui-preview-package-${{ matrix.brand }}
           path: |
             out/preview-installer/
+            out/release-installer/
             out/branded-preview/native-package.json
             shell/Wootc.Shell.UiTests/TestResults/*.trx
           if-no-files-found: error
 
   publish-preview:
-    name: Attach native preview installers to the release
-    needs: [core, native-build, preview-packaging]
+    name: Attach native setup installers to the release
+    needs: [core, native-build, release-context, preview-packaging]
     if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -335,27 +417,39 @@ jobs:
         with:
           pattern: winui-preview-package-*
           path: preview-artifacts
-      - name: Select brands by recorded blessing and name the preview assets
+      - name: Select brands and name the native release assets
+        env:
+          PRODUCTION: ${{ needs.release-context.outputs.production }}
         run: |
           set -euo pipefail
-          # The same policy as the Wails brand exes: a declined brand drops,
-          # a pending one ships as it does today. The preview never adds a
-          # brand the release matrix would not build.
+          # The same policy as release.yml: a declined brand drops, a pending
+          # one ships as it does today. The attachment never adds a brand the
+          # release matrix would not build.
           brands=$(bash packaging/brands.sh list)
           [ -n "$brands" ] || { echo "::error::no brand is buildable"; exit 1; }
           mkdir preview-assets
           while IFS=$'\t' read -r brand exe; do
-            src="preview-artifacts/winui-preview-package-$brand/out/preview-installer/$brand-native-preview-$GITHUB_SHA.exe"
-            [ -s "$src" ] || { echo "::error::missing tested preview installer for $brand"; exit 1; }
-            cp "$src" "preview-assets/$exe-Native-Preview-Setup.exe"
+            setup_name="${exe}-Setup.exe"
+            [ "$exe" = wootc ] && setup_name='wootc-Installer-Setup.exe'
+            if [ "$PRODUCTION" = true ]; then
+              src="preview-artifacts/winui-preview-package-$brand/out/release-installer/$setup_name"
+              dest="preview-assets/$setup_name"
+            else
+              src="preview-artifacts/winui-preview-package-$brand/out/preview-installer/$brand-native-preview-$GITHUB_SHA.exe"
+              dest="preview-assets/${exe}-Native-Preview-Setup.exe"
+            fi
+            [ -s "$src" ] || { echo "::error::missing tested native installer for $brand: $src"; exit 1; }
+            cp "$src" "$dest"
           done <<< "$brands"
-          ( cd preview-assets && sha256sum -- *.exe > native-preview-SHA256SUMS )
-          cat preview-assets/native-preview-SHA256SUMS
+          sums=native-preview-SHA256SUMS
+          [ "$PRODUCTION" = true ] && sums=native-SHA256SUMS
+          ( cd preview-assets && sha256sum -- *.exe > "$sums" )
+          cat "preview-assets/$sums"
       - name: Upload beside the existing release assets
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -euo pipefail
-          # No --clobber: a preview never replaces an asset already published.
+          # No --clobber: a tested native asset never replaces one already published.
           gh release upload "$TAG" preview-assets/* --repo "$GITHUB_REPOSITORY"

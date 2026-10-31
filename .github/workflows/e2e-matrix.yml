@@ -23,7 +23,7 @@ on:
         type: string
         default: ''
       gui_install:
-        description: 'drive Phase 1 through the real wootc.exe GUI in every cell'
+        description: 'drive Phase 1 through the real Windows GUI; native shell is the default, Wails is an explicit compatibility option'
         type: boolean
         default: false
 
@@ -40,8 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: plan
-        name: Parse matrix.tsv into a job matrix
+        name: Validate and parse matrix.tsv into a job matrix
         run: |
+          python3 tests/e2e/validate-matrix.py
           python3 - "$TIER" "$GREP" <<'EOF' >> "$GITHUB_OUTPUT"
           import json, sys, os
           tier, want = sys.argv[1], sys.argv[2]
@@ -104,7 +105,7 @@ jobs:
     strategy:
       fail-fast: false
       # Be a decent neighbor on the shared runner pool; the matrix is not
-      # latency-sensitive. 26 full-tier cases still clear in ~3 waves.
+      # latency-sensitive. The full tier clears in several waves.
       max-parallel: 8
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     name: ${{ matrix.name }}
@@ -122,7 +123,7 @@ jobs:
       fault_inject: ${{ matrix.fault_inject }}
       firmware_db: ${{ matrix.firmware_db }}
       # GUI mode has only ever been exercised on one cell (bluefin:lts via
-      # e2e-gui.yml). Driving Phase 1 through the real wootc.exe across the whole
+      # e2e-gui.yml). Driving the shipped Windows shell across the whole
       # matrix is what proves the INSTALLER — not just the harness — works on
       # every image and Windows edition. Off by default: the breadth matrix
       # stays script-driven unless a run explicitly asks for GUI.
@@ -142,5 +143,5 @@ jobs:
       # refusal, which the scripted OEM path never runs.
       #
       # NEVER on the offline axis: the GUI path needs the guest network
-      # (WebView2 install, the \\host.lan share), and --offline refuses it.
+      # (the native package and \\host.lan share), and --offline refuses it.
       gui_install: ${{ (inputs.gui_install || matrix.firmware_db == 'none') && matrix.bitlocker != 'on' && matrix.filesystem == '' && !matrix.offline }}

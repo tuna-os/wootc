@@ -87,21 +87,28 @@ setup() {
 
 # ── exe names and packaging ──────────────────────────────────────────────────
 
-@test "the branded exe names the docs advertise are the ones brand.json builds" {
-    local doc exe
+@test "the branded setup names the docs advertise are the ones brand.json builds" {
+    local doc exe product
     for exe in $(jq -r '.exeName' app/branding/*/brand.json); do
+        if [ "$exe" = wootc ]; then
+            product='wootc-Installer-Setup.exe'
+        else
+            product="$exe-Setup.exe"
+        fi
         [ "$exe" = "wootc" ] && continue
         for doc in README.md docs/getting-started.md; do
-            grep -qF "$exe.exe" "$doc" ||
-                { echo "$doc never mentions $exe.exe"; return 1; }
+            grep -qF "$product" "$doc" ||
+                { echo "$doc never mentions $product"; return 1; }
         done
     done
-    # ...and the docs must not advertise an exe no brand produces.
+    # ...and the docs must not advertise a setup no brand produces.
     local built
     built=$(jq -r '.exeName' app/branding/*/brand.json | sort -u)
-    for exe in $(grep -ohE '[A-Za-z]+-Installer\.exe' README.md docs/getting-started.md docs/RELEASING.md | sort -u); do
-        printf '%s\n' "$built" | grep -qx "${exe%.exe}" ||
-            { echo "docs advertise $exe but no brand.json builds it"; return 1; }
+    for product in $(grep -ohE '[A-Za-z]+-Installer-Setup\.exe' README.md docs/getting-started.md docs/RELEASING.md | sort -u); do
+        exe=${product%-Setup.exe}
+        [ "$exe" = "wootc-Installer" ] && exe=wootc
+        printf '%s\n' "$built" | grep -qx "$exe" ||
+            { echo "docs advertise $product but no brand.json builds it"; return 1; }
     done
 }
 
@@ -330,6 +337,7 @@ release_published() {
     local gate
     gate=$(sed -n '/^  e2e-gate:/,/^  publish:/p' .github/workflows/release.yml)
     printf '%s\n' "$gate" | grep -q 'gui_install: true'
+    printf '%s\n' "$gate" | grep -q 'gui_frontend: native'
     printf '%s\n' "$gate" | grep -q 'phase3: true'
     printf '%s\n' "$gate" | grep -q "bitlocker: 'off'"
     grep -q 'Phase 3 native system booted from the graduated install (non-loopback)' tests/e2e/run-e2e.sh
@@ -395,20 +403,22 @@ release_published() {
     ! grep -q 'same verification on every boot artifact' docs/getting-started.md
 }
 
-@test "startup guides disclose the Windows WebView2 runtime dependency" {
+@test "startup guides distinguish the native shell from the legacy WebView2 path" {
     grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
     grep -q 'EdgeUpdate.*Clients' tests/e2e/run-e2e.sh
-    grep -q 'interface needs the WebView2 runtime' docs/RELEASING.md
-    grep -q 'interface needs the WebView2 runtime' docs/getting-started.md
-    ! grep -q 'no runtime depend' docs/RELEASING.md
-    ! grep -q 'There is nothing to "install"' docs/getting-started.md
+    grep -q 'native shell does not need WebView2' docs/RELEASING.md
+    grep -q 'native shell does not need WebView2' docs/getting-started.md
+    grep -q 'wootc-legacy.exe.*WebView2' docs/getting-started.md
+    ! grep -q 'interface needs the WebView2 runtime' docs/RELEASING.md
+    ! grep -q 'interface needs the WebView2 runtime' docs/getting-started.md
 }
 
-@test "roadmap separates native preview work from complete consumer proof" {
+@test "roadmap records the native release cutover after Phase C" {
     grep -q 'JSON-RPC' app/serve.go
-    grep -q 'Phase B (#343) has a draft native preview and hosted component proof' ROADMAP.md
-    grep -q 'Phase C (#344) still needs the complete native consumer and VM journey' ROADMAP.md
-    ! grep -q 'Phases B.*not yet started' ROADMAP.md
+    grep -q 'Phase B (#343) delivered the native preview and hosted component proof' ROADMAP.md
+    grep -q 'Phase C (#344) delivered the native consumer and VM journey' ROADMAP.md
+    grep -q 'Phase D (#345) switches release artifacts to branded Inno setup packages' ROADMAP.md
+    ! grep -q 'Phase C (#344) still needs' ROADMAP.md
 }
 
 @test "roadmap separates restoration requirement from current partial cleanup" {
@@ -426,9 +436,9 @@ release_published() {
     ! grep -q 'kills the SmartScreen wall' ROADMAP.md
 }
 
-@test "README qualifies the VM goal against current desktop evidence" {
+@test "README qualifies the VM goal and names the native release surface" {
     grep -q 'No complete Windows-hosted target desktop proof yet' docs/status.md
-    grep -q 'Current releases do not yet provide the complete Linux-inside-Windows journey' README.md
+    grep -q 'native WinUI shell is the primary Windows release surface' README.md
     grep -q 'VM-first goal' README.md
     ! grep -q 'Try before you reboot.*boot the result' <(tr '\n' ' ' < README.md)
 }
@@ -465,12 +475,14 @@ release_published() {
     ! grep -q 'passwords, keys, and tokens stay' README.md
 }
 
-@test "README discloses runtime and distinguishes hashes from signed manifests" {
+@test "README distinguishes the native runtime from the legacy Wails asset" {
     grep -q 'artifactauth.Verify(artifactPublicKey, data, sig)' app/artifact_manifest.go
     grep -q 'wv2.exe /silent /install' tests/e2e/run-e2e.sh
     grep -q 'checks hashes, and verifies a signed manifest' README.md
-    grep -q 'Wails interface needs the WebView2 runtime' README.md
+    grep -q 'native shell does not require WebView2' README.md
+    grep -q 'wootc-legacy.exe' README.md
     grep -q 'Policy can prevent continuation' README.md
+    ! grep -q 'Wails interface needs the WebView2 runtime' README.md
 }
 
 @test "E2E architecture separates historical native diagrams from current acceptance" {
