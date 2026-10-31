@@ -204,6 +204,21 @@ Design notes:
   That design would need separate proof and a one-time MokManager enrollment.
   It aims to restore the no-sync property in SPEC §1.2.
 
+## Phase-3 native post-boot health gate
+
+The runner records a Phase-2 baseline. It then boots the native system on the
+blank disk and runs `tests/e2e/phase3-health.sh` through QGA. The probe checks:
+
+- systemd state and failed units;
+- the system bus and logind;
+- the display manager;
+- users and groups from `sysusers.d`;
+- SELinux denials and new labels under `/etc` and `/var/home`.
+
+The runner writes all output to `phase3-health.log`. A `FAIL:` line fails the
+product check. A QGA error without a `FAIL:` line is an infrastructure error.
+The `native-health` result is required. Other evidence cannot replace it.
+
 ## Result boundary (#383)
 
 The runner uses `tests/e2e/lib/results.sh` and `result-runner.sh` for results.

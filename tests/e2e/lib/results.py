@@ -13,7 +13,7 @@ import tempfile
 REQUIRED = {
     'snapshot-prime': {'snapshot-windows-identity', 'snapshot-compressed', 'snapshot-key'},
     'full-cycle': {'deployed', 'linux-root', 'linux-proof', 'user-data', 'windows-return', 'healthy'},
-    'native-cycle': {'deployed', 'linux-root', 'linux-proof', 'user-data', 'native-boot', 'native-user-data'},
+    'native-cycle': {'deployed', 'linux-root', 'linux-proof', 'user-data', 'native-boot', 'native-health', 'native-user-data'},
     'recovery': {'recovery-interrupted', 'recovery-retry', 'recovery-uninstall', 'recovery-windows'},
     # Firmware that trusts no third-party CA (#322): the pass is a refusal in
     # words AND proof that nothing was written, never a completed install.
