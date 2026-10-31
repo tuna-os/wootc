@@ -4691,10 +4691,7 @@ fi
 USERDATA_HOME=""
 _ud_deadline=$(deadline_in 120)
 while ! past_deadline "$_ud_deadline"; do
-    # The agent probe above is ONE shot taken the moment the passthrough scan
-    # ends. An agent that starts later in the window is still an agent that
-    # answered, so re-ask until it does (bounded: a dead agent must not eat
-    # the window 60s at a time).
+    # Keep agent retry and path probe bounded together.
     printf '%s' "$USERDATA_PROBE" | grep -q WOOTC_AGENT_OK \
         || USERDATA_PROBE=$(WOOTC_QGA_CALL_TIMEOUT=10 qga_call exec /bin/sh -c 'echo WOOTC_AGENT_OK' 2>/dev/null || true)
     USERDATA_HOME=$(qga_call exec /bin/sh -c \
@@ -4751,6 +4748,50 @@ else
     printf '%s\n' "$USERDATA_DIAG" | sed 's/^/  /'
     PASSTHROUGH_OK=false
 fi
+if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
+    # Exercise the writable Linux workspace and prove that the encrypted
+    # Windows source remains read-only. The GUI lane uses the real GNOME
+    # editor; the ordinary BitLocker matrix keeps a direct-user smoke check.
+    if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
+        EDIT_MARKER="wootc-e2e-gui-edit-$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"
+        step "Editing Documents through the ordinary user's GNOME editor..."
+        if ! python3 "$SCRIPT_DIR/gui-document-proof.py" edit --runtime "$DOCKER" \
+            --container "$CONTAINER_NAME" --path "$USERDATA_PATH" --run-id "$RUN_ID" \
+            --output "$ARTIFACT_DIR/gui-documents/first-boot" \
+            > "$ARTIFACT_DIR/gui-documents-first.json"; then
+            fail "GUI Documents: editor open, edit, save, close, and reopen proof failed"
+            exit 1
+        fi
+        GUI_EDIT_SHA=$(jq -r '.sha256' "$ARTIFACT_DIR/gui-documents-first.json")
+        pass "GUI Documents: ordinary user saved, closed, and reopened the imported file"
+    else
+        EDIT_MARKER="wootc-e2e-linux-edit-$RUN_ID"
+        step "Editing the imported Windows Documents copy as Linux user wootc..."
+        EDIT_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/sh -c \
+            "printf '%s\\n' '$EDIT_MARKER' >> '$USERDATA_PATH' && cat '$USERDATA_PATH'" \
+            2>/dev/null || true)
+        REOPEN_OUTPUT=$(qga_call exec /usr/sbin/runuser -u wootc -- /bin/cat "$USERDATA_PATH" \
+            2>/dev/null || true)
+        if printf '%s' "$EDIT_OUTPUT" | grep -Fq "$EDIT_MARKER" \
+            && printf '%s' "$REOPEN_OUTPUT" | grep -Fq "$EDIT_MARKER"; then
+            pass "BitLocker Documents: ordinary Linux user saved and reopened an edit"
+        else
+            fail "BitLocker Documents: ordinary Linux user could not save and reopen an edit"
+            info "  write/read output: ${REOPEN_OUTPUT:-<empty>}"
+        fi
+    fi
+    ORIGINAL_DOC=$(qga_call exec /bin/sh -c \
+        'f=$(find /run/wootc/bitlk-tmp/Users -type f -name wootc-e2e-userdata.txt -print -quit); [ -n "$f" ] && tr -d "\r" < "$f"' \
+        2>/dev/null || true)
+    if printf '%s' "$ORIGINAL_DOC" | grep -Fxq "wootc-e2e-userdata $RUN_ID" \
+        && ! printf '%s' "$ORIGINAL_DOC" | grep -Fq "$EDIT_MARKER"; then
+        pass "BitLocker Documents: encrypted Windows original stayed unchanged"
+    else
+        fail "BitLocker Documents: Windows original changed or could not be verified"
+        info "  encrypted source readback: ${ORIGINAL_DOC:-<empty>}"
+    fi
+fi
+
 
 if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
     # Exercise the destination as the ordinary desktop user, then read it

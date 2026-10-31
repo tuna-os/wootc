@@ -45,16 +45,73 @@ func currentUser() (*user.User, error) {
 	return user.Current()
 }
 
+// bitlockerDocumentsCopy returns the completed one-time Linux workspace for
+// a BitLocker Documents import. The marker is user-owned state, but validate
+// the destination stays inside that user's Documents directory before showing
+// it in the dashboard.
+func bitlockerDocumentsCopy(home, stateDir string) (string, bool) {
+	root := filepath.Join(home, "Documents")
+	rootReal, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", false
+	}
+	markers, _ := filepath.Glob(filepath.Join(stateDir, "bitlocker-documents-import-v2-*"))
+	for _, marker := range markers {
+		markerInfo, err := os.Lstat(marker)
+		if err != nil || markerInfo.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		data, err := os.ReadFile(marker)
+		if err != nil {
+			continue
+		}
+		complete, destination := false, ""
+		for _, line := range strings.Split(string(data), "\n") {
+			switch {
+			case line == "state=complete":
+				complete = true
+			case strings.HasPrefix(line, "destination="):
+				destination = strings.TrimPrefix(line, "destination=")
+			}
+		}
+		if !complete || destination == "" {
+			continue
+		}
+		destinationInfo, err := os.Lstat(destination)
+		if err != nil || destinationInfo.Mode()&os.ModeSymlink != 0 || !destinationInfo.IsDir() {
+			continue
+		}
+		destinationReal, err := filepath.EvalSymlinks(destination)
+		if err != nil {
+			continue
+		}
+		relative, err := filepath.Rel(rootReal, destinationReal)
+		if err != nil || relative == "." ||
+			relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			continue
+		}
+		return destination, true
+	}
+	return "", false
+}
+
 func migrationCategories() ([]BridgeCategory, error) {
 	u, err := currentUser()
 	if err != nil {
 		return nil, err
 	}
+	stateDir := filepath.Join(u.HomeDir, ".config", "wootc")
+	bitlockerStateDir := filepath.Join(u.HomeDir, ".local", "state", "wootc")
+	bitlockerCopy, hasBitlockerCopy := bitlockerDocumentsCopy(u.HomeDir, bitlockerStateDir)
 	winProfile, _, err := resolvedWindowsProfile(u)
 	if err != nil {
-		return nil, err
+		if !hasBitlockerCopy {
+			return nil, err
+		}
+		// A BitLocker C: profile is intentionally not under the ordinary
+		// host mount. The persisted Linux copy is still a valid dashboard row.
+		winProfile = filepath.Join("/run/wootc/host/Users", "__unavailable__")
 	}
-	stateDir := filepath.Join(u.HomeDir, ".config", "wootc")
 
 	var cats []BridgeCategory
 	for _, f := range bridgeFolders {
@@ -65,6 +122,10 @@ func migrationCategories() ([]BridgeCategory, error) {
 		}
 		src := filepath.Join(winProfile, f)
 		switch {
+		case f == "Documents" && hasBitlockerCopy:
+			c.State = "native"
+			c.SizeBytes = dirSize(bitlockerCopy)
+			c.Description = "Writable Linux copy of Windows Documents. The Windows source remains read-only and unchanged."
 		case fileExists(filepath.Join(stateDir, "converted-"+f)):
 			c.State = "native"
 			c.Description = fmt.Sprintf("%s now lives on Linux. The Windows copy is untouched.", f)

@@ -14,6 +14,10 @@ on:
       win_edition: { type: string, default: '' }
       win_key:     { type: string, default: '' }
       bitlocker:   { type: string, default: 'off' }
+      # Require the ordinary-user GNOME editor save/reopen/restart proof for
+      # the real BitLocker fixture. This is deliberately opt-in because it is
+      # a focused acceptance lane, not a replacement for the broad matrix.
+      gui_documents: { type: boolean, default: false }
       # Names this cell's evidence artifact so parallel cells do not collide.
       case_name:   { type: string, default: '' }
       # #71 triage only: stop in seconds unless the runner drew this podman
@@ -509,6 +513,9 @@ jobs:
           WOOTC_E2E_WIN_EDITION: ${{ inputs.win_edition }}
           WOOTC_E2E_WIN_KEY: ${{ inputs.win_key }}
           WOOTC_E2E_BITLOCKER: ${{ inputs.bitlocker }}
+          # Explicit BitLocker Documents acceptance: editable Linux copy plus
+          # real GNOME Save/close/reopen and post-restart persistence.
+          WOOTC_E2E_GUI_DOCUMENTS: ${{ inputs.gui_documents && '1' || '0' }}
           # Do NOT grow the guest disk for BitLocker: a hosted runner has only
           # ~81 GB free in /storage, so a 140G image made dockur spend startup
           # resizing, which starved swtpm's launch window — it then silently

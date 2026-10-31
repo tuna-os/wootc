@@ -107,7 +107,6 @@ class Proof:
             self.focus()
             self.transport.keys(["ctrl-s"])
             return self.wait("saved-file", "disk", written, 60)
-
     def close(self, stage):
         self.focus()
         self.transport.keys(["ctrl-q"])
