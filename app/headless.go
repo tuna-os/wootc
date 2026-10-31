@@ -112,7 +112,7 @@ func headlessInstall(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	err = runPipeline(ctx, cfg, func(e ProgressEvent) {
+	err = newInstallEngine().Run(ctx, cfg, func(e ProgressEvent) {
 		if e.Error != "" {
 			fmt.Fprintf(os.Stderr, "[wootc %3.0f%%] ERROR %s: %s\n", e.Percent, e.Step, e.Error)
 			return
