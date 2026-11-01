@@ -66,8 +66,8 @@
     "url": "https://github.com/tuna-os/wootc/issues/212"
   },
   "345": {
-    "state": "open",
-    "closedAt": null,
+    "state": "closed",
+    "closedAt": "2026-10-31T19:39:53Z",
     "bodySha256": "c2434044b53b8dd687f7d7a997458a44a5ebe066909c5ada16049710f4c47ac8",
     "url": "https://github.com/tuna-os/wootc/issues/345"
   }
