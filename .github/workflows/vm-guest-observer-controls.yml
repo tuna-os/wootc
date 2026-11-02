@@ -37,7 +37,7 @@ jobs:
           cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: 24
+          node-version: 26
       - name: Build actual frontend for engine embed
         working-directory: app/frontend
         run: npm ci; if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }; npm run build; if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }
