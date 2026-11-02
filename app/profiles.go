@@ -84,11 +84,11 @@ var systemProfiles = map[string]bool{
 	"rendszergazda": true, "vendég": true, "vendeg": true, "alapértelmezett fiók": true, "alapertelmezett fiok": true,
 }
 
-// profileMapping ties a Windows profile directory (the basename under
-// C:\Users) to the Linux account name created for it.
-type profileMapping struct {
-	WindowsDir string
-	LinuxUser  string
+// ProfileAccount ties a raw Windows profile directory to its Linux account.
+// It is also the editable plan mapping; directory identities are not editable.
+type ProfileAccount struct {
+	WindowsDir string `json:"windowsDir"`
+	LinuxUser  string `json:"linuxUser"`
 }
 
 // listProfilesIn returns a mapping for every real Windows profile under
@@ -107,12 +107,12 @@ type profileMapping struct {
 //
 // Profiles whose names sanitize to empty (e.g. non-Latin scripts like "田中"
 // or "Иван") or collide with existing accounts after truncation receive
-// generated fallback accounts ("winuser1", "winuser2", ...) so that no user's
+// generated fallback accounts ("user1", "user2", ...) so that no user's
 // data is silently dropped (#197, #224).
-func listProfilesIn(usersDir, primary, primaryDir string) []profileMapping {
+func listProfilesIn(usersDir, primary, primaryDir string) ([]ProfileAccount, error) {
 	entries, err := os.ReadDir(usersDir)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("cannot inspect Windows profiles; no migration plan was created: %w", err)
 	}
 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
@@ -121,14 +121,22 @@ func listProfilesIn(usersDir, primary, primaryDir string) []profileMapping {
 	if primary != "" {
 		seen[primary] = true
 	}
-	var out []profileMapping
+	var out []ProfileAccount
+	// Reserve real account names before generating fallbacks, so a generated
+	// name cannot take the natural account name of a later profile.
+	reserved := map[string]bool{primary: true}
+	for _, e := range entries {
+		if e.IsDir() && !systemProfiles[strings.ToLower(e.Name())] {
+			reserved[sanitizeUsername(e.Name())] = true
+		}
+	}
 
 	fallbackIdx := 1
 	nextFallbackUser := func() string {
 		for {
-			cand := fmt.Sprintf("winuser%d", fallbackIdx)
+			cand := fmt.Sprintf("user%d", fallbackIdx)
 			fallbackIdx++
-			if !seen[cand] {
+			if !seen[cand] && !reserved[cand] {
 				return cand
 			}
 		}
@@ -149,20 +157,99 @@ func listProfilesIn(usersDir, primary, primaryDir string) []profileMapping {
 		// (leftovers, template dirs). Creating an account for one would put a
 		// stranger on the login screen.
 		if _, err := os.Stat(filepath.Join(usersDir, name, "NTUSER.DAT")); err != nil {
-			continue
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("cannot inspect Windows profile %q; no migration plan was created: %w", name, err)
 		}
 		linux := sanitizeUsername(name)
-		if linux == primary {
-			continue
-		}
-		if linux == "" || seen[linux] {
+		if linux == "" || seen[linux] || reservedProfileAccount(linux) {
 			linux = nextFallbackUser()
 		}
 		seen[linux] = true
-		out = append(out, profileMapping{WindowsDir: name, LinuxUser: linux})
+		out = append(out, ProfileAccount{WindowsDir: name, LinuxUser: linux})
 	}
 
 	// Deterministic vault.json across runs.
 	sort.Slice(out, func(i, j int) bool { return out[i].LinuxUser < out[j].LinuxUser })
-	return out
+	return out, nil
+}
+
+func reservedProfileAccount(name string) bool {
+	switch name {
+	case "root", "nobody", "daemon", "bin", "sys":
+		return true
+	}
+	return false
+}
+
+// applyProfileAccountEdits accepts a complete mapping, not a partial overlay:
+// a profile appearing or disappearing after review requires another review.
+func applyProfileAccountEdits(discovered, edits []ProfileAccount, primary string) ([]ProfileAccount, error) {
+	if len(discovered) > 128 {
+		return nil, fmt.Errorf("more than 128 Windows profiles were found; review the profile inventory before installing")
+	}
+	for _, account := range discovered {
+		if account.WindowsDir == "" || len(account.WindowsDir) > 255 || strings.ContainsAny(account.WindowsDir, "/\\:\x00\t\r\n") {
+			return nil, fmt.Errorf("Windows profile %q cannot be represented safely in the migration map", account.WindowsDir)
+		}
+	}
+	if edits == nil {
+		return discovered, nil
+	}
+	if len(edits) != len(discovered) {
+		return nil, fmt.Errorf("Windows profiles changed or the account mapping is incomplete; check the plan again")
+	}
+	known := make(map[string]bool, len(discovered))
+	for _, account := range discovered {
+		known[account.WindowsDir] = true
+	}
+	seen := map[string]bool{primary: true}
+	result := make([]ProfileAccount, 0, len(edits))
+	for _, account := range edits {
+		if !known[account.WindowsDir] {
+			return nil, fmt.Errorf("unknown or duplicate Windows profile %q; check the plan again", account.WindowsDir)
+		}
+		delete(known, account.WindowsDir)
+		name := account.LinuxUser
+		if name == "" || sanitizeUsername(name) != name || reservedProfileAccount(name) {
+			return nil, fmt.Errorf("choose a non-system Linux account name of up to 32 lowercase letters, digits, underscores or hyphens for %q", account.WindowsDir)
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("Linux account %q is assigned more than once; every Windows profile needs its own account", name)
+		}
+		seen[name] = true
+		result = append(result, account)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].LinuxUser < result[j].LinuxUser })
+	return result, nil
+}
+
+func resolveProfileAccounts(primary string, edits []ProfileAccount) ([]ProfileAccount, error) {
+	discovered, err := listWindowsProfiles(primary)
+	if err != nil {
+		return nil, err
+	}
+	return applyProfileAccountEdits(discovered, edits, primary)
+}
+
+func profileAccountWarnings(accounts []ProfileAccount) []string {
+	var warnings []string
+	for _, account := range accounts {
+		if account.LinuxUser != sanitizeUsername(account.WindowsDir) {
+			warnings = append(warnings, fmt.Sprintf("Windows profile %q will use Linux account %q. You can edit the Linux name in this plan. Its files are preserved; this secondary account starts locked until you set its password.", account.WindowsDir, account.LinuxUser))
+		}
+	}
+	return warnings
+}
+
+// Installation cannot guess whose profile an elevation represents.
+func requireMatchingProfileIdentity(processSID, interactiveSID string) error {
+	if processSID == "" || interactiveSID == "" {
+		return fmt.Errorf("cannot verify the signed-in Windows user; no files were changed. Sign in with your own administrator account and try again")
+	}
+	if processSID != interactiveSID {
+		return fmt.Errorf("installation was approved with another account's credentials; no files were changed. Sign in with your own administrator account instead so the correct Windows profile is migrated")
+	}
+	return nil
 }

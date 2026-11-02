@@ -46,9 +46,12 @@ func TestListWindowsProfiles(t *testing.T) {
 	// name. Exclusion must work on the DIRECTORY, or the person who ran the
 	// installer gets a locked doppelganger account (and the bridge's #73
 	// single-user fallback breaks).
-	got := listProfilesIn(users, "james", "James Reilly")
+	got, err := listProfilesIn(users, "james", "James Reilly")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	want := []profileMapping{
+	want := []ProfileAccount{
 		{WindowsDir: "Alice Smith", LinuxUser: "alice-smith"},
 		{WindowsDir: "bob", LinuxUser: "bob"},
 	}
@@ -62,8 +65,8 @@ func TestListWindowsProfiles(t *testing.T) {
 	}
 }
 
-// A profile whose directory happens to match the primary username must not be
-// duplicated either — fisherman already created that account.
+// A different profile that matches the selected primary Linux username must
+// still get its own account, not disappear from the migration.
 func TestListWindowsProfilesPrimaryNameCollision(t *testing.T) {
 	users := filepath.Join(t.TempDir(), "Users")
 	d := filepath.Join(users, "jreilly")
@@ -73,19 +76,23 @@ func TestListWindowsProfilesPrimaryNameCollision(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(d, "NTUSER.DAT"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := listProfilesIn(users, "jreilly", ""); len(got) != 0 {
-		t.Errorf("got %v, want none — primary user must be excluded", got)
+	got, err := listProfilesIn(users, "jreilly", "actual-owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != (ProfileAccount{"jreilly", "user1"}) {
+		t.Errorf("got %v, want a separate fallback account for the other profile", got)
 	}
 }
 
 func TestListWindowsProfilesNoUsersDir(t *testing.T) {
-	if got := listProfilesIn(filepath.Join(t.TempDir(), "Users"), "jreilly", "jreilly"); got != nil {
-		t.Errorf("got %v, want nil when there is no Users directory", got)
+	if _, err := listProfilesIn(filepath.Join(t.TempDir(), "Users"), "jreilly", "jreilly"); err == nil {
+		t.Fatal("an unreadable profile inventory must not silently become an empty plan")
 	}
 }
 
 // Non-Latin profiles (CJK, Cyrillic) and collisions after truncation must
-// receive winuserN fallback accounts instead of being silently dropped (#197, #224).
+// receive userN fallback accounts instead of being silently dropped (#197, #224).
 func TestListWindowsProfilesNonLatinAndCollisionFallbacks(t *testing.T) {
 	users := filepath.Join(t.TempDir(), "Users")
 	createProfile := func(name string) {
@@ -98,18 +105,21 @@ func TestListWindowsProfilesNonLatinAndCollisionFallbacks(t *testing.T) {
 		}
 	}
 
-	createProfile("田中")                               // CJK: sanitizes to "" -> winuser1
-	createProfile("Иван")                             // Cyrillic: sanitizes to "" -> winuser2
-	createProfile("very-long-profile-name-that-truncates-1111") // truncates to 32 chars
-	createProfile("very-long-profile-name-that-truncates-2222") // collides on same 32 chars -> winuser3
+	createProfile("田中")
+	createProfile("Иван")
+	createProfile("very-long-profile-name-that-truncates-1111")
+	createProfile("very-long-profile-name-that-truncates-2222")
 
-	got := listProfilesIn(users, "primary", "PrimaryUser")
+	got, err := listProfilesIn(users, "primary", "PrimaryUser")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	want := []profileMapping{
+	want := []ProfileAccount{
+		{WindowsDir: "very-long-profile-name-that-truncates-2222", LinuxUser: "user1"},
+		{WindowsDir: "Иван", LinuxUser: "user2"},
+		{WindowsDir: "田中", LinuxUser: "user3"},
 		{WindowsDir: "very-long-profile-name-that-truncates-1111", LinuxUser: "very-long-profile-name-that-trun"},
-		{WindowsDir: "very-long-profile-name-that-truncates-2222", LinuxUser: "winuser1"},
-		{WindowsDir: "Иван", LinuxUser: "winuser2"},
-		{WindowsDir: "田中", LinuxUser: "winuser3"},
 	}
 
 	if len(got) != len(want) {
@@ -138,24 +148,27 @@ func TestListWindowsProfilesLocalizedBuiltinsExcluded(t *testing.T) {
 	}
 
 	// Built-in accounts across locales
-	createProfile("Administrateur")           // French Admin
-	createProfile("Invité")                   // French Guest
-	createProfile("Gast")                     // German Guest
-	createProfile("Administrador")            // Spanish Admin
-	createProfile("Invitado")                 // Spanish Guest
-	createProfile("Администратор")            // Russian Admin
-	createProfile("Гость")                    // Russian Guest
-	createProfile("管理员")                    // Chinese Admin
-	createProfile("管理者")                    // Japanese Admin
-	createProfile("ゲスト")                    // Japanese Guest
-	createProfile("Guest")                    // English Guest
-	createProfile("All Users")                // English Builtin
+	createProfile("Administrateur") // French Admin
+	createProfile("Invité")         // French Guest
+	createProfile("Gast")           // German Guest
+	createProfile("Administrador")  // Spanish Admin
+	createProfile("Invitado")       // Spanish Guest
+	createProfile("Администратор")  // Russian Admin
+	createProfile("Гость")          // Russian Guest
+	createProfile("管理员")            // Chinese Admin
+	createProfile("管理者")            // Japanese Admin
+	createProfile("ゲスト")            // Japanese Guest
+	createProfile("Guest")          // English Guest
+	createProfile("All Users")      // English Builtin
 
 	// A real user
 	createProfile("realuser")
 
-	got := listProfilesIn(users, "admin", "admin")
-	want := []profileMapping{
+	got, err := listProfilesIn(users, "admin", "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ProfileAccount{
 		{WindowsDir: "realuser", LinuxUser: "realuser"},
 	}
 
@@ -164,5 +177,67 @@ func TestListWindowsProfilesLocalizedBuiltinsExcluded(t *testing.T) {
 	}
 	if got[0] != want[0] {
 		t.Fatalf("got %v, want %v", got[0], want[0])
+	}
+}
+
+func TestProfileAccountEdits(t *testing.T) {
+	discovered := []ProfileAccount{{"田中", "user1"}, {"alice", "alice"}}
+	edited := []ProfileAccount{{"alice", "alice"}, {"田中", "tanaka"}}
+	got, err := applyProfileAccountEdits(discovered, edited, "owner")
+	if err != nil || len(got) != 2 || got[1] != edited[1] {
+		t.Fatalf("editable name not preserved: %v, %v", got, err)
+	}
+	for _, edits := range [][]ProfileAccount{
+		{},
+		{{"田中", "tanaka"}},
+		{{"田中", "tanaka"}, {"unexpected", "alice"}},
+		{{"田中", "tanaka"}, {"田中", "alice"}},
+		{{"田中", "owner"}, {"alice", "alice"}},
+		{{"田中", "alice"}, {"alice", "alice"}},
+		{{"田中", "root"}, {"alice", "alice"}},
+		{{"田中", "Not legal"}, {"alice", "alice"}},
+	} {
+		if _, err := applyProfileAccountEdits(discovered, edits, "owner"); err == nil {
+			t.Fatalf("accepted unsafe/incomplete mapping %v", edits)
+		}
+	}
+	if warnings := profileAccountWarnings(discovered); len(warnings) != 1 {
+		t.Fatalf("generated mapping must have a visible warning: %v", warnings)
+	}
+}
+
+func TestProfileFallbackReservesRealNames(t *testing.T) {
+	users := filepath.Join(t.TempDir(), "Users")
+	for _, name := range []string{"a!", "a.", "user1", "root", "田中"} {
+		path := filepath.Join(users, name)
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(path, "NTUSER.DAT"), []byte("fixture"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := listProfilesIn(users, "owner", "Owner")
+	if err != nil || len(got) != 5 {
+		t.Fatalf("profile omitted: %v, %v", got, err)
+	}
+	for _, account := range got {
+		if account.WindowsDir == "user1" && account.LinuxUser != "user1" {
+			t.Fatal("fallback stole an existing profile's account name")
+		}
+		if reservedProfileAccount(account.LinuxUser) {
+			t.Fatal("system account used for a Windows profile")
+		}
+	}
+}
+
+func TestProfileIdentityFailsClosed(t *testing.T) {
+	for _, pair := range [][2]string{{"", ""}, {"S-1-5-21-1", ""}, {"", "S-1-5-21-1"}, {"S-1-5-21-1", "S-1-5-21-2"}} {
+		if err := requireMatchingProfileIdentity(pair[0], pair[1]); err == nil {
+			t.Fatalf("unverified or alternative-admin identity accepted: %v", pair)
+		}
+	}
+	if err := requireMatchingProfileIdentity("S-1-5-21-1", "S-1-5-21-1"); err != nil {
+		t.Fatal(err)
 	}
 }

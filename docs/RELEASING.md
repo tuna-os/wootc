@@ -51,13 +51,14 @@ Windows is a good outcome; a walked-into-red user with a broken boot is not.
 
 Each item opens a gate when its matrix row passes:
 
-- [x] yellowfin / bonito / marlin / flounder full three-phase → `status: green`
-- [x] composefs-native (dakota) Phase-2/3
-- [x] Windows 10 + Home/Enterprise/LTSC editions
-- [x] BitLocker FDE path (#34) → `BitLockerSupported: true`
-- [ ] tpm2-luks root (#33) → offer encryption
-- [ ] btrfs sealed Phase-2 (#35) → offer btrfs
-- [x] custom OCI refs (once the deploy path is family-agnostic green) → `CustomImageAllowed: true`
+- [ ] Current-candidate full matrix for all green catalog images (#222).
+- [ ] Current-candidate BitLocker installation, editable Documents, save and persistence proof (#427); a refusal-path pass does not satisfy this.
+- [ ] Offline VM acceptance before generic pre-download becomes default-on (#217).
+- [ ] Windows editions and branded native setups verified on the same candidate (#240).
+- [ ] Encryption/filesystem axes verified before offering them; implementation or a historical closed issue is not new evidence.
+
+Several policy flags and deployment paths already exist on `main`. These
+checkboxes track their acceptance evidence, not whether their code was merged.
 
 When the **whole matrix** passes, `beta` becomes the default channel.
 The catalog then offers all images and lets users select custom references.
@@ -66,11 +67,12 @@ The gates for each axis open as their issues close.
 ## Native shell release gates
 
 The [roadmap](../ROADMAP.md#native-shell-sequence-and-evidence-357) puts the
-WinUI default change before 1.0. Phase B packages remain preview assets.
-Phase C proved the native consumer journey, the VM journey, and full cycles.
-Phase D now makes the native setup the primary release path and keeps the Wails
-build once as `wootc-legacy.exe`. Phase E follows a clean native release and
-the docs audit.
+WinUI default change before 1.0. Phases B and C contain native packaging,
+consumer and VM implementation, but their open trackers still require actual
+acceptance evidence. Phase D's packaging cutover merged on 2026-10-31 and
+prepares native setups plus one `wootc-legacy.exe` fallback. It has not changed
+the assets of the latest full release, `v0.1.0-alpha.1`. Phase E follows a clean
+native release and the docs audit; do not remove the fallback before that gate.
 
 A release cannot use old Wails passes as native UI or setup proof. Carry only
 component evidence whose engine code and contract did not change. Re-run the
@@ -101,14 +103,15 @@ git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
 # → tests → native E2E gate (real Windows VM, bluefin:stable) → build + publish
 ```
 
-Every release ships the **full artifact set** from `release.yml` and the
-workflow for native packages. The primary GUI downloads are one Inno setup per eligible
+The current workflows prepare the following **native artifact set**. This
+describes a future qualifying release, not the published `v0.1.0-alpha.1`.
+Its primary GUI downloads are one Inno setup per eligible
 brand: `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`,
 `Bluefin-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`, and
 `Aurora-Installer-Setup.exe`. Each setup installs the WinUI shell beside its
 protected Go engine and carries the release's public verification key.
 
-This cut-over release publishes the Wails build once as `wootc-legacy.exe`.
+The cut-over release is configured to publish the Wails build once as `wootc-legacy.exe`.
 It is a compatibility fallback, not a branded primary installer. It needs
 WebView2.
 
@@ -198,12 +201,16 @@ A person must attach three screenshots, because a script cannot make them:
 
 ### Signatures and file identity
 
-**No release has a signature yet.** [#229] is the choice and purchase of a
-signature method. This is a spend decision for the maintainer. Until a
-credential exists, each signature box is ✘. SmartScreen shows the wall for
-unknown apps, and UAC shows "unknown publisher".
+**Azure Trusted Signing is the selected signing path** ([#229]). The maintainer
+must create the account and certificate profile, complete organization identity
+validation, configure the Entra federated credential, and set the repository
+variables listed below. Agents must not create those resources or handle the
+credentials. Until that setup and fresh-machine verification pass, signatures
+and SmartScreen acceptance remain unproven; a signing decision is not a signed
+release.
 
-The pipeline side ([#230]) is ready for any credential that #229 selects.
+The pipeline side ([#230]) supports the selected service through jsign and
+GitHub OIDC. See [the owner setup](#setting-up-azure-trusted-signing).
 The release step `Authenticode-sign the installers` runs
 `packaging/sign-exes.sh` after the build of the exes and before the
 step that writes `SHA256SUMS`. Authenticode changes the bytes of the file, so the

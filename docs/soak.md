@@ -54,30 +54,37 @@ diagnosis issue on the same day. Automatic pre-releases continue each day.
 
 ## Native proof contract
 
-Wails cannot qualify. A future native runner must supply a job named
-`native-shell GUI acceptance`. These steps must pass:
+Wails cannot qualify. The native proof producer is implemented in
+`tests/e2e/native-proof*` and the dedicated full-cycle workflow job. GitHub must
+report its qualified job name as `native-proof / native-shell GUI acceptance`.
+These steps must pass:
 
 - `Verify native process identity`
 - `Assert native UIA journeys`
 - `Capture native framebuffer`
 
-It must upload both artifacts in the same run and try. The ledger does not
-supply that runner.
+The producer must upload both artifacts in the same run and try. Its
+implementation is not proof that a real Windows/Linux/Windows cycle passed.
 
 - `native-shell-build-<runId>-<attempt>`: the tested `Wootc.Shell.exe` at the archive root.
 - `native-gui-soak-proof-<runId>-<attempt>`: the native receipt, raw UIA captures,
-  PNG framebuffers, and an independent Linux boot observation at the archive root.
+  PNG framebuffers, an independent Linux boot observation, and
+  `windows-current-observation.json` at the archive root.
 
 The collector checks the IDs and digests of artifacts from GitHub. It checks
 the source SHA and try number. The hash of the native process must match the
 bytes of the packaged executable. The receipt must name WinUI 3 and Windows
 UI Automation. The collector rejects browser receipts.
 
-Each required control must be visible and enabled. Its observed value must
-match the required value. A screenshot alone fails. The Linux summary must match
-a separate observation from Linux in that try. Its capture time must fall inside
-the try and before the UI summary. The record must match the live Linux boot ID. Missing or stale evidence fails.
-Ambiguous or incorrect evidence also fails.
+Each required control must be visible and enabled, with the required observed
+value. A screenshot alone fails. The Linux summary, including `InstalledBootId`,
+must match independent live Linux facts from that try.
+
+The current-Windows observation comes from Windows CIM, not a UI claim. The
+collector requires this chronology within the same run and try:
+confirmation → live Linux facts → actual Windows boot → UI summary →
+Windows capture → completed return. Missing, stale, ambiguous or contradictory
+evidence fails. An earlier Windows boot cannot prove a Linux-to-Windows return.
 
 [The verifier](../tools/soak/ledger.py) defines the receipt fields and control IDs.
 It hashes sorted `(path, Git blob SHA)` arrays as compact JSON with SHA-256.
@@ -85,6 +92,6 @@ It hashes sorted `(path, Git blob SHA)` arrays as compact JSON with SHA-256.
 the conservative transport identity. The collector compares them with the GitHub tree at the tested commit.
 
 The ledger records the source SHA, executable hash, IDs of artifacts, and hashes
-of archives. Artifact expiry cannot remove a retained observation. The native
-producer and real VM proof remain necessary before any row can qualify.
+of archives. Artifact expiry cannot remove a retained observation. Real VM proof
+of the producer remains necessary before any row can qualify.
 This ledger schedules no VM run and starts no soak.

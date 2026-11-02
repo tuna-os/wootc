@@ -17,18 +17,20 @@ const nativePurposeInstall = "install"
 // facts the confirmation must disclose. The intent ID is single use: the first
 // ConfirmNativeInstall attempt consumes it, whatever its outcome.
 type NativeInstallGrant struct {
-	SchemaVersion               int    `json:"schemaVersion"`
-	Session                     string `json:"session"`
-	BrandID                     string `json:"brandId"`
-	IntentID                    string `json:"intentId"`
-	ImageRef                    string `json:"imageRef"`
-	StorageDrive                string `json:"storageDrive"`
-	DiskSizeGB                  int    `json:"diskSizeGB"`
-	Encryption                  string `json:"encryption"`
-	BitLockerOn                 bool   `json:"bitLockerOn"`
-	BitLockerRecoveryKeyWarning bool   `json:"bitLockerRecoveryKeyWarning"`
-	FastStartupOn               bool   `json:"fastStartupOn"`
-	SecureBootChainWarning      string `json:"secureBootChainWarning"`
+	SchemaVersion               int              `json:"schemaVersion"`
+	Session                     string           `json:"session"`
+	BrandID                     string           `json:"brandId"`
+	IntentID                    string           `json:"intentId"`
+	ImageRef                    string           `json:"imageRef"`
+	StorageDrive                string           `json:"storageDrive"`
+	DiskSizeGB                  int              `json:"diskSizeGB"`
+	Encryption                  string           `json:"encryption"`
+	BitLockerOn                 bool             `json:"bitLockerOn"`
+	BitLockerRecoveryKeyWarning bool             `json:"bitLockerRecoveryKeyWarning"`
+	FastStartupOn               bool             `json:"fastStartupOn"`
+	SecureBootChainWarning      string           `json:"secureBootChainWarning"`
+	ProfileAccounts             []ProfileAccount `json:"profileAccounts"`
+	ProfileWarnings             []string         `json:"profileWarnings"`
 }
 
 // nativeInstallAuthority is the one-shot consent boundary from #606
@@ -145,7 +147,7 @@ func decodeNativeInstallPlan(raw json.RawMessage) (InstallConfig, error) {
 	if err != nil || token != json.Delim('{') {
 		return config, fmt.Errorf("install plan refused")
 	}
-	allowed := map[string]bool{"imageRef": true, "diskSizeGB": true, "username": true, "password": true, "hostname": true, "bootloader": true, "composeFs": true, "storageDrive": true, "encryption": true, "luksPassphrase": true, "windowsLook": true}
+	allowed := map[string]bool{"imageRef": true, "diskSizeGB": true, "username": true, "password": true, "hostname": true, "bootloader": true, "composeFs": true, "storageDrive": true, "encryption": true, "luksPassphrase": true, "windowsLook": true, "profileAccounts": true}
 	seen := map[string]bool{}
 	for keys.More() {
 		token, err = keys.Token()
@@ -157,6 +159,35 @@ func decodeNativeInstallPlan(raw json.RawMessage) (InstallConfig, error) {
 		var value json.RawMessage
 		if keys.Decode(&value) != nil || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 			return config, fmt.Errorf("install plan refused")
+		}
+		if key == "profileAccounts" {
+			var accounts []json.RawMessage
+			if json.Unmarshal(value, &accounts) != nil || len(accounts) > 128 {
+				return config, fmt.Errorf("profile account edits refused")
+			}
+			for _, account := range accounts {
+				fields := json.NewDecoder(bytes.NewReader(account))
+				first, err := fields.Token()
+				if err != nil || first != json.Delim('{') {
+					return config, fmt.Errorf("profile account edits refused")
+				}
+				found := map[string]bool{}
+				for fields.More() {
+					field, err := fields.Token()
+					name, ok := field.(string)
+					if err != nil || !ok || (name != "windowsDir" && name != "linuxUser") || found[name] {
+						return config, fmt.Errorf("profile account edits refused")
+					}
+					found[name] = true
+					var text string
+					if fields.Decode(&text) != nil || text == "" {
+						return config, fmt.Errorf("profile account edits refused")
+					}
+				}
+				if _, err := fields.Token(); err != nil || len(found) != 2 {
+					return config, fmt.Errorf("profile account edits refused")
+				}
+			}
 		}
 	}
 	if _, err = keys.Token(); err != nil {

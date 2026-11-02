@@ -22,8 +22,10 @@
 ---
 
 wootc installs a real Linux desktop from a [bootc](https://github.com/containers/bootc)
-image into `root.disk`, a file beside your Windows files. The native WinUI shell is the primary Windows release surface.
-[Verification status](docs/status.md) describes the evidence and limits.
+image into `root.disk`, a file beside your Windows files. The latest full release,
+`v0.1.0-alpha.1`, uses Wails. Native WinUI packaging is implemented on `main`,
+but a released native setup and its acceptance evidence remain outstanding.
+[Verification status](docs/status.md) distinguishes these builds and their limits.
 
 The setup form asks for **a password**. The app suggests your username and
 computer name from your PC. It sizes the disk from available space and selects TPM encryption by default.
@@ -46,23 +48,23 @@ Never post account credentials or API keys in issues or pull requests.
 ## Get it
 
 **[⬇ Download the latest release](https://github.com/tuna-os/wootc/releases/latest)**
-— run `wootc-Installer-Setup.exe` as Administrator. The Inno setup installs
-the native WinUI shell and protected engine, fetches boot artifacts, checks hashes, and verifies a signed manifest.
-The native shell does not require WebView2.
+— the latest full release is `v0.1.0-alpha.1`. Download `wootc.exe`, keep it
+beside its downloaded boot artifacts, and run it as Administrator. This
+release uses the Wails UI and requires WebView2.
 
-This release keeps the Wails compatibility build as `wootc-legacy.exe`.
-Use it only when you need the legacy Wails UI.
+Its branded executables are `Bazzite-Installer.exe`, `Bluefin-Installer.exe`,
+`Aurora-Installer.exe`, and `TunaOS-Installer.exe`. A branded build is not
+evidence of upstream endorsement; see [the approval record](docs/upstream-blessings.md).
 
-```
-winget install TunaOS.wootc
-```
-*(winget follows the generic setup for the native app.)*
+The code on `main` prepares the native WinUI shell and protected engine as
+`wootc-Installer-Setup.exe` and branded `*-Installer-Setup.exe` assets, with one
+`wootc-legacy.exe` fallback. Those assets are not in the latest full release.
+Use the asset list of the release you actually downloaded, not a filename
+from a newer build's instructions.
 
-Every release also ships **branded installers** —
-`Bazzite-Installer-Setup.exe`, `Bluefin-Installer-Setup.exe`,
-`Aurora-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe` — the same engine
-with each distribution's identity and preselected images. They can
-pre-download the OS on Windows for deployment without a network after reboot.
+`winget install TunaOS.wootc` is the intended package command. The first
+submission and clean-machine installation remain gated by
+[#221](https://github.com/tuna-os/wootc/issues/221); do not assume availability.
 
 > The binaries are not yet code-signed. Windows may show SmartScreen or an
 > "unknown publisher" prompt. Policy can prevent continuation.
@@ -74,7 +76,7 @@ pre-download the OS on Windows for deployment without a network after reboot.
 ## How it works
 
 ```
-Windows 11  →  wootc-Installer-Setup.exe → native WinUI shell → reboot
+Windows 11  →  installer GUI → reboot
             →  signed shim → GRUB → deployer initramfs
             →  fisherman: bootc install into root.disk
             →  reboot → Windows → Manage: choose Linux boot

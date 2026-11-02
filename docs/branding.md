@@ -48,6 +48,14 @@ The palette is applied as CSS custom properties at startup, so a single
 accent change re-skins every button, chip, and highlight consistently.
 See the branded screenshot in [gui-walkthrough.md](gui-walkthrough.md).
 
+For the legacy Wails frontend, `applyBranding` derives input/hover surfaces
+from an explicit `brand.card` and muted/dim text from an explicit `brand.text`
+when a complete theme does not supply those tokens. This keeps a partial
+palette from combining light input backgrounds with light text. Full
+`brand-theme` CSS is applied last and overrides these derived defaults,
+including when branding is applied repeatedly. This describes source behavior,
+not native WinUI styling or proof of every theme's contrast/accessibility.
+
 ## `brand.css` — deep restyle
 
 A `C:\wootc\brand.css` is injected after the app stylesheet (and after any
@@ -124,11 +132,12 @@ provisioner stage differs.
 
 ## What is NOT themeable (on purpose)
 
-The honesty rules are not configurable: the "nothing is deleted from
-Windows" reassurance, the per-app truthful session outcomes, and the
-BitLocker/data-safety warnings are part of the product's trust contract,
-not the skin. A branded migrator can look like anything; it cannot lie
-about what happens to the user's data.
+The honesty rules are not configurable: truthful session outcomes,
+BitLocker/data-safety warnings, the changes made before reboot, and the limits
+of cleanup/recovery are part of the trust contract, not the skin. A brand must
+not turn a data-preservation goal into a guarantee that nothing can be deleted
+or that a failed cleanup restores every setting. It cannot hide partial
+outcomes or lie about what happens to the person's data.
 
 ## Testing a brand
 

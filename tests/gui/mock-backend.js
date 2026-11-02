@@ -22,6 +22,9 @@ function makeApp(mock) {
     GetMode: () => P(mock.mode || 'installer'),
     GetImages: () => P(mock.images || []),
     GetSystemInfo: () => P(mock.sysinfo || {}),
+    GetProfileAccountPlan: () => mock.profilePlanError
+      ? Promise.reject(new Error(mock.profilePlanError))
+      : P(mock.profileAccountPlan || { accounts: [], warnings: [] }),
     // Mock = dev harness: exercise the full UI unless a scenario overrides it.
     GetSupportPolicy: () => P(mock.policy || { channel: 'dev', experimentalImages: true, bitlockerSupported: true, customImageAllowed: true, reason: '' }),
     GetLastRun: () => P(mock.lastRun || {}),
@@ -67,6 +70,26 @@ function makeApp(mock) {
       const hit = list.find((a) => a.app === app);
       if (hit) hit.consent = consent;
       return P();
+    },
+    ImportAppSession: (request) => {
+      // Record only nonsecret request metadata. These GUI fixtures prove
+      // rendering/orchestration, not cryptography or service authentication.
+      window.__wootcSessionImports = [...(window.__wootcSessionImports || []), {
+        app: request.app, consent: request.consent, backend: request.backend,
+        packaging: request.packaging, sourceProfile: request.sourceProfile,
+        targetProfile: request.targetProfile, passwordProvided: !!request.password,
+      }];
+      const hit = (mock.apps || []).find(a => a.app === request.app);
+      if (mock.sessionImportError) {
+        if (hit) { hit.session = 'failed'; hit.verified = false; hit.note = 'Import failed; sign in once.'; }
+        return Promise.reject(new Error(mock.sessionImportError));
+      }
+      const outcome = mock.sessionImportResult || {
+        app: request.app, state: 'rewritten', verified: false,
+        reason: 'Supported store records rewritten; authentication is not verified.',
+      };
+      if (hit) { hit.session = outcome.state; hit.verified = outcome.verified; hit.note = outcome.reason; }
+      return P(outcome);
     },
     ReinstallApps: () => P(),
     GetMigrationProfile: () => P(mock.migrationProfile || null),

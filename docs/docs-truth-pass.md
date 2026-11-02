@@ -1,10 +1,11 @@
 # Docs truth pass — the record
 
-Every checkable claim in the user-facing docs, walked against the build and
-marked ✔ or ✘ (#233). This file is a **dated record of a pass**, not a live
-status page: it says what was true on a given commit and what was done about
-what wasn't. The live enforcement is `tests/unit/docs-truth.bats`, which turns
-each ✘ found here into a test so the same drift fails CI instead of a reader.
+This is a **dated record**, not a live status page or a certification.
+Each entry states what was inspected and what remained unobserved. Static
+source review does not substitute for walking the matching release build.
+Earlier entries refer to `tests/unit/docs-truth.bats`; that wording-check suite
+was removed in the 2026-11-02 pass below. Those historical references describe
+the old process, not current enforcement.
 
 ---
 
@@ -264,3 +265,66 @@ releases holds `v0.1.0-alpha.1` only.
 | ✘ | `ROADMAP.md`: v0.3.0-beta *"shipped 2026-09-03"* | The milestone issue #211 closed on 2026-09-02, but nobody cut the release. The roadmap now says that the release is planned and its notes are a draft. |
 | ✘ | `docs/release-notes-v0.3.0-beta.md`: *"Status: Shipped"* | The notes now carry the draft marker, so `check-notes.sh` refuses to publish them before a person checks them again. |
 | ✘ | `README.md` and `ROADMAP.md`: an existing beta release | The earlier releases are `v0.1.0-alpha.1` and the automatic pre-releases. |
+
+## Source and published-artifact audit — 2026-11-02
+
+**Baseline:** `167b83ff55a51599666dc75b9be28bfa892c24c7`, with the current
+implementation work explicitly separated from previously published artifacts.
+**Method:** source/manifests and GitHub issue/release metadata, not an RC VM
+walk. No test, screenshot, signing, installation, timing or hardware result is
+claimed by this pass.
+
+GitHub's observed latest non-prerelease was
+[`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1),
+published 2026-08-22. Its assets include `wootc.exe`,
+`Bazzite-Installer.exe`, `Bluefin-Installer.exe`, `Aurora-Installer.exe`,
+`TunaOS-Installer.exe` and `SHA256SUMS`. They do **not** include the native
+`*-Installer-Setup.exe`, `native-SHA256SUMS` or `wootc-legacy.exe` names.
+The latest ten entries returned by `gh release list` were automatic
+prereleases, dated 2026-08-31 and earlier. A closed implementation issue and a
+workflow on main do not make a release asset exist.
+
+| Finding | Evidence and correction |
+|---|---|
+| Main's native setup was advertised as the latest available download | `gh release view --json tagName,publishedAt,assets`; getting-started and user-guide now distinguish the observed published Wails release from main's native setup packaging |
+| The shell page still said phase D had not started and advertised old build pins | Current `shell/Wootc.Shell/Wootc.Shell.csproj` pins Windows App SDK 2.6.4; `shell/global.json` pins SDK 10.0.403. Phase D source packaging exists; #345 closed 2026-10-31. #346 still needs a clean native release before Wails removal |
+| Stdio reference conflated legacy and native session capabilities | `app/serve.go` and native authorization/dispatch modules; shell guide now documents launch, framing, errors, every method, session capability, params, schema locations, events, grants and cleanup |
+| Contributor tools had no installation path and fast-tier skips were hidden | `tests/run.sh`, `app/go.mod`, CI workflow pins; contributor guide now lists the four lanes and official setup links, separates Linux/KVM, and warns that a PASSED summary with missing lanes is incomplete |
+| Literal source/doc strings were treated as regression evidence | Removed `tests/unit/docs-truth.bats` and `app/serve_test.go`'s `TestProtocolMatchesWinuiShellSpec`; source wording tests are not behavioral proof. Existing runtime protocol, golden DTO, fixture and integration suites remain. No new grep-based replacement was added |
+| Historical screenshots could be read as current native UI | User-guide captions, GUI walkthrough and branded-ledger framing identify retained Wails/mock illustrations and historical evidence, not RC/native acceptance screenshots |
+
+### Decisions that remain gates
+
+- [#544's latest bounded acceptance](https://github.com/tuna-os/wootc/issues/544#issuecomment-6356243044)
+  requests a fast-tier invocation with executed/skipped lanes and checked
+  installation links. All eight prerequisite installation references were
+  fetched successfully with the web reader on 2026-11-02 (PowerShell redirects
+  to Microsoft's current installation page; Python supplies its release feed).
+  Integration verification must retain fast-tier output; this documentation
+  edit does not claim it ran the tier.
+- [#233's latest checklist](https://github.com/tuna-os/wootc/issues/233#issuecomment-6247924342)
+  explicitly leaves RC VM/native hardware, measured timings, signed SmartScreen,
+  Settings rendering, and RC-SHA screenshots/timelapses open.
+- [#596's Option A decision](https://github.com/tuna-os/wootc/issues/596#issuecomment-6514382140)
+  makes VM-first an RC requirement. Helper receipts, a process, gallery fixtures,
+  and a closed older ticket do not prove a working named-account desktop or
+  same-image promotion.
+
+### RC/manual acceptance ledger — not yet observed by this pass
+
+| Required observation | Prerequisite / retained evidence |
+|---|---|
+| Walk README, startup/user/manual/brand/release guides against one immutable RC | Published RC tag/SHA and exact artifacts; record each claim, screen label, log and registry path, pass/fail, tester and fixture identity |
+| Minimum native OS and real UAC | Isolated Windows build 17763, plus normal consumer Windows; interactive consent/No and alternate-admin behavior, not only policy-driven refusal |
+| Native setup and removal, online and offline | Matching brand setup plus signed artifact metadata; clean machine without development tools/WebView2; retained Apps display and ownership/removal evidence |
+| Windows prompts and publisher identity | Final signed RC on a fresh machine; separately record signature validity and observed SmartScreen/policy behavior; neither guarantees the other |
+| Timings and constrained hardware | Measured wall time on named CPU/RAM/storage/network; no timing promise from source, helper output or CI duration |
+| BitLocker editable Documents and rollback | Disposable encrypted fixture with recovery material; verify visible original and Linux-created files and behavior after failed copy, interruption, return, retry and uninstall |
+| VM-first and later promotion | Isolated WHPX-capable Windows host, signed matching runtime, image/account and adequate capacity; real graphical login, nonce/preferences surviving stop/start, unchanged host boot identity, then separately same-image native promotion and return |
+| Fresh visual material | Regenerate GUI and branded screenshots and nightly timelapse from that RC; retain SHA, frontend, fixture and provenance. Existing images are not newly dated evidence |
+| Real-hardware safety/recovery | Authorized backed-up hardware cohort with pre/post boot, partition, power and filesystem observations; VM results cannot fill this row |
+
+Keep #233 open until the RC walk has no unexplained failed claim and the image
+sets are pinned to that RC. The authoritative live matrix and release decision
+remain [status](status.md), [roadmap](../ROADMAP.md) and
+[release instructions](RELEASING.md).

@@ -113,3 +113,21 @@ func TestNativeInstallSessionLaunchRefusesUnknownPurpose(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeInstallConfigurationOwnsProfileAccountEdits(t *testing.T) {
+	original := InstallConfig{
+		ProfileAccounts: []ProfileAccount{{WindowsDir: "Alice", LinuxUser: "alice"}},
+		SessionConsent:  map[string]bool{"chrome": true},
+	}
+	owned := copyNativeInstallConfiguration(original)
+	original.ProfileAccounts[0].LinuxUser = "changed"
+	original.SessionConsent["chrome"] = false
+	if owned.ProfileAccounts[0].LinuxUser != "alice" || !owned.SessionConsent["chrome"] {
+		t.Fatal("confirmed configuration aliases mutable plan input")
+	}
+	action := copyNativeInstallConfiguration(owned)
+	action.ProfileAccounts[0].WindowsDir = "other"
+	if owned.ProfileAccounts[0].WindowsDir != "Alice" {
+		t.Fatal("action mutated the stored profile mapping")
+	}
+}

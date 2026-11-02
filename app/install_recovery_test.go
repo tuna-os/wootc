@@ -22,8 +22,9 @@ func testJournal(outcome, current string, done ...string) *InstallJournal {
 	}
 }
 
-// stepsThrough returns the installer steps up to and including last, in
-// pipeline order, the way a journal records them.
+// stepsThrough builds historical journal fixtures from the pipeline that pulled
+// the image after creating root.disk. Existing on-disk attempts must remain
+// recoverable after preload/hardware checks moved ahead of destructive steps.
 func stepsThrough(last string) []string {
 	order := []string{
 		StepInstallerCheckingYourPC, StepInstallerPreparingWindows, StepInstallerSettingThingsUp,
@@ -56,6 +57,18 @@ func TestClassifyInstall(t *testing.T) {
 			name:  "nothing on record",
 			obs:   InstallObservation{},
 			class: InstallClassNone,
+		},
+		{
+			name: "early image preflight interruption resumes without a root disk to discard",
+			obs: InstallObservation{
+				Journal: testJournal(JournalRunning, StepInstallerDownloadingYourLinuxSystem, StepInstallerCheckingYourPC),
+				State:   &LifecycleState{State: StateStaged},
+				Bundle:  BundleEvidence{VerifiedBlobs: 3, VerifiedBytes: 3e9, PartialFiles: 1},
+			},
+			class: InstallClassResumable, cause: CauseInterrupted,
+			actions:     InstallRecoveryActions{ResumeInstall: true, Remove: true},
+			recommended: "resume",
+			stoppedAt:   StepInstallerDownloadingYourLinuxSystem, last: StepInstallerCheckingYourPC,
 		},
 		{
 			name: "power lost during the image pull resumes the verified download",
@@ -487,5 +500,49 @@ func TestRunPipelineJournalsCancellation(t *testing.T) {
 	}
 	if j.Outcome != JournalCancelled || j.ImageRef != "img" {
 		t.Fatalf("journal = %+v", j)
+	}
+}
+
+func TestRecoveryDoesNotIgnoreUnreadableOrOrphanedRecords(t *testing.T) {
+	for _, observation := range []InstallObservation{
+		{JournalError: "unexpected EOF"},
+		{ArmedFile: true},
+		{DeployerStarted: true},
+		{JournalError: "access denied", State: &LifecycleState{State: StateStaged}},
+	} {
+		recovery := classifyInstall(observation)
+		if recovery.Class != InstallClassNeedsRepair || !recovery.Actions.Remove || recovery.Actions.ResumeInstall || recovery.DiscardsRootDisk {
+			t.Fatalf("unsafe recovery for unresolved evidence: %+v", recovery)
+		}
+	}
+}
+
+func TestDefaultUninstallPreservesUnrecognizedSavedData(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "wootc")
+	disks := filepath.Join(dir, "disks")
+	if err := os.MkdirAll(disks, 0700); err != nil {
+		t.Fatal(err)
+	}
+	saved := filepath.Join(disks, "personal-backup.disk")
+	if err := os.WriteFile(saved, []byte("user data without a root.disk"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{disks, dir} {
+		if err := removeEmptyInstallerDirectory(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if data, err := os.ReadFile(saved); err != nil || string(data) != "user data without a root.disk" {
+		t.Fatalf("absence of root.disk caused user-data removal: %q, %v", data, err)
+	}
+	empty := filepath.Join(dir, "empty")
+	if err := os.Mkdir(empty, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeEmptyInstallerDirectory(empty); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(empty); !os.IsNotExist(err) {
+		t.Fatal("empty installer directory was not removed")
 	}
 }

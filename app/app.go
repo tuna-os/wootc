@@ -164,22 +164,6 @@ func sanitizeHostname(name string) string {
 	return out
 }
 
-// deriveHumanUsername derives the machine's human user for Linux account creation (#197, #225).
-// When running elevated under over-the-shoulder UAC, user.Current() gives the
-// elevating admin. We resolve the user in order of preference:
-//  1. Environment variables passed across the elevation boundary (e.g. WOOTC_ORIGINAL_USER)
-//  2. The interactive desktop user (e.g. Win32_ComputerSystem.UserName / explorer.exe owner)
-//  3. The current process user (fallback)
-func deriveHumanUsername(envUser, interactiveUser, currentUser string) string {
-	if s := sanitizeUsername(envUser); s != "" {
-		return s
-	}
-	if s := sanitizeUsername(interactiveUser); s != "" {
-		return s
-	}
-	return suggestUsername(currentUser)
-}
-
 // suggestUsername and suggestHostname wrap the sanitisers with the fallbacks
 // the bare-minimum launchpad contract requires: identity must ALWAYS derive,
 // because a derived identity is what keeps those fields under Advanced and
@@ -328,90 +312,6 @@ func (a *App) GetSupportPolicy() SupportPolicy {
 	return supportPolicyFor(supportChannel(), effectiveBranding(), os.Getenv("WOOTC_E2E_DRIVE") == "1")
 }
 
-// Shared policy calculation accepts observations from the caller. It performs
-// no filesystem discovery and does not authorize an operation.
-func supportPolicyFor(channel string, brand Branding, driveMode bool) SupportPolicy {
-	var pol SupportPolicy
-	switch channel {
-	case "beta":
-		// Full matrix green (the beta bar): everything is on the table; the
-		// axes that are still red stay explicitly false until their issue closes.
-		pol = SupportPolicy{Channel: "beta", ExperimentalImages: true,
-			BitLockerSupported: true, CustomImageAllowed: true,
-			Reason: "Beta — most images and scenarios supported."}
-	case "stable":
-		pol = SupportPolicy{Channel: "stable", ExperimentalImages: true,
-			BitLockerSupported: true, CustomImageAllowed: true,
-			Reason: ""}
-	default: // alpha
-		pol = SupportPolicy{Channel: "alpha", ExperimentalImages: false,
-			BitLockerSupported: false, CustomImageAllowed: false,
-			Reason: "Alpha — only fully-tested images and unencrypted disks are offered. More unlock as testing goes green."}
-	}
-	// A branded installer installs its own distribution: no custom OCI ref,
-	// on any channel. This is the backend side of the brand's
-	// hideCustomImage — the frontend hiding the field is not enforcement.
-	if brand.HideCustomImage {
-		pol.CustomImageAllowed = false
-	}
-	// The E2E harness exists precisely to test images BEFORE they are green;
-	// in drive mode the channel gate must not hide them, or a directive for
-	// an experimental image finds no card and the run silently installs the
-	// default instead (run 32581422435: "bazzite" installed bluefin-lts —
-	// the drive loop now also refuses on mismatch, this is the enabling
-	// half). Real users never run with this environment variable set.
-	if driveMode {
-		pol.ExperimentalImages = true
-	}
-	return pol
-}
-
-// gateScenario refuses an install the active channel has not proven green.
-func (a *App) gateScenario(cfg InstallConfig) error {
-	return a.gateScenarioWith(cfg, getSystemInfo)
-}
-
-// gateScenarioWith reads the system once. Each read spawns several
-// PowerShell queries, and the native plan check validates a plan more than
-// once inside the shell's deadline (native E2E run 38849303170 overran it),
-// so it passes one memoized read for the whole check.
-func (a *App) gateScenarioWith(cfg InstallConfig, systemInfo func() SystemInfo) error {
-	pol := a.GetSupportPolicy()
-	si := systemInfo()
-	// BitLocker/FDE path is not green yet (#34).
-	if !pol.BitLockerSupported {
-		if si.BitLockerOn {
-			return fmt.Errorf("BitLocker drive encryption isn't supported in the %s yet — "+
-				"we're finishing testing so your files stay safe. It's coming soon; "+
-				"for now, %s works on PCs where drive encryption is off", pol.Channel, productName())
-		}
-	}
-	// Secure Boot: can this firmware launch the shim we stage? (#322)
-	// Checked here, before a single byte is written, because the failure it
-	// prevents ("bad shim signature") happens after the reboot, where the
-	// user has no way to find out why Windows came back.
-	if v := secureBootChainVerdict(si); v.Blocked {
-		return fmt.Errorf("%s", v.Message)
-	}
-	// Only offer images the channel permits. Enterprise images.json override
-	// (custom refs) is trusted; a custom ref typed by the user is gated.
-	if !pol.ExperimentalImages {
-		imgs, _ := a.GetImages()
-		ok := false
-		for _, img := range imgs {
-			if img.ImageRef == cfg.ImageRef {
-				ok = true
-				break
-			}
-		}
-		if !ok && !pol.CustomImageAllowed {
-			return fmt.Errorf("this image isn't in the tested set for the %s yet. "+
-				"Please pick one of the offered images — more become available as testing goes green", pol.Channel)
-		}
-	}
-	return nil
-}
-
 // ── System information ────────────────────────────────────────────────────────
 
 // GetSystemInfo inspects the host for BitLocker, Fast Startup, UEFI, etc.
@@ -484,22 +384,6 @@ func (a *App) GetBranding() Branding {
 // mergeBranding overlays non-empty fields of over onto base.
 // ── Install ───────────────────────────────────────────────────────────────────
 
-// normalizeBootloader validates the requested boot chain and fills in the
-// default. "auto" is the contract the GUI and `headless -bootloader` both
-// send: the deployer probes the image and picks the backend, which is what
-// took dakota/composefs green. "grub2" and "systemd-boot" are explicit
-// Advanced overrides. Anything else is a caller bug, not a user choice.
-func normalizeBootloader(v string) (string, error) {
-	switch v {
-	case "":
-		return "auto", nil
-	case "auto", "grub2", "systemd-boot":
-		return v, nil
-	default:
-		return "", fmt.Errorf("unsupported bootloader %q", v)
-	}
-}
-
 // validateInstallConfig is the install gate StartInstall applies before any
 // work: channel scenario policy, bootloader, encryption, platform checks and
 // the free space root.disk plus the deployer scratch need (install_space.go).
@@ -509,54 +393,22 @@ func (a *App) validateInstallConfig(cfg InstallConfig) (InstallConfig, error) {
 	return a.validateInstallConfigWith(cfg, getSystemInfo)
 }
 
-// validateInstallConfigWith validates against one system read (see
-// gateScenarioWith).
+// installPolicy supplies observations and platform gates without giving domain
+// validation access to App state, Wails events, or installation cancellation.
+func (a *App) installPolicy(systemInfo func() SystemInfo) installPolicy {
+	return installPolicy{
+		support: a.GetSupportPolicy(), images: a.GetImages, systemInfo: systemInfo,
+		checkPlatform: validatePlatformConfig, checkSpace: checkInstallSpace,
+		profiles: resolveProfileAccounts,
+	}
+}
+
 func (a *App) validateInstallConfigWith(cfg InstallConfig, systemInfo func() SystemInfo) (InstallConfig, error) {
-	// Green-gate (docs/RELEASING.md): refuse scenarios the active channel has
-	// not proven, so an alpha user can never be walked into a known-red path.
-	// The frontend gates the UI too; this is the authoritative backstop.
-	if err := a.gateScenarioWith(cfg, systemInfo); err != nil {
-		return InstallConfig{}, err
-	}
-	bootloader, err := normalizeBootloader(cfg.Bootloader)
-	if err != nil {
-		return InstallConfig{}, err
-	}
-	cfg.Bootloader = bootloader
-	if cfg.Encryption == "" {
-		cfg.Encryption = "none"
-	}
-	switch cfg.Encryption {
-	case "none":
-	case "tpm2-luks":
-		// The deployer's verification step cannot open a TPM-sealed root
-		// (fisherman stages TPM enrollment for first boot and only emits a
-		// recovery key the deployer never captures), so every such install
-		// aborts at verification, and the user is never shown the key the
-		// first boot asks for (#551, #33). Refuse it until that path works.
-		return InstallConfig{}, fmt.Errorf("TPM auto-unlock is not available yet: the install cannot " +
-			"verify a TPM-sealed disk and would not show you its recovery key (#551). " +
-			"Choose no encryption, or a passphrase")
-	case "luks-passphrase":
-		if cfg.LuksPassphrase == "" {
-			return InstallConfig{}, fmt.Errorf("a LUKS passphrase is required for passphrase encryption")
-		}
-	default:
-		return InstallConfig{}, fmt.Errorf("unsupported Linux disk encryption mode %q", cfg.Encryption)
-	}
-	if err := validatePlatformConfig(cfg); err != nil {
-		return InstallConfig{}, err
-	}
-	// root.disk AND the deployer's scratch for this image must fit on the
-	// storage drive. The deployer checks too, but only after the reboot.
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := checkInstallSpace(ctx, cfg); err != nil {
-		return InstallConfig{}, err
-	}
-	return cfg, nil
+	return a.installPolicy(systemInfo).validate(ctx, cfg)
 }
 
 // StartInstall begins the install pipeline in a goroutine. Progress events

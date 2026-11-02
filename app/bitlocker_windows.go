@@ -25,9 +25,7 @@ func captureBitLockerRecoveryKey(vol string) string {
 			`$kp = $v.KeyProtector | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } | Select-Object -First 1; `+
 			`if ($kp) { Write-Output $kp.RecoveryPassword }`, vol))
 	if err == nil {
-		key := strings.TrimSpace(out)
-		key = strings.ReplaceAll(key, "-", "")
-		if len(key) == 48 {
+		if key, err := normalizeBitLockerRecoveryPassword(out); err == nil {
 			return key
 		}
 	}
@@ -41,32 +39,35 @@ func captureBitLockerRecoveryKey(vol string) string {
 	//       ID: {GUID}
 	//       Password:
 	//           123456-789012-345678-901234-567890-123456-789012-123456
-	re := regexp.MustCompile(`(?m)^\s*Password:\s*$\s*^\s*([0-9-]{55})\s*$`)
+	re := regexp.MustCompile(`(?m)^\s*((?:[0-9]{6}-){7}[0-9]{6})\s*$`)
 	m := re.FindStringSubmatch(mb)
 	if m == nil {
 		return ""
 	}
-	key := strings.ReplaceAll(m[1], "-", "")
-	if len(key) == 48 {
-		return key
-	}
-	return ""
+	key, _ := normalizeBitLockerRecoveryPassword(m[1])
+	return key
 }
 
 // writeBitLockerKey writes the numerical recovery password to
-// C:\wootc\install\bitlocker-key.txt on the storage drive, so Phase 2
+// <storage>:\wootc\install\bitlocker-key.txt on the selected storage drive, so Phase 2
 // can read it and unlock the encrypted C: for profile discovery (#61).
 // The file is ACL-restricted (SYSTEM + Administrators only). If the ACL
 // cannot be applied, the key is scrubbed and not stored at all (#279): a
 // recovery password that any local user can read unlocks the whole C:.
 func writeBitLockerKey(key string) error {
+	canonical, err := normalizeBitLockerRecoveryPassword(key)
+	if err != nil {
+		return err
+	}
 	keyPath := filepath.Join(wootcDir(), "install", "bitlocker-key.txt")
-	if err := os.WriteFile(keyPath, []byte(key+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(keyPath, []byte(canonical+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write bitlocker-key.txt: %w", err)
 	}
 	if err := restrictFileACL(keyPath); err != nil {
-		_ = scrubFile(keyPath)
-		return fmt.Errorf("restrict bitlocker-key.txt, so it was not stored: %w", err)
+		if scrubErr := scrubFile(keyPath); scrubErr != nil {
+			return fmt.Errorf("restrict bitlocker-key.txt: %w; cleanup also failed, the protected staged file must be removed before retrying: %v", err, scrubErr)
+		}
+		return fmt.Errorf("restrict bitlocker-key.txt; the key was scrubbed: %w", err)
 	}
 	return nil
 }

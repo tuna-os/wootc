@@ -1,6 +1,6 @@
 # wootc Roadmap — the road to 1.0
 
-**Last updated**: 2026-10-15 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-11-02 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
@@ -41,18 +41,35 @@ for the work to restore the intended first experience.
 - **v0.3.0-beta milestone work (not released)**: The milestone issue #211 closed on 2026-09-02, but no `v0.3.0-beta` tag or release exists. Earlier work enabled the BitLocker policy and captured numerical keys for recovery. It resolved UAC identity to the interactive user and checked ownership of `wootc-data`. It added migrator plugins, JSON manifest schemas, and a runbook to take back a bad release (#211, #358, #354, #362).
 - **Later dependencies and tools**: Wails reached v2.16.0 (#384), and Vite reached v8.3.0 (#382). `golang.org/x/crypto` reached v0.57.0 (#381), and `golang.org/x/sys` reached v0.48.0 (#379). Direct tests cover the DTO generator (#378). The repository adopted the shared English check and Renovate preset (#374, #375).
 - Historical runs used the GUI and passed native deployment, Linux boot, and graduation on `bluefin:lts`. Those runs did not launch Linux inside Windows.
-- **Release automation, three channels**: Tagged releases need an E2E gate. Dispatch inputs can select a tag without tag-push rights. Every green nightly can produce an automatic pre-release. Manual pre-releases also exist. Every release ships setup assets for the five eligible brands and deployer boot artifacts. The cut-over release also ships one Wails fallback, `wootc-legacy.exe`. It includes signed `SHA256SUMS`.
+- **Release automation, three channels**: Tagged releases need an E2E gate. Dispatch inputs can select a tag without tag-push rights. Green nightlies can produce automatic pre-releases; manual pre-releases also exist. The native cutover code on `main` prepares setup assets, deployer artifacts, one `wootc-legacy.exe` fallback, and signed checksum manifests. This is a build contract, not the asset list of the published `v0.1.0-alpha.1`, which still ships Wails executables.
 - **First tagged release shipped**: [`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1) passed its E2E gate. The release workflow published it on 2026-08-22.
 - **Brand assets**: Marks, typefaces, and themes come from each project's published assets. Automatic screenshots show each brand (`docs/branded-walkthroughs.md`). `just` brand arguments support local and manual tests.
 - **Offline-first core**: Windows can pre-download OCI data and verify its digest. The deployer ingests that bundle. Its settled hook starts with a bounded wait for the network. Branded builds / `WOOTC_PRELOAD=1` support installation without a network during deployment on Wi-Fi-only laptops.
 - **Earlier user experience**: Windows appears on the boot menu, and users can re-arm a one-shot boot. Product boots have calm text. First login offers a welcome and a bookmark to the Windows drive. Add/Remove has an entry. Uninstall tries cleanup; complete restoration still needs proof. Guides exist in `docs/getting-started.md` and `docs/manual-testing.md`.
 - The winget package (`TunaOS.wootc`) supports automatic submission on full releases. It still needs the one-time `WINGET_TOKEN` secret.
 
-**In flight**: RC validation and the pipeline for signed releases remain incomplete. Phase A of the WinUI 3 migration (#340) has merged: the Go engine supports `wootc.exe serve` JSON-RPC. Phase B (#343) delivered the native preview and hosted component proof. Phase C (#344) delivered the native consumer and VM journey.
+**In flight**: RC acceptance and signing setup remain incomplete. Phase A of the WinUI migration (#340) added `wootc.exe serve` JSON-RPC. Phases B (#343) and C (#344) contain substantial native implementation and component checks, but their open acceptance trackers do not establish a complete Windows-hosted VM journey.
 
-Phase D (#345) switches release artifacts to branded Inno setup packages. It keeps one Wails release as `wootc-legacy.exe` and moves winget to `InstallerType: inno`. Phase E (#346) still covers the clean native release and legacy removal.
+Phase D (#345) closed on 2026-10-31 after the native packaging cutover merged. The latest full release is still `v0.1.0-alpha.1`; it does not contain native setup assets. The post-cutover Secure Boot authority and publisher-policy defects in #688 block release acceptance. Phase E (#346) must retain the legacy fallback until a clean native release and its audit exist.
 
-**Open defects and verification**: dakota hangs during its first Phase-2 boot (#209). Session token rewrap still needs verification after beta (#1). Console flash repair (#179) is historical; maintainers closed the issue.
+**Open verification**: #596 retains the VM-first RC requirement reaffirmed by the maintainer on 2026-10-30. Closing #178 does not supply desktop, persistence, or same-system promotion evidence. Dakota's historical hang tracker #209 and the earlier GUI reliability epic #399 are closed; their old red matrix rows are historical, not proof of a new pass. Session migration remains open under #1 and its target-side import issues.
+
+### Working-tree follow-up — 2026-11-02
+
+The 58 open issues were grouped into these workstreams. This is a source-work
+record, not issue closure, a released artifact, or an upgrade of the matrix.
+
+| Workstream / issues | Source work and remaining acceptance boundary |
+|---|---|
+| Native release: #688, #346, #344, #343, #340, #304 | Release-bound shim authorities/publisher metadata, editable profile mappings and native boot-summary/proof controls. Signed Windows setup/UIA/full-cycle proof and upstream decisions remain required; legacy removal waits. |
+| Installation safety: #427, #285, #279, #197 | Canonical fail-closed BitLocker staging/scrubbing, profile collision handling, ordinary-user Documents copying, retained recovery authority and owned uninstall/power state. Real encrypted editing/restart and Windows interruption/restore proof remain required. |
+| Sessions: #1, #252, #253, #254, #255, #256, #257, #258, #259, #293, #294, #295, #296, #420 | Consented encrypted-envelope import, bounded Chromium stores, explicit Linux keyring backends, preservation/recovery rules and shared detection. Unsupported formats refuse; Spotify and real authenticated application journeys remain open. ADR 0005 remains proposed. |
+| VM-first: #596 | Read-only installed-target boot-input export with identity/hash checks and durable state, plus startup-state repairs. Windows-hosted desktop/persistence acceptance, host promotion preflight and transactional native handoff remain open; export does not arm boot. |
+| Hardware/catalog: #576, #574 | Pinned upstream catalog plus explicit consumer policy; target-module/firmware compatibility checks before Windows mutation. Unknown observations warn rather than imply support; real hardware acceptance remains required. |
+| Architecture: #588, #587, #545, #518, #380, #297 | Install-policy seams, shared progress catalogue, credential-safe diagnostics, sourceable deployer modules and layer-specific evidence. Broad extraction and full product-layer acceptance are not implied by these boundaries. |
+| Documentation: #544, #541, #539, #233 | Contributor/toolchain guidance, categorized index, protocol/consent/grant contracts and current-release truth corrections. Candidate walkthrough and docs-vs-release verification still need the candidate artifact. |
+| Release gates: #367, #241, #240, #239, #237, #234, #229, #222, #221, #217, #213, #212, #24 | Native proof producer/strict soak verifier, audit follow-up and release prerequisites. Azure provisioning, winget moderation/token, complete matrix/offline/hardware proof and an actual 30-day soak cannot be replaced by component tests. |
+| Adoption: #598, #595, #594, #592, #591, #590, #586, #302 | Approval-gated cohort/outreach, WSL and administrator material. No recruitment, publication, partnership, upstream approval or participant success is claimed. |
 
 ---
 
@@ -67,7 +84,7 @@ The first complete release passed the E2E gate. It shipped installers for five b
 The VM has been the world so far; this milestone makes real laptops the evidence source.
 - Maintainer + early-tester manual runs per `docs/manual-testing.md`, with a field-report issue template; every report triaged to green/fixed/filed.
 - Offline proof: `offline=on` matrix axis (`-nic none`), then `preloadImage` default-on for the generic build.
-- Find the cause of the dakota hang in Phase 2 (#209). Demote catalog status when evidence does not support it.
+- Re-verify Dakota on the candidate build after the historical Phase-2 hang tracker (#209) closed. Catalog status still requires current acceptance evidence.
 - No console flash on launch (#179) — the first second must look intentional.
 - Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
 - Upstream must accept the first winget submission.
@@ -85,7 +102,7 @@ Beta means the support policy stops saying "alpha" because the evidence exists.
 ### v0.9.0-rc — "Ship-shaped" *(tracking: milestone issue M4)*
 - **Signed binaries**: The maintainer chose `Azure Trusted Signing` (#229). The release workflow can sign with it after the Azure setup in `docs/RELEASING.md`. Verify publisher identity and fresh-machine SmartScreen behavior (#230). A valid signature alone does not guarantee that SmartScreen lets a launch proceed without a prompt.
 - **WinUI 3 shell replaces Wails (#340)**: phases B–D must pass their native gates before the RC default changes. Phase E follows a clean native release. The [sequence for the native shell](#native-shell-sequence-and-evidence-357) defines which earlier evidence can carry forward.
-- **VM-first (#178)**: Required first experience. Prepare and run the persistent Linux image inside Windows before native boot. [ADR 0004](docs/adr/0004-restore-vm-first-product.md) replaces the #318 deferral; current releases do not yet meet this gate.
+- **VM-first (#596, formerly #178)**: Required first experience, reaffirmed by the maintainer on 2026-10-30. Prepare and run the persistent Linux image inside Windows before native boot. [ADR 0004](docs/adr/0004-restore-vm-first-product.md) replaces the #318 deferral; the full Windows-hosted desktop, persistence, and native-promotion gate remains unproved.
 - **Migration adapters (#203)**: Discovery and manifests exist. The [extension plan](docs/specs/migration-extensions.md) adds truthful results, transactions, compatibility, and scoped execution before broad support.
 - **Boot-chain work from Libertix (#308)**: [Libertix](https://github.com/ekimiateam/libertix) also installs Linux from Windows. It uses real partitions; wootc uses `root.disk`. Its geometry code does not apply, but its reboot designs help. `docs/borrowed-from-libertix.md` defines six items. They cover Secure Boot CA preflight (#322) and recovery guard (#331). They cover evidence of first boot, checked from Windows (#332), and ESP signed-chain refresh (#333). They also need one catalogue of steps with a CI diff (#334) and pinned, signed artifacts (#335).
 - Complete the docs and verify their claims end-to-end. Regenerate walkthrough images from the release build.
@@ -144,9 +161,8 @@ Verify all four criteria at the top of this file. All 30 days of nightlies must 
 | Item | Issue | Priority |
 |------|-------|----------|
 | Session token rewrap verification | #1 | P2 (v0.9.0-rc validation; beta gate resolved via staged re-link #347) |
-| Program migrator plugin architecture | #203 | P2 (rc decision — delivered in #354) |
-| E2E runs as systemd user units instead of nohup jobs | #57 | P2 |
-| VM-first persistent Linux inside Windows | #178 | Product priority; incomplete, required before the VM-first claim |
+| Migration adapters | #258, #296 | Finish target-side orchestration and truthful import outcomes; the plugin architecture itself was delivered in #354 |
+| VM-first persistent Linux inside Windows | #596 | Product priority; acceptance remains required despite #178 closing |
 
 ## How to contribute
 

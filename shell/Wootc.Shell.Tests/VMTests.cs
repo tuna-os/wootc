@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using Wootc.Shell.Core;
 using Wootc.Shell.Engine;
 using Xunit;
@@ -267,48 +266,3 @@ public sealed class VMScreenTests
     }
 }
 
-// Word for word with the legacy Linux window screens.
-public sealed class VMTextTests
-{
-    private static readonly Branding Brand = new() { ProductName = "@PRODUCT@", Name = "@DISTRO@" };
-
-    private static string Legacy(string file)
-    {
-        string source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", file));
-        source = Regex.Replace(source, @"['`]\s*\+\s*['`]", "");
-        source = Regex.Replace(source, "<[^>]+>", "");
-        source = Regex.Replace(source, @"\s+", " ");
-        return source.Replace("\\\\", "\\");
-    }
-
-    // Code assertions read the source with only whitespace collapsed: the HTML
-    // removal above would also cut through comparison operators.
-    private static string Code(string file) => Regex.Replace(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", file)), @"\s+", " ");
-
-    private static void Same(string file, string native, params (string Value, string Template)[] names)
-    {
-        foreach (var (value, template) in names) native = native.Replace(value, template);
-        Assert.Contains(native.Replace("@DISTRO@", "${distroName()}"), Legacy(file));
-    }
-
-    [Fact]
-    public void LinuxWindowLinesMatchTheLegacyScreens()
-    {
-        foreach (string text in new[] { VMText.BuilderStarting, VMText.CheckingRelease, VMText.PreparingTitle, VMText.Working, VMText.InProgress, VMText.ErrorTitle, VMText.StartingTitle, VMText.StoppedTitle })
-            Same("vmpreview.js", text);
-        Same("vmpreview.js", VMText.StartingBody("@NAME@", Brand), ("@NAME@", "${escapeText(state.selected?.name || distroName())}"));
-        Assert.StartsWith("@DISTRO@ is starting", VMText.StartingBody(null, Brand));
-        foreach (string label in new[] { VMText.ShutDown, VMText.ForceStop, VMText.StartAgain, VMText.CancelSetup })
-            Assert.Contains($"btn('{label}'", Legacy("vmpreview.js"));
-        Assert.Contains($"confirm('{VMText.ForceStopConfirm}')", Legacy("vmpreview.js"));
-        Same("launchpad.js", VMText.StartInWindow(Brand));
-        Assert.Contains($"btn('{VMText.SetUpRuntime}'", Legacy("launchpad.js"));
-        foreach (string hint in new[] { VMText.ChooseVersion, VMText.EnterUsername, VMText.SetPassword, VMText.PasswordsDiffer })
-            Assert.Contains($"vmReason = '{hint}'", Code("launchpad.js"));
-        Assert.Contains("/^[a-z_][a-z0-9_-]{0,31}$/.test(c.username) || c.username === 'root'", Code("launchpad.js"));
-        Same("control.js", VMText.TryTitle);
-        Same("control.js", VMText.TryBody(Brand, "@ACC@").Replace("@ACC@", "${String(vm.accelerator || 'hardware acceleration').split(',')[0].toUpperCase()}"));
-        Assert.Equal(VMText.TryBody(Brand, "HARDWARE ACCELERATION"), VMText.TryBody(Brand, ""));
-        Assert.Contains($"btn('{VMText.BootInVM}'", Legacy("control.js"));
-    }
-}

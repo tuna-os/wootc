@@ -80,6 +80,9 @@ type installPipelineStep struct {
 func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) []installPipelineStep {
 	return []installPipelineStep{
 		{StepInstallerCheckingYourPC, 2, func() error { return checkSystem() }},
+		// The image must be inspected before any power-state, disk or boot
+		// changes. This also owns offline preloading, once, on Windows.
+		{StepInstallerDownloadingYourLinuxSystem, 3, func() error { return checkImageHardware(ctx, cfg.ImageRef, emit) }},
 		{StepInstallerPreparingWindows, 5, func() error { return disableFastStartup() }},
 		{StepInstallerSettingThingsUp, 8, func() error { return createDirectories() }},
 		// Resolve where the user's files ACTUALLY live while Windows is still
@@ -96,37 +99,6 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 					Message: fmt.Sprintf("%s… %.0f%%", displayStepLabel(StepInstallerDownloadingLinux), p*35),
 					Percent: 15 + p*35,
 				})
-			})
-		}},
-		{StepInstallerDownloadingYourLinuxSystem, 54, func() error {
-			// Offline-first (docs/branding-and-distribution.md §3): pull the
-			// selected image to C:\wootc\bundle\oci while the user's working
-			// Windows network still exists — the deployer initramfs has no
-			// Wi-Fi and must not need one. On for every brand that sets
-			// preloadImage (all branded builds); the generic build can opt in
-			// with WOOTC_PRELOAD=1 until the offline matrix axis proves it
-			// everywhere. Failing here is fatal ON PURPOSE: this machine's
-			// network already failed while Windows could still say so —
-			// discovering that after the reboot would strand the user at a
-			// splash screen instead of an error they can act on.
-			// WOOTC_PRELOAD=0 force-disables even for branded builds: the
-			// E2E harness runs BRANDED exes (the walkthrough videos must
-			// show the installer users actually get) but the offline bundle
-			// path has its own matrix axis (#217) — until that is green,
-			// the harness proves branding and deploy separately from
-			// preload. Real users never run with this variable set.
-			if !shouldPreloadImage(effectiveBranding()) {
-				return nil
-			}
-			return stageImageBundle(ctx, cfg.ImageRef, func(done, total int64) {
-				pct := 50.0
-				msg := displayStepLabel(StepInstallerDownloadingYourLinuxSystem) + "…"
-				if total > 0 {
-					pct = 50 + 4*float64(done)/float64(total)
-					msg = fmt.Sprintf("%s… %.1f of %.1f GB", displayStepLabel(StepInstallerDownloadingYourLinuxSystem),
-						float64(done)/1e9, float64(total)/1e9)
-				}
-				emit(ProgressEvent{Step: StepInstallerDownloadingYourLinuxSystem, PhaseID: StepInstallerDownloadingYourLinuxSystem, Message: msg, Percent: pct})
 			})
 		}},
 		{StepInstallerPreparingTheStartupMenu, 55, func() error { return writeGrubConfig(cfg) }},
@@ -217,10 +189,11 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 			return nil
 		}},
 		{StepInstallerFinishingUp, 96, func() error {
-			// Discoverability: an Add/Remove Programs entry so "how do I
-			// remove this?" has the answer Windows users actually look for
-			// (best-effort, removed again by uninstall).
-			registerUninstallEntry()
+			// Register removal before committing the one-shot boot, so a
+			// failed registration never leaves an undiscoverable installation.
+			if err := registerUninstallEntry(); err != nil {
+				return err
+			}
 			// Small deliberate pause so the user sees "done"
 			time.Sleep(500 * time.Millisecond)
 			// Commit point of the boot-chain transaction (#286): the one-shot
@@ -236,12 +209,16 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 // Run executes install steps, reporting progress through emit.
 // It is shared between the GUI (Wails events) and headless mode (stdout),
 // so E2E can exercise the exact production pipeline without a display.
-func (e *installEngine) Run(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) error {
+func (e *installEngine) Run(ctx context.Context, cfg InstallConfig, emit func(ProgressEvent)) (result error) {
+	diagnostics := newMigrationDiagnostics(os.Stderr, time.Now)
+	defer func() { diagnostics.finish(result) }()
+	diagnostics.begin("prepare")
 	release, err := e.platform.prepare(cfg.StorageDrive)
 	if err != nil {
 		return err
 	}
 	defer release()
+	diagnostics.complete()
 	steps := e.platform.steps(ctx, cfg, emit)
 	// Started only after the gates above, so a refused run never overwrites
 	// the journal of the attempt recovery still has to explain.
@@ -271,6 +248,7 @@ func (e *installEngine) Run(ctx context.Context, cfg InstallConfig, emit func(Pr
 		default:
 		}
 		journal.stepStarted(s.name)
+		diagnostics.begin(s.name)
 		emit(installStepProgress(s.name, s.percent))
 
 		if fault != "" {
@@ -320,6 +298,7 @@ func (e *installEngine) Run(ctx context.Context, cfg InstallConfig, emit func(Pr
 			return fmt.Errorf("%s: %w", displayStepLabel(s.name), err)
 		}
 		journal.stepDone(s.name)
+		diagnostics.complete()
 	}
 
 	if fault == "pre-reboot" {
@@ -331,11 +310,13 @@ func (e *installEngine) Run(ctx context.Context, cfg InstallConfig, emit func(Pr
 		return fmt.Errorf("fault-injection: simulated cancellation before reboot")
 	}
 
+	diagnostics.begin("commit")
 	if err := finishInstallPipeline(ctx, armed, e.platform.disarmOneShot, e.platform.writeState); err != nil {
 		journal.end(JournalCancelled, "")
 		return err
 	}
 	journal.end(JournalArmed, "")
+	diagnostics.complete()
 	return nil
 }
 

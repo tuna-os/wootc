@@ -100,12 +100,41 @@ PY
     echo "$output" | grep -q 'write_ntfs_state "failed"'
 }
 
-@test "deployer metadata uses the descriptor-preserving atomic writer" {
-    for function in write_ntfs_state write_deployer_started; do
-        run sed -n "/^${function}()/,/^}/p" "$DEPLOY"
-        [ "$status" -eq 0 ]
-        echo "$output" | grep -q 'wootc-ntfs-state-write /mnt/ntfs/wootc/state.json'
-    done
+@test "deployer lifecycle module preserves writer authority and explicit image input" {
+    run bash -c '
+        set -euo pipefail
+        source "$1"
+        mountpoint() { return 0; }
+        mkdir() { :; }
+        date() { printf "2026-01-01T00:00:00Z\n"; }
+        wootc-ntfs-state-write() {
+            printf "writer:%s:%s\n" "$1" "$2"
+            cat
+        }
+        IMAGE=must-not-be-read
+        write_ntfs_state deploying ntfs-mounted
+        write_deployer_started ghcr.io/example/linux:stable
+    ' bash "$REPO_ROOT/payload/deployer/lifecycle.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'writer:/mnt/ntfs/wootc/state.json:/mnt/ntfs/wootc/state.json'* ]]
+    [[ "$output" == *'writer:/mnt/ntfs/wootc/state.json:/mnt/ntfs/wootc/install/deployer-started.json'* ]]
+    [[ "$output" == *'"state": "deploying"'* ]]
+    [[ "$output" == *'"image": "ghcr.io/example/linux:stable"'* ]]
+    [[ "$output" != *must-not-be-read* ]]
+}
+
+@test "deployer lifecycle module never writes without the host mount" {
+    run bash -c '
+        set -euo pipefail
+        source "$1"
+        mountpoint() { return 1; }
+        mkdir() { echo unexpected-mkdir; return 1; }
+        wootc-ntfs-state-write() { echo unexpected-write; return 1; }
+        write_ntfs_state deploying ntfs-mounted
+        write_deployer_started ghcr.io/example/linux:stable
+    ' bash "$REPO_ROOT/payload/deployer/lifecycle.sh"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 @test "wootc-firstboot-evidence exists and writes state.json = healthy atomically" {

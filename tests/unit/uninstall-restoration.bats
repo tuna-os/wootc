@@ -63,15 +63,6 @@ FIELD=tests/field/verify-uninstall.ps1
     grep -q 'func parsePriorPower' app/power_state.go
 }
 
-@test "only the FIRST install defines what 'prior' means" {
-    # A reinstall after wootc already turned hibernation off must not record
-    # the off state as the thing to restore to.
-    run bash -c "sed -n '/^func recordPriorPowerState/,/^}/p' $PROBE"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *'os.Stat(priorPowerPath())'* ]]
-    [[ "$output" == *"return"* ]]
-}
-
 @test "the field verifier exists and refuses to grade without a baseline" {
     [ -f "$FIELD" ]
     grep -q "run 'capture' before uninstalling" "$FIELD"

@@ -19,6 +19,7 @@ public sealed class InstallSessionProtocolTests
         ["schemaVersion"] = 1, ["session"] = Session, ["brandId"] = "wootc", ["intentId"] = Intent,
         ["imageRef"] = "ghcr.io/tuna-os/yellowfin:gnome", ["storageDrive"] = "D", ["diskSizeGB"] = 40, ["encryption"] = "none",
         ["bitLockerOn"] = false, ["bitLockerRecoveryKeyWarning"] = false, ["fastStartupOn"] = true, ["secureBootChainWarning"] = "",
+        ["profileAccounts"] = new JsonArray(), ["profileWarnings"] = new JsonArray(),
     };
 
     private static NativeInstallGrant Decode(string json, string? brand = "wootc")
@@ -40,6 +41,18 @@ public sealed class InstallSessionProtocolTests
         Assert.Equal("rpc-consent", NativeEngineSession.RpcStage("ConfirmNativeInstall"));
     }
 
+    [Fact]
+    public void ProfileMappingGrantRetainsRawNamesWarningsAndPortable32CharacterAccounts()
+    {
+        var node = Grant();
+        node["profileAccounts"] = new JsonArray(new JsonObject { ["windowsDir"] = "田中", ["linuxUser"] = new string('a', 32) });
+        node["profileWarnings"] = new JsonArray("Review the generated account for 田中.");
+        var grant = Decode(node.ToJsonString());
+        Assert.Equal("田中", Assert.Single(grant.ProfileAccounts).WindowsDir);
+        Assert.Equal(new string('a', 32), Assert.Single(grant.ProfileAccounts).LinuxUser);
+        Assert.Equal("Review the generated account for 田中.", Assert.Single(grant.ProfileWarnings));
+    }
+
     public static TheoryData<string> Refused()
     {
         string Mutate(Action<JsonObject> change) { var node = Grant(); change(node); return node.ToJsonString(); }
@@ -57,6 +70,12 @@ public sealed class InstallSessionProtocolTests
             Mutate(node => node["encryption"] = "tpm2-luks"),
             Mutate(node => node["fastStartupOn"] = "true"),
             Mutate(node => node["secureBootChainWarning"] = new string('x', 1025)),
+            Mutate(node => node["profileAccounts"] = null),
+            Mutate(node => node["profileAccounts"] = new JsonArray(new JsonObject { ["windowsDir"] = "../other", ["linuxUser"] = "user1" })),
+            Mutate(node => node["profileAccounts"] = new JsonArray(new JsonObject { ["windowsDir"] = "田中", ["linuxUser"] = "Root" })),
+            Mutate(node => node["profileAccounts"] = new JsonArray(new JsonObject { ["windowsDir"] = "田中", ["linuxUser"] = "user1", ["extra"] = true })),
+            Mutate(node => node["profileWarnings"] = new JsonArray(42)),
+            Mutate(node => node["profileWarnings"] = new JsonArray(new string('x', 1025))),
             Grant().ToJsonString().Replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"schemaVersion\":1"),
         };
     }
@@ -105,14 +124,18 @@ public sealed class InstallSessionProtocolTests
         var session = new NativeEngineSession(new Duplex(shellReads, toEngine), Process.GetCurrentProcess(), expectedBrand: "wootc", installSession: Session);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var plan = new InstallConfig { ImageRef = "ghcr.io/tuna-os/yellowfin:gnome", DiskSizeGB = 40, Username = "linux_user", Password = "public synthetic password", Hostname = "linux-pc", Bootloader = "auto", StorageDrive = "D", Encryption = "none" };
+        plan.ProfileAccounts = new() { new() { WindowsDir = "田中", LinuxUser = "tanaka" } };
         var preparing = session.PrepareInstallAsync(plan, deadline.Token);
         using (var request = JsonDocument.Parse(await NativeEngineSession.ReadLineAsync(engineSide, 65536, deadline.Token)))
         {
             Assert.Equal("PrepareNativeInstall", request.RootElement.GetProperty("method").GetString());
             var parameters = request.RootElement.GetProperty("params");
-            Assert.Equal(new[] { "bootloader", "composeFs", "diskSizeGB", "encryption", "hostname", "imageRef", "luksPassphrase", "password", "storageDrive", "username", "windowsLook" },
+            Assert.Equal(new[] { "bootloader", "composeFs", "diskSizeGB", "encryption", "hostname", "imageRef", "luksPassphrase", "password", "profileAccounts", "storageDrive", "username", "windowsLook" },
                 parameters.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal).ToArray());
             Assert.Equal("public synthetic password", parameters.GetProperty("password").GetString());
+            var mapping = Assert.Single(parameters.GetProperty("profileAccounts").EnumerateArray());
+            Assert.Equal("田中", mapping.GetProperty("windowsDir").GetString());
+            Assert.Equal("tanaka", mapping.GetProperty("linuxUser").GetString());
             await engineSide.WriteAsync(Encoding.UTF8.GetBytes($"{{\"jsonrpc\":\"2.0\",\"id\":{request.RootElement.GetProperty("id").GetInt64()},\"result\":{Grant().ToJsonString()}}}\n"), deadline.Token);
             await engineSide.FlushAsync(deadline.Token);
         }

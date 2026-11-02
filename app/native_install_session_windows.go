@@ -71,6 +71,8 @@ func newWindowsNativeInstallPrepare(ctx context.Context, app *App, user *nativeO
 			ImageRef: validated.ImageRef, StorageDrive: validated.StorageDrive, DiskSizeGB: validated.DiskSizeGB, Encryption: validated.Encryption,
 			BitLockerOn: info.BitLockerOn, BitLockerRecoveryKeyWarning: info.BitLockerRecoveryKeyWarning,
 			FastStartupOn: info.FastStartupOn, SecureBootChainWarning: info.SecureBootChainWarning,
+			ProfileAccounts: append([]ProfileAccount{}, validated.ProfileAccounts...),
+			ProfileWarnings: append([]string{}, profileAccountWarnings(validated.ProfileAccounts)...),
 		}, nil
 	}
 }

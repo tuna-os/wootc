@@ -20,6 +20,15 @@ gid=$(id -g "$user" 2>/dev/null) || refuse "Linux user has no primary group: $us
 home_uid=$(stat -c '%u' -- "$home") || refuse "cannot read home ownership: $home"
 [[ "$home_uid" == "$uid" ]] || refuse "home is not owned by $user: $home"
 
+# Everything below writes inside a user-controlled home. Run as that user,
+# not root: path components can change after a symlink check, and a malicious
+# or concurrent login must never redirect a privileged copy/chown elsewhere.
+if [[ "$(id -u)" == 0 && "$uid" != 0 ]]; then
+    exec runuser -u "$user" -- /bin/bash "$0" "$@"
+fi
+[[ "$(id -u)" == "$uid" && "$uid" != 0 ]] \
+    || refuse "the Documents import must run as its non-root Linux owner"
+
 source_dir=$(realpath -e -- "$source_dir") || refuse "cannot resolve the Windows source"
 profile_dir=$(realpath -e -- "${4:-$source_dir}") || refuse "cannot resolve the Windows profile"
 volume_uuid=$(findmnt -n -o UUID -T "$source_dir" 2>/dev/null || true)
@@ -73,14 +82,14 @@ fi
 
 documents_uid=$(stat -c '%u' -- "$documents") || refuse "cannot read Documents ownership"
 if [[ "$documents_uid" != "$uid" ]]; then
-    # The old bind bridge could leave an empty, root-owned mountpoint behind.
-    # Repair only that empty directory; never take ownership of existing data.
-    first_child=$(find "$documents" -mindepth 1 -maxdepth 1 -print -quit)
-    if [[ "$documents_uid" == 0 && -z "$first_child" ]]; then
-        chown "$uid:$gid" -- "$documents" || refuse "cannot make the empty Documents folder user-owned"
-    else
-        refuse "Documents is not owned by $user; refusing to write as root"
+    # The previous bind bridge may leave an empty root-owned mountpoint.
+    # Its parent belongs to this user, so repair it without any root writes.
+    # rmdir itself refuses a nonempty, mounted, or replaced symlink path.
+    if [[ "$documents_uid" != 0 ]] || ! rmdir -- "$documents"; then
+        refuse "Documents is not owned by $user; leaving existing data untouched"
     fi
+    install -d -m 0700 -o "$uid" -g "$gid" -- "$documents" \
+        || refuse "cannot replace the empty Documents mountpoint"
 fi
 documents_mode=$(stat -c '%a' -- "$documents") || refuse "cannot read Documents permissions"
 if (( (8#$documents_mode & 0200) == 0 )); then

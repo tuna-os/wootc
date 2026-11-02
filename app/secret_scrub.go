@@ -28,20 +28,41 @@ func scrubFile(path string) error {
 		return err
 	}
 	if fi.Mode().IsRegular() && fi.Size() > 0 {
-		if f, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
-			zero := make([]byte, 64*1024)
-			for left := fi.Size(); left > 0; {
-				n := int64(len(zero))
-				if left < n {
-					n = left
-				}
-				if _, err := f.Write(zero[:n]); err != nil {
-					break
-				}
-				left -= n
-			}
-			_ = f.Sync()
+		f, err := os.OpenFile(path, os.O_WRONLY, 0)
+		if err != nil {
+			return err
+		}
+		opened, err := f.Stat()
+		if err != nil || !os.SameFile(fi, opened) {
 			_ = f.Close()
+			if err != nil {
+				return err
+			}
+			return os.ErrInvalid
+		}
+		zero := make([]byte, 64*1024)
+		for left := fi.Size(); left > 0; {
+			n := int64(len(zero))
+			if left < n {
+				n = left
+			}
+			written, err := f.Write(zero[:n])
+			if err != nil {
+				_ = f.Close()
+				return err
+			}
+			if written != int(n) {
+				_ = f.Close()
+				return os.ErrInvalid
+			}
+			left -= n
+		}
+		if err := f.Sync(); err != nil {
+			_ = f.Close()
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
 		}
 	}
 	return os.Remove(path)

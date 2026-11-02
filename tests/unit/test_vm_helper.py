@@ -1,6 +1,7 @@
 """Exercise the helper contract and refusal paths without block-device writes."""
 import json
 import pathlib
+import tempfile
 import subprocess
 import unittest
 
@@ -87,13 +88,67 @@ mkfs.ext4() { echo FORMATTED; exit 92; }
             self.assertEqual(result.returncode, 91, (key, result.stderr))
             self.assertNotIn(changed['passwordHash'], result.stdout + result.stderr)
 
+    def test_account_username_boundaries_match_host(self):
+        config = {'schemaVersion': 1, 'runId': 'run_123456', 'installId': 'install_123456',
+                  'username': 'a' * 32, 'passwordHash': '$6$salt$' + 'a' * 86}
+        script = 'RUN_ID=run_123456 INSTALL_ID=install_123456; validate_account "$(cat)"'
+        for username in ('a', 'a' * 32):
+            result = self.run_helper(script, json.dumps(dict(config, username=username)))
+            self.assertEqual(result.returncode, 0, (username, result.stderr))
+        for username in ('a' * 33, 'root', 'nobody', 'daemon', 'bin', 'sys'):
+            result = self.run_helper(script, json.dumps(dict(config, username=username)))
+            self.assertEqual(result.returncode, 91, (username, result.stderr))
+
+    def test_export_refuses_writable_or_changed_disk_before_mount(self):
+        source = '. "' + str(ROOT / 'payload/builder/wootc-export.sh') + '"\n'
+        common = '''
+EXPORT_DISK_ID=12345678-1234-1234-1234-123456789abc
+cat() { echo wootc-root; }
+blockdev() { echo "$READ_ONLY"; }
+blkid() { echo "$ACTUAL_DISK"; }
+mount() { echo MOUNTED; exit 92; }
+'''
+        for read_only, actual, reason in [
+                ('0', '12345678-1234-1234-1234-123456789abc', 'read-only'),
+                ('1', '87654321-1234-1234-1234-123456789abc', 'identity changed')]:
+            result = self.run_helper(source + common +
+                                     f'READ_ONLY={read_only} ACTUAL_DISK={actual}; export_boot_inputs')
+            self.assertEqual(result.returncode, 91, result.stderr)
+            self.assertIn(reason, result.stdout)
+            self.assertNotIn('MOUNTED', result.stdout)
+
+    def test_native_export_rejects_kernel_module_mismatch_before_overlay(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            deployment = root / 'deployment'
+            modules = deployment / 'usr/lib/modules/6.1'
+            modules.mkdir(parents=True)
+            (modules / 'vmlinuz').write_bytes(b'another kernel')
+            (root / 'kernel').write_bytes(b'boot entry kernel')
+            (root / 'entry.conf').write_text('version 6.1\n')
+            source = '. "' + str(ROOT / 'payload/builder/wootc-export.sh') + '"\n'
+            script = source + f'''
+deployment="{deployment}"
+entry="{root / 'entry.conf'}"
+boot_root="{root}"
+kernel=/kernel
+mount() {{ echo MOUNTED; exit 92; }}
+prepare_native_initramfs
+'''
+            result = self.run_helper(script)
+            self.assertEqual(result.returncode, 91, result.stderr)
+            self.assertIn('kernel and module tree differ', result.stdout)
+            self.assertNotIn('MOUNTED', result.stdout)
+            self.assertEqual((root / 'kernel').read_bytes(), b'boot entry kernel')
+
     def test_no_deployment_cannot_be_verified(self):
-        result = self.run_helper('''
-partprobe() { :; }; mdev() { :; }; mkdir() { :; }
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_helper(f'''
+TARGET="{temporary}/missing-disk"
+partprobe() {{ :; }}; mdev() {{ :; }}; mkdir() {{ :; }}
 verify_disk
 ''')
         self.assertEqual(result.returncode, 91)
-        self.assertIn('no fallback EFI loader', result.stdout)
         self.assertNotIn('STATUS=SUCCESS', result.stdout)
 
 

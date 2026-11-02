@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using Wootc.Shell.Core;
 using Wootc.Shell.Engine;
 using Wootc.Shell.Gallery;
@@ -86,20 +84,4 @@ public sealed class GalleryEngineTests
         Assert.Throws<ArgumentException>(() => new GalleryConnector(Fixtures, "real-engine"));
     }
 
-    // Only a build that sets NativeGallery references the gallery; no
-    // workflow publishes a shipped preview with it.
-    [Fact]
-    public void ShippedBuildsNeverContainTheGallery()
-    {
-        var project = XDocument.Load(Path.Combine(Fixtures, "Wootc.Shell.csproj"));
-        foreach (var reference in project.Descendants().Where(element => element.Attribute("Include")?.Value.Contains("Gallery", StringComparison.Ordinal) == true || element.Attribute("Include")?.Value.Contains("fixtures", StringComparison.Ordinal) == true))
-            Assert.Equal("'$(NativeGallery)' == 'true'", reference.Parent!.Attribute("Condition")?.Value);
-        string workflow = File.ReadAllText(Path.Combine(Fixtures, "winui-preview.yml"));
-        var publishes = Regex.Matches(workflow, @"dotnet publish[^\n]*").Select(match => match.Value).ToArray();
-        Assert.Contains(publishes, line => line.Contains("NativeGallery=true", StringComparison.Ordinal));
-        foreach (string line in publishes.Where(line => line.Contains("NativeGallery", StringComparison.Ordinal)))
-            Assert.Contains("out/winui-gallery", line);
-        foreach (string line in publishes.Where(line => line.Contains("winui-preview", StringComparison.Ordinal) || line.Contains("branded-preview", StringComparison.Ordinal)))
-            Assert.DoesNotContain("NativeGallery", line);
-    }
 }

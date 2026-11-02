@@ -17,10 +17,10 @@ PREREQUISITES = {211, 178, 203, *range(229, 235), 323}
 REQUIRED = {
     'install-confirmation': {'InstallConfirmation': ('name', 'Ready to install')},
     'installed-boot-summary': {'InstalledBootSource': ('value', None), 'InstalledBootKernel': ('value', None),
-                               'InstalledBootBridge': ('value', None)},
+                               'InstalledBootBridge': ('value', None), 'InstalledBootId': ('value', None)},
     'windows-return': {'WindowsReturnStatus': ('name', 'Windows is ready')},
 }
-NATIVE_JOB = 'native-shell GUI acceptance'
+NATIVE_JOB = 'native-proof / native-shell GUI acceptance'
 NATIVE_STEPS = {'Verify native process identity', 'Assert native UIA journeys', 'Capture native framebuffer'}
 RC_REQUIREMENTS = {'**Code signing**:', 'Signed-build plumbing', 'Try-in-VM (#178):',
                    'Program-migrator plugin architecture (#203):', 'Docs pass:', 'Field-report corpus review:'}
@@ -46,9 +46,9 @@ def utc_date(value):
 def verify_proof(data, run, artifact):
     """Only a current-run native UIA capture can qualify; never a browser receipt.
 
-    This is the contract for the future native producer. Existing Wails artifacts
-    cannot satisfy it. Raw UIA control values and a hashed framebuffer must agree
-    with each semantic assertion. The producer must run inside the native gate.
+    The native proof lane captures this inside the installed Windows shell.
+    Wails artifacts cannot satisfy it. Raw UIA control values and a hashed
+    framebuffer must agree with each semantic assertion.
     """
     if len(data) > MAX_PROOF or artifact.get('expired'):
         raise ValueError('expired or oversized native proof')
@@ -88,10 +88,23 @@ def verify_proof(data, run, artifact):
     if not BOOT_ID.fullmatch(facts.get('bootId', '')) or facts['bootId'] != facts.get('liveBootId') or facts['bootId'] != proof.get('installedBootId'):
         raise ValueError('Installed record does not match current Linux boot identity')
     boot_values = {'InstalledBootSource': facts.get('sourceImage'), 'InstalledBootKernel': facts.get('kernel'),
-                   'InstalledBootBridge': facts.get('bridge')}
+                   'InstalledBootBridge': facts.get('bridge'), 'InstalledBootId': facts.get('bootId')}
     observed = proof.get('observations', [])
     if {o.get('journey') for o in observed} != set(REQUIRED) or len(observed) != len(REQUIRED):
         raise ValueError('missing or duplicate native journey')
+    windows = json.loads(files['windows-current-observation.json'])
+    if (windows.get('observer') != 'windows-cim' or not isinstance(windows.get('version'), str)
+            or not windows['version'].strip()
+            or any(windows.get(key) != expected for key, expected in
+                   [('runId', run['id']), ('runAttempt', run['run_attempt']), ('sourceSha', run['head_sha'])])):
+        raise ValueError('Current Windows observation is absent or unbound')
+    windows_boot = dt.datetime.fromisoformat(windows['bootTime'].replace('Z', '+00:00'))
+    windows_capture = dt.datetime.fromisoformat(windows['capturedAt'].replace('Z', '+00:00'))
+    times = {o['journey']: dt.datetime.fromisoformat(o['capturedAt'].replace('Z', '+00:00'))
+             for o in observed}
+    if not (began <= times['install-confirmation'] < fact_time < windows_boot
+            <= times['installed-boot-summary'] <= windows_capture <= times['windows-return'] <= ended):
+        raise ValueError('Native observations do not describe one Windows/Linux/Windows roundtrip')
     for observation in observed:
         timestamp = dt.datetime.fromisoformat(observation['capturedAt'].replace('Z', '+00:00'))
         began = dt.datetime.fromisoformat(run['run_started_at'].replace('Z', '+00:00'))

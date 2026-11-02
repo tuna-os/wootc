@@ -7,9 +7,55 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for testing wootc on a real machine. Please do not attach passwords,
-        recovery keys, private keys, or other secrets. See [manual testing](../../docs/manual-testing.md)
-        for the preparation and log-collection steps.
+        Thanks for testing wootc on a real machine. This GitHub report is public,
+        not anonymous; do not attach account names, serial numbers, passwords,
+        recovery keys, private keys or unreviewed logs. See
+        [manual testing](https://github.com/tuna-os/wootc/blob/main/docs/manual-testing.md)
+        for preparation and log collection. External cohort participation is
+        optional: ask the named intake owner to file a consented sanitized
+        summary if you do not want to post publicly. Stop on a documentation
+        mismatch or recovery concern rather than improvising.
+
+  - type: dropdown
+    id: background
+    attributes:
+      label: Linux background (optional)
+      description: Helps evaluate the adoption journey; omit if you prefer. Do not include a private cohort alias or invitation/contact details.
+      options:
+        - Prefer not to say
+        - WSL user
+        - New or non-technical Linux user
+        - Other Linux experience
+
+  - type: dropdown
+    id: assistance
+    attributes:
+      label: Journey assistance
+      description: An assisted run is useful evidence but not an independent cohort completion.
+      options:
+        - No maintainer help beyond the public instructions
+        - Needed maintainer help or undocumented steps
+        - Not attempted
+    validations:
+      required: true
+
+  - type: dropdown
+    id: adoption-blocker
+    attributes:
+      label: Main blocker category
+      options:
+        - None
+        - Trust warning or download
+        - Preflight or unsupported environment
+        - Storage or partition plan
+        - Firmware or boot
+        - Network
+        - Migration or missing data
+        - Documentation or usability
+        - Windows recovery or uninstall
+        - Other
+    validations:
+      required: true
 
   - type: input
     id: build
@@ -32,7 +78,7 @@ body:
     id: hardware
     attributes:
       label: Hardware
-      description: Vendor, model, CPU architecture, and firmware/BIOS version.
+      description: Vendor, model, CPU architecture, and firmware/BIOS version; omit serial numbers. Say unknown for unavailable details.
       placeholder: "Example: Framework 13 AMD, x86_64, UEFI 3.19"
     validations:
       required: true
@@ -104,6 +150,7 @@ body:
     id: image
     attributes:
       label: Image reference
+      description: Record the selected reference, or say not selected if download, launch or preflight blocked you first.
       placeholder: "Example: ghcr.io/projectbluefin/dakota:stable"
     validations:
       required: true
@@ -113,6 +160,7 @@ body:
     attributes:
       label: Furthest journey phase
       options:
+        - Download or trust prompt before launch
         - Windows preflight or installer
         - Deployer boot
         - First Linux boot
@@ -132,10 +180,10 @@ body:
         - label: Linux deployed and reached a login or desktop
         - label: The welcome opened at first login
         - label: The "Windows drive" bookmark was in the file manager
-        - label: Windows files were present in Linux
-        - label: Reboot returned to Windows
-        - label: The Manage screen's "Restart into" button booted Linux
-        - label: Uninstall completed and restored the machine
+        - label: Windows files were present in Linux (not just empty folders or cloud placeholders)
+        - label: Reboot reached the Windows desktop
+        - label: The Manage screen's "Restart into" button reached Linux again
+        - label: Uninstall completed and Windows still booted normally
         - label: The verify-uninstall checklist passed and is attached
 
   - type: dropdown

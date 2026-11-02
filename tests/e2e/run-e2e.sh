@@ -45,6 +45,8 @@ source "$SCRIPT_DIR/lib/diagnostics.sh"
 source "$SCRIPT_DIR/lib/fixture-bitlocker.sh"
 # shellcheck source=tests/e2e/lib/results.sh
 source "$SCRIPT_DIR/lib/results.sh"
+# shellcheck source=tests/e2e/lib/layer-evidence.sh
+source "$SCRIPT_DIR/lib/layer-evidence.sh"
 # shellcheck source=tests/e2e/lib/result-runner.sh
 source "$SCRIPT_DIR/lib/result-runner.sh"
 # shellcheck source=tests/e2e/lib/snapshot-prime.sh
@@ -458,6 +460,9 @@ cleanup() {
     # Capture the final display and logs for successful and failed runs alike.
     if $DOCKER container exists "$CONTAINER_NAME" 2>/dev/null; then
         capture_vm_diagnostics || true
+    fi
+    if declare -F native_proof_cleanup >/dev/null; then
+        native_proof_cleanup || true
     fi
     # --keep is for POST-MORTEM on a wedged guest, but a VM left running in a
     # Phase-2 emergency shell is not idle: qemu + kcryptd churn the encrypted
@@ -983,7 +988,18 @@ qga_sync_oem() {
 # process into the next attempt.  Do not remove C: or the Windows disk.
 reset_oem_attempt() {
     step "Resetting prior OEM handoff state..."
-    qga_powershell '$ErrorActionPreference = "Stop"; cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }; Remove-Item -LiteralPath "$env:SystemDrive\wootc" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath "$env:SystemDrive\OEM\e2e-setup-complete.txt","$env:SystemDrive\OEM\e2e-setup-failed.txt","$env:SystemDrive\OEM\e2e-snapshot-complete.txt","$env:SystemDrive\OEM\wootc-e2e.log" -Force -ErrorAction SilentlyContinue; if (Test-Path "$env:SystemDrive\wootc") { throw "failed to clear prior E2E state" }'
+    qga_powershell '$ErrorActionPreference = "Stop"
+cmd.exe /d /c "schtasks.exe /Delete /TN wootc-e2e-setup /F >NUL 2>&1"
+$holders = { $_.ProcessId -ne $PID -and ($_.CommandLine -like "*run-wootc-e2e.ps1*" -or $_.CommandLine -like "*setup-wootc.ps1*") }
+Get-CimInstance Win32_Process | Where-Object $holders | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
+$oldPaths = @("$env:SystemDrive\wootc", "$env:SystemDrive\OEM\e2e-setup-complete.txt", "$env:SystemDrive\OEM\e2e-setup-failed.txt", "$env:SystemDrive\OEM\e2e-snapshot-complete.txt", "$env:SystemDrive\OEM\wootc-e2e.log")
+Remove-Item -LiteralPath $oldPaths[0] -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $oldPaths[1..4] -Force -ErrorAction SilentlyContinue
+foreach ($path in $oldPaths) {
+    if (Test-Path -LiteralPath $path -ErrorAction Stop) { throw "failed to clear prior E2E state" }
+}
+if (@(Get-CimInstance Win32_Process | Where-Object $holders).Count) { throw "prior OEM process survived reset" }
+if (@(Get-ScheduledTask -ErrorAction Stop | Where-Object { $_.TaskName -eq "wootc-e2e-setup" }).Count) { throw "prior OEM task survived reset" }'
     # An interrupted OEM arm (killed above, or killed during the snapshot
     # PRIME) copies shimx64.efi/grubx64.efi into EFI\fedora before it writes
     # grub.cfg — setup-wootc.ps1 stages the binaries first — so the GUI arm
@@ -2649,7 +2665,7 @@ fi
 heal_image_name_from_downloaded_iso
 
 qga_wait_windows "${WOOTC_E2E_WINDOWS_QGA_TIMEOUT:-2700}"
-qga_call_retry info || true
+wootc_layer_qga || { capture_vm_diagnostics; exit 1; }
 
 # Preflight: inspect Windows C: filesystem dirty status via QGA
 DIRTY_CHECK=$(qga_powershell 'fsutil dirty query C:' 2>/dev/null | tr -d '\r\n' || true)
@@ -2692,6 +2708,7 @@ fi
 # on grub.install.cfg). The reset kills any in-flight setup and clears its
 # state so the dispatched run is the only writer.
 reset_oem_attempt
+wootc_layer_reset_observed
 
 # The app's preflight REFUSES to migrate a machine that is mid-servicing, and
 # it is right to: a staged servicing operation can rewrite boot configuration
@@ -2725,6 +2742,8 @@ source "$SCRIPT_DIR/lib/gui-observations.sh"
 wootc_gui_observations_configure qga_call wootc_phase_boundary || exit 1
 # shellcheck source=tests/e2e/lib/gui-native.sh
 source "$SCRIPT_DIR/lib/gui-native.sh"
+# shellcheck source=tests/e2e/lib/native-proof.sh
+source "$SCRIPT_DIR/lib/native-proof.sh"
 
 # ── Firmware db cell 'none' (#322): the pass is a refusal ──────────────────
 # Firmware that trusts neither Microsoft third-party CA cannot launch any
@@ -2868,11 +2887,13 @@ Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not
     # What launch-gui.cmd starts. The native shell must run from its protected
     # package (ProtectedPackage refuses any other location), so its path is
     # computed in the guest from the same Program Files root its install used.
-    local gui_launch_ps
+    local gui_launch_ps native_proof_mode=0
+    if native_proof_enabled; then native_proof_mode=1; fi
     # shellcheck disable=SC2016
     gui_launch_ps='$launch = "C:\wootc\wootc.exe"'
     if [ "$GUI_FRONTEND" = native ]; then
         gui_native_stage_package || { capture_vm_diagnostics; exit 1; }
+        native_proof_prepare || { capture_vm_diagnostics; exit 1; }
         # shellcheck disable=SC2016
         gui_launch_ps="$(gui_native_bundle_ps)"'
 $launch = [char]34 + (Join-Path $bundle "Wootc.Shell.exe") + [char]34'
@@ -2892,6 +2913,7 @@ Write-Output ("launch target: " + $launch)
 Write-Output ("launcher: " + $launcher)
 @"
 set WOOTC_E2E_DRIVE=1
+set WOOTC_E2E_NATIVE_PROOF='"$native_proof_mode"'
 set WOOTC_PRELOAD=0
 start `"`" $launch
 "@ | Set-Content -Path $launcher -Encoding ascii
@@ -3572,6 +3594,7 @@ BARRIER_REACHED=false
 while ! past_deadline "$BARRIER_DEADLINE"; do
     BARRIER_MARK=$(qga_read 'C:\OEM\e2e-setup-complete.txt' 2>/dev/null | tr -d '\r\n' || true)
     if [ -n "$BARRIER_MARK" ] && [ "$BARRIER_MARK" = "$RUN_ID" ]; then
+        wootc_layer_oem "$BARRIER_MARK" || { capture_vm_diagnostics; exit 1; }
         # Best-effort snapshot: releases the barrier and continues even if the
         # host-side crash-consistent copy had to be skipped.
         snapshot_before_deployer
@@ -4165,6 +4188,27 @@ step "Scheduling one-shot Phase 2 Linux boot..."
 # exactly where a stale letter would do damage.
 WOOTC_GUEST_ROOT=""
 _phase2_root=$(guest_wootc_root) || { infra_fail "Cannot schedule Phase 2 without unique actual storage"; exit 1; }
+_deployer_started="$ARTIFACT_DIR/deployer-started.json"
+_deployer_state="$ARTIFACT_DIR/deployer-lifecycle.json"
+if qga_read "${_phase2_root}\\wootc\\install\\deployer-started.json" > "$_deployer_started" \
+    && qga_read "${_phase2_root}\\wootc\\state.json" > "$_deployer_state"; then
+    if [ "$GUI_INSTALL" = true ]; then
+        wootc_layer_deployer gui '' "$_deployer_started" "$_deployer_state" || { capture_vm_diagnostics; exit 1; }
+    else
+        if ! BARRIER_MARK=$(qga_read 'C:\OEM\e2e-setup-complete.txt' 2>/dev/null | tr -d '\r\n') \
+            || [ "$BARRIER_MARK" != "$RUN_ID" ]; then
+            wootc_layer_failure windows-oem infrastructure handoff-receipt-unavailable
+            capture_vm_diagnostics
+            exit 1
+        fi
+        wootc_layer_oem "$BARRIER_MARK" || { capture_vm_diagnostics; exit 1; }
+        wootc_layer_deployer oem "${BARRIER_MARK:-}" "$_deployer_started" "$_deployer_state" || { capture_vm_diagnostics; exit 1; }
+    fi
+else
+    wootc_layer_failure deployer infrastructure lifecycle-unavailable
+    capture_vm_diagnostics
+    exit 1
+fi
 _disk_path="${_phase2_root}\wootc\disks\root.disk"
 # shellcheck disable=SC2016
 _disk_size=$(qga_powershell "(Get-Item '$_disk_path').Length" 2>/dev/null | tr -d '\r\n' || true)
@@ -4904,6 +4948,7 @@ if not (host/"wootc/install/installed-linux-boot.complete").is_file():
 print(json.dumps({"persisted":persisted,"current":current},indent=2))
 ' > "$FIRSTBOOT_RECORD_FILE" 2> "$ARTIFACT_DIR/installed-linux-boot-check.stderr"; then
     pass "Installed Linux first-boot record matches this boot, disk, image, ESP and bridge"
+    native_proof_capture_linux || { capture_vm_diagnostics; exit 1; }
 else
     fail "Installed Linux first-boot record is absent, incomplete or differs from this boot"
     cat "$ARTIFACT_DIR/installed-linux-boot-check.stderr"
@@ -5099,7 +5144,13 @@ else
     fi
 
     step "Verifying the real Windows control-panel first-boot summary..."
-    verify_installed_boot_gui || { capture_vm_diagnostics; exit 1; }
+    if native_proof_enabled; then
+        native_proof_capture_return || { capture_vm_diagnostics; exit 1; }
+    elif [ "$GUI_FRONTEND" = native ]; then
+        native_summary_capture || { capture_vm_diagnostics; exit 1; }
+    else
+        verify_installed_boot_gui || { capture_vm_diagnostics; exit 1; }
+    fi
 
     # BitLocker cell: the bridge must unlock C: again on the next boot, with
     # the recovery key it sealed to this machine (#279). The verdict is the
@@ -5140,6 +5191,7 @@ if [ -s "$WOOTC_FAILURE_LEDGER" ]; then
     exit 1
 fi
 
+native_proof_finalize || { capture_vm_diagnostics; exit 1; }
 wootc_result_finish "$WOOTC_RESULT_LEDGER" "$RUN_ID" "$WOOTC_FAILURE_LEDGER" "$VIDEO_DIR/.passed" "$IMAGE_REF" || exit 1
 
 echo ""

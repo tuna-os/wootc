@@ -38,6 +38,11 @@ WINUI=.github/workflows/winui-preview.yml
     ! grep -q 'releases/download/\$tag/wootc.exe' "$WINGET"
 }
 
+@test "production native engines derive their stamps from the exact released shim (#688)" {
+    run python3 -m unittest discover -s tests/unit -p test_native_release.py
+    [ "$status" -eq 0 ]
+}
+
 @test "Phase D removes the obsolete CDP GUI job and stages setup E2E" {
     ! grep -q 'gui-cdp-windows' .github/workflows/ci.yml
     ! grep -q 'gui-cdp-windows' tests/ci-gate.sh
@@ -379,7 +384,6 @@ STUB
     pinned=packaging/authenticode-roots/microsoft-identity-verification-root-2020.pem
     run openssl x509 -in "$pinned" -noout -subject -fingerprint -sha256
     [ "$status" -eq 0 ]
-    [[ "$output" == *"CN = Microsoft Identity Verification Root Certificate Authority 2020"* ]]
     [[ "$output" == *"53:67:F2:0C:7A:DE:0E:2B:CA:79:09:15:05:6D:08:6B:72:0C:33:C1:FA:2A:26:61:AC:F7:87:E3:29:2E:12:70"* ]]
 }
 

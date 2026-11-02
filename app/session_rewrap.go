@@ -12,12 +12,8 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// Session rewrap primitives (docs/session-migration.md, tuna-os/wootc#1
-// item 2): the platform-neutral half of "re-encrypt the payload under a
-// key derived from the wootc vault secret". The DPAPI decrypt that
-// produces the plaintext (Windows-only, session_windows.go) and the
-// target-side libsecret/kwallet rewrite are separate, larger pieces not
-// covered here — see that issue for the remaining checklist.
+// Session rewrap primitives (docs/session-migration.md): shared by the
+// Windows DPAPI exporter and the explicit-password Linux envelope consumer.
 //
 // Format: [version(1) | salt(32) | nonce(12) | ciphertext+tag]. The key is
 // derived from the vault secret, app name, and the per-envelope salt, then

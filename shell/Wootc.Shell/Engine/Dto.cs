@@ -677,11 +677,31 @@ public class InstallConfig
     public Dictionary<string, bool>? SessionConsent { get; set; }
 
     /// <summary>
+    /// ProfileAccounts binds observed Windows profile directories to the account
+    /// names confirmed in the installation plan. Missing means observed defaults.
+    /// </summary>
+    [JsonPropertyName("profileAccounts")]
+    public List<ProfileAccount>? ProfileAccounts { get; set; }
+
+    /// <summary>
     /// FaultInject injects a simulated failure or cancellation at a specific
     /// install boundary (root-disk|image-pull|efi-staging|bcd-arming|pre-reboot).
     /// </summary>
     [JsonPropertyName("faultInject")]
     public string? FaultInject { get; set; }
+}
+
+/// <summary>
+/// ProfileAccount ties a raw Windows profile directory to its Linux account.
+/// It is also the editable plan mapping; directory identities are not editable.
+/// </summary>
+public class ProfileAccount
+{
+    [JsonPropertyName("windowsDir")]
+    public string WindowsDir { get; set; } = string.Empty;
+
+    [JsonPropertyName("linuxUser")]
+    public string LinuxUser { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -884,6 +904,12 @@ public class NativeInstallGrant
 
     [JsonPropertyName("secureBootChainWarning")]
     public string SecureBootChainWarning { get; set; } = string.Empty;
+
+    [JsonPropertyName("profileAccounts")]
+    public List<ProfileAccount> ProfileAccounts { get; set; } = new();
+
+    [JsonPropertyName("profileWarnings")]
+    public List<string> ProfileWarnings { get; set; } = new();
 }
 
 /// <summary>

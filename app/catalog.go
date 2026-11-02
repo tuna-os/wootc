@@ -82,7 +82,8 @@ func resolveImageCatalogue(assets fs.FS, id string, brand Branding, policy Suppo
 func catalogForBrand(assets fs.FS, id string) ([]Image, error) {
 	data, err := fs.ReadFile(assets, "branding/"+id+"/images.json")
 	if errors.Is(err, fs.ErrNotExist) {
-		data = catalogJSON
+		// Callers filter in place; never expose the cached canonical slice.
+		return append([]Image(nil), embeddedCatalog...), embeddedCatalogErr
 	} else if err != nil {
 		return nil, err
 	}

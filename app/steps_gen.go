@@ -9,12 +9,12 @@ type StepDefinition struct {
 
 const (
 	StepInstallerCheckingYourPC                   = "Checking your PC"
+	StepInstallerDownloadingYourLinuxSystem       = "Downloading your Linux system"
 	StepInstallerPreparingWindows                 = "Preparing Windows"
 	StepInstallerSettingThingsUp                  = "Setting things up"
 	StepInstallerFindingYourFiles                 = "Finding your files"
 	StepInstallerMakingRoomForLinux               = "Making room for Linux"
 	StepInstallerDownloadingLinux                 = "Downloading Linux"
-	StepInstallerDownloadingYourLinuxSystem       = "Downloading your Linux system"
 	StepInstallerPreparingTheStartupMenu          = "Preparing the startup menu"
 	StepInstallerGettingLinuxPrepared             = "Getting Linux prepared"
 	StepInstallerMakingLinuxBootableOnYourMachine = "Making Linux bootable on your machine"
@@ -40,12 +40,12 @@ const (
 func StepCatalogue() []StepDefinition {
 	return []StepDefinition{
 		{ID: StepInstallerCheckingYourPC, Owner: "installer", Label: "Checking your PC"},
+		{ID: StepInstallerDownloadingYourLinuxSystem, Owner: "installer", Label: "Downloading your Linux system"},
 		{ID: StepInstallerPreparingWindows, Owner: "installer", Label: "Preparing Windows"},
 		{ID: StepInstallerSettingThingsUp, Owner: "installer", Label: "Setting things up"},
 		{ID: StepInstallerFindingYourFiles, Owner: "installer", Label: "Finding your files"},
 		{ID: StepInstallerMakingRoomForLinux, Owner: "installer", Label: "Making room for Linux"},
 		{ID: StepInstallerDownloadingLinux, Owner: "installer", Label: "Downloading Linux"},
-		{ID: StepInstallerDownloadingYourLinuxSystem, Owner: "installer", Label: "Downloading your Linux system"},
 		{ID: StepInstallerPreparingTheStartupMenu, Owner: "installer", Label: "Preparing the startup menu"},
 		{ID: StepInstallerGettingLinuxPrepared, Owner: "installer", Label: "Getting Linux prepared"},
 		{ID: StepInstallerMakingLinuxBootableOnYourMachine, Owner: "installer", Label: "Making Linux bootable on your machine"},
@@ -82,6 +82,8 @@ func StepLabel(id string) (string, bool) {
 	switch id {
 	case StepInstallerCheckingYourPC:
 		return "Checking your PC", true
+	case StepInstallerDownloadingYourLinuxSystem:
+		return "Downloading your Linux system", true
 	case StepInstallerPreparingWindows:
 		return "Preparing Windows", true
 	case StepInstallerSettingThingsUp:
@@ -92,8 +94,6 @@ func StepLabel(id string) (string, bool) {
 		return "Making room for Linux", true
 	case StepInstallerDownloadingLinux:
 		return "Downloading Linux", true
-	case StepInstallerDownloadingYourLinuxSystem:
-		return "Downloading your Linux system", true
 	case StepInstallerPreparingTheStartupMenu:
 		return "Preparing the startup menu", true
 	case StepInstallerGettingLinuxPrepared:
@@ -141,6 +141,8 @@ func StepOwner(id string) (string, bool) {
 	switch id {
 	case StepInstallerCheckingYourPC:
 		return "installer", true
+	case StepInstallerDownloadingYourLinuxSystem:
+		return "installer", true
 	case StepInstallerPreparingWindows:
 		return "installer", true
 	case StepInstallerSettingThingsUp:
@@ -150,8 +152,6 @@ func StepOwner(id string) (string, bool) {
 	case StepInstallerMakingRoomForLinux:
 		return "installer", true
 	case StepInstallerDownloadingLinux:
-		return "installer", true
-	case StepInstallerDownloadingYourLinuxSystem:
 		return "installer", true
 	case StepInstallerPreparingTheStartupMenu:
 		return "installer", true

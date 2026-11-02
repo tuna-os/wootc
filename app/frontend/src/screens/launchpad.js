@@ -1,5 +1,5 @@
 import { installStepLabel } from './progress.js';
-import { StartInstall, CreateDataPartition, DefragDrive, GetInstallSpace } from '../../wailsjs/go/main/App';
+import { StartInstall, CreateDataPartition, DefragDrive, GetInstallSpace, GetProfileAccountPlan } from '../../wailsjs/go/main/App';
 import { BrowserOpenURL, Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
 import { render } from '../lib/render.js';
@@ -207,7 +207,7 @@ export function renderLaunchpad() {
   const identityDerived = Boolean(state.config.username && state.config.hostname);
   const idRow = el('div', 'field-row');
   idRow.appendChild(inputField('Linux Username', 'text', state.config.username,
-    v => { state.config.username = v; refreshInstallValidity(); },
+    v => { state.config.username = v; refreshProfileAccounts(); refreshInstallValidity(); },
     state.sysinfo?.suggestedUsername || 'user'));
   idRow.appendChild(inputField('Computer name', 'text', state.config.hostname,
     v => { state.config.hostname = v; refreshInstallValidity(); },
@@ -220,6 +220,10 @@ export function renderLaunchpad() {
   row2.appendChild(inputField('Password', 'password', state.config.password, v => { state.config.password = v; refreshInstallValidity(); }, ''));
   row2.appendChild(inputField('Confirm Password', 'password', state.config.passwordConfirm || '', v => { state.config.passwordConfirm = v; refreshInstallValidity(); }, ''));
   fields.appendChild(row2);
+  const profilePlan = el('div');
+  profilePlan.id = 'profile-account-plan';
+  profilePlan.setAttribute('aria-live', 'polite');
+  fields.appendChild(profilePlan);
 
   // Say what the defaults will do rather than asking about each one — trust
   // is built by naming the plan, not by a wall of controls.
@@ -383,7 +387,7 @@ export function renderLaunchpad() {
   }
   footer.appendChild(installBtn);
   // Defer validity to after mount so the hint element exists.
-  setTimeout(refreshInstallValidity, 0);
+  setTimeout(() => { refreshProfileAccounts(); refreshInstallValidity(); }, 0);
 
   const wrap = el('div');
   wrap.style.display = 'flex';
@@ -393,6 +397,81 @@ export function renderLaunchpad() {
   wrap.appendChild(screen);
   wrap.appendChild(footer);
   return wrap;
+}
+
+function profileAccountError() {
+  const primary = state.config.username.trim();
+  const plan = state.profileAccountPlan;
+  if (!plan || plan.primary !== primary || plan.status === 'loading') return 'Checking Windows profiles before installation…';
+  if (plan.status !== 'ready') return plan.error || 'Windows profiles could not be inspected. Refresh the profile list before installing.';
+  const names = new Set([primary]);
+  for (const account of state.config.profileAccounts || []) {
+    const name = account.linuxUser;
+    if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(name) || ['root', 'nobody', 'daemon', 'bin', 'sys'].includes(name))
+      return 'Each secondary profile needs a valid, non-system Linux account name (up to 32 characters).';
+    if (names.has(name)) return 'Each Windows profile needs a different Linux account name.';
+    names.add(name);
+  }
+  return '';
+}
+
+function refreshProfileAccounts(force = false) {
+  const target = document.getElementById('profile-account-plan');
+  if (!target) return;
+  const primary = state.config.username.trim();
+  let plan = state.profileAccountPlan;
+  if (force || !plan || plan.primary !== primary) {
+    plan = { primary, status: 'loading' };
+    state.profileAccountPlan = plan;
+    state.config.profileAccounts = null;
+    GetProfileAccountPlan(primary).then(answer => {
+      if (state.profileAccountPlan !== plan || state.config.username.trim() !== primary) return;
+      if (!answer || !Array.isArray(answer.accounts) || !Array.isArray(answer.warnings))
+        throw new Error('Windows returned an incomplete profile plan.');
+      state.config.profileAccounts = answer.accounts.map(({ windowsDir, linuxUser }) => ({ windowsDir, linuxUser }));
+      plan.status = 'ready';
+      plan.warning = answer.warnings.length > 0;
+    }).catch(error => {
+      if (state.profileAccountPlan !== plan) return;
+      plan.status = 'failed';
+      plan.error = String(error);
+    }).finally(() => {
+      if (state.profileAccountPlan === plan && state.screen === 'launchpad') {
+        refreshProfileAccounts();
+        refreshInstallValidity();
+      }
+    });
+  }
+  target.replaceChildren();
+  if (plan.status === 'loading') {
+    target.textContent = 'Checking Windows profiles…';
+    return;
+  }
+  if (plan.status === 'failed') {
+    const error = el('p');
+    error.textContent = plan.error;
+    target.appendChild(error);
+  } else if (state.config.profileAccounts.length) {
+    const title = el('p');
+    title.textContent = 'Secondary Windows profiles → Linux accounts';
+    target.appendChild(title);
+    if (plan.warning) target.appendChild(warningBanner(
+      'Some Windows profile names need generated Linux names. Review or edit every mapping below. Files stay associated with their Windows profile; secondary accounts start locked until you set their passwords.'
+    ));
+    state.config.profileAccounts.forEach(account => {
+      const field = inputField(account.windowsDir, 'text', account.linuxUser, value => {
+        account.linuxUser = value;
+        refreshInstallValidity();
+      }, 'Linux account name');
+      field.dataset.windowsProfile = account.windowsDir;
+      field.querySelector('input').setAttribute('aria-label', `Linux account for Windows profile ${account.windowsDir}`);
+      target.appendChild(field);
+    });
+  }
+  target.appendChild(btn('Refresh profile list', 'btn btn-ghost', () => {
+    refreshProfileAccounts(true);
+    refreshInstallValidity();
+  }));
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -544,6 +623,7 @@ function refreshInstallValidity() {
   else if (!state.selected) reason = 'Choose a variant above.';
   else if (!c.username.trim()) reason = 'Enter a Linux username.';
   else if (!/^[a-z_][a-z0-9_-]*$/.test(c.username)) reason = 'Username must be lowercase letters, digits, - or _.';
+  else if (profileAccountError()) reason = profileAccountError();
   else if (!c.password) reason = 'Set a password.';
   else if (c.password !== (c.passwordConfirm || '')) reason = 'Passwords do not match.';
   else if (c.encryption === 'luks-passphrase' && !c.luksPassphrase) reason = 'Set a LUKS passphrase, or switch to no encryption.';
@@ -597,11 +677,19 @@ export function applyImageDefaults(image) {
 
 async function startInstall() {
   if (!state.selected) return;
+  if (profileAccountError()) { refreshInstallValidity(); return; }
+  const reviewedPrimary = state.config.username.trim();
+  const reviewedAccounts = state.config.profileAccounts.map(account => ({ ...account }));
   state.screen = 'progress';
   state.progress = { step: '', message: '', percent: 0, completedSteps: [], error: null };
   render();
 
   try {
+    // Re-enumerate before carving a BitLocker data volume, not only in StartInstall.
+    const currentPlan = await GetProfileAccountPlan(reviewedPrimary);
+    const identities = accounts => accounts.map(account => account.windowsDir).sort();
+    if (JSON.stringify(identities(currentPlan.accounts)) !== JSON.stringify(identities(reviewedAccounts)))
+      throw new Error('Windows profiles changed after review. Return to the form and refresh the profile list before installing.');
     // BitLocker: resolve where Linux will live before the pipeline runs.
     let storageDrive = '';
     if (state.sysinfo?.bitLockerOn) {
@@ -626,6 +714,7 @@ async function startInstall() {
       imageRef:   state.selected.imageRef,
       diskSizeGB: state.config.diskSizeGB,
       username:   state.config.username,
+      profileAccounts: reviewedAccounts,
       password:   state.config.password,
       hostname:   state.config.hostname,
       bootloader: state.config.bootloader,

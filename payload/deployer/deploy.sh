@@ -22,6 +22,13 @@ set -Eeuo pipefail
 
 # shellcheck source=payload/steps.sh
 source "${WOOTC_STEPS_FILE:-/usr/libexec/wootc-steps.sh}"
+# Source only definitions; orchestration and mount lifetime remain here.
+# shellcheck source=payload/deployer/dso-closure.sh
+source /usr/libexec/wootc-dso-closure.sh
+# shellcheck source=payload/deployer/lifecycle.sh
+source /usr/libexec/wootc-lifecycle.sh
+# shellcheck source=payload/deployer/migration-diagnostics.sh
+source /usr/libexec/wootc-migration-diagnostics.sh
 
 # Set once the Windows NTFS volume is mounted. Keep this log append-only so a
 # failed reboot or a later deployment attempt cannot erase the evidence from
@@ -82,6 +89,7 @@ phase() {
     owner=$(wootc_step_owner "$1") || return 1
     [[ "$owner" == deployer ]] || return 1
     label=$(wootc_step_label "$1") || return 1
+    wootc_diagnostic_phase "$1"
     splash_set "$label"
 }
 
@@ -154,6 +162,7 @@ JOURNAL_STREAM_PID=""
 HEARTBEAT_PID=""
 cleanup() {
     local _rc=$? mount
+    wootc_diagnostic_finish "$_rc"
     [[ -n "$JOURNAL_STREAM_PID" ]] && kill "$JOURNAL_STREAM_PID" 2>/dev/null || true
     [[ -n "$HEARTBEAT_PID" ]] && kill "$HEARTBEAT_PID" 2>/dev/null || true
 
@@ -246,48 +255,6 @@ read_cmdline() {
     echo "$default"
 }
 
-write_ntfs_state() {
-    local state="$1" phase="${2:-}" err_msg="${3:-}"
-    mountpoint -q /mnt/ntfs 2>/dev/null || return 0
-    mkdir -p /mnt/ntfs/wootc /mnt/ntfs/wootc/install 2>/dev/null || true
-    local now
-    now=$(date -u +%FT%TZ 2>/dev/null || date)
-    local final="/mnt/ntfs/wootc/state.json"
-    if [ -n "$phase" ] || [ -n "$err_msg" ]; then
-        wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
-{
-  "state": "$state",
-  "phase": "$phase",
-  "error": "$err_msg",
-  "updatedAt": "$now",
-  "updatedBy": "wootc-deployer"
-}
-EOF
-    else
-        wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
-{
-  "state": "$state",
-  "updatedAt": "$now",
-  "updatedBy": "wootc-deployer"
-}
-EOF
-    fi
-}
-
-write_deployer_started() {
-    mountpoint -q /mnt/ntfs 2>/dev/null || return 0
-    mkdir -p /mnt/ntfs/wootc/install 2>/dev/null || true
-    local now
-    now=$(date -u +%FT%TZ 2>/dev/null || date)
-    local final="/mnt/ntfs/wootc/install/deployer-started.json"
-    wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
-{
-  "startedAt": "$now",
-  "image": "${IMAGE:-}",
-  "version": "0.1.0"
-}
-EOF
-}
 
 check_fault_injection() {
     local stage="$1"
@@ -657,7 +624,7 @@ JOURNAL_STREAM_PID=$!
 ) &
 HEARTBEAT_PID=$!
 phase "ntfs-mounted"
-write_deployer_started
+write_deployer_started "$IMAGE"
 write_ntfs_state "deploying" "ntfs-mounted"
 
 if [[ "$FAULT" == "deploy-failure" || "$FAULT" == "deploy" ]]; then
@@ -1652,74 +1619,6 @@ stage_wootc_overlay() {
         "$ovl/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
 }
 
-# find_ldso
-# Print the path of the dynamic loader this initramfs runs on.
-#
-# Unlike ldd, the loader is NOT optional here: every dynamically linked binary
-# in the initramfs — bash, podman, qemu-ga — is unrunnable without it, so if
-# this returns nothing the deployer is not executing at all.
-find_ldso() {
-    local c
-    for c in /usr/lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 \
-             /usr/lib64/ld-linux-aarch64.so.1 /lib64/ld-linux-aarch64.so.1 \
-             /usr/lib64/ld-linux-*.so.* /lib64/ld-linux-*.so.* \
-             /usr/lib/ld-linux*.so.* /lib/ld-linux*.so.*; do
-        if [[ -x "$c" ]]; then printf '%s\n' "$c"; return 0; fi
-    done
-    return 1
-}
-
-# dso_closure <binary>
-# Print, one absolute path per line, every shared object <binary> needs plus
-# the dynamic loader itself.
-#
-# This replaces `ldd "$bin" | awk '…print $i'`, which every closure builder
-# here used to call and which is unrunnable in the deployer initramfs: `ldd`
-# is a glibc-common SHELL SCRIPT and dracut installs only what
-# module-setup.sh names, so it was never there. Under `set -o pipefail` the
-# missing script failed the pipeline with 127 while the ERR trap named the
-# *awk* stage, and the closure came back empty — the deployer then printed
-#   [FAIL] qga: ldd on the deployer's qemu-ga surfaced no dynamic loader
-# which run-e2e.sh reads as a fatal deployer error and kills the run
-# (bluefin-dakota-win11pro, run 30707067821, 11 minutes in).
-#
-# `$ldso --list` is what ldd ultimately execs, so it yields identical output
-# without the script. Parsing is pure bash for the same reason: a closure
-# resolver must not be breakable by a missing text tool.
-#
-# Returns 1 and prints nothing when <binary> is not a dynamic executable (a
-# shell script, a static binary): the callers read "no loader in the output"
-# as "no self-contained closure is possible", and that verdict has to stay
-# true, so the loader is never emitted for a binary that does not use it.
-dso_closure() {
-    local bin="$1" ldso="" raw="" line word saw_ldso=0 found=0
-    ldso="$(find_ldso 2>/dev/null || true)"
-    if [[ -n "$ldso" ]]; then
-        raw="$("$ldso" --list "$bin" 2>/dev/null || true)"
-    fi
-    if [[ -z "$raw" ]] && command -v ldd >/dev/null 2>&1; then
-        raw="$(ldd "$bin" 2>/dev/null || true)"
-    fi
-    [[ -n "$raw" ]] || return 1
-    while IFS=$' \t' read -r -a line; do
-        (( ${#line[@]} )) || continue
-        for word in "${line[@]}"; do
-            case "$word" in
-                /*) [[ -f "$word" ]] || continue
-                    printf '%s\n' "$word"
-                    found=1
-                    case "$word" in
-                        */ld-linux*|*/ld64.so*|*/ld.so*) saw_ldso=1 ;;
-                    esac ;;
-            esac
-        done
-    done <<< "$raw"
-    (( found )) || return 1
-    # glibc's --list names the loader itself; some libcs do not. Emit it only
-    # when the binary really did resolve against one.
-    if (( ! saw_ldso )) && [[ -n "$ldso" ]]; then printf '%s\n' "$ldso"; fi
-    return 0
-}
 
 # stage_ntfs3g_closure <ovl-dir>
 # Stage a userspace NTFS driver into the overlay for kernels without ntfs3.
@@ -2843,6 +2742,9 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import-browser"
     install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-convert-dir"
+    # Required by file/Steam/office importers even if optional ESP tooling fails.
+    install -D -m644 /usr/lib/wootc/migration/lib/wootc_import_safety.py \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_import_safety.py"
     install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-copy-windows-documents"
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
@@ -3047,21 +2949,17 @@ QGAEOF
     mig_opt 644 wootc-welcome.desktop "$DEPLOY_ROOT/etc/xdg/autostart/wootc-welcome.desktop"
     # Slurped Windows look (wallpaper/theme/timezone), if the installer
     # collected it. Timezone applies system-wide right here.
-    # Session envelopes (install/slurp/session/*.enc — re-wrapped browser
-    # master keys) are deliberately NOT copied: the target-side importer
-    # does not exist yet (docs/session-migration.md), so shipping them only
-    # leaves dead credential artifacts on the installed system
-    # (tuna-os/wootc#281). slurp.json (look/identity) is still carried.
+    # Session envelopes remain encrypted on the NTFS source for the explicit
+    # per-user unlock/import flow (#1). Never install them into /usr/share:
+    # only non-secret look/identity data belongs in the immutable target.
     if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
-        cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
-        rm -rf "$DEPLOY_ROOT/usr/share/wootc/slurp/session"
-        # Nothing imports the envelopes yet (#294-#296), so the NTFS copies
-        # are dead credential artifacts on a volume the installed system
-        # mounts. Shred them; the status-only exports.json ledger stays
-        # (tuna-os/wootc#281).
-        find /mnt/ntfs/wootc/install/slurp/session -maxdepth 1 -type f -name '*.enc' \
-            -exec shred -u {} + 2>/dev/null || true
+        mkdir -p "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        find /mnt/ntfs/wootc/install/slurp -mindepth 1 -maxdepth 1 ! -name session \
+            -exec cp -a {} "$DEPLOY_ROOT/usr/share/wootc/slurp/" \;
+        # Retain the encrypted .enc inputs and status-only exports.json on
+        # NTFS. An unlock or database rewrite is not verified authentication;
+        # neither is authority to erase the source. Cleanup requires explicit
+        # discard or a verified authenticated import, not deployment success.
         SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
         if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
             ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"

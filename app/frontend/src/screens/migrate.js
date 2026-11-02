@@ -1,7 +1,7 @@
 import {
   GetMigrationCategories, GetAppMigrations, GetOfficeMigration, GetMigrationProfile,
   GetLookMigration, SetMigrationProfile, SetSessionConsent, ReinstallApps,
-  ConvertCategory, ImportBrowserData,
+  ConvertCategory, ImportBrowserData, ImportAppSession,
 } from '../../wailsjs/go/main/App';
 import { Quit } from '../../wailsjs/runtime/runtime';
 import { state } from '../lib/state.js';
@@ -225,8 +225,11 @@ const APP_ICONS = {
 
 // The honest outcome badge, driven by the backend's session verdict.
 const SESSION_BADGE = {
-  portable: { label: '✓ Signed in', cls: 'ok' },
-  staged:   { label: 'Staged — sign in once', cls: '' },
+  portable: { label: 'Data moved', cls: 'ok' },
+  staged:   { label: 'Staged — sign-in unverified', cls: '' },
+  rewritten: { label: 'Rewritten — sign-in unverified', cls: '' },
+  failed:   { label: 'Import failed — sign in once', cls: '' },
+  imported: { label: '✓ Signed in', cls: 'ok' },
   signin:   { label: 'Sign in once', cls: '' },
   relink:   { label: 'Re-link needed (2 steps)', cls: '' },
   none:     { label: 'Re-link needed', cls: '' },
@@ -235,7 +238,8 @@ const SESSION_BADGE = {
 function renderAppRow(a) {
   const row = el('div');
   row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:8px;padding:10px 16px';
-  const badge = SESSION_BADGE[a.session] || SESSION_BADGE.signin;
+  const badge = a.session === 'imported' && !a.verified
+    ? SESSION_BADGE.signin : (SESSION_BADGE[a.session] || SESSION_BADGE.signin);
   
   const left = el('div');
   left.style.cssText = 'display:flex;align-items:center;gap:12px;flex:1;min-width:0';
@@ -249,21 +253,29 @@ function renderAppRow(a) {
   row.appendChild(left);
 
   if (a.consentAvailable) {
+    const importButton = btn('Import staged session', 'btn btn-ghost', () => openSessionImport(a));
+    importButton.disabled = !a.consent;
+    importButton.style.fontSize = '12px';
     const consent = el('label');
     consent.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);flex-shrink:0';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.checked = !!a.consent;
-    checkbox.title = 'Allow session key staging when the Windows-online exporter supports this app';
+    checkbox.title = 'Allow this app’s staged credentials to be imported into your Linux Chrome profile';
     checkbox.onchange = async () => {
       checkbox.disabled = true;
-      try { await SetSessionConsent(a.app, checkbox.checked); a.consent = checkbox.checked; }
+      try {
+        await SetSessionConsent(a.app, checkbox.checked);
+        a.consent = checkbox.checked;
+        importButton.disabled = !a.consent;
+      }
       catch (e) { checkbox.checked = !checkbox.checked; alert('Could not save session consent: ' + e); }
       finally { checkbox.disabled = false; }
     };
     consent.appendChild(checkbox);
     consent.appendChild(document.createTextNode('Allow session copy'));
     row.appendChild(consent);
+    row.appendChild(importButton);
   }
 
   if (a.session === 'relink') {
@@ -278,6 +290,104 @@ function renderAppRow(a) {
   chipSpan.textContent = badge.label;
   row.appendChild(chipSpan);
   return row;
+}
+
+function openSessionImport(app) {
+  const dialog = document.createElement('dialog');
+  dialog.style.cssText = 'max-width:500px;width:90%;padding:24px;background:var(--bg-card);color:var(--text);border:1.5px solid var(--border);border-radius:12px';
+  const form = document.createElement('form');
+  const title = el('h3');
+  title.textContent = `Import ${app.app} staged session`;
+  form.appendChild(title);
+  const warning = el('p');
+  warning.style.cssText = 'font-size:12px;color:var(--text-muted)';
+  warning.textContent = 'Close all Chrome windows first. Existing cookies and site data win conflicts. Choose the password store actually used by your target Chrome. A completed rewrite does not verify sign-in. Your password is used only for this attempt and is not saved.';
+  form.appendChild(warning);
+  function field(labelText, input) {
+    const label = el('label');
+    label.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin:10px 0;font-size:12px';
+    label.appendChild(document.createTextNode(labelText));
+    label.appendChild(input);
+    form.appendChild(label);
+    return input;
+  }
+  function choice(labelText, options) {
+    const select = document.createElement('select');
+    select.required = true;
+    options.forEach(([value, text]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      select.appendChild(option);
+    });
+    return field(labelText, select);
+  }
+  const packaging = choice('Target Chrome installation', [
+    ['', 'Choose installation'], ['flatpak', 'Flatpak Chrome'], ['native', 'Native Google Chrome'],
+  ]);
+  const backend = choice('Target Chrome password store', [
+    ['', 'Choose password store'], ['secret-service', 'Secret Service / libsecret'],
+    ['kwallet5', 'KWallet 5'], ['kwallet6', 'KWallet 6'],
+  ]);
+  function profile(labelText) {
+    const input = document.createElement('input');
+    input.value = 'Default';
+    input.required = true;
+    input.pattern = 'Default|Profile [0-9]+';
+    return field(labelText, input);
+  }
+  const sourceProfile = profile('Windows Chromium profile folder');
+  const targetProfile = profile('Linux Chrome profile folder');
+  const passwordInput = document.createElement('input');
+  passwordInput.type = 'password';
+  passwordInput.required = true;
+  passwordInput.autocomplete = 'off';
+  const password = field('Linux vault password chosen during installation', passwordInput);
+  let running = false;
+  const cancel = btn('Cancel', 'btn btn-ghost', () => {
+    password.value = '';
+    dialog.close();
+    dialog.remove();
+  });
+  cancel.type = 'button';
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.className = 'btn btn-primary';
+  submit.textContent = 'Unlock and import selected app';
+  form.appendChild(cancel);
+  form.appendChild(submit);
+  dialog.addEventListener('cancel', event => {
+    if (running) { event.preventDefault(); return; }
+    password.value = '';
+    dialog.remove();
+  });
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (!form.reportValidity() || running) return;
+    running = true;
+    submit.disabled = true;
+    cancel.disabled = true;
+    const request = {
+      app: app.app, consent: app.consent, password: password.value,
+      backend: backend.value, packaging: packaging.value,
+      sourceProfile: sourceProfile.value, targetProfile: targetProfile.value,
+    };
+    password.value = '';
+    try {
+      const outcome = await ImportAppSession(request);
+      alert(outcome.reason);
+    } catch (error) {
+      alert('Session import did not complete: ' + error);
+    } finally {
+      request.password = '';
+      dialog.close();
+      dialog.remove();
+      await refreshCategories();
+    }
+  };
+  dialog.appendChild(form);
+  document.body.appendChild(dialog);
+  dialog.showModal();
 }
 
 function openRelinkModal(a) {

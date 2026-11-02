@@ -72,3 +72,23 @@ func TestScrubFileZeroesBeforeRemoving(t *testing.T) {
 		}
 	}
 }
+
+func TestScrubFilePreservesSecretWhenOverwriteIsDenied(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "readonly-key")
+	const secret = "fixture secret bytes"
+	if err := os.WriteFile(path, []byte(secret), 0400); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(path, 0600)
+	if file, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+		file.Close()
+		t.Skip("this account can bypass the read-only file permission")
+	}
+	if err := scrubFile(path); err == nil {
+		t.Fatal("failed overwrite was reported as a successful scrub")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != secret {
+		t.Fatalf("unscrubbed secret was unlinked instead of preserved for retry: %q, %v", data, err)
+	}
+}

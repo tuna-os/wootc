@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "images": [
+    {
+      "name": "Dakota stable",
+      "image": "ghcr.io/projectbluefin/dakota:stable",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Dakota NVIDIA",
+      "image": "ghcr.io/projectbluefin/dakota-nvidia:stable",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Bluefin",
+      "image": "ghcr.io/projectbluefin/bluefin:stable",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Bluefin LTS",
+      "image": "ghcr.io/projectbluefin/bluefin-lts:stable",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Aurora",
+      "image": "ghcr.io/ublue-os/aurora:stable",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Bazzite",
+      "image": "ghcr.io/ublue-os/bazzite:stable",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Utah (pre-alpha)",
+      "image": "ghcr.io/projectbluefin/utah:testing",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Skipjack GNOME",
+      "image": "ghcr.io/tuna-os/skipjack:gnome",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Skipjack KDE",
+      "image": "ghcr.io/tuna-os/skipjack:kde",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Marlin GNOME",
+      "image": "ghcr.io/tuna-os/marlin:gnome",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Marlin KDE",
+      "image": "ghcr.io/tuna-os/marlin:kde",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Sailfin GNOME",
+      "image": "ghcr.io/tuna-os/sailfin:gnome",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Sailfin KDE",
+      "image": "ghcr.io/tuna-os/sailfin:kde",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Bonito GNOME",
+      "image": "ghcr.io/tuna-os/bonito:gnome",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Bonito KDE",
+      "image": "ghcr.io/tuna-os/bonito:kde",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Flounder GNOME",
+      "image": "ghcr.io/tuna-os/flounder:gnome",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Grouper GNOME",
+      "image": "ghcr.io/tuna-os/grouper:gnome",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Guppy GNOME",
+      "image": "ghcr.io/tuna-os/guppy:gnome",
+      "backend": "composefs",
+      "published": true
+    },
+    {
+      "name": "Albacore GNOME",
+      "image": "ghcr.io/tuna-os/albacore:gnome",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Albacore KDE",
+      "image": "ghcr.io/tuna-os/albacore:kde",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Yellowfin GNOME",
+      "image": "ghcr.io/tuna-os/yellowfin:gnome",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Yellowfin KDE",
+      "image": "ghcr.io/tuna-os/yellowfin:kde",
+      "backend": "ostree",
+      "published": true
+    },
+    {
+      "name": "Zirconium",
+      "image": "ghcr.io/zirconium-dev/zirconium:latest",
+      "backend": "ostree",
+      "published": true
+    }
+  ],
+  "families": [
+    {
+      "name": "Yellowfin",
+      "repository": "ghcr.io/tuna-os/yellowfin",
+      "backend": "ostree",
+      "desktops": [
+        "base",
+        "gnome",
+        "kde",
+        "cosmic",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        "",
+        "-hwe",
+        "-nvidia",
+        "-nvidia-hwe"
+      ]
+    },
+    {
+      "name": "Albacore",
+      "repository": "ghcr.io/tuna-os/albacore",
+      "backend": "ostree",
+      "desktops": [
+        "base",
+        "gnome",
+        "kde",
+        "cosmic",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        "",
+        "-hwe",
+        "-nvidia",
+        "-nvidia-hwe"
+      ]
+    },
+    {
+      "name": "Skipjack",
+      "repository": "ghcr.io/tuna-os/skipjack",
+      "backend": "ostree",
+      "desktops": [
+        "base",
+        "gnome",
+        "kde",
+        "cosmic",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        "",
+        "-hwe",
+        "-nvidia",
+        "-nvidia-hwe"
+      ]
+    },
+    {
+      "name": "Bonito",
+      "repository": "ghcr.io/tuna-os/bonito",
+      "backend": "ostree",
+      "desktops": [
+        "base",
+        "gnome",
+        "kde",
+        "cosmic",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        "",
+        "-nvidia"
+      ]
+    },
+    {
+      "name": "Marlin",
+      "repository": "ghcr.io/tuna-os/marlin",
+      "backend": "composefs",
+      "desktops": [
+        "base",
+        "gnome",
+        "kde",
+        "cosmic",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        ""
+      ]
+    },
+    {
+      "name": "Flounder",
+      "repository": "ghcr.io/tuna-os/flounder",
+      "backend": "composefs",
+      "desktops": [
+        "base",
+        "gnome",
+        "kde",
+        "cosmic",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        ""
+      ]
+    },
+    {
+      "name": "Grouper",
+      "repository": "ghcr.io/tuna-os/grouper",
+      "backend": "composefs",
+      "desktops": [
+        "base",
+        "gnome",
+        "kde",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        ""
+      ]
+    },
+    {
+      "name": "Sailfin",
+      "repository": "ghcr.io/tuna-os/sailfin",
+      "backend": "composefs",
+      "desktops": [
+        "gnome",
+        "kde",
+        "niri",
+        "xfce"
+      ],
+      "suffixes": [
+        ""
+      ]
+    },
+    {
+      "name": "Guppy",
+      "repository": "ghcr.io/tuna-os/guppy",
+      "backend": "composefs",
+      "desktops": [
+        "gnome",
+        "kde"
+      ],
+      "suffixes": [
+        ""
+      ]
+    }
+  ]
+}

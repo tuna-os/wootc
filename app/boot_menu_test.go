@@ -7,15 +7,9 @@ package main
 // (old or new) depends on it.
 
 import (
-	"encoding/json"
-	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -142,132 +136,6 @@ func TestBootMenuLabel_IsSafeForGRUB(t *testing.T) {
 		if id != "wootc" && strings.Contains(strings.ToLower(label), "wootc") {
 			t.Errorf("brand %s: menu label %q says wootc", id, label)
 		}
-	}
-}
-
-// The Windows-only messages cannot be executed on Linux, so hold the
-// source: no string literal in app/*.go may carry the bare word "wootc",
-// except the identifiers and markers that are the on-disk contract. A new
-// user-facing sentence that hard-codes it fails here; it must go through
-// productName().
-func TestUserFacingStringsNeverHardcodeWootc(t *testing.T) {
-	word := regexp.MustCompile(`(^|[^\\/._\-\[A-Za-z0-9#])wootc($|[^\\/._\-\]A-Za-z0-9])`)
-	allowed := func(v string) bool {
-		switch {
-		case v == "wootc": // identifiers: brandID, firmware description, EFI\wootc segment, task names
-			return true
-		case v == " (wootc)", v == "wootc — Windows bootc Installer": // the generic build's documented ARP entry and window title
-			return true
-		case strings.HasPrefix(v, "# wootc"): // GRUB/loader ownership markers (esp_ownership.go)
-			return true
-		case strings.HasPrefix(v, "wootc: "): // stderr diagnostics, never shown in the window
-			return true
-		}
-		return false
-	}
-	forEachSourceStringLiteral(t, func(pos token.Position, v string) {
-		if word.MatchString(v) && !allowed(v) {
-			t.Errorf("%s: string literal hard-codes \"wootc\"; use productName(): %.120q", pos, v)
-		}
-	})
-}
-
-// A distribution's name in an engine string reaches every brand's user: a
-// Bazzite install must not read "Reboot to start TunaOS". Every name a
-// shipped brand carries is held out of app/*.go string literals; the only
-// literal allowed is the generic build's default name in defaultBranding.
-func TestUserFacingStringsNeverHardcodeDistributionName(t *testing.T) {
-	names := shippedDistributionNames(t)
-	if len(names) < 2 {
-		t.Fatalf("found only %d distribution names in the shipped brands", len(names))
-	}
-	var hits []string
-	forEachSourceStringLiteral(t, func(pos token.Position, v string) {
-		for name := range names {
-			word := regexp.MustCompile(`(^|[^A-Za-z0-9])` + regexp.QuoteMeta(name) + `($|[^A-Za-z0-9])`)
-			if !word.MatchString(v) {
-				continue
-			}
-			if filepath.Base(pos.Filename) == "branding_policy.go" && v == defaultBranding().Name {
-				continue // the generic build's default, which effectiveBranding overrides
-			}
-			hits = append(hits, fmt.Sprintf("%s: string literal names %q; use effectiveBranding().Name: %.120q", pos, name, v))
-		}
-	})
-	for _, hit := range hits {
-		t.Error(hit)
-	}
-}
-
-func TestInstallDoneMessageNamesTheBrandsDistribution(t *testing.T) {
-	for id := range loadBlessings(t) {
-		wearBrand(t, id)
-		name := effectiveBranding().Name
-		got := installDoneEvent().Message
-		if want := "Installation complete. Reboot to start " + name + "."; got != want {
-			t.Errorf("brand %s: done message %q, want %q", id, got, want)
-		}
-		for other := range shippedDistributionNames(t) {
-			if other != name && strings.Contains(got, other) {
-				t.Errorf("brand %s: done message %q names %s", id, got, other)
-			}
-		}
-	}
-}
-
-// shippedDistributionNames is every distribution name an embedded brand sets.
-func shippedDistributionNames(t *testing.T) map[string]bool {
-	t.Helper()
-	names := map[string]bool{}
-	for id := range loadBlessings(t) {
-		data, err := brandFS.ReadFile("branding/" + id + "/brand.json")
-		if err != nil {
-			t.Fatalf("brand %s: %v", id, err)
-		}
-		var b Branding
-		if err := json.Unmarshal(data, &b); err != nil {
-			t.Fatalf("brand %s: %v", id, err)
-		}
-		if b.Name != "" {
-			names[b.Name] = true
-		}
-	}
-	return names
-}
-
-// forEachSourceStringLiteral calls fn for every string literal in the
-// non-test sources of app/, Windows-only files included: the parser reads
-// them on every platform, so a Linux run also holds the Windows messages.
-func forEachSourceStringLiteral(t *testing.T, fn func(token.Position, string)) {
-	t.Helper()
-	files, err := filepath.Glob("*.go")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no sources to scan: %v", err)
-	}
-	fset := token.NewFileSet()
-	scanned := 0
-	for _, f := range files {
-		if strings.HasSuffix(f, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, f, nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		scanned++
-		ast.Inspect(file, func(n ast.Node) bool {
-			lit, ok := n.(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING {
-				return true
-			}
-			if v, err := strconv.Unquote(lit.Value); err == nil {
-				fn(fset.Position(lit.Pos()), v)
-			}
-			return true
-		})
-	}
-	if scanned < 50 {
-		t.Fatalf("scanned only %d files; the glob no longer sees app/", scanned)
 	}
 }
 

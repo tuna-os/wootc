@@ -206,12 +206,19 @@ def main():
     check = commands.add_parser('validate')
     check.add_argument('--brand')
     commands.add_parser('table')
+    identity = commands.add_parser('identity', help='print the permitted package publisher and copyright as JSON')
+    identity.add_argument('--brand', required=True)
     args = parser.parse_args()
     try:
         if args.command == 'init':
             create(args.root, args)
         elif args.command == 'table':
             update_table(args.root)
+        elif args.command == 'identity':
+            brand = identifier(args.brand)
+            config = read(args.root / 'app/branding' / brand / 'brand.json')
+            publisher, copyright = effective_identity(args.root, brand, config)
+            print(json.dumps({'publisher': publisher, 'copyright': copyright}, ensure_ascii=False))
         else:
             brands = [args.brand] if args.brand else [p.name for p in (args.root / 'app/branding').iterdir() if p.is_dir()]
             for brand in sorted(brands):

@@ -3,6 +3,7 @@ using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -56,6 +57,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             ?? throw new InvalidDataException("Preview branding is missing");
         if (string.IsNullOrWhiteSpace(brand.ProductName) || string.IsNullOrWhiteSpace(brand.Name))
             throw new InvalidDataException("Preview branding has no product or distribution identity");
+        WindowsReturnStatus.Visibility = OperatingSystem.IsWindows() ? Visibility.Visible : Visibility.Collapsed;
         Title = $"{brand.ProductName} — Preview";
         ProductName.Text = brand.ProductName;
         DistributionName.Text = brand.Name;
@@ -231,6 +233,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     {
         configuration = null;
         ConfigurationPanel.Visibility = Visibility.Collapsed;
+        ProfileAccountsPanel.Visibility = Visibility.Collapsed;
+        ProfileAccountWarnings.Children.Clear();
+        ProfileAccountEditors.Children.Clear();
         ImageChoice.SelectedItem = null; StorageChoice.SelectedItem = null;
         ImageChoice.ItemsSource = null; StorageChoice.ItemsSource = null;
         LinuxUsername.Text = ""; LinuxHostname.Text = "";
@@ -391,6 +396,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             string? mok = InstallProgressText.MokEnrollment(image);
             DoneMok.Text = mok ?? "";
             DoneMok.Visibility = mok is null ? Visibility.Collapsed : Visibility.Visible;
+            DoneHardwareWarnings.Children.Clear();
+            foreach (string warning in progress.HardwareWarnings)
+                DoneHardwareWarnings.Children.Add(new TextBlock { Text = warning, TextWrapping = TextWrapping.Wrap });
             DoneSaveWork.Text = InstallProgressText.SaveWork;
             RebootNowButton.IsEnabled = state == InstallGateState.Finished;
         }
@@ -423,6 +431,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     private async Task PrepareInstallAsync()
     {
         if (configuration is null || configuration.FormProblem.Length != 0 || configurationBrandId.Length == 0) return;
+        var draftConfiguration = configuration;
         var draft = configuration.CreateDraft();
         if (installGate is null)
         {
@@ -434,12 +443,50 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         // Whatever the check's outcome, the form shows it: a check that
         // threw must not leave the buttons as they were while it ran.
         try { await preparing; }
-        finally { UpdateInstallGate(); }
+        finally
+        {
+            if (ReferenceEquals(configuration, draftConfiguration) && installGate.Grant is { } grant)
+            {
+                configuration.ApplyProfileAccounts(grant);
+                RenderProfileAccounts();
+            }
+            UpdateInstallGate();
+        }
+    }
+
+    private void RenderProfileAccounts()
+    {
+        ProfileAccountWarnings.Children.Clear();
+        ProfileAccountEditors.Children.Clear();
+        if (configuration is null) { ProfileAccountsPanel.Visibility = Visibility.Collapsed; return; }
+        ProfileAccountsPanel.Visibility = configuration.ProfileAccounts.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        foreach (string warning in configuration.ProfileWarnings)
+        {
+            var text = new TextBlock { Text = warning, TextWrapping = TextWrapping.Wrap };
+            AutomationProperties.SetLiveSetting(text, AutomationLiveSetting.Polite);
+            ProfileAccountWarnings.Children.Add(text);
+        }
+        int index = 0;
+        foreach (var account in configuration.ProfileAccounts)
+        {
+            var editor = new TextBox { Header = $"Windows profile: {account.WindowsDir}", Text = account.LinuxUser, MaxLength = 32 };
+            AutomationProperties.SetAutomationId(editor, $"ProfileAccount{index++}");
+            AutomationProperties.SetName(editor, $"Linux username for Windows profile {account.WindowsDir}");
+            string windowsDir = account.WindowsDir;
+            editor.TextChanged += (_, _) =>
+            {
+                configuration?.EditProfileAccount(windowsDir, editor.Text);
+                RefreshConfiguration();
+            };
+            ProfileAccountEditors.Children.Add(editor);
+        }
     }
 
     // The confirmation repeats the legacy launchpad's own disclosures. Cancel
     // is the default button, so Enter never starts an install.
-    private async void Install_Click(object sender, RoutedEventArgs args)
+    private async void Install_Click(object sender, RoutedEventArgs args) => await ConfirmInstallAsync();
+
+    private async Task ConfirmInstallAsync()
     {
         var gate = installGate;
         var grant = gate?.Grant;
@@ -454,7 +501,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         }
         var dialog = new ContentDialog
         {
-            Title = disclosure.Heading, Content = lines, PrimaryButtonText = disclosure.Action, CloseButtonText = disclosure.Cancel,
+            Title = "Ready to install", Content = lines, PrimaryButtonText = disclosure.Action, CloseButtonText = disclosure.Cancel,
             DefaultButton = ContentDialogButton.Close, XamlRoot = Content.XamlRoot,
         };
         AutomationProperties.SetAutomationId(dialog, "InstallConfirmation");
@@ -569,6 +616,20 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         MaintenanceLines.Children.Clear();
         foreach (var line in view.Lines)
         {
+            if (line.ReadOnlyValue)
+            {
+                var value = new TextBox { Text = line.Text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap };
+                AutomationProperties.SetAutomationId(value, line.Id);
+                AutomationProperties.SetName(value, line.Id switch
+                {
+                    "InstalledBootSource" => "Installed Linux source image",
+                    "InstalledBootKernel" => "Installed Linux kernel",
+                    "InstalledBootId" => "Verified Linux boot ID",
+                    _ => "Windows folder bridge",
+                });
+                MaintenanceLines.Children.Add(value);
+                continue;
+            }
             var block = new TextBlock { Text = line.Text, TextWrapping = TextWrapping.Wrap };
             if (line.Id is "ManageTitle" or "RecoveryTitle") { block.FontSize = 20; block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold; }
             else if (line.Id is "ManageCardTitle" or "ManageInstalledTitle" or "RecoverySafe" or "RecoveryBootState") block.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
@@ -785,14 +846,18 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         return outcome;
     }
 
-    // The plan check and the Install confirmation a person would accept. The
-    // confirmation's words are pinned by InstallDisclosureTests; the drive
-    // accepts it without drawing the dialog.
+    // Proof mode waits at the same real dialog as a person. The independent
+    // UI Automation observer captures it before invoking its primary button.
     async Task<bool> IE2EDriveView.ClickInstallAsync()
     {
         await PrepareInstallAsync();
         var gate = installGate;
         if (gate is null || !gate.CanInstall) return false;
+        if (Environment.GetEnvironmentVariable("WOOTC_E2E_NATIVE_PROOF") == "1")
+        {
+            await ConfirmInstallAsync();
+            return gate.State is InstallGateState.Confirming or InstallGateState.Started or InstallGateState.Finished;
+        }
         InstallButton.IsEnabled = false;
         var confirming = gate.ConfirmAsync(configurationSteps);
         UpdateInstallGate();

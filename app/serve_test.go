@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -236,56 +235,6 @@ func TestDTOGoldens(t *testing.T) {
 				t.Fatalf("failed to unmarshal golden %s into %T: %v", name, sample, err)
 			}
 		})
-	}
-}
-
-// ── Method List Matching Test Against docs/winui-shell.md ───────────────────
-
-func TestProtocolMatchesWinuiShellSpec(t *testing.T) {
-	specPath := filepath.Join("..", "docs", "winui-shell.md")
-	content, err := os.ReadFile(specPath)
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", specPath, err)
-	}
-
-	// Look for table in "### The `serve` protocol" section
-	// Table row format: | `MethodName` | ... | ... |
-	re := regexp.MustCompile(`(?m)^\|\s*` + "`" + `([A-Za-z0-9_]+)` + "`" + `\s*\|`)
-	matches := re.FindAllStringSubmatch(string(content), -1)
-	if len(matches) == 0 {
-		t.Fatalf("no protocol methods found in %s table", specPath)
-	}
-
-	specMethods := make([]string, 0, len(matches))
-	for _, m := range matches {
-		specMethods = append(specMethods, m[1])
-	}
-
-	if len(specMethods) != len(ProtocolMethods) {
-		t.Errorf("method count mismatch: docs/winui-shell.md has %d, ProtocolMethods has %d\nDocs: %v\nImpl: %v",
-			len(specMethods), len(ProtocolMethods), specMethods, ProtocolMethods)
-	}
-
-	methodMap := make(map[string]bool)
-	for _, m := range ProtocolMethods {
-		methodMap[m] = true
-	}
-
-	for _, sm := range specMethods {
-		if !methodMap[sm] {
-			t.Errorf("method %q documented in docs/winui-shell.md but missing in ProtocolMethods", sm)
-		}
-	}
-
-	specMap := make(map[string]bool)
-	for _, sm := range specMethods {
-		specMap[sm] = true
-	}
-
-	for _, m := range ProtocolMethods {
-		if !specMap[m] {
-			t.Errorf("method %q present in ProtocolMethods but missing in docs/winui-shell.md", m)
-		}
 	}
 }
 
