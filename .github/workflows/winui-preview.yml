@@ -219,10 +219,10 @@ jobs:
           New-Item -ItemType Directory -Force frontend/dist | Out-Null
           Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
           go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
-      - name: Observe actual process tokens and retained handles
+      - name: Run the complete Windows core module and native process controls
         working-directory: app
         shell: pwsh
-        run: go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve|Assessment|Audit)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
+        run: go test -count=1 -v -timeout 180s ./...
       - name: Test actual Windows adapter identities and private package controls
         working-directory: shell
         run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
