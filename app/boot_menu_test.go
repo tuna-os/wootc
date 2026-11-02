@@ -7,8 +7,6 @@ package main
 // (old or new) depends on it.
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -35,8 +33,8 @@ menuentry "Install wootc (debug)" {
 const legacyLoaderEntry = "title wootc installer\nlinux /EFI/wootc/deployer-vmlinuz\ninitrd /EFI/wootc/deployer-initramfs.img\noptions wootc.image=IMG wootc.hostname=HOST wootc.vault=/wootc/install/vault.json wootc.bootloader=systemd ARGS quiet\n"
 
 func TestDeployerMenus_GenericBuildIsUnchanged(t *testing.T) {
-	wearBrand(t, "wootc")
-	label := bootMenuLabel(effectiveBranding())
+	asBrandBuild(t, "wootc")
+	label := bootMenuLabel(effectiveBrandingAt(t.TempDir()))
 	if label != "wootc" {
 		t.Fatalf("generic build menu label = %q, want wootc", label)
 	}
@@ -49,8 +47,8 @@ func TestDeployerMenus_GenericBuildIsUnchanged(t *testing.T) {
 }
 
 func TestDeployerMenus_BazziteBuildSaysBazzite(t *testing.T) {
-	wearBrand(t, "bazzite")
-	label := bootMenuLabel(effectiveBranding())
+	asBrandBuild(t, "bazzite")
+	label := bootMenuLabel(effectiveBrandingAt(t.TempDir()))
 	if label != "Bazzite" {
 		t.Fatalf("bazzite menu label = %q, want Bazzite", label)
 	}
@@ -77,8 +75,8 @@ func TestDeployerMenus_BazziteBuildSaysBazzite(t *testing.T) {
 // (branded titles) must both carry the ownership marker the ESP guards and
 // cleanup match, boot by index, and boot the same deployer paths.
 func TestDeployerMenus_LookupsDoNotDependOnTheTitle(t *testing.T) {
-	wearBrand(t, "bazzite")
-	branded := deployerGrubMenu(bootMenuLabel(effectiveBranding()), "IMG", "HOST", " ARGS")
+	asBrandBuild(t, "bazzite")
+	branded := deployerGrubMenu(bootMenuLabel(effectiveBrandingAt(t.TempDir())), "IMG", "HOST", " ARGS")
 	for name, menu := range map[string]string{"older install": legacyDeployerGrubMenu, "branded install": branded} {
 		if !strings.HasPrefix(menu, wootcGrubMarker) || !strings.Contains(menu, wootcGrubOwnership) {
 			t.Errorf("%s: menu lacks the %q ownership marker the ESP guards match", name, wootcGrubOwnership)
@@ -128,33 +126,13 @@ func TestBootMenuLabel_IsSafeForGRUB(t *testing.T) {
 		t.Errorf("all-unsafe brand produced label %q", got)
 	}
 	for id := range loadBlessings(t) {
-		wearBrand(t, id)
-		label := bootMenuLabel(effectiveBranding())
+		asBrandBuild(t, id)
+		label := bootMenuLabel(effectiveBrandingAt(t.TempDir()))
 		if label == "" || unsafe.MatchString(label) {
 			t.Errorf("brand %s: menu label %q is empty or unsafe", id, label)
 		}
 		if id != "wootc" && strings.Contains(strings.ToLower(label), "wootc") {
 			t.Errorf("brand %s: menu label %q says wootc", id, label)
 		}
-	}
-}
-
-// wearBrand makes this test binary the -X main.brandID=<id> exe, with the
-// runtime overlays that would mask the embedded brand moved aside.
-func wearBrand(t *testing.T, id string) {
-	t.Helper()
-	old := brandID
-	brandID = id
-	t.Cleanup(func() { brandID = old })
-	for _, name := range []string{"brand.json", "brand.css"} {
-		path := filepath.Join(wootcDir(), name)
-		saved, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("clear overlay %s: %v", path, err)
-		}
-		t.Cleanup(func() { _ = os.WriteFile(path, saved, 0o644) })
 	}
 }

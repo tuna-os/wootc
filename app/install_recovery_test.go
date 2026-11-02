@@ -474,24 +474,16 @@ func TestPrepareResumeRefusesWhenUnsafe(t *testing.T) {
 // A cancel observed at a step boundary must reach the journal as a cancel,
 // not leave "running" behind for the next launch to call a crash.
 func TestRunPipelineJournalsCancellation(t *testing.T) {
-	path := journalPath()
-	if prev, err := os.ReadFile(path); err == nil {
-		t.Cleanup(func() { _ = os.WriteFile(path, prev, 0o600) })
-	} else {
-		t.Cleanup(func() { _ = os.Remove(path) })
+	path := filepath.Join(t.TempDir(), "install", "journal.json")
+	platform := &recordingInstallPlatform{
+		journalPath: path,
+		pipeline:    []installPipelineStep{{name: StepInstallerCheckingYourPC}},
 	}
-	statePrev, stateErr := os.ReadFile(statePath())
-	t.Cleanup(func() {
-		if stateErr == nil {
-			_ = os.WriteFile(statePath(), statePrev, 0o600)
-		} else {
-			_ = os.Remove(statePath())
-		}
-	})
+	engine := &installEngine{platform: platform}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := newInstallEngine().Run(ctx, InstallConfig{ImageRef: "img"}, func(ProgressEvent) {}); err != context.Canceled {
+	if err := engine.Run(ctx, InstallConfig{ImageRef: "img"}, func(ProgressEvent) {}); err != context.Canceled {
 		t.Fatalf("install engine = %v, want context.Canceled", err)
 	}
 	j, ok, err := readJournalAt(path)

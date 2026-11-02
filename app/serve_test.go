@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -258,8 +257,7 @@ func newPipeHarness(t *testing.T) *pipeHarness {
 	serverIn, clientOut := io.Pipe()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	app := NewApp()
-	app.startup(ctx)
+	app := &App{ctx: ctx}
 
 	h := &pipeHarness{
 		clientIn:  clientIn,
@@ -335,199 +333,6 @@ func (h *pipeHarness) call(t *testing.T, method string, params any, id any) (jso
 	return raw.Result, raw.Error
 }
 
-func TestServeAllMethodsRoundTrip(t *testing.T) {
-	h := newPipeHarness(t)
-	defer h.Close()
-
-	t.Run("GetSupportPolicy", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetSupportPolicy", nil, 1)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var p SupportPolicy
-		if err := json.Unmarshal(res, &p); err != nil {
-			t.Fatalf("failed to unmarshal SupportPolicy: %v", err)
-		}
-		if p.Channel == "" {
-			t.Errorf("Channel is empty in %+v", p)
-		}
-	})
-
-	t.Run("GetSystemInfo", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetSystemInfo", nil, 2)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var s SystemInfo
-		if err := json.Unmarshal(res, &s); err != nil {
-			t.Fatalf("failed to unmarshal SystemInfo: %v", err)
-		}
-	})
-
-	t.Run("GetBranding", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetBranding", nil, 3)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var b Branding
-		if err := json.Unmarshal(res, &b); err != nil {
-			t.Fatalf("failed to unmarshal Branding: %v", err)
-		}
-		if b.Name == "" {
-			t.Errorf("Branding.Name is empty")
-		}
-	})
-
-	t.Run("GetImages", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetImages", nil, 4)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var imgs []Image
-		if err := json.Unmarshal(res, &imgs); err != nil {
-			t.Fatalf("failed to unmarshal images: %v", err)
-		}
-	})
-
-	t.Run("GetSessionCandidates", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetSessionCandidates", nil, 5)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var c []SessionCandidate
-		if err := json.Unmarshal(res, &c); err != nil {
-			t.Fatalf("failed to unmarshal SessionCandidate list: %v", err)
-		}
-	})
-
-	t.Run("GetStatus", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetStatus", nil, 6)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var s InstallStatus
-		if err := json.Unmarshal(res, &s); err != nil {
-			t.Fatalf("failed to unmarshal InstallStatus: %v", err)
-		}
-	})
-
-	t.Run("CancelInstall", func(t *testing.T) {
-		res, rpcErr := h.call(t, "CancelInstall", nil, 7)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		if string(res) != "null" {
-			t.Errorf("CancelInstall result = %s, want null", string(res))
-		}
-	})
-
-	t.Run("ExistingInstallFound", func(t *testing.T) {
-		res, rpcErr := h.call(t, "ExistingInstallFound", nil, 8)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var found bool
-		if err := json.Unmarshal(res, &found); err != nil {
-			t.Fatalf("failed to unmarshal bool: %v", err)
-		}
-	})
-
-	t.Run("GetUninstallInfo", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetUninstallInfo", nil, 9)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var u UninstallInfo
-		if err := json.Unmarshal(res, &u); err != nil {
-			t.Fatalf("failed to unmarshal UninstallInfo: %v", err)
-		}
-	})
-
-	t.Run("GetLastRun", func(t *testing.T) {
-		res, rpcErr := h.call(t, "GetLastRun", nil, 10)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var l LifecycleState
-		if err := json.Unmarshal(res, &l); err != nil {
-			t.Fatalf("failed to unmarshal LifecycleState: %v", err)
-		}
-	})
-
-	t.Run("E2EDriveDirective", func(t *testing.T) {
-		res, rpcErr := h.call(t, "E2EDriveDirective", nil, 11)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		var d string
-		if err := json.Unmarshal(res, &d); err != nil {
-			t.Fatalf("failed to unmarshal string: %v", err)
-		}
-	})
-
-	t.Run("E2EDriveReport", func(t *testing.T) {
-		res, rpcErr := h.call(t, "E2EDriveReport", "ready", 12)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		if string(res) != "null" {
-			t.Errorf("E2EDriveReport result = %s, want null", string(res))
-		}
-	})
-
-	t.Run("E2EDriveReady", func(t *testing.T) {
-		res, rpcErr := h.call(t, "E2EDriveReady", "ready", 17)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		if string(res) != "null" {
-			t.Errorf("E2EDriveReady result = %s, want null", string(res))
-		}
-	})
-
-	t.Run("DefragDrive", func(t *testing.T) {
-		// On non-windows dev build defrag returns nil or is stubbed
-		_, _ = h.call(t, "DefragDrive", nil, 13)
-	})
-
-	t.Run("UninstallWith", func(t *testing.T) {
-		res, rpcErr := h.call(t, "UninstallWith", UninstallOptions{DeleteRootDisk: false}, 14)
-		if rpcErr != nil {
-			t.Fatalf("unexpected error: %+v", rpcErr)
-		}
-		if string(res) != "null" {
-			t.Errorf("UninstallWith result = %s, want null", string(res))
-		}
-	})
-
-	t.Run("Reboot", func(t *testing.T) {
-		// On non-windows dev build Reboot returns error "reboot not available on this platform"
-		_, rpcErr := h.call(t, "Reboot", nil, 15)
-		if rpcErr == nil {
-			t.Logf("Reboot succeeded on this platform")
-		} else {
-			if !strings.Contains(rpcErr.Message, "reboot not available") {
-				t.Errorf("unexpected Reboot error: %v", rpcErr.Message)
-			}
-		}
-	})
-
-	t.Run("BootIntoLinux", func(t *testing.T) {
-		// On dev build without bcd-guid.txt, it fails as expected
-		_, _ = h.call(t, "BootIntoLinux", nil, 16)
-	})
-
-	t.Run("StartInstall", func(t *testing.T) {
-		// Gate scenario check: test StartInstall with invalid config returns error
-		_, rpcErr := h.call(t, "StartInstall", InstallConfig{
-			ImageRef: "invalid-image",
-		}, 17)
-		if rpcErr == nil {
-			t.Errorf("expected StartInstall to error for invalid image")
-		}
-	})
-}
-
 func TestNotificationsProgressAndVM(t *testing.T) {
 	clientIn, serverOut := io.Pipe()
 	serverIn, clientOut := io.Pipe()
@@ -538,8 +343,7 @@ func TestNotificationsProgressAndVM(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	app := NewApp()
-	app.startup(ctx)
+	app := &App{ctx: ctx}
 
 	started := make(chan struct{})
 	go func() {
@@ -639,8 +443,7 @@ func TestStdinCloseDisarmsAndExits(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	app := NewApp()
-	app.startup(ctx)
+	app := &App{ctx: ctx}
 
 	serveErr := make(chan error, 1)
 	go func() {

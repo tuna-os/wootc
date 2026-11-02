@@ -173,16 +173,13 @@ func TestReviewedCatalogCachedResultsCannotBeMutatedByCallers(t *testing.T) {
 func TestReviewedCatalogEnterpriseOverrideRemainsAuthoritative(t *testing.T) {
 	asBrandBuild(t, "wootc")
 	t.Setenv("WOOTC_CHANNEL", "alpha")
-	if err := os.MkdirAll(wootcDir(), 0755); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(wootcDir(), "images.json")
-	t.Cleanup(func() { _ = os.Remove(path) })
+	root := t.TempDir()
+	path := filepath.Join(root, "images.json")
 	data := `[{"id":"enterprise","name":"Enterprise","imageRef":"registry.example/private:release","composeFs":true,"bootloader":"custom","status":"experimental"}]`
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := NewApp().GetImages()
+	got, err := imagesAt(root)
 	if err != nil || len(got) != 1 || got[0].ID != "enterprise" || got[0].Bootloader != "custom" || !got[0].ComposeFS {
 		t.Fatalf("trusted enterprise catalog no longer overrides shared policy: %+v, %v", got, err)
 	}

@@ -7,11 +7,7 @@ import (
 )
 
 func TestStateTransitions(t *testing.T) {
-	dir := filepath.Dir(statePath())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(statePath())
+	path := filepath.Join(t.TempDir(), "state.json")
 
 	states := []string{
 		StateStaged,
@@ -23,8 +19,8 @@ func TestStateTransitions(t *testing.T) {
 	}
 
 	for _, st := range states {
-		writeState(st, "test-phase", "")
-		s, ok := readState()
+		writeStateAt(path, st, "test-phase", "")
+		s, ok := readStateFrom(path)
 		if !ok {
 			t.Fatalf("readState failed for state %q", st)
 		}

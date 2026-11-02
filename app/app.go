@@ -205,8 +205,9 @@ type DataPartition struct {
 // App is the Wails application backend. All exported methods are callable
 // from the frontend via the generated wailsjs bindings.
 type App struct {
-	ctx     context.Context
-	emitter EventEmitter
+	ctx       context.Context
+	emitter   EventEmitter
+	drivePath func(string) string
 	// mu guards status, cancellation, completion, and shutdown. GetStatus() is polled from the frontend
 	// on a timer while the install goroutine mutates status concurrently —
 	// without the lock that is a data race the Go race detector flags.
@@ -296,10 +297,14 @@ type SupportPolicy struct {
 // conservative "alpha"; overridable for testing via C:\wootc\channel.txt or
 // $WOOTC_CHANNEL.
 func supportChannel() string {
+	return supportChannelAt(wootcDir())
+}
+
+func supportChannelAt(root string) string {
 	if c := os.Getenv("WOOTC_CHANNEL"); c != "" {
 		return c
 	}
-	if data, err := os.ReadFile(filepath.Join(wootcDir(), "channel.txt")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(root, "channel.txt")); err == nil {
 		if c := strings.TrimSpace(string(data)); c != "" {
 			return c
 		}
@@ -309,7 +314,11 @@ func supportChannel() string {
 
 // GetSupportPolicy returns the gating policy for the active channel.
 func (a *App) GetSupportPolicy() SupportPolicy {
-	return supportPolicyFor(supportChannel(), effectiveBranding(), os.Getenv("WOOTC_E2E_DRIVE") == "1")
+	return supportPolicyAt(wootcDir())
+}
+
+func supportPolicyAt(root string) SupportPolicy {
+	return supportPolicyFor(supportChannelAt(root), effectiveBrandingAt(root), os.Getenv("WOOTC_E2E_DRIVE") == "1")
 }
 
 // ── System information ────────────────────────────────────────────────────────
@@ -549,13 +558,20 @@ func e2eDrivePath(name string) string {
 	return "/tmp/wootc-" + name
 }
 
+func (a *App) e2ePath(name string) string {
+	if a.drivePath != nil {
+		return a.drivePath(name)
+	}
+	return e2eDrivePath(name)
+}
+
 // E2EDriveDirective returns the pending drive directive, or "" when drive
 // mode is off or no directive exists.
 func (a *App) E2EDriveDirective() string {
 	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
 		return ""
 	}
-	b, err := os.ReadFile(e2eDrivePath("e2e-drive.json"))
+	b, err := os.ReadFile(a.e2ePath("e2e-drive.json"))
 	if err != nil {
 		return ""
 	}
@@ -572,7 +588,7 @@ func (a *App) E2EDriveReport(state string) {
 	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
 		return
 	}
-	writeE2EDriveReport(state)
+	writeE2EDriveReport(a.e2ePath("e2e-drive.json"), a.e2ePath("e2e-drive-state.json"), state)
 }
 
 // E2EDriveReady persists the frontend's first-render signal for the harness.
@@ -581,7 +597,7 @@ func (a *App) E2EDriveReady(state string) {
 	if os.Getenv("WOOTC_E2E_DRIVE") != "1" {
 		return
 	}
-	writeE2EReady(state)
+	writeE2EReady(a.e2ePath("e2e-ready.json"), state)
 }
 
 // ── Existing install detection ────────────────────────────────────────────────

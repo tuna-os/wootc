@@ -855,3 +855,30 @@ threshold of 23,502,050,623 bytes. The experiment's former 8 GiB node guard was 
 The [recorded result](experiments/evidence/2026-09-26-vm-first/windows-helper-storage-stop.json)
 retains the empty helper receipt and the harness termination reason.
 No claim of an installed desktop or a complete installation follows from this run.
+
+## 36. Ordinary unit tests must not control their Windows host
+
+The full Windows app-module test gate exposed a source-level safety defect:
+untagged tests described as non-Windows dev-stub checks called the production
+Windows restart, partition, power, boot/ESP, uninstall, and credential-collection
+implementations. An RPC method-inventory smoke test also invoked real reboot,
+defragmentation, uninstall, and boot actions. An assertion expecting a platform
+error is not isolation: a successful `shutdown /r /t 5 /f` schedules the restart
+before the assertion can fail.
+
+- Delete obsolete stub/no-op and all-method inventory checks instead of making
+  them pass through test-mode production no-ops or recording mock echoes.
+- Preserve actual protocol refusal, replay, cancellation, ownership, and corrupt
+  state behavior. Use owned temporary paths and existing dependency boundaries;
+  never remove or overwrite `C:\wootc` files merely to clear a test fixture.
+- A cancelled install-engine test still enters preparation before its first
+  step. Supply an isolated platform fixture, not the real preparation adapter.
+- Transport tests must not run unrelated startup discovery: the Windows
+  uninstall probe validates existing installation trees and reapplies their
+  root ACL. Construct the transport's App directly instead.
+- Keep the full Windows `go test ./...` gate. Narrow method selectors hide
+  cross-platform hazards instead of repairing them.
+
+The runner lost communication during a full-suite attempt, but its final test
+log and Windows restart events were unavailable. These call paths establish a
+real host-action risk, not attribution for that particular runner loss.

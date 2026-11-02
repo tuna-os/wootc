@@ -14,11 +14,11 @@ QUESTIONS = ('mark', 'name', 'tagline', 'distributeExe')
 
 
 def read(path):
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding='utf-8'))
 
 
 def write(path, data):
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
 def require(ok, message):
@@ -136,7 +136,7 @@ def validate(root, brand):
 
 def update_table(root):
     path = root / 'app/branding/README.md'
-    source = path.read_text()
+    source = path.read_text(encoding='utf-8')
     rows = ['| Brand | Mark owner | Status | Mark | Name | Tagline | Branded exe | winget identifier |',
             '|---|---|---|---|---|---|---|---|']
     for p in sorted((root / 'app/branding').glob('*/blessing.json')):
@@ -148,7 +148,7 @@ def update_table(root):
     table = '\n'.join(rows)
     pattern = r'(?m)^\| Brand \|[^\n]*\n(?:\|[^\n]*\n)+'
     require(re.search(pattern, source), 'branding README has no ownership table')
-    path.write_text(re.sub(pattern, lambda _: table + '\n', source, count=1))
+    path.write_text(re.sub(pattern, lambda _: table + '\n', source, count=1), encoding='utf-8')
 
 
 def create(root, args):

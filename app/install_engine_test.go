@@ -8,13 +8,14 @@ import (
 )
 
 type recordingInstallPlatform struct {
-	prepared  bool
-	released  bool
-	pipeline  []installPipelineStep
-	run       []string
-	failure   error
-	states    []string
-	disarmCnt int
+	prepared    bool
+	released    bool
+	pipeline    []installPipelineStep
+	run         []string
+	failure     error
+	states      []string
+	disarmCnt   int
+	journalPath string
 }
 
 func (p *recordingInstallPlatform) prepare(string) (func(), error) {
@@ -35,7 +36,12 @@ func (p *recordingInstallPlatform) steps(context.Context, InstallConfig, func(Pr
 	return steps
 }
 
-func (p *recordingInstallPlatform) newJournal(InstallConfig) *installJournalRecorder { return nil }
+func (p *recordingInstallPlatform) newJournal(cfg InstallConfig) *installJournalRecorder {
+	if p.journalPath == "" {
+		return nil
+	}
+	return newInstallJournalRecorder(p.journalPath, cfg, nil)
+}
 
 func (p *recordingInstallPlatform) writeState(state, phase, errMsg string) {
 	p.states = append(p.states, state+":"+phase+":"+errMsg)
