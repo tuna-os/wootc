@@ -390,7 +390,10 @@ jobs:
               echo "Gate run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             fi
             case "$SIGNING" in
-              signed) ;;
+              signed)
+                echo
+                echo "The compatibility executable passed Authenticode verification."
+                echo "Native setup signing is separate; this workflow does not establish it." ;;
               failed)
                 echo
                 echo "> ⚠️ **Not code-signed — signing FAILED for this build.** The exes are"
@@ -406,6 +409,12 @@ jobs:
             echo "The WinUI packaging workflow attaches them with native-SHA256SUMS."
             echo "The Wails compatibility build remains for this release only as"
             echo "\`wootc-legacy.exe\`, so a rollback has a named, non-primary path."
+            echo
+            echo "This native-installation preview does not establish the complete"
+            echo "Windows-hosted VM-first journey or same-system native promotion."
+            echo "Read-only VM boot-input export does not arm native boot."
+            echo "Live authenticated application migration, real BitLocker/TPM,"
+            echo "offline/hardware acceptance and a 30-day soak are separate gates."
             echo
             echo "Walkthrough: https://tuna-os.github.io/wootc/e2e/latest/"
             # The narrative (#242): docs/release-notes-<tag>.md when it

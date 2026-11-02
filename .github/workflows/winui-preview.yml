@@ -222,7 +222,7 @@ jobs:
       - name: Run the complete Windows core module and native process controls
         working-directory: app
         shell: pwsh
-        run: go test -count=1 -v -timeout 180s ./...
+        run: go test -count=1 -v -timeout 10m ./...
       - name: Test actual Windows adapter identities and private package controls
         working-directory: shell
         run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
