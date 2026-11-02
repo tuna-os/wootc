@@ -65,7 +65,8 @@ jobs:
           tag="${REQUESTED_TAG}"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then tag="${GITHUB_REF_NAME}"; fi
           if [ -n "$tag" ]; then bash tools/release/check-notes.sh "$tag"; fi
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq bats
+      - name: Install fast-tier system test dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq bats rsync qemu-system-common qemu-system-gui binutils
       - run: bash tests/run.sh fast
       - uses: ./.github/actions/podman-runtime
       - run: bash tests/migration/test-bridge.sh
