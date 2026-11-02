@@ -118,7 +118,7 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 			if !shouldPreloadImage(effectiveBranding()) {
 				return nil
 			}
-			return stageImageBundle(ctx, cfg.ImageRef, func(done, total int64) {
+			if err := stageImageBundle(ctx, cfg.ImageRef, func(done, total int64) {
 				pct := 50.0
 				msg := displayStepLabel(StepInstallerDownloadingYourLinuxSystem) + "…"
 				if total > 0 {
@@ -127,7 +127,16 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 						float64(done)/1e9, float64(total)/1e9)
 				}
 				emit(ProgressEvent{Step: StepInstallerDownloadingYourLinuxSystem, PhaseID: StepInstallerDownloadingYourLinuxSystem, Message: msg, Percent: pct})
+			}); err != nil {
+				return err
+			}
+			emit(ProgressEvent{
+				Step: StepInstallerDownloadingYourLinuxSystem, PhaseID: StepInstallerDownloadingYourLinuxSystem,
+				Message: "Checking the Linux image for this PC's hardware support…", Percent: 54,
 			})
+			return enforceHardwareCompatibility(
+				assessStagedHardware(), StepInstallerDownloadingYourLinuxSystem, 54, emit,
+			)
 		}},
 		{StepInstallerPreparingTheStartupMenu, 55, func() error { return writeGrubConfig(cfg) }},
 		{StepInstallerGettingLinuxPrepared, 65, func() error { return setupESP(cfg) }},

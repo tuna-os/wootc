@@ -26,6 +26,12 @@ async function init() {
     state.progress.message = e.message;
     state.progress.percent = e.percent;
     if (e.error) state.progress.error = e.error;
+    if (Array.isArray(e.warnings)) {
+      for (const warning of e.warnings) {
+        if (typeof warning === 'string' && warning && !state.progress.warnings.includes(warning))
+          state.progress.warnings.push(warning);
+      }
+    }
     if (e.done) { state.screen = 'done'; render(); return; }
     const phaseId = e.phaseId || e.step;
     if (phaseId && !state.progress.completedSteps.includes(phaseId)) {

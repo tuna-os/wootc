@@ -46,6 +46,7 @@ export const state = {
     message: '',
     percent: 0,
     completedSteps: [],
+    warnings: [],
     error: null,
   },
 };

@@ -1,11 +1,17 @@
 # ADR 0002: Hardware Pre-Flight & Hardware-Aware Image Matching (#38)
 
 ## Status
-Approved RFC / Architecture Specification
+Superseded for driver matching by the live target-image inventory in #574.
+The GREEN/AMBER/RED product policy stays as historical context. wootc no longer
+uses image catalog metadata as evidence that a kernel supports this PC.
 
 ## Context
-Issue #38 defines the hardware pre-flight classification and image matching specification for **wootc**.
-Before touching any disk or modifying bootloader configurations, wootc performs an honest hardware capability assessment against candidate `bootc` container images, ensuring users are never left with an unbootable or network-less system.
+Issue #38 proposed hardware declarations in the image catalog. Issue #574
+replaces that proxy with observations. wootc downloads the selected OCI image
+while Windows still works. Then it reads the module aliases and the firmware
+list of the image kernel. It translates the PnP IDs of the active Windows
+devices to Linux modaliases. Before it changes the boot configuration, it
+refuses an install that has no driver for an important device.
 
 ---
 
@@ -21,9 +27,9 @@ Every hardware feature evaluation produces one of three honest verdicts:
 
 ---
 
-## 2. Hardware Capability Catalog Metadata
+## 2. Hardware Capability Catalog Metadata (superseded)
 
-Hardware constraints and driver capabilities are declared alongside image catalog metadata in `app/data/images.json`:
+The original proposal put the constraints in the image catalog metadata:
 
 ```json
 {
@@ -40,7 +46,10 @@ Hardware constraints and driver capabilities are declared alongside image catalo
 
 ---
 
-## 3. Decisions on Open Questions
+## 3. Historical decisions on open questions
+
+These decisions describe the superseded catalog-driven design, not the live
+kernel inventory gate:
 
 1. **Broadcom Wi-Fi with Ethernet**: Classified as **AMBER**, never RED, as long as a secondary network path (wired Ethernet or USB phone tethering) exists.
 2. **NVIDIA Variant Selection**: Offered as a explicit recommendation chip; never auto-swapped without user confirmation.
