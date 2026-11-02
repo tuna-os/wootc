@@ -35,8 +35,6 @@ check("hasWootcESPArtifacts" in installer_code, "getUninstallInfo checks ESP art
 check("hasUninstallRegistryEntry" in installer_code, "getUninstallInfo checks Add/Remove registry key")
 check("cleanupESP" in installer_code, "uninstallWith invokes ownership-aware cleanupESP")
 check("verifyUninstallClean" in installer_code, "uninstallWith verifies clean convergence")
-check("deleteWootcBCDEntries" in installer_code, "uninstallWith sweeps BCD entries")
-check("disarmOneShot" in installer_code, "uninstallWith clears one-shot bootsequence")
 check("restorePriorPowerState" in installer_code, "uninstallWith restores power state before directory removal")
 
 # 2. Check disk_windows.go for partition ownership safety

@@ -21,5 +21,6 @@
     "schemaVersion": 1
   },
   "minimumTargetDiskBytes": 34359738368,
-  "minimumScratchDiskBytes": 17179869184
+  "minimumScratchDiskBytes": 17179869184,
+  "operations": ["install", "export-boot"]
 }

@@ -1,0 +1,15 @@
+{
+  "source": "https://github.com/tuna-os/bootc-migrate/blob/b2564052279b7075c5c2e082413300e208ce98be/crates/bootc-migrate-core/src/hardware.rs#L887",
+  "glob": [
+    ["pci:v00008086d000015B8sv*sd*bc*sc*i*", "pci:v00008086d000015B8sv00001028sd000007A1bc02sc00i00", true],
+    ["pci:v00008086d000015B8sv*sd*bc*sc*i*", "pci:v00008086d000015B9sv00001028sd000007A1bc02sc00i00", false],
+    ["pci:v*d*sv*sd*bc03sc*i*", "pci:v000010DEd00002484sv00001458sd00004037bc03sc00i00", true],
+    ["usb:v0BDAp81[0-9A]9d*", "usb:v0BDAp8179d0000dc00", true],
+    ["usb:v0BDAp81[!7]9d*", "usb:v0BDAp8179d0000dc00", false],
+    ["a?c", "abc", true],
+    ["a?c", "ac", false],
+    ["*", "", true],
+    ["iwlwifi-*.ucode", "iwlwifi-ty-a0-gf-a0-89.ucode", true],
+    ["abc", "abcd", false]
+  ]
+}

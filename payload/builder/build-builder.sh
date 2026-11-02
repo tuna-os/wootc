@@ -51,6 +51,9 @@ cp "$ROOT/boot/vmlinuz-virt" "$OUT/builder-vmlinuz"
 # Install our init as PID 1.
 install -m755 "$HERE/wootc-builder-init" "$ROOT/init"
 install -m644 "$HERE/wootc-builder.sh" "$ROOT/lib/wootc-builder.sh"
+install -m644 "$HERE/wootc-export.sh" "$ROOT/lib/wootc-export.sh"
+mkdir -p "$ROOT/lib/wootc-native-boot"
+cp -a "$HERE/../../platform/dracut/99wootc-boot/." "$ROOT/lib/wootc-native-boot/"
 
 # Pack the initramfs (newc cpio + gzip).
 log "packing initramfs…"

@@ -6,6 +6,11 @@ export const INSTALLER_STEP_DEFINITIONS = [
     "label": "Checking your PC"
   },
   {
+    "id": "Downloading your Linux system",
+    "owner": "installer",
+    "label": "Downloading your Linux system"
+  },
+  {
     "id": "Preparing Windows",
     "owner": "installer",
     "label": "Preparing Windows"
@@ -29,11 +34,6 @@ export const INSTALLER_STEP_DEFINITIONS = [
     "id": "Downloading Linux",
     "owner": "installer",
     "label": "Downloading Linux"
-  },
-  {
-    "id": "Downloading your Linux system",
-    "owner": "installer",
-    "label": "Downloading your Linux system"
   },
   {
     "id": "Preparing the startup menu",

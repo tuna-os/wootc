@@ -1,7 +1,10 @@
 # Branding, releases, and offline-first distribution
 
-Status: SPEC + phase-1 implementation (2026-08-22). Owner intent (maintainer,
-verbatim requirements): automated GitHub releases; an un-branded **wootc**
+Scope updated 2026-11-02: source packaging and design requirements, not proof
+that a native package is published or qualified. The observed latest
+non-prerelease remains `v0.1.0-alpha.1` with Wails executables; see
+[getting started](getting-started.md). Original owner intent:
+automated GitHub releases; an un-branded **wootc**
 build plus branded builds for **TunaOS**, the **Bluefin family**
 (bluefin / dakota), **Aurora**, and **Bazzite**; branding via a
 per-brand config + assets override; branded installers do not use the wootc
@@ -15,17 +18,13 @@ masking that.
 
 ## 1. Automated releases
 
-**Trigger.** Two channels, one pipeline (`release.yml`):
+**Triggers and gates.** Main defines tagged and automatic release paths in
+`release.yml`. Consult [release instructions](RELEASING.md) for the exact
+selected E2E stages, SHA binding and any documented emergency waiver.
+A workflow's existence is not a passed run or a published release.
 
-- **Tagged** (`v*`): unchanged — the human-blessed channel, E2E-gated.
-- **Auto** (`workflow_run` after a green E2E nightly on `main`, or
-  `workflow_dispatch`): tags `auto-vYYYYMMDD-<sha>` and publishes a
-  **pre-release**. The E2E gate is satisfied by the run that triggered it —
-  the release is cut from the exact SHA the nightly proved. No green nightly,
-  no auto release.
-
-**Assets.** Every release ships the native setup packages for each eligible
-brand (see §2), plus the shared boot set:
+**Native assets on main.** The first native cutover is intended to publish
+setup packages for each eligible brand (see §2), plus the shared boot set:
 
 | Asset | Source |
 |---|---|
@@ -37,13 +36,15 @@ brand (see §2), plus the shared boot set:
 | `SHA256SUMS` | sha256sum over the boot and legacy assets |
 | `native-SHA256SUMS` | sha256sum over the attached setup assets |
 
-The setup package embeds the native shell, its protected Go engine, and the
-public key for release verification. This cut-over release keeps the Wails
-executable only as a compatibility fallback, not a second branded installer.
+The source setup package embeds the native shell, protected Go engine and
+public key for artifact verification. The first native cutover retains one
+Wails compatibility executable. Older `v0.1.0-alpha.1` instead provides
+`wootc.exe`, branded `*-Installer.exe` files and `SHA256SUMS`, not this native
+asset set. Download only an asset listed on the selected tag.
 
-`deployerBaseURL()` previously pointed at release assets that did not exist
-(documented on #196). The first automated release closes that gap. A plain
-online install then works without advance setup.
+A release URL alone does not establish a plain online or offline install:
+boot artifacts, signed metadata, image inputs, Windows runtime and frontend
+must match the tested build. See [native release gates](winui-shell.md#packaging-and-offline-proof).
 
 **Branded downloads.** Each branded setup has its own layout expectation for
 `deployerBaseURL`. All brands share the boot artifacts because the deployer is
@@ -138,13 +139,14 @@ falls out of the answers: any `no` → `declined`, all four `yes` → `blessed`,
 anything else → `pending`. A mark this project does not own cannot be marked
 `blessed` without a link to the yes.
 
-**Release matrix.** The publish job asks `packaging/brands.sh` which brands
-may ship, builds each surviving exe with its ldflag, names it `exeName`.exe,
-and adds all to the release + SHA256SUMS. The decision is load-bearing
-there: a **declined** project's exe drops out of the matrix, a brand with no
-record at all is a hard error rather than a default yes, and a **pending**
-one still builds (shipping predates the ask) but is named as unblessed in
-the release log. `WOOTC_REQUIRE_BLESSING=1` drops pending brands too.
+**Release matrix.** `packaging/brands.sh` decides which brands may build.
+Native packaging maps each selected brand to its setup name and checksums;
+older Wails asset names must not be used as proof of native setup publication.
+A **declined** project's build drops out of the matrix; an absent permission
+record is an error, not an implicit yes. A **pending** project can still build
+but must retain unblessed/distributor identity. `WOOTC_REQUIRE_BLESSING=1`
+excludes pending brands too. These source rules do not establish upstream
+approval, namespace ownership, installation success or a published download.
 
 ## 3. Offline-first deploys
 

@@ -214,6 +214,10 @@ public sealed class InstallGate : IAsyncDisposable
             return "The engine's install grant does not belong to this session.";
         if (grant.ImageRef != plan.ImageRef || grant.StorageDrive != plan.StorageDrive || grant.DiskSizeGB != plan.DiskSizeGB || grant.Encryption != encryption)
             return "The engine granted a different plan from the one on screen.";
+        if (plan.ProfileAccounts is not null &&
+            (grant.ProfileAccounts.Count != plan.ProfileAccounts.Count || plan.ProfileAccounts.Any(expected =>
+                !grant.ProfileAccounts.Any(actual => actual.WindowsDir == expected.WindowsDir && actual.LinuxUser == expected.LinuxUser))))
+            return "The engine granted different profile accounts from the ones on screen.";
         return null;
     }
 

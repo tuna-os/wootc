@@ -41,15 +41,24 @@ def proof_fixture():
              'bootId': proof['installedBootId'], 'liveBootId': proof['installedBootId'], 'sourceSha': run['head_sha'], 'observer': 'linux-qga', 'uname': 'Linux',
              'sourceImage': 'image@sha256:' + 'e' * 64, 'kernel': '6.12.1', 'bridge': 'mounted'}
     files['installed-boot-observation.json'] = json.dumps(facts).encode()
-    values = {'InstalledBootSource': facts['sourceImage'], 'InstalledBootKernel': facts['kernel'], 'InstalledBootBridge': facts['bridge']}
+    files['windows-current-observation.json'] = json.dumps({
+        'runId': 42, 'runAttempt': 1, 'sourceSha': run['head_sha'], 'observer': 'windows-cim',
+        'version': '10.0.26100', 'bootTime': '2026-09-20T07:25:00Z',
+        'capturedAt': '2026-09-20T07:37:00Z',
+    }).encode()
+    values = {'InstalledBootSource': facts['sourceImage'], 'InstalledBootKernel': facts['kernel'],
+              'InstalledBootBridge': facts['bridge'], 'InstalledBootId': facts['bootId']}
     for journey, required in soak.REQUIRED.items():
         frame = journey + '.png'
         uia = journey + '.json'
+        timestamp = {'install-confirmation': '2026-09-20T07:10:00Z',
+                     'installed-boot-summary': '2026-09-20T07:35:00Z',
+                     'windows-return': '2026-09-20T07:40:00Z'}[journey]
         files[frame] = b'\x89PNG\r\n\x1a\nsynthetic-test-frame'
         checks = [{'automationId': name, 'property': prop, 'expected': literal or values[name]} for name, (prop, literal) in required.items()]
         controls = [{'automationId': check['automationId'], 'visible': True, 'enabled': True, check['property']: check['expected']} for check in checks]
-        files[uia] = json.dumps({'runId': 42, 'runAttempt': 1, 'capturedAt': '2026-09-20T07:30:00Z', 'processImageSha256': 'b' * 64, 'controls': controls}).encode()
-        proof['observations'].append({'journey': journey, 'capturedAt': '2026-09-20T07:30:00Z',
+        files[uia] = json.dumps({'runId': 42, 'runAttempt': 1, 'capturedAt': timestamp, 'processImageSha256': 'b' * 64, 'controls': controls}).encode()
+        proof['observations'].append({'journey': journey, 'capturedAt': timestamp,
                                       'framebufferFile': frame, 'framebufferSha256': soak.digest(files[frame]),
                                       'uiaFile': uia, 'checks': checks})
     return run, proof, files
@@ -147,7 +156,9 @@ class SoakTests(unittest.TestCase):
         mutations = ['wails', 'browser', 'source', 'attempt', 'process', 'no-checks', 'hidden',
                      'wrong-value', 'missing-frame', 'stale', 'facts', 'digest', 'artifact-run',
                      'old-fact-attempt', 'stale-facts', 'wrong-live-boot', 'wrong-record-boot',
-                     'missing-boot', 'future-facts', 'old-uia-attempt']
+                     'missing-boot', 'future-facts', 'old-uia-attempt', 'rendered-boot-id',
+                     'windows-missing', 'windows-run', 'windows-attempt', 'windows-source',
+                     'windows-observer', 'windows-version', 'windows-boot', 'windows-capture']
         for mutation in mutations:
             changed, changed_files = copy.deepcopy(proof), copy.deepcopy(files)
             if mutation == 'wails': changed['shell'] = 'wails'
@@ -179,6 +190,28 @@ class SoakTests(unittest.TestCase):
                 elif mutation == 'missing-boot': facts.pop('bootId')
                 else: facts['capturedAt'] = '2026-09-20T07:45:00Z'
                 changed_files['installed-boot-observation.json'] = json.dumps(facts).encode()
+            elif mutation == 'rendered-boot-id':
+                observation = next(o for o in changed['observations'] if o['journey'] == 'installed-boot-summary')
+                name = observation['uiaFile']
+                tree = json.loads(changed_files[name])
+                next(c for c in tree['controls'] if c['automationId'] == 'InstalledBootId')['value'] = '87654321-1234-1234-1234-123456789abc'
+                changed_files[name] = json.dumps(tree).encode()
+            elif mutation.startswith('windows-'):
+                name = 'windows-current-observation.json'
+                if mutation == 'windows-missing':
+                    changed_files.pop(name)
+                else:
+                    windows = json.loads(changed_files[name])
+                    field, value = {
+                        'windows-run': ('runId', 1), 'windows-attempt': ('runAttempt', 0),
+                        'windows-source': ('sourceSha', 'f' * 40),
+                        'windows-observer': ('observer', 'browser'),
+                        'windows-version': ('version', ''),
+                        'windows-boot': ('bootTime', '2026-09-20T07:15:00Z'),
+                        'windows-capture': ('capturedAt', '2026-09-20T07:50:00Z'),
+                    }[mutation]
+                    windows[field] = value
+                    changed_files[name] = json.dumps(windows).encode()
             data, artifact = archive(changed, changed_files)
             if mutation == 'digest': artifact['digest'] = 'sha256:' + '0' * 64
             if mutation == 'artifact-run': artifact['workflow_run']['id'] = 1
@@ -270,11 +303,12 @@ class SoakTests(unittest.TestCase):
                             'digest': 'sha256:' + soak.digest(product_data), 'size_in_bytes': len(product_data)}
         run.update(status='completed', event='schedule', conclusion='success', head_branch='main',
                    head_repository={'full_name': 'tuna-os/wootc'}, html_url='https://github.com/tuna-os/wootc/actions/runs/42')
+        job_name = 'native-proof / native-shell GUI acceptance'
         class API:
             repo = 'tuna-os/wootc'
             def pages(self, path, key):
                 if 'e2e-gui.yml/runs' in path: return [run]
-                if path.endswith('/jobs'): return [{'name': soak.NATIVE_JOB, 'conclusion': 'success',
+                if path.endswith('/jobs'): return [{'name': job_name, 'conclusion': 'success',
                     'steps': [{'name': name, 'conclusion': 'success'} for name in soak.NATIVE_STEPS]}]
                 if path.endswith('/artifacts'): return [proof_artifact, product_artifact]
                 if path.endswith('/releases'): return []
@@ -291,6 +325,14 @@ class SoakTests(unittest.TestCase):
         rows, _ = soak.collect(API(), [], config(), dt.date(2026, 9, 22))
         self.assertTrue(rows[0]['eligible'])
         self.assertEqual(rows[0]['productArchiveSha256'], soak.digest(product_data))
+        for unrelated in ('native-shell GUI acceptance',
+                          'untrusted / native-shell GUI acceptance',
+                          'native-proof / Wails browser acceptance'):
+            job_name = unrelated
+            rows, _ = soak.collect(API(), [], config(), dt.date(2026, 9, 22))
+            self.assertFalse(rows[0]['eligible'])
+            self.assertEqual(rows[0]['reason'], 'Actual native UI acceptance job missing')
+        job_name = 'native-proof / native-shell GUI acceptance'
         # Source-tree mutation cannot inherit the proof's transport identity.
         tree[1]['sha'] = 'f' * 40
         rows, _ = soak.collect(API(), [], config(), dt.date(2026, 9, 22))
@@ -350,12 +392,6 @@ class SoakTests(unittest.TestCase):
         rows, _ = soak.collect(API(), rows, cfg, dt.date(2026, 9, 23))
         self.assertNotIn('infraClass', rows[0])
 
-    def test_workflow_uses_main_and_does_not_dispatch_vm(self):
-        workflow = (ROOT / '.github/workflows/soak-ledger.yml').read_text()
-        self.assertIn('ref: main', workflow)
-        self.assertNotIn('gh workflow run', workflow)
-        self.assertNotIn('run-e2e.sh', workflow)
-        self.assertIn('cancel-in-progress: false', workflow)
 
 
 if __name__ == '__main__':

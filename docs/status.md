@@ -6,10 +6,51 @@ The [ROADMAP](../ROADMAP.md) says where the project is going; this page says
 what the evidence supports today. The verification ladder itself is defined
 in [milestones.md](milestones.md).
 
+## Current release and acceptance boundary — 2026-11-02
+
+The latest full release is
+[`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1),
+published on 2026-08-22. Its assets are the Wails `wootc.exe` and branded
+`*-Installer.exe` executables; it has no native `*-Installer-Setup.exe`,
+`wootc-legacy.exe`, or `native-SHA256SUMS`.
+
+The native packaging cutover (#345) merged and closed on 2026-10-31. That
+implementation does not prove a released native artifact or its GUI, setup,
+accessibility, hardware, and full-cycle gates. The post-cutover authority and
+publisher-policy defects are tracked in #688.
+
+The maintainer reaffirmed VM-first as an RC requirement on 2026-10-30 in
+[#596](https://github.com/tuna-os/wootc/issues/596#issuecomment-6514382140).
+Although #178 is closed, no complete Windows-hosted desktop, persistent-work,
+and same-system native-promotion acceptance record is established here.
+The soak has no recorded start; earlier native/Wails passes cannot count.
+
+The following dated records remain historical evidence. References below to
+#209 or #399 as open describe their old run context; both issues are now
+closed. Neither closure upgrades an old matrix row to a candidate pass.
+
 The native-cycle matrix below records Windows seed → deploy → native Linux boot
 → seeded file readable from Linux. It does not prove Phase 1 inside Windows.
 [ADR 0004](adr/0004-restore-vm-first-product.md) needs a usable Linux VM,
 with persistent user work, before native promotion. That gate remains open.
+
+## Development-worktree checks — 2026-11-02
+
+These checks exercise the current source work. They are not a released artifact,
+hosted matrix acceptance, or permission to open a support-policy gate.
+
+| Check | Observed result and boundary |
+|---|---|
+| Full fast tier | Passed Bats, Python and Go modules, including catalog synchronization, recovery, import and session controls. |
+| PowerShell | Repository syntax lint, the new native observer parser, and all 136 PowerShell unit checks passed on Linux; not Windows mutation proof. |
+| Native shell components | All 195 portable shell tests passed. Native/UI test projects cross-built; actual WinUI execution/setup remains unproven. |
+| Legacy frontend | All 65 mock-backed GUI cases passed. Browser interaction also exercised editable secondary profiles, duplicate refusal and corrected input contrast; not native Windows proof. |
+| Mounted migration scripts | Isolated Corral Ubuntu VM running privileged Fedora containers: main suite 90/90, auxiliary folder/profile suites 6/6, 6/6 and 12/12. Actual ordinary-user Documents editing/reopen, preserved Windows originals, collisions and refusal paths were exercised on seeded files, not real BitLocker. |
+| Linux credential backend | Actual isolated Secret Service creation/reopen and locked, missing-keyring and unavailable-service states exercised. This does not prove a real authenticated browser/application session. |
+
+The nested Windows fixture reached a Windows lock screen, but did not provide a
+working QGA control channel. No native Windows full-cycle, real BitLocker/TPM,
+signed setup, firmware mutation or same-system VM promotion pass is claimed.
 
 ## Phase 1: Linux inside Windows
 
@@ -98,7 +139,7 @@ Each package passed the startup check for its brand.
 These are component checks with the same elevated user.
 Interactive UAC, original-user collection, the minimum OS, and the full native journey remain open.
 [The source record](experiments/evidence/2026-09-27-native-serving-readiness/hosted-7a/provenance.json) retains the exact source, jobs, and artifact hashes.
-Wails remains the default. #343 and #344 remain open.
+This September component run used Wails as the default. The later native cutover is described above; #343 and #344 still require their own acceptance evidence.
 
 ## Build/test matrix
 

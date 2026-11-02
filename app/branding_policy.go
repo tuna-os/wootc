@@ -20,17 +20,21 @@ func defaultBranding() Branding {
 
 // effectiveBranding applies defaults, compiled branding, and runtime overlays.
 func effectiveBranding() Branding {
+	return effectiveBrandingAt(wootcDir())
+}
+
+func effectiveBrandingAt(root string) Branding {
 	b := defaultBranding()
 	if emb, ok := embeddedBranding(); ok {
 		mergeBranding(&b, emb)
 	}
-	if data, err := os.ReadFile(filepath.Join(wootcDir(), "brand.json")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(root, "brand.json")); err == nil {
 		var over Branding
 		if json.Unmarshal(data, &over) == nil {
 			mergeBranding(&b, over)
 		}
 	}
-	if css, err := os.ReadFile(filepath.Join(wootcDir(), "brand.css")); err == nil && len(css) > 0 {
+	if css, err := os.ReadFile(filepath.Join(root, "brand.css")); err == nil && len(css) > 0 {
 		b.ThemeCSS += "\n" + string(css)
 	}
 	if b.Publisher == "" {

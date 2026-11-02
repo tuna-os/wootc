@@ -40,6 +40,37 @@ the app executable are also not evidence. Discovery uses generated lifecycle,
 power, root-disk, boot and recovery records. ESP files and dedicated volumes
 can also show that installation began.
 
+## Recovery and ownership authority — current-source update, 2026-11-02
+
+Unreadable/corrupt install journals and orphaned armed/deployer markers fail
+closed as **needs repair**. They are not evidence that no installation exists.
+Removal keeps the Linux disk by default. Current uninstall must observe BCD
+rollback before removing recovery tasks, EFI files and installer state; it
+captures recursive-removal errors instead of claiming cleanup from an issued
+command. A secret overwrite/sync failure refuses unlinking the unsanitized
+secret, retaining a visible failure rather than pretending sanitization passed.
+
+Prior Fast Startup/hibernation capture is written durably to the power-state
+file and an owned registry mirror **before** disabling those settings. Restore
+must observe its result and retain retry authority if it fails. The Add/Remove
+key is owned only with `WootcOwner=wootc-install-v1`; an unmarked or foreign
+same-name key refuses mutation/removal. There is no ownership-adoption shim.
+
+Recovery-password staging validates all eight groups/checksums and retains
+canonical hyphens, without including the secret in errors. Linux sealing must
+make the sealed file and directory durable before destroying plaintext.
+Host-only sealing keeps a local key on the disk and therefore does **not**
+protect against an attacker who can read the entire unencrypted disk image.
+On a TPM machine the sealing path refuses a default-PCR downgrade and retains
+root-only plaintext for retry; host-only fallback applies only without a usable
+TPM. Default uninstall removes known installer subtrees and only empty
+disk/root directories, preserving unfamiliar saved data and VM metadata even
+when a known root disk is absent. Explicit Linux-data deletion keeps its
+recursive product-tree scope; partition removal still requires its receipt.
+These are source contracts, not newly observed BCD, firmware, sanitization or
+power-restoration acceptance. The hardware/RC failure and retry matrix remains
+required.
+
 ## Native tests
 
 Run these commands from an elevated Windows checkout:

@@ -3,12 +3,12 @@
 # Lifecycle states and recovery verdicts are distinct from these phase IDs.
 
 WOOTC_INSTALLER_PHASE_IDS='Checking your PC
+Downloading your Linux system
 Preparing Windows
 Setting things up
 Finding your files
 Making room for Linux
 Downloading Linux
-Downloading your Linux system
 Preparing the startup menu
 Getting Linux prepared
 Making Linux bootable on your machine
@@ -32,12 +32,12 @@ WOOTC_FIRSTBOOT_PHASE_IDS=firstboot-evidence
 wootc_step_label() {
     case "$1" in
         'Checking your PC') printf '%s\n' 'Checking your PC' ;;
+        'Downloading your Linux system') printf '%s\n' 'Downloading your Linux system' ;;
         'Preparing Windows') printf '%s\n' 'Preparing Windows' ;;
         'Setting things up') printf '%s\n' 'Setting things up' ;;
         'Finding your files') printf '%s\n' 'Finding your files' ;;
         'Making room for Linux') printf '%s\n' 'Making room for Linux' ;;
         'Downloading Linux') printf '%s\n' 'Downloading Linux' ;;
-        'Downloading your Linux system') printf '%s\n' 'Downloading your Linux system' ;;
         'Preparing the startup menu') printf '%s\n' 'Preparing the startup menu' ;;
         'Getting Linux prepared') printf '%s\n' 'Getting Linux prepared' ;;
         'Making Linux bootable on your machine') printf '%s\n' 'Making Linux bootable on your machine' ;;
@@ -64,12 +64,12 @@ wootc_step_label() {
 wootc_step_owner() {
     case "$1" in
         'Checking your PC') printf '%s\n' installer ;;
+        'Downloading your Linux system') printf '%s\n' installer ;;
         'Preparing Windows') printf '%s\n' installer ;;
         'Setting things up') printf '%s\n' installer ;;
         'Finding your files') printf '%s\n' installer ;;
         'Making room for Linux') printf '%s\n' installer ;;
         'Downloading Linux') printf '%s\n' installer ;;
-        'Downloading your Linux system') printf '%s\n' installer ;;
         'Preparing the startup menu') printf '%s\n' installer ;;
         'Getting Linux prepared') printf '%s\n' installer ;;
         'Making Linux bootable on your machine') printf '%s\n' installer ;;

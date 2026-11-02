@@ -3,4 +3,4 @@ set -Eeuo pipefail
 
 STATE_DIR="${WOOTC_STATE_DIR:-${WOOTC_LINUX_HOME:-$HOME}/.config/wootc}"
 exec python3 "$(dirname "${BASH_SOURCE[0]}")/../../import-result.py" \
-    --state-dir "$STATE_DIR" wootc-steam-bridge
+    --state-dir "$STATE_DIR" --result-json wootc-steam-bridge "${WOOTC_WIN_USER:-}" "${WOOTC_LINUX_USER:-${USER:-}}"

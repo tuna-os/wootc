@@ -293,6 +293,7 @@ args=("$@"); n=${#args[@]}
 case "$op" in
     encrypt)
         [ "$mode" = encfail ] && exit 1
+        [[ "$mode" == pcrfail && " $* " == *" --tpm2-pcrs= "* ]] && exit 1
         { printf 'SEALED:'; cat "${args[n-2]}"; } > "${args[n-1]}" ;;
     decrypt)
         [ "$mode" = decfail ] && exit 1
@@ -300,6 +301,8 @@ case "$op" in
         content=$(cat "${args[n-2]}")
         [[ "$content" == SEALED:* ]] || exit 1
         printf '%s\n' "${content#SEALED:}" ;;
+    has-tpm2)
+        [ "$mode" != no-tpm ] ;;
 esac
 STUB
     chmod +x "$STUBDIR/systemd-creds"
@@ -397,4 +400,49 @@ seal_env() {
     PATH="$STUBDIR:$PATH" run retire_bitlocker_key_if_unused
     [ "$status" -eq 0 ]
     [ ! -e "$WOOTC_ETC/bitlocker-key.cred" ]
+}
+
+@test "a failed credential durability flush keeps the plaintext key" {
+    seal_env
+    printf '#!/bin/sh\nexit 1\n' > "$STUBDIR/sync"
+    chmod +x "$STUBDIR/sync"
+    PATH="$STUBDIR:$PATH" run seal_bitlocker_key
+    [ "$status" -eq 0 ]
+    [ "$(cat "$WOOTC_ETC/bitlocker-key")" = "$key48" ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key.cred.partial" ]
+    [[ "$output" == *"retried on the next boot"* ]]
+}
+
+@test "a failed credential directory flush keeps plaintext after publication" {
+    seal_env
+    cat > "$STUBDIR/sync" <<'STUB'
+#!/bin/sh
+[ "$2" = "$SYNC_FAIL_DIRECTORY" ] && exit 1
+exec /usr/bin/sync "$@"
+STUB
+    chmod +x "$STUBDIR/sync"
+    SYNC_FAIL_DIRECTORY="$WOOTC_ETC" PATH="$STUBDIR:$PATH" run seal_bitlocker_key
+    [ "$status" -eq 0 ]
+    [ "$(cat "$WOOTC_ETC/bitlocker-key")" = "$key48" ]
+    [ -f "$WOOTC_ETC/bitlocker-key.cred" ]
+    [[ "$output" == *"retried on the next boot"* ]]
+}
+
+@test "host-only sealing honestly discloses offline disk-image exposure" {
+    seal_env
+    STUB_MODE=no-tpm PATH="$STUBDIR:$PATH" run seal_bitlocker_key
+    [ "$status" -eq 0 ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key" ]
+    [[ "$output" == *"host-only sealing does not protect"* ]]
+    [[ "$output" != *"$key48"* ]]
+}
+
+@test "a TPM seal failure never silently switches to default PCR bindings" {
+    seal_env
+    STUB_MODE=pcrfail STUB_LOG="$T/creds.log" PATH="$STUBDIR:$PATH" run seal_bitlocker_key
+    [ "$status" -eq 0 ]
+    [ "$(cat "$WOOTC_ETC/bitlocker-key")" = "$key48" ]
+    [ ! -e "$WOOTC_ETC/bitlocker-key.cred" ]
+    [ "$(grep -c '^encrypt ' "$T/creds.log")" -eq 1 ]
+    [[ "$output" == *"retried on the next boot"* ]]
 }

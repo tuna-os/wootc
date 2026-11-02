@@ -75,17 +75,12 @@ func TestSupportChannel_EnvTakesPrecedence(t *testing.T) {
 }
 
 func TestSupportChannel_FileFallbackAndDefault(t *testing.T) {
-	dir := wootcDir() // dev mode: /tmp/wootc
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Skipf("cannot create %s: %v", dir, err)
-	}
+	dir := t.TempDir()
 	path := filepath.Join(dir, "channel.txt")
 
 	t.Setenv("WOOTC_CHANNEL", "")
 
-	// No file → conservative alpha default.
-	_ = os.Remove(path)
-	if got := supportChannel(); got != "alpha" {
+	if got := supportChannelAt(dir); got != "alpha" {
 		t.Errorf("supportChannel() no-file = %q, want alpha", got)
 	}
 
@@ -93,8 +88,7 @@ func TestSupportChannel_FileFallbackAndDefault(t *testing.T) {
 	if err := os.WriteFile(path, []byte("stable\n"), 0o644); err != nil {
 		t.Skipf("cannot write %s: %v", path, err)
 	}
-	t.Cleanup(func() { _ = os.Remove(path) })
-	if got := supportChannel(); got != "stable" {
+	if got := supportChannelAt(dir); got != "stable" {
 		t.Errorf("supportChannel() file fallback = %q, want stable", got)
 	}
 
@@ -102,24 +96,19 @@ func TestSupportChannel_FileFallbackAndDefault(t *testing.T) {
 	if err := os.WriteFile(path, []byte("   \n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := supportChannel(); got != "alpha" {
+	if got := supportChannelAt(dir); got != "alpha" {
 		t.Errorf("supportChannel() empty file = %q, want alpha", got)
 	}
 }
 
 func TestGetBranding_OverlaysCustomFile(t *testing.T) {
-	dir := wootcDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Skipf("cannot create %s: %v", dir, err)
-	}
+	dir := t.TempDir()
 	path := filepath.Join(dir, "brand.json")
 	if err := os.WriteFile(path, []byte(`{"name":"Acme","accent":"#123456"}`), 0o644); err != nil {
 		t.Skipf("cannot write %s: %v", path, err)
 	}
-	t.Cleanup(func() { _ = os.Remove(path) })
 
-	a := NewApp()
-	b := a.GetBranding()
+	b := effectiveBrandingAt(dir)
 	if b.Name != "Acme" || b.Accent != "#123456" {
 		t.Errorf("GetBranding() = %+v, want Acme overlay", b)
 	}
@@ -130,10 +119,7 @@ func TestGetBranding_OverlaysCustomFile(t *testing.T) {
 }
 
 func TestGetBranding_MissingFileUsesDefaults(t *testing.T) {
-	// Ensure no brand.json is present.
-	_ = os.Remove(filepath.Join(wootcDir(), "brand.json"))
-	a := NewApp()
-	b := a.GetBranding()
+	b := effectiveBrandingAt(t.TempDir())
 	// Generic build: the distribution is TunaOS, the installer is wootc.
 	if b.Name != "TunaOS" || b.ProductName != "wootc" {
 		t.Errorf("GetBranding() = %+v, want generic TunaOS/wootc branding", b)
@@ -249,9 +235,8 @@ func TestHideCustomImage_TightensPolicy(t *testing.T) {
 	old := brandID
 	brandID = "bazzite"
 	t.Cleanup(func() { brandID = old })
-	_ = os.Remove(filepath.Join(wootcDir(), "brand.json"))
 	t.Setenv("WOOTC_CHANNEL", "stable") // the loosest channel
-	pol := NewApp().GetSupportPolicy()
+	pol := supportPolicyAt(t.TempDir())
 	if pol.CustomImageAllowed {
 		t.Errorf("bazzite build allows custom images on stable: %+v", pol)
 	}

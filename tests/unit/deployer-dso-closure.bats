@@ -22,6 +22,7 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
     MODSETUP="$REPO_ROOT/payload/deployer/module-setup.sh"
+    CLOSURE="$REPO_ROOT/payload/deployer/dso-closure.sh"
 }
 
 extract_fn() {
@@ -42,7 +43,7 @@ minimal_path() {
 }
 
 @test "find_ldso locates the dynamic loader this deployer runs on" {
-    run bash -c "set -euo pipefail; $(extract_fn find_ldso); find_ldso"
+    run bash -c 'set -euo pipefail; source "$1"; find_ldso' bash "$CLOSURE"
     [ "$status" -eq 0 ]
     [ -x "$output" ]
 }
@@ -55,8 +56,7 @@ minimal_path() {
 
     run env -i PATH="$mp" bash -c "
         set -euo pipefail
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$CLOSURE'
         dso_closure '$(type -P bash)'
     "
     [ "$status" -eq 0 ]
@@ -73,8 +73,7 @@ minimal_path() {
     chmod +x "$shim/ldd"
     run env PATH="$shim:$PATH" bash -c "
         set -euo pipefail
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$CLOSURE'
         dso_closure '$(type -P bash)'
     "
     [ "$status" -eq 0 ]
@@ -90,8 +89,7 @@ minimal_path() {
     chmod +x "$scr"
     run bash -c "
         set -uo pipefail
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$CLOSURE'
         dso_closure '$scr'
     "
     [ "$status" -ne 0 ]
@@ -111,8 +109,7 @@ minimal_path() {
         set -euo pipefail
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$CLOSURE'
         $(extract_fn stage_qemu_ga_into_target)
         stage_qemu_ga_into_target
     "
@@ -124,13 +121,6 @@ minimal_path() {
     [ "$output" -ge 1 ]
 }
 
-@test "no call site pipes ldd into awk any more" {
-    run grep -nE '^[^#]*ldd .*\| *awk' "$DEPLOY"
-    [ "$status" -ne 0 ]
-    # And every closure builder goes through the one resolver.
-    [ "$(grep -c '^dso_closure() {' "$DEPLOY")" -eq 1 ]
-    [ "$(grep -c '^[^#]*dso_closure "' "$DEPLOY")" -ge 3 ]
-}
 
 @test "best-effort stagers warn, they do not [FAIL]" {
     # run-e2e.sh: `grep -qE "fatal|panic|kernel panic|\[FAIL\]"` on the

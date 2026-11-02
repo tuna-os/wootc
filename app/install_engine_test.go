@@ -8,13 +8,14 @@ import (
 )
 
 type recordingInstallPlatform struct {
-	prepared  bool
-	released  bool
-	pipeline  []installPipelineStep
-	run       []string
-	failure   error
-	states    []string
-	disarmCnt int
+	prepared    bool
+	released    bool
+	pipeline    []installPipelineStep
+	run         []string
+	failure     error
+	states      []string
+	disarmCnt   int
+	journalPath string
 }
 
 func (p *recordingInstallPlatform) prepare(string) (func(), error) {
@@ -35,7 +36,12 @@ func (p *recordingInstallPlatform) steps(context.Context, InstallConfig, func(Pr
 	return steps
 }
 
-func (p *recordingInstallPlatform) newJournal(InstallConfig) *installJournalRecorder { return nil }
+func (p *recordingInstallPlatform) newJournal(cfg InstallConfig) *installJournalRecorder {
+	if p.journalPath == "" {
+		return nil
+	}
+	return newInstallJournalRecorder(p.journalPath, cfg, nil)
+}
 
 func (p *recordingInstallPlatform) writeState(state, phase, errMsg string) {
 	p.states = append(p.states, state+":"+phase+":"+errMsg)
@@ -105,5 +111,26 @@ func TestInstallEngineRecordsStepFailure(t *testing.T) {
 	}
 	if want := []string{"failed:failure:platform failed"}; !reflect.DeepEqual(platform.states, want) {
 		t.Fatalf("failure state = %v, want %v", platform.states, want)
+	}
+}
+
+func TestInstallPipelineInspectsImageBeforeDestructiveOperations(t *testing.T) {
+	steps := productionInstallSteps(context.Background(), InstallConfig{}, func(ProgressEvent) {})
+	positions := map[string]int{}
+	for i, step := range steps {
+		if _, exists := positions[step.name]; exists {
+			t.Fatalf("duplicate pipeline phase %q", step.name)
+		}
+		positions[step.name] = i
+	}
+	image, ok := positions[StepInstallerDownloadingYourLinuxSystem]
+	if !ok {
+		t.Fatal("image inspection phase missing")
+	}
+	for _, phase := range []string{StepInstallerPreparingWindows, StepInstallerMakingRoomForLinux, StepInstallerGettingLinuxPrepared, StepInstallerMakingLinuxBootableOnYourMachine} {
+		position, ok := positions[phase]
+		if !ok || image >= position {
+			t.Fatalf("image phase %d must precede %q at %d", image, phase, position)
+		}
 	}
 }

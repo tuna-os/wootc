@@ -26,6 +26,20 @@ def human_size(n):
         n /= 1024
 
 
+def import_summary(result):
+    details = []
+    for category, record in result.get("categories", {}).items():
+        state = record.get("status", "partial")
+        if state not in ("success", "unchanged"):
+            errors = [entry.get("error", "") for entry in record.get("failed", [])
+                      if isinstance(entry, dict)]
+            note = "; ".join(error for error in errors if error) or record.get("note", "")
+            if record.get("preserved"):
+                note = (note + " Existing Linux files were preserved; merge collisions manually.").strip()
+            details.append(f"{category}: {state}" + (f" — {note}" if note else ""))
+    return "\n".join(details) or "The import did not return a completed per-category result."
+
+
 class ImportEngine:
     """Unprivileged wrapper around the wootc-import CLI. Root subcommands go
     through pkexec; read-only ones (scan/profiles) run directly."""
@@ -38,7 +52,12 @@ class ImportEngine:
         cmd = (["pkexec", self.engine] if (root and self.pkexec) else [self.engine]) + args
         p = subprocess.run(cmd, input=stdin, capture_output=True, text=True)
         if check and p.returncode != 0:
-            raise RuntimeError(p.stderr.strip() or f"{' '.join(args)} failed")
+            try:
+                result = json.loads(p.stdout)
+                message = import_summary(result) if isinstance(result, dict) else ""
+            except ValueError:
+                message = ""
+            raise RuntimeError(message or p.stderr.strip() or f"{' '.join(args)} failed")
         return p.stdout
 
     def scan(self):
@@ -56,10 +75,13 @@ class ImportEngine:
 
     def do_import(self, mnt, winuser, target, categories):
         args = ["import", mnt, winuser, "--target", target] + list(categories)
-        return self._run(args, root=True)
+        result = json.loads(self._run(args, root=True))
+        if not isinstance(result, dict) or result.get("status") != "success":
+            raise RuntimeError(import_summary(result) if isinstance(result, dict) else "Invalid import result.")
+        return result
 
     def eject(self, mnt):
-        return self._run(["eject", mnt], root=True, check=False)
+        return self._run(["eject", mnt], root=True)
 
 
 def self_test():
@@ -275,23 +297,30 @@ def build_gui():
             target = os.environ.get("SUDO_USER") or os.environ.get("USER") or ""
 
             def work():
+                ejected = False
                 try:
-                    eng.do_import(self.mnt, winuser, target, categories)
-                    GLib.idle_add(self.page_done)
+                    result = eng.do_import(self.mnt, winuser, target, categories)
+                    eng.eject(self.mnt)
+                    ejected = True
+                    GLib.idle_add(self.page_done, result)
                 except Exception as e:
                     GLib.idle_add(self._toast, f"Import hit a problem: {e}")
                 finally:
-                    try:
-                        eng.eject(self.mnt)
-                    except Exception:
-                        pass
+                    if not ejected:
+                        try:
+                            eng.eject(self.mnt)
+                        except Exception:
+                            GLib.idle_add(self._toast, "Could not eject the source. Keep the drive connected and close applications using it.")
             import threading
             threading.Thread(target=work, daemon=True).start()
 
-        def page_done(self):
-            box = self._page("done", "All set 🎉",
-                             "Your files and settings are on this PC. Log out and back in to see "
-                             "your wallpaper and pinned apps. You can safely disconnect the drive.")
+        def page_done(self, result):
+            completed = ", ".join(result.get("imported", [])) or "No new items"
+            unchanged = ", ".join(result.get("unchanged", [])) or "none"
+            box = self._page("done", "Import completed",
+                             f"Copied categories: {completed}. Already present or unchanged: {unchanged}. "
+                             "Open the apps to check the imported data; copying does not verify sign-in or app compatibility. "
+                             "The source was unmounted and can be disconnected.")
             btn = Gtk.Button(label="Close")
             btn.set_halign(Gtk.Align.CENTER)
             btn.connect("clicked", lambda _b: self.close())

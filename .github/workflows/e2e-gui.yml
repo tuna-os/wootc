@@ -72,6 +72,22 @@ jobs:
     # reusable workflow (e2e-matrix.yml, e2e-nightly.yml, release.yml) already
     # call it with no secrets: block at all. See #153.
 
+  # Phase 3 intentionally ends in Linux. This independent full-cycle lane
+  # proves the native shell's confirmation, assessed boot summary and actual
+  # Windows return without replacing the existing graduation journey.
+  native-proof:
+    if: ${{ (inputs.gui_frontend || 'native') == 'native' }}
+    uses: ./.github/workflows/e2e-hosted.yml
+    with:
+      image: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:stable' }}
+      case_name: native-proof
+      gui_install: true
+      gui_frontend: native
+      native_proof: true
+      phase3: false
+      use_base_image: true
+      require_podman_major: ${{ inputs.require_podman_major || '' }}
+
   # ── flake auto-retry ──────────────────────────────────────────────────────
   # A failure the harness ITSELF classified as infrastructure losing the
   # evidence channel (flake-verdict.txt: qga-channel-lost, serial-feed-lost)
@@ -109,13 +125,13 @@ jobs:
   publish:
     permissions:
       contents: write    # publish media and dispatch the Pages refresh
-    needs: run
+    needs: [run, native-proof]
     # Belt: only a passing run reaches here. Braces: the .passed gate below
     # is the real proof, so a run that "succeeded" without the marker still
     # cannot publish.
     # The hero shows the installer users download today. Native is the
     # primary release surface; Wails remains an explicit compatibility run.
-    if: ${{ needs.run.result == 'success' && (inputs.gui_frontend || 'native') == 'native' }}
+    if: ${{ needs.run.result == 'success' && needs.native-proof.result == 'success' && (inputs.gui_frontend || 'native') == 'native' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

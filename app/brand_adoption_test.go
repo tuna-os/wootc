@@ -44,21 +44,10 @@ func TestBrandLocalCatalog(t *testing.T) {
 }
 
 func TestBrandSelectionStillHonorsChannel(t *testing.T) {
-	// Exercise GetImages, not just the selection helper. Branding must not
-	// promote an experimental image by returning before the channel gate.
-	dir := wootcDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	// Branding must not promote an experimental image by returning before
+	// the channel gate. Use the same catalog reader with owned overlays.
+	dir := t.TempDir()
 	path := filepath.Join(dir, "brand.json")
-	old, readErr := os.ReadFile(path)
-	t.Cleanup(func() {
-		if readErr == nil {
-			_ = os.WriteFile(path, old, 0644)
-		} else {
-			_ = os.Remove(path)
-		}
-	})
 	images, err := catalogForBrand(brandFS, "wootc")
 	if err != nil {
 		t.Fatal(err)
@@ -77,12 +66,12 @@ func TestBrandSelectionStillHonorsChannel(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("WOOTC_CHANNEL", "alpha")
-	got, err := NewApp().GetImages()
+	got, err := imagesAt(dir)
 	if err != nil || len(got) != 0 {
 		t.Fatalf("alpha exposed brand's experimental image: %v %v", got, err)
 	}
 	t.Setenv("WOOTC_CHANNEL", "beta")
-	got, err = NewApp().GetImages()
+	got, err = imagesAt(dir)
 	if err != nil || len(got) != 1 || got[0].ID != candidate.ID {
 		t.Fatalf("beta lost configured image: %v %v", got, err)
 	}

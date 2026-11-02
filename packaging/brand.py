@@ -14,11 +14,11 @@ QUESTIONS = ('mark', 'name', 'tagline', 'distributeExe')
 
 
 def read(path):
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding='utf-8'))
 
 
 def write(path, data):
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
 def require(ok, message):
@@ -136,7 +136,7 @@ def validate(root, brand):
 
 def update_table(root):
     path = root / 'app/branding/README.md'
-    source = path.read_text()
+    source = path.read_text(encoding='utf-8')
     rows = ['| Brand | Mark owner | Status | Mark | Name | Tagline | Branded exe | winget identifier |',
             '|---|---|---|---|---|---|---|---|']
     for p in sorted((root / 'app/branding').glob('*/blessing.json')):
@@ -148,7 +148,7 @@ def update_table(root):
     table = '\n'.join(rows)
     pattern = r'(?m)^\| Brand \|[^\n]*\n(?:\|[^\n]*\n)+'
     require(re.search(pattern, source), 'branding README has no ownership table')
-    path.write_text(re.sub(pattern, lambda _: table + '\n', source, count=1))
+    path.write_text(re.sub(pattern, lambda _: table + '\n', source, count=1), encoding='utf-8')
 
 
 def create(root, args):
@@ -206,12 +206,19 @@ def main():
     check = commands.add_parser('validate')
     check.add_argument('--brand')
     commands.add_parser('table')
+    identity = commands.add_parser('identity', help='print the permitted package publisher and copyright as JSON')
+    identity.add_argument('--brand', required=True)
     args = parser.parse_args()
     try:
         if args.command == 'init':
             create(args.root, args)
         elif args.command == 'table':
             update_table(args.root)
+        elif args.command == 'identity':
+            brand = identifier(args.brand)
+            config = read(args.root / 'app/branding' / brand / 'brand.json')
+            publisher, copyright = effective_identity(args.root, brand, config)
+            print(json.dumps({'publisher': publisher, 'copyright': copyright}, ensure_ascii=False))
         else:
             brands = [args.brand] if args.brand else [p.name for p in (args.root / 'app/branding').iterdir() if p.is_dir()]
             for brand in sorted(brands):

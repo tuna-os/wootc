@@ -127,12 +127,10 @@ public sealed class InstalledPreviewTests
             Assert.False(Find("InstallLinux").IsEnabled);
             var selectedEncryption=Find("LinuxEncryption").AsComboBox().SelectedItem;
             Assert.NotNull(selectedEncryption);
-            Assert.Equal("TPM auto-unlock",selectedEncryption.Text);
-            // A separate install-purpose engine checks the plan (a second
+            Assert.Equal("No encryption",selectedEncryption.Text);
+            // A separate install-purpose engine checks this plan (a second
             // elevation, original-user capture, the plan over the pipe). The
-            // default encryption is TPM auto-unlock, which the engine always
-            // refuses, so this hosted run can never be granted an intent and
-            // never confirms anything.
+            // test never confirms an accepted intent, so it cannot install.
             var prepareInstall=Find("PrepareInstall").AsButton();
             Assert.False(prepareInstall.IsEnabled);
             // The engine's default size can exceed what a hosted volume holds.
@@ -202,10 +200,10 @@ public sealed class InstalledPreviewTests
                     await Task.Delay(100);
                 }
             }
-            Assert.True(new[]{"TPM auto-unlock is not available yet","Secure Boot","BitLocker","tested set"}.Any(text=>gateStatus.Contains(text,StringComparison.Ordinal)),
+            bool accepted=gateStatus.Contains("accepted this plan",StringComparison.Ordinal);
+            Assert.True(accepted||new[]{"Secure Boot","BitLocker","tested set"}.Any(text=>gateStatus.Contains(text,StringComparison.Ordinal)),
                 $"The plan did not reach the engine's own validation: {gateStatus}");
-            Assert.DoesNotContain("accepted this plan",gateStatus);
-            Assert.False(Find("InstallLinux").IsEnabled);
+            Assert.Equal(accepted,Find("InstallLinux").IsEnabled);
             Assert.True(Find("PrepareInstall").IsEnabled);
             Assert.Null(window.FindFirstDescendant(cf=>cf.ByAutomationId("InstallConfirmation")));
             Assert.Equal(stateRootBefore,Directory.Exists(stateRoot));

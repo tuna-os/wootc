@@ -17,6 +17,7 @@
     <TextBlock x:Name="ConnectionStatus" Text="Offline" AutomationProperties.AutomationId="ConnectionStatus" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupRouteText" Text="Startup status has not been read" AutomationProperties.AutomationId="StartupRoute" TextWrapping="Wrap" />
     <TextBlock x:Name="StartupObservations" Text="No authenticated startup observations" AutomationProperties.AutomationId="StartupObservations" TextWrapping="Wrap" />
+    <TextBlock x:Name="WindowsReturnStatus" Text="Windows is ready" AutomationProperties.AutomationId="WindowsReturnStatus" Visibility="Collapsed" />
     <TextBlock x:Name="InstallRecoveryText" Visibility="Collapsed" AutomationProperties.AutomationId="InstallRecovery" TextWrapping="Wrap" />
     <StackPanel Orientation="Horizontal" Spacing="12">
       <Button x:Name="ConnectButton" Style="{StaticResource AccentButtonStyle}" Content="Read startup status" Click="Connect_Click" AutomationProperties.AutomationId="ConnectEngine" />
@@ -48,11 +49,17 @@
       <TextBox x:Name="LinuxHostname" AutomationProperties.Name="Computer name" Header="Computer name" TextChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxHostname" />
       <NumberBox x:Name="LinuxDiskSize" AutomationProperties.Name="Linux disk size (GB)" Header="Linux disk size (GB)" Minimum="20" Maximum="2048" ValueChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxDiskSize" />
       <ComboBox x:Name="LinuxEncryption" AutomationProperties.Name="Linux encryption" Header="Linux encryption" SelectionChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxEncryption">
-        <ComboBoxItem Content="TPM auto-unlock" Tag="tpm2-luks" /><ComboBoxItem Content="Passphrase" Tag="luks-passphrase" /><ComboBoxItem Content="No encryption" Tag="none" />
+        <ComboBoxItem Content="Passphrase" Tag="luks-passphrase" /><ComboBoxItem Content="No encryption" Tag="none" />
       </ComboBox>
       <PasswordBox x:Name="LinuxLuksPassphrase" AutomationProperties.Name="LUKS Passphrase" Header="LUKS Passphrase" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxLuksPassphrase" />
       <CheckBox x:Name="LinuxWindowsLook" Content="Use a familiar Windows appearance" Checked="ConfigurationChanged" Unchecked="ConfigurationChanged" AutomationProperties.AutomationId="LinuxWindowsLook" />
       <TextBlock x:Name="InstallBlockedReason" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallBlockedReason" />
+      <StackPanel x:Name="ProfileAccountsPanel" Visibility="Collapsed" Spacing="8" AutomationProperties.AutomationId="ProfileAccountsPanel">
+        <TextBlock Text="Windows profiles and Linux accounts" FontSize="18" />
+        <TextBlock Text="Review the account names before installing. Editing a name requires checking the plan again." TextWrapping="Wrap" />
+        <StackPanel x:Name="ProfileAccountWarnings" Spacing="6" AutomationProperties.AutomationId="ProfileAccountWarnings" />
+        <StackPanel x:Name="ProfileAccountEditors" Spacing="8" />
+      </StackPanel>
       <Button x:Name="PrepareInstallButton" Content="Check this plan" Click="PrepareInstall_Click" IsEnabled="False" AutomationProperties.AutomationId="PrepareInstall" />
       <TextBlock x:Name="InstallGateStatus" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallGateStatus" AutomationProperties.LiveSetting="Polite" />
       <ProgressBar x:Name="InstallGateBusy" IsIndeterminate="True" Visibility="Collapsed" AutomationProperties.Name="Checking this plan" AutomationProperties.AutomationId="InstallGateBusy" />
@@ -73,6 +80,7 @@
       <TextBlock x:Name="DoneBody" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneBody" />
       <TextBlock x:Name="DoneSafety" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSafety" />
       <TextBlock x:Name="DoneMok" TextWrapping="Wrap" Visibility="Collapsed" AutomationProperties.AutomationId="DoneMok" />
+      <StackPanel x:Name="DoneHardwareWarnings" Spacing="6" AutomationProperties.AutomationId="DoneHardwareWarnings" />
       <TextBlock x:Name="DoneSaveWork" TextWrapping="Wrap" AutomationProperties.AutomationId="DoneSaveWork" />
       <StackPanel Orientation="Horizontal" Spacing="12">
         <Button x:Name="RebootLaterButton" Content="Reboot Later" Click="RebootLater_Click" AutomationProperties.AutomationId="RebootLater" />

@@ -13,6 +13,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
+    CLOSURE="$REPO_ROOT/payload/deployer/dso-closure.sh"
 }
 
 # Extract a top-level function from deploy.sh so it can be exercised for real.
@@ -91,8 +92,7 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
         set -e
         log() { echo \"LOG: \$*\"; }
         err() { echo \"ERR: \$*\" >&2; }
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$CLOSURE'
         $(extract_fn stage_ntfs3g_closure)
         $(extract_fn _initrd_segment_end)
         $(extract_fn _initrd_skip_padding)

@@ -112,7 +112,7 @@ func migrationCategories() ([]BridgeCategory, error) {
 		Description: "Bookmarks and history from Chrome/Edge, and your complete Firefox profile. " +
 			"Chrome and Edge passwords are locked by Windows and cannot move automatically.",
 	}
-	if fileExists(filepath.Join(stateDir, "bridge-browser.json")) {
+	if browserImportComplete(filepath.Join(stateDir, "bridge-browser.json")) {
 		browser.State = "native"
 		browser.Description = "Browser data has been imported."
 	} else if dirExists(filepath.Join(winProfile, "AppData")) {
@@ -202,22 +202,36 @@ func appMigrations() ([]AppMigration, error) {
 	}
 	consents := readSessionConsents(filepath.Join(u.HomeDir, ".config", "wootc", "session-consent.json"))
 	exports := readSessionExports()
+	imports := readSessionImports(filepath.Join(u.HomeDir, ".config", "wootc", "session-imports.json"))
 	for i := range parsed.Apps {
-		appKey := parsed.Apps[i].App
-		if exp, ok := exports[appKey]; ok {
-			switch exp.State {
-			case "staged":
-				parsed.Apps[i].Session = "staged"
-				parsed.Apps[i].Copied = true
-				parsed.Apps[i].Note = "Session key staged — you'll sign in once on Linux until target import is verified."
-			case "imported":
-				parsed.Apps[i].Session = "portable"
-				parsed.Apps[i].Copied = true
-				parsed.Apps[i].Note = "Session imported — opens signed in."
+		row := &parsed.Apps[i]
+		appKey := row.App
+		row.Verified = false
+		if tokenConsentApps[appKey] {
+			// Neither copied files nor the Windows export ledger can prove
+			// authentication on Linux. Ignore stale legacy signed-in claims.
+			row.Session = "signin"
+			if exports[appKey].State == "staged" {
+				row.Session = "staged"
+				row.Note = "Encrypted key staged. Import requires your password and consent; sign-in is not verified."
+			}
+			if outcome, exists := imports[appKey]; exists {
+				switch outcome.State {
+				case "rewritten", "failed", "relink":
+					row.Session = outcome.State
+					row.Note = outcome.Reason
+				case "imported":
+					if outcome.Verified {
+						row.Session = "imported"
+						row.Verified = true
+						row.Note = "Session import verified after app launch and restart."
+					}
+				}
 			}
 		}
-		parsed.Apps[i].ConsentAvailable = tokenConsentApps[appKey] && (parsed.Apps[i].Session == "signin" || parsed.Apps[i].Session == "staged")
-		parsed.Apps[i].Consent = parsed.Apps[i].ConsentAvailable && (consents[appKey] || exports[appKey].State == "staged")
+		row.ConsentAvailable = (appKey == "chrome" || appKey == "edge") && exports[appKey].State == "staged"
+		// Windows export consent is not consent for this target-side action.
+		row.Consent = row.ConsentAvailable && consents[appKey]
 	}
 	return parsed.Apps, nil
 }
@@ -264,33 +278,32 @@ func readSessionConsents(path string) map[string]bool {
 }
 
 func readSessionExports() map[string]SessionExport {
-	candidates := []string{
-		"/run/wootc/host/wootc/install/slurp/session/exports.json",
-		filepath.Join(wootcDir(), "install", "slurp", "session", "exports.json"),
-	}
-	for _, p := range candidates {
-		exports := readSessionExportsFrom(p)
-		if len(exports) > 0 {
-			return exports
-		}
-	}
-	return map[string]SessionExport{}
+	return readSessionExportsFrom(filepath.Join(stagedSessionDirectory, "exports.json"))
 }
 
 func readSessionExportsFrom(path string) map[string]SessionExport {
-	data, err := os.ReadFile(path)
+	if filepath.Base(path) != "exports.json" {
+		return map[string]SessionExport{}
+	}
+	store, err := openSessionEnvelopeStore(filepath.Dir(path))
 	if err != nil {
 		return map[string]SessionExport{}
 	}
-	var exports []SessionExport
-	if unmarshalJSON(data, &exports) != nil || len(exports) == 0 {
-		return map[string]SessionExport{}
+	defer store.root.Close()
+	return store.staged
+}
+
+func browserImportComplete(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
 	}
-	res := make(map[string]SessionExport, len(exports))
-	for _, exp := range exports {
-		res[exp.App] = exp
+	var outcome struct {
+		State    string   `json:"state"`
+		Imported []string `json:"imported"`
+		Errors   []string `json:"errors"`
 	}
-	return res
+	return unmarshalJSON(data, &outcome) == nil && outcome.State == "native" && len(outcome.Imported) > 0 && len(outcome.Errors) == 0
 }
 
 func reinstallApps() error {

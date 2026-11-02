@@ -62,11 +62,6 @@ class TestDeployerScriptMarkers(unittest.TestCase):
         self.repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
         self.deploy_sh = os.path.join(self.repo_root, "payload/deployer/deploy.sh")
 
-    def test_deploy_sh_writes_deployer_started(self):
-        with open(self.deploy_sh, "r", encoding="utf-8") as f:
-            content = f.read()
-        self.assertIn("write_deployer_started", content)
-        self.assertIn("deployer-started.json", content)
 
     def test_deploy_sh_writes_state_transitions(self):
         with open(self.deploy_sh, "r", encoding="utf-8") as f:

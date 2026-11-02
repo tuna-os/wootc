@@ -21,7 +21,7 @@ func TestNativeGalleryConfigurationFixture(t *testing.T) {
 	if os.Getenv("WOOTC_UPDATE_NATIVE_GALLERY_FIXTURE") == "1" {
 		t.Setenv("WOOTC_CHANNEL", "")
 		t.Setenv("WOOTC_E2E_DRIVE", "")
-		wearBrand(t, "wootc")
+		asBrandBuild(t, "wootc")
 		snapshot, err := readNativeConfiguration(context.Background(), []string{filepath.Join(t.TempDir(), "missing")}, "", false, func(string) error { return nil })
 		if err != nil {
 			t.Fatal(err)

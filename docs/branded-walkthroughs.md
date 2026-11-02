@@ -7,18 +7,18 @@ brand's real embedded assets from `app/branding/<brand>/`. These are the same
 brand.json, logo, typeface and theme that a `-X main.brandID=<brand>` binary
 compiles in.
 
-The test drives the real frontend bundle through the four
-journey screens. On each screen, it asserts that the build shows its own
-name, mark and look. A branded build must never show the word "wootc".
-When you run the Playwright suite again, it refreshes each image below.
+The test drives the Wails frontend bundle with a mock backend through four
+journey screens. It checks embedded brand identity and presentation, not a
+native setup or real installation. Regenerating Playwright images does not
+turn them into native/RC evidence; fresh native images need matching build
+and fixture provenance.
 
-**Live video walkthroughs:** each distribution that passed a full
-GUI-driven E2E has its own timelapse in the gallery at
-**https://tuna-os.github.io/wootc/e2e/** . In each timelapse, a real Windows
-VM installs that image through the real GUI. It then moves the user data and
-goes back to Windows. The most recent green run of each image is always at
-[/e2e/latest/](https://tuna-os.github.io/wootc/e2e/latest/). Cuts publish
-automatically on green (`e2e-gui.yml`), one directory per distribution.
+**Recorded video walkthroughs:** retained runs are linked from the gallery at
+**https://tuna-os.github.io/wootc/e2e/** and
+[/e2e/latest/](https://tuna-os.github.io/wootc/e2e/latest/). Inspect each run's
+SHA, frontend and terminal observations; some historical runs lack a user-data
+check. A gallery path or green component job does not itself prove a current
+native install, Windows return or same-image VM journey.
 
 Each brand has the same journey:
 
@@ -36,10 +36,12 @@ Each brand has the same journey:
 
 ### Bazzite brand test record
 
-This record is for the native `-X main.brandID=bazzite` setup package
-(`Bazzite-Installer-Setup.exe`). Each row has one check, the result, and the evidence.
-A unit test or a mock GUI test is not proof that the product works on a computer.
-Only the hosted E2E rows show that.
+This is a **historical mixed evidence ledger**, not a certification of the
+current native `Bazzite-Installer-Setup.exe`. The Wails branding flag
+`-X main.brandID=bazzite`, mock screenshots and older exe resources are not
+native setup acceptance. Check the linked run/commit and exact artifact for each
+claim. Results below are retained records, not tests rerun by the 2026-11-02
+documentation audit; only appropriately scoped real runs prove runtime behavior.
 
 | Check | Status | Evidence |
 |---|:--:|---|
@@ -58,9 +60,9 @@ Only the hosted E2E rows show that.
 | Windows-side errors (BitLocker busy, legacy BIOS, VM viewer, ESP guards, boot repair, uninstall check, unsafe-state dialog) never say "wootc" | ✅ | `TestUserFacingStringsNeverHardcodeWootc` (source scan: every string literal in `app/` that says "wootc" is an identifier or marker on an explicit list) |
 | Launchpad, progress, done, manage, uninstall dialogs, interrupted, recovery and failed-run screens never say "wootc" | ✅ | `tests/gui/branded-walkthrough.spec.js`. Windows paths such as `C:\wootc\disks` are the on-disk contract, so the test ignores them |
 | The done screen shows the MokManager step and its password | ✅ | walkthrough test "done celebrates the brand" |
-| Exe version resource: product "Bazzite Installer", file `Bazzite-Installer-Setup.exe`, company "TunaOS", no copyright | ✅ | local native packaging build, read with `pefile` (2026-10-15). The company is the distributor, not Universal Blue, while `blessing.json` is pending: `TestUnblessedBrandsNeverClaimTheOwnerAsPublisher`, `tests/unit/test_windows_resources.py` |
+| Exe product/file/company resource identity | Historical; current native setup unproven here | The old record cites a local `pefile` inspection (2026-10-15), not retained evidence for today's native setup bytes. Current native packaging must independently show its actual product/file name and distributor Publisher while `blessing.json` is pending; see `tests/unit/test_windows_resources.py` and the native package checks |
 | Add/Remove publisher and winget draft publisher are "TunaOS" while unblessed | ✅ | `TestBazziteBuild_PublisherIsTheDistributorWhileUnblessed`; `tests/unit/test_winget_brand.py`; `tests/unit/brand-blessings.bats` |
-| The release builds the exe, and the log names it as unblessed | ✅ | `tests/unit/brand-blessings.bats`; `packaging/brands.sh explain` |
+| Release build selection respects unblessed identity | Source/component record, not publication proof | `tests/unit/brand-blessings.bats`; `packaging/brands.sh explain`. Actual native release assets and package Publisher observation remain separate |
 | winget manifests render into `Bazzite.Installer` and are not submitted | ✅ | `tests/unit/brand-blessings.bats`; `packaging/winget/render-brand.sh bazzite` |
 | Hosted GUI E2E, `bazzite:stable`: install, MOK under Secure Boot, Phase 2, user data, Windows return | ✅ 2026-08-24 | [run 32679831098](https://github.com/tuna-os/wootc/actions/runs/32679831098) on `4fd4bc8` |
 | Hosted GUI E2E, `bazzite:stable`, launch fix and MOK fix | ✅ 2026-10-15 | [run 38792319332](https://github.com/tuna-os/wootc/actions/runs/38792319332) on `b102db9` (PR #609, which contains PR #516). Install, MokManager under Secure Boot, Phase 2, the Documents file in Linux, and the return to Windows passed. The earlier run [38731850924](https://github.com/tuna-os/wootc/actions/runs/38731850924) on `13afd74` stopped at the launch deadlock that PR #516 fixes |
@@ -99,8 +101,8 @@ Gaps that this page does not close:
 
 ## wootc (generic)
 
-The un-branded engine, as shipped today — also covered by the main
-[GUI walkthrough](gui-walkthrough.md).
+The generic Wails frontend in the retained mock illustrations — also covered
+by the [GUI walkthrough](gui-walkthrough.md), not today's native setup.
 
 | | |
 |---|---|

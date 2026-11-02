@@ -37,9 +37,6 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 	session.state.Phase = vmStarting
 	session.state.PID = 0
 	session.state.Error = ""
-	if err := writeVMState(statePath, session.state); err != nil {
-		return nil, err
-	}
 	childInput, input, err := os.Pipe()
 	if err != nil {
 		return nil, err
@@ -53,11 +50,19 @@ func startManagedVM(cmd *exec.Cmd, statePath string, state VMState, release func
 	cmd.Stdin = childInput
 	cmd.Stdout = childOutput
 	session.output = output
-	if err = cmd.Start(); err != nil {
+	if err = writeVMState(statePath, session.state); err == nil {
+		err = cmd.Start()
+	}
+	if err != nil {
 		childInput.Close()
 		input.Close()
 		output.Close()
 		childOutput.Close()
+		// No process could write the image. Keep a verified installation
+		// launchable instead of stranding it in crash recovery.
+		if restoreErr := writeVMState(statePath, state); restoreErr != nil {
+			return nil, fmt.Errorf("VM did not start: %v; restore VM lifecycle: %w", err, restoreErr)
+		}
 		return nil, err
 	}
 	childInput.Close()

@@ -1,0 +1,74 @@
+name: External alpha cohort tracker
+description: Maintainer-owned launch decision and aggregate external-adoption evidence; no participant data.
+title: "[adoption] External alpha cohort — "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use one tracker for the five-person cohort in [the alpha adopter program](https://github.com/tuna-os/wootc/blob/main/docs/alpha-adopter-program.md).
+        This form does not launch recruitment. A maintainer must approve the completed brief first.
+        Publish aggregates only, never participant aliases, handles, contact details, recovery keys or unreviewed logs.
+        Link this tracker from #302 and #210. Unknown counts must say unknown, not zero.
+  - type: input
+    id: owners
+    attributes:
+      label: Intake owner and deputy
+      description: Maintainer handles responsible for acknowledging reports within two working days and pausing unsafe runs.
+    validations:
+      required: true
+  - type: textarea
+    id: brief
+    attributes:
+      label: Pinned participant brief
+      description: Exact tag, asset URL, checksum manifest, supported image/storage path, matching status/user-guide/manual-protocol links and public field-report link. State unsigned-binary and recovery limits before download.
+    validations:
+      required: true
+  - type: textarea
+    id: window
+    attributes:
+      label: Proposed channel and dates
+      description: Confirm the existing Matrix room and its rules; recruitment start/end, report deadline and gate-decision date. Dates are proposals until explicitly approved. Any Discussions notice points to this same cohort.
+    validations:
+      required: true
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Entry conditions checked by the launch owner
+      options:
+        - label: The pinned build, checksum manifest, status and manual protocol match the tested UI and supported image/storage path.
+        - label: Five external non-contributor volunteers are the target, including at least two self-described non-technical Linux users; eligibility and stop rules are in the brief.
+        - label: Backup, Windows recovery, unsigned-binary warnings, no unsolicited DMs and no security-policy bypass are explained before download.
+        - label: Intake and deputy owners accept the two-working-day triage responsibility.
+        - label: Public reporting is optional; consent, withdrawal, aggregate-only publication and deletion of temporary participant rows at decision time are explained.
+  - type: textarea
+    id: decision
+    attributes:
+      label: Maintainer launch decision
+      description: Pending, approved or blocked; include deciding maintainer, date and evidence link. An empty checklist or pending decision does not authorize invitations.
+    validations:
+      required: true
+  - type: textarea
+    id: aggregates
+    attributes:
+      label: Aggregate evidence and as-of date
+      description: Counts only; use unknown where no evidence exists. Do not publish participant rows or small identifying breakdowns.
+      value: |
+        As of:
+        Invited / accepted / declined / no response / withdrawn: unknown
+        Attempted / downloaded / launched: unknown
+        Linux first login / Windows return / Linux re-entry: unknown
+        Uninstall restoration verified: unknown
+        Independent full journeys / assisted journeys: unknown
+        Self-described non-technical Linux users accepted: unknown
+        Optional WSL-background responses / attempts / completions (omit if identifying): unknown
+        Blockers by category (trust, preflight, storage, firmware-boot, network, migration-data, docs-usability, recovery-uninstall, other): unknown
+        Sanitized findings and triage links (green / fixed with rerun / filed with owner):
+    validations:
+      required: true
+  - type: textarea
+    id: gate
+    attributes:
+      label: Gate decision and next action
+      description: Pending, proceed, repeat or stop; deciding maintainer/date and aggregate evidence links. Proceed requires five accepted external volunteers, at least three independent full journeys, every failure triaged and no unresolved data-loss/recovery blocker. Link the decision from #210. Record deletion of temporary participant rows/contact mappings; never paste them here.
+    validations:
+      required: true

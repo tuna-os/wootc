@@ -54,6 +54,9 @@ COPY --from=verifierbuilder /out/sbverify /usr/lib/wootc/sbverify
 # ── Deployer script ─────────────────────────────────────────────────────────
 COPY payload/steps.sh /usr/libexec/wootc-steps.sh
 COPY payload/deployer/offline-bundle.sh /usr/libexec/wootc-offline-bundle.sh
+COPY payload/deployer/dso-closure.sh /usr/libexec/wootc-dso-closure.sh
+COPY payload/deployer/lifecycle.sh /usr/libexec/wootc-lifecycle.sh
+COPY payload/deployer/migration-diagnostics.sh /usr/libexec/wootc-migration-diagnostics.sh
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
 RUN chmod +x /usr/bin/wootc-deploy
 
@@ -111,6 +114,10 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
+    for module in wootc-dso-closure.sh wootc-lifecycle.sh wootc-migration-diagnostics.sh; do \
+        lsinitrd /out/deployer-initramfs.img | grep -q "usr/libexec/${module}$" || \
+            { echo "FATAL: deployer module ${module} missing from initramfs"; exit 1; }; \
+    done && \
     for binary in sbverify sbpehash ld-linux-x86-64.so.2 libcrypto.so.3 libc.so.6; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/sbverify/${binary}$" || \
             { echo "FATAL: verifier closure ${binary} missing"; exit 1; }; \
@@ -133,6 +140,8 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         { echo "FATAL: Phase 3 dispatch script missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/lib/wootc_firstboot_evidence.py" || \
         { echo "FATAL: first-boot evidence collector missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/lib/wootc_import_safety.py" || \
+        { echo "FATAL: import safety helper missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/systemd/systemd-cryptsetup" || \
         { echo "FATAL: systemd-cryptsetup missing from initramfs"; exit 1; }
 

@@ -21,11 +21,13 @@ export const state = {
   converting: {},      // category id → percent while a conversion runs
   selected: null,      // selected Image
   installSpace: null,  // GetInstallSpace answer for the selected image
+  profileAccountPlan: null,
   config: {
     diskSizeGB: 40,
     username: '',
     password: '',
     hostname: 'tunaos',
+    profileAccounts: null,
     // 'auto' is the backend contract: the deployer probes the image and
     // picks the chain. 'systemd-boot' is the only explicit override the UI
     // offers (Advanced → Force systemd-boot).

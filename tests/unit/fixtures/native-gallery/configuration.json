@@ -167,7 +167,7 @@
   ],
   "defaults": {
     "diskSizeGB": 40,
-    "encryption": "tpm2-luks",
+    "encryption": "none",
     "bootloader": "auto",
     "composeFs": false,
     "windowsLook": false
@@ -177,6 +177,11 @@
       "id": "Checking your PC",
       "owner": "installer",
       "label": "Checking your PC"
+    },
+    {
+      "id": "Downloading your Linux system",
+      "owner": "installer",
+      "label": "Downloading your Linux system"
     },
     {
       "id": "Preparing Windows",
@@ -202,11 +207,6 @@
       "id": "Downloading Linux",
       "owner": "installer",
       "label": "Downloading Linux"
-    },
-    {
-      "id": "Downloading your Linux system",
-      "owner": "installer",
-      "label": "Downloading your Linux system"
     },
     {
       "id": "Preparing the startup menu",

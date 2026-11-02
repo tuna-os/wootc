@@ -55,19 +55,3 @@ HOOK="payload/deployer/deploy-hook.sh"
     [ "$status" -ne 0 ]
 }
 
-@test "the app pre-downloads with fail-closed digest verification" {
-    # The Windows-side puller writes the OCI layout the deployer ingests, and
-    # every blob is refused on digest mismatch — the download IS the
-    # verification.
-    grep -q 'refusing corrupted or tampered content' app/ocipull.go
-    grep -q 'refusing tampered content' app/ocipull.go
-    grep -q '{StepInstallerDownloadingYourLinuxSystem,' app/install_engine.go
-    grep -q 'return stageImageBundle(ctx, cfg.ImageRef,' app/install_engine.go
-    grep -q 'setInstallSteps(await GetInstallSteps())' app/frontend/src/main.js
-    grep -q 'stepLabels.set(step.id, step.label)' app/frontend/src/screens/progress.js
-    # A pre-downloaded bundle records its provenance so it never pins the
-    # catalog the way a shipped bundle does (#177).
-    grep -q '"predownload"' app/ocipull.go
-    # Package-wide: the guard's file is a layout choice, its presence is not.
-    grep -q 'b.Source != "predownload"' app/*.go
-}

@@ -1,10 +1,11 @@
 # wootc documentation
 
-This directory contains current user guidance, engineering references, release
-material, and historical investigations. Start with the first section, then
-use topic sections for deeper detail. Documents marked **historical** record a
-completed investigation or an earlier plan; they are not current operating
-instructions.
+The [repository README](../README.md) explains the product and where to get it;
+this index helps you find operating instructions, contracts, acceptance
+evidence, and design history. A design or release-note filename is not proof
+that its behavior ships. Use [verification status](status.md) and
+[release instructions](RELEASING.md) for current decisions; dated experiments
+and plans are context, not current operating instructions.
 
 ## Start here
 
@@ -13,6 +14,16 @@ instructions.
 - [Manual tests](manual-testing.md) — pre-flight checks for real hardware.
 - [Verification status](status.md) — proven matrix cells and their evidence.
 - [Philosophy](philosophy.md) — product goals and decision rules.
+
+### Choose an entry point
+
+| Reader | Read first | Then |
+|---|---|---|
+| End user | [Getting started](getting-started.md) | [User guide](user-guide.md), or [Coming from WSL](wsl-migration.md) |
+| Contributor | [Contributing](../CONTRIBUTING.md), then [AGENTS.md](../AGENTS.md) | [Agent lessons](agent-lessons.md) before harness/deployer changes; [native shell contract](winui-shell.md#current-stdio-protocol-reference) for Go/WinUI integration |
+| Maintainer/reviewer | [Verification status](status.md) | [Release instructions](RELEASING.md), [truth-pass record](docs-truth-pass.md), [roadmap](../ROADMAP.md) |
+| Distro packager | [Distro adoption](distro-adoption.md) | [Brand distribution](branding-and-distribution.md), [upstream blessings](upstream-blessings.md), [backend contract](backend-contract.md) |
+| IT evaluator | [IT-admin quick start](it-admin-quick-start.md) | [Manual testing](manual-testing.md), [destructive paths](destructive-paths.md); this is not a fleet-management product |
 
 ## Product and architecture
 
@@ -50,6 +61,10 @@ instructions.
 - [Release instructions](RELEASING.md) — green-gated release process.
 - [Alpha adopter program](alpha-adopter-program.md) — structured early-adopter tests.
 - [Pre-filled profiles](prefilled-profile-testing.md) — migration tests with an existing Windows profile.
+- [First-boot evidence](firstboot-evidence.md) — observed guest identity and completion records.
+- [WSL migration](wsl-migration.md) — manual transfer boundaries; no automatic WSL distro or account import.
+- [IT-admin quick start](it-admin-quick-start.md) — bounded single-machine evaluation, not fleet rollout.
+- [Adoption outreach](adoption-outreach.md) — approval-gated invitations and scenario briefs, not claimed success stories.
 - [Native GUI soak](soak.md) — shell stability ledger for long runs.
 - [Agent lessons](agent-lessons.md) — operational traps from E2E work.
 - [Docs truth pass](docs-truth-pass.md) — dated documentation-versus-build checks.
@@ -62,16 +77,24 @@ instructions.
 - [dakota return-boot RCA](dakota-return-boot-rca.md) — **historical** Phase-2 hang investigation.
 - [Phase-2 attach postmortem](phase2-attach-postmortem.md) — **historical** debugging record.
 - [Phase-2 debug plan](phase2-debug-plan.md) — **historical** hypotheses and resolution path.
-- [v0.3.0-beta release notes](release-notes-v0.3.0-beta.md) — release record and evidence status.
-- [v1.0.0 release notes](release-notes-v1.0.0.md) — release goals and evidence checklist.
+- [v0.3.0-beta release notes](release-notes-v0.3.0-beta.md) — draft release material; consult tags and release evidence before treating it as shipped.
+- [v1.0.0 release notes](release-notes-v1.0.0.md) — release goals and evidence checklist, not a shipped-version claim.
 
 ## Document collections
 
 - [`adr/`](adr/) — architecture decision records.
+  Includes [phase-1 architecture](adr/0001-phase1-first-architecture.md),
+  [hardware matching](adr/0002-hardware-preflight-bootc-matching.md),
+  [OneDrive placeholders](adr/0003-onedrive-files-on-demand-migration.md),
+  [composefs/kernel matching](adr/0004-composefs-kernel-module-matching.md),
+  the [VM-first correction](adr/0004-restore-vm-first-product.md), and
+  [session-envelope unlock](adr/0005-session-envelope-unlock.md) (approval pending).
 - [`specs/`](specs/) — detailed migration proposals.
+  Read [enterprise migration](specs/enterprise-migration.md) and
+  [migration extensions](specs/migration-extensions.md) as proposals unless an
+  implementation and its acceptance evidence are explicitly named.
 - [`experiments/`](experiments/) — dated research notes and implementation experiments.
 - [`evidence/`](evidence/) — checked-in evidence summaries.
 - [`experiments/evidence/`](experiments/evidence/) — experiment artifacts and provenance.
 - [`screenshots/`](screenshots/) — UI walkthrough images.
 
-- Use [status.md](status.md) and [release instructions](RELEASING.md) for current verification and release decisions. Use dated plans and investigations for context, not as substitutes for those sources.

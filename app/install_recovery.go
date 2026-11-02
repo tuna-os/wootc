@@ -302,6 +302,15 @@ func classifyInstall(o InstallObservation) InstallRecovery {
 // journal: state.json alone cannot tell a cancel from a crash, so the
 // decision stays conservative.
 func classifyWithoutJournal(r InstallRecovery, o InstallObservation) InstallRecovery {
+	if o.JournalError != "" || o.ArmedFile || o.DeployerStarted {
+		r.Class, r.Cause = InstallClassNeedsRepair, CauseUnknown
+		r.Error = o.JournalError
+		r.Title = "The last installation needs attention"
+		r.Message = "Setup files remain, but the installation record is missing or unreadable. Remove the installation before trying again. Your Linux disk is kept unless you explicitly choose to delete it."
+		r.Actions.Remove = true
+		r.Recommended = "remove"
+		return r
+	}
 	if o.State == nil {
 		r.Class = InstallClassNone
 		return r
@@ -528,4 +537,20 @@ func (a *App) PrepareResume() (ResumePreparation, error) {
 		return ResumePreparation{}, fmt.Errorf("an install is running")
 	}
 	return prepareResumeAt(wootcDir(), processAlive)
+}
+
+// removeEmptyInstallerDirectory never treats an unfamiliar file as disposable
+// merely because it is inside the product namespace.
+func removeEmptyInstallerDirectory(path string) error {
+	entries, err := os.ReadDir(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if len(entries) != 0 {
+		return nil
+	}
+	return os.Remove(path)
 }

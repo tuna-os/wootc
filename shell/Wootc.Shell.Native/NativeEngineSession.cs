@@ -164,6 +164,7 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
             ["hostname"] = plan.Hostname, ["bootloader"] = plan.Bootloader, ["composeFs"] = plan.ComposeFs, ["storageDrive"] = plan.StorageDrive,
             ["encryption"] = plan.Encryption, ["luksPassphrase"] = plan.LuksPassphrase, ["windowsLook"] = plan.WindowsLook,
         };
+        if (plan.ProfileAccounts is not null) parameters["profileAccounts"] = plan.ProfileAccounts;
         var grant = await CallAsync<NativeInstallGrant>("PrepareNativeInstall", parameters, deadline.Token);
         if (grant.Session != installSession) throw new InvalidDataException("The install grant names another session");
         return grant;

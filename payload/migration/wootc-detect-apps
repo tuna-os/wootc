@@ -1,17 +1,17 @@
 #!/bin/bash
-# /usr/local/bin/wootc-detect-apps <username>
-# App-data bridge (SPEC §4.3 + session portability): scan the Windows
-# profile for known applications, copy what is *honestly portable*, and
-# record per-app session portability for the migration dashboard.
+# /usr/local/bin/wootc-detect-apps <username> [linuxuser]
+# /usr/local/bin/wootc-detect-apps --detect-browsers [username]
+# App-data bridge: scan the Windows profile, copy portable non-browser
+# app data, and record per-app session portability for the dashboard.
+# --detect-browsers is the authoritative, read-only browser plugin detector.
 #
 # Session portability ground truth:
 #   PORTABLE      — plain-file state: Firefox (whole profile incl. logins),
 #                   VS Code (settings/keybindings/snippets + extension list).
-#   NOT PORTABLE  — Chromium/Electron "safeStorage": cookies and auth
-#                   tokens are DPAPI-encrypted against the Windows login
-#                   (Chrome, Edge, Discord, Slack, Spotify, Teams). Only a
-#                   fresh sign-in works; cloud-synced content returns on
-#                   login. We say so instead of pretending.
+#   STAGED        — Windows export evidence only; Linux import is unverified.
+#   SIGNIN        — Chromium/Electron state is machine-bound without a
+#                   verified target import. Source exports.json cannot prove
+#                   that Linux is signed in, even if it says "imported".
 #
 # The APP DATABASE below is the extension point: one entry per app —
 # detect path, flatpak id, portable copy function (optional), session
@@ -22,25 +22,35 @@
 set -Eeuo pipefail
 HOST="${WOOTC_HOST:-/run/wootc/host}"
 log() { printf '[wootc-detect-apps] %s\n' "$*"; }
-name="${1:?usage: wootc-detect-apps <username> [linuxuser]}"
+read_only=false
+if [[ "${1:-}" == "--detect-browsers" ]]; then
+    read_only=true
+    shift
+fi
+name="${1:-${WOOTC_WIN_USER:-}}"
+if ! "$read_only"; then
+    : "${name:?usage: wootc-detect-apps <username> [linuxuser]}"
+fi
 target="${2:-$name}"
-
-mountpoint -q "$HOST" || { log "ERROR: $HOST not mounted"; exit 1; }
-home=$(getent passwd "$target" | cut -d: -f6)
-[[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
 W="$HOST/Users/$name"
-[[ -d "$W" ]] || { log "no Windows profile for $name"; exit 0; }
+if "$read_only"; then
+    W="${WOOTC_WIN_USER_DIR:-$W}"
+fi
 
 entries=()
 flatpaks=()
 
-# add <app> <flatpak> <session:portable|signin|none> <copied:yes|no> <note>
+# add <app> <flatpak> <session:portable|staged|signin|relink|none> <copied:true|false> <note>
 add() {
-    entries+=("{\"app\":\"$1\",\"flatpak\":\"$2\",\"session\":\"$3\",\"copied\":$4,\"note\":\"$5\"}")
+    entries+=("$(python3 -c '
+import json, sys
+app, flatpak, session, copied, note = sys.argv[1:]
+print(json.dumps(dict(app=app, flatpak=flatpak, session=session, copied=copied == "true", note=note), separators=(",", ":")))
+' "$@")")
     [[ -n "$2" ]] && flatpaks+=("$2")
 }
 
-# Check if any sessions were staged online during Windows install.
+# Source exports describe staging only, never successful target authentication.
 EXPORTS_JSON=""
 for p in "$HOST"/wootc/install/slurp/session/exports.json "$HOST"/install/slurp/session/exports.json; do
     if [[ -f "$p" ]]; then
@@ -52,68 +62,131 @@ done
 session_state() {
     local app="$1"
     [[ -n "$EXPORTS_JSON" ]] || { echo "none"; return 0; }
-    python3 -c "
-import json, sys
+    python3 - "$EXPORTS_JSON" "$app" <<'PY'
+import json
+import sys
+
 try:
-    with open('$EXPORTS_JSON') as f:
-        data = json.load(f)
-    for entry in data:
-        if entry.get('app') == '$app':
-            print(entry.get('state', 'none'))
-            sys.exit(0)
-except Exception:
-    pass
-print('none')
-" 2>/dev/null || echo "none"
+    with open(sys.argv[1], encoding="utf-8") as source:
+        data = json.load(source)
+    staged = isinstance(data, list) and any(
+        isinstance(entry, dict)
+        and entry.get("app") == sys.argv[2]
+        and entry.get("state") == "staged"
+        for entry in data
+    )
+except (OSError, ValueError, TypeError):
+    staged = False
+print("staged" if staged else "none")
+PY
 }
 
+# Browser detection is shared by this bridge, the browsers plugin, and the
+# manifest fallback. It reads metadata only; wootc-import-browser owns copying.
+detect_browsers() {
+    python3 - "$HOST" "$W" "$(session_state chrome)" "$(session_state edge)" <<'PY'
+import json
+import os
+import sys
+
+host, root, chrome_state, edge_state = sys.argv[1:]
+installed = set()
+try:
+    with open(os.path.join(host, "wootc", "install", "programs.json"), encoding="utf-8") as stream:
+        registry = json.load(stream)
+    programs = registry.get("apps", []) if isinstance(registry, dict) else []
+    for program in programs if isinstance(programs, list) else []:
+        name = program.get("displayName", "") if isinstance(program, dict) else ""
+        if not isinstance(name, str):
+            continue
+        for app, marker in (("firefox", "firefox"), ("chrome", "google chrome"), ("edge", "microsoft edge")):
+            if marker in name.lower():
+                installed.add(app)
+except (OSError, ValueError):
+    pass
+items = []
+definitions = (
+    ("firefox", "Firefox", "org.mozilla.firefox",
+     ("Roaming", "Mozilla", "Firefox"), "portable"),
+    ("chrome", "Chrome", "com.google.Chrome",
+     ("Local", "Google", "Chrome", "User Data"), chrome_state),
+    ("edge", "Edge", "com.google.Chrome",
+     ("Local", "Microsoft", "Edge", "User Data"), edge_state),
+)
+for app, label, flatpak, parts, state in definitions:
+    source = os.path.join(root, "AppData", *parts)
+    present = (os.path.isfile(os.path.join(source, "profiles.ini"))
+               if app == "firefox" else os.path.isdir(source))
+    if not present and app not in installed:
+        continue
+    if not present:
+        session = "signin"
+        note = "Installed on Windows; no portable browser profile was found at the expected source path."
+    elif app == "firefox":
+        session = "portable"
+        note = "Everything moves: bookmarks, history, passwords, extensions, open tabs."
+    elif state == "staged":
+        session = "staged"
+        note = "Session key staged — you'll sign in once on Linux until target import is verified."
+    else:
+        session = "signin"
+        note = ("Bookmarks and history move. Sign in once and sync brings the rest."
+                if app == "chrome" else
+                "Bookmarks and history move into Chrome. Passwords need a fresh sign-in.")
+    count = size = 0
+    for directory, directories, files in os.walk(source):
+        directories.sort()
+        for filename in sorted(files):
+            count += 1
+            try:
+                size += os.path.getsize(os.path.join(directory, filename))
+            except OSError:
+                pass
+            if count >= 50000:
+                break
+        if count >= 50000:
+            break
+    items.append({
+        "id": app, "app": app, "label": label, "flatpak": flatpak,
+        "session": session, "copied": False, "note": note, "detail": note,
+        "source": source, "fileCount": count, "sizeBytes": size,
+        "evidence": "profile" if present else "registry",
+    })
+print(json.dumps({
+    "detected": bool(items), "items": items,
+    "summary": ", ".join(item["label"] for item in items),
+}))
+PY
+}
+
+if "$read_only"; then
+    detect_browsers
+    exit 0
+fi
+
+mountpoint -q "$HOST" || { log "ERROR: $HOST not mounted"; exit 1; }
+passwd_record=$(getent passwd "$target")
+IFS=: read -r _ _ target_uid target_gid _ home _ <<< "$passwd_record"
+[[ "$target_uid" =~ ^[0-9]+$ && "$target_gid" =~ ^[0-9]+$ ]] || { log "ERROR: invalid target account"; exit 1; }
+[[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
+
 # ── APP DATABASE ────────────────────────────────────────────────────────────
-
-# Firefox — whole profile is portable (wootc-import-browser owns the copy).
-if [[ -f "$W/AppData/Roaming/Mozilla/Firefox/profiles.ini" ]]; then
-    add firefox org.mozilla.firefox portable true \
-        "Everything moves: bookmarks, history, passwords, extensions, open tabs."
-fi
-
-# Chrome / Edge — bookmarks+history copy; sessions are DPAPI-locked unless staged.
-if [[ -d "$W/AppData/Local/Google/Chrome/User Data" ]]; then
-    c_state=$(session_state "chrome")
-    if [[ "$c_state" == "imported" ]]; then
-        add chrome com.google.Chrome portable true "Session imported — opens signed in."
-    elif [[ "$c_state" == "staged" ]]; then
-        add chrome com.google.Chrome staged true "Session key staged — you'll sign in once on Linux until target import is verified."
-    else
-        add chrome com.google.Chrome signin true "Bookmarks and history move. Sign in once and sync brings the rest."
-    fi
-fi
-
-if [[ -d "$W/AppData/Local/Microsoft/Edge/User Data" ]]; then
-    e_state=$(session_state "edge")
-    if [[ "$e_state" == "imported" ]]; then
-        add edge com.google.Chrome portable true "Session imported into Chrome — opens signed in."
-    elif [[ "$e_state" == "staged" ]]; then
-        add edge com.google.Chrome staged true "Session key staged — you'll sign in once on Linux until target import is verified."
-    else
-        add edge com.google.Chrome signin true "Bookmarks and history move into Chrome. Passwords need a fresh sign-in."
-    fi
-fi
+browser_json=$(detect_browsers)
+while IFS=$'\t' read -r flatpak entry; do
+    entries+=("$entry")
+    flatpaks+=("$flatpak")
+done < <(python3 -c '
+import json, sys
+for item in json.load(sys.stdin)["items"]:
+    entry = {key: item[key] for key in ("app", "flatpak", "session", "copied", "note", "source")}
+    print(item["flatpak"] + "\t" + json.dumps(entry, separators=(",", ":")))
+' <<< "$browser_json")
 
 # VS Code — settings/keybindings/snippets + extension list are plain files.
 VSC="$W/AppData/Roaming/Code/User"
 if [[ -d "$VSC" ]]; then
-    dest="$home/.config/Code/User"
-    mkdir -p "$dest"
-    for f in settings.json keybindings.json; do
-        [[ -f "$VSC/$f" && ! -f "$dest/$f" ]] && cp "$VSC/$f" "$dest/$f"
-    done
-    [[ -d "$VSC/snippets" && ! -d "$dest/snippets" ]] && cp -r "$VSC/snippets" "$dest/snippets"
-    if [[ -d "$W/.vscode/extensions" ]]; then
-        ls -1 "$W/.vscode/extensions" 2>/dev/null | sed 's/-[0-9][0-9.]*$//' | sort -u \
-            > "$home/.config/wootc/vscode-extensions.txt" 2>/dev/null || true
-    fi
-    chown -R "$target:" "$dest" 2>/dev/null || true
-    add vscode com.visualstudio.code portable true \
-        "Settings, keybindings and snippets moved; extension list saved for reinstall. GitHub sign-in is fresh."
+    add vscode com.visualstudio.code portable false \
+        "Portable settings, snippets and extension inventory are available; native files will be preserved."
 fi
 
 # Discord — Electron safeStorage; nothing offline-portable.
@@ -124,10 +197,8 @@ fi
 # Spotify — credentials are machine-bound; library is cloud-side anyway.
 if [[ -d "$W/AppData/Roaming/Spotify" || -d "$W/AppData/Local/Packages/SpotifyAB.SpotifyMusic_zpdnekdrzrea0" ]]; then
     s_state=$(session_state "spotify")
-    if [[ "$s_state" == "imported" ]]; then
-        add spotify com.spotify.Client portable true "Playlists and library are in your account — opens signed in."
-    elif [[ "$s_state" == "staged" ]]; then
-        add spotify com.spotify.Client staged true "Session key staged — you'll sign in once on Linux until target import is verified."
+    if [[ "$s_state" == "staged" ]]; then
+        add spotify com.spotify.Client staged false "Session key staged — you'll sign in once on Linux until target import is verified."
     else
         add spotify com.spotify.Client signin false "Playlists and library are in your account — sign in once."
     fi
@@ -143,36 +214,19 @@ fi
     add steam com.valvesoftware.Steam signin false \
         "Your game files are already bridged — sign in once and they are playable without re-download."
 
-# Telegram Desktop — tdata carries the session by design (not DPAPI);
-# copying it signs you in with full chat cache. The classic happy case.
+# Telegram Desktop — copy session files only into a new destination; the
+# application must verify or relink the account after the copy.
 TG="$W/AppData/Roaming/Telegram Desktop/tdata"
 if [[ -d "$TG" ]]; then
-    dest="$home/.var/app/org.telegram.desktop/data/TelegramDesktop/tdata"
-    if [[ ! -d "$dest" ]]; then
-        mkdir -p "$(dirname "$dest")"
-        cp -r "$TG" "$dest" 2>/dev/null && chown -R "$target:" "$home/.var" 2>/dev/null || true
-        add telegram org.telegram.desktop portable true \
-            "Your session and chats moved — Telegram opens signed in."
-    else
-        add telegram org.telegram.desktop relink false \
-            "Linux Telegram already exists. Scan the QR code or enter phone code to link."
-    fi
+    add telegram org.telegram.desktop portable false \
+        "Session files are available; an existing Linux Telegram profile will be preserved."
 fi
 
 # Signal Desktop — phone-linked app; guided re-link flow.
 SG="$W/AppData/Roaming/Signal"
 if [[ -d "$SG" ]]; then
-    if [[ -f "$SG/config.json" ]] && grep -q '"key"' "$SG/config.json" && ! grep -q 'encryptedKey' "$SG/config.json"; then
-        dest="$home/.var/app/org.signal.Signal/config/Signal"
-        if [[ ! -d "$dest" ]]; then
-            mkdir -p "$(dirname "$dest")"
-            cp -r "$SG" "$dest" 2>/dev/null && chown -R "$target:" "$home/.var" 2>/dev/null || true
-            add signal org.signal.Signal portable true "Message history moved (legacy key format)."
-        fi
-    else
-        add signal org.signal.Signal relink false \
-            "Signal locks database to Windows. Re-link with your phone: Settings > Linked Devices > Scan QR."
-    fi
+    add signal org.signal.Signal relink false \
+        "Legacy unencrypted profiles can be copied into a new destination; otherwise re-link with your phone."
 fi
 
 # WhatsApp — Store/UWP app; guided web re-link flow.
@@ -183,18 +237,8 @@ fi
 # Thunderbird — profiles are portable like Firefox's.
 TB="$W/AppData/Roaming/Thunderbird"
 if [[ -f "$TB/profiles.ini" ]]; then
-    tbprof=$(awk -F= '/^Path=/{print $2; exit}' "$TB/profiles.ini")
-    if [[ -n "$tbprof" && -d "$TB/$tbprof" ]]; then
-        dest="$home/.thunderbird"
-        if [[ ! -d "$dest" ]]; then
-            mkdir -p "$dest/windows-import.wootc"
-            cp -r "$TB/$tbprof/." "$dest/windows-import.wootc/" 2>/dev/null || true
-            printf '[Profile0]\nName=Imported from Windows\nIsRelative=1\nPath=windows-import.wootc\nDefault=1\n\n[General]\nStartWithLastProfile=1\nVersion=2\n' > "$dest/profiles.ini"
-            chown -R "$target:" "$dest" 2>/dev/null || true
-        fi
-        add thunderbird org.mozilla.Thunderbird portable true \
-            "Mail accounts, local mail and settings moved."
-    fi
+    add thunderbird org.mozilla.Thunderbird portable false \
+        "Mail profile is available; an existing Linux Thunderbird profile will be preserved."
 fi
 
 # Zoom — cloud account; nothing portable.
@@ -240,12 +284,8 @@ fi
 # OBS — plain-file scenes/profiles are portable.
 OBS="$W/AppData/Roaming/obs-studio"
 if [[ -d "$OBS" ]]; then
-    dest="$home/.var/app/com.obsproject.Studio/config/obs-studio"
-    if [[ ! -d "$dest" ]]; then
-        mkdir -p "$(dirname "$dest")"
-        cp -r "$OBS" "$dest" 2>/dev/null && chown -R "$target:" "$home/.var" 2>/dev/null || true
-    fi
-    add obs com.obsproject.Studio portable true "Scenes and profiles moved."
+    add obs com.obsproject.Studio portable false \
+        "Scenes and profiles are available; existing Linux OBS settings will be preserved."
 fi
 
 # ── Registry union (SPEC §4.3) ─────────────────────────────────────────────
@@ -261,11 +301,7 @@ fi
 # and we search for the substring. The table is wootc's own, grown against
 # the field (public Flathub IDs), not lifted from any AGPL code.
 declare -A DISPLAYNAME_TO_APP=(
-    # Browsers
-    ["mozilla firefox"]="firefox|org.mozilla.firefox|signin|true|Installed on Windows. Your full Firefox profile moved if it was in the expected location."
-    ["firefox"]="firefox|org.mozilla.firefox|signin|true|Installed on Windows. Your full Firefox profile moved if it was in the expected location."
-    ["google chrome"]="chrome|com.google.Chrome|signin|true|Installed on Windows. Bookmarks and history moved; sign in to sync."
-    ["microsoft edge"]="edge|com.google.Chrome|signin|true|Installed on Windows. Bookmarks and history move into Chrome; sign in fresh."
+    # Other browsers; Firefox/Chrome/Edge registry detection is shared above.
     ["brave"]="brave|com.brave.Browser|signin|false|Installed on Windows. Sign in to Brave Sync."
     ["vivaldi"]="vivaldi|com.vivaldi.Vivaldi|signin|false|Installed on Windows. Sign in to Vivaldi to sync."
     ["opera"]="opera|com.opera.Opera|signin|false|Installed on Windows. Sign in to Opera to sync."
@@ -350,7 +386,7 @@ if [[ -f "$REGJSON" ]]; then
     done < <(python3 -c "
 import json, sys
 try:
-    with open('$REGJSON') as f:
+    with open(sys.argv[1], encoding='utf-8') as f:
         data = json.load(f)
     for app in data.get('apps', []):
         name = app.get('displayName', '').strip()
@@ -358,21 +394,290 @@ try:
             print(name)
 except Exception:
     pass
-" 2>/dev/null)
+" "$REGJSON" 2>/dev/null)
 fi
 
-# ── Output ──────────────────────────────────────────────────────────────────
-state_dir="$home/.config/wootc"
-mkdir -p "$state_dir"
-{
-    printf '{\n  "apps": [\n'
-    for i in "${!entries[@]}"; do
-        sep=$([[ $i -lt $((${#entries[@]} - 1)) ]] && echo ',' || echo '')
-        printf '    %s%s\n' "${entries[$i]}" "$sep"
-    done
-    printf '  ]\n}\n'
-} > "$state_dir/bridge-apps.json"
-chown -R "$target:" "$state_dir" 2>/dev/null || true
+# ── Exclusive app-data publication and outcome ──────────────────────────────
+base="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+library=""
+for candidate in "$base/lib/wootc_import_safety.py" \
+    "$base/../lib/wootc/wootc_import_safety.py" \
+    /usr/lib/wootc/migration/lib/wootc_import_safety.py; do
+    if [[ -f "$candidate" ]]; then
+        library="$candidate"
+        break
+    fi
+done
+[[ -n "$library" ]] || { log "ERROR: safe import library is not installed"; exit 1; }
+copy_status=0
+python3 - "$library" "$HOST" "$name" "$home" "$target_uid" "$target_gid" "${entries[@]}" <<'PY' || copy_status=$?
+import configparser
+import contextlib
+import ctypes
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+from types import SimpleNamespace
+import uuid
+
+library, host, username, home_path, uid, gid, *raw_entries = sys.argv[1:]
+uid, gid = int(uid), int(gid)
+sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_file_location("wootc_import_safety", library)
+safety = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(safety)
+entries = [json.loads(entry) for entry in raw_entries]
+result = safety.outcome()
+result["apps"] = entries
+libc = ctypes.CDLL(None, use_errno=True)
+source_root = Path(host) / "Users" / username
+
+
+def inode(details):
+    return details.st_dev, details.st_ino, stat.S_IFMT(details.st_mode)
+
+
+@contextlib.contextmanager
+def source_directory(path):
+    # Source fds may require root on NTFS, but all destination calls below run
+    # as the target user. Reuse the helper's privileged read-only opener.
+    original_uid = os.geteuid()
+    fd = None
+    try:
+        try:
+            if os.getuid() == 0:
+                os.seteuid(0)
+            fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+            for part in Path(path).absolute().parts[1:]:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+                os.close(fd)
+                fd = child
+            before = os.fstat(fd)
+            attributes = os.listxattr(fd)
+            if (getattr(before, "st_file_attributes", 0) & 0x400 or
+                    any(key in attributes for key in ("system.ntfs_reparse_data", "system.ntfs_reparse_tag", "user.ntfs.reparse_data"))):
+                raise safety.Refusal("Windows reparse directory refused")
+            children = [(name, os.stat(name, dir_fd=fd, follow_symlinks=False))
+                        for name in sorted(os.listdir(fd))]
+        finally:
+            if os.geteuid() != original_uid:
+                os.seteuid(original_uid)
+        yield fd, children
+        try:
+            if os.getuid() == 0:
+                os.seteuid(0)
+            if inode(before) != inode(os.stat(path, follow_symlinks=False)):
+                raise safety.Refusal("source directory changed during copy")
+            after = os.fstat(fd)
+            if (before.st_mtime_ns, before.st_ctime_ns) != (after.st_mtime_ns, after.st_ctime_ns):
+                raise safety.Refusal("source directory changed during copy")
+        finally:
+            if os.geteuid() != original_uid:
+                os.seteuid(original_uid)
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
+def copy_tree(source, relative):
+    with source_directory(source) as (_fd, children):
+        with home.directory(relative):
+            pass
+        for name, details in children:
+            destination = str(Path(relative) / name)
+            if stat.S_ISDIR(details.st_mode):
+                copy_tree(source / name, destination)
+            elif stat.S_ISREG(details.st_mode):
+                state = home.publish(destination, source=source / name, mode=0o600)
+                if state != "copied":
+                    raise safety.Refusal("staging file collided during copy")
+            else:
+                raise safety.Refusal("source contains a symlink, reparse point, or special file")
+
+
+@contextlib.contextmanager
+def destination_directory(relative, create=True):
+    if inode(os.stat(home.path, follow_symlinks=False)) != inode(os.fstat(home.fd)):
+        raise safety.Refusal("target home changed during copy")
+    if Path(relative) == Path("."):
+        fd = os.dup(home.fd)
+        try:
+            yield fd
+        finally:
+            os.close(fd)
+    else:
+        with home.directory(relative, create=create) as fd:
+            yield fd
+
+
+def publish_tree(source, relative, metadata=None):
+    destination = Path(relative)
+    with destination_directory(str(destination.parent)) as parent:
+        try:
+            os.stat(destination.name, dir_fd=parent, follow_symlinks=False)
+            return "preserved"
+        except FileNotFoundError:
+            pass
+        name = ".wootc-app-" + uuid.uuid4().hex + ".partial"
+        os.mkdir(name, 0o700, dir_fd=parent)
+        stage = destination.parent / name
+        with home.directory(str(stage), create=False) as stage_fd:
+            if metadata is None:
+                copy_tree(source, str(stage))
+            else:
+                copy_tree(source, str(stage / "windows-import.wootc"))
+                if home.publish(str(stage / "profiles.ini"), data=metadata, mode=0o600) != "copied":
+                    raise safety.Refusal("Thunderbird registration staging collided")
+            with destination_directory(str(destination.parent), create=False) as current:
+                if inode(os.fstat(current)) != inode(os.fstat(parent)):
+                    raise safety.Refusal("destination parent changed during copy")
+            if inode(os.stat(name, dir_fd=parent, follow_symlinks=False)) != inode(os.fstat(stage_fd)):
+                raise safety.Refusal("staging directory changed during copy")
+            rename = getattr(libc, "renameat2", None)
+            if rename is None:
+                raise safety.Refusal("renameat2(RENAME_NOREPLACE) is required")
+            rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+            rename.restype = ctypes.c_int
+            if rename(parent, os.fsencode(name), parent, os.fsencode(destination.name), 1) != 0:
+                code = ctypes.get_errno()
+                raise OSError(code, os.strerror(code), relative)
+            if inode(os.stat(destination.name, dir_fd=parent, follow_symlinks=False)) != inode(os.fstat(stage_fd)):
+                raise safety.Refusal("published app directory changed")
+            with destination_directory(str(destination.parent), create=False) as current:
+                if inode(os.fstat(current)) != inode(os.fstat(parent)):
+                    raise safety.Refusal("destination parent changed during publication")
+            os.fsync(parent)
+    return "copied"
+
+
+def operation(app, relative, callback):
+    state = callback()
+    key = {"copied": "migrated", "already-present": "alreadyPresent", "preserved": "preserved"}[state]
+    result[key].append(relative)
+    app.setdefault(key, []).append(relative)
+    return state
+
+
+def vscode(app):
+    source = source_root / "AppData/Roaming/Code/User"
+    with source_directory(source) as (_fd, children):
+        names = {name for name, _details in children}
+    for name in ("settings.json", "keybindings.json"):
+        if name in names:
+            relative = ".config/Code/User/" + name
+            operation(app, relative, lambda r=relative, p=source / name: home.publish(r, source=p, mode=0o600))
+    if "snippets" in names:
+        relative = ".config/Code/User/snippets"
+        operation(app, relative, lambda: publish_tree(source / "snippets", relative))
+    extensions = source_root / ".vscode/extensions"
+    try:
+        with source_directory(extensions) as (_fd, children):
+            names = sorted({re.sub(r"-[0-9][0-9.]*$", "", name) for name, _details in children})
+    except FileNotFoundError:
+        names = None
+    if names is not None:
+        relative = ".config/wootc/vscode-extensions.txt"
+        operation(app, relative, lambda: home.publish(relative, data=("".join(name + "\n" for name in names)).encode(), mode=0o600))
+
+
+def thunderbird(app):
+    source = source_root / "AppData/Roaming/Thunderbird"
+    parser = configparser.RawConfigParser()
+    parser.read_string(safety.source_bytes(source / "profiles.ini").decode("utf-8-sig"))
+    section = next((name for name in parser.sections() if name.startswith("Profile") and parser.has_option(name, "Path")), None)
+    if section is None or parser.get(section, "IsRelative", fallback="1") != "1":
+        raise safety.Refusal("Thunderbird profile must be relative")
+    path = parser.get(section, "Path").replace("\\", "/")
+    parts = path.split("/")
+    if ":" in path or any(part in ("", ".", "..") for part in parts) or any(ord(character) < 32 for character in path):
+        raise safety.Refusal("unsafe Thunderbird profile path")
+    metadata = (b"[Profile0]\nName=Imported from Windows\nIsRelative=1\n"
+                b"Path=windows-import.wootc\nDefault=1\n\n[General]\n"
+                b"StartWithLastProfile=1\nVersion=2\n")
+    relative = ".thunderbird"
+    operation(app, relative, lambda: publish_tree(source.joinpath(*parts), relative, metadata))
+
+
+def migrate(app):
+    key = app["app"]
+    source = source_root / {
+        "vscode": "AppData/Roaming/Code/User", "thunderbird": "AppData/Roaming/Thunderbird",
+        "signal": "AppData/Roaming/Signal", "telegram": "AppData/Roaming/Telegram Desktop/tdata",
+        "obs": "AppData/Roaming/obs-studio",
+    }[key]
+    try:
+        with source_directory(source) as (_fd, children):
+            names = {name for name, _details in children}
+    except FileNotFoundError:
+        app["note"] = "Installed on Windows; no source app data was found to copy."
+        return
+    if key == "vscode":
+        vscode(app)
+    elif key == "thunderbird":
+        thunderbird(app)
+    elif key == "signal":
+        source = source_root / "AppData/Roaming/Signal"
+        if "config.json" not in names:
+            app["note"] = "No portable Signal key format found. Re-link with your phone."
+            return
+        config = json.loads(safety.source_bytes(source / "config.json"))
+        if not isinstance(config, dict) or "key" not in config or "encryptedKey" in config:
+            app["note"] = "Windows-bound Signal profile preserved. Re-link with your phone."
+            return
+        app["session"] = "portable"
+        relative = ".var/app/org.signal.Signal/config/Signal"
+        operation(app, relative, lambda: publish_tree(source, relative))
+    else:
+        source, relative = {
+            "telegram": ("AppData/Roaming/Telegram Desktop/tdata", ".var/app/org.telegram.desktop/data/TelegramDesktop/tdata"),
+            "obs": ("AppData/Roaming/obs-studio", ".var/app/com.obsproject.Studio/config/obs-studio"),
+        }[key]
+        operation(app, relative, lambda: publish_tree(source_root / source, relative))
+
+
+home = None
+try:
+    if not username or username in (".", "..") or "/" in username or "\\" in username:
+        raise safety.Refusal("unsafe Windows username")
+    if os.geteuid() == 0:
+        os.setegid(gid)
+        os.seteuid(uid)
+    home = safety.Home(SimpleNamespace(pw_uid=uid, pw_gid=gid, pw_dir=home_path))
+    with home.lock():
+        home.record(".config/wootc/bridge-apps.json", {**result, "status": "partial"})
+        for app in entries:
+            if app["app"] not in ("vscode", "telegram", "signal", "thunderbird", "obs"):
+                continue
+            app["copied"] = False
+            try:
+                migrate(app)
+                changed = bool(app.get("migrated") or app.get("alreadyPresent"))
+                preserved = bool(app.get("preserved"))
+                app["state"] = "partial" if preserved and changed else "unchanged" if preserved or not changed else "native"
+                app["copied"] = changed and not preserved
+                if changed:
+                    app["note"] = "Complete files copied; existing native files preserved where listed. Open the app to verify. Authentication is not verified."
+                elif preserved:
+                    app["note"] = "Existing Linux app data preserved; no imported session is claimed."
+            except (OSError, ValueError, configparser.Error, UnicodeError) as error:
+                app["state"] = "failed"
+                app["errors"] = [str(error)]
+                app["note"] = "Copy failed or was refused; native data preserved. Review retained staging before retrying."
+                result["failed"].append({"app": app["app"], "error": str(error)})
+        safety.finish(home, ".config/wootc/bridge-apps.json", result)
+except (OSError, ValueError) as error:
+    print("[wootc-detect-apps] " + str(error), file=sys.stderr)
+    sys.exit(1)
+finally:
+    if home is not None:
+        home.close()
+sys.exit(1 if result["failed"] else 0)
+PY
 
 printf '%s\n' "${flatpaks[@]}" | sort -u > /run/wootc-detected-flatpaks 2>/dev/null || true
 log "detected ${#entries[@]} apps for $name"
+exit "$copy_status"

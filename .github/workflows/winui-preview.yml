@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'shell/**'
+      - 'packaging/brand.py'
+      - 'packaging/shim-authorities.py'
+      - 'app/branding/**'
+      - 'tests/unit/test_native_release.py'
+      - 'tests/unit/brand-blessings.bats'
+      - 'tests/unit/release-pipeline.bats'
       - 'tests/unit/fixtures/e2e-drive/**'
       - 'app/native_install*'
       - 'app/frontend/src/screens/launchpad.js'
@@ -116,8 +122,9 @@ jobs:
     outputs:
       production: ${{ steps.release.outputs.production }}
       tag: ${{ steps.release.outputs.tag }}
-      artifact_public_key: ${{ steps.release.outputs.artifact_public_key }}
+      engine_ldflags: ${{ steps.release.outputs.engine_ldflags }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - id: release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -130,25 +137,28 @@ jobs:
             {
               echo 'production=false'
               echo 'tag='
-              echo 'artifact_public_key='
+              echo 'engine_ldflags='
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
           [[ "$tag" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,99}$ ]] || {
             echo "::error::Refusing release tag '$tag'"; exit 1;
           }
+          # A dispatch must build the release's source, not stamp an unrelated
+          # checkout with its tag/key. This also handles annotated release tags.
+          release_commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)
+          [ "$release_commit" = "$GITHUB_SHA" ] || {
+            echo "::error::Dispatch this workflow at release tag $tag"; exit 1;
+          }
           mkdir -p "$RUNNER_TEMP/wootc-release-key"
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
             --pattern artifact-public-key.hex --dir "$RUNNER_TEMP/wootc-release-key"
-          key=$(tr -d '[:space:]' < "$RUNNER_TEMP/wootc-release-key/artifact-public-key.hex")
-          [[ "$key" =~ ^[0-9a-fA-F]{64}$ ]] || {
-            echo "::error::release artifact-public-key.hex is not 32-byte hex"; exit 1;
-          }
-          {
-            echo 'production=true'
-            echo "tag=$tag"
-            echo "artifact_public_key=$key"
-          } >> "$GITHUB_OUTPUT"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern shimx64.efi --dir "$RUNNER_TEMP/wootc-release-key"
+          python3 shell/packaging/release-metadata.py \
+            --directory "$RUNNER_TEMP/wootc-release-key" --tag "$tag" \
+            --source-commit "$GITHUB_SHA" --release-commit "$release_commit" \
+            --repository "$GITHUB_REPOSITORY" --github-output "$GITHUB_OUTPUT"
 
   # The Windows leg of the core contract runs inside native-build, which
   # already has .NET on a Windows runner: one runner instead of two.
@@ -209,10 +219,12 @@ jobs:
           New-Item -ItemType Directory -Force frontend/dist | Out-Null
           Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
           go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
-      - name: Observe actual process tokens and retained handles
+      - name: Run the complete Windows core module and native process controls
         working-directory: app
         shell: pwsh
-        run: go test -count=1 -v -timeout 60s -run '^(TestNative(PeerObservation|Pipe|Handshake|Package|Serve|Assessment|Audit)|TestStatus|TestProtocolMatchesWinuiShellSpec|TestServeStartupReadContracts)' .
+        run: |
+          go test -count=1 -json -timeout 10m ./... | Tee-Object -FilePath ../out/windows-core-tests.jsonl
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test actual Windows adapter identities and private package controls
         working-directory: shell
         run: dotnet test Wootc.Shell.NativeTests --configuration Release -p:NativeBuildId=${{ github.sha }} --logger "trx;LogFileName=native-adapter.trx"
@@ -271,6 +283,7 @@ jobs:
           name: winui-preview-diagnostics
           path: |
             out/configuration-flush-controls/
+            out/windows-core-tests.jsonl
             out/winui-source-diagnostics/
             out/winui-startup-events.json
             out/native-startup-state-observations.json
@@ -323,16 +336,17 @@ jobs:
         shell: pwsh
         env:
           PRODUCTION: ${{ needs.release-context.outputs.production }}
-          RELEASE_TAG: ${{ needs.release-context.outputs.tag }}
-          ARTIFACT_PUBLIC_KEY: ${{ needs.release-context.outputs.artifact_public_key }}
+          ENGINE_LDFLAGS: ${{ needs.release-context.outputs.engine_ldflags }}
         run: |
           dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} -p:NativeBrandId=${{ matrix.brand }} --output out/branded-preview
           if ($LASTEXITCODE -ne 0) { throw 'Branded native publish refused' }
           New-Item -ItemType Directory -Force app/frontend/dist | Out-Null
           Set-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
           $ldflags = "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}"
-          if ($env:ARTIFACT_PUBLIC_KEY) { $ldflags += " -X main.artifactPublicKey=$env:ARTIFACT_PUBLIC_KEY" }
-          if ($env:RELEASE_TAG) { $ldflags += " -X main.releaseTag=$env:RELEASE_TAG" }
+          if ($env:PRODUCTION -eq 'true') {
+            if (-not $env:ENGINE_LDFLAGS) { throw 'Production engine needs validated release provenance' }
+            $ldflags += " $env:ENGINE_LDFLAGS"
+          }
           Push-Location app
           try { go build -ldflags "-H windowsgui $ldflags" -o ../out/branded-preview/wootc-engine.exe . } finally { Pop-Location }
           if ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }
@@ -364,6 +378,12 @@ jobs:
           foreach ($file in @('bundle\Wootc.Shell.exe', 'bundle\wootc-engine.exe', 'bundle\native-package.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path $installRoot $file) -PathType Leaf)) { throw "Production setup omitted $file" }
           }
+          $identityJson = & python packaging/brand.py identity --brand '${{ matrix.brand }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Effective publisher policy refused' }
+          $identity = $identityJson | ConvertFrom-Json
+          $appsEntry = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\wootc-native-${{ matrix.brand }}_is1'
+          if ($appsEntry.Publisher -cne $identity.publisher) { throw 'Installed setup publisher bypassed effective identity' }
+          [ordered]@{brand='${{ matrix.brand }}';publisher=$appsEntry.Publisher;expectedPublisher=$identity.publisher} | ConvertTo-Json | Set-Content -LiteralPath out/release-installer/publisher-observations.json -Encoding utf8
           $uninstaller = Get-ChildItem -LiteralPath $installRoot -Filter 'unins*.exe' -File | Select-Object -First 1
           if (-not $uninstaller) { throw "Production setup registered no uninstaller in $installRoot" }
           $u = Start-Process -FilePath $uninstaller.FullName -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru

@@ -117,6 +117,31 @@ public sealed class InstallGateTests
         Assert.Equal(0, connector.Sessions[0].Disposed);
     }
 
+    [Fact]
+    public async Task AnEditedProfileMappingRequiresTheExactAccountsInANewGrant()
+    {
+        var plan = Plan();
+        plan.ProfileAccounts = new() { new() { WindowsDir = "田中", LinuxUser = "tanaka" } };
+        var connector = new FakeConnector();
+        await using var gate = new InstallGate(connector, Brand);
+        await gate.PrepareAsync(plan);
+        Assert.False(gate.CanInstall); // A grant omitting the edited mapping is not this plan.
+        Assert.Contains("profile accounts", gate.Reason);
+        connector.Configure = session =>
+        {
+            var original = session.Grant;
+            session.Grant = (draft, id) =>
+            {
+                var grant = original(draft, id);
+                grant.ProfileAccounts = draft.ProfileAccounts!.Select(account => new ProfileAccount { WindowsDir = account.WindowsDir, LinuxUser = account.LinuxUser }).ToList();
+                return grant;
+            };
+        };
+        await gate.PrepareAsync(plan);
+        Assert.True(gate.CanInstall);
+        Assert.NotEqual(connector.Requests[0].SessionId, connector.Requests[1].SessionId);
+    }
+
     public static TheoryData<string> Mismatches() => new() { "session", "brand", "intent", "image", "storage", "size", "encryption", "schema" };
 
     [Theory]

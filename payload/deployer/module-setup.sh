@@ -39,6 +39,9 @@ install() {
     inst /usr/bin/wootc-deploy
     inst_simple /usr/libexec/wootc-steps.sh
     inst_simple /usr/libexec/wootc-offline-bundle.sh
+    inst_simple /usr/libexec/wootc-dso-closure.sh
+    inst_simple /usr/libexec/wootc-lifecycle.sh
+    inst_simple /usr/libexec/wootc-migration-diagnostics.sh
     # dracut defines moddir before invoking module install hooks.
     # shellcheck disable=SC2154
     inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh

@@ -116,7 +116,7 @@ func disarmOneShot() {}
 func armOneShotFromPersistedGUID() error {
 	return fmt.Errorf("boot arming is only available on Windows")
 }
-func registerUninstallEntry() {}
+func registerUninstallEntry() error { return nil }
 
 // The dev build has no Windows drives to measure: the space preflight is off.
 func storageFreeBytes(string) (uint64, bool) { return 0, false }

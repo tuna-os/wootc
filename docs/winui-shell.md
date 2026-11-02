@@ -1,18 +1,20 @@
 # Native Windows shell: status and cutover
 
 WinUI 3 remains the chosen Windows UI. Linux keeps GTK4/libadwaita.
-The existing consumer installer stays the default until native proof passes.
-This revision corrects the transport and identity assumptions in the earlier design.
+Main now contains native setup packaging; that does not prove a native release
+has shipped or passed its release gates. The latest non-prerelease inspected
+on 2026-11-02 was `v0.1.0-alpha.1`, with the older Wails executables.
+See [getting started](getting-started.md) for the download distinction.
 
-## Current source, 2026-09-27
+## Source and evidence boundaries, 2026-11-02
 
 | Phase | Actual state | Remaining work |
 |---|---|---|
-| A: engine protocol | Go stdio RPC and DTO generator exist; legacy disconnect and console controls pass | Native operation authorization and the full consumer journey remain open |
+| A: engine protocol | Go stdio RPC, generated DTOs, authenticated native sessions and one-shot operation grants exist | Full native acceptance is separate from protocol/component tests |
 | B: scaffold (#343) | Native projects, authenticated assessment RPC, startup UI tests, and five branded preview packages pass hosted component checks. Each installed package shows its palette and logo and refuses Windows builds before 17763. Windows policy refuses elevation for a standard user, and the shell keeps the branded assessment and the retry ([run 38776425860](https://github.com/tuna-os/wootc/actions/runs/38776425860)) | Interactive UAC consent on the secure desktop, proof on build 17763, and preview release assets (#608). The native E2E now installs the real preview installer in the guest ([run 38888315334](https://github.com/tuna-os/wootc/actions/runs/38888315334)) |
 | C: experience (#344) | A read-only startup view, a configuration form, a route for an interrupted install, an install route that needs an engine grant and a confirmation, progress and done views fed by that install session, manage and recovery views whose uninstall and boot repair need their own engine grant in an install session, Linux window views whose VM actions each need an engine grant, UI Automation controls, a screen gallery, and an E2E drive mode (`WOOTC_E2E_DRIVE=1`) that operates these views exist. The GUI E2E can install the native shell in the guest and drive it (`WOOTC_E2E_GUI_FRONTEND=native`, see [Native shell E2E](#native-shell-e2e)). [Run 38857241312](https://github.com/tuna-os/wootc/actions/runs/38857241312) drove a full Windows, deployer, Linux and Windows cycle through it | Consumer screens, VM and migration flows, interactive UAC consent, accessibility, persistence, and the full journey. An unelevated shell with an elevated install engine, installed by the real preview installer, drove a full cycle ([run 38923119161](https://github.com/tuna-os/wootc/actions/runs/38923119161)) |
-| D: release (#345) | Not started | Native default only after C; retain a legacy artifact for one release |
-| E: removal (#346) | Not started | Remove Wails/web frontend only after a clean native release and docs audit |
+| D: release (#345) | Issue closed 2026-10-31; source builds branded Inno native setup as the primary artifact and retains one legacy artifact | A workflow/package definition is not a clean published native release; inspect retained build, install and removal evidence |
+| E: removal (#346) | Wails remains in the source | Remove it only after a clean native release; closing D alone is not that proof |
 
 This preview candidate retains [run 36328543336](https://github.com/tuna-os/wootc/actions/runs/36328543336).
 It tested merge `68e6f452` from head `7aee354`.
@@ -24,7 +26,8 @@ The tests used the same elevated user. They do not prove interactive UAC or inst
 The UAC refusal test uses `ConsentPromptBehaviorUser=0` for a disposable standard user.
 Windows then returns `ERROR_ACCESS_DISABLED_BY_POLICY`, not the `ERROR_CANCELLED` of a No click.
 The shell shows both as a refusal. A No click on the secure desktop has no hosted test.
-The current Wails installer and release assets remain the default.
+The older Wails assets remain the observed latest non-prerelease download;
+main's native release packaging is a separate source fact.
 
 The future preview and results follow the [migration extension plan](specs/migration-extensions.md). Those APIs do not exist in `serve` yet.
 Phase 1 must run Linux inside Windows before native promotion.
@@ -40,10 +43,11 @@ Existing method names and DTO shapes remain stable unless a versioned change rep
 Generate C# DTOs from Go and retain protocol goldens.
 
 Keep `wootc.exe install`, `status`, `uninstall`, `recover`, and stdio `serve`
-for headless tools and tests. The native GUI needs a separate transport adapter.
-A transport adapter must not add a second implementation of install logic.
+for headless tools and tests. The native GUI uses the authenticated named-pipe
+transport and session-scoped authorization described below, not an elevated
+stdio child. Transport adapters must not duplicate install logic.
 
-Proposed layout:
+Source layout:
 
 ```text
 shell/
@@ -55,22 +59,23 @@ shell/
     Drive/                    E2E directives through view-model actions
   Wootc.Shell.Core/            testable state and protocol logic without WinUI
   Wootc.Shell.Tests/           unit/contract tests, including Linux CI
-  Wootc.Shell.UiTest/          Windows UI Automation and screenshot evidence
+  Wootc.Shell.UiTests/         Windows UI Automation and screenshot evidence
 ```
 
 ## Build dependency and OS evidence
 
-On 2026-09-27, Microsoft identifies **2.5.1** as the stable version of
-Windows App SDK. The [download page](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads)
-and [package page](https://www.nuget.org/packages/Microsoft.WindowsAppSDK/2.5.1)
-show that version. The preview pins that package and .NET SDK 8.0.425.
-The hosted run above restored, built, and tested that combination.
-It does not prove the minimum OS in the manifest.
+Current source pins **Windows App SDK 2.6.4** in
+[`Wootc.Shell.csproj`](../shell/Wootc.Shell/Wootc.Shell.csproj) and
+**.NET SDK 10.0.403** in [`global.json`](../shell/global.json), with roll-forward
+disabled. Install that SDK to reproduce the build. The application still
+targets `net8.0-windows10.0.19041.0`; SDK and target framework are different.
+Older hosted runs on this page used earlier pins and do not certify the new
+combination or the minimum OS.
 
 The [SDK support contract](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/support)
 includes backward compatibility to Windows 10 1809, build 17763.
 That does not prove wootc works on that OS.
-The requested `net8.0-windows10.0.19041` compile target and the minimum runtime
+The `net8.0-windows10.0.19041.0` compile target and the minimum runtime
 OS are separate settings. Review `TargetPlatformMinVersion` and
 `SupportedOSPlatformVersion`, then test the actual native package on the
 claimed minimum OS before the user guide adopts that floor.
@@ -87,7 +92,7 @@ redirection needs `UseShellExecute=false`.
 See [Microsoft's process contract](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.useshellexecute)
 and [shell launch verbs](https://learn.microsoft.com/en-us/windows/win32/shell/launch).
 
-Proposed native transport:
+The implemented native transport follows this contract:
 
 1. Start the shell without elevation. Show local brand assets and read-only assessment.
 2. Request UAC only for an operation that needs it. Launch the engine from its trusted absolute path with `runas`.
@@ -113,10 +118,11 @@ These checks need native Windows tests before the transport becomes a release pa
 
 ## Preserve the original person's identity
 
-The old design claimed a fix for alternate-admin UAC through explicit profile fields.
-The current `InstallConfig` has no verified source-user contract.
-Several collectors still read `HKCU` or `USERPROFILE` in the elevated process.
-A supplied path or username is not proof of ownership.
+The native transport captures and revalidates the original user's token;
+profile collection must use that authority rather than a path or username
+supplied by a caller. The legacy installer now refuses when interactive
+identity is unavailable or differs after elevation. `USERPROFILE` or
+`WOOTC_*` hints are not an alternate-admin fallback.
 
 Keep user-specific collection in the original unelevated session where possible.
 Bind exports to the source SID, profile identity, session, plan, and consent.
@@ -186,11 +192,11 @@ Target 1366×768 and low-memory machines as explicit test cohorts.
 
 ## Packaging and offline proof
 
-Phase D makes the native shell setup the primary release artifact. The workflow
-publishes each eligible brand as `<Product>-Installer-Setup.exe` through the
-Inno wrapper. The generic package is `wootc-Installer-Setup.exe`.
-For this release only, `release.yml` keeps one Wails download:
-`wootc-legacy.exe`.
+Phase D's **source workflow** makes native shell setup the primary artifact:
+each eligible brand builds `<Product>-Installer-Setup.exe` through the Inno
+wrapper; the generic name is `wootc-Installer-Setup.exe`. It retains one
+`wootc-legacy.exe` Wails download for the first native release. These names
+describe packaging on main, not assets present in `v0.1.0-alpha.1`.
 
 Keep the Go engine beside the shell and retain the standalone headless asset.
 The native package embeds the public key for release verification. The package
@@ -221,8 +227,32 @@ Do not infer it only from the minimum for Windows App SDK.
 Test Windows 10 and 11 before a change to the product requirements.
 
 MSIX still needs a proven distribution path. Code signatures need one too.
-winget now consumes the Inno setup manifest.
+The checked-in winget manifest targets Inno setup; package review/publication
+is a separate prerequisite, not proof that `winget install` works today.
 A native UI does not remove SmartScreen or code-signature requirements.
+
+The production native engine's Secure Boot provenance derives from the exact
+released shim bytes, signing key and matching source commit through
+`shell/packaging/release-metadata.py`, not an empty/handwritten authority list.
+The package Publisher uses `packaging/brand.py`'s effective identity (including
+unapproved-brand distributor identity); installed-package checks retain
+`publisher-observations.json`. Component fixtures and package assertions still
+do not prove firmware trust or a fresh machine's Apps rendering.
+
+The native plan displays the complete Windows-directory → editable Linux-user
+mapping and warnings. Editing it discards an earlier grant and requires a new
+check; final confirmation repeats the engine-granted mapping. Unsupported TPM
+root encryption is no longer offered; the native default is `none`.
+Hardware warnings remain visible during progress and on Done.
+
+The dedicated `native-proof / native-shell GUI acceptance` E2E job records
+actual UI Automation/CopyFromScreen observations before the confirmation
+button, compares displayed boot evidence independently to Linux QGA and the
+current Windows boot identity, and retains
+`native-gui-soak-proof-<run>-<attempt>` and
+`native-shell-build-<run>-<attempt>` artifacts. This is a source verification
+path, **not** a newly passed native cycle, an RC qualification, or the start
+or completion of a thirty-day soak.
 
 ## Screen gallery
 
@@ -370,6 +400,91 @@ Retain the legacy build until a native release passes its gates, before phase E 
 
 ## Current stdio protocol reference
 
+### Purpose, launch and connection
+
+`wootc.exe serve` is a headless adapter to the same Go engine used by the
+installer. It is a child-process **stdin/stdout** protocol, not an HTTP server:
+there is no TCP port, URL, REST endpoint, or listener option. It does not open
+the GUI. `serve` defines no command-specific flags; additional arguments are
+not a supported configuration API. Use a trusted matching engine build.
+
+For a non-mutating protocol probe in PowerShell:
+
+```powershell
+$requests = @(
+  '{"jsonrpc":"2.0","id":1,"method":"GetStatus"}'
+  '{"jsonrpc":"2.0","id":2,"method":"Shutdown"}'
+)
+$requests | & .\wootc.exe serve 2> .\serve-stderr.log
+```
+
+Use the engine executable's actual path/name if your package calls it
+`wootc-engine.exe`. The child must inherit or have explicitly redirected
+stdin/stdout; drain stdout and stderr independently. Do not use `runas`
+with redirected standard streams. The consumer native shell uses the
+authenticated named-pipe launcher, identity handshake, and configuration or
+install sessions instead. A random pipe name, a supplied username, or a
+successful stdio probe does not authorize a native session.
+
+**Safety:** stdio is a trusted automation interface, not an untrusted local
+service. `StartInstall`, reboot, uninstall, defrag and VM actions can change the
+machine. Elevation, protected state and all engine preconditions still apply.
+Do not use mutating examples on a development workstation.
+
+### Framing, responses and lifetime
+
+- Write one UTF-8 JSON object per line, terminated by LF (CRLF is accepted).
+  Blank lines are ignored. No JSON-RPC batches or `Content-Length` framing are
+  supported. The current reader limit is 10 MiB per line; use small requests.
+- Request envelope:
+  `{"jsonrpc":"2.0","id":1,"method":"GetStatus","params":null}`.
+  Method names are case-sensitive. Use a unique string or integer `id`.
+  Omit `params` for parameterless methods. Native read methods reject any
+  non-null params, even `{}`.
+- Success: `{"jsonrpc":"2.0","id":1,"result":...}`.
+  Void methods return `result:null`. Errors have `error` instead of `result`:
+  `{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"..."}}`.
+  `error.data` is optional; configuration errors can carry diagnostic data.
+- This adapter responds with `id:null` when the request has no `id`; do not
+  rely on JSON-RPC client-notification silence. Malformed JSON uses `id:null`.
+  Unknown JSON object properties are not generally rejected by legacy calls;
+  native plan and confirmation decoders are deliberately stricter.
+- `-32700`: JSON decoding failed; `-32600`: missing/wrong `"2.0"` or empty
+  method; `-32601`: unknown method or unavailable in this session;
+  `-32602`: malformed params; `-32603`: engine failure, policy refusal, changed
+  observations, or unavailable capability. Treat messages as display text,
+  not stable machine-readable codes. An error is not a success receipt.
+- Dispatch is sequential, but install and VM workers emit asynchronous events.
+  Responses and events can be interleaved; route responses by `id` and events
+  by `method`, never by line position.
+- `StartInstall`/`PrepareVM` acceptance does not mean work finished. Read
+  `GetStatus` or VM state and events. `CancelInstall` requests cancellation;
+  `null` does not prove cleanup has completed.
+- `Shutdown` responds with `null` and ends the loop; EOF also ends it. Closing
+  the transport triggers VM shutdown and install cancellation/cleanup. The
+  engine waits for safe cleanup; its 30-second install warning is **not** a
+  deadline after which it kills the worker. Drain stderr until process exit.
+  Exit 0 means the server loop ended normally, not that an install succeeded;
+  a reader error returns exit 1.
+
+### Session availability
+
+The method list below is a union, not a promise that every transport accepts
+every method:
+
+| Session | Allowed surface |
+|---|---|
+| Legacy stdio `serve` | Legacy methods below; native configuration, grants, maintenance, `InspectBoot` and native VM methods are unavailable |
+| Native assessment | `GetStatus`, `GetLastRun`, `GetRecoveryVerdict`, `GetInstallRecovery`; a configuration-capable session additionally permits `GetNativeConfiguration`, `GetNativeInstallSpace` and the three E2E drive methods |
+| Native install-purpose | `GetStatus`, `CancelInstall`, `Shutdown`, grants/confirmations for install, maintenance and VM, plus `GetUninstallInfo`, `InspectBoot`, `GetNativeVMStatus`; `Reboot` only after this session's own successful completed install |
+
+The trusted transport selects these capabilities. A JSON field cannot upgrade
+an assessment session. E2E drive calls remain inert unless the **engine's**
+environment enables `WOOTC_E2E_DRIVE=1`; this is a test facility, not a
+consumer automation API.
+
+### Methods
+
 | Method | Params | Result |
 |---|---|---|
 | `GetSupportPolicy` | — | `SupportPolicy` |
@@ -380,7 +495,7 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `GetInstallSteps` | — | `[]StepDefinition` |
 | `GetNativeConfiguration` | — | `NativeConfigurationSnapshot` |
 | `GetNativeInstallSpace` | image and drive of the last configuration read | `InstallSpace` (configuration session only; the space the image needs beside its disk) |
-| `GetSessionCandidates` | — | as today |
+| `GetSessionCandidates` | — | `[]SessionCandidate` (detection/consent choices, no token material) |
 | `StartInstall` | `InstallConfig` | `null` or error |
 | `PrepareNativeInstall` | `InstallConfig` | `NativeInstallGrant` (install session only; one plan for each session) |
 | `ConfirmNativeInstall` | intent confirmation | `null` or error (install session only; the first attempt uses the intent) |
@@ -404,18 +519,134 @@ Retain the legacy build until a native release passes its gates, before phase E 
 | `E2EDriveDirective` | — | `string` (empty unless the engine runs with `WOOTC_E2E_DRIVE=1`; native shell: configuration session only) |
 | `E2EDriveReport` | `string` | `null` (written only when bound to the current directive; native shell: configuration session only) |
 | `E2EDriveReady` | `string` | `null` (first-render marker, bound to no directive; native shell: configuration session only) |
-| `GetVMCapability` | — | `VMCapability` | Signed runtime and persistent disk availability. |
-| `GetFreshVMCapability` | — | `VMCapability` | Signed runtime and helper availability. |
-| `GetVMState` | — | `VMState` | Durable disk lifecycle; desktop readiness requires independent evidence. |
-| `TryInVMFresh` | image string | — | Legacy call refuses preparation without account details. |
-| `InstallVMRuntime` | — | — | Acquire the signed runtime for this release; no native fallback or existing-runtime replacement. |
-| `PrepareVM` | `VMInstallConfig` | — | Prepare a persistent system with its Linux account, then launch its VM. |
-| `BootInVM` | — | — | Restart the same verified, stopped VM disk. |
-| `StopVM` | — | — | Request guest shutdown; preserve ownership until actual exit. |
-| `ForceStopVM` | — | — | Explicit forced stop; disk requires recovery before reuse. |
-| `Shutdown` | — | `null` (engine exits 0) |
+| `GetVMCapability` | — | `VMCapability` (signed runtime and persistent disk availability) |
+| `GetFreshVMCapability` | — | `VMCapability` (signed runtime and helper availability) |
+| `GetVMState` | — | `VMState` (disk lifecycle, not desktop proof) |
+| `TryInVMFresh` | image string | `null` or error; refuses preparation without account details |
+| `InstallVMRuntime` | — | `null` or error; acquire this release's signed runtime, no replacement of an existing runtime |
+| `PrepareVM` | `VMInstallConfig` | `null` or error; prepare the persistent account/disk, then launch |
+| `BootInVM` | — | `null` or error; restart the verified stopped disk |
+| `StopVM` | — | `null` or error; request guest shutdown, retain ownership until actual exit |
+| `ForceStopVM` | — | `null` or error; forced stop requires recovery before reuse |
+| `Shutdown` | — | `null`; stop the loop, then complete cleanup |
 
 Notifications use `install:progress` and `vm:progress`.
 The native shell uses the versioned VM contract (`NativeVMStatus`, `NativeVMPlan` and `NativeVMGrant`) in an install session.
 Each VM action that changes state needs its own engine grant, and each grant is used once.
 The legacy VM methods stay for the legacy app.
+
+### Parameter schemas
+
+Use JSON field names, not Go/C# property names. Integers must be JSON numbers,
+booleans JSON booleans, and passwords strings. Never log request payloads.
+
+| Type/call | JSON object fields and constraints |
+|---|---|
+| `InstallConfig` / `StartInstall` | `imageRef:string`, `diskSizeGB:integer`, `username:string`, `password:string`, `hostname:string`, `bootloader:string` (`auto`, `grub2`, `systemd-boot`), `composeFs:boolean`, `storageDrive:string` (letter without colon; legacy empty means C), `encryption:string` (`none`, `luks-passphrase`, or currently refused `tpm2-luks`), `luksPassphrase:string`, `windowsLook:boolean`; optional `sessionConsent:object<string,boolean>` is per-app opt-in, optional `profileAccounts:array<ProfileAccount>` is the reviewed complete mapping, optional `faultInject:string` is a test-only boundary |
+| `PrepareNativeInstall` | Same install object **except** `sessionConsent` and `faultInject` are forbidden. Object only, at most 16 KiB; unknown/duplicate/null fields refused. Nonempty image, username, password and storage drive and positive disk size required. Admission further checks policy, image and physical storage observations |
+| `ProfileAccount` | `{"windowsDir":"<observed raw profile directory>","linuxUser":"<reviewed account name>"}`; only Linux account names are editable, all discovered profiles must remain represented, and duplicates/invalid/reserved names refuse |
+| `GetNativeInstallSpace` | `{"imageRef":"<observed ref>","storageDrive":"C"}`; must name one admitted image/drive from the last configuration read |
+| `UninstallOptions` | `{"deleteRootDisk":false,"removePartition":false}`; destructive choices remain subject to engine ownership and safety checks |
+| `NativeMaintenancePlan` | `action:string`: `uninstall`, `repair-boot`, `restore-windows-boot`, `try-again`, or `boot-linux`; `deleteRootDisk:boolean`, `removePartition:boolean` apply only to uninstall |
+| `VMInstallConfig` / `PrepareVM` | `{"imageRef":"<ref>","username":"<Linux user>","password":"<secret>"}`; no implied encryption, Windows-look or session-migration options |
+| `NativeVMPlan` | `action:string`: `install-runtime`, `prepare`, `boot`, `stop`, `force-stop`; only `prepare` includes `imageRef:string`, `username:string`, `password:string` |
+| `TryInVMFresh`, `E2EDriveReport`, `E2EDriveReady` | String params; report/ready accept serialized report text, not an arbitrary JSON report object |
+
+Legacy object parameters also accept `[object]`, using only the first element.
+Legacy string params accept a string, `[string]`, or `{"state":"..."}` /
+`{"report":"..."}`. New clients should send the direct object or string;
+native plan/confirmation contracts do **not** accept positional arrays.
+
+The native install grant returns `schemaVersion`, `session`, `brandId`,
+`intentId`, admitted `imageRef`, `storageDrive`, `diskSizeGB`, `encryption`,
+`bitLockerOn`, `bitLockerRecoveryKeyWarning`, `fastStartupOn`, and
+`secureBootChainWarning`, `profileAccounts` and `profileWarnings`. Display the
+engine's grant and mapping before confirmation; do not manufacture a grant
+from the form. Confirmation is:
+
+```json
+{"jsonrpc":"2.0","id":12,"method":"ConfirmNativeInstall","params":{"kind":"confirm-install","protocolVersion":1,"session":"<grant.session>","brandId":"<grant.brandId>","intentId":"<grant.intentId>"}}
+```
+
+Maintenance/VM confirmations have those same binding fields plus the granted
+`action`, using `kind:"confirm-maintenance"` / `"confirm-vm"` and their
+respective method names. Session and intent IDs are engine-issued 32-character
+lowercase hex. All confirmation fields are required, unknown/duplicate fields
+are refused, and confirmations are limited to 4096 bytes. The first attempt
+consumes its intent even if refused. Install/maintenance preparation is
+one-shot per session, including a failed prepare; a changed plan needs a new
+session. VM actions each need a fresh grant; a new VM prepare replaces an
+unconfirmed grant. Engine observations and original-user identity are checked
+again before mutation.
+
+### Results, schemas and event payloads
+
+The complete wire schema is the Go structs' **`json` tags**, with corresponding
+`JsonPropertyName` attributes in the generated
+[`Dto.cs`](../shell/Wootc.Shell/Engine/Dto.cs). `omitempty` fields may be absent;
+do not interpret omission as proof of success. Go pointers can be `null`;
+nil slices not explicitly normalized by a method can also be `null`.
+`GetImages` and `GetSessionCandidates` explicitly normalize to `[]`.
+
+This map covers every result and nested schema used by the methods above:
+
+| Contract | Canonical definition / example |
+|---|---|
+| `SupportPolicy`, `SystemInfo`, `DataPartition`, `Branding`, `UninstallInfo`, `UninstallOptions` | [`app.go`](../app/app.go), [golden DTO JSON](../app/testdata/dto/) |
+| `ReleaseNotice` (`version:string`, `url:string`; no notice has both strings empty) | [`release_notice.go`](../app/release_notice.go) |
+| `Image`, `InstallConfig`, `InstallStatus`, `ProgressEvent`, `ProfileAccount` | [`install_contract.go`](../app/install_contract.go), [`profiles.go`](../app/profiles.go), [golden DTO JSON](../app/testdata/dto/) |
+| `StepDefinition` (`id`, `owner`, `label`, all strings) | [`steps_gen.go`](../app/steps_gen.go); generated phase vocabulary, not prose matching |
+| `SessionCandidate` (`app`, `kind`, `portable`, `recommend`, `note`, `consentRequired`) | [`session.go`](../app/session.go), [candidate example](../app/testdata/dto/session_candidate.json) |
+| `NativeConfigurationSnapshot`, image/default/bundle/storage records | [`native_configuration.go`](../app/native_configuration.go), [configuration fixture](../tests/unit/fixtures/native-gallery/configuration.json) |
+| `InstallSpace` (`imageRef`, `compressedBytes`, `sizeSource`, `scratchGiB`, `bundleGiB`, `reserveGiB`) | [`install_space.go`](../app/install_space.go); reserve is space **beside** the Linux disk |
+| `NativeInstallGrant` | [`native_install_session.go`](../app/native_install_session.go) |
+| `NativeMaintenancePlan`, `NativeMaintenanceGrant` | [`native_maintenance.go`](../app/native_maintenance.go), [maintenance exchanges](../tests/unit/fixtures/native-maintenance/responses.ndjson) |
+| `BootRepairReport` | [`boot_repair.go`](../app/boot_repair.go); observation includes saved evidence, not repair success |
+| `NativeVMCapability`, `NativeVMStatus`, `NativeVMPlan`, `NativeVMGrant` | [`native_vm.go`](../app/native_vm.go), [VM exchanges](../tests/unit/fixtures/native-vm/responses.ndjson) |
+| `LifecycleState` | [`state.go`](../app/state.go), [lifecycle example](../app/testdata/dto/lifecycle_state.json) |
+| `RecoveryVerdict` | [`recovery.go`](../app/recovery.go) |
+| `InstallRecoverySummary`, `InstallRecoveryActions` | [`status_install_recovery.go`](../app/status_install_recovery.go); native response is a safe summary, not raw journal evidence |
+| `VMInstallConfig` | [`vm_account.go`](../app/vm_account.go) |
+| `VMCapability` | [`vm_windows.go`](../app/vm_windows.go), [non-Windows definition](../app/vm_other.go) |
+| `VMState`, `VMEvent` | [`vm_lifecycle.go`](../app/vm_lifecycle.go), [`app.go`](../app/app.go), [event example](../app/testdata/dto/vm_event.json) |
+
+An illustrative status exchange (values vary with the engine's observation):
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"GetStatus"}
+{"jsonrpc":"2.0","id":1,"result":{"running":false,"done":false,"existing":false}}
+```
+
+Notifications omit `id`. Install progress carries `ProgressEvent`:
+
+```json
+{"jsonrpc":"2.0","method":"install:progress","params":{"phaseId":"image-pull","step":"Downloading Linux","message":"Downloading Linux…","percent":50,"done":false}}
+```
+
+`phaseId` and `error` may be absent. The example is a shape illustration, not
+an observed run. `vm:progress` carries `VMEvent` (`stage:string`,
+`percent:number`, `message:string`). A progress
+percentage, helper exit or running QEMU process does not establish login,
+desktop readiness or successful migration. Read the durable lifecycle and
+independent evidence before reporting completion.
+
+### Contributor testing patterns
+
+- Protocol behavior and JSON goldens: from `app`, run `go test ./...`.
+  `serve_test.go`, `serve_assessment_test.go`, `serve_shutdown_test.go` and
+  native session tests exercise decoding, routing, refusal, and cleanup.
+  Add behavioral requests/responses, not source-text assertions.
+- After an intentional Go DTO change, run `go generate ./...` from `app` and
+  review generated DTO changes. Use `go test . -run TestDTOGoldens -update`
+  only when deliberately updating the golden contract; a new golden is not
+  runtime evidence.
+- Cross-platform shell logic: `dotnet test shell/Wootc.Shell.Tests/Wootc.Shell.Tests.csproj`
+  and `dotnet test shell/Wootc.Shell.NativeTests/Wootc.Shell.NativeTests.csproj`.
+  Recorded exchanges and the gallery are suitable for screen/blocked-state
+  development, but do not prove Windows transport, elevation or installation.
+- On an isolated Windows fixture, use the real installed matching engine and
+  native shell, then run the native E2E lane described above. Include malformed
+  and replayed grants, cancel/EOF during an armed operation, and restart/recovery.
+  Observe cleanup and Windows return; a successful `Shutdown` response alone
+  proves neither. Interactive UAC, minimum OS, offline setup, accessibility,
+  consumer hardware and RC screenshots retain their own acceptance gates.

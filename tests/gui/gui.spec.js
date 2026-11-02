@@ -322,11 +322,67 @@ test('migration dashboard — files, apps, office', async ({ page }) => {
   await expect(page.getByText('Connected to Windows').first()).toBeVisible(); // bridged
   // Apps section with honest per-app badges.
   await expect(page.getByText('Your apps')).toBeVisible();
-  await expect(page.getByText('✓ Signed in').first()).toBeVisible();  // firefox/telegram
+  await expect(page.getByText('Data moved').first()).toBeVisible(); // no live verification
+  await expect(page.getByText('✓ Signed in')).toHaveCount(0);
   await expect(page.getByText('Re-link needed')).toBeVisible();        // signal
   // Office section.
   await expect(page.getByText('Microsoft Office → LibreOffice')).toBeVisible();
   await shot(page, '06-migration-dashboard');
+});
+
+test('session outcomes — only verified imported results receive signed-in badges', async ({ page }) => {
+  const apps = [
+    { app: 'chrome', session: 'staged', note: 'Encrypted envelope only', verified: false },
+    { app: 'edge', session: 'rewritten', note: 'Database rewrite only', verified: false },
+    { app: 'spotify', session: 'failed', note: 'Service unsupported', verified: false },
+    { app: 'telegram', session: 'portable', note: 'Files copied', verified: false },
+    { app: 'discord', session: 'imported', note: 'Unverified ledger claim', verified: false },
+  ];
+  await boot(page, { mode: 'migration', apps });
+  await expect(page.getByText('✓ Signed in')).toHaveCount(0);
+  await expect(page.getByText('Staged — sign-in unverified')).toBeVisible();
+  await expect(page.getByText('Rewritten — sign-in unverified')).toBeVisible();
+  await expect(page.getByText('Import failed — sign in once')).toBeVisible();
+});
+
+test('session outcome — explicit verified imported GUI fixture', async ({ page }) => {
+  await boot(page, { mode: 'migration', apps: [{
+    app: 'chrome', session: 'imported', verified: true, note: 'Explicit GUI verification fixture',
+  }] });
+  await expect(page.getByText('✓ Signed in')).toBeVisible();
+});
+
+test('session import — explicit consent, masked one-shot password, honest rewrite', async ({ page }) => {
+  await boot(page, {
+    mode: 'migration',
+    apps: [{ app: 'chrome', session: 'staged', note: 'Encrypted key only',
+      consentAvailable: true, consent: false, verified: false }],
+  });
+  const action = page.getByRole('button', { name: 'Import staged session' });
+  await expect(action).toBeDisabled();
+  await page.getByText('Allow session copy').locator('input').check();
+  await expect(action).toBeEnabled();
+  await action.click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(await page.evaluate(() => window.__wootcSessionImports || [])).toEqual([]);
+  await action.click();
+  await dialog.getByLabel('Target Chrome installation').selectOption('flatpak');
+  await dialog.getByLabel('Target Chrome password store').selectOption('secret-service');
+  const password = dialog.getByLabel('Linux vault password chosen during installation');
+  await expect(password).toHaveAttribute('type', 'password');
+  await password.fill('disposable-gui-fixture');
+  page.once('dialog', d => d.accept());
+  await dialog.getByRole('button', { name: 'Unlock and import selected app' }).click();
+  await expect(page.getByText('Rewritten — sign-in unverified')).toBeVisible();
+  await expect(page.getByText('✓ Signed in')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const calls = await page.evaluate(() => window.__wootcSessionImports);
+  expect(calls).toEqual([{
+    app: 'chrome', consent: true, backend: 'secret-service', packaging: 'flatpak',
+    sourceProfile: 'Default', targetProfile: 'Default', passwordProvided: true,
+  }]);
+  expect(JSON.stringify(await page.evaluate(() => window.__WOOTC_STATE || {}))).not.toContain('disposable-gui-fixture');
 });
 
 test('installer — custom OCI ref defaults to auto backend detection', async ({ page }) => {

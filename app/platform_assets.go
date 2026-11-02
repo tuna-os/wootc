@@ -5,8 +5,10 @@ import "embed"
 //go:embed grub/*.cfg
 var platformAssets embed.FS
 
-// catalogJSON is the built-in image catalog. C:\wootc\images.json overrides it
-// at runtime for custom/enterprise deployments (see GetImages).
+// catalogPolicyJSON owns wootc presentation, support status, and reviewed
+// bootloader/MOK policy. Shared identities and backends come from the pinned
+// upstream source embedded in catalog_sources.go, not data/images.json (the
+// generated compatibility artifact used by packaging and E2E tooling).
 //
-//go:embed data/images.json
-var catalogJSON []byte
+//go:embed data/catalog-policy.json
+var catalogPolicyJSON []byte

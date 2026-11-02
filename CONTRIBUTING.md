@@ -23,10 +23,75 @@ Never post account credentials or API keys in issues or pull requests.
 3. Check the build/test matrix in `docs/status.md` for known-good and
    known-red cells. Do this before you blame a symptom on your change.
 
+## Prerequisites
+
+Clone with submodules, or initialize them after cloning:
+
+```bash
+git submodule update --init --recursive
+```
+
+The fast tier runs in Bash without a container or VM. Install all four lanes
+below; the runner skips a lane when its executable is missing.
+
+| Tool | Installation and version source | Fast-tier lane |
+|---|---|---|
+| [just](https://just.systems/man/en/packages.html) | Follow the package instructions for your platform, or use `cargo install --locked just` with Rust installed. The repository does not pin a just version. | Recipe launcher; optional when invoking `bash tests/run.sh fast` directly |
+| [Bats](https://bats-core.readthedocs.io/en/stable/installation.html) | Debian/Ubuntu: `sudo apt-get install bats`; Fedora: `sudo dnf install bats`; macOS: `brew install bats-core`. No Bats minimum is pinned. | `bats tests/unit/*.bats` |
+| [Python 3](https://www.python.org/downloads/) | Debian/Ubuntu: `sudo apt-get install python3`; Fedora: `sudo dnf install python3`; macOS: `brew install python`. Use Python **3.11 or later** for the package consumer controls, as required by `ci-tests.yml`; there is no single repository-wide Python pin. | Each `tests/unit/test_*.py`, directly, without pytest |
+| [Go](https://go.dev/doc/install) | Use the official installer/archive or your platform package manager. `app/go.mod` declares **1.26.0**; the fast CI job selects **1.27**. Use that CI toolchain to match CI, and honor each submodule's own `go.mod`. | `go test ./...` in `app`, `fisherman/tui`, and `fisherman/fisherman` |
+| [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) | Follow the Linux, macOS, or Windows instructions and make **`pwsh`** available in Bash's `PATH`. Windows PowerShell's `powershell.exe` is not the runner's executable. No PowerShell version is pinned for this tier. | `tests/lint-ps1.ps1` and each `tests/unit/test-*.ps1` |
+
+The fixtures also use standard Unix tools such as `rsync`, `jq`, QEMU's
+common/GUI utilities and `binutils`; individual suites may need additional
+tools. For Debian/Ubuntu, a useful starting set is:
+
+```bash
+sudo apt-get update
+sudo apt-get install bats python3 rsync jq qemu-system-common qemu-system-gui binutils
+```
+
+Install Go, PowerShell and just through the linked instructions; this command
+does not install them. macOS can run suitable portable lanes, but some fixtures
+exercise Linux utilities. On Windows, use a Linux development environment
+(for example WSL) for the Bash fast tier; Windows-specific engine and WinUI
+tests still require Windows. Native shell development has separate .NET and
+Windows SDK requirements in [the shell guide](docs/winui-shell.md).
+
+### Containers and Linux/KVM E2E are separate
+
+- Install [Podman](https://podman.io/docs/installation) for `just test-slow`.
+  On macOS/Windows, follow its `podman machine init` / `podman machine start`
+  setup. A Podman machine is not proof that the project's privileged Linux
+  integration tests or nested Windows/KVM E2E are supported on that host.
+- For a Linux VM host, install QEMU utilities (`sudo apt-get install qemu-utils`
+  on Debian/Ubuntu, `sudo dnf install qemu-img` on Fedora). Confirm with
+  `qemu-img --version`. See [QEMU downloads](https://www.qemu.org/download/).
+- `/dev/kvm` is a **Linux kernel capability**, not a downloadable tool. Enable
+  CPU virtualization in firmware, then check:
+
+  ```bash
+  test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
+  ```
+
+  If the device is absent, load the appropriate module (`sudo modprobe kvm_intel`
+  or `sudo modprobe kvm_amd`). If access is denied, follow your distribution's
+  KVM group policy (commonly `sudo usermod -aG kvm "$USER"`, then log out and
+  back in). A VM host also needs nested virtualization exposed by its provider.
+  See [KVM setup](https://www.linux-kvm.org/page/RunningKVM).
+- macOS and Windows do not expose Linux `/dev/kvm` directly. Full hosted E2E
+  uses the project's dedicated remote hosts and credentials; installing these
+  packages does not grant access. Read [agent lessons](docs/agent-lessons.md)
+  and [E2E architecture](docs/e2e-architecture.md) before using that lane.
+
+There are no repository-pinned Podman or QEMU minimum versions. Record the
+versions actually used with evidence rather than inventing compatibility
+guarantees.
+
 ## Building and testing
 
-`just --list` shows all targets (needs `just`; the E2E targets also need
-`podman`, `qemu-img`, and `/dev/kvm`).
+`just --list` shows all targets. The prerequisites above distinguish the local
+fast tier from container and VM work.
 
 The fast, no-container red-green loop for day-to-day changes:
 
@@ -34,10 +99,11 @@ The fast, no-container red-green loop for day-to-day changes:
 just test          # or: tests/run.sh fast
 ```
 
-This runs the bats unit suites (payload gates/transforms) plus `go test` for
-the cross-platform Go packages. Windows-tagged Go (`app/*_windows.go`) only
-builds on Windows by design, so this tier covers the platform-independent
-code.
+This runs the Bats, Python, PowerShell and Go lanes listed above. **A `PASSED`
+summary with `!! ... skipping ...` warnings does not prove every suite ran.**
+Retain the lane headers and skip warnings when reporting results. Windows-tagged
+Go (`app/*_windows.go`) only runs on Windows; a Linux fast-tier pass does not
+prove the Windows engine or the WinUI interface.
 
 Containerized integration tests (User Data Bridge, WSL, go-native gates) run
 in a privileged Fedora container and need `podman`:
@@ -89,3 +155,7 @@ wootc is dual-licensed under GPL-2.0 and MIT (see `LICENSE-GPL-2.0` and
 
 Questions or stuck? Open an issue, or ask on
 [Matrix #tunaos](https://matrix.to/#/%23tunaos:reilly.asia).
+
+Use the [documentation index](docs/README.md) to find role-specific references.
+For deployment evaluation rather than source development, start with the
+[IT-admin quick start](docs/it-admin-quick-start.md).
